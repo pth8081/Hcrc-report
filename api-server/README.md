@@ -32,7 +32,15 @@ node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
 ```
 
 Chạy `api-db/schema.sql` trên CSDL `HCRC_API` (một lần — an toàn chạy lại
-nhiều lần). Tạo tài khoản quản trị đầu tiên cho `api-admin/`:
+nhiều lần).
+
+Tài khoản CSDL dùng trong `.env` (`ADMIN_USER`, `DWH_USER`) nên tạo với
+quyền tối thiểu chứ không phải tài khoản `sa`/`db_owner` — xem mẫu tham khảo
+`api-db/grants.sql` (CSDL của chính api-server) và `dwh/grants.sql` (CSDL
+DWH, chỉ đọc) ở thư mục gốc repo. Cả 2 file KHÔNG tự chạy, cần DBA xem lại
+và đổi mật khẩu mẫu trước khi dùng.
+
+Tạo tài khoản quản trị đầu tiên cho `api-admin/`:
 
 ```bash
 npm run seed:admin -- ten-dang-nhap mat-khau "Họ Tên" admin
@@ -234,6 +242,18 @@ bên kia từ chối. Khởi động sẽ LỖI NGAY nếu secret còn là giá 
 kiểm tra `X-Timestamp` trong cửa sổ ±5 phút, một request bị chặn bắt vẫn gửi
 lại y nguyên được nhiều lần trong cửa sổ đó với chữ ký vẫn hợp lệ.
 `lib/hmacAuth.js` giờ nhớ chữ ký ĐÃ DÙNG, từ chối nếu thấy lại.
+
+**CORS cho `/api/v1/*`** (`lib/corsAllowlist.js`, biến `CORS_ALLOWED_ORIGINS`)
+— TẮT MẶC ĐỊNH, không set header CORS gì cả (giữ nguyên hành vi trước khi có
+tính năng này). Đa số đối tác gọi API server-to-server (mobile app, backend
+khác, script) — không có `Origin` header, CORS không liên quan gì tới họ. Chỉ
+bật khi một đối tác thật sự cần gọi thẳng `/api/v1/*` bằng JS chạy trong
+trình duyệt trên domain của họ: liệt kê CHÍNH XÁC từng origin được phép trong
+`CORS_ALLOWED_ORIGINS` (phân cách dấu phẩy), vd
+`https://doitac-a.com,https://app.doitac-b.vn` — KHÔNG có tuỳ chọn "*"
+(cho phép mọi origin), vì `/api/v1/*` xác thực bằng API key/HMAC/OAuth token,
+lộ cho origin bất kỳ đọc được là lộ khả năng gọi thay đối tác đó. Không áp
+dụng cho `/admin/*` (luôn same-origin qua Nginx, không cần CORS).
 
 **Giới hạn thời gian tầng HTTP server** (`server.requestTimeout`/
 `headersTimeout`/`timeout` trong `server.js`) — chống client cố tình gửi

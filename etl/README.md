@@ -36,7 +36,15 @@ node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
 ```
 
 Chạy `etl-db/schema.sql` trên CSDL `HCRC_ETL` (một lần — an toàn chạy lại
-nhiều lần). Tạo tài khoản quản trị đầu tiên cho `etl-admin/`:
+nhiều lần).
+
+Tài khoản CSDL dùng trong `.env` (`ADMIN_USER`, `DWH_USER`) nên tạo với
+quyền tối thiểu chứ không phải tài khoản `sa`/`db_owner` — xem mẫu tham khảo
+`etl-db/grants.sql` (CSDL của chính etl) và `dwh/grants.sql` (CSDL DWH, ETL
+được GHI) ở thư mục gốc repo. Cả 2 file KHÔNG tự chạy, cần DBA xem lại và
+đổi mật khẩu mẫu trước khi dùng.
+
+Tạo tài khoản quản trị đầu tiên cho `etl-admin/`:
 
 ```bash
 npm run seed:admin -- ten-dang-nhap mat-khau "Họ Tên" admin

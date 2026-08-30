@@ -5,6 +5,36 @@ Server, API Server và các giao diện quản trị) — tăng ở mỗi lần 
 `main`, theo kiểu semver không chặt (patch cho fix nhỏ, minor cho tính năng
 mới, major khi đổi cấu trúc phá vỡ tương thích ngược).
 
+## 0.17.0 — Rà soát bảo mật/hiệu năng (Giai đoạn 3)
+
+Nốt các mục còn lại của đợt rà soát bảo mật + hiệu năng trước khi public
+`api-server`/`rp-server` ra Internet — 24 test mới.
+
+- **Pin thuật toán JWT tường minh** (`algorithms: ['HS256']`) ở MỌI lệnh gọi
+  `jwt.verify` (phiên admin cả 3 service, OAuth2 access token api-server,
+  phiên rp-user) — phòng thủ chiều sâu chống tấn công đổi thuật toán ký
+  (algorithm confusion), dù thư viện `jsonwebtoken` hiện đại đã mặc định an
+  toàn hơn các bản cũ.
+- **Chặn NaN/âm cho `page`/`pageSize`** ở MỌI route còn thiếu (đã sửa ở giai
+  đoạn 0 cho `rp-server` `/reports/:id/run`, giờ thêm `api-server`
+  `/api/v1/reports/:id/run` và `/api/v1/realtime/:endpoint/list`) — trước
+  đây `parseInt(x || '1', 10)` với `x` là chuỗi không phải số (vd
+  `?pageSize=abc`) vẫn ra `NaN` (chỉ `''`/`undefined` mới rơi về `'1'` đúng
+  cách), truyền `NaN` xuống `OFFSET`/`FETCH NEXT` của SQL Server.
+- **CORS tuỳ chọn cho `/api/v1/*`** (`api-server/lib/corsAllowlist.js`, biến
+  `CORS_ALLOWED_ORIGINS`) — TẮT MẶC ĐỊNH (không đổi hành vi hiện tại), chỉ
+  bật khi operator khai rõ từng origin cần cho phép gọi thẳng từ trình duyệt
+  (không có tuỳ chọn "*"). Không áp cho `/admin/*`.
+- **Chặn kích thước cache AST công thức** (`lib/formulaEngine.js`, cả
+  rp-server và api-server) — `astCache` trước đây là `Map` không giới hạn,
+  giờ chặn tối đa 500 mục theo kiểu LRU (Map giữ thứ tự chèn, không cần thư
+  viện ngoài).
+- **Thêm mẫu GRANT quyền tối thiểu** — `dwh/grants.sql`, `etl-db/grants.sql`,
+  `api-db/grants.sql`, `rp-db/grants.sql` (KHÔNG tự chạy, DBA xem lại + đổi
+  mật khẩu mẫu trước khi dùng) — khớp đúng tên tài khoản đã khai trong
+  `.env.example` từng service, chỉ cấp quyền lên đúng schema mỗi tài khoản
+  thật sự cần, không dùng `sa`/`db_owner`.
+
 ## 0.16.0 — Hiệu năng cho traffic công khai (Giai đoạn 2)
 
 Theo kết quả rà soát hiệu năng — chuẩn bị cho `api-server`/`rp-server` nhận

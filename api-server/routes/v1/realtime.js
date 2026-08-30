@@ -41,8 +41,11 @@ router.get('/:endpoint/list', async (req, res, next) => {
     if (!(await assertConsumerCanAccessEndpoint(req.consumer.id, req.params.endpoint))) {
       return res.status(403).json({ error: 'Đối tác chưa được cấp quyền gọi endpoint realtime này' });
     }
-    const page = Math.max(parseInt(req.query.page || '1', 10), 1);
-    const pageSize = Math.min(parseInt(req.query.pageSize || '200', 10), 1000);
+    // parseInt(x, 10) || fallback (KHÔNG phải parseInt(x || '1', 10)) — giá
+    // trị không phải số (vd "abc") ra NaN, chỉ "NaN || fallback" mới đúng
+    // rơi về fallback. Math.max(1, ...) chặn luôn giá trị âm/0.
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const pageSize = Math.min(Math.max(1, parseInt(req.query.pageSize, 10) || 200), 1000);
     const data = await runList(req.params.endpoint, { page, pageSize });
     res.json(data);
   } catch (err) {

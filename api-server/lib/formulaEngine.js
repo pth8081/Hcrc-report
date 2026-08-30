@@ -228,12 +228,25 @@ function evalNode(node, resolveField) {
 
 // Cache AST theo chuỗi công thức — cùng 1 công thức được parse lại rất nhiều
 // lần (mỗi dòng dữ liệu trong 1 lượt chạy báo cáo), không cần parse lại mỗi lần.
+// Chặn TRÊN kích thước (LRU, Map giữ đúng thứ tự chèn nên không cần thư viện
+// ngoài) — công thức do admin định nghĩa trong DefinitionJson nên số lượng
+// thực tế nhỏ, nhưng tiến trình chạy dài ngày qua nhiều lượt sửa báo cáo vẫn
+// không nên để Map phình vô hạn không giới hạn.
+const AST_CACHE_MAX = 500;
 const astCache = new Map();
 function parseFormula(formula) {
-  if (!astCache.has(formula)) {
-    astCache.set(formula, parse(tokenize(formula)));
+  if (astCache.has(formula)) {
+    const ast = astCache.get(formula);
+    astCache.delete(formula);
+    astCache.set(formula, ast); // đưa lên "gần dùng nhất" — xoá theo LRU khi đầy
+    return ast;
   }
-  return astCache.get(formula);
+  const ast = parse(tokenize(formula));
+  if (astCache.size >= AST_CACHE_MAX) {
+    astCache.delete(astCache.keys().next().value); // xoá mục cũ nhất (ít dùng nhất)
+  }
+  astCache.set(formula, ast);
+  return ast;
 }
 
 // resolveField(path: string[]) => giá trị field — nơi gọi (reportEngine.js)

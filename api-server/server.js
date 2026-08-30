@@ -28,6 +28,7 @@ const adminHistoryRoutes = require('./routes/admin/history');
 const adminStatsRoutes = require('./routes/admin/stats');
 const { requestLogger } = require('./lib/requestLogger');
 const { adminIpAllowlist } = require('./lib/adminIpAllowlist');
+const { corsAllowlist } = require('./lib/corsAllowlist');
 const { cleanupRequestLog } = require('./jobs/cleanupRequestLog');
 
 const app = express();
@@ -67,6 +68,11 @@ app.use(cookieParser());
 // hiệu hoá hoàn toàn giới hạn. Giới hạn RIÊNG theo từng đối tác (đọc đúng
 // RateLimitPerMinute đã cấu hình) áp dụng SAU khi xác thực xong, trong
 // lib/apiAuth.js — đây chỉ là lớp chặn spam nặc danh chung.
+// CORS — TẮT MẶC ĐỊNH (CORS_ALLOWED_ORIGINS rỗng = không set header, giữ
+// nguyên hành vi cũ), chỉ bật khi operator khai rõ origin cần cho phép (xem
+// lib/corsAllowlist.js). Đặt TRƯỚC rate limit/requestLogger để preflight
+// OPTIONS không tốn hạn mức/tạo log rác.
+app.use('/api/v1', corsAllowlist);
 app.use('/api/v1', rateLimit({
   windowMs: 60 * 1000,
   limit: parseInt(process.env.RATE_LIMIT_PER_MINUTE || '120', 10),

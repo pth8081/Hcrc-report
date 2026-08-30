@@ -69,8 +69,13 @@ router.get('/:reportId/run', async (req, res, next) => {
     const { columns, error } = filterColumnsByFields(definition.columns, req.query.fields);
     if (error) return res.status(400).json({ error });
 
-    const page = parseInt(req.query.page || '1', 10);
-    const pageSize = Math.min(parseInt(req.query.pageSize || '200', 10), 1000);
+    // parseInt(...) || fallback (không phải "|| '1'" TRƯỚC KHI parseInt) —
+    // giá trị không phải số (vd "abc") cho NaN, "NaN || fallback" mới đúng
+    // rơi về fallback; nếu "|| '1'" áp TRƯỚC thì parseInt('abc') vẫn ra NaN
+    // (chuỗi rỗng/undefined mới dùng được default kiểu đó). Math.max(1, ...)
+    // chặn luôn giá trị âm/0.
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const pageSize = Math.min(Math.max(1, parseInt(req.query.pageSize, 10) || 200), 1000);
 
     const filters = {};
     for (const f of definition.filters || []) {
