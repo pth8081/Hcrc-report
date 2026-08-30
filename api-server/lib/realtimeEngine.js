@@ -4,10 +4,15 @@
 // 1 route viết cứng" (inventory/loyalty/vouchers) — endpoint mới chỉ cần
 // admin CHỌN bảng/cột qua lib/schemaBrowser.js, không đụng code.
 //
-// Toàn bộ tên bảng/cột đã được xác nhận tồn tại thật lúc lưu định nghĩa (qua
-// schemaBrowser.js, gọi từ routes/admin/dataSources.js) — kiểm tra định dạng
-// dưới đây (assertSafeIdentifier) chỉ là lớp phòng thủ thứ hai, giống hệt
-// etl/lib/tableSyncEngine.js.
+// Tên bảng/cột THƯỜNG đến từ lib/schemaBrowser.js (giao diện api-admin cho
+// chọn qua dropdown duyệt schema thật, không gõ tay) — nhưng
+// routes/admin/realtimeEndpoints.js (validatePayload) KHÔNG tự đối chiếu
+// lại với schema thật lúc lưu, chỉ kiểm tra định dạng qua
+// assertSafeIdentifier bên dưới. Vì vậy assertSafeIdentifier là LỚP CHỐNG
+// CHÈN SQL DUY NHẤT ở tầng server (áp dụng lúc lưu VÀ lúc chạy — 2 nơi gọi
+// hàm này) — tên sai/không tồn tại vẫn qua được (lỗi SQL "invalid object
+// name" bình thường lúc chạy), nhưng không có ký tự nào ngoài chữ/số/gạch
+// dưới lọt được vào câu SQL. Giống hệt etl/lib/tableSyncEngine.js.
 const { sql, getPool } = require('../db');
 const { getPoolForDataSource } = require('./dataSourcePool');
 

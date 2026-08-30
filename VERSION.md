@@ -5,6 +5,24 @@ Server, API Server và các giao diện quản trị) — tăng ở mỗi lần 
 `main`, theo kiểu semver không chặt (patch cho fix nhỏ, minor cho tính năng
 mới, major khi đổi cấu trúc phá vỡ tương thích ngược).
 
+## 0.21.5 — Soát SQL injection (etl/rp-server/api-server) — không có lỗ hổng
+
+Rà soát toàn bộ 3 hệ thống — KHÔNG phát hiện lỗ hổng SQL injection nào.
+Mọi giá trị đều qua `.input()`/`@param` (mssql) hoặc named placeholder
+(mysql2); 2 nơi DUY NHẤT phải ghép tên bảng/cột thẳng vào câu SQL (không
+tham số hoá được định danh) — `etl/lib/tableSyncEngine.js` và
+`api-server/lib/realtimeEngine.js` — đều bắt buộc qua `assertSafeIdentifier`
+(regex `^[A-Za-z0-9_]+$`) trên MỌI định danh trước khi ghép, không có
+đường nào bỏ qua.
+
+- **Sửa comment sai lệch** (không phải lỗi bảo mật, chỉ sai mô tả) — cả 2
+  file trên từng ghi "tên bảng/cột đã xác nhận tồn tại thật lúc lưu (qua
+  schemaBrowser.js)", nhưng route lưu cấu hình thực tế KHÔNG tự đối chiếu
+  lại với schema thật (chỉ kiểm tra định dạng, hoặc không kiểm tra gì ở
+  `etl/routes/admin/syncJobs.js`) — sửa lại đúng thực tế: tên sai/không
+  tồn tại chỉ lộ ra lúc CHẠY (lỗi SQL "invalid object name" bình thường,
+  không phải injection).
+
 ## 0.21.4 — portal/: danh mục ứng dụng dạng dữ liệu, dễ thêm ứng dụng mới
 
 - **`portal/src/apps.js`** (mới) — danh mục ứng dụng portal hiển thị, mỗi
