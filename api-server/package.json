@@ -1,0 +1,20 @@
+{
+  "name": "hcrc-api-server",
+  "version": "0.1.0",
+  "description": "API Server HCRC — cổng dữ liệu cho hệ thống ngoài: báo cáo tổng hợp (Data Warehouse) + tra cứu realtime (OLTP)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "compression": "^1.8.1",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "express-rate-limit": "^8.6.2",
+    "mssql": "^11.0.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
