@@ -53,13 +53,16 @@ export default function DataSourcesPage() {
     }
   }
 
+  // Lưu xong route TỰ ĐỘNG test kết nối luôn (không cần bấm "Kiểm tra kết
+  // nối" trước nữa) — không chặn lưu nếu kết nối lỗi, chỉ hiển thị kết quả
+  // ngay để tự sửa hoặc để đó chờ hạ tầng sẵn sàng.
   async function createSource(e) {
     e.preventDefault();
     setError('');
     try {
-      await api.post('/data-sources', form);
+      const result = await api.post('/data-sources', form);
       setForm(EMPTY_FORM);
-      setTestResult('');
+      setTestResult(result.connectionTest?.ok ? '✅ Đã lưu, kết nối thành công' : `⚠️ Đã lưu, nhưng kết nối lỗi: ${result.connectionTest?.error}`);
       reload();
     } catch (err) { setError(err.message); }
   }
@@ -126,6 +129,16 @@ export default function DataSourcesPage() {
                 <>
                   <p>⚠️ {importResult.rowErrors.length} dòng bị bỏ qua:</p>
                   <ul>{importResult.rowErrors.map((e, i) => <li key={i}>{e}</li>)}</ul>
+                </>
+              )}
+              {importResult.connectionResults?.length > 0 && (
+                <>
+                  <p>Kết quả kiểm tra kết nối từng dòng vừa ghi:</p>
+                  <ul>
+                    {importResult.connectionResults.map((c, i) => (
+                      <li key={i}>{c.ok ? '✅' : '⚠️'} {c.name}{c.ok ? '' : `: ${c.error}`}</li>
+                    ))}
+                  </ul>
                 </>
               )}
             </div>

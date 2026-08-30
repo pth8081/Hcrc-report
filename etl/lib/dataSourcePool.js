@@ -55,11 +55,39 @@ async function invalidate(id) {
   }
 }
 
-// Thử một cấu hình CHƯA lưu — nút "Kiểm tra kết nối" trên form thêm/sửa nguồn.
+// Thử một cấu hình CHƯA lưu — nút "Kiểm tra kết nối" trên form thêm/sửa nguồn,
+// và tự động gọi lại SAU KHI lưu (routes/admin/dataSources.js) để báo ngay kết
+// nối thành công hay chưa, không bắt admin bấm riêng.
 async function testConnection({ engine, server, port, database, user, password, encrypt, trustServerCert }) {
   const adapter = getAdapter(engine);
   const pool = await adapter.createPool({ server, port, database, user, password, encrypt, trustServerCert });
   await adapter.close(pool);
 }
 
-module.exports = { getConnection, invalidate, testConnection };
+// Test NHIỀU cấu hình cùng lúc, giới hạn số kết nối thử song song (mặc định
+// 5) — dùng cho nhập hàng loạt (vd 33 chi nhánh): không thử tuần tự (quá
+// chậm, mỗi cấu hình sai có thể mất hết thời gian chờ timeout mới báo lỗi)
+// cũng không thử toàn bộ cùng lúc (dễ quá tải phía nguồn/mạng). Không chặn gì
+// cả — luôn trả đủ kết quả cho từng item theo ĐÚNG thứ tự items, item nào lỗi
+// chỉ đánh dấu {ok:false, error}, không làm hỏng các item khác.
+async function testConnectionsBatch(items, concurrency = 5) {
+  const results = new Array(items.length);
+  let cursor = 0;
+  async function worker() {
+    for (;;) {
+      const i = cursor++;
+      if (i >= items.length) return;
+      try {
+        await testConnection(items[i].config);
+        results[i] = { name: items[i].name, ok: true };
+      } catch (err) {
+        results[i] = { name: items[i].name, ok: false, error: err.message };
+      }
+    }
+  }
+  const workerCount = Math.min(concurrency, items.length);
+  await Promise.all(Array.from({ length: workerCount }, worker));
+  return results;
+}
+
+module.exports = { getConnection, invalidate, testConnection, testConnectionsBatch };

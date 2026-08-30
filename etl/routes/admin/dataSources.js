@@ -3,19 +3,39 @@
 // KHÔNG BAO GIỜ trả về nguyên văn; sửa mà không gửi password thì giữ nguyên
 // giá trị mã hoá cũ.
 //
+// POST/PUT tự động gọi testConnection() NGAY sau khi lưu — không bắt admin
+// bấm riêng nút "Kiểm tra kết nối" nữa. KHÔNG chặn lưu nếu kết nối lỗi (vd
+// khai báo trước cấu hình khi DB/firewall chưa mở kịp vẫn lưu được) — chỉ trả
+// kèm `connectionTest: {ok, error?}` để admin biết ngay, tự quyết định sửa
+// lại hay để đó chờ hạ tầng sẵn sàng.
+//
 // POST /import — tạo/cập nhật HÀNG LOẠT qua file Excel (xem
 // lib/dataSourcesImport.js) — dành cho khi cần khai báo nhiều nguồn cùng
 // cấu trúc (vd hàng chục chi nhánh) mà không muốn bấm form từng cái, hoặc
 // muốn script hoá việc cấp phát/đổi cấu hình kết nối. Khoá để cập nhật thay
 // vì tạo trùng là "Name" — chạy lại file với 1 dòng sửa thì chỉ dòng đó đổi.
+// Cũng test kết nối cho TỪNG dòng ngay sau khi ghi (song song có giới hạn,
+// xem testConnectionsBatch) — trả `connectionResults` theo tên từng dòng,
+// không chặn ghi dòng nào.
 const express = require('express');
 const multer = require('multer');
 const { sql, getPool } = require('../../db');
 const { requireAdminAuth, requireAdminRole } = require('../../lib/adminAuth');
-const { encrypt } = require('../../lib/crypto');
-const { invalidate, testConnection } = require('../../lib/dataSourcePool');
+const { encrypt, decrypt } = require('../../lib/crypto');
+const { invalidate, testConnection, testConnectionsBatch } = require('../../lib/dataSourcePool');
 const schemaBrowser = require('../../lib/schemaBrowser');
 const { parseDataSourcesFile, upsertDataSources } = require('../../lib/dataSourcesImport');
+
+// Chạy testConnection() nhưng KHÔNG BAO GIỜ throw — dùng ngay sau khi lưu,
+// lỗi kết nối không được làm hỏng response lưu-thành-công.
+async function tryTestConnection(config) {
+  try {
+    await testConnection(config);
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+}
 
 const router = express.Router();
 router.use(requireAdminAuth);
@@ -64,7 +84,12 @@ router.post('/', requireAdminRole, async (req, res, next) => {
         OUTPUT INSERTED.Id
         VALUES (@name, @engine, @server, @port, @databaseName, @username, @passwordEncrypted, @encryptConn, @trustServerCert)
       `);
-    res.status(201).json({ id: result.recordset[0].Id });
+    const id = result.recordset[0].Id;
+    const connectionTest = await tryTestConnection({
+      engine, server, port: port || (engine === 'mysql' ? 3306 : 1433), database: databaseName,
+      user: username, password, encrypt: enc !== false, trustServerCert
+    });
+    res.status(201).json({ id, connectionTest });
   } catch (err) { next(err); }
 });
 
@@ -73,14 +98,14 @@ router.put('/:id', requireAdminRole, async (req, res, next) => {
     const { name, server, port, databaseName, username, password, encrypt: enc, trustServerCert, isActive } = req.body || {};
     const pool = await getPool('ADMIN');
 
-    let passwordEncrypted;
-    if (password) {
-      passwordEncrypted = encrypt(password);
-    } else {
-      const existing = await pool.request().input('id', sql.Int, req.params.id)
-        .query('SELECT PasswordEncrypted FROM etl.DataSources WHERE Id = @id');
-      passwordEncrypted = existing.recordset[0]?.PasswordEncrypted;
-    }
+    // Luôn đọc Engine hiện có (không đổi được qua PUT — xem chú thích đầu
+    // file) để dùng cho testConnection() sau khi lưu; PasswordEncrypted chỉ
+    // dùng khi PUT không kèm password mới (giữ nguyên mật khẩu cũ).
+    const existing = await pool.request().input('id', sql.Int, req.params.id)
+      .query('SELECT Engine, PasswordEncrypted FROM etl.DataSources WHERE Id = @id');
+    if (!existing.recordset.length) return res.status(404).json({ error: 'Không tìm thấy nguồn dữ liệu' });
+    const { Engine: engine, PasswordEncrypted: existingPasswordEncrypted } = existing.recordset[0];
+    const passwordEncrypted = password ? encrypt(password) : existingPasswordEncrypted;
 
     await pool.request()
       .input('id', sql.Int, req.params.id)
@@ -101,7 +126,11 @@ router.put('/:id', requireAdminRole, async (req, res, next) => {
         WHERE Id = @id
       `);
     await invalidate(parseInt(req.params.id, 10));
-    res.json({ ok: true });
+    const connectionTest = await tryTestConnection({
+      engine, server, port, database: databaseName, user: username,
+      password: password || decrypt(passwordEncrypted), encrypt: enc !== false, trustServerCert
+    });
+    res.json({ ok: true, connectionTest });
   } catch (err) { next(err); }
 });
 
@@ -142,7 +171,13 @@ router.post('/import', requireAdminRole, upload.single('file'), async (req, res,
     const pool = await getPool('ADMIN');
     const result = await upsertDataSources(pool, rows);
     await Promise.all(result.ids.map(id => invalidate(id)));
-    res.json({ inserted: result.inserted, updated: result.updated, rowErrors });
+
+    const connectionResults = await testConnectionsBatch(rows.map(r => ({
+      name: r.name,
+      config: { engine: r.engine, server: r.server, port: r.port, database: r.databaseName, user: r.username, password: r.password, encrypt: r.encrypt, trustServerCert: r.trustServerCert }
+    })));
+
+    res.json({ inserted: result.inserted, updated: result.updated, rowErrors, connectionResults });
   } catch (err) { next(err); }
 });
 

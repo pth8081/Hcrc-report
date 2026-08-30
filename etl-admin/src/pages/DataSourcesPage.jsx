@@ -54,20 +54,28 @@ export default function DataSourcesPage() {
     }
   }
 
+  // Lưu xong route TỰ ĐỘNG test kết nối luôn (không cần bấm "Kiểm tra kết
+  // nối" trước nữa) — không chặn lưu nếu kết nối lỗi, chỉ hiển thị kết quả
+  // ngay để tự sửa hoặc để đó chờ hạ tầng sẵn sàng.
+  function renderConnectionTest(connectionTest) {
+    if (!connectionTest) return '';
+    return connectionTest.ok ? '✅ Đã lưu, kết nối thành công' : `⚠️ Đã lưu, nhưng kết nối lỗi: ${connectionTest.error}`;
+  }
+
   async function createSource(e) {
     e.preventDefault();
     setError('');
     try {
-      await api.post('/data-sources', form);
+      const result = await api.post('/data-sources', form);
       setForm(EMPTY_FORM);
-      setTestResult('');
+      setTestResult(renderConnectionTest(result.connectionTest));
       reload();
     } catch (err) { setError(err.message); }
   }
 
   async function toggleActive(source) {
     try {
-      await api.put(`/data-sources/${source.Id}`, {
+      const result = await api.put(`/data-sources/${source.Id}`, {
         name: source.Name,
         server: source.Server,
         port: source.Port,
@@ -78,6 +86,7 @@ export default function DataSourcesPage() {
         isActive: !source.IsActive
         // password bỏ trống -> route giữ nguyên mật khẩu đã lưu
       });
+      setTestResult(renderConnectionTest(result.connectionTest));
       reload();
     } catch (err) { setError(err.message); }
   }
@@ -94,6 +103,7 @@ export default function DataSourcesPage() {
     <div className="page">
       <h1>Nguồn dữ liệu</h1>
       {error && <p className="form-error">{error}</p>}
+      {testResult && <p>{testResult}</p>}
 
       {isAdmin && (
         <form className="stacked-form" onSubmit={createSource}>
@@ -113,7 +123,6 @@ export default function DataSourcesPage() {
             <button type="button" onClick={testConnection}>Kiểm tra kết nối</button>
             <button type="submit">Lưu nguồn dữ liệu</button>
           </div>
-          {testResult && <p>{testResult}</p>}
         </form>
       )}
 
@@ -149,6 +158,16 @@ export default function DataSourcesPage() {
                 <>
                   <p>⚠️ {importResult.rowErrors.length} dòng bị bỏ qua:</p>
                   <ul>{importResult.rowErrors.map((e, i) => <li key={i}>{e}</li>)}</ul>
+                </>
+              )}
+              {importResult.connectionResults?.length > 0 && (
+                <>
+                  <p>Kết quả kiểm tra kết nối từng dòng vừa ghi:</p>
+                  <ul>
+                    {importResult.connectionResults.map((c, i) => (
+                      <li key={i}>{c.ok ? '✅' : '⚠️'} {c.name}{c.ok ? '' : `: ${c.error}`}</li>
+                    ))}
+                  </ul>
                 </>
               )}
             </div>

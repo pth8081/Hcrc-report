@@ -1,11 +1,19 @@
 // modules/system/email-schedules/EmailSchedulesPage.jsx — Trang "Lịch gửi
-// email báo cáo": CRUD app.ReportEmailSchedules. Lịch chạy (cron) được dựng
-// qua giao diện ĐƠN GIẢN (tần suất + giờ + thứ trong tuần) thay vì bắt gõ cú
-// pháp cron tay — xem buildCron()/parseCronToSimple(). Bộ lọc cố định của
-// từng lịch đổi theo filters của báo cáo đã chọn: lọc kiểu 'dateRange' chỉ
-// cho chọn PRESET tương đối (hôm nay/7 ngày qua/...) — không cho ngày cố
-// định, vì báo cáo gửi lặp lại hàng ngày cần dữ liệu tính lại mỗi lần chạy,
-// không phải cùng 1 khoảng ngày mãi mãi (xem rp-server/lib/reportEmailFilters.js).
+// email báo cáo": CRUD app.ReportEmailSchedules + app.ReportEmailScheduleTimes.
+// MỘT lịch có THỂ có NHIỀU giờ gửi/ngày (vd 07:00 VÀ 17:00) — "số lần gửi" là
+// ĐỘ DÀI danh sách giờ gửi, không có ô đếm riêng. Lịch chạy (cron) của MỖI
+// giờ được dựng qua giao diện ĐƠN GIẢN dùng CHUNG tần suất/thứ trong tuần cho
+// cả lịch (chỉ giờ khác nhau — đúng nhu cầu thường gặp: cùng đối tượng nhận,
+// gửi nhiều lần/ngày) thay vì bắt gõ cú pháp cron tay — xem
+// buildCron()/parseCronToSimple(). Muốn mỗi giờ gửi một kiểu ngày HOÀN TOÀN
+// khác nhau (vd giờ này chỉ gửi thứ 2, giờ kia gửi cuối tuần) thì chuyển
+// sang "Nâng cao", nhập trực tiếp danh sách biểu thức cron.
+//
+// Bộ lọc cố định của từng lịch đổi theo filters của báo cáo đã chọn: lọc
+// kiểu 'dateRange' chỉ cho chọn PRESET tương đối (hôm nay/7 ngày qua/...) —
+// không cho ngày cố định, vì báo cáo gửi lặp lại hàng ngày cần dữ liệu tính
+// lại mỗi lần chạy, không phải cùng 1 khoảng ngày mãi mãi (xem
+// rp-server/lib/reportEmailFilters.js).
 import { useEffect, useState } from 'react';
 import { api } from '../../../lib/api';
 import DataTable from '../../../components/DataTable';
@@ -36,11 +44,10 @@ function buildCron({ frequency, time, weekdays }) {
   return `${mm} ${hh} * * *`;
 }
 
-// Đọc ngược cron -> {frequency,time,weekdays} cho form ĐƠN GIẢN — chỉ nhận
-// dạng cron do chính buildCron() ở trên tạo ra (phút/giờ là số đơn, ngày
-// tháng/tháng luôn '*'). Cron phức tạp hơn (dải giờ, bước nhảy, nhập tay từ
-// trước) không đọc lại được -> trả null, giao diện chuyển sang chế độ "Nâng
-// cao" hiện nguyên chuỗi cron thay vì cố suy diễn sai.
+// Đọc ngược cron -> {frequency,time,weekdays} — chỉ nhận dạng cron do chính
+// buildCron() ở trên tạo ra (phút/giờ là số đơn, ngày tháng/tháng luôn '*').
+// Cron phức tạp hơn (dải giờ, bước nhảy, nhập tay từ trước) không đọc lại
+// được -> trả null.
 function parseCronToSimple(cronExpr) {
   const parts = String(cronExpr || '').trim().split(/\s+/);
   if (parts.length !== 5) return null;
@@ -62,26 +69,57 @@ function cronToLabel(cronExpr) {
 function emptyScheduleForm() {
   return {
     name: '', reportId: '', recipients: '', exportFormat: 'excel',
-    cronMode: 'simple', frequency: 'daily', time: '07:00', weekdays: [1],
-    rawCron: '', filterValues: {}
+    cronMode: 'simple', frequency: 'daily', weekdays: [1],
+    times: ['07:00'], rawCrons: [''],
+    filterValues: {}
   };
 }
 
+// "Số lần gửi" của lịch = độ dài mảng cron sinh ra ở đây, không có field đếm
+// riêng để tránh lệch số với danh sách thật.
+function buildCronList(form) {
+  if (form.cronMode === 'advanced') return form.rawCrons.map(c => c.trim()).filter(Boolean);
+  return form.times.filter(Boolean).map(time => buildCron({ frequency: form.frequency, time, weekdays: form.weekdays }));
+}
+
 // Suy ra state form từ 1 dòng lịch đã có (mở modal Sửa) — cronMode 'simple'
-// nếu đọc ngược cron được, ngược lại 'advanced' hiện nguyên chuỗi.
+// chỉ khi TẤT CẢ giờ gửi đọc ngược được VÀ cùng tần suất/thứ trong tuần
+// (khác thời gian nhau) — ngược lại 'advanced' hiện nguyên danh sách cron.
 function scheduleToForm(row) {
-  const simple = parseCronToSimple(row.CronExpression);
-  return {
-    name: row.Name, reportId: row.ReportId, recipients: row.Recipients, exportFormat: row.ExportFormat,
-    cronMode: simple ? 'simple' : 'advanced',
-    frequency: simple?.frequency || 'daily', time: simple?.time || '07:00', weekdays: simple?.weekdays?.length ? simple.weekdays : [1],
-    rawCron: simple ? '' : row.CronExpression,
-    filterValues: row.FilterValues || {}
-  };
+  const crons = (row.Times || []).map(t => t.CronExpression);
+  const parsed = crons.map(parseCronToSimple);
+  const allSimple = crons.length > 0 && parsed.every(Boolean);
+  const sameShape = allSimple && parsed.every(p => p.frequency === parsed[0].frequency && JSON.stringify(p.weekdays) === JSON.stringify(parsed[0].weekdays));
+
+  const base = { name: row.Name, reportId: row.ReportId, recipients: row.Recipients, exportFormat: row.ExportFormat, filterValues: row.FilterValues || {} };
+  if (sameShape) {
+    return { ...base, cronMode: 'simple', frequency: parsed[0].frequency, weekdays: parsed[0].weekdays.length ? parsed[0].weekdays : [1], times: parsed.map(p => p.time), rawCrons: [''] };
+  }
+  return { ...base, cronMode: 'advanced', frequency: 'daily', weekdays: [1], times: ['07:00'], rawCrons: crons.length ? crons : [''] };
 }
 
 function toggleWeekday(weekdays, value) {
   return weekdays.includes(value) ? weekdays.filter(w => w !== value) : [...weekdays, value].sort();
+}
+
+// Danh sách "giờ gửi" (chế độ đơn giản) hoặc "biểu thức cron" (nâng cao) —
+// thêm/xoá tự do, ít nhất phải còn 1 dòng.
+function RepeatableTimesField({ label, values, onChange, renderInput, newValue }) {
+  function update(i, value) { const next = [...values]; next[i] = value; onChange(next); }
+  function add() { onChange([...values, newValue]); }
+  function remove(i) { onChange(values.filter((_, idx) => idx !== i)); }
+  return (
+    <div className="repeatable-list">
+      <span>{label} ({values.length} lần/ngày)</span>
+      {values.map((v, i) => (
+        <div key={i} className="inline-actions">
+          {renderInput(v, (value) => update(i, value))}
+          {values.length > 1 && <button type="button" onClick={() => remove(i)}>Xoá</button>}
+        </div>
+      ))}
+      <button type="button" onClick={add}>+ Thêm giờ gửi</button>
+    </div>
+  );
 }
 
 // Ô cấu hình bộ lọc cố định, đổi theo filters của báo cáo đã chọn — dùng
@@ -180,16 +218,22 @@ function ScheduleFormFields({ form, setForm, reports, reportLocked }) {
               ))}
             </div>
           )}
-          <label>
-            Giờ gửi
-            <input type="time" value={form.time} onChange={(e) => setForm({ ...form, time: e.target.value })} required />
-          </label>
+          <RepeatableTimesField
+            label="Giờ gửi"
+            values={form.times}
+            onChange={(times) => setForm({ ...form, times })}
+            newValue="07:00"
+            renderInput={(value, onChange) => <input type="time" value={value} onChange={(e) => onChange(e.target.value)} required />}
+          />
         </>
       ) : (
-        <label>
-          Biểu thức cron (phút giờ ngày tháng thứ)
-          <input value={form.rawCron} onChange={(e) => setForm({ ...form, rawCron: e.target.value })} placeholder="vd 0 7 * * *" required />
-        </label>
+        <RepeatableTimesField
+          label="Biểu thức cron (phút giờ ngày tháng thứ)"
+          values={form.rawCrons}
+          onChange={(rawCrons) => setForm({ ...form, rawCrons })}
+          newValue=""
+          renderInput={(value, onChange) => <input value={value} onChange={(e) => onChange(e.target.value)} placeholder="vd 0 7 * * *" required />}
+        />
       )}
 
       <label>
@@ -214,8 +258,22 @@ function ScheduleFormFields({ form, setForm, reports, reportLocked }) {
   );
 }
 
-function resolvedCron(form) {
-  return form.cronMode === 'advanced' ? form.rawCron : buildCron(form);
+function TimesStatusList({ times }) {
+  if (!times?.length) return null;
+  return (
+    <ul className="times-list">
+      {times.map(t => (
+        <li key={t.Id}>
+          {cronToLabel(t.CronExpression)}
+          {t.LastRunAt && (
+            t.LastStatus === 'FAILED'
+              ? <span className="form-error" title={t.LastError || ''}> ⛔ {new Date(t.LastRunAt).toLocaleString('vi-VN')}</span>
+              : <span> ✅ {new Date(t.LastRunAt).toLocaleString('vi-VN')}</span>
+          )}
+        </li>
+      ))}
+    </ul>
+  );
 }
 
 export default function EmailSchedulesPage() {
@@ -237,7 +295,7 @@ export default function EmailSchedulesPage() {
     setError(''); setMessage('');
     try {
       await api.post('/system/report-email-schedules', {
-        name: form.name, reportId: form.reportId, cronExpression: resolvedCron(form),
+        name: form.name, reportId: form.reportId, cronExpressions: buildCronList(form),
         recipients: form.recipients, exportFormat: form.exportFormat, filterValues: form.filterValues
       });
       setForm(emptyScheduleForm());
@@ -250,7 +308,7 @@ export default function EmailSchedulesPage() {
     try {
       const f = editing.form;
       await api.put(`/system/report-email-schedules/${editing.id}`, {
-        name: f.name, cronExpression: resolvedCron(f), recipients: f.recipients,
+        name: f.name, cronExpressions: buildCronList(f), recipients: f.recipients,
         exportFormat: f.exportFormat, filterValues: f.filterValues, isActive: f.isActive
       });
       setEditing(null);
@@ -263,7 +321,7 @@ export default function EmailSchedulesPage() {
     try {
       const f = scheduleToForm(row);
       await api.put(`/system/report-email-schedules/${row.Id}`, {
-        name: f.name, cronExpression: resolvedCron(f), recipients: f.recipients,
+        name: f.name, cronExpressions: buildCronList(f), recipients: f.recipients,
         exportFormat: f.exportFormat, filterValues: f.filterValues, isActive: !row.IsActive
       });
       reload();
@@ -293,8 +351,9 @@ export default function EmailSchedulesPage() {
       <h1>Lịch gửi email báo cáo</h1>
       <p>
         Gửi tự động MỘT báo cáo cho danh sách người nhận theo lịch — dùng cấu hình SMTP chung ở trang
-        &quot;Thiết lập email&quot;. Bộ lọc theo khoảng ngày dùng PRESET tương đối (hôm nay/7 ngày qua...),
-        tính lại đúng lúc gửi — không cố định một ngày mãi mãi.
+        &quot;Thiết lập email&quot;. Một lịch có thể gửi NHIỀU lần/ngày (vd 07:00 và 17:00) — thêm bao
+        nhiêu giờ gửi tuỳ ý, mỗi giờ theo dõi thành công/lỗi RIÊNG. Bộ lọc theo khoảng ngày dùng PRESET
+        tương đối (hôm nay/7 ngày qua...), tính lại đúng lúc gửi — không cố định một ngày mãi mãi.
       </p>
       {error && <p className="form-error">{error}</p>}
       {message && <p className="form-success">{message}</p>}
@@ -308,12 +367,12 @@ export default function EmailSchedulesPage() {
         columns={[
           { key: 'Name', label: 'Tên lịch' },
           { key: 'ReportTitle', label: 'Báo cáo' },
-          { key: 'CronExpression', label: 'Lịch chạy', render: (r) => cronToLabel(r.CronExpression) },
+          { key: 'Times', label: 'Giờ gửi', render: (r) => <TimesStatusList times={r.Times} /> },
           { key: 'Recipients', label: 'Người nhận' },
           { key: 'ExportFormat', label: 'Định dạng', render: (r) => (r.ExportFormat === 'pdf' ? 'PDF' : 'Excel') },
           { key: 'IsActive', label: 'Trạng thái', render: (r) => (r.IsActive ? 'Hoạt động' : 'Tắt') },
           {
-            key: 'LastRun', label: 'Lần gửi gần nhất', render: (r) => {
+            key: 'LastRun', label: 'Hoạt động gần nhất (mọi giờ gửi)', render: (r) => {
               if (!r.LastRunAt) return 'Chưa gửi lần nào';
               const time = new Date(r.LastRunAt).toLocaleString('vi-VN');
               if (r.LastStatus === 'FAILED') return <span className="form-error" title={r.LastError || ''}>⛔ {time}</span>;

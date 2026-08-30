@@ -328,6 +328,16 @@ GO
 -- ngày. Các loại lọc khác dùng { "kind": "fixed", "value": "..." } — xem
 -- rp-server/lib/reportEmailFilters.js (áp dụng) và
 -- rp-server/jobs/reportEmailScheduler.js (chạy lịch, node-cron).
+-- CronExpression/LastRunAt/LastStatus/LastError trên CHÍNH bảng này giờ là
+-- CỘT CŨ/KHÔNG CÒN LÀ NGUỒN THẬT — từ khi có app.ReportEmailScheduleTimes
+-- (1 lịch = NHIỀU giờ gửi, mỗi giờ có CronExpression + LastRunAt/LastStatus/
+-- LastError RIÊNG), CronExpression ở đây chỉ còn lưu giờ gửi ĐẦU TIÊN (hiển
+-- thị/tương thích ngược, không phải điều etl/rp-server dùng để đặt lịch thật
+-- nữa), còn LastRunAt/LastStatus/LastError được CẬP NHẬT SONG SONG bởi MỌI
+-- giờ gửi thuộc lịch này — coi là "lần gửi gần nhất bất kỳ giờ nào" cho tiện
+-- xem nhanh, muốn biết đúng giờ nào thành công/lỗi thì xem
+-- app.ReportEmailScheduleTimes. KHÔNG xoá các cột này (tránh ALTER phá vỡ dữ
+-- liệu cũ) — xem rp-server/jobs/reportEmailScheduler.js.
 IF OBJECT_ID('app.ReportEmailSchedules', 'U') IS NULL
 BEGIN
     CREATE TABLE app.ReportEmailSchedules (
@@ -346,6 +356,35 @@ BEGIN
         LastError        NVARCHAR(1000) NULL
     );
 END
+GO
+
+-- 1 lịch gửi = NHIỀU giờ gửi/ngày (vd 07:00 VÀ 17:00) — mỗi giờ 1 dòng ở đây,
+-- CronExpression riêng, LastRunAt/LastStatus/LastError RIÊNG (biết chính xác
+-- giờ nào thành công/lỗi, không gộp chung như trước). Xoá lịch (app.ReportEmailSchedules)
+-- tự xoá hết giờ gửi con (ON DELETE CASCADE).
+IF OBJECT_ID('app.ReportEmailScheduleTimes', 'U') IS NULL
+BEGIN
+    CREATE TABLE app.ReportEmailScheduleTimes (
+        Id             INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        ScheduleId     INT            NOT NULL REFERENCES app.ReportEmailSchedules(Id) ON DELETE CASCADE,
+        CronExpression VARCHAR(50)    NOT NULL,
+        LastRunAt      DATETIME2(3)   NULL,
+        LastStatus     VARCHAR(20)    NULL,
+        LastError      NVARCHAR(1000) NULL,
+        CreatedAt      DATETIME2(3)   NOT NULL DEFAULT SYSUTCDATETIME()
+    );
+    CREATE INDEX IX_ReportEmailScheduleTimes_ScheduleId ON app.ReportEmailScheduleTimes(ScheduleId);
+END
+GO
+
+-- Di dời dữ liệu CŨ (1 lịch = 1 giờ gửi, lưu ở CronExpression của
+-- app.ReportEmailSchedules) sang bảng con mới — idempotent, chỉ chèn cho lịch
+-- CHƯA có dòng nào trong app.ReportEmailScheduleTimes (an toàn chạy lại
+-- nhiều lần, và không đụng gì tới lịch được tạo mới sau khi đã có bảng con).
+INSERT INTO app.ReportEmailScheduleTimes (ScheduleId, CronExpression, LastRunAt, LastStatus, LastError)
+SELECT s.Id, s.CronExpression, s.LastRunAt, s.LastStatus, s.LastError
+FROM app.ReportEmailSchedules s
+WHERE NOT EXISTS (SELECT 1 FROM app.ReportEmailScheduleTimes t WHERE t.ScheduleId = s.Id);
 GO
 
 IF OBJECT_ID('app.AuditLog', 'U') IS NULL

@@ -80,6 +80,9 @@ async function invalidate(id) {
   }
 }
 
+// Test một cấu hình CHƯA lưu — nút "Kiểm tra kết nối", và tự động gọi lại SAU
+// KHI lưu (routes/admin/dataSources.js) để báo ngay kết nối thành công hay
+// chưa, không bắt admin bấm riêng.
 async function testConnection({ server, port, database, user, password, encrypt, trustServerCert }) {
   const pool = new sql.ConnectionPool({
     server, port, database, user, password,
@@ -91,4 +94,27 @@ async function testConnection({ server, port, database, user, password, encrypt,
   await pool.close();
 }
 
-module.exports = { getPoolForDataSource, listActivePoolStats, invalidate, testConnection };
+// Test NHIỀU cấu hình cùng lúc, giới hạn số kết nối thử song song — xem chú
+// thích tương ứng ở etl/lib/dataSourcePool.js (cùng quy ước). Dùng cho nhập
+// hàng loạt.
+async function testConnectionsBatch(items, concurrency = 5) {
+  const results = new Array(items.length);
+  let cursor = 0;
+  async function worker() {
+    for (;;) {
+      const i = cursor++;
+      if (i >= items.length) return;
+      try {
+        await testConnection(items[i].config);
+        results[i] = { name: items[i].name, ok: true };
+      } catch (err) {
+        results[i] = { name: items[i].name, ok: false, error: err.message };
+      }
+    }
+  }
+  const workerCount = Math.min(concurrency, items.length);
+  await Promise.all(Array.from({ length: workerCount }, worker));
+  return results;
+}
+
+module.exports = { getPoolForDataSource, listActivePoolStats, invalidate, testConnection, testConnectionsBatch };

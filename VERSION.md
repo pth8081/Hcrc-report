@@ -5,6 +5,75 @@ Server, API Server và các giao diện quản trị) — tăng ở mỗi lần 
 `main`, theo kiểu semver không chặt (patch cho fix nhỏ, minor cho tính năng
 mới, major khi đổi cấu trúc phá vỡ tương thích ngược).
 
+## 0.23.0 — Tự động test kết nối lúc lưu + nhiều giờ gửi email/lịch
+
+Hai tính năng độc lập, gộp chung 1 bản merge.
+
+### Tự động test kết nối (etl-admin + api-admin)
+
+Lưu nguồn dữ liệu (tạo/sửa 1 nguồn, hoặc nhập hàng loạt) giờ TỰ ĐỘNG gọi
+`testConnection()` ngay sau khi ghi — không cần bấm riêng nút "Kiểm tra kết
+nối" trước nữa. **KHÔNG chặn lưu** nếu kết nối lỗi (quyết định có chủ đích —
+đôi khi cấu hình được khai báo trước khi DB/firewall đích thật sự mở), chỉ
+trả kèm kết quả để admin biết ngay và tự quyết định sửa hay để đó.
+
+- **`etl/lib/dataSourcePool.js`, `api-server/lib/dataSourcePool.js`** — thêm
+  `testConnectionsBatch(items, concurrency=5)`: test NHIỀU cấu hình song
+  song có giới hạn (không thử tuần tự — quá chậm cho hàng chục chi nhánh;
+  không thử toàn bộ cùng lúc — dễ quá tải), lỗi 1 item không ảnh hưởng các
+  item khác, kết quả LUÔN đúng thứ tự items dù thứ tự hoàn thành khác nhau.
+- **`etl/routes/admin/dataSources.js`, `api-server/routes/admin/dataSources.js`**
+  — POST/PUT trả kèm `connectionTest: {ok, error?}`; POST /import trả kèm
+  `connectionResults: [{name, ok, error?}]` theo tên từng dòng vừa ghi
+  (test dùng đúng mật khẩu PLAINTEXT của dòng đó trước khi mã hoá, không
+  cần đọc lại DB). PUT khi không gửi password mới thì giải mã mật khẩu cũ
+  để test (etl còn phải đọc lại Engine hiện có — PUT không cho đổi Engine).
+- **`etl-admin/api-admin` `DataSourcesPage.jsx`** — hiển thị kết quả ngay
+  sau khi lưu/nhập, không cần thao tác thêm.
+- 20 test độc lập (`fakeModule`): giới hạn song song đúng, thứ tự kết quả
+  đúng, lỗi cô lập, không chặn lưu khi kết nối lỗi, PUT dùng đúng mật khẩu
+  giải mã + Engine hiện có, import trả `connectionResults` đúng tên dòng.
+
+### Nhiều giờ gửi email/lịch (rp-server + rp-user)
+
+Một lịch gửi email báo cáo giờ có thể gửi **nhiều lần/ngày** (vd 07:00 VÀ
+17:00), mỗi giờ gửi theo dõi thành công/lỗi RIÊNG (không gộp chung 1 lần
+gửi gần nhất như trước).
+
+- **`rp-db/schema.sql`** — bảng con `app.ReportEmailScheduleTimes`
+  (`ScheduleId` FK `ON DELETE CASCADE`, `CronExpression`, `LastRunAt`,
+  `LastStatus`, `LastError` RIÊNG cho từng giờ gửi). Di dời dữ liệu
+  `CronExpression` cũ của `app.ReportEmailSchedules` sang bảng con
+  (idempotent — chỉ chèn cho lịch chưa có dòng nào). **Không xoá** cột cũ
+  trên bảng cha (tránh ALTER phá vỡ dữ liệu/parse-order khi DROP COLUMN
+  trong script idempotent) — giờ chỉ còn là cột hiển thị/tương thích ngược,
+  `LastRunAt/LastStatus/LastError` ở đó được CẢ MỌI giờ gửi cùng cập nhật,
+  coi là "lần gửi gần nhất bất kỳ giờ nào" cho tiện xem nhanh.
+- **`rp-server/jobs/reportEmailScheduler.js`** — viết lại: `scheduledTasks`
+  giờ khoá theo `TimeId` (1 lịch N giờ gửi = N cron task độc lập, trước đây
+  1 lịch = 1 task). `runningSchedules` (chặn chồng lượt) vẫn khoá theo
+  `ScheduleId` — 2 giờ gửi CÙNG lịch chặn lẫn nhau (tránh gửi trùng email
+  cho cùng người nhận nếu report chạy lâu hơn khoảng cách 2 giờ gửi).
+  `rescheduleJob(scheduleId)` bỏ đăng ký MỌI giờ gửi thuộc lịch đó rồi nạp
+  lại đúng danh sách hiện có. `runNow()` ("Gửi ngay") KHÔNG gắn với giờ gửi
+  cụ thể nào — chỉ cập nhật lịch cha.
+- **`rp-server/routes/reportEmailSchedules.js`** — body POST/PUT đổi từ
+  `cronExpression` (1 chuỗi) sang `cronExpressions` (mảng). PUT cập nhật
+  danh sách giờ gửi kiểu DIFF (giữ nguyên + lịch sử của giờ không đổi, chỉ
+  xoá giờ bị bỏ/thêm giờ mới) thay vì xoá hết ghi lại. GET trả kèm `Times`
+  (mảng giờ gửi + trạng thái riêng từng giờ).
+- **`rp-user/.../EmailSchedulesPage.jsx`** — "Giờ gửi" từ 1 ô thành danh
+  sách Thêm/Xoá tự do (chế độ Đơn giản: cùng tần suất/thứ trong tuần, chỉ
+  giờ khác nhau — đúng nhu cầu thường gặp; chế độ Nâng cao: danh sách biểu
+  thức cron thô, mỗi giờ gửi có thể khác hẳn kiểu ngày nếu cần). "Số lần
+  gửi" = độ dài danh sách, không có ô đếm riêng. Bảng danh sách lịch hiện
+  từng giờ gửi kèm trạng thái thành công/lỗi riêng.
+- 11 test độc lập (`fakeModule`, node-cron giả lập để không hẹn giờ thật):
+  validate `cronExpressions` (rỗng/sai định dạng/trùng lặp), PUT diff đúng
+  (giữ/xoá/thêm), đăng ký đúng N cron task theo TimeId, 2 giờ gửi cùng lịch
+  chặn lẫn nhau, chạy tự động cập nhật CẢ giờ gửi lẫn lịch cha, `runNow`
+  chỉ đụng lịch cha.
+
 ## 0.22.0 — Nhập hàng loạt kết nối DB (etl-admin + api-admin)
 
 Tính năng mới: tải file Excel (.xlsx) để tạo/sửa NHIỀU `DataSources` (kết
