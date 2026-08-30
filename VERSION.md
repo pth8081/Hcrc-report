@@ -5,6 +5,24 @@ Server, API Server và các giao diện quản trị) — tăng ở mỗi lần 
 `main`, theo kiểu semver không chặt (patch cho fix nhỏ, minor cho tính năng
 mới, major khi đổi cấu trúc phá vỡ tương thích ngược).
 
+## 0.20.0 — Giữ lịch sử theo ngày cho dwh.ReportFacts (opt-in mỗi job)
+
+Bước 2 cho báo cáo cần so cùng kỳ năm trước (đúng ngày dương lịch) — 13
+test mới.
+
+- **`dwh.ReportFacts`** — khoá UNIQUE đổi từ `(SourceSystem, Domain,
+  EntityCode)` thành thêm `EventDate`. Migration idempotent (drop constraint
+  cũ nếu có, tạo constraint mới) — an toàn chạy lại nhiều lần trên CSDL đã
+  triển khai.
+- **`etl.SyncJobs.KeepHistory`** (mới, `BIT DEFAULT 0`) — TẮT mặc định,
+  không đổi hành vi job đang có. BẬT qua checkbox "Giữ lịch sử theo ngày"
+  khi tạo/sửa job (`etl-admin/`).
+- **`etl/lib/upsert.js`** — `upsertReportFacts(pool, rows, {keepHistory})`:
+  `keepHistory=false` (mặc định) tự dọn dòng khác `EventDate` của cùng thực
+  thể TRƯỚC khi MERGE (giữ đúng "1 dòng/thực thể" như thiết kế cũ, chuyển
+  từ tầng CSDL sang tầng ứng dụng); `keepHistory=true` bỏ qua bước dọn — mỗi
+  ngày 1 dòng riêng.
+
 ## 0.19.0 — Nhập chỉ tiêu (target/KPI) qua etl-admin
 
 Bước đầu cho báo cáo doanh thu chi nhánh cần so "Thực đạt" với "Chỉ tiêu"

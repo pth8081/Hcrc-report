@@ -1,9 +1,9 @@
 // routes/admin/syncJobs.js — Trang "Đồng bộ": CRUD etl.SyncJobs (Type='table'
 // dựng từ bước duyệt schema trên etl-admin/, Type='custom' tham chiếu
 // connector có sẵn trong etl/sources/) + chạy thử ngay một job. Sửa (PUT) chỉ
-// cho đổi tên/lịch/bật-tắt/domain/cột Dimensions-Measures — đổi bảng nguồn
-// hay bảng liên kết thì xoá job cũ, tạo job mới (đơn giản hơn, tránh cấu
-// hình nửa vời).
+// cho đổi tên/lịch/bật-tắt/domain/giữ lịch sử/cột Dimensions-Measures — đổi
+// bảng nguồn hay bảng liên kết thì xoá job cũ, tạo job mới (đơn giản hơn,
+// tránh cấu hình nửa vời).
 const express = require('express');
 const { sql, getPool } = require('../../db');
 const { requireAdminAuth, requireAdminRole } = require('../../lib/adminAuth');
@@ -60,17 +60,18 @@ router.post('/', requireAdminRole, async (req, res, next) => {
       .input('customConnectorKey', sql.VarChar(50), b.customConnectorKey || null)
       .input('targetDomain', sql.VarChar(50), b.targetDomain)
       .input('cronExpression', sql.VarChar(50), b.cronExpression || '*/15 * * * *')
+      .input('keepHistory', sql.Bit, b.keepHistory ? 1 : 0)
       .query(`
         INSERT INTO etl.SyncJobs (
           Name, Type, DataSourceId, SourceSchema, SourceTable, KeyColumn, DateColumn, UpdatedAtColumn,
           DimensionColumnsJson, MeasureColumnsJson, JoinSchema, JoinTable, JoinType, MainJoinColumn,
-          LookupJoinColumn, LookupDimensionColumnsJson, CustomConnectorKey, TargetDomain, CronExpression
+          LookupJoinColumn, LookupDimensionColumnsJson, CustomConnectorKey, TargetDomain, CronExpression, KeepHistory
         )
         OUTPUT INSERTED.Id
         VALUES (
           @name, @type, @dataSourceId, @sourceSchema, @sourceTable, @keyColumn, @dateColumn, @updatedAtColumn,
           @dimensionColumnsJson, @measureColumnsJson, @joinSchema, @joinTable, @joinType, @mainJoinColumn,
-          @lookupJoinColumn, @lookupDimensionColumnsJson, @customConnectorKey, @targetDomain, @cronExpression
+          @lookupJoinColumn, @lookupDimensionColumnsJson, @customConnectorKey, @targetDomain, @cronExpression, @keepHistory
         )
       `);
     const id = result.recordset[0].Id;
@@ -91,10 +92,12 @@ router.put('/:id', requireAdminRole, async (req, res, next) => {
       .input('targetDomain', sql.VarChar(50), b.targetDomain)
       .input('dimensionColumnsJson', sql.NVarChar(sql.MAX), JSON.stringify(b.dimensionColumns || []))
       .input('measureColumnsJson', sql.NVarChar(sql.MAX), JSON.stringify(b.measureColumns || []))
+      .input('keepHistory', sql.Bit, b.keepHistory ? 1 : 0)
       .query(`
         UPDATE etl.SyncJobs
         SET Name = @name, CronExpression = @cronExpression, IsActive = @isActive, TargetDomain = @targetDomain,
-            DimensionColumnsJson = @dimensionColumnsJson, MeasureColumnsJson = @measureColumnsJson
+            DimensionColumnsJson = @dimensionColumnsJson, MeasureColumnsJson = @measureColumnsJson,
+            KeepHistory = @keepHistory
         WHERE Id = @id
       `);
     await rescheduleJob(parseInt(req.params.id, 10));

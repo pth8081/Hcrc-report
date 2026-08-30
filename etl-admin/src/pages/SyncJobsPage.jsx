@@ -16,7 +16,7 @@ const EMPTY_FORM = {
   dimensionColumns: [], measureColumns: [],
   useJoin: false, joinSchema: '', joinTable: '', joinType: 'LEFT',
   mainJoinColumn: '', lookupJoinColumn: '', lookupDimensionColumns: [],
-  customConnectorKey: ''
+  customConnectorKey: '', keepHistory: false
 };
 
 function toggleInList(list, value) {
@@ -106,6 +106,7 @@ export default function SyncJobsPage() {
         name: job.Name, cronExpression: job.CronExpression, targetDomain: job.TargetDomain,
         dimensionColumns: JSON.parse(job.DimensionColumnsJson || '[]'),
         measureColumns: JSON.parse(job.MeasureColumnsJson || '[]'),
+        keepHistory: !!job.KeepHistory,
         isActive: !job.IsActive
       });
       reload();
@@ -131,6 +132,7 @@ export default function SyncJobsPage() {
           { key: 'Type', label: 'Loại', render: (j) => (j.Type === 'table' ? 'Theo bảng' : 'Tuỳ biến') },
           { key: 'TargetDomain', label: 'Domain' },
           { key: 'CronExpression', label: 'Lịch chạy' },
+          { key: 'KeepHistory', label: 'Giữ lịch sử', render: (j) => (j.KeepHistory ? 'Có' : 'Không') },
           { key: 'IsActive', label: 'Trạng thái', render: (j) => (j.IsActive ? 'Bật' : 'Tắt') },
           isAdmin && {
             key: 'actions', label: '', render: (j) => (
@@ -279,6 +281,10 @@ export default function SyncJobsPage() {
 
             <input placeholder="Domain (dwh.ReportFacts.Domain)" value={form.targetDomain} onChange={(e) => setForm({ ...form, targetDomain: e.target.value })} required />
             <input placeholder="Lịch chạy (cron)" value={form.cronExpression} onChange={(e) => setForm({ ...form, cronExpression: e.target.value })} required />
+            <label className="checkbox-row">
+              <input type="checkbox" checked={form.keepHistory} onChange={(e) => setForm({ ...form, keepHistory: e.target.checked })} />
+              Giữ lịch sử theo ngày (mỗi EventDate 1 dòng riêng, không ghi đè — bật cho domain cần so cùng kỳ năm trước)
+            </label>
             <button type="submit">Tạo job đồng bộ</button>
           </form>
         </>

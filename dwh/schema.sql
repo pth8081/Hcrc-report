@@ -20,9 +20,16 @@ GO
 
 -- Bảng sự kiện trung tâm: mọi domain báo cáo nằm trong một bảng, phân biệt bằng
 -- cột Domain. Dimensions/Measures lưu JSON để linh hoạt theo từng loại báo cáo;
--- SourceSystem + Domain + EntityCode là khoá nghiệp vụ dùng để upsert (xem
--- etl/lib/upsert.js). Thêm cột trích xuất PERSISTED từ JSON khi có báo cáo thực
--- sự cần lọc/nhóm nhanh theo trường đó — không thêm trước khi cần.
+-- SourceSystem + Domain + EntityCode + EventDate là khoá nghiệp vụ dùng để
+-- upsert (xem etl/lib/upsert.js). EventDate NẰM TRONG khoá (khác thiết kế cũ
+-- chỉ 3 cột đầu) để job có bật KeepHistory (etl.SyncJobs, xem etl-db/schema.sql)
+-- giữ được 1 dòng RIÊNG mỗi ngày, không bị ngày sau ghi đè — job KHÔNG bật
+-- KeepHistory vẫn chỉ có đúng 1 dòng/thực thể như trước, do
+-- etl/lib/upsert.js tự dọn dòng khác EventDate trước khi MERGE (invariant
+-- "1 dòng/thực thể" giờ đảm bảo ở TẦNG ỨNG DỤNG thay vì tầng CSDL, để 1
+-- bảng phục vụ được cả 2 kiểu domain). Thêm cột trích xuất PERSISTED từ
+-- JSON khi có báo cáo thực sự cần lọc/nhóm nhanh theo trường đó — không
+-- thêm trước khi cần.
 IF OBJECT_ID('dwh.ReportFacts', 'U') IS NULL
 BEGIN
     CREATE TABLE dwh.ReportFacts (
@@ -34,11 +41,27 @@ BEGIN
         Dimensions    NVARCHAR(MAX) NOT NULL,
         Measures      NVARCHAR(MAX) NULL,
         SyncedAt      DATETIME2(3)  NOT NULL DEFAULT SYSUTCDATETIME(),
-        CONSTRAINT UX_ReportFacts_Source_Domain_Entity
-            UNIQUE (SourceSystem, Domain, EntityCode)
+        CONSTRAINT UX_ReportFacts_Source_Domain_Entity_Date
+            UNIQUE (SourceSystem, Domain, EntityCode, EventDate)
     );
     CREATE INDEX IX_ReportFacts_Domain_Date
         ON dwh.ReportFacts (Domain, EventDate DESC) INCLUDE (SourceSystem, EntityCode);
+END
+GO
+
+-- Nâng cấp từ bản trước: khoá UNIQUE cũ (SourceSystem, Domain, EntityCode,
+-- KHÔNG có EventDate) khiến MỌI domain đều bị ghi đè, không job nào giữ
+-- được lịch sử dù bật KeepHistory. An toàn đổi cho job KeepHistory=0 (xem
+-- etl/lib/upsert.js) vì code tự dọn dòng khác EventDate trước khi MERGE —
+-- hành vi "1 dòng/thực thể" giữ nguyên, chỉ chuyển từ CSDL sang ứng dụng.
+IF EXISTS (SELECT 1 FROM sys.key_constraints WHERE name = 'UX_ReportFacts_Source_Domain_Entity')
+BEGIN
+    ALTER TABLE dwh.ReportFacts DROP CONSTRAINT UX_ReportFacts_Source_Domain_Entity;
+END
+IF NOT EXISTS (SELECT 1 FROM sys.key_constraints WHERE name = 'UX_ReportFacts_Source_Domain_Entity_Date')
+BEGIN
+    ALTER TABLE dwh.ReportFacts ADD CONSTRAINT UX_ReportFacts_Source_Domain_Entity_Date
+        UNIQUE (SourceSystem, Domain, EntityCode, EventDate);
 END
 GO
 

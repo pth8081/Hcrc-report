@@ -21,6 +21,25 @@ vụ `/admin/*` cho trang quản trị riêng `etl-admin/` — CSDL quản trị
   `CustomConnectorKey`. Lịch chạy/bật-tắt/xem log vẫn quản lý qua giao diện
   như job "theo bảng" — chỉ khác câu SQL/logic chuyển đổi nằm trong code.
 
+## Giữ lịch sử theo ngày (KeepHistory)
+
+Mặc định, `dwh.ReportFacts` chỉ giữ ĐÚNG 1 dòng/thực thể — mỗi lượt đồng
+bộ ghi đè dòng cũ (khớp theo `SourceSystem + Domain + EntityCode`,
+`EventDate` chỉ cập nhật giá trị mới nhất). Với domain cần so sánh cùng kỳ
+(vd doanh thu ngày, cần so với đúng ngày này năm trước), bật **"Giữ lịch sử
+theo ngày"** khi tạo/sửa job (`etl-admin/`, trang "Đồng bộ") — mỗi
+`EventDate` khác nhau tự nhiên thành 1 dòng riêng, ngày cũ KHÔNG bị ngày
+mới ghi đè (đồng bộ nhiều lần trong CÙNG 1 ngày vẫn cập nhật đúng dòng của
+ngày đó, do `EventDate` không đổi giữa các lần chạy trong ngày).
+
+**TẮT theo mặc định** — không đổi hành vi các job đang có, chỉ bật khi thật
+sự cần lịch sử (mỗi ngày 1 dòng cũng đồng nghĩa nhiều dòng hơn theo thời
+gian — không bật "phòng khi cần" cho mọi domain). Cột `EventDate` PHẢI là
+ngày nghiệp vụ thật của bản ghi (không phải "ngày đồng bộ") — connector
+chọn sai cột ở đây (vd cột "cập nhật lần cuối" đổi liên tục) sẽ khiến job
+`KeepHistory=1` tạo dòng mới mỗi lần chạy dù cùng 1 ngày, không đúng ý
+muốn.
+
 ## Nhập chỉ tiêu (target/KPI)
 
 Trang "Nhập chỉ tiêu" (`etl-admin/`) — upload file Excel (.xlsx) chỉ tiêu

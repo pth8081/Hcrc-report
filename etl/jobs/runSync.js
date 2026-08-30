@@ -94,7 +94,7 @@ async function runJobObject(job) {
     }
 
     const dwhPool = await getPool('DWH');
-    const { inserted, updated } = await upsertReportFacts(dwhPool, transformed);
+    const { inserted, updated } = await upsertReportFacts(dwhPool, transformed, { keepHistory: !!job.KeepHistory });
     await setLastSyncedAt(job.Id, maxUpdatedAt);
     await logRun({ jobId: job.Id, status: 'SUCCESS', rowCount: transformed.length, startedAt, finishedAt: new Date() });
     console.log(`✅ [${job.Name}] Xong — ${inserted} dòng mới, ${updated} dòng cập nhật.`);

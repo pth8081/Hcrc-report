@@ -102,8 +102,22 @@ BEGIN
         TargetDomain               VARCHAR(50)   NOT NULL,   -- dwh.ReportFacts.Domain
         CronExpression             VARCHAR(50)   NOT NULL DEFAULT '*/15 * * * *',
         IsActive                   BIT           NOT NULL DEFAULT 1,
+        -- TẮT mặc định — dwh.ReportFacts vẫn ghi đè (1 dòng/thực thể) y hệt
+        -- trước đây. BẬT khi domain này cần giữ lịch sử nhiều ngày (vd báo
+        -- cáo cần so cùng kỳ năm trước) — mỗi EventDate khác nhau tự nhiên
+        -- thành 1 dòng riêng, không bị ngày sau ghi đè. Xem etl/lib/upsert.js
+        -- + dwh/schema.sql (mục nâng cấp khoá UNIQUE dwh.ReportFacts).
+        KeepHistory                BIT           NOT NULL DEFAULT 0,
         CreatedAt                  DATETIME2(3)  NOT NULL DEFAULT SYSUTCDATETIME()
     );
+END
+GO
+
+-- Nâng cấp từ bản trước (bảng đã tồn tại nhưng thiếu cột KeepHistory) — an
+-- toàn chạy lại nhiều lần.
+IF COL_LENGTH('etl.SyncJobs', 'KeepHistory') IS NULL
+BEGIN
+    ALTER TABLE etl.SyncJobs ADD KeepHistory BIT NOT NULL DEFAULT 0;
 END
 GO
 
