@@ -2,7 +2,7 @@
 
 Cổng chọn hệ thống — điểm vào duy nhất cho người dùng, bấm vào đâu thì
 **chuyển hẳn trang** (không phải route SPA) sang đúng ứng dụng đã có sẵn:
-`frontend/` (Report), `etl-admin/` (ETL), `api-admin/` (API). Trang này
+`rp-user/` (Report), `etl-admin/` (ETL), `api-admin/` (API). Trang này
 KHÔNG có form đăng nhập, không gọi API nào, không giữ cookie/state — chỉ 3
 đường dẫn. Xem tài liệu kiến trúc "Cổng Đăng Nhập HCRC" cho lý do chọn cách
 này thay vì gộp 3 ứng dụng thành một.
@@ -23,6 +23,6 @@ npm run build   # ra dist/ — file tĩnh thuần, phục vụ qua Nginx ở b�
 ```
 
 `portal/` là ứng dụng DUY NHẤT trong 4 ứng dụng frontend cần lộ ra ngoài
-rộng rãi — 3 đích đến (`frontend/`, `api-admin/`, `etl-admin/`) vẫn giữ
+rộng rãi — 3 đích đến (`rp-user/`, `api-admin/`, `etl-admin/`) vẫn giữ
 đúng chính sách mạng riêng của từng bên (vd `api-admin/`/`etl-admin/` chỉ
 mở trong mạng nội bộ/VPN).

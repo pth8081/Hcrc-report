@@ -1,6 +1,6 @@
 // db.js — Hai pool kết nối TĨNH (đọc từ .env, kết nối một lần khi cần):
 //   getPool('RP')  — CSDL ứng dụng HCRC_RP: Users, Roles, quyền, danh mục báo
-//                    cáo, log, danh mục, cấu hình email (report-server có ghi
+//                    cáo, log, danh mục, cấu hình email (rp-server có ghi
 //                    vào đây, khác dwh — xem rp-db/schema.sql).
 //   getPool('DWH') — Data Warehouse, CHỈ ĐỌC, dùng làm nguồn mặc định cho báo
 //                    cáo khi ReportCatalog.DataSourceId = NULL.

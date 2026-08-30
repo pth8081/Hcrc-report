@@ -1,6 +1,6 @@
-// lib/api.js — Gọi report-server. Luôn gửi cookie (credentials: 'include') vì
+// lib/api.js — Gọi rp-server. Luôn gửi cookie (credentials: 'include') vì
 // xác thực là JWT trong cookie httpOnly, không phải Bearer token — xem
-// report-server/lib/auth.js.
+// rp-server/lib/auth.js.
 async function request(path, { method = 'GET', body, isFormData = false } = {}) {
   const res = await fetch(`/api${path}`, {
     method,

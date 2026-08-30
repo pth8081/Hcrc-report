@@ -5,6 +5,20 @@ Server, API Server và các giao diện quản trị) — tăng ở mỗi lần 
 `main`, theo kiểu semver không chặt (patch cho fix nhỏ, minor cho tính năng
 mới, major khi đổi cấu trúc phá vỡ tương thích ngược).
 
+## 0.6.1 — Đổi tên report-server/frontend cho khớp quy ước rp-*
+
+- `report-server/` → `rp-server/`, `frontend/` → `rp-user/` — khớp hoàn toàn
+  prefix `rp-` đã dùng cho CSDL (`rp-db/`), tránh nhầm giữa 2 tên gọi khác
+  nhau cho cùng một hệ thống. `rp-user` (không phải `rp-admin`) vì app này
+  phục vụ CẢ người dùng thường lẫn admin trong 1 SPA — phân biệt bằng phân
+  quyền theo menu, không tách app như `api-admin`/`etl-admin`.
+- Đã cập nhật mọi tham chiếu: `package.json`/`package-lock.json` (tên gói
+  `hcrc-rp-server`, `hcrc-rp-user`), `deploy/ecosystem.config.js`, toàn bộ
+  comment trong `rp-db/schema.sql`, `rp-server/`, `rp-user/`, `api-server/`,
+  `etl/`, `api-admin/`, `etl-admin/`, `portal/` trỏ tới 2 thư mục này. Chỉ đổi
+  tên thư mục/gói — không đổi API, route, biến môi trường, hay schema CSDL
+  (`app.*` trong `rp-db/schema.sql` giữ nguyên).
+
 ## 0.6.0 — Cổng đăng nhập chung & đa kết nối cho API Server
 
 - `portal/` — trang tĩnh mới, điểm vào duy nhất: 3 lựa chọn (Report/ETL/API),

@@ -51,7 +51,7 @@ BEGIN
 END
 GO
 
--- Cây menu TĨNH, khớp đúng các route thật trong frontend/ — seed một lần khi
+-- Cây menu TĨNH, khớp đúng các route thật trong rp-user/ — seed một lần khi
 -- cài đặt (xem cuối file), không có route CRUD cho bảng này: menu là code,
 -- không phải dữ liệu người dùng tự tạo.
 IF OBJECT_ID('app.MenuItems', 'U') IS NULL
@@ -80,7 +80,7 @@ GO
 
 -- Nguồn dữ liệu bổ sung cho báo cáo — chỉ dùng khi MỘT báo cáo cụ thể cần đọc
 -- từ máy chủ khác Data Warehouse mặc định (xem app.ReportCatalog.DataSourceId
--- và report-server/lib/dataSourcePool.js). PasswordEncrypted mã hoá bằng
+-- và rp-server/lib/dataSourcePool.js). PasswordEncrypted mã hoá bằng
 -- APP_ENCRYPTION_KEY trong .env (AES-256-GCM) — KHÔNG BAO GIỜ lưu chữ rõ.
 IF OBJECT_ID('app.ReportDataSources', 'U') IS NULL
 BEGIN
@@ -101,7 +101,7 @@ GO
 
 -- Định nghĩa báo cáo ("Biểu mẫu") — CHUYỂN từ dwh.ReportCatalog sang đây (xem
 -- ghi chú cuối dwh/schema.sql). DataSourceId NULL = dùng Data Warehouse mặc
--- định (.env của report-server), khác NULL = dùng app.ReportDataSources.
+-- định (.env của rp-server), khác NULL = dùng app.ReportDataSources.
 IF OBJECT_ID('app.ReportCatalog', 'U') IS NULL
 BEGIN
     CREATE TABLE app.ReportCatalog (
@@ -180,7 +180,7 @@ BEGIN
 END
 GO
 
--- Seed cây menu tĩnh — khớp đúng route trong frontend/src/App.jsx. An toàn
+-- Seed cây menu tĩnh — khớp đúng route trong rp-user/src/App.jsx. An toàn
 -- chạy lại nhiều lần (kiểm tra Code trước khi insert từng dòng).
 IF NOT EXISTS (SELECT 1 FROM app.MenuItems WHERE Code = 'home')
     INSERT INTO app.MenuItems (Code, ParentId, Label, Path, SortOrder) VALUES ('home', NULL, N'Trang chủ', '/', 1);
@@ -214,7 +214,7 @@ IF NOT EXISTS (SELECT 1 FROM app.MenuItems WHERE Code = 'system-email-settings')
 GO
 
 -- Seed vai trò Admin (IsSystemRole=1) — luôn cần tồn tại để gán cho tài khoản
--- quản trị đầu tiên (xem report-server/scripts/seedAdmin.js).
+-- quản trị đầu tiên (xem rp-server/scripts/seedAdmin.js).
 IF NOT EXISTS (SELECT 1 FROM app.Roles WHERE Code = 'admin')
     INSERT INTO app.Roles (Code, Name, IsSystemRole) VALUES ('admin', N'Quản trị hệ thống', 1);
 GO

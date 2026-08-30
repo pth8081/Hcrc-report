@@ -1,6 +1,6 @@
 // modules/system/report-catalog/ReportCatalogPanel.jsx — CRUD app.ReportCatalog.
 // DefinitionJson sửa dạng textarea (JSON thô) — chưa có form có cấu trúc cho
-// từng loại filter, đủ dùng ở bước khung này (xem report-server/README.md
+// từng loại filter, đủ dùng ở bước khung này (xem rp-server/README.md
 // mục "Thêm một báo cáo mới" cho ví dụ JSON).
 import { useEffect, useState } from 'react';
 import { api } from '../../../lib/api';

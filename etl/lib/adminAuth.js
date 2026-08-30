@@ -1,5 +1,5 @@
 // lib/adminAuth.js — Xác thực JWT qua cookie cho etl-admin/ (đối chiếu
-// admin.AdminUsers, bcrypt) — TÁCH HOÀN TOÀN khỏi report-server và
+// admin.AdminUsers, bcrypt) — TÁCH HOÀN TOÀN khỏi rp-server và
 // api-server: khoá bí mật riêng, cookie riêng, CSDL riêng (HCRC_ETL).
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');

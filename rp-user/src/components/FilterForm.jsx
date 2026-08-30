@@ -1,5 +1,5 @@
 // components/FilterForm.jsx — Vẽ form lọc ĐỘNG theo definition.filters của
-// một báo cáo (report-server trả về từ GET /api/reports/:id) — không có
+// một báo cáo (rp-server trả về từ GET /api/reports/:id) — không có
 // component riêng cho từng báo cáo, một component này dùng cho mọi báo cáo.
 //
 // GIỚI HẠN Ở BƯỚC KHUNG NÀY: type "select"/"multiSelect" chưa nối với danh

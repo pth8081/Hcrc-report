@@ -1,16 +1,17 @@
-# Report Server
+# rp-server (Report Server — backend)
 
 Ứng dụng nội bộ HCRC — 6 module: Trang chủ, Dashboard, 3 nhóm báo cáo (lọc
 động theo định nghĩa lưu trong `app.ReportCatalog`, xem trước, xuất
 Excel/PDF), và Hệ thống (Phân quyền, Biểu mẫu, Log, Danh mục, Thiết lập
-email). Hai CSDL: `HCRC_RP` (người dùng/quyền/cấu hình, có ghi) và
-`HCRC_DWH` (dữ liệu báo cáo, chỉ đọc) — xem `rp-db/schema.sql` và
-`dwh/schema.sql` ở thư mục gốc repo.
+email). Phục vụ giao diện `rp-user/` (cả người dùng thường lẫn admin) qua
+API. Hai CSDL: `HCRC_RP` (người dùng/quyền/cấu hình, có ghi) và `HCRC_DWH`
+(dữ liệu báo cáo, chỉ đọc) — xem `rp-db/schema.sql` và `dwh/schema.sql` ở
+thư mục gốc repo.
 
 ## Cài đặt
 
 ```bash
-cd report-server
+cd rp-server
 npm install
 cp .env.example .env   # điền RP_*, DWH_*, JWT_SECRET, APP_ENCRYPTION_KEY
 ```

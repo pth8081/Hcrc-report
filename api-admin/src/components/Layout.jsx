@@ -1,5 +1,5 @@
 // components/Layout.jsx — Điều hướng cố định 4 trang — không cần đọc từ
-// server như frontend/ chính (không có cây menu/quyền cho quy mô nhỏ này,
+// server như rp-user/ chính (không có cây menu/quyền cho quy mô nhỏ này,
 // xem tài liệu kiến trúc, mục 03). Ẩn/hiện theo vai trò chỉ áp dụng ở TỪNG
 // trang (vd nút thêm/sửa/xoá đối tác), không áp dụng ở cấp điều hướng.
 import { NavLink, Outlet } from 'react-router-dom';

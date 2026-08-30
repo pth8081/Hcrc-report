@@ -1,9 +1,9 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
-// Dev server proxy /api sang report-server (cổng 4001) — tránh phải cấu hình
+// Dev server proxy /api sang rp-server (cổng 4001) — tránh phải cấu hình
 // CORS khi phát triển; production build phục vụ tĩnh sau Nginx cùng domain
-// với report-server nên không cần proxy.
+// với rp-server nên không cần proxy.
 export default defineConfig({
   plugins: [react()],
   server: {

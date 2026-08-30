@@ -1,5 +1,5 @@
 // pages/UsersPage.jsx — Trang "Phân quyền": CRUD admin.AdminUsers. Chỉ 2 vai
-// trò (admin/viewer) — không có cây menu như frontend/ chính, quy mô trang
+// trò (admin/viewer) — không có cây menu như rp-user/ chính, quy mô trang
 // quản trị ETL không cần tới mức đó.
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api';

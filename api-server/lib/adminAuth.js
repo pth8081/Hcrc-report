@@ -1,5 +1,5 @@
 // lib/adminAuth.js — Xác thực JWT qua cookie cho api-admin/ (đối chiếu
-// admin.AdminUsers, bcrypt) — TÁCH HOÀN TOÀN khỏi report-server/lib/auth.js:
+// admin.AdminUsers, bcrypt) — TÁCH HOÀN TOÀN khỏi rp-server/lib/auth.js:
 // khoá bí mật riêng, cookie riêng, CSDL riêng (HCRC_API), đúng tinh thần cô
 // lập API Server khỏi Report Server.
 const jwt = require('jsonwebtoken');

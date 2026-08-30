@@ -1,8 +1,8 @@
 {
-  "name": "hcrc-frontend",
+  "name": "hcrc-rp-user",
   "version": "0.1.0",
   "private": true,
-  "description": "Frontend HCRC — Trang chủ, Dashboard, 3 nhóm báo cáo, Hệ thống (Phân quyền/Biểu mẫu/Log/Danh mục/Thiết lập email)",
+  "description": "Report Server — giao diện người dùng & quản trị (rp-user): Trang chủ, Dashboard, 3 nhóm báo cáo, Hệ thống (Phân quyền/Biểu mẫu/Log/Danh mục/Thiết lập email)",
   "type": "module",
   "scripts": {
     "dev": "vite",

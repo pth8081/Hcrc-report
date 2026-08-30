@@ -1,7 +1,7 @@
 // routes/reportCatalog.js — Trang "Biểu mẫu": CRUD app.ReportCatalog (định
 // nghĩa báo cáo — bộ lọc/cột/nguồn dữ liệu) + tải lên file mẫu .xlsx/.pptx
 // vào templates/ (tham chiếu bằng tên file trong DefinitionJson.template,
-// xem report-server/README.md). Khác routes/reports.js: route ở đây thấy
+// xem rp-server/README.md). Khác routes/reports.js: route ở đây thấy
 // TOÀN BỘ báo cáo (kể cả IsActive=0) vì đây là trang cấu hình, không phải
 // trang xem báo cáo — quyền xem thật do RoleReportAccess quyết định riêng.
 const path = require('path');

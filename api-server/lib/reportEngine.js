@@ -3,7 +3,7 @@
 // cột — luôn lấy nguyên dòng (EntityCode, EventDate, Dimensions, Measures) rồi
 // projectColumns() ở tầng JS chọn đúng cột cần trả về theo definition.columns.
 //
-// Bản sao CÙNG NỘI DUNG cũng có ở report-server/lib/reportEngine.js — cố ý
+// Bản sao CÙNG NỘI DUNG cũng có ở rp-server/lib/reportEngine.js — cố ý
 // trùng lặp, không dùng chung qua thư mục "shared/", để mỗi server tự chứa đủ
 // code khi copy riêng lên máy chủ triển khai (xem tài liệu kiến trúc, mục 08).
 const { sql } = require('../db');

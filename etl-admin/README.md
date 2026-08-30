@@ -2,7 +2,7 @@
 
 Trang quản trị ETL — nguồn dữ liệu, cấu hình đồng bộ (chọn bảng/cột thật,
 không cần code), Dashboard, Log, Phân quyền. Ứng dụng RIÊNG, tách khỏi
-`frontend/` và `api-admin/` — xem tài liệu kiến trúc "Quản Trị ETL HCRC".
+`rp-user/` và `api-admin/` — xem tài liệu kiến trúc "Quản Trị ETL HCRC".
 
 ## Cài đặt
 

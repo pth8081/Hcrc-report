@@ -1,5 +1,5 @@
 {
-  "name": "hcrc-report-server",
+  "name": "hcrc-rp-server",
   "version": "0.1.0",
   "description": "Report Server nội bộ HCRC — lọc động + xuất Excel/PDF/PPTX, đọc từ Data Warehouse",
   "main": "server.js",

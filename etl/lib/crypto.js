@@ -1,7 +1,7 @@
 // lib/crypto.js — Mã hoá/giải mã mật khẩu lưu trong etl.DataSources, dùng
 // AES-256-GCM với khoá RIÊNG của ETL (ETL_ENCRYPTION_KEY trong .env, 32
 // byte) — KHÔNG dùng chung khoá với Report Server/API Server, mỗi server tự
-// cô lập bí mật của mình. Cùng thuật toán với report-server/lib/crypto.js,
+// cô lập bí mật của mình. Cùng thuật toán với rp-server/lib/crypto.js,
 // khác khoá.
 const crypto = require('crypto');
 

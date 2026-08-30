@@ -1,6 +1,6 @@
 // modules/system/email-settings/EmailSettingsPage.jsx — Cấu hình SMTP dùng
 // chung + gửi thử. Ô mật khẩu để trống khi sửa = giữ nguyên mật khẩu đã lưu
-// (xem report-server/routes/emailSettings.js).
+// (xem rp-server/routes/emailSettings.js).
 import { useEffect, useState } from 'react';
 import { api } from '../../../lib/api';
 

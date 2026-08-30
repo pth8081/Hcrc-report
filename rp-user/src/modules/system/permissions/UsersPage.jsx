@@ -1,6 +1,6 @@
 // modules/system/permissions/UsersPage.jsx — Danh sách người dùng: tạo mới,
 // khoá/mở, đặt lại mật khẩu, gán vai trò. Không có nút xoá (xem
-// report-server/routes/users.js — lý do: giữ dấu vết AuditLog).
+// rp-server/routes/users.js — lý do: giữ dấu vết AuditLog).
 import { useEffect, useState } from 'react';
 import { api } from '../../../lib/api';
 import DataTable from '../../../components/DataTable';

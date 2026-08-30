@@ -1,7 +1,7 @@
 # api-admin
 
 Trang quản trị API Server — đối tác API, kết nối hiện tại (realtime), lịch
-sử, top truy vấn. Ứng dụng RIÊNG, tách khỏi `frontend/` (quản trị nội bộ) —
+sử, top truy vấn. Ứng dụng RIÊNG, tách khỏi `rp-user/` (quản trị nội bộ) —
 xem tài liệu kiến trúc "Quản Trị API HCRC" cho lý do tách.
 
 ## Cài đặt

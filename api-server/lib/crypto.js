@@ -1,7 +1,7 @@
 // lib/crypto.js — Mã hoá/giải mã mật khẩu lưu trong api.DataSources, dùng
 // AES-256-GCM với khoá RIÊNG của API Server (API_ENCRYPTION_KEY trong .env,
 // 32 byte) — KHÔNG dùng chung khoá với Report Server/ETL. Cùng thuật toán
-// với report-server/lib/crypto.js và etl/lib/crypto.js, khác khoá. Không
+// với rp-server/lib/crypto.js và etl/lib/crypto.js, khác khoá. Không
 // liên quan tới lib/hash.js (SHA-256 một chiều cho API key — ở đây cần GIẢI
 // MÃ lại được để kết nối CSDL, nên phải mã hoá hai chiều, không phải băm).
 const crypto = require('crypto');

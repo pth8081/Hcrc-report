@@ -1,5 +1,5 @@
 // lib/AuthContext.jsx — Người quản trị hiện tại (username, role). Chỉ 2 vai
-// trò ('admin'/'viewer') — không có cây quyền như frontend/ chính, quy mô
+// trò ('admin'/'viewer') — không có cây quyền như rp-user/ chính, quy mô
 // trang quản trị API nhỏ hơn nhiều (xem tài liệu kiến trúc, mục 03).
 import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { api } from './api';

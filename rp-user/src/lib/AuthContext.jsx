@@ -1,6 +1,6 @@
 // lib/AuthContext.jsx — Một nguồn sự thật duy nhất cho "user hiện tại là ai,
 // thấy được menu nào" — cả Sidebar lẫn RequireMenuAccess đều đọc từ đây, lấy
-// từ GET /api/me (đã lọc theo quyền ở phía server, xem report-server/routes/me.js).
+// từ GET /api/me (đã lọc theo quyền ở phía server, xem rp-server/routes/me.js).
 import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { api } from './api';
 
