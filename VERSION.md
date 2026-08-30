@@ -5,6 +5,28 @@ Server, API Server và các giao diện quản trị) — tăng ở mỗi lần 
 `main`, theo kiểu semver không chặt (patch cho fix nhỏ, minor cho tính năng
 mới, major khi đổi cấu trúc phá vỡ tương thích ngược).
 
+## 0.18.0 — Cấu hình Nginx triển khai 1 máy chủ ứng dụng + 1 máy chủ CSDL riêng
+
+- **`deploy/nginx.conf`** — mẫu cấu hình Nginx đầy đủ cho mô hình cả 3 hệ
+  thống (`etl/`, `rp-server/`, `api-server/`, chạy bằng PM2 qua
+  `deploy/ecosystem.config.js` đã có sẵn) + 4 giao diện tĩnh (`portal/`,
+  `rp-user/`, `api-admin/`, `etl-admin/`) trên CÙNG 1 máy chủ, CSDL trên
+  máy chủ khác. 5 domain: `report.*`/`api.*`/`portal.*` công khai (`api.*`
+  CHỈ lộ `/api/v1/*`, không gì khác), `api-admin.*`/`etl-admin.*` nội bộ/VPN
+  (chặn bằng `allow`/`deny` ngay tầng Nginx, độc lập với
+  `*_ADMIN_ALLOWED_IPS` ở tầng ứng dụng — 2 lớp phòng thủ riêng). File này
+  đã được 2 README (`rp-server/`, `api-server/`) tham chiếu tới từ giai đoạn
+  0/1 trước đây ("Xem mẫu cấu hình Nginx thật ở `deploy/nginx.conf`") — giờ
+  mới thực sự tồn tại.
+- **`deploy/README.md`** (mới) — hướng dẫn triển khai đầy đủ: cài đặt/build/
+  chạy PM2 trên máy chủ ứng dụng, chạy schema + `grants.sql` trên máy chủ
+  CSDL riêng, DNS/TLS cho 5 domain, danh sách kiểm tra sau triển khai (đúng
+  domain nào 404 `/admin`, đúng `TRUST_PROXY_HOPS` qua log IP thật).
+- `etl/README.md` — cập nhật mục "Triển khai": làm rõ `/admin/*` của `etl`
+  VẪN có thể đứng sau Nginx CHUNG với 2 hệ kia (khác hướng dẫn cũ ngụ ý nên
+  tách hẳn), miễn là domain riêng + `allow`/`deny` nội bộ, không chung
+  route với `/api/v1/*`/`/api/*` công khai.
+
 ## 0.17.0 — Rà soát bảo mật/hiệu năng (Giai đoạn 3)
 
 Nốt các mục còn lại của đợt rà soát bảo mật + hiệu năng trước khi public

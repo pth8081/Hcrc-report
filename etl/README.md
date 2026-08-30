@@ -75,11 +75,17 @@ duyệt schema lẫn đồng bộ dữ liệu thật, không cần tài khoản 
 
 ## Triển khai
 
-Tiến trình này **KHÔNG** nên lộ ra Internet — khác `api-server`/`rp-server`
-(xem README của 2 nơi đó) — vì `etl` nắm giữ mật khẩu của TOÀN BỘ nguồn dữ
-liệu đã cấu hình (`etl.DataSources`, có thể hàng chục CSDL cửa hàng/chi
-nhánh), rủi ro cao nhất trong 3 hệ thống nếu bị xâm nhập. Nếu vẫn proxy
-`/admin/*` qua cùng Nginx với 2 hệ kia (khuyến nghị KHÔNG làm vậy), nhớ:
+Tiến trình này **KHÔNG** có route công khai nào — khác `api-server`
+(`/api/v1/*`) và `rp-server` (toàn bộ `/api/*`) — vì `etl` nắm giữ mật khẩu
+của TOÀN BỘ nguồn dữ liệu đã cấu hình (`etl.DataSources`, có thể hàng chục
+CSDL cửa hàng/chi nhánh), rủi ro cao nhất trong 3 hệ thống nếu bị xâm nhập.
+`/admin/*` của `etl` VẪN CÓ THỂ đứng sau CÙNG Nginx với 2 hệ kia (mô hình
+khuyến nghị khi cả 3 chạy chung 1 máy chủ — xem `deploy/nginx.conf` +
+`deploy/README.md` ở thư mục gốc repo) — miễn là trên domain RIÊNG, chỉ mở
+`allow`/`deny` cho IP nội bộ/VPN ở tầng Nginx (domain `etl-admin.*` trong
+mẫu cấu hình), KHÔNG chung domain/route với `/api/v1/*` hay `/api/*` công
+khai. Dù triển khai qua Nginx chung hay tách máy chủ hoàn toàn riêng, luôn
+giữ:
 
 - **`TRUST_PROXY_HOPS`** (mặc định 1) — khớp đúng số lớp proxy đứng trước,
   nếu không giới hạn tần suất theo IP sẽ vô nghĩa (mọi request trông như
