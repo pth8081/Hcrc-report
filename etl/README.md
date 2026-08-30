@@ -70,6 +70,16 @@ trong code. Nhập lại đúng domain + tháng sẽ GHI ĐÈ (upsert theo khoá
 `Domain + EntityCode + PeriodMonth`), không cộng dồn — nhập cuối tháng
 trước để có sẵn chỉ tiêu khi tháng mới bắt đầu.
 
+**Cột `TrangThai` (tuỳ chọn) — đóng cửa siêu thị** — ghi `DaDong` để LOẠI
+HẲN siêu thị đó khỏi báo cáo `composite` tháng này (xem
+`rp-server/lib/compositeReportRunner.js`), để trống hoặc ghi `HoatDong` =
+hiện bình thường. CỐ Ý chỉ loại khi có đánh dấu tường minh `DaDong` —
+THIẾU cả dòng chỉ tiêu (chưa kịp nhập, hoặc quên) KHÔNG bị coi là đóng cửa,
+siêu thị đó vẫn hiện ra bình thường (chỉ trống cột Chỉ tiêu) — tránh mất
+siêu thị khỏi báo cáo chỉ vì lỗi nhập liệu. File có thể CHỈ có cột
+`TrangThai` (không kèm số liệu chỉ tiêu nào) nếu mục đích chỉ là đánh dấu
+đóng cửa hàng loạt.
+
 ## Cài đặt
 
 ```bash

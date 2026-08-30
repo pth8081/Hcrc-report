@@ -25,6 +25,12 @@
 // (vd "current.measures.doanhThu", "target.ChiTieuDoanhThu",
 // "lastYear.measures.doanhThu") — xem resolveCompositeField() bên dưới.
 //
+// TrangThai='DaDong' trong khối isTarget (nhập qua etl-admin, xem
+// etl/lib/salesTargetsImport.js) LOẠI HẲN thực thể đó khỏi kết quả — CHỈ
+// khi có đánh dấu TƯỜNG MINH, không suy luận từ việc THIẾU dòng chỉ tiêu
+// (siêu thị chưa kịp nhập chỉ tiêu tháng đó vẫn hiện ra bình thường, chỉ
+// trống field target — xem đoạn lọc mergedRows trong runCompositeReport()).
+//
 // DefinitionJson.groupBy (TUỲ CHỌN) — dòng "Tổng cộng" theo nhóm + tổng
 // toàn báo cáo (vd "Tổng cộng MART"/"Tổng cộng MINIMART"/"Tổng cộng"):
 //   field         — path "tenKhoi.field" dùng để nhóm (vd "current.dimensions.chain")
@@ -176,7 +182,16 @@ async function runCompositeReport(definition, filterValues = {}) {
       merged.get(entityCode)[block.key] = row;
     }
   }
-  const mergedRows = [...merged.values()];
+
+  // Loại HẲN thực thể có TrangThai='DaDong' ở BẤT KỲ khối target nào (xem
+  // etl/lib/salesTargetsImport.js) — CHỈ loại khi có đánh dấu TƯỜNG MINH.
+  // Thực thể THIẾU dòng chỉ tiêu (chưa kịp nhập) vẫn phải hiện ra như bình
+  // thường — không suy luận "thiếu dòng = đã đóng cửa", tránh mất siêu thị
+  // khỏi báo cáo chỉ vì ai đó quên nhập 1 dòng.
+  const targetBlockKeys = definition.blocks.filter(b => b.isTarget).map(b => b.key);
+  const mergedRows = [...merged.values()].filter(
+    r => !targetBlockKeys.some(key => r[key]?.TrangThai === 'DaDong')
+  );
   const columns = describeColumns(definition.columns);
 
   if (!definition.groupBy) {

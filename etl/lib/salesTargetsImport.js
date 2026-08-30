@@ -8,11 +8,19 @@
 // thành đúng tên khoá trong TargetsJson của dòng đó, không cố định trước
 // trong code danh sách chỉ tiêu nào phải có (giống tinh thần Measures của
 // dwh.ReportFacts — linh hoạt theo từng báo cáo).
+//
+// Cột "TrangThai" (TUỲ CHỌN, không bắt buộc có) — "HoatDong" (mặc định nếu
+// để trống/không có cột) hoặc "DaDong". Report composite (xem
+// rp-server/lib/compositeReportRunner.js) LOẠI HẲN siêu thị khỏi báo cáo
+// khi thấy ĐÚNG "DaDong" — CỐ Ý không suy luận từ việc THIẾU dòng chỉ tiêu
+// (siêu thị chưa kịp nhập chỉ tiêu tháng đó vẫn phải hiện ra, chỉ trống cột
+// Chỉ tiêu, không được âm thầm biến mất chỉ vì ai đó quên 1 dòng).
 const ExcelJS = require('exceljs');
 const { sql } = require('../db');
 
 const REQUIRED_HEADERS = ['MaSieuThi', 'Thang'];
 const PERIOD_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
+const TRANG_THAI_VALUES = ['HoatDong', 'DaDong'];
 
 // { rows: [{entityCode, periodMonth: Date, targets: {...}}], rowErrors: string[] }
 async function parseSalesTargetsFile(buffer) {
@@ -32,11 +40,16 @@ async function parseSalesTargetsFile(buffer) {
   }
   const maSieuThiCol = headers.indexOf('MaSieuThi');
   const thangCol = headers.indexOf('Thang');
+  const trangThaiCol = headers.indexOf('TrangThai'); // -1 nếu file không có cột này (hợp lệ, tuỳ chọn)
   const targetCols = [];
   headers.forEach((name, colNumber) => {
-    if (name && name !== 'MaSieuThi' && name !== 'Thang') targetCols.push({ name, colNumber });
+    if (name && name !== 'MaSieuThi' && name !== 'Thang' && name !== 'TrangThai') targetCols.push({ name, colNumber });
   });
-  if (!targetCols.length) throw new Error('File không có cột chỉ tiêu nào ngoài MaSieuThi/Thang');
+  // Chấp nhận file CHỈ có cột TrangThai (không cột chỉ tiêu số nào) — vd
+  // chỉ để đánh dấu đóng cửa hàng loạt tháng này, không cần kèm số liệu.
+  if (!targetCols.length && trangThaiCol === -1) {
+    throw new Error('File không có cột chỉ tiêu nào ngoài MaSieuThi/Thang, và cũng không có cột TrangThai');
+  }
 
   const rows = [];
   const rowErrors = [];
@@ -54,6 +67,19 @@ async function parseSalesTargetsFile(buffer) {
       return;
     }
 
+    let trangThai = null;
+    if (trangThaiCol !== -1) {
+      const raw = row.getCell(trangThaiCol).value;
+      const value = raw != null ? String(raw).trim() : '';
+      if (value) {
+        if (!TRANG_THAI_VALUES.includes(value)) {
+          rowErrors.push(`Dòng ${rowNumber}: "TrangThai" phải là "HoatDong" hoặc "DaDong" (đang là "${value}")`);
+          return;
+        }
+        trangThai = value;
+      }
+    }
+
     const targets = {};
     for (const { name, colNumber } of targetCols) {
       const v = row.getCell(colNumber).value;
@@ -61,8 +87,9 @@ async function parseSalesTargetsFile(buffer) {
       const num = Number(v);
       targets[name] = Number.isFinite(num) ? num : v;
     }
+    if (trangThai) targets.TrangThai = trangThai;
     if (!Object.keys(targets).length) {
-      rowErrors.push(`Dòng ${rowNumber}: không có giá trị chỉ tiêu nào`);
+      rowErrors.push(`Dòng ${rowNumber}: không có giá trị chỉ tiêu nào (và không đánh dấu TrangThai)`);
       return;
     }
 

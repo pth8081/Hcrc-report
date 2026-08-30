@@ -57,6 +57,12 @@ export default function SalesTargetsPage() {
         các cột sau tuỳ ý — tên cột trở thành tên chỉ tiêu (vd <code>ChiTieuDoanhThu</code>,
         <code>ChiTieuGiaoDich</code>).
       </p>
+      <p>
+        Cột <code>TrangThai</code> (TUỲ CHỌN) — ghi <code>DaDong</code> để LOẠI HẲN siêu thị
+        đó khỏi báo cáo (composite) tháng này, để trống hoặc ghi <code>HoatDong</code> = hiện
+        bình thường. Bỏ trống cả cột này (không nhập gì) KHÔNG loại siêu thị — chỉ đánh dấu
+        rõ <code>DaDong</code> mới loại, tránh mất siêu thị khỏi báo cáo chỉ vì quên nhập.
+      </p>
       {error && <p className="form-error">{error}</p>}
 
       <form className="stacked-form" onSubmit={submitImport}>

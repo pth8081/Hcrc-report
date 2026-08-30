@@ -259,6 +259,13 @@ dữ liệu, RỒI ghép theo `entityCode`:
   âm thầm biến mất.
 - **KHÔNG phân trang** — composite luôn trả toàn bộ dòng (cần đủ để tính
   đúng dòng tổng), khác `'directDb'`/`'apiReport'` có `page`/`pageSize`.
+- **Đóng cửa siêu thị** — nhập `TrangThai=DaDong` cho thực thể đó trong file
+  chỉ tiêu tháng (`etl-admin/`, xem `etl/README.md` mục "Nhập chỉ tiêu")
+  LOẠI HẲN thực thể đó khỏi kết quả (cả dòng dữ liệu lẫn mọi dòng tổng) —
+  CHỈ khi đánh dấu tường minh, THIẾU dòng chỉ tiêu (chưa kịp nhập) KHÔNG bị
+  coi là đóng cửa, vẫn hiện ra bình thường. Mở siêu thị mới không cần cấu
+  hình gì thêm ở đây — chỉ cần ETL/API Server có dữ liệu cho `entityCode`
+  đó là tự động xuất hiện.
 
 ### Gửi email báo cáo theo lịch
 

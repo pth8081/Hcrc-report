@@ -5,6 +5,23 @@ Server, API Server và các giao diện quản trị) — tăng ở mỗi lần 
 `main`, theo kiểu semver không chặt (patch cho fix nhỏ, minor cho tính năng
 mới, major khi đổi cấu trúc phá vỡ tương thích ngược).
 
+## 0.21.1 — Đánh dấu đóng cửa siêu thị (TrangThai) trong chỉ tiêu tháng
+
+12 test mới.
+
+- **Cột `TrangThai` (tuỳ chọn)** trong file Excel "Nhập chỉ tiêu"
+  (`etl-admin/`) — `DaDong` LOẠI HẲN siêu thị đó khỏi báo cáo `composite`
+  tháng này (cả dòng dữ liệu lẫn mọi dòng "Tổng cộng"), để trống/`HoatDong`
+  = hiện bình thường.
+- **CỐ Ý chỉ loại khi đánh dấu TƯỜNG MINH** — thiếu cả dòng chỉ tiêu (chưa
+  kịp nhập, hoặc quên) KHÔNG bị coi là đóng cửa, siêu thị đó vẫn hiện ra
+  bình thường (chỉ trống cột Chỉ tiêu) — tránh mất siêu thị khỏi báo cáo
+  chỉ vì lỗi/sai sót nhập liệu tháng đó.
+- File chỉ tiêu có thể CHỈ chứa cột `TrangThai` (không kèm số liệu) nếu mục
+  đích chỉ là đánh dấu đóng cửa hàng loạt.
+- Mở siêu thị mới KHÔNG cần cấu hình gì ở đây — báo cáo composite không có
+  danh sách cố định, tự động xuất hiện ngay khi có dữ liệu.
+
 ## 0.21.0 — SourceType='composite': ghép nhiều nguồn + dòng "Tổng cộng"
 
 Bước 3 (cuối) cho báo cáo doanh thu chi nhánh — ghép "Thực đạt" (DWH hoặc
