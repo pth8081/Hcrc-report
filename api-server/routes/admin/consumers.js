@@ -1,0 +1,89 @@
+// routes/admin/consumers.js — CRUD api.ApiConsumers. API key gốc chỉ hiện
+// MỘT LẦN DUY NHẤT lúc tạo/luân chuyển (trả về trong response, KHÔNG lưu lại
+// nguyên văn) — sau đó chỉ so khớp được qua hash, giống mật khẩu.
+const crypto = require('crypto');
+const express = require('express');
+const { sql, getPool } = require('../../db');
+const { requireAdminAuth, requireAdminRole } = require('../../lib/adminAuth');
+const { sha256Hex } = require('../../lib/hash');
+const { invalidate } = require('../../lib/apiConsumers');
+
+const router = express.Router();
+router.use(requireAdminAuth);
+
+router.get('/', async (req, res, next) => {
+  try {
+    const pool = await getPool('ADMIN');
+    const result = await pool.request().query(`
+      SELECT Id, Name, Scopes, RateLimitPerMinute, IsActive, CreatedAt, LastUsedAt
+      FROM api.ApiConsumers ORDER BY Name
+    `);
+    res.json(result.recordset.map(r => ({ ...r, Scopes: r.Scopes.split(',').filter(Boolean) })));
+  } catch (err) { next(err); }
+});
+
+router.post('/', requireAdminRole, async (req, res, next) => {
+  try {
+    const { name, scopes = [], rateLimitPerMinute = 120 } = req.body || {};
+    if (!name || !scopes.length) return res.status(400).json({ error: 'Thiếu name/scopes' });
+
+    const rawKey = crypto.randomBytes(32).toString('base64url');
+    const pool = await getPool('ADMIN');
+    const result = await pool.request()
+      .input('name', sql.NVarChar(200), name)
+      .input('apiKeyHash', sql.Char(64), sha256Hex(rawKey))
+      .input('scopes', sql.NVarChar(200), scopes.join(','))
+      .input('rateLimit', sql.Int, rateLimitPerMinute)
+      .query(`
+        INSERT INTO api.ApiConsumers (Name, ApiKeyHash, Scopes, RateLimitPerMinute)
+        OUTPUT INSERTED.Id
+        VALUES (@name, @apiKeyHash, @scopes, @rateLimit)
+      `);
+    invalidate();
+    res.status(201).json({ id: result.recordset[0].Id, apiKey: rawKey }); // CHỈ response này có key gốc
+  } catch (err) { next(err); }
+});
+
+router.post('/:id/rotate', requireAdminRole, async (req, res, next) => {
+  try {
+    const rawKey = crypto.randomBytes(32).toString('base64url');
+    const pool = await getPool('ADMIN');
+    await pool.request()
+      .input('id', sql.Int, req.params.id)
+      .input('apiKeyHash', sql.Char(64), sha256Hex(rawKey))
+      .query('UPDATE api.ApiConsumers SET ApiKeyHash = @apiKeyHash WHERE Id = @id');
+    invalidate();
+    res.json({ apiKey: rawKey }); // CHỈ response này có key gốc
+  } catch (err) { next(err); }
+});
+
+router.put('/:id', requireAdminRole, async (req, res, next) => {
+  try {
+    const { name, scopes = [], rateLimitPerMinute, isActive } = req.body || {};
+    const pool = await getPool('ADMIN');
+    await pool.request()
+      .input('id', sql.Int, req.params.id)
+      .input('name', sql.NVarChar(200), name)
+      .input('scopes', sql.NVarChar(200), scopes.join(','))
+      .input('rateLimit', sql.Int, rateLimitPerMinute || 120)
+      .input('isActive', sql.Bit, isActive ? 1 : 0)
+      .query(`
+        UPDATE api.ApiConsumers
+        SET Name = @name, Scopes = @scopes, RateLimitPerMinute = @rateLimit, IsActive = @isActive
+        WHERE Id = @id
+      `);
+    invalidate();
+    res.json({ ok: true });
+  } catch (err) { next(err); }
+});
+
+router.delete('/:id', requireAdminRole, async (req, res, next) => {
+  try {
+    const pool = await getPool('ADMIN');
+    await pool.request().input('id', sql.Int, req.params.id).query('DELETE FROM api.ApiConsumers WHERE Id = @id');
+    invalidate();
+    res.json({ ok: true });
+  } catch (err) { next(err); }
+});
+
+module.exports = router;

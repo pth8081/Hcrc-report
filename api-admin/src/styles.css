@@ -1,0 +1,66 @@
+/* styles.css — cùng công thức tối giản với frontend/src/styles.css, thêm vài
+   lớp riêng cho trang này (thẻ pool, banner hiện key, nhãn vai trò). */
+:root {
+  --ink: #1a2430;
+  --ink-soft: #5a6672;
+  --line: #d9dee2;
+  --bg: #f4f6f7;
+  --surface: #ffffff;
+  --accent: #1c7566;
+  --accent-soft: #dbeae5;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--ink); }
+h1 { font-size: 22px; margin: 0 0 16px; }
+h3 { font-size: 14px; margin: 20px 0 8px; color: var(--ink-soft); }
+
+.app-shell { display: flex; min-height: 100vh; }
+.sidebar { width: 200px; flex-shrink: 0; background: var(--surface); border-right: 1px solid var(--line); display: flex; flex-direction: column; }
+.sidebar-brand { padding: 18px 16px; font-weight: 700; font-size: 16px; border-bottom: 1px solid var(--line); }
+.menu { list-style: none; margin: 0; padding: 8px; flex: 1; }
+.menu a { display: block; padding: 8px 10px; border-radius: 4px; color: var(--ink-soft); text-decoration: none; font-size: 14px; }
+.menu a.active, .menu a:hover { background: var(--accent-soft); color: var(--accent); }
+.sidebar-footer { padding: 12px 16px; border-top: 1px solid var(--line); font-size: 13px; }
+.user-name { margin-bottom: 6px; display: flex; align-items: center; gap: 6px; }
+.role-badge { font-size: 10px; text-transform: uppercase; letter-spacing: .04em; background: var(--accent-soft); color: var(--accent); padding: 1px 6px; border-radius: 3px; }
+.content { flex: 1; padding: 24px 32px; }
+.page { max-width: 960px; }
+.page-loading { padding: 40px; text-align: center; color: var(--ink-soft); }
+
+form label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--ink-soft); }
+input, select, textarea, button { font: inherit; }
+input, select, textarea { padding: 7px 10px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); color: var(--ink); }
+button { padding: 7px 14px; border: 1px solid var(--accent); border-radius: 4px; background: var(--accent); color: #fff; cursor: pointer; }
+button:hover { opacity: 0.9; }
+.inline-form { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 16px; }
+.stacked-form { display: flex; flex-direction: column; gap: 10px; max-width: 360px; margin-bottom: 20px; }
+.checkbox-row { flex-direction: row; align-items: center; gap: 6px; font-size: 14px; color: var(--ink); }
+.scope-picker { display: flex; gap: 16px; }
+.form-error { color: #b3261e; font-size: 13px; }
+
+.table-scroll { overflow-x: auto; }
+.data-table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+.data-table th { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); color: var(--ink-soft); font-weight: 600; }
+.data-table td { padding: 8px 10px; border-bottom: 1px solid var(--line); }
+.empty-message { color: var(--ink-soft); font-size: 13px; }
+
+.tabs { display: flex; gap: 4px; margin-bottom: 16px; border-bottom: 1px solid var(--line); }
+.tabs button { background: none; border: none; color: var(--ink-soft); padding: 8px 14px; border-radius: 0; }
+.tabs button.active { color: var(--accent); border-bottom: 2px solid var(--accent); }
+
+.modal { position: fixed; inset: 0; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; }
+.modal-body { background: var(--surface); padding: 24px; border-radius: 6px; width: 380px; display: flex; flex-direction: column; gap: 10px; }
+.modal-actions { display: flex; gap: 8px; margin-top: 8px; }
+
+.login-page { min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+.login-form { display: flex; flex-direction: column; gap: 12px; width: 320px; background: var(--surface); padding: 32px; border-radius: 8px; border: 1px solid var(--line); }
+
+.key-banner { background: var(--accent-soft); border: 1px solid var(--accent); border-radius: 6px; padding: 14px 16px; margin-bottom: 20px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.key-banner code { background: var(--surface); padding: 4px 8px; border-radius: 4px; word-break: break-all; }
+
+.pool-cards { display: flex; gap: 12px; margin-bottom: 8px; }
+.pool-card { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 12px 16px; min-width: 160px; }
+.pool-card-title { font-size: 12px; color: var(--ink-soft); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 4px; }
+
+.pager { display: flex; align-items: center; gap: 12px; margin-top: 12px; font-size: 13px; }
