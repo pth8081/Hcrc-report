@@ -14,6 +14,7 @@ import ReportCatalogPage from './modules/system/report-catalog/ReportCatalogPage
 import AuditLogPage from './modules/system/audit-log/AuditLogPage';
 import CategoriesPage from './modules/system/categories/CategoriesPage';
 import EmailSettingsPage from './modules/system/email-settings/EmailSettingsPage';
+import EmailSchedulesPage from './modules/system/email-schedules/EmailSchedulesPage';
 
 export default function App() {
   return (
@@ -40,6 +41,7 @@ export default function App() {
           <Route path="/system/audit-log" element={<RequireMenuAccess code="system-audit-log"><AuditLogPage /></RequireMenuAccess>} />
           <Route path="/system/categories" element={<RequireMenuAccess code="system-categories"><CategoriesPage /></RequireMenuAccess>} />
           <Route path="/system/email-settings" element={<RequireMenuAccess code="system-email-settings"><EmailSettingsPage /></RequireMenuAccess>} />
+          <Route path="/system/email-schedules" element={<RequireMenuAccess code="system-email-schedules"><EmailSchedulesPage /></RequireMenuAccess>} />
         </Route>
       </Routes>
     </AuthProvider>

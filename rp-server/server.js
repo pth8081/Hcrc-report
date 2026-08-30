@@ -19,7 +19,9 @@ const reportCatalogRoutes = require('./routes/reportCatalog');
 const dataSourcesRoutes = require('./routes/dataSources');
 const apiConnectionsRoutes = require('./routes/apiConnections');
 const externalConnectionsRoutes = require('./routes/externalConnections');
+const reportEmailSchedulesRoutes = require('./routes/reportEmailSchedules');
 const { verifyCredentials, issueToken, COOKIE_NAME } = require('./lib/auth');
+const reportEmailScheduler = require('./jobs/reportEmailScheduler');
 
 const app = express();
 const PORT = process.env.PORT || 4001;
@@ -73,10 +75,13 @@ app.use('/api/system/report-catalog', reportCatalogRoutes);
 app.use('/api/system/data-sources', dataSourcesRoutes);
 app.use('/api/system/api-connections', apiConnectionsRoutes);
 app.use('/api/system/external-connections', externalConnectionsRoutes);
+app.use('/api/system/report-email-schedules', reportEmailSchedulesRoutes);
 
 app.use((err, req, res, next) => { // eslint-disable-line no-unused-vars
   console.error(err);
   res.status(500).json({ error: 'Lỗi máy chủ' });
 });
+
+reportEmailScheduler.start();
 
 app.listen(PORT, () => console.log(`Report Server đang chạy ở cổng ${PORT}`));

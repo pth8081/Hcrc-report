@@ -3,11 +3,11 @@
 // (Id=1). Mật khẩu KHÔNG BAO GIỜ trả về nguyên văn qua API — GET chỉ báo
 // hasPassword để giao diện biết đã cấu hình hay chưa.
 const express = require('express');
-const nodemailer = require('nodemailer');
 const { sql, getPool } = require('../db');
 const { requireAuth, requireMenuAccess } = require('../lib/auth');
-const { encrypt, decrypt } = require('../lib/crypto');
+const { encrypt } = require('../lib/crypto');
 const { logAction } = require('../lib/auditLog');
+const { sendMail } = require('../lib/mailer');
 
 const router = express.Router();
 router.use(requireAuth, requireMenuAccess('system-email-settings'));
@@ -77,23 +77,7 @@ router.post('/test', async (req, res, next) => {
     const { to } = req.body || {};
     if (!to) return res.status(400).json({ error: 'Thiếu địa chỉ nhận (to)' });
 
-    const pool = await getPool('RP');
-    const result = await pool.request().query(`
-      SELECT SmtpHost, SmtpPort, Secure, Username, PasswordEncrypted, FromAddress, FromName
-      FROM app.EmailSettings WHERE Id = 1
-    `);
-    if (!result.recordset.length) return res.status(400).json({ error: 'Chưa cấu hình email' });
-    const row = result.recordset[0];
-
-    const transport = nodemailer.createTransport({
-      host: row.SmtpHost,
-      port: row.SmtpPort,
-      secure: !!row.Secure,
-      auth: row.Username ? { user: row.Username, pass: row.PasswordEncrypted ? decrypt(row.PasswordEncrypted) : undefined } : undefined
-    });
-
-    await transport.sendMail({
-      from: row.FromName ? `${row.FromName} <${row.FromAddress}>` : row.FromAddress,
+    await sendMail({
       to,
       subject: 'HCRC — Email thử nghiệm',
       text: `Đây là email thử nghiệm gửi từ trang Thiết lập email, lúc ${new Date().toISOString()}.`
@@ -102,7 +86,9 @@ router.post('/test', async (req, res, next) => {
     await logAction(req, { module: 'Thiết lập email', actionType: 'GUI_THU', targetObject: to, description: `Gửi email thử nghiệm tới ${to}` });
     res.json({ ok: true });
   } catch (err) {
-    next(err);
+    // Lỗi SMTP thật (sai host/port/mật khẩu...) — trả rõ cho người dùng thay
+    // vì 500 chung chung, giống nút "Kiểm tra kết nối" ở các trang khác.
+    res.status(400).json({ error: err.message });
   }
 });
 

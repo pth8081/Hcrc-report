@@ -183,6 +183,35 @@ liệu, không chỉ chọn tên field có sẵn.
 API đối tác cần phân trang, thêm tham số cố định thẳng vào `externalPath`
 (vd `/orders?limit=500`).
 
+### Gửi email báo cáo theo lịch
+
+Trang "Lịch gửi email báo cáo" (`app.ReportEmailSchedules`) — gửi TỰ ĐỘNG một
+báo cáo cho danh sách người nhận theo lịch (vd "Doanh thu ngày — 07:00 mỗi
+sáng cho Ban GĐ"), dùng chung cấu hình SMTP ở "Thiết lập email".
+
+- **Lịch chạy** — giao diện dựng cron qua chọn Tần suất (Hàng ngày/Hàng tuần
+  + chọn thứ) + Giờ gửi, không bắt gõ cú pháp cron tay (tab "Nâng cao" vẫn
+  nhận cron thô nếu cần lịch phức tạp hơn, vd nhiều giờ trong ngày). Chạy qua
+  `node-cron`, nạp lại có hiệu lực trong tối đa 60 giây khi tạo/sửa/xoá —
+  cùng cơ chế `etl/jobs/scheduler.js` (ETL), xem
+  `rp-server/jobs/reportEmailScheduler.js`.
+- **Bộ lọc cố định khi gửi tự động** — đổi theo `filters` của báo cáo đã
+  chọn. Lọc kiểu `dateRange` CHỈ nhận **preset tương đối** (Hôm nay/Hôm
+  qua/7 ngày qua/30 ngày qua/Tuần này/Tháng này/Tháng trước), tính lại đúng
+  lúc gửi — không cho chọn ngày cố định (vô nghĩa với báo cáo gửi lặp lại
+  hàng ngày, hôm nay chạy ra kết quả khác hôm sau). Các loại lọc khác dùng
+  giá trị cố định thật (vd luôn chỉ gửi phòng ban X) — xem
+  `lib/reportEmailFilters.js`.
+- **Gửi ngay** (nút trên mỗi dòng) — chạy thật ngay lập tức để kiểm tra cấu
+  hình (báo cáo/bộ lọc/SMTP/người nhận đúng chưa), không đợi tới giờ đã đặt,
+  hoạt động cả khi lịch đang tắt. Lỗi thật (SMTP sai, báo cáo lỗi...) trả về
+  ngay trên giao diện, không phải chờ tới lần chạy tự động mới biết.
+- Xuất Excel hoặc PDF làm file đính kèm — dùng thẳng `lib/exportExcel.js`/
+  `lib/exportPdf.js` đã có, không viết lại logic xuất file.
+- **Chưa làm**: chọn báo cáo qua nhiều lịch dùng chung 1 mẫu (mỗi lịch độc
+  lập hoàn toàn); giới hạn số dòng tối đa trước khi cảnh báo file đính kèm
+  quá lớn (hiện lấy nguyên `pageSize: 5000` như nút "Xuất" thủ công).
+
 ## API
 
 | Endpoint | Mô tả |
@@ -196,6 +225,7 @@ API đối tác cần phân trang, thêm tham số cố định thẳng vào `ex
 | `/api/system/menu-items` | Cây menu đầy đủ (dựng UI gán quyền) |
 | `/api/system/categories` | CRUD danh mục dùng chung |
 | `/api/system/email-settings` | Cấu hình SMTP + gửi thử |
+| `/api/system/report-email-schedules` | CRUD lịch gửi email báo cáo, `GET /reports` (danh mục + filters để dựng form), `POST /:id/run-now` (gửi thật ngay) |
 | `/api/system/audit-log` | Xem log, chỉ đọc |
 | `/api/system/report-catalog` | CRUD định nghĩa báo cáo, tải mẫu `.xlsx/.pptx` |
 | `POST /api/system/report-catalog/test-external-api` | Chạy thử báo cáo `externalApi` với cấu hình đang soạn (chưa cần lưu) |

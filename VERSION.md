@@ -5,6 +5,45 @@ Server, API Server và các giao diện quản trị) — tăng ở mỗi lần 
 `main`, theo kiểu semver không chặt (patch cho fix nhỏ, minor cho tính năng
 mới, major khi đổi cấu trúc phá vỡ tương thích ngược).
 
+## 0.12.0 — Lịch gửi email báo cáo tự động (rp-server)
+
+- Bảng mới **`app.ReportEmailSchedules`** (rp-db) — mỗi dòng là 1 lịch: báo
+  cáo (`ReportId`), lịch chạy (`CronExpression`), người nhận, bộ lọc cố định
+  (`FilterValuesJson`), định dạng xuất (`excel`/`pdf`), bật/tắt, lần gửi gần
+  nhất + trạng thái/lỗi. Trang mới "Lịch gửi email báo cáo" trong menu Hệ
+  thống.
+- **Lịch chạy dựng qua giao diện** (Tần suất Hàng ngày/Hàng tuần + chọn thứ +
+  Giờ gửi), không bắt gõ cron tay — tab "Nâng cao" vẫn nhận cron thô cho lịch
+  phức tạp hơn. `rp-server/jobs/reportEmailScheduler.js` — job `node-cron`
+  ĐẦU TIÊN của rp-server (thêm dependency `node-cron`, chưa từng có job nền
+  nào trước đây), nạp lại từ CSDL mỗi 60 giây, cùng khuôn hoàn toàn với
+  `etl/jobs/scheduler.js` (`registerJob`/`unregisterJob`/`refresh`/
+  `rescheduleJob`) — CRUD gọi `rescheduleJob(id)` ngay sau ghi, không đợi chu
+  kỳ 60 giây.
+- **Bộ lọc theo ngày dùng PRESET tương đối, không phải giá trị cố định** —
+  `lib/reportEmailFilters.js`: lọc kiểu `dateRange` chỉ nhận Hôm nay/Hôm
+  qua/7 ngày qua/30 ngày qua/Tuần này/Tháng này/Tháng trước, tính lại thành
+  `{from,to}` THẬT NGAY LÚC GỬI — khác một ngày cố định lưu sẵn (vô nghĩa với
+  báo cáo lặp lại hàng ngày, vì hôm nay và hôm sau cần ra kết quả khác nhau).
+  Lọc loại khác (multiSelect/select) dùng giá trị cố định thật.
+- **"Gửi ngay"** — nút trên mỗi dòng, chạy thật NGAY LẬP TỨC (không đợi giờ
+  đã đặt, hoạt động cả khi lịch đang tắt) để kiểm tra cấu hình trước khi tin
+  tưởng giao cho lịch tự động — lỗi thật (SMTP sai, báo cáo lỗi, người nhận
+  sai định dạng...) trả `400` kèm thông điệp rõ ràng lên giao diện ngay, khác
+  lúc job tự chạy theo giờ (chỉ ghi `LastStatus='FAILED'`/`LastError` + log,
+  không có ai đợi xem ngay lúc đó).
+- **Tách dùng chung**: `lib/mailer.js` (gửi email qua cấu hình SMTP chung —
+  trước đây "Gửi thử" tự dựng transport tại chỗ, giờ dùng chung với lịch gửi
+  tự động); `lib/reportRunner.js` (tách `loadDefinition`/`runDefinition` ra
+  khỏi `routes/reports.js`, dùng chung với job lịch gửi — chạy báo cáo đúng
+  1 chỗ logic dù gọi từ HTTP hay từ cron).
+- Test: `test-report-email-filters.js` (16/16 — presets ngày + resolveFilterValues),
+  `test-report-email-scheduler.js` (7/7 — vòng đời cron + luồng gửi thật/lỗi),
+  `test-report-email-schedules-route.js` (11/11 — CRUD qua HTTP thật, validate
+  cron/email/báo cáo), `test-reports-route-regression.js` (4/4 — xác nhận tách
+  `reportRunner.js` không đổi hành vi `/run`/`/export`), `test-cron-helpers.js`
+  (6/6 — round-trip form đơn giản ↔ chuỗi cron).
+
 ## 0.11.0 — OAuth2 Client Credentials & HMAC ký request (2 chiều)
 
 - **API Server (chiều vào — đối tác gọi mình)** — `api.ApiConsumers` thêm

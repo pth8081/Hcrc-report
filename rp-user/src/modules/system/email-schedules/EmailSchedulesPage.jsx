@@ -1,0 +1,359 @@
+// modules/system/email-schedules/EmailSchedulesPage.jsx — Trang "Lịch gửi
+// email báo cáo": CRUD app.ReportEmailSchedules. Lịch chạy (cron) được dựng
+// qua giao diện ĐƠN GIẢN (tần suất + giờ + thứ trong tuần) thay vì bắt gõ cú
+// pháp cron tay — xem buildCron()/parseCronToSimple(). Bộ lọc cố định của
+// từng lịch đổi theo filters của báo cáo đã chọn: lọc kiểu 'dateRange' chỉ
+// cho chọn PRESET tương đối (hôm nay/7 ngày qua/...) — không cho ngày cố
+// định, vì báo cáo gửi lặp lại hàng ngày cần dữ liệu tính lại mỗi lần chạy,
+// không phải cùng 1 khoảng ngày mãi mãi (xem rp-server/lib/reportEmailFilters.js).
+import { useEffect, useState } from 'react';
+import { api } from '../../../lib/api';
+import DataTable from '../../../components/DataTable';
+
+const WEEKDAY_OPTIONS = [
+  { value: 1, label: 'T2' }, { value: 2, label: 'T3' }, { value: 3, label: 'T4' },
+  { value: 4, label: 'T5' }, { value: 5, label: 'T6' }, { value: 6, label: 'T7' }, { value: 0, label: 'CN' }
+];
+const WEEKDAY_LABELS = Object.fromEntries(WEEKDAY_OPTIONS.map(w => [w.value, w.label]));
+const DATE_RANGE_PRESET_OPTIONS = [
+  { value: '', label: 'Không lọc theo ngày' },
+  { value: 'today', label: 'Hôm nay' },
+  { value: 'yesterday', label: 'Hôm qua' },
+  { value: 'last7days', label: '7 ngày qua' },
+  { value: 'last30days', label: '30 ngày qua' },
+  { value: 'thisWeek', label: 'Tuần này' },
+  { value: 'thisMonth', label: 'Tháng này' },
+  { value: 'lastMonth', label: 'Tháng trước' }
+];
+
+function pad2(n) { return String(n).padStart(2, '0'); }
+
+function buildCron({ frequency, time, weekdays }) {
+  const [hh, mm] = (time || '07:00').split(':').map(Number);
+  if (frequency === 'weekly' && weekdays.length) {
+    return `${mm} ${hh} * * ${weekdays.slice().sort().join(',')}`;
+  }
+  return `${mm} ${hh} * * *`;
+}
+
+// Đọc ngược cron -> {frequency,time,weekdays} cho form ĐƠN GIẢN — chỉ nhận
+// dạng cron do chính buildCron() ở trên tạo ra (phút/giờ là số đơn, ngày
+// tháng/tháng luôn '*'). Cron phức tạp hơn (dải giờ, bước nhảy, nhập tay từ
+// trước) không đọc lại được -> trả null, giao diện chuyển sang chế độ "Nâng
+// cao" hiện nguyên chuỗi cron thay vì cố suy diễn sai.
+function parseCronToSimple(cronExpr) {
+  const parts = String(cronExpr || '').trim().split(/\s+/);
+  if (parts.length !== 5) return null;
+  const [min, hour, dom, month, dow] = parts;
+  if (dom !== '*' || month !== '*' || !/^\d+$/.test(min) || !/^\d+$/.test(hour)) return null;
+  const time = `${pad2(Number(hour))}:${pad2(Number(min))}`;
+  if (dow === '*') return { frequency: 'daily', time, weekdays: [] };
+  if (/^[0-6](,[0-6])*$/.test(dow)) return { frequency: 'weekly', time, weekdays: dow.split(',').map(Number) };
+  return null;
+}
+
+function cronToLabel(cronExpr) {
+  const simple = parseCronToSimple(cronExpr);
+  if (!simple) return cronExpr;
+  if (simple.frequency === 'daily') return `Hàng ngày lúc ${simple.time}`;
+  return `${simple.weekdays.map(d => WEEKDAY_LABELS[d]).join(', ')} lúc ${simple.time}`;
+}
+
+function emptyScheduleForm() {
+  return {
+    name: '', reportId: '', recipients: '', exportFormat: 'excel',
+    cronMode: 'simple', frequency: 'daily', time: '07:00', weekdays: [1],
+    rawCron: '', filterValues: {}
+  };
+}
+
+// Suy ra state form từ 1 dòng lịch đã có (mở modal Sửa) — cronMode 'simple'
+// nếu đọc ngược cron được, ngược lại 'advanced' hiện nguyên chuỗi.
+function scheduleToForm(row) {
+  const simple = parseCronToSimple(row.CronExpression);
+  return {
+    name: row.Name, reportId: row.ReportId, recipients: row.Recipients, exportFormat: row.ExportFormat,
+    cronMode: simple ? 'simple' : 'advanced',
+    frequency: simple?.frequency || 'daily', time: simple?.time || '07:00', weekdays: simple?.weekdays?.length ? simple.weekdays : [1],
+    rawCron: simple ? '' : row.CronExpression,
+    filterValues: row.FilterValues || {}
+  };
+}
+
+function toggleWeekday(weekdays, value) {
+  return weekdays.includes(value) ? weekdays.filter(w => w !== value) : [...weekdays, value].sort();
+}
+
+// Ô cấu hình bộ lọc cố định, đổi theo filters của báo cáo đã chọn — dùng
+// chung cho cả form Tạo lẫn modal Sửa.
+function FilterConfigFields({ filters, filterValues, onChange }) {
+  if (!filters.length) return null;
+  return (
+    <div className="filter-config">
+      <strong>Bộ lọc cố định khi gửi tự động</strong>
+      {filters.map(f => {
+        const entry = filterValues[f.field] || {};
+        if (f.type === 'dateRange') {
+          return (
+            <label key={f.field}>
+              {f.label || f.field}
+              <select
+                value={entry.kind === 'dateRangePreset' ? entry.preset : ''}
+                onChange={(e) => {
+                  const preset = e.target.value;
+                  const next = { ...filterValues };
+                  if (preset) next[f.field] = { kind: 'dateRangePreset', preset };
+                  else delete next[f.field];
+                  onChange(next);
+                }}
+              >
+                {DATE_RANGE_PRESET_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            </label>
+          );
+        }
+        return (
+          <label key={f.field}>
+            {f.label || f.field}{f.type === 'multiSelect' ? ' (phân tách dấu phẩy)' : ''}
+            <input
+              placeholder="Để trống = không lọc"
+              value={entry.kind === 'fixed' ? entry.value : ''}
+              onChange={(e) => {
+                const value = e.target.value;
+                const next = { ...filterValues };
+                if (value) next[f.field] = { kind: 'fixed', value };
+                else delete next[f.field];
+                onChange(next);
+              }}
+            />
+          </label>
+        );
+      })}
+    </div>
+  );
+}
+
+// Nhóm field dùng chung cho form Tạo + modal Sửa (khác nhau ở chỗ Sửa khoá
+// chọn báo cáo — xem prop reportLocked).
+function ScheduleFormFields({ form, setForm, reports, reportLocked }) {
+  const selectedReport = reports.find(r => r.reportId === form.reportId);
+  return (
+    <>
+      <label>
+        Tên lịch
+        <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="vd Doanh thu ngày - Ban GĐ" required />
+      </label>
+
+      <label>
+        Báo cáo
+        {reportLocked ? (
+          <input value={selectedReport?.title || form.reportId} disabled />
+        ) : (
+          <select value={form.reportId} onChange={(e) => setForm({ ...form, reportId: e.target.value, filterValues: {} })} required>
+            <option value="">— Chọn báo cáo —</option>
+            {reports.map(r => <option key={r.reportId} value={r.reportId}>{r.title}</option>)}
+          </select>
+        )}
+      </label>
+
+      <div className="tabs">
+        <button type="button" className={form.cronMode === 'simple' ? 'active' : ''} onClick={() => setForm({ ...form, cronMode: 'simple' })}>Đơn giản</button>
+        <button type="button" className={form.cronMode === 'advanced' ? 'active' : ''} onClick={() => setForm({ ...form, cronMode: 'advanced' })}>Nâng cao (cron)</button>
+      </div>
+
+      {form.cronMode === 'simple' ? (
+        <>
+          <label>
+            Tần suất
+            <select value={form.frequency} onChange={(e) => setForm({ ...form, frequency: e.target.value })}>
+              <option value="daily">Hàng ngày</option>
+              <option value="weekly">Hàng tuần (chọn thứ)</option>
+            </select>
+          </label>
+          {form.frequency === 'weekly' && (
+            <div className="scope-picker">
+              {WEEKDAY_OPTIONS.map(w => (
+                <label key={w.value} className="checkbox-row">
+                  <input type="checkbox" checked={form.weekdays.includes(w.value)} onChange={() => setForm({ ...form, weekdays: toggleWeekday(form.weekdays, w.value) })} />
+                  {w.label}
+                </label>
+              ))}
+            </div>
+          )}
+          <label>
+            Giờ gửi
+            <input type="time" value={form.time} onChange={(e) => setForm({ ...form, time: e.target.value })} required />
+          </label>
+        </>
+      ) : (
+        <label>
+          Biểu thức cron (phút giờ ngày tháng thứ)
+          <input value={form.rawCron} onChange={(e) => setForm({ ...form, rawCron: e.target.value })} placeholder="vd 0 7 * * *" required />
+        </label>
+      )}
+
+      <label>
+        Người nhận (phân tách dấu phẩy)
+        <input value={form.recipients} onChange={(e) => setForm({ ...form, recipients: e.target.value })} placeholder="a@congty.vn, b@congty.vn" required />
+      </label>
+
+      <label>
+        Định dạng xuất
+        <select value={form.exportFormat} onChange={(e) => setForm({ ...form, exportFormat: e.target.value })}>
+          <option value="excel">Excel</option>
+          <option value="pdf">PDF</option>
+        </select>
+      </label>
+
+      <FilterConfigFields
+        filters={selectedReport?.filters || []}
+        filterValues={form.filterValues}
+        onChange={(filterValues) => setForm({ ...form, filterValues })}
+      />
+    </>
+  );
+}
+
+function resolvedCron(form) {
+  return form.cronMode === 'advanced' ? form.rawCron : buildCron(form);
+}
+
+export default function EmailSchedulesPage() {
+  const [reports, setReports] = useState([]);
+  const [rows, setRows] = useState([]);
+  const [form, setForm] = useState(emptyScheduleForm());
+  const [editing, setEditing] = useState(null); // {id, form}
+  const [error, setError] = useState('');
+  const [message, setMessage] = useState('');
+
+  function reload() {
+    api.get('/system/report-email-schedules').then(setRows).catch(err => setError(err.message));
+    api.get('/system/report-email-schedules/reports').then(setReports).catch(err => setError(err.message));
+  }
+  useEffect(reload, []);
+
+  async function createSchedule(e) {
+    e.preventDefault();
+    setError(''); setMessage('');
+    try {
+      await api.post('/system/report-email-schedules', {
+        name: form.name, reportId: form.reportId, cronExpression: resolvedCron(form),
+        recipients: form.recipients, exportFormat: form.exportFormat, filterValues: form.filterValues
+      });
+      setForm(emptyScheduleForm());
+      reload();
+    } catch (err) { setError(err.message); }
+  }
+
+  async function saveEdit() {
+    setError(''); setMessage('');
+    try {
+      const f = editing.form;
+      await api.put(`/system/report-email-schedules/${editing.id}`, {
+        name: f.name, cronExpression: resolvedCron(f), recipients: f.recipients,
+        exportFormat: f.exportFormat, filterValues: f.filterValues, isActive: f.isActive
+      });
+      setEditing(null);
+      reload();
+    } catch (err) { setError(err.message); }
+  }
+
+  async function toggleActive(row) {
+    setError('');
+    try {
+      const f = scheduleToForm(row);
+      await api.put(`/system/report-email-schedules/${row.Id}`, {
+        name: f.name, cronExpression: resolvedCron(f), recipients: f.recipients,
+        exportFormat: f.exportFormat, filterValues: f.filterValues, isActive: !row.IsActive
+      });
+      reload();
+    } catch (err) { setError(err.message); }
+  }
+
+  async function deleteSchedule(row) {
+    if (!confirm(`Xoá lịch "${row.Name}"?`)) return;
+    setError('');
+    try {
+      await api.del(`/system/report-email-schedules/${row.Id}`);
+      reload();
+    } catch (err) { setError(err.message); }
+  }
+
+  async function runNow(row) {
+    setError(''); setMessage('');
+    try {
+      await api.post(`/system/report-email-schedules/${row.Id}/run-now`);
+      setMessage(`✅ Đã gửi "${row.Name}" — kiểm tra hộp thư người nhận.`);
+      reload();
+    } catch (err) { setError(`Gửi "${row.Name}" thất bại: ${err.message}`); }
+  }
+
+  return (
+    <div className="page">
+      <h1>Lịch gửi email báo cáo</h1>
+      <p>
+        Gửi tự động MỘT báo cáo cho danh sách người nhận theo lịch — dùng cấu hình SMTP chung ở trang
+        &quot;Thiết lập email&quot;. Bộ lọc theo khoảng ngày dùng PRESET tương đối (hôm nay/7 ngày qua...),
+        tính lại đúng lúc gửi — không cố định một ngày mãi mãi.
+      </p>
+      {error && <p className="form-error">{error}</p>}
+      {message && <p className="form-success">{message}</p>}
+
+      <form className="stacked-form" onSubmit={createSchedule}>
+        <ScheduleFormFields form={form} setForm={setForm} reports={reports} reportLocked={false} />
+        <button type="submit">Tạo lịch</button>
+      </form>
+
+      <DataTable
+        columns={[
+          { key: 'Name', label: 'Tên lịch' },
+          { key: 'ReportTitle', label: 'Báo cáo' },
+          { key: 'CronExpression', label: 'Lịch chạy', render: (r) => cronToLabel(r.CronExpression) },
+          { key: 'Recipients', label: 'Người nhận' },
+          { key: 'ExportFormat', label: 'Định dạng', render: (r) => (r.ExportFormat === 'pdf' ? 'PDF' : 'Excel') },
+          { key: 'IsActive', label: 'Trạng thái', render: (r) => (r.IsActive ? 'Hoạt động' : 'Tắt') },
+          {
+            key: 'LastRun', label: 'Lần gửi gần nhất', render: (r) => {
+              if (!r.LastRunAt) return 'Chưa gửi lần nào';
+              const time = new Date(r.LastRunAt).toLocaleString('vi-VN');
+              if (r.LastStatus === 'FAILED') return <span className="form-error" title={r.LastError || ''}>⛔ {time}</span>;
+              return `✅ ${time}`;
+            }
+          },
+          {
+            key: 'actions', label: '', render: (r) => (
+              <>
+                <button type="button" onClick={() => setEditing({ id: r.Id, form: { ...scheduleToForm(r), isActive: r.IsActive } })}>Sửa</button>{' '}
+                <button type="button" onClick={() => runNow(r)}>Gửi ngay</button>{' '}
+                <button type="button" onClick={() => toggleActive(r)}>{r.IsActive ? 'Tắt' : 'Bật'}</button>{' '}
+                <button type="button" onClick={() => deleteSchedule(r)}>Xoá</button>
+              </>
+            )
+          }
+        ]}
+        rows={rows}
+      />
+
+      {editing && (
+        <div className="modal">
+          <div className="modal-body">
+            <h3>Sửa — {editing.form.name}</h3>
+            <ScheduleFormFields
+              form={editing.form}
+              setForm={(f) => setEditing({ ...editing, form: f })}
+              reports={reports}
+              reportLocked
+            />
+            <label className="checkbox-row">
+              <input type="checkbox" checked={editing.form.isActive} onChange={(e) => setEditing({ ...editing, form: { ...editing.form, isActive: e.target.checked } })} /> Hoạt động
+            </label>
+            <div className="modal-actions">
+              <button type="button" onClick={saveEdit}>Lưu</button>
+              <button type="button" onClick={() => setEditing(null)}>Huỷ</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

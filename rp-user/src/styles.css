@@ -45,6 +45,8 @@ button:hover { opacity: 0.9; }
 .date-range { display: flex; align-items: center; gap: 6px; }
 .form-error { color: #b3261e; font-size: 13px; }
 .form-success { color: #1c7566; font-size: 13px; }
+.hint { color: var(--ink-soft); font-size: 12.5px; margin: -4px 0 4px; }
+.filter-config { border: 1px solid var(--line); border-radius: 4px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
 .inline-actions { display: flex; gap: 8px; }
 
 /* Tables */

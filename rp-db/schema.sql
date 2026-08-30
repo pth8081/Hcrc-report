@@ -305,6 +305,35 @@ BEGIN
 END
 GO
 
+-- Lịch gửi email tự động cho MỘT báo cáo cụ thể (vd "Doanh thu hàng ngày —
+-- gửi 07:00 cho Ban GĐ") — dùng cấu hình SMTP chung ở app.EmailSettings.
+-- FilterValuesJson lưu bộ lọc áp KHI CHẠY TỰ ĐỘNG, dạng
+-- { "<field>": { "kind": "dateRangePreset", "preset": "today" } }  -- lọc
+-- 'dateRange' PHẢI dùng preset TƯƠNG ĐỐI (hôm nay/7 ngày qua/...), tính lại
+-- mỗi lần chạy — giá trị ngày CỐ ĐỊNH vô nghĩa với báo cáo gửi lặp lại hàng
+-- ngày. Các loại lọc khác dùng { "kind": "fixed", "value": "..." } — xem
+-- rp-server/lib/reportEmailFilters.js (áp dụng) và
+-- rp-server/jobs/reportEmailScheduler.js (chạy lịch, node-cron).
+IF OBJECT_ID('app.ReportEmailSchedules', 'U') IS NULL
+BEGIN
+    CREATE TABLE app.ReportEmailSchedules (
+        Id               INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        Name             NVARCHAR(200) NOT NULL,
+        ReportId         VARCHAR(80)   NOT NULL REFERENCES app.ReportCatalog(ReportId),
+        CronExpression   VARCHAR(50)   NOT NULL,
+        Recipients       NVARCHAR(1000) NOT NULL,
+        FilterValuesJson NVARCHAR(MAX) NULL,
+        ExportFormat     VARCHAR(10)   NOT NULL DEFAULT 'excel' CHECK (ExportFormat IN ('excel', 'pdf')),
+        IsActive         BIT           NOT NULL DEFAULT 1,
+        CreatedBy        INT           NULL REFERENCES app.Users(Id),
+        CreatedAt        DATETIME2(3)  NOT NULL DEFAULT SYSUTCDATETIME(),
+        LastRunAt        DATETIME2(3)  NULL,
+        LastStatus       VARCHAR(20)   NULL,
+        LastError        NVARCHAR(1000) NULL
+    );
+END
+GO
+
 IF OBJECT_ID('app.AuditLog', 'U') IS NULL
 BEGIN
     CREATE TABLE app.AuditLog (
@@ -354,6 +383,9 @@ IF NOT EXISTS (SELECT 1 FROM app.MenuItems WHERE Code = 'system-categories')
 IF NOT EXISTS (SELECT 1 FROM app.MenuItems WHERE Code = 'system-email-settings')
     INSERT INTO app.MenuItems (Code, ParentId, Label, Path, SortOrder)
     SELECT 'system-email-settings', Id, N'Thiết lập email', '/system/email-settings', 5 FROM app.MenuItems WHERE Code = 'system';
+IF NOT EXISTS (SELECT 1 FROM app.MenuItems WHERE Code = 'system-email-schedules')
+    INSERT INTO app.MenuItems (Code, ParentId, Label, Path, SortOrder)
+    SELECT 'system-email-schedules', Id, N'Lịch gửi email báo cáo', '/system/email-schedules', 6 FROM app.MenuItems WHERE Code = 'system';
 GO
 
 -- Seed vai trò Admin (IsSystemRole=1) — luôn cần tồn tại để gán cho tài khoản
