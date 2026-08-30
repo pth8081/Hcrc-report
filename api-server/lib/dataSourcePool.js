@@ -69,19 +69,6 @@ async function listActivePoolStats() {
   return stats;
 }
 
-// Tra theo tên endpoint ('inventory' | 'loyalty' | 'vouchers') thay vì
-// DataSourceId trực tiếp — routes/v1/realtime.js chỉ biết tên endpoint của
-// chính nó, không nên biết tới id nội bộ.
-async function getPoolForEndpoint(endpoint) {
-  const adminPool = await getPool('ADMIN');
-  const result = await adminPool.request().input('endpoint', sql.VarChar(50), endpoint)
-    .query('SELECT DataSourceId FROM api.RealtimeEndpoints WHERE Endpoint = @endpoint');
-  if (!result.recordset.length) {
-    throw new Error(`Endpoint "${endpoint}" chưa được gán nguồn dữ liệu — cấu hình ở trang quản trị (Nguồn dữ liệu).`);
-  }
-  return getPoolForDataSource(result.recordset[0].DataSourceId);
-}
-
 async function invalidate(id) {
   const existing = pools.get(id);
   pools.delete(id);
@@ -104,4 +91,4 @@ async function testConnection({ server, port, database, user, password, encrypt,
   await pool.close();
 }
 
-module.exports = { getPoolForDataSource, getPoolForEndpoint, listActivePoolStats, invalidate, testConnection };
+module.exports = { getPoolForDataSource, listActivePoolStats, invalidate, testConnection };

@@ -1,110 +1,45 @@
 // routes/v1/realtime.js — Tra cứu realtime từ CSDL OLTP (KHÔNG qua Data
-// Warehouse) — tồn kho, điểm thẻ thành viên, voucher. Nguyên tắc riêng cho
-// nhóm endpoint này (đã thống nhất trong tài liệu kiến trúc): đọc qua view
-// riêng (schema api_rt trên chính CSDL OLTP), tra đúng 1 khoá — KHÔNG có bộ
-// lọc động, KHÔNG cache (hoặc cache rất ngắn nếu sau này cần).
+// Warehouse) — vd tồn kho, điểm thẻ thành viên, voucher, hay bất kỳ loại dữ
+// liệu realtime nào khác admin đã định nghĩa (api.RealtimeEndpointDefs, xem
+// routes/admin/realtimeEndpoints.js). Endpoint KHÔNG còn cố định trong code —
+// admin tự tạo qua api-admin/ (chọn nguồn → duyệt bảng/cột thật, không gõ
+// tay), thêm loại realtime mới không cần lập trình viên viết route mới.
 //
-// Nguồn kết nối cho từng endpoint đọc từ api.RealtimeEndpoints/api.DataSources
-// (cấu hình qua trang quản trị "Nguồn dữ liệu", KHÔNG còn OLTP_* tĩnh trong
-// .env như trước — xem lib/dataSourcePool.js). CHƯA CÓ tên view/cột thật —
-// các route dưới đây là khung, đánh dấu TODO ở đúng chỗ cần thay khi có
-// schema OLTP thật.
-//
-// GET /:endpoint/list — DANH SÁCH phân trang (khác 3 route tra cứu 1 khoá ở
-// dưới) — dùng khi bên gọi cần cả bảng, không phải tra 1 mã cụ thể (ví dụ:
-// rp-server hiển thị "Báo cáo tồn kho realtime" — xem
-// app.ReportCatalog.SourceType='apiRealtime'). Trả {columns, rows} cùng
-// khuôn dạng với GET /v1/reports/:reportId/run để bên gọi xử lý thống nhất.
-// ĐĂNG KÝ TRƯỚC 3 route tra 1 khoá bên dưới — nếu không, "/inventory/list"
-// sẽ bị "/inventory/:sku" nuốt mất (khớp trước, coi "list" là giá trị sku).
+// 2 route DÙNG CHUNG cho MỌI endpoint:
+//   GET /:endpoint/list — danh sách phân trang.
+//   GET /:endpoint/:key — tra đúng 1 khoá.
+// "/list" ĐĂNG KÝ TRƯỚC "/:key" — nếu không, "/inventory/list" sẽ bị
+// "/inventory/:key" nuốt mất (khớp trước, coi "list" là giá trị khoá). Một
+// khoá thật sự tên "list" sẽ không tra được qua route dưới — giới hạn đã
+// biết, chấp nhận được.
 const express = require('express');
-const { sql } = require('../../db');
 const { requireApiKey } = require('../../lib/apiAuth');
-const { getPoolForEndpoint } = require('../../lib/dataSourcePool');
+const { runLookup, runList, NotFoundError } = require('../../lib/realtimeEngine');
 
 const router = express.Router();
 router.use(requireApiKey('realtime'));
 
-async function listQuery(req, res, next, { endpoint, columns, orderBy, buildQuery }) {
+router.get('/:endpoint/list', async (req, res, next) => {
   try {
     const page = Math.max(parseInt(req.query.page || '1', 10), 1);
     const pageSize = Math.min(parseInt(req.query.pageSize || '200', 10), 1000);
-    const pool = await getPoolForEndpoint(endpoint);
-    const result = await pool.request()
-      .input('offset', sql.Int, (page - 1) * pageSize)
-      .input('pageSize', sql.Int, pageSize)
-      .query(buildQuery(orderBy));
-    res.json({ page, pageSize, columns, rows: result.recordset });
-  } catch (err) { next(err); }
-}
-
-router.get('/inventory/list', (req, res, next) => listQuery(req, res, next, {
-  endpoint: 'inventory',
-  columns: ['MaSKU', 'SoLuongTon', 'CapNhatLuc'],
-  orderBy: 'MaSKU',
-  // TODO: đổi "api_rt.TonKho" + tên cột cho đúng view thật khi có schema OLTP
-  buildQuery: (orderBy) => `
-    SELECT MaSKU, SoLuongTon, CapNhatLuc FROM api_rt.TonKho
-    ORDER BY ${orderBy} OFFSET @offset ROWS FETCH NEXT @pageSize ROWS ONLY
-  `
-}));
-
-router.get('/loyalty/list', (req, res, next) => listQuery(req, res, next, {
-  endpoint: 'loyalty',
-  columns: ['MaThe', 'DiemHienTai', 'CapNhatLuc'],
-  orderBy: 'MaThe',
-  // TODO: đổi "api_rt.DiemThe" + tên cột cho đúng view thật khi có schema OLTP
-  buildQuery: (orderBy) => `
-    SELECT MaThe, DiemHienTai, CapNhatLuc FROM api_rt.DiemThe
-    ORDER BY ${orderBy} OFFSET @offset ROWS FETCH NEXT @pageSize ROWS ONLY
-  `
-}));
-
-router.get('/vouchers/list', (req, res, next) => listQuery(req, res, next, {
-  endpoint: 'vouchers',
-  columns: ['MaVoucher', 'TrangThai', 'GiaTri', 'HanSuDung'],
-  orderBy: 'MaVoucher',
-  // TODO: đổi "api_rt.Voucher" + tên cột cho đúng view thật khi có schema OLTP
-  buildQuery: (orderBy) => `
-    SELECT MaVoucher, TrangThai, GiaTri, HanSuDung FROM api_rt.Voucher
-    ORDER BY ${orderBy} OFFSET @offset ROWS FETCH NEXT @pageSize ROWS ONLY
-  `
-}));
-
-router.get('/inventory/:sku', async (req, res, next) => {
-  try {
-    const pool = await getPoolForEndpoint('inventory');
-    const result = await pool.request()
-      .input('sku', sql.NVarChar(50), req.params.sku)
-      // TODO: đổi "api_rt.TonKho" + tên cột cho đúng view thật khi có schema OLTP
-      .query('SELECT MaSKU, SoLuongTon, CapNhatLuc FROM api_rt.TonKho WHERE MaSKU = @sku');
-    if (!result.recordset.length) return res.status(404).json({ error: 'Không tìm thấy SKU' });
-    res.json(result.recordset[0]);
-  } catch (err) { next(err); }
+    const data = await runList(req.params.endpoint, { page, pageSize });
+    res.json(data);
+  } catch (err) {
+    if (err instanceof NotFoundError) return res.status(404).json({ error: err.message });
+    next(err);
+  }
 });
 
-router.get('/loyalty/:memberCode', async (req, res, next) => {
+router.get('/:endpoint/:key', async (req, res, next) => {
   try {
-    const pool = await getPoolForEndpoint('loyalty');
-    const result = await pool.request()
-      .input('memberCode', sql.NVarChar(50), req.params.memberCode)
-      // TODO: đổi "api_rt.DiemThe" + tên cột cho đúng view thật khi có schema OLTP
-      .query('SELECT MaThe, DiemHienTai, CapNhatLuc FROM api_rt.DiemThe WHERE MaThe = @memberCode');
-    if (!result.recordset.length) return res.status(404).json({ error: 'Không tìm thấy mã thẻ' });
-    res.json(result.recordset[0]);
-  } catch (err) { next(err); }
-});
-
-router.get('/vouchers/:code', async (req, res, next) => {
-  try {
-    const pool = await getPoolForEndpoint('vouchers');
-    const result = await pool.request()
-      .input('code', sql.NVarChar(50), req.params.code)
-      // TODO: đổi "api_rt.Voucher" + tên cột cho đúng view thật khi có schema OLTP
-      .query('SELECT MaVoucher, TrangThai, GiaTri, HanSuDung FROM api_rt.Voucher WHERE MaVoucher = @code');
-    if (!result.recordset.length) return res.status(404).json({ error: 'Không tìm thấy voucher' });
-    res.json(result.recordset[0]);
-  } catch (err) { next(err); }
+    const data = await runLookup(req.params.endpoint, req.params.key);
+    if (!data.row) return res.status(404).json({ error: 'Không tìm thấy khoá tra cứu' });
+    res.json(data.row); // phẳng, giống hành vi 3 route cũ (inventory/loyalty/vouchers)
+  } catch (err) {
+    if (err instanceof NotFoundError) return res.status(404).json({ error: err.message });
+    next(err);
+  }
 });
 
 module.exports = router;

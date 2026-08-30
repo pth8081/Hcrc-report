@@ -97,7 +97,9 @@ FROM app.MenuItems WHERE Code = 'reports-van-hanh';
 - `ApiTarget` là `ReportId` đã đăng ký bên `api.ReportCatalog` (CSDL
   `HCRC_API`, quản lý qua trang "Báo cáo" trên `api-admin/` — DANH MỤC ĐỘC
   LẬP với `app.ReportCatalog` ở đây) nếu `SourceType = 'apiReport'`, hoặc tên
-  endpoint realtime (`inventory`/`loyalty`/`vouchers`) nếu `'apiRealtime'`.
+  endpoint realtime nếu `'apiRealtime'` (đặt tên tự do khi tạo trên trang
+  "Endpoint realtime" của `api-admin/`, không giới hạn `inventory`/`loyalty`/
+  `vouchers` — xem `api-server/README.md` mục "Tạo một endpoint realtime mới").
 - Cả 2 loại đều KHÔNG dùng `DataSourceId` — cột hiển thị lấy nguyên từ response
   của API Server (đã tự chiếu cột phía đó), `DefinitionJson.columns` bị bỏ qua
   — xem `lib/apiReportClient.js`.

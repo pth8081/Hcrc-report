@@ -1,12 +1,17 @@
 // routes/admin/dataSources.js — Trang "Nguồn dữ liệu": CRUD api.DataSources
-// (nguồn cho các endpoint realtime, thay OLTP_* tĩnh trong .env) + gán mỗi
-// endpoint (inventory/loyalty/vouchers) cho đúng một nguồn
-// (api.RealtimeEndpoints). Mật khẩu KHÔNG BAO GIỜ trả về nguyên văn.
+// (kết nối CSDL OLTP thật, thay OLTP_* tĩnh trong .env) + duyệt schema thật
+// của một nguồn (bảng/view, cột) — dùng ở bước "chọn bảng" khi admin định
+// nghĩa một endpoint realtime (xem routes/admin/realtimeEndpoints.js,
+// lib/schemaBrowser.js). Gán nguồn cho TỪNG ENDPOINT không còn ở đây — mỗi
+// endpoint tự khai báo DataSourceId của nó khi tạo (routes/admin/realtimeEndpoints.js),
+// vì giờ 1 endpoint không chỉ cần 1 nguồn mà còn cần bảng/cột/khoá cụ thể.
+// Mật khẩu KHÔNG BAO GIỜ trả về nguyên văn.
 const express = require('express');
 const { sql, getPool } = require('../../db');
 const { requireAdminAuth, requireAdminRole } = require('../../lib/adminAuth');
 const { encrypt } = require('../../lib/crypto');
 const { invalidate, testConnection } = require('../../lib/dataSourcePool');
+const schemaBrowser = require('../../lib/schemaBrowser');
 
 const router = express.Router();
 router.use(requireAdminAuth);
@@ -91,7 +96,7 @@ router.delete('/:id', requireAdminRole, async (req, res, next) => {
     await invalidate(parseInt(req.params.id, 10));
     res.json({ ok: true });
   } catch (err) {
-    if (err.number === 547) return res.status(409).json({ error: 'Nguồn đang được gán cho ít nhất 1 endpoint — bỏ gán trước khi xoá' });
+    if (err.number === 547) return res.status(409).json({ error: 'Nguồn đang được ít nhất 1 endpoint realtime dùng — xoá endpoint đó trước' });
     next(err);
   }
 });
@@ -106,35 +111,16 @@ router.post('/test', requireAdminRole, async (req, res) => {
   }
 });
 
-// ===== Gán nguồn cho từng endpoint realtime =====
-const KNOWN_ENDPOINTS = ['inventory', 'loyalty', 'vouchers'];
-
-router.get('/realtime-endpoints', async (req, res, next) => {
+// ===== Duyệt schema thật — dùng khi tạo/sửa 1 endpoint realtime =====
+router.get('/:id/tables', async (req, res, next) => {
   try {
-    const pool = await getPool('ADMIN');
-    const result = await pool.request().query('SELECT Endpoint, DataSourceId FROM api.RealtimeEndpoints');
-    const byEndpoint = new Map(result.recordset.map(r => [r.Endpoint, r.DataSourceId]));
-    res.json(KNOWN_ENDPOINTS.map(e => ({ endpoint: e, dataSourceId: byEndpoint.get(e) || null })));
+    res.json(await schemaBrowser.listTables(req.params.id));
   } catch (err) { next(err); }
 });
 
-router.put('/realtime-endpoints/:endpoint', requireAdminRole, async (req, res, next) => {
+router.get('/:id/tables/:schemaName/:tableName/columns', async (req, res, next) => {
   try {
-    if (!KNOWN_ENDPOINTS.includes(req.params.endpoint)) return res.status(400).json({ error: 'Endpoint không hợp lệ' });
-    const { dataSourceId } = req.body || {};
-    if (!dataSourceId) return res.status(400).json({ error: 'Thiếu dataSourceId' });
-
-    const pool = await getPool('ADMIN');
-    await pool.request()
-      .input('endpoint', sql.VarChar(50), req.params.endpoint)
-      .input('dataSourceId', sql.Int, dataSourceId)
-      .query(`
-        MERGE api.RealtimeEndpoints AS target
-        USING (SELECT @endpoint AS Endpoint) AS src ON target.Endpoint = src.Endpoint
-        WHEN MATCHED THEN UPDATE SET DataSourceId = @dataSourceId
-        WHEN NOT MATCHED THEN INSERT (Endpoint, DataSourceId) VALUES (@endpoint, @dataSourceId);
-      `);
-    res.json({ ok: true });
+    res.json(await schemaBrowser.listColumns(req.params.id, req.params.schemaName, req.params.tableName));
   } catch (err) { next(err); }
 });
 

@@ -5,8 +5,8 @@ bên — cấp cho app nội bộ y hệt đối tác ngoài) + trang quản tr�
 (`api-admin/`). Ba nhóm route, ba mức xác thực hoàn toàn tách biệt:
 
 - `/api/v1/reports/*` — báo cáo tổng hợp, đọc từ Data Warehouse (`HCRC_DWH`, chỉ đọc, nguồn mặc định qua `.env`). ĐỊNH NGHĨA (bộ lọc/cột) đọc từ `api.ReportCatalog` (CSDL `HCRC_API`, quản lý qua `api-admin/`, ĐỘC LẬP với danh mục báo cáo bên Report Server). Xác thực: API key.
-- `/api/v1/inventory|loyalty|vouchers/*` — tra cứu realtime theo 1 khoá, và `/list` — danh sách phân trang cùng nhóm, mỗi endpoint đọc từ một nguồn được **gán riêng qua trang quản trị** (`api.DataSources` + `api.RealtimeEndpoints`, KHÔNG còn tĩnh qua `.env`). Xác thực: API key.
-- `/admin/*` — trang quản trị (`api-admin/`): đối tác API, nguồn dữ liệu realtime, danh mục báo cáo, kết nối hiện tại/lịch sử/top truy vấn. Xác thực: cookie phiên (tài khoản riêng, CSDL riêng `HCRC_API`).
+- `/api/v1/realtime/{endpoint}/*` — tra cứu realtime, `endpoint` KHÔNG cố định trong code — admin tự tạo qua `api-admin/` (chọn nguồn OLTP rồi duyệt bảng/cột thật, không gõ tay — `api.RealtimeEndpointDefs`), thêm loại dữ liệu realtime mới không cần lập trình viên viết route. Mỗi endpoint có 2 route: `/{endpoint}/{key}` (tra 1 khoá) và `/{endpoint}/list` (danh sách phân trang). Xác thực: API key.
+- `/admin/*` — trang quản trị (`api-admin/`): đối tác API, nguồn dữ liệu realtime, endpoint realtime, danh mục báo cáo, kết nối hiện tại/lịch sử/top truy vấn. Xác thực: cookie phiên (tài khoản riêng, CSDL riêng `HCRC_API`).
 
 Report Server (`rp-server/`) là MỘT trong những bên gọi `/api/v1/*` này — khi
 một báo cáo bên đó cấu hình `SourceType='apiReport'\|'apiRealtime'` (xem
@@ -38,19 +38,31 @@ nhiều lần). Tạo tài khoản quản trị đầu tiên cho `api-admin/`:
 npm run seed:admin -- ten-dang-nhap mat-khau "Họ Tên" admin
 ```
 
-## Cấu hình nguồn dữ liệu cho 3 endpoint realtime
+## Tạo một endpoint realtime mới (không cần code)
 
-Qua trang "Nguồn dữ liệu" trên `api-admin/`:
+Qua `api-admin/`, 2 bước:
 
-1. Thêm một nguồn (`api.DataSources`) — server/database/tài khoản **chỉ
-   đọc**, kiểm tra kết nối trước khi lưu.
-2. Gán nguồn đó cho từng endpoint (`inventory`/`loyalty`/`vouchers`) — một
-   endpoint có thể trỏ một nguồn khác endpoint kia, không bắt buộc dùng
-   chung.
+1. **Trang "Nguồn dữ liệu"** — thêm một nguồn (`api.DataSources`): server/
+   database/tài khoản **chỉ đọc**, kiểm tra kết nối trước khi lưu. Nhiều
+   endpoint có thể dùng chung 1 nguồn, hoặc mỗi endpoint 1 nguồn khác nhau
+   (nhiều máy chủ OLTP) — không giới hạn.
+2. **Trang "Endpoint realtime"** — tạo endpoint mới: đặt tên (vd
+   `inventory`, `don-hang-dang-xu-ly`), chọn nguồn ở bước 1, DUYỆT bảng/view
+   thật của nguồn đó (không gõ tay), chọn 1 bảng, DUYỆT cột thật, chọn cột
+   khoá (`KeyColumn` — dùng cho tra 1 khoá), cột sắp xếp (`OrderColumn` —
+   dùng cho danh sách phân trang), và các cột muốn hiển thị.
 
-Endpoint chưa được gán nguồn sẽ trả lỗi rõ ràng thay vì âm thầm dùng cấu
-hình cũ — không có "nguồn mặc định" ngầm định cho nhóm realtime này (khác
-`/api/v1/reports`, vẫn có `HCRC_DWH` làm mặc định qua `.env`).
+Sau khi lưu, endpoint hoạt động NGAY qua 2 route dùng chung cho mọi endpoint
+— `GET /api/v1/realtime/{endpoint}/{key}` và
+`GET /api/v1/realtime/{endpoint}/list` — không deploy lại, không viết route
+mới. Xem `lib/realtimeEngine.js` cho phần chạy câu SELECT động (tên bảng/cột
+đã xác nhận tồn tại thật lúc lưu, kiểm tra định dạng lúc chạy chỉ là lớp
+phòng thủ thứ hai — cùng nguyên tắc với ETL, xem tài liệu kiến trúc "Quản
+Trị ETL HCRC" nếu muốn đối chiếu).
+
+Endpoint chưa tồn tại/đã tắt sẽ trả lỗi 404 rõ ràng thay vì âm thầm dùng cấu
+hình cũ — không có "endpoint mặc định" ngầm định cho nhóm realtime này
+(khác `/api/v1/reports`, vẫn có `HCRC_DWH` làm mặc định qua `.env`).
 
 ## Cấp API key cho một hệ thống đối tác
 
@@ -68,7 +80,7 @@ SHA-256 (`api.ApiConsumers.ApiKeyHash`). Mất key thì luân chuyển key mới
 
 ## Còn thiếu để dùng thật
 
-- **Tên view/cột thật cho 3 route realtime** (`routes/v1/realtime.js`) — đang là khung với TODO, cần schema OLTP thật để thay đúng tên `api_rt.TonKho`/`api_rt.DiemThe`/`api_rt.Voucher`.
+- **Bộ lọc động cho endpoint realtime** — `/list` mới hỗ trợ phân trang, chưa lọc theo điều kiện (khác `/api/v1/reports` đã có `filters`) — cần nếu danh sách quá lớn để xem hết từng trang.
 - **Giới hạn tần suất riêng theo từng đối tác** — `api.ApiConsumers.RateLimitPerMinute` đã có cột, nhưng `server.js` hiện vẫn dùng một ngưỡng chung (`RATE_LIMIT_PER_MINUTE`) cho toàn bộ `/api/v1` — nâng cấp sau nếu cần giới hạn khác nhau giữa các đối tác.
 - **OpenAPI spec** — chưa viết, nên có trước khi giao cho hệ thống ngoài tích hợp thật.
 - **Nginx**: `/admin/*` PHẢI chỉ mở trong mạng nội bộ/VPN — không proxy ra Internet cùng domain với `/api/v1/*`. `lib/adminIpAllowlist.js` (biến `ADMIN_ALLOWED_IPS`) chỉ là lớp phòng thủ bổ sung, không thay được cấu hình Nginx.
@@ -79,12 +91,8 @@ SHA-256 (`api.ApiConsumers.ApiKeyHash`). Mất key thì luân chuyển key mới
 |---|---|---|
 | `GET /api/v1/health` | — | Kiểm tra tình trạng, không cần key |
 | `GET /api/v1/reports/:reportId/run` | `reports` | Chạy báo cáo (định nghĩa trong `api.ReportCatalog`), lọc qua query string, trả JSON phân trang |
-| `GET /api/v1/inventory/:sku` | `realtime` | Tồn kho theo SKU |
-| `GET /api/v1/inventory/list` | `realtime` | Danh sách tồn kho, phân trang |
-| `GET /api/v1/loyalty/:memberCode` | `realtime` | Điểm thẻ thành viên |
-| `GET /api/v1/loyalty/list` | `realtime` | Danh sách điểm thẻ, phân trang |
-| `GET /api/v1/vouchers/:code` | `realtime` | Trạng thái voucher |
-| `GET /api/v1/vouchers/list` | `realtime` | Danh sách voucher, phân trang |
+| `GET /api/v1/realtime/:endpoint/:key` | `realtime` | Tra 1 khoá — `endpoint` bất kỳ đã tạo qua trang "Endpoint realtime" (vd `inventory`, `loyalty`, `vouchers`, hoặc endpoint mới tự đặt) |
+| `GET /api/v1/realtime/:endpoint/list` | `realtime` | Danh sách cùng endpoint, phân trang |
 
 ## API — `/admin/*` (nội bộ, cookie phiên)
 
@@ -93,10 +101,11 @@ SHA-256 (`api.ApiConsumers.ApiKeyHash`). Mất key thì luân chuyển key mới
 | `POST /admin/auth/login`, `/logout`, `GET /me` | — | Đăng nhập/đăng xuất |
 | `GET/POST/PUT/DELETE /admin/consumers` | `admin` sửa, ai đăng nhập cũng xem được | CRUD đối tác API |
 | `POST /admin/consumers/:id/rotate` | `admin` | Luân chuyển key |
-| `GET/POST/PUT/DELETE /admin/data-sources` | `admin` sửa | CRUD nguồn dữ liệu realtime |
+| `GET/POST/PUT/DELETE /admin/data-sources` | `admin` sửa | CRUD nguồn dữ liệu OLTP (kết nối vật lý) |
 | `POST /admin/data-sources/test` | `admin` | Kiểm tra kết nối một cấu hình chưa lưu |
-| `GET /admin/data-sources/realtime-endpoints` | — | Nguồn đang gán cho từng endpoint |
-| `PUT /admin/data-sources/realtime-endpoints/:endpoint` | `admin` | Đổi nguồn gán cho một endpoint |
+| `GET /admin/data-sources/:id/tables` | — | Duyệt bảng/view thật của một nguồn |
+| `GET /admin/data-sources/:id/tables/:schema/:table/columns` | — | Duyệt cột thật của một bảng/view |
+| `GET/POST/PUT/DELETE /admin/realtime-endpoints` | `admin` sửa | CRUD định nghĩa endpoint realtime (`api.RealtimeEndpointDefs`) |
 | `GET/POST/PUT/DELETE /admin/report-catalog` | `admin` sửa | CRUD danh mục báo cáo tổng hợp (`api.ReportCatalog`) |
 | `GET /admin/live/stream` | — | SSE: request đang chạy realtime |
 | `GET /admin/live/pools` | — | Số kết nối CSDL đang dùng/tối đa (DWH) |

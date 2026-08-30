@@ -1,25 +1,24 @@
 // pages/DataSourcesPage.jsx — Trang "Nguồn dữ liệu": CRUD api.DataSources
-// (thay OLTP_* tĩnh trong .env) + gán nguồn cho từng endpoint realtime
-// (inventory/loyalty/vouchers). Chỉ vai trò admin sửa được.
+// (kết nối CSDL OLTP thật, thay OLTP_* tĩnh trong .env). Gán nguồn cho từng
+// endpoint realtime KHÔNG còn ở đây — xem trang "Endpoint realtime"
+// (RealtimeEndpointsPage.jsx), nơi 1 endpoint chọn nguồn NGAY khi tạo, cùng
+// lúc chọn bảng/cột. Chỉ vai trò admin sửa được.
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/AuthContext';
 import DataTable from '../components/DataTable';
 
 const EMPTY_FORM = { name: '', server: '', port: 1433, databaseName: '', username: '', password: '', encrypt: true, trustServerCert: false };
-const ENDPOINT_LABELS = { inventory: 'Tồn kho (inventory)', loyalty: 'Điểm thẻ (loyalty)', vouchers: 'Voucher (vouchers)' };
 
 export default function DataSourcesPage() {
   const { isAdmin } = useAuth();
   const [sources, setSources] = useState([]);
-  const [mappings, setMappings] = useState([]);
   const [form, setForm] = useState(EMPTY_FORM);
   const [testResult, setTestResult] = useState('');
   const [error, setError] = useState('');
 
   function reload() {
     api.get('/data-sources').then(setSources).catch(err => setError(err.message));
-    api.get('/data-sources/realtime-endpoints').then(setMappings).catch(err => setError(err.message));
   }
   useEffect(reload, []);
 
@@ -45,17 +44,9 @@ export default function DataSourcesPage() {
   }
 
   async function deleteSource(source) {
-    if (!confirm(`Xoá nguồn "${source.Name}"? Endpoint đang gán nguồn này sẽ lỗi cho tới khi gán lại.`)) return;
+    if (!confirm(`Xoá nguồn "${source.Name}"? Endpoint realtime đang dùng nguồn này sẽ lỗi cho tới khi đổi sang nguồn khác.`)) return;
     try {
       await api.del(`/data-sources/${source.Id}`);
-      reload();
-    } catch (err) { setError(err.message); }
-  }
-
-  async function assignEndpoint(endpoint, dataSourceId) {
-    if (!dataSourceId) return;
-    try {
-      await api.put(`/data-sources/realtime-endpoints/${endpoint}`, { dataSourceId: Number(dataSourceId) });
       reload();
     } catch (err) { setError(err.message); }
   }
@@ -63,24 +54,8 @@ export default function DataSourcesPage() {
   return (
     <div className="page">
       <h1>Nguồn dữ liệu</h1>
+      <p>Kết nối tới các CSDL OLTP thật — dùng làm nguồn cho endpoint realtime (xem trang &quot;Endpoint realtime&quot;).</p>
       {error && <p className="form-error">{error}</p>}
-
-      <h3>Gán nguồn cho từng endpoint realtime</h3>
-      <div className="stacked-form">
-        {mappings.map(m => (
-          <label key={m.endpoint}>
-            <span>{ENDPOINT_LABELS[m.endpoint] || m.endpoint}</span>
-            <select
-              value={m.dataSourceId || ''}
-              disabled={!isAdmin}
-              onChange={(e) => assignEndpoint(m.endpoint, e.target.value)}
-            >
-              <option value="">— Chưa gán —</option>
-              {sources.map(s => <option key={s.Id} value={s.Id}>{s.Name}</option>)}
-            </select>
-          </label>
-        ))}
-      </div>
 
       {isAdmin && (
         <>

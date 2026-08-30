@@ -5,6 +5,36 @@ Server, API Server và các giao diện quản trị) — tăng ở mỗi lần 
 `main`, theo kiểu semver không chặt (patch cho fix nhỏ, minor cho tính năng
 mới, major khi đổi cấu trúc phá vỡ tương thích ngược).
 
+## 0.8.0 — Endpoint realtime tự định nghĩa qua giao diện (không cần code)
+
+- Thay hẳn mô hình "mỗi endpoint realtime = 1 route viết cứng" (3 route
+  `inventory`/`loyalty`/`vouchers` cố định trong code) bằng **admin tự tạo
+  endpoint qua `api-admin/`**: chọn 1 nguồn đã có (`api.DataSources`, có thể
+  là nhiều máy chủ OLTP khác nhau — đã hỗ trợ sẵn từ trước), DUYỆT bảng/view
+  + cột THẬT của nguồn đó (không gõ tay), chọn cột khoá + cột sắp xếp + cột
+  hiển thị — trang mới "Endpoint realtime". Thêm loại dữ liệu realtime mới
+  (đơn hàng, giao hàng...) không cần lập trình viên viết route, cùng tinh
+  thần "Theo bảng" đã làm cho ETL.
+- Bảng mới `api.RealtimeEndpointDefs` (api-db) thay hẳn `api.RealtimeEndpoints`
+  cũ (đã `DROP TABLE`, chỉ lưu ánh xạ Endpoint->DataSourceId, không có dữ
+  liệu nghiệp vụ nên xoá an toàn). `api-server`: `lib/schemaBrowser.js`
+  (duyệt bảng/cột thật, MSSQL-only — tương đương `etl/lib/schemaBrowser.js`
+  bên ETL), `lib/realtimeEngine.js` (chạy SELECT động có tham số hoá +
+  allowlist định danh, cùng nguyên tắc `etl/lib/tableSyncEngine.js`),
+  `routes/admin/realtimeEndpoints.js` (CRUD định nghĩa). 2 route DÙNG CHUNG
+  cho MỌI endpoint thay 6 route cũ: `GET /v1/realtime/{endpoint}/{key}` (tra
+  1 khoá) và `GET /v1/realtime/{endpoint}/list` (danh sách phân trang).
+- **Sửa một lỗi tồn tại từ bản 0.7.0**: `rp-server/lib/apiReportClient.js`
+  (luồng `SourceType='apiRealtime'`) đã gọi
+  `{baseUrl}/api/v1/realtime/{apiTarget}/list` từ trước, nhưng
+  `api-server/server.js` khi đó mount router realtime thẳng ở `/api/v1`
+  (không có tiền tố `/realtime`) — nghĩa là đường gọi này CHƯA BAO GIỜ khớp,
+  sẽ luôn lỗi 404 nếu có ai dùng thật. Phát hiện khi tổng quát hoá routing
+  cho endpoint tự định nghĩa; nhân tiện sửa luôn bằng cách mount đúng tiền
+  tố `/api/v1/realtime` — cũng giải quyết gọn việc tên endpoint (giờ tự do,
+  admin đặt) có thể trùng với `/api/v1/reports` nếu vẫn mount chung gốc
+  `/api/v1` như cũ.
+
 ## 0.7.0 — Report Server lấy dữ liệu qua API Server (realtime)
 
 - `app.ReportCatalog` (rp-db) thêm `SourceType` (`'directDb'` mặc định,

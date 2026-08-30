@@ -1,8 +1,8 @@
 /* api-db/schema.sql — Cấu trúc bảng CSDL HCRC_API: tài khoản quản trị API
    (admin.AdminUsers), đối tác gọi API (api.ApiConsumers), nhật ký request
-   (api.RequestLog), nguồn dữ liệu bổ sung cho các endpoint realtime
-   (api.DataSources, api.RealtimeEndpoints — thay hẳn OLTP_* tĩnh trong
-   .env, xem tài liệu kiến trúc "Cổng Đăng Nhập HCRC", mục 01, điểm 4).
+   (api.RequestLog), nguồn dữ liệu OLTP cho các endpoint realtime tự định
+   nghĩa (api.DataSources, api.RealtimeEndpointDefs — thay hẳn OLTP_* tĩnh
+   trong .env, xem tài liệu kiến trúc "Cổng Đăng Nhập HCRC", mục 01, điểm 4).
    TÁCH RIÊNG hoàn toàn khỏi HCRC_RP và HCRC_DWH — xem tài liệu kiến trúc
    "Quản Trị API HCRC", mục 02, cho lý do tách. Giả định CSDL HCRC_API đã
    được tạo sẵn — script này chỉ tạo schema + bảng bên trong, KHÔNG tạo CSDL
@@ -106,15 +106,37 @@ BEGIN
 END
 GO
 
--- Mỗi endpoint realtime trỏ tới ĐÚNG một nguồn trong api.DataSources — admin
--- đổi được trên api-admin/ mà không cần deploy lại. Chưa có dòng nào cho
--- một endpoint = endpoint đó chưa dùng được (báo lỗi rõ ràng thay vì âm
--- thầm rơi về cấu hình cũ).
-IF OBJECT_ID('api.RealtimeEndpoints', 'U') IS NULL
+-- ĐÃ THAY BẰNG api.RealtimeEndpointDefs bên dưới (chỉ gán nguồn là chưa đủ —
+-- mỗi endpoint giờ còn cần biết bảng/cột/khoá cụ thể). An toàn xoá: bảng này
+-- chỉ lưu ánh xạ Endpoint->DataSourceId, không có dữ liệu nghiệp vụ.
+IF OBJECT_ID('api.RealtimeEndpoints', 'U') IS NOT NULL
 BEGIN
-    CREATE TABLE api.RealtimeEndpoints (
-        Endpoint     VARCHAR(50) NOT NULL PRIMARY KEY, -- 'inventory' | 'loyalty' | 'vouchers'
-        DataSourceId INT         NOT NULL REFERENCES api.DataSources(Id)
+    DROP TABLE api.RealtimeEndpoints;
+END
+GO
+
+-- Định nghĩa MỘT endpoint realtime — admin tự tạo qua api-admin/ (chọn nguồn
+-- trong api.DataSources rồi duyệt bảng/cột THẬT, không gõ tay — xem
+-- api-server/lib/schemaBrowser.js), không cần lập trình viên viết route mới
+-- mỗi khi thêm một loại dữ liệu realtime (xem api-server/lib/realtimeEngine.js
+-- cho phần chạy query động dựa vào định nghĩa này). Endpoint = 'inventory'
+-- | 'loyalty' | 'vouchers' | bất kỳ tên nào khác admin đặt (chữ thường/số/
+-- gạch ngang). ColumnsJson = mảng JSON tên cột hiển thị (SELECT + trả về);
+-- KeyColumn dùng cho GET /v1/realtime/{endpoint}/{key} (tra 1 khoá),
+-- OrderColumn dùng cho GET /v1/realtime/{endpoint}/list (phân trang).
+IF OBJECT_ID('api.RealtimeEndpointDefs', 'U') IS NULL
+BEGIN
+    CREATE TABLE api.RealtimeEndpointDefs (
+        Endpoint     VARCHAR(50)   NOT NULL PRIMARY KEY,
+        Label        NVARCHAR(200) NOT NULL,
+        DataSourceId INT           NOT NULL REFERENCES api.DataSources(Id),
+        SchemaName   NVARCHAR(128) NOT NULL,
+        TableName    NVARCHAR(128) NOT NULL,
+        KeyColumn    NVARCHAR(128) NOT NULL,
+        ColumnsJson  NVARCHAR(MAX) NOT NULL,
+        OrderColumn  NVARCHAR(128) NOT NULL,
+        IsActive     BIT           NOT NULL DEFAULT 1,
+        CreatedAt    DATETIME2(3)  NOT NULL DEFAULT SYSUTCDATETIME()
     );
 END
 GO

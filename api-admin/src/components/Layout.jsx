@@ -8,6 +8,7 @@ import { useAuth } from '../lib/AuthContext';
 const NAV = [
   { path: '/consumers', label: 'Đối tác' },
   { path: '/data-sources', label: 'Nguồn dữ liệu' },
+  { path: '/realtime-endpoints', label: 'Endpoint realtime' },
   { path: '/report-catalog', label: 'Báo cáo' },
   { path: '/live', label: 'Kết nối hiện tại' },
   { path: '/history', label: 'Lịch sử' },

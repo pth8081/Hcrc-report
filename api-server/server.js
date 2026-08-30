@@ -18,6 +18,7 @@ const realtimeRoutes = require('./routes/v1/realtime');
 const adminAuthRoutes = require('./routes/admin/auth');
 const adminConsumersRoutes = require('./routes/admin/consumers');
 const adminDataSourcesRoutes = require('./routes/admin/dataSources');
+const adminRealtimeEndpointsRoutes = require('./routes/admin/realtimeEndpoints');
 const adminReportCatalogRoutes = require('./routes/admin/reportCatalog');
 const adminLiveRoutes = require('./routes/admin/live');
 const adminHistoryRoutes = require('./routes/admin/history');
@@ -45,13 +46,14 @@ app.use('/api/v1', requestLogger); // ghi log + "kết nối hiện tại" — k
 
 app.use('/api/v1/health', healthRoutes);
 app.use('/api/v1/reports', reportsRoutes);
-app.use('/api/v1', realtimeRoutes); // /api/v1/inventory, /api/v1/loyalty, /api/v1/vouchers
+app.use('/api/v1/realtime', realtimeRoutes); // /api/v1/realtime/{endpoint}/list, /{endpoint}/{key}
 
 // ===== /admin/* — api-admin/ =====
 app.use('/admin', adminIpAllowlist);
 app.use('/admin/auth', adminAuthRoutes);
 app.use('/admin/consumers', adminConsumersRoutes);
 app.use('/admin/data-sources', adminDataSourcesRoutes);
+app.use('/admin/realtime-endpoints', adminRealtimeEndpointsRoutes);
 app.use('/admin/report-catalog', adminReportCatalogRoutes);
 app.use('/admin/live', adminLiveRoutes);
 app.use('/admin/history', adminHistoryRoutes);
