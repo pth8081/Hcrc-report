@@ -4,14 +4,58 @@
 // cho đổi tên/lịch/bật-tắt/domain/giữ lịch sử/cột Dimensions-Measures — đổi
 // bảng nguồn hay bảng liên kết thì xoá job cũ, tạo job mới (đơn giản hơn,
 // tránh cấu hình nửa vời).
+//
+// Job Type='table' được đối chiếu với schema THẬT của nguồn ngay lúc LƯU
+// (POST/PUT, xem assertTableConfigMatchesSchema/validateTableJobSchema bên
+// dưới) — dùng chung lib/schemaBrowser.js với dropdown trên etl-admin/, nên
+// cấu hình gõ tay/tạo qua script vẫn bị chặn ngay nếu sai tên bảng/cột, không
+// đợi tới lúc job chạy mới lộ ra. assertSafeIdentifier trong
+// lib/tableSyncEngine.js vẫn là lớp chống chèn SQL ở tầng chạy job — kiểm tra
+// ở đây không thay thế được lớp đó (schema có thể đổi giữa lúc lưu và lúc
+// chạy).
 const express = require('express');
 const { sql, getPool } = require('../../db');
 const { requireAdminAuth, requireAdminRole } = require('../../lib/adminAuth');
 const sourcesRegistry = require('../../sources');
 const { rescheduleJob, runJobIfNotAlreadyRunning } = require('../../jobs/scheduler');
+const schemaBrowser = require('../../lib/schemaBrowser');
 
 const router = express.Router();
 router.use(requireAdminAuth);
+
+// Đối chiếu 1 bảng + danh sách cột trong cấu hình job Type='table' với schema
+// THẬT của nguồn đã chọn (cùng nguồn schemaBrowser.js dùng để vẽ dropdown trên
+// etl-admin/) — chặn ngay lúc LƯU thay vì chỉ lộ lỗi lúc job CHẠY. Quan trọng
+// nhất khi job được tạo qua script/gọi API thẳng (bỏ qua dropdown), ví dụ cấu
+// hình hàng loạt nhiều chi nhánh cùng cấu trúc bảng.
+async function assertTableConfigMatchesSchema(dataSourceId, schemaName, tableName, requiredColumns) {
+  const tables = await schemaBrowser.listTables(dataSourceId);
+  const tableExists = tables.some(t => t.schemaName === schemaName && t.tableName === tableName);
+  if (!tableExists) throw new Error(`Bảng "${schemaName}.${tableName}" không tồn tại trên nguồn dữ liệu đã chọn`);
+  const cols = await schemaBrowser.listColumns(dataSourceId, schemaName, tableName);
+  const colNames = new Set(cols.map(c => c.columnName));
+  const missing = [...new Set(requiredColumns.filter(Boolean))].filter(c => !colNames.has(c));
+  if (missing.length) throw new Error(`Bảng "${schemaName}.${tableName}" không có cột: ${missing.join(', ')}`);
+}
+
+// Kiểm tra toàn bộ cấu hình job Type='table' lúc TẠO (bảng chính + bảng liên
+// kết nếu có) — PUT chỉ cho sửa DimensionColumns/MeasureColumns của bảng
+// chính nên dùng thẳng assertTableConfigMatchesSchema, không cần hàm này.
+async function validateTableJobSchema(b) {
+  const mainColumns = [b.keyColumn, b.dateColumn, b.updatedAtColumn, ...(b.dimensionColumns || []), ...(b.measureColumns || [])];
+  if (b.joinTable) {
+    if (!b.joinSchema || !b.mainJoinColumn || !b.lookupJoinColumn) {
+      throw new Error('Có joinTable thì phải kèm joinSchema/mainJoinColumn/lookupJoinColumn');
+    }
+    mainColumns.push(b.mainJoinColumn);
+  }
+  await assertTableConfigMatchesSchema(b.dataSourceId, b.sourceSchema, b.sourceTable, mainColumns);
+  if (b.joinTable) {
+    await assertTableConfigMatchesSchema(b.dataSourceId, b.joinSchema, b.joinTable, [
+      b.lookupJoinColumn, ...(b.lookupDimensionColumns || [])
+    ]);
+  }
+}
 
 router.get('/', async (req, res, next) => {
   try {
@@ -37,6 +81,13 @@ router.post('/', requireAdminRole, async (req, res, next) => {
     }
     if (b.type === 'custom' && !b.customConnectorKey) {
       return res.status(400).json({ error: 'Job Type="custom" thiếu customConnectorKey' });
+    }
+    if (b.type === 'table') {
+      try {
+        await validateTableJobSchema(b);
+      } catch (err) {
+        return res.status(400).json({ error: err.message });
+      }
     }
 
     const pool = await getPool('ADMIN');
@@ -84,6 +135,20 @@ router.put('/:id', requireAdminRole, async (req, res, next) => {
   try {
     const b = req.body || {};
     const pool = await getPool('ADMIN');
+    const jobId = parseInt(req.params.id, 10);
+    const existing = await pool.request().input('id', sql.Int, jobId)
+      .query('SELECT Type, DataSourceId, SourceSchema, SourceTable FROM etl.SyncJobs WHERE Id = @id');
+    if (!existing.recordset.length) return res.status(404).json({ error: 'Không tìm thấy job' });
+    const job = existing.recordset[0];
+    if (job.Type === 'table') {
+      try {
+        await assertTableConfigMatchesSchema(job.DataSourceId, job.SourceSchema, job.SourceTable, [
+          ...(b.dimensionColumns || []), ...(b.measureColumns || [])
+        ]);
+      } catch (err) {
+        return res.status(400).json({ error: err.message });
+      }
+    }
     await pool.request()
       .input('id', sql.Int, req.params.id)
       .input('name', sql.NVarChar(200), b.name)

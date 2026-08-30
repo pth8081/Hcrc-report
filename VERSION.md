@@ -5,6 +5,34 @@ Server, API Server và các giao diện quản trị) — tăng ở mỗi lần 
 `main`, theo kiểu semver không chặt (patch cho fix nhỏ, minor cho tính năng
 mới, major khi đổi cấu trúc phá vỡ tương thích ngược).
 
+## 0.21.6 — Đối chiếu bảng/cột với schema thật ngay lúc lưu cấu hình (etl + api-server)
+
+Không phải fix bảo mật (đã xác nhận ở 0.21.5 — `assertSafeIdentifier` chặn
+chèn SQL dù tên bảng/cột đúng hay sai). Mục tiêu: báo lỗi NGAY lúc LƯU cấu
+hình job đồng bộ / endpoint realtime, thay vì đợi tới lúc job chạy (hoặc tới
+lúc đối tác gọi endpoint) mới lộ ra — quan trọng nhất khi cấu hình được tạo
+qua script/gọi API thẳng (bỏ qua dropdown duyệt schema trên etl-admin/
+api-admin), ví dụ cấu hình hàng loạt nhiều chi nhánh cùng cấu trúc bảng.
+
+- **`etl/routes/admin/syncJobs.js`** — thêm `assertTableConfigMatchesSchema`/
+  `validateTableJobSchema` (dùng `lib/schemaBrowser.js`, cùng nguồn dropdown
+  trên etl-admin/): POST job Type='table' đối chiếu bảng chính + bảng liên
+  kết (nếu có) với schema thật của DataSource đã chọn; PUT đối chiếu lại
+  `dimensionColumns`/`measureColumns` mới (2 trường duy nhất PUT cho sửa) với
+  bảng chính của job hiện có. Sai tên bảng/cột -> 400 kèm tên bảng/cột cụ thể,
+  không lưu. Job Type='custom' không bị áp (không có bảng nguồn để đối chiếu).
+- **`api-server/routes/admin/realtimeEndpoints.js`** — thêm
+  `assertSchemaMatches` tương tự, áp cho cả POST và PUT (endpoint realtime
+  cho sửa cả bảng/cột qua PUT, khác etl).
+- Cập nhật lại comment đầu file ở `etl/lib/tableSyncEngine.js` và
+  `api-server/lib/realtimeEngine.js` (viết sai từ 0.21.5, nay đã đúng thực
+  tế) — `assertSafeIdentifier` vẫn là lớp chống chèn SQL DUY NHẤT ở tầng
+  chạy, vì schema nguồn có thể đổi sau khi lưu (đổi tên/xoá cột) mà job/
+  endpoint không hay biết.
+- 13 test độc lập (`fakeModule` + gọi thẳng route handler): bảng/cột đúng ->
+  201/200; sai tên bảng, sai tên cột đơn, sai tên cột bảng liên kết, sai cột
+  PUT -> 400 kèm đúng tên bảng/cột; Type='custom' không bị áp.
+
 ## 0.21.5 — Soát SQL injection (etl/rp-server/api-server) — không có lỗ hổng
 
 Rà soát toàn bộ 3 hệ thống — KHÔNG phát hiện lỗ hổng SQL injection nào.

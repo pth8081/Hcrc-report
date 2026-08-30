@@ -2,12 +2,13 @@
 // tuỳ chọn kèm một bảng liên kết cùng nguồn — xem tài liệu kiến trúc "Quản
 // Trị ETL HCRC", mục 02) và chuyển đổi dòng kết quả về đúng khuôn
 // dwh.ReportFacts. Tên bảng/cột THƯỜNG đến từ lib/schemaBrowser.js (giao
-// diện etl-admin cho chọn qua dropdown duyệt schema thật, không gõ tay) —
-// nhưng route lưu cấu hình (routes/admin/syncJobs.js POST/PUT) KHÔNG tự
-// đối chiếu lại với schema thật lúc lưu, chỉ kiểm tra không rỗng. Vì vậy
-// `assertSafeIdentifier` dưới đây là LỚP CHỐNG CHÈN SQL DUY NHẤT ở tầng
-// server (áp dụng lúc CHẠY job, không phải lúc lưu) — tên sai/không tồn
-// tại vẫn qua được (lỗi SQL "invalid object name" bình thường lúc chạy),
+// diện etl-admin cho chọn qua dropdown duyệt schema thật, không gõ tay), và
+// route lưu cấu hình (routes/admin/syncJobs.js POST/PUT) NAY đã đối chiếu lại
+// với schema thật lúc lưu (assertTableConfigMatchesSchema) — nhưng đó chỉ là
+// kiểm tra 1 lần lúc lưu, schema nguồn có thể đổi (đổi tên/xoá cột) sau đó mà
+// job không hay biết. Vì vậy `assertSafeIdentifier` dưới đây vẫn là LỚP CHỐNG
+// CHÈN SQL DUY NHẤT ở tầng server áp dụng lúc CHẠY job — tên sai/không còn
+// tồn tại vẫn qua được (lỗi SQL "invalid object name" bình thường lúc chạy),
 // nhưng không có ký tự nào ngoài chữ/số/gạch dưới lọt được vào câu SQL.
 const IDENT_RE = /^[A-Za-z0-9_]+$/;
 

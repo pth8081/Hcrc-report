@@ -5,14 +5,15 @@
 // admin CHỌN bảng/cột qua lib/schemaBrowser.js, không đụng code.
 //
 // Tên bảng/cột THƯỜNG đến từ lib/schemaBrowser.js (giao diện api-admin cho
-// chọn qua dropdown duyệt schema thật, không gõ tay) — nhưng
-// routes/admin/realtimeEndpoints.js (validatePayload) KHÔNG tự đối chiếu
-// lại với schema thật lúc lưu, chỉ kiểm tra định dạng qua
-// assertSafeIdentifier bên dưới. Vì vậy assertSafeIdentifier là LỚP CHỐNG
-// CHÈN SQL DUY NHẤT ở tầng server (áp dụng lúc lưu VÀ lúc chạy — 2 nơi gọi
-// hàm này) — tên sai/không tồn tại vẫn qua được (lỗi SQL "invalid object
-// name" bình thường lúc chạy), nhưng không có ký tự nào ngoài chữ/số/gạch
-// dưới lọt được vào câu SQL. Giống hệt etl/lib/tableSyncEngine.js.
+// chọn qua dropdown duyệt schema thật, không gõ tay), và
+// routes/admin/realtimeEndpoints.js NAY đã đối chiếu lại với schema thật lúc
+// lưu (assertSchemaMatches, cùng nguồn schemaBrowser.js) — nhưng đó chỉ là
+// kiểm tra 1 lần lúc lưu, schema nguồn có thể đổi sau đó mà endpoint không
+// hay biết. Vì vậy assertSafeIdentifier bên dưới vẫn là LỚP CHỐNG CHÈN SQL
+// DUY NHẤT ở tầng server (áp dụng lúc lưu VÀ lúc chạy — 2 nơi gọi hàm này) —
+// tên sai/không còn tồn tại vẫn qua được (lỗi SQL "invalid object name" bình
+// thường lúc chạy), nhưng không có ký tự nào ngoài chữ/số/gạch dưới lọt được
+// vào câu SQL. Giống hệt etl/lib/tableSyncEngine.js.
 const { sql, getPool } = require('../db');
 const { getPoolForDataSource } = require('./dataSourcePool');
 

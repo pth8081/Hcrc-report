@@ -4,15 +4,39 @@
 // routes/admin/dataSources.js -> lib/schemaBrowser.js, KHÔNG gõ tay tên
 // bảng/cột), không cần lập trình viên viết route mới — xem
 // lib/realtimeEngine.js cho phần chạy query động dựa trên định nghĩa này.
+//
+// Cấu hình được đối chiếu với schema THẬT của nguồn ngay lúc LƯU (POST/PUT,
+// xem assertSchemaMatches bên dưới) — dùng chung lib/schemaBrowser.js với
+// dropdown trên api-admin/, nên endpoint tạo qua script/gọi API thẳng (bỏ qua
+// dropdown) vẫn bị chặn ngay nếu sai tên bảng/cột, không đợi tới lúc đối tác
+// gọi endpoint mới lộ ra. assertSafeIdentifier trong lib/realtimeEngine.js
+// vẫn là lớp chống chèn SQL ở tầng chạy — kiểm tra ở đây không thay thế được
+// lớp đó (schema có thể đổi sau khi lưu).
 const express = require('express');
 const { sql, getPool } = require('../../db');
 const { requireAdminAuth, requireAdminRole } = require('../../lib/adminAuth');
 const { assertSafeIdentifier } = require('../../lib/realtimeEngine');
+const schemaBrowser = require('../../lib/schemaBrowser');
 
 const router = express.Router();
 router.use(requireAdminAuth);
 
 const ENDPOINT_RE = /^[a-z0-9-]+$/;
+
+// Đối chiếu bảng + cột trong cấu hình endpoint với schema THẬT của nguồn đã
+// chọn (cùng nguồn schemaBrowser.js dùng để vẽ dropdown trên api-admin/) —
+// chặn ngay lúc LƯU thay vì chỉ lộ lỗi lúc endpoint được GỌI (kể cả bởi đối
+// tác ngoài). Quan trọng nhất khi endpoint được tạo qua script/gọi API thẳng
+// (bỏ qua dropdown), ví dụ cấu hình hàng loạt nhiều chi nhánh cùng cấu trúc.
+async function assertSchemaMatches(dataSourceId, schemaName, tableName, requiredColumns) {
+  const tables = await schemaBrowser.listTables(dataSourceId);
+  const tableExists = tables.some(t => t.schemaName === schemaName && t.tableName === tableName);
+  if (!tableExists) throw new Error(`Bảng "${schemaName}.${tableName}" không tồn tại trên nguồn dữ liệu đã chọn`);
+  const cols = await schemaBrowser.listColumns(dataSourceId, schemaName, tableName);
+  const colNames = new Set(cols.map(c => c.columnName));
+  const missing = [...new Set(requiredColumns.filter(Boolean))].filter(c => !colNames.has(c));
+  if (missing.length) throw new Error(`Bảng "${schemaName}.${tableName}" không có cột: ${missing.join(', ')}`);
+}
 
 router.get('/', async (req, res, next) => {
   try {
@@ -47,6 +71,11 @@ router.post('/', requireAdminRole, async (req, res, next) => {
     const { endpoint, label, dataSourceId, schemaName, tableName, keyColumn, columns, orderColumn } = req.body || {};
     const validationError = validatePayload({ endpoint, dataSourceId, schemaName, tableName, keyColumn, columns, orderColumn });
     if (validationError) return res.status(400).json({ error: validationError });
+    try {
+      await assertSchemaMatches(dataSourceId, schemaName, tableName, [keyColumn, orderColumn, ...columns]);
+    } catch (err) {
+      return res.status(400).json({ error: err.message });
+    }
 
     const pool = await getPool('ADMIN');
     await pool.request()
@@ -74,6 +103,11 @@ router.put('/:endpoint', requireAdminRole, async (req, res, next) => {
     const { label, dataSourceId, schemaName, tableName, keyColumn, columns, orderColumn, isActive } = req.body || {};
     const validationError = validatePayload({ endpoint: req.params.endpoint, dataSourceId, schemaName, tableName, keyColumn, columns, orderColumn });
     if (validationError) return res.status(400).json({ error: validationError });
+    try {
+      await assertSchemaMatches(dataSourceId, schemaName, tableName, [keyColumn, orderColumn, ...columns]);
+    } catch (err) {
+      return res.status(400).json({ error: err.message });
+    }
 
     const pool = await getPool('ADMIN');
     await pool.request()
