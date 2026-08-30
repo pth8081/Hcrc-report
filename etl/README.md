@@ -9,8 +9,12 @@ vụ `/admin/*` cho trang quản trị riêng `etl-admin/` — CSDL quản trị
 ## Hai kiểu đồng bộ
 
 - **Theo bảng** (`Type = 'table'`) — cấu hình hoàn toàn qua `etl-admin/`:
-  chọn nguồn → duyệt bảng/cột thật → chọn cột khoá/ngày/watermark/Dimensions/
-  Measures, tuỳ chọn thêm **một** bảng liên kết cùng nguồn. Không cần code.
+  chọn nguồn → duyệt bảng/VIEW/cột thật → chọn cột khoá/ngày/watermark/
+  Dimensions/Measures, tuỳ chọn thêm **một** bảng/view liên kết cùng nguồn.
+  Không cần code. Chọn VIEW hoạt động y hệt chọn bảng thật (câu SELECT chạy
+  đồng bộ dùng thẳng tên đã chọn) — hữu ích khi cần gộp hơn 1 bảng (VIEW phía
+  nguồn tự JOIN sẵn) hoặc chỉ muốn lộ đúng cột cần cho tài khoản chỉ đọc của
+  ETL, không đụng bảng gốc.
 - **Tuỳ biến** (`Type = 'custom'`) — khi cần join nhiều bảng, tính toán,
   logic nghiệp vụ riêng: viết một connector trong `sources/` (xem
   `sources/_template.js`), đăng ký job trên `etl-admin/` tham chiếu đúng
@@ -55,11 +59,11 @@ vận hành nội bộ, tương tự lưu ý về `/admin/*` ở `api-server/REA
 và MariaDB, cùng driver `mysql2`). Thêm PostgreSQL sau này chỉ cần thêm một
 file trong `lib/dbAdapters/`, xem `lib/dbAdapters/index.js`.
 
-Duyệt schema (chọn bảng/cột trên `etl-admin/`) chỉ cần tài khoản **chỉ đọc**
-trên nguồn — catalog view của cả hai engine chỉ hiện bảng mà tài khoản đang
-kết nối có quyền `SELECT`. Cùng tài khoản đó dùng được cho cả duyệt schema
-lẫn đồng bộ dữ liệu thật, không cần tài khoản thứ hai. Kho đích (`HCRC_DWH`)
-vẫn cần tài khoản có quyền ghi riêng (`DWH_USER`).
+Duyệt schema (chọn bảng/VIEW/cột trên `etl-admin/`) chỉ cần tài khoản **chỉ
+đọc** trên nguồn — catalog view của cả hai engine chỉ hiện bảng/VIEW mà tài
+khoản đang kết nối có quyền `SELECT`. Cùng tài khoản đó dùng được cho cả
+duyệt schema lẫn đồng bộ dữ liệu thật, không cần tài khoản thứ hai. Kho đích
+(`HCRC_DWH`) vẫn cần tài khoản có quyền ghi riêng (`DWH_USER`).
 
 ## API — `/admin/*`
 
@@ -69,9 +73,9 @@ vẫn cần tài khoản có quyền ghi riêng (`DWH_USER`).
 | `GET/POST/PUT /admin/users`, `POST /:id/reset-password` | `admin` sửa | Phân quyền — tài khoản quản trị ETL |
 | `GET/POST/PUT/DELETE /admin/data-sources` | `admin` sửa | Nguồn dữ liệu |
 | `POST /admin/data-sources/test` | `admin` | Kiểm tra kết nối một cấu hình chưa lưu |
-| `GET /admin/data-sources/:id/tables` | — | Duyệt bảng thật của một nguồn |
+| `GET /admin/data-sources/:id/tables` | — | Duyệt bảng/VIEW thật của một nguồn |
 | `GET /admin/data-sources/:id/tables/:schema/:table/columns` | — | Duyệt cột thật |
-| `GET /admin/data-sources/:id/tables/:schema/:table/foreign-keys` | — | Gợi ý cặp cột nối (nếu có khoá ngoại thật) |
+| `GET /admin/data-sources/:id/tables/:schema/:table/foreign-keys` | — | Gợi ý cặp cột nối (nếu có khoá ngoại thật — VIEW thường không có, trả rỗng) |
 | `GET/POST/PUT/DELETE /admin/sync-jobs` | `admin` sửa | Cấu hình đồng bộ |
 | `GET /admin/sync-jobs/custom-connectors` | — | Danh sách connector "tuỳ biến" có sẵn trong code |
 | `POST /admin/sync-jobs/:id/run-now` | `admin` | Chạy thử một job ngay |

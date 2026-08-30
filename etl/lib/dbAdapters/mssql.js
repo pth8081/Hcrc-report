@@ -48,11 +48,17 @@ async function query(pool, sqlText, params = {}) {
 // Dùng INFORMATION_SCHEMA (chuẩn ANSI) thay vì sys.tables/sys.columns — cùng
 // dạng câu truy vấn dùng được cho cả MySQL/MariaDB, dễ đối chiếu khi đọc 2
 // adapter cạnh nhau.
+//
+// BASE TABLE lẫn VIEW — VIEW không chỉ để xem trước: tableSyncEngine.js dùng
+// nguyên SourceTable/JoinTable đã chọn làm FROM khi chạy đồng bộ THẬT, nên
+// một VIEW phía nguồn (gộp sẵn nhiều bảng vượt quá 1 JOIN mà ETL hỗ trợ,
+// hoặc chỉ lộ đúng cột được phép qua tài khoản chỉ đọc) hoạt động y hệt một
+// bảng thật.
 async function listTables(pool) {
   return query(pool, `
-    SELECT TABLE_SCHEMA AS schemaName, TABLE_NAME AS tableName
+    SELECT TABLE_SCHEMA AS schemaName, TABLE_NAME AS tableName, TABLE_TYPE AS tableType
     FROM INFORMATION_SCHEMA.TABLES
-    WHERE TABLE_TYPE = 'BASE TABLE'
+    WHERE TABLE_TYPE IN ('BASE TABLE', 'VIEW')
     ORDER BY TABLE_SCHEMA, TABLE_NAME
   `);
 }

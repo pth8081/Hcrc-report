@@ -40,11 +40,14 @@ async function query(pool, sqlText, params = {}) {
 // INFORMATION_SCHEMA chuẩn ANSI, giới hạn về đúng CSDL đang kết nối
 // (TABLE_SCHEMA = DATABASE()) — mỗi DataSource ứng với đúng 1 CSDL, không
 // duyệt lẫn sang CSDL khác trên cùng máy chủ.
+//
+// BASE TABLE lẫn VIEW — xem chú thích tương ứng ở dbAdapters/mssql.js
+// (VIEW dùng được thẳng làm nguồn đồng bộ thật, không chỉ để xem trước).
 async function listTables(pool) {
   return query(pool, `
-    SELECT TABLE_SCHEMA AS schemaName, TABLE_NAME AS tableName
+    SELECT TABLE_SCHEMA AS schemaName, TABLE_NAME AS tableName, TABLE_TYPE AS tableType
     FROM INFORMATION_SCHEMA.TABLES
-    WHERE TABLE_TYPE = 'BASE TABLE' AND TABLE_SCHEMA = DATABASE()
+    WHERE TABLE_TYPE IN ('BASE TABLE', 'VIEW') AND TABLE_SCHEMA = DATABASE()
     ORDER BY TABLE_NAME
   `);
 }

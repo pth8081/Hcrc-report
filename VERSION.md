@@ -5,6 +5,27 @@ Server, API Server và các giao diện quản trị) — tăng ở mỗi lần 
 `main`, theo kiểu semver không chặt (patch cho fix nhỏ, minor cho tính năng
 mới, major khi đổi cấu trúc phá vỡ tương thích ngược).
 
+## 0.13.0 — ETL chọn được VIEW làm nguồn đồng bộ (không chỉ bảng thật)
+
+- `etl-admin/` — bước "chọn bảng" (bảng chính lẫn bảng liên kết) khi tạo Sync
+  Job giờ liệt kê CẢ **VIEW**, không chỉ `BASE TABLE` như trước — đúng khớp
+  với API Server đã hỗ trợ từ trước (`api-server/lib/schemaBrowser.js`).
+  `etl/lib/dbAdapters/mssql.js`/`mysql.js`:`listTables()` mở `WHERE
+  TABLE_TYPE IN ('BASE TABLE', 'VIEW')`, thêm cột `tableType` để giao diện
+  hiện nhãn "(bảng)"/"(view)" trong dropdown.
+- **Không chỉ để xem trước** — VIEW chọn được dùng THẲNG làm nguồn đồng bộ
+  THẬT (`tableSyncEngine.js` dùng nguyên tên đã chọn làm `FROM`, không có
+  nhánh riêng cho VIEW, xử lý y hệt bảng thật). Hữu ích khi: (1) cần gộp
+  nhiều hơn 1 bảng liên kết mà `etl.SyncJobs` chỉ hỗ trợ tối đa 1 JOIN — phía
+  nguồn (vd từng CSDL cửa hàng BRG Mart) tự tạo VIEW gộp sẵn; (2) chỉ muốn lộ
+  đúng cột cần cho tài khoản chỉ đọc của ETL, không cấp quyền thẳng trên bảng
+  gốc (nguyên tắc least-privilege).
+- `listForeignKeys()` (gợi ý tự động chọn cột nối) thường trả rỗng cho VIEW
+  (không có ràng buộc khoá ngoại thật) — hành vi đúng, không phải lỗi, chỉ
+  mất phần gợi ý tự động.
+- Test: `test-etl-schema-browser-views.js` (3/3 — xác nhận câu SQL của cả 2
+  adapter MSSQL/MySQL đã gồm VIEW và trả `tableType`).
+
 ## 0.12.1 — Soát lại cấu hình nguồn dữ liệu ETL & API Server
 
 - Rà soát theo yêu cầu: (1) ETL cấu hình được đích Data Warehouse VÀ nhiều

@@ -1,8 +1,10 @@
 // pages/SyncJobsPage.jsx — Trang "Đồng bộ": danh sách job + form tạo mới.
-// Job Type="table": duyệt bảng/cột THẬT của nguồn đã chọn (không gõ tay tên
-// bảng/cột — xem tài liệu kiến trúc "Quản Trị ETL HCRC", mục 03), tuỳ chọn
-// thêm 1 bảng liên kết cùng nguồn (mục 02/04). Job Type="custom": chọn 1
-// connector đã viết sẵn trong etl/sources/.
+// Job Type="table": duyệt bảng/VIEW/cột THẬT của nguồn đã chọn (không gõ tay
+// tên bảng/cột — xem tài liệu kiến trúc "Quản Trị ETL HCRC", mục 03), tuỳ
+// chọn thêm 1 bảng/view liên kết cùng nguồn (mục 02/04) — VIEW dùng được y
+// hệt bảng thật, hữu ích khi cần gộp hơn 1 bảng liên kết hoặc chỉ lộ đúng
+// cột cần qua tài khoản chỉ đọc (xem lib/schemaBrowser.js). Job Type="custom":
+// chọn 1 connector đã viết sẵn trong etl/sources/.
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/AuthContext';
@@ -164,8 +166,8 @@ export default function SyncJobsPage() {
 
                 {form.dataSourceId && (
                   <select value={form.sourceSchema && form.sourceTable ? `${form.sourceSchema}.${form.sourceTable}` : ''} onChange={(e) => pickMainTable(e.target.value)} required>
-                    <option value="">— Chọn bảng chính —</option>
-                    {mainTables.map(t => <option key={`${t.schemaName}.${t.tableName}`} value={`${t.schemaName}.${t.tableName}`}>{t.schemaName}.{t.tableName}</option>)}
+                    <option value="">— Chọn bảng/view chính —</option>
+                    {mainTables.map(t => <option key={`${t.schemaName}.${t.tableName}`} value={`${t.schemaName}.${t.tableName}`}>{t.schemaName}.{t.tableName} ({t.tableType === 'VIEW' ? 'view' : 'bảng'})</option>)}
                   </select>
                 )}
 
@@ -214,13 +216,13 @@ export default function SyncJobsPage() {
                 {mainColumns.length > 0 && (
                   <label className="checkbox-row">
                     <input type="checkbox" checked={form.useJoin} onChange={(e) => setForm({ ...form, useJoin: e.target.checked })} />
-                    Thêm bảng liên kết (cùng nguồn)
+                    Thêm bảng/view liên kết (cùng nguồn)
                   </label>
                 )}
 
                 {form.useJoin && (
                   <fieldset>
-                    <legend>Bảng liên kết</legend>
+                    <legend>Bảng/view liên kết</legend>
                     {fkSuggestions.length > 0 && (
                       <div className="fk-suggestions">
                         <span>Gợi ý theo khoá ngoại có sẵn:</span>
@@ -232,8 +234,8 @@ export default function SyncJobsPage() {
                       </div>
                     )}
                     <select value={form.joinSchema && form.joinTable ? `${form.joinSchema}.${form.joinTable}` : ''} onChange={(e) => pickJoinTable(e.target.value)}>
-                      <option value="">— Chọn bảng liên kết —</option>
-                      {joinTables.map(t => <option key={`${t.schemaName}.${t.tableName}`} value={`${t.schemaName}.${t.tableName}`}>{t.schemaName}.{t.tableName}</option>)}
+                      <option value="">— Chọn bảng/view liên kết —</option>
+                      {joinTables.map(t => <option key={`${t.schemaName}.${t.tableName}`} value={`${t.schemaName}.${t.tableName}`}>{t.schemaName}.{t.tableName} ({t.tableType === 'VIEW' ? 'view' : 'bảng'})</option>)}
                     </select>
                     <select value={form.joinType} onChange={(e) => setForm({ ...form, joinType: e.target.value })}>
                       <option value="LEFT">LEFT JOIN</option>
