@@ -5,6 +5,22 @@ Server, API Server và các giao diện quản trị) — tăng ở mỗi lần 
 `main`, theo kiểu semver không chặt (patch cho fix nhỏ, minor cho tính năng
 mới, major khi đổi cấu trúc phá vỡ tương thích ngược).
 
+## 0.21.3 — Hướng dẫn cấu hình báo cáo (hướng_dẫn_báo_cáo.md) + hiện cột Id
+
+- **`hướng_dẫn_báo_cáo.md`** (mới, thư mục gốc repo) — hướng dẫn CẤU HÌNH
+  từng báo cáo cụ thể (khác README kỹ thuật của từng service), bắt đầu với
+  2 cách dựng báo cáo doanh thu chi nhánh: hoàn toàn qua Data Warehouse
+  (mục 1), và "hôm nay" qua API Server + Chỉ tiêu/Cùng kỳ vẫn qua Data
+  Warehouse (mục 2) — từng bước cụ thể qua etl-admin/api-admin/rp-user,
+  kèm `DefinitionJson` mẫu đầy đủ. Báo cáo mới dựng sau này sẽ thêm mục
+  vào cùng file này.
+- **`rp-user`** — `ApiConnectionsPanel.jsx`/`DataSourcesPanel.jsx` (tab
+  "Kết nối API Server"/"Nguồn dữ liệu bổ sung" trong "Biểu mẫu") giờ hiện
+  cột `Id` — báo cáo `SourceType='composite'` cần số Id này để khai
+  `blocks[].apiConnectionId`/`dataSourceId` trong `DefinitionJson` (không
+  có UI có cấu trúc riêng cho composite), trước đây không có cách nào xem
+  số Id qua giao diện.
+
 ## 0.21.2 — Sửa/thêm 1 siêu thị vào chỉ tiêu tháng — không cần re-upload file
 
 10 test mới.

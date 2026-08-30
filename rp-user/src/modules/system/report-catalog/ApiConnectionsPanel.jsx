@@ -72,6 +72,7 @@ export default function ApiConnectionsPanel() {
 
       <DataTable
         columns={[
+          { key: 'Id', label: 'Id' }, // báo cáo SourceType='composite' cần số Id này (blocks[].apiConnectionId) — không có UI có cấu trúc riêng, xem rp-server/README.md
           { key: 'Name', label: 'Tên' },
           { key: 'BaseUrl', label: 'Base URL' },
           { key: 'actions', label: '', render: (c) => <button type="button" onClick={() => deleteConnection(c)}>Xoá</button> }

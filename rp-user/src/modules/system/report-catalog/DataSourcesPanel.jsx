@@ -69,6 +69,7 @@ export default function DataSourcesPanel() {
 
       <DataTable
         columns={[
+          { key: 'Id', label: 'Id' }, // báo cáo SourceType='composite' có thể cần số Id này (blocks[].dataSourceId) — không có UI có cấu trúc riêng, xem rp-server/README.md
           { key: 'Name', label: 'Tên' },
           { key: 'Server', label: 'Server' },
           { key: 'DatabaseName', label: 'Database' },
