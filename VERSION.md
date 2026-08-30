@@ -5,6 +5,52 @@ Server, API Server và các giao diện quản trị) — tăng ở mỗi lần 
 `main`, theo kiểu semver không chặt (patch cho fix nhỏ, minor cho tính năng
 mới, major khi đổi cấu trúc phá vỡ tương thích ngược).
 
+## 0.11.0 — OAuth2 Client Credentials & HMAC ký request (2 chiều)
+
+- **API Server (chiều vào — đối tác gọi mình)** — `api.ApiConsumers` thêm
+  `AuthMethod` (`apiKey`/`oauth2`/`hmac`, mặc định `apiKey` — không đổi được
+  sau khi tạo, cần tạo đối tác mới nếu đổi cách xác thực). `ApiKeyHash` giờ
+  nullable; thêm `ClientId`/`ClientSecretHash` (oauth2) và
+  `HmacKeyId`/`HmacSecretEncrypted` (hmac, mã hoá qua `lib/crypto.js` như
+  mật khẩu `DataSources`). **Lưu ý SQL Server**: đổi `UNIQUE` constraint cũ
+  trên `ApiKeyHash` thành 3 unique index CÓ LỌC (`WHERE col IS NOT NULL`) cho
+  `ApiKeyHash`/`ClientId`/`HmacKeyId` — SQL Server (khác Postgres) coi nhiều
+  `NULL` là trùng nhau dưới `UNIQUE` thường, sẽ vỡ ngay từ đối tác oauth2/hmac
+  thứ 2 nếu không lọc.
+  - `POST /api/v1/oauth/token` (mới, `api-server/lib/oauthTokens.js` +
+    `routes/v1/oauth.js`) — đổi `client_id`/`client_secret` (form body hoặc
+    Basic header) lấy access token: JWT tự chứa `{sub,name,scopes,allowedIps}`
+    (ký bằng `OAUTH_JWT_SECRET`, TTL `OAUTH_TOKEN_TTL_SECONDS`, mặc định
+    3600s) — xác minh không cần tra CSDL/cache, cùng kiểu với
+    `lib/adminAuth.js`. Đánh đổi: đổi quyền/IP chỉ có hiệu lực với token cấp
+    SAU đó, token đã phát vẫn giữ quyền cũ tới khi hết hạn.
+  - HMAC ký request (`lib/hmacAuth.js`) — đối tác gửi kèm header
+    `X-Key-Id`/`X-Timestamp`/`X-Signature`, server tính lại chữ ký từ
+    `METHOD\npath\ntimestamp\nrawBody` (cần `req.rawBody` — thêm `verify` vào
+    `express.json()`), so sánh bằng `crypto.timingSafeEqual`, chấp nhận lệch
+    giờ trong 5 phút (chặn replay).
+  - `lib/apiAuth.js`: `authenticate()` thử theo thứ tự Bearer → HMAC header →
+    `X-API-Key`, trả về CÙNG hình dạng consumer bất kể phương thức nào thành
+    công — logic kiểm scope/IP allowlist đã có (0.10.0) không đổi.
+  - Trang "Đối tác" (`api-admin/`): chọn `AuthMethod` lúc tạo; banner bí mật
+    hiện đúng hình dạng theo phương thức (apiKey / clientId+clientSecret /
+    hmacKeyId+hmacSecret); "Luân chuyển bí mật" giữ nguyên định danh công
+    khai (ClientId/HmacKeyId), chỉ đổi phần bí mật.
+- **Report Server (chiều ra — mình gọi đối tác)** — `app.ExternalApiConnections`
+  (0.10.0) thêm 2 `AuthType`: `oauth2ClientCredentials` (thêm cột `TokenUrl`
+  — `lib/externalApiConnectionPool.js` tự `POST grant_type=client_credentials`,
+  cache token theo `expires_in` với 10 giây an toàn trước hạn, tự xin lại khi
+  hết hạn) và `hmacSignature` (`lib/hmacSign.js`, ký theo ĐÚNG quy ước
+  api-server dùng để xác minh — đã kiểm tra chữ ký 2 chiều khớp nhau). Đây là
+  quy ước RIÊNG ghép cặp giữa 2 hệ thống HCRC, không phải chuẩn chung — đối
+  tác thật hầu như dùng quy ước ký khác, cần code riêng nếu vậy (đã ghi rõ
+  trong README + UI).
+- Test: `test-hmac-auth.js`, `test-oauth-tokens.js`, `test-apiauth-dispatch.js`,
+  `test-oauth-route.js`, `test-external-oauth-hmac.js` (script Node độc lập,
+  fake module qua `require.cache`) — bao gồm xác minh THỰC rằng chữ ký
+  `rp-server/lib/hmacSign.js` tạo ra được `api-server/lib/hmacAuth.js` chấp
+  nhận, không chỉ đọc code suy luận khớp.
+
 ## 0.10.0 — Report Server gọi thẳng API đối tác & giới hạn IP theo đối tác
 
 - **`SourceType='externalApi'`** (rp-db) — báo cáo giờ gọi được THẲNG một API

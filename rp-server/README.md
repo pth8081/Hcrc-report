@@ -143,9 +143,20 @@ liệu, không chỉ chọn tên field có sẵn.
    cách xác thực đúng với API đối tác — `headerKey` (1 header tuỳ tên, bao
    được cả API key riêng lẫn Bearer token tĩnh: đặt tên header `Authorization`,
    giá trị `Bearer xxx`), `queryParam` (1 tham số query string), `basicAuth`
-   (username/password), hoặc `none`. **Chưa hỗ trợ** OAuth2 Client
-   Credentials (phải tự xin + làm mới token) hay HMAC ký từng request (phổ
-   biến ở cổng thanh toán/ngân hàng) — làm khi có đối tác cụ thể cần.
+   (username/password), `none`, hoặc 2 kiểu động dưới đây:
+   - **`oauth2ClientCredentials`** — Client ID + Client Secret + **Token URL**
+     (endpoint đối tác cấp access token). rp-server tự `POST
+     grant_type=client_credentials` tới Token URL, cache access token theo
+     `expires_in` (an toàn 10 giây trước hạn), tự xin lại khi hết hạn — không
+     cần tự làm mới thủ công. Xem `lib/externalApiConnectionPool.js`.
+   - **`hmacSignature`** — Key ID (định danh công khai) + Secret (dùng để
+     ký, không gửi qua mạng). Mỗi request được ký HMAC-SHA256 theo chuỗi
+     `METHOD\npath\ntimestamp\nbody`, gửi kèm header `X-Key-Id`/`X-Timestamp`/
+     `X-Signature` (xem `lib/hmacSign.js`) — **đúng quy ước** api-server của
+     chính bạn dùng để xác minh chiều ngược lại (`api-server/lib/hmacAuth.js`),
+     đã kiểm tra khớp nhau. Đối tác thật hầu như có quy ước ký RIÊNG (khác
+     tên header, khác cách ghép chuỗi) — chỉ dùng được nếu đối tác chấp nhận
+     đúng quy ước này, không phải chuẩn chung cho mọi cổng HMAC.
 2. Tạo báo cáo, `SourceType = 'externalApi'`, chọn kết nối, điền:
    - **Đường dẫn** (`externalPath`) — có thể chèn `{field}` lấy từ bộ lọc
      báo cáo, vd `/orders/{maDonHang}`. Giá trị bộ lọc KHÔNG dùng trong path

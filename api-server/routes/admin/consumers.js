@@ -1,6 +1,10 @@
-// routes/admin/consumers.js — CRUD api.ApiConsumers. API key gốc chỉ hiện
-// MỘT LẦN DUY NHẤT lúc tạo/luân chuyển (trả về trong response, KHÔNG lưu lại
-// nguyên văn) — sau đó chỉ so khớp được qua hash, giống mật khẩu.
+// routes/admin/consumers.js — CRUD api.ApiConsumers. AuthMethod chọn MỘT
+// trong 3 cách xác thực lúc TẠO, không đổi được sau đó (đổi nghĩa là tạo
+// đối tác mới — tránh case nửa vời còn sót ClientId cũ mà lại có ApiKeyHash
+// mới). Bí mật (apiKey/clientSecret/hmacSecret) chỉ hiện MỘT LẦN DUY NHẤT
+// lúc tạo/luân chuyển (trả về trong response, KHÔNG lưu lại nguyên văn) —
+// ClientId/HmacKeyId thì hiện bình thường (định danh CÔNG KHAI, không phải
+// bí mật, xem api-db/schema.sql).
 //
 // GET/PUT /:id/report-access — báo cáo nào đối tác này được gọi
 // (api.ConsumerReportAccess), MẶC ĐỊNH rỗng (không được gọi báo cáo nào) cho
@@ -11,16 +15,19 @@ const express = require('express');
 const { sql, getPool } = require('../../db');
 const { requireAdminAuth, requireAdminRole } = require('../../lib/adminAuth');
 const { sha256Hex } = require('../../lib/hash');
+const { encrypt } = require('../../lib/crypto');
 const { invalidate } = require('../../lib/apiConsumers');
 
 const router = express.Router();
 router.use(requireAdminAuth);
 
+const AUTH_METHODS = ['apiKey', 'oauth2', 'hmac'];
+
 router.get('/', async (req, res, next) => {
   try {
     const pool = await getPool('ADMIN');
     const result = await pool.request().query(`
-      SELECT Id, Name, Scopes, RateLimitPerMinute, AllowedIps, IsActive, CreatedAt, LastUsedAt
+      SELECT Id, Name, AuthMethod, ClientId, HmacKeyId, Scopes, RateLimitPerMinute, AllowedIps, IsActive, CreatedAt, LastUsedAt
       FROM api.ApiConsumers ORDER BY Name
     `);
     res.json(result.recordset.map(r => ({ ...r, Scopes: r.Scopes.split(',').filter(Boolean) })));
@@ -29,37 +36,82 @@ router.get('/', async (req, res, next) => {
 
 router.post('/', requireAdminRole, async (req, res, next) => {
   try {
-    const { name, scopes = [], rateLimitPerMinute = 120, allowedIps = '' } = req.body || {};
+    const { name, authMethod = 'apiKey', scopes = [], rateLimitPerMinute = 120, allowedIps = '' } = req.body || {};
     if (!name || !scopes.length) return res.status(400).json({ error: 'Thiếu name/scopes' });
+    if (!AUTH_METHODS.includes(authMethod)) return res.status(400).json({ error: `authMethod phải là một trong: ${AUTH_METHODS.join(', ')}` });
 
-    const rawKey = crypto.randomBytes(32).toString('base64url');
     const pool = await getPool('ADMIN');
-    const result = await pool.request()
+    const request = pool.request()
       .input('name', sql.NVarChar(200), name)
-      .input('apiKeyHash', sql.Char(64), sha256Hex(rawKey))
+      .input('authMethod', sql.VarChar(20), authMethod)
       .input('scopes', sql.NVarChar(200), scopes.join(','))
       .input('rateLimit', sql.Int, rateLimitPerMinute)
-      .input('allowedIps', sql.NVarChar(500), allowedIps || null)
-      .query(`
-        INSERT INTO api.ApiConsumers (Name, ApiKeyHash, Scopes, RateLimitPerMinute, AllowedIps)
-        OUTPUT INSERTED.Id
-        VALUES (@name, @apiKeyHash, @scopes, @rateLimit, @allowedIps)
-      `);
+      .input('allowedIps', sql.NVarChar(500), allowedIps || null);
+
+    let secretsForResponse = {};
+    if (authMethod === 'apiKey') {
+      const rawKey = crypto.randomBytes(32).toString('base64url');
+      request.input('apiKeyHash', sql.Char(64), sha256Hex(rawKey))
+        .input('clientId', sql.VarChar(64), null).input('clientSecretHash', sql.Char(64), null)
+        .input('hmacKeyId', sql.VarChar(64), null).input('hmacSecretEncrypted', sql.NVarChar(500), null);
+      secretsForResponse = { apiKey: rawKey };
+    } else if (authMethod === 'oauth2') {
+      const clientId = crypto.randomBytes(12).toString('hex');
+      const clientSecret = crypto.randomBytes(32).toString('base64url');
+      request.input('apiKeyHash', sql.Char(64), null)
+        .input('clientId', sql.VarChar(64), clientId).input('clientSecretHash', sql.Char(64), sha256Hex(clientSecret))
+        .input('hmacKeyId', sql.VarChar(64), null).input('hmacSecretEncrypted', sql.NVarChar(500), null);
+      secretsForResponse = { clientId, clientSecret };
+    } else { // hmac
+      const hmacKeyId = crypto.randomBytes(12).toString('hex');
+      const hmacSecret = crypto.randomBytes(32).toString('base64url');
+      request.input('apiKeyHash', sql.Char(64), null)
+        .input('clientId', sql.VarChar(64), null).input('clientSecretHash', sql.Char(64), null)
+        .input('hmacKeyId', sql.VarChar(64), hmacKeyId).input('hmacSecretEncrypted', sql.NVarChar(500), encrypt(hmacSecret));
+      secretsForResponse = { hmacKeyId, hmacSecret };
+    }
+
+    const result = await request.query(`
+      INSERT INTO api.ApiConsumers (Name, AuthMethod, ApiKeyHash, ClientId, ClientSecretHash, HmacKeyId, HmacSecretEncrypted, Scopes, RateLimitPerMinute, AllowedIps)
+      OUTPUT INSERTED.Id
+      VALUES (@name, @authMethod, @apiKeyHash, @clientId, @clientSecretHash, @hmacKeyId, @hmacSecretEncrypted, @scopes, @rateLimit, @allowedIps)
+    `);
     invalidate();
-    res.status(201).json({ id: result.recordset[0].Id, apiKey: rawKey }); // CHỈ response này có key gốc
+    res.status(201).json({ id: result.recordset[0].Id, authMethod, ...secretsForResponse }); // CHỈ response này có bí mật gốc
   } catch (err) { next(err); }
 });
 
+// Luân chuyển bí mật — theo ĐÚNG AuthMethod hiện có của đối tác (không đổi
+// được AuthMethod ở đây). 'oauth2' chỉ đổi clientSecret, giữ nguyên
+// clientId; 'hmac' chỉ đổi hmacSecret, giữ nguyên hmacKeyId — đối tác không
+// cần cấu hình lại định danh công khai, chỉ cần thay bí mật mới.
 router.post('/:id/rotate', requireAdminRole, async (req, res, next) => {
   try {
-    const rawKey = crypto.randomBytes(32).toString('base64url');
     const pool = await getPool('ADMIN');
-    await pool.request()
-      .input('id', sql.Int, req.params.id)
-      .input('apiKeyHash', sql.Char(64), sha256Hex(rawKey))
-      .query('UPDATE api.ApiConsumers SET ApiKeyHash = @apiKeyHash WHERE Id = @id');
+    const existing = await pool.request().input('id', sql.Int, req.params.id)
+      .query('SELECT AuthMethod FROM api.ApiConsumers WHERE Id = @id');
+    if (!existing.recordset.length) return res.status(404).json({ error: 'Không tìm thấy đối tác' });
+    const authMethod = existing.recordset[0].AuthMethod;
+
+    let secretsForResponse = {};
+    if (authMethod === 'apiKey') {
+      const rawKey = crypto.randomBytes(32).toString('base64url');
+      await pool.request().input('id', sql.Int, req.params.id).input('apiKeyHash', sql.Char(64), sha256Hex(rawKey))
+        .query('UPDATE api.ApiConsumers SET ApiKeyHash = @apiKeyHash WHERE Id = @id');
+      secretsForResponse = { apiKey: rawKey };
+    } else if (authMethod === 'oauth2') {
+      const clientSecret = crypto.randomBytes(32).toString('base64url');
+      await pool.request().input('id', sql.Int, req.params.id).input('clientSecretHash', sql.Char(64), sha256Hex(clientSecret))
+        .query('UPDATE api.ApiConsumers SET ClientSecretHash = @clientSecretHash WHERE Id = @id');
+      secretsForResponse = { clientSecret };
+    } else { // hmac
+      const hmacSecret = crypto.randomBytes(32).toString('base64url');
+      await pool.request().input('id', sql.Int, req.params.id).input('hmacSecretEncrypted', sql.NVarChar(500), encrypt(hmacSecret))
+        .query('UPDATE api.ApiConsumers SET HmacSecretEncrypted = @hmacSecretEncrypted WHERE Id = @id');
+      secretsForResponse = { hmacSecret };
+    }
     invalidate();
-    res.json({ apiKey: rawKey }); // CHỈ response này có key gốc
+    res.json({ authMethod, ...secretsForResponse }); // CHỈ response này có bí mật gốc
   } catch (err) { next(err); }
 });
 

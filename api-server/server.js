@@ -1,6 +1,7 @@
 // server.js — Điểm khởi chạy API Server. Hai ranh giới xác thực TÁCH BIỆT
 // hoàn toàn, không dùng chung bất kỳ phần nào:
-//   /api/v1/*  — hệ thống ngoài, xác thực bằng API key (lib/apiAuth.js)
+//   /api/v1/*  — hệ thống ngoài, xác thực bằng API key/OAuth2/HMAC
+//                (lib/apiAuth.js)
 //   /admin/*   — trang quản trị api-admin/, xác thực bằng cookie phiên
 //                (lib/adminAuth.js)
 // /admin/* KHÔNG được Nginx proxy ra Internet (xem tài liệu kiến trúc "Quản
@@ -15,6 +16,7 @@ const { rateLimit } = require('express-rate-limit');
 const healthRoutes = require('./routes/v1/health');
 const reportsRoutes = require('./routes/v1/reports');
 const realtimeRoutes = require('./routes/v1/realtime');
+const oauthRoutes = require('./routes/v1/oauth');
 const adminAuthRoutes = require('./routes/admin/auth');
 const adminConsumersRoutes = require('./routes/admin/consumers');
 const adminDataSourcesRoutes = require('./routes/admin/dataSources');
@@ -31,7 +33,12 @@ const app = express();
 const PORT = process.env.PORT || 4002;
 
 app.use(compression());
-app.use(express.json({ limit: '1mb' }));
+// verify: lưu nguyên body THÔ vào req.rawBody — HMAC (AuthMethod='hmac')
+// phải ký/kiểm tra trên đúng bytes đối tác gửi, không phải bản JS đã
+// parse-rồi-serialize-lại (có thể lệch thứ tự khoá/khoảng trắng, sai chữ ký
+// dù nội dung logic giống hệt) — xem lib/hmacAuth.js.
+app.use(express.json({ limit: '1mb', verify: (req, res, buf) => { req.rawBody = buf; } }));
+app.use(express.urlencoded({ extended: false })); // POST /api/v1/oauth/token dùng form body theo chuẩn OAuth2
 app.use(cookieParser());
 
 // ===== /api/v1/* — hệ thống ngoài =====
@@ -40,11 +47,15 @@ app.use('/api/v1', rateLimit({
   limit: parseInt(process.env.RATE_LIMIT_PER_MINUTE || '120', 10),
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => req.header('X-API-Key') || req.ip
+  // Nhóm theo đúng định danh đối tác gửi kèm, bất kể AuthMethod nào — chưa
+  // xác thực xong ở bước này (đó là việc của lib/apiAuth.js, chạy sau), chỉ
+  // cần đủ để không gộp nhầm nhiều đối tác chung 1 IP (vd sau NAT/proxy).
+  keyGenerator: (req) => req.header('X-API-Key') || req.header('X-Key-Id') || req.header('Authorization') || req.ip
 }));
 app.use('/api/v1', requestLogger); // ghi log + "kết nối hiện tại" — không chặn phản hồi, xem lib/requestLogger.js
 
 app.use('/api/v1/health', healthRoutes);
+app.use('/api/v1/oauth', oauthRoutes);
 app.use('/api/v1/reports', reportsRoutes);
 app.use('/api/v1/realtime', realtimeRoutes); // /api/v1/realtime/{endpoint}/list, /{endpoint}/{key}
 

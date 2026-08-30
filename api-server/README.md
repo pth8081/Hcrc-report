@@ -64,19 +64,64 @@ Endpoint chưa tồn tại/đã tắt sẽ trả lỗi 404 rõ ràng thay vì â
 hình cũ — không có "endpoint mặc định" ngầm định cho nhóm realtime này
 (khác `/api/v1/reports`, vẫn có `HCRC_DWH` làm mặc định qua `.env`).
 
-## Cấp API key cho một hệ thống đối tác
+## Cấp quyền gọi API cho một hệ thống đối tác
 
-Qua `api-admin/` (trang "Đối tác" → Thêm), hoặc gọi thẳng:
+3 cách xác thực — chọn MỘT khi tạo đối tác (`authMethod`), không đổi được
+sau đó (đổi nghĩa là tạo đối tác mới, giữ nguyên `Scopes`/`AllowedIps` cũ
+nếu cần thì tự khai lại):
+
+### 1. API key tĩnh (`authMethod: "apiKey"`, mặc định)
 
 ```bash
 curl -X POST http://localhost:4002/admin/consumers \
   -H "Content-Type: application/json" -b "hcrc_api_admin_token=..." \
-  -d '{"name":"HeThongDoiTacA","scopes":["reports","realtime"],"rateLimitPerMinute":120}'
+  -d '{"name":"HeThongDoiTacA","authMethod":"apiKey","scopes":["reports","realtime"],"rateLimitPerMinute":120}'
 ```
 
 Response trả về `apiKey` — **chỉ hiện đúng một lần**, CSDL chỉ lưu bản băm
-SHA-256 (`api.ApiConsumers.ApiKeyHash`). Mất key thì luân chuyển key mới
-(`POST /admin/consumers/:id/rotate`), không lấy lại được key cũ.
+SHA-256 (`api.ApiConsumers.ApiKeyHash`). Đối tác gửi kèm header `X-API-Key`
+mỗi request. Mất key thì luân chuyển (`POST /admin/consumers/:id/rotate`),
+không lấy lại được key cũ.
+
+### 2. OAuth2 Client Credentials (`authMethod: "oauth2"`)
+
+Đối tác đổi `clientId`/`clientSecret` (cấp một lần lúc tạo, y hệt API key)
+lấy access token ngắn hạn, rồi gọi API kèm token đó — không gửi bí mật qua
+dây mỗi request:
+
+```bash
+# Bước 1 — đối tác đổi lấy token (client_id/secret qua form body HOẶC Basic Auth, cả 2 đều được):
+curl -X POST http://localhost:4002/api/v1/oauth/token \
+  -d "grant_type=client_credentials&client_id=...&client_secret=..."
+# -> { "access_token": "...", "token_type": "Bearer", "expires_in": 3600 }
+
+# Bước 2 — gọi API thật:
+curl http://localhost:4002/api/v1/reports/doanh-thu-thang/run \
+  -H "Authorization: Bearer <access_token>"
+```
+
+Token là JWT ký bằng `OAUTH_JWT_SECRET` (`.env`, RIÊNG khỏi `ADMIN_JWT_SECRET`),
+tự chứa `scopes`/`allowedIps` — xác minh KHÔNG cần tra CSDL mỗi request. Đánh
+đổi: đổi quyền cho 1 đối tác chỉ có hiệu lực với token phát hành SAU, token
+cũ vẫn dùng được tới khi hết hạn (`OAUTH_TOKEN_TTL_SECONDS`, mặc định 1 giờ)
+— đúng tinh thần token ngắn hạn của OAuth2.
+
+### 3. HMAC ký từng request (`authMethod: "hmac"`)
+
+Chuẩn phổ biến ở cổng thanh toán/ngân hàng (VNPay/MoMo...) — đối tác tự ký
+mỗi request bằng bí mật dùng chung, không gửi bí mật qua dây:
+
+```
+X-Key-Id:    <định danh công khai, cấp lúc tạo đối tác>
+X-Timestamp: <unix giây lúc ký>
+X-Signature: hex(HMAC-SHA256(secret, "METHOD\npath\ntimestamp\nrawBody"))
+```
+
+`path` gồm cả query string, `rawBody` là chuỗi thô (rỗng nếu GET không body).
+`X-Timestamp` phải nằm trong 5 phút quanh giờ máy chủ — chống phát lại
+(replay), xem `lib/hmacAuth.js`. Bí mật (`HmacSecretEncrypted`) mã hoá bằng
+`API_ENCRYPTION_KEY` — PHẢI giải mã lại được để tính chữ ký so sánh (khác
+`ApiKeyHash`/`ClientSecretHash`, băm một chiều).
 
 ### Giới hạn IP theo từng đối tác
 
@@ -94,7 +139,8 @@ lẫn dải CIDR (chỉ IPv4):
 `lib/adminIpAllowlist.js` (đó là 1 danh sách CHUNG cho `/admin/*`, áp dụng
 như nhau cho mọi người vận hành) — đây là RIÊNG từng đối tác, cho `/api/v1/*`.
 
-Có `apiKey` + scope `reports` chưa đủ để gọi được báo cáo — xem 2 mục dưới.
+Xác thực hợp lệ (bất kỳ 1 trong 3 cách trên) + scope `reports` vẫn chưa đủ để
+gọi được báo cáo — xem 2 mục dưới.
 
 ## Tuỳ biến dữ liệu trả về cho từng đối tác
 
@@ -139,11 +185,12 @@ query, nên công thức phải khai ở đây, rp-server chỉ forward kết qu
 - **OpenAPI spec** — chưa viết, nên có trước khi giao cho hệ thống ngoài tích hợp thật.
 - **Nginx**: `/admin/*` PHẢI chỉ mở trong mạng nội bộ/VPN — không proxy ra Internet cùng domain với `/api/v1/*`. `lib/adminIpAllowlist.js` (biến `ADMIN_ALLOWED_IPS`) chỉ là lớp phòng thủ bổ sung, không thay được cấu hình Nginx.
 
-## API — `/api/v1/*` (đối tác, API key)
+## API — `/api/v1/*` (đối tác — API key, OAuth2, hoặc HMAC)
 
 | Endpoint | Scope | Mô tả |
 |---|---|---|
-| `GET /api/v1/health` | — | Kiểm tra tình trạng, không cần key |
+| `GET /api/v1/health` | — | Kiểm tra tình trạng, không cần xác thực |
+| `POST /api/v1/oauth/token` | — | Đổi `client_id`/`client_secret` lấy access token (chỉ đối tác `authMethod='oauth2'`) |
 | `GET /api/v1/reports/:reportId/run` | `reports` | Chạy báo cáo (định nghĩa trong `api.ReportCatalog`) — cần được gán quyền qua `api.ConsumerReportAccess`; lọc qua query string, `?fields=` chọn cột, trả JSON phân trang |
 | `GET /api/v1/realtime/:endpoint/:key` | `realtime` | Tra 1 khoá — `endpoint` bất kỳ đã tạo qua trang "Endpoint realtime" (vd `inventory`, `loyalty`, `vouchers`, hoặc endpoint mới tự đặt) |
 | `GET /api/v1/realtime/:endpoint/list` | `realtime` | Danh sách cùng endpoint, phân trang |
@@ -154,7 +201,7 @@ query, nên công thức phải khai ở đây, rp-server chỉ forward kết qu
 |---|---|---|
 | `POST /admin/auth/login`, `/logout`, `GET /me` | — | Đăng nhập/đăng xuất |
 | `GET/POST/PUT/DELETE /admin/consumers` | `admin` sửa, ai đăng nhập cũng xem được | CRUD đối tác API |
-| `POST /admin/consumers/:id/rotate` | `admin` | Luân chuyển key |
+| `POST /admin/consumers/:id/rotate` | `admin` | Luân chuyển bí mật (apiKey/clientSecret/hmacSecret tuỳ `AuthMethod` của đối tác) — định danh công khai (ClientId/HmacKeyId) giữ nguyên |
 | `GET/PUT /admin/consumers/:id/report-access` | `admin` sửa | Báo cáo đối tác được gọi (`api.ConsumerReportAccess`) |
 | `GET/POST/PUT/DELETE /admin/data-sources` | `admin` sửa | CRUD nguồn dữ liệu OLTP (kết nối vật lý) |
 | `POST /admin/data-sources/test` | `admin` | Kiểm tra kết nối một cấu hình chưa lưu |

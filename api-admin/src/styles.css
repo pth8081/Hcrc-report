@@ -38,6 +38,7 @@ button:hover { opacity: 0.9; }
 .checkbox-row { flex-direction: row; align-items: center; gap: 6px; font-size: 14px; color: var(--ink); }
 .scope-picker { display: flex; gap: 16px; }
 .form-error { color: #b3261e; font-size: 13px; }
+.hint { color: var(--ink-soft); font-size: 12.5px; margin: -4px 0 4px; }
 
 .table-scroll { overflow-x: auto; }
 .data-table { border-collapse: collapse; width: 100%; font-size: 13.5px; }

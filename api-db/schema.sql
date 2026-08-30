@@ -39,38 +39,114 @@ BEGIN
 END
 GO
 
--- Đối tác gọi API. ApiKeyHash = SHA-256 (hex, 64 ký tự) của key thật — KHÔNG
--- lưu key gốc, chỉ hiện MỘT LẦN DUY NHẤT lúc tạo/luân chuyển (xem
--- api-server/lib/adminAuth.js vì sao SHA-256 chứ không phải bcrypt như mật
--- khẩu). Scopes lưu dạng chuỗi phân tách dấu phẩy (vd "reports,realtime"),
--- khớp đúng cơ chế requireApiKey(...scopes) đã có ở lib/apiAuth.js.
+-- Đối tác gọi API — 3 cách xác thực chọn MỘT theo AuthMethod, cột của 2
+-- cách kia luôn NULL:
+--   'apiKey' (mặc định, hành vi cũ) — ApiKeyHash = SHA-256 (hex, 64 ký tự)
+--             của key thật — KHÔNG lưu key gốc, chỉ hiện MỘT LẦN DUY NHẤT
+--             lúc tạo/luân chuyển (xem api-server/lib/adminAuth.js vì sao
+--             SHA-256 chứ không phải bcrypt như mật khẩu — key bị so khớp
+--             trên MỖI lượt gọi).
+--   'oauth2'  — OAuth2 Client Credentials (RFC 6749 mục 4.4): đối tác đổi
+--             ClientId + client secret lấy access token ngắn hạn tại
+--             POST /api/v1/oauth/token (xem lib/oauthTokens.js — JWT tự
+--             chứa scopes/allowedIps, KHÔNG cần tra CSDL mỗi request có
+--             token), rồi gọi API thật kèm "Authorization: Bearer <token>".
+--             ClientSecretHash cùng cách băm với ApiKeyHash (ít bị so khớp
+--             hơn — chỉ lúc đổi token — nhưng dùng chung hàm cho gọn).
+--   'hmac'    — Đối tác tự ký từng request bằng HmacSecret (chuẩn phổ biến
+--             ở cổng thanh toán/ngân hàng — VNPay/MoMo...), gửi kèm 3 header
+--             X-Key-Id/X-Timestamp/X-Signature (xem lib/hmacAuth.js).
+--             HmacSecretEncrypted PHẢI giải mã lại được để tính chữ ký so
+--             sánh (AES-256-GCM, API_ENCRYPTION_KEY) — khác ApiKeyHash/
+--             ClientSecretHash (băm một chiều, chỉ so khớp được).
+-- ClientId/HmacKeyId là định danh CÔNG KHAI đối tác gửi kèm mỗi lần gọi để
+-- ta biết dùng đúng secret nào — không phải bí mật, khác ClientSecret/
+-- HmacSecret.
+--
 -- AllowedIps: danh sách IP/dải CIDR phân tách dấu phẩy (vd
--- "203.0.113.10,198.51.100.0/24") — RỖNG/NULL = không giới hạn IP (chỉ cần
--- đúng key). Kiểm tra SAU KHI đã xác thực key hợp lệ (xem lib/apiAuth.js,
+-- "203.0.113.10,198.51.100.0/24") — RỖNG/NULL = không giới hạn IP. Kiểm tra
+-- SAU KHI đã xác thực hợp lệ theo ĐÚNG AuthMethod (xem lib/apiAuth.js,
 -- lib/ipMatch.js) — khác adminIpAllowlist.js (đó là cho /admin/*, áp dụng
--- CHUNG mọi người, còn đây là RIÊNG từng đối tác).
+-- CHUNG mọi người, còn đây là RIÊNG từng đối tác, áp dụng cho cả 3 AuthMethod).
 IF OBJECT_ID('api.ApiConsumers', 'U') IS NULL
 BEGIN
     CREATE TABLE api.ApiConsumers (
-        Id                 INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
-        Name               NVARCHAR(200) NOT NULL,
-        ApiKeyHash         CHAR(64)      NOT NULL,
-        Scopes             NVARCHAR(200) NOT NULL,
-        RateLimitPerMinute INT           NOT NULL DEFAULT 120,
-        AllowedIps         NVARCHAR(500) NULL,
-        IsActive           BIT           NOT NULL DEFAULT 1,
-        CreatedAt          DATETIME2(3)  NOT NULL DEFAULT SYSUTCDATETIME(),
-        LastUsedAt         DATETIME2(3)  NULL,
-        CONSTRAINT UX_ApiConsumers_ApiKeyHash UNIQUE (ApiKeyHash)
+        Id                   INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        Name                 NVARCHAR(200) NOT NULL,
+        AuthMethod           VARCHAR(20)   NOT NULL DEFAULT 'apiKey'
+            CONSTRAINT CK_ApiConsumers_AuthMethod CHECK (AuthMethod IN ('apiKey', 'oauth2', 'hmac')),
+        ApiKeyHash           CHAR(64)      NULL,
+        ClientId             VARCHAR(64)   NULL,
+        ClientSecretHash     CHAR(64)      NULL,
+        HmacKeyId            VARCHAR(64)   NULL,
+        HmacSecretEncrypted  NVARCHAR(500) NULL,
+        Scopes               NVARCHAR(200) NOT NULL,
+        RateLimitPerMinute   INT           NOT NULL DEFAULT 120,
+        AllowedIps           NVARCHAR(500) NULL,
+        IsActive             BIT           NOT NULL DEFAULT 1,
+        CreatedAt            DATETIME2(3)  NOT NULL DEFAULT SYSUTCDATETIME(),
+        LastUsedAt           DATETIME2(3)  NULL
     );
+    -- INDEX LỌC (không phải UNIQUE constraint thường) — SQL Server coi NHIỀU
+    -- NULL là trùng nhau trong UNIQUE constraint thường, sẽ chặn ngay đối
+    -- tác oauth2/hmac thứ 2 (ApiKeyHash luôn NULL với họ). WHERE ... IS NOT
+    -- NULL mới cho phép nhiều dòng NULL cùng lúc, chỉ ép trùng khi CÓ giá trị.
+    CREATE UNIQUE INDEX UX_ApiConsumers_ApiKeyHash ON api.ApiConsumers (ApiKeyHash) WHERE ApiKeyHash IS NOT NULL;
+    CREATE UNIQUE INDEX UX_ApiConsumers_ClientId ON api.ApiConsumers (ClientId) WHERE ClientId IS NOT NULL;
+    CREATE UNIQUE INDEX UX_ApiConsumers_HmacKeyId ON api.ApiConsumers (HmacKeyId) WHERE HmacKeyId IS NOT NULL;
 END
 GO
 
--- Nâng cấp từ bản trước (bảng đã tồn tại nhưng chưa có AllowedIps) — an toàn
--- chạy lại nhiều lần.
+-- Nâng cấp từ các bản trước (bảng đã tồn tại nhưng thiếu cột/ràng buộc mới)
+-- — an toàn chạy lại nhiều lần.
 IF COL_LENGTH('api.ApiConsumers', 'AllowedIps') IS NULL
 BEGIN
     ALTER TABLE api.ApiConsumers ADD AllowedIps NVARCHAR(500) NULL;
+END
+IF COL_LENGTH('api.ApiConsumers', 'AuthMethod') IS NULL
+BEGIN
+    ALTER TABLE api.ApiConsumers ADD AuthMethod VARCHAR(20) NOT NULL
+        CONSTRAINT DF_ApiConsumers_AuthMethod DEFAULT 'apiKey'
+        CONSTRAINT CK_ApiConsumers_AuthMethod CHECK (AuthMethod IN ('apiKey', 'oauth2', 'hmac'));
+END
+IF COL_LENGTH('api.ApiConsumers', 'ClientId') IS NULL
+BEGIN
+    ALTER TABLE api.ApiConsumers ADD ClientId VARCHAR(64) NULL;
+END
+IF COL_LENGTH('api.ApiConsumers', 'ClientSecretHash') IS NULL
+BEGIN
+    ALTER TABLE api.ApiConsumers ADD ClientSecretHash CHAR(64) NULL;
+END
+IF COL_LENGTH('api.ApiConsumers', 'HmacKeyId') IS NULL
+BEGIN
+    ALTER TABLE api.ApiConsumers ADD HmacKeyId VARCHAR(64) NULL;
+END
+IF COL_LENGTH('api.ApiConsumers', 'HmacSecretEncrypted') IS NULL
+BEGIN
+    ALTER TABLE api.ApiConsumers ADD HmacSecretEncrypted NVARCHAR(500) NULL;
+END
+-- Bản cũ: ApiKeyHash NOT NULL + UNIQUE constraint thường — nới lỏng để đối
+-- tác oauth2/hmac (không có ApiKeyHash) chèn được, và đổi UNIQUE constraint
+-- (chặn nhiều NULL) sang UNIQUE INDEX LỌC (chỉ ép trùng khi có giá trị).
+IF EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('api.ApiConsumers') AND name = 'ApiKeyHash' AND is_nullable = 0)
+BEGIN
+    ALTER TABLE api.ApiConsumers ALTER COLUMN ApiKeyHash CHAR(64) NULL;
+END
+IF EXISTS (SELECT 1 FROM sys.key_constraints WHERE name = 'UX_ApiConsumers_ApiKeyHash' AND parent_object_id = OBJECT_ID('api.ApiConsumers'))
+BEGIN
+    ALTER TABLE api.ApiConsumers DROP CONSTRAINT UX_ApiConsumers_ApiKeyHash;
+END
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_ApiConsumers_ApiKeyHash' AND object_id = OBJECT_ID('api.ApiConsumers'))
+BEGIN
+    CREATE UNIQUE INDEX UX_ApiConsumers_ApiKeyHash ON api.ApiConsumers (ApiKeyHash) WHERE ApiKeyHash IS NOT NULL;
+END
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_ApiConsumers_ClientId' AND object_id = OBJECT_ID('api.ApiConsumers'))
+BEGIN
+    CREATE UNIQUE INDEX UX_ApiConsumers_ClientId ON api.ApiConsumers (ClientId) WHERE ClientId IS NOT NULL;
+END
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_ApiConsumers_HmacKeyId' AND object_id = OBJECT_ID('api.ApiConsumers'))
+BEGIN
+    CREATE UNIQUE INDEX UX_ApiConsumers_HmacKeyId ON api.ApiConsumers (HmacKeyId) WHERE HmacKeyId IS NOT NULL;
 END
 GO
 

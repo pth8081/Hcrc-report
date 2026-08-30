@@ -131,24 +131,52 @@ GO
 --   'queryParam' — 1 tham số query string tuỳ tên + giá trị, cùng 2 cột trên.
 --   'basicAuth'  — AuthUsername + AuthPasswordEncrypted, tự dựng header
 --                  "Authorization: Basic base64(user:pass)" lúc gọi.
--- CHƯA hỗ trợ OAuth2 Client Credentials (phải xin + tự làm mới token) hay
--- HMAC ký từng request (phổ biến ở cổng thanh toán/ngân hàng) — phức tạp hơn
--- hẳn, làm khi có đối tác cụ thể cần, không làm trước cho chắc.
+--   'oauth2ClientCredentials' — TÁI DÙNG AuthKeyName/AuthValueEncrypted làm
+--                  ClientId/ClientSecret (mã hoá) — thêm TokenUrl (endpoint
+--                  đối tác cấp) để rp-server tự đổi lấy access token ngắn
+--                  hạn (POST grant_type=client_credentials), tự cache + làm
+--                  mới khi hết hạn, xem lib/externalApiConnectionPool.js.
+--   'hmacSignature' — TÁI DÙNG AuthKeyName/AuthValueEncrypted làm
+--                  KeyId/Secret (mã hoá) — rp-server tự ký mỗi request bằng
+--                  HMAC-SHA256, gửi kèm X-Key-Id/X-Timestamp/X-Signature —
+--                  ĐÚNG quy ước api-server dùng cho chiều ngược lại (xem
+--                  api-server/lib/hmacAuth.js) nên chỉ khớp đối tác nào cũng
+--                  theo quy ước này; đối tác có quy ước ký khác (tên header/
+--                  thứ tự chuỗi ký khác) CHƯA hỗ trợ, cần code riêng.
 IF OBJECT_ID('app.ExternalApiConnections', 'U') IS NULL
 BEGIN
     CREATE TABLE app.ExternalApiConnections (
         Id                     INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
         Name                   NVARCHAR(200) NOT NULL,
         BaseUrl                NVARCHAR(300) NOT NULL,
-        AuthType               VARCHAR(20)   NOT NULL DEFAULT 'none'
-            CONSTRAINT CK_ExternalApiConnections_AuthType CHECK (AuthType IN ('none', 'headerKey', 'queryParam', 'basicAuth')),
-        AuthKeyName            NVARCHAR(200) NULL,  -- tên header hoặc tên query param (headerKey/queryParam)
-        AuthValueEncrypted     NVARCHAR(500) NULL,  -- giá trị header/query param, mã hoá (headerKey/queryParam)
+        AuthType               VARCHAR(30)   NOT NULL DEFAULT 'none'
+            CONSTRAINT CK_ExternalApiConnections_AuthType CHECK (AuthType IN ('none', 'headerKey', 'queryParam', 'basicAuth', 'oauth2ClientCredentials', 'hmacSignature')),
+        AuthKeyName            NVARCHAR(200) NULL,  -- header/query param/ClientId/HMAC KeyId tuỳ AuthType
+        AuthValueEncrypted     NVARCHAR(500) NULL,  -- giá trị/ClientSecret/HMAC secret tương ứng, mã hoá
         AuthUsername           NVARCHAR(200) NULL,  -- basicAuth
         AuthPasswordEncrypted  NVARCHAR(500) NULL,  -- basicAuth
+        TokenUrl               NVARCHAR(300) NULL,  -- oauth2ClientCredentials — endpoint đối tác cấp token
         CreatedAt              DATETIME2(3)  NOT NULL DEFAULT SYSUTCDATETIME()
     );
 END
+GO
+
+-- Nâng cấp từ bản trước (bảng đã tồn tại nhưng AuthType chỉ có 4 giá trị,
+-- thiếu TokenUrl) — an toàn chạy lại nhiều lần.
+IF COL_LENGTH('app.ExternalApiConnections', 'TokenUrl') IS NULL
+BEGIN
+    ALTER TABLE app.ExternalApiConnections ADD TokenUrl NVARCHAR(300) NULL;
+END
+IF EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = 'CK_ExternalApiConnections_AuthType')
+BEGIN
+    ALTER TABLE app.ExternalApiConnections DROP CONSTRAINT CK_ExternalApiConnections_AuthType;
+END
+IF EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('app.ExternalApiConnections') AND name = 'AuthType' AND max_length < 30)
+BEGIN
+    ALTER TABLE app.ExternalApiConnections ALTER COLUMN AuthType VARCHAR(30) NOT NULL;
+END
+ALTER TABLE app.ExternalApiConnections ADD CONSTRAINT CK_ExternalApiConnections_AuthType
+    CHECK (AuthType IN ('none', 'headerKey', 'queryParam', 'basicAuth', 'oauth2ClientCredentials', 'hmacSignature'));
 GO
 
 -- Định nghĩa báo cáo ("Biểu mẫu") — CHUYỂN từ dwh.ReportCatalog sang đây (xem

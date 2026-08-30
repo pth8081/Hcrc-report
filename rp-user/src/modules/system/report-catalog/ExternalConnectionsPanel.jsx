@@ -7,12 +7,21 @@ import { useEffect, useState } from 'react';
 import { api } from '../../../lib/api';
 import DataTable from '../../../components/DataTable';
 
-const EMPTY_FORM = { name: '', baseUrl: '', authType: 'none', authKeyName: '', authValue: '', authUsername: '', authPassword: '' };
+const EMPTY_FORM = { name: '', baseUrl: '', authType: 'none', authKeyName: '', authValue: '', authUsername: '', authPassword: '', tokenUrl: '' };
 const AUTH_TYPE_LABELS = {
   none: 'Không xác thực',
   headerKey: 'Header tuỳ chọn (API key/Bearer token)',
   queryParam: 'Tham số query string',
-  basicAuth: 'Basic Auth (username/password)'
+  basicAuth: 'Basic Auth (username/password)',
+  oauth2ClientCredentials: 'OAuth2 Client Credentials',
+  hmacSignature: 'HMAC ký từng request'
+};
+// Nhãn 2 ô authKeyName/authValue đổi theo AuthType — cùng 2 cột CSDL, khác ý nghĩa.
+const KEY_VALUE_LABELS = {
+  headerKey: ['Tên header (vd X-Api-Key hoặc Authorization)', 'Giá trị (vd API key, hoặc "Bearer xxx")'],
+  queryParam: ['Tên tham số query string (vd api_key)', 'Giá trị'],
+  oauth2ClientCredentials: ['Client ID', 'Client Secret'],
+  hmacSignature: ['Key ID (định danh công khai gửi kèm mỗi request)', 'Secret (dùng để ký, KHÔNG gửi qua mạng)']
 };
 
 export default function ExternalConnectionsPanel() {
@@ -55,12 +64,16 @@ export default function ExternalConnectionsPanel() {
     } catch (err) { setError(err.message); }
   }
 
+  const keyValueLabels = KEY_VALUE_LABELS[form.authType];
+
   return (
     <div>
       <p>
         Dùng cho báo cáo lấy dữ liệu <strong>trực tiếp từ API của đối tác</strong> (SourceType &quot;externalApi&quot;
         {' '}bên tab &quot;Báo cáo&quot;) — KHÔNG qua API Server. Vì đây là hệ thống không do HCRC kiểm soát, chọn đúng cách
-        xác thực API đối tác yêu cầu.
+        xác thực API đối tác yêu cầu. &quot;HMAC ký từng request&quot; dùng đúng quy ước api-server của chính bạn
+        đang xác minh — chỉ khớp nếu đối tác cũng theo quy ước đó (chuỗi ký method+path+timestamp+body, HMAC-SHA256
+        hex qua header X-Key-Id/X-Timestamp/X-Signature); đối tác có quy ước ký khác cần code riêng.
       </p>
       {error && <p className="form-error">{error}</p>}
 
@@ -72,22 +85,31 @@ export default function ExternalConnectionsPanel() {
           {Object.entries(AUTH_TYPE_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
         </select>
 
-        {(form.authType === 'headerKey' || form.authType === 'queryParam') && (
+        {keyValueLabels && (
           <>
             <input
-              placeholder={form.authType === 'headerKey' ? 'Tên header (vd X-Api-Key hoặc Authorization)' : 'Tên tham số query string (vd api_key)'}
+              placeholder={keyValueLabels[0]}
               value={form.authKeyName}
               onChange={(e) => setForm({ ...form, authKeyName: e.target.value })}
               required
             />
             <input
-              placeholder={form.authType === 'headerKey' ? 'Giá trị (vd API key, hoặc "Bearer xxx")' : 'Giá trị'}
+              placeholder={keyValueLabels[1]}
               type="password"
               value={form.authValue}
               onChange={(e) => setForm({ ...form, authValue: e.target.value })}
               required
             />
           </>
+        )}
+
+        {form.authType === 'oauth2ClientCredentials' && (
+          <input
+            placeholder="Token URL (endpoint đối tác cấp access token, vd https://api.doitac.vn/oauth/token)"
+            value={form.tokenUrl}
+            onChange={(e) => setForm({ ...form, tokenUrl: e.target.value })}
+            required
+          />
         )}
 
         {form.authType === 'basicAuth' && (

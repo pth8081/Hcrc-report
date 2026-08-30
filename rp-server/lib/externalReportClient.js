@@ -13,7 +13,8 @@
 // cố định vào externalPath (vd "/orders?limit=500").
 const { evaluateFormula } = require('./formulaEngine');
 const { describeColumns } = require('./reportEngine');
-const { getConnection } = require('./externalApiConnectionPool');
+const { getConnection, getOAuth2Token } = require('./externalApiConnectionPool');
+const hmacSign = require('./hmacSign');
 
 function getByPath(obj, path) {
   if (!path) return obj;
@@ -40,7 +41,9 @@ function buildUrl(baseUrl, pathTemplate, filterValues) {
   return url;
 }
 
-function applyAuth(url, headers, connection) {
+// Async — 'oauth2ClientCredentials' cần đổi/tra cache token (có thể gọi
+// mạng), các loại khác đồng bộ nhưng viết chung 1 hàm async cho gọn nơi gọi.
+async function applyAuth(url, headers, connection, { method, body }) {
   switch (connection.authType) {
     case 'headerKey':
       headers[connection.authKeyName] = connection.authValue;
@@ -51,6 +54,18 @@ function applyAuth(url, headers, connection) {
     case 'basicAuth':
       headers['Authorization'] = `Basic ${Buffer.from(`${connection.authUsername}:${connection.authPassword}`).toString('base64')}`;
       break;
+    case 'oauth2ClientCredentials': {
+      const token = await getOAuth2Token(connection);
+      headers['Authorization'] = `Bearer ${token}`;
+      break;
+    }
+    case 'hmacSignature': {
+      const { timestamp, signature } = hmacSign.sign({ secret: connection.authValue, method, path: url.pathname + url.search, body });
+      headers['X-Key-Id'] = connection.authKeyName;
+      headers['X-Timestamp'] = String(timestamp);
+      headers['X-Signature'] = signature;
+      break;
+    }
     default: // 'none'
       break;
   }
@@ -96,7 +111,7 @@ async function runExternalReport(definition, filterValues = {}) {
   const connection = await getConnection(externalConnectionId);
   const url = buildUrl(connection.baseUrl, externalPath, filterValues);
   const headers = {};
-  applyAuth(url, headers, connection);
+  await applyAuth(url, headers, connection, { method: 'GET', body: '' });
 
   const data = await fetchJson(url, headers);
   const payload = externalListPath ? getByPath(data, externalListPath) : data;
