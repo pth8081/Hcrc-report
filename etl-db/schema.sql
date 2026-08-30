@@ -20,9 +20,13 @@ BEGIN
 END
 GO
 
--- Tài khoản quản trị etl-admin/. Chỉ 2 giá trị Role: 'admin' (CRUD nguồn +
--- job đồng bộ, đổi tài khoản) và 'viewer' (chỉ xem Dashboard/Log) — cùng mô
--- hình gọn đã dùng cho api-admin, không cần cây menu như HCRC_RP.
+-- Tài khoản quản trị etl-admin/. 3 giá trị Role: 'admin' (CRUD nguồn + job
+-- đồng bộ, đổi tài khoản), 'viewer' (chỉ xem Dashboard/Log), và
+-- 'target_importer' (CHỈ trang "Nhập chỉ tiêu" — xem
+-- routes/admin/salesTargets.js, dùng tài khoản CSDL RIÊNG hẹp hơn cả
+-- etl_writer, xem dwh/grants.sql — không thấy/sửa được DataSources hay
+-- SyncJobs, tách biệt khỏi hạ tầng ETL thật) — cùng mô hình gọn đã dùng cho
+-- api-admin, không cần cây menu như HCRC_RP.
 IF OBJECT_ID('admin.AdminUsers', 'U') IS NULL
 BEGIN
     CREATE TABLE admin.AdminUsers (

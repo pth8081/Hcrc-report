@@ -42,6 +42,39 @@ BEGIN
 END
 GO
 
+-- Chỉ tiêu (target/KPI) nhập tay theo tháng, TÁCH BẢNG RIÊNG khỏi
+-- dwh.ReportFacts (không chung Domain) — để có thể GRANT quyền GHI ở mức
+-- ĐÚNG BẢNG này cho 1 tài khoản hẹp (vd "dwh_target_importer", xem
+-- dwh/grants.sql), không đụng gì tới dwh.ReportFacts. SQL Server không giới
+-- hạn GRANT theo từng dòng/Domain trong 1 bảng, nên tách bảng là cách duy
+-- nhất đạt least-privilege thật ở đây.
+--
+-- Domain khớp với dwh.ReportFacts.Domain của báo cáo áp dụng chỉ tiêu này
+-- (vd cùng domain doanh thu chi nhánh) — dùng để phân biệt khi nhiều báo
+-- cáo khác nhau đều cần chỉ tiêu riêng. PeriodMonth LUÔN là ngày 1 của
+-- tháng áp dụng (vd '2026-08-01' cho chỉ tiêu tháng 8/2026) — nhập cuối
+-- tháng trước, dùng suốt tháng đó. TargetsJson linh hoạt (giống Measures
+-- bên ReportFacts) — mỗi lần nhập, tên cột trong file Excel (ngoài mã siêu
+-- thị + tháng) trở thành đúng tên khoá trong JSON này, không cố định trước
+-- trong code (xem etl/lib/salesTargetsImport.js).
+IF OBJECT_ID('dwh.SalesTargets', 'U') IS NULL
+BEGIN
+    CREATE TABLE dwh.SalesTargets (
+        Id            BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        Domain        VARCHAR(50)   NOT NULL,
+        EntityCode    NVARCHAR(100) NOT NULL,
+        PeriodMonth   DATE          NOT NULL,
+        TargetsJson   NVARCHAR(MAX) NOT NULL,
+        ImportedAt    DATETIME2(3)  NOT NULL DEFAULT SYSUTCDATETIME(),
+        ImportedBy    NVARCHAR(50)  NULL,
+        CONSTRAINT UX_SalesTargets_Domain_Entity_Period
+            UNIQUE (Domain, EntityCode, PeriodMonth)
+    );
+    CREATE INDEX IX_SalesTargets_Domain_Period
+        ON dwh.SalesTargets (Domain, PeriodMonth DESC) INCLUDE (EntityCode);
+END
+GO
+
 /* ===== Tối ưu lọc theo Dimensions =====
    Lọc báo cáo theo bất kỳ field nào NGOÀI entityCode/eventDate/sourceSystem
    đều dịch thành JSON_VALUE(Dimensions, '$.field') (xem

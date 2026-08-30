@@ -1,8 +1,9 @@
 # etl-admin
 
 Trang quản trị ETL — nguồn dữ liệu, cấu hình đồng bộ (chọn bảng/cột thật,
-không cần code), Dashboard, Log, Phân quyền. Ứng dụng RIÊNG, tách khỏi
-`rp-user/` và `api-admin/` — xem tài liệu kiến trúc "Quản Trị ETL HCRC".
+không cần code), Dashboard, Log, Nhập chỉ tiêu, Phân quyền. Ứng dụng RIÊNG,
+tách khỏi `rp-user/` và `api-admin/` — xem tài liệu kiến trúc "Quản Trị ETL
+HCRC".
 
 ## Cài đặt
 
@@ -22,13 +23,14 @@ npm run build   # ra dist/, phục vụ tĩnh CHỈ trong mạng nội bộ — 
                  # Internet, cùng lý do với /admin/* của ETL Server
 ```
 
-## 5 trang
+## 6 trang
 
 - **Dashboard** — tổng số job/nguồn, job lỗi 24h qua, các lượt chạy gần nhất.
 - **Nguồn dữ liệu** — CRUD `etl.DataSources` (SQL Server hoặc MySQL/MariaDB), kiểm tra kết nối.
 - **Đồng bộ** — tạo job "theo bảng" (duyệt bảng/cột thật của nguồn, tuỳ chọn thêm 1 bảng liên kết) hoặc "tuỳ biến" (chọn connector viết sẵn); chạy thử/bật-tắt/xoá.
 - **Log** — `etl.SyncLog`, lọc theo trạng thái, phân trang.
-- **Phân quyền** — CRUD `admin.AdminUsers` (vai trò `admin`/`viewer`).
+- **Nhập chỉ tiêu** — upload Excel chỉ tiêu (target/KPI) theo tháng vào `dwh.SalesTargets` (xem `etl/README.md` mục "Nhập chỉ tiêu") — trang DUY NHẤT vai trò `target_importer` thấy được, `admin` thấy tất cả.
+- **Phân quyền** — CRUD `admin.AdminUsers` (vai trò `admin`/`viewer`/`target_importer`).
 
 ## Còn thiếu ở bước khung này
 

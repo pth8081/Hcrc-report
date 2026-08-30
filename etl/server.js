@@ -17,6 +17,7 @@ const adminDataSourcesRoutes = require('./routes/admin/dataSources');
 const adminSyncJobsRoutes = require('./routes/admin/syncJobs');
 const adminLogRoutes = require('./routes/admin/log');
 const adminDashboardRoutes = require('./routes/admin/dashboard');
+const adminSalesTargetsRoutes = require('./routes/admin/salesTargets');
 
 const app = express();
 const PORT = process.env.PORT || 4003;
@@ -51,6 +52,7 @@ app.use('/admin/data-sources', adminDataSourcesRoutes);
 app.use('/admin/sync-jobs', adminSyncJobsRoutes);
 app.use('/admin/log', adminLogRoutes);
 app.use('/admin/dashboard', adminDashboardRoutes);
+app.use('/admin/sales-targets', adminSalesTargetsRoutes);
 
 app.use((err, req, res, next) => { // eslint-disable-line no-unused-vars
   console.error(err);

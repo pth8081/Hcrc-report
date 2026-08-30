@@ -5,6 +5,28 @@ Server, API Server và các giao diện quản trị) — tăng ở mỗi lần 
 `main`, theo kiểu semver không chặt (patch cho fix nhỏ, minor cho tính năng
 mới, major khi đổi cấu trúc phá vỡ tương thích ngược).
 
+## 0.19.0 — Nhập chỉ tiêu (target/KPI) qua etl-admin
+
+Bước đầu cho báo cáo doanh thu chi nhánh cần so "Thực đạt" với "Chỉ tiêu"
+(vd báo cáo nhanh doanh thu BRGMart) — 20 test mới.
+
+- **`dwh.SalesTargets`** (mới, `dwh/schema.sql`) — bảng RIÊNG khỏi
+  `dwh.ReportFacts`, lưu chỉ tiêu theo `Domain + EntityCode + PeriodMonth`,
+  `TargetsJson` linh hoạt (tên chỉ tiêu không cố định trước trong code).
+- **Trang "Nhập chỉ tiêu"** (`etl-admin/`, mới) — upload file Excel (.xlsx),
+  dòng 1 header, 2 cột cố định `MaSieuThi`/`Thang`, các cột sau tự do trở
+  thành tên chỉ tiêu. Nhập lại đúng domain+tháng GHI ĐÈ (upsert), không cộng
+  dồn.
+- **Tài khoản CSDL RIÊNG, hẹp hơn `etl_writer`** — `dwh_target_importer`
+  (`dwh/grants.sql`), CHỈ có quyền trên đúng bảng `dwh.SalesTargets`, không
+  đụng được `dwh.ReportFacts` dù chạy trong cùng tiến trình `etl` — route
+  "Nhập chỉ tiêu" dùng pool RIÊNG (`DWH_TARGET_IMPORTER_*` trong `.env`),
+  không dùng chung pool `DWH` thường.
+- **Vai trò `target_importer`** (mới, `admin.AdminUsers.Role`) — CHỈ thấy
+  trang "Nhập chỉ tiêu" trong `etl-admin/`, không thấy Nguồn dữ liệu/Đồng bộ
+  — cấp cho nhân sự chỉ cần nhập chỉ tiêu hàng tháng, không phải quản trị
+  ETL đầy đủ. `admin` vẫn vào được mọi trang như cũ.
+
 ## 0.18.0 — Cấu hình Nginx triển khai 1 máy chủ ứng dụng + 1 máy chủ CSDL riêng
 
 - **`deploy/nginx.conf`** — mẫu cấu hình Nginx đầy đủ cho mô hình cả 3 hệ

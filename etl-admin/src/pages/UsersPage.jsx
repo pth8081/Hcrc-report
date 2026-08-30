@@ -1,6 +1,7 @@
-// pages/UsersPage.jsx — Trang "Phân quyền": CRUD admin.AdminUsers. Chỉ 2 vai
-// trò (admin/viewer) — không có cây menu như rp-user/ chính, quy mô trang
-// quản trị ETL không cần tới mức đó.
+// pages/UsersPage.jsx — Trang "Phân quyền": CRUD admin.AdminUsers. 3 vai trò
+// (admin/viewer/target_importer — vai trò hẹp, chỉ vào được trang "Nhập chỉ
+// tiêu", xem lib/AuthContext.jsx) — không có cây menu như rp-user/ chính,
+// quy mô trang quản trị ETL không cần tới mức đó.
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/AuthContext';
@@ -57,6 +58,7 @@ export default function UsersPage() {
           <input placeholder="Họ tên" value={form.fullName} onChange={(e) => setForm({ ...form, fullName: e.target.value })} required />
           <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>
             <option value="viewer">viewer</option>
+            <option value="target_importer">target_importer (chỉ Nhập chỉ tiêu)</option>
             <option value="admin">admin</option>
           </select>
           <button type="submit">Thêm người dùng</button>

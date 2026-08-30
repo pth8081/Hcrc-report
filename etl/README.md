@@ -21,6 +21,36 @@ vụ `/admin/*` cho trang quản trị riêng `etl-admin/` — CSDL quản trị
   `CustomConnectorKey`. Lịch chạy/bật-tắt/xem log vẫn quản lý qua giao diện
   như job "theo bảng" — chỉ khác câu SQL/logic chuyển đổi nằm trong code.
 
+## Nhập chỉ tiêu (target/KPI)
+
+Trang "Nhập chỉ tiêu" (`etl-admin/`) — upload file Excel (.xlsx) chỉ tiêu
+kinh doanh theo tháng cho từng siêu thị, ghi vào `dwh.SalesTargets` (bảng
+RIÊNG khỏi `dwh.ReportFacts` — xem `dwh/schema.sql`). Dùng cho báo cáo cần
+so "Thực đạt" với "Chỉ tiêu" (report bên `rp-server` đọc bảng này qua
+`SourceType='composite'`, xem `rp-server/README.md`).
+
+**Vì sao đặt ở `etl`, không phải `rp-server`** — chỉ `etl` được GHI vào
+DWH (`rp-server`/`api-server` chỉ có quyền đọc, xem `dwh/grants.sql`); đặt
+tính năng ghi ở nơi khác sẽ phải nới quyền ghi cho service đó, phá đúng
+ranh giới "chỉ etl ghi DWH" xuyên suốt kiến trúc.
+
+**Quyền hẹp hơn cả `etl_writer` bình thường của ETL** — route này dùng
+RIÊNG tài khoản CSDL `dwh_target_importer` (biến `DWH_TARGET_IMPORTER_*`
+trong `.env`), CHỈ có quyền trên đúng 1 bảng `dwh.SalesTargets`, không đụng
+được `dwh.ReportFacts` dù chạy trong cùng tiến trình `etl` — xem
+`dwh/grants.sql`. Ở tầng ứng dụng, thêm vai trò `target_importer` trong
+`admin.AdminUsers.Role` — tài khoản gán vai trò này CHỈ thấy trang "Nhập
+chỉ tiêu" trong `etl-admin/`, không thấy Nguồn dữ liệu/Đồng bộ (hạ tầng ETL
+thật) — cấp cho nhân sự chỉ cần nhập chỉ tiêu hàng tháng, không phải quản
+trị ETL đầy đủ.
+
+**Định dạng file** — dòng 1 là header, 2 cột đầu CỐ ĐỊNH tên `MaSieuThi` và
+`Thang` (dạng `YYYY-MM`), các cột sau tuỳ ý — tên cột trở thành tên khoá
+chỉ tiêu (vd `ChiTieuDoanhThu`, `ChiTieuGiaoDich`), không cố định trước
+trong code. Nhập lại đúng domain + tháng sẽ GHI ĐÈ (upsert theo khoá
+`Domain + EntityCode + PeriodMonth`), không cộng dồn — nhập cuối tháng
+trước để có sẵn chỉ tiêu khi tháng mới bắt đầu.
+
 ## Cài đặt
 
 ```bash
@@ -38,11 +68,13 @@ node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
 Chạy `etl-db/schema.sql` trên CSDL `HCRC_ETL` (một lần — an toàn chạy lại
 nhiều lần).
 
-Tài khoản CSDL dùng trong `.env` (`ADMIN_USER`, `DWH_USER`) nên tạo với
-quyền tối thiểu chứ không phải tài khoản `sa`/`db_owner` — xem mẫu tham khảo
-`etl-db/grants.sql` (CSDL của chính etl) và `dwh/grants.sql` (CSDL DWH, ETL
-được GHI) ở thư mục gốc repo. Cả 2 file KHÔNG tự chạy, cần DBA xem lại và
-đổi mật khẩu mẫu trước khi dùng.
+Tài khoản CSDL dùng trong `.env` (`ADMIN_USER`, `DWH_USER`, và
+`DWH_TARGET_IMPORTER_USER` nếu dùng tính năng "Nhập chỉ tiêu" — xem mục
+riêng bên dưới) nên tạo với quyền tối thiểu chứ không phải tài khoản
+`sa`/`db_owner` — xem mẫu tham khảo `etl-db/grants.sql` (CSDL của chính
+etl) và `dwh/grants.sql` (CSDL DWH — `etl_writer` ghi `dwh.ReportFacts`,
+`dwh_target_importer` CHỈ ghi `dwh.SalesTargets`) ở thư mục gốc repo. Cả 2
+file KHÔNG tự chạy, cần DBA xem lại và đổi mật khẩu mẫu trước khi dùng.
 
 Tạo tài khoản quản trị đầu tiên cho `etl-admin/`:
 

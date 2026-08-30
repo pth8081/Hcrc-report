@@ -87,4 +87,18 @@ function requireAdminRole(req, res, next) {
   next();
 }
 
-module.exports = { COOKIE_NAME, verifyCredentials, issueToken, verifyToken, requireAdminAuth, requireAdminRole };
+// Dùng SAU requireAdminAuth trên route "Nhập chỉ tiêu" (routes/admin/salesTargets.js)
+// — 'admin' vẫn vào được (không hạ quyền admin đầy đủ), CỘNG THÊM
+// 'target_importer' (vai trò hẹp, CHỈ thấy trang này, không thấy
+// DataSources/SyncJobs) — 'viewer' không vào được.
+function requireTargetImporterRole(req, res, next) {
+  if (req.admin?.role !== 'admin' && req.admin?.role !== 'target_importer') {
+    return res.status(403).json({ error: 'Chỉ vai trò admin hoặc target_importer mới thực hiện được thao tác này' });
+  }
+  next();
+}
+
+module.exports = {
+  COOKIE_NAME, verifyCredentials, issueToken, verifyToken,
+  requireAdminAuth, requireAdminRole, requireTargetImporterRole
+};

@@ -1,6 +1,6 @@
-// lib/AuthContext.jsx — Người quản trị hiện tại (username, role). Chỉ 2 vai
-// trò ('admin'/'viewer') — cùng mô hình gọn đã dùng cho api-admin, quy mô
-// trang quản trị ETL nhỏ hơn nhiều so với HCRC_RP.
+// lib/AuthContext.jsx — Người quản trị hiện tại (username, role). 3 vai trò
+// ('admin'/'viewer'/'target_importer', xem etl/lib/adminAuth.js) — vẫn gọn
+// hơn nhiều so với cây phân quyền của HCRC_RP.
 import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { api } from './api';
 
@@ -34,9 +34,13 @@ export function AuthProvider({ children }) {
   }, []);
 
   const isAdmin = me?.role === 'admin';
+  const isTargetImporter = me?.role === 'target_importer';
+  // 'admin' vào được MỌI trang (kể cả Nhập chỉ tiêu); 'target_importer' CHỈ
+  // vào được trang Nhập chỉ tiêu (xem components/Layout.jsx lọc menu theo cờ này).
+  const canImportTargets = isAdmin || isTargetImporter;
 
   return (
-    <AuthContext.Provider value={{ me, loading, login, logout, isAdmin, refresh }}>
+    <AuthContext.Provider value={{ me, loading, login, logout, isAdmin, isTargetImporter, canImportTargets, refresh }}>
       {children}
     </AuthContext.Provider>
   );
