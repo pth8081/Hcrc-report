@@ -78,6 +78,44 @@ Response trả về `apiKey` — **chỉ hiện đúng một lần**, CSDL chỉ
 SHA-256 (`api.ApiConsumers.ApiKeyHash`). Mất key thì luân chuyển key mới
 (`POST /admin/consumers/:id/rotate`), không lấy lại được key cũ.
 
+Có `apiKey` + scope `reports` chưa đủ để gọi được báo cáo — xem 2 mục dưới.
+
+## Tuỳ biến dữ liệu trả về cho từng đối tác
+
+2 lớp ĐỘC LẬP, không thay được nhau:
+
+**1. Đối tác được gọi báo cáo nào (`api.ConsumerReportAccess`)** — MẶC ĐỊNH
+một đối tác mới **không gọi được báo cáo nào**, dù `apiKey` có scope
+`reports` hợp lệ. Gán qua nút "Báo cáo được gọi" ở trang "Đối tác"
+(`api-admin/`), hoặc thẳng `PUT /admin/consumers/:id/report-access` với
+`{ "reportIds": [...] }` — GHI ĐÈ toàn bộ danh sách mỗi lần gọi (không phải
+thêm/bớt từng cái).
+
+**2. Chọn cột theo yêu cầu (`?fields=`)** — trong báo cáo họ ĐƯỢC gọi, đối
+tác có thể chỉ lấy đúng cột cần thay vì nhận hết:
+
+```bash
+curl "http://localhost:4002/api/v1/reports/doanh-thu-thang/run?fields=entityCode,tyLeLoiNhuan" \
+  -H "X-API-Key: ..."
+```
+
+Xin cột không có trong định nghĩa báo cáo → `400` rõ ràng (kèm danh sách cột
+sai tên), không âm thầm bỏ qua.
+
+## Cột tính toán (công thức)
+
+Giống hệt cơ chế bên `rp-server/` (xem `rp-server/README.md` mục "Cột tính
+toán") — một phần tử `columns` trong `DefinitionJson` có thể là công thức:
+
+```json
+{ "key": "tyLeLoiNhuan", "label": "Tỷ lệ lợi nhuận (%)", "formula": "ROUND(measures.loiNhuan / measures.doanhThu * 100, 1)" }
+```
+
+Chạy ở `lib/reportEngine.js` (qua `lib/formulaEngine.js`, KHÔNG dùng
+`eval()`), cú pháp kiểm tra ngay lúc lưu. Dùng khi báo cáo đó có
+`SourceType='apiReport'` bên rp-server — API Server là nơi thực sự chạy
+query, nên công thức phải khai ở đây, rp-server chỉ forward kết quả.
+
 ## Còn thiếu để dùng thật
 
 - **Bộ lọc động cho endpoint realtime** — `/list` mới hỗ trợ phân trang, chưa lọc theo điều kiện (khác `/api/v1/reports` đã có `filters`) — cần nếu danh sách quá lớn để xem hết từng trang.
@@ -90,7 +128,7 @@ SHA-256 (`api.ApiConsumers.ApiKeyHash`). Mất key thì luân chuyển key mới
 | Endpoint | Scope | Mô tả |
 |---|---|---|
 | `GET /api/v1/health` | — | Kiểm tra tình trạng, không cần key |
-| `GET /api/v1/reports/:reportId/run` | `reports` | Chạy báo cáo (định nghĩa trong `api.ReportCatalog`), lọc qua query string, trả JSON phân trang |
+| `GET /api/v1/reports/:reportId/run` | `reports` | Chạy báo cáo (định nghĩa trong `api.ReportCatalog`) — cần được gán quyền qua `api.ConsumerReportAccess`; lọc qua query string, `?fields=` chọn cột, trả JSON phân trang |
 | `GET /api/v1/realtime/:endpoint/:key` | `realtime` | Tra 1 khoá — `endpoint` bất kỳ đã tạo qua trang "Endpoint realtime" (vd `inventory`, `loyalty`, `vouchers`, hoặc endpoint mới tự đặt) |
 | `GET /api/v1/realtime/:endpoint/list` | `realtime` | Danh sách cùng endpoint, phân trang |
 
@@ -101,6 +139,7 @@ SHA-256 (`api.ApiConsumers.ApiKeyHash`). Mất key thì luân chuyển key mới
 | `POST /admin/auth/login`, `/logout`, `GET /me` | — | Đăng nhập/đăng xuất |
 | `GET/POST/PUT/DELETE /admin/consumers` | `admin` sửa, ai đăng nhập cũng xem được | CRUD đối tác API |
 | `POST /admin/consumers/:id/rotate` | `admin` | Luân chuyển key |
+| `GET/PUT /admin/consumers/:id/report-access` | `admin` sửa | Báo cáo đối tác được gọi (`api.ConsumerReportAccess`) |
 | `GET/POST/PUT/DELETE /admin/data-sources` | `admin` sửa | CRUD nguồn dữ liệu OLTP (kết nối vật lý) |
 | `POST /admin/data-sources/test` | `admin` | Kiểm tra kết nối một cấu hình chưa lưu |
 | `GET /admin/data-sources/:id/tables` | — | Duyệt bảng/view thật của một nguồn |

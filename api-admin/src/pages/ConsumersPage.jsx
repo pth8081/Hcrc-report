@@ -1,6 +1,12 @@
 // pages/ConsumersPage.jsx — Trang "Đối tác": CRUD api.ApiConsumers. API key
 // gốc chỉ hiện MỘT LẦN lúc tạo/luân chuyển (xem api-server/routes/admin/consumers.js)
 // — hiện trong banner, không lưu lại ở đâu trên trình duyệt.
+//
+// "Báo cáo được gọi" (api.ConsumerReportAccess) — MẶC ĐỊNH một đối tác mới
+// KHÔNG gọi được báo cáo nào dù có scope "reports" hợp lệ, phải gán rõ ràng ở
+// đây (xem routes/v1/reports.js). Khác GET/PUT report-access bên rp-server
+// (app.RoleReportAccess) ở CHỦ THỂ (đối tác API thay vì vai trò người dùng),
+// cùng cơ chế XOÁ HẾT + GÁN LẠI.
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/AuthContext';
@@ -12,15 +18,39 @@ const EMPTY_FORM = { name: '', scopes: [], rateLimitPerMinute: 120 };
 export default function ConsumersPage() {
   const { isAdmin } = useAuth();
   const [consumers, setConsumers] = useState([]);
+  const [reports, setReports] = useState([]);
   const [form, setForm] = useState(EMPTY_FORM);
   const [editing, setEditing] = useState(null); // consumer đang sửa, hoặc null
+  const [accessFor, setAccessFor] = useState(null); // consumer đang gán báo cáo, hoặc null
+  const [accessReportIds, setAccessReportIds] = useState([]);
   const [revealedKey, setRevealedKey] = useState(''); // key vừa tạo/luân chuyển
   const [error, setError] = useState('');
 
   function reload() {
     api.get('/consumers').then(setConsumers).catch(err => setError(err.message));
+    api.get('/report-catalog').then(setReports).catch(err => setError(err.message));
   }
   useEffect(reload, []);
+
+  async function openReportAccess(consumer) {
+    setError('');
+    try {
+      const { reportIds } = await api.get(`/consumers/${consumer.Id}/report-access`);
+      setAccessReportIds(reportIds);
+      setAccessFor(consumer);
+    } catch (err) { setError(err.message); }
+  }
+
+  function toggleReportAccess(reportId) {
+    setAccessReportIds(list => (list.includes(reportId) ? list.filter(r => r !== reportId) : [...list, reportId]));
+  }
+
+  async function saveReportAccess() {
+    try {
+      await api.put(`/consumers/${accessFor.Id}/report-access`, { reportIds: accessReportIds });
+      setAccessFor(null);
+    } catch (err) { setError(err.message); }
+  }
 
   function toggleScope(scopeList, scope) {
     return scopeList.includes(scope) ? scopeList.filter(s => s !== scope) : [...scopeList, scope];
@@ -106,6 +136,7 @@ export default function ConsumersPage() {
             key: 'actions', label: '', render: (c) => (
               <>
                 <button type="button" onClick={() => setEditing({ ...c })}>Sửa</button>{' '}
+                <button type="button" onClick={() => openReportAccess(c)}>Báo cáo được gọi</button>{' '}
                 <button type="button" onClick={() => rotateKey(c)}>Luân chuyển key</button>{' '}
                 <button type="button" onClick={() => deleteConsumer(c)}>Xoá</button>
               </>
@@ -135,6 +166,31 @@ export default function ConsumersPage() {
             <div className="modal-actions">
               <button type="button" onClick={saveEdit}>Lưu</button>
               <button type="button" onClick={() => setEditing(null)}>Huỷ</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {accessFor && (
+        <div className="modal">
+          <div className="modal-body">
+            <h3>Báo cáo được gọi — {accessFor.Name}</h3>
+            <p>
+              Mặc định đối tác KHÔNG gọi được báo cáo nào dù có scope <code>reports</code> — chỉ những
+              báo cáo tick dưới đây mới gọi được qua <code>GET /api/v1/reports/:reportId/run</code>.
+            </p>
+            {!reports.length && <p className="empty-message">Chưa có báo cáo nào trong danh mục — thêm ở trang "Báo cáo" trước.</p>}
+            <div className="scope-picker">
+              {reports.map(r => (
+                <label key={r.ReportId} className="checkbox-row">
+                  <input type="checkbox" checked={accessReportIds.includes(r.ReportId)} onChange={() => toggleReportAccess(r.ReportId)} />
+                  {r.Title} ({r.ReportId})
+                </label>
+              ))}
+            </div>
+            <div className="modal-actions">
+              <button type="button" onClick={saveReportAccess}>Lưu</button>
+              <button type="button" onClick={() => setAccessFor(null)}>Huỷ</button>
             </div>
           </div>
         </div>

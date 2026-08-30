@@ -113,7 +113,7 @@ export default function ReportCatalogPanel() {
         <textarea
           placeholder={
             form.sourceType === 'directDb'
-              ? '{"id": "...", "title": "...", "domain": "...", "filters": [...], "columns": [...], "export": ["excel","pdf"]}'
+              ? '{"id": "...", "title": "...", "domain": "...", "filters": [...], "columns": ["entityCode", "measures.doanhThu", {"key": "tyLeLoiNhuan", "label": "Tỷ lệ lợi nhuận (%)", "formula": "ROUND(measures.loiNhuan / measures.doanhThu * 100, 1)"}], "export": ["excel","pdf"]}'
               : '{"id": "...", "title": "...", "domain": "...", "filters": [...]} — cột hiển thị lấy từ API Server, không cần khai "columns" ở đây'
           }
           rows={8}

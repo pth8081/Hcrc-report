@@ -55,7 +55,7 @@ export default function ReportCatalogPage() {
           <input placeholder="Tiêu đề" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required />
           <input placeholder="Domain (dwh.ReportFacts.Domain)" value={form.domain} onChange={(e) => setForm({ ...form, domain: e.target.value })} required />
           <textarea
-            placeholder='{"domain": "...", "filters": [...], "columns": [...]}'
+            placeholder='{"domain": "...", "filters": [...], "columns": ["entityCode", "measures.doanhThu", {"key": "tyLeLoiNhuan", "label": "Tỷ lệ lợi nhuận (%)", "formula": "ROUND(measures.loiNhuan / measures.doanhThu * 100, 1)"}]}'
             rows={8}
             value={form.definitionJson}
             onChange={(e) => setForm({ ...form, definitionJson: e.target.value })}

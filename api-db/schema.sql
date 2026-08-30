@@ -162,3 +162,20 @@ BEGIN
     );
 END
 GO
+
+-- Đối tác nào được gọi báo cáo nào — MẶC ĐỊNH KHÔNG được gọi báo cáo nào cho
+-- tới khi admin gán rõ ràng ở đây (qua trang "Đối tác" trên api-admin/), dù
+-- API key có scope 'reports' hợp lệ. Cùng khuôn với app.RoleReportAccess đã
+-- có bên rp-server (Report Server) — chỉ đổi chủ thể từ vai trò sang đối tác
+-- API. Đây là lớp kiểm soát AI ĐƯỢC GỌI CÁI GÌ; ?fields= trên
+-- GET /v1/reports/:reportId/run là lớp khác — HỌ THẤY GÌ TRONG ĐÓ — 2 lớp
+-- độc lập, không thay được nhau (xem routes/v1/reports.js).
+IF OBJECT_ID('api.ConsumerReportAccess', 'U') IS NULL
+BEGIN
+    CREATE TABLE api.ConsumerReportAccess (
+        ConsumerId INT         NOT NULL REFERENCES api.ApiConsumers(Id) ON DELETE CASCADE,
+        ReportId   VARCHAR(80) NOT NULL REFERENCES api.ReportCatalog(ReportId) ON DELETE CASCADE,
+        CONSTRAINT PK_ConsumerReportAccess PRIMARY KEY (ConsumerId, ReportId)
+    );
+END
+GO

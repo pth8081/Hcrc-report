@@ -63,7 +63,10 @@ async function runList(endpoint, { page = 1, pageSize = 200 } = {}) {
     .input('offset', sql.Int, (page - 1) * pageSize)
     .input('pageSize', sql.Int, pageSize)
     .query(`SELECT ${cols} FROM ${table} ORDER BY ${orderCol} OFFSET @offset ROWS FETCH NEXT @pageSize ROWS ONLY`);
-  return { page, pageSize, columns: def.columns, rows: result.recordset };
+  // columns luôn [{key,label}] — cùng khuôn dạng với GET /v1/reports/:reportId/run
+  // (xem lib/reportEngine.js:describeColumns()), dù endpoint realtime chưa có
+  // khái niệm cột công thức/nhãn riêng như báo cáo.
+  return { page, pageSize, columns: def.columns.map(c => ({ key: c, label: c })), rows: result.recordset };
 }
 
 module.exports = { runLookup, runList, assertSafeIdentifier, NotFoundError };

@@ -1,6 +1,11 @@
 // routes/admin/consumers.js — CRUD api.ApiConsumers. API key gốc chỉ hiện
 // MỘT LẦN DUY NHẤT lúc tạo/luân chuyển (trả về trong response, KHÔNG lưu lại
 // nguyên văn) — sau đó chỉ so khớp được qua hash, giống mật khẩu.
+//
+// GET/PUT /:id/report-access — báo cáo nào đối tác này được gọi
+// (api.ConsumerReportAccess), MẶC ĐỊNH rỗng (không được gọi báo cáo nào) cho
+// tới khi admin gán — cùng khuôn XOÁ HẾT + INSERT LẠI trong 1 transaction với
+// rp-server/routes/roles.js PUT /:id/report-access (app.RoleReportAccess).
 const crypto = require('crypto');
 const express = require('express');
 const { sql, getPool } = require('../../db');
@@ -82,6 +87,38 @@ router.delete('/:id', requireAdminRole, async (req, res, next) => {
     const pool = await getPool('ADMIN');
     await pool.request().input('id', sql.Int, req.params.id).query('DELETE FROM api.ApiConsumers WHERE Id = @id');
     invalidate();
+    res.json({ ok: true });
+  } catch (err) { next(err); }
+});
+
+router.get('/:id/report-access', async (req, res, next) => {
+  try {
+    const pool = await getPool('ADMIN');
+    const result = await pool.request().input('id', sql.Int, req.params.id)
+      .query('SELECT ReportId FROM api.ConsumerReportAccess WHERE ConsumerId = @id');
+    res.json({ reportIds: result.recordset.map(r => r.ReportId) });
+  } catch (err) { next(err); }
+});
+
+router.put('/:id/report-access', requireAdminRole, async (req, res, next) => {
+  try {
+    const { reportIds = [] } = req.body || {};
+    const pool = await getPool('ADMIN');
+    const tx = new sql.Transaction(pool);
+    await tx.begin();
+    try {
+      await new sql.Request(tx).input('id', sql.Int, req.params.id).query('DELETE FROM api.ConsumerReportAccess WHERE ConsumerId = @id');
+      for (const reportId of reportIds) {
+        await new sql.Request(tx)
+          .input('id', sql.Int, req.params.id)
+          .input('reportId', sql.VarChar(80), reportId)
+          .query('INSERT INTO api.ConsumerReportAccess (ConsumerId, ReportId) VALUES (@id, @reportId)');
+      }
+      await tx.commit();
+    } catch (err) {
+      await tx.rollback().catch(() => {});
+      throw err;
+    }
     res.json({ ok: true });
   } catch (err) { next(err); }
 });

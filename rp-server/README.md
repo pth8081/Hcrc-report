@@ -74,6 +74,30 @@ mới tạo.
 được coi là một khoá trong cột `Dimensions` (JSON) của `dwh.ReportFacts` —
 xem `lib/reportEngine.js`.
 
+### Cột tính toán (công thức)
+
+Một phần tử trong `columns` có thể là công thức thay vì tên field thô:
+
+```json
+{ "key": "tyLeLoiNhuan", "label": "Tỷ lệ lợi nhuận (%)", "formula": "ROUND(measures.loiNhuan / measures.doanhThu * 100, 1)" }
+```
+
+Công thức chạy ở `lib/reportEngine.js` (qua `lib/formulaEngine.js`) SAU khi
+đã có dữ liệu thô của dòng — rp-user chỉ hiển thị kết quả đã tính sẵn, không
+tự tính lại. Hỗ trợ `+ - * /`, so sánh (`> < >= <= == !=`), `&& ||`, và các
+hàm `ROUND(x, n=0)`, `ABS(x)`, `MIN(...)`, `MAX(...)`, `IF(cond, a, b)`. Tham
+chiếu field dùng đúng cú pháp như cột thường (`measures.xxx`, `entityCode`,
+hoặc khoá trong Dimensions). Cú pháp được kiểm tra NGAY LÚC LƯU báo cáo —
+công thức sai báo lỗi rõ ràng, không đợi tới lúc chạy mới lộ.
+
+Bộ đánh giá là tokenizer/parser tự viết, KHÔNG dùng `eval()`/`Function()` —
+công thức không thể trở thành đường thực thi mã tuỳ ý dù `DefinitionJson`
+sau này bị sửa từ nơi không đáng tin.
+
+**Lưu ý vị trí**: nếu báo cáo là `SourceType='apiReport'`, công thức phải
+khai ở `api.ReportCatalog` bên **api-server** (nơi thực sự chạy query), không
+phải ở đây — xem api-server/README.md mục "Cột tính toán".
+
 ### Báo cáo lấy dữ liệu qua API Server (realtime)
 
 Ví dụ trên là `SourceType = 'directDb'` (mặc định — đọc thẳng CSDL). Khi báo

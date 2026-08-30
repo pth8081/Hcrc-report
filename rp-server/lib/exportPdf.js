@@ -8,6 +8,7 @@ const PAGE_SIZE = [595.28, 841.89]; // A4 chiều dọc, đơn vị point
 const MARGIN = 40;
 const ROW_HEIGHT = 18;
 
+// definition.columns = [{key, label}] — xem lib/reportEngine.js:describeColumns().
 async function exportPdf(definition, rows) {
   const pdfDoc = await PDFDocument.create();
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
@@ -23,7 +24,7 @@ async function exportPdf(definition, rows) {
 
   function drawRow(values, useBold) {
     definition.columns.forEach((col, i) => {
-      const text = String(values[col] ?? '');
+      const text = String(values[col.key] ?? '');
       page.drawText(text.slice(0, 40), {
         x: MARGIN + i * colWidth,
         y,
@@ -34,7 +35,7 @@ async function exportPdf(definition, rows) {
     y -= ROW_HEIGHT;
   }
 
-  drawRow(Object.fromEntries(definition.columns.map(c => [c, c])), true);
+  drawRow(Object.fromEntries(definition.columns.map(c => [c.key, c.label])), true);
 
   for (const row of rows) {
     if (y < MARGIN + ROW_HEIGHT) {

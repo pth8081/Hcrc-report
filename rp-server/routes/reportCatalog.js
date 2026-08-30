@@ -11,6 +11,7 @@ const multer = require('multer');
 const { sql, getPool } = require('../db');
 const { requireAuth, requireMenuAccess } = require('../lib/auth');
 const { logAction } = require('../lib/auditLog');
+const { parseFormula } = require('../lib/formulaEngine');
 
 const TEMPLATES_DIR = path.join(__dirname, '..', 'templates');
 const upload = multer({
@@ -52,6 +53,22 @@ function validateSource({ sourceType = 'directDb', apiConnectionId, apiTarget })
   return null;
 }
 
+// Cột dạng công thức ({ key, label, formula }) — kiểm tra cú pháp NGAY LÚC
+// LƯU, không đợi tới lúc chạy báo cáo mới lộ lỗi (xem lib/formulaEngine.js).
+function validateFormulaColumns(definition) {
+  for (const col of definition.columns || []) {
+    if (col && typeof col === 'object' && col.formula) {
+      if (!col.key) return 'Cột công thức thiếu "key"';
+      try {
+        parseFormula(col.formula);
+      } catch (err) {
+        return `Công thức cột "${col.key}" sai cú pháp: ${err.message}`;
+      }
+    }
+  }
+  return null;
+}
+
 router.post('/', async (req, res, next) => {
   try {
     const { reportId, title, domain, menuItemId, dataSourceId, definitionJson, sourceType = 'directDb', apiConnectionId, apiTarget } = req.body || {};
@@ -60,7 +77,9 @@ router.post('/', async (req, res, next) => {
     }
     const sourceError = validateSource({ sourceType, apiConnectionId, apiTarget });
     if (sourceError) return res.status(400).json({ error: sourceError });
-    JSON.parse(definitionJson); // validate JSON hợp lệ trước khi lưu
+    const definition = JSON.parse(definitionJson); // validate JSON hợp lệ trước khi lưu
+    const formulaError = validateFormulaColumns(definition);
+    if (formulaError) return res.status(400).json({ error: formulaError });
 
     const pool = await getPool('RP');
     await pool.request()
@@ -91,7 +110,9 @@ router.put('/:reportId', async (req, res, next) => {
     const { title, domain, menuItemId, dataSourceId, definitionJson, isActive, sourceType = 'directDb', apiConnectionId, apiTarget } = req.body || {};
     const sourceError = validateSource({ sourceType, apiConnectionId, apiTarget });
     if (sourceError) return res.status(400).json({ error: sourceError });
-    JSON.parse(definitionJson);
+    const definition = JSON.parse(definitionJson);
+    const formulaError = validateFormulaColumns(definition);
+    if (formulaError) return res.status(400).json({ error: formulaError });
 
     const pool = await getPool('RP');
     await pool.request()

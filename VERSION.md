@@ -5,6 +5,34 @@ Server, API Server và các giao diện quản trị) — tăng ở mỗi lần 
 `main`, theo kiểu semver không chặt (patch cho fix nhỏ, minor cho tính năng
 mới, major khi đổi cấu trúc phá vỡ tương thích ngược).
 
+## 0.9.0 — Tuỳ biến dữ liệu ra ngoài & công thức tính toán
+
+- **Cột tính toán (công thức)** — một phần tử `DefinitionJson.columns` giờ có
+  thể là `{ key, label, formula }` thay vì tên field thô, vd
+  `{"key":"tyLeLoiNhuan","formula":"ROUND(measures.loiNhuan / measures.doanhThu * 100, 1)"}`.
+  Bộ đánh giá mới `lib/formulaEngine.js` (tokenizer + parser + evaluator TỰ
+  VIẾT, KHÔNG `eval()`/`Function()` — đã kiểm bằng thử nghiệm sandbox-escape)
+  hỗ trợ `+ - * /`, so sánh, `&& ||`, và `ROUND/ABS/MIN/MAX/IF`. Cú pháp kiểm
+  tra ngay lúc lưu báo cáo. Có ở CẢ 2 bản `reportEngine.js` (rp-server và
+  api-server) — công thức chạy ở bên nào thực sự truy vấn Data Warehouse cho
+  báo cáo đó (`SourceType`), đúng nguyên tắc đã thống nhất.
+- `reportEngine.js` thêm `describeColumns()` — mọi response trả `columns`
+  dạng `[{key,label}]` THỐNG NHẤT (dù cột là field thô hay công thức, dù báo
+  cáo `directDb` hay đi qua API Server) — rp-user không còn tự suy `label`
+  từ tên field ở phía frontend nữa. `exportExcel.js`/`exportPdf.js` cũng đổi
+  theo hình dạng này (header đẹp hơn cho cột công thức, dùng `label`).
+- **Tuỳ biến dữ liệu cho đối tác API** — bảng mới `api.ConsumerReportAccess`:
+  MẶC ĐỊNH một đối tác không gọi được báo cáo nào dù `apiKey` có scope
+  `reports` hợp lệ, phải được admin gán rõ ràng (trang "Đối tác" trên
+  `api-admin/`, nút "Báo cáo được gọi") — cùng khuôn với
+  `app.RoleReportAccess` đã có bên rp-server. Cộng với `?fields=a,b,c` trên
+  `GET /v1/reports/:reportId/run` — trong báo cáo được gọi, đối tác chỉ lấy
+  đúng cột cần, sai tên cột báo lỗi 400 rõ ràng. 2 lớp độc lập: một kiểm soát
+  *gọi được gì*, một kiểm soát *thấy gì trong đó*.
+- Chưa làm: đổi tên trường theo hợp đồng riêng từng đối tác (field alias) và
+  so sánh theo kỳ (tăng trưởng %, cần 2 lượt query) — để sau, khi có nhu cầu
+  thật (xem tài liệu "Dữ Liệu Tuỳ Biến & Công Thức HCRC").
+
 ## 0.8.0 — Endpoint realtime tự định nghĩa qua giao diện (không cần code)
 
 - Thay hẳn mô hình "mỗi endpoint realtime = 1 route viết cứng" (3 route

@@ -8,9 +8,26 @@
 const express = require('express');
 const { sql, getPool } = require('../../db');
 const { requireAdminAuth, requireAdminRole } = require('../../lib/adminAuth');
+const { parseFormula } = require('../../lib/formulaEngine');
 
 const router = express.Router();
 router.use(requireAdminAuth);
+
+// Cột dạng công thức ({ key, label, formula }) — kiểm tra cú pháp NGAY LÚC
+// LƯU, không đợi tới lúc chạy báo cáo mới lộ lỗi (xem lib/formulaEngine.js).
+function validateFormulaColumns(definition) {
+  for (const col of definition.columns || []) {
+    if (col && typeof col === 'object' && col.formula) {
+      if (!col.key) return 'Cột công thức thiếu "key"';
+      try {
+        parseFormula(col.formula);
+      } catch (err) {
+        return `Công thức cột "${col.key}" sai cú pháp: ${err.message}`;
+      }
+    }
+  }
+  return null;
+}
 
 router.get('/', async (req, res, next) => {
   try {
@@ -29,7 +46,9 @@ router.post('/', requireAdminRole, async (req, res, next) => {
     if (!reportId || !title || !domain || !definitionJson) {
       return res.status(400).json({ error: 'Thiếu reportId/title/domain/definitionJson' });
     }
-    JSON.parse(definitionJson); // ném lỗi rõ ràng nếu JSON không hợp lệ, trước khi ghi CSDL
+    const definition = JSON.parse(definitionJson); // ném lỗi rõ ràng nếu JSON không hợp lệ, trước khi ghi CSDL
+    const formulaError = validateFormulaColumns(definition);
+    if (formulaError) return res.status(400).json({ error: formulaError });
 
     const pool = await getPool('ADMIN');
     await pool.request()
@@ -52,7 +71,11 @@ router.post('/', requireAdminRole, async (req, res, next) => {
 router.put('/:reportId', requireAdminRole, async (req, res, next) => {
   try {
     const { title, domain, definitionJson, isActive } = req.body || {};
-    if (definitionJson) JSON.parse(definitionJson);
+    if (definitionJson) {
+      const definition = JSON.parse(definitionJson);
+      const formulaError = validateFormulaColumns(definition);
+      if (formulaError) return res.status(400).json({ error: formulaError });
+    }
 
     const pool = await getPool('ADMIN');
     await pool.request()

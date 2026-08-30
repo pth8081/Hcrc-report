@@ -72,8 +72,10 @@ export default function ReportsModulePage({ menuCode, title }) {
                 <button type="button" onClick={() => exportAs('excel')}>Xuất Excel</button>
                 <button type="button" onClick={() => exportAs('pdf')}>Xuất PDF</button>
               </div>
+              {/* result.columns đã là [{key,label}] — rp-server chuẩn hoá sẵn
+                  (kể cả cột công thức), xem rp-server/lib/reportEngine.js:describeColumns(). */}
               <DataTable
-                columns={result.columns.map(c => ({ key: c, label: c }))}
+                columns={result.columns}
                 rows={result.rows}
               />
             </>
