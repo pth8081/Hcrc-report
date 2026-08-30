@@ -9,6 +9,8 @@ import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
 import DataTable from '../components/DataTable';
 
+const EMPTY_EDIT_FORM = { domain: '', entityCode: '', periodMonth: '', trangThai: false, otherTargetsJson: '{}' };
+
 export default function SalesTargetsPage() {
   const [domain, setDomain] = useState('');
   const [file, setFile] = useState(null);
@@ -17,6 +19,9 @@ export default function SalesTargetsPage() {
   const [filterDomain, setFilterDomain] = useState('');
   const [filterPeriod, setFilterPeriod] = useState('');
   const [rows, setRows] = useState([]);
+  const [editForm, setEditForm] = useState(EMPTY_EDIT_FORM);
+  const [editError, setEditError] = useState('');
+  const [editResult, setEditResult] = useState('');
 
   function reload() {
     const params = new URLSearchParams();
@@ -26,6 +31,57 @@ export default function SalesTargetsPage() {
     api.get(`/sales-targets${qs ? `?${qs}` : ''}`).then(setRows).catch(err => setError(err.message));
   }
   useEffect(reload, [filterDomain, filterPeriod]);
+
+  // Điền sẵn dữ liệu HIỆN CÓ của dòng đó lên form — sửa xong gửi lại NGUYÊN
+  // targets (route PUT /sales-targets/one ghi đè cả TargetsJson, không tự
+  // merge từng phần ở server), tránh mất chỉ tiêu khác chỉ vì tick 1 ô.
+  function startEdit(row) {
+    const { TrangThai, ...otherTargets } = row.targets;
+    setEditForm({
+      domain: row.domain,
+      entityCode: row.entityCode,
+      periodMonth: String(row.periodMonth).slice(0, 7),
+      trangThai: TrangThai === 'DaDong',
+      otherTargetsJson: JSON.stringify(otherTargets, null, 2)
+    });
+    setEditError('');
+    setEditResult('');
+  }
+
+  function startAdd() {
+    setEditForm({ ...EMPTY_EDIT_FORM, domain: filterDomain || '', periodMonth: filterPeriod || '' });
+    setEditError('');
+    setEditResult('');
+  }
+
+  async function submitEdit(e) {
+    e.preventDefault();
+    setEditError('');
+    setEditResult('');
+    if (!editForm.domain.trim()) return setEditError('Thiếu domain');
+    if (!editForm.entityCode.trim()) return setEditError('Thiếu mã siêu thị');
+    if (!editForm.periodMonth) return setEditError('Thiếu tháng áp dụng');
+    let otherTargets;
+    try {
+      otherTargets = JSON.parse(editForm.otherTargetsJson || '{}');
+    } catch {
+      return setEditError('Ô "Chỉ tiêu khác" phải là JSON hợp lệ, vd {"ChiTieuDoanhThu": 100000000}');
+    }
+    try {
+      await api.put('/sales-targets/one', {
+        domain: editForm.domain.trim(),
+        entityCode: editForm.entityCode.trim(),
+        periodMonth: editForm.periodMonth,
+        trangThai: editForm.trangThai ? 'DaDong' : '',
+        targets: otherTargets
+      });
+      setEditResult('✅ Đã lưu.');
+      setEditForm(EMPTY_EDIT_FORM);
+      reload();
+    } catch (err) {
+      setEditError(err.message);
+    }
+  }
 
   async function submitImport(e) {
     e.preventDefault();
@@ -101,10 +157,60 @@ export default function SalesTargetsPage() {
           { key: 'periodMonth', label: 'Tháng', render: (r) => String(r.periodMonth).slice(0, 7) },
           { key: 'targets', label: 'Chỉ tiêu', render: (r) => Object.entries(r.targets).map(([k, v]) => `${k}=${v}`).join(', ') },
           { key: 'importedBy', label: 'Người nhập' },
-          { key: 'importedAt', label: 'Lúc nhập', render: (r) => new Date(r.importedAt).toLocaleString('vi-VN') }
+          { key: 'importedAt', label: 'Lúc nhập', render: (r) => new Date(r.importedAt).toLocaleString('vi-VN') },
+          { key: 'actions', label: '', render: (r) => <button type="button" onClick={() => startEdit(r)}>Sửa</button> }
         ]}
         rows={rows}
       />
+
+      <h2>Sửa / thêm 1 siêu thị</h2>
+      <p>
+        Dùng khi giữa tháng có siêu thị mới mở hoặc đóng cửa — KHÔNG cần chuẩn bị lại cả file
+        Excel. Bấm "Sửa" ở 1 dòng trên để tự điền sẵn dữ liệu hiện có, hoặc "Thêm siêu thị mới"
+        cho dòng trống. Lưu sẽ GHI ĐÈ nguyên chỉ tiêu của đúng siêu thị + tháng đó — dữ liệu
+        hiện có đã tự điền sẵn nên không lo mất, chỉ cần sửa đúng phần cần đổi.
+      </p>
+      {editError && <p className="form-error">{editError}</p>}
+      {editResult && <p className="form-success">{editResult}</p>}
+
+      <form className="stacked-form" onSubmit={submitEdit}>
+        <input
+          placeholder="Domain (vd doanhthu_chinhanh)"
+          value={editForm.domain}
+          onChange={(e) => setEditForm({ ...editForm, domain: e.target.value })}
+          required
+        />
+        <input
+          placeholder="Mã siêu thị (MaSieuThi)"
+          value={editForm.entityCode}
+          onChange={(e) => setEditForm({ ...editForm, entityCode: e.target.value })}
+          required
+        />
+        <input
+          type="month"
+          value={editForm.periodMonth}
+          onChange={(e) => setEditForm({ ...editForm, periodMonth: e.target.value })}
+          required
+        />
+        <label className="checkbox-row">
+          <input
+            type="checkbox"
+            checked={editForm.trangThai}
+            onChange={(e) => setEditForm({ ...editForm, trangThai: e.target.checked })}
+          />
+          Đã đóng cửa (loại khỏi báo cáo tháng này)
+        </label>
+        <textarea
+          placeholder='Chỉ tiêu khác dạng JSON, vd {"ChiTieuDoanhThu": 150000000, "ChiTieuGiaoDich": 600}'
+          rows={4}
+          value={editForm.otherTargetsJson}
+          onChange={(e) => setEditForm({ ...editForm, otherTargetsJson: e.target.value })}
+        />
+        <div className="inline-actions">
+          <button type="submit">Lưu</button>
+          <button type="button" onClick={startAdd}>Thêm siêu thị mới (form trống)</button>
+        </div>
+      </form>
     </div>
   );
 }

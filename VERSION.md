@@ -5,6 +5,21 @@ Server, API Server và các giao diện quản trị) — tăng ở mỗi lần 
 `main`, theo kiểu semver không chặt (patch cho fix nhỏ, minor cho tính năng
 mới, major khi đổi cấu trúc phá vỡ tương thích ngược).
 
+## 0.21.2 — Sửa/thêm 1 siêu thị vào chỉ tiêu tháng — không cần re-upload file
+
+10 test mới.
+
+- **`PUT /admin/sales-targets/one`** (mới, `etl/routes/admin/salesTargets.js`)
+  — upsert ĐÚNG 1 dòng (`domain`, `entityCode`, `periodMonth`, `trangThai`,
+  `targets`), tái dùng `upsertSalesTargets()` sẵn có (staging + MERGE),
+  cùng quyền hẹp `DWH_TARGET_IMPORTER`/vai trò `target_importer` như route
+  upload file.
+- **Trang "Nhập chỉ tiêu"** (`etl-admin/`) — mục "Sửa / thêm 1 siêu thị":
+  nút "Sửa" mỗi dòng tự điền sẵn dữ liệu hiện có (không mất chỉ tiêu khác
+  chỉ vì tick 1 ô "Đã đóng cửa" — route ghi đè nguyên `TargetsJson`, giao
+  diện tự tải dữ liệu cũ lên form trước khi cho sửa), nút "Thêm siêu thị
+  mới" cho dòng trống — dùng khi giữa tháng phát sinh mở/đóng 1-2 siêu thị.
+
 ## 0.21.1 — Đánh dấu đóng cửa siêu thị (TrangThai) trong chỉ tiêu tháng
 
 12 test mới.

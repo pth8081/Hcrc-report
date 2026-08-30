@@ -13,7 +13,7 @@ const express = require('express');
 const multer = require('multer');
 const { sql, getPool } = require('../../db');
 const { requireAdminAuth, requireTargetImporterRole } = require('../../lib/adminAuth');
-const { parseSalesTargetsFile, upsertSalesTargets } = require('../../lib/salesTargetsImport');
+const { parseSalesTargetsFile, upsertSalesTargets, PERIOD_RE, TRANG_THAI_VALUES } = require('../../lib/salesTargetsImport');
 
 const router = express.Router();
 router.use(requireAdminAuth);
@@ -49,6 +49,43 @@ router.get('/', requireTargetImporterRole, async (req, res, next) => {
       id: r.Id, domain: r.Domain, entityCode: r.EntityCode, periodMonth: r.PeriodMonth,
       targets: JSON.parse(r.TargetsJson), importedAt: r.ImportedAt, importedBy: r.ImportedBy
     })));
+  } catch (err) { next(err); }
+});
+
+// Sửa/thêm ĐÚNG 1 dòng — dùng khi giữa tháng phát sinh đóng/mở siêu thị,
+// KHÔNG cần chuẩn bị lại cả file Excel. Body PHẢI mang đủ "targets" hiện có
+// (kể cả field không đổi) — route này GHI ĐÈ nguyên TargetsJson của dòng đó
+// (giống hệt semantics import file, chỉ khác 1 dòng thay vì cả file), KHÔNG
+// merge từng phần ở tầng server — tránh nhầm lẫn field nào bị giữ/field nào
+// bị xoá nếu server tự ý merge. Giao diện (etl-admin) tự tải dữ liệu hiện
+// có của dòng đó lên form trước khi cho sửa, để không mất dữ liệu ngoài ý
+// muốn.
+router.put('/one', requireTargetImporterRole, async (req, res, next) => {
+  try {
+    const { domain, entityCode, periodMonth, trangThai, targets } = req.body || {};
+    if (!domain || !domain.trim()) return res.status(400).json({ error: 'Thiếu domain' });
+    if (!entityCode || !String(entityCode).trim()) return res.status(400).json({ error: 'Thiếu entityCode (mã siêu thị)' });
+    if (!PERIOD_RE.test(periodMonth || '')) {
+      return res.status(400).json({ error: '"periodMonth" phải dạng YYYY-MM' });
+    }
+    if (trangThai && !TRANG_THAI_VALUES.includes(trangThai)) {
+      return res.status(400).json({ error: `"trangThai" phải là một trong: ${TRANG_THAI_VALUES.join(', ')} (hoặc để trống)` });
+    }
+
+    const mergedTargets = { ...(targets || {}) };
+    if (trangThai) mergedTargets.TrangThai = trangThai;
+    else delete mergedTargets.TrangThai;
+    if (!Object.keys(mergedTargets).length) {
+      return res.status(400).json({ error: 'Không có giá trị chỉ tiêu nào (và không đánh dấu trangThai)' });
+    }
+
+    const pool = await getPool('DWH_TARGET_IMPORTER');
+    const result = await upsertSalesTargets(pool, domain.trim(), [{
+      entityCode: String(entityCode).trim(),
+      periodMonth: new Date(`${periodMonth}-01T00:00:00Z`),
+      targets: mergedTargets
+    }], req.admin.username);
+    res.json(result);
   } catch (err) { next(err); }
 });
 

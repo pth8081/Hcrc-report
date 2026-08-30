@@ -163,4 +163,4 @@ async function upsertSalesTargets(pool, domain, rows, importedBy) {
   }
 }
 
-module.exports = { parseSalesTargetsFile, upsertSalesTargets };
+module.exports = { parseSalesTargetsFile, upsertSalesTargets, PERIOD_RE, TRANG_THAI_VALUES };

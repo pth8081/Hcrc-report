@@ -80,6 +80,16 @@ siêu thị khỏi báo cáo chỉ vì lỗi nhập liệu. File có thể CHỈ
 `TrangThai` (không kèm số liệu chỉ tiêu nào) nếu mục đích chỉ là đánh dấu
 đóng cửa hàng loạt.
 
+**Sửa/thêm 1 siêu thị giữa tháng — không cần re-upload cả file** — mục
+"Sửa / thêm 1 siêu thị" ngay dưới bảng chỉ tiêu (nút "Sửa" ở mỗi dòng tự
+điền sẵn dữ liệu hiện có, hoặc "Thêm siêu thị mới" cho dòng trống). Dùng
+khi giữa tháng phát sinh mở/đóng 1-2 siêu thị, không cần chuẩn bị lại
+nguyên file Excel. Route `PUT /admin/sales-targets/one` — GHI ĐÈ nguyên
+`TargetsJson` của đúng siêu thị + tháng đó (giống hệt semantics upload
+file, chỉ khác 1 dòng thay vì cả file) — giao diện tự tải dữ liệu hiện có
+lên form trước khi cho sửa nên không lo mất chỉ tiêu khác chỉ vì tick 1 ô
+"Đã đóng cửa".
+
 ## Cài đặt
 
 ```bash
