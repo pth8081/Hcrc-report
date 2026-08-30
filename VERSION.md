@@ -5,6 +5,22 @@ Server, API Server và các giao diện quản trị) — tăng ở mỗi lần 
 `main`, theo kiểu semver không chặt (patch cho fix nhỏ, minor cho tính năng
 mới, major khi đổi cấu trúc phá vỡ tương thích ngược).
 
+## 0.12.1 — Soát lại cấu hình nguồn dữ liệu ETL & API Server
+
+- Rà soát theo yêu cầu: (1) ETL cấu hình được đích Data Warehouse VÀ nhiều
+  CSDL nguồn (mỗi chi nhánh/siêu thị trong chuỗi một dòng, vd BRG Mart); (2)
+  API Server cấu hình được kết nối Data Warehouse VÀ nhiều CSDL khác cần lấy
+  dữ liệu realtime. Xác nhận CẢ HAI đã đúng: DWH là kết nối tĩnh qua `.env`
+  (đích chung, không cần nhiều); nguồn nhiều CSDL là bảng động không giới hạn
+  số dòng — `etl.DataSources` (trang "Nguồn dữ liệu", `etl-admin/`, hỗ trợ cả
+  MSSQL/MySQL) và `api.DataSources` (trang "Nguồn dữ liệu", `api-admin/`, chỉ
+  MSSQL) — mỗi `SyncJob`/`RealtimeEndpointDef` có khoá ngoại chọn ĐÚNG 1
+  nguồn cụ thể. Không phát hiện thiếu chức năng.
+- Sửa 1 chỗ comment đầu `api-server/db.js` còn mô tả pool `getPool('OLTP')`
+  đã bỏ từ trước (không còn nơi nào gọi tới) — cập nhật đúng thực tế 2 pool
+  hiện có (`DWH`, `ADMIN`) và trỏ rõ sang `lib/dataSourcePool.js` cho nguồn
+  động, tránh gây hiểu nhầm khi đọc code.
+
 ## 0.12.0 — Lịch gửi email báo cáo tự động (rp-server)
 
 - Bảng mới **`app.ReportEmailSchedules`** (rp-db) — mỗi dòng là 1 lịch: báo

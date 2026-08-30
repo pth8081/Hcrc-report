@@ -1,10 +1,13 @@
-// db.js — Hai pool kết nối TÁCH BIỆT hoàn toàn:
-//   getPool('DWH')  — chỉ đọc Data Warehouse, dùng cho /api/v1/reports
-//   getPool('OLTP') — chỉ đọc CSDL OLTP (qua view schema api_rt), dùng cho
-//                     /api/v1/inventory|loyalty|vouchers
+// db.js — Hai pool TĨNH (qua prefix .env) TÁCH BIỆT hoàn toàn:
+//   getPool('DWH')   — chỉ đọc Data Warehouse, dùng cho /api/v1/reports
+//   getPool('ADMIN') — CSDL HCRC_API (api.ApiConsumers, api.DataSources,
+//                      api.RealtimeEndpointDefs...), API Server CÓ GHI
 // Tách pool có chủ đích: một API Server bị gọi dồn dập cho báo cáo tổng hợp
-// không được phép ảnh hưởng tới pool đang phục vụ tra cứu realtime trên hệ
-// thống bán hàng đang chạy thật, và ngược lại (xem tài liệu kiến trúc).
+// không được phép ảnh hưởng tới pool quản trị, và ngược lại.
+// CSDL nguồn cho /api/v1/realtime/* KHÔNG qua đây — mỗi nguồn (nhiều máy chủ
+// OLTP, vd chuỗi siêu thị BRG Mart) là 1 dòng động trong api.DataSources,
+// pool riêng theo Id — xem lib/dataSourcePool.js, quản lý qua trang "Nguồn
+// dữ liệu" (api-admin/).
 const sql = require('mssql');
 require('dotenv').config();
 
