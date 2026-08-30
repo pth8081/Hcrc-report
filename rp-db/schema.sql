@@ -99,9 +99,46 @@ BEGIN
 END
 GO
 
+-- Kết nối tới API Server — dùng khi một báo cáo lấy dữ liệu QUA API Server
+-- thay vì đọc thẳng CSDL (xem app.ReportCatalog.SourceType bên dưới). Lý do
+-- có bảng này riêng, không tái dùng app.ReportDataSources: đây là kết nối
+-- HTTP + API key, khác hẳn kết nối SQL Server trực tiếp. ApiKeyEncrypted mã
+-- hoá cùng cách (APP_ENCRYPTION_KEY, AES-256-GCM) — key gốc lấy từ trang "Đối
+-- tác API" (api-admin/), cấp cho consumer tên "rp-server" với scope tương
+-- ứng ('reports' và/hoặc 'realtime', xem api-server/lib/apiAuth.js).
+IF OBJECT_ID('app.ApiConnections', 'U') IS NULL
+BEGIN
+    CREATE TABLE app.ApiConnections (
+        Id              INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        Name            NVARCHAR(200) NOT NULL,
+        BaseUrl         NVARCHAR(300) NOT NULL,
+        ApiKeyEncrypted NVARCHAR(500) NOT NULL,
+        CreatedAt       DATETIME2(3)  NOT NULL DEFAULT SYSUTCDATETIME()
+    );
+END
+GO
+
 -- Định nghĩa báo cáo ("Biểu mẫu") — CHUYỂN từ dwh.ReportCatalog sang đây (xem
--- ghi chú cuối dwh/schema.sql). DataSourceId NULL = dùng Data Warehouse mặc
--- định (.env của rp-server), khác NULL = dùng app.ReportDataSources.
+-- ghi chú cuối dwh/schema.sql). SourceType quyết định báo cáo lấy dữ liệu ở
+-- đâu, 3 giá trị:
+--   'directDb'    — đọc thẳng CSDL (mặc định, hành vi cũ): DataSourceId NULL
+--                   = Data Warehouse mặc định (.env của rp-server), khác
+--                   NULL = app.ReportDataSources. DefinitionJson.columns
+--                   quyết định cột hiển thị.
+--   'apiReport'   — gọi api-server GET /v1/reports/{ApiTarget}/run (báo cáo
+--                   tổng hợp, không realtime — xem api.ReportCatalog bên
+--                   HCRC_API). ApiConnectionId bắt buộc, ApiTarget = ReportId
+--                   ĐÃ ĐĂNG KÝ bên api-server (2 danh mục độc lập, không tự
+--                   động theo nhau — API Server tự quyết định báo cáo nào lộ
+--                   ra ngoài). Cột hiển thị lấy từ response của api-server,
+--                   không dùng DefinitionJson.columns.
+--   'apiRealtime' — gọi api-server GET /v1/realtime/{ApiTarget}/list (danh
+--                   sách realtime, vd tồn kho/điểm thẻ/voucher hiện tại —
+--                   xem tài liệu kiến trúc). ApiTarget = tên endpoint
+--                   ('inventory'|'loyalty'|'vouchers'). Cũng lấy cột từ
+--                   response api-server.
+-- Cả 2 loại 'api*' đều KHÔNG cần DataSourceId — Report Server không tự mở
+-- thêm kết nối DB riêng tới cùng hệ thống mà API Server đã kết nối sẵn.
 IF OBJECT_ID('app.ReportCatalog', 'U') IS NULL
 BEGIN
     CREATE TABLE app.ReportCatalog (
@@ -110,9 +147,31 @@ BEGIN
         Domain         VARCHAR(50)   NOT NULL,
         MenuItemId     INT           NOT NULL REFERENCES app.MenuItems(Id),
         DataSourceId   INT           NULL REFERENCES app.ReportDataSources(Id),
+        SourceType     VARCHAR(20)   NOT NULL DEFAULT 'directDb'
+            CONSTRAINT CK_ReportCatalog_SourceType CHECK (SourceType IN ('directDb', 'apiReport', 'apiRealtime')),
+        ApiConnectionId INT          NULL REFERENCES app.ApiConnections(Id),
+        ApiTarget       NVARCHAR(200) NULL,
         DefinitionJson NVARCHAR(MAX) NOT NULL,
         IsActive       BIT           NOT NULL DEFAULT 1
     );
+END
+GO
+
+-- Nâng cấp từ bản trước 0.6.1 (bảng đã tồn tại nhưng chưa có 3 cột nguồn
+-- API) — an toàn chạy lại nhiều lần.
+IF COL_LENGTH('app.ReportCatalog', 'SourceType') IS NULL
+BEGIN
+    ALTER TABLE app.ReportCatalog ADD SourceType VARCHAR(20) NOT NULL
+        CONSTRAINT DF_ReportCatalog_SourceType DEFAULT 'directDb'
+        CONSTRAINT CK_ReportCatalog_SourceType CHECK (SourceType IN ('directDb', 'apiReport', 'apiRealtime'));
+END
+IF COL_LENGTH('app.ReportCatalog', 'ApiConnectionId') IS NULL
+BEGIN
+    ALTER TABLE app.ReportCatalog ADD ApiConnectionId INT NULL REFERENCES app.ApiConnections(Id);
+END
+IF COL_LENGTH('app.ReportCatalog', 'ApiTarget') IS NULL
+BEGIN
+    ALTER TABLE app.ReportCatalog ADD ApiTarget NVARCHAR(200) NULL;
 END
 GO
 

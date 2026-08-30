@@ -5,6 +5,38 @@ Server, API Server và các giao diện quản trị) — tăng ở mỗi lần 
 `main`, theo kiểu semver không chặt (patch cho fix nhỏ, minor cho tính năng
 mới, major khi đổi cấu trúc phá vỡ tương thích ngược).
 
+## 0.7.0 — Report Server lấy dữ liệu qua API Server (realtime)
+
+- `app.ReportCatalog` (rp-db) thêm `SourceType` (`'directDb'` mặc định,
+  `'apiReport'`, `'apiRealtime'`) + `ApiConnectionId`/`ApiTarget` — một báo
+  cáo giờ có thể lấy dữ liệu QUA API Server thay vì đọc thẳng CSDL, dùng khi
+  API Server đã có sẵn kết nối realtime tới hệ nguồn (tồn kho/điểm thẻ/
+  voucher...) mà Report Server không cần tự mở thêm một đường kết nối trực
+  tiếp riêng tới cùng hệ đó. Bảng mới `app.ApiConnections` lưu BaseUrl + API
+  key (mã hoá bằng `APP_ENCRYPTION_KEY` sẵn có) — quản lý qua tab "Kết nối
+  API Server" mới trên trang "Biểu mẫu" (`rp-user/`).
+- rp-server: `lib/apiConnectionPool.js` (cache kết nối HTTP theo Id, giống
+  tinh thần `lib/dataSourcePool.js`), `lib/apiReportClient.js` (gọi API
+  Server, forward nguyên `{columns, rows}` — không chiếu cột lại lần 2),
+  `routes/apiConnections.js` (CRUD). `routes/reports.js` giờ rẽ nhánh theo
+  `SourceType` khi chạy/xuất báo cáo.
+- **Sửa một lỗi tồn tại từ trước**: `api-server/routes/v1/reports.js` vẫn
+  đang query `dwh.ReportCatalog` — bảng đã bị XOÁ khỏi `dwh/schema.sql` từ
+  lượt chuyển `ReportCatalog` sang `app` schema (rp-db) ở bản 0.3.0, khiến
+  endpoint `/v1/reports/:reportId/run` lỗi 100% nếu có ai gọi. Phát hiện khi
+  định tái dùng endpoint này cho luồng `apiReport` — không thể tái dùng
+  `app.ReportCatalog` bên HCRC_RP (API Server không đọc được CSDL của Report
+  Server, đúng nguyên tắc cô lập DB), nên thêm bảng RIÊNG `api.ReportCatalog`
+  (CSDL HCRC_API, api-db) — danh mục báo cáo tổng hợp API Server tự quản lý,
+  độc lập với danh mục của Report Server — và sửa route đọc đúng bảng này.
+  Quản lý qua trang "Báo cáo" mới trên `api-admin/`
+  (`routes/admin/reportCatalog.js`).
+- `api-server/routes/v1/realtime.js` thêm 3 route `GET /{endpoint}/list`
+  (`inventory`/`loyalty`/`vouchers`) — danh sách phân trang, khác 3 route cũ
+  chỉ tra được đúng 1 khoá (SKU/mã thẻ/mã voucher) — cần cho báo cáo dạng
+  bảng (`SourceType='apiRealtime'`). Cùng TODO tên view/cột thật như 3 route
+  cũ (chưa có schema OLTP thật).
+
 ## 0.6.1 — Đổi tên report-server/frontend cho khớp quy ước rp-*
 
 - `report-server/` → `rp-server/`, `frontend/` → `rp-user/` — khớp hoàn toàn

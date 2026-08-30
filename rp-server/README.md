@@ -74,6 +74,37 @@ mới tạo.
 được coi là một khoá trong cột `Dimensions` (JSON) của `dwh.ReportFacts` —
 xem `lib/reportEngine.js`.
 
+### Báo cáo lấy dữ liệu qua API Server (realtime)
+
+Ví dụ trên là `SourceType = 'directDb'` (mặc định — đọc thẳng CSDL). Khi báo
+cáo cần dữ liệu realtime mà **API Server đã có sẵn kết nối** (tồn kho, điểm
+thẻ, voucher...), đặt `SourceType = 'apiReport'` (báo cáo tổng hợp, có lọc)
+hoặc `'apiRealtime'` (danh sách realtime, chưa lọc động) thay vì Report
+Server tự mở thêm một đường kết nối trực tiếp riêng tới cùng hệ OLTP đó:
+
+```sql
+INSERT INTO app.ReportCatalog (ReportId, Title, Domain, MenuItemId, SourceType, ApiConnectionId, ApiTarget, DefinitionJson)
+SELECT
+  'ton-kho-realtime', N'Tồn kho realtime', 'TonKho', Id, 'apiRealtime', 1, 'inventory',
+  N'{ "id": "ton-kho-realtime", "title": "Tồn kho realtime", "domain": "TonKho" }'
+FROM app.MenuItems WHERE Code = 'reports-van-hanh';
+```
+
+- `ApiConnectionId` trỏ tới một dòng `app.ApiConnections` (tab "Kết nối API
+  Server" trên trang "Biểu mẫu") — cấu hình gồm `BaseUrl` của API Server +
+  `ApiKey` (cấp từ trang "Đối tác" trên `api-admin/`, scope `reports` và/hoặc
+  `realtime` tuỳ loại nguồn dùng).
+- `ApiTarget` là `ReportId` đã đăng ký bên `api.ReportCatalog` (CSDL
+  `HCRC_API`, quản lý qua trang "Báo cáo" trên `api-admin/` — DANH MỤC ĐỘC
+  LẬP với `app.ReportCatalog` ở đây) nếu `SourceType = 'apiReport'`, hoặc tên
+  endpoint realtime (`inventory`/`loyalty`/`vouchers`) nếu `'apiRealtime'`.
+- Cả 2 loại đều KHÔNG dùng `DataSourceId` — cột hiển thị lấy nguyên từ response
+  của API Server (đã tự chiếu cột phía đó), `DefinitionJson.columns` bị bỏ qua
+  — xem `lib/apiReportClient.js`.
+- `'apiRealtime'` chưa hỗ trợ lọc động (`filters` trong `DefinitionJson` bị
+  bỏ qua) — API Server mới trả danh sách phân trang, xem
+  `api-server/routes/v1/realtime.js`.
+
 ## API
 
 | Endpoint | Mô tả |
@@ -89,7 +120,8 @@ xem `lib/reportEngine.js`.
 | `/api/system/email-settings` | Cấu hình SMTP + gửi thử |
 | `/api/system/audit-log` | Xem log, chỉ đọc |
 | `/api/system/report-catalog` | CRUD định nghĩa báo cáo, tải mẫu `.xlsx/.pptx` |
-| `/api/system/data-sources` | CRUD nguồn dữ liệu bổ sung, kiểm tra kết nối |
+| `/api/system/data-sources` | CRUD nguồn dữ liệu bổ sung (trực tiếp CSDL), kiểm tra kết nối |
+| `/api/system/api-connections` | CRUD kết nối tới API Server (báo cáo `SourceType='apiReport'\|'apiRealtime'`), kiểm tra kết nối |
 
 Toàn bộ route (trừ `/api/health`, `/api/auth/login`) yêu cầu đăng nhập; các
 route trong `/api/system/*` yêu cầu thêm đúng quyền menu tương ứng (vd

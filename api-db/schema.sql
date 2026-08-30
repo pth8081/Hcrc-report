@@ -118,3 +118,25 @@ BEGIN
     );
 END
 GO
+
+-- Danh mục báo cáo tổng hợp lộ ra qua GET /api/v1/reports/{ReportId}/run
+-- (đọc dwh.ReportFacts, xem routes/v1/reports.js) — CSDL RIÊNG của API
+-- Server, tự quản lý qua api-admin/, KHÔNG dùng chung với app.ReportCatalog
+-- bên HCRC_RP (Report Server): API Server không đọc được HCRC_RP (cô lập DB
+-- theo đúng nguyên tắc kiến trúc), và danh sách báo cáo lộ ra cho hệ thống
+-- ngoài/nội bộ khác cần do admin API Server tự quyết định, không tự động
+-- theo Report Server. Report Server khi cấu hình một báo cáo lấy "Qua API
+-- Server" (app.ReportCatalog.SourceType = 'apiReport') phải trỏ đúng
+-- ReportId đã đăng ký tại đây (ApiTarget bên app.ReportCatalog).
+IF OBJECT_ID('api.ReportCatalog', 'U') IS NULL
+BEGIN
+    CREATE TABLE api.ReportCatalog (
+        ReportId       VARCHAR(80)   NOT NULL PRIMARY KEY,
+        Title          NVARCHAR(200) NOT NULL,
+        Domain         VARCHAR(50)   NOT NULL,
+        DefinitionJson NVARCHAR(MAX) NOT NULL,
+        IsActive       BIT           NOT NULL DEFAULT 1,
+        CreatedAt      DATETIME2(3)  NOT NULL DEFAULT SYSUTCDATETIME()
+    );
+END
+GO

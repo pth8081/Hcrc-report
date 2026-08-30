@@ -32,19 +32,34 @@ router.get('/', async (req, res, next) => {
   try {
     const pool = await getPool('RP');
     const result = await pool.request().query(`
-      SELECT ReportId, Title, Domain, MenuItemId, DataSourceId, DefinitionJson, IsActive
+      SELECT ReportId, Title, Domain, MenuItemId, DataSourceId, SourceType, ApiConnectionId, ApiTarget, DefinitionJson, IsActive
       FROM app.ReportCatalog ORDER BY Title
     `);
     res.json(result.recordset);
   } catch (err) { next(err); }
 });
 
+// SourceType != 'directDb' cần apiConnectionId + apiTarget, KHÔNG cần
+// dataSourceId (Report Server không tự mở kết nối DB riêng cho loại này —
+// xem lib/apiReportClient.js).
+function validateSource({ sourceType = 'directDb', apiConnectionId, apiTarget }) {
+  if (!['directDb', 'apiReport', 'apiRealtime'].includes(sourceType)) {
+    return 'sourceType phải là "directDb", "apiReport" hoặc "apiRealtime"';
+  }
+  if (sourceType !== 'directDb' && (!apiConnectionId || !apiTarget)) {
+    return 'sourceType "apiReport"/"apiRealtime" cần apiConnectionId và apiTarget';
+  }
+  return null;
+}
+
 router.post('/', async (req, res, next) => {
   try {
-    const { reportId, title, domain, menuItemId, dataSourceId, definitionJson } = req.body || {};
+    const { reportId, title, domain, menuItemId, dataSourceId, definitionJson, sourceType = 'directDb', apiConnectionId, apiTarget } = req.body || {};
     if (!reportId || !title || !domain || !menuItemId || !definitionJson) {
       return res.status(400).json({ error: 'Thiếu reportId/title/domain/menuItemId/definitionJson' });
     }
+    const sourceError = validateSource({ sourceType, apiConnectionId, apiTarget });
+    if (sourceError) return res.status(400).json({ error: sourceError });
     JSON.parse(definitionJson); // validate JSON hợp lệ trước khi lưu
 
     const pool = await getPool('RP');
@@ -53,11 +68,14 @@ router.post('/', async (req, res, next) => {
       .input('title', sql.NVarChar(200), title)
       .input('domain', sql.VarChar(50), domain)
       .input('menuItemId', sql.Int, menuItemId)
-      .input('dataSourceId', sql.Int, dataSourceId || null)
+      .input('dataSourceId', sql.Int, sourceType === 'directDb' ? (dataSourceId || null) : null)
+      .input('sourceType', sql.VarChar(20), sourceType)
+      .input('apiConnectionId', sql.Int, sourceType === 'directDb' ? null : apiConnectionId)
+      .input('apiTarget', sql.NVarChar(200), sourceType === 'directDb' ? null : apiTarget)
       .input('definitionJson', sql.NVarChar(sql.MAX), definitionJson)
       .query(`
-        INSERT INTO app.ReportCatalog (ReportId, Title, Domain, MenuItemId, DataSourceId, DefinitionJson)
-        VALUES (@reportId, @title, @domain, @menuItemId, @dataSourceId, @definitionJson)
+        INSERT INTO app.ReportCatalog (ReportId, Title, Domain, MenuItemId, DataSourceId, SourceType, ApiConnectionId, ApiTarget, DefinitionJson)
+        VALUES (@reportId, @title, @domain, @menuItemId, @dataSourceId, @sourceType, @apiConnectionId, @apiTarget, @definitionJson)
       `);
     await logAction(req, { module: 'Biểu mẫu', actionType: 'TAO_BAO_CAO', targetObject: reportId, description: `Tạo báo cáo "${title}"` });
     res.status(201).json({ ok: true });
@@ -70,7 +88,9 @@ router.post('/', async (req, res, next) => {
 
 router.put('/:reportId', async (req, res, next) => {
   try {
-    const { title, domain, menuItemId, dataSourceId, definitionJson, isActive } = req.body || {};
+    const { title, domain, menuItemId, dataSourceId, definitionJson, isActive, sourceType = 'directDb', apiConnectionId, apiTarget } = req.body || {};
+    const sourceError = validateSource({ sourceType, apiConnectionId, apiTarget });
+    if (sourceError) return res.status(400).json({ error: sourceError });
     JSON.parse(definitionJson);
 
     const pool = await getPool('RP');
@@ -79,13 +99,18 @@ router.put('/:reportId', async (req, res, next) => {
       .input('title', sql.NVarChar(200), title)
       .input('domain', sql.VarChar(50), domain)
       .input('menuItemId', sql.Int, menuItemId)
-      .input('dataSourceId', sql.Int, dataSourceId || null)
+      .input('dataSourceId', sql.Int, sourceType === 'directDb' ? (dataSourceId || null) : null)
+      .input('sourceType', sql.VarChar(20), sourceType)
+      .input('apiConnectionId', sql.Int, sourceType === 'directDb' ? null : apiConnectionId)
+      .input('apiTarget', sql.NVarChar(200), sourceType === 'directDb' ? null : apiTarget)
       .input('definitionJson', sql.NVarChar(sql.MAX), definitionJson)
       .input('isActive', sql.Bit, isActive ? 1 : 0)
       .query(`
         UPDATE app.ReportCatalog
         SET Title = @title, Domain = @domain, MenuItemId = @menuItemId,
-            DataSourceId = @dataSourceId, DefinitionJson = @definitionJson, IsActive = @isActive
+            DataSourceId = @dataSourceId, SourceType = @sourceType,
+            ApiConnectionId = @apiConnectionId, ApiTarget = @apiTarget,
+            DefinitionJson = @definitionJson, IsActive = @isActive
         WHERE ReportId = @reportId
       `);
     await logAction(req, { module: 'Biểu mẫu', actionType: 'SUA_BAO_CAO', targetObject: req.params.reportId, description: `Cập nhật báo cáo "${req.params.reportId}"` });

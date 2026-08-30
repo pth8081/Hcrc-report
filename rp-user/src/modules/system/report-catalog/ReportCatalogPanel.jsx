@@ -1,18 +1,30 @@
 // modules/system/report-catalog/ReportCatalogPanel.jsx — CRUD app.ReportCatalog.
 // DefinitionJson sửa dạng textarea (JSON thô) — chưa có form có cấu trúc cho
 // từng loại filter, đủ dùng ở bước khung này (xem rp-server/README.md
-// mục "Thêm một báo cáo mới" cho ví dụ JSON).
+// mục "Thêm một báo cáo mới" cho ví dụ JSON). SourceType quyết định báo cáo
+// lấy dữ liệu ở đâu — "directDb" (mặc định, chọn Nguồn dữ liệu bổ sung như
+// trước) hoặc "apiReport"/"apiRealtime" (chọn Kết nối API Server + mã đích ở
+// bên đó, xem tab "Kết nối API Server").
 import { useEffect, useState } from 'react';
 import { api } from '../../../lib/api';
 import DataTable from '../../../components/DataTable';
 
-const EMPTY_FORM = { reportId: '', title: '', domain: '', menuItemId: '', dataSourceId: '', definitionJson: '' };
+const EMPTY_FORM = {
+  reportId: '', title: '', domain: '', menuItemId: '', dataSourceId: '', definitionJson: '',
+  sourceType: 'directDb', apiConnectionId: '', apiTarget: ''
+};
 const REPORT_MENU_CODES = new Set(['reports-kinh-doanh', 'reports-van-hanh', 'reports-mua-hang']);
+const SOURCE_TYPE_LABELS = {
+  directDb: 'Trực tiếp CSDL',
+  apiReport: 'Qua API Server — Báo cáo tổng hợp',
+  apiRealtime: 'Qua API Server — Realtime'
+};
 
 export default function ReportCatalogPanel() {
   const [reports, setReports] = useState([]);
   const [menuItems, setMenuItems] = useState([]);
   const [dataSources, setDataSources] = useState([]);
+  const [apiConnections, setApiConnections] = useState([]);
   const [templates, setTemplates] = useState([]);
   const [form, setForm] = useState(EMPTY_FORM);
   const [error, setError] = useState('');
@@ -21,6 +33,7 @@ export default function ReportCatalogPanel() {
     api.get('/system/report-catalog').then(setReports).catch(err => setError(err.message));
     api.get('/system/menu-items').then(rows => setMenuItems(rows.filter(m => REPORT_MENU_CODES.has(m.Code)))).catch(err => setError(err.message));
     api.get('/system/data-sources').then(setDataSources).catch(err => setError(err.message));
+    api.get('/system/api-connections').then(setApiConnections).catch(err => setError(err.message));
     api.get('/system/report-catalog/templates').then(setTemplates).catch(err => setError(err.message));
   }
   useEffect(reload, []);
@@ -29,7 +42,13 @@ export default function ReportCatalogPanel() {
     e.preventDefault();
     setError('');
     try {
-      await api.post('/system/report-catalog', { ...form, menuItemId: Number(form.menuItemId), dataSourceId: form.dataSourceId ? Number(form.dataSourceId) : null });
+      await api.post('/system/report-catalog', {
+        ...form,
+        menuItemId: Number(form.menuItemId),
+        dataSourceId: form.sourceType === 'directDb' && form.dataSourceId ? Number(form.dataSourceId) : null,
+        apiConnectionId: form.sourceType !== 'directDb' && form.apiConnectionId ? Number(form.apiConnectionId) : null,
+        apiTarget: form.sourceType !== 'directDb' ? form.apiTarget : null
+      });
       setForm(EMPTY_FORM);
       reload();
     } catch (err) { setError(err.message); }
@@ -66,12 +85,37 @@ export default function ReportCatalogPanel() {
           <option value="">— Trang báo cáo —</option>
           {menuItems.map(m => <option key={m.Id} value={m.Id}>{m.Label}</option>)}
         </select>
-        <select value={form.dataSourceId} onChange={(e) => setForm({ ...form, dataSourceId: e.target.value })}>
-          <option value="">Data Warehouse mặc định</option>
-          {dataSources.map(s => <option key={s.Id} value={s.Id}>{s.Name}</option>)}
+
+        <select value={form.sourceType} onChange={(e) => setForm({ ...form, sourceType: e.target.value })}>
+          {Object.entries(SOURCE_TYPE_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
         </select>
+
+        {form.sourceType === 'directDb' ? (
+          <select value={form.dataSourceId} onChange={(e) => setForm({ ...form, dataSourceId: e.target.value })}>
+            <option value="">Data Warehouse mặc định</option>
+            {dataSources.map(s => <option key={s.Id} value={s.Id}>{s.Name}</option>)}
+          </select>
+        ) : (
+          <>
+            <select value={form.apiConnectionId} onChange={(e) => setForm({ ...form, apiConnectionId: e.target.value })} required>
+              <option value="">— Kết nối API Server —</option>
+              {apiConnections.map(c => <option key={c.Id} value={c.Id}>{c.Name}</option>)}
+            </select>
+            <input
+              placeholder={form.sourceType === 'apiReport' ? 'ReportId đã đăng ký bên api.ReportCatalog' : 'Endpoint realtime (vd inventory, loyalty, vouchers)'}
+              value={form.apiTarget}
+              onChange={(e) => setForm({ ...form, apiTarget: e.target.value })}
+              required
+            />
+          </>
+        )}
+
         <textarea
-          placeholder='{"id": "...", "title": "...", "domain": "...", "filters": [...], "columns": [...], "export": ["excel","pdf"]}'
+          placeholder={
+            form.sourceType === 'directDb'
+              ? '{"id": "...", "title": "...", "domain": "...", "filters": [...], "columns": [...], "export": ["excel","pdf"]}'
+              : '{"id": "...", "title": "...", "domain": "...", "filters": [...]} — cột hiển thị lấy từ API Server, không cần khai "columns" ở đây'
+          }
           rows={8}
           value={form.definitionJson}
           onChange={(e) => setForm({ ...form, definitionJson: e.target.value })}
@@ -92,6 +136,7 @@ export default function ReportCatalogPanel() {
           { key: 'Title', label: 'Tiêu đề' },
           { key: 'ReportId', label: 'Mã' },
           { key: 'Domain', label: 'Domain' },
+          { key: 'SourceType', label: 'Nguồn', render: (r) => SOURCE_TYPE_LABELS[r.SourceType] || r.SourceType },
           { key: 'IsActive', label: 'Trạng thái', render: (r) => (r.IsActive ? 'Hoạt động' : 'Tắt') },
           { key: 'actions', label: '', render: (r) => <button type="button" onClick={() => deleteReport(r)}>Xoá</button> }
         ]}

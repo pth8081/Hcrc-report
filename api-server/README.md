@@ -4,9 +4,18 @@ Cổng dữ liệu cho hệ thống ngoài **và nội bộ** (API key không ph
 bên — cấp cho app nội bộ y hệt đối tác ngoài) + trang quản trị tự cấu hình
 (`api-admin/`). Ba nhóm route, ba mức xác thực hoàn toàn tách biệt:
 
-- `/api/v1/reports/*` — báo cáo tổng hợp, đọc từ Data Warehouse (`HCRC_DWH`, chỉ đọc, nguồn mặc định qua `.env`). Xác thực: API key.
-- `/api/v1/inventory|loyalty|vouchers/*` — tra cứu realtime, mỗi endpoint đọc từ một nguồn được **gán riêng qua trang quản trị** (`api.DataSources` + `api.RealtimeEndpoints`, KHÔNG còn tĩnh qua `.env`). Xác thực: API key.
-- `/admin/*` — trang quản trị (`api-admin/`): đối tác API, nguồn dữ liệu realtime, kết nối hiện tại/lịch sử/top truy vấn. Xác thực: cookie phiên (tài khoản riêng, CSDL riêng `HCRC_API`).
+- `/api/v1/reports/*` — báo cáo tổng hợp, đọc từ Data Warehouse (`HCRC_DWH`, chỉ đọc, nguồn mặc định qua `.env`). ĐỊNH NGHĨA (bộ lọc/cột) đọc từ `api.ReportCatalog` (CSDL `HCRC_API`, quản lý qua `api-admin/`, ĐỘC LẬP với danh mục báo cáo bên Report Server). Xác thực: API key.
+- `/api/v1/inventory|loyalty|vouchers/*` — tra cứu realtime theo 1 khoá, và `/list` — danh sách phân trang cùng nhóm, mỗi endpoint đọc từ một nguồn được **gán riêng qua trang quản trị** (`api.DataSources` + `api.RealtimeEndpoints`, KHÔNG còn tĩnh qua `.env`). Xác thực: API key.
+- `/admin/*` — trang quản trị (`api-admin/`): đối tác API, nguồn dữ liệu realtime, danh mục báo cáo, kết nối hiện tại/lịch sử/top truy vấn. Xác thực: cookie phiên (tài khoản riêng, CSDL riêng `HCRC_API`).
+
+Report Server (`rp-server/`) là MỘT trong những bên gọi `/api/v1/*` này — khi
+một báo cáo bên đó cấu hình `SourceType='apiReport'\|'apiRealtime'` (xem
+`rp-server/README.md` mục "Báo cáo lấy dữ liệu qua API Server"), thường dùng
+cho dữ liệu realtime mà API Server đã có sẵn kết nối, tránh Report Server tự
+mở thêm một đường kết nối trực tiếp riêng tới cùng hệ thống đó. Cấp một API
+key riêng cho `rp-server` giống bất kỳ đối tác nào khác (xem mục "Cấp API key
+cho một hệ thống đối tác" bên dưới), scope `reports` và/hoặc `realtime` tuỳ
+loại nguồn dùng.
 
 ## Cài đặt
 
@@ -69,10 +78,13 @@ SHA-256 (`api.ApiConsumers.ApiKeyHash`). Mất key thì luân chuyển key mới
 | Endpoint | Scope | Mô tả |
 |---|---|---|
 | `GET /api/v1/health` | — | Kiểm tra tình trạng, không cần key |
-| `GET /api/v1/reports/:reportId/run` | `reports` | Chạy báo cáo, lọc qua query string, trả JSON phân trang |
+| `GET /api/v1/reports/:reportId/run` | `reports` | Chạy báo cáo (định nghĩa trong `api.ReportCatalog`), lọc qua query string, trả JSON phân trang |
 | `GET /api/v1/inventory/:sku` | `realtime` | Tồn kho theo SKU |
+| `GET /api/v1/inventory/list` | `realtime` | Danh sách tồn kho, phân trang |
 | `GET /api/v1/loyalty/:memberCode` | `realtime` | Điểm thẻ thành viên |
+| `GET /api/v1/loyalty/list` | `realtime` | Danh sách điểm thẻ, phân trang |
 | `GET /api/v1/vouchers/:code` | `realtime` | Trạng thái voucher |
+| `GET /api/v1/vouchers/list` | `realtime` | Danh sách voucher, phân trang |
 
 ## API — `/admin/*` (nội bộ, cookie phiên)
 
@@ -85,6 +97,7 @@ SHA-256 (`api.ApiConsumers.ApiKeyHash`). Mất key thì luân chuyển key mới
 | `POST /admin/data-sources/test` | `admin` | Kiểm tra kết nối một cấu hình chưa lưu |
 | `GET /admin/data-sources/realtime-endpoints` | — | Nguồn đang gán cho từng endpoint |
 | `PUT /admin/data-sources/realtime-endpoints/:endpoint` | `admin` | Đổi nguồn gán cho một endpoint |
+| `GET/POST/PUT/DELETE /admin/report-catalog` | `admin` sửa | CRUD danh mục báo cáo tổng hợp (`api.ReportCatalog`) |
 | `GET /admin/live/stream` | — | SSE: request đang chạy realtime |
 | `GET /admin/live/pools` | — | Số kết nối CSDL đang dùng/tối đa (DWH) |
 | `GET /admin/history` | — | Lịch sử request, lọc + phân trang |
