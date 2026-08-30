@@ -1,0 +1,19 @@
+{
+  "name": "hcrc-etl",
+  "version": "0.1.0",
+  "description": "ETL đồng bộ dữ liệu từ nhiều máy chủ MSSQL nguồn vào Data Warehouse trung tâm HCRC",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "sync:once": "node index.js --once"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "mssql": "^11.0.1",
+    "node-cron": "^3.0.3",
+    "nodemailer": "^9.0.5"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
