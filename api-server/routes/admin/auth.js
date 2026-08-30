@@ -25,7 +25,9 @@ router.post('/login', async (req, res, next) => {
     res.cookie(COOKIE_NAME, token, {
       httpOnly: true,
       sameSite: 'lax',
-      secure: process.env.ADMIN_COOKIE_SECURE === 'true',
+      // Luôn bật ở production, KỂ CẢ khi quên đặt ADMIN_COOKIE_SECURE trong
+      // .env — tránh bẫy cấu hình gửi cookie phiên qua HTTP thường.
+      secure: process.env.NODE_ENV === 'production' || process.env.ADMIN_COOKIE_SECURE === 'true',
       maxAge: 8 * 60 * 60 * 1000
     });
     res.json({ ok: true });

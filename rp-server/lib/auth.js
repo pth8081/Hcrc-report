@@ -11,6 +11,21 @@ const { getUserContext } = require('./permissions');
 const COOKIE_NAME = 'hcrc_rp_token';
 const TOKEN_TTL = '8h';
 
+// iss/aud RIÊNG cho token rp-server — jwt.verify() dưới đây đòi khớp CẢ 2,
+// nên dù RP_JWT_SECRET có VÔ TÌNH trùng giá trị với secret của etl/api-server
+// (vd operator copy nhầm .env), token phát hành bởi dịch vụ kia vẫn bị từ
+// chối vì sai issuer/audience — lớp phòng thủ CHIỀU SÂU, không thay thế
+// việc mỗi service PHẢI có secret ngẫu nhiên riêng.
+const ISSUER = 'hcrc-rp';
+
+// Giá trị mẫu y hệt trong .env.example — chặn khởi động nếu operator quên
+// đổi, thay vì chạy "được" với 1 secret ai cũng biết (đọc thẳng từ repo).
+const PLACEHOLDER_SECRETS = new Set([
+  'doi-chuoi-nay-thanh-gia-tri-ngau-nhien-dai-cho-rp',
+  'doi-chuoi-nay-thanh-gia-tri-ngau-nhien-dai',
+  'doi-chuoi-nay-thanh-gia-tri-ngau-nhien-dai-khac'
+]);
+
 // Hash bcrypt "giả" — không ứng với mật khẩu thật nào, chỉ dùng để CHẠY
 // bcrypt.compare() ngay cả khi username không tồn tại, giữ thời gian phản
 // hồi gần như nhau giữa 2 trường hợp "sai username" và "đúng username sai
@@ -19,8 +34,11 @@ const TOKEN_TTL = '8h';
 const DUMMY_HASH = '$2a$10$CwTycUXWue0Thq9StjUM0uJ8Q0DKvSPBFEqz6GqUEmMFY6BVtR1e';
 
 function getSecret() {
-  const secret = process.env.JWT_SECRET;
-  if (!secret) throw new Error('Thiếu JWT_SECRET trong .env');
+  const secret = process.env.RP_JWT_SECRET;
+  if (!secret) throw new Error('Thiếu RP_JWT_SECRET trong .env');
+  if (PLACEHOLDER_SECRETS.has(secret)) {
+    throw new Error('RP_JWT_SECRET vẫn là giá trị mẫu trong .env.example — đổi thành chuỗi ngẫu nhiên thật trước khi chạy');
+  }
   return secret;
 }
 
@@ -46,11 +64,13 @@ async function verifyCredentials(username, password) {
 }
 
 function issueToken(user) {
-  return jwt.sign({ sub: user.id, username: user.username }, getSecret(), { expiresIn: TOKEN_TTL, algorithm: 'HS256' });
+  return jwt.sign({ sub: user.id, username: user.username }, getSecret(), {
+    expiresIn: TOKEN_TTL, algorithm: 'HS256', issuer: ISSUER, audience: ISSUER
+  });
 }
 
 function verifyToken(token) {
-  return jwt.verify(token, getSecret(), { algorithms: ['HS256'] });
+  return jwt.verify(token, getSecret(), { algorithms: ['HS256'], issuer: ISSUER, audience: ISSUER });
 }
 
 function requireAuth(req, res, next) {

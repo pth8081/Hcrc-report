@@ -8,8 +8,7 @@ const express = require('express');
 const { sql, getPool } = require('../../db');
 const { requireAdminAuth, requireAdminRole } = require('../../lib/adminAuth');
 const sourcesRegistry = require('../../sources');
-const { runJob } = require('../../jobs/runSync');
-const { rescheduleJob } = require('../../jobs/scheduler');
+const { rescheduleJob, runJobIfNotAlreadyRunning } = require('../../jobs/scheduler');
 
 const router = express.Router();
 router.use(requireAdminAuth);
@@ -115,7 +114,14 @@ router.delete('/:id', requireAdminRole, async (req, res, next) => {
 
 router.post('/:id/run-now', requireAdminRole, async (req, res, next) => {
   try {
-    await runJob(parseInt(req.params.id, 10));
+    const jobId = parseInt(req.params.id, 10);
+    const pool = await getPool('ADMIN');
+    const result = await pool.request().input('id', sql.Int, jobId).query('SELECT * FROM etl.SyncJobs WHERE Id = @id');
+    if (!result.recordset.length) return res.status(404).json({ error: 'Không tìm thấy job' });
+    // Đi qua ĐÚNG cơ chế chống chồng lấn của scheduler (jobs/scheduler.js) —
+    // bấm "Chạy thử" khi job này đang tự chạy theo lịch cũng phải bị chặn
+    // (bỏ qua lặng lẽ, ghi log), không chỉ 2 lượt cron tự động chồng nhau.
+    await runJobIfNotAlreadyRunning(result.recordset[0]);
     res.json({ ok: true });
   } catch (err) { next(err); }
 });

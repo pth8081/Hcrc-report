@@ -20,6 +20,13 @@ const { logAction } = require('../lib/auditLog');
 
 const REFRESH_INTERVAL_MS = 60 * 1000;
 const scheduledTasks = new Map(); // scheduleId -> { task, cronExpression }
+// Lịch đang gửi dở — chặn lượt cron kế tiếp CÙNG lịch chồng lên khi lượt
+// trước chưa xong (báo cáo lớn + export + gửi mail có thể lâu hơn chu kỳ
+// cron), tránh gửi trùng email cho cùng người nhận VÀ tránh 2 export cùng
+// lúc nhân đôi bộ nhớ dùng. Cũng chặn nút "Gửi ngay" đụng lượt cron đang
+// chạy — khác ETL (chỉ bỏ qua lặng lẽ), ở đây runNow() NÉM LỖI rõ ràng cho
+// người bấm biết, đúng tinh thần "Gửi ngay" luôn phản hồi rõ đúng/sai.
+const runningSchedules = new Set(); // scheduleId
 
 async function loadActiveSchedules() {
   const pool = await getPool('RP');
@@ -94,13 +101,31 @@ async function runSchedule(schedule) {
   }
 }
 
+async function runScheduleGuarded(schedule) {
+  if (runningSchedules.has(schedule.Id)) {
+    throw Object.assign(
+      new Error(`Lịch "${schedule.Name}" đang gửi dở từ lượt trước — đợi xong rồi thử lại`),
+      { isAlreadyRunning: true }
+    );
+  }
+  runningSchedules.add(schedule.Id);
+  try {
+    await runSchedule(schedule);
+  } finally {
+    runningSchedules.delete(schedule.Id);
+  }
+}
+
 function registerJob(schedule) {
   if (!cron.validate(schedule.CronExpression)) {
     console.error(`⛔ Lịch chạy không hợp lệ cho [${schedule.Name}]: "${schedule.CronExpression}"`);
     return;
   }
   const task = cron.schedule(schedule.CronExpression, () => {
-    runSchedule(schedule).catch(err => console.error(`⛔ Lỗi gửi lịch email báo cáo #${schedule.Id}:`, err.message));
+    runScheduleGuarded(schedule).catch(err => {
+      if (err.isAlreadyRunning) console.warn(`⏭  ${err.message}`);
+      else console.error(`⛔ Lỗi gửi lịch email báo cáo #${schedule.Id}:`, err.message);
+    });
   });
   scheduledTasks.set(schedule.Id, { task, cronExpression: schedule.CronExpression });
   console.log(`⏱  [Lịch email #${schedule.Id} — ${schedule.Name}] lịch chạy: ${schedule.CronExpression}`);
@@ -139,7 +164,7 @@ async function rescheduleJob(scheduleId) {
 async function runNow(scheduleId) {
   const schedule = await loadSchedule(scheduleId);
   if (!schedule) throw new Error('Không tìm thấy lịch gửi');
-  await runSchedule(schedule);
+  await runScheduleGuarded(schedule);
 }
 
 function start() {

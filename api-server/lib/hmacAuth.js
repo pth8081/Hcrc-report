@@ -18,6 +18,24 @@ const crypto = require('crypto');
 
 const TOLERANCE_SECONDS = 5 * 60; // 5 phút — đủ rộng cho lệch giờ đồng hồ, đủ hẹp để chặn phát lại
 
+// Chống PHÁT LẠI (replay) — chỉ kiểm tra X-Timestamp nằm trong cửa sổ là
+// CHƯA đủ: 1 request bị chặn bắt (proxy trung gian, log rò rỉ...) vẫn gửi
+// lại NGUYÊN VẸN được bất kỳ lúc nào trong suốt cửa sổ ±5 phút đó với chữ ký
+// vẫn hợp lệ 100%. Nhớ chữ ký ĐÃ DÙNG trong bộ nhớ tiến trình, từ chối nếu
+// thấy lại — chữ ký là hex(HMAC-SHA256(...)), không gian đủ lớn để coi trùng
+// chữ ký ≈ chắc chắn là phát lại (không phải trùng ngẫu nhiên giữa 2 request
+// khác nhau). Dọn định kỳ theo đúng cửa sổ TOLERANCE để Map không phình mãi;
+// chạy nhiều instance sau này (scale ngang) cần store dùng chung (vd Redis).
+const seenSignatures = new Map(); // signature -> thời điểm hết hạn (ms)
+function cleanupSeenSignatures() {
+  const now = Date.now();
+  for (const [sig, expiresAt] of seenSignatures) {
+    if (now >= expiresAt) seenSignatures.delete(sig);
+  }
+}
+const cleanupTimer = setInterval(cleanupSeenSignatures, TOLERANCE_SECONDS * 1000);
+cleanupTimer.unref();
+
 function buildSigningString({ method, path, timestamp, body }) {
   return `${method.toUpperCase()}\n${path}\n${timestamp}\n${body || ''}`;
 }
@@ -41,6 +59,13 @@ function verify({ secret, method, path, timestamp, body, signature }) {
   if (expectedBuf.length !== actualBuf.length || !crypto.timingSafeEqual(expectedBuf, actualBuf)) {
     return { ok: false, reason: 'Chữ ký không khớp' };
   }
+
+  const normalizedSig = String(signature).toLowerCase();
+  if (seenSignatures.has(normalizedSig)) {
+    return { ok: false, reason: 'Request đã được xử lý trước đó (phát lại)' };
+  }
+  seenSignatures.set(normalizedSig, Date.now() + TOLERANCE_SECONDS * 1000);
+
   return { ok: true };
 }
 

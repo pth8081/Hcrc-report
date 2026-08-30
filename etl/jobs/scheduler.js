@@ -10,6 +10,12 @@ const { runJobObject } = require('./runSync');
 
 const REFRESH_INTERVAL_MS = 60 * 1000;
 const scheduledTasks = new Map(); // jobId -> { task, cronExpression }
+// Job đang chạy dở — chặn lượt cron kế tiếp của CÙNG job chồng lên khi lượt
+// trước chưa xong (vd job đọc bảng lớn từ nguồn chậm, chạy lâu hơn cả chu kỳ
+// cron của chính nó). Không có bảo vệ này, 2 lượt chạy song song cùng job sẽ
+// tranh chấp khoá khi MERGE vào cùng nhóm (SourceSystem, Domain, EntityCode)
+// trong dwh.ReportFacts, và cùng cạnh tranh chung 1 pool ghi (DWH_POOL_MAX).
+const runningJobs = new Set(); // jobId
 
 async function loadActiveJobs() {
   const pool = await getPool('ADMIN');
@@ -23,12 +29,27 @@ async function loadJob(jobId) {
   return result.recordset[0] || null;
 }
 
+async function runJobIfNotAlreadyRunning(job) {
+  if (runningJobs.has(job.Id)) {
+    console.warn(`⏭  [${job.Name}] bỏ qua lượt chạy này — lượt trước chưa xong (chạy lâu hơn chu kỳ cron)`);
+    return;
+  }
+  runningJobs.add(job.Id);
+  try {
+    await runJobObject(job);
+  } finally {
+    runningJobs.delete(job.Id);
+  }
+}
+
 function registerJob(job) {
   if (!cron.validate(job.CronExpression)) {
     console.error(`⛔ Lịch chạy không hợp lệ cho [${job.Name}]: "${job.CronExpression}"`);
     return;
   }
-  const task = cron.schedule(job.CronExpression, () => runJobObject(job));
+  const task = cron.schedule(job.CronExpression, () => {
+    runJobIfNotAlreadyRunning(job).catch(err => console.error(`⛔ Lỗi chạy job [${job.Name}]:`, err.message));
+  });
   scheduledTasks.set(job.Id, { task, cronExpression: job.CronExpression });
   console.log(`⏱  [${job.Name}] lịch chạy: ${job.CronExpression}`);
 }
@@ -71,4 +92,8 @@ function start() {
   );
 }
 
-module.exports = { start, rescheduleJob };
+// runJobIfNotAlreadyRunning xuất thêm để routes/admin/syncJobs.js (nút "Chạy
+// thử") DÙNG CHUNG cơ chế chống chồng lấn thay vì tự gọi thẳng runJobObject —
+// bấm "Chạy thử" trong lúc đúng job đó đang tự động chạy theo lịch cũng
+// phải bị chặn, không chỉ 2 lượt cron chồng nhau.
+module.exports = { start, rescheduleJob, runJobIfNotAlreadyRunning };

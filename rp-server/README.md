@@ -13,7 +13,7 @@ thư mục gốc repo.
 ```bash
 cd rp-server
 npm install
-cp .env.example .env   # điền RP_*, DWH_*, JWT_SECRET, APP_ENCRYPTION_KEY
+cp .env.example .env   # điền RP_*, DWH_*, RP_JWT_SECRET, APP_ENCRYPTION_KEY
 ```
 
 Tạo khoá mã hoá (dùng để mã hoá mật khẩu lưu trong CSDL — nguồn dữ liệu bổ
@@ -264,6 +264,23 @@ khác `/admin/*` bên api-server/etl (chỉ nội bộ). Vài điểm cần bi�
 - **Tải file mẫu báo cáo** (`POST /api/system/report-catalog/templates`) lọc
   tên file qua `path.basename()` trước khi lưu — chặn traversal (`../../...`)
   dù người dùng tự đặt tên file khi chọn từ máy.
+- **Header bảo mật** — `helmet()` (tắt CSP mặc định, không cần cho JSON API).
+- **Cookie phiên** — `secure` tự động bật khi `NODE_ENV=production`, kể cả
+  khi quên đặt `COOKIE_SECURE` trong `.env`. Nhớ đặt `NODE_ENV=production`
+  khi chạy thật (vd trong file cấu hình PM2/systemd).
+- **`RP_JWT_SECRET`** (đổi tên từ `JWT_SECRET` cũ) — tên biến RIÊNG, khác
+  hẳn `etl`/`api-server`, để operator không lỡ copy nhầm `.env` giữa 2
+  service. Token còn có `issuer`/`audience` riêng kiểm tra khi xác minh — dù
+  2 service lỡ dùng CHUNG giá trị secret, token của bên này vẫn bị bên kia
+  từ chối. Khởi động LỖI NGAY nếu secret còn là giá trị mẫu trong `.env.example`.
+- **Chống chạy chồng lấn cho lịch gửi email** (`jobs/reportEmailScheduler.js`)
+  — trước đây 1 lịch chạy lâu hơn chu kỳ cron của chính nó có thể bị chính
+  nó "đụng" ở lượt tiếp theo (gửi trùng email, nhân đôi bộ nhớ export). Nút
+  "Gửi ngay" cũng đi qua cùng cơ chế chặn — bấm khi lịch đang tự chạy sẽ báo
+  lỗi rõ ràng thay vì âm thầm chạy chồng.
+- **Giới hạn thời gian tầng HTTP server** (`server.requestTimeout`/
+  `headersTimeout`/`timeout`) — chống client cố tình gửi request/body nhỏ
+  giọt giữ kết nối mở gần như vô hạn.
 
 ## Chưa làm ở bước khung này
 

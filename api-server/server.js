@@ -8,6 +8,7 @@
 // Trị API HCRC", mục 07) — adminIpAllowlist chỉ là lớp phòng thủ bổ sung.
 require('dotenv').config();
 const express = require('express');
+const helmet = require('helmet');
 const cookieParser = require('cookie-parser');
 const compression = require('compression');
 const cron = require('node-cron');
@@ -40,6 +41,12 @@ const PORT = process.env.PORT || 4002;
 // khớp đúng số lớp proxy trước app — mặc định 1 (1 Nginx duy nhất đứng
 // trước, đúng mô hình "cả 3 hệ thống + Nginx trên 1 máy chủ").
 app.set('trust proxy', parseInt(process.env.TRUST_PROXY_HOPS || '1', 10));
+
+// Header bảo mật cơ bản (X-Content-Type-Options, X-Frame-Options, HSTS...).
+// Tắt CSP mặc định của helmet — soạn cho trang HTML, ở đây chỉ có JSON API
+// (giao diện tĩnh api-admin/ do Nginx phục vụ riêng, không qua tiến trình
+// này) nên CSP không có tác dụng, chỉ thêm nhiễu vào response header.
+app.use(helmet({ contentSecurityPolicy: false }));
 
 app.use(compression());
 // verify: lưu nguyên body THÔ vào req.rawBody — HMAC (AuthMethod='hmac')
@@ -89,7 +96,15 @@ app.use((err, req, res, next) => { // eslint-disable-line no-unused-vars
   res.status(500).json({ error: 'Lỗi máy chủ' });
 });
 
-app.listen(PORT, () => console.log(`API Server đang chạy ở cổng ${PORT}`));
+// Giới hạn thời gian ở tầng HTTP server (Node) — Express/http mặc định
+// KHÔNG chặn socket "chờ mãi", một client cố tình gửi request/body nhỏ giọt
+// (slow-loris) có thể giữ kết nối (và connection CSDL đã mượn trong handler)
+// mở gần như vô hạn. Chỉ đáng tin cậy thật khi Nginx/proxy phía trước CŨNG
+// có timeout riêng — đây là lớp phòng thủ độc lập, không thay được Nginx.
+const server = app.listen(PORT, () => console.log(`API Server đang chạy ở cổng ${PORT}`));
+server.requestTimeout = 60 * 1000; // tối đa để nhận trọn request (header+body)
+server.headersTimeout = 65 * 1000; // phải LỚN HƠN requestTimeout (ràng buộc của Node)
+server.timeout = 120 * 1000; // timeout rảnh (idle) cho toàn bộ kết nối
 
 // Dọn api.RequestLog cũ theo lịch (mặc định 02:00 hằng ngày).
 cron.schedule(process.env.CLEANUP_CRON || '0 2 * * *', () => {

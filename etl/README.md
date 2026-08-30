@@ -26,7 +26,7 @@ vụ `/admin/*` cho trang quản trị riêng `etl-admin/` — CSDL quản trị
 ```bash
 cd etl
 npm install
-cp .env.example .env   # điền DWH_*, ADMIN_* (CSDL HCRC_ETL), ADMIN_JWT_SECRET, ETL_ENCRYPTION_KEY
+cp .env.example .env   # điền DWH_*, ADMIN_* (CSDL HCRC_ETL), ETL_ADMIN_JWT_SECRET, ETL_ENCRYPTION_KEY
 ```
 
 Tạo khoá mã hoá (dùng để mã hoá mật khẩu các nguồn lưu trong `etl.DataSources`):
@@ -78,6 +78,22 @@ nhánh), rủi ro cao nhất trong 3 hệ thống nếu bị xâm nhập. Nếu 
   cùng 1 IP của Nginx).
 - **Chống dò mật khẩu đăng nhập** (`lib/loginRateLimit.js`) — tối đa 10 lần
   sai liên tiếp theo (IP + username) trong 15 phút.
+- **`ETL_ADMIN_ALLOWED_IPS`** (`lib/adminIpAllowlist.js`) — danh sách IP
+  được phép gọi `/admin/*`, lớp phòng thủ BỔ SUNG cùng kiểu `api-server` đã
+  có từ trước — kiểm soát chính vẫn phải là không proxy `/admin/*` ra
+  Internet ở Nginx/tường lửa.
+- **`ETL_ADMIN_JWT_SECRET`** (đổi tên từ `ADMIN_JWT_SECRET` cũ) — tên biến
+  RIÊNG, khác hẳn `api-server`/`rp-server`, để operator không lỡ copy nhầm
+  `.env` giữa 2 service. Token còn có `issuer`/`audience` riêng kiểm tra khi
+  xác minh — dù 2 service lỡ dùng CHUNG giá trị secret, token của bên này
+  vẫn bị bên kia từ chối. Khởi động LỖI NGAY nếu secret còn là giá trị mẫu.
+- **Chống chạy chồng lấn** (`jobs/scheduler.js`) — 1 job đọc bảng lớn từ
+  nguồn chậm, chạy lâu hơn chu kỳ cron của chính nó, không còn tự "đụng"
+  chính nó ở lượt tiếp theo. Nút "Chạy thử" (`/admin/sync-jobs/:id/run-now`)
+  cũng đi qua cùng cơ chế — bấm khi job đang tự chạy theo lịch sẽ bị bỏ qua
+  (ghi log), không chạy chồng.
+- **Header bảo mật** (`helmet()`) và **giới hạn thời gian tầng HTTP server**
+  (chống client gửi request/body nhỏ giọt giữ kết nối mở gần như vô hạn).
 
 ## API — `/admin/*`
 

@@ -10,9 +10,25 @@ const jwt = require('jsonwebtoken');
 
 const TOKEN_TTL_SECONDS = parseInt(process.env.OAUTH_TOKEN_TTL_SECONDS || '3600', 10);
 
+// iss cố định cho MỌI access token phát ra ở đây, aud cố định là scope
+// "đối tác API" — jwt.verify() đòi khớp cả 2, phòng thủ chiều sâu chống
+// nhầm lẫn với token của ranh giới khác (vd token phiên admin, dù đã dùng
+// secret khác OAUTH_JWT_SECRET rồi).
+const ISSUER = 'hcrc-api-oauth';
+const AUDIENCE = 'hcrc-api-partners';
+
+const PLACEHOLDER_SECRETS = new Set([
+  'doi-chuoi-nay-thanh-gia-tri-ngau-nhien-dai-cho-oauth',
+  'doi-chuoi-nay-thanh-gia-tri-ngau-nhien-dai',
+  'doi-chuoi-nay-thanh-gia-tri-ngau-nhien-dai-khac'
+]);
+
 function getSecret() {
   const secret = process.env.OAUTH_JWT_SECRET;
   if (!secret) throw new Error('Thiếu OAUTH_JWT_SECRET trong .env');
+  if (PLACEHOLDER_SECRETS.has(secret)) {
+    throw new Error('OAUTH_JWT_SECRET vẫn là giá trị mẫu trong .env.example — đổi thành chuỗi ngẫu nhiên thật trước khi chạy');
+  }
   return secret;
 }
 
@@ -27,7 +43,7 @@ function issueToken(consumer) {
       allowedIps: consumer.allowedIps, rateLimitPerMinute: consumer.rateLimitPerMinute
     },
     getSecret(),
-    { expiresIn: TOKEN_TTL_SECONDS, algorithm: 'HS256' }
+    { expiresIn: TOKEN_TTL_SECONDS, algorithm: 'HS256', issuer: ISSUER, audience: AUDIENCE }
   );
   return { accessToken, expiresIn: TOKEN_TTL_SECONDS };
 }
@@ -36,7 +52,7 @@ function issueToken(consumer) {
 // lib/apiAuth.js dùng chung logic scope/IP/giới hạn tần suất phía sau, bất
 // kể AuthMethod nào.
 function verifyToken(token) {
-  const payload = jwt.verify(token, getSecret(), { algorithms: ['HS256'] });
+  const payload = jwt.verify(token, getSecret(), { algorithms: ['HS256'], issuer: ISSUER, audience: AUDIENCE });
   return {
     id: payload.sub, name: payload.name, scopes: payload.scopes || [],
     allowedIps: payload.allowedIps || [], rateLimitPerMinute: payload.rateLimitPerMinute || 0

@@ -2,6 +2,7 @@
 // db.js) + pool động cho nguồn dữ liệu bổ sung (lib/dataSourcePool.js).
 require('dotenv').config();
 const express = require('express');
+const helmet = require('helmet');
 const cookieParser = require('cookie-parser');
 const compression = require('compression');
 const { rateLimit } = require('express-rate-limit');
@@ -32,6 +33,12 @@ const PORT = process.env.PORT || 4001;
 // theo IP dưới đây, và cột IpAddress trong app.AuditLog (log sẽ ghi IP proxy
 // thay vì IP người dùng thật). Mặc định 1 = 1 Nginx duy nhất đứng trước.
 app.set('trust proxy', parseInt(process.env.TRUST_PROXY_HOPS || '1', 10));
+
+// Header bảo mật cơ bản (X-Content-Type-Options, X-Frame-Options, HSTS...).
+// Tắt CSP mặc định của helmet — soạn cho trang HTML, ở đây chỉ có JSON API
+// (giao diện tĩnh rp-user/ do Nginx phục vụ riêng, không qua tiến trình
+// này) nên CSP không có tác dụng, chỉ thêm nhiễu vào response header.
+app.use(helmet({ contentSecurityPolicy: false }));
 
 app.use(compression());
 app.use(express.json({ limit: '2mb' }));
@@ -65,7 +72,11 @@ app.post('/api/auth/login', async (req, res, next) => {
     res.cookie(COOKIE_NAME, token, {
       httpOnly: true,
       sameSite: 'lax',
-      secure: process.env.COOKIE_SECURE === 'true',
+      // Luôn bật ở production, KỂ CẢ khi quên đặt COOKIE_SECURE trong .env —
+      // tránh bẫy cấu hình gửi cookie phiên qua HTTP thường một khi public.
+      // Nginx làm TLS termination (xem README) nên đây luôn đúng khi thật sự
+      // chạy production; .env chỉ còn dùng để BẬT sớm lúc dev nếu cần test.
+      secure: process.env.NODE_ENV === 'production' || process.env.COOKIE_SECURE === 'true',
       maxAge: 8 * 60 * 60 * 1000
     });
     res.json({ ok: true });
@@ -102,4 +113,12 @@ app.use((err, req, res, next) => { // eslint-disable-line no-unused-vars
 
 reportEmailScheduler.start();
 
-app.listen(PORT, () => console.log(`Report Server đang chạy ở cổng ${PORT}`));
+// Giới hạn thời gian ở tầng HTTP server (Node) — Express/http mặc định
+// KHÔNG chặn socket "chờ mãi", một client cố tình gửi request/body nhỏ giọt
+// (slow-loris) có thể giữ kết nối (và connection CSDL đã mượn trong handler)
+// mở gần như vô hạn. Chỉ đáng tin cậy thật khi Nginx/proxy phía trước CŨNG
+// có timeout riêng — đây là lớp phòng thủ độc lập, không thay được Nginx.
+const server = app.listen(PORT, () => console.log(`Report Server đang chạy ở cổng ${PORT}`));
+server.requestTimeout = 60 * 1000; // tối đa để nhận trọn request (header+body)
+server.headersTimeout = 65 * 1000; // phải LỚN HƠN requestTimeout (ràng buộc của Node)
+server.timeout = 120 * 1000; // timeout rảnh (idle) cho toàn bộ kết nối

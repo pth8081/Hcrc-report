@@ -22,7 +22,7 @@ loại nguồn dùng.
 ```bash
 cd api-server
 npm install
-cp .env.example .env   # điền DWH_*, ADMIN_* (CSDL HCRC_API), ADMIN_JWT_SECRET, API_ENCRYPTION_KEY
+cp .env.example .env   # điền DWH_*, ADMIN_* (CSDL HCRC_API), API_ADMIN_JWT_SECRET, API_ENCRYPTION_KEY
 ```
 
 Tạo khoá mã hoá (dùng để mã hoá mật khẩu các nguồn lưu trong `api.DataSources`):
@@ -100,7 +100,7 @@ curl http://localhost:4002/api/v1/reports/doanh-thu-thang/run \
   -H "Authorization: Bearer <access_token>"
 ```
 
-Token là JWT ký bằng `OAUTH_JWT_SECRET` (`.env`, RIÊNG khỏi `ADMIN_JWT_SECRET`),
+Token là JWT ký bằng `OAUTH_JWT_SECRET` (`.env`, RIÊNG khỏi `API_ADMIN_JWT_SECRET`),
 tự chứa `scopes`/`allowedIps` — xác minh KHÔNG cần tra CSDL mỗi request. Đánh
 đổi: đổi quyền cho 1 đối tác chỉ có hiệu lực với token phát hành SAU, token
 cũ vẫn dùng được tới khi hết hạn (`OAUTH_TOKEN_TTL_SECONDS`, mặc định 1 giờ)
@@ -214,6 +214,31 @@ sự cố). Xem mẫu cấu hình Nginx thật ở `deploy/nginx.conf` (thư m�
 **Chống dò mật khẩu đăng nhập `/admin/auth/login`** — `lib/loginRateLimit.js`,
 tối đa 10 lần sai liên tiếp theo (IP + username) trong 15 phút, đăng nhập
 đúng xoá ngay bộ đếm — độc lập với giới hạn tần suất chung của toàn server.
+
+**Header bảo mật** — `helmet()` (tắt CSP mặc định, không cần cho JSON API).
+
+**Cookie phiên admin** — `secure` tự động bật khi `NODE_ENV=production`, kể
+cả khi quên đặt `ADMIN_COOKIE_SECURE` trong `.env` (tránh bẫy gửi cookie qua
+HTTP thường một khi public). Nhớ đặt `NODE_ENV=production` khi chạy thật
+(vd trong file cấu hình PM2/systemd), biến này không tự có nếu chỉ `npm start`.
+
+**Bí mật ký JWT — tên biến RIÊNG cho từng service** — `API_ADMIN_JWT_SECRET`
+(đổi tên từ `ADMIN_JWT_SECRET` cũ) và `OAUTH_JWT_SECRET`, khác hẳn tên biến
+bên `etl`/`rp-server`, để operator không lỡ copy nhầm `.env` giữa 2 service.
+Mỗi loại token còn có `issuer`/`audience` riêng, kiểm tra khi xác minh — dù
+2 service lỡ dùng CHUNG giá trị secret, token phát hành bởi bên này vẫn bị
+bên kia từ chối. Khởi động sẽ LỖI NGAY nếu secret còn là giá trị mẫu trong
+`.env.example` — không chạy "được" với secret ai cũng đọc được từ repo.
+
+**Chống phát lại (replay) cho HMAC** (`AuthMethod='hmac'`) — trước đây chỉ
+kiểm tra `X-Timestamp` trong cửa sổ ±5 phút, một request bị chặn bắt vẫn gửi
+lại y nguyên được nhiều lần trong cửa sổ đó với chữ ký vẫn hợp lệ.
+`lib/hmacAuth.js` giờ nhớ chữ ký ĐÃ DÙNG, từ chối nếu thấy lại.
+
+**Giới hạn thời gian tầng HTTP server** (`server.requestTimeout`/
+`headersTimeout`/`timeout` trong `server.js`) — chống client cố tình gửi
+request/body nhỏ giọt giữ kết nối (và connection CSDL đã mượn) mở gần như
+vô hạn. Lớp phòng thủ độc lập, không thay được timeout riêng của Nginx.
 
 ## Còn thiếu để dùng thật
 

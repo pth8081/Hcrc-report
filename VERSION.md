@@ -5,6 +5,52 @@ Server, API Server và các giao diện quản trị) — tăng ở mỗi lần 
 `main`, theo kiểu semver không chặt (patch cho fix nhỏ, minor cho tính năng
 mới, major khi đổi cấu trúc phá vỡ tương thích ngược).
 
+## 0.15.0 — Bảo mật chiều sâu trước khi public (Giai đoạn 1)
+
+Tiếp theo 0.14.0 (nhóm CRITICAL/HIGH) — nhóm MEDIUM, phòng thủ nhiều lớp
+(defense-in-depth), 44 test.
+
+- **`helmet()`** cho cả 3 server (etl/api-server/rp-server) — header bảo
+  mật cơ bản (`X-Content-Type-Options`, `X-Frame-Options`, HSTS...), tắt CSP
+  mặc định (không cần cho JSON API thuần, giao diện tĩnh Nginx phục vụ riêng).
+- **Chống phát lại (replay) cho HMAC** (api-server, `AuthMethod='hmac'`) —
+  trước đây chỉ kiểm tra `X-Timestamp` trong cửa sổ ±5 phút, 1 request bị
+  chặn bắt vẫn gửi lại y nguyên được nhiều lần trong cửa sổ đó với chữ ký
+  vẫn hợp lệ. `lib/hmacAuth.js` giờ nhớ chữ ký ĐÃ DÙNG, từ chối nếu thấy lại.
+- **Cookie phiên `secure` tự động bật khi `NODE_ENV=production`** (cả 3
+  server) — trước đây chỉ dựa vào biến `*_COOKIE_SECURE` trong `.env`, quên
+  đặt là cookie phiên gửi qua HTTP thường một khi public.
+- **Tên biến bí mật ký JWT RIÊNG cho từng service** — đổi `ADMIN_JWT_SECRET`
+  (trùng tên giữa etl và api-server) thành `ETL_ADMIN_JWT_SECRET`/
+  `API_ADMIN_JWT_SECRET`; đổi `JWT_SECRET` (rp-server) thành `RP_JWT_SECRET`
+  — tránh operator lỡ copy `.env` giữa 2 service làm phiên dùng chéo được.
+  **Thêm `issuer`/`audience` cho MỌI JWT** (phiên admin cả 3 service, token
+  OAuth2 đối tác) — dù 2 service lỡ dùng CHUNG giá trị secret, token phát
+  hành bởi bên này vẫn bị bên kia từ chối (đã kiểm tra bằng test mô phỏng
+  đúng kịch bản "operator copy nhầm .env"). Khởi động LỖI NGAY nếu secret
+  còn là giá trị mẫu trong `.env.example`, không chạy "được" với secret ai
+  cũng đọc được từ repo. **Yêu cầu operator đổi tên biến trong `.env` thật
+  khi nâng cấp** — không tự tương thích ngược, cố ý (buộc xác nhận lại).
+- **`ETL_ADMIN_ALLOWED_IPS`** (`etl/lib/adminIpAllowlist.js`, mới) — ETL là
+  dịch vụ duy nhất trong 3 trước đây KHÔNG có lớp phòng thủ IP bổ sung cho
+  `/admin/*`, dù nắm giữ mật khẩu của toàn bộ nguồn dữ liệu đã cấu hình —
+  giờ có cùng cơ chế `api-server` đã có từ trước.
+- **Chống chạy chồng lấn cho cron job** (ETL `jobs/scheduler.js` VÀ Report
+  Server `jobs/reportEmailScheduler.js`) — 1 job/lịch chạy lâu hơn chu kỳ
+  cron của chính nó (nguồn chậm, báo cáo lớn) trước đây có thể tự "đụng"
+  chính nó ở lượt tiếp theo (ETL: tranh chấp khoá MERGE; lịch email: gửi
+  trùng email + nhân đôi bộ nhớ export). Nút "Chạy thử"/"Gửi ngay" trên giao
+  diện cũng đi qua cùng cơ chế chặn thay vì gọi tắt.
+- **Giới hạn thời gian tầng HTTP server** (`requestTimeout`/`headersTimeout`/
+  `timeout`, cả 3 server) — chống client cố tình gửi request/body nhỏ giọt
+  giữ kết nối (và connection CSDL đã mượn) mở gần như vô hạn.
+- Rà soát riêng các route "test kết nối"/"gửi thử" còn trả nguyên
+  `err.message` (dataSources/apiConnections/emailSettings/reportCatalog/
+  reportEmailSchedules) — xác nhận đây là tính năng debug CÓ CHỦ ĐÍCH cho
+  admin cấu hình hạ tầng nội bộ do chính họ kiểm soát, không phải lỗ hổng
+  (khác điểm đã sửa ở 0.14.0: `externalConnections.js`, nơi mục tiêu là bên
+  ngoài KHÔNG đáng tin) — không sửa, tránh làm mất công cụ hữu ích.
+
 ## 0.14.0 — Vá lỗ hổng bảo mật chặn trước khi public API Server & Report Server (Giai đoạn 0)
 
 Theo kết quả rà soát chuyên sâu bảo mật + hiệu năng của cả 3 hệ thống (ETL,
