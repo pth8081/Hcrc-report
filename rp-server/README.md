@@ -282,6 +282,22 @@ khác `/admin/*` bên api-server/etl (chỉ nội bộ). Vài điểm cần bi�
   `headersTimeout`/`timeout`) — chống client cố tình gửi request/body nhỏ
   giọt giữ kết nối mở gần như vô hạn.
 
+## Hiệu năng khi có traffic công khai
+
+- **Pool CSDL** (`RP_POOL_MAX`/`DWH_POOL_MAX`) tăng mặc định lên 20 (từ 10)
+  trong `.env.example` — điểm khởi đầu hợp lý hơn, cần chỉnh lại theo tải
+  thật + giới hạn SQL Server/DBA cho phép.
+- **Lọc theo field Dimensions chưa có index** — khi đã xác định rõ 1 báo
+  cáo chậm vì lọc theo field cụ thể nào, thêm cột trích xuất PERSISTED +
+  index thật, xem hướng dẫn đầy đủ trong `dwh/schema.sql` mục "Tối ưu lọc
+  theo Dimensions" — chỉ cần thêm 1 dòng vào `PERSISTED_DIMENSION_COLUMNS`
+  (`lib/reportEngine.js`) để tự động dùng cột mới.
+- **Cache TTL ngắn cho `POST /api/reports/:id/run`** (`lib/reportResultCache.js`,
+  biến `REPORT_CACHE_TTL_MS`, mặc định 30 giây, `=0` để tắt) — nhiều người
+  dùng/dashboard hay gọi lại cùng báo cáo + cùng bộ lọc liên tiếp. KHÔNG áp
+  cho `/export` hay `jobs/reportEmailScheduler.js` (lịch gửi email luôn cần
+  dữ liệu mới nhất tại thời điểm gửi).
+
 ## Chưa làm ở bước khung này
 
 - Xuất theo đúng mẫu biểu công ty (`.xlsx`/`.pptx` thật) — xem `templates/README.md`.

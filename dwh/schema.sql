@@ -41,3 +41,26 @@ BEGIN
         ON dwh.ReportFacts (Domain, EventDate DESC) INCLUDE (SourceSystem, EntityCode);
 END
 GO
+
+/* ===== Tối ưu lọc theo Dimensions =====
+   Lọc báo cáo theo bất kỳ field nào NGOÀI entityCode/eventDate/sourceSystem
+   đều dịch thành JSON_VALUE(Dimensions, '$.field') (xem
+   rp-server/lib/reportEngine.js và api-server/lib/reportEngine.js —
+   resolveColumn()) — không index được, SQL Server phải quét + parse JSON
+   của TỪNG DÒNG trong Domain đó mỗi lần lọc. Với Domain còn ít dữ liệu
+   không đáng bận tâm; khi ĐÃ XÁC ĐỊNH RÕ một báo cáo cụ thể chậm vì lọc theo
+   1 field Dimensions cố định, thêm CỘT TRÍCH XUẤT PERSISTED + INDEX cho
+   đúng field đó (không thêm hàng loạt "phòng khi cần" — mỗi cột persisted
+   tốn thêm chỗ lưu + chi phí tính lại mỗi lần ETL upsert dòng đó).
+
+   Mẫu (đổi 'deptCode' + NVARCHAR(100) cho đúng field/kiểu dữ liệu thật):
+
+     ALTER TABLE dwh.ReportFacts
+       ADD DeptCode AS CAST(JSON_VALUE(Dimensions, '$.deptCode') AS NVARCHAR(100)) PERSISTED;
+     CREATE INDEX IX_ReportFacts_DeptCode
+       ON dwh.ReportFacts (DeptCode) INCLUDE (Domain, EventDate);
+
+   Sau đó khai thêm đúng 1 dòng vào PERSISTED_DIMENSION_COLUMNS trong CẢ 2
+   bản reportEngine.js (rp-server VÀ api-server — bản sao cố ý trùng lặp,
+   xem chú thích đầu file đó) để câu lọc TỰ ĐỘNG chuyển sang dùng cột mới
+   này thay vì JSON_VALUE(...) — không cần sửa gì khác. */

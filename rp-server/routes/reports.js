@@ -19,6 +19,7 @@ const { loadDefinition, runDefinition } = require('../lib/reportRunner');
 const { exportExcel } = require('../lib/exportExcel');
 const { exportPdf } = require('../lib/exportPdf');
 const { getUserContext } = require('../lib/permissions');
+const reportResultCache = require('../lib/reportResultCache');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -91,7 +92,17 @@ router.post('/:reportId/run', async (req, res, next) => {
     // 5000 dòng cố định của /export (bypass ngầm giới hạn xuất file).
     const page = Math.max(1, parseInt(req.body?.page, 10) || 1);
     const pageSize = Math.min(Math.max(1, parseInt(req.body?.pageSize, 10) || 200), 1000);
-    const result = await runDefinition(definition, filters, { page, pageSize });
+
+    // Cache TTL ngắn (lib/reportResultCache.js) — nhiều người dùng/dashboard
+    // hay gọi lại CÙNG báo cáo + CÙNG bộ lọc trong vài giây liên tiếp, không
+    // cần chạy lại nguyên truy vấn dwh.ReportFacts mỗi lần. KHÔNG dùng cho
+    // /export hay jobs/reportEmailScheduler.js — chỉ đường xem tương tác này.
+    const cacheKey = [req.params.reportId, filters, page, pageSize];
+    let result = reportResultCache.get(cacheKey);
+    if (!result) {
+      result = await runDefinition(definition, filters, { page, pageSize });
+      reportResultCache.set(cacheKey, result);
+    }
     res.json(result);
   } catch (err) { next(err); }
 });

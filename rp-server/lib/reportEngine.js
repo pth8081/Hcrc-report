@@ -19,10 +19,25 @@ const { evaluateFormula } = require('./formulaEngine');
 
 const FIELD_NAME_RE = /^[a-zA-Z0-9_]+$/;
 
+// Field Dimensions nào đã có CỘT TRÍCH XUẤT PERSISTED + INDEX thật trong
+// dwh.ReportFacts (xem dwh/schema.sql mục "Tối ưu lọc theo Dimensions") —
+// resolveColumn() ưu tiên dùng cột thật (SQL Server seek được qua index)
+// thay vì JSON_VALUE(...) (luôn phải quét + parse JSON từng dòng trong
+// Domain, không index được). RỖNG mặc định — chỉ thêm dòng ở đây SAU KHI đã
+// thực sự chạy ALTER TABLE thêm đúng cột đó trên CSDL thật; một cột
+// persisted không ai dùng vẫn tốn chỗ lưu + chi phí tính lại mỗi lần ETL
+// upsert, nên KHÔNG thêm "phòng khi cần" — chỉ khi đã xác định rõ 1 báo cáo
+// lọc chậm vì field cụ thể nào. Bản sao CÙNG NỘI DUNG cũng có ở
+// api-server/lib/reportEngine.js — sửa cả 2 nơi khi thêm cột mới.
+const PERSISTED_DIMENSION_COLUMNS = {
+  // deptCode: 'DeptCode', // ví dụ — xem hướng dẫn đầy đủ trong dwh/schema.sql
+};
+
 function resolveColumn(field) {
   if (field === 'entityCode') return 'EntityCode';
   if (field === 'eventDate') return 'EventDate';
   if (field === 'sourceSystem') return 'SourceSystem';
+  if (PERSISTED_DIMENSION_COLUMNS[field]) return `[${PERSISTED_DIMENSION_COLUMNS[field]}]`;
   if (!FIELD_NAME_RE.test(field)) {
     throw new Error(`Tên field không hợp lệ trong định nghĩa báo cáo: "${field}"`);
   }

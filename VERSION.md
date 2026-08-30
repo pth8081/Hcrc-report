@@ -5,6 +5,34 @@ Server, API Server và các giao diện quản trị) — tăng ở mỗi lần 
 `main`, theo kiểu semver không chặt (patch cho fix nhỏ, minor cho tính năng
 mới, major khi đổi cấu trúc phá vỡ tương thích ngược).
 
+## 0.16.0 — Hiệu năng cho traffic công khai (Giai đoạn 2)
+
+Theo kết quả rà soát hiệu năng — chuẩn bị cho `api-server`/`rp-server` nhận
+traffic thật từ Internet, 17 test mới.
+
+- **`PERSISTED_DIMENSION_COLUMNS`** (`lib/reportEngine.js`, cả rp-server và
+  api-server) — cơ chế cho phép chuyển 1 field Dimensions cụ thể từ lọc qua
+  `JSON_VALUE(Dimensions, '$.field')` (luôn quét + parse JSON từng dòng,
+  không index được) sang CỘT THẬT có index, khi đã xác định rõ 1 báo cáo
+  chậm vì field đó. `dwh/schema.sql` thêm hướng dẫn đầy đủ (mục "Tối ưu lọc
+  theo Dimensions") kèm mẫu SQL `ALTER TABLE ... PERSISTED` + `CREATE INDEX`
+  — chỉ cần thêm đúng 1 dòng vào map này ở CẢ 2 bản `reportEngine.js`, không
+  sửa gì khác. Map RỖNG mặc định — không đoán field nào "chắc sẽ cần", chỉ
+  thêm khi đã xác định thật.
+- **Tăng pool CSDL mặc định** — `DWH_POOL_MAX`/`RP_POOL_MAX`/`ADMIN_POOL_MAX`
+  từ 10 lên 20 trong `.env.example` (etl giữ nguyên — không lộ ra Internet,
+  job chạy tuần tự theo thiết kế) — điểm khởi đầu hợp lý hơn cho traffic
+  công khai, không phải con số cuối cùng.
+- **Cache TTL ngắn cho `/reports/:id/run`** (`lib/reportResultCache.js`,
+  biến `REPORT_CACHE_TTL_MS`, mặc định 30 giây, `=0` để tắt) — cả rp-server
+  (`POST /api/reports/:id/run`) lẫn api-server (`GET /api/v1/reports/:id/run`).
+  Khoá cache gồm đủ mọi tham số ảnh hưởng kết quả (reportId, filters, page,
+  pageSize, và `fields` với api-server) — sai 1 chi tiết là cache miss, chạy
+  lại thật. Quyền gọi (`ConsumerReportAccess`/kiểm tra vai trò) LUÔN chạy
+  thật mỗi request, KHÔNG bị cache bỏ qua — đã kiểm tra bằng test riêng.
+  KHÔNG áp cho `/export` hay `jobs/reportEmailScheduler.js` (lịch gửi email
+  luôn cần dữ liệu mới nhất tại thời điểm gửi, không lấy từ cache).
+
 ## 0.15.0 — Bảo mật chiều sâu trước khi public (Giai đoạn 1)
 
 Tiếp theo 0.14.0 (nhóm CRITICAL/HIGH) — nhóm MEDIUM, phòng thủ nhiều lớp

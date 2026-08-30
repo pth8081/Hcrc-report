@@ -23,6 +23,7 @@ const express = require('express');
 const { sql, getPool } = require('../../db');
 const { requireApiKey } = require('../../lib/apiAuth');
 const { runReport, projectColumns, describeColumns } = require('../../lib/reportEngine');
+const reportResultCache = require('../../lib/reportResultCache');
 
 const router = express.Router();
 router.use(requireApiKey('reports'));
@@ -76,15 +77,26 @@ router.get('/:reportId/run', async (req, res, next) => {
       if (req.query[f.field] !== undefined) filters[f.field] = req.query[f.field];
     }
 
-    const dwhPool = await getPool('DWH');
-    const rows = await runReport(dwhPool, definition, filters, { page, pageSize });
-    res.json({
-      reportId: req.params.reportId,
-      page,
-      pageSize,
-      columns: describeColumns(columns),
-      rows: rows.map(r => projectColumns(r, columns))
-    });
+    // Cache TTL ngắn (lib/reportResultCache.js) — đối tác/hệ thống ngoài
+    // thường gọi lại CÙNG báo cáo + CÙNG tham số nhiều lần liên tiếp (polling
+    // định kỳ, dashboard), không cần chạy lại truy vấn dwh.ReportFacts mỗi
+    // lần. Khoá cache gồm cả `fields` (cột yêu cầu) — khác cột trả về khác
+    // response, không được dùng chung.
+    const cacheKey = [req.params.reportId, filters, page, pageSize, req.query.fields || ''];
+    let payload = reportResultCache.get(cacheKey);
+    if (!payload) {
+      const dwhPool = await getPool('DWH');
+      const rows = await runReport(dwhPool, definition, filters, { page, pageSize });
+      payload = {
+        reportId: req.params.reportId,
+        page,
+        pageSize,
+        columns: describeColumns(columns),
+        rows: rows.map(r => projectColumns(r, columns))
+      };
+      reportResultCache.set(cacheKey, payload);
+    }
+    res.json(payload);
   } catch (err) { next(err); }
 });
 

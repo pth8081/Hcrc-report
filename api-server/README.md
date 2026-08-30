@@ -240,6 +240,25 @@ lại y nguyên được nhiều lần trong cửa sổ đó với chữ ký v�
 request/body nhỏ giọt giữ kết nối (và connection CSDL đã mượn) mở gần như
 vô hạn. Lớp phòng thủ độc lập, không thay được timeout riêng của Nginx.
 
+## Hiệu năng khi có traffic công khai
+
+- **Pool CSDL** (`DWH_POOL_MAX`/`ADMIN_POOL_MAX`) tăng mặc định lên 20 (từ
+  10) trong `.env.example` — điểm khởi đầu hợp lý hơn cho traffic công khai,
+  không phải con số cuối cùng, cần chỉnh lại theo tải thật.
+- **Lọc theo field Dimensions chưa có index** (`JSON_VALUE(Dimensions,
+  '$.field')`, quét + parse JSON từng dòng trong Domain) — khi đã xác định
+  rõ 1 báo cáo chậm vì lọc theo field cụ thể nào, thêm cột trích xuất
+  PERSISTED + index thật, xem hướng dẫn đầy đủ (kèm mẫu SQL) trong
+  `dwh/schema.sql` mục "Tối ưu lọc theo Dimensions" — chỉ cần thêm đúng 1
+  dòng vào `PERSISTED_DIMENSION_COLUMNS` (`lib/reportEngine.js`) để câu lọc
+  tự chuyển sang dùng cột mới, không cần sửa gì khác.
+- **Cache TTL ngắn cho `GET /api/v1/reports/:id/run`** (`lib/reportResultCache.js`,
+  biến `REPORT_CACHE_TTL_MS`, mặc định 30 giây, `=0` để tắt) — đối tác/hệ
+  thống ngoài hay gọi lại cùng tham số nhiều lần liên tiếp (polling,
+  dashboard), tránh chạy lại truy vấn mỗi lần. Quyền gọi
+  (`api.ConsumerReportAccess`) LUÔN kiểm tra thật mỗi request, không bị
+  cache bỏ qua — cache chỉ áp cho phần chạy truy vấn.
+
 ## Còn thiếu để dùng thật
 
 - **Bộ lọc động cho endpoint realtime** — `/list` mới hỗ trợ phân trang, chưa lọc theo điều kiện (khác `/api/v1/reports` đã có `filters`) — cần nếu danh sách quá lớn để xem hết từng trang.
