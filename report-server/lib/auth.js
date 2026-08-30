@@ -1,12 +1,14 @@
-// lib/auth.js — Xác thực JWT qua cookie httpOnly. TẠM THỜI dùng một tài khoản
-// quản trị cấu hình qua .env (ADMIN_USERNAME/ADMIN_PASSWORD_HASH) — thay bằng
-// bảng người dùng riêng hoặc tích hợp AD/SSO khi đã chốt (câu hỏi mở trong tài
-// liệu kiến trúc, mục 10). requireAuth/verifyToken không phụ thuộc vào việc đó
-// đổi thế nào sau này — chỉ verifyCredentials() cần viết lại.
+// lib/auth.js — Xác thực JWT qua cookie httpOnly, đối chiếu app.Users (bcrypt).
+// JWT CHỈ chứa { sub: userId, username } — KHÔNG nhúng quyền vào token, vì
+// nhúng sẵn quyền chỉ có hiệu lực đổi sau khi đăng nhập lại (xem tài liệu
+// kiến trúc, mục 07). requireAuth() chỉ xác thực danh tính; kiểm tra menu/
+// báo cáo do requireMenuAccess()/lib/permissions.js đảm nhiệm riêng.
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
+const { sql, getPool } = require('../db');
+const { getUserContext } = require('./permissions');
 
-const COOKIE_NAME = 'hcrc_report_token';
+const COOKIE_NAME = 'hcrc_rp_token';
 const TOKEN_TTL = '8h';
 
 function getSecret() {
@@ -16,15 +18,25 @@ function getSecret() {
 }
 
 async function verifyCredentials(username, password) {
-  if (!username || !password) return false;
-  if (username !== process.env.ADMIN_USERNAME) return false;
-  const hash = process.env.ADMIN_PASSWORD_HASH;
-  if (!hash) return false;
-  return bcrypt.compare(password, hash);
+  if (!username || !password) return null;
+  const pool = await getPool('RP');
+  const result = await pool.request()
+    .input('username', sql.NVarChar(50), username)
+    .query('SELECT Id, Username, PasswordHash, IsActive FROM app.Users WHERE Username = @username');
+  const user = result.recordset[0];
+  if (!user || !user.IsActive) return null;
+  const ok = await bcrypt.compare(password, user.PasswordHash);
+  if (!ok) return null;
+
+  await pool.request()
+    .input('id', sql.Int, user.Id)
+    .query('UPDATE app.Users SET LastLoginAt = SYSUTCDATETIME() WHERE Id = @id');
+
+  return { id: user.Id, username: user.Username };
 }
 
-function issueToken(username) {
-  return jwt.sign({ sub: username }, getSecret(), { expiresIn: TOKEN_TTL });
+function issueToken(user) {
+  return jwt.sign({ sub: user.id, username: user.username }, getSecret(), { expiresIn: TOKEN_TTL });
 }
 
 function verifyToken(token) {
@@ -42,4 +54,29 @@ function requireAuth(req, res, next) {
   }
 }
 
-module.exports = { COOKIE_NAME, TOKEN_TTL, verifyCredentials, issueToken, verifyToken, requireAuth };
+// Dùng SAU requireAuth trên route cần đúng 1 mã menu (vd requireMenuAccess
+// ('system-permissions')). Vai trò Admin (IsSystemRole) luôn qua được mọi
+// kiểm tra — xem lib/permissions.js.
+function requireMenuAccess(menuCode) {
+  return async (req, res, next) => {
+    try {
+      const context = await getUserContext(req.user.sub);
+      if (!context) return res.status(401).json({ error: 'Tài khoản không còn hoạt động' });
+      if (!context.menuCodes.has(menuCode)) {
+        return res.status(403).json({ error: 'Bạn không có quyền truy cập mục này' });
+      }
+      req.userContext = context;
+      next();
+    } catch (err) { next(err); }
+  };
+}
+
+module.exports = {
+  COOKIE_NAME,
+  TOKEN_TTL,
+  verifyCredentials,
+  issueToken,
+  verifyToken,
+  requireAuth,
+  requireMenuAccess
+};

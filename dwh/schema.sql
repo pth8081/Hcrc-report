@@ -61,16 +61,7 @@ BEGIN
 END
 GO
 
--- Danh mục định nghĩa báo cáo động cho Report Server (bộ lọc + cột + mẫu xuất) —
--- chưa dùng ở bước ETL này, tạo sẵn để không phải chạy thêm script khi làm
--- Report Server sau.
-IF OBJECT_ID('dwh.ReportCatalog', 'U') IS NULL
-BEGIN
-    CREATE TABLE dwh.ReportCatalog (
-        ReportId       VARCHAR(80)   NOT NULL PRIMARY KEY,
-        Title          NVARCHAR(200) NOT NULL,
-        Domain         VARCHAR(50)   NOT NULL,
-        DefinitionJson NVARCHAR(MAX) NOT NULL
-    );
-END
-GO
+-- LƯU Ý: dwh.ReportCatalog (định nghĩa báo cáo) đã CHUYỂN sang app.ReportCatalog
+-- trong app/schema.sql (CSDL HCRC_RP) — cùng chỗ với Roles/RoleReportAccess để
+-- phân quyền theo từng báo cáo JOIN được trực tiếp, không cần Linked Server.
+-- dwh giờ chỉ còn thuần dữ liệu: ReportFacts, SyncState, SyncLog.

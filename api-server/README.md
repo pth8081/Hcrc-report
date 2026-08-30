@@ -32,7 +32,7 @@ npm start
 ## Còn thiếu để dùng thật
 
 - **Tên view/cột thật cho 3 route realtime** (`routes/v1/realtime.js`) — đang là khung với TODO, cần schema OLTP thật (xem trao đổi trước) để thay đúng tên `api_rt.TonKho`/`api_rt.DiemThe`/`api_rt.Voucher`.
-- **`API_KEYS_JSON` qua .env chỉ là tạm thời** — nên chuyển sang một bảng trong Data Warehouse khi có nhiều hơn vài đối tác, để thu hồi/luân chuyển key không cần deploy lại.
+- **`API_KEYS_JSON` qua .env chỉ là tạm thời** — nên chuyển sang một bảng `app.ApiConsumers` trong CSDL ứng dụng `HCRC_RP` (không phải Data Warehouse — đây là cấu hình vận hành, cùng nhóm với Users/Roles, xem `report-server/README.md`) khi có nhiều hơn vài đối tác, để thu hồi/luân chuyển key không cần deploy lại.
 - **OpenAPI spec** — chưa viết, nên có trước khi giao cho hệ thống ngoài tích hợp thật.
 
 ## API

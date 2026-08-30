@@ -5,7 +5,8 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node --watch server.js"
+    "dev": "node --watch server.js",
+    "seed:admin": "node scripts/seedAdmin.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
@@ -17,6 +18,8 @@
     "express-rate-limit": "^8.6.2",
     "jsonwebtoken": "^9.0.3",
     "mssql": "^11.0.1",
+    "multer": "^2.0.0",
+    "nodemailer": "^9.0.5",
     "pdf-lib": "^1.17.1"
   },
   "engines": {

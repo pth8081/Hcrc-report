@@ -1,0 +1,73 @@
+/* styles.css — CSS tối giản cho công cụ nội bộ, không cần hệ thống thiết kế
+   riêng cho bước khung này (khác các tài liệu artifact — đây là ứng dụng
+   thật, không phải tài liệu trình bày). */
+:root {
+  --ink: #1a2430;
+  --ink-soft: #5a6672;
+  --line: #d9dee2;
+  --bg: #f4f6f7;
+  --surface: #ffffff;
+  --accent: #b5551f;
+  --accent-soft: #f2e2d5;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--ink); }
+h1 { font-size: 22px; margin: 0 0 16px; }
+h2 { font-size: 18px; margin: 0 0 12px; }
+h3 { font-size: 15px; margin: 0 0 8px; }
+h4 { font-size: 13px; margin: 12px 0 6px; color: var(--ink-soft); }
+
+/* Layout */
+.app-shell { display: flex; min-height: 100vh; }
+.sidebar { width: 220px; flex-shrink: 0; background: var(--surface); border-right: 1px solid var(--line); display: flex; flex-direction: column; }
+.sidebar-brand { padding: 18px 16px; font-weight: 700; font-size: 18px; border-bottom: 1px solid var(--line); }
+.menu { list-style: none; margin: 0; padding: 8px; flex: 1; }
+.menu a { display: block; padding: 8px 10px; border-radius: 4px; color: var(--ink-soft); text-decoration: none; font-size: 14px; }
+.menu a.active, .menu a:hover { background: var(--accent-soft); color: var(--accent); }
+.submenu { list-style: none; margin: 2px 0 6px 10px; padding: 0; border-left: 1px solid var(--line); }
+.submenu a { padding: 6px 10px; font-size: 13px; }
+.sidebar-footer { padding: 12px 16px; border-top: 1px solid var(--line); }
+.user-name { font-size: 13px; margin-bottom: 6px; }
+.content { flex: 1; padding: 24px 32px; }
+.page { max-width: 960px; }
+.page-loading, .page-forbidden { padding: 40px; text-align: center; color: var(--ink-soft); }
+
+/* Forms */
+form label, .filter-field { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--ink-soft); }
+input, select, textarea, button { font: inherit; }
+input, select, textarea { padding: 7px 10px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); color: var(--ink); }
+button { padding: 7px 14px; border: 1px solid var(--accent); border-radius: 4px; background: var(--accent); color: #fff; cursor: pointer; }
+button:hover { opacity: 0.9; }
+.inline-form, .filter-form { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 16px; }
+.stacked-form { display: flex; flex-direction: column; gap: 10px; max-width: 420px; margin-bottom: 20px; }
+.checkbox-row { flex-direction: row; align-items: center; gap: 6px; font-size: 14px; color: var(--ink); }
+.date-range { display: flex; align-items: center; gap: 6px; }
+.form-error { color: #b3261e; font-size: 13px; }
+.form-success { color: #1c7566; font-size: 13px; }
+.inline-actions { display: flex; gap: 8px; }
+
+/* Tables */
+.table-scroll { overflow-x: auto; }
+.data-table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+.data-table th { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); color: var(--ink-soft); font-weight: 600; }
+.data-table td { padding: 8px 10px; border-bottom: 1px solid var(--line); }
+.empty-message { color: var(--ink-soft); font-size: 13px; }
+
+/* Tabs */
+.tabs { display: flex; gap: 4px; margin-bottom: 16px; border-bottom: 1px solid var(--line); }
+.tabs button { background: none; border: none; color: var(--ink-soft); padding: 8px 14px; border-radius: 0; }
+.tabs button.active { color: var(--accent); border-bottom: 2px solid var(--accent); }
+
+/* Modal */
+.modal { position: fixed; inset: 0; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; }
+.modal-body { background: var(--surface); padding: 24px; border-radius: 6px; width: 420px; max-height: 80vh; overflow-y: auto; }
+.modal-actions { display: flex; gap: 8px; margin-top: 16px; }
+
+/* Login */
+.login-page { min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+.login-form { display: flex; flex-direction: column; gap: 12px; width: 320px; background: var(--surface); padding: 32px; border-radius: 8px; border: 1px solid var(--line); }
+
+.report-picker { margin-bottom: 16px; max-width: 320px; }
+.export-actions { display: flex; gap: 8px; margin: 12px 0; }
+.template-upload { margin-bottom: 20px; font-size: 13px; }

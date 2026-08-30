@@ -1,46 +1,61 @@
-// db.js — Kết nối CHỈ ĐỌC tới Data Warehouse. Report Server không bao giờ ghi
-// vào kho — việc ghi là của etl/ (xem tài liệu kiến trúc, mục 02). Dùng login
-// SQL riêng (DWH_USER) chỉ có quyền SELECT trên schema dwh.
+// db.js — Hai pool kết nối TĨNH (đọc từ .env, kết nối một lần khi cần):
+//   getPool('RP')  — CSDL ứng dụng HCRC_RP: Users, Roles, quyền, danh mục báo
+//                    cáo, log, danh mục, cấu hình email (report-server có ghi
+//                    vào đây, khác dwh — xem app/schema.sql).
+//   getPool('DWH') — Data Warehouse, CHỈ ĐỌC, dùng làm nguồn mặc định cho báo
+//                    cáo khi ReportCatalog.DataSourceId = NULL.
+// Nguồn dữ liệu BỔ SUNG cho từng báo cáo (app.ReportDataSources) không nằm ở
+// đây — đó là kết nối ĐỘNG, đọc cấu hình từ CSDL lúc chạy, xem
+// lib/dataSourcePool.js.
 const sql = require('mssql');
 require('dotenv').config();
 
-const config = {
-  server: process.env.DWH_SERVER,
-  port: parseInt(process.env.DWH_PORT || '1433', 10),
-  database: process.env.DWH_DATABASE,
-  user: process.env.DWH_USER,
-  password: process.env.DWH_PASSWORD,
-  options: {
-    encrypt: process.env.DWH_ENCRYPT === 'true',
-    trustServerCertificate: process.env.DWH_TRUST_CERT !== 'false',
-    enableArithAbort: true
-  },
-  pool: {
-    max: parseInt(process.env.DWH_POOL_MAX || '10', 10),
-    min: parseInt(process.env.DWH_POOL_MIN || '2', 10),
-    idleTimeoutMillis: 30000
-  },
-  requestTimeout: parseInt(process.env.DWH_REQUEST_TIMEOUT_MS || '30000', 10),
-  connectionTimeout: parseInt(process.env.DWH_CONNECTION_TIMEOUT_MS || '15000', 10)
-};
+const pools = new Map();
 
-let poolPromise = null;
+function buildConfig(prefix) {
+  return {
+    server: process.env[`${prefix}_SERVER`],
+    port: parseInt(process.env[`${prefix}_PORT`] || '1433', 10),
+    database: process.env[`${prefix}_DATABASE`],
+    user: process.env[`${prefix}_USER`],
+    password: process.env[`${prefix}_PASSWORD`],
+    options: {
+      encrypt: process.env[`${prefix}_ENCRYPT`] === 'true',
+      trustServerCertificate: process.env[`${prefix}_TRUST_CERT`] !== 'false',
+      enableArithAbort: true
+    },
+    pool: {
+      max: parseInt(process.env[`${prefix}_POOL_MAX`] || '10', 10),
+      min: parseInt(process.env[`${prefix}_POOL_MIN`] || '2', 10),
+      idleTimeoutMillis: 30000
+    },
+    requestTimeout: parseInt(process.env[`${prefix}_REQUEST_TIMEOUT_MS`] || '30000', 10),
+    connectionTimeout: parseInt(process.env[`${prefix}_CONNECTION_TIMEOUT_MS`] || '15000', 10)
+  };
+}
 
-function getPool() {
-  if (!poolPromise) {
-    poolPromise = new sql.ConnectionPool(config)
+async function getPool(prefix) {
+  if (!pools.has(prefix)) {
+    const config = buildConfig(prefix);
+    if (!config.server || !config.database) {
+      throw new Error(
+        `Thiếu cấu hình kết nối cho "${prefix}" — kiểm tra .env (cần ${prefix}_SERVER, ${prefix}_DATABASE, ...)`
+      );
+    }
+    const promise = new sql.ConnectionPool(config)
       .connect()
       .then(pool => {
-        console.log('✅ Đã kết nối Data Warehouse:', config.server + ':' + config.port, '-', config.database);
+        console.log(`✅ Đã kết nối [${prefix}]: ${config.server}:${config.port} - ${config.database}`);
         return pool;
       })
       .catch(err => {
-        poolPromise = null;
-        console.error('⛔ Lỗi kết nối Data Warehouse:', err.message);
+        pools.delete(prefix);
+        console.error(`⛔ Lỗi kết nối [${prefix}]:`, err.message);
         throw err;
       });
+    pools.set(prefix, promise);
   }
-  return poolPromise;
+  return pools.get(prefix);
 }
 
 module.exports = { sql, getPool };

@@ -1,5 +1,5 @@
-// server.js — Điểm khởi chạy Report Server. Chỉ đọc Data Warehouse (db.js),
-// không bao giờ ghi — và không bao giờ gọi thẳng vào CSDL nghiệp vụ nguồn.
+// server.js — Điểm khởi chạy Report Server. Hai pool tĩnh (RP, DWH — xem
+// db.js) + pool động cho nguồn dữ liệu bổ sung (lib/dataSourcePool.js).
 require('dotenv').config();
 const express = require('express');
 const cookieParser = require('cookie-parser');
@@ -7,7 +7,16 @@ const compression = require('compression');
 const { rateLimit } = require('express-rate-limit');
 
 const healthRoutes = require('./routes/health');
+const meRoutes = require('./routes/me');
 const reportRoutes = require('./routes/reports');
+const usersRoutes = require('./routes/users');
+const rolesRoutes = require('./routes/roles');
+const menuItemsRoutes = require('./routes/menuItems');
+const categoriesRoutes = require('./routes/categories');
+const emailSettingsRoutes = require('./routes/emailSettings');
+const auditLogRoutes = require('./routes/auditLog');
+const reportCatalogRoutes = require('./routes/reportCatalog');
+const dataSourcesRoutes = require('./routes/dataSources');
 const { verifyCredentials, issueToken, COOKIE_NAME } = require('./lib/auth');
 
 const app = express();
@@ -27,10 +36,10 @@ app.use(rateLimit({
 app.post('/api/auth/login', async (req, res, next) => {
   try {
     const { username, password } = req.body || {};
-    const ok = await verifyCredentials(username, password);
-    if (!ok) return res.status(401).json({ error: 'Sai tên đăng nhập hoặc mật khẩu' });
+    const user = await verifyCredentials(username, password);
+    if (!user) return res.status(401).json({ error: 'Sai tên đăng nhập hoặc mật khẩu' });
 
-    const token = issueToken(username);
+    const token = issueToken(user);
     res.cookie(COOKIE_NAME, token, {
       httpOnly: true,
       sameSite: 'lax',
@@ -47,7 +56,19 @@ app.post('/api/auth/logout', (req, res) => {
 });
 
 app.use('/api/health', healthRoutes);
+app.use('/api/me', meRoutes);
 app.use('/api/reports', reportRoutes);
+
+// "Hệ thống" — mỗi route con tự kiểm tra đúng 1 mã menu tương ứng (xem
+// requireMenuAccess trong từng file route).
+app.use('/api/system/users', usersRoutes);
+app.use('/api/system/roles', rolesRoutes);
+app.use('/api/system/menu-items', menuItemsRoutes);
+app.use('/api/system/categories', categoriesRoutes);
+app.use('/api/system/email-settings', emailSettingsRoutes);
+app.use('/api/system/audit-log', auditLogRoutes);
+app.use('/api/system/report-catalog', reportCatalogRoutes);
+app.use('/api/system/data-sources', dataSourcesRoutes);
 
 app.use((err, req, res, next) => { // eslint-disable-line no-unused-vars
   console.error(err);
