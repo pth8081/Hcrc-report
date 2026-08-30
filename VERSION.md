@@ -5,6 +5,21 @@ Server, API Server và các giao diện quản trị) — tăng ở mỗi lần 
 `main`, theo kiểu semver không chặt (patch cho fix nhỏ, minor cho tính năng
 mới, major khi đổi cấu trúc phá vỡ tương thích ngược).
 
+## 0.6.0 — Cổng đăng nhập chung & đa kết nối cho API Server
+
+- `portal/` — trang tĩnh mới, điểm vào duy nhất: 3 lựa chọn (Report/ETL/API),
+  bấm vào đâu điều hướng CẢ TRANG sang đúng ứng dụng đã có sẵn
+  (`frontend/`/`etl-admin/`/`api-admin/`) — không gộp 3 ứng dụng thành một,
+  giữ nguyên cô lập tài khoản/CSDL/JWT đã thống nhất ở 3 lượt trước (xem tài
+  liệu kiến trúc "Cổng Đăng Nhập HCRC", Phương án A).
+- API Server nay cũng dùng được nhiều kết nối cấu hình qua giao diện, khớp
+  đúng mô hình Report/ETL đã có: `api.DataSources` (CSDL `HCRC_API`, mật
+  khẩu mã hoá bằng `API_ENCRYPTION_KEY` riêng) + `api.RealtimeEndpoints` gán
+  từng endpoint (`inventory`/`loyalty`/`vouchers`) cho đúng một nguồn — thay
+  hẳn `OLTP_*` tĩnh trong `.env`. Trang "Nguồn dữ liệu" mới trên
+  `api-admin/`; `/admin/live/pools` báo cáo cả pool DWH lẫn từng nguồn
+  realtime đang mở.
+
 ## 0.5.1 — Đổi tên thư mục cho nhất quán
 
 - `app/` → `rp-db/` — schema CSDL `HCRC_RP` của Report Server. Tên cũ (`app/`)

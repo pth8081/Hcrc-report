@@ -17,6 +17,7 @@ const reportsRoutes = require('./routes/v1/reports');
 const realtimeRoutes = require('./routes/v1/realtime');
 const adminAuthRoutes = require('./routes/admin/auth');
 const adminConsumersRoutes = require('./routes/admin/consumers');
+const adminDataSourcesRoutes = require('./routes/admin/dataSources');
 const adminLiveRoutes = require('./routes/admin/live');
 const adminHistoryRoutes = require('./routes/admin/history');
 const adminStatsRoutes = require('./routes/admin/stats');
@@ -49,6 +50,7 @@ app.use('/api/v1', realtimeRoutes); // /api/v1/inventory, /api/v1/loyalty, /api/
 app.use('/admin', adminIpAllowlist);
 app.use('/admin/auth', adminAuthRoutes);
 app.use('/admin/consumers', adminConsumersRoutes);
+app.use('/admin/data-sources', adminDataSourcesRoutes);
 app.use('/admin/live', adminLiveRoutes);
 app.use('/admin/history', adminHistoryRoutes);
 app.use('/admin/stats', adminStatsRoutes);

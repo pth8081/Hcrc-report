@@ -46,14 +46,23 @@ export default function LivePage() {
 
       <h3>Kết nối CSDL đang dùng</h3>
       <div className="pool-cards">
-        {Object.entries(pools).map(([name, stat]) => (
-          <div key={name} className="pool-card">
-            <div className="pool-card-title">{name}</div>
+        {pools.DWH && (
+          <div className="pool-card">
+            <div className="pool-card-title">DWH (báo cáo)</div>
+            {pools.DWH.error ? <p>{pools.DWH.error}</p> : (
+              <p><strong>{pools.DWH.borrowed}</strong> / {pools.DWH.size} đang dùng · {pools.DWH.pending} đang chờ</p>
+            )}
+          </div>
+        )}
+        {(pools.realtimeSources || []).map(stat => (
+          <div key={stat.id} className="pool-card">
+            <div className="pool-card-title">{stat.name || `Nguồn #${stat.id}`} (realtime)</div>
             {stat.error ? <p>{stat.error}</p> : (
               <p><strong>{stat.borrowed}</strong> / {stat.size} đang dùng · {stat.pending} đang chờ</p>
             )}
           </div>
         ))}
+        {!pools.DWH && !(pools.realtimeSources || []).length && <p className="empty-message">Chưa có kết nối nào đang mở.</p>}
       </div>
 
       <h3>Request /api/v1/* đang xử lý ({requests.length})</h3>

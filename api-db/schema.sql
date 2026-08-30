@@ -1,9 +1,12 @@
 /* api-db/schema.sql — Cấu trúc bảng CSDL HCRC_API: tài khoản quản trị API
    (admin.AdminUsers), đối tác gọi API (api.ApiConsumers), nhật ký request
-   (api.RequestLog). TÁCH RIÊNG hoàn toàn khỏi HCRC_RP và HCRC_DWH — xem tài
-   liệu kiến trúc "Quản Trị API HCRC", mục 02, cho lý do tách. Giả định CSDL
-   HCRC_API đã được tạo sẵn — script này chỉ tạo schema + bảng bên trong,
-   KHÔNG tạo CSDL mới. An toàn chạy lại nhiều lần. */
+   (api.RequestLog), nguồn dữ liệu bổ sung cho các endpoint realtime
+   (api.DataSources, api.RealtimeEndpoints — thay hẳn OLTP_* tĩnh trong
+   .env, xem tài liệu kiến trúc "Cổng Đăng Nhập HCRC", mục 01, điểm 4).
+   TÁCH RIÊNG hoàn toàn khỏi HCRC_RP và HCRC_DWH — xem tài liệu kiến trúc
+   "Quản Trị API HCRC", mục 02, cho lý do tách. Giả định CSDL HCRC_API đã
+   được tạo sẵn — script này chỉ tạo schema + bảng bên trong, KHÔNG tạo CSDL
+   mới. An toàn chạy lại nhiều lần. */
 
 IF NOT EXISTS (SELECT 1 FROM sys.schemas WHERE name = 'admin')
 BEGIN
@@ -76,5 +79,42 @@ BEGIN
     CREATE INDEX IX_RequestLog_RequestedAt ON api.RequestLog (RequestedAt DESC);
     CREATE INDEX IX_RequestLog_Consumer_Requested ON api.RequestLog (ConsumerId, RequestedAt DESC);
     CREATE INDEX IX_RequestLog_Endpoint_Requested ON api.RequestLog (Endpoint, RequestedAt DESC);
+END
+GO
+
+-- Nguồn dữ liệu bổ sung cho các endpoint realtime (tồn kho/điểm thẻ/voucher)
+-- — thay hẳn OLTP_* tĩnh trong .env. PasswordEncrypted mã hoá bằng
+-- API_ENCRYPTION_KEY (AES-256-GCM, xem api-server/lib/crypto.js) — khoá
+-- RIÊNG của API Server, không dùng chung với Report Server/ETL. Chỉ hỗ trợ
+-- SQL Server (đúng phạm vi 3 endpoint realtime hiện tại, không cần đa
+-- engine như etl.DataSources).
+IF OBJECT_ID('api.DataSources', 'U') IS NULL
+BEGIN
+    CREATE TABLE api.DataSources (
+        Id                INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        Name              NVARCHAR(200) NOT NULL,
+        Server            NVARCHAR(200) NOT NULL,
+        Port              INT           NOT NULL DEFAULT 1433,
+        DatabaseName      NVARCHAR(100) NOT NULL,
+        Username          NVARCHAR(100) NOT NULL,
+        PasswordEncrypted NVARCHAR(500) NOT NULL,
+        Encrypt           BIT           NOT NULL DEFAULT 1,
+        TrustServerCert   BIT           NOT NULL DEFAULT 0,
+        IsActive          BIT           NOT NULL DEFAULT 1,
+        CreatedAt         DATETIME2(3)  NOT NULL DEFAULT SYSUTCDATETIME()
+    );
+END
+GO
+
+-- Mỗi endpoint realtime trỏ tới ĐÚNG một nguồn trong api.DataSources — admin
+-- đổi được trên api-admin/ mà không cần deploy lại. Chưa có dòng nào cho
+-- một endpoint = endpoint đó chưa dùng được (báo lỗi rõ ràng thay vì âm
+-- thầm rơi về cấu hình cũ).
+IF OBJECT_ID('api.RealtimeEndpoints', 'U') IS NULL
+BEGIN
+    CREATE TABLE api.RealtimeEndpoints (
+        Endpoint     VARCHAR(50) NOT NULL PRIMARY KEY, -- 'inventory' | 'loyalty' | 'vouchers'
+        DataSourceId INT         NOT NULL REFERENCES api.DataSources(Id)
+    );
 END
 GO

@@ -1,18 +1,25 @@
 # API Server
 
-Cổng dữ liệu cho hệ thống ngoài + trang quản trị tự cấu hình (`api-admin/`).
-Ba nhóm route, ba mức xác thực hoàn toàn tách biệt:
+Cổng dữ liệu cho hệ thống ngoài **và nội bộ** (API key không phân biệt hai
+bên — cấp cho app nội bộ y hệt đối tác ngoài) + trang quản trị tự cấu hình
+(`api-admin/`). Ba nhóm route, ba mức xác thực hoàn toàn tách biệt:
 
-- `/api/v1/reports/*` — báo cáo tổng hợp, đọc từ Data Warehouse (`HCRC_DWH`, chỉ đọc). Xác thực: API key.
-- `/api/v1/inventory|loyalty|vouchers/*` — tra cứu realtime, đọc thẳng CSDL OLTP qua view riêng. Xác thực: API key.
-- `/admin/*` — trang quản trị (`api-admin/`): quản lý đối tác API, xem kết nối hiện tại/lịch sử/top truy vấn. Xác thực: cookie phiên (tài khoản riêng, CSDL riêng `HCRC_API`).
+- `/api/v1/reports/*` — báo cáo tổng hợp, đọc từ Data Warehouse (`HCRC_DWH`, chỉ đọc, nguồn mặc định qua `.env`). Xác thực: API key.
+- `/api/v1/inventory|loyalty|vouchers/*` — tra cứu realtime, mỗi endpoint đọc từ một nguồn được **gán riêng qua trang quản trị** (`api.DataSources` + `api.RealtimeEndpoints`, KHÔNG còn tĩnh qua `.env`). Xác thực: API key.
+- `/admin/*` — trang quản trị (`api-admin/`): đối tác API, nguồn dữ liệu realtime, kết nối hiện tại/lịch sử/top truy vấn. Xác thực: cookie phiên (tài khoản riêng, CSDL riêng `HCRC_API`).
 
 ## Cài đặt
 
 ```bash
 cd api-server
 npm install
-cp .env.example .env   # điền DWH_*, OLTP_*, ADMIN_* (CSDL HCRC_API), ADMIN_JWT_SECRET
+cp .env.example .env   # điền DWH_*, ADMIN_* (CSDL HCRC_API), ADMIN_JWT_SECRET, API_ENCRYPTION_KEY
+```
+
+Tạo khoá mã hoá (dùng để mã hoá mật khẩu các nguồn lưu trong `api.DataSources`):
+
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
 ```
 
 Chạy `api-db/schema.sql` trên CSDL `HCRC_API` (một lần — an toàn chạy lại
@@ -22,11 +29,19 @@ nhiều lần). Tạo tài khoản quản trị đầu tiên cho `api-admin/`:
 npm run seed:admin -- ten-dang-nhap mat-khau "Họ Tên" admin
 ```
 
-## Chạy
+## Cấu hình nguồn dữ liệu cho 3 endpoint realtime
 
-```bash
-npm start
-```
+Qua trang "Nguồn dữ liệu" trên `api-admin/`:
+
+1. Thêm một nguồn (`api.DataSources`) — server/database/tài khoản **chỉ
+   đọc**, kiểm tra kết nối trước khi lưu.
+2. Gán nguồn đó cho từng endpoint (`inventory`/`loyalty`/`vouchers`) — một
+   endpoint có thể trỏ một nguồn khác endpoint kia, không bắt buộc dùng
+   chung.
+
+Endpoint chưa được gán nguồn sẽ trả lỗi rõ ràng thay vì âm thầm dùng cấu
+hình cũ — không có "nguồn mặc định" ngầm định cho nhóm realtime này (khác
+`/api/v1/reports`, vẫn có `HCRC_DWH` làm mặc định qua `.env`).
 
 ## Cấp API key cho một hệ thống đối tác
 
@@ -66,7 +81,11 @@ SHA-256 (`api.ApiConsumers.ApiKeyHash`). Mất key thì luân chuyển key mới
 | `POST /admin/auth/login`, `/logout`, `GET /me` | — | Đăng nhập/đăng xuất |
 | `GET/POST/PUT/DELETE /admin/consumers` | `admin` sửa, ai đăng nhập cũng xem được | CRUD đối tác API |
 | `POST /admin/consumers/:id/rotate` | `admin` | Luân chuyển key |
+| `GET/POST/PUT/DELETE /admin/data-sources` | `admin` sửa | CRUD nguồn dữ liệu realtime |
+| `POST /admin/data-sources/test` | `admin` | Kiểm tra kết nối một cấu hình chưa lưu |
+| `GET /admin/data-sources/realtime-endpoints` | — | Nguồn đang gán cho từng endpoint |
+| `PUT /admin/data-sources/realtime-endpoints/:endpoint` | `admin` | Đổi nguồn gán cho một endpoint |
 | `GET /admin/live/stream` | — | SSE: request đang chạy realtime |
-| `GET /admin/live/pools` | — | Số kết nối CSDL đang dùng/tối đa (DWH, OLTP) |
+| `GET /admin/live/pools` | — | Số kết nối CSDL đang dùng/tối đa (DWH) |
 | `GET /admin/history` | — | Lịch sử request, lọc + phân trang |
 | `GET /admin/stats/top?since=1h\|24h\|7d` | — | Top endpoint/đối tác theo số lượt gọi |

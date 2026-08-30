@@ -1,10 +1,13 @@
 // routes/admin/live.js — "Kết nối hiện tại": SSE cho request đang chạy +
-// snapshot tình trạng các pool CSDL (DWH/OLTP) đang mở — hai loại thông tin
-// khác nhau, xem tài liệu kiến trúc "Quản Trị API HCRC", mục 01.
+// snapshot tình trạng các pool CSDL đang mở — DWH (tĩnh, mặc định cho
+// /reports) và từng nguồn realtime đang kết nối (động, theo
+// api.DataSources — xem lib/dataSourcePool.js). Không còn pool "OLTP" tĩnh
+// như trước — 3 endpoint realtime giờ đọc theo cấu hình trong CSDL.
 const express = require('express');
 const { requireAdminAuth } = require('../../lib/adminAuth');
 const liveTracker = require('../../lib/liveTracker');
 const { getPool } = require('../../db');
+const { listActivePoolStats } = require('../../lib/dataSourcePool');
 
 const router = express.Router();
 router.use(requireAdminAuth);
@@ -27,14 +30,13 @@ router.get('/stream', (req, res) => {
 router.get('/pools', async (req, res, next) => {
   try {
     const pools = {};
-    for (const prefix of ['DWH', 'OLTP']) {
-      try {
-        const pool = await getPool(prefix);
-        pools[prefix] = { size: pool.size, available: pool.available, pending: pool.pending, borrowed: pool.borrowed };
-      } catch {
-        pools[prefix] = { error: 'chưa kết nối được' };
-      }
+    try {
+      const pool = await getPool('DWH');
+      pools.DWH = { size: pool.size, available: pool.available, pending: pool.pending, borrowed: pool.borrowed };
+    } catch {
+      pools.DWH = { error: 'chưa kết nối được' };
     }
+    pools.realtimeSources = await listActivePoolStats();
     res.json(pools);
   } catch (err) { next(err); }
 });
