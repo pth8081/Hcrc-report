@@ -26,7 +26,7 @@
       .portal { text-align: center; max-width: 640px; padding: 24px; }
       h1 { font-size: 28px; margin: 0 0 6px; }
       p { color: var(--ink-soft); margin: 0 0 32px; font-size: 15px; }
-      .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+      .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px; }
       .card {
         display: flex; flex-direction: column; gap: 6px;
         padding: 20px 16px; border: 1px solid var(--line); border-radius: 8px;
@@ -36,6 +36,10 @@
       .card:hover { border-color: var(--ink); transform: translateY(-2px); }
       .card-title { font-size: 16px; font-weight: 600; }
       .card-desc { font-size: 12.5px; color: var(--ink-soft); line-height: 1.4; }
+      .card-audience {
+        font-size: 11px; color: var(--ink-soft); margin-top: 4px;
+        text-transform: uppercase; letter-spacing: .03em;
+      }
       @media (max-width: 560px) { .cards { grid-template-columns: 1fr; } }
     </style>
   </head>
@@ -43,20 +47,7 @@
     <main class="portal">
       <h1>HCRC</h1>
       <p>Chọn hệ thống cần đăng nhập</p>
-      <div class="cards">
-        <a class="card" id="link-report" href="#">
-          <span class="card-title">Report</span>
-          <span class="card-desc">Báo cáo nghiệp vụ, dashboard nội bộ</span>
-        </a>
-        <a class="card" id="link-etl" href="#">
-          <span class="card-title">ETL</span>
-          <span class="card-desc">Nguồn dữ liệu, cấu hình đồng bộ</span>
-        </a>
-        <a class="card" id="link-api" href="#">
-          <span class="card-title">API</span>
-          <span class="card-desc">Đối tác API, kết nối, thống kê</span>
-        </a>
-      </div>
+      <div class="cards" id="cards"></div>
     </main>
     <script type="module" src="/src/main.js"></script>
   </body>

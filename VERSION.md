@@ -5,6 +5,20 @@ Server, API Server và các giao diện quản trị) — tăng ở mỗi lần 
 `main`, theo kiểu semver không chặt (patch cho fix nhỏ, minor cho tính năng
 mới, major khi đổi cấu trúc phá vỡ tương thích ngược).
 
+## 0.21.4 — portal/: danh mục ứng dụng dạng dữ liệu, dễ thêm ứng dụng mới
+
+- **`portal/src/apps.js`** (mới) — danh mục ứng dụng portal hiển thị, mỗi
+  ứng dụng 1 phần tử `{key, title, desc, envVar, fallback, audience}`.
+  Thêm ứng dụng mới CHỈ cần thêm 1 phần tử vào đây + 1 biến `VITE_*_URL`
+  trong `.env` — KHÔNG cần sửa `index.html` nữa (`src/main.js` tự vẽ thẻ
+  theo danh sách, lưới thẻ tự giãn theo số lượng qua `auto-fit`). Vẫn giữ
+  nguyên tắc cũ: thuần tĩnh, KHÔNG gọi API, không đăng nhập, không cá nhân
+  hoá — hiện toàn bộ danh mục cho mọi người, đúng vai trò "danh bạ nội bộ"
+  chứ không phải lớp kiểm soát truy cập.
+- Mỗi thẻ giờ có thêm nhãn **"Công khai"/"Nội bộ · VPN"** — chỉ để nhân
+  viên biết trước cần VPN hay không, không kiểm soát gì (portal không biết
+  ai đang xem).
+
 ## 0.21.3 — Hướng dẫn cấu hình báo cáo (hướng_dẫn_báo_cáo.md) + hiện cột Id
 
 - **`hướng_dẫn_báo_cáo.md`** (mới, thư mục gốc repo) — hướng dẫn CẤU HÌNH
