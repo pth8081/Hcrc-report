@@ -12,6 +12,7 @@ const { sql, getPool } = require('../db');
 const { requireAuth, requireMenuAccess } = require('../lib/auth');
 const { logAction } = require('../lib/auditLog');
 const { parseFormula } = require('../lib/formulaEngine');
+const { runExternalReport } = require('../lib/externalReportClient');
 
 const TEMPLATES_DIR = path.join(__dirname, '..', 'templates');
 const upload = multer({
@@ -33,22 +34,41 @@ router.get('/', async (req, res, next) => {
   try {
     const pool = await getPool('RP');
     const result = await pool.request().query(`
-      SELECT ReportId, Title, Domain, MenuItemId, DataSourceId, SourceType, ApiConnectionId, ApiTarget, DefinitionJson, IsActive
+      SELECT ReportId, Title, Domain, MenuItemId, DataSourceId, SourceType, ApiConnectionId, ApiTarget, ExternalConnectionId, DefinitionJson, IsActive
       FROM app.ReportCatalog ORDER BY Title
     `);
     res.json(result.recordset);
   } catch (err) { next(err); }
 });
 
-// SourceType != 'directDb' cần apiConnectionId + apiTarget, KHÔNG cần
-// dataSourceId (Report Server không tự mở kết nối DB riêng cho loại này —
-// xem lib/apiReportClient.js).
-function validateSource({ sourceType = 'directDb', apiConnectionId, apiTarget }) {
-  if (!['directDb', 'apiReport', 'apiRealtime'].includes(sourceType)) {
-    return 'sourceType phải là "directDb", "apiReport" hoặc "apiRealtime"';
+const SOURCE_TYPES = ['directDb', 'apiReport', 'apiRealtime', 'externalApi'];
+
+// 'apiReport'/'apiRealtime' cần apiConnectionId + apiTarget; 'externalApi'
+// cần externalConnectionId (+ externalPath/externalShape trong
+// DefinitionJson, kiểm tra riêng ở validateExternalDefinition — cần JSON đã
+// parse). KHÔNG loại nào trong 3 loại này cần dataSourceId — Report Server
+// không tự mở kết nối DB riêng cho chúng (xem lib/apiReportClient.js,
+// lib/externalReportClient.js).
+function validateSource({ sourceType = 'directDb', apiConnectionId, apiTarget, externalConnectionId }) {
+  if (!SOURCE_TYPES.includes(sourceType)) {
+    return `sourceType phải là một trong: ${SOURCE_TYPES.join(', ')}`;
   }
-  if (sourceType !== 'directDb' && (!apiConnectionId || !apiTarget)) {
+  if ((sourceType === 'apiReport' || sourceType === 'apiRealtime') && (!apiConnectionId || !apiTarget)) {
     return 'sourceType "apiReport"/"apiRealtime" cần apiConnectionId và apiTarget';
+  }
+  if (sourceType === 'externalApi' && !externalConnectionId) {
+    return 'sourceType "externalApi" cần externalConnectionId';
+  }
+  return null;
+}
+
+// externalPath/externalShape khai TRONG DefinitionJson (không phải cột DB
+// riêng như apiTarget) — kiểm tra sau khi đã JSON.parse.
+function validateExternalDefinition(sourceType, definition) {
+  if (sourceType !== 'externalApi') return null;
+  if (!definition.externalPath) return 'sourceType "externalApi" cần khai "externalPath" trong DefinitionJson';
+  if (!['lookup', 'list'].includes(definition.externalShape)) {
+    return 'sourceType "externalApi" cần "externalShape" là "lookup" hoặc "list" trong DefinitionJson';
   }
   return null;
 }
@@ -71,13 +91,15 @@ function validateFormulaColumns(definition) {
 
 router.post('/', async (req, res, next) => {
   try {
-    const { reportId, title, domain, menuItemId, dataSourceId, definitionJson, sourceType = 'directDb', apiConnectionId, apiTarget } = req.body || {};
+    const { reportId, title, domain, menuItemId, dataSourceId, definitionJson, sourceType = 'directDb', apiConnectionId, apiTarget, externalConnectionId } = req.body || {};
     if (!reportId || !title || !domain || !menuItemId || !definitionJson) {
       return res.status(400).json({ error: 'Thiếu reportId/title/domain/menuItemId/definitionJson' });
     }
-    const sourceError = validateSource({ sourceType, apiConnectionId, apiTarget });
+    const sourceError = validateSource({ sourceType, apiConnectionId, apiTarget, externalConnectionId });
     if (sourceError) return res.status(400).json({ error: sourceError });
     const definition = JSON.parse(definitionJson); // validate JSON hợp lệ trước khi lưu
+    const externalError = validateExternalDefinition(sourceType, definition);
+    if (externalError) return res.status(400).json({ error: externalError });
     const formulaError = validateFormulaColumns(definition);
     if (formulaError) return res.status(400).json({ error: formulaError });
 
@@ -89,12 +111,13 @@ router.post('/', async (req, res, next) => {
       .input('menuItemId', sql.Int, menuItemId)
       .input('dataSourceId', sql.Int, sourceType === 'directDb' ? (dataSourceId || null) : null)
       .input('sourceType', sql.VarChar(20), sourceType)
-      .input('apiConnectionId', sql.Int, sourceType === 'directDb' ? null : apiConnectionId)
-      .input('apiTarget', sql.NVarChar(200), sourceType === 'directDb' ? null : apiTarget)
+      .input('apiConnectionId', sql.Int, sourceType === 'apiReport' || sourceType === 'apiRealtime' ? apiConnectionId : null)
+      .input('apiTarget', sql.NVarChar(200), sourceType === 'apiReport' || sourceType === 'apiRealtime' ? apiTarget : null)
+      .input('externalConnectionId', sql.Int, sourceType === 'externalApi' ? externalConnectionId : null)
       .input('definitionJson', sql.NVarChar(sql.MAX), definitionJson)
       .query(`
-        INSERT INTO app.ReportCatalog (ReportId, Title, Domain, MenuItemId, DataSourceId, SourceType, ApiConnectionId, ApiTarget, DefinitionJson)
-        VALUES (@reportId, @title, @domain, @menuItemId, @dataSourceId, @sourceType, @apiConnectionId, @apiTarget, @definitionJson)
+        INSERT INTO app.ReportCatalog (ReportId, Title, Domain, MenuItemId, DataSourceId, SourceType, ApiConnectionId, ApiTarget, ExternalConnectionId, DefinitionJson)
+        VALUES (@reportId, @title, @domain, @menuItemId, @dataSourceId, @sourceType, @apiConnectionId, @apiTarget, @externalConnectionId, @definitionJson)
       `);
     await logAction(req, { module: 'Biểu mẫu', actionType: 'TAO_BAO_CAO', targetObject: reportId, description: `Tạo báo cáo "${title}"` });
     res.status(201).json({ ok: true });
@@ -107,10 +130,12 @@ router.post('/', async (req, res, next) => {
 
 router.put('/:reportId', async (req, res, next) => {
   try {
-    const { title, domain, menuItemId, dataSourceId, definitionJson, isActive, sourceType = 'directDb', apiConnectionId, apiTarget } = req.body || {};
-    const sourceError = validateSource({ sourceType, apiConnectionId, apiTarget });
+    const { title, domain, menuItemId, dataSourceId, definitionJson, isActive, sourceType = 'directDb', apiConnectionId, apiTarget, externalConnectionId } = req.body || {};
+    const sourceError = validateSource({ sourceType, apiConnectionId, apiTarget, externalConnectionId });
     if (sourceError) return res.status(400).json({ error: sourceError });
     const definition = JSON.parse(definitionJson);
+    const externalError = validateExternalDefinition(sourceType, definition);
+    if (externalError) return res.status(400).json({ error: externalError });
     const formulaError = validateFormulaColumns(definition);
     if (formulaError) return res.status(400).json({ error: formulaError });
 
@@ -122,8 +147,9 @@ router.put('/:reportId', async (req, res, next) => {
       .input('menuItemId', sql.Int, menuItemId)
       .input('dataSourceId', sql.Int, sourceType === 'directDb' ? (dataSourceId || null) : null)
       .input('sourceType', sql.VarChar(20), sourceType)
-      .input('apiConnectionId', sql.Int, sourceType === 'directDb' ? null : apiConnectionId)
-      .input('apiTarget', sql.NVarChar(200), sourceType === 'directDb' ? null : apiTarget)
+      .input('apiConnectionId', sql.Int, sourceType === 'apiReport' || sourceType === 'apiRealtime' ? apiConnectionId : null)
+      .input('apiTarget', sql.NVarChar(200), sourceType === 'apiReport' || sourceType === 'apiRealtime' ? apiTarget : null)
+      .input('externalConnectionId', sql.Int, sourceType === 'externalApi' ? externalConnectionId : null)
       .input('definitionJson', sql.NVarChar(sql.MAX), definitionJson)
       .input('isActive', sql.Bit, isActive ? 1 : 0)
       .query(`
@@ -131,6 +157,7 @@ router.put('/:reportId', async (req, res, next) => {
         SET Title = @title, Domain = @domain, MenuItemId = @menuItemId,
             DataSourceId = @dataSourceId, SourceType = @sourceType,
             ApiConnectionId = @apiConnectionId, ApiTarget = @apiTarget,
+            ExternalConnectionId = @externalConnectionId,
             DefinitionJson = @definitionJson, IsActive = @isActive
         WHERE ReportId = @reportId
       `);
@@ -139,6 +166,29 @@ router.put('/:reportId', async (req, res, next) => {
   } catch (err) {
     if (err instanceof SyntaxError) return res.status(400).json({ error: 'definitionJson không phải JSON hợp lệ' });
     next(err);
+  }
+});
+
+// "Chạy thử" — gọi thật API đối tác với cấu hình ĐANG SOẠN (chưa cần lưu
+// báo cáo trước), để phát hiện sai externalPath/externalListPath/columns
+// trước khi kích hoạt cho người dùng. externalConnectionId phải trỏ tới một
+// kết nối ĐÃ LƯU (key/mật khẩu chỉ tồn tại dạng mã hoá trong CSDL).
+router.post('/test-external-api', async (req, res, next) => {
+  try {
+    const { externalConnectionId, externalPath, externalShape, externalListPath, columns = [], filters = {} } = req.body || {};
+    if (!externalConnectionId || !externalPath || !externalShape) {
+      return res.status(400).json({ error: 'Thiếu externalConnectionId/externalPath/externalShape' });
+    }
+    const formulaError = validateFormulaColumns({ columns });
+    if (formulaError) return res.status(400).json({ error: formulaError });
+
+    const result = await runExternalReport(
+      { externalConnectionId, externalPath, externalShape, externalListPath, columns },
+      filters
+    );
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
   }
 });
 

@@ -18,6 +18,7 @@ const auditLogRoutes = require('./routes/auditLog');
 const reportCatalogRoutes = require('./routes/reportCatalog');
 const dataSourcesRoutes = require('./routes/dataSources');
 const apiConnectionsRoutes = require('./routes/apiConnections');
+const externalConnectionsRoutes = require('./routes/externalConnections');
 const { verifyCredentials, issueToken, COOKIE_NAME } = require('./lib/auth');
 
 const app = express();
@@ -71,6 +72,7 @@ app.use('/api/system/audit-log', auditLogRoutes);
 app.use('/api/system/report-catalog', reportCatalogRoutes);
 app.use('/api/system/data-sources', dataSourcesRoutes);
 app.use('/api/system/api-connections', apiConnectionsRoutes);
+app.use('/api/system/external-connections', externalConnectionsRoutes);
 
 app.use((err, req, res, next) => { // eslint-disable-line no-unused-vars
   console.error(err);

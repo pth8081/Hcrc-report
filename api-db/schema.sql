@@ -44,6 +44,11 @@ GO
 -- api-server/lib/adminAuth.js vì sao SHA-256 chứ không phải bcrypt như mật
 -- khẩu). Scopes lưu dạng chuỗi phân tách dấu phẩy (vd "reports,realtime"),
 -- khớp đúng cơ chế requireApiKey(...scopes) đã có ở lib/apiAuth.js.
+-- AllowedIps: danh sách IP/dải CIDR phân tách dấu phẩy (vd
+-- "203.0.113.10,198.51.100.0/24") — RỖNG/NULL = không giới hạn IP (chỉ cần
+-- đúng key). Kiểm tra SAU KHI đã xác thực key hợp lệ (xem lib/apiAuth.js,
+-- lib/ipMatch.js) — khác adminIpAllowlist.js (đó là cho /admin/*, áp dụng
+-- CHUNG mọi người, còn đây là RIÊNG từng đối tác).
 IF OBJECT_ID('api.ApiConsumers', 'U') IS NULL
 BEGIN
     CREATE TABLE api.ApiConsumers (
@@ -52,11 +57,20 @@ BEGIN
         ApiKeyHash         CHAR(64)      NOT NULL,
         Scopes             NVARCHAR(200) NOT NULL,
         RateLimitPerMinute INT           NOT NULL DEFAULT 120,
+        AllowedIps         NVARCHAR(500) NULL,
         IsActive           BIT           NOT NULL DEFAULT 1,
         CreatedAt          DATETIME2(3)  NOT NULL DEFAULT SYSUTCDATETIME(),
         LastUsedAt         DATETIME2(3)  NULL,
         CONSTRAINT UX_ApiConsumers_ApiKeyHash UNIQUE (ApiKeyHash)
     );
+END
+GO
+
+-- Nâng cấp từ bản trước (bảng đã tồn tại nhưng chưa có AllowedIps) — an toàn
+-- chạy lại nhiều lần.
+IF COL_LENGTH('api.ApiConsumers', 'AllowedIps') IS NULL
+BEGIN
+    ALTER TABLE api.ApiConsumers ADD AllowedIps NVARCHAR(500) NULL;
 END
 GO
 

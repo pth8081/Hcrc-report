@@ -3,7 +3,14 @@
 // để vào api-admin/, hai ranh giới hoàn toàn tách biệt). Tra cứu qua
 // lib/apiConsumers.js (cache trong bộ nhớ, không phải 1 truy vấn CSDL cho
 // mỗi request).
+//
+// Giới hạn IP RIÊNG TỪNG ĐỐI TÁC (consumer.allowedIps, từ
+// api.ApiConsumers.AllowedIps) kiểm tra SAU KHI key đã hợp lệ — key đúng
+// nhưng gọi từ IP không nằm trong danh sách vẫn bị từ chối. Rỗng = không
+// giới hạn (chỉ cần đúng key, hành vi cũ). Khác lib/adminIpAllowlist.js (đó
+// là 1 danh sách CHUNG cho /admin/*, áp dụng như nhau cho mọi người).
 const { findByKey } = require('./apiConsumers');
+const { ipAllowed } = require('./ipMatch');
 
 function requireApiKey(...requiredScopes) {
   return async (req, res, next) => {
@@ -16,6 +23,10 @@ function requireApiKey(...requiredScopes) {
 
       const hasScope = requiredScopes.every(scope => consumer.scopes.includes(scope));
       if (!hasScope) return res.status(403).json({ error: 'API key không có quyền gọi endpoint này' });
+
+      if (consumer.allowedIps.length && !ipAllowed(req.ip, consumer.allowedIps)) {
+        return res.status(403).json({ error: 'IP gọi tới không nằm trong danh sách cho phép của đối tác này' });
+      }
 
       req.consumer = consumer;
       next();

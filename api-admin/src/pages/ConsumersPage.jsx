@@ -13,7 +13,7 @@ import { useAuth } from '../lib/AuthContext';
 import DataTable from '../components/DataTable';
 
 const SCOPE_OPTIONS = ['reports', 'realtime'];
-const EMPTY_FORM = { name: '', scopes: [], rateLimitPerMinute: 120 };
+const EMPTY_FORM = { name: '', scopes: [], rateLimitPerMinute: 120, allowedIps: '' };
 
 export default function ConsumersPage() {
   const { isAdmin } = useAuth();
@@ -81,6 +81,7 @@ export default function ConsumersPage() {
         name: editing.Name,
         scopes: editing.Scopes,
         rateLimitPerMinute: editing.RateLimitPerMinute,
+        allowedIps: editing.AllowedIps || '',
         isActive: editing.IsActive
       });
       setEditing(null);
@@ -121,6 +122,11 @@ export default function ConsumersPage() {
             ))}
           </div>
           <input type="number" placeholder="Giới hạn/phút" value={form.rateLimitPerMinute} onChange={(e) => setForm({ ...form, rateLimitPerMinute: Number(e.target.value) })} />
+          <input
+            placeholder="IP cho phép, phân tách dấu phẩy (để trống = không giới hạn), vd 203.0.113.10,198.51.100.0/24"
+            value={form.allowedIps}
+            onChange={(e) => setForm({ ...form, allowedIps: e.target.value })}
+          />
           <button type="submit">Tạo đối tác</button>
         </form>
       )}
@@ -130,6 +136,7 @@ export default function ConsumersPage() {
           { key: 'Name', label: 'Tên' },
           { key: 'Scopes', label: 'Phạm vi', render: (c) => c.Scopes.join(', ') },
           { key: 'RateLimitPerMinute', label: 'Giới hạn/phút' },
+          { key: 'AllowedIps', label: 'IP cho phép', render: (c) => c.AllowedIps || 'Không giới hạn' },
           { key: 'IsActive', label: 'Trạng thái', render: (c) => (c.IsActive ? 'Hoạt động' : 'Đã tắt') },
           { key: 'LastUsedAt', label: 'Dùng gần nhất', render: (c) => (c.LastUsedAt ? new Date(c.LastUsedAt).toLocaleString('vi-VN') : '—') },
           isAdmin && {
@@ -160,6 +167,11 @@ export default function ConsumersPage() {
               ))}
             </div>
             <input type="number" value={editing.RateLimitPerMinute} onChange={(e) => setEditing({ ...editing, RateLimitPerMinute: Number(e.target.value) })} />
+            <input
+              placeholder="IP cho phép, phân tách dấu phẩy (để trống = không giới hạn)"
+              value={editing.AllowedIps || ''}
+              onChange={(e) => setEditing({ ...editing, AllowedIps: e.target.value })}
+            />
             <label className="checkbox-row">
               <input type="checkbox" checked={editing.IsActive} onChange={(e) => setEditing({ ...editing, IsActive: e.target.checked })} /> Hoạt động
             </label>

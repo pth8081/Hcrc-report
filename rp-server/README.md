@@ -131,6 +131,47 @@ FROM app.MenuItems WHERE Code = 'reports-van-hanh';
   bỏ qua) — API Server mới trả danh sách phân trang, xem
   `api-server/routes/v1/realtime.js`.
 
+### Báo cáo lấy dữ liệu trực tiếp từ API đối tác (không qua API Server)
+
+Khi báo cáo cần dữ liệu từ một API do **đối tác/hệ thống bên ngoài** xây
+dựng (không phải API Server của HCRC), đặt `SourceType = 'externalApi'`.
+Khác `'apiReport'`/`'apiRealtime'` (luôn biết trước hình dạng response vì đó
+là API của mình), API đối tác trả JSON tuỳ ý — cần khai đường dẫn tới dữ
+liệu, không chỉ chọn tên field có sẵn.
+
+1. Tạo kết nối ở tab "Kết nối API đối tác" (trang "Biểu mẫu"): Base URL +
+   cách xác thực đúng với API đối tác — `headerKey` (1 header tuỳ tên, bao
+   được cả API key riêng lẫn Bearer token tĩnh: đặt tên header `Authorization`,
+   giá trị `Bearer xxx`), `queryParam` (1 tham số query string), `basicAuth`
+   (username/password), hoặc `none`. **Chưa hỗ trợ** OAuth2 Client
+   Credentials (phải tự xin + làm mới token) hay HMAC ký từng request (phổ
+   biến ở cổng thanh toán/ngân hàng) — làm khi có đối tác cụ thể cần.
+2. Tạo báo cáo, `SourceType = 'externalApi'`, chọn kết nối, điền:
+   - **Đường dẫn** (`externalPath`) — có thể chèn `{field}` lấy từ bộ lọc
+     báo cáo, vd `/orders/{maDonHang}`. Giá trị bộ lọc KHÔNG dùng trong path
+     tự động thêm vào query string.
+   - **Hình dạng** (`externalShape`) — `'lookup'` (1 bản ghi, vd tra voucher
+     theo mã) hoặc `'list'` (nhiều dòng).
+   - **JSON path tới dữ liệu** (`externalListPath`, tuỳ chọn) — nếu API đối
+     tác bọc kết quả trong 1 object (vd `{"data": {...}}` hay
+     `{"items": [...]}`), khai đường dẫn tới đúng phần cần lấy (`data`,
+     `items`...); để trống nếu response gốc đã là dữ liệu cần lấy.
+   - **columns** trong `DefinitionJson` — dùng đường dẫn JSON PHẲNG (vd
+     `"trangThai"`, `"thongTin.capNhatLuc"`, chấm nối cho JSON lồng nhau) thay
+     vì `measures.xxx`/`entityCode`, hoặc cột công thức `{key,label,formula}`
+     y hệt các `SourceType` khác (tham chiếu field cũng dùng đường dẫn JSON
+     phẳng này).
+3. Bấm **"Chạy thử"** (ngay trên form, chưa cần lưu báo cáo) — gọi thật API
+   đối tác với bộ lọc mẫu bạn nhập, hiện JSON kết quả hoặc lỗi cụ thể. Nên
+   dùng trước khi lưu — cấu hình sai (path/JSON path/tên cột) chỉ lộ ra khi
+   thực sự gọi, khác các `SourceType` khác vốn được kiểm tra định dạng nhiều
+   hơn lúc lưu.
+
+**Giới hạn đã biết**: không tự phân trang phía API đối tác (không biết quy
+ước tham số của họ) — lấy nguyên 1 lần gọi trả về gì thì hiển thị đó. Nếu
+API đối tác cần phân trang, thêm tham số cố định thẳng vào `externalPath`
+(vd `/orders?limit=500`).
+
 ## API
 
 | Endpoint | Mô tả |
@@ -146,8 +187,10 @@ FROM app.MenuItems WHERE Code = 'reports-van-hanh';
 | `/api/system/email-settings` | Cấu hình SMTP + gửi thử |
 | `/api/system/audit-log` | Xem log, chỉ đọc |
 | `/api/system/report-catalog` | CRUD định nghĩa báo cáo, tải mẫu `.xlsx/.pptx` |
+| `POST /api/system/report-catalog/test-external-api` | Chạy thử báo cáo `externalApi` với cấu hình đang soạn (chưa cần lưu) |
 | `/api/system/data-sources` | CRUD nguồn dữ liệu bổ sung (trực tiếp CSDL), kiểm tra kết nối |
 | `/api/system/api-connections` | CRUD kết nối tới API Server (báo cáo `SourceType='apiReport'\|'apiRealtime'`), kiểm tra kết nối |
+| `/api/system/external-connections` | CRUD kết nối tới API đối tác (báo cáo `SourceType='externalApi'`), kiểm tra kết nối |
 
 Toàn bộ route (trừ `/api/health`, `/api/auth/login`) yêu cầu đăng nhập; các
 route trong `/api/system/*` yêu cầu thêm đúng quyền menu tương ứng (vd

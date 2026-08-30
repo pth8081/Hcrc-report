@@ -20,7 +20,7 @@ router.get('/', async (req, res, next) => {
   try {
     const pool = await getPool('ADMIN');
     const result = await pool.request().query(`
-      SELECT Id, Name, Scopes, RateLimitPerMinute, IsActive, CreatedAt, LastUsedAt
+      SELECT Id, Name, Scopes, RateLimitPerMinute, AllowedIps, IsActive, CreatedAt, LastUsedAt
       FROM api.ApiConsumers ORDER BY Name
     `);
     res.json(result.recordset.map(r => ({ ...r, Scopes: r.Scopes.split(',').filter(Boolean) })));
@@ -29,7 +29,7 @@ router.get('/', async (req, res, next) => {
 
 router.post('/', requireAdminRole, async (req, res, next) => {
   try {
-    const { name, scopes = [], rateLimitPerMinute = 120 } = req.body || {};
+    const { name, scopes = [], rateLimitPerMinute = 120, allowedIps = '' } = req.body || {};
     if (!name || !scopes.length) return res.status(400).json({ error: 'Thiếu name/scopes' });
 
     const rawKey = crypto.randomBytes(32).toString('base64url');
@@ -39,10 +39,11 @@ router.post('/', requireAdminRole, async (req, res, next) => {
       .input('apiKeyHash', sql.Char(64), sha256Hex(rawKey))
       .input('scopes', sql.NVarChar(200), scopes.join(','))
       .input('rateLimit', sql.Int, rateLimitPerMinute)
+      .input('allowedIps', sql.NVarChar(500), allowedIps || null)
       .query(`
-        INSERT INTO api.ApiConsumers (Name, ApiKeyHash, Scopes, RateLimitPerMinute)
+        INSERT INTO api.ApiConsumers (Name, ApiKeyHash, Scopes, RateLimitPerMinute, AllowedIps)
         OUTPUT INSERTED.Id
-        VALUES (@name, @apiKeyHash, @scopes, @rateLimit)
+        VALUES (@name, @apiKeyHash, @scopes, @rateLimit, @allowedIps)
       `);
     invalidate();
     res.status(201).json({ id: result.recordset[0].Id, apiKey: rawKey }); // CHỈ response này có key gốc
@@ -64,17 +65,19 @@ router.post('/:id/rotate', requireAdminRole, async (req, res, next) => {
 
 router.put('/:id', requireAdminRole, async (req, res, next) => {
   try {
-    const { name, scopes = [], rateLimitPerMinute, isActive } = req.body || {};
+    const { name, scopes = [], rateLimitPerMinute, isActive, allowedIps = '' } = req.body || {};
     const pool = await getPool('ADMIN');
     await pool.request()
       .input('id', sql.Int, req.params.id)
       .input('name', sql.NVarChar(200), name)
       .input('scopes', sql.NVarChar(200), scopes.join(','))
       .input('rateLimit', sql.Int, rateLimitPerMinute || 120)
+      .input('allowedIps', sql.NVarChar(500), allowedIps || null)
       .input('isActive', sql.Bit, isActive ? 1 : 0)
       .query(`
         UPDATE api.ApiConsumers
-        SET Name = @name, Scopes = @scopes, RateLimitPerMinute = @rateLimit, IsActive = @isActive
+        SET Name = @name, Scopes = @scopes, RateLimitPerMinute = @rateLimit,
+            AllowedIps = @allowedIps, IsActive = @isActive
         WHERE Id = @id
       `);
     invalidate();

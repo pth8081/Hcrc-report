@@ -5,6 +5,34 @@ Server, API Server và các giao diện quản trị) — tăng ở mỗi lần 
 `main`, theo kiểu semver không chặt (patch cho fix nhỏ, minor cho tính năng
 mới, major khi đổi cấu trúc phá vỡ tương thích ngược).
 
+## 0.10.0 — Report Server gọi thẳng API đối tác & giới hạn IP theo đối tác
+
+- **`SourceType='externalApi'`** (rp-db) — báo cáo giờ gọi được THẲNG một API
+  do đối tác bên ngoài xây dựng, không qua API Server. Bảng mới
+  `app.ExternalApiConnections`: Base URL + `AuthType` (`none`/`headerKey`/
+  `queryParam`/`basicAuth` — bao được cả API key riêng lẫn Bearer token tĩnh
+  qua `headerKey`). `DefinitionJson` thêm `externalPath` (URL, chèn được
+  `{field}` từ bộ lọc), `externalShape` (`lookup`/`list`), `externalListPath`
+  (JSON path tới dữ liệu trong response). `columns` dùng đường dẫn JSON phẳng
+  hoặc cột công thức {key,label,formula} — TÁI DÙNG nguyên `lib/formulaEngine.js`
+  đã có, không viết lại. **Chưa hỗ trợ** OAuth2 Client Credentials hay HMAC
+  ký request — phức tạp hơn hẳn, làm khi có đối tác cụ thể cần.
+- rp-server: `lib/externalApiConnectionPool.js`, `lib/externalReportClient.js`
+  (dựng request/áp xác thực/trích JSON theo path/chiếu cột — đã test cả 3
+  kiểu xác thực + JSON path lồng nhau + công thức), `routes/externalConnections.js`
+  (CRUD). Tab mới "Kết nối API đối tác" + nút **"Chạy thử"** ngay trên form
+  báo cáo (gọi thật với cấu hình đang soạn, chưa cần lưu) — API đối tác
+  không kiểm soát được, rủi ro sai cấu hình (path/JSON path) cao hơn hẳn nội
+  bộ, nên test được trước khi kích hoạt cho người dùng quan trọng hơn các
+  `SourceType` khác.
+- **Giới hạn IP theo từng đối tác API** — `api.ApiConsumers` thêm `AllowedIps`
+  (api-db), phân tách dấu phẩy, chấp nhận IP đơn lẫn CIDR (IPv4). Kiểm tra
+  SAU KHI key đã hợp lệ (`lib/apiAuth.js` + `lib/ipMatch.js`, đã test cả CIDR
+  lẫn IPv4-mapped IPv6 qua proxy) — để trống = không giới hạn, hành vi cũ.
+  Khác `lib/adminIpAllowlist.js` (danh sách CHUNG cho `/admin/*`) — đây RIÊNG
+  từng đối tác, cho `/api/v1/*`. Cấu hình qua ô "IP cho phép" trên trang "Đối
+  tác" (`api-admin/`).
+
 ## 0.9.0 — Tuỳ biến dữ liệu ra ngoài & công thức tính toán
 
 - **Cột tính toán (công thức)** — một phần tử `DefinitionJson.columns` giờ có

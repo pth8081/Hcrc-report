@@ -78,6 +78,22 @@ Response trả về `apiKey` — **chỉ hiện đúng một lần**, CSDL chỉ
 SHA-256 (`api.ApiConsumers.ApiKeyHash`). Mất key thì luân chuyển key mới
 (`POST /admin/consumers/:id/rotate`), không lấy lại được key cũ.
 
+### Giới hạn IP theo từng đối tác
+
+Tuỳ chọn — thêm lớp phòng thủ nữa nếu key bị lộ. Đặt trong `api.ApiConsumers.AllowedIps`
+(ô "IP cho phép" trên `api-admin/`), phân tách dấu phẩy, chấp nhận cả IP đơn
+lẫn dải CIDR (chỉ IPv4):
+
+```
+203.0.113.10,198.51.100.0/24
+```
+
+Để trống = không giới hạn (chỉ cần đúng key, hành vi mặc định). Kiểm tra
+**sau khi** key đã xác thực hợp lệ (xem `lib/apiAuth.js`, `lib/ipMatch.js`)
+— key đúng nhưng gọi từ IP ngoài danh sách vẫn bị từ chối (`403`). Khác
+`lib/adminIpAllowlist.js` (đó là 1 danh sách CHUNG cho `/admin/*`, áp dụng
+như nhau cho mọi người vận hành) — đây là RIÊNG từng đối tác, cho `/api/v1/*`.
+
 Có `apiKey` + scope `reports` chưa đủ để gọi được báo cáo — xem 2 mục dưới.
 
 ## Tuỳ biến dữ liệu trả về cho từng đối tác

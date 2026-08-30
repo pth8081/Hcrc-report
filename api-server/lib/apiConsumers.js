@@ -15,7 +15,7 @@ let loadingPromise = null;
 async function load() {
   const pool = await getPool('ADMIN');
   const result = await pool.request().query(`
-    SELECT Id, Name, ApiKeyHash, Scopes, RateLimitPerMinute
+    SELECT Id, Name, ApiKeyHash, Scopes, RateLimitPerMinute, AllowedIps
     FROM api.ApiConsumers WHERE IsActive = 1
   `);
   const next = new Map();
@@ -24,7 +24,8 @@ async function load() {
       id: row.Id,
       name: row.Name,
       scopes: row.Scopes.split(',').map(s => s.trim()).filter(Boolean),
-      rateLimitPerMinute: row.RateLimitPerMinute
+      rateLimitPerMinute: row.RateLimitPerMinute,
+      allowedIps: (row.AllowedIps || '').split(',').map(s => s.trim()).filter(Boolean)
     });
   }
   cacheByHash = next;

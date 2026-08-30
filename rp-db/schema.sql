@@ -118,9 +118,42 @@ BEGIN
 END
 GO
 
+-- Kết nối tới API do ĐỐI TÁC BÊN NGOÀI xây dựng — khác hẳn app.ApiConnections
+-- (đó luôn là API Server CỦA CHÍNH MÌNH). Ở đây rp-server chủ động gọi RA một
+-- hệ thống không do HCRC kiểm soát, nên: (1) không giả định API đó theo đúng
+-- khuôn X-API-Key/HCRC — AuthType cho phép chọn cách xác thực khớp với API
+-- đối tác; (2) không có health endpoint chắc chắn tồn tại để kiểm tra kết
+-- nối đáng tin — xem lib/externalApiConnectionPool.js:testConnection().
+--   'none'       — không xác thực (API công khai/đã whitelist theo IP).
+--   'headerKey'  — 1 header tuỳ tên + giá trị (AuthKeyName/AuthValueEncrypted).
+--                  Bao được cả kiểu Bearer token tĩnh: đặt AuthKeyName =
+--                  'Authorization', AuthValueEncrypted = 'Bearer xxx'.
+--   'queryParam' — 1 tham số query string tuỳ tên + giá trị, cùng 2 cột trên.
+--   'basicAuth'  — AuthUsername + AuthPasswordEncrypted, tự dựng header
+--                  "Authorization: Basic base64(user:pass)" lúc gọi.
+-- CHƯA hỗ trợ OAuth2 Client Credentials (phải xin + tự làm mới token) hay
+-- HMAC ký từng request (phổ biến ở cổng thanh toán/ngân hàng) — phức tạp hơn
+-- hẳn, làm khi có đối tác cụ thể cần, không làm trước cho chắc.
+IF OBJECT_ID('app.ExternalApiConnections', 'U') IS NULL
+BEGIN
+    CREATE TABLE app.ExternalApiConnections (
+        Id                     INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        Name                   NVARCHAR(200) NOT NULL,
+        BaseUrl                NVARCHAR(300) NOT NULL,
+        AuthType               VARCHAR(20)   NOT NULL DEFAULT 'none'
+            CONSTRAINT CK_ExternalApiConnections_AuthType CHECK (AuthType IN ('none', 'headerKey', 'queryParam', 'basicAuth')),
+        AuthKeyName            NVARCHAR(200) NULL,  -- tên header hoặc tên query param (headerKey/queryParam)
+        AuthValueEncrypted     NVARCHAR(500) NULL,  -- giá trị header/query param, mã hoá (headerKey/queryParam)
+        AuthUsername           NVARCHAR(200) NULL,  -- basicAuth
+        AuthPasswordEncrypted  NVARCHAR(500) NULL,  -- basicAuth
+        CreatedAt              DATETIME2(3)  NOT NULL DEFAULT SYSUTCDATETIME()
+    );
+END
+GO
+
 -- Định nghĩa báo cáo ("Biểu mẫu") — CHUYỂN từ dwh.ReportCatalog sang đây (xem
 -- ghi chú cuối dwh/schema.sql). SourceType quyết định báo cáo lấy dữ liệu ở
--- đâu, 3 giá trị:
+-- đâu, 4 giá trị:
 --   'directDb'    — đọc thẳng CSDL (mặc định, hành vi cũ): DataSourceId NULL
 --                   = Data Warehouse mặc định (.env của rp-server), khác
 --                   NULL = app.ReportDataSources. DefinitionJson.columns
@@ -137,8 +170,18 @@ GO
 --                   xem tài liệu kiến trúc). ApiTarget = tên endpoint
 --                   ('inventory'|'loyalty'|'vouchers'). Cũng lấy cột từ
 --                   response api-server.
--- Cả 2 loại 'api*' đều KHÔNG cần DataSourceId — Report Server không tự mở
--- thêm kết nối DB riêng tới cùng hệ thống mà API Server đã kết nối sẵn.
+--   'externalApi' — gọi THẲNG một API do đối tác bên ngoài xây dựng (KHÔNG
+--                   qua api-server) — ExternalConnectionId bắt buộc (trỏ
+--                   app.ExternalApiConnections). DefinitionJson thêm
+--                   externalPath (đường dẫn URL, chèn được {field} từ bộ
+--                   lọc), externalShape ('lookup' 1 bản ghi | 'list' nhiều
+--                   dòng), externalListPath (JSON path tới mảng/object kết
+--                   quả trong response, bỏ trống = lấy nguyên response).
+--                   columns dùng đường dẫn JSON phẳng (vd "trangThai",
+--                   "thongTin.capNhatLuc") hoặc cột công thức {key,label,formula}
+--                   giống các SourceType khác — xem lib/externalReportClient.js.
+-- 'apiReport'/'apiRealtime'/'externalApi' đều KHÔNG cần DataSourceId — Report
+-- Server không tự mở thêm kết nối DB riêng cho các loại này.
 IF OBJECT_ID('app.ReportCatalog', 'U') IS NULL
 BEGIN
     CREATE TABLE app.ReportCatalog (
@@ -148,22 +191,23 @@ BEGIN
         MenuItemId     INT           NOT NULL REFERENCES app.MenuItems(Id),
         DataSourceId   INT           NULL REFERENCES app.ReportDataSources(Id),
         SourceType     VARCHAR(20)   NOT NULL DEFAULT 'directDb'
-            CONSTRAINT CK_ReportCatalog_SourceType CHECK (SourceType IN ('directDb', 'apiReport', 'apiRealtime')),
+            CONSTRAINT CK_ReportCatalog_SourceType CHECK (SourceType IN ('directDb', 'apiReport', 'apiRealtime', 'externalApi')),
         ApiConnectionId INT          NULL REFERENCES app.ApiConnections(Id),
         ApiTarget       NVARCHAR(200) NULL,
+        ExternalConnectionId INT     NULL REFERENCES app.ExternalApiConnections(Id),
         DefinitionJson NVARCHAR(MAX) NOT NULL,
         IsActive       BIT           NOT NULL DEFAULT 1
     );
 END
 GO
 
--- Nâng cấp từ bản trước 0.6.1 (bảng đã tồn tại nhưng chưa có 3 cột nguồn
--- API) — an toàn chạy lại nhiều lần.
+-- Nâng cấp từ các bản trước (bảng đã tồn tại nhưng thiếu cột/giá trị mới) —
+-- an toàn chạy lại nhiều lần.
 IF COL_LENGTH('app.ReportCatalog', 'SourceType') IS NULL
 BEGIN
     ALTER TABLE app.ReportCatalog ADD SourceType VARCHAR(20) NOT NULL
         CONSTRAINT DF_ReportCatalog_SourceType DEFAULT 'directDb'
-        CONSTRAINT CK_ReportCatalog_SourceType CHECK (SourceType IN ('directDb', 'apiReport', 'apiRealtime'));
+        CONSTRAINT CK_ReportCatalog_SourceType CHECK (SourceType IN ('directDb', 'apiReport', 'apiRealtime', 'externalApi'));
 END
 IF COL_LENGTH('app.ReportCatalog', 'ApiConnectionId') IS NULL
 BEGIN
@@ -173,6 +217,18 @@ IF COL_LENGTH('app.ReportCatalog', 'ApiTarget') IS NULL
 BEGIN
     ALTER TABLE app.ReportCatalog ADD ApiTarget NVARCHAR(200) NULL;
 END
+IF COL_LENGTH('app.ReportCatalog', 'ExternalConnectionId') IS NULL
+BEGIN
+    ALTER TABLE app.ReportCatalog ADD ExternalConnectionId INT NULL REFERENCES app.ExternalApiConnections(Id);
+END
+-- Bản cũ tạo CK_ReportCatalog_SourceType chỉ với 3 giá trị (chưa có
+-- 'externalApi') — xoá và tạo lại cho đủ, kể cả khi đã đủ (rẻ, an toàn).
+IF EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = 'CK_ReportCatalog_SourceType')
+BEGIN
+    ALTER TABLE app.ReportCatalog DROP CONSTRAINT CK_ReportCatalog_SourceType;
+END
+ALTER TABLE app.ReportCatalog ADD CONSTRAINT CK_ReportCatalog_SourceType
+    CHECK (SourceType IN ('directDb', 'apiReport', 'apiRealtime', 'externalApi'));
 GO
 
 IF OBJECT_ID('app.RoleReportAccess', 'U') IS NULL
