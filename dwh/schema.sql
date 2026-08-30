@@ -5,7 +5,7 @@
 
    dwh giờ CHỈ CÒN dwh.ReportFacts — thuần dữ liệu. Mọi cấu hình/trạng thái
    vận hành đã chuyển sang các CSDL quản trị riêng của từng server:
-     - app.ReportCatalog (định nghĩa báo cáo)              -> HCRC_RP (app/schema.sql)
+     - app.ReportCatalog (định nghĩa báo cáo)              -> HCRC_RP (rp-db/schema.sql)
      - etl.SyncState / etl.SyncLog / etl.DataSources / etl.SyncJobs
                                                               -> HCRC_ETL (etl-db/schema.sql)
    Lý do: đây là cấu hình/trạng thái vận hành của từng server, không phải dữ

@@ -4,7 +4,7 @@
 động theo định nghĩa lưu trong `app.ReportCatalog`, xem trước, xuất
 Excel/PDF), và Hệ thống (Phân quyền, Biểu mẫu, Log, Danh mục, Thiết lập
 email). Hai CSDL: `HCRC_RP` (người dùng/quyền/cấu hình, có ghi) và
-`HCRC_DWH` (dữ liệu báo cáo, chỉ đọc) — xem `app/schema.sql` và
+`HCRC_DWH` (dữ liệu báo cáo, chỉ đọc) — xem `rp-db/schema.sql` và
 `dwh/schema.sql` ở thư mục gốc repo.
 
 ## Cài đặt
@@ -22,7 +22,7 @@ sung, cấu hình email):
 node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
 ```
 
-Chạy `app/schema.sql` trên CSDL `HCRC_RP` (một lần — an toàn chạy lại nhiều
+Chạy `rp-db/schema.sql` trên CSDL `HCRC_RP` (một lần — an toàn chạy lại nhiều
 lần, tự seed sẵn cây menu + vai trò `admin`).
 
 Tạo tài khoản quản trị đầu tiên — không có giao diện nào tạo được tài khoản

@@ -5,6 +5,14 @@ Server, API Server và các giao diện quản trị) — tăng ở mỗi lần 
 `main`, theo kiểu semver không chặt (patch cho fix nhỏ, minor cho tính năng
 mới, major khi đổi cấu trúc phá vỡ tương thích ngược).
 
+## 0.5.1 — Đổi tên thư mục cho nhất quán
+
+- `app/` → `rp-db/` — schema CSDL `HCRC_RP` của Report Server. Tên cũ (`app/`)
+  đặt từ trước khi có quy ước `<viết-tắt>-db/` (`api-db/`, `etl-db/`), dễ
+  khiến người đọc lướt qua tưởng Report Server chưa có CSDL riêng. Chỉ đổi
+  tên thư mục — schema SQL bên trong vẫn tên `app` (`app.Users`,
+  `app.ReportCatalog`...), không đổi.
+
 ## 0.5.0 — Quản trị ETL
 
 - CSDL riêng `HCRC_ETL` (`etl-db/schema.sql`) — tách khỏi `HCRC_RP` và

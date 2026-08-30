@@ -27,7 +27,7 @@ npm run build   # ra thư mục dist/, phục vụ tĩnh qua Nginx cùng domain 
 
 `GET /api/me` (report-server) trả `menu` đã lọc theo quyền — `src/lib/AuthContext.jsx`
 lưu kết quả này, `Layout` dùng để vẽ sidebar, `RequireMenuAccess` dùng để chặn
-route. Thêm 1 trang mới cần: 1 dòng trong `app.MenuItems` (`app/schema.sql`),
+route. Thêm 1 trang mới cần: 1 dòng trong `app.MenuItems` (`rp-db/schema.sql`),
 1 route mới trong `src/App.jsx` bọc bởi `<RequireMenuAccess code="...">` đúng
 `Code` vừa thêm.
 

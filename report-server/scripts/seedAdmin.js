@@ -1,5 +1,5 @@
 // scripts/seedAdmin.js — Tạo tài khoản quản trị ĐẦU TIÊN, gán vai trò "admin"
-// (đã được app/schema.sql seed sẵn). Không có giao diện nào tạo được tài
+// (đã được rp-db/schema.sql seed sẵn). Không có giao diện nào tạo được tài
 // khoản đầu tiên — trang "Phân quyền" bản thân nó cũng cần đăng nhập trước.
 //
 // Cách dùng:
@@ -19,7 +19,7 @@ async function main() {
 
   const role = await pool.request().query("SELECT Id FROM app.Roles WHERE Code = 'admin'");
   if (!role.recordset.length) {
-    console.error('⛔ Chưa có vai trò "admin" — chạy app/schema.sql trước.');
+    console.error('⛔ Chưa có vai trò "admin" — chạy rp-db/schema.sql trước.');
     process.exit(1);
   }
   const adminRoleId = role.recordset[0].Id;

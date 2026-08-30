@@ -1,4 +1,4 @@
-/* app/schema.sql — Cấu trúc bảng CSDL ứng dụng HCRC_RP (người dùng, phân
+/* rp-db/schema.sql — Cấu trúc bảng CSDL ứng dụng HCRC_RP (người dùng, phân
    quyền, danh mục báo cáo, log, danh mục dùng chung, cấu hình email).
    TÁCH RIÊNG khỏi Data Warehouse (dwh/schema.sql) — đây là cấu hình vận hành
    ứng dụng, không phải dữ liệu nghiệp vụ để báo cáo. Giả định CSDL HCRC_RP đã
