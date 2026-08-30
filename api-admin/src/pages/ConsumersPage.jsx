@@ -10,6 +10,11 @@
 // đây (xem routes/v1/reports.js). Khác GET/PUT report-access bên rp-server
 // (app.RoleReportAccess) ở CHỦ THỂ (đối tác API thay vì vai trò người dùng),
 // cùng cơ chế XOÁ HẾT + GÁN LẠI.
+//
+// "Realtime được gọi" (api.ConsumerRealtimeAccess) — CÙNG khuôn, cho endpoint
+// realtime thay vì báo cáo (xem routes/v1/realtime.js). Quan trọng khi nhiều
+// chi nhánh/siêu thị dùng chung API Server — không gán riêng, 1 đối tác có
+// scope "realtime" đọc được TOÀN BỘ endpoint của MỌI chi nhánh.
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/AuthContext';
@@ -50,16 +55,20 @@ export default function ConsumersPage() {
   const { isAdmin } = useAuth();
   const [consumers, setConsumers] = useState([]);
   const [reports, setReports] = useState([]);
+  const [endpoints, setEndpoints] = useState([]);
   const [form, setForm] = useState(EMPTY_FORM);
   const [editing, setEditing] = useState(null); // consumer đang sửa, hoặc null
   const [accessFor, setAccessFor] = useState(null); // consumer đang gán báo cáo, hoặc null
   const [accessReportIds, setAccessReportIds] = useState([]);
+  const [realtimeAccessFor, setRealtimeAccessFor] = useState(null); // consumer đang gán endpoint realtime, hoặc null
+  const [accessEndpoints, setAccessEndpoints] = useState([]);
   const [revealedCreds, setRevealedCreds] = useState(null); // { authMethod, ...bí mật } vừa tạo/luân chuyển
   const [error, setError] = useState('');
 
   function reload() {
     api.get('/consumers').then(setConsumers).catch(err => setError(err.message));
     api.get('/report-catalog').then(setReports).catch(err => setError(err.message));
+    api.get('/realtime-endpoints').then(setEndpoints).catch(err => setError(err.message));
   }
   useEffect(reload, []);
 
@@ -80,6 +89,26 @@ export default function ConsumersPage() {
     try {
       await api.put(`/consumers/${accessFor.Id}/report-access`, { reportIds: accessReportIds });
       setAccessFor(null);
+    } catch (err) { setError(err.message); }
+  }
+
+  async function openRealtimeAccess(consumer) {
+    setError('');
+    try {
+      const { endpoints: current } = await api.get(`/consumers/${consumer.Id}/realtime-access`);
+      setAccessEndpoints(current);
+      setRealtimeAccessFor(consumer);
+    } catch (err) { setError(err.message); }
+  }
+
+  function toggleEndpointAccess(endpoint) {
+    setAccessEndpoints(list => (list.includes(endpoint) ? list.filter(e => e !== endpoint) : [...list, endpoint]));
+  }
+
+  async function saveRealtimeAccess() {
+    try {
+      await api.put(`/consumers/${realtimeAccessFor.Id}/realtime-access`, { endpoints: accessEndpoints });
+      setRealtimeAccessFor(null);
     } catch (err) { setError(err.message); }
   }
 
@@ -179,6 +208,7 @@ export default function ConsumersPage() {
               <>
                 <button type="button" onClick={() => setEditing({ ...c })}>Sửa</button>{' '}
                 <button type="button" onClick={() => openReportAccess(c)}>Báo cáo được gọi</button>{' '}
+                <button type="button" onClick={() => openRealtimeAccess(c)}>Realtime được gọi</button>{' '}
                 <button type="button" onClick={() => rotateSecret(c)}>Luân chuyển bí mật</button>{' '}
                 <button type="button" onClick={() => deleteConsumer(c)}>Xoá</button>
               </>
@@ -239,6 +269,31 @@ export default function ConsumersPage() {
             <div className="modal-actions">
               <button type="button" onClick={saveReportAccess}>Lưu</button>
               <button type="button" onClick={() => setAccessFor(null)}>Huỷ</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {realtimeAccessFor && (
+        <div className="modal">
+          <div className="modal-body">
+            <h3>Realtime được gọi — {realtimeAccessFor.Name}</h3>
+            <p>
+              Mặc định đối tác KHÔNG gọi được endpoint realtime nào dù có scope <code>realtime</code> — chỉ những
+              endpoint tick dưới đây mới gọi được qua <code>GET /api/v1/realtime/:endpoint/...</code>.
+            </p>
+            {!endpoints.length && <p className="empty-message">Chưa có endpoint realtime nào — thêm ở trang "Endpoint realtime" trước.</p>}
+            <div className="scope-picker">
+              {endpoints.map(e => (
+                <label key={e.Endpoint} className="checkbox-row">
+                  <input type="checkbox" checked={accessEndpoints.includes(e.Endpoint)} onChange={() => toggleEndpointAccess(e.Endpoint)} />
+                  {e.Label} ({e.Endpoint} — {e.DataSourceName})
+                </label>
+              ))}
+            </div>
+            <div className="modal-actions">
+              <button type="button" onClick={saveRealtimeAccess}>Lưu</button>
+              <button type="button" onClick={() => setRealtimeAccessFor(null)}>Huỷ</button>
             </div>
           </div>
         </div>

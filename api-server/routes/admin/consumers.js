@@ -10,6 +10,8 @@
 // (api.ConsumerReportAccess), MẶC ĐỊNH rỗng (không được gọi báo cáo nào) cho
 // tới khi admin gán — cùng khuôn XOÁ HẾT + INSERT LẠI trong 1 transaction với
 // rp-server/routes/roles.js PUT /:id/report-access (app.RoleReportAccess).
+// GET/PUT /:id/realtime-access — CÙNG khuôn, cho endpoint realtime
+// (api.ConsumerRealtimeAccess) thay vì báo cáo — xem routes/v1/realtime.js.
 const crypto = require('crypto');
 const express = require('express');
 const { sql, getPool } = require('../../db');
@@ -168,6 +170,38 @@ router.put('/:id/report-access', requireAdminRole, async (req, res, next) => {
           .input('id', sql.Int, req.params.id)
           .input('reportId', sql.VarChar(80), reportId)
           .query('INSERT INTO api.ConsumerReportAccess (ConsumerId, ReportId) VALUES (@id, @reportId)');
+      }
+      await tx.commit();
+    } catch (err) {
+      await tx.rollback().catch(() => {});
+      throw err;
+    }
+    res.json({ ok: true });
+  } catch (err) { next(err); }
+});
+
+router.get('/:id/realtime-access', async (req, res, next) => {
+  try {
+    const pool = await getPool('ADMIN');
+    const result = await pool.request().input('id', sql.Int, req.params.id)
+      .query('SELECT Endpoint FROM api.ConsumerRealtimeAccess WHERE ConsumerId = @id');
+    res.json({ endpoints: result.recordset.map(r => r.Endpoint) });
+  } catch (err) { next(err); }
+});
+
+router.put('/:id/realtime-access', requireAdminRole, async (req, res, next) => {
+  try {
+    const { endpoints = [] } = req.body || {};
+    const pool = await getPool('ADMIN');
+    const tx = new sql.Transaction(pool);
+    await tx.begin();
+    try {
+      await new sql.Request(tx).input('id', sql.Int, req.params.id).query('DELETE FROM api.ConsumerRealtimeAccess WHERE ConsumerId = @id');
+      for (const endpoint of endpoints) {
+        await new sql.Request(tx)
+          .input('id', sql.Int, req.params.id)
+          .input('endpoint', sql.VarChar(50), endpoint)
+          .query('INSERT INTO api.ConsumerRealtimeAccess (ConsumerId, Endpoint) VALUES (@id, @endpoint)');
       }
       await tx.commit();
     } catch (err) {

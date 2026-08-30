@@ -16,21 +16,31 @@ function getSecret() {
   return secret;
 }
 
-// consumer = { id, name, scopes, allowedIps } — xem lib/apiConsumers.js.
+// consumer = { id, name, scopes, allowedIps, rateLimitPerMinute } — xem
+// lib/apiConsumers.js. rateLimitPerMinute nhúng vào token CÙNG lý do
+// scopes/allowedIps đã nhúng — verify không tra CSDL, đổi giới hạn chỉ có
+// hiệu lực với token phát hành SAU (chấp nhận được, xem chú thích đầu file).
 function issueToken(consumer) {
   const accessToken = jwt.sign(
-    { sub: consumer.id, name: consumer.name, scopes: consumer.scopes, allowedIps: consumer.allowedIps },
+    {
+      sub: consumer.id, name: consumer.name, scopes: consumer.scopes,
+      allowedIps: consumer.allowedIps, rateLimitPerMinute: consumer.rateLimitPerMinute
+    },
     getSecret(),
-    { expiresIn: TOKEN_TTL_SECONDS }
+    { expiresIn: TOKEN_TTL_SECONDS, algorithm: 'HS256' }
   );
   return { accessToken, expiresIn: TOKEN_TTL_SECONDS };
 }
 
 // Trả về hình dạng consumer y hệt lib/apiConsumers.js:findByKey() để
-// lib/apiAuth.js dùng chung logic scope/IP phía sau, bất kể AuthMethod nào.
+// lib/apiAuth.js dùng chung logic scope/IP/giới hạn tần suất phía sau, bất
+// kể AuthMethod nào.
 function verifyToken(token) {
-  const payload = jwt.verify(token, getSecret());
-  return { id: payload.sub, name: payload.name, scopes: payload.scopes || [], allowedIps: payload.allowedIps || [] };
+  const payload = jwt.verify(token, getSecret(), { algorithms: ['HS256'] });
+  return {
+    id: payload.sub, name: payload.name, scopes: payload.scopes || [],
+    allowedIps: payload.allowedIps || [], rateLimitPerMinute: payload.rateLimitPerMinute || 0
+  };
 }
 
 module.exports = { issueToken, verifyToken };

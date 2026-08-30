@@ -12,6 +12,7 @@
 // biết chi tiết.
 const { sql, getPool } = require('../db');
 const { decrypt } = require('./crypto');
+const { assertPublicUrl } = require('./urlSafety');
 
 const cache = new Map(); // externalConnectionId -> Promise<connection>
 const tokenCache = new Map(); // externalConnectionId -> { accessToken, expiresAt }
@@ -57,6 +58,7 @@ async function getOAuth2Token(connection) {
   const cached = tokenCache.get(connection.id);
   if (cached && cached.expiresAt > Date.now() + TOKEN_EXPIRY_SAFETY_MS) return cached.accessToken;
 
+  await assertPublicUrl(connection.tokenUrl); // chặn SSRF — xem lib/urlSafety.js
   const res = await fetch(connection.tokenUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -86,7 +88,9 @@ function invalidate(id) {
 // đường dẫn/JSON path báo cáo khai đúng — API đối tác không chắc có endpoint
 // kiểm tra tình trạng như api-server của chính mình (xem README).
 async function testConnection({ baseUrl }) {
-  const res = await fetch(baseUrl.replace(/\/+$/, ''), { signal: AbortSignal.timeout(8000) });
+  const url = baseUrl.replace(/\/+$/, '');
+  await assertPublicUrl(url); // chặn SSRF — xem lib/urlSafety.js
+  const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
   return { status: res.status };
 }
 

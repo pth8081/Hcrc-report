@@ -84,7 +84,13 @@ router.post('/:reportId/run', async (req, res, next) => {
     const definition = await loadDefinition(req.params.reportId);
     if (!definition || !definition.isActive) return res.status(404).json({ error: 'Không tìm thấy báo cáo' });
 
-    const { filters = {}, page = 1, pageSize = 200 } = req.body || {};
+    const { filters = {} } = req.body || {};
+    // Chặn trên (khớp đúng api-server/routes/v1/reports.js) — trước đây
+    // pageSize lấy nguyên từ req.body không giới hạn, gọi {"pageSize":5000000}
+    // là SQL Server cố trả cả triệu dòng vào 1 response JSON, vượt xa mức
+    // 5000 dòng cố định của /export (bypass ngầm giới hạn xuất file).
+    const page = Math.max(1, parseInt(req.body?.page, 10) || 1);
+    const pageSize = Math.min(Math.max(1, parseInt(req.body?.pageSize, 10) || 200), 1000);
     const result = await runDefinition(definition, filters, { page, pageSize });
     res.json(result);
   } catch (err) { next(err); }

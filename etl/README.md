@@ -65,6 +65,20 @@ khoản đang kết nối có quyền `SELECT`. Cùng tài khoản đó dùng đ
 duyệt schema lẫn đồng bộ dữ liệu thật, không cần tài khoản thứ hai. Kho đích
 (`HCRC_DWH`) vẫn cần tài khoản có quyền ghi riêng (`DWH_USER`).
 
+## Triển khai
+
+Tiến trình này **KHÔNG** nên lộ ra Internet — khác `api-server`/`rp-server`
+(xem README của 2 nơi đó) — vì `etl` nắm giữ mật khẩu của TOÀN BỘ nguồn dữ
+liệu đã cấu hình (`etl.DataSources`, có thể hàng chục CSDL cửa hàng/chi
+nhánh), rủi ro cao nhất trong 3 hệ thống nếu bị xâm nhập. Nếu vẫn proxy
+`/admin/*` qua cùng Nginx với 2 hệ kia (khuyến nghị KHÔNG làm vậy), nhớ:
+
+- **`TRUST_PROXY_HOPS`** (mặc định 1) — khớp đúng số lớp proxy đứng trước,
+  nếu không giới hạn tần suất theo IP sẽ vô nghĩa (mọi request trông như
+  cùng 1 IP của Nginx).
+- **Chống dò mật khẩu đăng nhập** (`lib/loginRateLimit.js`) — tối đa 10 lần
+  sai liên tiếp theo (IP + username) trong 15 phút.
+
 ## API — `/admin/*`
 
 | Endpoint | Vai trò | Mô tả |

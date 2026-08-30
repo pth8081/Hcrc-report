@@ -15,6 +15,7 @@ const { evaluateFormula } = require('./formulaEngine');
 const { describeColumns } = require('./reportEngine');
 const { getConnection, getOAuth2Token } = require('./externalApiConnectionPool');
 const hmacSign = require('./hmacSign');
+const { assertPublicUrl } = require('./urlSafety');
 
 function getByPath(obj, path) {
   if (!path) return obj;
@@ -110,6 +111,7 @@ async function runExternalReport(definition, filterValues = {}) {
 
   const connection = await getConnection(externalConnectionId);
   const url = buildUrl(connection.baseUrl, externalPath, filterValues);
+  await assertPublicUrl(url.toString()); // chặn SSRF — xem lib/urlSafety.js
   const headers = {};
   await applyAuth(url, headers, connection, { method: 'GET', body: '' });
 

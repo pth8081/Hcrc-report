@@ -32,6 +32,15 @@ const { cleanupRequestLog } = require('./jobs/cleanupRequestLog');
 const app = express();
 const PORT = process.env.PORT || 4002;
 
+// Bắt buộc khi có Nginx/reverse proxy đứng trước (đúng mô hình triển khai
+// thật — xem README) — thiếu dòng này, req.ip luôn là IP của proxy cho MỌI
+// request, làm hỏng ngầm: giới hạn IP riêng từng đối tác (lib/ipMatch.js),
+// adminIpAllowlist, bộ giới hạn tần suất theo IP dưới đây, và cột IpAddress
+// trong api.RequestLog (log sẽ ghi IP proxy thay vì IP đối tác thật). Số hop
+// khớp đúng số lớp proxy trước app — mặc định 1 (1 Nginx duy nhất đứng
+// trước, đúng mô hình "cả 3 hệ thống + Nginx trên 1 máy chủ").
+app.set('trust proxy', parseInt(process.env.TRUST_PROXY_HOPS || '1', 10));
+
 app.use(compression());
 // verify: lưu nguyên body THÔ vào req.rawBody — HMAC (AuthMethod='hmac')
 // phải ký/kiểm tra trên đúng bytes đối tác gửi, không phải bản JS đã
@@ -42,15 +51,20 @@ app.use(express.urlencoded({ extended: false })); // POST /api/v1/oauth/token d�
 app.use(cookieParser());
 
 // ===== /api/v1/* — hệ thống ngoài =====
+// Lớp giới hạn THEO IP THẬT, TRƯỚC xác thực — chặn spam nặc danh (kể cả tới
+// POST /api/v1/oauth/token, vốn luôn đụng CSDL ADMIN trước khi biết
+// client_id có hợp lệ hay không). CỐ Ý khoá theo req.ip (đáng tin nhờ
+// `trust proxy` ở trên), KHÔNG khoá theo header đối tác tự khai (X-API-Key/
+// X-Key-Id/Authorization) như trước đây — header đó CHƯA được xác thực ở
+// bước này, kẻ tấn công đổi giá trị mỗi request là có "bucket" riêng, vô
+// hiệu hoá hoàn toàn giới hạn. Giới hạn RIÊNG theo từng đối tác (đọc đúng
+// RateLimitPerMinute đã cấu hình) áp dụng SAU khi xác thực xong, trong
+// lib/apiAuth.js — đây chỉ là lớp chặn spam nặc danh chung.
 app.use('/api/v1', rateLimit({
   windowMs: 60 * 1000,
   limit: parseInt(process.env.RATE_LIMIT_PER_MINUTE || '120', 10),
   standardHeaders: true,
-  legacyHeaders: false,
-  // Nhóm theo đúng định danh đối tác gửi kèm, bất kể AuthMethod nào — chưa
-  // xác thực xong ở bước này (đó là việc của lib/apiAuth.js, chạy sau), chỉ
-  // cần đủ để không gộp nhầm nhiều đối tác chung 1 IP (vd sau NAT/proxy).
-  keyGenerator: (req) => req.header('X-API-Key') || req.header('X-Key-Id') || req.header('Authorization') || req.ip
+  legacyHeaders: false
 }));
 app.use('/api/v1', requestLogger); // ghi log + "kết nối hiện tại" — không chặn phản hồi, xem lib/requestLogger.js
 

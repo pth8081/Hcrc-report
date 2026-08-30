@@ -18,7 +18,23 @@ const TEMPLATES_DIR = path.join(__dirname, '..', 'templates');
 const upload = multer({
   storage: multer.diskStorage({
     destination: (req, file, cb) => cb(null, TEMPLATES_DIR),
-    filename: (req, file, cb) => cb(null, file.originalname)
+    // path.basename() BẮT BUỘC — multer tự nó KHÔNG chặn traversal, dùng
+    // thẳng chuỗi trả về ở đây làm tên file (path.join(destination, filename)
+    // nội bộ). file.originalname là do NGƯỜI DÙNG TỰ ĐẶT khi chọn file, có
+    // thể chứa "../../..." — chỉ kiểm tra ĐUÔI file (fileFilter dưới) không
+    // đủ, vì "../../../etc/cron.d/evil.xlsx" vẫn khớp đuôi .xlsx. basename()
+    // bỏ hết phần thư mục theo dấu "/", CHỈ đúng trên Linux (server triển
+    // khai thật) — path.basename trên POSIX KHÔNG coi "\" là dấu phân cách,
+    // nên xoá thêm mọi ký tự "\" còn sót (phòng hờ, không để lọt tên file kỳ
+    // dị chứa "..\.." dù vô hại trên Linux, tránh gây nhầm lẫn/lỗi nếu code
+    // này chạy trên hệ khác).
+    filename: (req, file, cb) => {
+      const safeName = path.basename(file.originalname).replace(/\\/g, '_');
+      if (!safeName || safeName === '.' || safeName === '..') {
+        return cb(new Error('Tên file không hợp lệ'));
+      }
+      cb(null, safeName);
+    }
   }),
   limits: { fileSize: 20 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
@@ -214,8 +230,11 @@ router.get('/templates', (req, res, next) => {
 router.post('/templates', upload.single('file'), async (req, res, next) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'Thiếu file' });
-    await logAction(req, { module: 'Biểu mẫu', actionType: 'TAI_MAU', targetObject: req.file.originalname, description: `Tải lên file mẫu "${req.file.originalname}"` });
-    res.status(201).json({ filename: req.file.originalname });
+    // req.file.filename = tên đã qua path.basename() ở storage.filename phía
+    // trên (tên THẬT lưu trên đĩa) — trả về đúng cái này, không phải
+    // originalname gốc (có thể khác nếu người dùng gõ đường dẫn traversal).
+    await logAction(req, { module: 'Biểu mẫu', actionType: 'TAI_MAU', targetObject: req.file.filename, description: `Tải lên file mẫu "${req.file.filename}"` });
+    res.status(201).json({ filename: req.file.filename });
   } catch (err) { next(err); }
 });
 

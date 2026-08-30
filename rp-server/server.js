@@ -22,9 +22,16 @@ const externalConnectionsRoutes = require('./routes/externalConnections');
 const reportEmailSchedulesRoutes = require('./routes/reportEmailSchedules');
 const { verifyCredentials, issueToken, COOKIE_NAME } = require('./lib/auth');
 const reportEmailScheduler = require('./jobs/reportEmailScheduler');
+const { isBlocked, recordFailure, recordSuccess } = require('./lib/loginRateLimit');
 
 const app = express();
 const PORT = process.env.PORT || 4001;
+
+// Bắt buộc khi có Nginx/reverse proxy đứng trước — thiếu dòng này, req.ip
+// luôn là IP của proxy cho MỌI request, làm hỏng ngầm: bộ giới hạn tần suất
+// theo IP dưới đây, và cột IpAddress trong app.AuditLog (log sẽ ghi IP proxy
+// thay vì IP người dùng thật). Mặc định 1 = 1 Nginx duy nhất đứng trước.
+app.set('trust proxy', parseInt(process.env.TRUST_PROXY_HOPS || '1', 10));
 
 app.use(compression());
 app.use(express.json({ limit: '2mb' }));
@@ -40,8 +47,19 @@ app.use(rateLimit({
 app.post('/api/auth/login', async (req, res, next) => {
   try {
     const { username, password } = req.body || {};
+
+    const retryAfter = isBlocked(req.ip, username);
+    if (retryAfter) {
+      res.setHeader('Retry-After', String(retryAfter));
+      return res.status(429).json({ error: 'Đăng nhập sai quá nhiều lần, thử lại sau ít phút' });
+    }
+
     const user = await verifyCredentials(username, password);
-    if (!user) return res.status(401).json({ error: 'Sai tên đăng nhập hoặc mật khẩu' });
+    if (!user) {
+      recordFailure(req.ip, username);
+      return res.status(401).json({ error: 'Sai tên đăng nhập hoặc mật khẩu' });
+    }
+    recordSuccess(req.ip, username);
 
     const token = issueToken(user);
     res.cookie(COOKIE_NAME, token, {

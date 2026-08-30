@@ -139,8 +139,22 @@ lẫn dải CIDR (chỉ IPv4):
 `lib/adminIpAllowlist.js` (đó là 1 danh sách CHUNG cho `/admin/*`, áp dụng
 như nhau cho mọi người vận hành) — đây là RIÊNG từng đối tác, cho `/api/v1/*`.
 
-Xác thực hợp lệ (bất kỳ 1 trong 3 cách trên) + scope `reports` vẫn chưa đủ để
-gọi được báo cáo — xem 2 mục dưới.
+**Giới hạn IP CHỈ đáng tin khi `TRUST_PROXY_HOPS` đặt đúng số lớp Nginx đứng
+trước** (mặc định 1) — sai số này, `req.ip` luôn là IP của Nginx cho MỌI
+request, giới hạn IP riêng từng đối tác trở nên vô nghĩa (mọi đối tác trông
+như cùng gọi từ 1 IP). Xem thêm mục "Triển khai sau Nginx / public Internet".
+
+**Giới hạn tần suất riêng theo từng đối tác** (`api.ApiConsumers.RateLimitPerMinute`,
+ô "Giới hạn/phút" khi tạo/sửa đối tác) — áp dụng THẬT (`lib/consumerRateLimit.js`,
+cửa sổ cố định 60 giây, đếm trong bộ nhớ tiến trình), SAU khi xác thực xong,
+độc lập với bộ giới hạn theo IP nặc danh TRƯỚC xác thực (`server.js`, chặn
+spam chưa biết đối tác nào). Vượt quá → `429` kèm header `Retry-After`. Với
+`authMethod='oauth2'`, giá trị này nhúng thẳng vào access token JWT lúc cấp
+(giống `scopes`/`allowedIps`) — đổi giới hạn chỉ có hiệu lực với token cấp
+SAU, token cũ vẫn theo giới hạn cũ tới khi hết hạn.
+
+Xác thực hợp lệ (bất kỳ 1 trong 3 cách trên) + scope `reports`/`realtime` vẫn
+chưa đủ để gọi được báo cáo/endpoint — xem các mục dưới.
 
 ## Tuỳ biến dữ liệu trả về cho từng đối tác
 
@@ -151,7 +165,12 @@ một đối tác mới **không gọi được báo cáo nào**, dù `apiKey` c
 `reports` hợp lệ. Gán qua nút "Báo cáo được gọi" ở trang "Đối tác"
 (`api-admin/`), hoặc thẳng `PUT /admin/consumers/:id/report-access` với
 `{ "reportIds": [...] }` — GHI ĐÈ toàn bộ danh sách mỗi lần gọi (không phải
-thêm/bớt từng cái).
+thêm/bớt từng cái). Y HỆT cơ chế này áp dụng cho endpoint realtime qua
+`api.ConsumerRealtimeAccess` + nút "Realtime được gọi" + `PUT
+/admin/consumers/:id/realtime-access` với `{ "endpoints": [...] }` — **quan
+trọng khi nhiều chi nhánh/siêu thị dùng chung API Server** (mỗi chi nhánh 1
+`api.DataSources` + endpoint riêng): thiếu bước gán này, 1 đối tác có scope
+`realtime` đọc được realtime của MỌI chi nhánh, không riêng chi nhánh của họ.
 
 **2. Chọn cột theo yêu cầu (`?fields=`)** — trong báo cáo họ ĐƯỢC gọi, đối
 tác có thể chỉ lấy đúng cột cần thay vì nhận hết:
@@ -178,12 +197,28 @@ Chạy ở `lib/reportEngine.js` (qua `lib/formulaEngine.js`, KHÔNG dùng
 `SourceType='apiReport'` bên rp-server — API Server là nơi thực sự chạy
 query, nên công thức phải khai ở đây, rp-server chỉ forward kết quả.
 
+## Triển khai sau Nginx / public Internet
+
+`/api/v1/*` thiết kế để lộ ra Internet (đối tác gọi từ bất kỳ đâu); `/admin/*`
+thì KHÔNG — Nginx chỉ nên proxy `/api/v1/*` ra ngoài, `/admin/*` chỉ mở trong
+mạng nội bộ/VPN. `lib/adminIpAllowlist.js` (biến `ADMIN_ALLOWED_IPS`) chỉ là
+lớp phòng thủ BỔ SUNG, không thay được cấu hình Nginx.
+
+**`TRUST_PROXY_HOPS`** (mặc định 1) — BẮT BUỘC khớp đúng số lớp reverse proxy
+đứng trước tiến trình này. Sai giá trị này, `req.ip` luôn là IP của Nginx cho
+MỌI request, làm hỏng ngầm: giới hạn IP riêng từng đối tác, `ADMIN_ALLOWED_IPS`,
+giới hạn tần suất theo IP nặc danh, và cột `IpAddress` trong `api.RequestLog`
+(log sẽ ghi IP Nginx thay vì IP đối tác thật — mất khả năng truy vết khi có
+sự cố). Xem mẫu cấu hình Nginx thật ở `deploy/nginx.conf` (thư mục gốc repo).
+
+**Chống dò mật khẩu đăng nhập `/admin/auth/login`** — `lib/loginRateLimit.js`,
+tối đa 10 lần sai liên tiếp theo (IP + username) trong 15 phút, đăng nhập
+đúng xoá ngay bộ đếm — độc lập với giới hạn tần suất chung của toàn server.
+
 ## Còn thiếu để dùng thật
 
 - **Bộ lọc động cho endpoint realtime** — `/list` mới hỗ trợ phân trang, chưa lọc theo điều kiện (khác `/api/v1/reports` đã có `filters`) — cần nếu danh sách quá lớn để xem hết từng trang.
-- **Giới hạn tần suất riêng theo từng đối tác** — `api.ApiConsumers.RateLimitPerMinute` đã có cột, nhưng `server.js` hiện vẫn dùng một ngưỡng chung (`RATE_LIMIT_PER_MINUTE`) cho toàn bộ `/api/v1` — nâng cấp sau nếu cần giới hạn khác nhau giữa các đối tác.
 - **OpenAPI spec** — chưa viết, nên có trước khi giao cho hệ thống ngoài tích hợp thật.
-- **Nginx**: `/admin/*` PHẢI chỉ mở trong mạng nội bộ/VPN — không proxy ra Internet cùng domain với `/api/v1/*`. `lib/adminIpAllowlist.js` (biến `ADMIN_ALLOWED_IPS`) chỉ là lớp phòng thủ bổ sung, không thay được cấu hình Nginx.
 
 ## API — `/api/v1/*` (đối tác — API key, OAuth2, hoặc HMAC)
 
@@ -203,6 +238,7 @@ query, nên công thức phải khai ở đây, rp-server chỉ forward kết qu
 | `GET/POST/PUT/DELETE /admin/consumers` | `admin` sửa, ai đăng nhập cũng xem được | CRUD đối tác API |
 | `POST /admin/consumers/:id/rotate` | `admin` | Luân chuyển bí mật (apiKey/clientSecret/hmacSecret tuỳ `AuthMethod` của đối tác) — định danh công khai (ClientId/HmacKeyId) giữ nguyên |
 | `GET/PUT /admin/consumers/:id/report-access` | `admin` sửa | Báo cáo đối tác được gọi (`api.ConsumerReportAccess`) |
+| `GET/PUT /admin/consumers/:id/realtime-access` | `admin` sửa | Endpoint realtime đối tác được gọi (`api.ConsumerRealtimeAccess`) |
 | `GET/POST/PUT/DELETE /admin/data-sources` | `admin` sửa | CRUD nguồn dữ liệu OLTP (kết nối vật lý) |
 | `POST /admin/data-sources/test` | `admin` | Kiểm tra kết nối một cấu hình chưa lưu |
 | `GET /admin/data-sources/:id/tables` | — | Duyệt bảng/view thật của một nguồn |

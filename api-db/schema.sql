@@ -269,3 +269,22 @@ BEGIN
     );
 END
 GO
+
+-- Đối tác nào được gọi ENDPOINT REALTIME nào — CÙNG khuôn với
+-- api.ConsumerReportAccess ở trên, áp cho /api/v1/realtime/* thay vì
+-- /api/v1/reports/*. Trước đây scope 'realtime' hợp lệ là gọi được MỌI
+-- endpoint realtime đã tạo, bất kể nguồn dữ liệu (api.DataSources) nào đứng
+-- sau — với nhiều chi nhánh/siêu thị dùng chung API Server (mỗi chi nhánh 1
+-- DataSources riêng), 1 đối tác chỉ nên được cấp đúng endpoint realtime của
+-- CHI NHÁNH họ, không phải toàn bộ. MẶC ĐỊNH KHÔNG được gọi endpoint nào cho
+-- tới khi admin gán rõ ràng (trang "Đối tác"), dù API key có scope
+-- 'realtime' hợp lệ — xem routes/v1/realtime.js.
+IF OBJECT_ID('api.ConsumerRealtimeAccess', 'U') IS NULL
+BEGIN
+    CREATE TABLE api.ConsumerRealtimeAccess (
+        ConsumerId INT         NOT NULL REFERENCES api.ApiConsumers(Id) ON DELETE CASCADE,
+        Endpoint   VARCHAR(50) NOT NULL REFERENCES api.RealtimeEndpointDefs(Endpoint) ON DELETE CASCADE,
+        CONSTRAINT PK_ConsumerRealtimeAccess PRIMARY KEY (ConsumerId, Endpoint)
+    );
+END
+GO

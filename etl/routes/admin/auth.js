@@ -1,13 +1,25 @@
 const express = require('express');
 const { verifyCredentials, issueToken, requireAdminAuth, COOKIE_NAME } = require('../../lib/adminAuth');
+const { isBlocked, recordFailure, recordSuccess } = require('../../lib/loginRateLimit');
 
 const router = express.Router();
 
 router.post('/login', async (req, res, next) => {
   try {
     const { username, password } = req.body || {};
+
+    const retryAfter = isBlocked(req.ip, username);
+    if (retryAfter) {
+      res.setHeader('Retry-After', String(retryAfter));
+      return res.status(429).json({ error: 'Đăng nhập sai quá nhiều lần, thử lại sau ít phút' });
+    }
+
     const admin = await verifyCredentials(username, password);
-    if (!admin) return res.status(401).json({ error: 'Sai tên đăng nhập hoặc mật khẩu' });
+    if (!admin) {
+      recordFailure(req.ip, username);
+      return res.status(401).json({ error: 'Sai tên đăng nhập hoặc mật khẩu' });
+    }
+    recordSuccess(req.ip, username);
 
     const token = issueToken(admin);
     res.cookie(COOKIE_NAME, token, {

@@ -8,6 +8,7 @@ const { sql, getPool } = require('../db');
 const { requireAuth, requireMenuAccess } = require('../lib/auth');
 const { encrypt } = require('../lib/crypto');
 const { invalidate, testConnection } = require('../lib/externalApiConnectionPool');
+const { assertPublicUrl } = require('../lib/urlSafety');
 const { logAction } = require('../lib/auditLog');
 
 const router = express.Router();
@@ -35,6 +36,14 @@ function usesKeyValue(authType) {
   return authType === 'headerKey' || authType === 'queryParam' || authType === 'hmacSignature' || authType === 'oauth2ClientCredentials';
 }
 
+// Chặn SSRF NGAY LÚC LƯU cấu hình — baseUrl/tokenUrl không được trỏ tới
+// mạng nội bộ/địa chỉ riêng tư (xem lib/urlSafety.js). Ném lỗi thẳng, để
+// route bắt và trả 400 rõ ràng thay vì lưu một cấu hình nguy hiểm.
+async function assertSafeConnectionUrls(baseUrl, authType, tokenUrl) {
+  await assertPublicUrl(baseUrl);
+  if (authType === 'oauth2ClientCredentials') await assertPublicUrl(tokenUrl);
+}
+
 router.get('/', async (req, res, next) => {
   try {
     const pool = await getPool('RP');
@@ -52,6 +61,11 @@ router.post('/', async (req, res, next) => {
     if (!name || !baseUrl) return res.status(400).json({ error: 'Thiếu name/baseUrl' });
     const authError = validateAuthPayload({ authType, authKeyName, authValue, authUsername, authPassword, tokenUrl });
     if (authError) return res.status(400).json({ error: authError });
+    try {
+      await assertSafeConnectionUrls(baseUrl, authType, tokenUrl);
+    } catch (err) {
+      return res.status(400).json({ error: err.message });
+    }
 
     const pool = await getPool('RP');
     const result = await pool.request()
@@ -78,6 +92,11 @@ router.put('/:id', async (req, res, next) => {
     const { name, baseUrl, authType = 'none', authKeyName, authValue, authUsername, authPassword, tokenUrl } = req.body || {};
     const authError = validateAuthPayload({ authType, authKeyName, authValue, authUsername, authPassword, tokenUrl });
     if (authError) return res.status(400).json({ error: authError });
+    try {
+      await assertSafeConnectionUrls(baseUrl, authType, tokenUrl);
+    } catch (err) {
+      return res.status(400).json({ error: err.message });
+    }
 
     const pool = await getPool('RP');
     let authValueEncrypted = null;
@@ -148,7 +167,10 @@ router.post('/:id/test', async (req, res, next) => {
     const { status } = await testConnection({ baseUrl: result.recordset[0].BaseUrl });
     res.json({ ok: true, status });
   } catch (err) {
-    res.status(400).json({ ok: false, error: err.message });
+    // Lỗi CHẶN SSRF (lib/urlSafety.js) an toàn để hiện nguyên văn cho admin;
+    // lỗi kết nối/DNS/timeout THẬT khác thì không — có thể tiết lộ thông tin
+    // mạng nội bộ (hostname nội bộ phân giải được hay không, timeout ở đâu...).
+    res.status(400).json({ ok: false, error: err.isUrlSafetyError ? err.message : 'Không kết nối được tới máy chủ đối tác' });
   }
 });
 

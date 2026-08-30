@@ -238,6 +238,33 @@ route trong `/api/system/*` yêu cầu thêm đúng quyền menu tương ứng (
 `/api/system/users` cần quyền `system-permissions`) — xem
 `lib/auth.js:requireMenuAccess`.
 
+## Triển khai sau Nginx / public Internet
+
+Toàn bộ ứng dụng (kể cả trang đăng nhập nhân viên) có thể lộ ra Internet —
+khác `/admin/*` bên api-server/etl (chỉ nội bộ). Vài điểm cần biết:
+
+- **`TRUST_PROXY_HOPS`** (mặc định 1) — BẮT BUỘC khớp đúng số lớp reverse
+  proxy đứng trước. Sai giá trị này, `req.ip` luôn là IP của Nginx cho MỌI
+  request, làm hỏng ngầm giới hạn tần suất theo IP và cột `IpAddress` trong
+  `app.AuditLog` (log sẽ ghi IP Nginx thay vì IP người dùng thật). Xem mẫu
+  cấu hình Nginx thật ở `deploy/nginx.conf` (thư mục gốc repo).
+- **Chống dò mật khẩu đăng nhập** (`lib/loginRateLimit.js`) — tối đa 10 lần
+  sai liên tiếp theo (IP + username) trong 15 phút, đăng nhập đúng xoá ngay
+  bộ đếm — độc lập với giới hạn tần suất chung của toàn server.
+- **Chặn SSRF cho "Kết nối API đối tác"** (`lib/urlSafety.js`) — `BaseUrl`/
+  `TokenUrl` (OAuth2) không được trỏ tới địa chỉ nội bộ/riêng tư (RFC 1918,
+  loopback, link-local — gồm cả `169.254.169.254`, endpoint metadata của
+  AWS/GCP/Azure), kiểm tra cả lúc lưu cấu hình lẫn ngay trước mỗi lần gọi
+  thật. Cần thiết vì server này gọi RA NGOÀI theo URL admin tự cấu hình —
+  không chặn, một cấu hình sai (hoặc admin bị chiếm quyền) có thể biến server
+  công khai này thành bàn đạp dò mạng nội bộ.
+- **`pageSize` trên `/api/reports/:id/run` được chặn ở 1000** (khớp
+  `api-server`) — trước đây không giới hạn, gọi với `pageSize` rất lớn có thể
+  buộc trả về cả triệu dòng trong 1 response.
+- **Tải file mẫu báo cáo** (`POST /api/system/report-catalog/templates`) lọc
+  tên file qua `path.basename()` trước khi lưu — chặn traversal (`../../...`)
+  dù người dùng tự đặt tên file khi chọn từ máy.
+
 ## Chưa làm ở bước khung này
 
 - Xuất theo đúng mẫu biểu công ty (`.xlsx`/`.pptx` thật) — xem `templates/README.md`.

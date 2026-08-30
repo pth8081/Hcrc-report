@@ -9,6 +9,11 @@ const { sql, getPool } = require('../db');
 const COOKIE_NAME = 'hcrc_api_admin_token';
 const TOKEN_TTL = '8h';
 
+// Hash bcrypt "giả" — chạy bcrypt.compare() ngay cả khi username không tồn
+// tại, giữ thời gian phản hồi ổn định giữa "sai username" và "đúng username
+// sai mật khẩu", chống dò username hợp lệ qua chênh lệch thời gian phản hồi.
+const DUMMY_HASH = '$2a$10$CwTycUXWue0Thq9StjUM0uJ8Q0DKvSPBFEqz6GqUEmMFY6BVtR1e';
+
 function getSecret() {
   const secret = process.env.ADMIN_JWT_SECRET;
   if (!secret) throw new Error('Thiếu ADMIN_JWT_SECRET trong .env');
@@ -22,7 +27,10 @@ async function verifyCredentials(username, password) {
     .input('username', sql.NVarChar(50), username)
     .query('SELECT Id, Username, PasswordHash, Role, IsActive FROM admin.AdminUsers WHERE Username = @username');
   const user = result.recordset[0];
-  if (!user || !user.IsActive) return null;
+  if (!user || !user.IsActive) {
+    await bcrypt.compare(password, DUMMY_HASH);
+    return null;
+  }
   const ok = await bcrypt.compare(password, user.PasswordHash);
   if (!ok) return null;
 
@@ -33,11 +41,11 @@ async function verifyCredentials(username, password) {
 }
 
 function issueToken(user) {
-  return jwt.sign({ sub: user.id, username: user.username, role: user.role }, getSecret(), { expiresIn: TOKEN_TTL });
+  return jwt.sign({ sub: user.id, username: user.username, role: user.role }, getSecret(), { expiresIn: TOKEN_TTL, algorithm: 'HS256' });
 }
 
 function verifyToken(token) {
-  return jwt.verify(token, getSecret());
+  return jwt.verify(token, getSecret(), { algorithms: ['HS256'] });
 }
 
 function requireAdminAuth(req, res, next) {

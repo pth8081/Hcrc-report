@@ -5,6 +5,60 @@ Server, API Server và các giao diện quản trị) — tăng ở mỗi lần 
 `main`, theo kiểu semver không chặt (patch cho fix nhỏ, minor cho tính năng
 mới, major khi đổi cấu trúc phá vỡ tương thích ngược).
 
+## 0.14.0 — Vá lỗ hổng bảo mật chặn trước khi public API Server & Report Server (Giai đoạn 0)
+
+Theo kết quả rà soát chuyên sâu bảo mật + hiệu năng của cả 3 hệ thống (ETL,
+API Server, Report Server) trước khi đưa `api-server`/`rp-server` ra
+Internet. Đây là nhóm lỗ hổng **CRITICAL/HIGH** — bắt buộc trước khi public,
+mỗi mục kèm test riêng, tổng cộng 63 test.
+
+- **Rate limiter api-server không còn bị vượt qua bằng cách đổi header** —
+  `keyGenerator` cũ khoá "bucket" theo `X-API-Key`/`X-Key-Id`/`Authorization`
+  do người gọi TỰ khai, CHƯA xác thực — đổi giá trị mỗi request là có bucket
+  riêng, vô hiệu hoá giới hạn, dồn được vào `POST /api/v1/oauth/token` (luôn
+  đụng CSDL trước khi biết `client_id` hợp lệ hay không) làm cạn pool CSDL
+  admin. Giờ khoá theo `req.ip` thật (yêu cầu `trust proxy` đúng, xem dưới).
+- **`trust proxy`** (`TRUST_PROXY_HOPS`, mặc định 1) — thêm cho cả 3 server
+  (etl/api-server/rp-server). Thiếu dòng này khi có Nginx đứng trước, `req.ip`
+  luôn là IP của Nginx cho MỌI request — làm hỏng ngầm giới hạn IP riêng
+  từng đối tác, `adminIpAllowlist`, giới hạn tần suất, và cột `IpAddress`
+  trong log kiểm toán.
+- **Chống dò mật khẩu đăng nhập** — `lib/loginRateLimit.js` (bản sao 3 nơi:
+  etl/api-server/rp-server), tối đa 10 lần sai liên tiếp theo (IP+username)
+  /15 phút, đăng nhập đúng xoá ngay bộ đếm. Kèm vá dò username qua chênh
+  lệch thời gian phản hồi (`verifyCredentials` giờ chạy `bcrypt.compare`
+  với hash giả ngay cả khi username không tồn tại).
+- **Chặn SSRF cho "Kết nối API đối tác"** (rp-server) — `lib/urlSafety.js`
+  mới: `BaseUrl`/`TokenUrl` không được trỏ tới địa chỉ nội bộ/riêng tư (RFC
+  1918, loopback, link-local — gồm `169.254.169.254`, metadata cloud), kiểm
+  tra cả lúc lưu lẫn ngay trước mỗi lần gọi thật. Trước đây admin (hoặc ai
+  chiếm được phiên admin) có thể trỏ kết nối vào mạng nội bộ, biến rp-server
+  công khai thành bàn đạp dò mạng.
+- **Sửa path traversal khi tải file mẫu báo cáo** (rp-server) — tên file lưu
+  giờ qua `path.basename()` + lọc `\`, không dùng thẳng `file.originalname`
+  — trước đây tải file tên `../../../etc/cron.d/evil.xlsx` có thể ghi ra
+  ngoài thư mục `templates/`.
+- **Chặn `pageSize` không giới hạn ở `rp-server` `/api/reports/:id/run`** —
+  khớp đúng `api-server` (`Math.min(...,1000)`), có thêm chặn NaN/âm. Trước
+  đây gọi với `pageSize` rất lớn ép trả cả triệu dòng trong 1 response, bỏ
+  qua luôn giới hạn 5000 dòng của `/export`.
+- **`api.ConsumerRealtimeAccess`** (bảng mới, api-db) — CÙNG khuôn
+  `ConsumerReportAccess` nhưng cho endpoint realtime: trước đây bất kỳ đối
+  tác nào có scope `realtime` gọi được MỌI endpoint đã tạo, bất kể nguồn dữ
+  liệu (`api.DataSources`) đứng sau — nguy hiểm khi nhiều chi nhánh/siêu thị
+  dùng chung API Server (1 đối tác đọc được realtime của MỌI chi nhánh).
+  Trang "Đối tác" (`api-admin/`) thêm nút "Realtime được gọi".
+- **Giới hạn tần suất riêng theo từng đối tác giờ THỰC SỰ có hiệu lực** —
+  `api.ApiConsumers.RateLimitPerMinute` trước đây chỉ lưu trong CSDL, không
+  middleware nào đọc (đã tự ghi nhận trong README cũ là việc "làm sau").
+  `lib/consumerRateLimit.js` mới: cửa sổ cố định 60 giây theo `consumer.id`,
+  áp SAU xác thực — độc lập với bộ giới hạn theo IP nặc danh TRƯỚC xác thực.
+  Với `authMethod='oauth2'`, giá trị nhúng thẳng vào access token JWT lúc
+  cấp (giống `scopes`/`allowedIps` đã làm).
+- Nhân tiện khoá cứng `algorithms: ['HS256']` cho mọi `jwt.verify()`/`jwt.sign()`
+  trong cả 3 server — phòng thủ chiều sâu chống alg-confusion, dù thư viện
+  `jsonwebtoken` hiện tại đã mặc định an toàn.
+
 ## 0.13.0 — ETL chọn được VIEW làm nguồn đồng bộ (không chỉ bảng thật)
 
 - `etl-admin/` — bước "chọn bảng" (bảng chính lẫn bảng liên kết) khi tạo Sync

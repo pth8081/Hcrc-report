@@ -19,6 +19,11 @@ const adminDashboardRoutes = require('./routes/admin/dashboard');
 const app = express();
 const PORT = process.env.PORT || 4003;
 
+// Bắt buộc khi có Nginx/reverse proxy đứng trước — thiếu dòng này, req.ip
+// luôn là IP của proxy cho MỌI request, làm hỏng ngầm bộ giới hạn tần suất
+// theo IP dưới đây. Mặc định 1 = 1 Nginx duy nhất đứng trước.
+app.set('trust proxy', parseInt(process.env.TRUST_PROXY_HOPS || '1', 10));
+
 app.use(compression());
 app.use(express.json({ limit: '2mb' }));
 app.use(cookieParser());

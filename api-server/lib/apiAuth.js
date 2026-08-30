@@ -10,13 +10,16 @@
 //   3. X-API-Key — API key tĩnh (AuthMethod='apiKey', hành vi cũ), xem
 //      lib/apiConsumers.js:findByKey().
 //
-// Giới hạn IP RIÊNG TỪNG ĐỐI TÁC (consumer.allowedIps) kiểm tra SAU KHI đã
-// xác thực hợp lệ theo BẤT KỲ cách nào ở trên — dùng chung 1 bước cuối, xem
-// lib/ipMatch.js. Rỗng = không giới hạn.
+// Giới hạn tần suất RIÊNG TỪNG ĐỐI TÁC (consumer.rateLimitPerMinute) và giới
+// hạn IP RIÊNG TỪNG ĐỐI TÁC (consumer.allowedIps) đều kiểm tra SAU KHI đã
+// xác thực hợp lệ theo BẤT KỲ cách nào ở trên — khác bộ giới hạn theo IP
+// TRƯỚC xác thực trong server.js (chặn spam nặc danh, không biết đối tác
+// nào). Xem lib/consumerRateLimit.js, lib/ipMatch.js. Rỗng/0 = không giới hạn.
 const { findByKey, findByHmacKeyId, updateLastUsed } = require('./apiConsumers');
 const { verifyToken } = require('./oauthTokens');
 const hmacAuth = require('./hmacAuth');
 const { ipAllowed } = require('./ipMatch');
+const { checkConsumerRateLimit } = require('./consumerRateLimit');
 
 async function authenticate(req) {
   const authHeader = req.header('Authorization');
@@ -63,6 +66,12 @@ function requireApiKey(...requiredScopes) {
       const result = await authenticate(req);
       if (result.error) return res.status(401).json({ error: result.error });
       const consumer = result;
+
+      const rateCheck = checkConsumerRateLimit(consumer);
+      if (!rateCheck.allowed) {
+        res.setHeader('Retry-After', String(rateCheck.retryAfterSeconds));
+        return res.status(429).json({ error: 'Vượt quá giới hạn tần suất gọi API của đối tác này, thử lại sau' });
+      }
 
       const hasScope = requiredScopes.every(scope => consumer.scopes.includes(scope));
       if (!hasScope) return res.status(403).json({ error: 'Không có quyền gọi endpoint này' });
