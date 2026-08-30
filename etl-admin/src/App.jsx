@@ -7,6 +7,7 @@ import DashboardPage from './pages/DashboardPage';
 import DataSourcesPage from './pages/DataSourcesPage';
 import SyncJobsPage from './pages/SyncJobsPage';
 import LogPage from './pages/LogPage';
+import AuditLogPage from './pages/AuditLogPage';
 import UsersPage from './pages/UsersPage';
 import SalesTargetsPage from './pages/SalesTargetsPage';
 
@@ -30,6 +31,7 @@ export default function App() {
           <Route path="/data-sources" element={<DataSourcesPage />} />
           <Route path="/sync-jobs" element={<SyncJobsPage />} />
           <Route path="/log" element={<LogPage />} />
+          <Route path="/audit-log" element={<AuditLogPage />} />
           <Route path="/sales-targets" element={<SalesTargetsPage />} />
           <Route path="/users" element={<UsersPage />} />
         </Route>

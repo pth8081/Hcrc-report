@@ -9,6 +9,7 @@ const express = require('express');
 const { sql, getPool } = require('../../db');
 const { requireAdminAuth, requireAdminRole } = require('../../lib/adminAuth');
 const { parseFormula } = require('../../lib/formulaEngine');
+const { logAction } = require('../../lib/auditLog');
 
 const router = express.Router();
 router.use(requireAdminAuth);
@@ -60,6 +61,7 @@ router.post('/', requireAdminRole, async (req, res, next) => {
         INSERT INTO api.ReportCatalog (ReportId, Title, Domain, DefinitionJson)
         VALUES (@reportId, @title, @domain, @definitionJson)
       `);
+    await logAction(req, { module: 'Danh mục báo cáo', actionType: 'TAO_BAO_CAO', targetObject: reportId, description: `Tạo báo cáo "${title}" (${reportId})` });
     res.status(201).json({ ok: true });
   } catch (err) {
     if (err instanceof SyntaxError) return res.status(400).json({ error: 'definitionJson không phải JSON hợp lệ' });
@@ -89,6 +91,7 @@ router.put('/:reportId', requireAdminRole, async (req, res, next) => {
         SET Title = @title, Domain = @domain, DefinitionJson = @definitionJson, IsActive = @isActive
         WHERE ReportId = @reportId
       `);
+    await logAction(req, { module: 'Danh mục báo cáo', actionType: 'SUA_BAO_CAO', targetObject: req.params.reportId, description: `Cập nhật báo cáo "${req.params.reportId}"` });
     res.json({ ok: true });
   } catch (err) {
     if (err instanceof SyntaxError) return res.status(400).json({ error: 'definitionJson không phải JSON hợp lệ' });
@@ -101,6 +104,7 @@ router.delete('/:reportId', requireAdminRole, async (req, res, next) => {
     const pool = await getPool('ADMIN');
     await pool.request().input('reportId', sql.VarChar(80), req.params.reportId)
       .query('DELETE FROM api.ReportCatalog WHERE ReportId = @reportId');
+    await logAction(req, { module: 'Danh mục báo cáo', actionType: 'XOA_BAO_CAO', targetObject: req.params.reportId, description: `Xoá báo cáo "${req.params.reportId}"` });
     res.json({ ok: true });
   } catch (err) { next(err); }
 });

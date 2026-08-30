@@ -19,6 +19,7 @@ const { requireAdminAuth, requireAdminRole } = require('../../lib/adminAuth');
 const { sha256Hex } = require('../../lib/hash');
 const { encrypt } = require('../../lib/crypto');
 const { invalidate } = require('../../lib/apiConsumers');
+const { logAction } = require('../../lib/auditLog');
 
 const router = express.Router();
 router.use(requireAdminAuth);
@@ -79,7 +80,10 @@ router.post('/', requireAdminRole, async (req, res, next) => {
       VALUES (@name, @authMethod, @apiKeyHash, @clientId, @clientSecretHash, @hmacKeyId, @hmacSecretEncrypted, @scopes, @rateLimit, @allowedIps)
     `);
     invalidate();
-    res.status(201).json({ id: result.recordset[0].Id, authMethod, ...secretsForResponse }); // CHỈ response này có bí mật gốc
+    const id = result.recordset[0].Id;
+    // KHÔNG BAO GIỜ ghi bí mật (secretsForResponse) vào audit log — chỉ tên/authMethod.
+    await logAction(req, { module: 'Đối tác API', actionType: 'TAO_DOI_TAC', targetObject: String(id), description: `Tạo đối tác "${name}" (xác thực ${authMethod})` });
+    res.status(201).json({ id, authMethod, ...secretsForResponse }); // CHỈ response này có bí mật gốc
   } catch (err) { next(err); }
 });
 
@@ -113,6 +117,8 @@ router.post('/:id/rotate', requireAdminRole, async (req, res, next) => {
       secretsForResponse = { hmacSecret };
     }
     invalidate();
+    // KHÔNG BAO GIỜ ghi bí mật (secretsForResponse) vào audit log.
+    await logAction(req, { module: 'Đối tác API', actionType: 'LUAN_CHUYEN_BI_MAT', targetObject: req.params.id, description: `Luân chuyển bí mật đối tác #${req.params.id} (xác thực ${authMethod})` });
     res.json({ authMethod, ...secretsForResponse }); // CHỈ response này có bí mật gốc
   } catch (err) { next(err); }
 });
@@ -135,6 +141,7 @@ router.put('/:id', requireAdminRole, async (req, res, next) => {
         WHERE Id = @id
       `);
     invalidate();
+    await logAction(req, { module: 'Đối tác API', actionType: 'SUA_DOI_TAC', targetObject: req.params.id, description: `Cập nhật đối tác "${name}"` });
     res.json({ ok: true });
   } catch (err) { next(err); }
 });
@@ -144,6 +151,7 @@ router.delete('/:id', requireAdminRole, async (req, res, next) => {
     const pool = await getPool('ADMIN');
     await pool.request().input('id', sql.Int, req.params.id).query('DELETE FROM api.ApiConsumers WHERE Id = @id');
     invalidate();
+    await logAction(req, { module: 'Đối tác API', actionType: 'XOA_DOI_TAC', targetObject: req.params.id, description: `Xoá đối tác #${req.params.id}` });
     res.json({ ok: true });
   } catch (err) { next(err); }
 });
@@ -176,6 +184,7 @@ router.put('/:id/report-access', requireAdminRole, async (req, res, next) => {
       await tx.rollback().catch(() => {});
       throw err;
     }
+    await logAction(req, { module: 'Đối tác API', actionType: 'SUA_QUYEN_BAO_CAO', targetObject: req.params.id, description: `Cập nhật quyền xem báo cáo đối tác #${req.params.id}: ${reportIds.join(', ') || '(rỗng)'}` });
     res.json({ ok: true });
   } catch (err) { next(err); }
 });
@@ -208,6 +217,7 @@ router.put('/:id/realtime-access', requireAdminRole, async (req, res, next) => {
       await tx.rollback().catch(() => {});
       throw err;
     }
+    await logAction(req, { module: 'Đối tác API', actionType: 'SUA_QUYEN_REALTIME', targetObject: req.params.id, description: `Cập nhật quyền endpoint realtime đối tác #${req.params.id}: ${endpoints.join(', ') || '(rỗng)'}` });
     res.json({ ok: true });
   } catch (err) { next(err); }
 });

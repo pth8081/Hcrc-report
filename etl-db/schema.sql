@@ -43,6 +43,29 @@ BEGIN
 END
 GO
 
+-- Nhật ký THAO TÁC (ai làm gì) — khác etl.SyncLog (log CHẠY JOB tự động).
+-- Ghi qua lib/auditLog.js, gắn ở mọi route sửa dữ liệu trên etl-admin/ +
+-- đăng nhập (thành công lẫn thất bại). Cùng khuôn với app.AuditLog bên
+-- rp-server (rp-db/schema.sql) — cố ý lặp lại, không dùng chung bảng/service
+-- (mỗi hệ thống tự viết vào CSDL riêng của mình, xem etl/lib/auditLog.js).
+IF OBJECT_ID('admin.AuditLog', 'U') IS NULL
+BEGIN
+    CREATE TABLE admin.AuditLog (
+        Id           BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        UserId       INT           NULL REFERENCES admin.AdminUsers(Id),
+        Username     NVARCHAR(50)  NOT NULL,
+        Module       VARCHAR(50)   NOT NULL,
+        ActionType   VARCHAR(100)  NOT NULL,
+        TargetObject NVARCHAR(200) NULL,
+        Description  NVARCHAR(MAX) NOT NULL,
+        IpAddress    VARCHAR(100)  NULL,
+        Status       VARCHAR(20)   NOT NULL DEFAULT 'SUCCESS',
+        CreatedAt    DATETIME2(3)  NOT NULL DEFAULT SYSUTCDATETIME()
+    );
+    CREATE INDEX IX_AuditLog_CreatedAt ON admin.AuditLog(CreatedAt DESC);
+END
+GO
+
 -- Máy chủ/CSDL nguồn — thay cho các biến SRC_*_... trong .env cũ.
 -- PasswordEncrypted mã hoá bằng ETL_ENCRYPTION_KEY (AES-256-GCM, xem
 -- etl/lib/crypto.js) — khoá RIÊNG của ETL, không dùng chung với Report/API

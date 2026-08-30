@@ -25,11 +25,13 @@ const adminRealtimeEndpointsRoutes = require('./routes/admin/realtimeEndpoints')
 const adminReportCatalogRoutes = require('./routes/admin/reportCatalog');
 const adminLiveRoutes = require('./routes/admin/live');
 const adminHistoryRoutes = require('./routes/admin/history');
+const adminAuditLogRoutes = require('./routes/admin/auditLog');
 const adminStatsRoutes = require('./routes/admin/stats');
 const { requestLogger } = require('./lib/requestLogger');
 const { adminIpAllowlist } = require('./lib/adminIpAllowlist');
 const { corsAllowlist } = require('./lib/corsAllowlist');
 const { cleanupRequestLog } = require('./jobs/cleanupRequestLog');
+const { cleanupAuditLog } = require('./jobs/cleanupAuditLog');
 
 const app = express();
 const PORT = process.env.PORT || 4002;
@@ -95,6 +97,7 @@ app.use('/admin/realtime-endpoints', adminRealtimeEndpointsRoutes);
 app.use('/admin/report-catalog', adminReportCatalogRoutes);
 app.use('/admin/live', adminLiveRoutes);
 app.use('/admin/history', adminHistoryRoutes);
+app.use('/admin/audit-log', adminAuditLogRoutes);
 app.use('/admin/stats', adminStatsRoutes);
 
 app.use((err, req, res, next) => { // eslint-disable-line no-unused-vars
@@ -112,7 +115,8 @@ server.requestTimeout = 60 * 1000; // tối đa để nhận trọn request (hea
 server.headersTimeout = 65 * 1000; // phải LỚN HƠN requestTimeout (ràng buộc của Node)
 server.timeout = 120 * 1000; // timeout rảnh (idle) cho toàn bộ kết nối
 
-// Dọn api.RequestLog cũ theo lịch (mặc định 02:00 hằng ngày).
+// Dọn api.RequestLog + admin.AuditLog cũ theo lịch (mặc định 02:00 hằng ngày).
 cron.schedule(process.env.CLEANUP_CRON || '0 2 * * *', () => {
   cleanupRequestLog().catch(err => console.error('⛔ Lỗi dọn RequestLog:', err.message));
+  cleanupAuditLog().catch(err => console.error('⛔ Lỗi dọn AuditLog:', err.message));
 });

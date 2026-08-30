@@ -12,7 +12,8 @@ const NAV = [
   { path: '/report-catalog', label: 'Báo cáo' },
   { path: '/live', label: 'Kết nối hiện tại' },
   { path: '/history', label: 'Lịch sử' },
-  { path: '/stats', label: 'Top truy vấn' }
+  { path: '/stats', label: 'Top truy vấn' },
+  { path: '/audit-log', label: 'Nhật ký thao tác' }
 ];
 
 export default function Layout() {

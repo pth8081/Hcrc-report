@@ -1,6 +1,7 @@
 const express = require('express');
 const { verifyCredentials, issueToken, requireAdminAuth, COOKIE_NAME } = require('../../lib/adminAuth');
 const { isBlocked, recordFailure, recordSuccess } = require('../../lib/loginRateLimit');
+const { logAction } = require('../../lib/auditLog');
 
 const router = express.Router();
 
@@ -17,9 +18,17 @@ router.post('/login', async (req, res, next) => {
     const admin = await verifyCredentials(username, password);
     if (!admin) {
       recordFailure(req.ip, username);
+      // req.admin chưa có (chưa xác thực) -> tự ghép object tối thiểu cho logAction
+      // (chỉ đọc req.ip + req.admin.username), giữ đúng tên ĐÃ GÕ dù sai/không tồn tại.
+      await logAction({ ip: req.ip, admin: { username: username || 'unknown' } }, {
+        module: 'Đăng nhập', actionType: 'DANG_NHAP_THAT_BAI', description: `Đăng nhập thất bại: "${username || ''}"`, status: 'FAILED'
+      });
       return res.status(401).json({ error: 'Sai tên đăng nhập hoặc mật khẩu' });
     }
     recordSuccess(req.ip, username);
+    await logAction({ ip: req.ip, admin: { sub: admin.id, username: admin.username } }, {
+      module: 'Đăng nhập', actionType: 'DANG_NHAP', description: 'Đăng nhập thành công'
+    });
 
     const token = issueToken(admin);
     res.cookie(COOKIE_NAME, token, {

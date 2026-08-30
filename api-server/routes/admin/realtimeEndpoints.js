@@ -17,6 +17,7 @@ const { sql, getPool } = require('../../db');
 const { requireAdminAuth, requireAdminRole } = require('../../lib/adminAuth');
 const { assertSafeIdentifier } = require('../../lib/realtimeEngine');
 const schemaBrowser = require('../../lib/schemaBrowser');
+const { logAction } = require('../../lib/auditLog');
 
 const router = express.Router();
 router.use(requireAdminAuth);
@@ -91,6 +92,7 @@ router.post('/', requireAdminRole, async (req, res, next) => {
         INSERT INTO api.RealtimeEndpointDefs (Endpoint, Label, DataSourceId, SchemaName, TableName, KeyColumn, ColumnsJson, OrderColumn)
         VALUES (@endpoint, @label, @dataSourceId, @schemaName, @tableName, @keyColumn, @columnsJson, @orderColumn)
       `);
+    await logAction(req, { module: 'Endpoint realtime', actionType: 'TAO_ENDPOINT', targetObject: endpoint, description: `Tạo endpoint "${endpoint}"` });
     res.status(201).json({ ok: true });
   } catch (err) {
     if (err.number === 2627 || err.number === 2601) return res.status(409).json({ error: `Endpoint "${req.body.endpoint}" đã tồn tại` });
@@ -126,6 +128,7 @@ router.put('/:endpoint', requireAdminRole, async (req, res, next) => {
             KeyColumn = @keyColumn, ColumnsJson = @columnsJson, OrderColumn = @orderColumn, IsActive = @isActive
         WHERE Endpoint = @endpoint
       `);
+    await logAction(req, { module: 'Endpoint realtime', actionType: 'SUA_ENDPOINT', targetObject: req.params.endpoint, description: `Cập nhật endpoint "${req.params.endpoint}"` });
     res.json({ ok: true });
   } catch (err) { next(err); }
 });
@@ -135,6 +138,7 @@ router.delete('/:endpoint', requireAdminRole, async (req, res, next) => {
     const pool = await getPool('ADMIN');
     await pool.request().input('endpoint', sql.VarChar(50), req.params.endpoint)
       .query('DELETE FROM api.RealtimeEndpointDefs WHERE Endpoint = @endpoint');
+    await logAction(req, { module: 'Endpoint realtime', actionType: 'XOA_ENDPOINT', targetObject: req.params.endpoint, description: `Xoá endpoint "${req.params.endpoint}"` });
     res.json({ ok: true });
   } catch (err) { next(err); }
 });

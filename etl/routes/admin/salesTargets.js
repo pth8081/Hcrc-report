@@ -14,6 +14,7 @@ const multer = require('multer');
 const { sql, getPool } = require('../../db');
 const { requireAdminAuth, requireTargetImporterRole } = require('../../lib/adminAuth');
 const { parseSalesTargetsFile, upsertSalesTargets, PERIOD_RE, TRANG_THAI_VALUES } = require('../../lib/salesTargetsImport');
+const { logAction } = require('../../lib/auditLog');
 
 const router = express.Router();
 router.use(requireAdminAuth);
@@ -85,6 +86,7 @@ router.put('/one', requireTargetImporterRole, async (req, res, next) => {
       periodMonth: new Date(`${periodMonth}-01T00:00:00Z`),
       targets: mergedTargets
     }], req.admin.username);
+    await logAction(req, { module: 'Nhập chỉ tiêu', actionType: 'SUA_CHI_TIEU', targetObject: `${domain.trim()}/${entityCode}/${periodMonth}`, description: `Sửa chỉ tiêu "${entityCode}" tháng ${periodMonth} (domain "${domain.trim()}")` });
     res.json(result);
   } catch (err) { next(err); }
 });
@@ -108,6 +110,7 @@ router.post('/import', requireTargetImporterRole, upload.single('file'), async (
 
     const pool = await getPool('DWH_TARGET_IMPORTER');
     const result = await upsertSalesTargets(pool, domain.trim(), rows, req.admin.username);
+    await logAction(req, { module: 'Nhập chỉ tiêu', actionType: 'NHAP_CHI_TIEU', targetObject: domain.trim(), description: `Nhập file chỉ tiêu domain "${domain.trim()}": thêm mới ${result.inserted}, cập nhật ${result.updated} dòng` });
     res.json({ ...result, rowErrors });
   } catch (err) { next(err); }
 });

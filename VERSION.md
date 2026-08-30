@@ -5,6 +5,61 @@ Server, API Server và các giao diện quản trị) — tăng ở mỗi lần 
 `main`, theo kiểu semver không chặt (patch cho fix nhỏ, minor cho tính năng
 mới, major khi đổi cấu trúc phá vỡ tương thích ngược).
 
+## 0.24.0 — Module "Nhật ký thao tác" (etl + api-server) + log đăng nhập cả 3 hệ thống
+
+Trước đây chỉ rp-server có nhật ký "ai làm gì" (`app.AuditLog` + trang
+"Log"); etl và api-server chỉ có log HỆ THỐNG (`etl.SyncLog`, `api.RequestLog`)
+chứ không có log THAO TÁC admin. Cũng chưa hệ thống nào lưu lịch sử đăng
+nhập (chỉ đếm tạm trong RAM để chặn brute-force + đè `LastLoginAt`). Tính
+năng này nhân bản đúng mẫu `app.AuditLog`/`logAction()` của rp-server sang
+etl và api-server — **cố ý KHÔNG dựng 1 service log tập trung đọc chung 3
+CSDL** (phá vỡ mô hình cô lập bảo mật đang dùng, tạo thêm 1 điểm lỗi chung
+không cần thiết — cùng lý do `portal/` chỉ là danh mục tĩnh, không gọi API
+tổng hợp).
+
+- **`etl-db/schema.sql`, `api-db/schema.sql`** — thêm `admin.AuditLog`
+  (Id, UserId, Username, Module, ActionType, TargetObject, Description,
+  IpAddress, Status, CreatedAt), cùng khuôn `app.AuditLog` bên rp-server.
+- **`etl/lib/auditLog.js`, `api-server/lib/auditLog.js`** (mới) —
+  `logAction()`, đọc `req.admin` (JWT payload admin-only, khác `req.user`
+  bên rp-server) thay vì `req.user`. Lỗi ghi log bị nuốt, không làm hỏng
+  request gốc.
+- **Gắn vào mọi route sửa dữ liệu**: etl (`dataSources.js`, `syncJobs.js`,
+  `salesTargets.js`, `users.js`), api-server (`dataSources.js`,
+  `consumers.js`, `reportCatalog.js`, `realtimeEndpoints.js`). Riêng
+  `consumers.js` (đối tác API) — **tuyệt đối không ghi bí mật thật**
+  (apiKey/clientSecret/hmacSecret) vào log, chỉ ghi tên + phương thức xác
+  thực; có test riêng xác nhận không có chuỗi giống bí mật nào lọt vào mô
+  tả log.
+- **Log đăng nhập** (thành công LẪN thất bại) — thêm cho CẢ 3 hệ thống
+  (kể cả rp-server, trước đây cũng chưa có) — `etl/routes/admin/auth.js`,
+  `api-server/routes/admin/auth.js`, `rp-server/server.js`. Thất bại vẫn
+  ghi được username đã gõ (kể cả sai/không tồn tại) vì logAction chỉ cần
+  `req.ip` + tên, không cần đã xác thực.
+- **`etl/routes/admin/auditLog.js`, `api-server/routes/admin/auditLog.js`**
+  (mới) — `GET /admin/audit-log`, lọc username/module/khoảng ngày, phân
+  trang, cùng khuôn `rp-server/routes/auditLog.js`.
+- **`etl-admin`, `api-admin` `AuditLogPage.jsx`** (mới) — trang "Nhật ký
+  thao tác", tách riêng khỏi trang "Log"/"Lịch sử" hệ thống đang có (khác
+  loại dữ liệu — user action vs. system run/request).
+- **Dọn dẹp tự động** — `etl.SyncLog` và `app.AuditLog` (rp-server) trước
+  đây KHÔNG có retention, phình vô hạn. Thêm `etl/jobs/cleanupLogs.js`
+  (`cleanupSyncLog` + `cleanupAuditLog`), `api-server/jobs/cleanupAuditLog.js`,
+  `rp-server/jobs/cleanupAuditLog.js` — cùng mẫu `api-server/jobs/cleanupRequestLog.js`
+  đã có sẵn. Mặc định giữ 90 ngày, cấu hình qua `SYNC_LOG_RETENTION_DAYS`/
+  `AUDIT_LOG_RETENTION_DAYS`/`CLEANUP_CRON`. rp-server trước đây chưa có
+  hạ tầng `node-cron` cấp server.js nào — thêm mới cho việc này.
+- **Phạm vi cố ý bỏ qua** (theo yêu cầu): KHÔNG log việc người dùng thường
+  xem/xuất báo cáo ở rp-server (chỉ log thao tác CẤU HÌNH của admin) — xem
+  báo cáo diễn ra thường xuyên hơn nhiều so với sửa cấu hình, log mọi lượt
+  xem sẽ phình bảng rất nhanh mà giá trị thấp.
+- 24 test độc lập (`fakeModule`): `logAction()` ghi đúng dữ liệu + nuốt lỗi
+  DB, log đăng nhập đúng thành công/thất bại (giữ đúng username đã gõ khi
+  sai), `cleanup*` tính đúng ngưỡng ngày theo env var, route
+  `GET /admin/audit-log` lọc đúng, mọi route sửa dữ liệu đều gọi
+  `logAction` đúng `actionType`, và xác nhận riêng `consumers.js` không
+  lộ bí mật vào log. `vite build` sạch cho `etl-admin` + `api-admin`.
+
 ## 0.23.0 — Tự động test kết nối lúc lưu + nhiều giờ gửi email/lịch
 
 Hai tính năng độc lập, gộp chung 1 bản merge.

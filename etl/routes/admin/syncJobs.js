@@ -19,6 +19,7 @@ const { requireAdminAuth, requireAdminRole } = require('../../lib/adminAuth');
 const sourcesRegistry = require('../../sources');
 const { rescheduleJob, runJobIfNotAlreadyRunning } = require('../../jobs/scheduler');
 const schemaBrowser = require('../../lib/schemaBrowser');
+const { logAction } = require('../../lib/auditLog');
 
 const router = express.Router();
 router.use(requireAdminAuth);
@@ -127,6 +128,7 @@ router.post('/', requireAdminRole, async (req, res, next) => {
       `);
     const id = result.recordset[0].Id;
     await rescheduleJob(id);
+    await logAction(req, { module: 'Đồng bộ', actionType: 'TAO_JOB', targetObject: String(id), description: `Tạo job đồng bộ "${b.name}"` });
     res.status(201).json({ id });
   } catch (err) { next(err); }
 });
@@ -166,6 +168,7 @@ router.put('/:id', requireAdminRole, async (req, res, next) => {
         WHERE Id = @id
       `);
     await rescheduleJob(parseInt(req.params.id, 10));
+    await logAction(req, { module: 'Đồng bộ', actionType: 'SUA_JOB', targetObject: req.params.id, description: `Cập nhật job đồng bộ "${b.name}"` });
     res.json({ ok: true });
   } catch (err) { next(err); }
 });
@@ -176,6 +179,7 @@ router.delete('/:id', requireAdminRole, async (req, res, next) => {
     const pool = await getPool('ADMIN');
     await pool.request().input('id', sql.Int, jobId).query('DELETE FROM etl.SyncJobs WHERE Id = @id');
     await rescheduleJob(jobId); // job không còn -> tự gỡ khỏi lịch
+    await logAction(req, { module: 'Đồng bộ', actionType: 'XOA_JOB', targetObject: req.params.id, description: `Xoá job đồng bộ #${req.params.id}` });
     res.json({ ok: true });
   } catch (err) { next(err); }
 });

@@ -8,14 +8,17 @@ const helmet = require('helmet');
 const cookieParser = require('cookie-parser');
 const compression = require('compression');
 const { rateLimit } = require('express-rate-limit');
+const cron = require('node-cron');
 
 const scheduler = require('./jobs/scheduler');
+const { cleanupSyncLog, cleanupAuditLog } = require('./jobs/cleanupLogs');
 const { adminIpAllowlist } = require('./lib/adminIpAllowlist');
 const adminAuthRoutes = require('./routes/admin/auth');
 const adminUsersRoutes = require('./routes/admin/users');
 const adminDataSourcesRoutes = require('./routes/admin/dataSources');
 const adminSyncJobsRoutes = require('./routes/admin/syncJobs');
 const adminLogRoutes = require('./routes/admin/log');
+const adminAuditLogRoutes = require('./routes/admin/auditLog');
 const adminDashboardRoutes = require('./routes/admin/dashboard');
 const adminSalesTargetsRoutes = require('./routes/admin/salesTargets');
 
@@ -51,6 +54,7 @@ app.use('/admin/users', adminUsersRoutes);
 app.use('/admin/data-sources', adminDataSourcesRoutes);
 app.use('/admin/sync-jobs', adminSyncJobsRoutes);
 app.use('/admin/log', adminLogRoutes);
+app.use('/admin/audit-log', adminAuditLogRoutes);
 app.use('/admin/dashboard', adminDashboardRoutes);
 app.use('/admin/sales-targets', adminSalesTargetsRoutes);
 
@@ -67,3 +71,9 @@ server.headersTimeout = 65 * 1000;
 server.timeout = 120 * 1000;
 
 scheduler.start();
+
+// Dọn etl.SyncLog + admin.AuditLog cũ theo lịch (mặc định 02:00 hằng ngày).
+cron.schedule(process.env.CLEANUP_CRON || '0 2 * * *', () => {
+  cleanupSyncLog().catch(err => console.error('⛔ Lỗi dọn SyncLog:', err.message));
+  cleanupAuditLog().catch(err => console.error('⛔ Lỗi dọn AuditLog:', err.message));
+});

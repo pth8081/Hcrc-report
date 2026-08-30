@@ -5,6 +5,7 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const { sql, getPool } = require('../../db');
 const { requireAdminAuth, requireAdminRole } = require('../../lib/adminAuth');
+const { logAction } = require('../../lib/auditLog');
 
 const router = express.Router();
 router.use(requireAdminAuth);
@@ -37,7 +38,9 @@ router.post('/', requireAdminRole, async (req, res, next) => {
         OUTPUT INSERTED.Id
         VALUES (@username, @passwordHash, @fullName, @role)
       `);
-    res.status(201).json({ id: result.recordset[0].Id });
+    const id = result.recordset[0].Id;
+    await logAction(req, { module: 'Phân quyền', actionType: 'TAO_USER', targetObject: String(id), description: `Tạo tài khoản "${username}" (vai trò ${role})` });
+    res.status(201).json({ id });
   } catch (err) {
     if (err.number === 2627 || err.number === 2601) return res.status(409).json({ error: 'Username đã tồn tại' });
     next(err);
@@ -54,6 +57,7 @@ router.put('/:id', requireAdminRole, async (req, res, next) => {
       .input('role', sql.VarChar(20), role)
       .input('isActive', sql.Bit, isActive ? 1 : 0)
       .query('UPDATE admin.AdminUsers SET FullName = @fullName, Role = @role, IsActive = @isActive WHERE Id = @id');
+    await logAction(req, { module: 'Phân quyền', actionType: 'SUA_USER', targetObject: req.params.id, description: `Cập nhật tài khoản #${req.params.id} (vai trò ${role}, ${isActive ? 'hoạt động' : 'tắt'})` });
     res.json({ ok: true });
   } catch (err) { next(err); }
 });
@@ -68,6 +72,7 @@ router.post('/:id/reset-password', requireAdminRole, async (req, res, next) => {
       .input('id', sql.Int, req.params.id)
       .input('passwordHash', sql.NVarChar(200), passwordHash)
       .query('UPDATE admin.AdminUsers SET PasswordHash = @passwordHash WHERE Id = @id');
+    await logAction(req, { module: 'Phân quyền', actionType: 'DAT_LAI_MAT_KHAU', targetObject: req.params.id, description: `Đặt lại mật khẩu tài khoản #${req.params.id}` });
     res.json({ ok: true });
   } catch (err) { next(err); }
 });

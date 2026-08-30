@@ -6,6 +6,7 @@ const helmet = require('helmet');
 const cookieParser = require('cookie-parser');
 const compression = require('compression');
 const { rateLimit } = require('express-rate-limit');
+const cron = require('node-cron');
 
 const healthRoutes = require('./routes/health');
 const meRoutes = require('./routes/me');
@@ -24,6 +25,8 @@ const reportEmailSchedulesRoutes = require('./routes/reportEmailSchedules');
 const { verifyCredentials, issueToken, COOKIE_NAME } = require('./lib/auth');
 const reportEmailScheduler = require('./jobs/reportEmailScheduler');
 const { isBlocked, recordFailure, recordSuccess } = require('./lib/loginRateLimit');
+const { logAction } = require('./lib/auditLog');
+const { cleanupAuditLog } = require('./jobs/cleanupAuditLog');
 
 const app = express();
 const PORT = process.env.PORT || 4001;
@@ -64,9 +67,18 @@ app.post('/api/auth/login', async (req, res, next) => {
     const user = await verifyCredentials(username, password);
     if (!user) {
       recordFailure(req.ip, username);
+      // req.user chưa có (chưa xác thực) -> tự ghép object tối thiểu cho
+      // logAction (chỉ đọc req.ip + req.user.username), giữ đúng tên ĐÃ GÕ
+      // dù sai/không tồn tại.
+      await logAction({ ip: req.ip, user: { username: username || 'unknown' } }, {
+        module: 'Đăng nhập', actionType: 'DANG_NHAP_THAT_BAI', description: `Đăng nhập thất bại: "${username || ''}"`, status: 'FAILED'
+      });
       return res.status(401).json({ error: 'Sai tên đăng nhập hoặc mật khẩu' });
     }
     recordSuccess(req.ip, username);
+    await logAction({ ip: req.ip, user: { sub: user.id, username: user.username } }, {
+      module: 'Đăng nhập', actionType: 'DANG_NHAP', description: 'Đăng nhập thành công'
+    });
 
     const token = issueToken(user);
     res.cookie(COOKIE_NAME, token, {
@@ -112,6 +124,11 @@ app.use((err, req, res, next) => { // eslint-disable-line no-unused-vars
 });
 
 reportEmailScheduler.start();
+
+// Dọn app.AuditLog cũ theo lịch (mặc định 02:00 hằng ngày).
+cron.schedule(process.env.CLEANUP_CRON || '0 2 * * *', () => {
+  cleanupAuditLog().catch(err => console.error('⛔ Lỗi dọn AuditLog:', err.message));
+});
 
 // Giới hạn thời gian ở tầng HTTP server (Node) — Express/http mặc định
 // KHÔNG chặn socket "chờ mãi", một client cố tình gửi request/body nhỏ giọt

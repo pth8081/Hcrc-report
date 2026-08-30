@@ -28,6 +28,7 @@ const { encrypt, decrypt } = require('../../lib/crypto');
 const { invalidate, testConnection, testConnectionsBatch } = require('../../lib/dataSourcePool');
 const schemaBrowser = require('../../lib/schemaBrowser');
 const { parseDataSourcesFile, upsertDataSources } = require('../../lib/dataSourcesImport');
+const { logAction } = require('../../lib/auditLog');
 
 // Chạy testConnection() nhưng KHÔNG BAO GIỜ throw — dùng ngay sau khi lưu,
 // lỗi kết nối không được làm hỏng response lưu-thành-công.
@@ -90,6 +91,7 @@ router.post('/', requireAdminRole, async (req, res, next) => {
     const connectionTest = await tryTestConnection({
       server, port: port || 1433, database: databaseName, user: username, password, encrypt: enc !== false, trustServerCert
     });
+    await logAction(req, { module: 'Nguồn dữ liệu', actionType: 'TAO_NGUON', targetObject: String(id), description: `Tạo nguồn "${name}"` });
     res.status(201).json({ id, connectionTest });
   } catch (err) { next(err); }
 });
@@ -132,6 +134,7 @@ router.put('/:id', requireAdminRole, async (req, res, next) => {
       server, port, database: databaseName, user: username,
       password: password || decrypt(passwordEncrypted), encrypt: enc !== false, trustServerCert
     });
+    await logAction(req, { module: 'Nguồn dữ liệu', actionType: 'SUA_NGUON', targetObject: req.params.id, description: `Cập nhật nguồn "${name}"` });
     res.json({ ok: true, connectionTest });
   } catch (err) { next(err); }
 });
@@ -141,6 +144,7 @@ router.delete('/:id', requireAdminRole, async (req, res, next) => {
     const pool = await getPool('ADMIN');
     await pool.request().input('id', sql.Int, req.params.id).query('DELETE FROM api.DataSources WHERE Id = @id');
     await invalidate(parseInt(req.params.id, 10));
+    await logAction(req, { module: 'Nguồn dữ liệu', actionType: 'XOA_NGUON', targetObject: req.params.id, description: `Xoá nguồn dữ liệu #${req.params.id}` });
     res.json({ ok: true });
   } catch (err) {
     if (err.number === 547) return res.status(409).json({ error: 'Nguồn đang được ít nhất 1 endpoint realtime dùng — xoá endpoint đó trước' });
@@ -181,6 +185,7 @@ router.post('/import', requireAdminRole, upload.single('file'), async (req, res,
       config: { server: r.server, port: r.port, database: r.databaseName, user: r.username, password: r.password, encrypt: r.encrypt, trustServerCert: r.trustServerCert }
     })));
 
+    await logAction(req, { module: 'Nguồn dữ liệu', actionType: 'NHAP_HANG_LOAT', description: `Nhập hàng loạt: thêm mới ${result.inserted}, cập nhật ${result.updated} nguồn` });
     res.json({ inserted: result.inserted, updated: result.updated, rowErrors, connectionResults });
   } catch (err) { next(err); }
 });

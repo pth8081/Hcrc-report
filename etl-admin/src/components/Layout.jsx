@@ -6,6 +6,7 @@ const NAV = [
   { path: '/data-sources', label: 'Nguồn dữ liệu' },
   { path: '/sync-jobs', label: 'Đồng bộ' },
   { path: '/log', label: 'Log' },
+  { path: '/audit-log', label: 'Nhật ký thao tác' },
   { path: '/sales-targets', label: 'Nhập chỉ tiêu' },
   { path: '/users', label: 'Phân quyền' }
 ];

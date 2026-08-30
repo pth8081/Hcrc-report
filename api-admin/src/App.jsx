@@ -10,6 +10,7 @@ import ReportCatalogPage from './pages/ReportCatalogPage';
 import LivePage from './pages/LivePage';
 import HistoryPage from './pages/HistoryPage';
 import StatsPage from './pages/StatsPage';
+import AuditLogPage from './pages/AuditLogPage';
 
 export default function App() {
   return (
@@ -26,6 +27,7 @@ export default function App() {
           <Route path="/live" element={<LivePage />} />
           <Route path="/history" element={<HistoryPage />} />
           <Route path="/stats" element={<StatsPage />} />
+          <Route path="/audit-log" element={<AuditLogPage />} />
         </Route>
       </Routes>
     </AuthProvider>
