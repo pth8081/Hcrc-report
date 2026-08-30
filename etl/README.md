@@ -1,63 +1,88 @@
-# ETL — Đồng bộ dữ liệu MSSQL vào Data Warehouse
+# ETL
 
-Đồng bộ tăng dần (theo cột `UpdatedAt`) từ nhiều máy chủ SQL Server nguồn vào
-bảng `dwh.ReportFacts` trên Data Warehouse trung tâm. Mỗi nguồn một tài khoản
-SQL chỉ đọc, mỗi nguồn một file connector độc lập trong `sources/`.
+Đồng bộ dữ liệu từ nhiều máy chủ MSSQL/MySQL/MariaDB vào Data Warehouse
+trung tâm (`HCRC_DWH`). Một tiến trình vừa chạy lịch đồng bộ nền, vừa phục
+vụ `/admin/*` cho trang quản trị riêng `etl-admin/` — CSDL quản trị
+(`HCRC_ETL`) tách biệt hoàn toàn khỏi `HCRC_RP` (Report Server) và
+`HCRC_API` (API Server).
+
+## Hai kiểu đồng bộ
+
+- **Theo bảng** (`Type = 'table'`) — cấu hình hoàn toàn qua `etl-admin/`:
+  chọn nguồn → duyệt bảng/cột thật → chọn cột khoá/ngày/watermark/Dimensions/
+  Measures, tuỳ chọn thêm **một** bảng liên kết cùng nguồn. Không cần code.
+- **Tuỳ biến** (`Type = 'custom'`) — khi cần join nhiều bảng, tính toán,
+  logic nghiệp vụ riêng: viết một connector trong `sources/` (xem
+  `sources/_template.js`), đăng ký job trên `etl-admin/` tham chiếu đúng
+  `CustomConnectorKey`. Lịch chạy/bật-tắt/xem log vẫn quản lý qua giao diện
+  như job "theo bảng" — chỉ khác câu SQL/logic chuyển đổi nằm trong code.
 
 ## Cài đặt
 
 ```bash
 cd etl
 npm install
-cp .env.example .env   # điền thông tin kết nối DWH_* trước khi chạy
+cp .env.example .env   # điền DWH_*, ADMIN_* (CSDL HCRC_ETL), ADMIN_JWT_SECRET, ETL_ENCRYPTION_KEY
 ```
 
-Chạy `dwh/schema.sql` trên Data Warehouse (một lần — an toàn chạy lại nhiều lần,
-mọi CREATE đều kiểm tra tồn tại trước).
-
-## Chạy thử một lần (không cần đợi lịch)
+Tạo khoá mã hoá (dùng để mã hoá mật khẩu các nguồn lưu trong `etl.DataSources`):
 
 ```bash
-npm run sync:once
+node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
 ```
 
-## Chạy nền theo lịch (production, dùng PM2)
+Chạy `etl-db/schema.sql` trên CSDL `HCRC_ETL` (một lần — an toàn chạy lại
+nhiều lần). Tạo tài khoản quản trị đầu tiên cho `etl-admin/`:
 
 ```bash
-pm2 start index.js --name hcrc-etl
+npm run seed:admin -- ten-dang-nhap mat-khau "Họ Tên" admin
 ```
 
-## Thêm một nguồn mới
+## Chạy
 
-1. Copy `sources/_template.js` thành `sources/<ten-nguon>.js`.
-2. Sửa `key`, `label`, `envPrefix`, `domain` cho đúng nguồn thật.
-3. Sửa `extract()` — câu SQL đúng bảng/cột thật. **Bắt buộc** `WHERE UpdatedAt >
-   @lastSyncedAt` và `SELECT` kèm cột `UpdatedAt` (dùng để cập nhật mốc đồng bộ
-   sau khi chạy xong, xem `jobs/runSync.js`).
-4. Sửa `transform()` — map 1 dòng nguồn thành
-   `{ sourceSystem, domain, entityCode, eventDate, dimensions, measures }`.
-5. Thêm `require('./<ten-nguon>')` vào mảng trong `sources/index.js`.
-6. Thêm khối `SRC_<TEN>_...` vào `.env` (xem mẫu cuối `.env.example`) — cấp một
-   tài khoản SQL **chỉ đọc** trên máy chủ nguồn đó, tách biệt với tài khoản của
-   chính phần mềm nghiệp vụ.
+```bash
+npm start           # chạy nền theo lịch + phục vụ /admin/* (production)
+npm run dev          # tự khởi động lại khi sửa code
+npm run sync:once    # chạy toàn bộ job đang bật MỘT LẦN rồi thoát — test nhanh
+```
 
-Không cần sửa gì ở `jobs/`, `lib/`, `db.js` — toàn bộ phần đó dùng chung cho
-mọi nguồn, không phụ thuộc nguồn cụ thể nào.
+`npm start` KHÔNG nên lộ ra Internet — toàn bộ `/admin/*` chỉ dành cho người
+vận hành nội bộ, tương tự lưu ý về `/admin/*` ở `api-server/README.md`.
 
-## Nguồn chưa có cột `UpdatedAt` đáng tin cậy?
+## Nguồn nhiều loại CSDL
 
-`extract()` vẫn viết được — so khớp theo khoá chính thay vì lọc theo thời gian
-— nhưng nên bàn trước cách làm cụ thể vì ảnh hưởng trực tiếp tới tải lên máy
-chủ nguồn mỗi lượt chạy.
+`etl.DataSources.Engine` — `'mssql'` hoặc `'mysql'` (dùng chung cho cả MySQL
+và MariaDB, cùng driver `mysql2`). Thêm PostgreSQL sau này chỉ cần thêm một
+file trong `lib/dbAdapters/`, xem `lib/dbAdapters/index.js`.
 
-## Giới hạn đã biết
+Duyệt schema (chọn bảng/cột trên `etl-admin/`) chỉ cần tài khoản **chỉ đọc**
+trên nguồn — catalog view của cả hai engine chỉ hiện bảng mà tài khoản đang
+kết nối có quyền `SELECT`. Cùng tài khoản đó dùng được cho cả duyệt schema
+lẫn đồng bộ dữ liệu thật, không cần tài khoản thứ hai. Kho đích (`HCRC_DWH`)
+vẫn cần tài khoản có quyền ghi riêng (`DWH_USER`).
 
-Đồng bộ theo watermark (`UpdatedAt`) **không phát hiện được dòng bị xoá ở
-nguồn** — dòng đã xoá thì không còn `UpdatedAt` để so sánh. Nếu nghiệp vụ có
-xoá dòng thật (không phải đánh dấu trạng thái), cần thêm một trong hai hướng
-xử lý (bàn trước khi cần):
+## API — `/admin/*`
 
-- Bật Change Data Capture (CDC) của SQL Server trên bảng nguồn — bắt được cả
-  thao tác xoá.
-- Chạy thêm một job đối chiếu định kỳ, so khoá chính giữa nguồn và kho để dọn
-  dòng đã xoá.
+| Endpoint | Vai trò | Mô tả |
+|---|---|---|
+| `POST /admin/auth/login`, `/logout`, `GET /me` | — | Đăng nhập/đăng xuất |
+| `GET/POST/PUT /admin/users`, `POST /:id/reset-password` | `admin` sửa | Phân quyền — tài khoản quản trị ETL |
+| `GET/POST/PUT/DELETE /admin/data-sources` | `admin` sửa | Nguồn dữ liệu |
+| `POST /admin/data-sources/test` | `admin` | Kiểm tra kết nối một cấu hình chưa lưu |
+| `GET /admin/data-sources/:id/tables` | — | Duyệt bảng thật của một nguồn |
+| `GET /admin/data-sources/:id/tables/:schema/:table/columns` | — | Duyệt cột thật |
+| `GET /admin/data-sources/:id/tables/:schema/:table/foreign-keys` | — | Gợi ý cặp cột nối (nếu có khoá ngoại thật) |
+| `GET/POST/PUT/DELETE /admin/sync-jobs` | `admin` sửa | Cấu hình đồng bộ |
+| `GET /admin/sync-jobs/custom-connectors` | — | Danh sách connector "tuỳ biến" có sẵn trong code |
+| `POST /admin/sync-jobs/:id/run-now` | `admin` | Chạy thử một job ngay |
+| `GET /admin/log` | — | Nhật ký đồng bộ, lọc + phân trang |
+| `GET /admin/dashboard` | — | Tổng hợp tình trạng đồng bộ |
+
+## Còn thiếu để dùng thật
+
+- Adapter PostgreSQL — chưa xây, chưa có yêu cầu (xem `lib/dbAdapters/index.js`).
+- Sửa (`PUT /admin/sync-jobs/:id`) chỉ đổi tên/lịch/bật-tắt/domain/cột — đổi
+  bảng nguồn hay bảng liên kết phải xoá job cũ, tạo job mới (tránh cấu hình
+  nửa vời).
+- Chưa có job dọn `etl.SyncLog` cũ định kỳ — bảng này lớn dần theo số lượt
+  chạy, cần thêm khi cần (giống `api-server/jobs/cleanupRequestLog.js`).

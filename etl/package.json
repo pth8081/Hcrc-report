@@ -1,15 +1,24 @@
 {
   "name": "hcrc-etl",
-  "version": "0.1.0",
-  "description": "ETL đồng bộ dữ liệu từ nhiều máy chủ MSSQL nguồn vào Data Warehouse trung tâm HCRC",
-  "main": "index.js",
+  "version": "0.2.0",
+  "description": "ETL HCRC — server quản trị (etl-admin/) + lịch đồng bộ nền vào Data Warehouse trung tâm",
+  "main": "server.js",
   "scripts": {
-    "start": "node index.js",
-    "sync:once": "node index.js --once"
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "sync:once": "node index.js",
+    "seed:admin": "node scripts/seedAdmin.js"
   },
   "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "compression": "^1.8.1",
+    "cookie-parser": "^1.4.7",
     "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "express-rate-limit": "^8.6.2",
+    "jsonwebtoken": "^9.0.3",
     "mssql": "^11.0.1",
+    "mysql2": "^3.11.0",
     "node-cron": "^3.0.3",
     "nodemailer": "^9.0.5"
   },
