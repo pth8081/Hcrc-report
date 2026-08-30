@@ -5,6 +5,44 @@ Server, API Server và các giao diện quản trị) — tăng ở mỗi lần 
 `main`, theo kiểu semver không chặt (patch cho fix nhỏ, minor cho tính năng
 mới, major khi đổi cấu trúc phá vỡ tương thích ngược).
 
+## 0.22.0 — Nhập hàng loạt kết nối DB (etl-admin + api-admin)
+
+Tính năng mới: tải file Excel (.xlsx) để tạo/sửa NHIỀU `DataSources` (kết
+nối CSDL nguồn) cùng lúc, thay vì bấm form từng cái — dùng khi cần khai báo
+kết nối cho hàng chục chi nhánh cùng cấu trúc, hoặc muốn script hoá việc cấp
+phát/đổi cấu hình kết nối (đúng lúc save-time schema validation ở 0.21.6 phát
+huy tác dụng nhất — báo lỗi ngay nếu 1 dòng gõ sai).
+
+- **`etl/lib/dataSourcesImport.js`** (mới) — parse `.xlsx` (cột bắt buộc:
+  `Name, Server, DatabaseName, Username, Password`; tuỳ chọn: `Engine`
+  (`mssql`/`mysql`, mặc định `mssql`), `Port`, `Encrypt`, `TrustServerCert`)
+  + `upsertDataSources` (staging + `MERGE etl.DataSources`, khoá theo
+  `Name`). Mật khẩu được **mã hoá TỪNG DÒNG trước khi vào staging table**
+  (IV ngẫu nhiên mỗi dòng) — plaintext không chạm câu SQL.
+- **`api-server/lib/dataSourcesImport.js`** (mới) — tương tự, không có cột
+  `Engine` (đúng phạm vi `api.DataSources`, chỉ SQL Server). Thêm dependency
+  `exceljs` + `multer` vào `api-server/package.json` (etl đã có sẵn từ tính
+  năng "Nhập chỉ tiêu").
+- **`etl/routes/admin/dataSources.js`** và
+  **`api-server/routes/admin/dataSources.js`** — thêm `POST /import`
+  (multer memoryStorage, không lưu file gốc ra đĩa), gọi `invalidate(id)`
+  cho mọi nguồn vừa ghi để job/endpoint đang chạy nạp lại kết nối mới ngay,
+  không cần khởi động lại service.
+- **`etl-admin/src/pages/DataSourcesPage.jsx`**,
+  **`api-admin/src/pages/DataSourcesPage.jsx`** — thêm khối "Nhập hàng
+  loạt" (upload file + hiển thị kết quả thêm mới/cập nhật/dòng bị bỏ qua),
+  cùng khuôn UI với trang "Nhập chỉ tiêu". `api-admin/src/lib/api.js` được
+  bổ sung tham số `isFormData` (etl-admin đã có từ trước).
+- Khoá cập nhật là `Name` (không phải khoá DB, `DataSources` không có
+  UNIQUE trên cột này) — chạy lại file với 1 dòng sửa (đổi mật khẩu, đổi
+  server...) chỉ dòng đó đổi, không tạo trùng.
+- 20 test độc lập (`fakeModule` + file `.xlsx` dựng bằng ExcelJS thật): cả 2
+  bên — file hợp lệ, thiếu cột bắt buộc, thiếu trường, sai Engine/Port, mật
+  khẩu luôn được mã hoá trước khi staging (không bao giờ plaintext trong
+  SQL), đếm inserted/updated/ids đúng theo MERGE, rollback khi lỗi giữa
+  transaction, route trả 400/200 đúng tình huống, `invalidate()` gọi đúng
+  id. `npx vite build` sạch cho cả `etl-admin` và `api-admin`.
+
 ## 0.21.6 — Đối chiếu bảng/cột với schema thật ngay lúc lưu cấu hình (etl + api-server)
 
 Không phải fix bảo mật (đã xác nhận ở 0.21.5 — `assertSafeIdentifier` chặn

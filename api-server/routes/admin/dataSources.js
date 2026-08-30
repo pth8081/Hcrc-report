@@ -6,15 +6,34 @@
 // endpoint tự khai báo DataSourceId của nó khi tạo (routes/admin/realtimeEndpoints.js),
 // vì giờ 1 endpoint không chỉ cần 1 nguồn mà còn cần bảng/cột/khoá cụ thể.
 // Mật khẩu KHÔNG BAO GIỜ trả về nguyên văn.
+//
+// POST /import — tạo/cập nhật HÀNG LOẠT qua file Excel (xem
+// lib/dataSourcesImport.js) — dành cho khi cần khai báo nhiều nguồn cùng
+// cấu trúc (vd hàng chục chi nhánh) mà không muốn bấm form từng cái, hoặc
+// muốn script hoá việc cấp phát/đổi cấu hình kết nối. Khoá để cập nhật thay
+// vì tạo trùng là "Name" — chạy lại file với 1 dòng sửa thì chỉ dòng đó đổi.
 const express = require('express');
+const multer = require('multer');
 const { sql, getPool } = require('../../db');
 const { requireAdminAuth, requireAdminRole } = require('../../lib/adminAuth');
 const { encrypt } = require('../../lib/crypto');
 const { invalidate, testConnection } = require('../../lib/dataSourcePool');
 const schemaBrowser = require('../../lib/schemaBrowser');
+const { parseDataSourcesFile, upsertDataSources } = require('../../lib/dataSourcesImport');
 
 const router = express.Router();
 router.use(requireAdminAuth);
+
+// memoryStorage — chỉ đọc để parse ngay trong bộ nhớ, KHÔNG lưu file gốc lên
+// đĩa (file chứa mật khẩu thật dạng chữ thường, xem lib/dataSourcesImport.js).
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const ok = /\.xlsx$/i.test(file.originalname);
+    cb(ok ? null : new Error('Chỉ nhận file .xlsx'), ok);
+  }
+});
 
 router.get('/', async (req, res, next) => {
   try {
@@ -109,6 +128,27 @@ router.post('/test', requireAdminRole, async (req, res) => {
   } catch (err) {
     res.status(400).json({ ok: false, error: err.message });
   }
+});
+
+// Tạo/cập nhật hàng loạt qua file Excel — xem chú thích đầu file.
+router.post('/import', requireAdminRole, upload.single('file'), async (req, res, next) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'Thiếu file' });
+
+    let parsed;
+    try {
+      parsed = await parseDataSourcesFile(req.file.buffer);
+    } catch (err) {
+      return res.status(400).json({ error: err.message });
+    }
+    const { rows, rowErrors } = parsed;
+    if (!rows.length) return res.status(400).json({ error: 'Không có dòng hợp lệ nào để nhập', rowErrors });
+
+    const pool = await getPool('ADMIN');
+    const result = await upsertDataSources(pool, rows);
+    await Promise.all(result.ids.map(id => invalidate(id)));
+    res.json({ inserted: result.inserted, updated: result.updated, rowErrors });
+  } catch (err) { next(err); }
 });
 
 // ===== Duyệt schema thật — dùng khi tạo/sửa 1 endpoint realtime =====

@@ -1,11 +1,11 @@
 // lib/api.js — Gọi api-server dưới /admin/* (cookie phiên riêng, KHÔNG phải
 // API key — xem api-server/lib/adminAuth.js).
-async function request(path, { method = 'GET', body } = {}) {
+async function request(path, { method = 'GET', body, isFormData = false } = {}) {
   const res = await fetch(`/admin${path}`, {
     method,
     credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
-    body: body ? JSON.stringify(body) : undefined
+    headers: isFormData ? undefined : { 'Content-Type': 'application/json' },
+    body: body ? (isFormData ? body : JSON.stringify(body)) : undefined
   });
 
   const contentType = res.headers.get('content-type') || '';
@@ -21,7 +21,7 @@ async function request(path, { method = 'GET', body } = {}) {
 
 export const api = {
   get: (path) => request(path),
-  post: (path, body) => request(path, { method: 'POST', body }),
+  post: (path, body, isFormData = false) => request(path, { method: 'POST', body, isFormData }),
   put: (path, body) => request(path, { method: 'PUT', body }),
   del: (path) => request(path, { method: 'DELETE' })
 };

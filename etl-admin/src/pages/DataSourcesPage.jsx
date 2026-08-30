@@ -13,11 +13,32 @@ export default function DataSourcesPage() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [testResult, setTestResult] = useState('');
   const [error, setError] = useState('');
+  const [importFile, setImportFile] = useState(null);
+  const [importResult, setImportResult] = useState(null);
+  const [importError, setImportError] = useState('');
 
   function reload() {
     api.get('/data-sources').then(setSources).catch(err => setError(err.message));
   }
   useEffect(reload, []);
+
+  async function submitImport(e) {
+    e.preventDefault();
+    setImportError('');
+    setImportResult(null);
+    if (!importFile) return setImportError('Chọn file .xlsx trước');
+
+    const formData = new FormData();
+    formData.append('file', importFile);
+    try {
+      const result = await api.post('/data-sources/import', formData, true);
+      setImportResult(result);
+      setImportFile(null);
+      reload();
+    } catch (err) {
+      setImportError(err.message);
+    }
+  }
 
   function onEngineChange(engine) {
     setForm({ ...form, engine, port: engine === 'mysql' ? 3306 : 1433 });
@@ -94,6 +115,45 @@ export default function DataSourcesPage() {
           </div>
           {testResult && <p>{testResult}</p>}
         </form>
+      )}
+
+      {isAdmin && (
+        <>
+          <h2>Nhập hàng loạt</h2>
+          <p>
+            Tải lên file Excel (.xlsx) để tạo/sửa NHIỀU nguồn cùng lúc — dùng khi cần khai
+            báo kết nối cho nhiều chi nhánh cùng cấu trúc. Dòng 1 là header, cột bắt buộc:{' '}
+            <code>Name</code>, <code>Server</code>, <code>DatabaseName</code>, <code>Username</code>,{' '}
+            <code>Password</code>. Cột tuỳ chọn: <code>Engine</code> (<code>mssql</code> hoặc{' '}
+            <code>mysql</code>, mặc định <code>mssql</code>), <code>Port</code>, <code>Encrypt</code>,{' '}
+            <code>TrustServerCert</code> (để trống dùng mặc định).
+          </p>
+          <p>
+            Khoá để CẬP NHẬT thay vì tạo trùng là <code>Name</code> — chạy lại file với 1 dòng
+            sửa (vd đổi mật khẩu, đổi server) chỉ dòng đó đổi, các dòng khác giữ nguyên. Nguồn
+            đang được job đồng bộ dùng sẽ tự nạp lại kết nối mới ngay sau khi nhập.
+          </p>
+          <p>
+            <strong>Lưu ý:</strong> file này chứa mật khẩu THẬT dạng chữ thường (không mã hoá) —
+            chỉ được mã hoá SAU khi tải lên. Xoá file khỏi máy sau khi nhập xong.
+          </p>
+          {importError && <p className="form-error">{importError}</p>}
+          <form className="stacked-form" onSubmit={submitImport}>
+            <input type="file" accept=".xlsx" onChange={(e) => setImportFile(e.target.files?.[0] ?? null)} required />
+            <button type="submit">Nhập hàng loạt</button>
+          </form>
+          {importResult && (
+            <div>
+              <p>✅ Đã thêm mới {importResult.inserted}, cập nhật {importResult.updated} dòng.</p>
+              {importResult.rowErrors?.length > 0 && (
+                <>
+                  <p>⚠️ {importResult.rowErrors.length} dòng bị bỏ qua:</p>
+                  <ul>{importResult.rowErrors.map((e, i) => <li key={i}>{e}</li>)}</ul>
+                </>
+              )}
+            </div>
+          )}
+        </>
       )}
 
       <DataTable
