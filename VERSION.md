@@ -5,6 +5,41 @@ Server, API Server và các giao diện quản trị) — tăng ở mỗi lần 
 `main`, theo kiểu semver không chặt (patch cho fix nhỏ, minor cho tính năng
 mới, major khi đổi cấu trúc phá vỡ tương thích ngược).
 
+## 0.21.0 — SourceType='composite': ghép nhiều nguồn + dòng "Tổng cộng"
+
+Bước 3 (cuối) cho báo cáo doanh thu chi nhánh — ghép "Thực đạt" (DWH hoặc
+realtime qua API Server) + "Chỉ tiêu" (`dwh.SalesTargets`) + "Cùng kỳ năm
+trước" (DWH, lệch 1 năm) vào cùng 1 dòng, cộng dồn dòng "Tổng cộng" theo
+nhóm — 25 test mới (9+8+4 backend, 4 regression xác nhận không ảnh hưởng
+`directDb`/`apiReport`/`externalApi`).
+
+- **`SourceType='composite'`** (mới, `rp-db/schema.sql` — migration idempotent
+  thêm vào CHECK constraint) — `DefinitionJson.blocks`: mỗi khối tự chọn
+  `directDb`/`apiReport`/`apiRealtime`, hoặc `isTarget:true` (đọc
+  `dwh.SalesTargets`). Ghép theo `entityCode`, công thức
+  (`lib/formulaEngine.js`, KHÔNG đổi) tham chiếu field dạng
+  `"tenKhoi.field..."` — xem `rp-server/README.md` mục "Báo cáo ghép nhiều
+  nguồn (composite)" cho ví dụ đầy đủ.
+- **`lib/compositeReportRunner.js`** (mới) + **`lib/salesTargetsReader.js`**
+  (mới, CHỈ ĐỌC `dwh.SalesTargets`) — tái dùng nguyên `runReport()`/
+  `runApiReport()` đã có cho từng khối, không viết lại logic fetch.
+  `dateOffsetYears` dịch đúng ngày dương lịch (vd `-1` = cùng ngày năm
+  trước); khối target tính `PeriodMonth` = ngày 1 tháng chứa ngày yêu cầu.
+- **`groupBy`** (tuỳ chọn trong `DefinitionJson`) — dòng "Tổng cộng" theo
+  nhóm + tổng toàn báo cáo, tính bằng CỘNG DỒN DỮ LIỆU THÔ rồi chạy lại
+  đúng công thức (SUM/SUM, không phải trung bình cộng % từng dòng). Giá trị
+  không khớp nhóm nào đã khai vẫn xuất hiện, không âm thầm mất.
+- **`rp-server/routes/reportCatalog.js`** — `validateCompositeDefinition()`
+  (mới) kiểm tra `blocks` ngay lúc lưu (key trùng, thiếu domain/apiTarget/
+  targetDomain tuỳ loại khối) — lỗi lộ ra ngay, không đợi tới lúc chạy thật.
+- **`rp-user`** — `ReportCatalogPanel.jsx` thêm `composite` vào danh sách
+  SourceType chọn được (theo đúng quy ước JSON thô sẵn có, không thêm UI
+  cấu trúc riêng); `FilterForm.jsx` thêm kiểu lọc `"date"` (ô chọn ngày —
+  dùng cho bộ lọc `eventDate` của composite, cũng dùng được cho báo cáo
+  khác cần lọc 1 ngày đơn thay vì khoảng ngày).
+- **Xuất file** (`lib/exportExcel.js`/`lib/exportPdf.js`) — dòng "Tổng cộng"
+  (đánh dấu `__isSubtotal`) in đậm, khớp file mẫu.
+
 ## 0.20.0 — Giữ lịch sử theo ngày cho dwh.ReportFacts (opt-in mỗi job)
 
 Bước 2 cho báo cáo cần so cùng kỳ năm trước (đúng ngày dương lịch) — 13

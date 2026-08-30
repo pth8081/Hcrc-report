@@ -1,7 +1,7 @@
 // routes/reports.js — Danh mục báo cáo (app.ReportCatalog), lọc theo quyền
 // của người dùng (app.RoleReportAccess — xem lib/permissions.js), chạy báo
 // cáo và xuất file. ĐỊNH NGHĨA báo cáo (bộ lọc/cột) luôn đọc từ
-// app.ReportCatalog (CSDL RP). Dữ liệu THẬT có 4 đường, theo SourceType:
+// app.ReportCatalog (CSDL RP). Dữ liệu THẬT có 5 đường, theo SourceType:
 //   'directDb'    — Data Warehouse mặc định hoặc nguồn bổ sung
 //                    (DataSourceId — xem lib/dataSourcePool.js), query SQL
 //                    tại chỗ (lib/reportEngine.js).
@@ -12,6 +12,12 @@
 //                    Server tự mở thêm một đường kết nối trực tiếp riêng.
 //   'externalApi' — gọi THẲNG một API do ĐỐI TÁC BÊN NGOÀI xây dựng, không
 //                    qua API Server (lib/externalReportClient.js).
+//   'composite'   — ghép NHIỀU khối nguồn (blocks) thành 1 dòng/thực thể
+//                    theo entityCode rồi mới chạy công thức
+//                    (lib/compositeReportRunner.js) — dùng khi 1 báo cáo
+//                    cần trộn "hôm nay" (directDb/apiRealtime) với "cùng kỳ
+//                    năm trước" + "chỉ tiêu" (dwh.SalesTargets), xem README
+//                    mục "Báo cáo ghép nhiều nguồn (composite)".
 const express = require('express');
 const { sql, getPool } = require('../db');
 const { requireAuth } = require('../lib/auth');

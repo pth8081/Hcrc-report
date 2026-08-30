@@ -42,7 +42,10 @@ async function exportPdf(definition, rows) {
       page = pdfDoc.addPage(PAGE_SIZE);
       y = PAGE_SIZE[1] - MARGIN;
     }
-    drawRow(row, false);
+    // Dòng tổng (SourceType='composite' + groupBy, xem
+    // lib/compositeReportRunner.js) đánh dấu bằng __isSubtotal — in đậm,
+    // giống hàng "Tổng cộng" trong file mẫu.
+    drawRow(row, !!row.__isSubtotal);
   }
 
   return Buffer.from(await pdfDoc.save());

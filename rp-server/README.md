@@ -189,6 +189,77 @@ liệu, không chỉ chọn tên field có sẵn.
 API đối tác cần phân trang, thêm tham số cố định thẳng vào `externalPath`
 (vd `/orders?limit=500`).
 
+### Báo cáo ghép nhiều nguồn (composite) — vd "Thực đạt" so "Chỉ tiêu" + "Cùng kỳ năm trước"
+
+`SourceType = 'composite'` — khi 1 báo cáo cần trộn dữ liệu từ NHIỀU nguồn
+vào CÙNG 1 dòng/thực thể, mà các `SourceType` khác không làm được (mỗi cái
+chỉ đọc đúng 1 nguồn). Vd báo cáo doanh thu chi nhánh: "Thực đạt hôm nay"
+lấy từ Data Warehouse (hoặc realtime qua API Server), "Chỉ tiêu" lấy từ
+`dwh.SalesTargets` (nhập qua `etl-admin/`, xem `etl/README.md` mục "Nhập
+chỉ tiêu"), "Cùng kỳ năm trước" lấy lại Data Warehouse nhưng lệch 1 năm —
+cả 3 phải nằm chung 1 dòng để tính "Tỷ lệ đạt (%)".
+
+`DefinitionJson.blocks` — mảng "khối nguồn", mỗi khối tự chọn 1 cách lấy
+dữ liệu, RỒI ghép theo `entityCode`:
+
+```json
+{
+  "title": "Báo cáo nhanh doanh thu",
+  "domain": "doanhthu_chinhanh",
+  "filters": [{ "field": "eventDate", "type": "date", "label": "Ngày báo cáo" }],
+  "blocks": [
+    { "key": "current", "sourceType": "directDb", "domain": "doanhthu_chinhanh" },
+    { "key": "lastYear", "sourceType": "directDb", "domain": "doanhthu_chinhanh", "dateOffsetYears": -1 },
+    { "key": "target", "isTarget": true, "targetDomain": "doanhthu_chinhanh" }
+  ],
+  "columns": [
+    { "key": "tenCuaHang", "label": "Siêu thị", "formula": "entityCode" },
+    { "key": "thucDat", "label": "Thực đạt", "formula": "current.measures.doanhThu" },
+    { "key": "chiTieu", "label": "Chỉ tiêu", "formula": "target.ChiTieuDoanhThu" },
+    { "key": "tyLeDat", "label": "Tỷ lệ đạt (%)", "formula": "ROUND(current.measures.doanhThu / target.ChiTieuDoanhThu * 100, 1)" }
+  ],
+  "groupBy": {
+    "field": "current.dimensions.chain",
+    "groups": [
+      { "value": "MART", "label": "Tổng cộng MART" },
+      { "value": "MINIMART", "label": "Tổng cộng MINIMART" }
+    ],
+    "grandTotalLabel": "Tổng cộng",
+    "labelColumn": "tenCuaHang"
+  }
+}
+```
+
+- **Mỗi khối** (`blocks[i]`): `key` bắt buộc, duy nhất — tên trường lồng
+  trong dòng đã ghép, công thức tham chiếu qua `"tenKhoi.field..."` (vd
+  `current.measures.doanhThu`, `current.dimensions.dienTich`,
+  `current.entityCode`). `sourceType` = `'directDb'` (đọc DWH hoặc nguồn bổ
+  sung, thêm `domain` bắt buộc, `dateOffsetYears` tuỳ chọn — `-1` = cùng
+  ngày dương lịch năm trước, `0`/bỏ trống = đúng ngày yêu cầu),
+  `'apiReport'`/`'apiRealtime'` (giống 2 `SourceType` đó, thêm
+  `apiConnectionId`/`apiTarget` trong khối), hoặc `isTarget: true` (đọc
+  `dwh.SalesTargets`, thêm `targetDomain` — field chỉ tiêu phẳng trực tiếp,
+  vd `target.ChiTieuDoanhThu`, không lồng thêm cấp `targets`).
+- **Ngày báo cáo** — bộ lọc `eventDate` (kiểu `"date"`, khai trong
+  `filters` để hiện ô chọn ngày ở trang xem báo cáo), mặc định NGÀY HIỆN
+  TẠI của máy chủ nếu không chọn. Mọi khối `directDb` tự dịch theo
+  `dateOffsetYears` của khối đó dựa trên đúng ngày này; khối target tính
+  `PeriodMonth` = ngày 1 của tháng chứa ngày đó.
+- **`columns`** LUÔN dùng công thức (`{key,label,formula}`) — dữ liệu đã
+  lồng theo khối, không còn field thô đơn giản như `'directDb'` thường.
+  Thực thể thiếu dữ liệu ở 1 khối (vd chưa nhập chỉ tiêu tháng này) → field
+  đó ra `undefined`/`null`, KHÔNG làm lỗi cả dòng.
+- **`groupBy`** (tuỳ chọn) — dòng "Tổng cộng" theo nhóm + tổng toàn báo
+  cáo. `field` = path nhóm theo (thường 1 field Dimensions, vd "chain" —
+  phải được nguồn/ETL gán sẵn cho từng thực thể). Dòng tổng tính bằng cách
+  **cộng dồn dữ liệu THÔ rồi chạy lại đúng công thức đó** (vd Tỷ lệ đạt ở
+  dòng tổng = SUM(thực đạt)/SUM(chỉ tiêu), KHÔNG PHẢI trung bình cộng % của
+  từng dòng) — xem `lib/compositeReportRunner.js`. Giá trị KHÔNG khớp
+  `groups` nào đã khai vẫn xuất hiện (cuối danh sách, trước tổng), không
+  âm thầm biến mất.
+- **KHÔNG phân trang** — composite luôn trả toàn bộ dòng (cần đủ để tính
+  đúng dòng tổng), khác `'directDb'`/`'apiReport'` có `page`/`pageSize`.
+
 ### Gửi email báo cáo theo lịch
 
 Trang "Lịch gửi email báo cáo" (`app.ReportEmailSchedules`) — gửi TỰ ĐỘNG một

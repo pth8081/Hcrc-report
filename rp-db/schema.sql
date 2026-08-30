@@ -181,7 +181,7 @@ GO
 
 -- Định nghĩa báo cáo ("Biểu mẫu") — CHUYỂN từ dwh.ReportCatalog sang đây (xem
 -- ghi chú cuối dwh/schema.sql). SourceType quyết định báo cáo lấy dữ liệu ở
--- đâu, 4 giá trị:
+-- đâu, 5 giá trị:
 --   'directDb'    — đọc thẳng CSDL (mặc định, hành vi cũ): DataSourceId NULL
 --                   = Data Warehouse mặc định (.env của rp-server), khác
 --                   NULL = app.ReportDataSources. DefinitionJson.columns
@@ -208,8 +208,21 @@ GO
 --                   columns dùng đường dẫn JSON phẳng (vd "trangThai",
 --                   "thongTin.capNhatLuc") hoặc cột công thức {key,label,formula}
 --                   giống các SourceType khác — xem lib/externalReportClient.js.
--- 'apiReport'/'apiRealtime'/'externalApi' đều KHÔNG cần DataSourceId — Report
--- Server không tự mở thêm kết nối DB riêng cho các loại này.
+--   'composite'   — ghép NHIỀU khối nguồn (blocks trong DefinitionJson)
+--                   thành 1 dòng/thực thể theo entityCode, rồi mới chạy
+--                   cột công thức trên dòng đã ghép — dùng khi 1 báo cáo
+--                   cần trộn dữ liệu "hôm nay" (directDb hoặc apiRealtime)
+--                   với "cùng kỳ năm trước" + "chỉ tiêu" (luôn directDb,
+--                   đọc dwh.ReportFacts/dwh.SalesTargets). Xem
+--                   lib/compositeReportRunner.js đầu file cho hình dạng
+--                   DefinitionJson.blocks đầy đủ. KHÔNG dùng
+--                   DefinitionJson.columns dạng field thô đơn giản như
+--                   'directDb' — mọi cột nên là công thức tham chiếu
+--                   "tenKhoi.field..." (dữ liệu đã lồng theo từng khối).
+-- 'apiReport'/'apiRealtime'/'externalApi'/'composite' đều KHÔNG cần
+-- DataSourceId ở CỘT NÀY — Report Server không tự mở thêm kết nối DB riêng
+-- cho các loại này ('composite' có thể tự khai dataSourceId RIÊNG cho từng
+-- khối trong DefinitionJson.blocks).
 IF OBJECT_ID('app.ReportCatalog', 'U') IS NULL
 BEGIN
     CREATE TABLE app.ReportCatalog (
@@ -219,7 +232,7 @@ BEGIN
         MenuItemId     INT           NOT NULL REFERENCES app.MenuItems(Id),
         DataSourceId   INT           NULL REFERENCES app.ReportDataSources(Id),
         SourceType     VARCHAR(20)   NOT NULL DEFAULT 'directDb'
-            CONSTRAINT CK_ReportCatalog_SourceType CHECK (SourceType IN ('directDb', 'apiReport', 'apiRealtime', 'externalApi')),
+            CONSTRAINT CK_ReportCatalog_SourceType CHECK (SourceType IN ('directDb', 'apiReport', 'apiRealtime', 'externalApi', 'composite')),
         ApiConnectionId INT          NULL REFERENCES app.ApiConnections(Id),
         ApiTarget       NVARCHAR(200) NULL,
         ExternalConnectionId INT     NULL REFERENCES app.ExternalApiConnections(Id),
@@ -249,14 +262,15 @@ IF COL_LENGTH('app.ReportCatalog', 'ExternalConnectionId') IS NULL
 BEGIN
     ALTER TABLE app.ReportCatalog ADD ExternalConnectionId INT NULL REFERENCES app.ExternalApiConnections(Id);
 END
--- Bản cũ tạo CK_ReportCatalog_SourceType chỉ với 3 giá trị (chưa có
--- 'externalApi') — xoá và tạo lại cho đủ, kể cả khi đã đủ (rẻ, an toàn).
+-- Bản cũ tạo CK_ReportCatalog_SourceType chưa đủ giá trị mới nhất (thiếu
+-- 'externalApi' và/hoặc 'composite') — xoá và tạo lại cho đủ, kể cả khi đã
+-- đủ (rẻ, an toàn).
 IF EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = 'CK_ReportCatalog_SourceType')
 BEGIN
     ALTER TABLE app.ReportCatalog DROP CONSTRAINT CK_ReportCatalog_SourceType;
 END
 ALTER TABLE app.ReportCatalog ADD CONSTRAINT CK_ReportCatalog_SourceType
-    CHECK (SourceType IN ('directDb', 'apiReport', 'apiRealtime', 'externalApi'));
+    CHECK (SourceType IN ('directDb', 'apiReport', 'apiRealtime', 'externalApi', 'composite'));
 GO
 
 IF OBJECT_ID('app.RoleReportAccess', 'U') IS NULL

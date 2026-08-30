@@ -57,14 +57,17 @@ router.get('/', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-const SOURCE_TYPES = ['directDb', 'apiReport', 'apiRealtime', 'externalApi'];
+const SOURCE_TYPES = ['directDb', 'apiReport', 'apiRealtime', 'externalApi', 'composite'];
 
 // 'apiReport'/'apiRealtime' cần apiConnectionId + apiTarget; 'externalApi'
 // cần externalConnectionId (+ externalPath/externalShape trong
 // DefinitionJson, kiểm tra riêng ở validateExternalDefinition — cần JSON đã
-// parse). KHÔNG loại nào trong 3 loại này cần dataSourceId — Report Server
-// không tự mở kết nối DB riêng cho chúng (xem lib/apiReportClient.js,
-// lib/externalReportClient.js).
+// parse). 'composite' cần "blocks" trong DefinitionJson, kiểm tra riêng ở
+// validateCompositeDefinition. KHÔNG loại nào trong 4 loại này cần
+// dataSourceId ở CỘT NÀY — Report Server không tự mở kết nối DB riêng cho
+// chúng (xem lib/apiReportClient.js, lib/externalReportClient.js,
+// lib/compositeReportRunner.js — 'composite' có thể tự khai dataSourceId
+// RIÊNG cho từng khối bên trong DefinitionJson.blocks, không dùng cột này).
 function validateSource({ sourceType = 'directDb', apiConnectionId, apiTarget, externalConnectionId }) {
   if (!SOURCE_TYPES.includes(sourceType)) {
     return `sourceType phải là một trong: ${SOURCE_TYPES.join(', ')}`;
@@ -85,6 +88,37 @@ function validateExternalDefinition(sourceType, definition) {
   if (!definition.externalPath) return 'sourceType "externalApi" cần khai "externalPath" trong DefinitionJson';
   if (!['lookup', 'list'].includes(definition.externalShape)) {
     return 'sourceType "externalApi" cần "externalShape" là "lookup" hoặc "list" trong DefinitionJson';
+  }
+  return null;
+}
+
+// blocks[] khai TRONG DefinitionJson — mỗi khối tự chọn 1 trong 3 cách lấy
+// dữ liệu (directDb/apiReport/apiRealtime), HOẶC isTarget=true (đọc
+// dwh.SalesTargets, xem lib/salesTargetsReader.js) — xem
+// lib/compositeReportRunner.js đầu file cho hình dạng đầy đủ.
+function validateCompositeDefinition(sourceType, definition) {
+  if (sourceType !== 'composite') return null;
+  if (!Array.isArray(definition.blocks) || !definition.blocks.length) {
+    return 'sourceType "composite" cần mảng "blocks" (ít nhất 1 khối) trong DefinitionJson';
+  }
+  const seenKeys = new Set();
+  for (const block of definition.blocks) {
+    if (!block || !block.key) return 'Mỗi khối trong "blocks" phải có "key"';
+    if (seenKeys.has(block.key)) return `Trùng "key" khối nguồn: "${block.key}"`;
+    seenKeys.add(block.key);
+    if (block.isTarget) {
+      if (!block.targetDomain) return `Khối "${block.key}" (isTarget) thiếu "targetDomain"`;
+      continue;
+    }
+    if (!['directDb', 'apiReport', 'apiRealtime'].includes(block.sourceType)) {
+      return `Khối "${block.key}" có sourceType không hợp lệ (directDb/apiReport/apiRealtime, hoặc isTarget=true)`;
+    }
+    if (block.sourceType === 'directDb' && !block.domain) {
+      return `Khối "${block.key}" (directDb) thiếu "domain"`;
+    }
+    if ((block.sourceType === 'apiReport' || block.sourceType === 'apiRealtime') && (!block.apiConnectionId || !block.apiTarget)) {
+      return `Khối "${block.key}" (${block.sourceType}) thiếu apiConnectionId/apiTarget`;
+    }
   }
   return null;
 }
@@ -116,6 +150,8 @@ router.post('/', async (req, res, next) => {
     const definition = JSON.parse(definitionJson); // validate JSON hợp lệ trước khi lưu
     const externalError = validateExternalDefinition(sourceType, definition);
     if (externalError) return res.status(400).json({ error: externalError });
+    const compositeError = validateCompositeDefinition(sourceType, definition);
+    if (compositeError) return res.status(400).json({ error: compositeError });
     const formulaError = validateFormulaColumns(definition);
     if (formulaError) return res.status(400).json({ error: formulaError });
 
@@ -152,6 +188,8 @@ router.put('/:reportId', async (req, res, next) => {
     const definition = JSON.parse(definitionJson);
     const externalError = validateExternalDefinition(sourceType, definition);
     if (externalError) return res.status(400).json({ error: externalError });
+    const compositeError = validateCompositeDefinition(sourceType, definition);
+    if (compositeError) return res.status(400).json({ error: compositeError });
     const formulaError = validateFormulaColumns(definition);
     if (formulaError) return res.status(400).json({ error: formulaError });
 

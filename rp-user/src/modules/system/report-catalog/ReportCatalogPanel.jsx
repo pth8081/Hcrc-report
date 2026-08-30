@@ -24,7 +24,8 @@ const SOURCE_TYPE_LABELS = {
   directDb: 'Trực tiếp CSDL',
   apiReport: 'Qua API Server — Báo cáo tổng hợp',
   apiRealtime: 'Qua API Server — Realtime',
-  externalApi: 'Qua API đối tác (bên ngoài)'
+  externalApi: 'Qua API đối tác (bên ngoài)',
+  composite: 'Ghép nhiều nguồn (composite)'
 };
 
 export default function ReportCatalogPanel() {
@@ -183,6 +184,14 @@ export default function ReportCatalogPanel() {
           </>
         )}
 
+        {form.sourceType === 'composite' && (
+          <p className="hint">
+            Ghép nhiều khối nguồn ("blocks") thành 1 dòng/thực thể theo entityCode, rồi chạy công
+            thức trên dòng đã ghép — khai TOÀN BỘ (blocks, columns, groupBy nếu cần dòng "Tổng cộng")
+            trong DefinitionJson bên dưới, không có trường riêng ở trên. Xem ví dụ trong khung nhập.
+          </p>
+        )}
+
         {form.sourceType === 'externalApi' && (
           <fieldset>
             <legend>API đối tác</legend>
@@ -230,7 +239,9 @@ export default function ReportCatalogPanel() {
               ? '{"id": "...", "title": "...", "domain": "...", "filters": [...], "columns": ["entityCode", "measures.doanhThu", {"key": "tyLeLoiNhuan", "label": "Tỷ lệ lợi nhuận (%)", "formula": "ROUND(measures.loiNhuan / measures.doanhThu * 100, 1)"}], "export": ["excel","pdf"]}'
               : form.sourceType === 'externalApi'
                 ? '{"id": "...", "title": "...", "domain": "...", "filters": [...], "columns": ["trangThai", {"key": "daGiao", "label": "Đã giao?", "formula": "trangThai == \\"shipped\\""}]} — externalPath/externalShape/externalListPath điền ở trên, không gõ tay ở đây'
-                : '{"id": "...", "title": "...", "domain": "...", "filters": [...]} — cột hiển thị lấy từ API Server, không cần khai "columns" ở đây'
+                : form.sourceType === 'composite'
+                  ? '{"title":"...","domain":"...","filters":[{"field":"eventDate","type":"date","label":"Ngày báo cáo"}],"blocks":[{"key":"current","sourceType":"directDb","domain":"doanhthu_chinhanh"},{"key":"lastYear","sourceType":"directDb","domain":"doanhthu_chinhanh","dateOffsetYears":-1},{"key":"target","isTarget":true,"targetDomain":"doanhthu_chinhanh"}],"columns":[{"key":"tenCuaHang","label":"Siêu thị","formula":"entityCode"},{"key":"thucDat","label":"Thực đạt","formula":"current.measures.doanhThu"},{"key":"chiTieu","label":"Chỉ tiêu","formula":"target.ChiTieuDoanhThu"},{"key":"tyLeDat","label":"Tỷ lệ đạt (%)","formula":"ROUND(current.measures.doanhThu / target.ChiTieuDoanhThu * 100, 1)"}],"groupBy":{"field":"current.dimensions.chain","groups":[{"value":"MART","label":"Tổng cộng MART"},{"value":"MINIMART","label":"Tổng cộng MINIMART"}],"grandTotalLabel":"Tổng cộng","labelColumn":"tenCuaHang"}}'
+                  : '{"id": "...", "title": "...", "domain": "...", "filters": [...]} — cột hiển thị lấy từ API Server, không cần khai "columns" ở đây'
           }
           rows={8}
           value={form.definitionJson}

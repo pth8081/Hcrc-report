@@ -8,6 +8,7 @@ const { getPoolForDataSource } = require('./dataSourcePool');
 const { runReport, projectColumns, describeColumns } = require('./reportEngine');
 const { runApiReport } = require('./apiReportClient');
 const { runExternalReport } = require('./externalReportClient');
+const { runCompositeReport } = require('./compositeReportRunner');
 
 async function loadDefinition(reportId) {
   const rpPool = await getPool('RP');
@@ -45,10 +46,17 @@ async function resolveFactsPool(definition) {
 // thức tại chỗ (giống 'directDb') nhưng đọc từ JSON đối tác thay vì SQL
 // Server — KHÔNG áp lại definition.columns của rp-server lên response đã
 // chiếu sẵn từ nơi khác, tránh tính 2 lần với 2 định nghĩa khác nhau nếu 2
-// bên có khai báo cột không khớp.
+// bên có khai báo cột không khớp. 'composite' ghép NHIỀU khối nguồn (mỗi
+// khối tự directDb/apiReport/apiRealtime, hoặc đọc dwh.SalesTargets) thành
+// 1 dòng/thực thể theo entityCode RỒI mới tự chiếu cột + tính công thức tại
+// chỗ (xem lib/compositeReportRunner.js) — KHÔNG áp dụng pagination
+// (composite luôn trả toàn bộ dòng, cần đủ để tính "Tổng cộng" ở tầng gọi).
 async function runDefinition(definition, filterValues, pagination) {
   if (definition.sourceType === 'externalApi') {
     return runExternalReport(definition, filterValues);
+  }
+  if (definition.sourceType === 'composite') {
+    return runCompositeReport(definition, filterValues);
   }
   if (definition.sourceType && definition.sourceType !== 'directDb') {
     return runApiReport(definition, filterValues, pagination);

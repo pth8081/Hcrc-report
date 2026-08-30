@@ -15,6 +15,14 @@ async function exportExcel(definition, rows) {
   sheet.views = [{ state: 'frozen', ySplit: 1 }];
   sheet.addRows(rows);
 
+  // Dòng tổng (SourceType='composite' + groupBy — xem
+  // lib/compositeReportRunner.js) đánh dấu bằng __isSubtotal, không phải
+  // cột thật (không nằm trong definition.columns nên ExcelJS tự bỏ qua khi
+  // ghi ô) — chỉ dùng ở đây để in đậm, giống hàng "Tổng cộng" trong file mẫu.
+  rows.forEach((row, i) => {
+    if (row.__isSubtotal) sheet.getRow(i + 2).font = { bold: true }; // +2: dòng 1 là header
+  });
+
   return workbook.xlsx.writeBuffer();
 }
 

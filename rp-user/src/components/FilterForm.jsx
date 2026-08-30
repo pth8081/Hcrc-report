@@ -15,7 +15,13 @@ export default function FilterForm({ filters, values, onChange, onSubmit }) {
       {filters.map(f => (
         <label key={f.field} className="filter-field">
           <span>{f.label}</span>
-          {f.type === 'dateRange' ? (
+          {f.type === 'date' ? (
+            <input
+              type="date"
+              value={values[f.field] || ''}
+              onChange={(e) => setValue(f.field, e.target.value)}
+            />
+          ) : f.type === 'dateRange' ? (
             <span className="date-range">
               <input
                 type="date"
