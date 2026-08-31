@@ -1,16 +1,17 @@
 // routes/admin/users.js — Trang "Phân quyền": CRUD admin.AdminUsers. Chỉ
-// vai trò admin thao tác được (tạo/sửa/đặt lại mật khẩu); ai đăng nhập cũng
-// xem được danh sách.
+// vai trò admin thao tác được (tạo/sửa/đặt lại mật khẩu); 'viewer' xem được
+// danh sách (chỉ không sửa) — 'target_importer' (vai trò hẹp, giao diện đã
+// ẩn hẳn trang này khỏi menu) KHÔNG được xem, kể cả gọi thẳng API.
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const { sql, getPool } = require('../../db');
-const { requireAdminAuth, requireAdminRole } = require('../../lib/adminAuth');
+const { requireAdminAuth, requireAdminRole, blockTargetImporter } = require('../../lib/adminAuth');
 const { logAction } = require('../../lib/auditLog');
 
 const router = express.Router();
 router.use(requireAdminAuth);
 
-router.get('/', async (req, res, next) => {
+router.get('/', blockTargetImporter, async (req, res, next) => {
   try {
     const pool = await getPool('ADMIN');
     const result = await pool.request().query(`
@@ -50,6 +51,9 @@ router.post('/', requireAdminRole, async (req, res, next) => {
 router.put('/:id', requireAdminRole, async (req, res, next) => {
   try {
     const { fullName, role, isActive } = req.body || {};
+    if (!['admin', 'viewer', 'target_importer'].includes(role)) {
+      return res.status(400).json({ error: 'role phải là "admin", "viewer" hoặc "target_importer"' });
+    }
     const pool = await getPool('ADMIN');
     await pool.request()
       .input('id', sql.Int, req.params.id)

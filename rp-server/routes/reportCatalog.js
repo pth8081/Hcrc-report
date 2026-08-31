@@ -96,10 +96,25 @@ function validateExternalDefinition(sourceType, definition) {
 // dữ liệu (directDb/apiReport/apiRealtime), HOẶC isTarget=true (đọc
 // dwh.SalesTargets, xem lib/salesTargetsReader.js) — xem
 // lib/compositeReportRunner.js đầu file cho hình dạng đầy đủ.
+//
+// MAX_COMPOSITE_BLOCKS — compositeReportRunner.js chạy MỌI khối SONG SONG
+// (Promise.all), mỗi khối apiReport/apiRealtime giữ 1 lượt gọi HTTP ra
+// ngoài tới 30s, mỗi khối directDb không tự chọn dataSourceId dùng CHUNG
+// pool DWH (mặc định 10-20 connection, xem db.js) — 1 báo cáo composite có
+// quá nhiều khối, bị gọi lặp lại (route /run không giới hạn riêng gì ngoài
+// giới hạn chung theo IP ở server.js), có thể chiếm hết pool DWH/mở hàng
+// chục kết nối HTTP đồng thời, ảnh hưởng tới báo cáo của NGƯỜI DÙNG KHÁC.
+// Case thật hiện tại (đối chiếu siêu thị/trung tâm, mục 4
+// hướng_dẫn_báo_cáo.md) chỉ cần 2-3 khối — 15 đã dư nhiều lần.
+const MAX_COMPOSITE_BLOCKS = 15;
+
 function validateCompositeDefinition(sourceType, definition) {
   if (sourceType !== 'composite') return null;
   if (!Array.isArray(definition.blocks) || !definition.blocks.length) {
     return 'sourceType "composite" cần mảng "blocks" (ít nhất 1 khối) trong DefinitionJson';
+  }
+  if (definition.blocks.length > MAX_COMPOSITE_BLOCKS) {
+    return `sourceType "composite" chỉ hỗ trợ tối đa ${MAX_COMPOSITE_BLOCKS} khối trong "blocks" (đang có ${definition.blocks.length})`;
   }
   const seenKeys = new Set();
   for (const block of definition.blocks) {

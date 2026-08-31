@@ -20,7 +20,7 @@
 const express = require('express');
 const multer = require('multer');
 const { sql, getPool } = require('../../db');
-const { requireAdminAuth, requireAdminRole } = require('../../lib/adminAuth');
+const { requireAdminAuth, requireAdminRole, blockTargetImporter } = require('../../lib/adminAuth');
 const { encrypt, decrypt } = require('../../lib/crypto');
 const { invalidate, testConnection, testConnectionsBatch } = require('../../lib/dataSourcePool');
 const schemaBrowser = require('../../lib/schemaBrowser');
@@ -57,7 +57,12 @@ const upload = multer({
 // etl.SyncJobs trỏ vào nguồn đó, kèm lần chạy (etl.SyncLog) GẦN NHẤT của
 // từng job (OUTER APPLY TOP 1, nhanh hơn nhiều so với self-join + GROUP BY
 // khi mỗi job có hàng nghìn dòng log). null = nguồn chưa gắn job nào.
-router.get('/', async (req, res, next) => {
+// blockTargetImporter (không chỉ requireAdminAuth) trên MỌI route GET dưới
+// đây — 'target_importer' (vai trò hẹp, giao diện đã ẩn hẳn trang này khỏi
+// menu) không được đọc host/port/database/username của các kết nối nguồn
+// hay duyệt schema thật (tên bảng/cột) dù gọi thẳng API. 'viewer' vẫn xem
+// được như cũ (chỉ không sửa) — xem lib/adminAuth.js.
+router.get('/', blockTargetImporter, async (req, res, next) => {
   try {
     const pool = await getPool('ADMIN');
     const sourcesResult = await pool.request().query(`
@@ -210,19 +215,19 @@ router.post('/import', requireAdminRole, upload.single('file'), async (req, res,
 });
 
 // ===== Duyệt schema thật =====
-router.get('/:id/tables', async (req, res, next) => {
+router.get('/:id/tables', blockTargetImporter, async (req, res, next) => {
   try {
     res.json(await schemaBrowser.listTables(req.params.id));
   } catch (err) { next(err); }
 });
 
-router.get('/:id/tables/:schemaName/:tableName/columns', async (req, res, next) => {
+router.get('/:id/tables/:schemaName/:tableName/columns', blockTargetImporter, async (req, res, next) => {
   try {
     res.json(await schemaBrowser.listColumns(req.params.id, req.params.schemaName, req.params.tableName));
   } catch (err) { next(err); }
 });
 
-router.get('/:id/tables/:schemaName/:tableName/foreign-keys', async (req, res, next) => {
+router.get('/:id/tables/:schemaName/:tableName/foreign-keys', blockTargetImporter, async (req, res, next) => {
   try {
     res.json(await schemaBrowser.listForeignKeys(req.params.id, req.params.schemaName, req.params.tableName));
   } catch (err) { next(err); }

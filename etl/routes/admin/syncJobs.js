@@ -15,7 +15,7 @@
 // chạy).
 const express = require('express');
 const { sql, getPool } = require('../../db');
-const { requireAdminAuth, requireAdminRole } = require('../../lib/adminAuth');
+const { requireAdminAuth, requireAdminRole, blockTargetImporter } = require('../../lib/adminAuth');
 const sourcesRegistry = require('../../sources');
 const { rescheduleJob, runJobIfNotAlreadyRunning } = require('../../jobs/scheduler');
 const schemaBrowser = require('../../lib/schemaBrowser');
@@ -58,7 +58,11 @@ async function validateTableJobSchema(b) {
   }
 }
 
-router.get('/', async (req, res, next) => {
+// blockTargetImporter (không chỉ requireAdminAuth) — 'target_importer' (vai
+// trò hẹp, giao diện đã ẩn hẳn trang này khỏi menu) không được thấy cấu
+// hình đồng bộ dù gọi thẳng API. 'viewer' vẫn xem được như cũ (chỉ không
+// sửa) — xem lib/adminAuth.js.
+router.get('/', blockTargetImporter, async (req, res, next) => {
   try {
     const pool = await getPool('ADMIN');
     const result = await pool.request().query('SELECT * FROM etl.SyncJobs ORDER BY Name');
@@ -67,7 +71,7 @@ router.get('/', async (req, res, next) => {
 });
 
 // Danh sách connector "tuỳ biến" có sẵn trong code — dùng khi tạo job Type='custom'.
-router.get('/custom-connectors', requireAdminAuth, (req, res) => {
+router.get('/custom-connectors', blockTargetImporter, (req, res) => {
   res.json(sourcesRegistry.map(s => ({ key: s.key, label: s.label, domain: s.domain })));
 });
 

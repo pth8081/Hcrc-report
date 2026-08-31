@@ -5,10 +5,19 @@
 // (application/x-www-form-urlencoded) hoặc HTTP Basic auth header — để
 // tương thích thư viện OAuth2 client có sẵn của đối tác (đa số hỗ trợ cả
 // hai, một số CHỈ hỗ trợ Basic).
+const crypto = require('crypto');
 const express = require('express');
 const { sql, getPool } = require('../../db');
 const { sha256Hex } = require('../../lib/hash');
 const { issueToken } = require('../../lib/oauthTokens');
+
+// So sánh bằng crypto.timingSafeEqual — cùng lý do lib/hmacAuth.js:47-49
+// (so sánh chuỗi thường rò rỉ thời gian xử lý theo độ dài phần khớp).
+function secretMatches(clientSecret, expectedHash) {
+  const actualBuf = Buffer.from(sha256Hex(clientSecret), 'hex');
+  const expectedBuf = Buffer.from(expectedHash, 'hex');
+  return actualBuf.length === expectedBuf.length && crypto.timingSafeEqual(actualBuf, expectedBuf);
+}
 
 const router = express.Router();
 
@@ -35,21 +44,26 @@ router.post('/token', async (req, res, next) => {
 
     const pool = await getPool('ADMIN');
     const result = await pool.request().input('clientId', sql.VarChar(64), clientId).query(`
-      SELECT Id, Name, ClientSecretHash, Scopes, AllowedIps
+      SELECT Id, Name, ClientSecretHash, Scopes, AllowedIps, RateLimitPerMinute
       FROM api.ApiConsumers WHERE ClientId = @clientId AND AuthMethod = 'oauth2' AND IsActive = 1
     `);
     const row = result.recordset[0];
-    if (!row || sha256Hex(clientSecret) !== row.ClientSecretHash) {
+    if (!row || !secretMatches(clientSecret, row.ClientSecretHash)) {
       return res.status(401).json({ error: 'invalid_client', error_description: 'client_id/client_secret không hợp lệ' });
     }
 
     await pool.request().input('id', sql.Int, row.Id).query('UPDATE api.ApiConsumers SET LastUsedAt = SYSUTCDATETIME() WHERE Id = @id');
 
+    // RateLimitPerMinute PHẢI có trong payload token — thiếu cột này khiến
+    // verifyToken() rơi về "0/null = không giới hạn" (xem lib/oauthTokens.js
+    // + lib/consumerRateLimit.js), tức consumer oauth2 thoát hẳn giới hạn
+    // riêng admin đã đặt, chỉ còn bị chặn bởi giới hạn theo IP dùng chung.
     const consumer = {
       id: row.Id,
       name: row.Name,
       scopes: row.Scopes.split(',').map(s => s.trim()).filter(Boolean),
-      allowedIps: (row.AllowedIps || '').split(',').map(s => s.trim()).filter(Boolean)
+      allowedIps: (row.AllowedIps || '').split(',').map(s => s.trim()).filter(Boolean),
+      rateLimitPerMinute: row.RateLimitPerMinute
     };
     const { accessToken, expiresIn } = issueToken(consumer);
     res.json({ access_token: accessToken, token_type: 'Bearer', expires_in: expiresIn });

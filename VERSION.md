@@ -5,6 +5,60 @@ Server, API Server và các giao diện quản trị) — tăng ở mỗi lần 
 `main`, theo kiểu semver không chặt (patch cho fix nhỏ, minor cho tính năng
 mới, major khi đổi cấu trúc phá vỡ tương thích ngược).
 
+## 0.28.0 — Rà soát bảo mật toàn diện (ETL/API Server/Report Server): sửa các lỗ hổng phát hiện
+
+Rà soát chuyên sâu lần 2 (sau Phase 0-3) trên toàn bộ code đã thêm qua các
+đợt tính năng B-J — 3 audit độc lập, mỗi hệ thống 1 audit. Không phát hiện
+lỗi Critical/High mới ở API Server/Report Server; 1 lỗi HIGH ở ETL (phân
+quyền), còn lại Medium/Low — đã sửa hết:
+
+**ETL (HIGH — phân quyền `target_importer`/`viewer`)**: các route GET hạ
+tầng thật (`etl.DataSources` — host/port/username, duyệt schema thật;
+`etl.SyncJobs`; `admin.AuditLog`; `admin.AdminUsers`) trước đây chỉ có
+`requireAdminAuth` — bất kỳ vai trò nào đăng nhập được, kể cả
+`target_importer` (vai trò hẹp, giao diện đã ẩn hẳn các trang này khỏi
+menu — `etl-admin/src/components/Layout.jsx`), đều gọi thẳng API đọc được
+dữ liệu hạ tầng nhạy cảm dù chưa từng thấy trang đó qua giao diện.
+- **`etl/lib/adminAuth.js`** — thêm `blockTargetImporter()`: chặn đúng
+  `target_importer`, KHÔNG đổi hành vi `viewer` (vẫn xem được như thiết kế
+  hiện có trên giao diện — không phải mọi route đều siết về admin-only).
+- Gắn vào 8 route GET: `dataSources.js` (danh sách + 3 route duyệt schema),
+  `syncJobs.js` (danh sách + custom-connectors), `auditLog.js`, `users.js`.
+
+**ETL (LOW)**: `PUT /admin/users/:id` không kiểm tra whitelist `role` (POST
+có, PUT thì không) — thêm kiểm tra `['admin','viewer','target_importer']`.
+
+**ETL (MEDIUM — DoS)**: `.xlsx` nhập hàng loạt (`dataSourcesImport.js`,
+`salesTargetsImport.js`) giới hạn 5MB nén nhưng không giới hạn số dòng sau
+khi giải nén (dữ liệu lặp lại nén rất tốt) — thêm `MAX_IMPORT_ROWS=5000`,
+chặn NGAY sau khi đọc sheet, trước khi lặp/mã hoá mật khẩu từng dòng.
+
+**API Server (MEDIUM)**: `POST /api/v1/oauth/token` không đọc
+`RateLimitPerMinute` từ `api.ApiConsumers` — token phát ra thiếu trường
+này, `verifyToken()` rơi về "0 = không giới hạn", đối tác `AuthMethod='oauth2'`
+thoát hẳn giới hạn riêng admin đã đặt. Đã thêm cột vào câu SELECT + payload
+token (`routes/v1/oauth.js`).
+
+**API Server (LOW)**: so sánh `client_secret` dùng `!==` chuỗi thường (rò
+rỉ thời gian xử lý) thay vì `crypto.timingSafeEqual` như `lib/hmacAuth.js`
+đã dùng — đồng bộ lại cách so sánh.
+
+**Report Server (MEDIUM — DoS)**: báo cáo `SourceType='composite'` không
+giới hạn số "khối" (`blocks`) — mỗi khối `apiReport`/`apiRealtime` chạy
+song song (`Promise.all`) giữ 1 lượt gọi HTTP tới 30s, khối `directDb`
+không tự chọn nguồn dùng chung pool DWH — 1 báo cáo nhiều khối, gọi lặp
+lại, có thể chiếm hết pool/mở nhiều kết nối HTTP đồng thời, ảnh hưởng báo
+cáo của người dùng khác. Thêm `MAX_COMPOSITE_BLOCKS=15` trong
+`validateCompositeDefinition()` (`routes/reportCatalog.js`).
+
+**Cluster mode**: xác nhận CHƯA cấu hình (PM2 chạy mỗi service ở chế độ
+`fork`, 1 tiến trình — `deploy/ecosystem.config.js`) — thiết kế có chủ đích
+hiện tại (tự restart khi crash, không multi-core/không zero-downtime
+deploy), không phải thiếu sót cần sửa ngay.
+
+5 bộ test độc lập cho toàn bộ fix trên (fakeModule pattern) + xác nhận cả
+3 service (`etl`, `api-server`, `rp-server`) load sạch sau khi sửa.
+
 ## 0.27.1 — Dashboard ETL: bộ lọc "Đang lỗi/Quá hạn" + tìm kiếm theo tên job
 
 Tiếp nối 0.27.0 — với vài chục kết nối/job, bảng "Từng job" trên Dashboard

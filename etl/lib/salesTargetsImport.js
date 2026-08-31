@@ -22,12 +22,19 @@ const REQUIRED_HEADERS = ['MaSieuThi', 'Thang'];
 const PERIOD_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
 const TRANG_THAI_VALUES = ['HoatDong', 'DaDong'];
 
+// Chặn sớm file .xlsx có QUÁ NHIỀU dòng — xem chú thích cùng tên trong
+// lib/dataSourcesImport.js.
+const MAX_IMPORT_ROWS = 5000;
+
 // { rows: [{entityCode, periodMonth: Date, targets: {...}}], rowErrors: string[] }
 async function parseSalesTargetsFile(buffer) {
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(buffer);
   const sheet = workbook.worksheets[0];
   if (!sheet) throw new Error('File không có sheet nào');
+  if (sheet.rowCount > MAX_IMPORT_ROWS) {
+    throw new Error(`File có ${sheet.rowCount} dòng, vượt giới hạn ${MAX_IMPORT_ROWS} dòng/lượt nhập — chia nhỏ file rồi nhập nhiều lượt`);
+  }
 
   const headers = [];
   sheet.getRow(1).eachCell({ includeEmpty: false }, (cell, colNumber) => {

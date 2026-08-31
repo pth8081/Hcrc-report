@@ -98,7 +98,23 @@ function requireTargetImporterRole(req, res, next) {
   next();
 }
 
+// Dùng SAU requireAdminAuth trên route ĐỌC hạ tầng ETL thật (DataSources/
+// SyncJobs/AuditLog/Users...) mà 'target_importer' (vai trò HẸP, CHỈ thấy
+// đúng trang "Nhập chỉ tiêu" — etl-admin/src/components/Layout.jsx đã ẩn
+// mọi mục khác khỏi menu của vai trò này) KHÔNG được thấy dù gọi thẳng API
+// (bỏ qua giao diện) — trước đây các route này chỉ có requireAdminAuth nên
+// một tài khoản target_importer vẫn đọc được host/port/username của mọi
+// kết nối nguồn + toàn bộ schema đã duyệt, dù giao diện chưa từng cho họ
+// nhìn thấy trang đó. 'viewer' vẫn xem được như cũ (chỉ không sửa được gì —
+// xem requireAdminRole ở trên) — KHÔNG đổi hành vi của 'viewer'.
+function blockTargetImporter(req, res, next) {
+  if (req.admin?.role === 'target_importer') {
+    return res.status(403).json({ error: 'Vai trò target_importer không có quyền xem mục này' });
+  }
+  next();
+}
+
 module.exports = {
   COOKIE_NAME, verifyCredentials, issueToken, verifyToken,
-  requireAdminAuth, requireAdminRole, requireTargetImporterRole
+  requireAdminAuth, requireAdminRole, requireTargetImporterRole, blockTargetImporter
 };

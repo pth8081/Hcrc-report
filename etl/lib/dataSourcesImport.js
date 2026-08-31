@@ -29,6 +29,13 @@ const REQUIRED_HEADERS = ['Name', 'Server', 'DatabaseName', 'Username', 'Passwor
 const ENGINE_VALUES = ['mssql', 'mysql'];
 const BOOL_TRUE_VALUES = ['true', '1', 'yes', 'có', 'x'];
 
+// Chặn sớm file .xlsx có QUÁ NHIỀU dòng (dù dưới 5MB nén — .xlsx là zip,
+// nội dung lặp lại nén rất tốt nên vẫn có thể mở ra hàng trăm nghìn dòng
+// trong bộ nhớ) TRƯỚC khi lặp qua từng dòng/mã hoá mật khẩu/ghi CSDL — dùng
+// case thật của tính năng này (vài chục/vài trăm chi nhánh) làm chuẩn, dư
+// nhiều lần cho nhu cầu thật.
+const MAX_IMPORT_ROWS = 5000;
+
 function parseBool(raw, defaultValue) {
   if (raw === null || raw === undefined || raw === '') return defaultValue;
   return BOOL_TRUE_VALUES.includes(String(raw).trim().toLowerCase());
@@ -40,6 +47,9 @@ async function parseDataSourcesFile(buffer) {
   await workbook.xlsx.load(buffer);
   const sheet = workbook.worksheets[0];
   if (!sheet) throw new Error('File không có sheet nào');
+  if (sheet.rowCount > MAX_IMPORT_ROWS) {
+    throw new Error(`File có ${sheet.rowCount} dòng, vượt giới hạn ${MAX_IMPORT_ROWS} dòng/lượt nhập — chia nhỏ file rồi nhập nhiều lượt`);
+  }
 
   const headers = [];
   sheet.getRow(1).eachCell({ includeEmpty: false }, (cell, colNumber) => {
