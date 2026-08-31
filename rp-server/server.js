@@ -22,11 +22,32 @@ const dataSourcesRoutes = require('./routes/dataSources');
 const apiConnectionsRoutes = require('./routes/apiConnections');
 const externalConnectionsRoutes = require('./routes/externalConnections');
 const reportEmailSchedulesRoutes = require('./routes/reportEmailSchedules');
-const { verifyCredentials, issueToken, COOKIE_NAME } = require('./lib/auth');
+const { verifyCredentials, issueToken, COOKIE_NAME, getSecret } = require('./lib/auth');
 const reportEmailScheduler = require('./jobs/reportEmailScheduler');
 const { isBlocked, recordFailure, recordSuccess } = require('./lib/loginRateLimit');
 const { logAction } = require('./lib/auditLog');
 const { cleanupAuditLog } = require('./jobs/cleanupAuditLog');
+const { closeAll, assertConfigured } = require('./db');
+const { getKey } = require('./lib/crypto');
+const { installProcessGuards } = require('./lib/processGuards');
+
+// ===== Kiểm tra cấu hình BẮT BUỘC NGAY lúc khởi động — lỗi rõ ràng, dừng
+// hẳn ở đây, KHÔNG đợi tới request đầu tiên cần tới DB/JWT/mã hoá mới lộ ra
+// (trước đây assertConfigured()/getSecret()/getKey() chỉ được gọi lười lúc
+// dùng thật — README từng nói "lỗi ngay lúc khởi động" nhưng thực tế chưa
+// đúng, sửa cho khớp). KHÔNG mở kết nối CSDL thật ở đây (assertConfigured
+// chỉ kiểm tra biến môi trường có điền hay chưa) — tránh làm chậm/rung lắc
+// lúc khởi động nếu CSDL tạm thời chưa sẵn sàng (vd đang reboot), việc đó
+// vẫn để getPool() tự thử lại đúng lúc có request cần. =====
+try {
+  assertConfigured('RP');
+  assertConfigured('DWH');
+  getSecret(); // RP_JWT_SECRET — throw nếu thiếu/còn giá trị mẫu
+  getKey(); // APP_ENCRYPTION_KEY — throw nếu thiếu/sai độ dài
+} catch (err) {
+  console.error(`⛔ Cấu hình chưa sẵn sàng, dừng khởi động: ${err.message}`);
+  process.exit(1);
+}
 
 const app = express();
 const PORT = process.env.PORT || 4001;
@@ -139,3 +160,5 @@ const server = app.listen(PORT, () => console.log(`Report Server đang chạy �
 server.requestTimeout = 60 * 1000; // tối đa để nhận trọn request (header+body)
 server.headersTimeout = 65 * 1000; // phải LỚN HƠN requestTimeout (ràng buộc của Node)
 server.timeout = 120 * 1000; // timeout rảnh (idle) cho toàn bộ kết nối
+
+installProcessGuards({ server, closeAll, serviceName: 'Report Server' });

@@ -108,5 +108,9 @@ module.exports = {
   issueToken,
   verifyToken,
   requireAuth,
-  requireMenuAccess
+  requireMenuAccess,
+  // Xuất thêm CHỈ để server.js gọi 1 LẦN lúc khởi động (kiểm tra secret
+  // không còn là giá trị mẫu) — "LỖI NGAY lúc khởi động" thay vì chỉ lộ ra
+  // ở lượt đăng nhập/xác thực JWT đầu tiên, xem chú thích trong server.js.
+  getSecret
 };

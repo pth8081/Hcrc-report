@@ -38,4 +38,6 @@ function decrypt(encoded) {
   return Buffer.concat([decipher.update(ciphertext), decipher.final()]).toString('utf8');
 }
 
-module.exports = { encrypt, decrypt };
+// getKey xuất thêm CHỈ để server.js gọi 1 LẦN lúc khởi động — xem chú
+// thích tương tự trong lib/adminAuth.js.
+module.exports = { encrypt, decrypt, getKey };

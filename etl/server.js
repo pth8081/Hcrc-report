@@ -21,6 +21,25 @@ const adminLogRoutes = require('./routes/admin/log');
 const adminAuditLogRoutes = require('./routes/admin/auditLog');
 const adminDashboardRoutes = require('./routes/admin/dashboard');
 const adminSalesTargetsRoutes = require('./routes/admin/salesTargets');
+const { getPool, closeAll, assertConfigured } = require('./db');
+const { getSecret } = require('./lib/adminAuth');
+const { getKey } = require('./lib/crypto');
+const { installProcessGuards } = require('./lib/processGuards');
+
+// ===== Kiểm tra cấu hình BẮT BUỘC NGAY lúc khởi động — xem chú thích tương
+// tự trong rp-server/server.js. KHÔNG mở kết nối CSDL thật ở đây —
+// DWH_TARGET_IMPORTER chỉ kiểm tra biến môi trường có điền, không kết nối
+// thử (pool đó hẹp, chỉ dùng cho đúng 1 route "Nhập chỉ tiêu"). =====
+try {
+  assertConfigured('ADMIN');
+  assertConfigured('DWH');
+  assertConfigured('DWH_TARGET_IMPORTER');
+  getSecret(); // ETL_ADMIN_JWT_SECRET
+  getKey(); // ETL_ENCRYPTION_KEY
+} catch (err) {
+  console.error(`⛔ Cấu hình chưa sẵn sàng, dừng khởi động: ${err.message}`);
+  process.exit(1);
+}
 
 const app = express();
 const PORT = process.env.PORT || 4003;
@@ -44,7 +63,23 @@ app.use(rateLimit({
   legacyHeaders: false
 }));
 
-app.get('/health', (req, res) => res.json({ status: 'ok', time: new Date().toISOString() }));
+// GET /health — TRƯỚC ĐÂY chỉ trả "tiến trình đang chạy", không nói được
+// CSDL quản trị (ADMIN — etl.SyncJobs/etl.DataSources, scheduler đọc liên
+// tục) có kết nối được hay không. Giờ PING THẬT bằng "SELECT 1" — 503 nếu
+// không kết nối được. Tình trạng ĐỒNG BỘ THỰC TẾ (job nào đang lỗi/quá hạn)
+// xem trang "Dashboard" (etl-admin/, /admin/dashboard) — health chỉ trả lời
+// đúng 1 câu "tiến trình + CSDL quản trị có sống không", không thay được
+// Dashboard.
+app.get('/health', async (req, res) => {
+  let dbOk = true;
+  try {
+    const pool = await getPool('ADMIN');
+    await pool.request().query('SELECT 1');
+  } catch {
+    dbOk = false;
+  }
+  res.status(dbOk ? 200 : 503).json({ status: dbOk ? 'ok' : 'error', db: dbOk ? 'ok' : 'error', time: new Date().toISOString() });
+});
 
 // Lớp phòng thủ BỔ SUNG cho /admin/* — xem lib/adminIpAllowlist.js. Kiểm
 // soát CHÍNH vẫn là không proxy /admin ra Internet ở Nginx.
@@ -69,6 +104,8 @@ const server = app.listen(PORT, () => console.log(`ETL Server đang chạy ở c
 server.requestTimeout = 60 * 1000;
 server.headersTimeout = 65 * 1000;
 server.timeout = 120 * 1000;
+
+installProcessGuards({ server, closeAll, serviceName: 'ETL' });
 
 scheduler.start();
 

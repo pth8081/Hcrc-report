@@ -59,4 +59,6 @@ function verifyToken(token) {
   };
 }
 
-module.exports = { issueToken, verifyToken };
+// getSecret xuất thêm CHỈ để server.js gọi 1 LẦN lúc khởi động — xem
+// chú thích tương tự trong rp-server/lib/auth.js.
+module.exports = { issueToken, verifyToken, getSecret };

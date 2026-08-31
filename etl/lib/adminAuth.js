@@ -114,7 +114,9 @@ function blockTargetImporter(req, res, next) {
   next();
 }
 
+// getSecret xuất thêm CHỈ để server.js gọi 1 LẦN lúc khởi động — xem
+// chú thích tương tự trong rp-server/lib/auth.js.
 module.exports = {
   COOKIE_NAME, verifyCredentials, issueToken, verifyToken,
-  requireAdminAuth, requireAdminRole, requireTargetImporterRole, blockTargetImporter
+  requireAdminAuth, requireAdminRole, requireTargetImporterRole, blockTargetImporter, getSecret
 };

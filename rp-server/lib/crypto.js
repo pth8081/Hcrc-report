@@ -40,4 +40,7 @@ function decrypt(encoded) {
   return Buffer.concat([decipher.update(ciphertext), decipher.final()]).toString('utf8');
 }
 
-module.exports = { encrypt, decrypt };
+// getKey xuất thêm CHỈ để server.js gọi 1 LẦN lúc khởi động (kiểm tra
+// APP_ENCRYPTION_KEY hợp lệ NGAY, không đợi tới lượt encrypt/decrypt đầu
+// tiên) — xem chú thích tương tự trong lib/auth.js.
+module.exports = { encrypt, decrypt, getKey };

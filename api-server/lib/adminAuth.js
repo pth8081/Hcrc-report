@@ -89,4 +89,6 @@ function requireAdminRole(req, res, next) {
   next();
 }
 
-module.exports = { COOKIE_NAME, verifyCredentials, issueToken, verifyToken, requireAdminAuth, requireAdminRole };
+// getSecret xuất thêm CHỈ để server.js gọi 1 LẦN lúc khởi động — xem
+// chú thích tương tự trong rp-server/lib/auth.js.
+module.exports = { COOKIE_NAME, verifyCredentials, issueToken, verifyToken, requireAdminAuth, requireAdminRole, getSecret };

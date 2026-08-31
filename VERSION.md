@@ -5,6 +5,49 @@ Server, API Server và các giao diện quản trị) — tăng ở mỗi lần 
 `main`, theo kiểu semver không chặt (patch cho fix nhỏ, minor cho tính năng
 mới, major khi đổi cấu trúc phá vỡ tương thích ngược).
 
+## 0.30.0 — Sẵn sàng vận hành production: crash resilience, health check thật, đóng dần sạch, chặn cấu hình sai NGAY lúc khởi động
+
+Rà soát lần 2 (sau đợt bảo mật 0.28.0): lần này về VẬN HÀNH (khác lỗ hổng
+bảo mật) — 1 Blocker thật sự (không có gì chặn restart-loop vô hạn khi
+tiến trình lỗi ngay lúc khởi động, không bắt lỗi không mong muốn) + vài
+việc nên làm trước khi có traffic thật. Áp dụng ĐỒNG NHẤT cho cả 3 service.
+
+- **`lib/processGuards.js`** (mới, 1 bản/service) — `uncaughtException`/
+  `unhandledRejection` giờ CHỦ ĐỘNG thoát (`process.exit(1)`) thay vì để
+  tiến trình "sống dở chết dở" ở trạng thái không còn đáng tin (Node mặc
+  định không tự thoát, chỉ log ra rồi tiếp tục chạy) — PM2 khởi động lại
+  SẠCH. `SIGTERM`/`SIGINT` (PM2 `reload`/`stop`) giờ ĐÓNG DẦN: ngừng nhận
+  request mới, đợi request đang xử lý xong, đóng hết pool CSDL rồi mới
+  thoát — có hạn mức 10s chống treo vô thời hạn.
+- **`db.js`** (cả 3 bản) — thêm `assertConfigured(prefix)` (tách khỏi
+  `getPool()`) + `closeAll()` (api-server/rp-server trước đây CHƯA có,
+  chỉ etl có) — dùng cho cả kiểm tra lúc khởi động lẫn đóng dần lúc tắt.
+- **`server.js`** (cả 3) — kiểm tra cấu hình BẮT BUỘC (biến kết nối CSDL,
+  JWT secret, khoá mã hoá) NGAY trước `app.listen` — trước đây các hàm này
+  (`getSecret()`, `getKey()`) chỉ được gọi LƯỜI lúc dùng thật (lượt đăng
+  nhập/mã hoá đầu tiên), README từng ghi "lỗi ngay lúc khởi động" nhưng
+  thực tế CHƯA đúng — giờ đúng thật. KHÔNG mở kết nối CSDL thật lúc khởi
+  động (chỉ kiểm tra biến môi trường), tránh làm chậm/rung lắc nếu CSDL
+  tạm thời chưa sẵn sàng.
+- **`deploy/ecosystem.config.js`** — `min_uptime`/`max_restarts` — PM2
+  trước đây restart VÔ HẠN nếu tiến trình thoát ngay lúc khởi động (cấu
+  hình sai) — giờ dừng sau 10 lần, chuyển trạng thái `errored` rõ ràng
+  thay vì cắm restart-loop tốn CPU.
+- **`routes/health.js`/`routes/v1/health.js`/etl `GET /health`** — PING
+  THẬT các pool CSDL (`SELECT 1`) thay vì chỉ trả "tiến trình đang chạy" —
+  503 nếu 1 pool không kết nối được, nêu rõ pool nào.
+- **`deploy/README.md`** — thêm mục xoay vòng log (`pm2-logrotate` +
+  xác nhận logrotate Nginx khớp 4 file `hcrc-*.access.log` mới), gia hạn
+  chứng chỉ TLS (certbot renewal-hook tự reload Nginx — trước đây thiếu,
+  chứng chỉ gia hạn xong Nginx vẫn phục vụ bản CŨ tới khi reload thủ công),
+  và ghi rõ sao lưu CSDL là trách nhiệm DBA/hạ tầng (trước đây không nhắc
+  tới ở đâu, dễ hiểu lầm "không cần lo").
+- 4 bộ test độc lập (`processGuards.js`, `assertConfigured` × 3 service,
+  health check ping) + **smoke test THẬT**: spawn từng `server.js` làm
+  tiến trình con — xác nhận thiếu cấu hình thoát ngay (không `app.listen`),
+  đủ cấu hình khởi động thành công (không cần CSDL thật), rồi SIGTERM thoát
+  sạch trong vài giây.
+
 ## 0.29.0 — "Kiểm tra schema" — đối chiếu lại job/endpoint ĐÃ LƯU với schema thật hiện tại (ETL, API Server)
 
 Trước đây ETL/API Server chỉ đối chiếu cấu hình với schema thật của nguồn

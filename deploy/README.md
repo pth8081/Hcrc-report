@@ -66,8 +66,14 @@ done
   trên), đặt `NODE_ENV=production` trong `deploy/ecosystem.config.js` (đã
   có sẵn) để cookie phiên tự bật `secure`.
 - Đổi MỌI secret còn là giá trị mẫu (`*_JWT_SECRET`, `*_ENCRYPTION_KEY`) —
-  cả 3 service LỖI NGAY lúc khởi động nếu còn để mẫu, không im lặng chạy
-  với secret ai cũng đọc được từ repo.
+  cả 3 service kiểm tra NGAY lúc khởi động (trước `app.listen`, không đợi
+  tới lượt đăng nhập/mã hoá đầu tiên): secret còn là giá trị mẫu, thiếu
+  biến kết nối CSDL bắt buộc (`*_SERVER`/`*_DATABASE`), hay khoá mã hoá sai
+  độ dài đều làm tiến trình DỪNG NGAY với lỗi rõ ràng trên `pm2 logs`,
+  không im lặng chạy hỏng. Đây chỉ kiểm tra biến môi trường có điền ĐÚNG
+  ĐỊNH DẠNG — KHÔNG mở kết nối CSDL thật lúc khởi động (tránh làm chậm/rung
+  lắc nếu CSDL tạm thời chưa sẵn sàng) — CSDL thật sự kết nối được hay
+  không vẫn phải xác nhận riêng (mục 4, endpoint `/health` PING THẬT CSDL).
 
 Chạy schema + tài khoản CSDL quyền tối thiểu (trên MÁY CHỦ CSDL, không phải
 máy ứng dụng — xem mục 2 bên dưới), rồi tạo tài khoản quản trị đầu tiên cho
@@ -149,12 +155,35 @@ thật, đổi dải IP `allow` (2 domain nội bộ) thành IP văn phòng/VPN 
 nginx -t && systemctl reload nginx
 ```
 
+**Gia hạn chứng chỉ (renewal)**: `certbot certonly` (không phải
+`--nginx`/`--apache`) KHÔNG tự sửa Nginx, nên certbot tự cài sẵn 1
+timer/cron chạy `certbot renew` định kỳ (kiểm tra `systemctl list-timers |
+grep certbot` hoặc `/etc/cron.d/certbot`) — NHƯNG chứng chỉ gia hạn xong
+Nginx KHÔNG tự nạp lại, vẫn phục vụ chứng chỉ CŨ tới khi được `reload` thủ
+công. Thêm hook để renew xong tự reload Nginx:
+
+```bash
+sudo mkdir -p /etc/letsencrypt/renewal-hooks/deploy
+echo -e '#!/bin/sh\nnginx -t && systemctl reload nginx' | sudo tee /etc/letsencrypt/renewal-hooks/deploy/reload-nginx.sh
+sudo chmod +x /etc/letsencrypt/renewal-hooks/deploy/reload-nginx.sh
+sudo certbot renew --dry-run   # kiểm tra hook chạy đúng, không đợi tới hạn thật
+```
+
 ## 4. Kiểm tra sau triển khai
 
 - `curl -I https://report.hcrc.vidu.vn/` — ra trang `rp-user/`.
-- `curl https://report.hcrc.vidu.vn/api/health` — JSON OK (xem
-  `rp-server/routes/health.js`).
-- `curl https://api.hcrc.vidu.vn/api/v1/health` — JSON OK.
+- `curl https://report.hcrc.vidu.vn/api/health` — JSON `{"status":"ok",
+  "db":{"rp":"ok","dwh":"ok"},...}` (xem `rp-server/routes/health.js`) —
+  PING THẬT cả 2 pool CSDL, không chỉ "tiến trình đang chạy" — 503 nếu 1
+  trong 2 không kết nối được (nêu rõ pool nào).
+- `curl https://api.hcrc.vidu.vn/api/v1/health` — cùng dạng, ping pool
+  `admin`/`dwh`.
+- `curl https://<domain-etl-noi-bo>/health` (từ máy trong VPN — etl không
+  có route công khai) — cùng dạng, ping pool `admin`. **Trước đây bị bỏ sót
+  khỏi checklist này** — etl không phục vụ request công khai nên
+  "tiến trình PM2 đang chạy" không nói lên được gì về việc ĐỒNG BỘ có đang
+  hoạt động thật hay không; xem thêm trang "Dashboard" (etl-admin/) để biết
+  job nào đang lỗi/quá hạn.
 - `curl -I https://api.hcrc.vidu.vn/admin/auth/login` — PHẢI 404 (domain
   công khai không được lộ `/admin`).
 - Từ máy TRONG mạng nội bộ/VPN: `curl -I https://api-admin.hcrc.vidu.vn/` và
@@ -165,6 +194,11 @@ nginx -t && systemctl reload nginx
 - Trong log `pm2 logs hcrc-api-server` (hoặc `api.RequestLog`/audit log),
   IP ghi lại phải là IP THẬT của client gọi, không phải IP của Nginx (xác
   nhận `TRUST_PROXY_HOPS` đúng) — gọi thử từ 1 IP biết trước rồi so log.
+- `pm2 reload hcrc-rp-server` (rồi `hcrc-api-server`, `hcrc-etl`) — PHẢI
+  thấy log "SIGTERM — đóng dần..." trong `pm2 logs`, tiến trình thoát SẠCH
+  (không có request nào đang chạy bị cắt ngang) trước khi PM2 khởi động lại
+  — xác nhận `lib/processGuards.js` hoạt động đúng (đóng dần thay vì bị
+  giết ngay).
 
 ## 5. fail2ban (bổ sung, khuyến nghị)
 
@@ -172,6 +206,39 @@ Lớp phòng thủ THÊM ở tầng firewall (chặn hẳn IP sau nhiều lần 
 KHÔNG thay thế rate-limit đã có trong code) — xem `deploy/fail2ban/README.md`
 cho hướng dẫn cài đặt đầy đủ. Không bắt buộc để chạy được hệ thống, nhưng
 nên bật trước khi mở ra Internet thật.
+
+## 6. Xoay vòng log (log rotation)
+
+Chạy dài ngày không xoay vòng log sẽ dần chiếm hết dung lượng đĩa — 2 nguồn
+log cần quan tâm:
+
+- **PM2** (`console.log`/`console.error` của cả 3 tiến trình — lịch sử
+  đồng bộ, lỗi request...) ghi vào `~/.pm2/logs/*.log`, PM2 KHÔNG tự xoay
+  vòng các file này. Cài `pm2-logrotate`:
+  ```bash
+  pm2 install pm2-logrotate
+  pm2 set pm2-logrotate:max_size 50M
+  pm2 set pm2-logrotate:retain 14
+  ```
+- **Nginx** (`hcrc-report`/`hcrc-api`/`hcrc-api-admin`/`hcrc-etl-admin.access.log`
+  — xem `deploy/nginx.conf`) — bản Nginx cài qua package của Debian/Ubuntu
+  thường có sẵn `/etc/logrotate.d/nginx` khớp mẫu `/var/log/nginx/*.log`
+  (tự bắt được cả 4 file mới này), nhưng **XÁC NHẬN LẠI** thay vì giả định:
+  ```bash
+  cat /etc/logrotate.d/nginx   # kiểm tra có khớp *.log không
+  sudo logrotate -d /etc/logrotate.d/nginx   # chạy thử (dry-run), xem có liệt kê đủ 4 file hcrc-*.access.log
+  ```
+  Nếu KHÔNG khớp (bản Nginx tự biên dịch, hoặc cấu hình logrotate khác mặc
+  định), tự thêm 1 khối logrotate riêng cho `/var/log/nginx/hcrc-*.access.log`.
+
+## 7. Sao lưu CSDL (trách nhiệm của DBA/hạ tầng, NGOÀI phạm vi repo này)
+
+Repo này KHÔNG bao gồm chiến lược sao lưu/khôi phục CSDL (backup/restore) —
+đó là việc của DBA quản lý MÁY CHỦ CSDL riêng (mục 2), tương tự bất kỳ SQL
+Server production nào khác (backup định kỳ `HCRC_DWH`/`HCRC_ETL`/
+`HCRC_API`/`HCRC_RP`, kiểm thử khôi phục thử định kỳ, lưu bản sao ở vị trí
+khác máy chủ CSDL chính). Ghi rõ ở đây để KHÔNG ai lầm tưởng việc này đã có
+sẵn/tự động chỉ vì không thấy nhắc tới ở đâu khác trong tài liệu triển khai.
 
 ## Câu hỏi thường gặp
 
@@ -187,9 +254,14 @@ giản nhất tránh phải đổi cấu hình build (`base` path) của các gi
 tĩnh. Xem ghi chú "PHƯƠNG ÁN 1 DOMAIN" ở cuối `deploy/nginx.conf` nếu chỉ
 có 1 domain thật.
 
-**PM2 tự khởi động lại khi 1 tiến trình lỗi/crash?** — Có, mặc định. 3 tiến
-trình độc lập nhau (`deploy/ecosystem.config.js`) — `etl` lỗi không kéo sập
-`rp-server`/`api-server` và ngược lại.
+**PM2 tự khởi động lại khi 1 tiến trình lỗi/crash?** — Có. 3 tiến trình độc
+lập nhau (`deploy/ecosystem.config.js`) — `etl` lỗi không kéo sập
+`rp-server`/`api-server` và ngược lại. Có giới hạn (`min_uptime`/
+`max_restarts`) chống restart-loop vô hạn nếu tiến trình thoát NGAY lúc
+khởi động (vd cấu hình sai — xem mục "Kiểm tra cấu hình" ở trên): sau 10
+lần thoát sớm liên tiếp, PM2 NGỪNG tự thử, chuyển trạng thái `errored`
+(`pm2 status` thấy rõ) thay vì cắm restart mãi. Sửa xong `.env` rồi chạy
+`pm2 restart <tên>` để PM2 thử lại từ đầu.
 
 **Nginx có cần cấu hình gì cho CSDL không?** — Không. CSDL chỉ được các
 tiến trình Node kết nối trực tiếp qua `.env` (`*_SERVER`/`*_PORT`), không

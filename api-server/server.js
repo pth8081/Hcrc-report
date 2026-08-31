@@ -32,6 +32,24 @@ const { adminIpAllowlist } = require('./lib/adminIpAllowlist');
 const { corsAllowlist } = require('./lib/corsAllowlist');
 const { cleanupRequestLog } = require('./jobs/cleanupRequestLog');
 const { cleanupAuditLog } = require('./jobs/cleanupAuditLog');
+const { closeAll, assertConfigured } = require('./db');
+const { getSecret: getAdminSecret } = require('./lib/adminAuth');
+const { getSecret: getOAuthSecret } = require('./lib/oauthTokens');
+const { getKey } = require('./lib/crypto');
+const { installProcessGuards } = require('./lib/processGuards');
+
+// ===== Kiểm tra cấu hình BẮT BUỘC NGAY lúc khởi động — xem chú thích tương
+// tự trong rp-server/server.js. KHÔNG mở kết nối CSDL thật ở đây. =====
+try {
+  assertConfigured('ADMIN');
+  assertConfigured('DWH');
+  getAdminSecret(); // API_ADMIN_JWT_SECRET
+  getOAuthSecret(); // OAUTH_JWT_SECRET
+  getKey(); // API_ENCRYPTION_KEY
+} catch (err) {
+  console.error(`⛔ Cấu hình chưa sẵn sàng, dừng khởi động: ${err.message}`);
+  process.exit(1);
+}
 
 const app = express();
 const PORT = process.env.PORT || 4002;
@@ -114,6 +132,8 @@ const server = app.listen(PORT, () => console.log(`API Server đang chạy ở c
 server.requestTimeout = 60 * 1000; // tối đa để nhận trọn request (header+body)
 server.headersTimeout = 65 * 1000; // phải LỚN HƠN requestTimeout (ràng buộc của Node)
 server.timeout = 120 * 1000; // timeout rảnh (idle) cho toàn bộ kết nối
+
+installProcessGuards({ server, closeAll, serviceName: 'API Server' });
 
 // Dọn api.RequestLog + admin.AuditLog cũ theo lịch (mặc định 02:00 hằng ngày).
 cron.schedule(process.env.CLEANUP_CRON || '0 2 * * *', () => {

@@ -29,17 +29,27 @@ function buildConfig(prefix) {
   };
 }
 
+// Tách riêng khỏi getPool() để server.js gọi được lúc KHỞI ĐỘNG (không mở
+// kết nối thật, chỉ kiểm tra biến môi trường có điền hay chưa) — trước đây
+// lỗi "thiếu cấu hình" chỉ lộ ra ở REQUEST ĐẦU TIÊN cần tới pool đó, không
+// phải ngay lúc `npm start`/`pm2 start`.
+function assertConfigured(prefix) {
+  const server = process.env[`${prefix}_SERVER`];
+  const database = process.env[`${prefix}_DATABASE`];
+  if (!server || !database) {
+    throw new Error(
+      `Thiếu cấu hình kết nối cho "${prefix}" — kiểm tra .env (cần ${prefix}_SERVER, ${prefix}_DATABASE, ...)`
+    );
+  }
+}
+
 // Mỗi prefix chỉ kết nối một lần — các lượt gọi getPool(prefix) sau dùng lại
 // đúng promise pool đã kết nối (hoặc đang kết nối dở), giống nguyên lý getPool()
 // dùng chung của vpdt-pms/server/db.js, chỉ khác là ở đây có nhiều pool song song.
 async function getPool(prefix) {
   if (!pools.has(prefix)) {
+    assertConfigured(prefix);
     const config = buildConfig(prefix);
-    if (!config.server || !config.database) {
-      throw new Error(
-        `Thiếu cấu hình kết nối cho "${prefix}" — kiểm tra .env (cần ${prefix}_SERVER, ${prefix}_DATABASE, ...)`
-      );
-    }
     const promise = new sql.ConnectionPool(config)
       .connect()
       .then(pool => {
@@ -56,6 +66,9 @@ async function getPool(prefix) {
   return pools.get(prefix);
 }
 
+// Đóng hết pool ĐANG MỞ — gọi lúc tắt tiến trình (SIGTERM/SIGINT, xem
+// lib/processGuards.js) để không bỏ dở transaction/kết nối giữa chừng khi
+// PM2 reload/stop. Bỏ qua pool nào chưa từng kết nối/đã đóng.
 async function closeAll() {
   for (const [, poolPromise] of pools) {
     try {
@@ -68,4 +81,4 @@ async function closeAll() {
   pools.clear();
 }
 
-module.exports = { sql, getPool, closeAll };
+module.exports = { sql, getPool, closeAll, assertConfigured };
