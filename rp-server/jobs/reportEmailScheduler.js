@@ -5,7 +5,10 @@
 // với etl/jobs/scheduler.js (etl.SyncJobs). Mỗi lần chạy MỘT giờ gửi: tải
 // định nghĩa báo cáo (lib/reportRunner.js), áp bộ lọc của lịch đó
 // (lib/reportEmailFilters.js — preset ngày tính lại mỗi lần, không cố định),
-// xuất Excel/PDF, gửi email đính kèm (lib/mailer.js).
+// rồi gửi theo DeliveryMode của lịch: 'attachment' (mặc định, như trước) —
+// xuất Excel/PDF đính kèm; 'body' — dựng bảng HTML ngay trong nội dung email
+// (lib/emailBodyRenderer.js), tô đỏ cột HighlightColumnKey khi vượt
+// HighlightThreshold. Gửi qua lib/mailer.js.
 //
 // scheduledTasks giờ khoá theo TimeId (Id của app.ReportEmailScheduleTimes),
 // KHÔNG phải ScheduleId — 1 lịch có N giờ gửi thì có N cron task độc lập.
@@ -28,6 +31,7 @@ const { sql, getPool } = require('../db');
 const { loadDefinition, runDefinition } = require('../lib/reportRunner');
 const { exportExcel } = require('../lib/exportExcel');
 const { exportPdf } = require('../lib/exportPdf');
+const { renderEmailBodyHtml } = require('../lib/emailBodyRenderer');
 const { sendMail } = require('../lib/mailer');
 const { resolveFilterValues } = require('../lib/reportEmailFilters');
 const { logAction } = require('../lib/auditLog');
@@ -40,7 +44,7 @@ async function loadActiveOccurrences() {
   const pool = await getPool('RP');
   const result = await pool.request().query(`
     SELECT t.Id AS TimeId, t.CronExpression, s.Id AS ScheduleId, s.Name, s.ReportId, s.Recipients,
-           s.FilterValuesJson, s.ExportFormat
+           s.FilterValuesJson, s.ExportFormat, s.Subject, s.DeliveryMode, s.HighlightColumnKey, s.HighlightThreshold
     FROM app.ReportEmailScheduleTimes t
     JOIN app.ReportEmailSchedules s ON s.Id = t.ScheduleId
     WHERE s.IsActive = 1
@@ -52,7 +56,7 @@ async function loadOccurrencesForSchedule(scheduleId) {
   const pool = await getPool('RP');
   const result = await pool.request().input('scheduleId', sql.Int, scheduleId).query(`
     SELECT t.Id AS TimeId, t.CronExpression, s.Id AS ScheduleId, s.Name, s.ReportId, s.Recipients,
-           s.FilterValuesJson, s.ExportFormat
+           s.FilterValuesJson, s.ExportFormat, s.Subject, s.DeliveryMode, s.HighlightColumnKey, s.HighlightThreshold
     FROM app.ReportEmailScheduleTimes t
     JOIN app.ReportEmailSchedules s ON s.Id = t.ScheduleId
     WHERE s.Id = @scheduleId
@@ -109,15 +113,37 @@ async function runSchedule(schedule) {
   const filterValues = resolveFilterValues(schedule.FilterValuesJson, definition.filters);
   const { columns, rows } = await runDefinition(definition, filterValues, { page: 1, pageSize: 5000 });
   const exportDefinition = { ...definition, columns };
+  const recipients = schedule.Recipients.split(',').map(s => s.trim()).filter(Boolean);
+
+  // Subject rỗng -> dùng mẫu mặc định như trước khi có tính năng này (tương
+  // thích ngược với lịch cũ chưa từng điền Subject). Subject tự điền được
+  // phép chèn "{ngay}" -> ngày gửi thật (vd "Báo Cáo Nhanh Doanh Thu, Ngày:
+  // {ngay}" -> "...Ngày: 30/08/2026") — khớp mẫu tiêu đề thật đang dùng.
+  const today = new Date().toLocaleDateString('vi-VN');
+  const subjectTemplate = schedule.Subject || `[HCRC] ${definition.title} — {ngay}`;
+  const subject = subjectTemplate.replace(/\{ngay\}/g, today);
+
+  if (schedule.DeliveryMode === 'body') {
+    const html = renderEmailBodyHtml(exportDefinition, rows, {
+      highlightColumnKey: schedule.HighlightColumnKey,
+      highlightThreshold: schedule.HighlightThreshold
+    });
+    await sendMail({
+      to: recipients.join(','),
+      subject,
+      text: `Báo cáo "${definition.title}" gửi tự động theo lịch "${schedule.Name}" (${rows.length} dòng). Xem chi tiết trong nội dung email (yêu cầu client hỗ trợ HTML).`,
+      html
+    });
+    return { title: definition.title, recipients, rowCount: rows.length };
+  }
 
   const format = schedule.ExportFormat === 'pdf' ? 'pdf' : 'excel';
   const buffer = format === 'pdf' ? await exportPdf(exportDefinition, rows) : await exportExcel(exportDefinition, rows);
   const filename = `${definition.title}.${format === 'pdf' ? 'pdf' : 'xlsx'}`;
-  const recipients = schedule.Recipients.split(',').map(s => s.trim()).filter(Boolean);
 
   await sendMail({
     to: recipients.join(','),
-    subject: `[HCRC] ${definition.title} — ${new Date().toLocaleDateString('vi-VN')}`,
+    subject,
     text: `Báo cáo "${definition.title}" gửi tự động theo lịch "${schedule.Name}" (${rows.length} dòng).`,
     attachments: [{ filename, content: buffer }]
   });

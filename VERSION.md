@@ -5,6 +5,42 @@ Server, API Server và các giao diện quản trị) — tăng ở mỗi lần 
 `main`, theo kiểu semver không chặt (patch cho fix nhỏ, minor cho tính năng
 mới, major khi đổi cấu trúc phá vỡ tương thích ngược).
 
+## 0.26.0 — Lịch gửi email: Subject riêng + gửi qua nội dung email (HTML body) có tô màu cảnh báo
+
+Case thật: báo cáo đối chiếu doanh thu siêu thị ↔ trung tâm, gửi định kỳ
+NGAY TRONG NỘI DUNG EMAIL (không phải file đính kèm), tô đỏ ô "Chênh lệch"
+khi vượt ngưỡng. Trước đây `app.ReportEmailSchedules` chỉ gửi được file
+đính kèm (Excel/PDF) với Subject cố định 1 mẫu duy nhất.
+
+- **`rp-db/schema.sql`** — thêm 4 cột vào `app.ReportEmailSchedules`:
+  `Subject` (rỗng = dùng mẫu mặc định, hỗ trợ placeholder `{ngay}` -> ngày
+  gửi thật), `DeliveryMode` (`'attachment'` mặc định | `'body'`),
+  `HighlightColumnKey`/`HighlightThreshold` (chỉ áp dụng khi
+  `DeliveryMode='body'` — tô đỏ ô nào có |giá trị| vượt ngưỡng).
+- **`rp-server/lib/emailBodyRenderer.js`** (mới) — dựng bảng HTML (style
+  inline, đúng ràng buộc email client) từ `{columns, rows}`, tô đỏ đúng 1
+  cột theo ngưỡng của lịch, escape HTML chống XSS/lỗi hiển thị.
+- **`rp-server/lib/mailer.js`** — `sendMail()` nhận thêm tham số `html`.
+- **`rp-server/jobs/reportEmailScheduler.js`** — `runSchedule()` rẽ nhánh
+  theo `DeliveryMode`: `'body'` gửi HTML không đính kèm; `'attachment'`
+  giữ nguyên hành vi cũ. Subject tự điền được thay `{ngay}` bằng ngày gửi
+  thật; để trống vẫn ra đúng mẫu cũ (tương thích ngược).
+- **`rp-server/routes/reportEmailSchedules.js`** — POST/PUT nhận/lưu 4
+  trường mới, `GET /reports` trả kèm danh sách cột để chọn "cột tô màu".
+- **`rp-user/.../EmailSchedulesPage.jsx`** — ô Subject, chọn "Cách gửi"
+  (đính kèm/nội dung email), khi chọn nội dung email hiện thêm ô chọn cột
+  + ngưỡng cảnh báo.
+- Ngưỡng/cột tô màu lưu THEO TỪNG LỊCH GỬI (không cố định trong định
+  nghĩa báo cáo) — cùng 1 báo cáo, nhiều lịch gửi có thể đặt ngưỡng khác
+  nhau. Tô màu hiện CHỈ áp dụng email HTML body (rp-user/Excel/PDF vẫn ra
+  đúng số, không tô màu — phạm vi hẹp có chủ đích, mở rộng sau nếu cần).
+- 3 bộ test độc lập (`emailBodyRenderer`, `reportEmailScheduler` rẽ nhánh
+  DeliveryMode + placeholder Subject, route CRUD) + `hướng_dẫn_báo_cáo.md`
+  mục 4 — hướng dẫn đầy đủ case đối chiếu siêu thị/trung tâm (kiến trúc 2
+  đường ETL độc lập gặp nhau ở DWH dưới 2 Domain khác nhau, KHÔNG vi phạm
+  nguyên tắc "không lấy từ data warehouse" vì DWH chỉ là nơi chứa tạm để
+  ghép, không phải nguồn sự thật DÙNG CHUNG cho 2 số liệu).
+
 ## 0.25.1 — Báo cáo composite chạy các khối SONG SONG thay vì tuần tự
 
 Báo cáo `SourceType='composite'` (ghép nhiều nguồn — nhiều Domain DWH, nhiều

@@ -42,6 +42,13 @@ function validateCronExpressions(list) {
   return null;
 }
 
+// deliveryMode: 'attachment' (mặc định, xuất file đính kèm) hoặc 'body' (bảng
+// HTML ngay trong nội dung email) — xem rp-db/schema.sql + jobs/reportEmailScheduler.js.
+function validateDeliveryMode(mode) {
+  if (!['attachment', 'body'].includes(mode)) return 'Cách gửi không hợp lệ';
+  return null;
+}
+
 // Danh mục báo cáo để chọn khi tạo lịch, kèm luôn filters của từng báo cáo
 // (để giao diện dựng đúng ô cấu hình bộ lọc cố định/preset) — không lọc theo
 // quyền xem báo cáo của TỪNG người dùng như GET /api/reports, vì trang này
@@ -52,11 +59,18 @@ router.get('/reports', async (req, res, next) => {
     const result = await pool.request().query(`
       SELECT ReportId, Title, DefinitionJson FROM app.ReportCatalog WHERE IsActive = 1 ORDER BY Title
     `);
-    res.json(result.recordset.map(r => ({
-      reportId: r.ReportId,
-      title: r.Title,
-      filters: JSON.parse(r.DefinitionJson).filters || []
-    })));
+    res.json(result.recordset.map(r => {
+      const def = JSON.parse(r.DefinitionJson);
+      return {
+        reportId: r.ReportId,
+        title: r.Title,
+        filters: def.filters || [],
+        // Danh sách cột để chọn "cột tô màu" khi DeliveryMode='body' — chỉ lấy
+        // key/label thô từ định nghĩa (chuỗi HOẶC {key,label,formula}), không
+        // cần chạy báo cáo thật (xem lib/reportEngine.js:describeColumns()).
+        columns: (def.columns || []).map(c => (typeof c === 'object' ? { key: c.key, label: c.label || c.key } : { key: c, label: c }))
+      };
+    }));
   } catch (err) { next(err); }
 });
 
@@ -65,7 +79,8 @@ router.get('/', async (req, res, next) => {
     const pool = await getPool('RP');
     const schedulesResult = await pool.request().query(`
       SELECT s.Id, s.Name, s.ReportId, c.Title AS ReportTitle, s.Recipients,
-             s.FilterValuesJson, s.ExportFormat, s.IsActive, s.LastRunAt, s.LastStatus, s.LastError
+             s.FilterValuesJson, s.ExportFormat, s.IsActive, s.LastRunAt, s.LastStatus, s.LastError,
+             s.Subject, s.DeliveryMode, s.HighlightColumnKey, s.HighlightThreshold
       FROM app.ReportEmailSchedules s
       JOIN app.ReportCatalog c ON c.ReportId = s.ReportId
       ORDER BY s.Name
@@ -89,13 +104,18 @@ router.get('/', async (req, res, next) => {
 
 router.post('/', async (req, res, next) => {
   try {
-    const { name, reportId, cronExpressions, recipients, filterValues = {}, exportFormat = 'excel' } = req.body || {};
+    const {
+      name, reportId, cronExpressions, recipients, filterValues = {}, exportFormat = 'excel',
+      subject = null, deliveryMode = 'attachment', highlightColumnKey = null, highlightThreshold = null
+    } = req.body || {};
     if (!name || !reportId) return res.status(400).json({ error: 'Thiếu name/reportId' });
     const cronError = validateCronExpressions(cronExpressions);
     if (cronError) return res.status(400).json({ error: cronError });
     const recipientsError = validateRecipients(recipients);
     if (recipientsError) return res.status(400).json({ error: recipientsError });
     if (!['excel', 'pdf'].includes(exportFormat)) return res.status(400).json({ error: 'Định dạng xuất không hợp lệ' });
+    const deliveryModeError = validateDeliveryMode(deliveryMode);
+    if (deliveryModeError) return res.status(400).json({ error: deliveryModeError });
 
     const pool = await getPool('RP');
     const reportCheck = await pool.request().input('reportId', sql.VarChar(80), reportId)
@@ -109,11 +129,16 @@ router.post('/', async (req, res, next) => {
       .input('recipients', sql.NVarChar(1000), parseRecipients(recipients).join(','))
       .input('filterValuesJson', sql.NVarChar(sql.MAX), JSON.stringify(filterValues))
       .input('exportFormat', sql.VarChar(10), exportFormat)
+      .input('subject', sql.NVarChar(500), subject || null)
+      .input('deliveryMode', sql.VarChar(20), deliveryMode)
+      .input('highlightColumnKey', sql.NVarChar(100), highlightColumnKey || null)
+      .input('highlightThreshold', sql.Decimal(18, 2), highlightThreshold === '' ? null : highlightThreshold)
       .input('createdBy', sql.Int, req.user.sub)
       .query(`
-        INSERT INTO app.ReportEmailSchedules (Name, ReportId, CronExpression, Recipients, FilterValuesJson, ExportFormat, CreatedBy)
+        INSERT INTO app.ReportEmailSchedules
+          (Name, ReportId, CronExpression, Recipients, FilterValuesJson, ExportFormat, Subject, DeliveryMode, HighlightColumnKey, HighlightThreshold, CreatedBy)
         OUTPUT INSERTED.Id
-        VALUES (@name, @reportId, @cronExpression, @recipients, @filterValuesJson, @exportFormat, @createdBy)
+        VALUES (@name, @reportId, @cronExpression, @recipients, @filterValuesJson, @exportFormat, @subject, @deliveryMode, @highlightColumnKey, @highlightThreshold, @createdBy)
       `);
     const id = result.recordset[0].Id;
 
@@ -132,13 +157,18 @@ router.post('/', async (req, res, next) => {
 
 router.put('/:id', async (req, res, next) => {
   try {
-    const { name, cronExpressions, recipients, filterValues = {}, exportFormat = 'excel', isActive } = req.body || {};
+    const {
+      name, cronExpressions, recipients, filterValues = {}, exportFormat = 'excel', isActive,
+      subject = null, deliveryMode = 'attachment', highlightColumnKey = null, highlightThreshold = null
+    } = req.body || {};
     if (!name) return res.status(400).json({ error: 'Thiếu name' });
     const cronError = validateCronExpressions(cronExpressions);
     if (cronError) return res.status(400).json({ error: cronError });
     const recipientsError = validateRecipients(recipients);
     if (recipientsError) return res.status(400).json({ error: recipientsError });
     if (!['excel', 'pdf'].includes(exportFormat)) return res.status(400).json({ error: 'Định dạng xuất không hợp lệ' });
+    const deliveryModeError = validateDeliveryMode(deliveryMode);
+    if (deliveryModeError) return res.status(400).json({ error: deliveryModeError });
 
     const id = Number(req.params.id);
     const pool = await getPool('RP');
@@ -150,11 +180,18 @@ router.put('/:id', async (req, res, next) => {
       .input('recipients', sql.NVarChar(1000), parseRecipients(recipients).join(','))
       .input('filterValuesJson', sql.NVarChar(sql.MAX), JSON.stringify(filterValues))
       .input('exportFormat', sql.VarChar(10), exportFormat)
+      .input('subject', sql.NVarChar(500), subject || null)
+      .input('deliveryMode', sql.VarChar(20), deliveryMode)
+      .input('highlightColumnKey', sql.NVarChar(100), highlightColumnKey || null)
+      .input('highlightThreshold', sql.Decimal(18, 2), highlightThreshold === '' ? null : highlightThreshold)
       .input('isActive', sql.Bit, isActive ? 1 : 0)
       .query(`
         UPDATE app.ReportEmailSchedules
         SET Name = @name, CronExpression = @cronExpression, Recipients = @recipients,
-            FilterValuesJson = @filterValuesJson, ExportFormat = @exportFormat, IsActive = @isActive
+            FilterValuesJson = @filterValuesJson, ExportFormat = @exportFormat,
+            Subject = @subject, DeliveryMode = @deliveryMode,
+            HighlightColumnKey = @highlightColumnKey, HighlightThreshold = @highlightThreshold,
+            IsActive = @isActive
         WHERE Id = @id
       `);
 

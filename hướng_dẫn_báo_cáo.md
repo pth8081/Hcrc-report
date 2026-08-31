@@ -410,3 +410,112 @@ chạy song song (không tuần tự — xem `rp-server/lib/compositeReportRunne
 - Nhiều bảng, CÙNG 1 CSDL → JOIN có sẵn (≤2 bảng) hoặc VIEW (≥3 bảng).
 - Nhiều NGUỒN khác nhau (khác domain/endpoint/hệ thống) → composite, không
   phải VIEW.
+
+---
+
+## 4. Báo cáo đối chiếu số liệu siêu thị ↔ trung tâm — gửi qua nội dung email (không phải file đính kèm)
+
+Case thật: "Báo Cáo Nhanh Doanh Thu" — mỗi khung giờ trong ngày, so sánh
+doanh thu ghi nhận ở **CSDL từng siêu thị** (phần mềm bán hàng tại điểm
+bán, gọi tắt "Thành viên") với doanh thu **CSDL trung tâm** (phần mềm bán
+hàng đồng bộ LÊN từ siêu thị, gọi tắt "HO") — lệch nhau quá 100.000đ thì
+cảnh báo (tô đỏ). Đây là báo cáo ĐỌC NHANH, hiện ngay trong email, không
+cần mở file đính kèm.
+
+### Vì sao KHÔNG lấy thẳng từ Data Warehouse như mục 1/2
+
+DWH bình thường chỉ đồng bộ MỘT nguồn: CSDL trung tâm (HO) → DWH. Số liệu
+trong DWH lúc nào cũng RA TỪ trung tâm — dùng DWH để so sánh "siêu thị vs
+trung tâm" thì thực chất đang so sánh trung tâm với chính nó, vô nghĩa.
+Muốn đối chiếu thật, 2 con số phải đến từ **2 đường đồng bộ ĐỘC LẬP nhau**,
+không chung nguồn gốc ở bất kỳ khâu nào.
+
+### Kiến trúc: 2 đường ETL độc lập, gặp nhau ở DWH dưới 2 Domain khác nhau
+
+DWH ở đây chỉ đóng vai trò NƠI CHỨA TẠM để ghép báo cáo (như mọi domain
+khác) — KHÔNG phải nguồn sự thật dùng chung cho 2 số liệu, nên không vi
+phạm nguyên tắc "không lấy từ data warehouse" nêu trên:
+
+```
+CSDL siêu thị #1 ──┐
+CSDL siêu thị #2 ──┤   (mỗi siêu thị = 1 etl.DataSources RIÊNG,
+       ...         ├──▶  1 etl.SyncJobs RIÊNG) ──▶ dwh.ReportFacts
+CSDL siêu thị #33 ──┘         Domain = 'doanhthu_thanhvien'
+
+CSDL trung tâm ─────────────▶ (1 etl.DataSources, 1 etl.SyncJobs) ──▶ dwh.ReportFacts
+                                     Domain = 'doanhthu_ho'
+```
+
+- **33 kết nối siêu thị**: tạo hàng loạt qua "Nhập hàng loạt" trên
+  etl-admin (mục B — file Excel liệt kê Name/Server/Database/Username/...
+  33 dòng), mỗi kết nối 1 `etl.SyncJobs` đồng bộ đúng bảng doanh thu của
+  CHÍNH siêu thị đó vào Domain `doanhthu_thanhvien`, `EntityCode` = mã
+  siêu thị (khớp đúng mã dùng ở Domain `doanhthu_ho` — xem Phụ lục
+  "entityCode phải nhất quán" mục 2).
+- **1 kết nối trung tâm**: `etl.SyncJobs` đồng bộ CSDL trung tâm (đúng
+  bảng phần mềm bán hàng ghi nhận SAU KHI siêu thị gửi lên) vào Domain
+  `doanhthu_ho`, cũng `EntityCode` theo mã siêu thị.
+
+Không cần VIEW/JOIN ở bước ETL — mỗi job vẫn đọc 1 bảng của 1 CSDL, đúng
+khuôn sẵn có (mục "Quy tắc chung" ở trên).
+
+### Báo cáo: composite ghép 2 Domain theo entityCode
+
+Không cần code mới — dùng ĐÚNG cơ chế composite đã có (mục "Quy tắc
+chung"), 2 khối `directDb`, cột "Chênh lệch" là CÔNG THỨC:
+
+```json
+{
+  "blocks": [
+    { "key": "ho", "sourceType": "directDb", "domain": "doanhthu_ho" },
+    { "key": "thanhVien", "sourceType": "directDb", "domain": "doanhthu_thanhvien" }
+  ],
+  "columns": [
+    { "key": "entityCode", "label": "STK_ID" },
+    { "key": "thanhVien.dimensions.tenSieuThi", "label": "Cửa Hàng/Siêu Thị" },
+    { "key": "ho.measures.doanhThu", "label": "HO" },
+    { "key": "thanhVien.measures.doanhThu", "label": "Thành viên" },
+    { "key": "chenhLech", "label": "Chênh lệch", "formula": "ho.measures.doanhThu - thanhVien.measures.doanhThu" },
+    { "key": "tyLeDat", "label": "Tỷ lệ đạt", "formula": "ROUND(thanhVien.measures.doanhThu / ho.measures.doanhThu * 100, 1)" }
+  ],
+  "groupBy": {
+    "field": "thanhVien.dimensions.chain",
+    "groups": [
+      { "value": "MART", "label": "Tổng cộng MART" },
+      { "value": "MINIMART", "label": "Tổng cộng MiniMart" }
+    ],
+    "labelColumn": "entityCode"
+  }
+}
+```
+
+Siêu thị nào THIẾU 1 trong 2 khối (chưa đồng bộ kịp, hoặc mới mở/đã đóng —
+xem Phụ lục) thì cột tương ứng trống, "Chênh lệch" không tính được
+(`undefined`) — không lỗi, không làm hỏng dòng khác.
+
+### Lịch gửi: Subject riêng + gửi qua nội dung email + tô đỏ khi vượt ngưỡng
+
+Trang "Hệ thống → Lịch gửi email báo cáo" (đã tạo/sửa lịch cho báo cáo
+trên) → điền:
+
+- **Tiêu đề email (Subject)**: `Báo Cáo Nhanh Doanh Thu, Ngày: {ngay}` —
+  `{ngay}` tự thay bằng ngày gửi thật (khớp đúng ảnh mẫu thật
+  "...Ngày: 30/08/2026"). Để trống thì dùng mẫu mặc định
+  `[HCRC] <tên báo cáo> — {ngay}`.
+- **Cách gửi**: chọn "Bảng ngay trong nội dung email" (không phải "File
+  đính kèm") — người nhận mở email là thấy bảng luôn.
+- **Cột kiểm tra ngưỡng**: chọn `chenhLech` (đúng key cột "Chênh lệch" ở
+  trên).
+- **Ngưỡng cảnh báo**: `100000` — ô "Chênh lệch" nào có trị tuyệt đối vượt
+  100.000đ (âm hay dương đều tính) sẽ tô đỏ trong email.
+
+Ngưỡng/cột tô màu lưu THEO TỪNG LỊCH GỬI (không phải cố định trong
+`DefinitionJson` báo cáo) — cùng 1 báo cáo có thể có nhiều lịch gửi cho
+nhiều nhóm nhận khác nhau, mỗi lịch tự đặt ngưỡng cảnh báo riêng nếu cần.
+Có thể tạo nhiều "giờ gửi" trong CÙNG 1 lịch (vd 09:00/13:00/17:00 — xem
+mục "Nhiều lần gửi/ngày" trên trang này) để rà soát nhiều lần trong ngày.
+
+**Giới hạn cố ý**: tô màu điều kiện hiện CHỈ áp dụng cho email HTML body —
+xem báo cáo trên rp-user hay tải Excel/PDF vẫn ra đúng số, chỉ không tô
+màu (phạm vi tô màu rộng hơn — cả màn hình rp-user lẫn Excel/PDF — là việc
+làm thêm sau nếu cần).

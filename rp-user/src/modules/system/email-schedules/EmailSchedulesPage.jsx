@@ -71,7 +71,8 @@ function emptyScheduleForm() {
     name: '', reportId: '', recipients: '', exportFormat: 'excel',
     cronMode: 'simple', frequency: 'daily', weekdays: [1],
     times: ['07:00'], rawCrons: [''],
-    filterValues: {}
+    filterValues: {},
+    subject: '', deliveryMode: 'attachment', highlightColumnKey: '', highlightThreshold: ''
   };
 }
 
@@ -91,7 +92,11 @@ function scheduleToForm(row) {
   const allSimple = crons.length > 0 && parsed.every(Boolean);
   const sameShape = allSimple && parsed.every(p => p.frequency === parsed[0].frequency && JSON.stringify(p.weekdays) === JSON.stringify(parsed[0].weekdays));
 
-  const base = { name: row.Name, reportId: row.ReportId, recipients: row.Recipients, exportFormat: row.ExportFormat, filterValues: row.FilterValues || {} };
+  const base = {
+    name: row.Name, reportId: row.ReportId, recipients: row.Recipients, exportFormat: row.ExportFormat, filterValues: row.FilterValues || {},
+    subject: row.Subject || '', deliveryMode: row.DeliveryMode || 'attachment',
+    highlightColumnKey: row.HighlightColumnKey || '', highlightThreshold: row.HighlightThreshold ?? ''
+  };
   if (sameShape) {
     return { ...base, cronMode: 'simple', frequency: parsed[0].frequency, weekdays: parsed[0].weekdays.length ? parsed[0].weekdays : [1], times: parsed.map(p => p.time), rawCrons: [''] };
   }
@@ -242,12 +247,54 @@ function ScheduleFormFields({ form, setForm, reports, reportLocked }) {
       </label>
 
       <label>
-        Định dạng xuất
-        <select value={form.exportFormat} onChange={(e) => setForm({ ...form, exportFormat: e.target.value })}>
-          <option value="excel">Excel</option>
-          <option value="pdf">PDF</option>
+        Tiêu đề email (Subject) — gõ {'{ngay}'} để chèn ngày gửi
+        <input
+          value={form.subject}
+          onChange={(e) => setForm({ ...form, subject: e.target.value })}
+          placeholder={`Để trống = mặc định "[HCRC] ${selectedReport?.title || '<Tên báo cáo>'} — {ngay}"`}
+        />
+      </label>
+
+      <label>
+        Cách gửi
+        <select value={form.deliveryMode} onChange={(e) => setForm({ ...form, deliveryMode: e.target.value })}>
+          <option value="attachment">File đính kèm (Excel/PDF)</option>
+          <option value="body">Bảng ngay trong nội dung email (không đính kèm)</option>
         </select>
       </label>
+
+      {form.deliveryMode === 'attachment' ? (
+        <label>
+          Định dạng xuất
+          <select value={form.exportFormat} onChange={(e) => setForm({ ...form, exportFormat: e.target.value })}>
+            <option value="excel">Excel</option>
+            <option value="pdf">PDF</option>
+          </select>
+        </label>
+      ) : (
+        <div className="filter-config">
+          <strong>Tô màu cảnh báo trong bảng (không bắt buộc)</strong>
+          <label>
+            Cột kiểm tra ngưỡng
+            <select value={form.highlightColumnKey} onChange={(e) => setForm({ ...form, highlightColumnKey: e.target.value })}>
+              <option value="">— Không tô màu —</option>
+              {(selectedReport?.columns || []).map(c => <option key={c.key} value={c.key}>{c.label}</option>)}
+            </select>
+          </label>
+          {form.highlightColumnKey && (
+            <label>
+              Ngưỡng cảnh báo (tô đỏ khi trị tuyệt đối vượt ngưỡng)
+              <input
+                type="number"
+                value={form.highlightThreshold}
+                onChange={(e) => setForm({ ...form, highlightThreshold: e.target.value })}
+                placeholder="vd 100000"
+                required
+              />
+            </label>
+          )}
+        </div>
+      )}
 
       <FilterConfigFields
         filters={selectedReport?.filters || []}
@@ -296,7 +343,10 @@ export default function EmailSchedulesPage() {
     try {
       await api.post('/system/report-email-schedules', {
         name: form.name, reportId: form.reportId, cronExpressions: buildCronList(form),
-        recipients: form.recipients, exportFormat: form.exportFormat, filterValues: form.filterValues
+        recipients: form.recipients, exportFormat: form.exportFormat, filterValues: form.filterValues,
+        subject: form.subject, deliveryMode: form.deliveryMode,
+        highlightColumnKey: form.deliveryMode === 'body' ? form.highlightColumnKey : '',
+        highlightThreshold: form.deliveryMode === 'body' && form.highlightColumnKey ? form.highlightThreshold : ''
       });
       setForm(emptyScheduleForm());
       reload();
@@ -309,7 +359,10 @@ export default function EmailSchedulesPage() {
       const f = editing.form;
       await api.put(`/system/report-email-schedules/${editing.id}`, {
         name: f.name, cronExpressions: buildCronList(f), recipients: f.recipients,
-        exportFormat: f.exportFormat, filterValues: f.filterValues, isActive: f.isActive
+        exportFormat: f.exportFormat, filterValues: f.filterValues, isActive: f.isActive,
+        subject: f.subject, deliveryMode: f.deliveryMode,
+        highlightColumnKey: f.deliveryMode === 'body' ? f.highlightColumnKey : '',
+        highlightThreshold: f.deliveryMode === 'body' && f.highlightColumnKey ? f.highlightThreshold : ''
       });
       setEditing(null);
       reload();
@@ -322,7 +375,10 @@ export default function EmailSchedulesPage() {
       const f = scheduleToForm(row);
       await api.put(`/system/report-email-schedules/${row.Id}`, {
         name: f.name, cronExpressions: buildCronList(f), recipients: f.recipients,
-        exportFormat: f.exportFormat, filterValues: f.filterValues, isActive: !row.IsActive
+        exportFormat: f.exportFormat, filterValues: f.filterValues, isActive: !row.IsActive,
+        subject: f.subject, deliveryMode: f.deliveryMode,
+        highlightColumnKey: f.deliveryMode === 'body' ? f.highlightColumnKey : '',
+        highlightThreshold: f.deliveryMode === 'body' && f.highlightColumnKey ? f.highlightThreshold : ''
       });
       reload();
     } catch (err) { setError(err.message); }
@@ -369,7 +425,11 @@ export default function EmailSchedulesPage() {
           { key: 'ReportTitle', label: 'Báo cáo' },
           { key: 'Times', label: 'Giờ gửi', render: (r) => <TimesStatusList times={r.Times} /> },
           { key: 'Recipients', label: 'Người nhận' },
-          { key: 'ExportFormat', label: 'Định dạng', render: (r) => (r.ExportFormat === 'pdf' ? 'PDF' : 'Excel') },
+          {
+            key: 'DeliveryMode', label: 'Cách gửi', render: (r) => (
+              r.DeliveryMode === 'body' ? 'Nội dung email' : `File đính kèm (${r.ExportFormat === 'pdf' ? 'PDF' : 'Excel'})`
+            )
+          },
           { key: 'IsActive', label: 'Trạng thái', render: (r) => (r.IsActive ? 'Hoạt động' : 'Tắt') },
           {
             key: 'LastRun', label: 'Hoạt động gần nhất (mọi giờ gửi)', render: (r) => {

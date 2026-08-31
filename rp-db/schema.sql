@@ -387,6 +387,46 @@ FROM app.ReportEmailSchedules s
 WHERE NOT EXISTS (SELECT 1 FROM app.ReportEmailScheduleTimes t WHERE t.ScheduleId = s.Id);
 GO
 
+-- Subject riêng theo TỪNG lịch gửi (rỗng = dùng mẫu mặc định
+-- "[HCRC] <tên báo cáo> — {ngay}" như trước, xem reportEmailScheduler.js;
+-- cho phép chèn placeholder "{ngay}" -> ngày gửi thật, vd
+-- "Báo Cáo Nhanh Doanh Thu, Ngày: {ngay}") +
+-- chọn gửi FILE ĐÍNH KÈM (như cũ) hay HTML NGAY TRONG BODY EMAIL (báo cáo đọc
+-- nhanh dạng bảng màu, không cần mở file — vd "Báo Cáo Nhanh Doanh Thu" so
+-- sánh số liệu siêu thị và trung tâm). HighlightColumnKey/HighlightThreshold
+-- CHỈ áp dụng khi DeliveryMode='body' (tô đỏ 1 cột khi |giá trị| vượt ngưỡng,
+-- vd cột "Chênh lệch" vượt 100.000đ) — rỗng = không tô màu gì. Cố ý để
+-- ngưỡng/cột tô màu RIÊNG TỪNG LỊCH (không phải cố định trong DefinitionJson
+-- của báo cáo) vì cùng 1 báo cáo có thể gửi cho nhiều lịch khác nhau với mức
+-- cảnh báo khác nhau. Xem lib/emailBodyRenderer.js.
+IF COL_LENGTH('app.ReportEmailSchedules', 'Subject') IS NULL
+BEGIN
+    ALTER TABLE app.ReportEmailSchedules ADD Subject NVARCHAR(500) NULL;
+END
+GO
+IF COL_LENGTH('app.ReportEmailSchedules', 'DeliveryMode') IS NULL
+BEGIN
+    ALTER TABLE app.ReportEmailSchedules ADD DeliveryMode VARCHAR(20) NOT NULL DEFAULT 'attachment';
+END
+GO
+IF OBJECT_ID('CK_ReportEmailSchedules_DeliveryMode', 'C') IS NOT NULL
+BEGIN
+    ALTER TABLE app.ReportEmailSchedules DROP CONSTRAINT CK_ReportEmailSchedules_DeliveryMode;
+END
+ALTER TABLE app.ReportEmailSchedules ADD CONSTRAINT CK_ReportEmailSchedules_DeliveryMode
+    CHECK (DeliveryMode IN ('attachment', 'body'));
+GO
+IF COL_LENGTH('app.ReportEmailSchedules', 'HighlightColumnKey') IS NULL
+BEGIN
+    ALTER TABLE app.ReportEmailSchedules ADD HighlightColumnKey NVARCHAR(100) NULL;
+END
+GO
+IF COL_LENGTH('app.ReportEmailSchedules', 'HighlightThreshold') IS NULL
+BEGIN
+    ALTER TABLE app.ReportEmailSchedules ADD HighlightThreshold DECIMAL(18, 2) NULL;
+END
+GO
+
 IF OBJECT_ID('app.AuditLog', 'U') IS NULL
 BEGIN
     CREATE TABLE app.AuditLog (
