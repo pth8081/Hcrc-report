@@ -378,3 +378,35 @@ ngày sử dụng + tên khách hàng (ghép từ bảng `Customers`) + nơi s�
 mã **không tồn tại** → 0 dòng, KHÔNG báo lỗi (được coi là kết quả bình
 thường, không phải sự cố hệ thống). Để trống ô mã → 0 dòng ngay, không tốn
 lượt gọi API Server nào.
+
+---
+
+## Quy tắc chung — khi nào tạo VIEW, khi nào dùng JOIN có sẵn, khi nào dùng composite
+
+Áp dụng cho MỌI báo cáo mới, không riêng case nào — 2 tình huống hoàn toàn
+khác nhau, đừng nhầm lẫn:
+
+### Ghép nhiều bảng TRONG CÙNG 1 CSDL nguồn (ETL, API Server)
+
+| Số bảng cần ghép | ETL (`etl.SyncJobs`) | API Server (`api.RealtimeEndpointDefs`) |
+|---|---|---|
+| 1 bảng chính + 1 bảng liên kết | Dùng JOIN có sẵn trên giao diện — không cần VIEW | Dùng JOIN có sẵn trên giao diện — không cần VIEW |
+| 3 bảng trở lên, hoặc logic phức tạp hơn 1 JOIN đơn giản (điều kiện lọc phức tạp, UNION, subquery...) | **Bắt buộc tạo VIEW** ở CSDL nguồn, trỏ job vào VIEW đó | **Bắt buộc tạo VIEW** ở CSDL nguồn, trỏ endpoint vào VIEW đó |
+
+Cả 2 engine cố ý CHỈ hỗ trợ tối đa 1 bảng liên kết — không mở rộng thêm
+(tránh biến chúng thành trình dựng SQL tuỳ ý). Vượt quá 1 bảng thì VIEW là
+đường DUY NHẤT, không có cách nào khác.
+
+### Ghép NHIỀU NGUỒN dữ liệu khác nhau để ra 1 báo cáo (Report Server)
+
+**KHÔNG dùng VIEW** — dùng `SourceType='composite'` (mục 1 file này). VIEW
+không làm được vì các nguồn có thể khác domain DWH, khác endpoint API
+Server, thậm chí khác hẳn hệ thống — SQL không JOIN qua được 1 lượt gọi
+HTTP. Report Server tự ghép ở TẦNG ỨNG DỤNG theo `entityCode`, các khối
+chạy song song (không tuần tự — xem `rp-server/lib/compositeReportRunner.js`).
+
+### Tóm tắt 1 câu
+
+- Nhiều bảng, CÙNG 1 CSDL → JOIN có sẵn (≤2 bảng) hoặc VIEW (≥3 bảng).
+- Nhiều NGUỒN khác nhau (khác domain/endpoint/hệ thống) → composite, không
+  phải VIEW.
