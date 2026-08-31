@@ -7,6 +7,26 @@ import DataTable from '../components/DataTable';
 
 const EMPTY_FORM = { name: '', engine: 'mssql', server: '', port: 1433, databaseName: '', username: '', password: '', encrypt: true, trustServerCert: false };
 
+// Cột "Đồng bộ" — gộp trạng thái mọi job đồng bộ trỏ vào nguồn này (xem
+// etl/lib/syncStatus.js). null = nguồn chưa gắn job nào.
+function renderSyncStatus(syncStatus) {
+  if (!syncStatus) return <span className="muted">Chưa gắn job đồng bộ</span>;
+  const { lastRunAt, lastStatus, overdueJobCount } = syncStatus;
+  const lastRunText = lastRunAt
+    ? `${lastStatus === 'FAILED' ? '⛔' : '✅'} ${new Date(lastRunAt).toLocaleString('vi-VN')}`
+    : 'Chưa chạy lần nào';
+  return (
+    <span>
+      {lastRunText}
+      {overdueJobCount > 0 && (
+        <span className="form-error" title="Job đang bật nhưng quá hạn so với lịch chạy của chính nó">
+          {' '}⚠️ {overdueJobCount} job quá hạn
+        </span>
+      )}
+    </span>
+  );
+}
+
 export default function DataSourcesPage() {
   const { isAdmin } = useAuth();
   const [sources, setSources] = useState([]);
@@ -182,6 +202,7 @@ export default function DataSourcesPage() {
           { key: 'Server', label: 'Server' },
           { key: 'DatabaseName', label: 'Database' },
           { key: 'IsActive', label: 'Trạng thái', render: (s) => (s.IsActive ? 'Hoạt động' : 'Tắt') },
+          { key: 'SyncStatus', label: 'Đồng bộ', render: (s) => renderSyncStatus(s.SyncStatus) },
           isAdmin && {
             key: 'actions', label: '', render: (s) => (
               <>

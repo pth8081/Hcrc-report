@@ -5,6 +5,35 @@ Server, API Server và các giao diện quản trị) — tăng ở mỗi lần 
 `main`, theo kiểu semver không chặt (patch cho fix nhỏ, minor cho tính năng
 mới, major khi đổi cấu trúc phá vỡ tương thích ngược).
 
+## 0.27.0 — ETL: chặn cứng khi lượt đồng bộ sắp xoá lịch sử nhiều ngày + theo dõi trạng thái đồng bộ theo từng nguồn dữ liệu
+
+Chuẩn bị cho việc backfill dữ liệu lịch sử (vd đồng bộ từ 2025 đến hiện tại
+qua 33+ kết nối chi nhánh) — 2 rủi ro cần xử lý: (1) quên tích "Giữ lịch sử"
+khiến lượt đồng bộ hàng ngày sau đó âm thầm xoá sạch dữ liệu cũ; (2) không
+có chỗ rà soát nhanh 33+ kết nối đang lỗi/quá hạn.
+
+- **`etl/lib/upsert.js`** — thêm `shouldBlockHistoryWipe()` (hàm thuần, test
+  độc lập không cần CSDL): trước khi thực hiện bước dọn dữ liệu cũ (chỉ chạy
+  khi `KeepHistory=false`), đo khoảng cách ngày (span) của các dòng SẮP bị
+  xoá. Span vượt 3 ngày (`STALE_HISTORY_SPAN_DAYS`) — dấu hiệu domain lịch
+  sử nhiều ngày bị lỡ tắt "Giữ lịch sử" — thì **CHẶN CỨNG**: không xoá,
+  không MERGE, ném lỗi để lượt chạy đó hiện LỖI rõ ràng trên Dashboard/Log
+  (rollback toàn bộ transaction, dữ liệu cũ không đụng gì). Dọn "chốt số
+  mới nhất" bình thường (span 1-2 ngày, đúng thiết kế cũ) vẫn chạy như cũ,
+  không bị chặn nhầm.
+- **`etl/lib/syncStatus.js`** (mới) — tổng hợp trạng thái đồng bộ THEO TỪNG
+  NGUỒN dữ liệu (gộp mọi `etl.SyncJobs` trỏ vào nguồn đó): lần chạy gần
+  nhất, trạng thái, và đếm job "quá hạn" (đang bật nhưng lâu hơn 3× chu kỳ
+  cron của chính nó mà chưa chạy lại — ước lượng chu kỳ từ 2 dạng cron thực
+  tế đang dùng, `*/N phút` hoặc giờ cố định hàng ngày).
+- **`etl/routes/admin/dataSources.js`** — `GET /` trả kèm `SyncStatus` theo
+  từng nguồn (null = nguồn chưa gắn job nào).
+- **`etl-admin/.../DataSourcesPage.jsx`** — cột "Đồng bộ" mới trên trang
+  "Nguồn dữ liệu": lần chạy gần nhất + cảnh báo đỏ "N job quá hạn" — rà soát
+  nhanh nhiều kết nối cùng lúc mà không cần đối chiếu qua Dashboard.
+- 3 bộ test độc lập (`shouldBlockHistoryWipe`, `syncStatus.js`, route
+  `dataSources.js`) + `vite build` etl-admin.
+
 ## 0.26.0 — Lịch gửi email: Subject riêng + gửi qua nội dung email (HTML body) có tô màu cảnh báo
 
 Case thật: báo cáo đối chiếu doanh thu siêu thị ↔ trung tâm, gửi định kỳ

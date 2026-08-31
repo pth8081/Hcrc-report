@@ -25,6 +25,7 @@ const { encrypt, decrypt } = require('../../lib/crypto');
 const { invalidate, testConnection, testConnectionsBatch } = require('../../lib/dataSourcePool');
 const schemaBrowser = require('../../lib/schemaBrowser');
 const { parseDataSourcesFile, upsertDataSources } = require('../../lib/dataSourcesImport');
+const { summarizeSourceSyncStatus } = require('../../lib/syncStatus');
 const { logAction } = require('../../lib/auditLog');
 
 // Chạy testConnection() nhưng KHÔNG BAO GIỜ throw — dùng ngay sau khi lưu,
@@ -52,14 +53,36 @@ const upload = multer({
   }
 });
 
+// SyncStatus theo TỪNG NGUỒN (xem lib/syncStatus.js) — gộp mọi
+// etl.SyncJobs trỏ vào nguồn đó, kèm lần chạy (etl.SyncLog) GẦN NHẤT của
+// từng job (OUTER APPLY TOP 1, nhanh hơn nhiều so với self-join + GROUP BY
+// khi mỗi job có hàng nghìn dòng log). null = nguồn chưa gắn job nào.
 router.get('/', async (req, res, next) => {
   try {
     const pool = await getPool('ADMIN');
-    const result = await pool.request().query(`
+    const sourcesResult = await pool.request().query(`
       SELECT Id, Name, Engine, Server, Port, DatabaseName, Username, Encrypt, TrustServerCert, IsActive, CreatedAt
       FROM etl.DataSources ORDER BY Name
     `);
-    res.json(result.recordset);
+    const jobsResult = await pool.request().query(`
+      SELECT j.Id, j.DataSourceId, j.CronExpression, j.IsActive,
+             l.Status AS LastStatus, l.ErrorMessage AS LastError, l.StartedAt AS LastRunAt
+      FROM etl.SyncJobs j
+      OUTER APPLY (
+        SELECT TOP 1 Status, ErrorMessage, StartedAt
+        FROM etl.SyncLog WHERE SyncJobId = j.Id ORDER BY StartedAt DESC
+      ) l
+    `);
+    const jobsBySource = new Map();
+    for (const j of jobsResult.recordset) {
+      if (!jobsBySource.has(j.DataSourceId)) jobsBySource.set(j.DataSourceId, []);
+      jobsBySource.get(j.DataSourceId).push(j);
+    }
+    const now = Date.now();
+    res.json(sourcesResult.recordset.map(s => ({
+      ...s,
+      SyncStatus: summarizeSourceSyncStatus(jobsBySource.get(s.Id), now)
+    })));
   } catch (err) { next(err); }
 });
 
