@@ -62,6 +62,7 @@ legend { font-size: 12px; color: var(--ink-soft); padding: 0 6px; }
 .login-form { display: flex; flex-direction: column; gap: 12px; width: 320px; background: var(--surface); padding: 32px; border-radius: 8px; border: 1px solid var(--line); }
 
 .pool-cards { display: flex; gap: 12px; margin-bottom: 8px; }
+.dashboard-search { display: block; margin: 16px 0; max-width: 320px; }
 .pool-card { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 12px 16px; min-width: 160px; }
 .pool-card-title { font-size: 12px; color: var(--ink-soft); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 4px; }
 

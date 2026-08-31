@@ -5,6 +5,25 @@ Server, API Server và các giao diện quản trị) — tăng ở mỗi lần 
 `main`, theo kiểu semver không chặt (patch cho fix nhỏ, minor cho tính năng
 mới, major khi đổi cấu trúc phá vỡ tương thích ngược).
 
+## 0.27.1 — Dashboard ETL: bộ lọc "Đang lỗi/Quá hạn" + tìm kiếm theo tên job
+
+Tiếp nối 0.27.0 — với vài chục kết nối/job, bảng "Từng job" trên Dashboard
+dài dần, khó rà soát. Cân nhắc phương án cho phép admin CHỌN kết nối nào
+hiện trên Dashboard (ẩn bớt) nhưng đánh giá đây là phản tác dụng cho mục
+đích giám sát (dễ vô tình ẩn đúng kết nối đang lỗi) — thay bằng bộ lọc XEM
+tạm thời, không đổi cấu hình/dữ liệu gì:
+
+- **`etl/routes/admin/dashboard.js`** — `jobs` kèm thêm `LastRunStatus`/
+  `LastRunError`/`LastRunAt` (lượt chạy GẦN NHẤT, không chỉ mốc thành công
+  cuối) và `IsOverdue` (dùng lại `isJobOverdue()` từ `lib/syncStatus.js` —
+  không viết lại logic ước lượng chu kỳ cron).
+- **`etl-admin/.../DashboardPage.jsx`** — ô tìm kiếm theo tên job (áp dụng
+  cả 3 bảng) + tab "Tất cả/Đang lỗi/Quá hạn" lọc riêng bảng "Từng job".
+  Bảng "Từng job" hiện thêm cột lượt chạy gần nhất (icon ✅/⛔) và cờ "⚠️ Quá
+  hạn".
+- 1 test độc lập (route trả đúng `LastRunStatus`/`IsOverdue`) + `vite
+  build` etl-admin.
+
 ## 0.27.0 — ETL: chặn cứng khi lượt đồng bộ sắp xoá lịch sử nhiều ngày + theo dõi trạng thái đồng bộ theo từng nguồn dữ liệu
 
 Chuẩn bị cho việc backfill dữ liệu lịch sử (vd đồng bộ từ 2025 đến hiện tại

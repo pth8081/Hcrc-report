@@ -1,8 +1,13 @@
 // routes/admin/dashboard.js — Tổng hợp tình trạng đồng bộ: số job, job lỗi
 // trong 24h qua, các lượt chạy gần nhất, mốc đồng bộ hiện tại của từng job.
+// "Từng job" kèm LastRunStatus/IsOverdue (isJobOverdue — cùng hàm dùng ở
+// lib/syncStatus.js cho cột "Đồng bộ" trên trang Nguồn dữ liệu, tránh viết
+// lại logic ước lượng chu kỳ cron) để etl-admin lọc "Đang lỗi"/"Quá hạn"
+// ngay trên Dashboard khi danh sách job dài (nhiều chục kết nối).
 const express = require('express');
 const { getPool } = require('../../db');
 const { requireAdminAuth } = require('../../lib/adminAuth');
+const { isJobOverdue } = require('../../lib/syncStatus');
 
 const router = express.Router();
 router.use(requireAdminAuth);
@@ -31,17 +36,28 @@ router.get('/', async (req, res, next) => {
       ORDER BY l.StartedAt DESC
     `);
 
-    const jobs = await pool.request().query(`
-      SELECT j.Id, j.Name, j.Type, j.CronExpression, j.IsActive, s.LastSyncedAt
-      FROM etl.SyncJobs j LEFT JOIN etl.SyncState s ON s.SyncJobId = j.Id
+    const jobsResult = await pool.request().query(`
+      SELECT j.Id, j.Name, j.Type, j.CronExpression, j.IsActive, s.LastSyncedAt,
+             l.Status AS LastRunStatus, l.ErrorMessage AS LastRunError, l.StartedAt AS LastRunAt
+      FROM etl.SyncJobs j
+      LEFT JOIN etl.SyncState s ON s.SyncJobId = j.Id
+      OUTER APPLY (
+        SELECT TOP 1 Status, ErrorMessage, StartedAt
+        FROM etl.SyncLog WHERE SyncJobId = j.Id ORDER BY StartedAt DESC
+      ) l
       ORDER BY j.Name
     `);
+    const now = Date.now();
+    const jobs = jobsResult.recordset.map(j => ({
+      ...j,
+      IsOverdue: !!j.IsActive && isJobOverdue({ LastRunAt: j.LastRunAt, CronExpression: j.CronExpression }, now)
+    }));
 
     res.json({
       totals: totals.recordset[0],
       failingLast24h: failingLast24h.recordset,
       recentRuns: recentRuns.recordset,
-      jobs: jobs.recordset
+      jobs
     });
   } catch (err) { next(err); }
 });
