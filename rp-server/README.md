@@ -133,9 +133,16 @@ FROM app.MenuItems WHERE Code = 'reports-van-hanh';
 - Cả 2 loại đều KHÔNG dùng `DataSourceId` — cột hiển thị lấy nguyên từ response
   của API Server (đã tự chiếu cột phía đó), `DefinitionJson.columns` bị bỏ qua
   — xem `lib/apiReportClient.js`.
-- `'apiRealtime'` chưa hỗ trợ lọc động (`filters` trong `DefinitionJson` bị
-  bỏ qua) — API Server mới trả danh sách phân trang, xem
-  `api-server/routes/v1/realtime.js`.
+- `'apiRealtime'` MẶC ĐỊNH là danh sách phân trang, `filters` trong
+  `DefinitionJson` bị bỏ qua — trừ khi đặt thêm `DefinitionJson.lookupField`
+  (tên 1 field trong `filters`), lúc đó chuyển hẳn sang TRA ĐÚNG 1 KHOÁ
+  (`GET /v1/realtime/{ApiTarget}/{giá trị lọc}`, xem
+  `api-server/routes/v1/realtime.js`) — dùng khi người dùng gõ 1 mã (voucher,
+  thẻ thành viên...) cần ra đúng 1 dòng, thay vì kéo cả danh sách. Không nhập
+  giá trị lọc thì trả 0 dòng, không gọi API Server; mã không tồn tại (404) trả
+  0 dòng chứ không báo lỗi. Chỉ nhận ĐÚNG 1 điều kiện lọc — cần lọc nhiều điều
+  kiện cùng lúc thì dùng `'apiReport'`. Xem `lib/apiReportClient.js` và
+  `hướng_dẫn_báo_cáo.md` mục "Báo cáo tra cứu 1 mã qua API Server".
 
 ### Báo cáo lấy dữ liệu trực tiếp từ API đối tác (không qua API Server)
 

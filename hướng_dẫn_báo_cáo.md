@@ -253,3 +253,101 @@ không đánh dấu, siêu thị tự biến mất khỏi báo cáo NGÀY KHÔNG
 `blocks`/`groupBy`, cách hoạt động bên trong) — xem `rp-server/README.md`
 mục "Báo cáo ghép nhiều nguồn (composite)", `etl/README.md` mục "Nhập chỉ
 tiêu" và "Giữ lịch sử theo ngày".
+
+---
+
+## 3. Báo cáo tra cứu 1 mã qua API Server (`lookupField`) — vd Kiểm tra voucher
+
+### Khi nào dùng
+
+Người dùng gõ/quét MỘT mã (voucher, mã thẻ thành viên, số hoá đơn...) và
+cần ra ĐÚNG 1 dòng kết quả — khác báo cáo 1 và 2 ở trên (kéo cả danh sách
+nhiều dòng). Ví dụ case study: kiểm tra voucher —
+- Voucher **chưa sử dụng** → trả trạng thái + ngày hết hạn.
+- Voucher **đã sử dụng** → trả trạng thái + ngày sử dụng + người sử dụng +
+  vị trí sử dụng (siêu thị).
+
+Cả 2 tình huống xử lý bằng ĐÚNG 1 bảng nguồn, ĐÚNG 1 endpoint — các cột
+"chỉ có khi đã dùng" (ngày/người/vị trí sử dụng) để `NULL` khi voucher chưa
+dùng, báo cáo tự hiện đúng những cột có giá trị.
+
+### Bước 1 — api-admin: khai nguồn dữ liệu OLTP chứa bảng voucher
+
+Trang "Nguồn dữ liệu" — trỏ tới CSDL OLTP đang lưu bảng voucher (vd
+`dbo.Vouchers`, các cột gợi ý: `VoucherCode, Status, ExpiryDate, UsedAt,
+UsedBy, UsedLocation` — `UsedAt/UsedBy/UsedLocation` để trống khi chưa sử
+dụng). 1 CSDL trung tâm là đủ nếu hệ thống voucher không tách theo từng
+chi nhánh (khác báo cáo 2, mỗi chi nhánh 1 nguồn riêng).
+
+### Bước 2 — api-admin: tạo endpoint realtime "tra 1 khoá"
+
+Trang "Endpoint realtime" → tạo mới:
+- **Endpoint**: `voucher`
+- **Nguồn dữ liệu**: nguồn vừa tạo ở Bước 1
+- **Bảng**: `dbo.Vouchers`
+- **Cột khoá (KeyColumn)**: `VoucherCode`
+- **Cột hiển thị**: `VoucherCode, Status, ExpiryDate, UsedAt, UsedBy, UsedLocation`
+- **Cột sắp xếp**: `VoucherCode` (bắt buộc phải chọn dù chế độ tra-1-khoá
+  không dùng tới — chỉ `/list` mới cần sắp xếp)
+
+Lưu xong hệ thống tự đối chiếu bảng/cột với schema thật (không cần bấm gì
+thêm). Endpoint này lộ ra 2 cách gọi — `GET /v1/realtime/voucher/list`
+(danh sách phân trang) và `GET /v1/realtime/voucher/{mã}` (tra đúng 1 mã,
+báo cáo ở Bước 5 dùng cách này).
+
+### Bước 3 — api-admin: cấp quyền cho rp-server gọi endpoint này
+
+Trang "Đối tác" → tạo (hoặc dùng lại) đối tác cho rp-server, `Scope` có
+`realtime`. Vào tab "Endpoint realtime" của đối tác đó, tick chọn
+`voucher`. Copy API key (chỉ hiện 1 lần lúc tạo/luân chuyển).
+
+### Bước 4 — rp-user: khai kết nối tới API Server (bỏ qua nếu đã có sẵn)
+
+"Hệ thống → Kết nối API Server" → tạo kết nối, dán API key ở Bước 3. Dùng
+lại được cho mọi báo cáo `apiReport`/`apiRealtime` khác đã trỏ cùng API
+Server này.
+
+### Bước 5 — rp-user: tạo báo cáo
+
+"Hệ thống → Biểu mẫu" → tạo báo cáo mới:
+- **SourceType**: `apiRealtime`
+- **DefinitionJson**:
+
+```json
+{
+  "apiConnectionId": 1,
+  "apiTarget": "voucher",
+  "lookupField": "voucherCode",
+  "filters": [
+    { "field": "voucherCode", "label": "Mã voucher", "type": "text" }
+  ],
+  "columns": [
+    { "key": "VoucherCode", "label": "Mã voucher" },
+    { "key": "Status", "label": "Trạng thái" },
+    { "key": "ExpiryDate", "label": "Ngày hết hạn" },
+    { "key": "UsedAt", "label": "Ngày sử dụng" },
+    { "key": "UsedBy", "label": "Người sử dụng" },
+    { "key": "UsedLocation", "label": "Nơi sử dụng (siêu thị)" }
+  ]
+}
+```
+
+`lookupField` (**bắt buộc để bật chế độ tra-1-khoá**) là tên field trong
+`filters` sẽ được gửi làm khoá tra cứu — thiếu mã thì báo cáo trả 0 dòng,
+không gọi API Server. `apiConnectionId` lấy từ Bước 4 (xem cột "Id" trên
+trang "Kết nối API Server"). Gán quyền xem báo cáo cho vai trò cần dùng ở
+trang "Vai trò" như mọi báo cáo khác.
+
+**Giới hạn cố ý**: `lookupField` chỉ nhận ĐÚNG 1 điều kiện lọc (đúng 1
+khoá) — không kết hợp thêm điều kiện khác (vd "voucher + loại voucher").
+Cần lọc nhiều điều kiện cùng lúc thì dùng SourceType `apiReport` (báo cáo
+tổng hợp thật, có lọc động qua `GET /v1/reports/.../run`) thay vì
+`apiRealtime`.
+
+### Bước 6 — Kiểm tra
+
+Vào báo cáo, gõ mã voucher **chưa sử dụng** → thấy đúng 1 dòng, cột
+`UsedAt/UsedBy/UsedLocation` trống. Gõ mã **đã sử dụng** → thấy đủ ngày/
+người/nơi sử dụng. Gõ mã **không tồn tại** → 0 dòng, KHÔNG báo lỗi (được
+coi là kết quả bình thường, không phải sự cố hệ thống). Để trống ô mã →
+0 dòng ngay, không tốn lượt gọi API Server nào.

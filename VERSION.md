@@ -5,6 +5,40 @@ Server, API Server và các giao diện quản trị) — tăng ở mỗi lần 
 `main`, theo kiểu semver không chặt (patch cho fix nhỏ, minor cho tính năng
 mới, major khi đổi cấu trúc phá vỡ tương thích ngược).
 
+## 0.24.1 — Báo cáo tra cứu 1 mã qua API Server (`lookupField`) — vd Kiểm tra voucher
+
+Trước đây `SourceType='apiRealtime'` chỉ gọi được `GET /v1/realtime/.../list`
+(danh sách phân trang) — báo cáo có ô lọc nhưng gõ gì cũng bị bỏ qua, không
+dùng được cho case "nhập 1 mã, ra đúng 1 dòng kết quả" (vd tra cứu voucher:
+chưa dùng → trạng thái + ngày hết hạn; đã dùng → trạng thái + ngày/người/
+nơi sử dụng). Endpoint tra-1-khoá (`GET /v1/realtime/.../{key}`) đã có sẵn ở
+api-server từ trước, chỉ chưa có phía báo cáo nào gọi tới.
+
+- **`rp-server/lib/apiReportClient.js`** — thêm `DefinitionJson.lookupField`
+  (tuỳ chọn, tên 1 field trong `filters`): có field này thì `apiRealtime`
+  chuyển từ `/list` sang `GET /v1/realtime/{ApiTarget}/{giá trị lọc}`. Chưa
+  nhập giá trị lọc → trả 0 dòng, KHÔNG gọi API Server. Mã không tồn tại
+  (API trả 404) → trả 0 dòng, không phải lỗi. Lỗi thật (401/403/500...) vẫn
+  ném ra như cũ — `callApiServerLookup()` chỉ coi RIÊNG 404 là "không có",
+  không nuốt lỗi khác. Không đặt `lookupField` thì hành vi `/list` cũ giữ
+  nguyên 100%, không ảnh hưởng báo cáo đang chạy.
+- Không cần đổi schema DB (DefinitionJson vốn là JSON tự do) và không cần
+  sửa UI rp-user (ô lọc kiểu `text` đã vẽ sẵn qua `FilterForm.jsx`, cấu hình
+  `lookupField` gõ thẳng trong ô DefinitionJson như mọi SourceType khác).
+- **`hướng_dẫn_báo_cáo.md`** — thêm mục 3 "Báo cáo tra cứu 1 mã qua API
+  Server (lookupField)" — đầy đủ các bước api-admin (Nguồn dữ liệu, Endpoint
+  realtime, Đối tác) + rp-user (Kết nối API Server, tạo báo cáo với ví dụ
+  DefinitionJson đầy đủ, case Kiểm tra voucher).
+- **`rp-server/README.md`** — cập nhật mục "Báo cáo lấy dữ liệu qua API
+  Server (realtime)" cho đúng khả năng mới (trước đó ghi "chưa hỗ trợ lọc
+  động" — nay đúng 1 phần, vẫn đúng cho chế độ list).
+- 7 nhóm test độc lập (`fakeModule` + `fetch` giả lập): voucher chưa dùng
+  (UsedAt/UsedBy/UsedLocation null), voucher đã dùng (đủ ngày/người/nơi sử
+  dụng), chưa nhập mã (0 dòng, 0 lượt gọi mạng), mã không tồn tại (0 dòng,
+  không lỗi), lỗi thật vẫn throw, mã có ký tự đặc biệt được `encodeURIComponent`
+  đúng, và hồi quy xác nhận chế độ `/list` cũ (không đặt `lookupField`)
+  không đổi hành vi.
+
 ## 0.24.0 — Module "Nhật ký thao tác" (etl + api-server) + log đăng nhập cả 3 hệ thống
 
 Trước đây chỉ rp-server có nhật ký "ai làm gì" (`app.AuditLog` + trang
