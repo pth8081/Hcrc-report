@@ -4,14 +4,22 @@
 // 1 route viết cứng" (inventory/loyalty/vouchers) — endpoint mới chỉ cần
 // admin CHỌN bảng/cột qua lib/schemaBrowser.js, không đụng code.
 //
+// Bảng liên kết TUỲ CHỌN, TỐI ĐA 1 (JoinTable — cùng DataSourceId, xem
+// api-db/schema.sql) — cùng mẫu etl/lib/tableSyncEngine.js: dữ liệu cần ghép
+// từ 2 bảng (vd Vouchers.CustomerId -> Customers.CustomerName) được XỬ LÝ
+// (JOIN) NGAY TRONG api-server, client/report chỉ nhận 1 dòng phẳng đã ghép
+// sẵn, không phải tự ghép. Cần ghép NHIỀU HƠN 1 bảng, hoặc logic phức tạp
+// hơn 1 JOIN đơn giản, thì tạo VIEW phía nguồn rồi trỏ endpoint vào VIEW đó
+// thay vì mở rộng thêm engine này — xem hướng_dẫn_báo_cáo.md.
+//
 // Tên bảng/cột THƯỜNG đến từ lib/schemaBrowser.js (giao diện api-admin cho
 // chọn qua dropdown duyệt schema thật, không gõ tay), và
-// routes/admin/realtimeEndpoints.js NAY đã đối chiếu lại với schema thật lúc
-// lưu (assertSchemaMatches, cùng nguồn schemaBrowser.js) — nhưng đó chỉ là
-// kiểm tra 1 lần lúc lưu, schema nguồn có thể đổi sau đó mà endpoint không
-// hay biết. Vì vậy assertSafeIdentifier bên dưới vẫn là LỚP CHỐNG CHÈN SQL
-// DUY NHẤT ở tầng server (áp dụng lúc lưu VÀ lúc chạy — 2 nơi gọi hàm này) —
-// tên sai/không còn tồn tại vẫn qua được (lỗi SQL "invalid object name" bình
+// routes/admin/realtimeEndpoints.js đối chiếu lại với schema thật lúc lưu
+// (assertSchemaMatches, cùng nguồn schemaBrowser.js) — nhưng đó chỉ là kiểm
+// tra 1 lần lúc lưu, schema nguồn có thể đổi sau đó mà endpoint không hay
+// biết. Vì vậy assertSafeIdentifier bên dưới vẫn là LỚP CHỐNG CHÈN SQL DUY
+// NHẤT ở tầng server (áp dụng lúc lưu VÀ lúc chạy — 2 nơi gọi hàm này) — tên
+// sai/không còn tồn tại vẫn qua được (lỗi SQL "invalid object name" bình
 // thường lúc chạy), nhưng không có ký tự nào ngoài chữ/số/gạch dưới lọt được
 // vào câu SQL. Giống hệt etl/lib/tableSyncEngine.js.
 const { sql, getPool } = require('../db');
@@ -33,46 +41,66 @@ class NotFoundError extends Error {}
 async function loadEndpointDef(endpoint) {
   const adminPool = await getPool('ADMIN');
   const result = await adminPool.request().input('endpoint', sql.VarChar(50), endpoint).query(`
-    SELECT Endpoint, DataSourceId, SchemaName, TableName, KeyColumn, ColumnsJson, OrderColumn
+    SELECT Endpoint, DataSourceId, SchemaName, TableName, KeyColumn, ColumnsJson, OrderColumn,
+           JoinSchema, JoinTable, JoinType, MainJoinColumn, LookupJoinColumn, JoinColumnsJson
     FROM api.RealtimeEndpointDefs WHERE Endpoint = @endpoint AND IsActive = 1
   `);
   if (!result.recordset.length) throw new NotFoundError(`Endpoint realtime "${endpoint}" không tồn tại hoặc đã tắt`);
   const row = result.recordset[0];
-  return { ...row, columns: JSON.parse(row.ColumnsJson) };
+  return {
+    ...row,
+    columns: JSON.parse(row.ColumnsJson),
+    joinColumns: row.JoinTable ? JSON.parse(row.JoinColumnsJson || '[]') : []
+  };
 }
 
+// Ghép SELECT + FROM (kèm JOIN nếu có) dùng chung cho runLookup/runList. Cột
+// bảng chính LUÔN qua alias m., cột bảng liên kết qua alias j. — không phải
+// để đổi tên (kết quả trả về vẫn đúng tên cột gốc, SQL Server tự dùng tên
+// cột khi SELECT alias.column không kèm AS) mà để tránh lỗi "ambiguous
+// column name" nếu 2 bảng tình cờ trùng tên cột. Trùng tên cột giữa 2 bảng
+// vẫn là lỗi cấu hình (báo lỗi rõ ràng lúc chạy) — không tự động đổi tên,
+// giống hệt việc không hỗ trợ alias cột nói chung (xem chú thích đầu file).
 function selectClause(def) {
-  const cols = def.columns.map(quoteIdent).join(', ');
-  const table = `${quoteIdent(def.SchemaName)}.${quoteIdent(def.TableName)}`;
-  return { cols, table };
+  const mainCols = def.columns.map(c => `m.${quoteIdent(c)}`);
+  const table = `${quoteIdent(def.SchemaName)}.${quoteIdent(def.TableName)} m`;
+  let joinClause = '';
+  let joinCols = [];
+  if (def.JoinTable) {
+    const joinType = def.JoinType === 'INNER' ? 'INNER' : 'LEFT';
+    joinCols = def.joinColumns.map(c => `j.${quoteIdent(c)}`);
+    joinClause = `${joinType} JOIN ${quoteIdent(def.JoinSchema)}.${quoteIdent(def.JoinTable)} j ON m.${quoteIdent(def.MainJoinColumn)} = j.${quoteIdent(def.LookupJoinColumn)}`;
+  }
+  const cols = [...mainCols, ...joinCols].join(', ');
+  return { cols, table, joinClause, allColumns: [...def.columns, ...def.joinColumns] };
 }
 
 // Tra 1 khoá (vd GET /v1/realtime/inventory/SKU001) — trả 1 dòng hoặc null.
 async function runLookup(endpoint, keyValue) {
   const def = await loadEndpointDef(endpoint);
-  const { cols, table } = selectClause(def);
+  const { cols, table, joinClause, allColumns } = selectClause(def);
   const keyCol = quoteIdent(def.KeyColumn);
   const pool = await getPoolForDataSource(def.DataSourceId);
   const result = await pool.request()
     .input('key', sql.NVarChar(200), keyValue)
-    .query(`SELECT ${cols} FROM ${table} WHERE ${keyCol} = @key`);
-  return { columns: def.columns, row: result.recordset[0] || null };
+    .query(`SELECT ${cols} FROM ${table} ${joinClause} WHERE m.${keyCol} = @key`);
+  return { columns: allColumns, row: result.recordset[0] || null };
 }
 
 // Danh sách phân trang (vd GET /v1/realtime/inventory/list).
 async function runList(endpoint, { page = 1, pageSize = 200 } = {}) {
   const def = await loadEndpointDef(endpoint);
-  const { cols, table } = selectClause(def);
+  const { cols, table, joinClause, allColumns } = selectClause(def);
   const orderCol = quoteIdent(def.OrderColumn);
   const pool = await getPoolForDataSource(def.DataSourceId);
   const result = await pool.request()
     .input('offset', sql.Int, (page - 1) * pageSize)
     .input('pageSize', sql.Int, pageSize)
-    .query(`SELECT ${cols} FROM ${table} ORDER BY ${orderCol} OFFSET @offset ROWS FETCH NEXT @pageSize ROWS ONLY`);
+    .query(`SELECT ${cols} FROM ${table} ${joinClause} ORDER BY m.${orderCol} OFFSET @offset ROWS FETCH NEXT @pageSize ROWS ONLY`);
   // columns luôn [{key,label}] — cùng khuôn dạng với GET /v1/reports/:reportId/run
   // (xem lib/reportEngine.js:describeColumns()), dù endpoint realtime chưa có
   // khái niệm cột công thức/nhãn riêng như báo cáo.
-  return { page, pageSize, columns: def.columns.map(c => ({ key: c, label: c })), rows: result.recordset };
+  return { page, pageSize, columns: allColumns.map(c => ({ key: c, label: c })), rows: result.recordset };
 }
 
 module.exports = { runLookup, runList, assertSafeIdentifier, NotFoundError };

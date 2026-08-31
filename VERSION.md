@@ -5,6 +5,43 @@ Server, API Server và các giao diện quản trị) — tăng ở mỗi lần 
 `main`, theo kiểu semver không chặt (patch cho fix nhỏ, minor cho tính năng
 mới, major khi đổi cấu trúc phá vỡ tương thích ngược).
 
+## 0.25.0 — Endpoint realtime hỗ trợ JOIN 1 bảng liên kết (api-server tự ghép, client chỉ nhận kết quả)
+
+Trước đây `api.RealtimeEndpointDefs` chỉ SELECT được đúng 1 bảng — dữ liệu
+cần ghép từ 2 bảng (vd `Vouchers.UsedByCustomerId` → tên khách hàng thật ở
+bảng `Customers` riêng) không có cách nào xử lý ngoài bắt báo cáo/đối tác
+tự tra thêm 1 lượt gọi khác. Theo đúng yêu cầu "API Server xử lý, client
+chỉ nhận kết quả" — thêm JOIN TUỲ CHỌN, TỐI ĐA 1 bảng (đúng scope
+`etl.SyncJobs` đã dùng cho ETL — không hỗ trợ N-way join, cần ghép 3+ bảng
+thì tạo VIEW phía nguồn thay vì mở rộng thêm).
+
+- **`api-db/schema.sql`** — thêm 6 cột vào `api.RealtimeEndpointDefs`:
+  `JoinSchema, JoinTable, JoinType, MainJoinColumn, LookupJoinColumn,
+  JoinColumnsJson` (tất cả NULL = không có bảng liên kết, hành vi cũ giữ
+  nguyên 100%). Migration `IF COL_LENGTH(...) IS NULL` cho DB đã có sẵn.
+- **`api-server/lib/realtimeEngine.js`** — `runLookup`/`runList` SELECT
+  kèm `LEFT`/`INNER JOIN` nếu endpoint có cấu hình bảng liên kết. Cột bảng
+  chính/liên kết qua alias `m.`/`j.` (tránh lỗi "ambiguous column name"
+  nếu 2 bảng tình cờ trùng tên cột — vẫn KHÔNG hỗ trợ alias đổi tên cột,
+  trùng tên là lỗi cấu hình báo rõ lúc chạy, giống hệt quy ước không alias
+  đã có). Kết quả trả về là 1 dòng/danh sách PHẲNG, đúng tên cột gốc — client
+  không biết (và không cần biết) dữ liệu đến từ mấy bảng.
+- **`api-server/routes/admin/realtimeEndpoints.js`** — `validatePayload` +
+  `assertSchemaMatches` mở rộng: có `joinTable` thì bắt buộc kèm
+  `joinSchema/mainJoinColumn/lookupJoinColumn`, đối chiếu CẢ bảng liên kết
+  với schema thật lúc lưu (giống bảng chính, cùng cơ chế 0.21.6).
+- **`api-admin` `RealtimeEndpointsPage.jsx`** — thêm khối "Thêm bảng/view
+  liên kết" (tick bật/tắt, chọn bảng qua dropdown duyệt schema thật, chọn
+  cột nối 2 chiều, chọn cột lấy thêm) — cùng mẫu UI đã dùng cho etl-admin
+  "Đồng bộ".
+- **`hướng_dẫn_báo_cáo.md`** mục 3 (Kiểm tra voucher) — cập nhật ví dụ dùng
+  thẳng JOIN thật (`UsedByCustomerId` → `Customers.CustomerName`) thay vì
+  giả định 1 bảng phẳng sẵn có.
+- 7 nhóm test độc lập: câu SQL sinh đúng JOIN/alias/ORDER BY, endpoint
+  không cấu hình JOIN thì hành vi cũ y hệt, validate thiếu field bắt buộc,
+  đối chiếu sai cột bảng liên kết báo đúng lỗi, không JOIN thì `JoinTable`
+  ghi `null`. `vite build` sạch cho `api-admin`.
+
 ## 0.24.1 — Báo cáo tra cứu 1 mã qua API Server (`lookupField`) — vd Kiểm tra voucher
 
 Trước đây `SourceType='apiRealtime'` chỉ gọi được `GET /v1/realtime/.../list`

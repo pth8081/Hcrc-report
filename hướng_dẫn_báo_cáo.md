@@ -267,17 +267,31 @@ nhiều dòng). Ví dụ case study: kiểm tra voucher —
 - Voucher **đã sử dụng** → trả trạng thái + ngày sử dụng + người sử dụng +
   vị trí sử dụng (siêu thị).
 
-Cả 2 tình huống xử lý bằng ĐÚNG 1 bảng nguồn, ĐÚNG 1 endpoint — các cột
-"chỉ có khi đã dùng" (ngày/người/vị trí sử dụng) để `NULL` khi voucher chưa
-dùng, báo cáo tự hiện đúng những cột có giá trị.
+Cả 2 tình huống xử lý bằng ĐÚNG 1 endpoint — các cột "chỉ có khi đã dùng"
+(ngày/người/vị trí sử dụng) để `NULL` khi voucher chưa dùng, báo cáo tự
+hiện đúng những cột có giá trị.
+
+**Dữ liệu nằm rải ở NHIỀU bảng thì sao?** Ví dụ bảng `Vouchers` chỉ lưu
+`UsedByCustomerId` (mã khách hàng), tên khách hàng thật nằm ở bảng
+`Customers` riêng — **api-server tự JOIN, KHÔNG bắt báo cáo/rp-server tự
+ghép** (đúng nguyên tắc "client chỉ nhận kết quả"). Xem Bước 2 bên dưới,
+mục "Bảng liên kết (tuỳ chọn)". Giới hạn: TỐI ĐA 1 bảng liên kết — cần ghép
+từ 3 bảng trở lên (hoặc logic phức tạp hơn 1 JOIN đơn giản) thì tạo VIEW ở
+phía CSDL nguồn (gộp sẵn nhiều bảng) rồi trỏ endpoint vào VIEW đó thay vì
+cố nhồi vào 1 JOIN.
 
 ### Bước 1 — api-admin: khai nguồn dữ liệu OLTP chứa bảng voucher
 
-Trang "Nguồn dữ liệu" — trỏ tới CSDL OLTP đang lưu bảng voucher (vd
-`dbo.Vouchers`, các cột gợi ý: `VoucherCode, Status, ExpiryDate, UsedAt,
-UsedBy, UsedLocation` — `UsedAt/UsedBy/UsedLocation` để trống khi chưa sử
-dụng). 1 CSDL trung tâm là đủ nếu hệ thống voucher không tách theo từng
-chi nhánh (khác báo cáo 2, mỗi chi nhánh 1 nguồn riêng).
+Trang "Nguồn dữ liệu" — trỏ tới CSDL OLTP đang lưu bảng voucher. Ví dụ có
+JOIN (khách hàng nằm bảng riêng):
+- `dbo.Vouchers`: `VoucherCode, Status, ExpiryDate, UsedAt, UsedByCustomerId,
+  UsedLocation` (`UsedAt/UsedByCustomerId/UsedLocation` để trống khi chưa
+  sử dụng).
+- `dbo.Customers`: `CustomerId, CustomerName` (bảng liên kết, lấy tên thật
+  từ mã khách hàng).
+
+1 CSDL trung tâm là đủ nếu hệ thống voucher không tách theo từng chi nhánh
+(khác báo cáo 2, mỗi chi nhánh 1 nguồn riêng).
 
 ### Bước 2 — api-admin: tạo endpoint realtime "tra 1 khoá"
 
@@ -286,14 +300,22 @@ Trang "Endpoint realtime" → tạo mới:
 - **Nguồn dữ liệu**: nguồn vừa tạo ở Bước 1
 - **Bảng**: `dbo.Vouchers`
 - **Cột khoá (KeyColumn)**: `VoucherCode`
-- **Cột hiển thị**: `VoucherCode, Status, ExpiryDate, UsedAt, UsedBy, UsedLocation`
+- **Cột hiển thị**: `VoucherCode, Status, ExpiryDate, UsedAt, UsedByCustomerId, UsedLocation`
 - **Cột sắp xếp**: `VoucherCode` (bắt buộc phải chọn dù chế độ tra-1-khoá
   không dùng tới — chỉ `/list` mới cần sắp xếp)
+- **Bảng liên kết (tuỳ chọn)** — tick "Thêm bảng/view liên kết":
+  - Bảng liên kết: `dbo.Customers`
+  - Kiểu nối: `LEFT JOIN` (voucher chưa dùng vẫn hiện được, dù chưa có khách hàng)
+  - Cột nối (bảng chính): `UsedByCustomerId`
+  - Cột nối (bảng liên kết): `CustomerId`
+  - Cột lấy từ bảng liên kết: `CustomerName`
 
-Lưu xong hệ thống tự đối chiếu bảng/cột với schema thật (không cần bấm gì
-thêm). Endpoint này lộ ra 2 cách gọi — `GET /v1/realtime/voucher/list`
-(danh sách phân trang) và `GET /v1/realtime/voucher/{mã}` (tra đúng 1 mã,
-báo cáo ở Bước 5 dùng cách này).
+Lưu xong hệ thống tự đối chiếu bảng/cột (CẢ bảng chính lẫn bảng liên kết)
+với schema thật (không cần bấm gì thêm). Endpoint này lộ ra 2 cách gọi —
+`GET /v1/realtime/voucher/list` (danh sách phân trang) và
+`GET /v1/realtime/voucher/{mã}` (tra đúng 1 mã, báo cáo ở Bước 5 dùng cách
+này) — kết quả LUÔN có `CustomerName` ghép sẵn, không lộ ra `UsedByCustomerId`
+là khoá ngoại của bảng nào.
 
 ### Bước 3 — api-admin: cấp quyền cho rp-server gọi endpoint này
 
@@ -326,11 +348,15 @@ Server này.
     { "key": "Status", "label": "Trạng thái" },
     { "key": "ExpiryDate", "label": "Ngày hết hạn" },
     { "key": "UsedAt", "label": "Ngày sử dụng" },
-    { "key": "UsedBy", "label": "Người sử dụng" },
+    { "key": "CustomerName", "label": "Người sử dụng" },
     { "key": "UsedLocation", "label": "Nơi sử dụng (siêu thị)" }
   ]
 }
 ```
+
+`CustomerName` ở đây là cột LẤY TỪ BẢNG LIÊN KẾT (Bước 2) — báo cáo không
+cần biết `Vouchers` với `Customers` là 2 bảng khác nhau, chỉ thấy 1 dòng
+kết quả phẳng đã ghép sẵn.
 
 `lookupField` (**bắt buộc để bật chế độ tra-1-khoá**) là tên field trong
 `filters` sẽ được gửi làm khoá tra cứu — thiếu mã thì báo cáo trả 0 dòng,
@@ -347,7 +373,8 @@ tổng hợp thật, có lọc động qua `GET /v1/reports/.../run`) thay vì
 ### Bước 6 — Kiểm tra
 
 Vào báo cáo, gõ mã voucher **chưa sử dụng** → thấy đúng 1 dòng, cột
-`UsedAt/UsedBy/UsedLocation` trống. Gõ mã **đã sử dụng** → thấy đủ ngày/
-người/nơi sử dụng. Gõ mã **không tồn tại** → 0 dòng, KHÔNG báo lỗi (được
-coi là kết quả bình thường, không phải sự cố hệ thống). Để trống ô mã →
-0 dòng ngay, không tốn lượt gọi API Server nào.
+`UsedAt/CustomerName/UsedLocation` trống. Gõ mã **đã sử dụng** → thấy đủ
+ngày sử dụng + tên khách hàng (ghép từ bảng `Customers`) + nơi sử dụng. Gõ
+mã **không tồn tại** → 0 dòng, KHÔNG báo lỗi (được coi là kết quả bình
+thường, không phải sự cố hệ thống). Để trống ô mã → 0 dòng ngay, không tốn
+lượt gọi API Server nào.

@@ -241,17 +241,43 @@ GO
 IF OBJECT_ID('api.RealtimeEndpointDefs', 'U') IS NULL
 BEGIN
     CREATE TABLE api.RealtimeEndpointDefs (
-        Endpoint     VARCHAR(50)   NOT NULL PRIMARY KEY,
-        Label        NVARCHAR(200) NOT NULL,
-        DataSourceId INT           NOT NULL REFERENCES api.DataSources(Id),
-        SchemaName   NVARCHAR(128) NOT NULL,
-        TableName    NVARCHAR(128) NOT NULL,
-        KeyColumn    NVARCHAR(128) NOT NULL,
-        ColumnsJson  NVARCHAR(MAX) NOT NULL,
-        OrderColumn  NVARCHAR(128) NOT NULL,
+        Endpoint         VARCHAR(50)   NOT NULL PRIMARY KEY,
+        Label            NVARCHAR(200) NOT NULL,
+        DataSourceId     INT           NOT NULL REFERENCES api.DataSources(Id),
+        SchemaName       NVARCHAR(128) NOT NULL,
+        TableName        NVARCHAR(128) NOT NULL,
+        KeyColumn        NVARCHAR(128) NOT NULL,
+        ColumnsJson      NVARCHAR(MAX) NOT NULL,
+        OrderColumn      NVARCHAR(128) NOT NULL,
+
+        -- Bảng/view liên kết TUỲ CHỌN, TỐI ĐA 1 (cùng DataSourceId — không nối
+        -- xuyên máy chủ trong 1 câu lệnh) — cùng mẫu etl.SyncJobs.Join* (xem
+        -- etl-db/schema.sql). Dùng khi dữ liệu trả về cần ghép từ 2 bảng (vd
+        -- Vouchers.CustomerId -> Customers.CustomerName) mà KHÔNG muốn báo
+        -- cáo/client tự ghép — api-server xử lý xong mới trả 1 dòng phẳng.
+        -- NULL = không có bảng liên kết (hành vi cũ, 1 bảng).
+        JoinSchema       NVARCHAR(128) NULL,
+        JoinTable        NVARCHAR(128) NULL,
+        JoinType         VARCHAR(5)    NULL,   -- 'LEFT' | 'INNER'
+        MainJoinColumn   NVARCHAR(128) NULL,   -- cột nối ở bảng chính
+        LookupJoinColumn NVARCHAR(128) NULL,   -- cột nối ở bảng liên kết
+        JoinColumnsJson  NVARCHAR(MAX) NULL,   -- mảng tên cột LẤY TỪ bảng liên kết, thêm vào kết quả
+
         IsActive     BIT           NOT NULL DEFAULT 1,
         CreatedAt    DATETIME2(3)  NOT NULL DEFAULT SYSUTCDATETIME()
     );
+END
+GO
+
+IF COL_LENGTH('api.RealtimeEndpointDefs', 'JoinSchema') IS NULL
+BEGIN
+    ALTER TABLE api.RealtimeEndpointDefs ADD
+        JoinSchema       NVARCHAR(128) NULL,
+        JoinTable        NVARCHAR(128) NULL,
+        JoinType         VARCHAR(5)    NULL,
+        MainJoinColumn   NVARCHAR(128) NULL,
+        LookupJoinColumn NVARCHAR(128) NULL,
+        JoinColumnsJson  NVARCHAR(MAX) NULL;
 END
 GO
 
