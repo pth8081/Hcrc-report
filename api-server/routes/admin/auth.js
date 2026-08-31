@@ -1,5 +1,8 @@
 const express = require('express');
-const { verifyCredentials, issueToken, requireAdminAuth, COOKIE_NAME } = require('../../lib/adminAuth');
+const {
+  verifyCredentials, issueToken, requireAdminAuth, COOKIE_NAME, setSessionCookie,
+  issuePending2FAToken, issueSetupRequiredToken
+} = require('../../lib/adminAuth');
 const { isBlocked, recordFailure, recordSuccess } = require('../../lib/loginRateLimit');
 const { logAction } = require('../../lib/auditLog');
 
@@ -26,19 +29,26 @@ router.post('/login', async (req, res, next) => {
       return res.status(401).json({ error: 'Sai tên đăng nhập hoặc mật khẩu' });
     }
     recordSuccess(req.ip, username);
+
+    // 2FA BẮT BUỘC cho Role='admin' (xem lib/twoFactor.js + routes/admin/
+    // twoFactor.js) — 'viewer' KHÔNG áp dụng, đăng nhập xong ngay như trước
+    // đây. Đúng mật khẩu nhưng CHƯA qua đủ 2 yếu tố -> KHÔNG đặt cookie
+    // phiên đầy đủ, chỉ trả token trung gian.
+    if (admin.role === 'admin') {
+      await logAction({ ip: req.ip, admin: { sub: admin.id, username: admin.username } }, {
+        module: 'Đăng nhập', actionType: 'DANG_NHAP_CHO_2FA',
+        description: admin.twoFactorEnabled ? 'Đúng mật khẩu, chờ xác thực hai yếu tố' : 'Đúng mật khẩu, chưa bật 2FA — bắt buộc đăng ký trước khi vào hệ thống'
+      });
+      if (admin.twoFactorEnabled) {
+        return res.json({ twofa: 'pending', token: issuePending2FAToken(admin) });
+      }
+      return res.json({ twofa: 'setupRequired', token: issueSetupRequiredToken(admin) });
+    }
+
     await logAction({ ip: req.ip, admin: { sub: admin.id, username: admin.username } }, {
       module: 'Đăng nhập', actionType: 'DANG_NHAP', description: 'Đăng nhập thành công'
     });
-
-    const token = issueToken(admin);
-    res.cookie(COOKIE_NAME, token, {
-      httpOnly: true,
-      sameSite: 'lax',
-      // Luôn bật ở production, KỂ CẢ khi quên đặt ADMIN_COOKIE_SECURE trong
-      // .env — tránh bẫy cấu hình gửi cookie phiên qua HTTP thường.
-      secure: process.env.NODE_ENV === 'production' || process.env.ADMIN_COOKIE_SECURE === 'true',
-      maxAge: 8 * 60 * 60 * 1000
-    });
+    setSessionCookie(res, issueToken(admin));
     res.json({ ok: true });
   } catch (err) { next(err); }
 });

@@ -338,3 +338,33 @@ BEGIN
     );
 END
 GO
+
+-- Xác thực hai yếu tố (2FA/TOTP) — BẮT BUỘC cho Role='admin' (xem
+-- lib/twoFactor.js + routes/admin/twoFactor.js). TwoFactorSecretEncrypted mã
+-- hoá bằng API_ENCRYPTION_KEY (lib/crypto.js) — KHÔNG lưu plaintext.
+-- TwoFactorEnabled=0 sau khi tạo tài khoản/bị admin khác "Đặt lại 2FA" ->
+-- lần đăng nhập kế tiếp bị chặn ở màn đăng ký 2FA trước khi vào được gì khác.
+IF COL_LENGTH('admin.AdminUsers', 'TwoFactorSecretEncrypted') IS NULL
+BEGIN
+    ALTER TABLE admin.AdminUsers ADD
+        TwoFactorSecretEncrypted NVARCHAR(500) NULL,
+        TwoFactorEnabled         BIT           NOT NULL DEFAULT 0,
+        TwoFactorEnrolledAt      DATETIME2(3)  NULL;
+END
+GO
+
+-- Mã khôi phục dùng 1 lần (10 mã/tài khoản, hash bcrypt, hiện nguyên văn cho
+-- admin đúng 1 lần lúc bật 2FA) — tự cứu được khi không có admin nào khác
+-- trong api-admin/ để nhờ "Đặt lại 2FA" (xem routes/admin/twoFactor.js).
+IF OBJECT_ID('admin.AdminTwoFactorRecoveryCodes', 'U') IS NULL
+BEGIN
+    CREATE TABLE admin.AdminTwoFactorRecoveryCodes (
+        Id          INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        AdminUserId INT          NOT NULL REFERENCES admin.AdminUsers(Id) ON DELETE CASCADE,
+        CodeHash    CHAR(60)     NOT NULL, -- bcrypt
+        UsedAt      DATETIME2(3) NULL,
+        CreatedAt   DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME()
+    );
+    CREATE INDEX IX_AdminTwoFactorRecoveryCodes_AdminUserId ON admin.AdminTwoFactorRecoveryCodes (AdminUserId);
+END
+GO

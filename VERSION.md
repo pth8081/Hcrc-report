@@ -5,6 +5,61 @@ Server, API Server và các giao diện quản trị) — tăng ở mỗi lần 
 `main`, theo kiểu semver không chặt (patch cho fix nhỏ, minor cho tính năng
 mới, major khi đổi cấu trúc phá vỡ tương thích ngược).
 
+## 0.31.0 — Xác thực hai yếu tố (2FA/TOTP) BẮT BUỘC cho tài khoản admin (cả 3 hệ thống)
+
+Chỉ áp dụng cho vai trò **admin** (ETL: `Role='admin'`; API Server:
+`Role='admin'`; Report Server: vai trò `IsSystemRole=1`) — vai trò khác
+(`viewer`/`target_importer`/user thường) không đổi gì, đăng nhập như cũ.
+Tài khoản admin CHƯA bật 2FA bị chặn ngay ở màn "bắt buộc đăng ký" trước khi
+vào được bất kỳ trang nào khác — không có đường tắt.
+
+- **`lib/twoFactor.js`** (mới, 1 bản/service, `otplib` + `qrcode`) — sinh/xác
+  thực mã TOTP (RFC 6238, dung sai ±30s bù lệch đồng hồ), sinh QR
+  (`otpauth://`, nhãn RIÊNG theo từng hệ thống — "HCRC ETL"/"HCRC
+  API"/"HCRC Report" — 1 điện thoại/1 app dùng chung được cho cả 3 hệ
+  thống, NHƯNG mỗi hệ thống có secret RIÊNG, không dùng chung 1 secret),
+  10 mã khôi phục dùng 1 lần (hash bcrypt, hiện nguyên văn đúng 1 lần lúc
+  bật 2FA). Secret mã hoá bằng `crypto.js`/`*_ENCRYPTION_KEY` sẵn có của
+  từng service — không lưu plaintext. Chống dùng lại đúng 1 mã TOTP vừa
+  xác thực thành công (chống replay, trong bộ nhớ tiến trình theo userId).
+- **Schema** (`etl-db`, `api-db`, `rp-db`) — thêm `TwoFactorSecretEncrypted`/
+  `TwoFactorEnabled`/`TwoFactorEnrolledAt` vào `admin.AdminUsers`/`app.Users`
+  + bảng mới `AdminTwoFactorRecoveryCodes`/`UserTwoFactorRecoveryCodes`.
+- **Luồng đăng nhập chèn thêm bước** (`lib/adminAuth.js`/`lib/auth.js`) —
+  token TRUNG GIAN mới (`pending`/`setupRequired`/`enroll`, TTL 10 phút,
+  trả trong JSON KHÔNG đặt cookie) tách biệt hoàn toàn khỏi token phiên
+  ĐẦY ĐỦ (KHÔNG bao giờ mang claim `twofa`) — `requireAdminAuth`/`requireAuth`
+  từ chối thẳng bất kỳ token nào mang claim này, phòng thủ chiều sâu chống
+  lỗi logic lỡ gán nhầm cookie phiên từ token chưa đủ 2 yếu tố.
+- **`routes/admin/twoFactor.js`/`routes/twoFactor.js`** (mới) — `POST
+  /setup` (đăng ký lần đầu HOẶC đổi thiết bị — đổi thiết bị đòi phiên đầy
+  đủ + mã hiện tại, chứng minh còn kiểm soát thiết bị cũ), `POST /confirm`
+  (xác nhận mã đầu tiên -> lưu secret + bật 2FA + sinh 10 mã khôi phục +
+  vào phiên luôn), `POST /verify` (đăng nhập lần sau -> mã 6 số hoặc mã
+  khôi phục). KHÔNG có route tự tắt 2FA (mâu thuẫn với "bắt buộc") — chỉ
+  peer-reset (dưới) mới gỡ được, và gỡ xong vẫn bắt đăng ký lại ngay.
+- **"Đặt lại 2FA" giúp admin khác** — `POST /:id/reset-2fa` (users.js cả 3
+  service) — 1 admin gỡ 2FA giúp admin KHÁC bị mất thiết bị, LUÔN ghi audit
+  log rõ ai gỡ cho ai. `api-server` trước đây KHÔNG có route quản lý
+  `admin.AdminUsers` nào (tài khoản chỉ tạo qua `scripts/seedAdmin.js`) —
+  thêm `routes/admin/users.js` tối giản (chỉ xem danh sách + đặt lại 2FA,
+  CHƯA thêm CRUD đầy đủ, giữ nguyên quy ước cũ).
+- **Khôi phục 2 lớp**: 10 mã khôi phục tự dùng khi không có admin khác để
+  nhờ, CỘNG peer-reset khi có — không phụ thuộc hẳn vào 1 cơ chế.
+- **Frontend** (`etl-admin`/`api-admin`/`rp-user`) — `LoginPage.jsx` xử lý
+  3 nhánh phản hồi đăng nhập (`ok`/`pending`/`setupRequired`): màn nhập mã
+  (kèm lối "dùng mã khôi phục"), màn bắt buộc đăng ký (QR + xác nhận + hiện
+  10 mã khôi phục ĐÚNG 1 LẦN trước khi vào hệ thống). Trang "Phân quyền"/
+  "Tài khoản quản trị" thêm cột 2FA + nút "Đặt lại 2FA" (chỉ hiện cho hàng
+  admin, `rp-user` còn ẩn nút với người xem không phải Admin hệ thống).
+- Test tích hợp ĐẦY ĐỦ (dựng Express app thật + fake CSDL trong bộ nhớ, gọi
+  HTTP thật qua `fetch`) cho ETL và Report Server: đăng nhập không cần 2FA
+  (vai trò khác admin), setupRequired → setup → confirm → phiên, pending →
+  verify (mã đúng/sai, chống replay chờ qua cửa sổ TOTP thật), mã khôi phục
+  dùng đúng 1 lần, phòng thủ chặn token `twofa` lọt vào cookie phiên,
+  peer-reset + audit log, bắt đăng ký lại sau khi bị reset. Smoke test riêng
+  cho API Server (route `users.js` mới). `vite build` sạch cả 3 giao diện.
+
 ## 0.30.0 — Sẵn sàng vận hành production: crash resilience, health check thật, đóng dần sạch, chặn cấu hình sai NGAY lúc khởi động
 
 Rà soát lần 2 (sau đợt bảo mật 0.28.0): lần này về VẬN HÀNH (khác lỗ hổng

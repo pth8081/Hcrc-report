@@ -3,9 +3,11 @@
 // rp-server/routes/users.js — lý do: giữ dấu vết AuditLog).
 import { useEffect, useState } from 'react';
 import { api } from '../../../lib/api';
+import { useAuth } from '../../../lib/AuthContext';
 import DataTable from '../../../components/DataTable';
 
 export default function UsersPage() {
+  const { me } = useAuth();
   const [users, setUsers] = useState([]);
   const [roles, setRoles] = useState([]);
   const [error, setError] = useState('');
@@ -49,6 +51,19 @@ export default function UsersPage() {
     } catch (err) { setError(err.message); }
   }
 
+  // Giúp Admin khác bị mất thiết bị/cần khôi phục — 2FA vẫn BẮT BUỘC, chỉ
+  // xoá đăng ký cũ, lần đăng nhập kế tiếp của họ bị bắt đăng ký lại từ đầu
+  // (xem rp-server/routes/users.js). Chỉ Admin hệ thống mới làm được — server
+  // đã chặn, ẩn nút ở đây cho gọn nếu người xem không phải Admin.
+  async function reset2fa(user) {
+    if (!confirm(`Đặt lại 2FA cho "${user.Username}"? Lần đăng nhập kế tiếp của họ sẽ phải đăng ký 2FA lại từ đầu.`)) return;
+    try {
+      await api.post(`/system/users/${user.Id}/reset-2fa`, {});
+      alert('Đã đặt lại 2FA.');
+      reload();
+    } catch (err) { setError(err.message); }
+  }
+
   return (
     <div className="page">
       <h2>Người dùng</h2>
@@ -68,11 +83,13 @@ export default function UsersPage() {
           { key: 'FullName', label: 'Họ tên' },
           { key: 'roles', label: 'Vai trò', render: (u) => u.roles.map(r => r.name).join(', ') || '—' },
           { key: 'IsActive', label: 'Trạng thái', render: (u) => (u.IsActive ? 'Hoạt động' : 'Đã khoá') },
+          { key: 'TwoFactorEnabled', label: '2FA', render: (u) => (!u.roles.some(r => r.isSystemRole) ? '—' : (u.TwoFactorEnabled ? 'Đã bật' : 'Chưa bật')) },
           {
             key: 'actions', label: '', render: (u) => (
               <>
                 <button type="button" onClick={() => toggleActive(u)}>{u.IsActive ? 'Khoá' : 'Mở khoá'}</button>{' '}
-                <button type="button" onClick={() => openRoleEditor(u)}>Gán vai trò</button>
+                <button type="button" onClick={() => openRoleEditor(u)}>Gán vai trò</button>{' '}
+                {me?.isSystemRole && u.roles.some(r => r.isSystemRole) && <button type="button" onClick={() => reset2fa(u)}>Đặt lại 2FA</button>}
               </>
             )
           }

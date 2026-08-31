@@ -42,7 +42,7 @@ async function verifyCredentials(username, password) {
   const pool = await getPool('ADMIN');
   const result = await pool.request()
     .input('username', sql.NVarChar(50), username)
-    .query('SELECT Id, Username, PasswordHash, Role, IsActive FROM admin.AdminUsers WHERE Username = @username');
+    .query('SELECT Id, Username, PasswordHash, Role, IsActive, TwoFactorEnabled FROM admin.AdminUsers WHERE Username = @username');
   const user = result.recordset[0];
   if (!user || !user.IsActive) {
     await bcrypt.compare(password, DUMMY_HASH);
@@ -54,12 +54,45 @@ async function verifyCredentials(username, password) {
   await pool.request().input('id', sql.Int, user.Id)
     .query('UPDATE admin.AdminUsers SET LastLoginAt = SYSUTCDATETIME() WHERE Id = @id');
 
-  return { id: user.Id, username: user.Username, role: user.Role };
+  return { id: user.Id, username: user.Username, role: user.Role, twoFactorEnabled: !!user.TwoFactorEnabled };
 }
 
+// Token phiên ĐẦY ĐỦ (đặt vào cookie, xem requireAdminAuth) — KHÔNG bao giờ
+// mang claim "twofa": chỉ token loại này mới qua được requireAdminAuth, xem
+// 3 hàm issue*2FA*Token bên dưới cho các bước TRUNG GIAN trước khi tới đây.
 function issueToken(user) {
   return jwt.sign({ sub: user.id, username: user.username, role: user.role }, getSecret(), {
     expiresIn: TOKEN_TTL, algorithm: 'HS256', issuer: ISSUER, audience: ISSUER
+  });
+}
+
+const TWOFA_TOKEN_TTL = '10m';
+
+// Sau khi ĐÚNG mật khẩu, tài khoản Role='admin' ĐÃ bật 2FA — token này KHÔNG
+// đặt vào cookie (trả trong JSON, xem routes/admin/auth.js), client tự giữ
+// tạm và gửi lại ở body khi gọi POST /admin/2fa/verify. Không dùng được cho
+// bất kỳ route /admin/* nào khác — xem requireAdminAuth chặn claim "twofa".
+function issuePending2FAToken(user) {
+  return jwt.sign({ sub: user.id, username: user.username, twofa: 'pending' }, getSecret(), {
+    expiresIn: TWOFA_TOKEN_TTL, algorithm: 'HS256', issuer: ISSUER, audience: ISSUER
+  });
+}
+
+// Sau khi ĐÚNG mật khẩu nhưng tài khoản Role='admin' CHƯA bật 2FA (bắt buộc)
+// — chỉ đủ để gọi POST /admin/2fa/setup + /admin/2fa/confirm, không vào
+// được route nào khác cho tới khi hoàn tất đăng ký.
+function issueSetupRequiredToken(user) {
+  return jwt.sign({ sub: user.id, username: user.username, twofa: 'setupRequired' }, getSecret(), {
+    expiresIn: TWOFA_TOKEN_TTL, algorithm: 'HS256', issuer: ISSUER, audience: ISSUER
+  });
+}
+
+// Mang SECRET (đã mã hoá) trong lúc admin quét QR nhưng CHƯA xác nhận mã đầu
+// tiên — tránh phải ghi secret CHƯA XÁC NHẬN vào CSDL (bỏ dở giữa chừng sẽ để
+// lại rác); POST /admin/2fa/confirm đọc lại secret từ CHÍNH token này.
+function issueEnrollToken(user, secretEncrypted) {
+  return jwt.sign({ sub: user.id, username: user.username, twofa: 'enroll', secretEncrypted }, getSecret(), {
+    expiresIn: TWOFA_TOKEN_TTL, algorithm: 'HS256', issuer: ISSUER, audience: ISSUER
   });
 }
 
@@ -71,11 +104,46 @@ function requireAdminAuth(req, res, next) {
   const token = req.cookies?.[COOKIE_NAME];
   if (!token) return res.status(401).json({ error: 'Chưa đăng nhập' });
   try {
-    req.admin = verifyToken(token);
+    const payload = verifyToken(token);
+    // Phòng thủ chiều sâu: cookie phiên ĐẦY ĐỦ không bao giờ được gán 1
+    // token có claim "twofa" (routes/admin/auth.js chỉ res.cookie() sau khi
+    // qua đủ 2 yếu tố) — dòng này chỉ chặn trường hợp lỗi logic lỡ gán nhầm.
+    if (payload.twofa) return res.status(401).json({ error: 'Phiên chưa hoàn tất xác thực hai yếu tố' });
+    req.admin = payload;
     next();
   } catch {
     res.status(401).json({ error: 'Phiên đăng nhập hết hạn hoặc không hợp lệ' });
   }
+}
+
+// Đặt cookie phiên ĐẦY ĐỦ — dùng chung ở routes/admin/auth.js (đăng nhập
+// không cần 2FA) VÀ routes/admin/twoFactor.js (sau khi qua đủ 2 yếu tố),
+// tránh lặp lại cấu hình cookie ở 2 nơi dễ lệch nhau.
+function setSessionCookie(res, token) {
+  res.cookie(COOKIE_NAME, token, {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production' || process.env.ADMIN_COOKIE_SECURE === 'true',
+    maxAge: 8 * 60 * 60 * 1000
+  });
+}
+
+// Dùng cho routes/admin/twoFactor.js: đọc token TRUNG GIAN từ BODY (không
+// phải cookie — chưa đủ tin cậy để đặt vào cookie phiên), chỉ chấp nhận ĐÚNG
+// loại "twofa" mong muốn (pending | setupRequired | enroll).
+function requireTwoFactorToken(expectedPurpose) {
+  return (req, res, next) => {
+    const token = req.body?.token;
+    if (!token) return res.status(401).json({ error: 'Thiếu token' });
+    try {
+      const payload = verifyToken(token);
+      if (payload.twofa !== expectedPurpose) return res.status(401).json({ error: 'Token không đúng loại hoặc đã hết hạn' });
+      req.twoFactorPayload = payload;
+      next();
+    } catch {
+      res.status(401).json({ error: 'Token hết hạn hoặc không hợp lệ' });
+    }
+  };
 }
 
 // Dùng SAU requireAdminAuth trên route chỉ dành cho vai trò 'admin' — 'viewer'
@@ -118,5 +186,6 @@ function blockTargetImporter(req, res, next) {
 // chú thích tương tự trong rp-server/lib/auth.js.
 module.exports = {
   COOKIE_NAME, verifyCredentials, issueToken, verifyToken,
-  requireAdminAuth, requireAdminRole, requireTargetImporterRole, blockTargetImporter, getSecret
+  requireAdminAuth, requireAdminRole, requireTargetImporterRole, blockTargetImporter, getSecret,
+  issuePending2FAToken, issueSetupRequiredToken, issueEnrollToken, requireTwoFactorToken, setSessionCookie
 };

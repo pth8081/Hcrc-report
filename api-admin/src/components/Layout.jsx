@@ -13,7 +13,8 @@ const NAV = [
   { path: '/live', label: 'Kết nối hiện tại' },
   { path: '/history', label: 'Lịch sử' },
   { path: '/stats', label: 'Top truy vấn' },
-  { path: '/audit-log', label: 'Nhật ký thao tác' }
+  { path: '/audit-log', label: 'Nhật ký thao tác' },
+  { path: '/admin-users', label: 'Tài khoản quản trị' }
 ];
 
 export default function Layout() {

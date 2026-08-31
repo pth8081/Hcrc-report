@@ -9,6 +9,7 @@ const { rateLimit } = require('express-rate-limit');
 const cron = require('node-cron');
 
 const healthRoutes = require('./routes/health');
+const twoFactorRoutes = require('./routes/twoFactor');
 const meRoutes = require('./routes/me');
 const reportRoutes = require('./routes/reports');
 const usersRoutes = require('./routes/users');
@@ -22,7 +23,11 @@ const dataSourcesRoutes = require('./routes/dataSources');
 const apiConnectionsRoutes = require('./routes/apiConnections');
 const externalConnectionsRoutes = require('./routes/externalConnections');
 const reportEmailSchedulesRoutes = require('./routes/reportEmailSchedules');
-const { verifyCredentials, issueToken, COOKIE_NAME, getSecret } = require('./lib/auth');
+const {
+  verifyCredentials, issueToken, COOKIE_NAME, getSecret, setSessionCookie,
+  issuePending2FAToken, issueSetupRequiredToken
+} = require('./lib/auth');
+const { getUserContext } = require('./lib/permissions');
 const reportEmailScheduler = require('./jobs/reportEmailScheduler');
 const { isBlocked, recordFailure, recordSuccess } = require('./lib/loginRateLimit');
 const { logAction } = require('./lib/auditLog');
@@ -97,21 +102,27 @@ app.post('/api/auth/login', async (req, res, next) => {
       return res.status(401).json({ error: 'Sai tên đăng nhập hoặc mật khẩu' });
     }
     recordSuccess(req.ip, username);
+
+    // 2FA BẮT BUỘC cho user có vai trò IsSystemRole=1 ("Admin", xem
+    // lib/permissions.js) — user thường KHÔNG áp dụng, đăng nhập xong ngay
+    // như trước đây. Đúng mật khẩu nhưng CHƯA qua đủ 2 yếu tố -> KHÔNG đặt
+    // cookie phiên đầy đủ, chỉ trả token trung gian.
+    const context = await getUserContext(user.id);
+    if (context?.isSystemRole) {
+      await logAction({ ip: req.ip, user: { sub: user.id, username: user.username } }, {
+        module: 'Đăng nhập', actionType: 'DANG_NHAP_CHO_2FA',
+        description: user.twoFactorEnabled ? 'Đúng mật khẩu, chờ xác thực hai yếu tố' : 'Đúng mật khẩu, chưa bật 2FA — bắt buộc đăng ký trước khi vào hệ thống'
+      });
+      if (user.twoFactorEnabled) {
+        return res.json({ twofa: 'pending', token: issuePending2FAToken(user) });
+      }
+      return res.json({ twofa: 'setupRequired', token: issueSetupRequiredToken(user) });
+    }
+
     await logAction({ ip: req.ip, user: { sub: user.id, username: user.username } }, {
       module: 'Đăng nhập', actionType: 'DANG_NHAP', description: 'Đăng nhập thành công'
     });
-
-    const token = issueToken(user);
-    res.cookie(COOKIE_NAME, token, {
-      httpOnly: true,
-      sameSite: 'lax',
-      // Luôn bật ở production, KỂ CẢ khi quên đặt COOKIE_SECURE trong .env —
-      // tránh bẫy cấu hình gửi cookie phiên qua HTTP thường một khi public.
-      // Nginx làm TLS termination (xem README) nên đây luôn đúng khi thật sự
-      // chạy production; .env chỉ còn dùng để BẬT sớm lúc dev nếu cần test.
-      secure: process.env.NODE_ENV === 'production' || process.env.COOKIE_SECURE === 'true',
-      maxAge: 8 * 60 * 60 * 1000
-    });
+    setSessionCookie(res, issueToken(user));
     res.json({ ok: true });
   } catch (err) { next(err); }
 });
@@ -122,6 +133,7 @@ app.post('/api/auth/logout', (req, res) => {
 });
 
 app.use('/api/health', healthRoutes);
+app.use('/api/2fa', twoFactorRoutes);
 app.use('/api/me', meRoutes);
 app.use('/api/reports', reportRoutes);
 

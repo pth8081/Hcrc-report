@@ -200,14 +200,39 @@ sudo certbot renew --dry-run   # kiểm tra hook chạy đúng, không đợi t�
   — xác nhận `lib/processGuards.js` hoạt động đúng (đóng dần thay vì bị
   giết ngay).
 
-## 5. fail2ban (bổ sung, khuyến nghị)
+## 5. Xác thực hai yếu tố (2FA) cho tài khoản admin
+
+Bắt buộc cho vai trò **admin** ở cả 3 hệ thống (ETL, API Server, Report
+Server) — vai trò khác không cần. Tài khoản admin tạo mới (qua UI hoặc
+`scripts/seedAdmin.js`) mặc định CHƯA bật 2FA — lần đăng nhập ĐẦU TIÊN sẽ bị
+chặn ngay ở màn "Bắt buộc đăng ký 2FA" (quét mã QR bằng app Authenticator —
+Google Authenticator, Authy, Microsoft Authenticator...), không vào được
+trang nào khác cho tới khi hoàn tất.
+
+- **1 điện thoại dùng chung được cho cả 3 hệ thống** — mỗi hệ thống đăng ký
+  RIÊNG (3 mã QR khác nhau, 3 secret khác nhau), app Authenticator hiện 3
+  dòng phân biệt ("HCRC ETL", "HCRC API", "HCRC Report").
+- **Mã khôi phục**: sau khi bật 2FA, hệ thống hiện ĐÚNG 1 LẦN 10 mã dùng 1
+  lần (dạng `AAAAA-BBBBB`) — admin tự chép lại/in ra, cất nơi an toàn. Dùng
+  khi mất điện thoại và không có admin nào khác trong CÙNG hệ thống để nhờ.
+- **Đặt lại 2FA giúp admin khác**: trang "Phân quyền"/"Tài khoản quản trị"
+  có nút "Đặt lại 2FA" trên hàng của admin khác — dùng khi họ mất thiết bị
+  và không còn mã khôi phục. Sau khi đặt lại, lần đăng nhập kế tiếp của
+  admin đó bị bắt đăng ký 2FA lại từ đầu (2FA vẫn bắt buộc, không tắt hẳn).
+  Thao tác này được ghi vào Nhật ký thao tác (ai gỡ cho ai, lúc nào).
+- **Nếu MẤT ĐIỆN THOẠI + KHÔNG CÒN mã khôi phục + KHÔNG có admin nào khác**
+  trong hệ thống đó — không có đường tự khôi phục qua giao diện, cần DBA
+  can thiệp trực tiếp CSDL (đặt `TwoFactorEnabled = 0` trên đúng dòng
+  `admin.AdminUsers`/`app.Users` của tài khoản đó) rồi đăng nhập lại.
+
+## 6. fail2ban (bổ sung, khuyến nghị)
 
 Lớp phòng thủ THÊM ở tầng firewall (chặn hẳn IP sau nhiều lần thất bại,
 KHÔNG thay thế rate-limit đã có trong code) — xem `deploy/fail2ban/README.md`
 cho hướng dẫn cài đặt đầy đủ. Không bắt buộc để chạy được hệ thống, nhưng
 nên bật trước khi mở ra Internet thật.
 
-## 6. Xoay vòng log (log rotation)
+## 7. Xoay vòng log (log rotation)
 
 Chạy dài ngày không xoay vòng log sẽ dần chiếm hết dung lượng đĩa — 2 nguồn
 log cần quan tâm:
@@ -231,7 +256,7 @@ log cần quan tâm:
   Nếu KHÔNG khớp (bản Nginx tự biên dịch, hoặc cấu hình logrotate khác mặc
   định), tự thêm 1 khối logrotate riêng cho `/var/log/nginx/hcrc-*.access.log`.
 
-## 7. Sao lưu CSDL (trách nhiệm của DBA/hạ tầng, NGOÀI phạm vi repo này)
+## 8. Sao lưu CSDL (trách nhiệm của DBA/hạ tầng, NGOÀI phạm vi repo này)
 
 Repo này KHÔNG bao gồm chiến lược sao lưu/khôi phục CSDL (backup/restore) —
 đó là việc của DBA quản lý MÁY CHỦ CSDL riêng (mục 2), tương tự bất kỳ SQL

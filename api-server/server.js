@@ -19,7 +19,9 @@ const reportsRoutes = require('./routes/v1/reports');
 const realtimeRoutes = require('./routes/v1/realtime');
 const oauthRoutes = require('./routes/v1/oauth');
 const adminAuthRoutes = require('./routes/admin/auth');
+const adminTwoFactorRoutes = require('./routes/admin/twoFactor');
 const adminConsumersRoutes = require('./routes/admin/consumers');
+const adminUsersRoutes = require('./routes/admin/users');
 const adminDataSourcesRoutes = require('./routes/admin/dataSources');
 const adminRealtimeEndpointsRoutes = require('./routes/admin/realtimeEndpoints');
 const adminReportCatalogRoutes = require('./routes/admin/reportCatalog');
@@ -109,7 +111,9 @@ app.use('/api/v1/realtime', realtimeRoutes); // /api/v1/realtime/{endpoint}/list
 // ===== /admin/* — api-admin/ =====
 app.use('/admin', adminIpAllowlist);
 app.use('/admin/auth', adminAuthRoutes);
+app.use('/admin/2fa', adminTwoFactorRoutes);
 app.use('/admin/consumers', adminConsumersRoutes);
+app.use('/admin/users', adminUsersRoutes);
 app.use('/admin/data-sources', adminDataSourcesRoutes);
 app.use('/admin/realtime-endpoints', adminRealtimeEndpointsRoutes);
 app.use('/admin/report-catalog', adminReportCatalogRoutes);

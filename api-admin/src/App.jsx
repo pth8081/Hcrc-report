@@ -11,6 +11,7 @@ import LivePage from './pages/LivePage';
 import HistoryPage from './pages/HistoryPage';
 import StatsPage from './pages/StatsPage';
 import AuditLogPage from './pages/AuditLogPage';
+import AdminUsersPage from './pages/AdminUsersPage';
 
 export default function App() {
   return (
@@ -28,6 +29,7 @@ export default function App() {
           <Route path="/history" element={<HistoryPage />} />
           <Route path="/stats" element={<StatsPage />} />
           <Route path="/audit-log" element={<AuditLogPage />} />
+          <Route path="/admin-users" element={<AdminUsersPage />} />
         </Route>
       </Routes>
     </AuthProvider>

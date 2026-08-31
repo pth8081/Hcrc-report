@@ -46,6 +46,18 @@ export default function UsersPage() {
     } catch (err) { setError(err.message); }
   }
 
+  // Giúp admin khác bị mất thiết bị/cần khôi phục — 2FA vẫn BẮT BUỘC, chỉ
+  // xoá đăng ký cũ, lần đăng nhập kế tiếp của họ bị bắt đăng ký lại từ đầu
+  // (xem etl/routes/admin/users.js).
+  async function reset2fa(user) {
+    if (!confirm(`Đặt lại 2FA cho "${user.Username}"? Lần đăng nhập kế tiếp của họ sẽ phải đăng ký 2FA lại từ đầu.`)) return;
+    try {
+      await api.post(`/users/${user.Id}/reset-2fa`, {});
+      alert('Đã đặt lại 2FA.');
+      reload();
+    } catch (err) { setError(err.message); }
+  }
+
   return (
     <div className="page">
       <h1>Phân quyền</h1>
@@ -71,11 +83,13 @@ export default function UsersPage() {
           { key: 'FullName', label: 'Họ tên' },
           { key: 'Role', label: 'Vai trò' },
           { key: 'IsActive', label: 'Trạng thái', render: (u) => (u.IsActive ? 'Hoạt động' : 'Đã khoá') },
+          { key: 'TwoFactorEnabled', label: '2FA', render: (u) => (u.Role !== 'admin' ? '—' : (u.TwoFactorEnabled ? 'Đã bật' : 'Chưa bật')) },
           isAdmin && {
             key: 'actions', label: '', render: (u) => (
               <>
                 <button type="button" onClick={() => toggleActive(u)}>{u.IsActive ? 'Khoá' : 'Mở khoá'}</button>{' '}
-                <button type="button" onClick={() => resetPassword(u)}>Đặt lại mật khẩu</button>
+                <button type="button" onClick={() => resetPassword(u)}>Đặt lại mật khẩu</button>{' '}
+                {u.Role === 'admin' && <button type="button" onClick={() => reset2fa(u)}>Đặt lại 2FA</button>}
               </>
             )
           }

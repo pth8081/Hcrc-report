@@ -14,6 +14,7 @@ const scheduler = require('./jobs/scheduler');
 const { cleanupSyncLog, cleanupAuditLog } = require('./jobs/cleanupLogs');
 const { adminIpAllowlist } = require('./lib/adminIpAllowlist');
 const adminAuthRoutes = require('./routes/admin/auth');
+const adminTwoFactorRoutes = require('./routes/admin/twoFactor');
 const adminUsersRoutes = require('./routes/admin/users');
 const adminDataSourcesRoutes = require('./routes/admin/dataSources');
 const adminSyncJobsRoutes = require('./routes/admin/syncJobs');
@@ -85,6 +86,7 @@ app.get('/health', async (req, res) => {
 // soát CHÍNH vẫn là không proxy /admin ra Internet ở Nginx.
 app.use('/admin', adminIpAllowlist);
 app.use('/admin/auth', adminAuthRoutes);
+app.use('/admin/2fa', adminTwoFactorRoutes);
 app.use('/admin/users', adminUsersRoutes);
 app.use('/admin/data-sources', adminDataSourcesRoutes);
 app.use('/admin/sync-jobs', adminSyncJobsRoutes);

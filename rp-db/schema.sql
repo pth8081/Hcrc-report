@@ -27,6 +27,37 @@ BEGIN
 END
 GO
 
+-- Xác thực hai yếu tố (2FA/TOTP) — BẮT BUỘC cho user có vai trò IsSystemRole=1
+-- ("Admin", xem lib/permissions.js) — xem lib/twoFactor.js + routes/twoFactor.js.
+-- TwoFactorSecretEncrypted mã hoá bằng RP_ENCRYPTION_KEY (lib/crypto.js) —
+-- KHÔNG lưu plaintext. TwoFactorEnabled=0 sau khi tạo tài khoản/bị admin
+-- khác "Đặt lại 2FA" -> lần đăng nhập kế tiếp bị chặn ở màn đăng ký 2FA
+-- trước khi vào được gì khác.
+IF COL_LENGTH('app.Users', 'TwoFactorSecretEncrypted') IS NULL
+BEGIN
+    ALTER TABLE app.Users ADD
+        TwoFactorSecretEncrypted NVARCHAR(500) NULL,
+        TwoFactorEnabled         BIT           NOT NULL DEFAULT 0,
+        TwoFactorEnrolledAt      DATETIME2(3)  NULL;
+END
+GO
+
+-- Mã khôi phục dùng 1 lần (10 mã/tài khoản, hash bcrypt, hiện nguyên văn cho
+-- user đúng 1 lần lúc bật 2FA) — tự cứu được khi không có admin nào khác để
+-- nhờ "Đặt lại 2FA" (xem routes/twoFactor.js).
+IF OBJECT_ID('app.UserTwoFactorRecoveryCodes', 'U') IS NULL
+BEGIN
+    CREATE TABLE app.UserTwoFactorRecoveryCodes (
+        Id         INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        UserId     INT          NOT NULL REFERENCES app.Users(Id) ON DELETE CASCADE,
+        CodeHash   CHAR(60)     NOT NULL, -- bcrypt
+        UsedAt     DATETIME2(3) NULL,
+        CreatedAt  DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME()
+    );
+    CREATE INDEX IX_UserTwoFactorRecoveryCodes_UserId ON app.UserTwoFactorRecoveryCodes (UserId);
+END
+GO
+
 -- IsSystemRole = 1 -> vai trò Admin: bỏ qua mọi kiểm tra RoleMenuAccess/
 -- RoleReportAccess, luôn đủ quyền (xem lib/permissions.js) — không xoá được.
 IF OBJECT_ID('app.Roles', 'U') IS NULL
