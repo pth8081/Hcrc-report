@@ -55,6 +55,14 @@
 // ghép (thường là danh sách cố định các điểm bán, không phân trang được
 // một khi cần tính dòng "Tổng cộng" ở tầng gọi — xem
 // routes/reports.js/lib/reportRunner.js mục xử lý groupBy).
+//
+// CÁC BLOCK CHẠY SONG SONG (Promise.all), không tuần tự — độ trễ báo cáo
+// bằng đúng khối CHẬM NHẤT, không phải TỔNG mọi khối. Quan trọng khi báo
+// cáo có nhiều khối apiReport/apiRealtime (mỗi khối = 1 lượt gọi HTTP tới
+// API Server, có thể tới nhiều endpoint/kết nối khác nhau — xem
+// resolveCompositeField()). Kết quả GHÉP vẫn duyệt theo ĐÚNG thứ tự
+// definition.blocks (không phải thứ tự khối nào chạy xong trước) — thứ tự
+// dòng trả về không đổi dù chạy song song, chỉ nhanh hơn.
 const { getPool } = require('../db');
 const { getPoolForDataSource } = require('./dataSourcePool');
 const { runReport, describeColumns } = require('./reportEngine');
@@ -170,18 +178,26 @@ async function runCompositeReport(definition, filterValues = {}) {
   }
   const requestedEventDate = filterValues.eventDate || formatDateISO(new Date());
 
+  // Chạy TẤT CẢ khối song song — Promise.all giữ nguyên đúng thứ tự kết quả
+  // theo definition.blocks (không phải thứ tự khối nào resolve trước), nên
+  // vòng ghép bên dưới vẫn duyệt đúng thứ tự cấu hình như trước, KHÔNG đổi
+  // hành vi merge — chỉ khác ở chỗ mọi khối bắt đầu chạy CÙNG LÚC thay vì
+  // đợi khối trước xong mới bắt đầu khối sau.
+  const blockRowsList = await Promise.all(
+    definition.blocks.map(block => runBlock(block, requestedEventDate, filterValues))
+  );
+
   // Map giữ thứ tự chèn -> thứ tự dòng trả về ổn định, khớp thứ tự khối
   // ĐẦU TIÊN gặp mỗi entityCode (thường là khối "hôm nay").
   const merged = new Map();
-  for (const block of definition.blocks) {
-    const rows = await runBlock(block, requestedEventDate, filterValues);
-    for (const row of rows) {
+  definition.blocks.forEach((block, i) => {
+    for (const row of blockRowsList[i]) {
       const entityCode = row.entityCode;
       if (!entityCode) continue;
       if (!merged.has(entityCode)) merged.set(entityCode, { entityCode });
       merged.get(entityCode)[block.key] = row;
     }
-  }
+  });
 
   // Loại HẲN thực thể có TrangThai='DaDong' ở BẤT KỲ khối target nào (xem
   // etl/lib/salesTargetsImport.js) — CHỈ loại khi có đánh dấu TƯỜNG MINH.

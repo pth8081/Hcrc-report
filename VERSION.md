@@ -5,6 +5,27 @@ Server, API Server và các giao diện quản trị) — tăng ở mỗi lần 
 `main`, theo kiểu semver không chặt (patch cho fix nhỏ, minor cho tính năng
 mới, major khi đổi cấu trúc phá vỡ tương thích ngược).
 
+## 0.25.1 — Báo cáo composite chạy các khối SONG SONG thay vì tuần tự
+
+Báo cáo `SourceType='composite'` (ghép nhiều nguồn — nhiều Domain DWH, nhiều
+endpoint API Server, chỉ tiêu) trước đây chạy từng khối TUẦN TỰ (`for...await`)
+— độ trễ báo cáo bằng TỔNG thời gian mọi khối cộng lại. Càng dùng nhiều khối
+`apiReport`/`apiRealtime` (mỗi khối 1 lượt gọi HTTP riêng tới API Server) thì
+càng chậm thêm.
+
+- **`rp-server/lib/compositeReportRunner.js`** — `runCompositeReport()` đổi
+  sang `Promise.all(definition.blocks.map(...))`: mọi khối bắt đầu chạy
+  CÙNG LÚC, độ trễ tổng bằng khối CHẬM NHẤT thay vì tổng mọi khối. Vòng ghép
+  (merge theo `entityCode`) vẫn duyệt kết quả theo ĐÚNG thứ tự
+  `definition.blocks` như cũ (`Promise.all` giữ nguyên thứ tự mảng kết quả
+  khớp thứ tự mảng đầu vào, bất kể khối nào resolve trước) — thứ tự dòng trả
+  về, logic `groupBy`/dòng tổng không đổi, chỉ nhanh hơn.
+- 4 test độc lập: đo thời gian chạy thật (3 khối 60ms/40ms/10ms xong trong
+  ~60ms chứ không phải 110ms), xác nhận mọi khối bắt đầu gần như đồng thời,
+  xác nhận kết quả ghép đúng dữ liệu + đúng thứ tự dù khối resolve sau lại
+  có độ trễ ngắn hơn khối resolve trước, và hồi quy `groupBy`/dòng tổng vẫn
+  tính đúng.
+
 ## 0.25.0 — Endpoint realtime hỗ trợ JOIN 1 bảng liên kết (api-server tự ghép, client chỉ nhận kết quả)
 
 Trước đây `api.RealtimeEndpointDefs` chỉ SELECT được đúng 1 bảng — dữ liệu
