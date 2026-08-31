@@ -100,6 +100,19 @@ export default function SyncJobsPage() {
     } catch (err) { setError(err.message); }
   }
 
+  // Đối chiếu LẠI job đã lưu với schema THẬT hiện tại của nguồn — bắt được
+  // trường hợp bảng/cột nguồn bị đổi/xoá SAU khi job đã tạo, không đợi tới
+  // lúc job chạy thật mới báo lỗi SQL. Đọc-only nên KHÔNG gói trong isAdmin
+  // (viewer bấm được, cùng mức xem như phần còn lại của trang).
+  async function checkSchema(job) {
+    try {
+      const result = await api.post(`/sync-jobs/${job.Id}/check-schema`);
+      if (result.skipped) alert(result.message);
+      else if (result.ok) alert(`✅ "${job.Name}": schema khớp với nguồn hiện tại.`);
+      else alert(`⛔ "${job.Name}": ${result.error}`);
+    } catch (err) { setError(err.message); }
+  }
+
   async function toggleActive(job) {
     try {
       await api.put(`/sync-jobs/${job.Id}`, {
@@ -134,6 +147,11 @@ export default function SyncJobsPage() {
           { key: 'CronExpression', label: 'Lịch chạy' },
           { key: 'KeepHistory', label: 'Giữ lịch sử', render: (j) => (j.KeepHistory ? 'Có' : 'Không') },
           { key: 'IsActive', label: 'Trạng thái', render: (j) => (j.IsActive ? 'Bật' : 'Tắt') },
+          {
+            key: 'checkSchema', label: '', render: (j) => (
+              <button type="button" onClick={() => checkSchema(j)}>Kiểm tra schema</button>
+            )
+          },
           isAdmin && {
             key: 'actions', label: '', render: (j) => (
               <>

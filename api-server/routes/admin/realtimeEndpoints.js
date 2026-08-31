@@ -191,6 +191,44 @@ router.put('/:endpoint', requireAdminRole, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// "Kiểm tra schema" — đối chiếu LẠI endpoint ĐÃ LƯU với schema THẬT hiện tại
+// của nguồn (KHÔNG chỉ lúc Lưu như assertFullSchemaMatches() ở trên) — bắt
+// được trường hợp bảng/cột nguồn bị đổi tên/xoá SAU khi endpoint đã tạo, mà
+// không ai vào sửa lại nên không tự phát hiện (chỉ lộ ra khi ĐỐI TÁC NGOÀI
+// gọi endpoint và nhận lỗi). Đọc-only, không đổi dữ liệu gì.
+router.post('/:endpoint/check-schema', async (req, res, next) => {
+  try {
+    const pool = await getPool('ADMIN');
+    const result = await pool.request().input('endpoint', sql.VarChar(50), req.params.endpoint).query(`
+      SELECT Endpoint, Label, DataSourceId, SchemaName, TableName, KeyColumn, ColumnsJson, OrderColumn,
+             JoinSchema, JoinTable, MainJoinColumn, LookupJoinColumn, JoinColumnsJson
+      FROM api.RealtimeEndpointDefs WHERE Endpoint = @endpoint
+    `);
+    if (!result.recordset.length) return res.status(404).json({ error: 'Không tìm thấy endpoint' });
+    const d = result.recordset[0];
+
+    try {
+      await assertFullSchemaMatches({
+        dataSourceId: d.DataSourceId, schemaName: d.SchemaName, tableName: d.TableName,
+        keyColumn: d.KeyColumn, orderColumn: d.OrderColumn, columns: JSON.parse(d.ColumnsJson || '[]'),
+        joinSchema: d.JoinSchema, joinTable: d.JoinTable, mainJoinColumn: d.MainJoinColumn,
+        lookupJoinColumn: d.LookupJoinColumn, joinColumns: JSON.parse(d.JoinColumnsJson || '[]')
+      });
+    } catch (err) {
+      await logAction(req, {
+        module: 'Endpoint realtime', actionType: 'KIEM_TRA_SCHEMA', targetObject: req.params.endpoint,
+        description: `Kiểm tra schema endpoint "${req.params.endpoint}": LỆCH — ${err.message}`, status: 'FAILED'
+      });
+      return res.json({ ok: false, error: err.message });
+    }
+    await logAction(req, {
+      module: 'Endpoint realtime', actionType: 'KIEM_TRA_SCHEMA', targetObject: req.params.endpoint,
+      description: `Kiểm tra schema endpoint "${req.params.endpoint}": khớp schema nguồn`
+    });
+    res.json({ ok: true });
+  } catch (err) { next(err); }
+});
+
 router.delete('/:endpoint', requireAdminRole, async (req, res, next) => {
   try {
     const pool = await getPool('ADMIN');

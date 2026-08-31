@@ -5,6 +5,31 @@ Server, API Server và các giao diện quản trị) — tăng ở mỗi lần 
 `main`, theo kiểu semver không chặt (patch cho fix nhỏ, minor cho tính năng
 mới, major khi đổi cấu trúc phá vỡ tương thích ngược).
 
+## 0.29.0 — "Kiểm tra schema" — đối chiếu lại job/endpoint ĐÃ LƯU với schema thật hiện tại (ETL, API Server)
+
+Trước đây ETL/API Server chỉ đối chiếu cấu hình với schema thật của nguồn
+ĐÚNG LÚC LƯU (POST/PUT) — nếu sau đó ai đó đổi tên/xoá cột hay bảng trên
+CSDL nguồn mà không ai vào sửa lại job/endpoint đó, hệ thống không biết gì
+cả, chỉ lộ ra khi job CHẠY THẬT (hoặc đối tác ngoài GỌI THẬT endpoint) và
+báo lỗi SQL. Report Server không cần tính năng này — không cấu hình theo
+kiểu "1 bảng + danh sách cột" như ETL/API Server (đọc từ Data Warehouse
+hoặc gọi API Server, không tự duyệt schema CSDL nguồn nào).
+
+- **`etl/routes/admin/syncJobs.js`** — `POST /:id/check-schema` (mới): nạp
+  lại job đã lưu, chạy `validateTableJobSchema()` (hàm ĐÃ CÓ, dùng chung
+  với lúc Lưu) đối chiếu với schema THẬT hiện tại — trả `{ok, error?}`.
+  Job Type='custom' trả `{ok:true, skipped:true}` (không có bảng/cột để
+  kiểm tra). Đọc-only, ghi audit log kết quả (khớp/lệch).
+- **`api-server/routes/admin/realtimeEndpoints.js`** — `POST
+  /:endpoint/check-schema` (mới), cùng khuôn — dùng lại
+  `assertFullSchemaMatches()` đã có.
+- **`etl-admin/.../SyncJobsPage.jsx`** + **`api-admin/.../RealtimeEndpointsPage.jsx`**
+  — nút "Kiểm tra schema" trên mỗi dòng, hiện cho cả `viewer` (đọc-only,
+  không giới hạn admin).
+- Phạm vi: chỉ kiểm tra bảng/cột CÒN TỒN TẠI hay không (khớp đúng logic
+  validate sẵn có) — CHƯA kiểm tra đổi kiểu dữ liệu cột.
+- 2 bộ test độc lập (etl + api-server) + `vite build` cả 2 giao diện.
+
 ## 0.28.1 — Cấu hình fail2ban cho máy chủ triển khai (bổ sung, khuyến nghị)
 
 Lớp phòng thủ THÊM ở tầng firewall — chặn hẳn IP sau nhiều lần thất bại,

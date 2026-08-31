@@ -188,6 +188,59 @@ router.delete('/:id', requireAdminRole, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// "Kiểm tra schema" — đối chiếu LẠI job ĐÃ LƯU với schema THẬT hiện tại của
+// nguồn (KHÔNG chỉ lúc Lưu như validateTableJobSchema() ở trên) — bắt được
+// trường hợp bảng/cột nguồn bị đổi tên/xoá SAU khi job đã tạo, mà job đó
+// không ai vào sửa lại nên không tự phát hiện (chỉ lộ ra khi job CHẠY THẬT
+// và báo lỗi SQL). Job Type='custom' không có bảng/cột để đối chiếu (logic
+// tự viết tay trong etl/sources/) — trả ok:true kèm skipped:true, không
+// phải lỗi. Đọc-only, không đổi dữ liệu gì — dùng blockTargetImporter như
+// route GET, không cần requireAdminRole.
+router.post('/:id/check-schema', blockTargetImporter, async (req, res, next) => {
+  try {
+    const jobId = parseInt(req.params.id, 10);
+    const pool = await getPool('ADMIN');
+    const result = await pool.request().input('id', sql.Int, jobId).query('SELECT * FROM etl.SyncJobs WHERE Id = @id');
+    if (!result.recordset.length) return res.status(404).json({ error: 'Không tìm thấy job' });
+    const job = result.recordset[0];
+
+    if (job.Type !== 'table') {
+      return res.json({ ok: true, skipped: true, message: 'Job Type="custom" không có bảng/cột để kiểm tra (logic tự viết tay trong etl/sources/)' });
+    }
+
+    const b = {
+      dataSourceId: job.DataSourceId,
+      sourceSchema: job.SourceSchema,
+      sourceTable: job.SourceTable,
+      keyColumn: job.KeyColumn,
+      dateColumn: job.DateColumn,
+      updatedAtColumn: job.UpdatedAtColumn,
+      dimensionColumns: JSON.parse(job.DimensionColumnsJson || '[]'),
+      measureColumns: JSON.parse(job.MeasureColumnsJson || '[]'),
+      joinSchema: job.JoinSchema,
+      joinTable: job.JoinTable,
+      mainJoinColumn: job.MainJoinColumn,
+      lookupJoinColumn: job.LookupJoinColumn,
+      lookupDimensionColumns: JSON.parse(job.LookupDimensionColumnsJson || '[]')
+    };
+
+    try {
+      await validateTableJobSchema(b);
+    } catch (err) {
+      await logAction(req, {
+        module: 'Đồng bộ', actionType: 'KIEM_TRA_SCHEMA', targetObject: req.params.id,
+        description: `Kiểm tra schema job "${job.Name}": LỆCH — ${err.message}`, status: 'FAILED'
+      });
+      return res.json({ ok: false, error: err.message });
+    }
+    await logAction(req, {
+      module: 'Đồng bộ', actionType: 'KIEM_TRA_SCHEMA', targetObject: req.params.id,
+      description: `Kiểm tra schema job "${job.Name}": khớp schema nguồn`
+    });
+    res.json({ ok: true });
+  } catch (err) { next(err); }
+});
+
 router.post('/:id/run-now', requireAdminRole, async (req, res, next) => {
   try {
     const jobId = parseInt(req.params.id, 10);

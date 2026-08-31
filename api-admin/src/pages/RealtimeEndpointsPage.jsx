@@ -90,6 +90,18 @@ export default function RealtimeEndpointsPage() {
     } catch (err) { setError(err.message); }
   }
 
+  // Đối chiếu LẠI endpoint đã lưu với schema THẬT hiện tại của nguồn — bắt
+  // được trường hợp bảng/cột nguồn bị đổi/xoá SAU khi endpoint đã tạo,
+  // không đợi tới lúc đối tác ngoài gọi thật mới báo lỗi. Đọc-only nên
+  // KHÔNG gói trong isAdmin.
+  async function checkSchema(ep) {
+    try {
+      const result = await api.post(`/realtime-endpoints/${ep.Endpoint}/check-schema`);
+      if (result.ok) alert(`✅ "${ep.Endpoint}": schema khớp với nguồn hiện tại.`);
+      else alert(`⛔ "${ep.Endpoint}": ${result.error}`);
+    } catch (err) { setError(err.message); }
+  }
+
   async function deleteEndpoint(ep) {
     if (!confirm(`Xoá endpoint "${ep.Endpoint}"? Mọi lời gọi /api/v1/realtime/${ep.Endpoint}/... sẽ lỗi 404 ngay sau đó.`)) return;
     try {
@@ -207,6 +219,7 @@ export default function RealtimeEndpointsPage() {
           { key: 'join', label: 'Bảng liên kết', render: (r) => (r.JoinTable ? `${r.JoinSchema}.${r.JoinTable}` : '—') },
           { key: 'KeyColumn', label: 'Cột khoá' },
           { key: 'IsActive', label: 'Trạng thái', render: (r) => (r.IsActive ? 'Hoạt động' : 'Tắt') },
+          { key: 'checkSchema', label: '', render: (r) => <button type="button" onClick={() => checkSchema(r)}>Kiểm tra schema</button> },
           isAdmin && { key: 'actions', label: '', render: (r) => <button type="button" onClick={() => deleteEndpoint(r)}>Xoá</button> }
         ].filter(Boolean)}
         rows={endpoints}
