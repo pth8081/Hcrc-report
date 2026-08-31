@@ -1,0 +1,76 @@
+# deploy/fail2ban/jail.local — Cấu hình fail2ban cho máy chủ ứng dụng HCRC
+# (xem deploy/README.md mục "fail2ban" cho hướng dẫn cài đặt đầy đủ).
+#
+# fail2ban chặn Ở TẦNG FIREWALL (iptables) — khác hẳn rate-limit/chặn brute-
+# force ĐÃ CÓ SẴN trong code (etl/lib/loginRateLimit.js,
+# api-server/lib/loginRateLimit.js + express-rate-limit toàn cục, HMAC
+# replay protection...): những cái đó chặn Ở TẦNG ỨNG DỤNG — request vẫn
+# phải đi hết qua Nginx + vào tới Node rồi mới bị từ chối (401/429). fail2ban
+# là lớp BỔ SUNG: sau khi phát hiện đủ số lần thất bại, IP đó bị chặn thẳng
+# ở firewall — các request SAU không còn chạm được tới Nginx/Node nữa, giảm
+# tải + giảm bề mặt tấn công. KHÔNG thay thế được rate-limit trong code
+# (fail2ban chỉ phản ứng SAU khi đã có đủ log thất bại, có độ trễ).
+#
+# ĐỔI "ignoreip" bên dưới thành IP/dải IP đáng tin (VPN nội bộ, máy CI/CD
+# nếu có gọi thử API...) — TRÁNH tự khoá chính mình khi test đăng nhập sai
+# nhiều lần lúc triển khai.
+[DEFAULT]
+ignoreip = 127.0.0.1/8 ::1
+# Tăng dần thời gian cấm với IP bị cấm LẶP LẠI nhiều lần (24h -> 7 ngày ->
+# tối đa 4 tuần) — hữu ích với bot dò quét kiên trì, không cần chỉnh tay.
+bantime.increment = true
+bantime.factor = 4
+bantime.maxtime = 4w
+banaction = iptables-multiport
+
+# ===== SSH — mục tiêu kinh điển nhất của fail2ban, BẮT BUỘC nếu SSH có mở
+# ra Internet (không chỉ qua VPN/bastion). Dùng filter có sẵn của fail2ban
+# (không cần filter riêng ở đây) — ĐỔI "port" nếu SSH không chạy cổng mặc
+# định 22. =====
+[sshd]
+enabled  = true
+port     = ssh
+logpath  = %(sshd_log)s
+backend  = %(sshd_backend)s
+maxretry = 5
+findtime = 600
+bantime  = 3600
+
+# ===== Đăng nhập 2 trang quản trị (api-admin/etl-admin) — CÙNG filter, 2
+# access_log riêng (xem deploy/nginx.conf mục access_log từng domain). Đã có
+# allow/deny theo IP ở Nginx CHẶN TRƯỚC tầng này với người ngoài VPN — jail
+# này chủ yếu phòng người TRONG VPN dò mật khẩu, hoặc VPN/allow-list cấu
+# hình lỏng hơn dự tính. =====
+[hcrc-admin-login]
+enabled  = true
+filter   = hcrc-admin-login
+logpath  = /var/log/nginx/hcrc-api-admin.access.log
+           /var/log/nginx/hcrc-etl-admin.access.log
+port     = http,https
+maxretry = 5
+findtime = 600
+bantime  = 3600
+
+# ===== Đăng nhập report.hcrc.vidu.vn (rp-user, CÔNG KHAI) — mục tiêu brute-
+# force thực tế cao nhất trong 5 domain vì ai cũng gõ được URL. =====
+[hcrc-report-login]
+enabled  = true
+filter   = hcrc-report-login
+logpath  = /var/log/nginx/hcrc-report.access.log
+port     = http,https
+maxretry = 5
+findtime = 600
+bantime  = 3600
+
+# ===== api.hcrc.vidu.vn (đối tác gọi máy-tới-máy, CÔNG KHAI) — ngưỡng CAO
+# hơn 2 jail trên (xem chú thích trong filter.d/hcrc-api-abuse.conf) vì đây
+# không phải form đăng nhập người dùng gõ tay, mà API key/HMAC/OAuth2 — vài
+# lần 401 do bug/đổi key phía đối tác là chuyện bình thường. =====
+[hcrc-api-abuse]
+enabled  = true
+filter   = hcrc-api-abuse
+logpath  = /var/log/nginx/hcrc-api.access.log
+port     = http,https
+maxretry = 30
+findtime = 300
+bantime  = 1800

@@ -5,6 +5,30 @@ Server, API Server và các giao diện quản trị) — tăng ở mỗi lần 
 `main`, theo kiểu semver không chặt (patch cho fix nhỏ, minor cho tính năng
 mới, major khi đổi cấu trúc phá vỡ tương thích ngược).
 
+## 0.28.1 — Cấu hình fail2ban cho máy chủ triển khai (bổ sung, khuyến nghị)
+
+Lớp phòng thủ THÊM ở tầng firewall — chặn hẳn IP sau nhiều lần thất bại,
+KHÔNG thay thế rate-limit/chặn brute-force đã có sẵn trong code (lớp ứng
+dụng, request vẫn phải vào tới Node mới bị từ chối) mà bổ sung: sau đủ
+ngưỡng, IP bị chặn thẳng ở firewall, không còn chạm được tới Nginx/Node.
+
+- **`deploy/nginx.conf`** — mỗi domain ghi `access_log` RIÊNG
+  (`hcrc-report`/`hcrc-api`/`hcrc-api-admin`/`hcrc-etl-admin.access.log`) —
+  trước đây dùng chung log mặc định, không tách được theo domain để
+  fail2ban theo dõi đúng chỗ.
+- **`deploy/fail2ban/`** (mới) — `jail.local` + 3 filter riêng:
+  `hcrc-admin-login` (đăng nhập sai `/admin/auth/login`, dùng chung cho
+  api-admin + etl-admin), `hcrc-report-login` (đăng nhập sai
+  `/api/auth/login` của rp-server), `hcrc-api-abuse` (401/429 dồn dập trên
+  `/api/v1/*` — ngưỡng cao hơn 2 jail đăng nhập vì đây là traffic đối tác
+  máy-tới-máy, không phải người gõ tay). `bantime.increment` tăng dần thời
+  gian cấm với IP tái phạm. `[sshd]` bật sẵn (dùng filter có sẵn của
+  fail2ban) cho máy chủ có SSH — mục tiêu kinh điển nhất của fail2ban.
+  `deploy/fail2ban/README.md` — hướng dẫn cài đặt + kiểm tra.
+- 1 test độc lập xác nhận cả 3 failregex khớp đúng dòng log lỗi thật (401
+  trên đúng path đăng nhập/429 trên `/api/v1/*`), KHÔNG khớp nhầm request
+  thành công hay path khác domain.
+
 ## 0.28.0 — Rà soát bảo mật toàn diện (ETL/API Server/Report Server): sửa các lỗ hổng phát hiện
 
 Rà soát chuyên sâu lần 2 (sau Phase 0-3) trên toàn bộ code đã thêm qua các

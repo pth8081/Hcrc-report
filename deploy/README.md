@@ -166,6 +166,13 @@ nginx -t && systemctl reload nginx
   IP ghi lại phải là IP THẬT của client gọi, không phải IP của Nginx (xác
   nhận `TRUST_PROXY_HOPS` đúng) — gọi thử từ 1 IP biết trước rồi so log.
 
+## 5. fail2ban (bổ sung, khuyến nghị)
+
+Lớp phòng thủ THÊM ở tầng firewall (chặn hẳn IP sau nhiều lần thất bại,
+KHÔNG thay thế rate-limit đã có trong code) — xem `deploy/fail2ban/README.md`
+cho hướng dẫn cài đặt đầy đủ. Không bắt buộc để chạy được hệ thống, nhưng
+nên bật trước khi mở ra Internet thật.
+
 ## Câu hỏi thường gặp
 
 **Vì sao 2 trang quản trị (`api-admin`/`etl-admin`) không dùng domain
