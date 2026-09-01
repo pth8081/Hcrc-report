@@ -5,9 +5,20 @@
 // xác thực (biết chắc consumer.id thật), khác bộ giới hạn theo IP TRƯỚC xác
 // thực trong server.js (chặn spam nặc danh, không phân biệt được đối tác).
 //
-// Cửa sổ cố định (fixed window) 60 giây, đếm trong bộ nhớ tiến trình — đủ
-// dùng khi chạy 1 tiến trình; chạy nhiều instance sau này (scale ngang) cần
-// đổi sang store dùng chung (vd Redis) thay vì Map cục bộ này.
+// Cửa sổ cố định (fixed window) 60 giây, đếm trong bộ nhớ tiến trình.
+//
+// QUYẾT ĐỊNH CÓ CHỦ ĐÍCH khi chuyển sang PM2 cluster mode (nhiều worker
+// CÙNG service, xem deploy/ecosystem.config.js): GIỮ NGUYÊN đếm trong bộ
+// nhớ, KHÔNG đổi sang store CSDL dùng chung. Dưới N worker, nginx round-
+// robin request của 1 đối tác rải qua nhiều worker, mỗi worker đếm RIÊNG —
+// ngưỡng RateLimitPerMinute thực tế trở thành LỎNG HƠN, tối đa N lần cấu
+// hình. Đây là giới hạn SLA/gói cước theo hợp đồng (không phải ranh giới
+// bảo mật — đối tác đã xác thực hợp lệ ở bước trước), chấp nhận lỏng hơn
+// đổi lấy không thêm round-trip CSDL vào MỌI request đối tác (khác
+// lib/hmacAuth.js:HmacUsedSignatures — đó PHẢI chuyển sang CSDL vì là ranh
+// giới chống phát lại, sai 1 lần là cho lọt hẳn 1 request, không phải chỉ
+// "lỏng hơn"). Cần đúng ngưỡng chính xác dưới cluster thật sự (SLA khắt
+// khe) thì đổi sang store dùng chung (vd Redis) sau.
 const WINDOW_MS = 60 * 1000;
 const counters = new Map(); // consumerId -> { count, windowStart }
 

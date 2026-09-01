@@ -7,6 +7,7 @@
 const cron = require('node-cron');
 const { sql, getPool } = require('../db');
 const { runJobObject } = require('./runSync');
+const { isSchedulerLeader } = require('../lib/clusterLeader');
 
 const REFRESH_INTERVAL_MS = 60 * 1000;
 const scheduledTasks = new Map(); // jobId -> { task, cronExpression }
@@ -82,13 +83,28 @@ async function refresh() {
   }
 }
 
+// CHỈ instance leader thật sự đăng ký/huỷ cron (xem lib/clusterLeader.js) —
+// đúng dữ liệu ghi vào dwh.ReportFacts ĐÃ được bảo vệ ở mọi trường hợp bởi
+// sp_getapplock cấp CSDL trong jobs/runSync.js (không phụ thuộc worker nào
+// gọi), nên đây KHÔNG phải sửa lỗi đúng-sai mà là tránh LÃNG PHÍ: không có
+// gate này, N worker cùng đăng ký cron cho CÙNG job, tới giờ N worker cùng
+// tranh sp_getapplock — chỉ 1 thắng, N-1 còn lại tốn round-trip CSDL +
+// rollback + log "bỏ qua" mỗi lượt, vô ích. Worker không phải leader bỏ
+// qua — refresh() định kỳ của leader tự nạp lại trong tối đa 60s.
 async function rescheduleJob(jobId) {
+  if (!isSchedulerLeader()) return;
   const job = await loadJob(jobId);
   unregisterJob(jobId);
   if (job && job.IsActive) registerJob(job);
 }
 
+// CHỈ instance leader chạy vòng lặp đăng ký/nạp lại cron (xem chú thích
+// rescheduleJob() ở trên).
 function start() {
+  if (!isSchedulerLeader()) {
+    console.log('ℹ️  [Lịch ETL] không phải instance leader (NODE_APP_INSTANCE khác "0") — bỏ qua, để leader phụ trách.');
+    return;
+  }
   refresh().catch(err => console.error('⛔ Lỗi nạp lịch ETL:', err.message));
   setInterval(
     () => refresh().catch(err => console.error('⛔ Lỗi nạp lại lịch ETL:', err.message)),

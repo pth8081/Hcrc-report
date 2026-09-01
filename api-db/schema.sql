@@ -380,3 +380,22 @@ BEGIN
     CREATE INDEX IX_AdminTwoFactorRecoveryCodes_AdminUserId ON admin.AdminTwoFactorRecoveryCodes (AdminUserId);
 END
 GO
+
+-- Chống PHÁT LẠI (replay) chữ ký HMAC — CẤP CSDL (không phải bộ nhớ tiến
+-- trình) để đúng dưới PM2 cluster mode (nhiều worker Node cùng service, mỗi
+-- worker bộ nhớ RIÊNG — 1 request bị chặn bắt gửi lại có thể rơi vào worker
+-- KHÁC worker đã thấy chữ ký gốc, Map trong bộ nhớ 1 tiến trình sẽ KHÔNG
+-- phát hiện được, xem api-server/lib/hmacAuth.js). Signature là
+-- hex(HMAC-SHA256(...)) — CHAR(64) đủ; PRIMARY KEY tự là ràng buộc UNIQUE,
+-- chèn trùng ném lỗi #2627/#2601 -> ứng dụng coi là "đã thấy" (replay thật).
+-- ExpiresAt = hết hiệu lực cửa sổ TOLERANCE_SECONDS (5 phút) — dọn định kỳ
+-- (jobs/cleanupHmacSignatures.js, chỉ instance leader) để bảng không phình.
+IF OBJECT_ID('admin.HmacUsedSignatures', 'U') IS NULL
+BEGIN
+    CREATE TABLE admin.HmacUsedSignatures (
+        Signature CHAR(64)     NOT NULL PRIMARY KEY,
+        ExpiresAt DATETIME2(3) NOT NULL
+    );
+    CREATE INDEX IX_HmacUsedSignatures_ExpiresAt ON admin.HmacUsedSignatures(ExpiresAt);
+END
+GO

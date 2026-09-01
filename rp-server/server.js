@@ -35,6 +35,7 @@ const anomalyAlertScheduler = require('./jobs/anomalyAlertScheduler');
 const { isBlocked, recordFailure, recordSuccess } = require('./lib/loginRateLimit');
 const { logAction } = require('./lib/auditLog');
 const { cleanupAuditLog } = require('./jobs/cleanupAuditLog');
+const { isSchedulerLeader } = require('./lib/clusterLeader');
 const { closeAll, assertConfigured } = require('./db');
 const { getKey } = require('./lib/crypto');
 const { installProcessGuards } = require('./lib/processGuards');
@@ -76,6 +77,16 @@ app.use(compression());
 app.use(express.json({ limit: '2mb' }));
 app.use(cookieParser());
 
+// express-rate-limit dùng MemoryStore mặc định (đếm trong bộ nhớ tiến
+// trình) — dưới PM2 cluster mode (nhiều worker CÙNG service), ngưỡng thực
+// tế trở thành LỎNG HƠN, tối đa `instances` lần RATE_LIMIT_PER_MINUTE (mỗi
+// worker đếm riêng, nginx round-robin rải request 1 IP qua nhiều worker).
+// QUYẾT ĐỊNH CÓ CHỦ ĐÍCH: chấp nhận đánh đổi này (không đổi sang store
+// CSDL/Redis dùng chung) — đây là lớp chống spam nặc danh TRƯỚC xác thực,
+// đã có deploy/fail2ban/ (đọc access log TỔNG HỢP của Nginx, không phân
+// mảnh theo worker) làm lớp chặn thật sự ở tầng firewall khi có tấn công
+// nghiêm trọng; lớp này chỉ cần "đủ rộng để không phiền người dùng thật,
+// đủ hẹp để không ai spam thoải mái" chứ không phải ranh giới bảo mật cứng.
 app.use(rateLimit({
   windowMs: 60 * 1000,
   limit: parseInt(process.env.RATE_LIMIT_PER_MINUTE || '300', 10),
@@ -173,10 +184,14 @@ app.use((err, req, res, next) => { // eslint-disable-line no-unused-vars
 reportEmailScheduler.start();
 anomalyAlertScheduler.start();
 
-// Dọn app.AuditLog cũ theo lịch (mặc định 02:00 hằng ngày).
-cron.schedule(process.env.CLEANUP_CRON || '0 2 * * *', () => {
-  cleanupAuditLog().catch(err => console.error('⛔ Lỗi dọn AuditLog:', err.message));
-});
+// Dọn app.AuditLog cũ theo lịch (mặc định 02:00 hằng ngày). CHỈ instance
+// leader (PM2 cluster mode nhiều worker — xem lib/clusterLeader.js) — N
+// worker cùng DELETE là vô hại (idempotent) nhưng lãng phí, không cần N lần.
+if (isSchedulerLeader()) {
+  cron.schedule(process.env.CLEANUP_CRON || '0 2 * * *', () => {
+    cleanupAuditLog().catch(err => console.error('⛔ Lỗi dọn AuditLog:', err.message));
+  });
+}
 
 // Giới hạn thời gian ở tầng HTTP server (Node) — Express/http mặc định
 // KHÔNG chặn socket "chờ mãi", một client cố tình gửi request/body nhỏ giọt

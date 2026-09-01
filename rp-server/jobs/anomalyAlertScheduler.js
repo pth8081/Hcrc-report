@@ -10,6 +10,7 @@ const { runAnomalyCheck } = require('../lib/anomalyAlertRunner');
 const { renderEmailBodyHtml } = require('../lib/emailBodyRenderer');
 const { sendMail } = require('../lib/mailer');
 const { logAction } = require('../lib/auditLog');
+const { isSchedulerLeader } = require('../lib/clusterLeader');
 
 const REFRESH_INTERVAL_MS = 60 * 1000;
 const scheduledTasks = new Map(); // alertId -> { task, cronExpression }
@@ -141,7 +142,11 @@ async function refresh() {
   }
 }
 
+// CHỈ instance leader — cùng lý do jobs/reportEmailScheduler.js:rescheduleJob()
+// (xem chú thích ở đó). Worker không phải leader bỏ qua, refresh() định kỳ
+// của leader tự nạp lại trong tối đa 60s.
 async function rescheduleAlert(id) {
+  if (!isSchedulerLeader()) return;
   unregisterAlert(id);
   const alert = await loadAlert(id);
   if (!alert || !alert.IsActive) return;
@@ -168,7 +173,13 @@ async function runNow(id) {
   }
 }
 
+// CHỈ instance leader — cùng lý do jobs/reportEmailScheduler.js:start() (xem
+// chú thích ở đó, tránh N worker cùng gửi N email cảnh báo trùng lặp).
 function start() {
+  if (!isSchedulerLeader()) {
+    console.log('ℹ️  [Cảnh báo bất thường] không phải instance leader (NODE_APP_INSTANCE khác "0") — bỏ qua, để leader phụ trách.');
+    return;
+  }
   refresh().catch(err => console.error('⛔ Lỗi nạp cảnh báo bất thường:', err.message));
   setInterval(
     () => refresh().catch(err => console.error('⛔ Lỗi nạp lại cảnh báo bất thường:', err.message)),

@@ -35,6 +35,7 @@ const { renderEmailBodyHtml } = require('../lib/emailBodyRenderer');
 const { sendMail } = require('../lib/mailer');
 const { resolveFilterValues } = require('../lib/reportEmailFilters');
 const { logAction } = require('../lib/auditLog');
+const { isSchedulerLeader } = require('../lib/clusterLeader');
 
 const REFRESH_INTERVAL_MS = 60 * 1000;
 const scheduledTasks = new Map(); // timeId -> { task, cronExpression, scheduleId }
@@ -233,7 +234,16 @@ async function refresh() {
   }
 }
 
+// CHỈ instance leader (xem lib/clusterLeader.js) mới thật sự đăng ký/huỷ
+// cron — gọi từ route ngay sau khi admin sửa lịch (không chờ chu kỳ 60
+// giây), có thể chạy trên BẤT KỲ worker nào (nginx round-robin). Nếu 1
+// worker KHÔNG PHẢI leader tự đăng ký cron riêng cho đúng lịch đó, lịch đó
+// sẽ có 2 cron task độc lập (của leader + của worker này) cùng tồn tại ->
+// gửi trùng email khi tới giờ. Worker không phải leader bỏ qua — refresh()
+// định kỳ của leader (60s) tự nạp lại đúng thay đổi, chỉ chậm hơn tối đa 60s
+// so với trước khi có cluster.
 async function rescheduleJob(scheduleId) {
+  if (!isSchedulerLeader()) return;
   for (const [timeId, entry] of scheduledTasks) {
     if (entry.scheduleId === scheduleId) unregisterOccurrence(timeId);
   }
@@ -262,7 +272,16 @@ async function runNow(scheduleId) {
   }
 }
 
+// CHỈ instance leader chạy vòng lặp đăng ký/nạp lại cron — dưới PM2 cluster
+// mode (nhiều worker CÙNG service), nếu MỌI worker đều tự start() độc lập,
+// mỗi worker sẽ có bộ scheduledTasks/cron.schedule() RIÊNG cho CÙNG 1 danh
+// sách lịch gửi -> tới giờ N worker cùng gửi, người nhận thấy N email trùng
+// lặp. Xem lib/clusterLeader.js.
 function start() {
+  if (!isSchedulerLeader()) {
+    console.log('ℹ️  [Lịch gửi email báo cáo] không phải instance leader (NODE_APP_INSTANCE khác "0") — bỏ qua, để leader phụ trách.');
+    return;
+  }
   refresh().catch(err => console.error('⛔ Lỗi nạp lịch gửi email báo cáo:', err.message));
   setInterval(
     () => refresh().catch(err => console.error('⛔ Lỗi nạp lại lịch gửi email báo cáo:', err.message)),

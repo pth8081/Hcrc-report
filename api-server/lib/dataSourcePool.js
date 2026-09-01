@@ -10,7 +10,8 @@ const pools = new Map(); // dataSourceId -> Promise<{ pool, name }>
 
 // Mỗi nguồn tự mở pool riêng (max 5) — không có trần cho SỐ NGUỒN được cấu
 // hình, xem chú thích tương ứng ở rp-server/lib/dataSourcePool.js (cùng quy
-// ước). Chỉ CẢNH BÁO CHẨN ĐOÁN, không tự ý đóng bớt pool đang dùng.
+// ước, kể cả lưu ý về PM2 cluster mode nhân ngưỡng này theo số worker). Chỉ
+// CẢNH BÁO CHẨN ĐOÁN, không tự ý đóng bớt pool đang dùng.
 const WARN_POOL_COUNT = 20;
 
 async function loadDataSource(id) {

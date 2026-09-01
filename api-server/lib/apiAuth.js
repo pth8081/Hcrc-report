@@ -48,7 +48,7 @@ async function authenticate(req) {
   if (keyId && timestamp && signature) {
     const consumer = await findByHmacKeyId(keyId);
     if (!consumer) return { error: 'X-Key-Id không hợp lệ' };
-    const result = hmacAuth.verify({
+    const result = await hmacAuth.verify({
       secret: consumer.hmacSecret,
       method: req.method,
       path: req.originalUrl,

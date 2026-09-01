@@ -3,8 +3,19 @@
 // CHUNG trong server.js (áp cho mọi route, ngưỡng cao nên gần như không cản
 // được dò mật khẩu chậm/rải rác qua nhiều phút). Đếm trong bộ nhớ tiến
 // trình: mỗi lần sai cộng dồn trong 1 cửa sổ 15 phút, đăng nhập ĐÚNG xoá
-// ngay bộ đếm (không phạt oan người dùng thật lỡ gõ sai 1-2 lần). Chạy nhiều
-// instance sau này (scale ngang) cần đổi sang store dùng chung (vd Redis).
+// ngay bộ đếm (không phạt oan người dùng thật lỡ gõ sai 1-2 lần).
+//
+// QUYẾT ĐỊNH CÓ CHỦ ĐÍCH khi chuyển sang PM2 cluster mode (nhiều worker
+// CÙNG service, xem deploy/ecosystem.config.js): GIỮ NGUYÊN đếm trong bộ
+// nhớ, KHÔNG đổi sang store CSDL dùng chung. Dưới N worker, request đăng
+// nhập của 1 IP+username rải qua nhiều worker (nginx round-robin), mỗi
+// worker đếm RIÊNG — ngưỡng MAX_ATTEMPTS thực tế trở thành LỎNG HƠN, tối
+// đa N lần cấu hình (KHÔNG PHẢI vô hiệu hoá hẳn — vẫn có tác dụng, chỉ rộng
+// hơn). Chấp nhận đánh đổi này vì đã có deploy/fail2ban/ (đọc access log
+// TỔNG HỢP của Nginx, KHÔNG phân mảnh theo worker — vẫn phát hiện/chặn đúng
+// dò mật khẩu ở tầng firewall bất kể clustering) làm lớp phòng thủ CHIỀU
+// SÂU thứ 2, độc lập với bộ đếm trong bộ nhớ này. Cần đúng ngưỡng chính xác
+// dưới cluster thật sự thì đổi sang store dùng chung (vd Redis) sau.
 //
 // Bản sao CÙNG NỘI DUNG cũng có ở rp-server/lib/ và api-server/lib/ — cố ý
 // trùng lặp, theo đúng nguyên tắc "mỗi server tự chứa đủ code" đã áp dụng

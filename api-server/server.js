@@ -34,6 +34,8 @@ const { adminIpAllowlist } = require('./lib/adminIpAllowlist');
 const { corsAllowlist } = require('./lib/corsAllowlist');
 const { cleanupRequestLog } = require('./jobs/cleanupRequestLog');
 const { cleanupAuditLog } = require('./jobs/cleanupAuditLog');
+const { cleanupHmacSignatures } = require('./jobs/cleanupHmacSignatures');
+const { isSchedulerLeader } = require('./lib/clusterLeader');
 const { closeAll, assertConfigured } = require('./db');
 const { getSecret: getAdminSecret } = require('./lib/adminAuth');
 const { getSecret: getOAuthSecret } = require('./lib/oauthTokens');
@@ -95,6 +97,14 @@ app.use(cookieParser());
 // lib/corsAllowlist.js). Đặt TRƯỚC rate limit/requestLogger để preflight
 // OPTIONS không tốn hạn mức/tạo log rác.
 app.use('/api/v1', corsAllowlist);
+// express-rate-limit dùng MemoryStore mặc định — dưới PM2 cluster mode
+// (nhiều worker CÙNG service), ngưỡng thực tế trở thành LỎNG HƠN, tối đa
+// `instances` lần RATE_LIMIT_PER_MINUTE. QUYẾT ĐỊNH CÓ CHỦ ĐÍCH: chấp nhận
+// đánh đổi — cùng lý do rp-server/server.js (xem chú thích ở đó): đây là
+// lớp chặn spam nặc danh TRƯỚC xác thực, có deploy/fail2ban/ (đọc access
+// log tổng hợp, không phân mảnh theo worker) làm lớp chặn thật sự khi
+// nghiêm trọng; giới hạn RIÊNG từng đối tác (lib/consumerRateLimit.js) mới
+// là ngưỡng SLA thật, cũng đã ghi chú đánh đổi tương tự ở đó.
 app.use('/api/v1', rateLimit({
   windowMs: 60 * 1000,
   limit: parseInt(process.env.RATE_LIMIT_PER_MINUTE || '120', 10),
@@ -150,8 +160,25 @@ server.keepAliveTimeout = 75 * 1000;
 
 installProcessGuards({ server, closeAll, serviceName: 'API Server' });
 
-// Dọn api.RequestLog + admin.AuditLog cũ theo lịch (mặc định 02:00 hằng ngày).
-cron.schedule(process.env.CLEANUP_CRON || '0 2 * * *', () => {
-  cleanupRequestLog().catch(err => console.error('⛔ Lỗi dọn RequestLog:', err.message));
-  cleanupAuditLog().catch(err => console.error('⛔ Lỗi dọn AuditLog:', err.message));
-});
+// Dọn api.RequestLog + admin.AuditLog cũ theo lịch (mặc định 02:00 hằng
+// ngày). CHỈ instance leader (PM2 cluster mode nhiều worker — xem
+// lib/clusterLeader.js) — N worker cùng DELETE là vô hại (idempotent) nhưng
+// lãng phí, không cần N lần.
+if (isSchedulerLeader()) {
+  cron.schedule(process.env.CLEANUP_CRON || '0 2 * * *', () => {
+    cleanupRequestLog().catch(err => console.error('⛔ Lỗi dọn RequestLog:', err.message));
+    cleanupAuditLog().catch(err => console.error('⛔ Lỗi dọn AuditLog:', err.message));
+  });
+}
+
+// admin.HmacUsedSignatures (chống phát lại chữ ký HMAC — xem lib/hmacAuth.js)
+// có vòng đời NGẮN (5 phút, TOLERANCE_SECONDS), dọn theo chu kỳ RIÊNG (5
+// phút) thay vì gộp vào lịch dọn hằng ngày ở trên — nếu chỉ dọn 1 lần/ngày,
+// bảng phình lớn không cần thiết khi lưu lượng đối tác qua HMAC cao. CHỈ
+// instance leader (cùng lý do trên).
+if (isSchedulerLeader()) {
+  setInterval(
+    () => cleanupHmacSignatures().catch(err => console.error('⛔ Lỗi dọn HmacUsedSignatures:', err.message)),
+    5 * 60 * 1000
+  ).unref();
+}

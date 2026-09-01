@@ -14,7 +14,10 @@ const dynamicPools = new Map(); // dataSourceId -> Promise<ConnectionPool>
 // Nếu nhiều nguồn cùng được truy vấn đồng thời trong 1 cửa sổ ngắn, tổng kết
 // nối có thể vượt trần do DBA cấp cho SQL Server. Đây chỉ là CẢNH BÁO CHẨN
 // ĐOÁN (không chặn) để ops biết sớm, không tự ý giới hạn/đóng bớt pool đang
-// dùng (có thể làm gãy báo cáo đang chạy).
+// dùng (có thể làm gãy báo cáo đang chạy). Ngưỡng này TÍNH THEO 1 WORKER —
+// dưới PM2 cluster mode (deploy/ecosystem.config.js), mỗi worker tự có
+// Map riêng, nên tổng thật trên toàn service có thể gấp tới `instances` lần
+// ngưỡng cảnh báo này.
 const WARN_POOL_COUNT = 20;
 
 async function loadDataSource(id) {

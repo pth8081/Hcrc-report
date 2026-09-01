@@ -12,6 +12,7 @@ const cron = require('node-cron');
 
 const scheduler = require('./jobs/scheduler');
 const { cleanupSyncLog, cleanupAuditLog } = require('./jobs/cleanupLogs');
+const { isSchedulerLeader } = require('./lib/clusterLeader');
 const { adminIpAllowlist } = require('./lib/adminIpAllowlist');
 const adminAuthRoutes = require('./routes/admin/auth');
 const adminTwoFactorRoutes = require('./routes/admin/twoFactor');
@@ -57,6 +58,11 @@ app.use(helmet({ contentSecurityPolicy: false }));
 app.use(compression());
 app.use(express.json({ limit: '2mb' }));
 app.use(cookieParser());
+// express-rate-limit dùng MemoryStore mặc định — dưới PM2 cluster mode
+// (nhiều worker CÙNG service), ngưỡng thực tế trở thành LỎNG HƠN, tối đa
+// `instances` lần RATE_LIMIT_PER_MINUTE. QUYẾT ĐỊNH CÓ CHỦ ĐÍCH: chấp nhận
+// đánh đổi — cùng lý do rp-server/server.js (xem chú thích ở đó), có
+// deploy/fail2ban/ làm lớp chặn thật sự ở tầng firewall khi nghiêm trọng.
 app.use(rateLimit({
   windowMs: 60 * 1000,
   limit: parseInt(process.env.RATE_LIMIT_PER_MINUTE || '300', 10),
@@ -118,7 +124,11 @@ installProcessGuards({ server, closeAll, serviceName: 'ETL' });
 scheduler.start();
 
 // Dọn etl.SyncLog + admin.AuditLog cũ theo lịch (mặc định 02:00 hằng ngày).
-cron.schedule(process.env.CLEANUP_CRON || '0 2 * * *', () => {
-  cleanupSyncLog().catch(err => console.error('⛔ Lỗi dọn SyncLog:', err.message));
-  cleanupAuditLog().catch(err => console.error('⛔ Lỗi dọn AuditLog:', err.message));
-});
+// CHỈ instance leader (PM2 cluster mode nhiều worker — xem lib/clusterLeader.js)
+// — N worker cùng DELETE là vô hại (idempotent) nhưng lãng phí, không cần N lần.
+if (isSchedulerLeader()) {
+  cron.schedule(process.env.CLEANUP_CRON || '0 2 * * *', () => {
+    cleanupSyncLog().catch(err => console.error('⛔ Lỗi dọn SyncLog:', err.message));
+    cleanupAuditLog().catch(err => console.error('⛔ Lỗi dọn AuditLog:', err.message));
+  });
+}

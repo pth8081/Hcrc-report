@@ -13,12 +13,37 @@
 // đó thì PM2 NGỪNG thử, chuyển trạng thái "errored" — dừng vòng lặp, không
 // tự thử mãi). Sau khi sửa cấu hình xong, chạy `pm2 restart <tên>` để PM2
 // thử lại từ đầu (đặt lại bộ đếm).
+//
+// ===== exec_mode: 'cluster' =====
+// Cả 3 app chạy NHIỀU worker/service (Node's cluster module qua PM2 — mỗi
+// worker 1 tiến trình, chia sẻ CHUNG 1 cổng lắng nghe, PM2/OS tự cân bằng
+// round-robin), tận dụng nhiều lõi CPU thay vì 1 tiến trình đơn (mặc định
+// cũ) chỉ dùng được 1 lõi kể cả khi tải cao đồng thời. PM2 tự gán
+// process.env.NODE_APP_INSTANCE = "0".."N-1" cho từng worker — code app
+// dùng biến này để chỉ 1 worker ("leader", #0) chạy cron (gửi email báo
+// cáo/cảnh báo/dọn log định kỳ) — xem lib/clusterLeader.js ở cả 3 service,
+// KHÔNG SỬA GIẢM instances xuống mà không hiểu tại sao (tránh mất song
+// song), và KHÔNG XOÁ file lib/clusterLeader.js hay bỏ cách gọi nó trong
+// jobs/*.js/server.js nếu vẫn còn chạy cluster (mất gate đó = gửi email
+// trùng lặp N lần khi tới giờ).
+//
+// instances — mặc định 2 mỗi app (6 tiến trình Node TỔNG CỘNG trên CÙNG 1
+// máy, cùng máy còn chạy Nginx + có thể cả SQL Server nếu không tách riêng
+// — xem deploy/nginx.conf đầu file). ĐIỂM KHỞI ĐẦU HỢP LÝ, KHÔNG PHẢI SỐ
+// CUỐI CÙNG — chỉnh theo số lõi CPU thật của máy chủ (vd máy 8 lõi có thể
+// nâng lên instances: 3-4 cho rp-server/api-server, giữ etl thấp hơn vì ít
+// traffic đồng thời, chủ yếu chạy nền + trang quản trị nội bộ). Đổi số này
+// PHẢI đi kèm chỉnh lại *_POOL_MAX trong .env của từng service (xem chú
+// thích ở đó) — mỗi worker tự mở pool CSDL RIÊNG (không dùng chung), tổng
+// kết nối tới SQL Server = instances × tổng pool.max của 1 worker.
 module.exports = {
   apps: [
     {
       name: 'hcrc-etl',
       cwd: '../etl',
-      script: 'server.js', // chạy nền theo lịch + phục vụ /admin/* cho etl-admin/
+      script: 'server.js', // chạy nền theo lịch (chỉ worker #0) + phục vụ /admin/* cho etl-admin/
+      exec_mode: 'cluster',
+      instances: parseInt(process.env.PM2_INSTANCES_ETL || '2', 10),
       env: { NODE_ENV: 'production' },
       min_uptime: '10s',
       max_restarts: 10
@@ -27,6 +52,8 @@ module.exports = {
       name: 'hcrc-rp-server',
       cwd: '../rp-server',
       script: 'server.js',
+      exec_mode: 'cluster',
+      instances: parseInt(process.env.PM2_INSTANCES_RP || '2', 10),
       env: { NODE_ENV: 'production' },
       min_uptime: '10s',
       max_restarts: 10
@@ -35,6 +62,8 @@ module.exports = {
       name: 'hcrc-api-server',
       cwd: '../api-server',
       script: 'server.js',
+      exec_mode: 'cluster',
+      instances: parseInt(process.env.PM2_INSTANCES_API || '2', 10),
       env: { NODE_ENV: 'production' },
       min_uptime: '10s',
       max_restarts: 10

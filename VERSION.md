@@ -5,6 +5,54 @@ Server, API Server và các giao diện quản trị) — tăng ở mỗi lần 
 `main`, theo kiểu semver không chặt (patch cho fix nhỏ, minor cho tính năng
 mới, major khi đổi cấu trúc phá vỡ tương thích ngược).
 
+## 0.41.0 — Chuyển sang kiến trúc PM2 cluster mode (nhiều lõi CPU) cho cả 3 service
+
+Theo yêu cầu "kiến trúc sẽ chạy cluster" — chuyển `etl`/`api-server`/
+`rp-server` từ 1 tiến trình đơn (chỉ dùng 1 lõi CPU) sang PM2 cluster mode
+(nhiều worker Node CÙNG service, chia sẻ 1 cổng, PM2/OS tự cân bằng
+round-robin). Trước khi bật, rà soát TOÀN BỘ trạng thái trong bộ nhớ tiến
+trình có thể sai lệch khi có N worker độc lập (mỗi worker bộ nhớ RIÊNG) —
+xử lý dứt điểm phần ảnh hưởng ĐÚNG-SAI, ghi chú rõ phần chấp nhận đánh đổi:
+
+- **`deploy/ecosystem.config.js`**: `exec_mode: 'cluster'`, mặc định
+  `instances: 2`/service (chỉnh qua `PM2_INSTANCES_{ETL,RP,API}`), điểm
+  khởi đầu hợp lý — chỉnh theo số lõi CPU thật khi triển khai.
+- **`{etl,api-server,rp-server}/lib/clusterLeader.js`** (mới): `isSchedulerLeader()`
+  — PM2 tự gán `NODE_APP_INSTANCE="0".."N-1"`, chỉ instance "0" là leader.
+- **`rp-server/jobs/reportEmailScheduler.js`** + **`anomalyAlertScheduler.js`**
+  + **`etl/jobs/scheduler.js`**: 🔴 (2 scheduler đầu) `start()`/`rescheduleJob()`/
+  `rescheduleAlert()` GATE theo leader — trước đây MỌI worker tự đăng ký
+  cron cho CÙNG danh sách lịch, tới giờ N worker cùng gửi → **N EMAIL TRÙNG
+  LẶP** cho 1 lần gửi (không có khoá cấp CSDL tương đương chặn được, khác
+  ETL). `etl/jobs/scheduler.js` gate cùng khuôn nhưng vì HIỆU QUẢ (không
+  phải đúng-sai) — ghi dwh.ReportFacts đã luôn đúng dưới nhiều tiến trình
+  nhờ `sp_getapplock` cấp CSDL sẵn có (`etl/jobs/runSync.js`), gate chỉ
+  tránh N-1 worker lãng phí tranh khoá + đăng ký cron trùng mỗi lượt.
+- **`{etl,api-server,rp-server}/server.js`**: `CLEANUP_CRON` (dọn log định
+  kỳ) gate theo leader — N worker cùng DELETE vô hại (idempotent) nhưng lãng phí.
+- **`api-server/lib/hmacAuth.js`** + **`apiAuth.js`**: 🔴 chống phát lại
+  (replay) chữ ký HMAC trước đây dùng Map trong bộ nhớ tiến trình — dưới
+  cluster, request gốc và request phát lại có thể rơi vào 2 WORKER KHÁC
+  NHAU (nginx round-robin), Map riêng từng worker KHÔNG phát hiện được, để
+  lọt phát lại thật — BYPASS bảo mật, khác các mục dưới chỉ "lỏng hơn".
+  Chuyển sang CẤP CSDL (`admin.HmacUsedSignatures` — mới, `api-db/schema.sql`
+  + `jobs/cleanupHmacSignatures.js` dọn mỗi 5 phút, chỉ leader): PRIMARY
+  KEY tự là ràng buộc UNIQUE dùng chung mọi worker, chèn trùng (#2627) =
+  phát lại thật. Lỗi CSDL khác (mất kết nối tạm thời) → fail-open (cùng
+  triết lý `sessionRevocation.js` — đây là phòng thủ chiều sâu trên chữ ký
+  đã xác thực đúng, không phải ranh giới chính). `verify()` giờ ASYNC.
+- **`{etl,api-server,rp-server}/.env.example`**: chia đôi `*_POOL_MAX`
+  (mỗi worker tự mở pool RIÊNG — tổng kết nối thật = `instances × pool.max`)
+  để GIỮ NGUYÊN đúng ngân sách kết nối SQL Server đã duyệt trước cluster.
+- **QUYẾT ĐỊNH CÓ CHỦ ĐÍCH — chấp nhận "lỏng hơn", KHÔNG đổi sang CSDL**
+  (khác HMAC ở trên — đây không phải ranh giới bảo mật cứng, chỉ ngưỡng
+  mềm): `loginRateLimit.js` (x3, chống dò mật khẩu — có `deploy/fail2ban/`
+  đọc access log TỔNG HỢP của Nginx làm lớp chặn thật ở tầng firewall,
+  không phân mảnh theo worker), `consumerRateLimit.js` (ngưỡng SLA/gói
+  cước theo hợp đồng, không phải xác thực), `express-rate-limit` toàn cục
+  theo IP (chống spam nặc danh trước xác thực, cũng có fail2ban backstop).
+  Ghi chú rõ trong code để lần sau không nhầm là bug.
+
 ## 0.40.0 — Rà soát khả năng chịu tải nhiều kết nối liên tục (keepAliveTimeout, trần pool nguồn phụ, tuning Nginx)
 
 Rà soát riêng theo yêu cầu: "performance đã đảm bảo cho nhiều kết nối liên
