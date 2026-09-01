@@ -108,9 +108,12 @@ function registerAlert(alert) {
     console.error(`⛔ Lịch không hợp lệ cho cảnh báo [${alert.Name}]: "${alert.CronExpression}"`);
     return;
   }
+  // timezone: 'Asia/Ho_Chi_Minh' BẮT BUỘC — cùng lý do jobs/reportEmailScheduler.js:
+  // không truyền, node-cron chạy theo timezone của TIẾN TRÌNH (server
+  // production thường đặt UTC), lệch giờ so với ý định admin cấu hình.
   const task = cron.schedule(alert.CronExpression, () => {
     runAlertGuarded(alert).catch(err => console.error(`⛔ Lỗi cảnh báo bất thường #${alert.Id}:`, err.message));
-  });
+  }, { timezone: 'Asia/Ho_Chi_Minh' });
   scheduledTasks.set(alert.Id, { task, cronExpression: alert.CronExpression });
   console.log(`⏱  [Cảnh báo bất thường #${alert.Id} — ${alert.Name}] lịch chạy: ${alert.CronExpression}`);
 }

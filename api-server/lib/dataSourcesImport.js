@@ -25,6 +25,13 @@ const { encrypt } = require('./crypto');
 const REQUIRED_HEADERS = ['Name', 'Server', 'DatabaseName', 'Username', 'Password'];
 const BOOL_TRUE_VALUES = ['true', '1', 'yes', 'có', 'x'];
 
+// Chặn sớm file .xlsx có QUÁ NHIỀU dòng (dù dưới giới hạn dung lượng multer —
+// .xlsx là zip, nội dung lặp lại nén rất tốt nên vẫn có thể mở ra hàng trăm
+// nghìn dòng trong bộ nhớ) TRƯỚC khi lặp qua từng dòng/mã hoá mật khẩu/ghi
+// CSDL — cùng giới hạn với etl/lib/dataSourcesImport.js (bản này trước đây
+// thiếu kiểm tra), dùng case thật (vài chục/vài trăm chi nhánh) làm chuẩn.
+const MAX_IMPORT_ROWS = 5000;
+
 function parseBool(raw, defaultValue) {
   if (raw === null || raw === undefined || raw === '') return defaultValue;
   return BOOL_TRUE_VALUES.includes(String(raw).trim().toLowerCase());
@@ -36,6 +43,9 @@ async function parseDataSourcesFile(buffer) {
   await workbook.xlsx.load(buffer);
   const sheet = workbook.worksheets[0];
   if (!sheet) throw new Error('File không có sheet nào');
+  if (sheet.rowCount > MAX_IMPORT_ROWS) {
+    throw new Error(`File có ${sheet.rowCount} dòng, vượt giới hạn ${MAX_IMPORT_ROWS} dòng/lượt nhập — chia nhỏ file rồi nhập nhiều lượt`);
+  }
 
   const headers = [];
   sheet.getRow(1).eachCell({ includeEmpty: false }, (cell, colNumber) => {

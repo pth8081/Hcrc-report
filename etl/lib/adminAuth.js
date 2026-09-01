@@ -4,6 +4,7 @@
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const { sql, getPool } = require('../db');
+const { isSessionRevoked } = require('./sessionRevocation');
 
 const COOKIE_NAME = 'hcrc_etl_admin_token';
 const TOKEN_TTL = '8h';
@@ -100,20 +101,30 @@ function verifyToken(token) {
   return jwt.verify(token, getSecret(), { algorithms: ['HS256'], issuer: ISSUER, audience: ISSUER });
 }
 
-function requireAdminAuth(req, res, next) {
+async function requireAdminAuth(req, res, next) {
   const token = req.cookies?.[COOKIE_NAME];
   if (!token) return res.status(401).json({ error: 'Chưa đăng nhập' });
+  let payload;
   try {
-    const payload = verifyToken(token);
-    // Phòng thủ chiều sâu: cookie phiên ĐẦY ĐỦ không bao giờ được gán 1
-    // token có claim "twofa" (routes/admin/auth.js chỉ res.cookie() sau khi
-    // qua đủ 2 yếu tố) — dòng này chỉ chặn trường hợp lỗi logic lỡ gán nhầm.
-    if (payload.twofa) return res.status(401).json({ error: 'Phiên chưa hoàn tất xác thực hai yếu tố' });
-    req.admin = payload;
-    next();
+    payload = verifyToken(token);
   } catch {
-    res.status(401).json({ error: 'Phiên đăng nhập hết hạn hoặc không hợp lệ' });
+    return res.status(401).json({ error: 'Phiên đăng nhập hết hạn hoặc không hợp lệ' });
   }
+  // Phòng thủ chiều sâu: cookie phiên ĐẦY ĐỦ không bao giờ được gán 1
+  // token có claim "twofa" (routes/admin/auth.js chỉ res.cookie() sau khi
+  // qua đủ 2 yếu tố) — dòng này chỉ chặn trường hợp lỗi logic lỡ gán nhầm.
+  if (payload.twofa) return res.status(401).json({ error: 'Phiên chưa hoàn tất xác thực hai yếu tố' });
+  try {
+    // Thu hồi phiên khi đổi mật khẩu/gỡ 2FA/đổi role/khoá tài khoản — role
+    // NHÚNG THẲNG vào token (payload.role) nên đây còn là cách DUY NHẤT để
+    // 1 lượt đổi role có hiệu lực trước khi token tự hết hạn — xem
+    // lib/sessionRevocation.js.
+    if (await isSessionRevoked(payload.sub, payload.iat)) {
+      return res.status(401).json({ error: 'Phiên đăng nhập đã bị thu hồi (đổi mật khẩu/2FA/vai trò, hoặc tài khoản bị khoá) — đăng nhập lại' });
+    }
+  } catch (err) { return next(err); }
+  req.admin = payload;
+  next();
 }
 
 // Đặt cookie phiên ĐẦY ĐỦ — dùng chung ở routes/admin/auth.js (đăng nhập

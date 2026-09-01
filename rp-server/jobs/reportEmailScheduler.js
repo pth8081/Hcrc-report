@@ -195,12 +195,16 @@ function registerOccurrence(occurrence) {
     console.error(`⛔ Giờ gửi không hợp lệ cho [${occurrence.Name} — giờ #${occurrence.TimeId}]: "${occurrence.CronExpression}"`);
     return;
   }
+  // timezone: 'Asia/Ho_Chi_Minh' BẮT BUỘC — không truyền, node-cron chạy
+  // theo timezone của TIẾN TRÌNH (server production thường đặt UTC), trong
+  // khi "Giờ gửi" admin nhập ở rp-user luôn hiểu là giờ Việt Nam. Thiếu dòng
+  // này, server chạy ở UTC sẽ gửi email lệch 7 tiếng so với giờ admin chọn.
   const task = cron.schedule(occurrence.CronExpression, () => {
     runOccurrenceGuarded(occurrence).catch(err => {
       if (err.isAlreadyRunning) console.warn(`⏭  ${err.message}`);
       else console.error(`⛔ Lỗi gửi lịch email báo cáo #${occurrence.ScheduleId} (giờ #${occurrence.TimeId}):`, err.message);
     });
-  });
+  }, { timezone: 'Asia/Ho_Chi_Minh' });
   scheduledTasks.set(occurrence.TimeId, { task, cronExpression: occurrence.CronExpression, scheduleId: occurrence.ScheduleId });
   console.log(`⏱  [Lịch email #${occurrence.ScheduleId} — ${occurrence.Name}, giờ #${occurrence.TimeId}] lịch chạy: ${occurrence.CronExpression}`);
 }

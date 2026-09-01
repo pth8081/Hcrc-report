@@ -271,9 +271,32 @@ router.post('/test-external-api', async (req, res, next) => {
   }
 });
 
+// Kiểm tra ràng buộc TRƯỚC khi xoá — app.ReportEmailScheduleTimes/AnomalyAlerts
+// đều có FK REFERENCES app.ReportCatalog(ReportId) KHÔNG có ON DELETE CASCADE
+// (xem rp-db/schema.sql) — xoá thẳng 1 báo cáo đang được lịch gửi email/cảnh
+// báo bất thường trỏ tới trước đây ném lỗi FK (SQL Server #547), rơi vào
+// error handler chung ở server.js trả "500 Lỗi máy chủ" chung chung, không
+// nói rõ admin phải xoá lịch/cảnh báo trước. Trả 409 kèm lý do rõ ràng thay vì
+// để lỗi CSDL tự lộ ra khó hiểu.
+async function findReportReferences(pool, reportId) {
+  const result = await pool.request().input('reportId', sql.VarChar(80), reportId).query(`
+    SELECT
+      (SELECT COUNT(*) FROM app.ReportEmailSchedules WHERE ReportId = @reportId) AS EmailScheduleCount,
+      (SELECT COUNT(*) FROM app.AnomalyAlerts WHERE ReportId = @reportId) AS AnomalyAlertCount
+  `);
+  return result.recordset[0];
+}
+
 router.delete('/:reportId', async (req, res, next) => {
   try {
     const pool = await getPool('RP');
+    const { EmailScheduleCount, AnomalyAlertCount } = await findReportReferences(pool, req.params.reportId);
+    if (EmailScheduleCount > 0 || AnomalyAlertCount > 0) {
+      const parts = [];
+      if (EmailScheduleCount > 0) parts.push(`${EmailScheduleCount} lịch gửi email`);
+      if (AnomalyAlertCount > 0) parts.push(`${AnomalyAlertCount} cảnh báo bất thường`);
+      return res.status(409).json({ error: `Không xoá được — báo cáo đang được ${parts.join(' và ')} tham chiếu. Xoá lịch gửi/cảnh báo trước rồi thử lại.` });
+    }
     await pool.request().input('reportId', sql.VarChar(80), req.params.reportId)
       .query('DELETE FROM app.ReportCatalog WHERE ReportId = @reportId');
     await logAction(req, { module: 'Biểu mẫu', actionType: 'XOA_BAO_CAO', targetObject: req.params.reportId, description: `Xoá báo cáo "${req.params.reportId}"` });

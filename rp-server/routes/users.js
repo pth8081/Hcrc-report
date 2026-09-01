@@ -6,6 +6,7 @@ const bcrypt = require('bcryptjs');
 const { sql, getPool } = require('../db');
 const { requireAuth, requireMenuAccess, requireSystemRoleActor } = require('../lib/auth');
 const { invalidateUser, getUserContext } = require('../lib/permissions');
+const { revokeSessions } = require('../lib/sessionRevocation');
 const { logAction } = require('../lib/auditLog');
 const { fetchDirectory } = require('../lib/hcrcWorkspaceClient');
 
@@ -86,6 +87,9 @@ router.put('/:id', async (req, res, next) => {
       .input('isActive', sql.Bit, isActive ? 1 : 0)
       .query('UPDATE app.Users SET FullName = @fullName, Email = @email, Phone = @phone, Department = @department, Position = @position, WorkLocation = @workLocation, IsActive = @isActive WHERE Id = @id');
     invalidateUser(parseInt(req.params.id, 10));
+    // Khoá tài khoản (isActive=false) — thu hồi NGAY phiên đăng nhập đang có
+    // (nếu có), không đợi token tự hết hạn (xem lib/sessionRevocation.js).
+    if (!isActive) await revokeSessions(parseInt(req.params.id, 10));
     await logAction(req, { module: 'Phân quyền', actionType: 'SUA_USER', targetObject: req.params.id, description: `Cập nhật người dùng #${req.params.id}` });
     res.json({ ok: true });
   } catch (err) { next(err); }
@@ -101,6 +105,10 @@ router.post('/:id/reset-password', async (req, res, next) => {
       .input('id', sql.Int, req.params.id)
       .input('passwordHash', sql.NVarChar(200), passwordHash)
       .query('UPDATE app.Users SET PasswordHash = @passwordHash WHERE Id = @id');
+    // Đổi mật khẩu -> thu hồi NGAY phiên đăng nhập cũ (nếu tài khoản đó bị
+    // chiếm, kẻ tấn công vẫn giữ cookie phiên cũ dùng được tới hết TTL nếu
+    // không thu hồi — xem lib/sessionRevocation.js).
+    await revokeSessions(parseInt(req.params.id, 10));
     await logAction(req, { module: 'Phân quyền', actionType: 'DAT_LAI_MK', targetObject: req.params.id, description: `Đặt lại mật khẩu người dùng #${req.params.id}` });
     res.json({ ok: true });
   } catch (err) { next(err); }
@@ -147,6 +155,11 @@ router.put('/:id/roles', requireSystemRoleActor, async (req, res, next) => {
       throw err;
     }
     invalidateUser(parseInt(req.params.id, 10));
+    // Đổi vai trò -> thu hồi phiên cũ (JWT rp-server KHÔNG nhúng quyền, nhưng
+    // vẫn thu hồi để nhất quán với ý định "hạ quyền có hiệu lực ngay", và
+    // phòng trường hợp route nào đó chỉ check requireAuth mà quên gọi
+    // getUserContext — xem lib/sessionRevocation.js).
+    await revokeSessions(parseInt(req.params.id, 10));
     await logAction(req, { module: 'Phân quyền', actionType: 'GAN_VAI_TRO', targetObject: req.params.id, description: `Gán vai trò cho người dùng #${req.params.id}: [${roleIds.join(', ')}]` });
     res.json({ ok: true });
   } catch (err) { next(err); }
@@ -169,6 +182,8 @@ router.post('/:id/reset-2fa', requireSystemRoleActor, async (req, res, next) => 
       .query('UPDATE app.Users SET TwoFactorEnabled = 0, TwoFactorSecretEncrypted = NULL, TwoFactorEnrolledAt = NULL WHERE Id = @id');
     await pool.request().input('id', sql.Int, targetId)
       .query('DELETE FROM app.UserTwoFactorRecoveryCodes WHERE UserId = @id');
+    // Gỡ 2FA -> thu hồi NGAY phiên đăng nhập cũ (xem lib/sessionRevocation.js).
+    await revokeSessions(targetId);
 
     await logAction(req, {
       module: 'Phân quyền', actionType: 'DAT_LAI_2FA', targetObject: req.params.id,
@@ -218,6 +233,9 @@ router.put('/:id/auth-source', requireSystemRoleActor, async (req, res, next) =>
     }
 
     invalidateUser(targetId);
+    // Đổi nguồn xác thực (đổi luôn mật khẩu local nếu có) -> thu hồi phiên cũ
+    // (xem lib/sessionRevocation.js).
+    await revokeSessions(targetId);
     await logAction(req, { module: 'Phân quyền', actionType: 'DOI_NGUON_XAC_THUC', targetObject: req.params.id, description: `Đổi nguồn xác thực người dùng #${targetId} sang "${authSource}"` });
     res.json({ ok: true });
   } catch (err) { next(err); }

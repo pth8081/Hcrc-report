@@ -109,7 +109,10 @@ router.post('/import', requireTargetImporterRole, upload.single('file'), async (
     }
 
     const pool = await getPool('DWH_TARGET_IMPORTER');
-    const result = await upsertSalesTargets(pool, domain.trim(), rows, req.admin.username);
+    // preserveTrangThaiIfUnspecified: file nhập không nhất thiết có cột
+    // TrangThai (chỉ dùng để sửa số liệu) — không được để re-upload âm thầm
+    // mở lại 1 siêu thị đã đóng (xem chú thích trong lib/salesTargetsImport.js).
+    const result = await upsertSalesTargets(pool, domain.trim(), rows, req.admin.username, { preserveTrangThaiIfUnspecified: true });
     await logAction(req, { module: 'Nhập chỉ tiêu', actionType: 'NHAP_CHI_TIEU', targetObject: domain.trim(), description: `Nhập file chỉ tiêu domain "${domain.trim()}": thêm mới ${result.inserted}, cập nhật ${result.updated} dòng` });
     res.json({ ...result, rowErrors });
   } catch (err) { next(err); }

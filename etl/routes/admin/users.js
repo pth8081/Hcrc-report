@@ -6,6 +6,7 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const { sql, getPool } = require('../../db');
 const { requireAdminAuth, requireAdminRole, blockTargetImporter } = require('../../lib/adminAuth');
+const { revokeSessions } = require('../../lib/sessionRevocation');
 const { logAction } = require('../../lib/auditLog');
 
 const router = express.Router();
@@ -61,6 +62,10 @@ router.put('/:id', requireAdminRole, async (req, res, next) => {
       .input('role', sql.VarChar(20), role)
       .input('isActive', sql.Bit, isActive ? 1 : 0)
       .query('UPDATE admin.AdminUsers SET FullName = @fullName, Role = @role, IsActive = @isActive WHERE Id = @id');
+    // role NHÚNG THẲNG vào token (issueToken) — đổi role/khoá tài khoản
+    // không thu hồi phiên cũ thì token cũ vẫn dùng ROLE CŨ tới hết TTL, xem
+    // lib/sessionRevocation.js.
+    await revokeSessions(parseInt(req.params.id, 10));
     await logAction(req, { module: 'Phân quyền', actionType: 'SUA_USER', targetObject: req.params.id, description: `Cập nhật tài khoản #${req.params.id} (vai trò ${role}, ${isActive ? 'hoạt động' : 'tắt'})` });
     res.json({ ok: true });
   } catch (err) { next(err); }
@@ -76,6 +81,8 @@ router.post('/:id/reset-password', requireAdminRole, async (req, res, next) => {
       .input('id', sql.Int, req.params.id)
       .input('passwordHash', sql.NVarChar(200), passwordHash)
       .query('UPDATE admin.AdminUsers SET PasswordHash = @passwordHash WHERE Id = @id');
+    // Đổi mật khẩu -> thu hồi NGAY phiên đăng nhập cũ (xem lib/sessionRevocation.js).
+    await revokeSessions(parseInt(req.params.id, 10));
     await logAction(req, { module: 'Phân quyền', actionType: 'DAT_LAI_MAT_KHAU', targetObject: req.params.id, description: `Đặt lại mật khẩu tài khoản #${req.params.id}` });
     res.json({ ok: true });
   } catch (err) { next(err); }
@@ -99,6 +106,8 @@ router.post('/:id/reset-2fa', requireAdminRole, async (req, res, next) => {
       .query('UPDATE admin.AdminUsers SET TwoFactorEnabled = 0, TwoFactorSecretEncrypted = NULL, TwoFactorEnrolledAt = NULL WHERE Id = @id');
     await pool.request().input('id', sql.Int, req.params.id)
       .query('DELETE FROM admin.AdminTwoFactorRecoveryCodes WHERE AdminUserId = @id');
+    // Gỡ 2FA -> thu hồi NGAY phiên đăng nhập cũ (xem lib/sessionRevocation.js).
+    await revokeSessions(parseInt(req.params.id, 10));
 
     await logAction(req, {
       module: 'Phân quyền', actionType: 'DAT_LAI_2FA', targetObject: req.params.id,

@@ -98,6 +98,18 @@ BEGIN
 END
 GO
 
+-- Thu hồi phiên đăng nhập (JWT) — JWT tự chứa (self-contained), verify chữ
+-- ký xong là qua, KHÔNG tự phát hiện được đổi mật khẩu/gỡ 2FA/đổi vai
+-- trò/khoá tài khoản cho tới khi token tự hết hạn (TTL 8h). requireAuth()
+-- (lib/auth.js) so claim "iat" (issued-at, jsonwebtoken tự gắn) của token
+-- với SessionsInvalidatedAt — token phát hành TRƯỚC lần thu hồi gần nhất bị
+-- từ chối dù chữ ký còn đúng. Xem lib/sessionRevocation.js.
+IF COL_LENGTH('app.Users', 'SessionsInvalidatedAt') IS NULL
+BEGIN
+    ALTER TABLE app.Users ADD SessionsInvalidatedAt DATETIME2(3) NULL;
+END
+GO
+
 -- Cấu hình DUY NHẤT (Id=1) cho tích hợp "HCRC Workspace" — cùng khuôn
 -- app.EmailSettings (1 dòng, mã hoá khoá bí mật bằng lib/crypto.js). BaseUrl +
 -- 2 đường dẫn dưới đây họp thành 2 lời gọi ĐÚNG theo tài liệu API họ công bố

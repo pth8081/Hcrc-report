@@ -353,6 +353,18 @@ BEGIN
 END
 GO
 
+-- Thu hồi phiên đăng nhập (JWT) — JWT tự chứa (self-contained), verify chữ
+-- ký xong là qua, KHÔNG tự phát hiện được đổi mật khẩu/gỡ 2FA/đổi vai
+-- trò/khoá tài khoản cho tới khi token tự hết hạn. requireAdminAuth()
+-- (lib/adminAuth.js) so claim "iat" (issued-at) của token với
+-- SessionsInvalidatedAt — token phát hành TRƯỚC lần thu hồi gần nhất bị từ
+-- chối dù chữ ký còn đúng. Xem lib/sessionRevocation.js.
+IF COL_LENGTH('admin.AdminUsers', 'SessionsInvalidatedAt') IS NULL
+BEGIN
+    ALTER TABLE admin.AdminUsers ADD SessionsInvalidatedAt DATETIME2(3) NULL;
+END
+GO
+
 -- Mã khôi phục dùng 1 lần (10 mã/tài khoản, hash bcrypt, hiện nguyên văn cho
 -- admin đúng 1 lần lúc bật 2FA) — tự cứu được khi không có admin nào khác
 -- trong api-admin/ để nhờ "Đặt lại 2FA" (xem routes/admin/twoFactor.js).

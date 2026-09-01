@@ -47,9 +47,13 @@ function registerJob(job) {
     console.error(`⛔ Lịch chạy không hợp lệ cho [${job.Name}]: "${job.CronExpression}"`);
     return;
   }
+  // timezone: 'Asia/Ho_Chi_Minh' BẮT BUỘC — không truyền, node-cron chạy
+  // theo timezone của TIẾN TRÌNH (server production thường đặt UTC), lệch
+  // giờ so với lịch admin cấu hình (vd "chạy lúc 2h sáng" ngoài giờ cao
+  // điểm — chạy sai giờ mất hết ý nghĩa).
   const task = cron.schedule(job.CronExpression, () => {
     runJobIfNotAlreadyRunning(job).catch(err => console.error(`⛔ Lỗi chạy job [${job.Name}]:`, err.message));
-  });
+  }, { timezone: 'Asia/Ho_Chi_Minh' });
   scheduledTasks.set(job.Id, { task, cronExpression: job.CronExpression });
   console.log(`⏱  [${job.Name}] lịch chạy: ${job.CronExpression}`);
 }

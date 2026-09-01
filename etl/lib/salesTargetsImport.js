@@ -36,6 +36,34 @@ const REQUIRED_HEADERS = ['MaSieuThi', 'Thang'];
 const PERIOD_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
 const TRANG_THAI_VALUES = ['HoatDong', 'DaDong'];
 
+// Ô CÔNG THỨC trong Excel: ExcelJS trả .value = {formula, result} (hoặc
+// {error} nếu công thức lỗi vd "#DIV/0!") thay vì giá trị đã tính — trước
+// đây code không nhận dạng dạng này, Number({formula,result}) = NaN nên rơi
+// vào nhánh "giữ nguyên chuỗi gốc", ghi NGUYÊN OBJECT {formula,result} vào
+// TargetsJson thay vì con số, hỏng âm thầm dữ liệu chỉ tiêu (công thức báo
+// cáo đọc target.<Cột> kỳ vọng number lại gặp object). Lấy đúng .result đã
+// tính sẵn (Excel đã tính khi lưu file); ô lỗi công thức coi như trống.
+function extractCellValue(raw) {
+  if (raw && typeof raw === 'object' && !(raw instanceof Date)) {
+    if (Object.prototype.hasOwnProperty.call(raw, 'result')) return raw.result;
+    if (Object.prototype.hasOwnProperty.call(raw, 'error')) return null;
+    if (Object.prototype.hasOwnProperty.call(raw, 'richText')) return raw.richText.map(t => t.text).join('');
+  }
+  return raw;
+}
+
+// Số kiểu Việt Nam gõ vào ô định dạng Text (dấu phẩy thập phân, dấu chấm
+// ngăn nghìn TUỲ CHỌN — vd "15,5" hoặc "1.234,56") — Number() chuẩn JS đọc
+// "," như ký tự lạ nên ra NaN, trước đây rơi vào nhánh "giữ nguyên chuỗi
+// gốc" (lưu "15,5" dạng string vào TargetsJson thay vì số 15.5), công thức
+// báo cáo tính sai âm thầm. CHỈ áp dụng khi khớp CHẶT mẫu số kiểu này —
+// tránh đoán nhầm 1 chuỗi không phải số (vd mã tự do) thành số.
+function parseVietnameseNumber(str) {
+  if (!/^-?\d{1,3}(\.\d{3})*,\d+$/.test(str) && !/^-?\d+,\d+$/.test(str)) return undefined;
+  const n = Number(str.replace(/\./g, '').replace(',', '.'));
+  return Number.isFinite(n) ? n : undefined;
+}
+
 // Chặn sớm file .xlsx có QUÁ NHIỀU dòng — xem chú thích cùng tên trong
 // lib/dataSourcesImport.js.
 const MAX_IMPORT_ROWS = 5000;
@@ -109,10 +137,21 @@ async function parseSalesTargetsFile(buffer) {
 
     const targets = {};
     for (const { name, colNumber } of targetCols) {
-      const v = row.getCell(colNumber).value;
+      const v = extractCellValue(row.getCell(colNumber).value);
       if (v === null || v === undefined || v === '') continue;
+      if (typeof v === 'number') {
+        targets[name] = v;
+        continue;
+      }
       const num = Number(v);
-      targets[name] = Number.isFinite(num) ? num : v;
+      if (Number.isFinite(num)) {
+        targets[name] = num;
+      } else if (typeof v === 'string') {
+        const vn = parseVietnameseNumber(v.trim());
+        targets[name] = vn !== undefined ? vn : v;
+      } else {
+        targets[name] = v;
+      }
     }
     if (trangThai) targets.TrangThai = trangThai;
     // Ghi thêm MaSieuThi/MaNganhHang GỐC vào TargetsJson (ngoài việc đã ghép
@@ -136,7 +175,14 @@ async function parseSalesTargetsFile(buffer) {
 
 // Staging + MERGE — cùng mẫu với lib/upsert.js, khoá theo
 // (Domain, EntityCode, PeriodMonth) thay vì (SourceSystem, Domain, EntityCode).
-async function upsertSalesTargets(pool, domain, rows, importedBy) {
+// preserveTrangThaiIfUnspecified — CHỈ bật cho POST /import (nhập file):
+// file re-upload có thể không đụng gì tới cột TrangThai (không có cột đó,
+// hoặc để trống ở dòng này), khi đó GIỮ NGUYÊN TrangThai đang có thay vì để
+// mất (xem chú thích ở MERGE bên dưới). PUT /one (sửa 1 dòng) KHÔNG bật cờ
+// này — route đó có tài liệu rõ "GHI ĐÈ nguyên TargetsJson" vì giao diện đã
+// tự tải dữ liệu hiện có lên form, để trống trangThai trong form nghĩa là
+// admin CHỦ Ý xoá, không phải "không biết/không đụng tới".
+async function upsertSalesTargets(pool, domain, rows, importedBy, { preserveTrangThaiIfUnspecified = false } = {}) {
   if (!rows.length) return { inserted: 0, updated: 0 };
 
   const tx = new sql.Transaction(pool);
@@ -163,8 +209,20 @@ async function upsertSalesTargets(pool, domain, rows, importedBy) {
     }
     await new sql.Request(tx).bulk(table);
 
+    // TargetsJson = src.TargetsJson (ghi đè NGUYÊN VẸN) TRỪ TrangThai khi
+    // preserveTrangThaiIfUnspecified=1: lượt nhập KHÔNG đề cập TrangThai
+    // (file không có cột đó, hoặc ô trống ở dòng này — parseSalesTargetsFile()
+    // không đưa key TrangThai vào targets trong 2 trường hợp đó), mà dòng
+    // CŨ đang có TrangThai — GIỮ NGUYÊN giá trị cũ thay vì để mất theo
+    // TargetsJson mới. Không có nhánh này, 1 lượt re-upload chỉ để sửa SỐ
+    // LIỆU (không đụng gì tới TrangThai) sẽ ÂM THẦM MỞ LẠI 1 siêu thị đã
+    // đánh dấu "DaDong" ở lượt nhập trước — đúng kịch bản "quên 1 cột" gây
+    // sai lệch composite report (xem chú thích đầu file). Upload MỚI có ghi
+    // rõ TrangThai (kể cả 'HoatDong' để chủ động mở lại) vẫn LUÔN thắng —
+    // chỉ giữ giá trị cũ khi upload không nói gì tới trường này.
     const mergeResult = await new sql.Request(tx)
       .input('importedBy', sql.NVarChar(50), importedBy || null)
+      .input('preserveTrangThai', sql.Bit, preserveTrangThaiIfUnspecified ? 1 : 0)
       .query(`
         MERGE dwh.SalesTargets AS target
         USING #StagingTargets AS src
@@ -173,7 +231,13 @@ async function upsertSalesTargets(pool, domain, rows, importedBy) {
           AND target.PeriodMonth = src.PeriodMonth
         WHEN MATCHED THEN
           UPDATE SET
-            TargetsJson = src.TargetsJson,
+            TargetsJson = CASE
+              WHEN @preserveTrangThai = 1
+                   AND JSON_VALUE(src.TargetsJson, '$.TrangThai') IS NULL
+                   AND JSON_VALUE(target.TargetsJson, '$.TrangThai') IS NOT NULL
+              THEN JSON_MODIFY(src.TargetsJson, '$.TrangThai', JSON_VALUE(target.TargetsJson, '$.TrangThai'))
+              ELSE src.TargetsJson
+            END,
             ImportedAt = SYSUTCDATETIME(),
             ImportedBy = @importedBy
         WHEN NOT MATCHED THEN

@@ -5,6 +5,51 @@ Server, API Server và các giao diện quản trị) — tăng ở mỗi lần 
 `main`, theo kiểu semver không chặt (patch cho fix nhỏ, minor cho tính năng
 mới, major khi đổi cấu trúc phá vỡ tương thích ngược).
 
+## 0.37.0 — Rà soát chuyên sâu vòng 4: thu hồi phiên đăng nhập, PDF vỡ tiếng Việt, mất dữ liệu chỉ tiêu
+
+Rà soát chuyên sâu tiếp theo, 4 agent phụ trách 4 mảng chưa soi kỹ ở các
+vòng trước (frontend, pipeline xuất file/email/nhập liệu, vòng đời xác
+thực, nghiệp vụ còn lại), xử lý toàn bộ phát hiện 🔴 và các 🟡 giá trị cao:
+
+- **`rp-server/lib/sessionRevocation.js`** (mới) + **`api-server/lib/sessionRevocation.js`**
+  (mới) + **`etl/lib/sessionRevocation.js`** (mới) + `lib/auth.js`/`lib/adminAuth.js`
+  x3 + `routes/*/users.js` x3: 🔴 JWT phiên đăng nhập admin/user tự chứa
+  (self-contained) — verify chữ ký xong là qua, KHÔNG tự phát hiện được đổi
+  mật khẩu/gỡ 2FA/đổi vai trò/khoá tài khoản cho tới khi token tự hết hạn
+  (TTL 8h). Đặc biệt nghiêm trọng ở api-server/etl vì **role nhúng thẳng vào
+  token** — hạ quyền 1 admin không có tác dụng gì tới phiên đang có. Thêm
+  cột `SessionsInvalidatedAt` (rp-db/api-db/etl-db) so với claim `iat` của
+  token — token phát hành TRƯỚC lần thu hồi gần nhất bị từ chối dù chữ ký
+  còn đúng. `revokeSessions()` gọi ở mọi route đổi mật khẩu/gỡ 2FA/đổi vai
+  trò/khoá tài khoản; cache TTL 30s cùng mẫu `apiConsumers.js:isActiveConsumer`.
+- **`rp-server/lib/exportPdf.js`**: 🔴 dùng `StandardFonts.Helvetica` (chỉ mã
+  hoá được WinAnsi, KHÔNG có dấu tiếng Việt) — xuất PDF với dữ liệu thật
+  (tiêu đề báo cáo, tên siêu thị...) gần như LUÔN ném lỗi "WinAnsi cannot
+  encode", lịch gửi email `ExportFormat='pdf'` thất bại vĩnh viễn mỗi lần
+  chạy. Nhúng font Noto Sans Vietnamese qua `@pdf-lib/fontkit` (Unicode đầy đủ).
+- **`etl/lib/salesTargetsImport.js`** + **`routes/admin/salesTargets.js`**: 🔴
+  đọc ô CÔNG THỨC trong file Excel nhập chỉ tiêu (`cell.value` trả về
+  `{formula, result}`) ghi NGUYÊN OBJECT đó vào `TargetsJson` thay vì lấy
+  `.result` đã tính — hỏng âm thầm dữ liệu chỉ tiêu. Cũng thêm parse số kiểu
+  Việt Nam ("15,5" -> 15.5) cho ô Text. 🔴 MERGE khi re-upload file (chỉ sửa
+  số liệu) GHI ĐÈ NGUYÊN `TargetsJson`, âm thầm XOÁ mất `TrangThai='DaDong'`
+  đã đánh dấu trước đó — 1 siêu thị đã đóng cửa bị "mở lại" ngoài ý muốn.
+  Thêm cờ `preserveTrangThaiIfUnspecified` (chỉ bật ở `POST /import`, KHÔNG
+  bật ở `PUT /one` — route đó cố ý "ghi đè nguyên" vì giao diện đã tải dữ
+  liệu hiện có lên form).
+- **`rp-server/routes/reportCatalog.js`**: 🔴 `DELETE /:reportId` xoá thẳng
+  báo cáo đang được `ReportEmailSchedules`/`AnomalyAlerts` tham chiếu (FK
+  không có `ON DELETE CASCADE`) ném lỗi CSDL #547, rơi xuống thành "500 Lỗi
+  máy chủ" chung chung. Thêm kiểm tra tham chiếu trước, trả 409 rõ ràng.
+- **`api-server/lib/dataSourcesImport.js`**: 🟡 thiếu giới hạn số dòng
+  (`MAX_IMPORT_ROWS`) khi nhập hàng loạt nguồn dữ liệu — bản etl có, bản này
+  thiếu (rủi ro DoS bộ nhớ với file .xlsx nén tốt nhưng mở ra rất nhiều dòng).
+- **`etl/jobs/scheduler.js`** + **`rp-server/jobs/reportEmailScheduler.js`**
+  + **`rp-server/jobs/anomalyAlertScheduler.js`**: 🟡 `cron.schedule()` không
+  cố định `timezone`, giờ chạy thật phụ thuộc timezone tiến trình (server
+  production thường UTC) — "Giờ gửi"/lịch admin chọn luôn hiểu là giờ Việt
+  Nam, lệch 7 tiếng nếu server chạy UTC. Cố định `Asia/Ho_Chi_Minh`.
+
 ## 0.36.0 — Rà soát chuyên sâu vòng 3: MERGE NULL EntityCode, watermark mất dòng, tổng cộng hụt số, thu hồi OAuth2
 
 Tiếp tục "rà soát chuyên sâu thêm nữa" theo yêu cầu, sau khi vòng 0.35.0 đã

@@ -7,6 +7,7 @@
 const express = require('express');
 const { sql, getPool } = require('../../db');
 const { requireAdminAuth, requireAdminRole } = require('../../lib/adminAuth');
+const { revokeSessions } = require('../../lib/sessionRevocation');
 const { logAction } = require('../../lib/auditLog');
 
 const router = express.Router();
@@ -40,6 +41,8 @@ router.post('/:id/reset-2fa', requireAdminRole, async (req, res, next) => {
       .query('UPDATE admin.AdminUsers SET TwoFactorEnabled = 0, TwoFactorSecretEncrypted = NULL, TwoFactorEnrolledAt = NULL WHERE Id = @id');
     await pool.request().input('id', sql.Int, req.params.id)
       .query('DELETE FROM admin.AdminTwoFactorRecoveryCodes WHERE AdminUserId = @id');
+    // Gỡ 2FA -> thu hồi NGAY phiên đăng nhập cũ (xem lib/sessionRevocation.js).
+    await revokeSessions(parseInt(req.params.id, 10));
 
     await logAction(req, {
       module: 'Phân quyền', actionType: 'DAT_LAI_2FA', targetObject: req.params.id,
