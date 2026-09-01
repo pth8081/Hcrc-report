@@ -24,8 +24,9 @@ const DATE_RANGE_PRESET_OPTIONS = [
 
 function emptyForm() {
   return {
-    name: '', reportId: '', filterValues: {}, compareMode: 'previousPeriod',
+    name: '', reportId: '', filterValues: {}, alertMode: 'periodComparison', compareMode: 'previousPeriod',
     entityColumnKey: '', metricColumnKey: '', thresholdPercent: 20,
+    thresholdDirection: 'below', thresholdValue: '',
     recipients: '', cronExpression: '0 7 * * *'
   };
 }
@@ -33,17 +34,27 @@ function emptyForm() {
 function alertToForm(row) {
   return {
     name: row.Name, reportId: row.ReportId, filterValues: row.FilterValues || {},
-    compareMode: row.CompareMode, entityColumnKey: row.EntityColumnKey, metricColumnKey: row.MetricColumnKey,
-    thresholdPercent: row.ThresholdPercent, recipients: row.Recipients, cronExpression: row.CronExpression,
+    alertMode: row.AlertMode || 'periodComparison', compareMode: row.CompareMode,
+    entityColumnKey: row.EntityColumnKey, metricColumnKey: row.MetricColumnKey,
+    thresholdPercent: row.ThresholdPercent, thresholdDirection: row.ThresholdDirection || 'below',
+    thresholdValue: row.ThresholdValue ?? '',
+    recipients: row.Recipients, cronExpression: row.CronExpression,
     isActive: row.IsActive
   };
 }
 
-// Ô cấu hình bộ lọc — field 'dateRange' BẮT BUỘC chọn preset (đây chính là
-// "kỳ hiện tại" hệ thống sẽ tự dịch sang kỳ so sánh), field khác tuỳ chọn giá
-// trị cố định — cùng khuôn FilterConfigFields ở trang Lịch gửi email.
-function FilterConfigFields({ filters, filterValues, onChange }) {
-  if (!filters.length) return <p className="muted">Báo cáo này không có bộ lọc nào — cần ít nhất 1 bộ lọc khoảng ngày mới dùng được tính năng này.</p>;
+// Ô cấu hình bộ lọc — field 'dateRange' chọn preset ("kỳ hiện tại") — BẮT
+// BUỘC ở chế độ so kỳ % (hệ thống cần field này để tự dịch sang kỳ so sánh),
+// TUỲ CHỌN ở chế độ ngưỡng tuyệt đối (chỉ chạy 1 lần, không cần kỳ so sánh —
+// có báo cáo còn không có bộ lọc ngày nào, vd tồn kho thời điểm). Field khác
+// tuỳ chọn giá trị cố định — cùng khuôn FilterConfigFields ở trang Lịch gửi
+// email.
+function FilterConfigFields({ filters, filterValues, onChange, dateRequired }) {
+  if (!filters.length) {
+    return dateRequired
+      ? <p className="muted">Báo cáo này không có bộ lọc nào — cần ít nhất 1 bộ lọc khoảng ngày mới dùng được chế độ so kỳ %.</p>
+      : null;
+  }
   return (
     <div className="filter-config">
       {filters.map(f => {
@@ -51,7 +62,7 @@ function FilterConfigFields({ filters, filterValues, onChange }) {
         if (f.type === 'dateRange') {
           return (
             <label key={f.field}>
-              {f.label || f.field} (kỳ hiện tại)
+              {f.label || f.field} {dateRequired ? '(kỳ hiện tại)' : '(tuỳ chọn)'}
               <select
                 value={entry.kind === 'dateRangePreset' ? entry.preset : ''}
                 onChange={(e) => {
@@ -61,7 +72,7 @@ function FilterConfigFields({ filters, filterValues, onChange }) {
                   else delete next[f.field];
                   onChange(next);
                 }}
-                required
+                required={dateRequired}
               >
                 {DATE_RANGE_PRESET_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
@@ -111,10 +122,16 @@ function AlertFormFields({ form, setForm, reports, reportLocked }) {
         <span className="twofa-hint">Báo cáo phải trả về 1 dòng/1 "thực thể" (vd 1 dòng/chi nhánh) — dùng đúng báo cáo đã dựng ở "Biểu mẫu", không tạo báo cáo riêng cho việc này.</span>
       </label>
 
+      <div className="tabs">
+        <button type="button" className={form.alertMode === 'periodComparison' ? 'active' : ''} onClick={() => setForm({ ...form, alertMode: 'periodComparison' })}>So kỳ hiện tại/kỳ trước (%)</button>
+        <button type="button" className={form.alertMode === 'absoluteThreshold' ? 'active' : ''} onClick={() => setForm({ ...form, alertMode: 'absoluteThreshold' })}>Ngưỡng tuyệt đối (vd tồn kho)</button>
+      </div>
+
       <FilterConfigFields
         filters={selectedReport?.filters || []}
         filterValues={form.filterValues}
         onChange={(filterValues) => setForm({ ...form, filterValues })}
+        dateRequired={form.alertMode === 'periodComparison'}
       />
 
       <label>
@@ -127,21 +144,38 @@ function AlertFormFields({ form, setForm, reports, reportLocked }) {
 
       <label>
         Cột số cần theo dõi
-        <input value={form.metricColumnKey} onChange={(e) => setForm({ ...form, metricColumnKey: e.target.value })} placeholder="vd DoanhThu" required />
+        <input value={form.metricColumnKey} onChange={(e) => setForm({ ...form, metricColumnKey: e.target.value })} placeholder="vd DoanhThu, SoLuongTon" required />
       </label>
 
-      <label>
-        So với kỳ nào
-        <select value={form.compareMode} onChange={(e) => setForm({ ...form, compareMode: e.target.value })}>
-          <option value="previousPeriod">Kỳ liền trước (cùng độ dài ngày)</option>
-          <option value="samePeriodLastYear">Cùng kỳ năm trước</option>
-        </select>
-      </label>
-
-      <label>
-        Ngưỡng cảnh báo (% chênh lệch tuyệt đối)
-        <input type="number" min="1" value={form.thresholdPercent} onChange={(e) => setForm({ ...form, thresholdPercent: e.target.value })} required />
-      </label>
+      {form.alertMode === 'periodComparison' ? (
+        <>
+          <label>
+            So với kỳ nào
+            <select value={form.compareMode} onChange={(e) => setForm({ ...form, compareMode: e.target.value })}>
+              <option value="previousPeriod">Kỳ liền trước (cùng độ dài ngày)</option>
+              <option value="samePeriodLastYear">Cùng kỳ năm trước</option>
+            </select>
+          </label>
+          <label>
+            Ngưỡng cảnh báo (% chênh lệch tuyệt đối)
+            <input type="number" min="1" value={form.thresholdPercent} onChange={(e) => setForm({ ...form, thresholdPercent: e.target.value })} required />
+          </label>
+        </>
+      ) : (
+        <>
+          <label>
+            Chiều ngưỡng
+            <select value={form.thresholdDirection} onChange={(e) => setForm({ ...form, thresholdDirection: e.target.value })}>
+              <option value="below">Thấp hơn ngưỡng (vd sắp hết hàng)</option>
+              <option value="above">Cao hơn ngưỡng (vd tồn kho ứ đọng)</option>
+            </select>
+          </label>
+          <label>
+            Giá trị ngưỡng
+            <input type="number" value={form.thresholdValue} onChange={(e) => setForm({ ...form, thresholdValue: e.target.value })} placeholder="vd 10" required />
+          </label>
+        </>
+      )}
 
       <label>
         Lịch kiểm tra (cron: phút giờ ngày tháng thứ)
@@ -221,11 +255,14 @@ export default function AnomalyAlertsPage() {
     <div className="page">
       <h1>Cảnh báo bất thường</h1>
       <p>
-        Tự động chạy lại MỘT báo cáo đã có 2 lần (kỳ hiện tại + kỳ so sánh), so
-        từng "thực thể" (vd chi nhánh) trên 1 cột số — lệch quá ngưỡng thì gửi
-        email CHỈ liệt kê những thực thể bất thường (không gửi nếu không có gì
-        lạ). Dùng được cho bất kỳ chỉ số nào (doanh thu, số đơn hàng...), không
-        cần tạo báo cáo riêng.
+        Tự động chạy lại MỘT báo cáo đã có, so từng "thực thể" (vd chi nhánh)
+        trên 1 cột số — vượt ngưỡng thì gửi email CHỈ liệt kê những thực thể
+        bất thường (không gửi nếu không có gì lạ). 2 chế độ: <strong>so kỳ
+        hiện tại/kỳ trước (%)</strong> — hợp doanh thu, số đơn hàng... (chạy
+        báo cáo 2 lần, so % chênh lệch); <strong>ngưỡng tuyệt đối</strong> —
+        hợp tồn kho, số lượng còn lại... (chạy báo cáo 1 lần, so trực tiếp
+        với 1 giá trị cố định, không cần kỳ so sánh). Dùng được cho bất kỳ
+        chỉ số nào, không cần tạo báo cáo riêng.
       </p>
       {error && <p className="form-error">{error}</p>}
       {message && <p className="form-success">{message}</p>}
@@ -239,8 +276,18 @@ export default function AnomalyAlertsPage() {
         columns={[
           { key: 'Name', label: 'Tên' },
           { key: 'ReportTitle', label: 'Báo cáo' },
-          { key: 'CompareMode', label: 'So với', render: (r) => (r.CompareMode === 'samePeriodLastYear' ? 'Cùng kỳ năm trước' : 'Kỳ liền trước') },
-          { key: 'ThresholdPercent', label: 'Ngưỡng', render: (r) => `${r.ThresholdPercent}%` },
+          {
+            key: 'CompareMode', label: 'So với', render: (r) => (
+              r.AlertMode === 'absoluteThreshold' ? '—' : (r.CompareMode === 'samePeriodLastYear' ? 'Cùng kỳ năm trước' : 'Kỳ liền trước')
+            )
+          },
+          {
+            key: 'ThresholdPercent', label: 'Ngưỡng', render: (r) => (
+              r.AlertMode === 'absoluteThreshold'
+                ? `${r.ThresholdDirection === 'above' ? 'Cao hơn' : 'Thấp hơn'} ${r.ThresholdValue}`
+                : `${r.ThresholdPercent}%`
+            )
+          },
           { key: 'Recipients', label: 'Người nhận' },
           { key: 'IsActive', label: 'Trạng thái', render: (r) => (r.IsActive ? 'Hoạt động' : 'Tắt') },
           {

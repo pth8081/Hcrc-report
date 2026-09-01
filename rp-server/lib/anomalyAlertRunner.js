@@ -1,13 +1,19 @@
-// lib/anomalyAlertRunner.js — So sánh kỳ hiện tại vs kỳ so sánh của MỘT báo
-// cáo đã có (app.ReportCatalog), theo từng "thực thể" (EntityColumnKey) trên
-// 1 cột số (MetricColumnKey) — lệch quá ThresholdPercent thì coi là bất
-// thường. Chạy LẠI đúng báo cáo đó 2 lần (lib/reportRunner.js — dùng chung
-// logic với rp-user/lịch gửi email, không viết lại), chỉ khác {from,to} của
-// ĐÚNG 1 field lọc kiểu 'dateRangePreset' trong FilterValuesJson (xem
-// lib/reportEmailFilters.js) — các field lọc khác (cố định) giữ nguyên cho
-// cả 2 lần chạy.
+// lib/anomalyAlertRunner.js — 2 CHẾ ĐỘ (alert.AlertMode), theo từng "thực
+// thể" (EntityColumnKey) trên 1 cột số (MetricColumnKey) của MỘT báo cáo đã
+// có (app.ReportCatalog) — xem chú thích CREATE TABLE app.AnomalyAlerts
+// trong rp-db/schema.sql:
+//   'periodComparison' — so kỳ hiện tại vs kỳ so sánh (liền trước/cùng kỳ
+//     năm trước), lệch quá ThresholdPercent thì coi là bất thường. Chạy LẠI
+//     đúng báo cáo đó 2 LẦN (lib/reportRunner.js — dùng chung logic với
+//     rp-user/lịch gửi email, không viết lại), chỉ khác {from,to} của ĐÚNG 1
+//     field lọc kiểu 'dateRangePreset' trong FilterValuesJson (xem
+//     lib/reportEmailFilters.js) — các field lọc khác (cố định) giữ nguyên
+//     cho cả 2 lần chạy.
+//   'absoluteThreshold' — so TRỰC TIẾP với ThresholdValue, chạy báo cáo
+//     ĐÚNG 1 LẦN (không cần field 'dateRangePreset' — dùng thẳng
+//     resolveFilterValues() cho MỌI field lọc, kể cả không có field nào).
 const { loadDefinition, runDefinition } = require('./reportRunner');
-const { resolvePreset } = require('./reportEmailFilters');
+const { resolvePreset, resolveFilterValues } = require('./reportEmailFilters');
 
 function pad(n) { return String(n).padStart(2, '0'); }
 function toDateStr(d) { return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; }
@@ -60,20 +66,43 @@ function numberOf(value) {
   return Number.isFinite(n) ? n : null;
 }
 
-// Trả { definitionTitle, currentRange, baselineRange, compared, anomalies }.
-// compared: MỌI thực thể xuất hiện ở ít nhất 1 trong 2 kỳ, dạng
-// {Entity, GiaTriKyNay, GiaTriKySoSanh, ChenhLechPhanTram, GhiChu}. Thực thể
-// không có ở 1 trong 2 kỳ -> coi giá trị bên thiếu là 0 (mới phát sinh/mất
-// hẳn), ChenhLechPhanTram cố định ±100 (luôn vượt ngưỡng — không tính % thật
-// với mẫu số 0), có GhiChu giải thích. anomalies: lọc lại compared, CHỈ dòng
-// |ChenhLechPhanTram| >= ThresholdPercent, sắp xếp lệch nhiều nhất lên đầu.
-// Dòng "Tổng cộng" (composite report, row.__isSubtotal) bị loại — không phải
-// 1 thực thể thật, so sánh sẽ sai nghĩa.
-async function runAnomalyCheck(alert) {
-  const definition = await loadDefinition(alert.ReportId);
-  if (!definition || !definition.isActive) {
-    throw new Error(`Báo cáo "${alert.ReportId}" không còn tồn tại hoặc đã tắt`);
-  }
+// AlertMode='absoluteThreshold' — chạy báo cáo ĐÚNG 1 LẦN, so trực tiếp
+// MetricColumnKey với ThresholdValue theo ThresholdDirection. Trả
+// { definitionTitle, mode:'absoluteThreshold', compared, anomalies }.
+// compared: [{Entity, GiaTri}] mọi thực thể (trừ dòng "Tổng cộng",
+// row.__isSubtotal — không phải 1 thực thể thật). anomalies: lọc lại,
+// 'below' giữ GiaTri < ThresholdValue (vd sắp hết hàng), 'above' giữ
+// GiaTri > ThresholdValue (vd tồn kho ứ đọng) — sắp xếp CÀNG LỆCH XA
+// ngưỡng lên đầu.
+async function runAbsoluteThresholdCheck(alert, definition) {
+  const filterValues = resolveFilterValues(alert.FilterValuesJson, definition.filters || []);
+  const { rows } = await runDefinition(definition, filterValues, { page: 1, pageSize: 5000 });
+
+  const compared = rows
+    .filter(r => !r.__isSubtotal)
+    .map(r => ({ Entity: String(r[alert.EntityColumnKey]), GiaTri: numberOf(r[alert.MetricColumnKey]) ?? 0 }));
+
+  const threshold = Number(alert.ThresholdValue);
+  const isBelow = alert.ThresholdDirection === 'below';
+  const anomalies = compared
+    .filter(r => (isBelow ? r.GiaTri < threshold : r.GiaTri > threshold))
+    .sort((a, b) => (isBelow ? a.GiaTri - b.GiaTri : b.GiaTri - a.GiaTri));
+
+  return { definitionTitle: definition.title, mode: 'absoluteThreshold', compared, anomalies };
+}
+
+// AlertMode='periodComparison' (mặc định) — trả
+// { definitionTitle, mode:'periodComparison', currentRange, baselineRange,
+// compared, anomalies }. compared: MỌI thực thể xuất hiện ở ít nhất 1 trong
+// 2 kỳ, dạng {Entity, GiaTriKyNay, GiaTriKySoSanh, ChenhLechPhanTram,
+// GhiChu}. Thực thể không có ở 1 trong 2 kỳ -> coi giá trị bên thiếu là 0
+// (mới phát sinh/mất hẳn), ChenhLechPhanTram cố định ±100 (luôn vượt ngưỡng
+// — không tính % thật với mẫu số 0), có GhiChu giải thích. anomalies: lọc
+// lại compared, CHỈ dòng |ChenhLechPhanTram| >= ThresholdPercent, sắp xếp
+// lệch nhiều nhất lên đầu. Dòng "Tổng cộng" (composite report,
+// row.__isSubtotal) bị loại — không phải 1 thực thể thật, so sánh sẽ sai
+// nghĩa.
+async function runPeriodComparisonCheck(alert, definition) {
   const { dateField, currentRange, fixedValues } = resolvePeriods(alert.FilterValuesJson, definition.filters || []);
   const baselineRange = resolveComparisonRange(currentRange, alert.CompareMode);
 
@@ -122,7 +151,17 @@ async function runAnomalyCheck(alert) {
     .filter(r => Math.abs(r.ChenhLechPhanTram) >= Number(alert.ThresholdPercent))
     .sort((a, b) => Math.abs(b.ChenhLechPhanTram) - Math.abs(a.ChenhLechPhanTram));
 
-  return { definitionTitle: definition.title, currentRange, baselineRange, compared, anomalies };
+  return { definitionTitle: definition.title, mode: 'periodComparison', currentRange, baselineRange, compared, anomalies };
+}
+
+async function runAnomalyCheck(alert) {
+  const definition = await loadDefinition(alert.ReportId);
+  if (!definition || !definition.isActive) {
+    throw new Error(`Báo cáo "${alert.ReportId}" không còn tồn tại hoặc đã tắt`);
+  }
+  return alert.AlertMode === 'absoluteThreshold'
+    ? runAbsoluteThresholdCheck(alert, definition)
+    : runPeriodComparisonCheck(alert, definition);
 }
 
 module.exports = { resolveComparisonRange, resolvePeriods, runAnomalyCheck };

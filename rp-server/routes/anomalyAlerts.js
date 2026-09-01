@@ -23,6 +23,39 @@ function validateRecipients(raw) {
   return null;
 }
 
+// Kiểm tra + chuẩn hoá field theo ĐÚNG alertMode — 'periodComparison' cần
+// compareMode/thresholdPercent hợp lệ; 'absoluteThreshold' cần
+// thresholdDirection/thresholdValue hợp lệ (compareMode/thresholdPercent vẫn
+// lưu giá trị mặc định cho đủ cột NOT NULL, KHÔNG dùng tới khi chạy — xem
+// lib/anomalyAlertRunner.js). Trả { error } hoặc { normalized }.
+function validateAlertModeFields(body) {
+  const alertMode = body.alertMode === 'absoluteThreshold' ? 'absoluteThreshold' : 'periodComparison';
+  if (alertMode === 'absoluteThreshold') {
+    if (!['below', 'above'].includes(body.thresholdDirection)) {
+      return { error: 'Chiều ngưỡng phải là "below" hoặc "above"' };
+    }
+    if (body.thresholdValue === undefined || body.thresholdValue === null || body.thresholdValue === '' || !Number.isFinite(Number(body.thresholdValue))) {
+      return { error: 'Thiếu/sai giá trị ngưỡng (thresholdValue)' };
+    }
+    return {
+      normalized: {
+        alertMode, compareMode: 'previousPeriod', thresholdPercent: 20,
+        thresholdDirection: body.thresholdDirection, thresholdValue: Number(body.thresholdValue)
+      }
+    };
+  }
+  const compareMode = body.compareMode || 'previousPeriod';
+  if (!['previousPeriod', 'samePeriodLastYear'].includes(compareMode)) {
+    return { error: 'Kỳ so sánh không hợp lệ' };
+  }
+  return {
+    normalized: {
+      alertMode, compareMode, thresholdPercent: body.thresholdPercent ?? 20,
+      thresholdDirection: null, thresholdValue: null
+    }
+  };
+}
+
 // Danh mục báo cáo để chọn khi tạo cảnh báo, kèm filters/columns — cùng khuôn
 // GET /system/report-email-schedules/reports (chấp nhận trùng lặp nhỏ, đúng
 // quy ước cả dự án: mỗi route tự chứa đủ, không import chéo giữa 2 module).
@@ -49,7 +82,8 @@ router.get('/', async (req, res, next) => {
     const pool = await getPool('RP');
     const result = await pool.request().query(`
       SELECT a.Id, a.Name, a.ReportId, c.Title AS ReportTitle, a.CronExpression, a.FilterValuesJson,
-             a.CompareMode, a.EntityColumnKey, a.MetricColumnKey, a.ThresholdPercent, a.Recipients,
+             a.AlertMode, a.CompareMode, a.EntityColumnKey, a.MetricColumnKey, a.ThresholdPercent,
+             a.ThresholdDirection, a.ThresholdValue, a.Recipients,
              a.IsActive, a.LastRunAt, a.LastStatus, a.LastError, a.LastAnomalyCount
       FROM app.AnomalyAlerts a JOIN app.ReportCatalog c ON c.ReportId = a.ReportId
       ORDER BY a.Name
@@ -60,15 +94,13 @@ router.get('/', async (req, res, next) => {
 
 router.post('/', async (req, res, next) => {
   try {
-    const {
-      name, reportId, cronExpression, filterValues = {}, compareMode = 'previousPeriod',
-      entityColumnKey, metricColumnKey, thresholdPercent = 20, recipients
-    } = req.body || {};
+    const { name, reportId, cronExpression, filterValues = {}, entityColumnKey, metricColumnKey, recipients } = req.body || {};
     if (!name || !reportId || !entityColumnKey || !metricColumnKey) {
       return res.status(400).json({ error: 'Thiếu name/reportId/entityColumnKey/metricColumnKey' });
     }
     if (!cron.validate(cronExpression)) return res.status(400).json({ error: 'Biểu thức lịch chạy (cron) không hợp lệ' });
-    if (!['previousPeriod', 'samePeriodLastYear'].includes(compareMode)) return res.status(400).json({ error: 'Kỳ so sánh không hợp lệ' });
+    const { error: modeError, normalized } = validateAlertModeFields(req.body || {});
+    if (modeError) return res.status(400).json({ error: modeError });
     const recipientsError = validateRecipients(recipients);
     if (recipientsError) return res.status(400).json({ error: recipientsError });
 
@@ -82,17 +114,22 @@ router.post('/', async (req, res, next) => {
       .input('reportId', sql.VarChar(80), reportId)
       .input('cronExpression', sql.VarChar(50), cronExpression)
       .input('filterValuesJson', sql.NVarChar(sql.MAX), JSON.stringify(filterValues))
-      .input('compareMode', sql.VarChar(20), compareMode)
+      .input('alertMode', sql.VarChar(20), normalized.alertMode)
+      .input('compareMode', sql.VarChar(20), normalized.compareMode)
       .input('entityColumnKey', sql.VarChar(100), entityColumnKey)
       .input('metricColumnKey', sql.VarChar(100), metricColumnKey)
-      .input('thresholdPercent', sql.Decimal(9, 2), thresholdPercent)
+      .input('thresholdPercent', sql.Decimal(9, 2), normalized.thresholdPercent)
+      .input('thresholdDirection', sql.VarChar(10), normalized.thresholdDirection)
+      .input('thresholdValue', sql.Decimal(18, 2), normalized.thresholdValue)
       .input('recipients', sql.NVarChar(1000), parseRecipients(recipients).join(','))
       .input('createdBy', sql.Int, req.user.sub)
       .query(`
         INSERT INTO app.AnomalyAlerts
-          (Name, ReportId, CronExpression, FilterValuesJson, CompareMode, EntityColumnKey, MetricColumnKey, ThresholdPercent, Recipients, CreatedBy)
+          (Name, ReportId, CronExpression, FilterValuesJson, AlertMode, CompareMode, EntityColumnKey, MetricColumnKey,
+           ThresholdPercent, ThresholdDirection, ThresholdValue, Recipients, CreatedBy)
         OUTPUT INSERTED.Id
-        VALUES (@name, @reportId, @cronExpression, @filterValuesJson, @compareMode, @entityColumnKey, @metricColumnKey, @thresholdPercent, @recipients, @createdBy)
+        VALUES (@name, @reportId, @cronExpression, @filterValuesJson, @alertMode, @compareMode, @entityColumnKey, @metricColumnKey,
+                @thresholdPercent, @thresholdDirection, @thresholdValue, @recipients, @createdBy)
       `);
     const id = result.recordset[0].Id;
     await scheduler.rescheduleAlert(id);
@@ -103,13 +140,11 @@ router.post('/', async (req, res, next) => {
 
 router.put('/:id', async (req, res, next) => {
   try {
-    const {
-      name, cronExpression, filterValues = {}, compareMode = 'previousPeriod',
-      entityColumnKey, metricColumnKey, thresholdPercent = 20, recipients, isActive
-    } = req.body || {};
+    const { name, cronExpression, filterValues = {}, entityColumnKey, metricColumnKey, recipients, isActive } = req.body || {};
     if (!name || !entityColumnKey || !metricColumnKey) return res.status(400).json({ error: 'Thiếu name/entityColumnKey/metricColumnKey' });
     if (!cron.validate(cronExpression)) return res.status(400).json({ error: 'Biểu thức lịch chạy (cron) không hợp lệ' });
-    if (!['previousPeriod', 'samePeriodLastYear'].includes(compareMode)) return res.status(400).json({ error: 'Kỳ so sánh không hợp lệ' });
+    const { error: modeError, normalized } = validateAlertModeFields(req.body || {});
+    if (modeError) return res.status(400).json({ error: modeError });
     const recipientsError = validateRecipients(recipients);
     if (recipientsError) return res.status(400).json({ error: recipientsError });
 
@@ -120,17 +155,21 @@ router.put('/:id', async (req, res, next) => {
       .input('name', sql.NVarChar(200), name)
       .input('cronExpression', sql.VarChar(50), cronExpression)
       .input('filterValuesJson', sql.NVarChar(sql.MAX), JSON.stringify(filterValues))
-      .input('compareMode', sql.VarChar(20), compareMode)
+      .input('alertMode', sql.VarChar(20), normalized.alertMode)
+      .input('compareMode', sql.VarChar(20), normalized.compareMode)
       .input('entityColumnKey', sql.VarChar(100), entityColumnKey)
       .input('metricColumnKey', sql.VarChar(100), metricColumnKey)
-      .input('thresholdPercent', sql.Decimal(9, 2), thresholdPercent)
+      .input('thresholdPercent', sql.Decimal(9, 2), normalized.thresholdPercent)
+      .input('thresholdDirection', sql.VarChar(10), normalized.thresholdDirection)
+      .input('thresholdValue', sql.Decimal(18, 2), normalized.thresholdValue)
       .input('recipients', sql.NVarChar(1000), parseRecipients(recipients).join(','))
       .input('isActive', sql.Bit, isActive ? 1 : 0)
       .query(`
         UPDATE app.AnomalyAlerts
         SET Name = @name, CronExpression = @cronExpression, FilterValuesJson = @filterValuesJson,
-            CompareMode = @compareMode, EntityColumnKey = @entityColumnKey, MetricColumnKey = @metricColumnKey,
-            ThresholdPercent = @thresholdPercent, Recipients = @recipients, IsActive = @isActive
+            AlertMode = @alertMode, CompareMode = @compareMode, EntityColumnKey = @entityColumnKey, MetricColumnKey = @metricColumnKey,
+            ThresholdPercent = @thresholdPercent, ThresholdDirection = @thresholdDirection, ThresholdValue = @thresholdValue,
+            Recipients = @recipients, IsActive = @isActive
         WHERE Id = @id
       `);
     await scheduler.rescheduleAlert(id);

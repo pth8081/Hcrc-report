@@ -523,14 +523,21 @@ làm thêm sau nếu cần).
 ## 5. Cảnh báo bất thường — tự động phát hiện chi nhánh/thực thể lệch khác thường
 
 Khác "Lịch gửi email báo cáo" (mục 4 — gửi ĐỊNH KỲ, đúng nguyên bảng dù có
-bất thường hay không): **Cảnh báo bất thường** chỉ gửi khi CÓ VẤN ĐỀ — tự
-so kỳ hiện tại với kỳ trước/cùng kỳ năm trước theo từng thực thể (chi
-nhánh, cửa hàng...), lệch quá ngưỡng % mới gửi, và chỉ liệt kê đúng những
-thực thể bất thường. Dùng lại BÁO CÁO ĐÃ CÓ — không cần tạo báo cáo riêng,
-không giới hạn ở "doanh thu" (dùng được cho số đơn hàng, tồn kho, tỷ lệ trả
-hàng... miễn báo cáo trả về 1 dòng/1 thực thể có cột số).
+bất thường hay không): **Cảnh báo bất thường** chỉ gửi khi CÓ VẤN ĐỀ, và chỉ
+liệt kê đúng những thực thể bất thường. Dùng lại BÁO CÁO ĐÃ CÓ — không cần
+tạo báo cáo riêng, không giới hạn ở "doanh thu" (dùng được cho số đơn hàng,
+tồn kho, tỷ lệ trả hàng... miễn báo cáo trả về 1 dòng/1 thực thể có cột số).
+2 chế độ (chọn khi tạo cảnh báo):
 
-### Điều kiện báo cáo phải đáp ứng
+- **So kỳ hiện tại/kỳ trước (%)** — chạy báo cáo 2 LẦN, so % chênh lệch với
+  kỳ trước/cùng kỳ năm trước. Hợp các chỉ số có tính "theo giai đoạn" (doanh
+  thu, số đơn hàng, lượt khách...) — xem mục "Điều kiện" + "Cấu hình" dưới.
+- **Ngưỡng tuyệt đối** — chạy báo cáo ĐÚNG 1 LẦN, so trực tiếp với 1 giá trị
+  cố định (không cần kỳ so sánh). Hợp các chỉ số dạng "tồn tại tại 1 thời
+  điểm" (tồn kho, số dư, công nợ...) — xem mục "Ngưỡng tuyệt đối — vd tồn
+  kho" dưới.
+
+### Điều kiện báo cáo phải đáp ứng (chế độ "So kỳ hiện tại/kỳ trước")
 
 - Trả về **1 dòng / 1 thực thể** (vd 1 dòng/chi nhánh) — báo cáo `composite`
   ở mục 1/mục 4 đúng dạng này.
@@ -577,6 +584,31 @@ phát sinh"** (không có ở kỳ so sánh, vd chi nhánh mới mở) và **"V�
 này"** (có ở kỳ so sánh nhưng kỳ này bằng 0, vd chi nhánh đóng cửa/mất dữ
 liệu đồng bộ) — cả 2 trường hợp này LUÔN vượt ngưỡng (không tính % thật với
 mẫu số 0), cần xem GHI CHÚ để hiểu đúng thay vì đọc thẳng con số %.
+
+### Ngưỡng tuyệt đối — vd cảnh báo sắp hết hàng (tồn kho)
+
+Khác chế độ so kỳ % ở trên — chế độ này **không cần kỳ so sánh**, không bắt
+buộc báo cáo phải có bộ lọc khoảng ngày (vẫn dùng được nếu có, chỉ để lọc cố
+định, không tự dịch kỳ). Giả sử đã có báo cáo "Tồn kho hiện tại" (đọc từ
+domain ETL đồng bộ tồn kho — coi mỗi dòng là 1 SKU/chi nhánh, xem mục 6 cho
+cách coi 1 SKU × 1 chi nhánh là 1 thực thể riêng nếu cần):
+
+- **Chế độ**: chọn "Ngưỡng tuyệt đối".
+- **Báo cáo theo dõi**: chọn báo cáo "Tồn kho hiện tại".
+- **Cột xác định "thực thể"**: `maSKU` (hoặc `maSKU_maChiNhanh` nếu theo
+  dõi riêng từng chi nhánh).
+- **Cột số cần theo dõi**: `soLuongTon`.
+- **Chiều ngưỡng**: "Thấp hơn ngưỡng" (sắp hết hàng) — chọn "Cao hơn
+  ngưỡng" nếu muốn cảnh báo TỒN KHO Ứ ĐỌNG thay vì sắp hết.
+- **Giá trị ngưỡng**: vd `10` — SKU nào còn dưới 10 đơn vị mới vào email.
+- **Lịch kiểm tra**: cron, vd `0 8 * * *` (8h sáng hàng ngày, hoặc dày hơn
+  nếu cần theo dõi sát).
+- **Người nhận**: danh sách email, phân tách dấu phẩy.
+
+Email chỉ liệt kê 2 cột: Thực thể + Giá trị hiện tại (không có "kỳ so
+sánh"/"% chênh lệch" — không áp dụng cho chế độ này), sắp xếp gần ngưỡng
+nhất lên đầu (thấp nhất trước với chiều "Thấp hơn", cao nhất trước với
+chiều "Cao hơn").
 
 ## 6. Chỉ tiêu theo ngành hàng/SKU — mở rộng "Chỉ tiêu chi nhánh" (mục 1) xuống 1 cấp
 

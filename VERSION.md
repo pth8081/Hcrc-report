@@ -5,6 +5,34 @@ Server, API Server và các giao diện quản trị) — tăng ở mỗi lần 
 `main`, theo kiểu semver không chặt (patch cho fix nhỏ, minor cho tính năng
 mới, major khi đổi cấu trúc phá vỡ tương thích ngược).
 
+## 0.33.0 — "Cảnh báo bất thường" thêm chế độ Ngưỡng tuyệt đối (vd tồn kho) + xác nhận chọn nguồn DWH/API đã có sẵn
+
+Xác nhận: trang "Biểu mẫu → tab Báo cáo" (rp-user) đã có sẵn ô chọn "Nguồn"
+đầy đủ (Trực tiếp CSDL/API Server báo cáo hoặc realtime/API đối tác/ghép
+nhiều nguồn), không cần làm thêm. Việc NẠP dữ liệu tồn kho/khách hàng cũng
+không cần code mới (cơ chế "Theo bảng" ở etl-admin/api-admin đã đủ tổng
+quát) — phần thật sự còn thiếu là kiểu cảnh báo phù hợp tồn kho, đã làm:
+
+- **`app.AnomalyAlerts`** — thêm `AlertMode` (`'periodComparison'` mặc định
+  — hành vi 0.32.0 không đổi | `'absoluteThreshold'` — mới), `ThresholdDirection`
+  (`'below'`/`'above'`), `ThresholdValue`.
+- **`rp-server/lib/anomalyAlertRunner.js`** — tách 2 hàm riêng:
+  `runPeriodComparisonCheck` (logic cũ, nguyên vẹn) và
+  `runAbsoluteThresholdCheck` (mới) — chạy báo cáo ĐÚNG 1 LẦN (dùng thẳng
+  `resolveFilterValues()` — KHÔNG bắt buộc có field lọc khoảng ngày nào,
+  khác chế độ so kỳ %), so trực tiếp `MetricColumnKey` với `ThresholdValue`
+  theo `ThresholdDirection` — `'below'` (thấp hơn ngưỡng, vd sắp hết hàng)
+  hoặc `'above'` (cao hơn ngưỡng, vd tồn kho ứ đọng).
+- **`jobs/anomalyAlertScheduler.js`** — cột email khác theo chế độ (chế độ
+  ngưỡng chỉ có Thực thể + Giá trị hiện tại, không có "kỳ so sánh").
+- **`routes/anomalyAlerts.js`** — validate riêng theo `alertMode`.
+- **`AnomalyAlertsPage.jsx`** — tab chọn chế độ, field đổi theo chế độ
+  (ẩn/hiện "So với kỳ nào"+"Ngưỡng %" hoặc "Chiều ngưỡng"+"Giá trị ngưỡng").
+- `hướng_dẫn_báo_cáo.md` mục 5 — thêm ví dụ đầy đủ "cảnh báo sắp hết hàng".
+- 2 bộ test độc lập (`anomalyAlertRunner.js`: hồi quy chế độ so kỳ % không
+  đổi hành vi + chế độ ngưỡng tuyệt đối cả 2 chiều, loại dòng "Tổng cộng",
+  chỉ chạy báo cáo đúng 1 lần) + `vite build` sạch `rp-user`.
+
 ## 0.32.1 — Chỉ tiêu theo ngành hàng/SKU (mở rộng "Nhập chỉ tiêu" — không đổi schema)
 
 Coi "1 siêu thị × 1 ngành hàng" là 1 thực thể riêng (`EntityCode` ghép

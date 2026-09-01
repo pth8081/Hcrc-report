@@ -476,15 +476,23 @@ BEGIN
 END
 GO
 
--- Cảnh báo bất thường — so sánh kỳ hiện tại vs kỳ so sánh (liền trước/cùng kỳ
--- năm trước) của MỘT báo cáo đã có (app.ReportCatalog), theo từng "thực thể"
--- (cột EntityColumnKey, vd chi nhánh) trên MỘT cột số (MetricColumnKey, vd
--- doanh thu) — lệch quá ThresholdPercent thì gửi email CHỈ liệt kê dòng vượt
--- ngưỡng. KHÔNG hardcode "doanh thu"/domain cụ thể nào — admin tự chọn báo
--- cáo + cột, dùng lại được cho bất kỳ chỉ số nào (đơn hàng, tồn kho...) miễn
--- báo cáo trả về 1 dòng/thực thể có cột số. FilterValuesJson CÙNG khuôn
--- app.ReportEmailSchedules.FilterValuesJson — đúng 1 field kind='dateRangePreset'
--- là "kỳ hiện tại". Xem lib/anomalyAlertRunner.js + jobs/anomalyAlertScheduler.js.
+-- Cảnh báo bất thường — 2 CHẾ ĐỘ (AlertMode), theo từng "thực thể" (cột
+-- EntityColumnKey, vd chi nhánh) trên MỘT cột số (MetricColumnKey, vd doanh
+-- thu/tồn kho) của MỘT báo cáo đã có (app.ReportCatalog) — gửi email CHỈ
+-- liệt kê dòng bất thường. KHÔNG hardcode "doanh thu"/domain cụ thể nào —
+-- admin tự chọn báo cáo + cột, dùng lại được cho bất kỳ chỉ số nào (đơn
+-- hàng, tồn kho...) miễn báo cáo trả về 1 dòng/thực thể có cột số.
+--   'periodComparison' (mặc định) — so kỳ hiện tại vs kỳ so sánh (liền
+--     trước/cùng kỳ năm trước), lệch quá ThresholdPercent (%) là bất
+--     thường. FilterValuesJson CÙNG khuôn app.ReportEmailSchedules.FilterValuesJson
+--     — đúng 1 field kind='dateRangePreset' là "kỳ hiện tại".
+--   'absoluteThreshold' — so TRỰC TIẾP với 1 giá trị cố định (ThresholdValue),
+--     KHÔNG cần kỳ so sánh — phù hợp tồn kho ("dưới X thì báo", không so
+--     kỳ trước). ThresholdDirection='below' (giá trị THẤP HƠN ngưỡng là bất
+--     thường, vd sắp hết hàng) hoặc 'above' (CAO HƠN ngưỡng, vd tồn kho ứ
+--     đọng). FilterValuesJson (nếu có) chỉ áp field cố định, không bắt buộc
+--     có field khoảng ngày.
+-- Xem lib/anomalyAlertRunner.js + jobs/anomalyAlertScheduler.js.
 IF OBJECT_ID('app.AnomalyAlerts', 'U') IS NULL
 BEGIN
     CREATE TABLE app.AnomalyAlerts (
@@ -507,6 +515,25 @@ BEGIN
         LastError        NVARCHAR(1000) NULL,
         LastAnomalyCount INT           NULL
     );
+END
+GO
+
+-- Nâng cấp từ bản trước (chỉ có chế độ so kỳ %) — thêm chế độ ngưỡng tuyệt
+-- đối, xem chú thích CREATE TABLE ở trên. An toàn chạy lại nhiều lần.
+IF COL_LENGTH('app.AnomalyAlerts', 'AlertMode') IS NULL
+BEGIN
+    ALTER TABLE app.AnomalyAlerts ADD AlertMode VARCHAR(20) NOT NULL
+        CONSTRAINT DF_AnomalyAlerts_AlertMode DEFAULT 'periodComparison'
+        CONSTRAINT CK_AnomalyAlerts_AlertMode CHECK (AlertMode IN ('periodComparison', 'absoluteThreshold'));
+END
+IF COL_LENGTH('app.AnomalyAlerts', 'ThresholdDirection') IS NULL
+BEGIN
+    ALTER TABLE app.AnomalyAlerts ADD ThresholdDirection VARCHAR(10) NULL
+        CONSTRAINT CK_AnomalyAlerts_ThresholdDirection CHECK (ThresholdDirection IN ('below', 'above'));
+END
+IF COL_LENGTH('app.AnomalyAlerts', 'ThresholdValue') IS NULL
+BEGIN
+    ALTER TABLE app.AnomalyAlerts ADD ThresholdValue DECIMAL(18, 2) NULL;
 END
 GO
 

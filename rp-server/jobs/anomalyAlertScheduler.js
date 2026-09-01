@@ -20,12 +20,16 @@ const runningAlerts = new Set(); // alertId
 // có req thật của người bấm — route đó tự gọi logAction riêng, KHÔNG qua đây).
 const SYSTEM_REQ = { user: { username: 'scheduler' }, ip: null };
 
-const ANOMALY_COLUMNS = [
+const PERIOD_COMPARISON_COLUMNS = [
   { key: 'Entity', label: 'Thực thể' },
   { key: 'GiaTriKyNay', label: 'Kỳ này' },
   { key: 'GiaTriKySoSanh', label: 'Kỳ so sánh' },
   { key: 'ChenhLechPhanTram', label: 'Chênh lệch (%)' },
   { key: 'GhiChu', label: 'Ghi chú' }
+];
+const ABSOLUTE_THRESHOLD_COLUMNS = [
+  { key: 'Entity', label: 'Thực thể' },
+  { key: 'GiaTri', label: 'Giá trị hiện tại' }
 ];
 
 async function loadActiveAlerts() {
@@ -58,15 +62,19 @@ async function updateRunResult(id, status, errorMessage, anomalyCount) {
 // DB/log — việc đó do người gọi quyết định (chạy tự động ghi log CHỈ khi có
 // bất thường, "Kiểm tra ngay" luôn trả kết quả cho route).
 async function runAlert(alert) {
-  const { definitionTitle, anomalies } = await runAnomalyCheck(alert);
+  const { definitionTitle, mode, anomalies } = await runAnomalyCheck(alert);
   if (!anomalies.length) return { anomalyCount: 0 };
 
   const recipients = alert.Recipients.split(',').map(s => s.trim()).filter(Boolean);
-  const html = renderEmailBodyHtml({ title: `⚠️ Cảnh báo bất thường — ${definitionTitle}`, columns: ANOMALY_COLUMNS }, anomalies);
+  const columns = mode === 'absoluteThreshold' ? ABSOLUTE_THRESHOLD_COLUMNS : PERIOD_COMPARISON_COLUMNS;
+  const summaryText = mode === 'absoluteThreshold'
+    ? `Phát hiện ${anomalies.length} thực thể ${alert.ThresholdDirection === 'below' ? 'thấp hơn' : 'cao hơn'} ngưỡng ${alert.ThresholdValue}. Xem chi tiết trong nội dung email.`
+    : `Phát hiện ${anomalies.length} thực thể lệch quá ${alert.ThresholdPercent}% so với kỳ so sánh. Xem chi tiết trong nội dung email.`;
+  const html = renderEmailBodyHtml({ title: `⚠️ Cảnh báo bất thường — ${definitionTitle}`, columns }, anomalies);
   await sendMail({
     to: recipients.join(','),
     subject: `[HCRC] Cảnh báo bất thường — ${definitionTitle} (${anomalies.length} thực thể)`,
-    text: `Phát hiện ${anomalies.length} thực thể lệch quá ${alert.ThresholdPercent}% so với kỳ so sánh. Xem chi tiết trong nội dung email.`,
+    text: summaryText,
     html
   });
   return { anomalyCount: anomalies.length, recipients };
