@@ -15,6 +15,20 @@
 // khi thấy ĐÚNG "DaDong" — CỐ Ý không suy luận từ việc THIẾU dòng chỉ tiêu
 // (siêu thị chưa kịp nhập chỉ tiêu tháng đó vẫn phải hiện ra, chỉ trống cột
 // Chỉ tiêu, không được âm thầm biến mất chỉ vì ai đó quên 1 dòng).
+//
+// Cột "MaNganhHang" (TUỲ CHỌN) — chỉ tiêu THEO NGÀNH HÀNG thay vì theo cả
+// siêu thị: có cột này VÀ có giá trị ở 1 dòng thì EntityCode dòng đó thành
+// "<MaSieuThi>_<MaNganhHang>" (không phải chỉ MaSieuThi) — PHẢI khớp ĐÚNG
+// quy ước EntityCode của domain THỰC ĐẠT tương ứng bên ETL (job "Theo bảng"
+// đọc từ 1 VIEW nguồn có sẵn cột ghép "<MãSiêuThị>_<MãNgànhHàng>" làm "Cột
+// khoá" — xem hướng_dẫn_báo_cáo.md mục 5) để composite report ghép đúng
+// dòng thực đạt với dòng chỉ tiêu (ghép theo entityCode, xem
+// rp-server/lib/compositeReportRunner.js). MaSieuThi/MaNganhHang GỐC vẫn
+// được ghi thêm vào TargetsJson (không chỉ nằm trong EntityCode ghép) để
+// công thức báo cáo đọc thẳng "target.MaSieuThi"/"target.MaNganhHang" mà
+// không cần tách chuỗi EntityCode. Dòng KHÔNG có MaNganhHang (để trống/file
+// không có cột) giữ nguyên hành vi cũ 100% — EntityCode = MaSieuThi, không
+// thêm field nào vào TargetsJson.
 const ExcelJS = require('exceljs');
 const { sql } = require('../db');
 
@@ -48,9 +62,10 @@ async function parseSalesTargetsFile(buffer) {
   const maSieuThiCol = headers.indexOf('MaSieuThi');
   const thangCol = headers.indexOf('Thang');
   const trangThaiCol = headers.indexOf('TrangThai'); // -1 nếu file không có cột này (hợp lệ, tuỳ chọn)
+  const maNganhHangCol = headers.indexOf('MaNganhHang'); // -1 nếu file không có cột này (hợp lệ, tuỳ chọn)
   const targetCols = [];
   headers.forEach((name, colNumber) => {
-    if (name && name !== 'MaSieuThi' && name !== 'Thang' && name !== 'TrangThai') targetCols.push({ name, colNumber });
+    if (name && !['MaSieuThi', 'Thang', 'TrangThai', 'MaNganhHang'].includes(name)) targetCols.push({ name, colNumber });
   });
   // Chấp nhận file CHỈ có cột TrangThai (không cột chỉ tiêu số nào) — vd
   // chỉ để đánh dấu đóng cửa hàng loạt tháng này, không cần kèm số liệu.
@@ -63,16 +78,21 @@ async function parseSalesTargetsFile(buffer) {
   sheet.eachRow((row, rowNumber) => {
     if (rowNumber === 1) return;
     const entityCodeRaw = row.getCell(maSieuThiCol).value;
-    const entityCode = entityCodeRaw != null ? String(entityCodeRaw).trim() : '';
+    const maSieuThi = entityCodeRaw != null ? String(entityCodeRaw).trim() : '';
     const thangRaw = row.getCell(thangCol).value;
     const thang = thangRaw != null ? String(thangRaw).trim() : '';
-    if (!entityCode && !thang) return; // dòng trống bỏ qua, không tính là lỗi
+    const maNganhHangRaw = maNganhHangCol !== -1 ? row.getCell(maNganhHangCol).value : null;
+    const maNganhHang = maNganhHangRaw != null ? String(maNganhHangRaw).trim() : '';
+    if (!maSieuThi && !thang) return; // dòng trống bỏ qua, không tính là lỗi
 
-    if (!entityCode) { rowErrors.push(`Dòng ${rowNumber}: thiếu MaSieuThi`); return; }
+    if (!maSieuThi) { rowErrors.push(`Dòng ${rowNumber}: thiếu MaSieuThi`); return; }
     if (!PERIOD_RE.test(thang)) {
       rowErrors.push(`Dòng ${rowNumber}: "Thang" phải dạng YYYY-MM (đang là "${thang}")`);
       return;
     }
+    // Có ngành hàng -> EntityCode GHÉP (xem chú thích đầu file) — PHẢI khớp
+    // đúng quy ước cột khoá của domain THỰC ĐẠT tương ứng bên ETL.
+    const entityCode = maNganhHang ? `${maSieuThi}_${maNganhHang}` : maSieuThi;
 
     let trangThai = null;
     if (trangThaiCol !== -1) {
@@ -95,6 +115,10 @@ async function parseSalesTargetsFile(buffer) {
       targets[name] = Number.isFinite(num) ? num : v;
     }
     if (trangThai) targets.TrangThai = trangThai;
+    // Ghi thêm MaSieuThi/MaNganhHang GỐC vào TargetsJson (ngoài việc đã ghép
+    // vào EntityCode) — công thức báo cáo đọc thẳng "target.MaSieuThi"/
+    // "target.MaNganhHang" mà không cần tự tách chuỗi EntityCode.
+    if (maNganhHang) { targets.MaSieuThi = maSieuThi; targets.MaNganhHang = maNganhHang; }
     if (!Object.keys(targets).length) {
       rowErrors.push(`Dòng ${rowNumber}: không có giá trị chỉ tiêu nào (và không đánh dấu TrangThai)`);
       return;

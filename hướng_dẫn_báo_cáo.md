@@ -577,3 +577,115 @@ phát sinh"** (không có ở kỳ so sánh, vd chi nhánh mới mở) và **"V�
 này"** (có ở kỳ so sánh nhưng kỳ này bằng 0, vd chi nhánh đóng cửa/mất dữ
 liệu đồng bộ) — cả 2 trường hợp này LUÔN vượt ngưỡng (không tính % thật với
 mẫu số 0), cần xem GHI CHÚ để hiểu đúng thay vì đọc thẳng con số %.
+
+## 6. Chỉ tiêu theo ngành hàng/SKU — mở rộng "Chỉ tiêu chi nhánh" (mục 1) xuống 1 cấp
+
+Mục 1 lưu chỉ tiêu **theo cả siêu thị** — mỗi thực thể (`EntityCode`) là 1
+siêu thị. Muốn theo dõi chỉ tiêu **theo ngành hàng trong TỪNG siêu thị**
+(vd siêu thị BRGHP: ngành Thực phẩm đạt bao nhiêu % chỉ tiêu, ngành Điện máy
+đạt bao nhiêu %) — KHÔNG cần bảng/tính năng mới, chỉ cần coi **"1 siêu thị ×
+1 ngành hàng" là 1 thực thể riêng** (đúng nguyên tắc `EntityCode` đã dùng
+xuyên suốt — thực thể không nhất thiết là 1 siêu thị vật lý).
+
+**Điều kiện**: dữ liệu bán hàng tại nguồn (từng ST/trung tâm) phải có sẵn mã
+ngành hàng trên TỪNG DÒNG bán hàng — không có thì chỉ làm được phần NHẬP
+CHỈ TIÊU (dưới), chưa so sánh được với thực đạt.
+
+### Bước 1 — Nguồn: tạo VIEW ghép "Mã thực thể" = SiêuThị_NgànhHàng
+
+ETL job "Theo bảng" chỉ nhận **1 cột có sẵn** làm "Cột khoá (EntityCode)"
+(không gõ được biểu thức) — cần 1 VIEW tại nguồn tự ghép sẵn cột này (đúng
+"Quy tắc chung" ở trên — tạo VIEW khi cần tính toán/ghép trước khi ETL đọc):
+
+```sql
+CREATE VIEW dbo.vw_DoanhThuTheoNganhHang AS
+SELECT
+    MaSieuThi + '_' + MaNganhHang AS MaThucThe,  -- Cột khoá (EntityCode)
+    MaSieuThi,
+    MaNganhHang,
+    NgayBan AS EventDate,                        -- Cột ngày
+    SUM(ThanhTien) AS DoanhThu,
+    NgayCapNhat AS UpdatedAt                      -- Cột watermark
+FROM dbo.ChiTietBanHang
+GROUP BY MaSieuThi, MaNganhHang, NgayBan, NgayCapNhat;
+```
+
+(Đổi tên bảng/cột đúng CSDL thật — đây chỉ là ví dụ khung.)
+
+### Bước 2 — etl-admin: đồng bộ thực đạt theo ngành hàng
+
+Tạo job "Theo bảng" MỚI (tách riêng job doanh thu toàn siêu thị ở mục 1):
+
+- **Bảng nguồn**: `dbo.vw_DoanhThuTheoNganhHang` vừa tạo.
+- **Cột khoá (EntityCode)**: `MaThucThe` (đã ghép sẵn trong VIEW).
+- **Cột ngày**: `EventDate`. **Cột watermark**: `UpdatedAt`.
+- **Dimensions**: tick `MaSieuThi`, `MaNganhHang` — để báo cáo lọc/hiện tên
+  cột riêng mà không cần tự tách chuỗi `MaThucThe`.
+- **Measures**: tick `DoanhThu`.
+- **Domain**: đặt tên RIÊNG, vd `doanhthu_nganhhang` (khác domain
+  `doanhthu_chinhanh` ở mục 1 — 2 domain độc lập, không đụng nhau).
+- **BẬT "Giữ lịch sử theo ngày"** — cần cho "Cùng kỳ năm trước" nếu dùng.
+
+### Bước 3 — etl-admin: nhập chỉ tiêu theo ngành hàng
+
+Vào **Nhập chỉ tiêu**, upload file Excel, Domain = `doanhthu_nganhhang`
+(ĐÚNG domain Bước 2), thêm cột `MaNganhHang` (TUỲ CHỌN — xem
+`etl/lib/salesTargetsImport.js`):
+
+| MaSieuThi | Thang | MaNganhHang | ChiTieuDoanhThu |
+|---|---|---|---|
+| BRGHP | 2026-08 | THUCPHAM | 50000000 |
+| BRGHP | 2026-08 | DIENMAY | 30000000 |
+| BRGHD | 2026-08 | THUCPHAM | 68000000 |
+
+Dòng có `MaNganhHang` được lưu với mã thực thể ghép
+`<MaSieuThi>_<MaNganhHang>` — **PHẢI khớp CHÍNH XÁC** cách VIEW ở Bước 1
+ghép (`MaSieuThi + '_' + MaNganhHang`, cùng dấu gạch dưới, cùng thứ tự)
+thì báo cáo composite ở Bước 4 mới ghép đúng dòng thực đạt với dòng chỉ
+tiêu (ghép theo `EntityCode`, xem `rp-server/lib/compositeReportRunner.js`).
+Vẫn dùng được trang "Sửa / thêm 1 siêu thị" cho từng dòng lẻ — gõ Mã thực
+thể dạng `BRGHP_THUCPHAM` và thêm `MaSieuThi`/`MaNganhHang` vào ô JSON.
+
+### Bước 4 — rp-user: tạo báo cáo composite theo ngành hàng
+
+Giống hệt mục 1 (Bước 3), chỉ đổi domain cả 3 khối sang
+`doanhthu_nganhhang`, và thêm cột hiện tên siêu thị/ngành hàng riêng:
+
+```json
+{
+  "title": "Chỉ tiêu theo ngành hàng",
+  "domain": "doanhthu_nganhhang",
+  "filters": [
+    { "field": "eventDate", "type": "date", "label": "Ngày báo cáo" }
+  ],
+  "blocks": [
+    { "key": "current", "sourceType": "directDb", "domain": "doanhthu_nganhhang" },
+    { "key": "target", "isTarget": true, "targetDomain": "doanhthu_nganhhang" }
+  ],
+  "columns": [
+    { "key": "maSieuThi", "label": "Siêu thị", "formula": "current.dimensions.MaSieuThi" },
+    { "key": "nganhHang", "label": "Ngành hàng", "formula": "current.dimensions.MaNganhHang" },
+    { "key": "thucDat", "label": "Thực đạt", "formula": "current.measures.DoanhThu" },
+    { "key": "chiTieu", "label": "Chỉ tiêu", "formula": "target.ChiTieuDoanhThu" },
+    { "key": "tyLeDat", "label": "Tỷ lệ đạt (%)", "formula": "ROUND(current.measures.DoanhThu / target.ChiTieuDoanhThu * 100, 1)" }
+  ],
+  "groupBy": {
+    "field": "current.dimensions.MaSieuThi",
+    "groups": [
+      { "value": "BRGHP", "label": "Tổng cộng BRGHP" },
+      { "value": "BRGHD", "label": "Tổng cộng BRGHD" }
+    ],
+    "grandTotalLabel": "Tổng cộng toàn hệ thống",
+    "labelColumn": "nganhHang"
+  }
+}
+```
+
+`groupBy` ở đây gộp theo SIÊU THỊ (mỗi siêu thị 1 dòng "Tổng cộng" cộng dồn
+mọi ngành hàng) — đổi `field` sang `current.dimensions.MaNganhHang` nếu
+muốn gộp theo NGÀNH HÀNG (mỗi ngành 1 dòng tổng cộng dồn mọi siêu thị)
+thay vì theo siêu thị — tuỳ mục đích xem báo cáo.
+
+**Thực thể thiếu 1 trong 2 khối** (chưa đồng bộ kịp thực đạt, hoặc chưa
+nhập chỉ tiêu ngành hàng đó) — cột tương ứng trống, không lỗi, giống hành
+vi đã có ở mục 1.

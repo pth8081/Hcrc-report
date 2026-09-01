@@ -5,6 +5,35 @@ Server, API Server và các giao diện quản trị) — tăng ở mỗi lần 
 `main`, theo kiểu semver không chặt (patch cho fix nhỏ, minor cho tính năng
 mới, major khi đổi cấu trúc phá vỡ tương thích ngược).
 
+## 0.32.1 — Chỉ tiêu theo ngành hàng/SKU (mở rộng "Nhập chỉ tiêu" — không đổi schema)
+
+Coi "1 siêu thị × 1 ngành hàng" là 1 thực thể riêng (`EntityCode` ghép
+`<MaSieuThi>_<MaNganhHang>`) — đúng nguyên tắc thực thể sẵn có, KHÔNG cần
+đổi `dwh.SalesTargets`/`compositeReportRunner.js` (đã ghép theo `EntityCode`
+phẳng, không quan tâm thực thể là gì). Chỉ 1 chỗ thật sự hardcode "chỉ theo
+siêu thị": bulk import Excel.
+
+- **`etl/lib/salesTargetsImport.js`** — cột `MaNganhHang` MỚI, TUỲ CHỌN
+  trong file Excel "Nhập chỉ tiêu": dòng có giá trị cột này ->
+  `EntityCode = "<MaSieuThi>_<MaNganhHang>"` (không phải chỉ `MaSieuThi`),
+  đồng thời ghi thêm `MaSieuThi`/`MaNganhHang` GỐC vào `TargetsJson` (công
+  thức báo cáo đọc thẳng `target.MaSieuThi`/`target.MaNganhHang`, không cần
+  tự tách chuỗi `EntityCode`). Dòng KHÔNG có cột này (hoặc để trống) giữ
+  NGUYÊN hành vi cũ 100% — dùng lẫn cả 2 kiểu (theo siêu thị/theo ngành
+  hàng) trong CÙNG 1 file được. Route `PUT /admin/sales-targets/one` (sửa 1
+  dòng) và trang etl-admin "Sửa / thêm 1 siêu thị" ĐÃ nhận `entityCode`
+  dạng chuỗi tự do từ trước — dùng được luôn, không cần sửa gì thêm.
+- **`etl-admin/.../SalesTargetsPage.jsx`** — ghi chú cột `MaNganhHang` mới
+  + gợi ý cách gõ mã thực thể ghép ở form 1 dòng.
+- **`hướng_dẫn_báo_cáo.md`** mục 6 (mới) — ví dụ đầy đủ: tạo VIEW nguồn
+  ghép cột khoá, cấu hình ETL job Dimensions `MaSieuThi`/`MaNganhHang`,
+  file Excel mẫu, `DefinitionJson` composite tham chiếu
+  `current.dimensions.MaNganhHang`/`target.MaNganhHang`, `groupBy` theo
+  siêu thị HOẶC theo ngành hàng tuỳ nhu cầu xem báo cáo.
+- 4 test độc lập (`salesTargetsImport.js`: file cũ không đổi hành vi, cột
+  có nhưng để trống không đổi hành vi, ghép đúng khi điền, trộn cả 2 kiểu
+  trong 1 file) + `vite build` sạch `etl-admin`.
+
 ## 0.32.0 — Gộp trang báo cáo (rp-user) + "Cảnh báo bất thường" (so kỳ hiện tại/kỳ so sánh, tự gửi email)
 
 Tư vấn kiến trúc + đề xuất nghiệp vụ bán lẻ (không code) — 2 việc đầu tiên

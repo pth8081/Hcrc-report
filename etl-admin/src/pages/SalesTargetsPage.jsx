@@ -4,7 +4,9 @@
 // này — xem components/Layout.jsx + etl/lib/adminAuth.js).
 //
 // File .xlsx: dòng 1 header, 2 cột đầu CỐ ĐỊNH "MaSieuThi" + "Thang"
-// (YYYY-MM), các cột sau tuỳ ý — tên cột trở thành tên chỉ tiêu.
+// (YYYY-MM), các cột sau tuỳ ý — tên cột trở thành tên chỉ tiêu. Cột
+// "TrangThai"/"MaNganhHang" (cả 2 TUỲ CHỌN) có ý nghĩa riêng, không trở
+// thành tên chỉ tiêu — xem chú thích trong etl/lib/salesTargetsImport.js.
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
 import DataTable from '../components/DataTable';
@@ -119,6 +121,14 @@ export default function SalesTargetsPage() {
         bình thường. Bỏ trống cả cột này (không nhập gì) KHÔNG loại siêu thị — chỉ đánh dấu
         rõ <code>DaDong</code> mới loại, tránh mất siêu thị khỏi báo cáo chỉ vì quên nhập.
       </p>
+      <p>
+        Cột <code>MaNganhHang</code> (TUỲ CHỌN) — điền chỉ tiêu THEO NGÀNH HÀNG thay vì cả
+        siêu thị: dòng nào có giá trị cột này thì mã thực thể lưu lại thành
+        <code>&lt;MaSieuThi&gt;_&lt;MaNganhHang&gt;</code> — PHẢI khớp đúng cách ETL đặt "Cột
+        khoá" cho domain thực đạt tương ứng mới ghép đúng vào báo cáo (xem
+        hướng_dẫn_báo_cáo.md mục 5). Dòng để trống cột này vẫn là chỉ tiêu THEO SIÊU THỊ như
+        trước — dùng lẫn cả 2 kiểu trong cùng 1 file được.
+      </p>
       {error && <p className="form-error">{error}</p>}
 
       <form className="stacked-form" onSubmit={submitImport}>
@@ -181,7 +191,7 @@ export default function SalesTargetsPage() {
           required
         />
         <input
-          placeholder="Mã siêu thị (MaSieuThi)"
+          placeholder="Mã thực thể — MaSieuThi (vd BRGHP), hoặc MaSieuThi_MaNganhHang cho chỉ tiêu theo ngành hàng (vd BRGHP_THUCPHAM)"
           value={editForm.entityCode}
           onChange={(e) => setEditForm({ ...editForm, entityCode: e.target.value })}
           required
@@ -201,7 +211,7 @@ export default function SalesTargetsPage() {
           Đã đóng cửa (loại khỏi báo cáo tháng này)
         </label>
         <textarea
-          placeholder='Chỉ tiêu khác dạng JSON, vd {"ChiTieuDoanhThu": 150000000, "ChiTieuGiaoDich": 600}'
+          placeholder='Chỉ tiêu khác dạng JSON, vd {"ChiTieuDoanhThu": 150000000} — nếu Mã thực thể ở trên là dạng ghép ngành hàng, nên thêm cả {"MaSieuThi": "BRGHP", "MaNganhHang": "THUCPHAM", "ChiTieuDoanhThu": 50000000} để báo cáo đọc thẳng, không phải tự tách chuỗi'
           rows={4}
           value={editForm.otherTargetsJson}
           onChange={(e) => setEditForm({ ...editForm, otherTargetsJson: e.target.value })}
