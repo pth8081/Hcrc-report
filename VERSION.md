@@ -5,6 +5,37 @@ Server, API Server và các giao diện quản trị) — tăng ở mỗi lần 
 `main`, theo kiểu semver không chặt (patch cho fix nhỏ, minor cho tính năng
 mới, major khi đổi cấu trúc phá vỡ tương thích ngược).
 
+## 0.39.0 — Kiểm tra chữ ký file (magic byte) cho mọi endpoint tải file lên
+
+Rà soát riêng theo yêu cầu: "đã check file kiểu magic byte cho hệ thống
+chưa?" — soát lại toàn bộ 4 endpoint `multer` trong hệ thống (2 nhập
+Nguồn dữ liệu ở etl+api-server, 1 nhập Chỉ tiêu ở etl, 1 tải file mẫu báo
+cáo ở rp-server), xác nhận CẢ 4 trước đây chỉ kiểm tra ĐUÔI FILE
+(`fileFilter` soi `originalname`) hoặc hoàn toàn KHÔNG soi `mimetype` —
+chưa endpoint nào kiểm tra NỘI DUNG THẬT của file. File đổi đuôi giả mạo
+(vd 1 file `.html`/`.exe` đổi tên thành `.xlsx`) trước đây lọt qua
+`fileFilter`, được đưa thẳng vào ExcelJS (zip/XML parser, có bề mặt tấn
+công riêng) hoặc — nghiêm trọng nhất — ghi hẳn lên đĩa ở `rp-server`
+(`templates/`, tái sử dụng cho MỌI admin, xem `GET /templates`).
+
+- **`{etl,api-server,rp-server}/lib/fileSignature.js`** (mới, 3 bản): hàm
+  `hasZipSignature(bytes)` — `.xlsx`/`.pptx` (Office Open XML) đều là
+  container ZIP, luôn bắt đầu bằng 1 trong 3 chữ ký ZIP chuẩn
+  (`PK\x03\x04`/`PK\x05\x06`/`PK\x07\x08`). File đổi đuôi giả mạo không
+  khớp chữ ký này, bị chặn TRƯỚC khi đưa vào ExcelJS/lưu đĩa.
+- **`etl/routes/admin/dataSources.js`** + **`api-server/routes/admin/dataSources.js`**
+  (`POST /import`, memoryStorage): kiểm tra `hasZipSignature(req.file.buffer)`
+  ngay sau khi multer đọc xong, trước khi gọi `parseDataSourcesFile()`.
+- **`etl/routes/admin/salesTargets.js`** (`POST /import`, memoryStorage):
+  kiểm tra tương tự trước `parseSalesTargetsFile()`.
+- **`rp-server/routes/reportCatalog.js`** (`POST /templates`, diskStorage —
+  khác 3 route kia, multer đã GHI FILE LÊN ĐĨA trước khi route handler
+  chạy, không còn buffer trong bộ nhớ): đọc lại 4 byte đầu từ file vừa ghi
+  (`fs.readSync`), phát hiện sai chữ ký thì **xoá ngay khỏi đĩa**
+  (`fs.unlinkSync`) và trả 400 — không để lại rác/nguy cơ trong `templates/`.
+  Đây là endpoint rủi ro cao nhất (file tồn tại lâu dài trên đĩa, dùng
+  chung cho mọi admin) nên được ưu tiên xử lý kỹ nhất trong 4 endpoint.
+
 ## 0.38.0 — Rà soát chuyên sâu vòng 5: lệch ngày EventDate nguồn MySQL, đồng bộ formulaEngine, sẵn sàng chịu lỗi CSDL
 
 Rà soát chuyên sâu tiếp theo, 4 agent phụ trách hạ tầng/triển khai/phụ

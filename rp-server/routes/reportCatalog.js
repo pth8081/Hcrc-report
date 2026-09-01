@@ -13,6 +13,7 @@ const { requireAuth, requireMenuAccess } = require('../lib/auth');
 const { logAction } = require('../lib/auditLog');
 const { parseFormula } = require('../lib/formulaEngine');
 const { runExternalReport } = require('../lib/externalReportClient');
+const { hasZipSignature } = require('../lib/fileSignature');
 
 const TEMPLATES_DIR = path.join(__dirname, '..', 'templates');
 const upload = multer({
@@ -316,6 +317,20 @@ router.get('/templates', (req, res, next) => {
 router.post('/templates', upload.single('file'), async (req, res, next) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'Thiếu file' });
+    // fileFilter (đuôi .xlsx/.pptx) chỉ soi được originalname, CHƯA có nội
+    // dung — diskStorage đã ghi file THẬT lên đĩa lúc này, đọc lại 4 byte
+    // đầu để kiểm tra đúng chữ ký ZIP (.xlsx/.pptx đều là Office Open XML,
+    // container ZIP) trước khi giữ lại file, chặn file đổi đuôi giả mạo
+    // (vd .html/.exe đổi thành .xlsx) được lưu và mở lại sau này bởi
+    // ExcelJS/pptx export (xem lib/fileSignature.js).
+    const fd = fs.openSync(req.file.path, 'r');
+    const head = Buffer.alloc(4);
+    fs.readSync(fd, head, 0, 4, 0);
+    fs.closeSync(fd);
+    if (!hasZipSignature(head)) {
+      fs.unlinkSync(req.file.path);
+      return res.status(400).json({ error: 'File không đúng định dạng .xlsx/.pptx (sai chữ ký file)' });
+    }
     // req.file.filename = tên đã qua path.basename() ở storage.filename phía
     // trên (tên THẬT lưu trên đĩa) — trả về đúng cái này, không phải
     // originalname gốc (có thể khác nếu người dùng gõ đường dẫn traversal).

@@ -15,6 +15,7 @@ const { sql, getPool } = require('../../db');
 const { requireAdminAuth, requireTargetImporterRole } = require('../../lib/adminAuth');
 const { parseSalesTargetsFile, upsertSalesTargets, PERIOD_RE, TRANG_THAI_VALUES } = require('../../lib/salesTargetsImport');
 const { logAction } = require('../../lib/auditLog');
+const { hasZipSignature } = require('../../lib/fileSignature');
 
 const router = express.Router();
 router.use(requireAdminAuth);
@@ -96,6 +97,12 @@ router.post('/import', requireTargetImporterRole, upload.single('file'), async (
     const { domain } = req.body || {};
     if (!domain || !domain.trim()) return res.status(400).json({ error: 'Thiếu domain' });
     if (!req.file) return res.status(400).json({ error: 'Thiếu file (.xlsx)' });
+    // fileFilter (đuôi .xlsx) chỉ soi được originalname, CHƯA có nội dung —
+    // kiểm tra thêm chữ ký ZIP thật của file trước khi đưa vào ExcelJS,
+    // chặn file đổi đuôi giả mạo (xem lib/fileSignature.js).
+    if (!hasZipSignature(req.file.buffer)) {
+      return res.status(400).json({ error: 'File không đúng định dạng .xlsx (sai chữ ký file)' });
+    }
 
     let parsed;
     try {

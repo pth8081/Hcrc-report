@@ -29,6 +29,7 @@ const { invalidate, testConnection, testConnectionsBatch } = require('../../lib/
 const schemaBrowser = require('../../lib/schemaBrowser');
 const { parseDataSourcesFile, upsertDataSources } = require('../../lib/dataSourcesImport');
 const { logAction } = require('../../lib/auditLog');
+const { hasZipSignature } = require('../../lib/fileSignature');
 
 // Chạy testConnection() nhưng KHÔNG BAO GIỜ throw — dùng ngay sau khi lưu,
 // lỗi kết nối không được làm hỏng response lưu-thành-công.
@@ -166,6 +167,12 @@ router.post('/test', requireAdminRole, async (req, res) => {
 router.post('/import', requireAdminRole, upload.single('file'), async (req, res, next) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'Thiếu file' });
+    // fileFilter (đuôi .xlsx) chỉ soi được originalname, CHƯA có nội dung —
+    // kiểm tra thêm chữ ký ZIP thật của file trước khi đưa vào ExcelJS,
+    // chặn file đổi đuôi giả mạo (xem lib/fileSignature.js).
+    if (!hasZipSignature(req.file.buffer)) {
+      return res.status(400).json({ error: 'File không đúng định dạng .xlsx (sai chữ ký file)' });
+    }
 
     let parsed;
     try {
