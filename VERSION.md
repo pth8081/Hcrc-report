@@ -5,6 +5,12 @@ Server, API Server và các giao diện quản trị) — tăng ở mỗi lần 
 `main`, theo kiểu semver không chặt (patch cho fix nhỏ, minor cho tính năng
 mới, major khi đổi cấu trúc phá vỡ tương thích ngược).
 
+## 0.34.7 — Xoá hẳn mã nguồn portal/
+
+Xoá thư mục `portal/` khỏi repo (đã bỏ khỏi triển khai từ 0.34.6, giờ xoá
+luôn mã nguồn) — không còn dùng nữa, người dùng sẽ tạo lại theo ý tưởng
+khác sau nếu cần.
+
 ## 0.34.6 — Bỏ portal khỏi triển khai — mỗi ứng dụng truy cập thẳng
 
 Người dùng tự tạo kết nối/quyền truy cập riêng cho từng ứng dụng (bảo mật
