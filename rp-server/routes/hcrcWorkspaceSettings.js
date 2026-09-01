@@ -50,6 +50,17 @@ router.get('/', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// lib/hcrcWorkspaceClient.js ghép chuỗi thẳng baseUrl + path (không dùng
+// new URL(base, path)) — path bắt đầu bằng "/" và có KÝ TỰ "@" (vd
+// "@evil.com/x") sẽ bị trình phân tích URL coi "@" là ranh giới userinfo,
+// biến phần domain SAU "@" thành host thật, "@" trước đó vô nghĩa — admin
+// gõ nhầm/tài khoản admin bị chiếm có thể âm thầm đổi hướng cả BaseUrl hợp
+// lệ sang máy chủ khác. Validate ở đây (path phải bắt đầu "/", không chứa
+// khoảng trắng/"@") để chặn sớm, không đợi lỗi khó hiểu lúc gọi thật.
+function isSafeApiPath(p) {
+  return typeof p === 'string' && p.startsWith('/') && !/[\s@]/.test(p);
+}
+
 router.put('/', requireSystemRoleActor, async (req, res, next) => {
   try {
     const { baseUrl, apiKey, verifyPath, directoryPath, isEnabled } = req.body || {};
@@ -58,6 +69,13 @@ router.put('/', requireSystemRoleActor, async (req, res, next) => {
     // người dùng trong body, http:// sẽ truyền plaintext qua mạng.
     if (!/^https:\/\//i.test(baseUrl)) {
       return res.status(400).json({ error: 'baseUrl phải bắt đầu bằng "https://" — endpoint xác thực gửi mật khẩu thật trong body, không dùng http://' });
+    }
+    try { new URL(baseUrl); } catch { return res.status(400).json({ error: 'baseUrl không phải URL hợp lệ' }); }
+    if (verifyPath && !isSafeApiPath(verifyPath)) {
+      return res.status(400).json({ error: 'verifyPath phải bắt đầu bằng "/", không chứa khoảng trắng hay ký tự "@"' });
+    }
+    if (directoryPath && !isSafeApiPath(directoryPath)) {
+      return res.status(400).json({ error: 'directoryPath phải bắt đầu bằng "/", không chứa khoảng trắng hay ký tự "@"' });
     }
 
     const pool = await getPool('RP');
@@ -73,8 +91,8 @@ router.put('/', requireSystemRoleActor, async (req, res, next) => {
     await pool.request()
       .input('baseUrl', sql.NVarChar(300), baseUrl)
       .input('apiKeyEncrypted', sql.NVarChar(500), apiKeyEncrypted)
-      .input('verifyPath', sql.NVarChar(200), verifyPath || '/auth/verify')
-      .input('directoryPath', sql.NVarChar(200), directoryPath || '/directory')
+      .input('verifyPath', sql.NVarChar(200), verifyPath || '/api/external/verify-credentials')
+      .input('directoryPath', sql.NVarChar(200), directoryPath || '/api/external/users')
       .input('isEnabled', sql.Bit, isEnabled ? 1 : 0)
       .query(`
         MERGE app.HcrcWorkspaceSettings AS target

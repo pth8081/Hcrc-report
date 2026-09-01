@@ -5,6 +5,24 @@ Server, API Server và các giao diện quản trị) — tăng ở mỗi lần 
 `main`, theo kiểu semver không chặt (patch cho fix nhỏ, minor cho tính năng
 mới, major khi đổi cấu trúc phá vỡ tương thích ngược).
 
+## 0.34.5 — Rà bảo mật tiếp: validate baseUrl/path, sửa fallback path sai
+
+Tiếp tục rà tích hợp HCRC Workspace sau bản vá HTTPS, phát hiện thêm 2
+điểm cần sửa:
+
+- **`routes/hcrcWorkspaceSettings.js`**: `verifyPath`/`directoryPath` ghép
+  chuỗi thẳng với `baseUrl` (`lib/hcrcWorkspaceClient.js`, không dùng
+  `new URL(base, path)`) — path bắt đầu bằng `@` (vd `@evil.com/x`) khiến
+  trình phân tích URL coi phần domain SAU `@` là host thật, biến `baseUrl`
+  hợp lệ trước đó thành vô nghĩa. Thêm kiểm tra: path phải bắt đầu `/`,
+  không chứa khoảng trắng/`@`; `baseUrl` phải là URL hợp lệ (`new URL()`
+  không lỗi), không chỉ đúng tiền tố `https://`.
+- Cùng file: fallback mặc định của `verifyPath`/`directoryPath` khi bỏ
+  trống vẫn là giá trị **cũ sai** (`/auth/verify`, `/directory`) từ trước
+  khi có tài liệu API thật (0.34.2) — sửa về đúng
+  `/api/external/verify-credentials`/`/api/external/users`.
+- 2 test mới (`test-hcrc-workspace-path-validation.js`) khoá lại cả 2.
+
 ## 0.34.4 — Bắt buộc HTTPS cho Base URL HCRC Workspace
 
 `POST /verify-credentials` gửi mật khẩu thật của người dùng trong body —
