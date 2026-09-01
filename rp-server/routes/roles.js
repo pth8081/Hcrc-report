@@ -4,7 +4,7 @@
 // quyền theo thiết kế, không cần và không nên chỉnh tay.
 const express = require('express');
 const { sql, getPool } = require('../db');
-const { requireAuth, requireMenuAccess } = require('../lib/auth');
+const { requireAuth, requireMenuAccess, requireSystemRoleActor } = require('../lib/auth');
 const { invalidateAll } = require('../lib/permissions');
 const { logAction } = require('../lib/auditLog');
 
@@ -90,7 +90,10 @@ router.get('/:id/access', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.put('/:id/menu-access', async (req, res, next) => {
+// Cấp quyền MENU tuỳ ý (kể cả menu 'system-*' khác) — chỉ Admin hệ thống
+// thật mới làm được, xem chú thích requireSystemRoleActor trong lib/auth.js
+// (chặn đường leo thang qua chính route này).
+router.put('/:id/menu-access', requireSystemRoleActor, async (req, res, next) => {
   try {
     const { menuItemIds = [] } = req.body || {};
     const pool = await getPool('RP');
@@ -115,7 +118,8 @@ router.put('/:id/menu-access', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.put('/:id/report-access', async (req, res, next) => {
+// Cùng lý do — chỉ Admin hệ thống thật mới cấp quyền BÁO CÁO cho 1 vai trò.
+router.put('/:id/report-access', requireSystemRoleActor, async (req, res, next) => {
   try {
     const { reportIds = [] } = req.body || {};
     const pool = await getPool('RP');

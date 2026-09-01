@@ -12,7 +12,7 @@
 // biết chi tiết.
 const { sql, getPool } = require('../db');
 const { decrypt } = require('./crypto');
-const { assertPublicUrl } = require('./urlSafety');
+const { fetchSafe } = require('./urlSafety');
 
 const cache = new Map(); // externalConnectionId -> Promise<connection>
 const tokenCache = new Map(); // externalConnectionId -> { accessToken, expiresAt }
@@ -58,8 +58,7 @@ async function getOAuth2Token(connection) {
   const cached = tokenCache.get(connection.id);
   if (cached && cached.expiresAt > Date.now() + TOKEN_EXPIRY_SAFETY_MS) return cached.accessToken;
 
-  await assertPublicUrl(connection.tokenUrl); // chặn SSRF — xem lib/urlSafety.js
-  const res = await fetch(connection.tokenUrl, {
+  const res = await fetchSafe(connection.tokenUrl, { // chặn SSRF (kể cả qua redirect) — xem lib/urlSafety.js
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
@@ -89,8 +88,7 @@ function invalidate(id) {
 // kiểm tra tình trạng như api-server của chính mình (xem README).
 async function testConnection({ baseUrl }) {
   const url = baseUrl.replace(/\/+$/, '');
-  await assertPublicUrl(url); // chặn SSRF — xem lib/urlSafety.js
-  const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+  const res = await fetchSafe(url, { signal: AbortSignal.timeout(8000) }); // chặn SSRF (kể cả qua redirect) — xem lib/urlSafety.js
   return { status: res.status };
 }
 

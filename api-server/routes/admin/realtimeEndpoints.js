@@ -92,6 +92,18 @@ async function assertFullSchemaMatches({ dataSourceId, schemaName, tableName, ke
   }
 }
 
+// lookupJoinColumn KHÔNG unique trên bảng liên kết -> runLookup (chạy thật,
+// lib/realtimeEngine.js) có thể âm thầm trả nhầm 1 trong nhiều dòng khớp,
+// runList thì nhân dòng lên ngoài ý muốn. KHÔNG chặn lưu (một số cấu hình
+// join 1-nhiều là cố ý, vd chỉ dùng cho runList) — chỉ cảnh báo cho admin tự
+// quyết định, trả kèm response để hiện lên api-admin/.
+async function checkJoinCardinalityWarning({ joinTable, dataSourceId, joinSchema, lookupJoinColumn }) {
+  if (!joinTable) return null;
+  const unique = await schemaBrowser.isUniqueSingleColumn(dataSourceId, joinSchema, joinTable, lookupJoinColumn).catch(() => true); // lỗi kiểm tra -> không chặn, coi như không cảnh báo được
+  if (unique) return null;
+  return `Cột nối "${joinSchema}.${joinTable}.${lookupJoinColumn}" không có ràng buộc UNIQUE/khoá chính trên nguồn — nếu 1 giá trị của cột này khớp NHIỀU dòng ở bảng liên kết, lookup theo khoá có thể trả về nhầm dòng (xem log server khi endpoint chạy).`;
+}
+
 router.post('/', requireAdminRole, async (req, res, next) => {
   try {
     const {
@@ -136,7 +148,8 @@ router.post('/', requireAdminRole, async (req, res, next) => {
       module: 'Endpoint realtime', actionType: 'TAO_ENDPOINT', targetObject: endpoint,
       description: `Tạo endpoint "${endpoint}"${joinTable ? ` (nối thêm ${joinSchema}.${joinTable})` : ''}`
     });
-    res.status(201).json({ ok: true });
+    const warning = await checkJoinCardinalityWarning({ joinTable, dataSourceId, joinSchema, lookupJoinColumn });
+    res.status(201).json({ ok: true, warning });
   } catch (err) {
     if (err.number === 2627 || err.number === 2601) return res.status(409).json({ error: `Endpoint "${req.body.endpoint}" đã tồn tại` });
     next(err);
@@ -187,7 +200,8 @@ router.put('/:endpoint', requireAdminRole, async (req, res, next) => {
       module: 'Endpoint realtime', actionType: 'SUA_ENDPOINT', targetObject: req.params.endpoint,
       description: `Cập nhật endpoint "${req.params.endpoint}"${joinTable ? ` (nối thêm ${joinSchema}.${joinTable})` : ''}`
     });
-    res.json({ ok: true });
+    const warning = await checkJoinCardinalityWarning({ joinTable, dataSourceId, joinSchema, lookupJoinColumn });
+    res.json({ ok: true, warning });
   } catch (err) { next(err); }
 });
 

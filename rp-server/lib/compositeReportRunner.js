@@ -195,7 +195,17 @@ async function runCompositeReport(definition, filterValues = {}) {
       const entityCode = row.entityCode;
       if (!entityCode) continue;
       if (!merged.has(entityCode)) merged.set(entityCode, { entityCode });
-      merged.get(entityCode)[block.key] = row;
+      const target = merged.get(entityCode);
+      // Khối trả về >1 dòng cho CÙNG entityCode (vd cấu hình filters của
+      // khối lỏng hơn dự kiến, hoặc nguồn có nhiều dòng/thực thể mà báo cáo
+      // đang giả định 1 dòng/thực thể) khiến dòng SAU âm thầm ghi đè dòng
+      // TRƯỚC — không có lỗi nào ném ra, chỉ số liệu sai lặng lẽ. Cảnh báo
+      // ra log để phát hiện sớm, KHÔNG chặn chạy báo cáo (vẫn trả kết quả,
+      // dùng dòng cuối cùng gặp — giữ nguyên hành vi cũ).
+      if (target[block.key] !== undefined) {
+        console.warn(`⚠️  [composite] khối "${block.key}" trả về NHIỀU HƠN 1 dòng cho entityCode "${entityCode}" — chỉ giữ dòng cuối cùng, kiểm tra lại cấu hình filters của khối này`);
+      }
+      target[block.key] = row;
     }
   });
 

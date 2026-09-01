@@ -81,9 +81,18 @@ async function runLookup(endpoint, keyValue) {
   const { cols, table, joinClause, allColumns } = selectClause(def);
   const keyCol = quoteIdent(def.KeyColumn);
   const pool = await getPoolForDataSource(def.DataSourceId);
+  // TOP 2 (không phải TOP 1) — đủ 1 dòng thừa để PHÁT HIỆN join nhân dòng
+  // (LookupJoinColumn không unique trên bảng liên kết, xem
+  // routes/admin/realtimeEndpoints.js checkJoinCardinalityWarning cảnh báo
+  // lúc lưu — đây là lớp bảo vệ lúc CHẠY, phòng khi dữ liệu nguồn đổi sau
+  // đó khiến cột từng unique nay không còn). Không có join thì KeyColumn là
+  // khoá tra cứu nên tối đa 1 dòng, nhánh cảnh báo này không kích hoạt.
   const result = await pool.request()
     .input('key', sql.NVarChar(200), keyValue)
-    .query(`SELECT ${cols} FROM ${table} ${joinClause} WHERE m.${keyCol} = @key`);
+    .query(`SELECT TOP 2 ${cols} FROM ${table} ${joinClause} WHERE m.${keyCol} = @key`);
+  if (result.recordset.length > 1) {
+    console.warn(`⚠️  [realtime:${endpoint}] khoá "${keyValue}" khớp NHIỀU HƠN 1 dòng sau JOIN — LookupJoinColumn "${def.LookupJoinColumn}" có thể không unique trên "${def.JoinSchema}.${def.JoinTable}". Trả về dòng đầu tiên (không đảm bảo dòng nào), kiểm tra lại cấu hình endpoint.`);
+  }
   return { columns: allColumns, row: result.recordset[0] || null };
 }
 

@@ -65,6 +65,39 @@ BEGIN
 END
 GO
 
+-- CHECK chống chuỗi rỗng/toàn khoảng trắng lọt vào khoá nghiệp vụ (etl job
+-- cấu hình sai SourceSystem/Domain = '' vẫn PASS NOT NULL nhưng vô nghĩa,
+-- vỡ mọi truy vấn lọc theo domain phía report). Không CHECK theo danh sách
+-- domain cố định (enum) vì domain là do từng job etl tự đặt, không có danh
+-- mục tập trung để đối chiếu — chỉ chặn rỗng, không đoán giá trị nghiệp vụ.
+IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = 'CK_ReportFacts_SourceSystem_NotEmpty')
+BEGIN
+    ALTER TABLE dwh.ReportFacts WITH CHECK ADD CONSTRAINT CK_ReportFacts_SourceSystem_NotEmpty
+        CHECK (LEN(LTRIM(RTRIM(SourceSystem))) > 0);
+END
+IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = 'CK_ReportFacts_Domain_NotEmpty')
+BEGIN
+    ALTER TABLE dwh.ReportFacts WITH CHECK ADD CONSTRAINT CK_ReportFacts_Domain_NotEmpty
+        CHECK (LEN(LTRIM(RTRIM(Domain))) > 0);
+END
+GO
+
+-- EntityCode NULL-able (khác SalesTargets.EntityCode NOT NULL bên dưới) —
+-- CÓ CHỦ ĐÍCH: một số Domain là số liệu tổng hợp toàn công ty/không gắn 1
+-- thực thể cụ thể (vd tổng doanh thu toàn hệ thống theo ngày), lúc đó
+-- EntityCode để NULL hợp lệ. SQL Server coi 2 giá trị NULL là TRÙNG NHAU khi
+-- kiểm tra UNIQUE (khác chuẩn ANSI/Postgres coi NULL<>NULL) — nên khoá
+-- UX_ReportFacts_Source_Domain_Entity_Date phía trên vẫn chỉ cho phép ĐÚNG 1
+-- dòng/ngày khi EntityCode NULL, invariant "1 dòng/thực thể" (etl/lib/upsert.js)
+-- không hề bị nới lỏng bởi cột nullable này.
+-- KHÔNG có FK từ EntityCode tới 1 bảng dimension tập trung — thiết kế hiện
+-- tại CHƯA có bảng dimension liệt kê mọi mã thực thể hợp lệ theo từng
+-- SourceSystem (mỗi job etl tự biết mã thực thể của nguồn nó đồng bộ), nên
+-- CSDL không tự kiểm tra được EntityCode có "thật" hay không — rủi ro nhập
+-- sai mã bị đẩy hết sang tầng ứng dụng (etl job + validate phía nhập tay
+-- dwh.SalesTargets). Muốn khoá chặt hơn cần thêm 1 bảng dimension trung tâm
+-- (thay đổi kiến trúc lớn, chưa làm ở đây vì chưa có yêu cầu nghiệp vụ cụ thể).
+
 -- Chỉ tiêu (target/KPI) nhập tay theo tháng, TÁCH BẢNG RIÊNG khỏi
 -- dwh.ReportFacts (không chung Domain) — để có thể GRANT quyền GHI ở mức
 -- ĐÚNG BẢNG này cho 1 tài khoản hẹp (vd "dwh_target_importer", xem
@@ -95,6 +128,20 @@ BEGIN
     );
     CREATE INDEX IX_SalesTargets_Domain_Period
         ON dwh.SalesTargets (Domain, PeriodMonth DESC) INCLUDE (EntityCode);
+END
+GO
+
+-- Cùng lý do CK_ReportFacts_*_NotEmpty phía trên: chặn chuỗi rỗng/toàn
+-- khoảng trắng lọt vào khoá nghiệp vụ khi nhập chỉ tiêu tay (etl/lib/salesTargetsImport.js).
+IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = 'CK_SalesTargets_Domain_NotEmpty')
+BEGIN
+    ALTER TABLE dwh.SalesTargets WITH CHECK ADD CONSTRAINT CK_SalesTargets_Domain_NotEmpty
+        CHECK (LEN(LTRIM(RTRIM(Domain))) > 0);
+END
+IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = 'CK_SalesTargets_EntityCode_NotEmpty')
+BEGIN
+    ALTER TABLE dwh.SalesTargets WITH CHECK ADD CONSTRAINT CK_SalesTargets_EntityCode_NotEmpty
+        CHECK (LEN(LTRIM(RTRIM(EntityCode))) > 0);
 END
 GO
 

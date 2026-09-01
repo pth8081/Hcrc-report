@@ -6,13 +6,16 @@
 // ngay trên Dashboard khi danh sách job dài (nhiều chục kết nối).
 const express = require('express');
 const { getPool } = require('../../db');
-const { requireAdminAuth } = require('../../lib/adminAuth');
+const { requireAdminAuth, blockTargetImporter } = require('../../lib/adminAuth');
 const { isJobOverdue } = require('../../lib/syncStatus');
 
 const router = express.Router();
 router.use(requireAdminAuth);
 
-router.get('/', async (req, res, next) => {
+// blockTargetImporter — trả về tên/lỗi/CronExpression của mọi job đồng bộ
+// hạ tầng, vai trò 'target_importer' không được xem dù gọi thẳng API — xem
+// chú thích ở lib/adminAuth.js.
+router.get('/', blockTargetImporter, async (req, res, next) => {
   try {
     const pool = await getPool('ADMIN');
 

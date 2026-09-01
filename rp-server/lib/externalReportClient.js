@@ -15,7 +15,7 @@ const { evaluateFormula } = require('./formulaEngine');
 const { describeColumns } = require('./reportEngine');
 const { getConnection, getOAuth2Token } = require('./externalApiConnectionPool');
 const hmacSign = require('./hmacSign');
-const { assertPublicUrl } = require('./urlSafety');
+const { fetchSafe } = require('./urlSafety');
 
 function getByPath(obj, path) {
   if (!path) return obj;
@@ -73,7 +73,7 @@ async function applyAuth(url, headers, connection, { method, body }) {
 }
 
 async function fetchJson(url, headers) {
-  const res = await fetch(url, { headers, signal: AbortSignal.timeout(30000) });
+  const res = await fetchSafe(url.toString(), { headers, signal: AbortSignal.timeout(30000) }); // chặn SSRF (kể cả qua redirect) — xem lib/urlSafety.js
   const text = await res.text();
   let data;
   try {
@@ -111,7 +111,6 @@ async function runExternalReport(definition, filterValues = {}) {
 
   const connection = await getConnection(externalConnectionId);
   const url = buildUrl(connection.baseUrl, externalPath, filterValues);
-  await assertPublicUrl(url.toString()); // chặn SSRF — xem lib/urlSafety.js
   const headers = {};
   await applyAuth(url, headers, connection, { method: 'GET', body: '' });
 

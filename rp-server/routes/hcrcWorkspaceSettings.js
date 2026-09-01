@@ -7,8 +7,7 @@
 // cấu hình hay chưa (giống routes/emailSettings.js).
 const express = require('express');
 const { sql, getPool } = require('../db');
-const { requireAuth, requireMenuAccess } = require('../lib/auth');
-const { getUserContext } = require('../lib/permissions');
+const { requireAuth, requireMenuAccess, requireSystemRoleActor } = require('../lib/auth');
 const { encrypt } = require('../lib/crypto');
 const { logAction } = require('../lib/auditLog');
 const { fetchDirectory } = require('../lib/hcrcWorkspaceClient');
@@ -19,14 +18,7 @@ router.use(requireAuth, requireMenuAccess('system-hcrc-workspace'));
 // Sửa cấu hình/chạy thử = quyết định hệ thống nào xác thực được đăng nhập
 // của người khác — THAO TÁC NHẠY CẢM, chỉ Admin hệ thống thật (không phải
 // chỉ có menu qua RoleMenuAccess), cùng mức với routes/users.js reset-2fa/
-// auth-source.
-async function requireSystemRoleActor(req, res, next) {
-  try {
-    const context = await getUserContext(req.user.sub);
-    if (!context?.isSystemRole) return res.status(403).json({ error: 'Chỉ vai trò Admin (hệ thống) mới thực hiện được thao tác này' });
-    next();
-  } catch (err) { next(err); }
-}
+// auth-source. requireSystemRoleActor dùng chung, xem lib/auth.js.
 
 router.get('/', async (req, res, next) => {
   try {

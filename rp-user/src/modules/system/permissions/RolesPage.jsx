@@ -3,9 +3,11 @@
 // chặn, ở đây chỉ ẩn nút cho gọn.
 import { useEffect, useState } from 'react';
 import { api } from '../../../lib/api';
+import { useAuth } from '../../../lib/AuthContext';
 import DataTable from '../../../components/DataTable';
 
 export default function RolesPage() {
+  const { me } = useAuth();
   const [roles, setRoles] = useState([]);
   const [menuItems, setMenuItems] = useState([]);
   const [reportCatalog, setReportCatalog] = useState([]);
@@ -116,9 +118,15 @@ export default function RolesPage() {
               </label>
             ))}
 
+            {/* Sửa quyền menu/báo cáo của 1 vai trò chỉ Admin hệ thống thật mới
+                làm được (server đã chặn — xem lib/auth.js requireSystemRoleActor,
+                tránh 1 người chỉ có menu "Phân quyền" tự cấp quyền hệ thống cho
+                mình) — người xem thường vẫn xem được quyền hiện có, chỉ ẩn nút Lưu. */}
             <div className="modal-actions">
-              <button type="button" onClick={saveAccess}>Lưu</button>
-              <button type="button" onClick={() => setEditingAccessFor(null)}>Huỷ</button>
+              {me?.isSystemRole
+                ? <button type="button" onClick={saveAccess}>Lưu</button>
+                : <span className="form-hint">Chỉ Admin hệ thống mới sửa được quyền này.</span>}
+              <button type="button" onClick={() => setEditingAccessFor(null)}>Đóng</button>
             </div>
           </div>
         </div>

@@ -5,6 +5,59 @@ Server, API Server và các giao diện quản trị) — tăng ở mỗi lần 
 `main`, theo kiểu semver không chặt (patch cho fix nhỏ, minor cho tính năng
 mới, major khi đổi cấu trúc phá vỡ tương thích ngược).
 
+## 0.35.0 — Rà soát nghiệp vụ/bảo mật/kiến trúc lần 2: leo thang đặc quyền, SSRF-qua-redirect, khoá chồng lấn chéo tiến trình
+
+Rà soát chuyên sâu ETL/API Server/Report Server/kiến trúc bảng dwh (không
+lặp lại các phát hiện đã sửa ở các bản trước), xử lý toàn bộ trong 1 lượt:
+
+- **`rp-server/lib/auth.js`** (mới) + **`routes/roles.js`**/**`routes/users.js`**/**`routes/hcrcWorkspaceSettings.js`**:
+  🔴 lỗ hổng leo thang đặc quyền — menu "Phân quyền" (`system-permissions`)
+  được thiết kế CÓ THỂ giao cho vai trò không phải Admin hệ thống (qua
+  `RoleMenuAccess`), nhưng `PUT /system/roles/:id/menu-access`,
+  `PUT /:id/report-access` và `PUT /system/users/:id/roles` trước đây chỉ
+  kiểm tra menu đó (`requireMenuAccess`) chứ không kiểm tra vai trò hệ thống
+  thật (`requireSystemRoleActor`, mới gộp về `lib/auth.js` — trước bị lặp
+  code y hệt ở 3 route file) — 1 tài khoản chỉ được giao menu này (và KHÔNG
+  bị bắt buộc 2FA, vì quy tắc 2FA bắt buộc chỉ áp cho `isSystemRole` thật)
+  có thể tự tạo vai trò → tự cấp mọi quyền hệ thống → tự gán vai trò đó cho
+  chính mình, vượt qua hoàn toàn yêu cầu 2FA của Admin thật. Đã chặn ở cả 3
+  route; `rp-user/.../RolesPage.jsx` + `UsersPage.jsx` ẩn nút "Lưu" cho
+  người xem không phải Admin hệ thống thật (vẫn xem được, chỉ không sửa).
+- **`dwh/schema.sql`**: 🟡 thêm CHECK constraint chặn `SourceSystem`/`Domain`
+  (ReportFacts) và `Domain`/`EntityCode` (SalesTargets) rỗng/toàn khoảng
+  trắng lọt vào khoá nghiệp vụ; ghi chú tường minh lý do `EntityCode` nullable
+  ở ReportFacts an toàn với UNIQUE (SQL Server coi NULL bằng nhau khi kiểm
+  tra uniqueness) và lý do chưa có FK từ EntityCode tới bảng dimension (chưa
+  có bảng đó trong thiết kế hiện tại — rủi ro đã biết, chưa đổi kiến trúc).
+- **`rp-server/lib/urlSafety.js`** (`fetchSafe` mới) + **`externalApiConnectionPool.js`**/**`externalReportClient.js`**:
+  🔴 SSRF-qua-redirect — `assertPublicUrl()` chỉ kiểm tra URL TRƯỚC khi gọi,
+  nhưng `fetch()` mặc định tự follow header `Location` của máy chủ đối tác
+  MÀ KHÔNG kiểm tra lại IP đích, cho phép 1 kết nối API đối tác (baseUrl hợp
+  lệ) trả về 302 trỏ tới địa chỉ nội bộ/metadata cloud để vượt qua kiểm tra.
+  `fetchSafe()` dùng `redirect:'manual'` + `assertPublicUrl()` lại cho từng
+  URL redirect (tối đa 5 lần).
+- **`etl/routes/admin/log.js`** + **`dashboard.js`**: 🟡 thêm
+  `blockTargetImporter` (2 route còn thiếu) — tránh vai trò hẹp
+  `target_importer` đọc được tên/lỗi job đồng bộ hạ tầng qua gọi thẳng API.
+- **`etl/routes/admin/syncJobs.js`**: 🟡 `POST /:id/run-now` ("Chạy thử")
+  giờ ghi Audit Log — trước đây thao tác chạy tay 1 job không để lại dấu vết.
+- **`etl/jobs/runSync.js`**: 🟡 `runJobObject()` thêm khoá chồng lấn CẤP CSDL
+  (`sp_getapplock`, `LockTimeout=0`) — `runningJobs` Set cũ (`jobs/scheduler.js`)
+  chỉ chặn được chồng lấn TRONG CÙNG 1 tiến trình node, không chặn được
+  `etl/index.js` (entrypoint chạy tay, tiến trình RIÊNG) chạy trùng 1 job
+  đang được `server.js` tự động chạy theo lịch.
+- **`api-server/lib/schemaBrowser.js`** (`isUniqueSingleColumn` mới) +
+  **`routes/admin/realtimeEndpoints.js`** + **`lib/realtimeEngine.js`**: 🟡
+  JOIN động của endpoint realtime (`LookupJoinColumn`) không được xác nhận là
+  cột unique/khoá chính trên bảng liên kết — `runLookup()` có thể âm thầm
+  trả nhầm 1 trong nhiều dòng khớp. Lưu endpoint giờ cảnh báo (không chặn)
+  nếu cột nối không unique; `runLookup()` dùng `TOP 2` + cảnh báo log khi
+  thực tế khớp >1 dòng (phòng khi dữ liệu nguồn đổi sau lúc lưu).
+- **`rp-server/lib/compositeReportRunner.js`**: 🟢 cảnh báo log khi 1 khối
+  trả về nhiều hơn 1 dòng cho cùng `entityCode` trong 1 lượt chạy — trước đây
+  âm thầm ghi đè (`merged.get(entityCode)[block.key] = row`), không có cách
+  phát hiện cấu hình `filters` của khối bị lỏng hơn dự kiến.
+
 ## 0.34.7 — Xoá hẳn mã nguồn portal/
 
 Xoá thư mục `portal/` khỏi repo (đã bỏ khỏi triển khai từ 0.34.6, giờ xoá

@@ -81,12 +81,16 @@ export default function RealtimeEndpointsPage() {
         body.joinSchema = null; body.joinTable = null; body.joinType = null;
         body.mainJoinColumn = null; body.lookupJoinColumn = null; body.joinColumns = [];
       }
-      await api.post('/realtime-endpoints', body);
+      const result = await api.post('/realtime-endpoints', body);
       setForm(EMPTY_FORM);
       setTables([]);
       setColumns([]);
       setJoinColumnsList([]);
       reload();
+      // Cột nối không unique trên nguồn -> lookup theo khoá có thể trả nhầm
+      // dòng (xem lib/schemaBrowser.js isUniqueSingleColumn) — vẫn lưu bình
+      // thường (không chặn), chỉ cảnh báo để admin tự quyết định.
+      if (result.warning) alert(`⚠️ ${result.warning}`);
     } catch (err) { setError(err.message); }
   }
 

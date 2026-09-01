@@ -251,6 +251,7 @@ router.post('/:id/run-now', requireAdminRole, async (req, res, next) => {
     // bấm "Chạy thử" khi job này đang tự chạy theo lịch cũng phải bị chặn
     // (bỏ qua lặng lẽ, ghi log), không chỉ 2 lượt cron tự động chồng nhau.
     await runJobIfNotAlreadyRunning(result.recordset[0]);
+    await logAction(req, { module: 'Đồng bộ', actionType: 'CHAY_THU_JOB', targetObject: String(jobId), description: `Chạy thử job đồng bộ "${result.recordset[0].Name}"` });
     res.json({ ok: true });
   } catch (err) { next(err); }
 });

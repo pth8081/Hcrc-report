@@ -85,4 +85,27 @@ async function assertPublicUrl(urlString) {
   }
 }
 
-module.exports = { assertPublicUrl, isPrivateIP };
+const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
+const MAX_REDIRECTS = 5;
+
+// fetch() mặc định (redirect:'follow') tự nhảy theo header Location của máy
+// chủ đối tác MÀ KHÔNG kiểm tra lại IP đích — một BaseUrl đã qua
+// assertPublicUrl() lúc gọi vẫn có thể trả về 302 trỏ thẳng tới
+// 169.254.169.254 hay 10.0.0.1, vô hiệu hoá hoàn toàn kiểm tra SSRF ở trên.
+// Dùng fetchSafe() THAY cho fetch() trực tiếp ở MỌI nơi gọi ra ngoài theo
+// cấu hình admin (BaseUrl/TokenUrl) — tự assertPublicUrl() cho URL gốc VÀ
+// từng URL redirect trước khi đi tiếp, giới hạn tối đa MAX_REDIRECTS lần.
+async function fetchSafe(urlString, options = {}) {
+  let current = urlString;
+  for (let i = 0; i <= MAX_REDIRECTS; i++) {
+    await assertPublicUrl(current);
+    const res = await fetch(current, { ...options, redirect: 'manual' });
+    if (!REDIRECT_STATUSES.has(res.status)) return res;
+    const location = res.headers.get('location');
+    if (!location) return res; // 3xx không có Location — trả nguyên response, để nơi gọi tự báo lỗi
+    current = new URL(location, current).toString();
+  }
+  throw safetyError(`Quá nhiều lần chuyển hướng (>${MAX_REDIRECTS}) khi gọi "${urlString}"`);
+}
+
+module.exports = { assertPublicUrl, isPrivateIP, fetchSafe };

@@ -161,9 +161,15 @@ export default function UsersPage() {
                 {r.Name}
               </label>
             ))}
+            {/* Gán vai trò chỉ Admin hệ thống thật mới làm được (server đã
+                chặn — xem lib/auth.js requireSystemRoleActor, tránh 1 user chỉ
+                có menu "Phân quyền" tự gán vai trò cho chính mình) — người
+                xem thường vẫn xem được vai trò hiện có, chỉ ẩn nút Lưu. */}
             <div className="modal-actions">
-              <button type="button" onClick={saveRoles}>Lưu</button>
-              <button type="button" onClick={() => setEditingRolesFor(null)}>Huỷ</button>
+              {me?.isSystemRole
+                ? <button type="button" onClick={saveRoles}>Lưu</button>
+                : <span className="form-hint">Chỉ Admin hệ thống mới gán vai trò được.</span>}
+              <button type="button" onClick={() => setEditingRolesFor(null)}>Đóng</button>
             </div>
           </div>
         </div>

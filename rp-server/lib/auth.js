@@ -185,12 +185,33 @@ function requireMenuAccess(menuCode) {
   };
 }
 
+// Dùng SAU requireAuth trên thao tác NHẠY CẢM — chặt hơn requireMenuAccess:
+// menu 'system-permissions' có thể được cấp cho vai trò KHÔNG phải Admin
+// (delegation hợp lệ, vd để 1 người quản lý gán quyền BÁO CÁO cho nhóm mình
+// mà không cần là Admin hệ thống). Nhưng cấp quyền MENU/VAI TRÒ tuỳ ý (kể cả
+// menu 'system-*' khác) lại chính là con đường leo thang: 1 tài khoản chỉ có
+// menu 'system-permissions' (không IsSystemRole, KHÔNG bị bắt buộc 2FA — xem
+// server.js) có thể tự tạo vai trò, tự gán menu nhạy cảm cho vai trò đó, rồi
+// tự gán vai trò đó cho chính mình — coi như chiếm toàn quyền hệ thống mà
+// không bao giờ qua 2FA. requireSystemRoleActor CHỈ cho phép vai trò
+// IsSystemRole=1 thật sự thực hiện — dùng cho PUT :id/menu-access,
+// PUT :id/report-access (routes/roles.js) và PUT :id/roles (routes/users.js).
+function requireSystemRoleActor(req, res, next) {
+  getUserContext(req.user.sub)
+    .then(context => {
+      if (!context?.isSystemRole) return res.status(403).json({ error: 'Chỉ vai trò Admin (hệ thống) mới thực hiện được thao tác này' });
+      next();
+    })
+    .catch(next);
+}
+
 module.exports = {
   COOKIE_NAME,
   TOKEN_TTL,
   verifyCredentials,
   issueToken,
   verifyToken,
+  requireSystemRoleActor,
   requireAuth,
   requireMenuAccess,
   issuePending2FAToken,

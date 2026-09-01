@@ -2,12 +2,15 @@
 // phân trang.
 const express = require('express');
 const { sql, getPool } = require('../../db');
-const { requireAdminAuth } = require('../../lib/adminAuth');
+const { requireAdminAuth, blockTargetImporter } = require('../../lib/adminAuth');
 
 const router = express.Router();
 router.use(requireAdminAuth);
 
-router.get('/', async (req, res, next) => {
+// blockTargetImporter — trả về JobName (etl.SyncJobs) tiết lộ tên/nguồn các
+// job đồng bộ hạ tầng, vai trò 'target_importer' (chỉ nên thấy trang "Nhập
+// chỉ tiêu") không được xem dù gọi thẳng API — xem chú thích ở lib/adminAuth.js.
+router.get('/', blockTargetImporter, async (req, res, next) => {
   try {
     const pool = await getPool('ADMIN');
     const request = pool.request();

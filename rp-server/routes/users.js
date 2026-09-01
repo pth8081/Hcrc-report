@@ -4,7 +4,7 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const { sql, getPool } = require('../db');
-const { requireAuth, requireMenuAccess } = require('../lib/auth');
+const { requireAuth, requireMenuAccess, requireSystemRoleActor } = require('../lib/auth');
 const { invalidateUser, getUserContext } = require('../lib/permissions');
 const { logAction } = require('../lib/auditLog');
 const { fetchDirectory } = require('../lib/hcrcWorkspaceClient');
@@ -12,17 +12,14 @@ const { fetchDirectory } = require('../lib/hcrcWorkspaceClient');
 const router = express.Router();
 router.use(requireAuth, requireMenuAccess('system-permissions'));
 
-// Dùng RIÊNG cho /:id/reset-2fa — CHẶT hơn requireMenuAccess('system-permissions')
-// ở trên (menu đó có thể được cấp cho user KHÔNG phải Admin hệ thống, qua
-// RoleMenuAccess), vì đây là thao tác gỡ 2FA của người khác — chỉ vai trò
-// IsSystemRole=1 ("Admin") thật sự mới được thực hiện.
-async function requireSystemRoleActor(req, res, next) {
-  try {
-    const context = await getUserContext(req.user.sub);
-    if (!context?.isSystemRole) return res.status(403).json({ error: 'Chỉ vai trò Admin (hệ thống) mới thực hiện được thao tác này' });
-    next();
-  } catch (err) { next(err); }
-}
+// requireSystemRoleActor (lib/auth.js) CHẶT hơn requireMenuAccess
+// ('system-permissions') ở trên (menu đó có thể được cấp cho user KHÔNG
+// phải Admin hệ thống, qua RoleMenuAccess) — dùng cho MỌI thao tác nhạy
+// cảm bên dưới: /:id/reset-2fa (gỡ 2FA người khác), /:id/auth-source (đổi
+// nguồn xác thực), /sync (đồng bộ tài khoản), và /:id/roles (gán vai trò —
+// nếu không chặn, 1 user chỉ có menu 'system-permissions' có thể tự gán
+// mình vai trò có menu 'system-*' khác, leo thang toàn quyền hệ thống mà
+// không qua 2FA — xem chú thích đầy đủ trong lib/auth.js).
 
 router.get('/', async (req, res, next) => {
   try {
@@ -112,8 +109,10 @@ router.post('/:id/reset-password', async (req, res, next) => {
 // Vai trò Admin (IsSystemRole=1) BẮT BUỘC AuthSource='local' (xem
 // lib/auth.js) — chặn gán ở đây, không đợi tới lúc đăng nhập mới phát hiện
 // account "Admin" không đăng nhập được vì HCRC Workspace không xác thực
-// được vai trò Admin/không phụ thuộc uptime hệ thống ngoài.
-router.put('/:id/roles', async (req, res, next) => {
+// được vai trò Admin/không phụ thuộc uptime hệ thống ngoài. requireSystemRoleActor
+// chặn LUÔN việc gán BẤT KỲ vai trò nào (không chỉ vai trò Admin) — chỉ Admin
+// hệ thống thật mới gán được vai trò cho người khác, xem chú thích đầu file.
+router.put('/:id/roles', requireSystemRoleActor, async (req, res, next) => {
   try {
     const { roleIds = [] } = req.body || {};
     const pool = await getPool('RP');

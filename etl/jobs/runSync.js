@@ -78,7 +78,45 @@ async function runCustomJob(job, lastSyncedAt) {
   return { transformed, maxUpdatedAt, rawCount: rawRows.length };
 }
 
+// Khoá chồng lấn CẤP CSDL (sp_getapplock) — khác runningJobs Set trong
+// jobs/scheduler.js (chỉ chặn được chồng lấn TRONG CÙNG 1 tiến trình
+// node), khoá này chặn được cả khi etl/index.js (entrypoint chạy tay riêng
+// biệt, KHÔNG dùng chung tiến trình với server.js) chạy đúng job đang được
+// server.js tự động chạy theo lịch, hoặc 2 lượt "node index.js" chạy tay
+// chồng nhau — mọi tiến trình đều nối cùng 1 CSDL etl.SyncJobs (pool
+// 'ADMIN'), sp_getapplock là khoá phối hợp qua CSDL, không phụ thuộc bộ nhớ
+// tiến trình. LockTimeout=0 -> không chờ, job đang chạy dở thì bỏ qua ngay
+// lập tức (giống hành vi runningJobs Set), không xếp hàng chờ.
+async function runWithCrossProcessLock(job, fn) {
+  const pool = await getPool('ADMIN');
+  const transaction = new sql.Transaction(pool);
+  await transaction.begin();
+  const request = new sql.Request(transaction);
+  const result = await request
+    .input('resource', sql.NVarChar(255), `etl_sync_job_${job.Id}`)
+    .query(`
+      DECLARE @res INT;
+      EXEC @res = sp_getapplock @Resource = @resource, @LockMode = 'Exclusive', @LockOwner = 'Transaction', @LockTimeout = 0;
+      SELECT @res AS LockResult;
+    `);
+  const lockResult = result.recordset[0].LockResult;
+  if (lockResult < 0) {
+    console.warn(`⏭  [${job.Name}] bỏ qua lượt chạy này — job này đang được 1 tiến trình khác chạy (server.js theo lịch, nút "Chạy thử", hoặc etl/index.js chạy tay)`);
+    await transaction.rollback();
+    return;
+  }
+  try {
+    await fn();
+  } finally {
+    await transaction.commit(); // giải phóng khoá sp_getapplock giữ bởi transaction này
+  }
+}
+
 async function runJobObject(job) {
+  return runWithCrossProcessLock(job, () => runJobObjectLocked(job));
+}
+
+async function runJobObjectLocked(job) {
   const startedAt = new Date();
   console.log(`▶ [${job.Name}] Bắt đầu đồng bộ...`);
   try {
