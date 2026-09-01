@@ -20,6 +20,7 @@ const { decrypt } = require('./crypto');
 const REFRESH_INTERVAL_MS = 30 * 1000;
 let cacheByApiKeyHash = new Map();
 let cacheByHmacKeyId = new Map();
+let activeIds = new Set(); // TẤT CẢ đối tác IsActive=1, MỌI AuthMethod (kể cả oauth2) — xem isActiveConsumer()
 let lastLoadedAt = 0;
 let loadingPromise = null;
 
@@ -41,7 +42,9 @@ async function load() {
   `);
   const nextByApiKeyHash = new Map();
   const nextByHmacKeyId = new Map();
+  const nextActiveIds = new Set();
   for (const row of result.recordset) {
+    nextActiveIds.add(row.Id);
     if (row.AuthMethod === 'apiKey' && row.ApiKeyHash) {
       nextByApiKeyHash.set(row.ApiKeyHash, toConsumer(row));
     } else if (row.AuthMethod === 'hmac' && row.HmacKeyId && row.HmacSecretEncrypted) {
@@ -50,6 +53,7 @@ async function load() {
   }
   cacheByApiKeyHash = nextByApiKeyHash;
   cacheByHmacKeyId = nextByHmacKeyId;
+  activeIds = nextActiveIds;
   lastLoadedAt = Date.now();
 }
 
@@ -82,6 +86,21 @@ async function findByHmacKeyId(keyId) {
   return cacheByHmacKeyId.get(keyId) || null;
 }
 
+// oauth2 (lib/oauthTokens.js verifyToken) TỰ CHỨA thông tin trong JWT, không
+// tra CSDL mỗi request — nhưng điều đó có nghĩa vô hiệu hoá/XOÁ HẲN 1 đối
+// tác không có tác dụng gì với access token ĐÃ PHÁT, dùng được tới tận khi
+// hết hạn (OAUTH_TOKEN_TTL_SECONDS, mặc định 1 GIỜ) — khác hẳn "đổi
+// scope/IP chỉ có hiệu lực với token phát SAU" (đánh đổi có chủ đích, xem
+// chú thích đầu lib/oauthTokens.js). Đây là lỗ hổng thu hồi thật sự: đối
+// tác bị lộ bí mật, admin tắt/xoá ngay, nhưng token cũ vẫn dùng được cả giờ
+// đồng hồ. isActiveConsumer() dùng CHUNG chu kỳ làm mới 30s + invalidate()
+// đã có sẵn — không thêm truy vấn CSDL/request nào ngoài cỡ đã chấp nhận
+// cho apiKey/hmac, chỉ rút cửa sổ thu hồi thật xuống còn tối đa ~30s.
+async function isActiveConsumer(id) {
+  await ensureFresh();
+  return activeIds.has(id);
+}
+
 // Gọi sau khi admin thêm/sửa/xoá/luân chuyển bí mật một đối tác (bất kể
 // AuthMethod nào — kể cả oauth2, dù cache này không giữ oauth2, để lần đổi
 // token tiếp theo query lại CSDL luôn có LastUsedAt/IsActive mới nhất).
@@ -89,4 +108,4 @@ function invalidate() {
   lastLoadedAt = 0;
 }
 
-module.exports = { findByKey, findByHmacKeyId, invalidate, updateLastUsed };
+module.exports = { findByKey, findByHmacKeyId, isActiveConsumer, invalidate, updateLastUsed };

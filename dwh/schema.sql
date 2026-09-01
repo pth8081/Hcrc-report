@@ -12,6 +12,29 @@
    liệu báo cáo — và mỗi server tự có CSDL quản trị riêng, tách biệt hoàn
    toàn (xem tài liệu kiến trúc "Quản Trị ETL HCRC"). */
 
+/* ===== KHUYẾN NGHỊ VẬN HÀNH: bật READ_COMMITTED_SNAPSHOT (RCSI) =====
+   CHƯA tự động bật trong script này — ALTER DATABASE ... SET
+   READ_COMMITTED_SNAPSHOT ON cần WITH ROLLBACK IMMEDIATE để áp dụng ngay
+   (buộc huỷ MỌI giao dịch khác đang mở trên CSDL này), không an toàn chạy
+   tự động trong 1 script "chạy lại nhiều lần được" như file này — DBA tự
+   chạy 1 lần vào cửa sổ bảo trì, KHÔNG có kết nối nào khác đang hoạt động:
+
+     ALTER DATABASE CURRENT SET READ_COMMITTED_SNAPSHOT ON WITH ROLLBACK IMMEDIATE;
+
+   LÝ DO CẦN: etl/lib/upsert.js ghi dwh.ReportFacts bằng transaction DELETE
+   (dọn lịch sử) + MERGE, có thể mang HÀNG NGHÌN dòng/lượt (xem chú thích
+   đầu file đó). Mặc định SQL Server dùng khoá dòng kiểu READ COMMITTED —
+   khi số khoá dòng giữ trong 1 statement vượt ngưỡng (~5000), SQL Server tự
+   ĐỘNG LEO THANG lên khoá cấp TRANG/BẢNG, có thể khoá cả bảng
+   dwh.ReportFacts trong suốt transaction ETL — mọi SELECT của rp-server/
+   api-server (bất kỳ Domain nào khác, không chỉ domain đang đồng bộ) bị
+   CHẶN/timeout đúng lúc chạy ETL đêm. RCSI cho SELECT đọc bản snapshot
+   (không cần khoá, không bị writer chặn) mà KHÔNG đổi bất kỳ hành vi ghi
+   nào — writer vẫn khoá như cũ, chỉ reader không còn chờ writer nữa. Đánh
+   đổi: tempdb dùng nhiều hơn (lưu version store) — bảng dwh.ReportFacts
+   hiện tại không lớn tới mức đáng lo, giám sát dung lượng tempdb nếu dữ
+   liệu tăng nhiều về sau. */
+
 IF NOT EXISTS (SELECT 1 FROM sys.schemas WHERE name = 'dwh')
 BEGIN
     EXEC('CREATE SCHEMA dwh');

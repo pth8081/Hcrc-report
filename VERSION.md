@@ -5,6 +5,71 @@ Server, API Server và các giao diện quản trị) — tăng ở mỗi lần 
 `main`, theo kiểu semver không chặt (patch cho fix nhỏ, minor cho tính năng
 mới, major khi đổi cấu trúc phá vỡ tương thích ngược).
 
+## 0.36.0 — Rà soát chuyên sâu vòng 3: MERGE NULL EntityCode, watermark mất dòng, tổng cộng hụt số, thu hồi OAuth2
+
+Tiếp tục "rà soát chuyên sâu thêm nữa" theo yêu cầu, sau khi vòng 0.35.0 đã
+xong — 4 agent đọc song song ETL/API Server/Report Server/kiến trúc dwh,
+đào sâu hơn (race condition, ranh giới transaction, độ chính xác số liệu),
+xử lý toàn bộ phát hiện 🔴 và các 🟡 giá trị cao trong 1 lượt:
+
+- **`etl/lib/upsert.js`**: 🔴 mệnh đề MERGE ON so sánh `EntityCode` kiểu ANSI
+  (`target.EntityCode = src.EntityCode`, NULL=NULL luôn UNKNOWN) LỆCH với
+  ngữ nghĩa UNIQUE constraint của SQL Server (coi 2 NULL là trùng nhau) —
+  dòng `EntityCode` NULL đồng bộ LẦN 2 trong cùng ngày (dữ liệu nguồn đổi)
+  luôn rơi vào nhánh INSERT thay vì UPDATE, vi phạm UNIQUE KEY, rollback
+  NGUYÊN CẢ LÔ, job lỗi lặp lại vô thời hạn. Viết tường minh
+  `OR (... IS NULL AND ... IS NULL)` ở cả MERGE ON và 2 cặp EXISTS/NOT
+  EXISTS dọn lịch sử.
+- **`etl/jobs/runSync.js`**: 🔴 watermark incremental sync dùng `>` có thể
+  MẤT VĨNH VIỄN 1 dòng nếu 2 giao dịch nguồn commit gần như đồng thời cùng 1
+  mốc `UpdatedAt` (dòng sau commit SAU khi SELECT của lượt hiện tại đã đọc
+  xong). Thêm "safety lag" 5 giây — không đẩy watermark vượt quá "hiện tại
+  trừ 1 khoảng an toàn", lần chạy sau tự quét lại đúng khoảng đệm (vô hại,
+  MERGE là upsert idempotent). Đồng thời đổi khoá `sp_getapplock` (thêm ở
+  0.35.0) từ theo `job.Id` sang theo khoá nghiệp vụ (nguồn+`TargetDomain`) —
+  2 job KHÁC NHAU trỏ cùng nguồn+domain giờ cũng bị chặn chạy chồng, không
+  chỉ trùng đúng 1 job.
+- **`dwh/schema.sql`**: 🔴 ghi chú khuyến nghị bật `READ_COMMITTED_SNAPSHOT`
+  (RCSI, DBA tự chạy 1 lần vào cửa sổ bảo trì) — batch ETL lớn có thể leo
+  thang khoá dòng lên khoá bảng trên `dwh.ReportFacts`, chặn SELECT của
+  rp-server/api-server ở MỌI Domain khác trong lúc ETL đêm chạy.
+- **`rp-server/lib/compositeReportRunner.js`**: 🔴 `deepSumBlock()` tính SAI
+  (hụt số) dòng "Tổng cộng"/"Tổng nhóm" khi 1 dòng trong nhóm có measure
+  NULL (hợp lệ — vd chưa kịp đồng bộ) — điều kiện cũ đòi TOÀN BỘ giá trị là
+  số mới cộng dồn, có 1 null là rơi xuống nhánh "lấy 1 giá trị đầu tiên"
+  thay vì cộng. Giờ cộng dồn mọi giá trị số, null không đóng góp (như 0).
+- **`rp-server/lib/formulaEngine.js`**: 🟡 phép `+`/`-`/`*`/hàm
+  ROUND/ABS/MIN/MAX với 1 toán hạng null (thường từ chia-cho-0 lồng bên
+  trong) bị JS ép `null`→`0`, biến "không xác định" thành 1 số cụ thể sai
+  (vd hiện "0%" thay vì rõ ràng không có dữ liệu) — giờ lan truyền `null`
+  nguyên vẹn qua mọi phép toán/hàm (trừ `IF`, giữ nguyên hành vi cond).
+- **`api-server/lib/apiConsumers.js`** + **`lib/apiAuth.js`**: 🔴 access
+  token OAuth2 Client Credentials tự chứa (JWT), không tra CSDL mỗi request
+  — vô hiệu hoá/xoá hẳn 1 đối tác KHÔNG có tác dụng gì với token đã phát,
+  dùng được tới tận khi hết hạn (mặc định 1 giờ). Thêm `isActiveConsumer()`
+  dùng chung chu kỳ cache 30s đã có, rút cửa sổ thu hồi thật xuống còn tối
+  đa ~30 giây, không thêm truy vấn CSDL/request nào.
+- **`api-server/routes/v1/reports.js`**: 🟡 `GET /:reportId/run` kiểm tra
+  report TỒN TẠI (404) trước quyền (403) — đối tác có scope `reports` dù
+  chưa được cấp báo cáo nào vẫn dò được toàn bộ danh mục `ReportId` nội bộ
+  qua phân biệt 404/403. Đổi thứ tự: kiểm tra quyền trước (luôn 403 nếu
+  chưa được cấp, bất kể tồn tại hay không), khớp `routes/v1/realtime.js`.
+- **`api-server/lib/realtimeEngine.js`**: 🟡 bảo vệ cardinality JOIN (thêm ở
+  0.35.0) chỉ áp dụng `runLookup`, không áp dụng `runList` — dữ liệu nguồn
+  đổi sau khi lưu endpoint (cột từng unique nay không còn) khiến `runList`
+  trả về nhiều dòng hơn số bản ghi thật, phá vỡ phân trang, không cảnh báo
+  gì. Thêm dò trùng khoá bảng chính trong trang kết quả + cảnh báo log.
+- **`rp-server/routes/reports.js`**: 🟡 `GET /:reportId` trả NGUYÊN định
+  nghĩa báo cáo (gồm `dataSourceId`/`apiConnectionId`/`externalConnectionId`/
+  `blocks` composite kèm domain/filters SQL nội bộ) cho MỌI người dùng có
+  quyền xem báo cáo đó — chỉ cần `title`+`filters` để vẽ form lọc. Giờ chỉ
+  trả đúng 2 trường đó.
+- **`rp-server/lib/externalApiConnectionPool.js`**: 🟡 `getOAuth2Token()`
+  không khoá đồng thời như `getConnection()` — nhiều khối composite chạy
+  song song (`Promise.all`) đúng lúc token hết hạn trước đây mỗi khối tự
+  bắn 1 request đổi token riêng tới đối tác. Giờ cache Promise TRƯỚC khi
+  await, các lời gọi đồng thời chờ chung đúng 1 kết quả.
+
 ## 0.35.0 — Rà soát nghiệp vụ/bảo mật/kiến trúc lần 2: leo thang đặc quyền, SSRF-qua-redirect, khoá chồng lấn chéo tiến trình
 
 Rà soát chuyên sâu ETL/API Server/Report Server/kiến trúc bảng dwh (không

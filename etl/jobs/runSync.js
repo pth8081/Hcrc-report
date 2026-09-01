@@ -15,6 +15,23 @@ const { alertSyncFailure } = require('../lib/mailer');
 const sourcesRegistry = require('../sources');
 
 const EPOCH = new Date('1970-01-01T00:00:00.000Z');
+const WATERMARK_SAFETY_LAG_MS = 5000;
+
+// "Watermark tie": lần chạy SAU lọc "WHERE UpdatedAt > watermark" — nếu 2
+// dòng nguồn commit gần như đồng thời cùng 1 mốc UpdatedAt (độ phân giải
+// thô, hoặc giao dịch B bắt đầu trước giao dịch A nhưng commit SAU khi câu
+// SELECT của lượt chạy hiện tại đã đọc xong), dòng B có thể mang ĐÚNG mốc
+// thời gian đã bị dùng làm watermark mới nhưng KHÔNG nằm trong lô đã lấy —
+// lần chạy kế tiếp dùng "> watermark" sẽ bỏ lỡ VĨNH VIỄN dòng đó, không có
+// overlap window nào bù trừ. Không đẩy watermark vượt quá "hiện tại trừ 1
+// khoảng an toàn" — mọi giao dịch trong khoảng đó có đủ thời gian commit
+// trước khi bị coi là "đã đồng bộ". Lần chạy sau tự quét lại đúng khoảng
+// đệm đó — vô hại vì MERGE (lib/upsert.js) là upsert idempotent, chỉ tốn
+// thêm chút thời gian truy vấn.
+function applyWatermarkSafetyLag(rawMaxUpdatedAt) {
+  const ceiling = new Date(Date.now() - WATERMARK_SAFETY_LAG_MS);
+  return rawMaxUpdatedAt > ceiling ? ceiling : rawMaxUpdatedAt;
+}
 
 async function loadJob(jobId) {
   const pool = await getPool('ADMIN');
@@ -61,11 +78,11 @@ async function runTableJob(job, lastSyncedAt) {
   const connection = await getConnection(job.DataSourceId);
   const { rows, ...meta } = await extractTable(connection, job, lastSyncedAt);
   const transformed = rows.map(r => transformRow(job, meta, r));
-  const maxUpdatedAt = rows.reduce((max, r) => {
+  const rawMaxUpdatedAt = rows.reduce((max, r) => {
     const v = r[`m_${meta.updatedCol}`];
     return v > max ? v : max;
   }, lastSyncedAt);
-  return { transformed, maxUpdatedAt, rawCount: rows.length };
+  return { transformed, maxUpdatedAt: applyWatermarkSafetyLag(rawMaxUpdatedAt), rawCount: rows.length };
 }
 
 async function runCustomJob(job, lastSyncedAt) {
@@ -74,8 +91,24 @@ async function runCustomJob(job, lastSyncedAt) {
   const srcPool = await getPool(connector.envPrefix);
   const rawRows = await connector.extract(srcPool, lastSyncedAt);
   const transformed = rawRows.map(row => connector.transform(row));
-  const maxUpdatedAt = rawRows.reduce((max, r) => (r.UpdatedAt > max ? r.UpdatedAt : max), lastSyncedAt);
-  return { transformed, maxUpdatedAt, rawCount: rawRows.length };
+  const rawMaxUpdatedAt = rawRows.reduce((max, r) => (r.UpdatedAt > max ? r.UpdatedAt : max), lastSyncedAt);
+  return { transformed, maxUpdatedAt: applyWatermarkSafetyLag(rawMaxUpdatedAt), rawCount: rawRows.length };
+}
+
+// Khoá tính theo KHOÁ NGHIỆP VỤ (SourceSystem + TargetDomain), KHÔNG theo
+// job.Id — 2 job KHÁC NHAU (vd job backfill + job hàng ngày, hoặc lỡ tạo 2
+// job trùng cấu hình) trỏ CÙNG SourceSystem+Domain vẫn có thể ghi đè cùng
+// khoá UNIQUE (SourceSystem,Domain,EntityCode,EventDate) trong
+// dwh.ReportFacts nếu chạy chồng nhau — sp_getapplock theo job.Id trước đây
+// coi 2 job là 2 resource riêng, không chặn được race này (MERGE không có
+// HOLDLOCK, 2 transaction cùng đánh giá WHEN NOT MATCHED cho cùng khoá
+// UNIQUE trước khi bên kia commit -> 1 bên lỗi vi phạm UNIQUE KEY, hoặc
+// deadlock giữa DELETE dọn lịch sử của job này và MERGE của job kia). ds =
+// job.DataSourceId (job Type='table') hoặc CustomConnectorKey (Type='custom')
+// — PHẢI khớp đúng cách etl/lib/tableSyncEngine.js:transformRow() và
+// etl/sources/*.js tự gán SourceSystem cho từng dòng.
+function effectiveSourceSystem(job) {
+  return job.Type === 'table' ? `ds${job.DataSourceId}` : job.CustomConnectorKey;
 }
 
 // Khoá chồng lấn CẤP CSDL (sp_getapplock) — khác runningJobs Set trong
@@ -93,7 +126,7 @@ async function runWithCrossProcessLock(job, fn) {
   await transaction.begin();
   const request = new sql.Request(transaction);
   const result = await request
-    .input('resource', sql.NVarChar(255), `etl_sync_job_${job.Id}`)
+    .input('resource', sql.NVarChar(255), `etl_domain_${effectiveSourceSystem(job)}_${job.TargetDomain}`)
     .query(`
       DECLARE @res INT;
       EXEC @res = sp_getapplock @Resource = @resource, @LockMode = 'Exclusive', @LockOwner = 'Transaction', @LockTimeout = 0;
@@ -101,7 +134,7 @@ async function runWithCrossProcessLock(job, fn) {
     `);
   const lockResult = result.recordset[0].LockResult;
   if (lockResult < 0) {
-    console.warn(`⏭  [${job.Name}] bỏ qua lượt chạy này — job này đang được 1 tiến trình khác chạy (server.js theo lịch, nút "Chạy thử", hoặc etl/index.js chạy tay)`);
+    console.warn(`⏭  [${job.Name}] bỏ qua lượt chạy này — 1 tiến trình khác đang ghi CÙNG nguồn+domain "${effectiveSourceSystem(job)}/${job.TargetDomain}" (chính job này chạy ở tiến trình khác, HOẶC 1 job KHÁC trỏ cùng nguồn+domain — server.js theo lịch, nút "Chạy thử", hoặc etl/index.js chạy tay)`);
     await transaction.rollback();
     return;
   }

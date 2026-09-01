@@ -52,16 +52,23 @@ function filterColumnsByFields(columns, fieldsParam) {
 
 router.get('/:reportId/run', async (req, res, next) => {
   try {
+    // Kiểm tra QUYỀN TRƯỚC, tồn tại SAU (giống hệt routes/v1/realtime.js) —
+    // đảo ngược thứ tự cũ (tồn tại trước, quyền sau) khiến bất kỳ đối tác
+    // nào có scope 'reports' (dù ConsumerReportAccess rỗng, chưa được cấp
+    // báo cáo nào) đều dò được TOÀN BỘ danh mục ReportId nội bộ bằng cách
+    // thử lần lượt và phân biệt 404 (không tồn tại) với 403 (tồn tại nhưng
+    // không có quyền) — không cần được cấp quyền gì. Giờ luôn 403 khi chưa
+    // được cấp quyền, bất kể report có tồn tại hay không.
+    if (!(await assertConsumerCanAccessReport(req.consumer.id, req.params.reportId))) {
+      return res.status(403).json({ error: 'Đối tác chưa được cấp quyền gọi báo cáo này' });
+    }
+
     const adminPool = await getPool('ADMIN');
     const catalog = await adminPool.request()
       .input('reportId', sql.VarChar(80), req.params.reportId)
       .query('SELECT DefinitionJson, IsActive FROM api.ReportCatalog WHERE ReportId = @reportId');
     if (!catalog.recordset.length || !catalog.recordset[0].IsActive) {
       return res.status(404).json({ error: 'Không tìm thấy báo cáo' });
-    }
-
-    if (!(await assertConsumerCanAccessReport(req.consumer.id, req.params.reportId))) {
-      return res.status(403).json({ error: 'Đối tác chưa được cấp quyền gọi báo cáo này' });
     }
 
     const definition = JSON.parse(catalog.recordset[0].DefinitionJson);

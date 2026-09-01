@@ -16,6 +16,7 @@ const { fetchSafe } = require('./urlSafety');
 
 const cache = new Map(); // externalConnectionId -> Promise<connection>
 const tokenCache = new Map(); // externalConnectionId -> { accessToken, expiresAt }
+const tokenLoadingPromises = new Map(); // externalConnectionId -> Promise<string> đang đổi token, dedupe request đồng thời (xem getOAuth2Token)
 const TOKEN_EXPIRY_SAFETY_MS = 10 * 1000; // đổi token mới sớm 10s trước khi hết hạn thật, tránh vừa dùng đã hết hạn giữa chừng
 
 async function loadConnection(id) {
@@ -52,12 +53,7 @@ async function getConnection(id) {
   return cache.get(id);
 }
 
-// Đổi lấy access token OAuth2 Client Credentials, cache theo connection Id
-// tới khi gần hết hạn thì tự đổi lại — xem lib/externalReportClient.js.
-async function getOAuth2Token(connection) {
-  const cached = tokenCache.get(connection.id);
-  if (cached && cached.expiresAt > Date.now() + TOKEN_EXPIRY_SAFETY_MS) return cached.accessToken;
-
+async function fetchOAuth2Token(connection) {
   const res = await fetchSafe(connection.tokenUrl, { // chặn SSRF (kể cả qua redirect) — xem lib/urlSafety.js
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -75,6 +71,28 @@ async function getOAuth2Token(connection) {
   const expiresIn = Number(data.expires_in) || 3600;
   tokenCache.set(connection.id, { accessToken: data.access_token, expiresAt: Date.now() + expiresIn * 1000 });
   return data.access_token;
+}
+
+// Đổi lấy access token OAuth2 Client Credentials, cache theo connection Id
+// tới khi gần hết hạn thì tự đổi lại — xem lib/externalReportClient.js.
+async function getOAuth2Token(connection) {
+  const cached = tokenCache.get(connection.id);
+  if (cached && cached.expiresAt > Date.now() + TOKEN_EXPIRY_SAFETY_MS) return cached.accessToken;
+
+  // Cache Promise TRƯỚC khi await (giống getConnection() ở trên, KHÁC bản
+  // trước đây chỉ cache SAU khi fetch xong) — nhiều khối composite chạy
+  // ĐỒNG THỜI (Promise.all, xem lib/compositeReportRunner.js) dùng chung 1
+  // kết nối, đúng lúc token gần hết hạn trước đây mỗi khối tự bắn 1 request
+  // đổi token riêng tới cùng tokenUrl đối tác — có thể bị đối tác rate-limit,
+  // hoặc nếu đối tác revoke token cũ ngay khi cấp token mới thì request
+  // đang dùng token cũ (do 1 trong các lời gọi song song đó trả về trước)
+  // sẽ lỗi giữa chừng. Giờ chỉ 1 request thật cho mỗi connection, các lời
+  // gọi đồng thời khác CHỜ CHUNG đúng 1 kết quả.
+  if (!tokenLoadingPromises.has(connection.id)) {
+    const promise = fetchOAuth2Token(connection).finally(() => tokenLoadingPromises.delete(connection.id));
+    tokenLoadingPromises.set(connection.id, promise);
+  }
+  return tokenLoadingPromises.get(connection.id);
 }
 
 function invalidate(id) {

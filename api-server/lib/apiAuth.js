@@ -15,7 +15,7 @@
 // xác thực hợp lệ theo BẤT KỲ cách nào ở trên — khác bộ giới hạn theo IP
 // TRƯỚC xác thực trong server.js (chặn spam nặc danh, không biết đối tác
 // nào). Xem lib/consumerRateLimit.js, lib/ipMatch.js. Rỗng/0 = không giới hạn.
-const { findByKey, findByHmacKeyId, updateLastUsed } = require('./apiConsumers');
+const { findByKey, findByHmacKeyId, isActiveConsumer, updateLastUsed } = require('./apiConsumers');
 const { verifyToken } = require('./oauthTokens');
 const hmacAuth = require('./hmacAuth');
 const { ipAllowed } = require('./ipMatch');
@@ -24,11 +24,22 @@ const { checkConsumerRateLimit } = require('./consumerRateLimit');
 async function authenticate(req) {
   const authHeader = req.header('Authorization');
   if (authHeader && authHeader.startsWith('Bearer ')) {
+    let consumer;
     try {
-      return verifyToken(authHeader.slice('Bearer '.length));
+      consumer = verifyToken(authHeader.slice('Bearer '.length));
     } catch {
       return { error: 'Access token không hợp lệ hoặc đã hết hạn' };
     }
+    // Chữ ký JWT hợp lệ không có nghĩa đối tác vẫn còn hoạt động — token TỰ
+    // CHỨA scopes/allowedIps nên KHÔNG tự phát hiện được lúc admin tắt/xoá
+    // đối tác. Tra lại đúng cache 30s dùng chung với apiKey/hmac (xem
+    // lib/apiConsumers.js:isActiveConsumer) để rút cửa sổ thu hồi từ "tới
+    // khi token hết hạn" (tối đa OAUTH_TOKEN_TTL_SECONDS, mặc định 1 giờ)
+    // xuống còn tối đa ~30 giây — không thêm truy vấn CSDL mỗi request.
+    if (!(await isActiveConsumer(consumer.id))) {
+      return { error: 'Access token không hợp lệ hoặc đã hết hạn' };
+    }
+    return consumer;
   }
 
   const keyId = req.header('X-Key-Id');

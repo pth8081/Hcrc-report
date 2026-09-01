@@ -149,8 +149,15 @@ function deepSumBlock(blockValues) {
   for (const k of keys) {
     const values = present.map(b => b[k]).filter(v => v !== undefined);
     if (!values.length) continue;
-    if (values.every(v => typeof v === 'number')) {
-      result[k] = values.reduce((a, v) => a + v, 0);
+    // TRƯỚC ĐÂY: values.every(v => typeof v === 'number') — 1 dòng trong
+    // nhóm có measure NULL (bình thường, vd chưa kịp đồng bộ ngày đó, KHÁC
+    // case TrangThai='DaDong' đã lọc riêng ở trên) làm điều kiện "every" sai
+    // hoàn toàn, rơi xuống nhánh "lấy 1 giá trị" thay vì cộng dồn — dòng
+    // "Tổng cộng"/"Tổng nhóm" ÂM THẦM HỤT SỐ những dòng khác null trong cùng
+    // nhóm, không có cảnh báo gì. Giờ cộng dồn mọi giá trị SỐ có trong nhóm
+    // (null coi như không đóng góp, không phải "toàn bộ phải là số").
+    if (values.some(v => typeof v === 'number')) {
+      result[k] = values.reduce((a, v) => a + (typeof v === 'number' ? v : 0), 0);
     } else if (values.every(v => isPlainObject(v))) {
       result[k] = deepSumBlock(values);
     } else {

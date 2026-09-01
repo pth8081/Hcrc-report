@@ -81,7 +81,13 @@ router.get('/:reportId', async (req, res, next) => {
     if (!(await requireReportAccess(req, res, req.params.reportId))) return;
     const definition = await loadDefinition(req.params.reportId);
     if (!definition || !definition.isActive) return res.status(404).json({ error: 'Không tìm thấy báo cáo' });
-    res.json(definition);
+    // CHỈ trả đúng phần rp-user/.../ReportsPage.jsx thật sự dùng để vẽ form
+    // lọc (title, filters) — trước đây trả NGUYÊN definition (gộp cả
+    // DataSourceId/ApiConnectionId/ExternalConnectionId/blocks composite kèm
+    // domain+filters SQL nội bộ/formula thô) cho MỌI người dùng có quyền
+    // xem báo cáo đó, lộ chi tiết kiến trúc nguồn dữ liệu không cần cho
+    // hiển thị — hữu ích cho kẻ tấn công nếu tài khoản đó bị chiếm.
+    res.json({ title: definition.title, filters: definition.filters || [] });
   } catch (err) { next(err); }
 });
 

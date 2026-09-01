@@ -92,13 +92,13 @@ async function upsertReportFacts(pool, rows, { keepHistory = false } = {}) {
           SELECT 1 FROM #Staging s
           WHERE s.SourceSystem = dwh.ReportFacts.SourceSystem
             AND s.Domain = dwh.ReportFacts.Domain
-            AND s.EntityCode = dwh.ReportFacts.EntityCode
+            AND (s.EntityCode = dwh.ReportFacts.EntityCode OR (s.EntityCode IS NULL AND dwh.ReportFacts.EntityCode IS NULL))
         )
         AND NOT EXISTS (
           SELECT 1 FROM #Staging s
           WHERE s.SourceSystem = dwh.ReportFacts.SourceSystem
             AND s.Domain = dwh.ReportFacts.Domain
-            AND s.EntityCode = dwh.ReportFacts.EntityCode
+            AND (s.EntityCode = dwh.ReportFacts.EntityCode OR (s.EntityCode IS NULL AND dwh.ReportFacts.EntityCode IS NULL))
             AND s.EventDate = dwh.ReportFacts.EventDate
         );
       `);
@@ -118,24 +118,36 @@ async function upsertReportFacts(pool, rows, { keepHistory = false } = {}) {
           SELECT 1 FROM #Staging s
           WHERE s.SourceSystem = dwh.ReportFacts.SourceSystem
             AND s.Domain = dwh.ReportFacts.Domain
-            AND s.EntityCode = dwh.ReportFacts.EntityCode
+            AND (s.EntityCode = dwh.ReportFacts.EntityCode OR (s.EntityCode IS NULL AND dwh.ReportFacts.EntityCode IS NULL))
         )
         AND NOT EXISTS (
           SELECT 1 FROM #Staging s
           WHERE s.SourceSystem = dwh.ReportFacts.SourceSystem
             AND s.Domain = dwh.ReportFacts.Domain
-            AND s.EntityCode = dwh.ReportFacts.EntityCode
+            AND (s.EntityCode = dwh.ReportFacts.EntityCode OR (s.EntityCode IS NULL AND dwh.ReportFacts.EntityCode IS NULL))
             AND s.EventDate = dwh.ReportFacts.EventDate
         );
       `);
     }
 
+    // "target.EntityCode = src.EntityCode OR (... IS NULL AND ... IS NULL)"
+    // — KHÔNG được viết gọn "target.EntityCode = src.EntityCode" (ANSI NULL:
+    // NULL = NULL luôn UNKNOWN, không khớp). Domain không gắn 1 thực thể cụ
+    // thể (EntityCode NULL, xem dwh/schema.sql) khớp ON kiểu ANSI sẽ LUÔN
+    // rơi vào WHEN NOT MATCHED -> INSERT — nhưng UNIQUE constraint
+    // UX_ReportFacts_Source_Domain_Entity_Date lại coi 2 NULL là TRÙNG NHAU
+    // (ngữ nghĩa NULL của SQL Server cho unique index, khác ANSI). Lệch pha
+    // 2 ngữ nghĩa này khiến lần đồng bộ THỨ 2 của 1 dòng EntityCode NULL
+    // cùng EventDate (dữ liệu nguồn đổi, UpdatedAtColumn tăng) vẫn cố INSERT
+    // thay vì UPDATE, vi phạm UNIQUE KEY, rollback NGUYÊN CẢ LÔ — job lỗi
+    // lặp lại vô thời hạn. Viết tường minh vế OR để khớp ĐÚNG ngữ nghĩa
+    // UNIQUE constraint, không dựa vào ANSI NULL mặc định của ON clause.
     const mergeResult = await new sql.Request(tx).query(`
       MERGE dwh.ReportFacts AS target
       USING #Staging AS src
         ON  target.SourceSystem = src.SourceSystem
         AND target.Domain = src.Domain
-        AND target.EntityCode = src.EntityCode
+        AND (target.EntityCode = src.EntityCode OR (target.EntityCode IS NULL AND src.EntityCode IS NULL))
         AND target.EventDate = src.EventDate
       WHEN MATCHED THEN
         UPDATE SET

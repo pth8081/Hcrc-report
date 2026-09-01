@@ -102,14 +102,29 @@ async function runList(endpoint, { page = 1, pageSize = 200 } = {}) {
   const { cols, table, joinClause, allColumns } = selectClause(def);
   const orderCol = quoteIdent(def.OrderColumn);
   const pool = await getPoolForDataSource(def.DataSourceId);
+  // Có JOIN thì SELECT kèm cột khoá bảng chính (bí danh riêng, KHÔNG trả về
+  // API) để phát hiện cardinality — cùng rủi ro như runLookup() ở trên
+  // (LookupJoinColumn không unique khiến 1 dòng bảng chính bị NHÂN THÀNH
+  // NHIỀU dòng sau JOIN), nhưng ở đây không có TOP để giới hạn nên phải dò
+  // trùng khoá NGAY TRONG trang kết quả thay vì so đếm cố định.
+  const keyCol = def.JoinTable ? `, m.${quoteIdent(def.KeyColumn)} AS __rt_key_check` : '';
   const result = await pool.request()
     .input('offset', sql.Int, (page - 1) * pageSize)
     .input('pageSize', sql.Int, pageSize)
-    .query(`SELECT ${cols} FROM ${table} ${joinClause} ORDER BY m.${orderCol} OFFSET @offset ROWS FETCH NEXT @pageSize ROWS ONLY`);
+    .query(`SELECT ${cols}${keyCol} FROM ${table} ${joinClause} ORDER BY m.${orderCol} OFFSET @offset ROWS FETCH NEXT @pageSize ROWS ONLY`);
+  let rows = result.recordset;
+  if (def.JoinTable) {
+    const seen = new Set();
+    const duplicated = rows.some(row => (seen.has(row.__rt_key_check) ? true : (seen.add(row.__rt_key_check), false)));
+    if (duplicated) {
+      console.warn(`⚠️  [realtime:${endpoint}] JOIN nhân dòng trong trang kết quả (trang ${page}) — LookupJoinColumn "${def.LookupJoinColumn}" có thể không unique trên "${def.JoinSchema}.${def.JoinTable}", danh sách trả về nhiều dòng hơn số bản ghi thật của bảng chính. Kiểm tra lại cấu hình endpoint.`);
+    }
+    rows = rows.map(({ __rt_key_check, ...rest }) => rest);
+  }
   // columns luôn [{key,label}] — cùng khuôn dạng với GET /v1/reports/:reportId/run
   // (xem lib/reportEngine.js:describeColumns()), dù endpoint realtime chưa có
   // khái niệm cột công thức/nhãn riêng như báo cáo.
-  return { page, pageSize, columns: allColumns.map(c => ({ key: c, label: c })), rows: result.recordset };
+  return { page, pageSize, columns: allColumns.map(c => ({ key: c, label: c })), rows };
 }
 
 module.exports = { runLookup, runList, assertSafeIdentifier, NotFoundError };
