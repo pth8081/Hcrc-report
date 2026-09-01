@@ -46,12 +46,22 @@ const upload = multer({
 const router = express.Router();
 router.use(requireAuth, requireMenuAccess('system-report-catalog'));
 
+// HasEmailSchedule/HasAnomalyAlert — CÓ ÍT NHẤT 1 dòng ở app.ReportEmailSchedules/
+// app.AnomalyAlerts trỏ tới báo cáo đó hay chưa (bất kể đang bật/tắt) — cho
+// trang biết ngay báo cáo nào CHƯA cấu hình gửi email/cảnh báo, không cần
+// mở riêng 2 trang kia để dò từng báo cáo (xem rp-user/.../ReportCatalogPanel.jsx).
 router.get('/', async (req, res, next) => {
   try {
     const pool = await getPool('RP');
     const result = await pool.request().query(`
-      SELECT ReportId, Title, Domain, MenuItemId, DataSourceId, SourceType, ApiConnectionId, ApiTarget, ExternalConnectionId, DefinitionJson, IsActive
-      FROM app.ReportCatalog ORDER BY Title
+      SELECT c.ReportId, c.Title, c.Domain, c.MenuItemId, c.DataSourceId, c.SourceType, c.ApiConnectionId,
+             c.ApiTarget, c.ExternalConnectionId, c.DefinitionJson, c.IsActive,
+             CASE WHEN es.Cnt > 0 THEN 1 ELSE 0 END AS HasEmailSchedule,
+             CASE WHEN aa.Cnt > 0 THEN 1 ELSE 0 END AS HasAnomalyAlert
+      FROM app.ReportCatalog c
+      LEFT JOIN (SELECT ReportId, COUNT(*) AS Cnt FROM app.ReportEmailSchedules GROUP BY ReportId) es ON es.ReportId = c.ReportId
+      LEFT JOIN (SELECT ReportId, COUNT(*) AS Cnt FROM app.AnomalyAlerts GROUP BY ReportId) aa ON aa.ReportId = c.ReportId
+      ORDER BY c.Title
     `);
     res.json(result.recordset);
   } catch (err) { next(err); }

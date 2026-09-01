@@ -5,6 +5,20 @@ Server, API Server và các giao diện quản trị) — tăng ở mỗi lần 
 `main`, theo kiểu semver không chặt (patch cho fix nhỏ, minor cho tính năng
 mới, major khi đổi cấu trúc phá vỡ tương thích ngược).
 
+## 0.33.1 — Trang "Biểu mẫu" hiện luôn báo cáo nào thiếu lịch gửi email/cảnh báo bất thường
+
+Trang cấu hình báo cáo (`system-report-catalog`) thêm 2 cột "Lịch gửi
+email"/"Cảnh báo bất thường" — mỗi báo cáo hiện "✅ Đã có" hoặc link thẳng
+sang trang tạo lịch/cảnh báo tương ứng, để biết ngay 1 chỗ báo cáo nào còn
+thiếu cấu hình mà không phải mở dò từng trang.
+
+- **`rp-server/routes/reportCatalog.js`** — `GET /` LEFT JOIN đếm gộp
+  `app.ReportEmailSchedules`/`app.AnomalyAlerts` theo `ReportId`, trả thêm
+  `HasEmailSchedule`/`HasAnomalyAlert` (bit).
+- **`ReportCatalogPanel.jsx`** — 2 cột mới trong bảng, dùng `<Link>` sang
+  `/system/email-schedules`/`/system/anomaly-alerts` khi chưa có.
+- `vite build` sạch `rp-user`.
+
 ## 0.33.0 — "Cảnh báo bất thường" thêm chế độ Ngưỡng tuyệt đối (vd tồn kho) + xác nhận chọn nguồn DWH/API đã có sẵn
 
 Xác nhận: trang "Biểu mẫu → tab Báo cáo" (rp-user) đã có sẵn ô chọn "Nguồn"

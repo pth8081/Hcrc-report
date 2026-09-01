@@ -11,6 +11,7 @@
 //                   có input riêng nhưng LƯU BÊN TRONG definitionJson (gộp
 //                   vào lúc submit), không phải cột DB riêng như apiTarget.
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { api } from '../../../lib/api';
 import DataTable from '../../../components/DataTable';
 
@@ -264,6 +265,16 @@ export default function ReportCatalogPanel() {
           { key: 'ReportId', label: 'Mã' },
           { key: 'Domain', label: 'Domain' },
           { key: 'SourceType', label: 'Nguồn', render: (r) => SOURCE_TYPE_LABELS[r.SourceType] || r.SourceType },
+          {
+            key: 'HasEmailSchedule', label: 'Lịch gửi email', render: (r) => (
+              r.HasEmailSchedule ? '✅ Đã có' : <Link to="/system/email-schedules">Chưa có — tạo lịch</Link>
+            )
+          },
+          {
+            key: 'HasAnomalyAlert', label: 'Cảnh báo bất thường', render: (r) => (
+              r.HasAnomalyAlert ? '✅ Đã có' : <Link to="/system/anomaly-alerts">Chưa có — tạo cảnh báo</Link>
+            )
+          },
           { key: 'IsActive', label: 'Trạng thái', render: (r) => (r.IsActive ? 'Hoạt động' : 'Tắt') },
           { key: 'actions', label: '', render: (r) => <button type="button" onClick={() => deleteReport(r)}>Xoá</button> }
         ]}
