@@ -8,6 +8,11 @@ const { decrypt } = require('./crypto');
 
 const pools = new Map(); // dataSourceId -> Promise<{ pool, name }>
 
+// Mỗi nguồn tự mở pool riêng (max 5) — không có trần cho SỐ NGUỒN được cấu
+// hình, xem chú thích tương ứng ở rp-server/lib/dataSourcePool.js (cùng quy
+// ước). Chỉ CẢNH BÁO CHẨN ĐOÁN, không tự ý đóng bớt pool đang dùng.
+const WARN_POOL_COUNT = 20;
+
 async function loadDataSource(id) {
   const adminPool = await getPool('ADMIN');
   const result = await adminPool.request().input('id', sql.Int, id).query(`
@@ -45,6 +50,9 @@ async function connect(id) {
       throw err;
     });
     pools.set(id, promise);
+    if (pools.size > WARN_POOL_COUNT) {
+      console.warn(`⚠️  [dataSourcePool] đang mở ${pools.size} pool nguồn dữ liệu đồng thời (mỗi pool tối đa 5 kết nối) — kiểm tra lại trần kết nối SQL Server phía DBA nếu tiếp tục tăng.`);
+    }
   }
   return pools.get(id);
 }

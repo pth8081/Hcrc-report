@@ -5,6 +5,48 @@ Server, API Server và các giao diện quản trị) — tăng ở mỗi lần 
 `main`, theo kiểu semver không chặt (patch cho fix nhỏ, minor cho tính năng
 mới, major khi đổi cấu trúc phá vỡ tương thích ngược).
 
+## 0.40.0 — Rà soát khả năng chịu tải nhiều kết nối liên tục (keepAliveTimeout, trần pool nguồn phụ, tuning Nginx)
+
+Rà soát riêng theo yêu cầu: "performance đã đảm bảo cho nhiều kết nối liên
+tục chưa?". Xác nhận nền tảng đã có sẵn (pool DB nâng ở Phase 2.2, cache
+báo cáo TTL ngắn ở Phase 2.3, cột index cho filter nóng, timeout HTTP
+server, overlap guard ETL) vẫn đúng và đủ — nhưng phát hiện 1 lỗ hổng
+🔴 THẬT SỰ chưa từng được xử lý, cùng 2 điểm 🟡 đáng cải thiện:
+
+- **`{rp-server,api-server,etl}/server.js`**: 🔴 `server.keepAliveTimeout`
+  CHƯA từng được đặt — Node mặc định chỉ 5 giây, trong khi
+  `deploy/nginx.conf` khai `upstream ... { keepalive 32; }` (nginx giữ sẵn
+  tối đa 32 kết nối nginx↔Node để TÁI SỬ DỤNG, không tự đặt idle timeout
+  riêng). Khi có NHIỀU KẾT NỐI LIÊN TỤC xen kẽ khoảng nghỉ ngắn hơn vài
+  giây, Node đóng socket "keepalive" TRƯỚC khi nginx kịp biết, nginx gửi
+  request tiếp theo trên socket đã chết → lỗi "502 upstream prematurely
+  closed connection" NGẪU NHIÊN, càng dễ gặp khi tải càng cao — đúng kịch
+  bản câu hỏi đặt ra. Đặt `keepAliveTimeout=75s` (lớn hơn
+  `proxy_read_timeout`/`proxy_send_timeout=65s` của nginx) và nâng
+  `headersTimeout` lên 76s (ràng buộc bắt buộc của Node: phải lớn hơn
+  `keepAliveTimeout`) ở cả 3 service.
+- **`{rp-server,api-server}/lib/dataSourcePool.js`**: 🟡 mỗi "nguồn dữ liệu
+  bổ sung" (`app.ReportDataSources`/`api.DataSources`, dùng cho báo cáo/
+  endpoint realtime trỏ CSDL khác DWH mặc định) tự mở 1 pool riêng (tối đa
+  5 kết nối), KHÔNG có trần cho tổng SỐ NGUỒN được cấu hình — nếu nhiều
+  nguồn cùng được truy vấn đồng thời, tổng kết nối có thể vượt trần DBA
+  cấp cho SQL Server. Thêm cảnh báo CHẨN ĐOÁN (log, không tự đóng bớt pool
+  đang dùng — tránh làm gãy báo cáo đang chạy) khi vượt 20 pool đồng thời.
+- **`deploy/nginx.conf`**: 🟡 ghi chú rõ `worker_processes`/`worker_connections`
+  (khối `events{}`) nằm ở `nginx.conf` GỐC của hệ điều hành, KHÔNG đặt được
+  trong file vhost này — mặc định Debian/Ubuntu (`worker_connections 768`)
+  có thể trở thành nút thắt cổ chai TRƯỚC CẢ Node khi tải cao, cần DBA/ops
+  tự kiểm tra/tăng, không phải việc code app tự cấu hình được. Cũng ghi chú
+  rõ ràng buộc `keepAliveTimeout` phải khớp `keepalive 32` ngay cạnh khối
+  upstream, để lần triển khai sau không lặp lại lỗ hổng trên.
+
+**Không đổi**: rate limit per-IP (300/phút `rp-server`, 120/phút
+`api-server` trước xác thực) — đã cấu hình được qua biến môi trường
+`RATE_LIMIT_PER_MINUTE` sẵn từ trước, đủ để ops tự tinh chỉnh theo lưu
+lượng thật (vd nhiều người dùng chung 1 IP văn phòng/VPN) mà không cần sửa
+code; không tự ý nâng mặc định vì đây là lớp chống DoS cố ý, không có đủ
+dữ liệu lưu lượng thực tế để chọn số mới an toàn hơn số cũ.
+
 ## 0.39.0 — Kiểm tra chữ ký file (magic byte) cho mọi endpoint tải file lên
 
 Rà soát riêng theo yêu cầu: "đã check file kiểu magic byte cho hệ thống

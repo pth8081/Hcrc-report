@@ -185,7 +185,17 @@ cron.schedule(process.env.CLEANUP_CRON || '0 2 * * *', () => {
 // có timeout riêng — đây là lớp phòng thủ độc lập, không thay được Nginx.
 const server = app.listen(PORT, () => console.log(`Report Server đang chạy ở cổng ${PORT}`));
 server.requestTimeout = 60 * 1000; // tối đa để nhận trọn request (header+body)
-server.headersTimeout = 65 * 1000; // phải LỚN HƠN requestTimeout (ràng buộc của Node)
+server.headersTimeout = 76 * 1000; // phải LỚN HƠN keepAliveTimeout (ràng buộc của Node)
 server.timeout = 120 * 1000; // timeout rảnh (idle) cho toàn bộ kết nối
+// keepAliveTimeout — Node mặc định CHỈ 5s, trong khi deploy/nginx.conf khai
+// "upstream ... { keepalive 32; }" (giữ sẵn tối đa 32 kết nối nginx<->Node
+// TÁI SỬ DỤNG, không tự đặt idle timeout riêng cho các kết nối này). Nếu
+// Node đóng socket rảnh SAU 5s trong khi nginx vẫn coi kết nối đó còn dùng
+// được (đưa lại vào pool để tái sử dụng cho request tiếp theo), nginx gửi
+// request mới trên 1 socket Node đã đóng -> lỗi "502 upstream prematurely
+// closed connection" NGẪU NHIÊN, đặc biệt dễ gặp khi có nhiều kết nối liên
+// tục xen kẽ khoảng nghỉ ngắn. Đặt LỚN HƠN proxy_read_timeout/proxy_send_timeout
+// (65s, xem deploy/nginx.conf) để Node không bao giờ đóng trước nginx.
+server.keepAliveTimeout = 75 * 1000;
 
 installProcessGuards({ server, closeAll, serviceName: 'Report Server' });

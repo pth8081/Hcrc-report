@@ -8,6 +8,15 @@ const { decrypt } = require('./crypto');
 
 const dynamicPools = new Map(); // dataSourceId -> Promise<ConnectionPool>
 
+// Mỗi nguồn tự mở pool riêng (max 5) — không có trần cho SỐ NGUỒN được cấu
+// hình, nên tổng kết nối lý thuyết KHÔNG bị giới hạn ở tầng code (dù
+// idleTimeoutMillis:30000/min:0 tự đóng bớt khi rảnh, không tích luỹ mãi).
+// Nếu nhiều nguồn cùng được truy vấn đồng thời trong 1 cửa sổ ngắn, tổng kết
+// nối có thể vượt trần do DBA cấp cho SQL Server. Đây chỉ là CẢNH BÁO CHẨN
+// ĐOÁN (không chặn) để ops biết sớm, không tự ý giới hạn/đóng bớt pool đang
+// dùng (có thể làm gãy báo cáo đang chạy).
+const WARN_POOL_COUNT = 20;
+
 async function loadDataSource(id) {
   const rpPool = await getPool('RP');
   const result = await rpPool.request()
@@ -47,6 +56,9 @@ async function getPoolForDataSource(id) {
       throw err;
     });
     dynamicPools.set(id, promise);
+    if (dynamicPools.size > WARN_POOL_COUNT) {
+      console.warn(`⚠️  [dataSourcePool] đang mở ${dynamicPools.size} pool nguồn dữ liệu bổ sung đồng thời (mỗi pool tối đa 5 kết nối) — kiểm tra lại trần kết nối SQL Server phía DBA nếu tiếp tục tăng.`);
+    }
   }
   return dynamicPools.get(id);
 }

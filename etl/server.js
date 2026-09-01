@@ -104,8 +104,14 @@ app.use((err, req, res, next) => { // eslint-disable-line no-unused-vars
 // api-server/rp-server (xem chú thích ở đó): chống socket "chờ mãi".
 const server = app.listen(PORT, () => console.log(`ETL Server đang chạy ở cổng ${PORT}`));
 server.requestTimeout = 60 * 1000;
-server.headersTimeout = 65 * 1000;
+server.headersTimeout = 76 * 1000; // phải LỚN HƠN keepAliveTimeout (ràng buộc của Node)
 server.timeout = 120 * 1000;
+// keepAliveTimeout — cùng lý do đã áp dụng cho api-server/rp-server (xem chú
+// thích ở đó): Node mặc định CHỈ 5s, thấp hơn thời gian nginx có thể giữ 1
+// kết nối trong pool "keepalive 32" của deploy/nginx.conf để tái sử dụng ->
+// dễ gây "502 upstream prematurely closed connection". Đặt LỚN HƠN
+// proxy_read_timeout/proxy_send_timeout (65s).
+server.keepAliveTimeout = 75 * 1000;
 
 installProcessGuards({ server, closeAll, serviceName: 'ETL' });
 
