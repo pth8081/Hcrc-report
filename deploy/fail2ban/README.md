@@ -57,8 +57,3 @@ sudo fail2ban-regex /var/log/nginx/hcrc-report.access.log \
 ```bash
 sudo fail2ban-client set hcrc-report-login unbanip <ip>
 ```
-
-## Vì sao không có jail riêng cho portal.hcrc.vidu.vn
-
-Domain này thuần tĩnh (`try_files ... /index.html`), không có route đăng
-nhập/API nào để dò — không có gì đáng để fail2ban theo dõi riêng.

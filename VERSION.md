@@ -5,6 +5,22 @@ Server, API Server và các giao diện quản trị) — tăng ở mỗi lần 
 `main`, theo kiểu semver không chặt (patch cho fix nhỏ, minor cho tính năng
 mới, major khi đổi cấu trúc phá vỡ tương thích ngược).
 
+## 0.34.6 — Bỏ portal khỏi triển khai — mỗi ứng dụng truy cập thẳng
+
+Người dùng tự tạo kết nối/quyền truy cập riêng cho từng ứng dụng (bảo mật
+hơn 1 điểm liệt kê chung) — bỏ domain `portal.*` khỏi cấu hình Nginx thật.
+Mã nguồn `portal/` VẪN CÒN trong repo (không xoá) — chỉ không còn build/
+deploy/route tới nữa, phòng khi cần dùng lại sau.
+
+- **`deploy/nginx.conf`** — bỏ hẳn khối `server{}` của `portal.hcrc.vidu.vn`,
+  bỏ khỏi danh sách redirect HTTP→HTTPS, sơ đồ còn lại **4 domain**
+  (`report`/`api`/`api-admin`/`etl-admin`).
+- **`deploy/README.md`** — bỏ bước build/copy `portal/`, bỏ đoạn cấu hình
+  `portal/.env`, sửa sơ đồ tổng quan + số domain DNS/certbot (5→4).
+- **`deploy/fail2ban/README.md`** — bỏ mục giải thích riêng cho portal (không
+  còn domain đó nữa).
+- **`README.md`** (gốc) — sửa số giao diện tĩnh (4→3).
+
 ## 0.34.5 — Rà bảo mật tiếp: validate baseUrl/path, sửa fallback path sai
 
 Tiếp tục rà tích hợp HCRC Workspace sau bản vá HTTPS, phát hiện thêm 2

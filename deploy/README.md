@@ -1,12 +1,16 @@
 # Triển khai: 1 máy chủ ứng dụng + 1 máy chủ CSDL riêng
 
 Hướng dẫn triển khai thật: **cả 3 hệ thống** (`etl/`, `rp-server/`,
-`api-server/`) + **4 giao diện tĩnh** (`portal/`, `rp-user/`, `api-admin/`,
+`api-server/`) + **3 giao diện tĩnh** (`rp-user/`, `api-admin/`,
 `etl-admin/`) chạy trên **CÙNG MỘT máy chủ ứng dụng**, đứng sau **một Nginx
 duy nhất**; **CSDL SQL Server chạy trên MÁY CHỦ KHÁC**. Xem `deploy/nginx.conf`
-cho cấu hình Nginx đầy đủ (5 domain, TLS, allow/deny nội bộ cho 2 trang quản
+cho cấu hình Nginx đầy đủ (4 domain, TLS, allow/deny nội bộ cho 2 trang quản
 trị) — file này chỉ nói phần còn lại: cài đặt, build, chạy tiến trình, và
 cách 2 máy chủ (ứng dụng / CSDL) nói chuyện với nhau.
+
+**Không có domain "cổng vào chung" (portal)** — mỗi ứng dụng (rp-user,
+api-admin, etl-admin) có domain/kết nối riêng, truy cập thẳng vào đúng
+ứng dụng cần dùng, không qua 1 điểm liệt kê chung.
 
 ## Sơ đồ tổng quan
 
@@ -16,13 +20,13 @@ cách 2 máy chủ (ứng dụng / CSDL) nói chuyện với nhau.
                      ┌─────────────────────────┐
                      │   Nginx (443, 1 máy)     │
                      └─────────────────────────┘
-                     report.*  api.*  portal.*   |  api-admin.*  etl-admin.*
-                      (công khai)                |     (nội bộ/VPN — allow/deny)
-                          |                       |          |
+                     report.*  api.*   |  api-admin.*  etl-admin.*
+                      (công khai)      |     (nội bộ/VPN — allow/deny)
+                          |            |          |
    ┌──────────────────────────────────────────────────────────────────┐
    │                     MÁY CHỦ ỨNG DỤNG (1 máy)                     │
    │  PM2: hcrc-rp-server (:4001)  hcrc-api-server (:4002)  hcrc-etl (:4003) │
-   │  Tĩnh: rp-user/dist  api-admin/dist  etl-admin/dist  portal/dist  │
+   │  Tĩnh: rp-user/dist  api-admin/dist  etl-admin/dist               │
    └──────────────────────────────────────────────────────────────────┘
                           |            |            |
                           └──────┬─────┴──────┬─────┘
@@ -79,10 +83,10 @@ Chạy schema + tài khoản CSDL quyền tối thiểu (trên MÁY CHỦ CSDL, 
 máy ứng dụng — xem mục 2 bên dưới), rồi tạo tài khoản quản trị đầu tiên cho
 từng trang quản trị (`npm run seed:admin`, xem README từng service).
 
-Build 4 giao diện tĩnh:
+Build 3 giao diện tĩnh:
 
 ```bash
-for app in portal rp-user api-admin etl-admin; do
+for app in rp-user api-admin etl-admin; do
   (cd $app && npm install && npm run build)
 done
 ```
@@ -92,19 +96,10 @@ trong `deploy/nginx.conf`):
 
 ```bash
 mkdir -p /var/www/hcrc
-for app in portal rp-user api-admin etl-admin; do
+for app in rp-user api-admin etl-admin; do
   rm -rf /var/www/hcrc/$app
   cp -r $app/dist /var/www/hcrc/$app
 done
-```
-
-`portal/.env` — điền đúng URL công khai thật của 3 đích đến (không phải
-`localhost` nữa):
-
-```
-VITE_REPORT_URL=https://report.hcrc.vidu.vn
-VITE_API_ADMIN_URL=https://api-admin.hcrc.vidu.vn
-VITE_ETL_ADMIN_URL=https://etl-admin.hcrc.vidu.vn
 ```
 
 Chạy 3 tiến trình nền bằng PM2:
@@ -137,13 +132,13 @@ khớp đúng biến `*_PASSWORD` trong `.env` của service tương ứng ở m
 
 ## 3. DNS + TLS
 
-Trỏ 5 bản ghi A/AAAA (`report`, `api`, `portal`, `api-admin`, `etl-admin`
+Trỏ 4 bản ghi A/AAAA (`report`, `api`, `api-admin`, `etl-admin`
 — tiền tố của domain bạn dùng, khớp `deploy/nginx.conf`) về CÙNG 1 IP máy
 chủ ứng dụng. Lấy chứng chỉ (Let's Encrypt, dùng `certbot`):
 
 ```bash
 certbot certonly --nginx -d report.hcrc.vidu.vn -d api.hcrc.vidu.vn \
-  -d portal.hcrc.vidu.vn -d api-admin.hcrc.vidu.vn -d etl-admin.hcrc.vidu.vn
+  -d api-admin.hcrc.vidu.vn -d etl-admin.hcrc.vidu.vn
 ```
 
 (hoặc 1 chứng chỉ wildcard `*.hcrc.vidu.vn` qua DNS challenge nếu muốn quản
@@ -274,7 +269,7 @@ là có thật. Domain riêng + `allow`/`deny` theo IP ở Nginx là lớp phòn
 THÊM, hoàn toàn độc lập với mật khẩu — kẻ tấn công phải VỪA ở trong mạng
 nội bộ/VPN VỪA có mật khẩu đúng mới vào được, thay vì chỉ cần 1 trong 2.
 
-**Có bắt buộc đúng 5 domain/subdomain không?** — Không, đó là cách đơn
+**Có bắt buộc đúng 4 domain/subdomain không?** — Không, đó là cách đơn
 giản nhất tránh phải đổi cấu hình build (`base` path) của các giao diện
 tĩnh. Xem ghi chú "PHƯƠNG ÁN 1 DOMAIN" ở cuối `deploy/nginx.conf` nếu chỉ
 có 1 domain thật.
