@@ -51,19 +51,24 @@ export default function DashboardPage() {
 
   return (
     <div className="page">
-      <h1>Dashboard</h1>
+      <div className="page-header">
+        <div>
+          <h1><span>📊</span> Dashboard</h1>
+          <p>Tổng quan tình trạng đồng bộ dữ liệu — job đang chạy, nguồn kết nối, lỗi gần đây.</p>
+        </div>
+      </div>
 
       <div className="pool-cards">
         <div className="pool-card">
-          <div className="pool-card-title">Job đồng bộ</div>
+          <div className="pool-card-title">🔄 Job đồng bộ</div>
           <p><strong>{data.totals.ActiveJobs}</strong> / {data.totals.TotalJobs} đang bật</p>
         </div>
         <div className="pool-card">
-          <div className="pool-card-title">Nguồn dữ liệu</div>
+          <div className="pool-card-title">🔌 Nguồn dữ liệu</div>
           <p><strong>{data.totals.ActiveSources}</strong> đang hoạt động</p>
         </div>
         <div className="pool-card">
-          <div className="pool-card-title">Lỗi 24h qua</div>
+          <div className="pool-card-title">⛔ Lỗi 24h qua</div>
           <p><strong>{data.failingLast24h.length}</strong> lượt chạy lỗi</p>
         </div>
       </div>

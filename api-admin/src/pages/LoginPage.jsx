@@ -30,12 +30,12 @@ function TwoFactorVerifyStep({ token, onDone }) {
   }
 
   return (
-    <form className="login-form" onSubmit={handleSubmit}>
+    <form className="login-card" onSubmit={handleSubmit}>
       <h1>Xác thực hai yếu tố</h1>
       {error && <p className="form-error">{error}</p>}
       <label>
-        <span>{useRecovery ? 'Mã khôi phục (dạng AAAAA-BBBBB)' : 'Mã 6 số từ app Authenticator'}</span>
-        <input value={code} onChange={(e) => setCode(e.target.value)} autoFocus autoComplete="one-time-code" />
+        <span className="field-label">{useRecovery ? 'Mã khôi phục (dạng AAAAA-BBBBB)' : 'Mã 6 số từ app Authenticator'}</span>
+        <span className="input-wrap"><input value={code} onChange={(e) => setCode(e.target.value)} autoFocus autoComplete="one-time-code" /></span>
       </label>
       <button type="submit" disabled={submitting}>{submitting ? 'Đang kiểm tra...' : 'Xác nhận'}</button>
       <button type="button" className="link-button" onClick={() => { setUseRecovery(!useRecovery); setCode(''); setError(''); }}>
@@ -79,7 +79,7 @@ function TwoFactorSetupStep({ token, onDone }) {
 
   if (recoveryCodes) {
     return (
-      <div className="login-form login-form--wide">
+      <div className="login-card" style={{ maxWidth: 420 }}>
         <h1>Lưu lại 10 mã khôi phục</h1>
         <p className="twofa-hint">
           Dùng khi mất điện thoại và KHÔNG có admin nào khác để nhờ "Đặt lại 2FA". Mỗi mã chỉ dùng được 1 lần.
@@ -94,7 +94,7 @@ function TwoFactorSetupStep({ token, onDone }) {
   }
 
   return (
-    <form className="login-form login-form--wide" onSubmit={handleConfirm}>
+    <form className="login-card" style={{ maxWidth: 420 }} onSubmit={handleConfirm}>
       <h1>Bắt buộc đăng ký 2FA</h1>
       <p className="twofa-hint">Tài khoản admin phải bật xác thực hai yếu tố mới dùng được. Mở app Authenticator (Google Authenticator, Authy...) và quét mã QR bên dưới.</p>
       {error && <p className="form-error">{error}</p>}
@@ -103,8 +103,8 @@ function TwoFactorSetupStep({ token, onDone }) {
           <img className="twofa-qr" src={qrDataUrl} alt="Mã QR đăng ký 2FA" />
           <p className="twofa-secret">{secret}</p>
           <label>
-            <span>Nhập mã 6 số vừa hiện trong app để xác nhận</span>
-            <input value={code} onChange={(e) => setCode(e.target.value)} autoFocus autoComplete="one-time-code" />
+            <span className="field-label">Nhập mã 6 số vừa hiện trong app để xác nhận</span>
+            <span className="input-wrap"><input value={code} onChange={(e) => setCode(e.target.value)} autoFocus autoComplete="one-time-code" /></span>
           </label>
           <button type="submit" disabled={submitting}>{submitting ? 'Đang xác nhận...' : 'Xác nhận & bật 2FA'}</button>
         </>
@@ -140,27 +140,49 @@ export default function LoginPage() {
   }
 
   if (twofa?.twofa === 'pending') {
-    return <div className="login-page"><TwoFactorVerifyStep token={twofa.token} onDone={() => setDone(true)} /></div>;
+    return <div className="login-page"><div className="login-card-wrap"><TwoFactorVerifyStep token={twofa.token} onDone={() => setDone(true)} /></div></div>;
   }
   if (twofa?.twofa === 'setupRequired') {
-    return <div className="login-page"><TwoFactorSetupStep token={twofa.token} onDone={() => setDone(true)} /></div>;
+    return <div className="login-page"><div className="login-card-wrap"><TwoFactorSetupStep token={twofa.token} onDone={() => setDone(true)} /></div></div>;
   }
 
   return (
     <div className="login-page">
-      <form className="login-form" onSubmit={handleSubmit}>
-        <h1>HCRC · Quản trị API</h1>
-        {error && <p className="form-error">{error}</p>}
-        <label>
-          <span>Tên đăng nhập</span>
-          <input value={username} onChange={(e) => setUsername(e.target.value)} autoFocus />
-        </label>
-        <label>
-          <span>Mật khẩu</span>
-          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
-        </label>
-        <button type="submit" disabled={submitting}>{submitting ? 'Đang đăng nhập...' : 'Đăng nhập'}</button>
-      </form>
+      <div className="login-hero">
+        <div className="login-hero-top">
+          <div className="h-logo h-logo--lg">H</div>
+          <div className="sidebar-brand-text">
+            <span className="sidebar-brand-name" style={{ fontSize: 16 }}>HCRC · API</span>
+            <span className="sidebar-brand-sub">Cổng quản trị đối tác</span>
+          </div>
+        </div>
+        <div className="login-hero-eyebrow">Hệ thống nội bộ</div>
+        <h1>Quản trị đối tác &amp;<br />API tập trung.</h1>
+        <p>Đối tác, nguồn dữ liệu, endpoint realtime, nhật ký truy vấn — vận hành và giám sát trên một nền tảng duy nhất.</p>
+        <div className="login-hero-note">Hệ thống nội bộ — chỉ dành cho cán bộ vận hành API của HCRC.</div>
+      </div>
+      <div className="login-card-wrap">
+        <form className="login-card" onSubmit={handleSubmit}>
+          <h1>Đăng nhập</h1>
+          <p className="login-card-hint">Nhập tài khoản quản trị được cấp để truy cập hệ thống API.</p>
+          {error && <p className="form-error">{error}</p>}
+          <label>
+            <span className="field-label">Tên đăng nhập</span>
+            <span className="input-wrap">
+              <span className="input-icon-glyph">👤</span>
+              <input value={username} onChange={(e) => setUsername(e.target.value)} autoFocus />
+            </span>
+          </label>
+          <label>
+            <span className="field-label">Mật khẩu</span>
+            <span className="input-wrap">
+              <span className="input-icon-glyph">🔒</span>
+              <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+            </span>
+          </label>
+          <button type="submit" disabled={submitting}>{submitting ? 'Đang đăng nhập...' : 'Đăng nhập'}</button>
+        </form>
+      </div>
     </div>
   );
 }

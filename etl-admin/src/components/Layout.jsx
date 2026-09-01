@@ -2,13 +2,13 @@ import { NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '../lib/AuthContext';
 
 const NAV = [
-  { path: '/dashboard', label: 'Dashboard' },
-  { path: '/data-sources', label: 'Nguồn dữ liệu' },
-  { path: '/sync-jobs', label: 'Đồng bộ' },
-  { path: '/log', label: 'Log' },
-  { path: '/audit-log', label: 'Nhật ký thao tác' },
-  { path: '/sales-targets', label: 'Nhập chỉ tiêu' },
-  { path: '/users', label: 'Phân quyền' }
+  { path: '/dashboard', label: 'Dashboard', icon: '📊' },
+  { path: '/data-sources', label: 'Nguồn dữ liệu', icon: '🔌' },
+  { path: '/sync-jobs', label: 'Đồng bộ', icon: '🔄' },
+  { path: '/log', label: 'Log', icon: '🧾' },
+  { path: '/audit-log', label: 'Nhật ký thao tác', icon: '📜' },
+  { path: '/sales-targets', label: 'Nhập chỉ tiêu', icon: '🎯' },
+  { path: '/users', label: 'Phân quyền', icon: '🔐' }
 ];
 
 export default function Layout() {
@@ -21,17 +21,26 @@ export default function Layout() {
   return (
     <div className="app-shell">
       <aside className="sidebar">
-        <div className="sidebar-brand">HCRC · ETL</div>
+        <div className="sidebar-brand">
+          <div className="h-logo">H</div>
+          <div className="sidebar-brand-text">
+            <span className="sidebar-brand-name">HCRC · ETL</span>
+            <span className="sidebar-brand-sub">Quản trị đồng bộ</span>
+          </div>
+        </div>
         <ul className="menu">
           {nav.map(item => (
             <li key={item.path}>
-              <NavLink to={item.path} className={({ isActive }) => (isActive ? 'active' : '')}>{item.label}</NavLink>
+              <NavLink to={item.path} className={({ isActive }) => (isActive ? 'active' : '')}>
+                <span className="nav-icon">{item.icon}</span>
+                {item.label}
+              </NavLink>
             </li>
           ))}
         </ul>
         <div className="sidebar-footer">
           <div className="user-name">{me?.username} <span className="role-badge">{me?.role}</span></div>
-          <button type="button" onClick={logout}>Đăng xuất</button>
+          <button type="button" className="logout-link" onClick={logout}>↩ Đăng xuất</button>
         </div>
       </aside>
       <main className="content">

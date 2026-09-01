@@ -15,6 +15,40 @@ không chặt: patch/minor/major), GIỮ NGUYÊN không đánh số lại — `0
 (gần nhất theo quy tắc cũ) tương ứng **`4.1`** theo quy tắc mới, là điểm
 bắt đầu đếm tiếp từ đây.
 
+## 4.2 — Thiết kế lại giao diện đăng nhập + trang chủ cho cả 3 giao diện quản trị/người dùng
+
+Theo yêu cầu: giao diện đăng nhập + trang chủ (sau đăng nhập) của
+`etl-admin/`, `api-admin/`, `rp-user/` chuyển sang phong cách chuyên
+nghiệp — sidebar tối màu (navy), logo tròn chữ **H**, trang đăng nhập dạng
+"hero" gradient + card trắng, theo đúng tinh thần ảnh tham khảo (ứng dụng
+"HCRC Workspace"). KHÔNG đổi logic nghiệp vụ/route/API nào — chỉ giao diện
+(CSS + cấu trúc JSX hiển thị).
+
+- **Đăng nhập** (`pages/LoginPage.jsx` x3): chuyển từ card đơn giản giữa
+  màn hình sang bố cục chia đôi — bên trái "hero" gradient tối (logo H,
+  tiêu đề/mô tả riêng theo đúng chức năng từng hệ thống, ghi chú "hệ thống
+  nội bộ"), bên phải card trắng bo góc với ô nhập có icon 👤/🔒. Bước 2FA
+  (xác thực/bắt buộc đăng ký) dùng chung style card, không có hero riêng.
+- **Sidebar** (`components/Layout.jsx` x3): nền navy đậm (`#0a1628`), logo
+  H tròn nền trắng (màu chữ = màu chủ đạo riêng từng app — tím etl-admin/
+  teal api-admin/cam rp-user, giữ được bản sắc riêng), mục menu có emoji
+  + trạng thái active làm nổi bật viền trái, chân trang có tên/vai trò +
+  nút "↩ Đăng xuất" màu đỏ. `rp-user` (menu động theo `me.menu` từ CSDL)
+  thêm nút thu/mở (chevron ▾/▸) cho nhóm "Hệ thống", trước đây luôn mở cố định.
+- **Trang chủ/Dashboard** (`etl-admin/pages/DashboardPage.jsx`,
+  `api-admin/pages/ConsumersPage.jsx`, `rp-user/modules/home/HomePage.jsx`):
+  thêm `.page-header` (tiêu đề + mô tả ngắn), thẻ KPI (`.pool-card`) có
+  viền màu + icon. `rp-user/HomePage.jsx` viết lại hoàn toàn — từ dòng chào
+  trống trải thành lưới "lối tắt" (card bo góc, icon lớn) dẫn tới đúng các
+  mục người dùng ĐANG có quyền (lấy từ `me.menu`, không hard-code).
+- Không thêm số điện thoại/email vào chân trang sidebar dù ảnh tham khảo
+  có — `me` (payload đăng nhập) của cả 3 app hiện KHÔNG có 2 trường này,
+  không tự bịa dữ liệu giả; cần thật thì phải mở rộng backend riêng (`/auth/me`),
+  ngoài phạm vi việc đổi giao diện lần này.
+- Build sạch cả 3 app (`npm run build`, không lỗi/warning); demo 6 ảnh
+  (login + trang chủ mỗi app, dựng qua Playwright + giả lập API) đã gửi
+  trực tiếp cho người dùng.
+
 ## 4.1 — Chuyển sang kiến trúc PM2 cluster mode (nhiều lõi CPU) cho cả 3 service
 
 Theo yêu cầu "kiến trúc sẽ chạy cluster" — chuyển `etl`/`api-server`/

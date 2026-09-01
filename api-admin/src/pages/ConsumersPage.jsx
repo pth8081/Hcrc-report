@@ -159,7 +159,12 @@ export default function ConsumersPage() {
 
   return (
     <div className="page">
-      <h1>Đối tác API</h1>
+      <div className="page-header">
+        <div>
+          <h1><span>🤝</span> Đối tác API</h1>
+          <p>Quản lý đối tác gọi API, phương thức xác thực (API key/OAuth2/HMAC) và giới hạn truy cập.</p>
+        </div>
+      </div>
       {error && <p className="form-error">{error}</p>}
 
       {revealedCreds && <RevealedCredentials creds={revealedCreds} onClose={() => setRevealedCreds(null)} />}
