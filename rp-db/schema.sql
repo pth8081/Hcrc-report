@@ -48,9 +48,10 @@ GO
 -- lib/hcrcWorkspaceClient.js xác thực mật khẩu mỗi lần đăng nhập thay vì so
 -- hash local. Vai trò Admin (IsSystemRole=1) LUÔN bị ép AuthSource='local' ở
 -- routes/users.js — không phụ thuộc uptime hệ thống ngoài để vào được admin.
--- Department/Position/ExternalId/LastSyncedAt phục vụ "Đồng bộ tài khoản"
--- (POST /api/system/users/sync) — ExternalId là khoá đồng bộ ổn định (mã
--- nhân viên bên HCRC Workspace), không dùng Username vì username có thể đổi.
+-- Department/Position/Phone/LastSyncedAt phục vụ "Đồng bộ tài khoản" (POST
+-- /api/system/users/sync) — khớp trực tiếp theo Username (API thật GET
+-- /api/external/users chỉ có username, không có mã nhân viên riêng nào
+-- khác dùng làm khoá đồng bộ ổn định hơn).
 IF COL_LENGTH('app.Users', 'AuthSource') IS NULL
 BEGIN
     ALTER TABLE app.Users ADD
@@ -58,8 +59,23 @@ BEGIN
             CONSTRAINT CK_Users_AuthSource CHECK (AuthSource IN ('local', 'hcrcWorkspace')),
         Department   NVARCHAR(200) NULL,
         Position     NVARCHAR(200) NULL,
-        ExternalId   NVARCHAR(100) NULL,
         LastSyncedAt DATETIME2(3)  NULL;
+END
+GO
+
+-- Bản trước (chưa từng triển khai thật) từng thêm ExternalId làm khoá đồng
+-- bộ riêng, giả định HCRC Workspace có mã nhân viên ổn định — tài liệu API
+-- thật của họ (GET /api/external/users) không có field này, chỉ có
+-- username -> bỏ cột, đồng bộ khớp thẳng theo Username (xem routes/users.js).
+IF COL_LENGTH('app.Users', 'ExternalId') IS NOT NULL
+BEGIN
+    ALTER TABLE app.Users DROP COLUMN ExternalId;
+END
+GO
+
+IF COL_LENGTH('app.Users', 'Phone') IS NULL
+BEGIN
+    ALTER TABLE app.Users ADD Phone NVARCHAR(50) NULL;
 END
 GO
 
@@ -73,24 +89,26 @@ GO
 
 -- Cấu hình DUY NHẤT (Id=1) cho tích hợp "HCRC Workspace" — cùng khuôn
 -- app.EmailSettings (1 dòng, mã hoá khoá bí mật bằng lib/crypto.js). BaseUrl +
--- 2 đường dẫn dưới đây họp thành 2 lời gọi (xem lib/hcrcWorkspaceClient.js):
---   POST {BaseUrl}{VerifyPath}    { username, password } -> { success }
---     — xác thực đăng nhập cho account AuthSource='hcrcWorkspace', gọi MỖI
---     LẦN đăng nhập.
---   GET  {BaseUrl}{DirectoryPath} -> [ { externalId, username, fullName,
---     department, position, isActive } ] — "Đồng bộ tài khoản" (nút bấm tay
---     ở trang Người dùng, không tự chạy theo giờ).
--- Header X-Api-Key: giải mã ApiKeyEncrypted. IsEnabled=0 (mặc định) -> chặn
--- đăng nhập/đồng bộ ngay ở lib/hcrcWorkspaceClient.js, tránh gọi ra ngoài khi
--- chưa cấu hình xong baseUrl/khoá thật.
+-- 2 đường dẫn dưới đây họp thành 2 lời gọi ĐÚNG theo tài liệu API họ công bố
+-- (xem lib/hcrcWorkspaceClient.js + hướng_dẫn_báo_cáo.md mục 7):
+--   POST {BaseUrl}{VerifyPath}    { account, password } -> { success }
+--     — Authorization: Bearer <khoá>. Sai tài khoản/mật khẩu vẫn 200 OK kèm
+--     success:false — xác thực đăng nhập cho account AuthSource=
+--     'hcrcWorkspace', gọi MỖI LẦN đăng nhập.
+--   GET  {BaseUrl}{DirectoryPath} -> [ { username, name, dept, jobTitle,
+--     phone, email, active } ] — "Đồng bộ tài khoản" (nút bấm tay ở trang
+--     Người dùng, không tự chạy theo giờ).
+-- Header Authorization: Bearer <giải mã ApiKeyEncrypted>. IsEnabled=0 (mặc
+-- định) -> chặn đăng nhập/đồng bộ ngay ở lib/hcrcWorkspaceClient.js, tránh
+-- gọi ra ngoài khi chưa cấu hình xong baseUrl/khoá thật.
 IF OBJECT_ID('app.HcrcWorkspaceSettings', 'U') IS NULL
 BEGIN
     CREATE TABLE app.HcrcWorkspaceSettings (
         Id              INT           NOT NULL PRIMARY KEY CHECK (Id = 1),
         BaseUrl         NVARCHAR(300) NOT NULL,
         ApiKeyEncrypted NVARCHAR(500) NOT NULL,
-        VerifyPath      NVARCHAR(200) NOT NULL DEFAULT '/auth/verify',
-        DirectoryPath   NVARCHAR(200) NOT NULL DEFAULT '/directory',
+        VerifyPath      NVARCHAR(200) NOT NULL DEFAULT '/api/external/verify-credentials',
+        DirectoryPath   NVARCHAR(200) NOT NULL DEFAULT '/api/external/users',
         IsEnabled       BIT           NOT NULL DEFAULT 0,
         LastSyncAt      DATETIME2(3)  NULL,
         LastSyncStatus  VARCHAR(20)   NULL,

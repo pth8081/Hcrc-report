@@ -6,7 +6,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../../lib/api';
 
-const EMPTY = { baseUrl: '', apiKey: '', verifyPath: '/auth/verify', directoryPath: '/directory', isEnabled: false };
+const EMPTY = { baseUrl: '', apiKey: '', verifyPath: '/api/external/verify-credentials', directoryPath: '/api/external/users', isEnabled: false };
 
 export default function HcrcWorkspaceSettingsPage() {
   const [form, setForm] = useState(EMPTY);

@@ -5,6 +5,32 @@ Server, API Server và các giao diện quản trị) — tăng ở mỗi lần 
 `main`, theo kiểu semver không chặt (patch cho fix nhỏ, minor cho tính năng
 mới, major khi đổi cấu trúc phá vỡ tương thích ngược).
 
+## 0.34.2 — Sửa tích hợp HCRC Workspace khớp đúng tài liệu API thật
+
+Bên HCRC Workspace đã công bố tài liệu API thật (v1.97) — khác hợp đồng tự
+đặt ở 0.34.0 ở vài điểm quan trọng, sửa lại toàn bộ cho khớp:
+
+- **Header xác thực**: `Authorization: Bearer <khoá>` (không phải
+  `X-Api-Key`).
+- **Body xác thực**: field `account` (không phải `username`).
+- **Sai mật khẩu vẫn trả `200 OK` kèm `success:false`** — KHÔNG phải
+  `401`. `lib/hcrcWorkspaceClient.js` sửa lại: chỉ HTTP 200 mới đọc
+  `success`, MỌI mã khác (400/401/403/429/500 — khoá API sai/IP không
+  cho phép/quá tần suất/lỗi máy chủ họ) đều là lỗi dịch vụ/cấu hình,
+  không bao giờ bị hiểu nhầm thành "người dùng gõ sai mật khẩu".
+- **Danh bạ không có mã nhân viên riêng** — API thật (`GET
+  /api/external/users`) chỉ có `username` + `name/dept/jobTitle/phone/
+  email/active`, không có `externalId`. Bỏ cột `app.Users.ExternalId`,
+  "Đồng bộ tài khoản" (`routes/users.js` `POST /sync`) khớp trực tiếp
+  theo Username. Thêm cột `Phone`, đồng bộ luôn Email/Điện thoại.
+- `UsersPage.jsx` thêm cột Điện thoại/Email; `HcrcWorkspaceSettingsPage.jsx`
+  sửa path mặc định (`/api/external/verify-credentials`,
+  `/api/external/users`).
+- `hướng_dẫn_báo_cáo.md` mục 7 viết lại đúng 100% theo tài liệu API thật.
+- 3 bộ test (`lib/hcrcWorkspaceClient.js`: đúng header/body/mã lỗi/ánh xạ
+  field; `routes/users.js` sync theo Username; `verifyCredentials` rẽ
+  nhánh AuthSource) + `vite build` sạch `rp-user`.
+
 ## 0.34.1 — Ẩn nút "Nguồn xác thực" ở tài khoản Admin
 
 Tài khoản giữ vai trò Admin (hệ thống) đã bị chặn chuyển AuthSource sang

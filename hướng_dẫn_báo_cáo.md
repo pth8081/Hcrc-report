@@ -727,73 +727,115 @@ vi đã có ở mục 1.
 Mục đích: người dùng thường (không phải Admin hệ thống) đăng nhập report
 server (rp-user) bằng ĐÚNG tài khoản/mật khẩu bên hệ thống nội bộ "HCRC
 Workspace" — không phải tạo/nhớ thêm 1 mật khẩu riêng cho report server —
-và họ tên/phòng ban/vị trí được đồng bộ về để phân quyền (nhóm quyền theo
-Vai trò/`app.Roles`, hoặc quyền riêng 1 người bằng cách tạo 1 Vai trò chỉ
-gán cho đúng người đó). Vai trò Admin (hệ thống) LUÔN xác thực bằng mật
-khẩu local ở report server, không phụ thuộc HCRC Workspace.
+và họ tên/phòng ban/vị trí/điện thoại/email được đồng bộ về để phân quyền
+(nhóm quyền theo Vai trò/`app.Roles`, hoặc quyền riêng 1 người bằng cách
+tạo 1 Vai trò chỉ gán cho đúng người đó). Vai trò Admin (hệ thống) LUÔN
+xác thực bằng mật khẩu local ở report server, không phụ thuộc HCRC
+Workspace.
 
-HCRC Workspace cần cung cấp 2 API (báo cho report server URL + khoá API,
-cấu hình ở trang "Xác thực HCRC Workspace" → `/system/hcrc-workspace`):
+Dưới đây là ĐÚNG 2 API HCRC Workspace đã công bố (bản v1.97) — cấu hình
+Base URL + khoá API ở trang "Xác thực HCRC Workspace" →
+`/system/hcrc-workspace` (đường dẫn 2 endpoint đã điền sẵn đúng mặc định
+bên dưới, không cần gõ lại trừ khi bên HCRC Workspace đổi).
 
-### 7.1 Xác thực đăng nhập — gọi MỖI LẦN người dùng đăng nhập
+### 7.1 Xác thực & khoá API
+
+Mọi request gửi tới cả 2 endpoint bên dưới đều kèm header:
 
 ```
-POST {BaseUrl}{VerifyPath}      (mặc định VerifyPath = "/auth/verify")
-Headers: X-Api-Key: <khoá bí mật, cấu hình ở report server>
+Authorization: Bearer <khoá API do HCRC Workspace cấp>
+```
+
+- Khoá API chỉ hiển thị **đúng 1 lần** lúc quản trị viên HCRC Workspace
+  tạo — nếu lộ/không dùng nữa phải báo họ **thu hồi** và cấp khoá mới
+  (không có cách lấy lại khoá cũ).
+- Giới hạn mặc định **300 lượt/15 phút/địa chỉ IP nguồn**, áp dụng chung
+  cho cả 2 endpoint.
+- Nếu report server gọi từ (các) IP tĩnh cố định, gửi danh sách IP đó cho
+  quản trị viên HCRC Workspace để họ bật thêm lớp giới hạn theo IP (không
+  cấu hình gì thêm ở report server) — gọi từ IP không nằm trong danh sách
+  sẽ bị từ chối `403` dù khoá đúng.
+
+### 7.2 Xác thực tài khoản — gọi MỖI LẦN người dùng đăng nhập
+
+```
+POST {BaseUrl}{VerifyPath}   (mặc định VerifyPath = "/api/external/verify-credentials")
+Headers: Authorization: Bearer <khoá API>
          Content-Type: application/json
-Body:    { "username": "...", "password": "..." }
+Body:    { "account": "...", "password": "..." }
 
 200 OK   { "success": true }
-401/403  { "success": false }
+200 OK   { "success": false, "error": "Tài khoản hoặc mật khẩu không chính xác" }
 ```
 
-- Chỉ trả `success: true/false` — **KHÔNG** trả mật khẩu/hash hay bất kỳ
-  thông tin nào khác trong response này (report server không lưu, không
-  cần).
-- Bất kỳ mã trạng thái nào khác 200/401/403 (500, timeout, không kết nối
-  được...) report server coi là "dịch vụ xác thực tạm thời không khả
-  dụng" — trả lỗi 503 riêng cho người đăng nhập, KHÔNG tính vào số lần
-  đăng nhập sai (không khoá tài khoản oan).
-- Nên phản hồi trong vài giây — report server timeout sau 8 giây.
+- **Sai tài khoản/mật khẩu vẫn trả `200 OK`** kèm `success: false` — KHÔNG
+  phải `401`. Report server chỉ coi là đăng nhập sai khi nhận đúng
+  `success: false` ở mã `200`.
+- `400/401/403/429/500` (thiếu tham số/khoá API sai hoặc bị thu hồi/IP
+  không được phép/gọi quá tần suất/lỗi máy chủ họ) — report server coi là
+  "dịch vụ xác thực tạm thời không khả dụng", trả lỗi 503 riêng cho người
+  đăng nhập, **KHÔNG tính vào số lần đăng nhập sai** (không khoá tài
+  khoản oan vì lỗi cấu hình/hạ tầng không phải do người dùng gõ sai).
+- Gọi endpoint này sai mật khẩu 5 lần liên tiếp cho cùng 1 tài khoản sẽ bị
+  HCRC Workspace tự khoá tạm 15 phút (dùng chung bộ đếm với đăng nhập nội
+  bộ của họ) — report server không cần tự làm thêm gì cho việc này.
+- Report server timeout sau 8 giây nếu không phản hồi.
 
-### 7.2 Danh bạ nhân sự — gọi khi admin bấm "Đồng bộ tài khoản" (trang
-"Người dùng", bấm tay, KHÔNG tự động chạy theo giờ)
+### 7.3 Đồng bộ danh bạ nhân sự — gọi khi admin bấm "Đồng bộ tài khoản"
+(trang "Người dùng", bấm tay, KHÔNG tự động chạy theo giờ)
 
 ```
-GET {BaseUrl}{DirectoryPath}     (mặc định DirectoryPath = "/directory")
-Headers: X-Api-Key: <khoá bí mật, cùng khoá ở trên>
+GET {BaseUrl}{DirectoryPath}   (mặc định DirectoryPath = "/api/external/users")
+Headers: Authorization: Bearer <khoá API>
 
-200 OK
+200 OK — mảng toàn bộ danh bạ
 [
   {
-    "externalId": "NV001",
-    "username": "nguyenvana",
-    "fullName": "Nguyễn Văn A",
-    "department": "Kinh doanh",
-    "position": "Nhân viên bán hàng",
-    "isActive": true
+    "username": "nva",
+    "name": "Nguyễn Văn A",
+    "dept": "Phòng Kinh Doanh",
+    "jobTitle": "Chuyên viên",
+    "phone": "0901234567",
+    "email": "nva@congty.com",
+    "active": true
   },
   ...
 ]
 ```
 
-- `externalId` — mã nhân viên/định danh ỔN ĐỊNH bên HCRC Workspace, dùng
-  làm khoá khớp lần đồng bộ sau (Username có thể đổi, externalId thì
-  không) — **bắt buộc**, không trùng nhau giữa 2 người.
-- `isActive: false` (hoặc bỏ hẳn người đó ra khỏi danh sách) = báo report
+- Response **không bao giờ** kèm mật khẩu/hash/mã PIN — chỉ 6 trường liệt
+  kê ở trên.
+- Không có mã nhân viên/định danh ổn định nào khác ngoài `username` — report
+  server đồng bộ khớp trực tiếp theo `username`.
+- `active: false` (hoặc bỏ hẳn người đó ra khỏi mảng trả về) = báo report
   server người này KHÔNG còn là nhân viên đang làm việc — report server
-  tự động KHOÁ tài khoản tương ứng (nếu trước đó đã từng đồng bộ), không
-  cần thao tác tay.
-- Report server ghép quyền như sau khi đồng bộ:
-  - `externalId` MỚI (chưa từng thấy) + `username` CHƯA tồn tại trong
-    report server → tạo tài khoản mới, mặc định **CHƯA cho phép kết nối**
-    (admin phải vào trang "Người dùng" bấm "Cho phép kết nối" từng người,
-    và "Gán vai trò" để họ thấy được báo cáo nào).
-  - `externalId` ĐÃ khớp (đồng bộ lần trước) → chỉ cập nhật lại họ
-    tên/phòng ban/vị trí, KHÔNG đụng quyền/trạng thái admin đã cấu hình.
-  - `username` trùng với 1 tài khoản report server ĐÃ CÓ nhưng
-    `externalId` chưa từng khớp (vd trùng tên với tài khoản Admin local) →
-    BỎ QUA, không tự gộp — admin tự xử lý tay nếu đúng là cùng 1 người.
+  tự động **khoá** tài khoản tương ứng (nếu trước đó đã từng đồng bộ),
+  không cần thao tác tay.
+- Report server ghép quyền như sau mỗi lần đồng bộ:
+  - `username` MỚI (chưa từng thấy, và chưa tồn tại trong report server
+    dưới bất kỳ hình thức nào) → tạo tài khoản mới, mặc định **CHƯA cho
+    phép kết nối** (admin phải vào trang "Người dùng" bấm "Cho phép kết
+    nối" từng người, và "Gán vai trò" để họ thấy được báo cáo nào).
+  - `username` ĐÃ đồng bộ trước đó → chỉ cập nhật lại họ tên/phòng
+    ban/vị trí/điện thoại/email, KHÔNG đụng quyền/trạng thái admin đã
+    cấu hình (vd admin đã đổi tài khoản đó sang xác thực Local).
+  - `username` trùng với 1 tài khoản report server ĐÃ CÓ nhưng KHÔNG PHẢI
+    do đồng bộ tạo ra (vd trùng tên với tài khoản Admin local) → BỎ QUA,
+    không tự gộp — admin tự xử lý tay nếu đúng là cùng 1 người.
 
 Không có lịch tự động — mỗi lần công ty có người mới/nghỉ việc/đổi phòng
 ban, admin vào trang "Người dùng" bấm lại "Đồng bộ tài khoản" khi cần.
+
+### 7.4 Mã lỗi chung (áp dụng cả 2 endpoint)
+
+| Mã | Ý nghĩa |
+|----|---------|
+| 200 | Request hợp lệ và đã xử lý (kể cả khi `success: false`) |
+| 400 | Thiếu tham số bắt buộc |
+| 401 | Khoá API thiếu/sai/đã bị thu hồi |
+| 403 | Khoá API đúng nhưng IP gọi không nằm trong danh sách cho phép |
+| 404 | Chỉ `GET /users?account=` với username không tồn tại (report server không dùng tham số này — luôn gọi lấy toàn bộ) |
+| 429 | Gọi quá tần suất (300 lượt/15 phút/IP mặc định) |
+| 500 | Lỗi phía máy chủ HCRC Workspace |
+
+Định dạng lỗi chung (400/401/403/404/429/500): `{ "error": "Mô tả lỗi" }`.

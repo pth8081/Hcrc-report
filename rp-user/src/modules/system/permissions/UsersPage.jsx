@@ -37,7 +37,7 @@ export default function UsersPage() {
   async function toggleActive(user) {
     try {
       await api.put(`/system/users/${user.Id}`, {
-        fullName: user.FullName, email: user.Email, department: user.Department, position: user.Position,
+        fullName: user.FullName, email: user.Email, phone: user.Phone, department: user.Department, position: user.Position,
         isActive: !user.IsActive
       });
       reload();
@@ -124,6 +124,8 @@ export default function UsersPage() {
           { key: 'FullName', label: 'Họ tên' },
           { key: 'Department', label: 'Phòng ban', render: (u) => u.Department || '—' },
           { key: 'Position', label: 'Vị trí', render: (u) => u.Position || '—' },
+          { key: 'Phone', label: 'Điện thoại', render: (u) => u.Phone || '—' },
+          { key: 'Email', label: 'Email', render: (u) => u.Email || '—' },
           { key: 'AuthSource', label: 'Nguồn xác thực', render: (u) => (u.AuthSource === 'local' ? 'Local' : 'HCRC Workspace') },
           { key: 'roles', label: 'Vai trò', render: (u) => u.roles.map(r => r.name).join(', ') || '—' },
           { key: 'IsActive', label: 'Trạng thái', render: (u) => (u.IsActive ? 'Hoạt động' : 'Chưa cho phép kết nối / đã khoá') },

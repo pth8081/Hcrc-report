@@ -28,7 +28,7 @@ router.get('/', async (req, res, next) => {
   try {
     const pool = await getPool('RP');
     const users = await pool.request().query(`
-      SELECT Id, Username, FullName, Email, Department, Position, AuthSource, ExternalId, LastSyncedAt,
+      SELECT Id, Username, FullName, Email, Phone, Department, Position, AuthSource, LastSyncedAt,
              IsActive, TwoFactorEnabled, CreatedAt, LastLoginAt
       FROM app.Users ORDER BY Username
     `);
@@ -46,9 +46,7 @@ router.get('/', async (req, res, next) => {
 });
 
 // Tạo tay LUÔN là AuthSource='local' (cần password ngay) — account
-// AuthSource='hcrcWorkspace' chỉ tạo qua "Đồng bộ tài khoản" (POST /sync),
-// không có form tạo tay riêng cho loại này (tránh gõ nhầm ExternalId, mất
-// tác dụng khớp lần đồng bộ sau).
+// AuthSource='hcrcWorkspace' chỉ tạo qua "Đồng bộ tài khoản" (POST /sync).
 router.post('/', async (req, res, next) => {
   try {
     const { username, password, fullName, email } = req.body || {};
@@ -78,16 +76,17 @@ router.post('/', async (req, res, next) => {
 
 router.put('/:id', async (req, res, next) => {
   try {
-    const { fullName, email, department, position, isActive } = req.body || {};
+    const { fullName, email, phone, department, position, isActive } = req.body || {};
     const pool = await getPool('RP');
     await pool.request()
       .input('id', sql.Int, req.params.id)
       .input('fullName', sql.NVarChar(200), fullName)
       .input('email', sql.NVarChar(200), email || null)
+      .input('phone', sql.NVarChar(50), phone || null)
       .input('department', sql.NVarChar(200), department || null)
       .input('position', sql.NVarChar(200), position || null)
       .input('isActive', sql.Bit, isActive ? 1 : 0)
-      .query('UPDATE app.Users SET FullName = @fullName, Email = @email, Department = @department, Position = @position, IsActive = @isActive WHERE Id = @id');
+      .query('UPDATE app.Users SET FullName = @fullName, Email = @email, Phone = @phone, Department = @department, Position = @position, IsActive = @isActive WHERE Id = @id');
     invalidateUser(parseInt(req.params.id, 10));
     await logAction(req, { module: 'Phân quyền', actionType: 'SUA_USER', targetObject: req.params.id, description: `Cập nhật người dùng #${req.params.id}` });
     res.json({ ok: true });
@@ -227,61 +226,62 @@ router.put('/:id/auth-source', requireSystemRoleActor, async (req, res, next) =>
 // "Đồng bộ tài khoản" — bấm tay, KHÔNG tự chạy theo giờ (khác
 // jobs/reportEmailScheduler.js) vì đây là thao tác cấp phát/thu hồi quyền
 // TRUY CẬP, muốn admin chủ động biết mỗi lần có gì thay đổi (xem tổng kết
-// trả về). Khớp theo ExternalId (mã nhân viên bên HCRC Workspace, ổn định
-// hơn Username có thể đổi) — item nào từ HCRC Workspace CHƯA có ExternalId
-// khớp NHƯNG Username đã tồn tại trong app.Users thì BỎ QUA (không tự gộp
-// nhầm vào 1 account SẴN CÓ, nhất là account AuthSource='local' như Admin —
-// admin tự xử lý tay nếu đúng là cùng 1 người). Tài khoản MỚI: AuthSource=
-// 'hcrcWorkspace', PasswordHash=NULL, IsActive=0 (CHƯA cho phép kết nối —
-// admin phải bấm "Mở khoá" tay, xem yêu cầu "thêm nút cho phép kết nối" của
-// người dùng). Tài khoản ĐÃ đồng bộ trước đó (ExternalId khớp) chỉ cập nhật
-// FullName/Department/Position — KHÔNG đụng AuthSource/IsActive/PasswordHash
-// (giữ nguyên lựa chọn admin đã đổi tay, vd đã chuyển sang local). Tài khoản
-// đã đồng bộ trước nhưng LẦN NÀY không còn thấy (nghỉ việc/đổi mã nhân viên)
-// -> tự khoá (IsActive=0) — an toàn hơn để hở quyền truy cập của người đã
-// nghỉ, ghi audit log rõ từng account bị khoá.
+// trả về). API thật HCRC Workspace (GET /api/external/users) chỉ có
+// "username", không có mã nhân viên riêng nào khác -> khớp trực tiếp theo
+// Username trong tập account AuthSource='hcrcWorkspace'. Username trùng với
+// 1 account KHÁC đã có (vd account AuthSource='local' như Admin) -> BỎ QUA,
+// không tự gộp — admin tự xử lý tay nếu đúng là cùng 1 người. Tài khoản
+// MỚI: AuthSource='hcrcWorkspace', PasswordHash=NULL, IsActive=0 (CHƯA cho
+// phép kết nối — admin phải bấm "Mở khoá" tay). Tài khoản ĐÃ đồng bộ trước
+// đó chỉ cập nhật FullName/Department/Position/Phone/Email — KHÔNG đụng
+// AuthSource/IsActive/PasswordHash (giữ nguyên lựa chọn admin đã đổi tay,
+// vd đã chuyển sang local). Tài khoản đã đồng bộ trước nhưng LẦN NÀY không
+// còn thấy trong danh bạ (nghỉ việc/đổi username) -> tự khoá (IsActive=0) —
+// an toàn hơn để hở quyền truy cập của người đã nghỉ, ghi audit log rõ từng
+// account bị khoá.
 router.post('/sync', requireSystemRoleActor, async (req, res, next) => {
   try {
     const directory = await fetchDirectory();
-    const activeItems = directory.filter(item => item && item.externalId && item.username && item.isActive !== false);
-    const seenExternalIds = new Set(activeItems.map(item => String(item.externalId)));
+    const activeItems = directory.filter(item => item && item.username && item.isActive !== false);
+    const seenUsernames = new Set(activeItems.map(item => item.username));
 
     const pool = await getPool('RP');
     const existingResult = await pool.request().query(`
-      SELECT Id, Username, ExternalId, IsActive FROM app.Users WHERE AuthSource = 'hcrcWorkspace'
+      SELECT Id, Username, IsActive FROM app.Users WHERE AuthSource = 'hcrcWorkspace'
     `);
-    const byExternalId = new Map(existingResult.recordset.filter(r => r.ExternalId).map(r => [r.ExternalId, r]));
-    const usernamesInUse = new Set(existingResult.recordset.map(r => r.Username));
-    // Username 'local' cũng phải tránh trùng — không chỉ account hcrcWorkspace.
+    const byUsername = new Map(existingResult.recordset.map(r => [r.Username, r]));
+    const usernamesInUse = new Set();
     const allUsernames = await pool.request().query('SELECT Username FROM app.Users');
     for (const r of allUsernames.recordset) usernamesInUse.add(r.Username);
 
     let added = 0, updated = 0;
     const skipped = [];
     for (const item of activeItems) {
-      const externalId = String(item.externalId);
-      const existing = byExternalId.get(externalId);
+      const existing = byUsername.get(item.username);
       if (existing) {
         await pool.request()
           .input('id', sql.Int, existing.Id)
           .input('fullName', sql.NVarChar(200), item.fullName || existing.Username)
           .input('department', sql.NVarChar(200), item.department || null)
           .input('position', sql.NVarChar(200), item.position || null)
-          .query('UPDATE app.Users SET FullName = @fullName, Department = @department, Position = @position, LastSyncedAt = SYSUTCDATETIME() WHERE Id = @id');
+          .input('phone', sql.NVarChar(50), item.phone || null)
+          .input('email', sql.NVarChar(200), item.email || null)
+          .query('UPDATE app.Users SET FullName = @fullName, Department = @department, Position = @position, Phone = @phone, Email = @email, LastSyncedAt = SYSUTCDATETIME() WHERE Id = @id');
         invalidateUser(existing.Id);
         updated++;
       } else if (usernamesInUse.has(item.username)) {
-        skipped.push(`${item.username} (trùng username với tài khoản đã có, ExternalId "${externalId}" chưa từng khớp)`);
+        skipped.push(`${item.username} (trùng username với tài khoản đã có sẵn không phải từ HCRC Workspace)`);
       } else {
         await pool.request()
           .input('username', sql.NVarChar(50), item.username)
           .input('fullName', sql.NVarChar(200), item.fullName || item.username)
           .input('department', sql.NVarChar(200), item.department || null)
           .input('position', sql.NVarChar(200), item.position || null)
-          .input('externalId', sql.NVarChar(100), externalId)
+          .input('phone', sql.NVarChar(50), item.phone || null)
+          .input('email', sql.NVarChar(200), item.email || null)
           .query(`
-            INSERT INTO app.Users (Username, PasswordHash, FullName, Department, Position, ExternalId, AuthSource, IsActive, LastSyncedAt)
-            VALUES (@username, NULL, @fullName, @department, @position, @externalId, 'hcrcWorkspace', 0, SYSUTCDATETIME())
+            INSERT INTO app.Users (Username, PasswordHash, FullName, Department, Position, Phone, Email, AuthSource, IsActive, LastSyncedAt)
+            VALUES (@username, NULL, @fullName, @department, @position, @phone, @email, 'hcrcWorkspace', 0, SYSUTCDATETIME())
           `);
         usernamesInUse.add(item.username);
         added++;
@@ -290,7 +290,7 @@ router.post('/sync', requireSystemRoleActor, async (req, res, next) => {
 
     const autoLocked = [];
     for (const row of existingResult.recordset) {
-      if (row.ExternalId && row.IsActive && !seenExternalIds.has(row.ExternalId)) {
+      if (row.IsActive && !seenUsernames.has(row.Username)) {
         await pool.request().input('id', sql.Int, row.Id).query('UPDATE app.Users SET IsActive = 0 WHERE Id = @id');
         invalidateUser(row.Id);
         autoLocked.push(row.Username);
