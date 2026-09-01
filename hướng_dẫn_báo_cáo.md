@@ -721,3 +721,79 @@ thay vì theo siêu thị — tuỳ mục đích xem báo cáo.
 **Thực thể thiếu 1 trong 2 khối** (chưa đồng bộ kịp thực đạt, hoặc chưa
 nhập chỉ tiêu ngành hàng đó) — cột tương ứng trống, không lỗi, giống hành
 vi đã có ở mục 1.
+
+## 7. Xác thực HCRC Workspace + Đồng bộ tài khoản người dùng
+
+Mục đích: người dùng thường (không phải Admin hệ thống) đăng nhập report
+server (rp-user) bằng ĐÚNG tài khoản/mật khẩu bên hệ thống nội bộ "HCRC
+Workspace" — không phải tạo/nhớ thêm 1 mật khẩu riêng cho report server —
+và họ tên/phòng ban/vị trí được đồng bộ về để phân quyền (nhóm quyền theo
+Vai trò/`app.Roles`, hoặc quyền riêng 1 người bằng cách tạo 1 Vai trò chỉ
+gán cho đúng người đó). Vai trò Admin (hệ thống) LUÔN xác thực bằng mật
+khẩu local ở report server, không phụ thuộc HCRC Workspace.
+
+HCRC Workspace cần cung cấp 2 API (báo cho report server URL + khoá API,
+cấu hình ở trang "Xác thực HCRC Workspace" → `/system/hcrc-workspace`):
+
+### 7.1 Xác thực đăng nhập — gọi MỖI LẦN người dùng đăng nhập
+
+```
+POST {BaseUrl}{VerifyPath}      (mặc định VerifyPath = "/auth/verify")
+Headers: X-Api-Key: <khoá bí mật, cấu hình ở report server>
+         Content-Type: application/json
+Body:    { "username": "...", "password": "..." }
+
+200 OK   { "success": true }
+401/403  { "success": false }
+```
+
+- Chỉ trả `success: true/false` — **KHÔNG** trả mật khẩu/hash hay bất kỳ
+  thông tin nào khác trong response này (report server không lưu, không
+  cần).
+- Bất kỳ mã trạng thái nào khác 200/401/403 (500, timeout, không kết nối
+  được...) report server coi là "dịch vụ xác thực tạm thời không khả
+  dụng" — trả lỗi 503 riêng cho người đăng nhập, KHÔNG tính vào số lần
+  đăng nhập sai (không khoá tài khoản oan).
+- Nên phản hồi trong vài giây — report server timeout sau 8 giây.
+
+### 7.2 Danh bạ nhân sự — gọi khi admin bấm "Đồng bộ tài khoản" (trang
+"Người dùng", bấm tay, KHÔNG tự động chạy theo giờ)
+
+```
+GET {BaseUrl}{DirectoryPath}     (mặc định DirectoryPath = "/directory")
+Headers: X-Api-Key: <khoá bí mật, cùng khoá ở trên>
+
+200 OK
+[
+  {
+    "externalId": "NV001",
+    "username": "nguyenvana",
+    "fullName": "Nguyễn Văn A",
+    "department": "Kinh doanh",
+    "position": "Nhân viên bán hàng",
+    "isActive": true
+  },
+  ...
+]
+```
+
+- `externalId` — mã nhân viên/định danh ỔN ĐỊNH bên HCRC Workspace, dùng
+  làm khoá khớp lần đồng bộ sau (Username có thể đổi, externalId thì
+  không) — **bắt buộc**, không trùng nhau giữa 2 người.
+- `isActive: false` (hoặc bỏ hẳn người đó ra khỏi danh sách) = báo report
+  server người này KHÔNG còn là nhân viên đang làm việc — report server
+  tự động KHOÁ tài khoản tương ứng (nếu trước đó đã từng đồng bộ), không
+  cần thao tác tay.
+- Report server ghép quyền như sau khi đồng bộ:
+  - `externalId` MỚI (chưa từng thấy) + `username` CHƯA tồn tại trong
+    report server → tạo tài khoản mới, mặc định **CHƯA cho phép kết nối**
+    (admin phải vào trang "Người dùng" bấm "Cho phép kết nối" từng người,
+    và "Gán vai trò" để họ thấy được báo cáo nào).
+  - `externalId` ĐÃ khớp (đồng bộ lần trước) → chỉ cập nhật lại họ
+    tên/phòng ban/vị trí, KHÔNG đụng quyền/trạng thái admin đã cấu hình.
+  - `username` trùng với 1 tài khoản report server ĐÃ CÓ nhưng
+    `externalId` chưa từng khớp (vd trùng tên với tài khoản Admin local) →
+    BỎ QUA, không tự gộp — admin tự xử lý tay nếu đúng là cùng 1 người.
+
+Không có lịch tự động — mỗi lần công ty có người mới/nghỉ việc/đổi phòng
+ban, admin vào trang "Người dùng" bấm lại "Đồng bộ tài khoản" khi cần.

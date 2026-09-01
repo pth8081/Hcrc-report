@@ -24,6 +24,7 @@ const apiConnectionsRoutes = require('./routes/apiConnections');
 const externalConnectionsRoutes = require('./routes/externalConnections');
 const reportEmailSchedulesRoutes = require('./routes/reportEmailSchedules');
 const anomalyAlertsRoutes = require('./routes/anomalyAlerts');
+const hcrcWorkspaceSettingsRoutes = require('./routes/hcrcWorkspaceSettings');
 const {
   verifyCredentials, issueToken, COOKIE_NAME, getSecret, setSessionCookie,
   issuePending2FAToken, issueSetupRequiredToken
@@ -126,7 +127,16 @@ app.post('/api/auth/login', async (req, res, next) => {
     });
     setSessionCookie(res, issueToken(user));
     res.json({ ok: true });
-  } catch (err) { next(err); }
+  } catch (err) {
+    // Account AuthSource='hcrcWorkspace' nhưng dịch vụ ngoài không phản hồi
+    // được (mạng/timeout/HTTP lỗi, xem lib/hcrcWorkspaceClient.js) — KHÁC
+    // "sai mật khẩu" (401 ở trên), không tính vào brute-force, không ghi log
+    // "đăng nhập thất bại" (không phải người dùng gõ sai).
+    if (err.isServiceUnavailable) {
+      return res.status(503).json({ error: 'Hệ thống xác thực HCRC Workspace tạm thời không khả dụng, vui lòng thử lại sau' });
+    }
+    next(err);
+  }
 });
 
 app.post('/api/auth/logout', (req, res) => {
@@ -153,6 +163,7 @@ app.use('/api/system/api-connections', apiConnectionsRoutes);
 app.use('/api/system/external-connections', externalConnectionsRoutes);
 app.use('/api/system/report-email-schedules', reportEmailSchedulesRoutes);
 app.use('/api/system/anomaly-alerts', anomalyAlertsRoutes);
+app.use('/api/system/hcrc-workspace', hcrcWorkspaceSettingsRoutes);
 
 app.use((err, req, res, next) => { // eslint-disable-line no-unused-vars
   console.error(err);

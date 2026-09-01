@@ -42,6 +42,64 @@ BEGIN
 END
 GO
 
+-- Xác thực ngoài qua "HCRC Workspace" (app.HcrcWorkspaceSettings bên dưới) —
+-- AuthSource='local' (mặc định, hành vi cũ) dùng PasswordHash ở đây;
+-- 'hcrcWorkspace' KHÔNG có PasswordHash (NULL), lib/auth.js gọi
+-- lib/hcrcWorkspaceClient.js xác thực mật khẩu mỗi lần đăng nhập thay vì so
+-- hash local. Vai trò Admin (IsSystemRole=1) LUÔN bị ép AuthSource='local' ở
+-- routes/users.js — không phụ thuộc uptime hệ thống ngoài để vào được admin.
+-- Department/Position/ExternalId/LastSyncedAt phục vụ "Đồng bộ tài khoản"
+-- (POST /api/system/users/sync) — ExternalId là khoá đồng bộ ổn định (mã
+-- nhân viên bên HCRC Workspace), không dùng Username vì username có thể đổi.
+IF COL_LENGTH('app.Users', 'AuthSource') IS NULL
+BEGIN
+    ALTER TABLE app.Users ADD
+        AuthSource   VARCHAR(20)   NOT NULL DEFAULT 'local'
+            CONSTRAINT CK_Users_AuthSource CHECK (AuthSource IN ('local', 'hcrcWorkspace')),
+        Department   NVARCHAR(200) NULL,
+        Position     NVARCHAR(200) NULL,
+        ExternalId   NVARCHAR(100) NULL,
+        LastSyncedAt DATETIME2(3)  NULL;
+END
+GO
+
+-- PasswordHash trước đây NOT NULL (mọi account đều local) — account
+-- AuthSource='hcrcWorkspace' không có mật khẩu local nào để lưu.
+IF EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('app.Users') AND name = 'PasswordHash' AND is_nullable = 0)
+BEGIN
+    ALTER TABLE app.Users ALTER COLUMN PasswordHash NVARCHAR(200) NULL;
+END
+GO
+
+-- Cấu hình DUY NHẤT (Id=1) cho tích hợp "HCRC Workspace" — cùng khuôn
+-- app.EmailSettings (1 dòng, mã hoá khoá bí mật bằng lib/crypto.js). BaseUrl +
+-- 2 đường dẫn dưới đây họp thành 2 lời gọi (xem lib/hcrcWorkspaceClient.js):
+--   POST {BaseUrl}{VerifyPath}    { username, password } -> { success }
+--     — xác thực đăng nhập cho account AuthSource='hcrcWorkspace', gọi MỖI
+--     LẦN đăng nhập.
+--   GET  {BaseUrl}{DirectoryPath} -> [ { externalId, username, fullName,
+--     department, position, isActive } ] — "Đồng bộ tài khoản" (nút bấm tay
+--     ở trang Người dùng, không tự chạy theo giờ).
+-- Header X-Api-Key: giải mã ApiKeyEncrypted. IsEnabled=0 (mặc định) -> chặn
+-- đăng nhập/đồng bộ ngay ở lib/hcrcWorkspaceClient.js, tránh gọi ra ngoài khi
+-- chưa cấu hình xong baseUrl/khoá thật.
+IF OBJECT_ID('app.HcrcWorkspaceSettings', 'U') IS NULL
+BEGIN
+    CREATE TABLE app.HcrcWorkspaceSettings (
+        Id              INT           NOT NULL PRIMARY KEY CHECK (Id = 1),
+        BaseUrl         NVARCHAR(300) NOT NULL,
+        ApiKeyEncrypted NVARCHAR(500) NOT NULL,
+        VerifyPath      NVARCHAR(200) NOT NULL DEFAULT '/auth/verify',
+        DirectoryPath   NVARCHAR(200) NOT NULL DEFAULT '/directory',
+        IsEnabled       BIT           NOT NULL DEFAULT 0,
+        LastSyncAt      DATETIME2(3)  NULL,
+        LastSyncStatus  VARCHAR(20)   NULL,
+        LastSyncError   NVARCHAR(1000) NULL,
+        UpdatedAt       DATETIME2(3)  NOT NULL DEFAULT SYSUTCDATETIME()
+    );
+END
+GO
+
 -- Mã khôi phục dùng 1 lần (10 mã/tài khoản, hash bcrypt, hiện nguyên văn cho
 -- user đúng 1 lần lúc bật 2FA) — tự cứu được khi không có admin nào khác để
 -- nhờ "Đặt lại 2FA" (xem routes/twoFactor.js).
@@ -581,6 +639,9 @@ IF NOT EXISTS (SELECT 1 FROM app.MenuItems WHERE Code = 'system-email-schedules'
 IF NOT EXISTS (SELECT 1 FROM app.MenuItems WHERE Code = 'system-anomaly-alerts')
     INSERT INTO app.MenuItems (Code, ParentId, Label, Path, SortOrder)
     SELECT 'system-anomaly-alerts', Id, N'Cảnh báo bất thường', '/system/anomaly-alerts', 7 FROM app.MenuItems WHERE Code = 'system';
+IF NOT EXISTS (SELECT 1 FROM app.MenuItems WHERE Code = 'system-hcrc-workspace')
+    INSERT INTO app.MenuItems (Code, ParentId, Label, Path, SortOrder)
+    SELECT 'system-hcrc-workspace', Id, N'Xác thực HCRC Workspace', '/system/hcrc-workspace', 8 FROM app.MenuItems WHERE Code = 'system';
 GO
 
 -- Seed vai trò Admin (IsSystemRole=1) — luôn cần tồn tại để gán cho tài khoản

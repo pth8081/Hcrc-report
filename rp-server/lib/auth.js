@@ -7,6 +7,7 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const { sql, getPool } = require('../db');
 const { getUserContext } = require('./permissions');
+const { verifyPassword: verifyHcrcWorkspacePassword } = require('./hcrcWorkspaceClient');
 
 const COOKIE_NAME = 'hcrc_rp_token';
 const TOKEN_TTL = '8h';
@@ -42,18 +43,33 @@ function getSecret() {
   return secret;
 }
 
+// AuthSource='local' (mặc định, hành vi cũ) -> so PasswordHash tại đây.
+// AuthSource='hcrcWorkspace' -> KHÔNG có PasswordHash local, gọi
+// lib/hcrcWorkspaceClient.js MỖI LẦN đăng nhập — lỗi mạng/timeout/HTTP lỗi
+// từ đó ném err.isServiceUnavailable=true, NÉM TIẾP ra ngoài (khác "sai mật
+// khẩu" — trả null) để server.js trả 503 riêng, không lẫn với "sai mật
+// khẩu" (tránh gây hiểu lầm đổi mật khẩu vô ích khi lỗi thật ở dịch vụ
+// ngoài). Vai trò Admin (IsSystemRole) LUÔN bị ép AuthSource='local' lúc gán
+// vai trò (xem routes/users.js) — không phụ thuộc uptime HCRC Workspace để
+// đăng nhập được admin.
 async function verifyCredentials(username, password) {
   if (!username || !password) return null;
   const pool = await getPool('RP');
   const result = await pool.request()
     .input('username', sql.NVarChar(50), username)
-    .query('SELECT Id, Username, PasswordHash, IsActive, TwoFactorEnabled FROM app.Users WHERE Username = @username');
+    .query('SELECT Id, Username, PasswordHash, AuthSource, IsActive, TwoFactorEnabled FROM app.Users WHERE Username = @username');
   const user = result.recordset[0];
   if (!user || !user.IsActive) {
     await bcrypt.compare(password, DUMMY_HASH);
     return null;
   }
-  const ok = await bcrypt.compare(password, user.PasswordHash);
+
+  let ok;
+  if (user.AuthSource === 'hcrcWorkspace') {
+    ok = await verifyHcrcWorkspacePassword(user.Username, password);
+  } else {
+    ok = await bcrypt.compare(password, user.PasswordHash || DUMMY_HASH);
+  }
   if (!ok) return null;
 
   await pool.request()

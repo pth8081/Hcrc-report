@@ -5,6 +5,39 @@ Server, API Server và các giao diện quản trị) — tăng ở mỗi lần 
 `main`, theo kiểu semver không chặt (patch cho fix nhỏ, minor cho tính năng
 mới, major khi đổi cấu trúc phá vỡ tương thích ngược).
 
+## 0.34.0 — Xác thực HCRC Workspace + Đồng bộ tài khoản người dùng
+
+Người dùng thường (không phải Admin hệ thống) đăng nhập rp-user bằng
+đúng tài khoản/mật khẩu bên hệ thống nội bộ "HCRC Workspace" — không cần
+tạo/nhớ thêm mật khẩu riêng. Vai trò Admin (hệ thống) LUÔN xác thực local,
+không phụ thuộc uptime hệ thống ngoài. Xem `hướng_dẫn_báo_cáo.md` mục 7
+(hợp đồng 2 API cho bên viết HCRC Workspace: xác thực đăng nhập + danh bạ
+nhân sự).
+
+- **`rp-db/schema.sql`** — `app.Users` thêm `AuthSource` (`'local'` mặc
+  định | `'hcrcWorkspace'`), `Department`, `Position`, `ExternalId`
+  (khoá đồng bộ ổn định), `LastSyncedAt`; `PasswordHash` cho phép NULL
+  (account `hcrcWorkspace` không có mật khẩu local). Bảng mới
+  `app.HcrcWorkspaceSettings` (cấu hình 1 dòng, mã hoá khoá API).
+- **`rp-server/lib/hcrcWorkspaceClient.js`** (mới) — `verifyPassword()` +
+  `fetchDirectory()`, KHÔNG áp SSRF-guard (hệ thống nội bộ, khác API đối
+  tác ngoài).
+- **`lib/auth.js`** — `verifyCredentials()` rẽ nhánh theo `AuthSource`;
+  lỗi dịch vụ ngoài (`isServiceUnavailable`) phân biệt rõ với "sai mật
+  khẩu" — server.js trả 503 riêng, không tính vào brute-force.
+- **`routes/users.js`** — `PUT /:id/auth-source` (đổi nguồn xác thực,
+  chặn chuyển sang hcrcWorkspace nếu đang giữ vai trò Admin), `PUT
+  /:id/roles` chặn gán vai trò Admin cho account không phải local,
+  `POST /sync` (đồng bộ danh bạ — tài khoản mới mặc định **CHƯA cho
+  phép kết nối**, tự khoá tài khoản không còn trong danh bạ).
+  `routes/hcrcWorkspaceSettings.js` (mới) — cấu hình + "Kiểm tra kết nối".
+- **`UsersPage.jsx`** — cột Phòng ban/Vị trí/Nguồn xác thực, nút "Đồng bộ
+  tài khoản", đổi nút "Mở khoá" thành "Cho phép kết nối". Trang mới
+  "Xác thực HCRC Workspace" (`/system/hcrc-workspace`).
+- 2 bộ test độc lập (`verifyCredentials` rẽ nhánh AuthSource + lỗi dịch
+  vụ ngoài; `routes/users.js` sync/auth-source/roles-guard bằng router
+  giả lập) + `vite build` sạch `rp-user`.
+
 ## 0.33.1 — Trang "Biểu mẫu" hiện luôn báo cáo nào thiếu lịch gửi email/cảnh báo bất thường
 
 Trang cấu hình báo cáo (`system-report-catalog`) thêm 2 cột "Lịch gửi

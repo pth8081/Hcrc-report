@@ -16,6 +16,7 @@ import CategoriesPage from './modules/system/categories/CategoriesPage';
 import EmailSettingsPage from './modules/system/email-settings/EmailSettingsPage';
 import EmailSchedulesPage from './modules/system/email-schedules/EmailSchedulesPage';
 import AnomalyAlertsPage from './modules/system/anomaly-alerts/AnomalyAlertsPage';
+import HcrcWorkspaceSettingsPage from './modules/system/hcrc-workspace/HcrcWorkspaceSettingsPage';
 
 export default function App() {
   return (
@@ -41,6 +42,7 @@ export default function App() {
           <Route path="/system/email-settings" element={<RequireMenuAccess code="system-email-settings"><EmailSettingsPage /></RequireMenuAccess>} />
           <Route path="/system/email-schedules" element={<RequireMenuAccess code="system-email-schedules"><EmailSchedulesPage /></RequireMenuAccess>} />
           <Route path="/system/anomaly-alerts" element={<RequireMenuAccess code="system-anomaly-alerts"><AnomalyAlertsPage /></RequireMenuAccess>} />
+          <Route path="/system/hcrc-workspace" element={<RequireMenuAccess code="system-hcrc-workspace"><HcrcWorkspaceSettingsPage /></RequireMenuAccess>} />
         </Route>
       </Routes>
     </AuthProvider>
