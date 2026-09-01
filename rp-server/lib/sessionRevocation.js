@@ -24,10 +24,26 @@ async function loadInvalidatedAt(userId) {
 }
 
 // issuedAtSeconds = payload.iat (giây, chuẩn JWT — jsonwebtoken tự gắn).
+//
+// Lỗi CSDL khi tra cache miss (mất kết nối tạm thời) -> FAIL OPEN (coi như
+// "chưa thu hồi", không chặn request) thay vì để lỗi lan lên chặn cả
+// request — đây là lớp phòng thủ CHIỀU SÂU chống phiên bị đánh cắp sau khi
+// đổi mật khẩu/2FA/vai trò, KHÔNG PHẢI ranh giới xác thực chính (chữ ký JWT
+// mới là ranh giới chính, vẫn được verify trước đó, không phụ thuộc CSDL).
+// requireAuth() (lib/auth.js) trước khi có cơ chế này hoàn toàn không cần
+// CSDL — CSDL chập chờn vài giây không nên khiến TOÀN BỘ app (mọi route,
+// kể cả route không cần dữ liệu gì khác) trả lỗi. KHÔNG cache kết quả lỗi —
+// lần gọi sau tự thử lại ngay, tự phục hồi ngay khi CSDL sống lại.
 async function isSessionRevoked(userId, issuedAtSeconds) {
   let entry = cache.get(userId);
   if (!entry || entry.expiresAt <= Date.now()) {
-    const invalidatedAtMs = await loadInvalidatedAt(userId);
+    let invalidatedAtMs;
+    try {
+      invalidatedAtMs = await loadInvalidatedAt(userId);
+    } catch (err) {
+      console.warn(`⚠️  [sessionRevocation] không tra được SessionsInvalidatedAt cho user #${userId} (CSDL tạm gián đoạn?) — fail-open, coi như phiên chưa bị thu hồi: ${err.message}`);
+      return false;
+    }
     entry = { expiresAt: Date.now() + CACHE_TTL_MS, invalidatedAtMs };
     cache.set(userId, entry);
   }

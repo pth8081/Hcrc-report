@@ -5,6 +5,56 @@ Server, API Server và các giao diện quản trị) — tăng ở mỗi lần 
 `main`, theo kiểu semver không chặt (patch cho fix nhỏ, minor cho tính năng
 mới, major khi đổi cấu trúc phá vỡ tương thích ngược).
 
+## 0.38.0 — Rà soát chuyên sâu vòng 5: lệch ngày EventDate nguồn MySQL, đồng bộ formulaEngine, sẵn sàng chịu lỗi CSDL
+
+Rà soát chuyên sâu tiếp theo, 4 agent phụ trách hạ tầng/triển khai/phụ
+thuộc, tự soi lại các fix của 3 vòng trước, tính toàn vẹn dòng chảy dữ liệu
+đầu-cuối (ETL→dwh→report), và vệ sinh observability/secrets. Xử lý toàn bộ
+phát hiện 🔴 và các 🟡 giá trị cao:
+
+- **`etl/lib/tableSyncEngine.js`**: 🔴 `EventDate` đọc từ nguồn **MySQL**
+  (không phải mssql) bị **LỆCH 1 NGÀY** khi ghi vào dwh qua driver `tedious`
+  (mặc định `useUTC:true`, dùng `getUTC*()` làm giá trị lịch) trong khi
+  `mysql2` (mặc định `timezone:'local'`) dựng đối tượng `Date` theo getter
+  ĐỊA PHƯƠNG khớp chuỗi CSDL gốc — 2 quy ước lệch nhau khiến ngày ghi vào dwh
+  sai lệch 1 ngày với timezone tiến trình khác UTC (vd chạy ở giờ VN).
+  Nguồn `mssql` không bị ảnh hưởng (tự nhất quán 2 đầu). Thêm
+  `normalizeEventDate(rawValue, engine)` chỉ tác động nguồn `mysql`, neo lại
+  đúng lịch UTC-midnight; hoàn toàn không đụng `UpdatedAt`/watermark
+  incremental sync (tránh phá vỡ cơ chế đã thêm ở 0.36.0).
+  Cũng thêm `.trim()` cho `entityCode` đọc từ nguồn (khoảng trắng thừa vô
+  tình phá match JOIN đa khối) và cảnh báo (không tự sửa, theo đúng quy ước
+  "entityCode phải khớp CHÍNH XÁC" đã ghi trong `hướng_dẫn_báo_cáo.md`) khi
+  2 entityCode chỉ lệch hoa/thường trong `compositeReportRunner.js`.
+- **`etl/lib/dbAdapters/mysql.js`**: 🟡 thiếu `decimalNumbers: true` — cột
+  DECIMAL từ nguồn MySQL trả về CHUỖI (`"1500000.00"`) trong khi `tedious`
+  (mssql) trả về SỐ — `Measures` JSON lệch kiểu dữ liệu giữa 2 nguồn, các bộ
+  lọc báo cáo dùng `JSON_VALUE()` (so sánh NVARCHAR) so "1500000" ≠
+  "1500000.00" âm thầm sai kết quả lọc.
+- **`api-server/lib/formulaEngine.js`**: 🟡 lệch so với bản đã sửa null-
+  propagation ở `rp-server/lib/formulaEngine.js` (0.36.0) — bản api-server bị
+  bỏ sót, đồng bộ lại cho khớp 2 bản.
+- **`rp-server/lib/exportPdf.js`**: 🟡 nạp font Noto Sans Vietnamese
+  (`fs.readFileSync`, thêm ở 0.37.0) ở SCOPE MODULE — thiếu gói
+  `@openfonts/noto-sans_vietnamese` (vd `npm install` chạy thiếu) khiến CẢ
+  SERVER sập ngay lúc khởi động thay vì chỉ route xuất PDF lỗi. Chuyển sang
+  nạp trễ (lazy, cache lại), báo lỗi tiếng Việt rõ ràng đúng lúc gọi.
+- **`rp-server/lib/reportEmailFilters.js`**: 🟡 `resolvePreset()` dùng
+  `new Date()` trần — "hôm nay"/"tuần này"... tính theo timezone TIẾN TRÌNH
+  (server production thường UTC), lệch với "hôm nay theo giờ Việt Nam" khi
+  đã qua nửa đêm VN nhưng UTC còn ngày cũ. Thêm `nowInVietnamTimezone()`
+  (dùng `Intl.DateTimeFormat` cố định `Asia/Ho_Chi_Minh`, không phụ thuộc
+  timezone tiến trình).
+- **`rp-server/lib/sessionRevocation.js`** + **`api-server/lib/sessionRevocation.js`**
+  + **`etl/lib/sessionRevocation.js`**: 🟡 tự soi lại cơ chế thu hồi phiên
+  thêm ở 0.37.0 — `requireAuth`/`requireAdminAuth` trước đó KHÔNG hề phụ
+  thuộc CSDL, thêm cơ chế này khiến CSDL chập chờn vài giây làm TOÀN BỘ app
+  (mọi route) trả lỗi. Đổi sang FAIL OPEN khi tra `SessionsInvalidatedAt` lỗi
+  (coi như "chưa thu hồi", ghi log cảnh báo, KHÔNG cache kết quả lỗi để tự
+  phục hồi ngay khi CSDL sống lại) — đây là lớp phòng thủ chiều sâu, không
+  phải ranh giới xác thực chính (chữ ký JWT vẫn luôn được verify trước, độc
+  lập với CSDL).
+
 ## 0.37.0 — Rà soát chuyên sâu vòng 4: thu hồi phiên đăng nhập, PDF vỡ tiếng Việt, mất dữ liệu chỉ tiêu
 
 Rà soát chuyên sâu tiếp theo, 4 agent phụ trách 4 mảng chưa soi kỹ ở các

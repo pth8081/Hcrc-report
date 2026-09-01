@@ -216,6 +216,29 @@ async function runCompositeReport(definition, filterValues = {}) {
     }
   });
 
+  // Cảnh báo entityCode chỉ lệch HOA/thường hoặc khoảng trắng — hướng_dẫn_báo_cáo.md
+  // ("entityCode phải khớp CHÍNH XÁC") coi đây là trách nhiệm admin gõ đúng
+  // quy ước, KHÔNG tự ý gộp/đổi ở đây (dwh.ReportFacts.EntityCode do ETL
+  // đồng bộ, dwh.SalesTargets.EntityCode do admin gõ tay Excel — 2 nguồn
+  // riêng biệt dễ lệch). Nhưng lệch kiểu này (vd "SM01" từ ETL và "sm01" gõ
+  // tay) khiến 2 khối KHÔNG ghép được, tách thành 2 dòng riêng — dòng thực
+  // đạt thiếu chỉ tiêu, dòng chỉ tiêu thiếu thực đạt — mà không có lỗi/cảnh
+  // báo nào khác bắt được (khác trường hợp 1 khối trả >1 dòng ở trên). Chỉ
+  // cảnh báo, không tự sửa — tránh đoán sai ý admin nếu có nguồn cố ý phân
+  // biệt hoa/thường.
+  if (merged.size > 1) {
+    const seenNormalized = new Map(); // normalized (lowercase+trim) -> entityCode gốc đầu tiên gặp
+    for (const entityCode of merged.keys()) {
+      const normalized = String(entityCode).trim().toLowerCase();
+      const original = seenNormalized.get(normalized);
+      if (original !== undefined && original !== entityCode) {
+        console.warn(`⚠️  [composite] entityCode "${original}" và "${entityCode}" chỉ khác hoa/thường hoặc khoảng trắng — có thể là 2 cách viết của CÙNG 1 thực thể bị tách thành 2 dòng riêng do không khớp chính xác (xem hướng_dẫn_báo_cáo.md), kiểm tra lại dữ liệu nguồn/file chỉ tiêu`);
+      } else if (original === undefined) {
+        seenNormalized.set(normalized, entityCode);
+      }
+    }
+  }
+
   // Loại HẲN thực thể có TrangThai='DaDong' ở BẤT KỲ khối target nào (xem
   // etl/lib/salesTargetsImport.js) — CHỈ loại khi có đánh dấu TƯỜNG MINH.
   // Thực thể THIẾU dòng chỉ tiêu (chưa kịp nhập) vẫn phải hiện ra như bình

@@ -10,8 +10,29 @@ function pad(n) { return String(n).padStart(2, '0'); }
 function toDateStr(d) { return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; }
 function startOfDay(d) { return new Date(d.getFullYear(), d.getMonth(), d.getDate()); }
 
+// "Hôm nay"/"Hôm qua"/... PHẢI hiểu theo giờ Việt Nam — admin cấu hình
+// preset này luôn với ý định lịch VN, nhưng toàn bộ hàm bên dưới dùng getter
+// LOCAL (getFullYear/getMonth/getDate) của Date, vốn phụ thuộc timezone của
+// TIẾN TRÌNH chạy rp-server (server production thường đặt UTC — cùng rủi ro
+// đã ghi nhận ở jobs/scheduler.js). Nếu lịch chạy vào khung 00:00–06:59 giờ
+// VN (=17:00–23:59 UTC hôm trước), "today" tính theo UTC sẽ ra NGÀY HÔM
+// TRƯỚC theo lịch VN — nguồn lệch trực tiếp cho anomalyAlertRunner.js
+// (periodComparison đọc preset qua hàm này). Dựng "now" từ ĐÚNG các thành
+// phần lịch giờ VN (qua Intl, không phụ thuộc timezone tiến trình) rồi mọi
+// getter LOCAL phía sau tự động đúng theo lịch VN, bất kể server chạy ở
+// timezone nào.
+function nowInVietnamTimezone() {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23'
+  }).formatToParts(new Date());
+  const get = (type) => Number(parts.find(p => p.type === type).value);
+  return new Date(get('year'), get('month') - 1, get('day'), get('hour'), get('minute'), get('second'));
+}
+
 function resolvePreset(preset) {
-  const now = new Date();
+  const now = nowInVietnamTimezone();
   switch (preset) {
     case 'today': {
       const d = startOfDay(now);

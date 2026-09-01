@@ -16,8 +16,29 @@ const fs = require('fs');
 const path = require('path');
 
 const FONT_DIR = path.join(__dirname, '..', 'node_modules', '@openfonts', 'noto-sans_vietnamese', 'files');
-const REGULAR_FONT_BYTES = fs.readFileSync(path.join(FONT_DIR, 'noto-sans-vietnamese-400.woff'));
-const BOLD_FONT_BYTES = fs.readFileSync(path.join(FONT_DIR, 'noto-sans-vietnamese-700.woff'));
+
+// Nạp LAZY (trong hàm, không phải ở scope module) + cache lại sau lần đầu —
+// trước đây fs.readFileSync() chạy ngay lúc require() (module này được
+// require ở top-level bởi routes/reports.js VÀ jobs/reportEmailScheduler.js,
+// cả 2 đều nạp lúc server.js khởi động, không lazy). Thiếu file font (deploy
+// sai/thiếu nested node_modules) trước đây làm SẬP CẢ TIẾN TRÌNH ngay lúc
+// khởi động — không đăng nhập được, không route nào chạy được, dù lỗi chỉ
+// thật sự liên quan tới đúng 1 tính năng (xuất PDF). Giờ lỗi chỉ nổ ra ĐÚNG
+// lúc gọi exportPdf() thật, kèm thông báo rõ ràng, các tính năng khác không
+// bị ảnh hưởng.
+let fontBytesCache = null;
+function loadFontBytes() {
+  if (fontBytesCache) return fontBytesCache;
+  try {
+    fontBytesCache = {
+      regular: fs.readFileSync(path.join(FONT_DIR, 'noto-sans-vietnamese-400.woff')),
+      bold: fs.readFileSync(path.join(FONT_DIR, 'noto-sans-vietnamese-700.woff'))
+    };
+  } catch (err) {
+    throw new Error(`Không nạp được font tiếng Việt cho xuất PDF (thiếu gói @openfonts/noto-sans_vietnamese — kiểm tra lại "npm install" đã chạy đủ chưa): ${err.message}`);
+  }
+  return fontBytesCache;
+}
 
 const PAGE_SIZE = [595.28, 841.89]; // A4 chiều dọc, đơn vị point
 const MARGIN = 40;
@@ -25,10 +46,11 @@ const ROW_HEIGHT = 18;
 
 // definition.columns = [{key, label}] — xem lib/reportEngine.js:describeColumns().
 async function exportPdf(definition, rows) {
+  const { regular: regularBytes, bold: boldBytes } = loadFontBytes();
   const pdfDoc = await PDFDocument.create();
   pdfDoc.registerFontkit(fontkit);
-  const font = await pdfDoc.embedFont(REGULAR_FONT_BYTES, { subset: true });
-  const boldFont = await pdfDoc.embedFont(BOLD_FONT_BYTES, { subset: true });
+  const font = await pdfDoc.embedFont(regularBytes, { subset: true });
+  const boldFont = await pdfDoc.embedFont(boldBytes, { subset: true });
 
   let page = pdfDoc.addPage(PAGE_SIZE);
   let y = PAGE_SIZE[1] - MARGIN;

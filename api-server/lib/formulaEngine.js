@@ -185,16 +185,29 @@ function evalNode(node, resolveField) {
     case 'field': return resolveField(node.path);
     case 'unary': {
       const v = evalNode(node.arg, resolveField);
-      return node.op === '-' ? -v : !v;
+      // '-' trên null/undefined (field rỗng, hoặc kết quả "không xác định"
+      // của 1 phép chia cho 0 lồng bên trong) PHẢI giữ null — JS ép
+      // null->0 nên -null = -0, biến "không xác định" thành 1 số cụ thể sai
+      // (cùng lớp lỗi với nhánh 'binary' bên dưới). '!' (phủ định logic)
+      // không cần lan truyền null — !null = true đúng theo ngữ nghĩa
+      // boolean bình thường (không có dữ liệu = không đúng điều kiện).
+      if (node.op === '-') return v === null || v === undefined ? null : -v;
+      return !v;
     }
     case 'binary': {
       const l = evalNode(node.left, resolveField);
       const r = evalNode(node.right, resolveField);
+      // Bất kỳ toán hạng nào null/undefined (kết quả "không xác định" từ 1
+      // phép chia cho 0 lồng bên trong, hoặc field không tồn tại) PHẢI lan
+      // truyền null NGUYÊN VẸN — JS mặc định ép null->0 khi +/-/*, biến 1
+      // kết quả "không xác định" thành 1 con số cụ thể trông như hợp lệ (vd
+      // hiện "0%" thay vì rõ ràng "không có dữ liệu").
+      if (l === null || l === undefined || r === null || r === undefined) return null;
       switch (node.op) {
         case '+': return l + r;
         case '-': return l - r;
         case '*': return l * r;
-        case '/': return r === 0 || r === null || r === undefined ? null : l / r;
+        case '/': return r === 0 ? null : l / r;
       }
       break;
     }
@@ -219,7 +232,14 @@ function evalNode(node, resolveField) {
     case 'call': {
       const fn = FUNCTIONS[node.name];
       if (!fn) throw new Error(`Hàm không được hỗ trợ trong công thức: "${node.name}"`);
-      return fn(...node.args.map(a => evalNode(a, resolveField)));
+      const args = node.args.map(a => evalNode(a, resolveField));
+      // IF giữ nguyên (cond null/false đều rơi vào nhánh else — đúng ý
+      // nghĩa, không cần đổi). Các hàm số học khác (ROUND/ABS/MIN/MAX): 1
+      // đối số null/undefined lan truyền null thay vì để JS ép null->0,
+      // cùng lớp lỗi với 'binary'/'unary' ở trên (vd ROUND(a/b, 2) khi
+      // a/b=null do chia cho 0 sẽ không còn âm thầm ra "0.00").
+      if (node.name !== 'IF' && args.some(a => a === null || a === undefined)) return null;
+      return fn(...args);
     }
     default:
       throw new Error(`Node công thức không hợp lệ: ${node.type}`);

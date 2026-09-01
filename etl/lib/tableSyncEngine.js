@@ -23,9 +23,9 @@ function parseColumnList(json) {
   return list.map(assertSafeIdentifier);
 }
 
-// connection = { pool, adapter } từ lib/dataSourcePool.js.
+// connection = { pool, adapter, engine } từ lib/dataSourcePool.js.
 async function extractTable(connection, job, lastSyncedAt) {
-  const { pool, adapter } = connection;
+  const { pool, adapter, engine } = connection;
   const q = adapter.quoteIdent;
   const p = adapter.param;
 
@@ -62,7 +62,31 @@ async function extractTable(connection, job, lastSyncedAt) {
   `;
 
   const rows = await adapter.query(pool, sqlText, { lastSyncedAt });
-  return { rows, keyCol, dateCol, updatedCol, dimCols, joinCols };
+  return { rows, keyCol, dateCol, updatedCol, dimCols, joinCols, engine };
+}
+
+// dwh.ReportFacts.EventDate (cột DATE, không giờ) được ghi qua tedious với
+// useUTC:true — tedious LẤY getUTCFullYear/getUTCMonth/getUTCDate() của đối
+// tượng Date để mã hoá DATE gửi lên SQL Server (xem
+// tedious/lib/data-types/date.js). Nguồn 'mssql' đọc cũng qua tedious
+// useUTC:true — 2 đầu dùng CHUNG quy ước "coi getUTC* là giá trị thật", tự
+// triệt tiêu, không lệch. Nguồn 'mysql'/'mariadb' (mysql2, KHÔNG cấu hình
+// `timezone` — mặc định 'local') lại dựng đối tượng Date sao cho GIỜ ĐỊA
+// PHƯƠNG (getFullYear/getMonth/getDate — KHÔNG PHẢI getUTC*) khớp đúng giá
+// trị chuỗi gốc từ MySQL, bất kể tiến trình Node chạy ở timezone nào. Nếu
+// truyền thẳng Date đó cho tedious (đọc getUTC*), 1 dòng có giờ giao dịch
+// sớm (0h–6h59 giờ VN, đúng khung POS chốt sổ ban đêm) sẽ bị LÙI 1 NGÀY khi
+// tiến trình ETL chạy ở UTC (phổ biến ở server production, xem
+// jobs/scheduler.js) — vd "2026-09-01 02:00:00" giờ VN ghi nhầm thành
+// EventDate=2026-08-31. Sửa bằng cách dựng LẠI 1 Date "giả UTC" từ ĐÚNG
+// các thành phần local đã đúng (getFullYear/getMonth/getDate của Date gốc)
+// — khi tedious đọc getUTC* của Date "giả UTC" này sẽ ra đúng ngày lịch
+// thật, không phụ thuộc timezone tiến trình. CHỈ áp dụng cho EventDate (cột
+// DATE, chỉ cần đúng NGÀY) — KHÔNG đụng tới UpdatedAt/watermark (vẫn dùng
+// nguyên Date gốc, giữ đúng logic so sánh watermark hiện có).
+function normalizeEventDate(rawValue, engine) {
+  if (engine !== 'mysql' || !(rawValue instanceof Date)) return rawValue;
+  return new Date(Date.UTC(rawValue.getFullYear(), rawValue.getMonth(), rawValue.getDate()));
 }
 
 function transformRow(job, meta, row) {
@@ -73,14 +97,24 @@ function transformRow(job, meta, row) {
   const measures = {};
   for (const c of parseColumnList(job.MeasureColumnsJson)) measures[c] = row[`m_${c}`];
 
+  // trim() cột khoá — nguồn dữ liệu (CHAR cố định độ dài, hoặc admin gõ tay
+  // ở bảng trung gian) đôi khi có khoảng trắng thừa đầu/cuối; entityCode
+  // dùng làm KHOÁ GHÉP giữa dwh.ReportFacts (đây) và dwh.SalesTargets (xem
+  // etl/lib/salesTargetsImport.js — cũng trim) trong
+  // rp-server/lib/compositeReportRunner.js — 1 khoảng trắng thừa lọt qua sẽ
+  // khiến 2 khối không ghép được, tách thành 2 dòng thay vì 1 (xem
+  // hướng_dẫn_báo_cáo.md mục "entityCode phải khớp CHÍNH XÁC"). KHÔNG tự ý
+  // đổi HOA/thường — đó vẫn là trách nhiệm admin gõ đúng quy ước, đổi ngầm
+  // có thể sai với nguồn cố ý phân biệt hoa/thường.
+  const rawEntityCode = row[`m_${meta.keyCol}`];
   return {
     sourceSystem: `ds${job.DataSourceId}`,
     domain: job.TargetDomain,
-    entityCode: row[`m_${meta.keyCol}`],
-    eventDate: row[`m_${meta.dateCol}`],
+    entityCode: typeof rawEntityCode === 'string' ? rawEntityCode.trim() : rawEntityCode,
+    eventDate: normalizeEventDate(row[`m_${meta.dateCol}`], meta.engine),
     dimensions,
     measures
   };
 }
 
-module.exports = { extractTable, transformRow };
+module.exports = { extractTable, transformRow, normalizeEventDate };

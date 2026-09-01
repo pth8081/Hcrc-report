@@ -22,7 +22,18 @@ async function createPool(config) {
     ssl: config.encrypt ? (config.trustServerCert ? { rejectUnauthorized: false } : {}) : undefined,
     namedPlaceholders: true,
     connectionLimit: 5,
-    connectTimeout: 10000
+    connectTimeout: 10000,
+    // decimalNumbers: true — mysql2 mặc định trả cột DECIMAL/NEWDECIMAL
+    // dạng CHUỖI (vd "1500000.00", tránh mất độ chính xác cho số cực lớn),
+    // trong khi driver mssql (tedious) luôn trả NUMERIC/DECIMAL/MONEY dạng
+    // number JS. Cùng 1 measure (vd doanhThu) tuỳ nguồn gốc dòng sẽ ra
+    // "doanhThu":1500000 (nguồn mssql) hoặc "doanhThu":"1500000.00" (nguồn
+    // mysql) trong Measures JSON — lib/reportEngine.js lọc bằng
+    // JSON_VALUE(...) = @param kiểu NVarChar nên khớp CHUỖI, chỉ đúng khi
+    // 2 chuỗi ký tự y hệt nhau ("1500000" ≠ "1500000.00") — filter đúng về
+    // nghiệp vụ vẫn có thể bỏ sót dòng tuỳ nguồn gốc. Ép về number khớp
+    // đúng hành vi nguồn mssql, đồng nhất Measures JSON giữa 2 engine.
+    decimalNumbers: true
   });
   await pool.query('SELECT 1'); // xác nhận kết nối được ngay, không chờ tới lượt dùng đầu tiên
   return pool;
