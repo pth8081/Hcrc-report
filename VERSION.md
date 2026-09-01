@@ -2,10 +2,20 @@
 
 Phiên bản chung của toàn bộ hệ thống HCRC (ETL, Data Warehouse, Report
 Server, API Server và các giao diện quản trị) — tăng ở mỗi lần merge vào
-`main`, theo kiểu semver không chặt (patch cho fix nhỏ, minor cho tính năng
-mới, major khi đổi cấu trúc phá vỡ tương thích ngược).
+`main`.
 
-## 0.41.0 — Chuyển sang kiến trúc PM2 cluster mode (nhiều lõi CPU) cho cả 3 service
+**QUY TẮC ĐÁNH SỐ (áp dụng từ phiên bản 4.1 trở đi)**: CHỈ 2 SỐ, dạng
+`X.Y` — mỗi lần merge tăng `Y` thêm 1; khi `Y` chạm `9`, lần merge KẾ TIẾP
+tăng `X` thêm 1 và `Y` VỀ LẠI `0` (vd `4.9` → lần sau là `5.0`, `5.9` →
+lần sau là `6.0`). KHÔNG còn số thứ 3 (patch) — mọi thay đổi, dù nhỏ hay
+lớn, đều tăng `Y` (hoặc `X` khi tràn) đúng 1 nấc, không phân biệt patch/
+minor/major như quy tắc semver cũ.
+Các mục **0.1.0 → 0.41.0** bên dưới là LỊCH SỬ theo quy tắc CŨ (semver
+không chặt: patch/minor/major), GIỮ NGUYÊN không đánh số lại — `0.41.0`
+(gần nhất theo quy tắc cũ) tương ứng **`4.1`** theo quy tắc mới, là điểm
+bắt đầu đếm tiếp từ đây.
+
+## 4.1 — Chuyển sang kiến trúc PM2 cluster mode (nhiều lõi CPU) cho cả 3 service
 
 Theo yêu cầu "kiến trúc sẽ chạy cluster" — chuyển `etl`/`api-server`/
 `rp-server` từ 1 tiến trình đơn (chỉ dùng 1 lõi CPU) sang PM2 cluster mode
