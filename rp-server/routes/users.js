@@ -28,7 +28,7 @@ router.get('/', async (req, res, next) => {
   try {
     const pool = await getPool('RP');
     const users = await pool.request().query(`
-      SELECT Id, Username, FullName, Email, Phone, Department, Position, AuthSource, LastSyncedAt,
+      SELECT Id, Username, FullName, Email, Phone, Department, Position, WorkLocation, AuthSource, LastSyncedAt,
              IsActive, TwoFactorEnabled, CreatedAt, LastLoginAt
       FROM app.Users ORDER BY Username
     `);
@@ -76,7 +76,7 @@ router.post('/', async (req, res, next) => {
 
 router.put('/:id', async (req, res, next) => {
   try {
-    const { fullName, email, phone, department, position, isActive } = req.body || {};
+    const { fullName, email, phone, department, position, workLocation, isActive } = req.body || {};
     const pool = await getPool('RP');
     await pool.request()
       .input('id', sql.Int, req.params.id)
@@ -85,8 +85,9 @@ router.put('/:id', async (req, res, next) => {
       .input('phone', sql.NVarChar(50), phone || null)
       .input('department', sql.NVarChar(200), department || null)
       .input('position', sql.NVarChar(200), position || null)
+      .input('workLocation', sql.NVarChar(50), workLocation || null)
       .input('isActive', sql.Bit, isActive ? 1 : 0)
-      .query('UPDATE app.Users SET FullName = @fullName, Email = @email, Phone = @phone, Department = @department, Position = @position, IsActive = @isActive WHERE Id = @id');
+      .query('UPDATE app.Users SET FullName = @fullName, Email = @email, Phone = @phone, Department = @department, Position = @position, WorkLocation = @workLocation, IsActive = @isActive WHERE Id = @id');
     invalidateUser(parseInt(req.params.id, 10));
     await logAction(req, { module: 'Phân quyền', actionType: 'SUA_USER', targetObject: req.params.id, description: `Cập nhật người dùng #${req.params.id}` });
     res.json({ ok: true });
@@ -227,22 +228,27 @@ router.put('/:id/auth-source', requireSystemRoleActor, async (req, res, next) =>
 // jobs/reportEmailScheduler.js) vì đây là thao tác cấp phát/thu hồi quyền
 // TRUY CẬP, muốn admin chủ động biết mỗi lần có gì thay đổi (xem tổng kết
 // trả về). API thật HCRC Workspace (GET /api/external/users) chỉ có
-// "username", không có mã nhân viên riêng nào khác -> khớp trực tiếp theo
-// Username trong tập account AuthSource='hcrcWorkspace'. Username trùng với
-// 1 account KHÁC đã có (vd account AuthSource='local' như Admin) -> BỎ QUA,
-// không tự gộp — admin tự xử lý tay nếu đúng là cùng 1 người. Tài khoản
-// MỚI: AuthSource='hcrcWorkspace', PasswordHash=NULL, IsActive=0 (CHƯA cho
-// phép kết nối — admin phải bấm "Mở khoá" tay). Tài khoản ĐÃ đồng bộ trước
-// đó chỉ cập nhật FullName/Department/Position/Phone/Email — KHÔNG đụng
-// AuthSource/IsActive/PasswordHash (giữ nguyên lựa chọn admin đã đổi tay,
-// vd đã chuyển sang local). Tài khoản đã đồng bộ trước nhưng LẦN NÀY không
-// còn thấy trong danh bạ (nghỉ việc/đổi username) -> tự khoá (IsActive=0) —
-// an toàn hơn để hở quyền truy cập của người đã nghỉ, ghi audit log rõ từng
-// account bị khoá.
+// "username" (chính là mã nhân viên — định danh duy nhất/không đổi, theo
+// tài liệu HCRC Workspace) -> khớp trực tiếp theo Username trong tập
+// account AuthSource='hcrcWorkspace'. Username trùng với 1 account KHÁC đã
+// có (vd account AuthSource='local' như Admin) -> BỎ QUA, không tự gộp —
+// admin tự xử lý tay nếu đúng là cùng 1 người. KHÔNG đồng bộ Email — API
+// không cung cấp field này (chỉ có 6 field: username/name/dept/jobTitle/
+// phone/position) — cột Email vẫn giữ, chỉ còn sửa được bằng tay, sync
+// KHÔNG đụng vào (tránh xoá mất email admin đã nhập tay). Tài khoản MỚI:
+// AuthSource='hcrcWorkspace', PasswordHash=NULL, IsActive=0 (CHƯA cho phép
+// kết nối — admin phải bấm "Mở khoá" tay). Tài khoản ĐÃ đồng bộ trước đó
+// chỉ cập nhật FullName/Department/Position/WorkLocation/Phone — KHÔNG
+// đụng AuthSource/IsActive/PasswordHash/Email (giữ nguyên lựa chọn admin
+// đã đổi tay, vd đã chuyển sang local). Tài khoản đã đồng bộ trước nhưng
+// LẦN NÀY không còn thấy trong danh bạ (nghỉ việc/đổi username) -> tự khoá
+// (IsActive=0) — API không có field trạng thái hoạt động riêng, chỉ dựa
+// vào "còn xuất hiện trong danh bạ hay không" — an toàn hơn để hở quyền
+// truy cập của người đã nghỉ, ghi audit log rõ từng account bị khoá.
 router.post('/sync', requireSystemRoleActor, async (req, res, next) => {
   try {
     const directory = await fetchDirectory();
-    const activeItems = directory.filter(item => item && item.username && item.isActive !== false);
+    const activeItems = directory.filter(item => item && item.username);
     const seenUsernames = new Set(activeItems.map(item => item.username));
 
     const pool = await getPool('RP');
@@ -264,9 +270,9 @@ router.post('/sync', requireSystemRoleActor, async (req, res, next) => {
           .input('fullName', sql.NVarChar(200), item.fullName || existing.Username)
           .input('department', sql.NVarChar(200), item.department || null)
           .input('position', sql.NVarChar(200), item.position || null)
+          .input('workLocation', sql.NVarChar(50), item.workLocation || null)
           .input('phone', sql.NVarChar(50), item.phone || null)
-          .input('email', sql.NVarChar(200), item.email || null)
-          .query('UPDATE app.Users SET FullName = @fullName, Department = @department, Position = @position, Phone = @phone, Email = @email, LastSyncedAt = SYSUTCDATETIME() WHERE Id = @id');
+          .query('UPDATE app.Users SET FullName = @fullName, Department = @department, Position = @position, WorkLocation = @workLocation, Phone = @phone, LastSyncedAt = SYSUTCDATETIME() WHERE Id = @id');
         invalidateUser(existing.Id);
         updated++;
       } else if (usernamesInUse.has(item.username)) {
@@ -277,11 +283,11 @@ router.post('/sync', requireSystemRoleActor, async (req, res, next) => {
           .input('fullName', sql.NVarChar(200), item.fullName || item.username)
           .input('department', sql.NVarChar(200), item.department || null)
           .input('position', sql.NVarChar(200), item.position || null)
+          .input('workLocation', sql.NVarChar(50), item.workLocation || null)
           .input('phone', sql.NVarChar(50), item.phone || null)
-          .input('email', sql.NVarChar(200), item.email || null)
           .query(`
-            INSERT INTO app.Users (Username, PasswordHash, FullName, Department, Position, Phone, Email, AuthSource, IsActive, LastSyncedAt)
-            VALUES (@username, NULL, @fullName, @department, @position, @phone, @email, 'hcrcWorkspace', 0, SYSUTCDATETIME())
+            INSERT INTO app.Users (Username, PasswordHash, FullName, Department, Position, WorkLocation, Phone, AuthSource, IsActive, LastSyncedAt)
+            VALUES (@username, NULL, @fullName, @department, @position, @workLocation, @phone, 'hcrcWorkspace', 0, SYSUTCDATETIME())
           `);
         usernamesInUse.add(item.username);
         added++;

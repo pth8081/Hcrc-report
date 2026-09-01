@@ -38,7 +38,7 @@ export default function UsersPage() {
     try {
       await api.put(`/system/users/${user.Id}`, {
         fullName: user.FullName, email: user.Email, phone: user.Phone, department: user.Department, position: user.Position,
-        isActive: !user.IsActive
+        workLocation: user.WorkLocation, isActive: !user.IsActive
       });
       reload();
     } catch (err) { setError(err.message); }
@@ -123,7 +123,8 @@ export default function UsersPage() {
           { key: 'Username', label: 'Username' },
           { key: 'FullName', label: 'Họ tên' },
           { key: 'Department', label: 'Phòng ban', render: (u) => u.Department || '—' },
-          { key: 'Position', label: 'Vị trí', render: (u) => u.Position || '—' },
+          { key: 'Position', label: 'Chức danh', render: (u) => u.Position || '—' },
+          { key: 'WorkLocation', label: 'Nơi làm việc', render: (u) => u.WorkLocation || '—' },
           { key: 'Phone', label: 'Điện thoại', render: (u) => u.Phone || '—' },
           { key: 'Email', label: 'Email', render: (u) => u.Email || '—' },
           { key: 'AuthSource', label: 'Nguồn xác thực', render: (u) => (u.AuthSource === 'local' ? 'Local' : 'HCRC Workspace') },

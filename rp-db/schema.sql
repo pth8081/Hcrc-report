@@ -79,6 +79,17 @@ BEGIN
 END
 GO
 
+-- "Nơi làm việc" ("Văn phòng"/"Siêu Thị") — field "position" thật của HCRC
+-- Workspace (KHÁC cột Position ở trên, vốn lưu "jobTitle"/chức danh — 2 khái
+-- niệm khác nhau bên vendor, xem lib/hcrcWorkspaceClient.js). Email KHÔNG
+-- còn được "Đồng bộ tài khoản" ghi vào nữa (API HCRC Workspace không cung
+-- cấp field này) — cột Email vẫn giữ, chỉ còn sửa được bằng tay.
+IF COL_LENGTH('app.Users', 'WorkLocation') IS NULL
+BEGIN
+    ALTER TABLE app.Users ADD WorkLocation NVARCHAR(50) NULL;
+END
+GO
+
 -- PasswordHash trước đây NOT NULL (mọi account đều local) — account
 -- AuthSource='hcrcWorkspace' không có mật khẩu local nào để lưu.
 IF EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('app.Users') AND name = 'PasswordHash' AND is_nullable = 0)

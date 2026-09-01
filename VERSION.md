@@ -5,6 +5,29 @@ Server, API Server và các giao diện quản trị) — tăng ở mỗi lần 
 `main`, theo kiểu semver không chặt (patch cho fix nhỏ, minor cho tính năng
 mới, major khi đổi cấu trúc phá vỡ tương thích ngược).
 
+## 0.34.3 — HCRC Workspace cập nhật tài liệu API — bỏ email/active, thêm field "position"
+
+Tài liệu API HCRC Workspace cập nhật lần 2: `GET /api/external/users` bỏ
+hẳn 2 field `email`/`active`, thêm field mới `position` (**"Văn phòng"**
+hoặc **"Siêu Thị"** — nơi làm việc, KHÁC `jobTitle`/chức danh). Sửa lại:
+
+- **`lib/hcrcWorkspaceClient.js`**: `fetchDirectory()` bỏ ánh xạ
+  `email`/`isActive`, thêm `workLocation` (map từ field `position` của
+  vendor — đặt tên khác để khỏi lẫn với cột `Position`/`jobTitle` nội bộ).
+- **Schema**: thêm `app.Users.WorkLocation`. Cột `Email` vẫn giữ (đổi tay
+  được), nhưng "Đồng bộ tài khoản" **không còn ghi vào Email nữa** — API
+  không cung cấp field này, tránh xoá mất giá trị admin đã tự nhập.
+- **`routes/users.js` `POST /sync`**: bỏ ghi Email, thêm ghi WorkLocation;
+  bỏ luôn điều kiện lọc theo `isActive` (field không còn tồn tại) — chỉ
+  còn dựa vào "còn xuất hiện trong danh bạ hay không" để quyết định tự
+  khoá, hành vi thực tế không đổi.
+- `UsersPage.jsx` thêm cột "Nơi làm việc"; đổi nhãn cột `Position` từ "Vị
+  trí" thành "Chức danh" cho khỏi lẫn với "Nơi làm việc".
+- `hướng_dẫn_báo_cáo.md` mục 7.3 viết lại đúng response mới (bảng 6 field).
+- Sửa 2 bộ test hiện có khớp field mới + thêm assertion "Email tự nhập
+  không bị sync ghi đè" (khoá lại đúng hành vi vừa sửa). `vite build`
+  sạch `rp-user`.
+
 ## 0.34.2 — Sửa tích hợp HCRC Workspace khớp đúng tài liệu API thật
 
 Bên HCRC Workspace đã công bố tài liệu API thật (v1.97) — khác hợp đồng tự

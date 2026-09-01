@@ -727,7 +727,7 @@ vi đã có ở mục 1.
 Mục đích: người dùng thường (không phải Admin hệ thống) đăng nhập report
 server (rp-user) bằng ĐÚNG tài khoản/mật khẩu bên hệ thống nội bộ "HCRC
 Workspace" — không phải tạo/nhớ thêm 1 mật khẩu riêng cho report server —
-và họ tên/phòng ban/vị trí/điện thoại/email được đồng bộ về để phân quyền
+và họ tên/phòng ban/chức danh/nơi làm việc/điện thoại được đồng bộ về để phân quyền
 (nhóm quyền theo Vai trò/`app.Roles`, hoặc quyền riêng 1 người bằng cách
 tạo 1 Vai trò chỉ gán cho đúng người đó). Vai trò Admin (hệ thống) LUÔN
 xác thực bằng mật khẩu local ở report server, không phụ thuộc HCRC
@@ -791,34 +791,45 @@ Headers: Authorization: Bearer <khoá API>
 200 OK — mảng toàn bộ danh bạ
 [
   {
+    "position": "Văn phòng",
     "username": "nva",
     "name": "Nguyễn Văn A",
-    "dept": "Phòng Kinh Doanh",
-    "jobTitle": "Chuyên viên",
     "phone": "0901234567",
-    "email": "nva@congty.com",
-    "active": true
+    "dept": "Phòng Kinh Doanh",
+    "jobTitle": "Chuyên viên"
   },
   ...
 ]
 ```
 
-- Response **không bao giờ** kèm mật khẩu/hash/mã PIN — chỉ 6 trường liệt
-  kê ở trên.
-- Không có mã nhân viên/định danh ổn định nào khác ngoài `username` — report
-  server đồng bộ khớp trực tiếp theo `username`.
-- `active: false` (hoặc bỏ hẳn người đó ra khỏi mảng trả về) = báo report
-  server người này KHÔNG còn là nhân viên đang làm việc — report server
-  tự động **khoá** tài khoản tương ứng (nếu trước đó đã từng đồng bộ),
-  không cần thao tác tay.
+Đúng 6 trường, không hơn — response **không bao giờ** kèm mật khẩu/hash/mã
+PIN/email/trạng thái hoạt động:
+
+| Trường | Ý nghĩa | report server lưu vào |
+|---|---|---|
+| `username` | Mã nhân viên — định danh **duy nhất/không đổi** của mỗi nhân sự | `Username` (khoá đồng bộ) |
+| `name` | Tên nhân viên | `FullName` |
+| `dept` | Phòng | `Department` |
+| `jobTitle` | Chức danh | `Position` |
+| `position` | Nơi làm việc — `"Văn phòng"` hoặc `"Siêu Thị"` (KHÁC "chức danh") | `WorkLocation` |
+| `phone` | Điện thoại | `Phone` |
+
+- **Không có `email`** — cột `Email` trên report server vẫn còn (đổi tay
+  được ở trang "Người dùng"), nhưng "Đồng bộ tài khoản" KHÔNG đụng vào,
+  tránh xoá mất giá trị admin đã tự nhập.
+- **Không có trường trạng thái hoạt động riêng** (không `active`) — report
+  server chỉ dựa vào việc 1 `username` còn xuất hiện trong mảng trả về
+  hay không: biến mất khỏi danh bạ (nghỉ việc/đổi mã nhân viên) → report
+  server tự động **khoá** tài khoản tương ứng (nếu trước đó đã từng đồng
+  bộ), không cần thao tác tay.
 - Report server ghép quyền như sau mỗi lần đồng bộ:
   - `username` MỚI (chưa từng thấy, và chưa tồn tại trong report server
     dưới bất kỳ hình thức nào) → tạo tài khoản mới, mặc định **CHƯA cho
     phép kết nối** (admin phải vào trang "Người dùng" bấm "Cho phép kết
     nối" từng người, và "Gán vai trò" để họ thấy được báo cáo nào).
-  - `username` ĐÃ đồng bộ trước đó → chỉ cập nhật lại họ tên/phòng
-    ban/vị trí/điện thoại/email, KHÔNG đụng quyền/trạng thái admin đã
-    cấu hình (vd admin đã đổi tài khoản đó sang xác thực Local).
+  - `username` ĐÃ đồng bộ trước đó → chỉ cập nhật lại họ tên/phòng ban/
+    chức danh/nơi làm việc/điện thoại, KHÔNG đụng quyền/trạng thái admin
+    đã cấu hình (vd admin đã đổi tài khoản đó sang xác thực Local).
   - `username` trùng với 1 tài khoản report server ĐÃ CÓ nhưng KHÔNG PHẢI
     do đồng bộ tạo ra (vd trùng tên với tài khoản Admin local) → BỎ QUA,
     không tự gộp — admin tự xử lý tay nếu đúng là cùng 1 người.
