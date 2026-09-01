@@ -476,18 +476,59 @@ BEGIN
 END
 GO
 
+-- Cảnh báo bất thường — so sánh kỳ hiện tại vs kỳ so sánh (liền trước/cùng kỳ
+-- năm trước) của MỘT báo cáo đã có (app.ReportCatalog), theo từng "thực thể"
+-- (cột EntityColumnKey, vd chi nhánh) trên MỘT cột số (MetricColumnKey, vd
+-- doanh thu) — lệch quá ThresholdPercent thì gửi email CHỈ liệt kê dòng vượt
+-- ngưỡng. KHÔNG hardcode "doanh thu"/domain cụ thể nào — admin tự chọn báo
+-- cáo + cột, dùng lại được cho bất kỳ chỉ số nào (đơn hàng, tồn kho...) miễn
+-- báo cáo trả về 1 dòng/thực thể có cột số. FilterValuesJson CÙNG khuôn
+-- app.ReportEmailSchedules.FilterValuesJson — đúng 1 field kind='dateRangePreset'
+-- là "kỳ hiện tại". Xem lib/anomalyAlertRunner.js + jobs/anomalyAlertScheduler.js.
+IF OBJECT_ID('app.AnomalyAlerts', 'U') IS NULL
+BEGIN
+    CREATE TABLE app.AnomalyAlerts (
+        Id               INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        Name             NVARCHAR(200) NOT NULL,
+        ReportId         VARCHAR(80)   NOT NULL REFERENCES app.ReportCatalog(ReportId),
+        CronExpression   VARCHAR(50)   NOT NULL,
+        FilterValuesJson NVARCHAR(MAX) NULL,
+        CompareMode      VARCHAR(20)   NOT NULL DEFAULT 'previousPeriod'
+            CONSTRAINT CK_AnomalyAlerts_CompareMode CHECK (CompareMode IN ('previousPeriod', 'samePeriodLastYear')),
+        EntityColumnKey  VARCHAR(100)  NOT NULL,
+        MetricColumnKey  VARCHAR(100)  NOT NULL,
+        ThresholdPercent DECIMAL(9, 2) NOT NULL DEFAULT 20,
+        Recipients       NVARCHAR(1000) NOT NULL,
+        IsActive         BIT           NOT NULL DEFAULT 1,
+        CreatedBy        INT           NULL REFERENCES app.Users(Id),
+        CreatedAt        DATETIME2(3)  NOT NULL DEFAULT SYSUTCDATETIME(),
+        LastRunAt        DATETIME2(3)  NULL,
+        LastStatus       VARCHAR(20)   NULL,
+        LastError        NVARCHAR(1000) NULL,
+        LastAnomalyCount INT           NULL
+    );
+END
+GO
+
 -- Seed cây menu tĩnh — khớp đúng route trong rp-user/src/App.jsx. An toàn
 -- chạy lại nhiều lần (kiểm tra Code trước khi insert từng dòng).
 IF NOT EXISTS (SELECT 1 FROM app.MenuItems WHERE Code = 'home')
     INSERT INTO app.MenuItems (Code, ParentId, Label, Path, SortOrder) VALUES ('home', NULL, N'Trang chủ', '/', 1);
 IF NOT EXISTS (SELECT 1 FROM app.MenuItems WHERE Code = 'dashboard')
     INSERT INTO app.MenuItems (Code, ParentId, Label, Path, SortOrder) VALUES ('dashboard', NULL, N'Dashboard', '/dashboard', 2);
+-- Path 3 dòng dưới đây trước đây là 3 ROUTE RIÊNG (mỗi nhóm 1 trang) — nay
+-- rp-user/ gộp thành 1 trang "/reports" duy nhất, tab chọn nhóm vẽ BÊN TRONG
+-- (xem modules/reports/ReportsPage.jsx) — Path ở đây không còn được frontend
+-- đọc tới (chỉ còn Code/Label dùng làm tab), giữ lại cho khớp NOT NULL và dễ
+-- đọc nếu ai xem CSDL trực tiếp. Cập nhật cho CSDL ĐÃ CÓ SẴN — an toàn chạy
+-- lại nhiều lần.
+UPDATE app.MenuItems SET Path = '/reports' WHERE Code IN ('reports-kinh-doanh', 'reports-van-hanh', 'reports-mua-hang') AND Path <> '/reports';
 IF NOT EXISTS (SELECT 1 FROM app.MenuItems WHERE Code = 'reports-kinh-doanh')
-    INSERT INTO app.MenuItems (Code, ParentId, Label, Path, SortOrder) VALUES ('reports-kinh-doanh', NULL, N'Báo cáo kinh doanh', '/reports/kinh-doanh', 3);
+    INSERT INTO app.MenuItems (Code, ParentId, Label, Path, SortOrder) VALUES ('reports-kinh-doanh', NULL, N'Báo cáo kinh doanh', '/reports', 3);
 IF NOT EXISTS (SELECT 1 FROM app.MenuItems WHERE Code = 'reports-van-hanh')
-    INSERT INTO app.MenuItems (Code, ParentId, Label, Path, SortOrder) VALUES ('reports-van-hanh', NULL, N'Báo cáo vận hành', '/reports/van-hanh', 4);
+    INSERT INTO app.MenuItems (Code, ParentId, Label, Path, SortOrder) VALUES ('reports-van-hanh', NULL, N'Báo cáo vận hành', '/reports', 4);
 IF NOT EXISTS (SELECT 1 FROM app.MenuItems WHERE Code = 'reports-mua-hang')
-    INSERT INTO app.MenuItems (Code, ParentId, Label, Path, SortOrder) VALUES ('reports-mua-hang', NULL, N'Báo cáo Mua hàng', '/reports/mua-hang', 5);
+    INSERT INTO app.MenuItems (Code, ParentId, Label, Path, SortOrder) VALUES ('reports-mua-hang', NULL, N'Báo cáo Mua hàng', '/reports', 5);
 IF NOT EXISTS (SELECT 1 FROM app.MenuItems WHERE Code = 'system')
     INSERT INTO app.MenuItems (Code, ParentId, Label, Path, SortOrder) VALUES ('system', NULL, N'Hệ thống', '/system', 6);
 GO
@@ -510,6 +551,9 @@ IF NOT EXISTS (SELECT 1 FROM app.MenuItems WHERE Code = 'system-email-settings')
 IF NOT EXISTS (SELECT 1 FROM app.MenuItems WHERE Code = 'system-email-schedules')
     INSERT INTO app.MenuItems (Code, ParentId, Label, Path, SortOrder)
     SELECT 'system-email-schedules', Id, N'Lịch gửi email báo cáo', '/system/email-schedules', 6 FROM app.MenuItems WHERE Code = 'system';
+IF NOT EXISTS (SELECT 1 FROM app.MenuItems WHERE Code = 'system-anomaly-alerts')
+    INSERT INTO app.MenuItems (Code, ParentId, Label, Path, SortOrder)
+    SELECT 'system-anomaly-alerts', Id, N'Cảnh báo bất thường', '/system/anomaly-alerts', 7 FROM app.MenuItems WHERE Code = 'system';
 GO
 
 -- Seed vai trò Admin (IsSystemRole=1) — luôn cần tồn tại để gán cho tài khoản

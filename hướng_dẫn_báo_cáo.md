@@ -519,3 +519,61 @@ mục "Nhiều lần gửi/ngày" trên trang này) để rà soát nhiều lầ
 xem báo cáo trên rp-user hay tải Excel/PDF vẫn ra đúng số, chỉ không tô
 màu (phạm vi tô màu rộng hơn — cả màn hình rp-user lẫn Excel/PDF — là việc
 làm thêm sau nếu cần).
+
+## 5. Cảnh báo bất thường — tự động phát hiện chi nhánh/thực thể lệch khác thường
+
+Khác "Lịch gửi email báo cáo" (mục 4 — gửi ĐỊNH KỲ, đúng nguyên bảng dù có
+bất thường hay không): **Cảnh báo bất thường** chỉ gửi khi CÓ VẤN ĐỀ — tự
+so kỳ hiện tại với kỳ trước/cùng kỳ năm trước theo từng thực thể (chi
+nhánh, cửa hàng...), lệch quá ngưỡng % mới gửi, và chỉ liệt kê đúng những
+thực thể bất thường. Dùng lại BÁO CÁO ĐÃ CÓ — không cần tạo báo cáo riêng,
+không giới hạn ở "doanh thu" (dùng được cho số đơn hàng, tồn kho, tỷ lệ trả
+hàng... miễn báo cáo trả về 1 dòng/1 thực thể có cột số).
+
+### Điều kiện báo cáo phải đáp ứng
+
+- Trả về **1 dòng / 1 thực thể** (vd 1 dòng/chi nhánh) — báo cáo `composite`
+  ở mục 1/mục 4 đúng dạng này.
+- Có **đúng 1 bộ lọc kiểu "Khoảng ngày" (dateRange)** — đây là bộ lọc hệ
+  thống sẽ TỰ DỊCH sang kỳ so sánh mỗi lần chạy. Báo cáo mục 1 hiện dùng
+  filter kiểu **"Ngày" (date)** đơn (`eventDate`) — cần đổi hoặc thêm 1
+  filter kiểu `dateRange` trong `DefinitionJson.filters` mới dùng được tính
+  năng này, vd:
+  ```json
+  { "field": "khoangNgay", "type": "dateRange", "label": "Khoảng ngày" }
+  ```
+  (báo cáo `composite` cần tự đọc field này trong công thức nếu muốn lọc
+  DWH theo khoảng chứ không phải đúng 1 ngày — xem cách các `blocks` khác
+  dùng `dateOffsetYears`/tham chiếu `filters` hiện có).
+
+### Cấu hình (trang "Hệ thống → Cảnh báo bất thường")
+
+Ví dụ dựa trên báo cáo "Báo cáo nhanh doanh thu" ở mục 1 (cột `tenCuaHang`/
+`thucDat`):
+
+- **Báo cáo theo dõi**: chọn báo cáo đã có filter `dateRange`.
+- **Bộ lọc khoảng ngày (kỳ hiện tại)**: chọn preset tương đối, vd "7 ngày
+  qua" — tính lại đúng lúc chạy, không cố định 1 khoảng ngày mãi mãi (cùng
+  cơ chế preset ở "Lịch gửi email báo cáo").
+- **Cột xác định "thực thể"**: `tenCuaHang`.
+- **Cột số cần theo dõi**: `thucDat`.
+- **So với kỳ nào**: "Kỳ liền trước" (vd so 7 ngày này với 7 ngày ngay
+  trước) hoặc "Cùng kỳ năm trước" (mùa vụ/Tết nên dùng cách này để không so
+  nhầm ngày thường với ngày cao điểm).
+- **Ngưỡng cảnh báo**: vd `20` (%) — chi nhánh nào lệch quá 20% so với kỳ
+  so sánh (tăng HOẶC giảm) mới vào email.
+- **Lịch kiểm tra**: cron, vd `0 7 * * *` (7h sáng hàng ngày).
+- **Người nhận**: danh sách email, phân tách dấu phẩy.
+
+Bấm **"Kiểm tra ngay"** để thử ngay không cần đợi tới giờ đã đặt — nếu
+không có gì bất thường sẽ báo "không có gì bất thường, không gửi email"
+(không gửi mail rỗng).
+
+### Đọc kết quả
+
+Mỗi dòng trong email là 1 thực thể vượt ngưỡng: giá trị kỳ này, giá trị kỳ
+so sánh, % chênh lệch, và ghi chú riêng cho 2 trường hợp đặc biệt — **"Mới
+phát sinh"** (không có ở kỳ so sánh, vd chi nhánh mới mở) và **"Về 0 ở kỳ
+này"** (có ở kỳ so sánh nhưng kỳ này bằng 0, vd chi nhánh đóng cửa/mất dữ
+liệu đồng bộ) — cả 2 trường hợp này LUÔN vượt ngưỡng (không tính % thật với
+mẫu số 0), cần xem GHI CHÚ để hiểu đúng thay vì đọc thẳng con số %.

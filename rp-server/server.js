@@ -23,12 +23,14 @@ const dataSourcesRoutes = require('./routes/dataSources');
 const apiConnectionsRoutes = require('./routes/apiConnections');
 const externalConnectionsRoutes = require('./routes/externalConnections');
 const reportEmailSchedulesRoutes = require('./routes/reportEmailSchedules');
+const anomalyAlertsRoutes = require('./routes/anomalyAlerts');
 const {
   verifyCredentials, issueToken, COOKIE_NAME, getSecret, setSessionCookie,
   issuePending2FAToken, issueSetupRequiredToken
 } = require('./lib/auth');
 const { getUserContext } = require('./lib/permissions');
 const reportEmailScheduler = require('./jobs/reportEmailScheduler');
+const anomalyAlertScheduler = require('./jobs/anomalyAlertScheduler');
 const { isBlocked, recordFailure, recordSuccess } = require('./lib/loginRateLimit');
 const { logAction } = require('./lib/auditLog');
 const { cleanupAuditLog } = require('./jobs/cleanupAuditLog');
@@ -150,6 +152,7 @@ app.use('/api/system/data-sources', dataSourcesRoutes);
 app.use('/api/system/api-connections', apiConnectionsRoutes);
 app.use('/api/system/external-connections', externalConnectionsRoutes);
 app.use('/api/system/report-email-schedules', reportEmailSchedulesRoutes);
+app.use('/api/system/anomaly-alerts', anomalyAlertsRoutes);
 
 app.use((err, req, res, next) => { // eslint-disable-line no-unused-vars
   console.error(err);
@@ -157,6 +160,7 @@ app.use((err, req, res, next) => { // eslint-disable-line no-unused-vars
 });
 
 reportEmailScheduler.start();
+anomalyAlertScheduler.start();
 
 // Dọn app.AuditLog cũ theo lịch (mặc định 02:00 hằng ngày).
 cron.schedule(process.env.CLEANUP_CRON || '0 2 * * *', () => {

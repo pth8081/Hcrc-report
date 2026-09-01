@@ -5,6 +5,47 @@ Server, API Server và các giao diện quản trị) — tăng ở mỗi lần 
 `main`, theo kiểu semver không chặt (patch cho fix nhỏ, minor cho tính năng
 mới, major khi đổi cấu trúc phá vỡ tương thích ngược).
 
+## 0.32.0 — Gộp trang báo cáo (rp-user) + "Cảnh báo bất thường" (so kỳ hiện tại/kỳ so sánh, tự gửi email)
+
+Tư vấn kiến trúc + đề xuất nghiệp vụ bán lẻ (không code) — 2 việc đầu tiên
+không cần nguồn dữ liệu mới, làm ngay theo lựa chọn của người dùng.
+
+- **rp-user — gộp 3 trang báo cáo thành 1**: `/reports/kinh-doanh`,
+  `/reports/van-hanh`, `/reports/mua-hang` (3 route riêng) → 1 route
+  `/reports` duy nhất, tab chọn nhóm nghiệp vụ vẽ BÊN TRONG trang
+  (`modules/reports/ReportsPage.jsx` thay `ReportsModulePage.jsx`). Sidebar
+  gộp còn 1 mục "Báo cáo". KHÔNG đổi phân quyền — `app.RoleMenuAccess` (nhóm
+  nào hiện tab) và `app.RoleReportAccess` (báo cáo nào trong nhóm được chạy)
+  giữ nguyên 100%, chỉ đổi điều hướng. `components/RequireMenuAccess.jsx`
+  nhận thêm prop `codes` (mảng, vào được nếu có ÍT NHẤT 1 mã) cho route gộp.
+  `rp-db/schema.sql`: cập nhật `Path` 3 dòng `MenuItems` cũ (không còn được
+  đọc, chỉ còn Code/Label dùng làm tab) cho khớp thực tế.
+- **"Cảnh báo bất thường"** (mới, `app.AnomalyAlerts`) — tự động chạy LẠI
+  một báo cáo đã có (không cần tạo báo cáo riêng, không hardcode domain/chỉ
+  số nào) 2 lần: kỳ hiện tại (preset tương đối, cùng cơ chế lịch gửi email)
+  và kỳ so sánh (kỳ liền trước cùng độ dài, hoặc cùng kỳ năm trước) — so
+  từng "thực thể" (vd chi nhánh, cột do admin chỉ định) trên 1 cột số, lệch
+  quá ngưỡng % thì gửi email CHỈ liệt kê thực thể bất thường; không gửi nếu
+  không có gì lạ (tránh lờn cảnh báo). Thực thể chỉ có ở 1 trong 2 kỳ (mới
+  phát sinh/về 0) được tính ±100%, luôn vượt ngưỡng, có ghi chú riêng.
+  - `rp-server/lib/anomalyAlertRunner.js` — toán kỳ so sánh + gộp/so sánh
+    theo thực thể, tái dùng `lib/reportRunner.js` (chạy báo cáo) và
+    `lib/reportEmailFilters.js` (`resolvePreset`) — không viết lại logic
+    chạy báo cáo. Loại dòng "Tổng cộng" (`__isSubtotal`, composite report)
+    khỏi so sánh.
+  - `rp-server/jobs/anomalyAlertScheduler.js` — đăng ký cron (cùng khuôn
+    `jobs/reportEmailScheduler.js`, đơn giản hơn — 1 cảnh báo = 1 lịch,
+    không có bảng "giờ chạy" con), gửi qua `lib/mailer.js` +
+    `lib/emailBodyRenderer.js` (tái dùng nguyên bảng HTML đã có).
+  - `rp-server/routes/anomalyAlerts.js` — CRUD + "Kiểm tra ngay".
+  - `rp-user/.../AnomalyAlertsPage.jsx` (mới, trang "Hệ thống" > "Cảnh báo
+    bất thường") — chọn báo cáo, đúng 1 bộ lọc khoảng ngày dùng preset làm
+    "kỳ hiện tại", cột thực thể/cột số (gõ tay, giống `HighlightColumnKey`
+    ở lịch gửi email), kỳ so sánh, ngưỡng %, lịch cron, người nhận.
+- Test độc lập (`anomalyAlertRunner.js`: toán kỳ so sánh 2 chế độ, gộp thực
+  thể, loại "Tổng cộng", lọc ngưỡng, ghi chú mới-phát-sinh/về-0) + `vite
+  build` sạch `rp-user`.
+
 ## 0.31.0 — Xác thực hai yếu tố (2FA/TOTP) BẮT BUỘC cho tài khoản admin (cả 3 hệ thống)
 
 Chỉ áp dụng cho vai trò **admin** (ETL: `Role='admin'`; API Server:

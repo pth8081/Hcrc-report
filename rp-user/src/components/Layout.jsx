@@ -7,15 +7,29 @@ import { useAuth } from '../lib/AuthContext';
 export default function Layout() {
   const { me, logout } = useAuth();
   const menu = me?.menu || [];
-  const rootItems = menu.filter(m => !m.parentId);
+  // 3 nhóm báo cáo (mã "reports-*") gộp thành 1 mục sidebar duy nhất -> trang
+  // /reports (xem modules/reports/ReportsPage.jsx) tự vẽ tab theo nhóm còn
+  // được quyền — sidebar không cần biết có bao nhiêu nhóm.
+  const reportGroups = menu.filter(m => m.code.startsWith('reports-'));
+  const rootItems = menu.filter(m => !m.parentId && !m.code.startsWith('reports-'));
   const systemChildren = menu.filter(m => m.parentId);
+
+  // Chèn đúng 1 mục "Báo cáo" vào vị trí các mục reports-* cũ từng đứng (ngay
+  // trước "Hệ thống") — chỉ hiện nếu còn quyền ít nhất 1 nhóm.
+  const navItems = [...rootItems];
+  if (reportGroups.length) {
+    const reportsItem = { code: 'reports', label: 'Báo cáo', path: '/reports' };
+    const systemIdx = navItems.findIndex(i => i.code === 'system');
+    if (systemIdx === -1) navItems.push(reportsItem);
+    else navItems.splice(systemIdx, 0, reportsItem);
+  }
 
   return (
     <div className="app-shell">
       <aside className="sidebar">
         <div className="sidebar-brand">HCRC</div>
         <ul className="menu">
-          {rootItems.map(item => (
+          {navItems.map(item => (
             <li key={item.code}>
               <NavLink to={item.path} end={item.code !== 'system'} className={({ isActive }) => (isActive ? 'active' : '')}>
                 {item.label}

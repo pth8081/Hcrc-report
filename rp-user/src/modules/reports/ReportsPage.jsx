@@ -1,12 +1,24 @@
-// modules/reports/ReportsModulePage.jsx — MỘT component dùng chung cho cả 3
-// trang báo cáo (kinh doanh/vận hành/Mua hàng), chỉ khác menuCode truyền vào
-// từ route (xem App.jsx). Không viết riêng UI cho từng module báo cáo.
-import { useEffect, useState } from 'react';
+// modules/reports/ReportsPage.jsx — MỘT trang "Báo cáo" duy nhất, thay 3
+// trang riêng (kinh doanh/vận hành/Mua hàng) trước đây — gộp điều hướng cho
+// gọn nhưng KHÔNG đổi phân quyền: nhóm nghiệp vụ vẫn đọc từ đúng
+// app.MenuItems (mã bắt đầu "reports-") + me.menu đã lọc quyền sẵn ở server
+// (GET /api/me — xem lib/permissions.js), báo cáo trong từng nhóm vẫn lọc
+// riêng theo app.RoleReportAccess (GET /api/reports?menuCode=...). Vẽ thành
+// TAB bên trong 1 trang thay vì 3 route/3 mục sidebar riêng.
+import { useEffect, useMemo, useState } from 'react';
 import { api, downloadFile } from '../../lib/api';
+import { useAuth } from '../../lib/AuthContext';
 import FilterForm from '../../components/FilterForm';
 import DataTable from '../../components/DataTable';
 
-export default function ReportsModulePage({ menuCode, title }) {
+export default function ReportsPage() {
+  const { me } = useAuth();
+  const groups = useMemo(
+    () => (me?.menu || []).filter(m => m.code.startsWith('reports-')),
+    [me]
+  );
+
+  const [activeCode, setActiveCode] = useState('');
   const [reports, setReports] = useState([]);
   const [selectedId, setSelectedId] = useState('');
   const [definition, setDefinition] = useState(null);
@@ -15,12 +27,21 @@ export default function ReportsModulePage({ menuCode, title }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  // Vào trang lần đầu (hoặc quyền vừa đổi) -> tự chọn tab ĐẦU TIÊN còn hợp lệ.
   useEffect(() => {
-    api.get(`/reports?menuCode=${encodeURIComponent(menuCode)}`).then(setReports).catch(err => setError(err.message));
+    if (groups.length && !groups.some(g => g.code === activeCode)) {
+      setActiveCode(groups[0].code);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [groups]);
+
+  useEffect(() => {
+    if (!activeCode) return;
+    api.get(`/reports?menuCode=${encodeURIComponent(activeCode)}`).then(setReports).catch(err => setError(err.message));
     setSelectedId('');
     setDefinition(null);
     setResult(null);
-  }, [menuCode]);
+  }, [activeCode]);
 
   useEffect(() => {
     if (!selectedId) return;
@@ -50,10 +71,27 @@ export default function ReportsModulePage({ menuCode, title }) {
     }
   }
 
+  if (!groups.length) {
+    return (
+      <div className="page">
+        <h1>Báo cáo</h1>
+        <p className="empty-message">Bạn chưa được cấp quyền xem nhóm báo cáo nào.</p>
+      </div>
+    );
+  }
+
   return (
     <div className="page">
-      <h1>{title}</h1>
+      <h1>Báo cáo</h1>
       {error && <p className="form-error">{error}</p>}
+
+      <div className="tabs">
+        {groups.map(g => (
+          <button key={g.code} type="button" className={g.code === activeCode ? 'active' : ''} onClick={() => setActiveCode(g.code)}>
+            {g.label}
+          </button>
+        ))}
+      </div>
 
       <label className="report-picker">
         <span>Chọn báo cáo</span>
