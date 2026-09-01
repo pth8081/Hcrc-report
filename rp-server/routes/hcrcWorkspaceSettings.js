@@ -54,6 +54,11 @@ router.put('/', requireSystemRoleActor, async (req, res, next) => {
   try {
     const { baseUrl, apiKey, verifyPath, directoryPath, isEnabled } = req.body || {};
     if (!baseUrl) return res.status(400).json({ error: 'Thiếu baseUrl' });
+    // BẮT BUỘC https — POST /verify-credentials gửi MẬT KHẨU THẬT của
+    // người dùng trong body, http:// sẽ truyền plaintext qua mạng.
+    if (!/^https:\/\//i.test(baseUrl)) {
+      return res.status(400).json({ error: 'baseUrl phải bắt đầu bằng "https://" — endpoint xác thực gửi mật khẩu thật trong body, không dùng http://' });
+    }
 
     const pool = await getPool('RP');
     let apiKeyEncrypted;

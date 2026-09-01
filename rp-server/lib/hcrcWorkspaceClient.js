@@ -50,6 +50,14 @@ async function loadSettings() {
   if (!row || !row.IsEnabled) {
     throw serviceUnavailableError('Xác thực HCRC Workspace chưa được cấu hình/bật — vào "Xác thực HCRC Workspace" để thiết lập');
   }
+  // Phòng vệ thêm — routes/hcrcWorkspaceSettings.js đã chặn lưu baseUrl
+  // không phải https:// ngay lúc PUT, nhưng vẫn kiểm tra lại ở đây (dữ liệu
+  // có thể đã tồn tại trước khi có ràng buộc này, hoặc bị sửa thẳng trong
+  // CSDL) — verify-credentials gửi mật khẩu thật trong body, tuyệt đối
+  // không gọi qua http://.
+  if (!/^https:\/\//i.test(row.BaseUrl)) {
+    throw serviceUnavailableError('Cấu hình HCRC Workspace không hợp lệ: baseUrl phải là https:// — vào "Xác thực HCRC Workspace" để sửa lại');
+  }
   return {
     baseUrl: row.BaseUrl,
     apiKey: decrypt(row.ApiKeyEncrypted),

@@ -5,6 +5,19 @@ Server, API Server và các giao diện quản trị) — tăng ở mỗi lần 
 `main`, theo kiểu semver không chặt (patch cho fix nhỏ, minor cho tính năng
 mới, major khi đổi cấu trúc phá vỡ tương thích ngược).
 
+## 0.34.4 — Bắt buộc HTTPS cho Base URL HCRC Workspace
+
+`POST /verify-credentials` gửi mật khẩu thật của người dùng trong body —
+trước đây chưa có gì chặn admin lỡ nhập `baseUrl` dạng `http://`, khiến
+mật khẩu truyền plaintext qua mạng. Chặn ở 2 lớp:
+
+- **`routes/hcrcWorkspaceSettings.js`** `PUT /`: từ chối 400 ngay lúc lưu
+  nếu `baseUrl` không bắt đầu bằng `https://`.
+- **`lib/hcrcWorkspaceClient.js`** `loadSettings()`: kiểm tra lại lần nữa
+  ngay trước khi gọi thật — phòng dữ liệu đã tồn tại từ trước khi có ràng
+  buộc này, hoặc bị sửa thẳng trong CSDL.
+- Test mới (`test-hcrc-workspace-https-only.js`) khoá lại cả 2 lớp chặn.
+
 ## 0.34.3 — HCRC Workspace cập nhật tài liệu API — bỏ email/active, thêm field "position"
 
 Tài liệu API HCRC Workspace cập nhật lần 2: `GET /api/external/users` bỏ
