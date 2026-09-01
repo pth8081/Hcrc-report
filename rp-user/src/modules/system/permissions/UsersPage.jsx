@@ -133,7 +133,7 @@ export default function UsersPage() {
               <>
                 <button type="button" onClick={() => toggleActive(u)}>{u.IsActive ? 'Khoá' : 'Cho phép kết nối'}</button>{' '}
                 <button type="button" onClick={() => openRoleEditor(u)}>Gán vai trò</button>{' '}
-                {me?.isSystemRole && <button type="button" onClick={() => openAuthEditor(u)}>Nguồn xác thực</button>}{' '}
+                {me?.isSystemRole && !u.roles.some(r => r.isSystemRole) && <button type="button" onClick={() => openAuthEditor(u)}>Nguồn xác thực</button>}{' '}
                 {me?.isSystemRole && u.roles.some(r => r.isSystemRole) && <button type="button" onClick={() => reset2fa(u)}>Đặt lại 2FA</button>}
               </>
             )

@@ -5,6 +5,14 @@ Server, API Server và các giao diện quản trị) — tăng ở mỗi lần 
 `main`, theo kiểu semver không chặt (patch cho fix nhỏ, minor cho tính năng
 mới, major khi đổi cấu trúc phá vỡ tương thích ngược).
 
+## 0.34.1 — Ẩn nút "Nguồn xác thực" ở tài khoản Admin
+
+Tài khoản giữ vai trò Admin (hệ thống) đã bị chặn chuyển AuthSource sang
+'hcrcWorkspace' từ 0.34.0 (BE) — nay ẩn luôn nút "Nguồn xác thực" ở những
+dòng đó trong `UsersPage.jsx` cho khớp: Admin mặc định + cố định Local,
+chỉ tài khoản người dùng thường mới có nút tự chọn Local nếu không muốn
+xác thực qua HCRC Workspace.
+
 ## 0.34.0 — Xác thực HCRC Workspace + Đồng bộ tài khoản người dùng
 
 Người dùng thường (không phải Admin hệ thống) đăng nhập rp-user bằng
