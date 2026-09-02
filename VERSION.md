@@ -15,6 +15,47 @@ không chặt: patch/minor/major), GIỮ NGUYÊN không đánh số lại — `0
 (gần nhất theo quy tắc cũ) tương ứng **`4.1`** theo quy tắc mới, là điểm
 bắt đầu đếm tiếp từ đây.
 
+## 4.6 — Loại bỏ toàn bộ style nội tuyến + thêm Content-Security-Policy cho 3 giao diện tĩnh
+
+Theo yêu cầu: kiểm tra "unsafe inline" ở index.html của 3 giao diện
+(`etl-admin/`, `api-admin/`, `rp-user/`) và loại bỏ theo hướng khác.
+
+- **Rà soát**: `index.html` (cả bản nguồn lẫn bản build `dist/`) của cả 3
+  app KHÔNG có `<script>`/`<style>` nội tuyến nào — Vite build luôn tách JS/CSS
+  ra file riêng (`/assets/index-*.js`/`.css`), không nhúng thẳng vào HTML.
+  KHÔNG có `dangerouslySetInnerHTML`/`eval()`/`new Function()` ở đâu trong
+  cả 3 mã nguồn React. Điểm "unsafe-inline" thật sự nằm ở việc **KHÔNG có
+  Content-Security-Policy header nào cả** — cả 3 service Node đều tắt hẳn
+  CSP của helmet (`contentSecurityPolicy: false`, ĐÚNG vì các service đó chỉ
+  trả JSON qua `/api/*`/`/admin/*`, không phục vụ HTML — xem comment gốc),
+  và `deploy/nginx.conf` (nơi THẬT SỰ phục vụ HTML/JS/CSS cho 3 giao diện)
+  chưa từng khai CSP — thiếu CSP tương đương cho phép mọi nguồn/mọi inline,
+  cùng mức rủi ro với 'unsafe-inline' tường minh nếu sau này có lỗ XSS.
+- **Loại bỏ điểm chặn duy nhất để dùng CSP chặt** (`script-src`/`style-src`
+  CHỈ `'self'`, không cần 'unsafe-inline'): 9 chỗ dùng `style={{...}}` nội
+  tuyến trong React (`LoginPage.jsx` x3 app — card 2FA rộng hơn card đăng
+  nhập thường + cỡ chữ tên thương hiệu ở khối hero; `ReportCatalogPanel.jsx`
+  rp-user — ô nhập bộ lọc giãn hết dòng + khối kết quả "Chạy thử" cuộn dọc)
+  — chuyển hết sang class CSS mới trong `src/styles.css` từng app
+  (`.login-card--narrow`, `.sidebar-brand-name--hero`, `.flex-1`,
+  `.table-scroll--result`).
+- **Thêm CSP** vào 3 domain THẬT SỰ phục vụ HTML tĩnh trong
+  `deploy/nginx.conf` (report/api-admin/etl-admin — KHÔNG thêm cho
+  api.hcrc.vidu.vn, domain đó chỉ trả JSON cho đối tác, không có HTML nào):
+  `default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'
+  data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri
+  'self'; frame-ancestors 'none'; form-action 'self'`. `img-src` PHẢI giữ
+  `data:` — màn hình đăng ký 2FA hiện mã QR qua `<img src="data:image/...">`
+  (thư viện `qrcode` sinh thẳng data URI, không phải file ảnh), thiếu dòng
+  này sẽ chặn luôn được bước bắt buộc đăng ký 2FA. Kèm thêm
+  `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`,
+  `Referrer-Policy: strict-origin-when-cross-origin` — cùng lỗ hổng "helmet
+  chỉ phủ JSON API, không phủ HTML tĩnh Nginx phục vụ riêng".
+- Build sạch cả 3 app (không lỗi/warning). Chụp màn hình xác nhận (Playwright,
+  giả lập API) trang đăng nhập (chữ "HCRC" cỡ hero) và màn "Bắt buộc đăng
+  ký 2FA" (card rộng 420px, mã QR data URI hiện đúng) — giống hệt trước khi
+  đổi từ inline style sang class.
+
 ## 4.5 — Composite report: loại riêng thực thể lỗi thay vì im lặng sai/chặn cả báo cáo
 
 Theo yêu cầu (sau khi so sánh 2 lựa chọn "giữ cảnh báo" và "chặn cứng" ở

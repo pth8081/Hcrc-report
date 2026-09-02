@@ -79,7 +79,7 @@ function TwoFactorSetupStep({ token, onDone }) {
 
   if (recoveryCodes) {
     return (
-      <div className="login-card" style={{ maxWidth: 420 }}>
+      <div className="login-card login-card--narrow">
         <h1>Lưu lại 10 mã khôi phục</h1>
         <p className="twofa-hint">
           Dùng khi mất điện thoại và KHÔNG có admin nào khác để nhờ "Đặt lại 2FA". Mỗi mã chỉ dùng được 1 lần.
@@ -94,7 +94,7 @@ function TwoFactorSetupStep({ token, onDone }) {
   }
 
   return (
-    <form className="login-card" style={{ maxWidth: 420 }} onSubmit={handleConfirm}>
+    <form className="login-card login-card--narrow" onSubmit={handleConfirm}>
       <h1>Bắt buộc đăng ký 2FA</h1>
       <p className="twofa-hint">Tài khoản admin phải bật xác thực hai yếu tố mới dùng được. Mở app Authenticator (Google Authenticator, Authy...) và quét mã QR bên dưới.</p>
       {error && <p className="form-error">{error}</p>}
@@ -152,7 +152,7 @@ export default function LoginPage() {
         <div className="login-hero-top">
           <div className="h-logo h-logo--lg">H</div>
           <div className="sidebar-brand-text">
-            <span className="sidebar-brand-name" style={{ fontSize: 16 }}>HCRC</span>
+            <span className="sidebar-brand-name sidebar-brand-name--hero">HCRC</span>
             <span className="sidebar-brand-sub">Không gian báo cáo</span>
           </div>
         </div>

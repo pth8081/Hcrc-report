@@ -49,6 +49,16 @@ button:hover { opacity: 0.9; }
 
 /* Tables */
 .table-scroll { overflow-x: auto; }
+/* .table-scroll--result — khối kết quả "Chạy thử" API ngoài (ReportCatalogPanel.jsx)
+   cần giới hạn chiều cao + cuộn dọc, khác .table-scroll thường (chỉ cuộn
+   ngang cho bảng rộng) — TRƯỚC ĐÂY dùng style={{maxHeight:240,overflow:'auto'}}
+   nội tuyến, đổi sang class để không cần 'unsafe-inline' trong style-src CSP
+   (xem deploy/nginx.conf). */
+.table-scroll--result { max-height: 240px; overflow: auto; }
+/* .flex-1 — ô nhập bộ lọc mẫu trong ReportCatalogPanel.jsx cần giãn hết
+   phần còn lại của hàng .inline-actions (cạnh nút "Chạy thử" cố định
+   chiều rộng) — cùng lý do đổi từ inline style ở trên. */
+.flex-1 { flex: 1; }
 .data-table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
 .data-table th { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); color: var(--ink-soft); font-weight: 600; }
 .data-table td { padding: 8px 10px; border-bottom: 1px solid var(--line); }
@@ -142,6 +152,15 @@ button:hover { opacity: 0.9; }
 
 .login-card-wrap { flex: 1 1 54%; display: flex; align-items: center; justify-content: center; padding: 32px; }
 .login-card { width: 100%; max-width: 380px; background: var(--surface); border-radius: 16px; padding: 38px 34px; box-shadow: 0 12px 32px rgba(10, 22, 40, .1); display: flex; flex-direction: column; gap: 14px; }
+/* .login-card--narrow — bước 2FA (QR code + mã khôi phục) cần rộng hơn card
+   đăng nhập thường (380px) — TRƯỚC ĐÂY dùng style={{maxWidth:420}} nội
+   tuyến, đổi sang class để không cần 'unsafe-inline' trong style-src CSP
+   (xem deploy/nginx.conf). */
+.login-card--narrow { max-width: 420px; }
+/* .sidebar-brand-name--hero — chữ "HCRC" ở khối hero trang đăng nhập to hơn
+   chữ cùng tên trong sidebar (13.5px mặc định) — cùng lý do đổi từ inline
+   style ở trên. */
+.sidebar-brand-name--hero { font-size: 16px; }
 .login-card h1, .login-card h2 { margin: 0; font-size: 22px; }
 .login-card-hint { margin: 0 0 6px; font-size: 13px; color: var(--ink-soft); line-height: 1.5; }
 .field-label { font-size: 12.5px; color: var(--ink-soft); font-weight: 600; }

@@ -218,10 +218,10 @@ export default function ReportCatalogPanel() {
 
             <div className="inline-actions">
               <input
+                className="flex-1"
                 placeholder='Bộ lọc mẫu để chạy thử, vd {"maDonHang":"DH001"}'
                 value={testFilters}
                 onChange={(e) => setTestFilters(e.target.value)}
-                style={{ flex: 1 }}
               />
               <button type="button" onClick={runExternalTest} disabled={testing || !form.externalConnectionId || !form.externalPath}>
                 {testing ? 'Đang chạy...' : 'Chạy thử'}
@@ -229,7 +229,7 @@ export default function ReportCatalogPanel() {
             </div>
             {testError && <p className="form-error">{testError}</p>}
             {testResult && (
-              <pre className="table-scroll" style={{ maxHeight: 240, overflow: 'auto' }}>{JSON.stringify(testResult, null, 2)}</pre>
+              <pre className="table-scroll table-scroll--result">{JSON.stringify(testResult, null, 2)}</pre>
             )}
           </fieldset>
         )}
