@@ -21,6 +21,7 @@
 const ExcelJS = require('exceljs');
 const { sql } = require('../db');
 const { encrypt } = require('./crypto');
+const { guardZipBombSize } = require('./fileSignature');
 
 const REQUIRED_HEADERS = ['Name', 'Server', 'DatabaseName', 'Username', 'Password'];
 const BOOL_TRUE_VALUES = ['true', '1', 'yes', 'có', 'x'];
@@ -32,6 +33,11 @@ const BOOL_TRUE_VALUES = ['true', '1', 'yes', 'có', 'x'];
 // thiếu kiểm tra), dùng case thật (vài chục/vài trăm chi nhánh) làm chuẩn.
 const MAX_IMPORT_ROWS = 5000;
 
+// Giới hạn dung lượng SAU GIẢI NÉN — kiểm tra TRƯỚC workbook.xlsx.load()
+// (xem guardZipBombSize ở lib/fileSignature.js), MAX_IMPORT_ROWS ở trên chỉ
+// chặn được SAU khi đã giải nén xong nên không đủ chống "zip bomb".
+const MAX_UNCOMPRESSED_BYTES = 200 * 1024 * 1024;
+
 function parseBool(raw, defaultValue) {
   if (raw === null || raw === undefined || raw === '') return defaultValue;
   return BOOL_TRUE_VALUES.includes(String(raw).trim().toLowerCase());
@@ -39,6 +45,7 @@ function parseBool(raw, defaultValue) {
 
 // { rows: [{name, server, port, databaseName, username, password, encrypt, trustServerCert}], rowErrors: string[] }
 async function parseDataSourcesFile(buffer) {
+  guardZipBombSize(buffer, MAX_UNCOMPRESSED_BYTES);
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(buffer);
   const sheet = workbook.worksheets[0];

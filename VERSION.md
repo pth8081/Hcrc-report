@@ -15,6 +15,61 @@ không chặt: patch/minor/major), GIỮ NGUYÊN không đánh số lại — `0
 (gần nhất theo quy tắc cũ) tương ứng **`4.1`** theo quy tắc mới, là điểm
 bắt đầu đếm tiếp từ đây.
 
+## 4.3 — Xử lý các phát hiện của team security (rà soát + vá)
+
+Team security đưa checklist 15 mục kèm mức độ nghiêm trọng — rà soát lại
+TỪNG mục với code thật (không nhận nguyên bảng) trước khi xử lý, vì vài mục
+đã được vá ở các vòng trước đó trong phiên làm việc này (magic byte, rate
+limit đăng nhập, 2FA, JWT iss/aud, CORS) nên có thể team đã đánh giá dựa
+trên thông tin cũ. Kết quả rà soát + vá:
+
+- **Formula injection khi xuất Excel** (`rp-server/lib/exportExcel.js`) —
+  giá trị ô bắt đầu bằng `=`/`+`/`-`/`@` (đến từ dữ liệu nguồn, không phải
+  do server tự sinh) bị Excel hiểu thành công thức sống khi mở file — thêm
+  dấu nháy đơn ở đầu (chuẩn khắc phục OWASP) trước khi ghi ra file xuất.
+- **"Zip bomb" khi nhập Excel** — `etl/lib/dataSourcesImport.js`,
+  `etl/lib/salesTargetsImport.js`, `api-server/lib/dataSourcesImport.js` gọi
+  thẳng `workbook.xlsx.load(buffer)` (giải nén toàn bộ vào RAM) mà không có
+  giới hạn dung lượng SAU giải nén — thêm `guardZipBombSize()`
+  (`lib/fileSignature.js` x2: etl, api-server) tự đọc End Of Central
+  Directory + Central Directory của định dạng ZIP (không cần thư viện
+  ngoài) để ước lượng dung lượng thật TRƯỚC khi giải nén, chặn ở 200MB.
+- **Thiếu nhật ký thao tác (Audit Log)** ở 2 route: `api-server/routes/v1/oauth.js`
+  (`POST /token` — phát hành/từ chối access token cho đối tác OAuth2) và
+  `rp-server/routes/reports.js` (`POST /:reportId/export` — xuất báo cáo) —
+  cả 2 giờ đã ghi log đúng mẫu các route khác.
+- **Thời gian phiên đăng nhập admin** — rút `TOKEN_TTL` từ 8h xuống **2h**
+  ở cả 3 service (`etl/lib/adminAuth.js`, `api-server/lib/adminAuth.js`,
+  `rp-server/lib/auth.js`), kèm cơ chế **"trượt phiên"**: còn dưới 30 phút
+  là hết hạn thì `requireAuth()`/`requireAdminAuth()` tự phát hành token mới
+  (TTL lại đủ 2h) ngay trong request đang xử lý — admin còn thao tác không
+  bao giờ bị văng ra giữa chừng, nhưng ngừng thao tác quá 2h liên tục thì
+  vẫn phải đăng nhập lại như cũ. Không cần endpoint refresh riêng, không đổi
+  gì ở frontend.
+- **Khả năng xoay khoá mã hoá** — `lib/crypto.js` (x3: etl, api-server,
+  rp-server) chuyển từ 1 khoá tĩnh duy nhất sang hỗ trợ **thêm 1 khoá CŨ
+  tuỳ chọn** (`*_ENCRYPTION_KEY_PREVIOUS` trong `.env`, để trống = hành vi
+  cũ 100%): mã hoá LUÔN dùng khoá hiện hành, giải mã thử khoá hiện hành
+  trước — chỉ thử khoá cũ khi khoá hiện hành lỗi (AES-256-GCM tự phát hiện
+  sai khoá qua authTag, không có rủi ro giải mã nhầm). Đây là NĂNG LỰC
+  trong code để vận hành viên tự xoay khoá thật sau này khi cần (theo yêu
+  cầu), KHÔNG phải một lượt xoay khoá thật đã thực hiện.
+- **CSRF trên route admin** — team đánh giá ❌ mức CAO; rà soát lại thấy rủi
+  ro thật đã được giảm đáng kể từ trước: cookie phiên `httpOnly` +
+  `SameSite=Lax`, KHÔNG có route đổi trạng thái nào chấp nhận GET, và
+  không có luồng nào dựa vào cookie tự động gửi kèm từ site khác theo cách
+  CSRF cổ điển khai thác được. Không thêm lớp CSRF token riêng ở vòng này —
+  ghi nhận là rủi ro thấp hơn đánh giá gốc, không phải bỏ qua.
+- **Đã xác nhận LẠI đúng** (không cần vá thêm) qua rà soát: rate limit đăng
+  nhập (`isBlocked`/`recordFailure`/`recordSuccess`), error handler chung
+  không lộ chi tiết lỗi, HTTPS redirect ở tầng Nginx.
+- Test bằng script Node độc lập (không cần CSDL): xoay khoá mã hoá (mã hoá/
+  giải mã qua cả 2 khoá), `guardZipBombSize` (file hợp lệ/vượt giới hạn/
+  ZIP64/không phải ZIP), sanitize formula injection (đọc lại buffer Excel
+  bằng ExcelJS xác nhận đúng ký tự `'` được thêm), TTL token = 2h, và luồng
+  `requireAuth()` đầy đủ cho 3 trường hợp trượt phiên (còn hạn xa/gần hết
+  hạn/đã bị thu hồi).
+
 ## 4.2 — Thiết kế lại giao diện đăng nhập + trang chủ cho cả 3 giao diện quản trị/người dùng
 
 Theo yêu cầu: giao diện đăng nhập + trang chủ (sau đăng nhập) của

@@ -10,6 +10,7 @@ const express = require('express');
 const { sql, getPool } = require('../../db');
 const { sha256Hex } = require('../../lib/hash');
 const { issueToken } = require('../../lib/oauthTokens');
+const { logAction } = require('../../lib/auditLog');
 
 // So sánh bằng crypto.timingSafeEqual — cùng lý do lib/hmacAuth.js:47-49
 // (so sánh chuỗi thường rò rỉ thời gian xử lý theo độ dài phần khớp).
@@ -49,6 +50,13 @@ router.post('/token', async (req, res, next) => {
     `);
     const row = result.recordset[0];
     if (!row || !secretMatches(clientSecret, row.ClientSecretHash)) {
+      // req.admin không tồn tại ở route đối tác này (không qua requireAdminAuth)
+      // — tự ghép object tối thiểu cho logAction (chỉ đọc req.ip/req.admin.username),
+      // cùng mẫu routes/admin/auth.js đăng nhập thất bại.
+      await logAction({ ip: req.ip, admin: { username: clientId } }, {
+        module: 'OAuth2 đối tác', actionType: 'TU_CHOI_TOKEN', targetObject: clientId,
+        description: 'Đổi token thất bại — client_id/client_secret không hợp lệ', status: 'FAILED'
+      });
       return res.status(401).json({ error: 'invalid_client', error_description: 'client_id/client_secret không hợp lệ' });
     }
 
@@ -66,6 +74,10 @@ router.post('/token', async (req, res, next) => {
       rateLimitPerMinute: row.RateLimitPerMinute
     };
     const { accessToken, expiresIn } = issueToken(consumer);
+    await logAction({ ip: req.ip, admin: { username: clientId } }, {
+      module: 'OAuth2 đối tác', actionType: 'PHAT_HANH_TOKEN', targetObject: clientId,
+      description: `Phát hành access token cho đối tác "${row.Name}"`
+    });
     res.json({ access_token: accessToken, token_type: 'Bearer', expires_in: expiresIn });
   } catch (err) { next(err); }
 });

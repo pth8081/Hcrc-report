@@ -100,7 +100,8 @@ GO
 
 -- Thu hồi phiên đăng nhập (JWT) — JWT tự chứa (self-contained), verify chữ
 -- ký xong là qua, KHÔNG tự phát hiện được đổi mật khẩu/gỡ 2FA/đổi vai
--- trò/khoá tài khoản cho tới khi token tự hết hạn (TTL 8h). requireAuth()
+-- trò/khoá tài khoản cho tới khi token tự hết hạn (TTL 2h, có thể "trượt"
+-- dài hơn nếu còn hoạt động). requireAuth()
 -- (lib/auth.js) so claim "iat" (issued-at, jsonwebtoken tự gắn) của token
 -- với SessionsInvalidatedAt — token phát hành TRƯỚC lần thu hồi gần nhất bị
 -- từ chối dù chữ ký còn đúng. Xem lib/sessionRevocation.js.

@@ -31,6 +31,7 @@
 // thêm field nào vào TargetsJson.
 const ExcelJS = require('exceljs');
 const { sql } = require('../db');
+const { guardZipBombSize } = require('./fileSignature');
 
 const REQUIRED_HEADERS = ['MaSieuThi', 'Thang'];
 const PERIOD_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
@@ -68,8 +69,13 @@ function parseVietnameseNumber(str) {
 // lib/dataSourcesImport.js.
 const MAX_IMPORT_ROWS = 5000;
 
+// Giới hạn dung lượng SAU GIẢI NÉN, kiểm tra TRƯỚC workbook.xlsx.load() —
+// xem chú thích cùng tên trong lib/dataSourcesImport.js.
+const MAX_UNCOMPRESSED_BYTES = 200 * 1024 * 1024;
+
 // { rows: [{entityCode, periodMonth: Date, targets: {...}}], rowErrors: string[] }
 async function parseSalesTargetsFile(buffer) {
+  guardZipBombSize(buffer, MAX_UNCOMPRESSED_BYTES);
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(buffer);
   const sheet = workbook.worksheets[0];

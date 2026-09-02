@@ -7,7 +7,14 @@ const { sql, getPool } = require('../db');
 const { isSessionRevoked } = require('./sessionRevocation');
 
 const COOKIE_NAME = 'hcrc_etl_admin_token';
-const TOKEN_TTL = '8h';
+const TOKEN_TTL = '2h';
+const TOKEN_TTL_MS = 2 * 60 * 60 * 1000;
+
+// "Trượt phiên" (sliding session) — xem chú thích cùng tên trong
+// rp-server/lib/auth.js: còn dưới 30 phút là hết hạn thì tự phát hành token
+// MỚI (TTL lại đủ 2h) ngay trong requireAdminAuth(), admin còn thao tác thì
+// không bị văng ra giữa chừng; ngừng thao tác quá 2h thì phải đăng nhập lại.
+const REFRESH_THRESHOLD_SECONDS = 30 * 60;
 
 // iss/aud RIÊNG cho token etl-admin — jwt.verify() dưới đây đòi khớp CẢ 2,
 // nên dù ETL_ADMIN_JWT_SECRET có VÔ TÌNH trùng giá trị với secret của
@@ -101,6 +108,21 @@ function verifyToken(token) {
   return jwt.verify(token, getSecret(), { algorithms: ['HS256'], issuer: ISSUER, audience: ISSUER });
 }
 
+// Gọi SAU khi payload đã qua verify chữ ký + isSessionRevoked (không trượt
+// phiên cho token sắp bị coi là thu hồi) — role NHÚNG THẲNG lại vào token
+// mới TỪ CHÍNH payload cũ, không tự tra lại CSDL: đúng tinh thần thiết kế
+// hiện tại (đổi role LUÔN gọi revokeSessions(), xem chú thích isSessionRevoked
+// bên dưới) — 1 request đã qua được nhánh isSessionRevoked=false nghĩa là
+// role trong payload vẫn đang là role hiện hành, an toàn để mang sang token
+// mới.
+function maybeSlideSession(payload, res) {
+  if (typeof payload.exp !== 'number') return;
+  const secondsLeft = payload.exp - Math.floor(Date.now() / 1000);
+  if (secondsLeft > REFRESH_THRESHOLD_SECONDS) return;
+  const fresh = issueToken({ id: payload.sub, username: payload.username, role: payload.role });
+  setSessionCookie(res, fresh);
+}
+
 async function requireAdminAuth(req, res, next) {
   const token = req.cookies?.[COOKIE_NAME];
   if (!token) return res.status(401).json({ error: 'Chưa đăng nhập' });
@@ -123,6 +145,7 @@ async function requireAdminAuth(req, res, next) {
       return res.status(401).json({ error: 'Phiên đăng nhập đã bị thu hồi (đổi mật khẩu/2FA/vai trò, hoặc tài khoản bị khoá) — đăng nhập lại' });
     }
   } catch (err) { return next(err); }
+  maybeSlideSession(payload, res);
   req.admin = payload;
   next();
 }
@@ -135,7 +158,7 @@ function setSessionCookie(res, token) {
     httpOnly: true,
     sameSite: 'lax',
     secure: process.env.NODE_ENV === 'production' || process.env.ADMIN_COOKIE_SECURE === 'true',
-    maxAge: 8 * 60 * 60 * 1000
+    maxAge: TOKEN_TTL_MS
   });
 }
 

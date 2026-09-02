@@ -26,6 +26,7 @@ const { exportExcel } = require('../lib/exportExcel');
 const { exportPdf } = require('../lib/exportPdf');
 const { getUserContext } = require('../lib/permissions');
 const reportResultCache = require('../lib/reportResultCache');
+const { logAction } = require('../lib/auditLog');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -131,12 +132,14 @@ router.post('/:reportId/export', async (req, res, next) => {
 
     if (format === 'excel') {
       const buffer = await exportExcel(exportDefinition, projected);
+      await logAction(req, { module: 'Báo cáo', actionType: 'XUAT_BAO_CAO', targetObject: req.params.reportId, description: `Xuất Excel báo cáo "${definition.title}" (${projected.length} dòng)` });
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
       res.setHeader('Content-Disposition', `attachment; filename="${definition.title}.xlsx"`);
       return res.send(buffer);
     }
     if (format === 'pdf') {
       const buffer = await exportPdf(exportDefinition, projected);
+      await logAction(req, { module: 'Báo cáo', actionType: 'XUAT_BAO_CAO', targetObject: req.params.reportId, description: `Xuất PDF báo cáo "${definition.title}" (${projected.length} dòng)` });
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `attachment; filename="${definition.title}.pdf"`);
       return res.send(buffer);

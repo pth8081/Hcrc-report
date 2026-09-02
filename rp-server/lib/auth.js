@@ -11,7 +11,19 @@ const { verifyPassword: verifyHcrcWorkspacePassword } = require('./hcrcWorkspace
 const { isSessionRevoked } = require('./sessionRevocation');
 
 const COOKIE_NAME = 'hcrc_rp_token';
-const TOKEN_TTL = '8h';
+const TOKEN_TTL = '2h';
+const TOKEN_TTL_MS = 2 * 60 * 60 * 1000;
+
+// "Trượt phiên" (sliding session): còn dưới 30 phút là hết hạn thì tự phát
+// hành token MỚI (TTL lại đủ 2h) ngay trong requireAuth() — admin còn thao
+// tác (còn gọi API) thì không bao giờ bị văng ra giữa chừng, nhưng NGỪNG
+// thao tác quá 2h liên tục (không request nào lọt threshold này) thì token
+// cũ tự hết hạn như bình thường, phải đăng nhập lại — cách này đổi
+// "TTL tuyệt đối tính từ lúc đăng nhập" (rủi ro: đang làm việc bị văng giữa
+// chừng) thành "TTL tính từ lần hoạt động GẦN NHẤT" mà KHÔNG cần thêm cơ chế
+// refresh-token/endpoint riêng — mọi route đã đi qua requireAuth() đều tự
+// động được hưởng.
+const REFRESH_THRESHOLD_SECONDS = 30 * 60;
 
 // iss/aud RIÊNG cho token rp-server — jwt.verify() dưới đây đòi khớp CẢ 2,
 // nên dù RP_JWT_SECRET có VÔ TÌNH trùng giá trị với secret của etl/api-server
@@ -123,6 +135,18 @@ function verifyToken(token) {
   return jwt.verify(token, getSecret(), { algorithms: ['HS256'], issuer: ISSUER, audience: ISSUER });
 }
 
+// Gọi SAU khi payload đã qua verify chữ ký + isSessionRevoked (không trượt
+// phiên cho token sắp bị coi là thu hồi) — payload.role không tồn tại ở
+// service này (rp-server không nhúng role vào token, xem đầu file), issueToken
+// chỉ đọc id/username nên bỏ qua an toàn.
+function maybeSlideSession(payload, res) {
+  if (typeof payload.exp !== 'number') return;
+  const secondsLeft = payload.exp - Math.floor(Date.now() / 1000);
+  if (secondsLeft > REFRESH_THRESHOLD_SECONDS) return;
+  const fresh = issueToken({ id: payload.sub, username: payload.username });
+  setSessionCookie(res, fresh);
+}
+
 async function requireAuth(req, res, next) {
   const token = req.cookies?.[COOKIE_NAME];
   if (!token) return res.status(401).json({ error: 'Chưa đăng nhập' });
@@ -144,6 +168,7 @@ async function requireAuth(req, res, next) {
       return res.status(401).json({ error: 'Phiên đăng nhập đã bị thu hồi (đổi mật khẩu/2FA/vai trò, hoặc tài khoản bị khoá) — đăng nhập lại' });
     }
   } catch (err) { return next(err); }
+  maybeSlideSession(payload, res);
   req.user = payload;
   next();
 }
@@ -156,7 +181,7 @@ function setSessionCookie(res, token) {
     httpOnly: true,
     sameSite: 'lax',
     secure: process.env.NODE_ENV === 'production' || process.env.COOKIE_SECURE === 'true',
-    maxAge: 8 * 60 * 60 * 1000
+    maxAge: TOKEN_TTL_MS
   });
 }
 

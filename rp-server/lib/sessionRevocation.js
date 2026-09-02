@@ -1,9 +1,10 @@
 // lib/sessionRevocation.js — Thu hồi phiên đăng nhập (JWT) khi đổi mật
 // khẩu/gỡ 2FA/đổi vai trò/khoá tài khoản. JWT tự chứa (self-contained) —
 // requireAuth() (lib/auth.js) chỉ verify chữ ký, KHÔNG tự phát hiện được
-// những thay đổi này cho tới khi token tự hết hạn (TTL 8h) — 1 phiên bị
-// đánh cắp trước khi admin phát hiện/xử lý vẫn dùng được tới hết TTL dù
-// admin đã đổi mật khẩu/gỡ 2FA/khoá tài khoản đó ngay lập tức.
+// những thay đổi này cho tới khi token tự hết hạn (TTL 2h, có thể "trượt"
+// dài hơn nếu còn hoạt động — xem maybeSlideSession() ở lib/auth.js) — 1
+// phiên bị đánh cắp trước khi admin phát hiện/xử lý vẫn dùng được tới hết
+// TTL dù admin đã đổi mật khẩu/gỡ 2FA/khoá tài khoản đó ngay lập tức.
 //
 // app.Users.SessionsInvalidatedAt (xem rp-db/schema.sql) so với claim "iat"
 // (issued-at, jsonwebtoken tự gắn mỗi lần jwt.sign()) — token phát hành
