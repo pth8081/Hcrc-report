@@ -110,6 +110,13 @@ export default function ReportsPage() {
                 <button type="button" onClick={() => exportAs('excel')}>Xuất Excel</button>
                 <button type="button" onClick={() => exportAs('pdf')}>Xuất PDF</button>
               </div>
+              {/* warnings — CHỈ có ở báo cáo composite (xem
+                  rp-server/lib/compositeReportRunner.js), khi 1 khối nguồn
+                  trả nhiều hơn 1 dòng cho cùng thực thể — thực thể đó đã bị
+                  LOẠI khỏi kết quả bên dưới (không hiện số liệu có thể sai),
+                  báo ở đây để người dùng biết báo cáo đang THIẾU vài dòng,
+                  không phải "hết dữ liệu". */}
+              {result.warnings?.map((w, i) => <p key={i} className="form-warning">⚠️ {w}</p>)}
               {/* result.columns đã là [{key,label}] — rp-server chuẩn hoá sẵn
                   (kể cả cột công thức), xem rp-server/lib/reportEngine.js:describeColumns(). */}
               <DataTable

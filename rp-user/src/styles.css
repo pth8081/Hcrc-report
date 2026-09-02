@@ -38,6 +38,7 @@ button:hover { opacity: 0.9; }
 .checkbox-row { flex-direction: row; align-items: center; gap: 6px; font-size: 14px; color: var(--ink); }
 .date-range { display: flex; align-items: center; gap: 6px; }
 .form-error { color: #b3261e; font-size: 13px; }
+.form-warning { color: #8a5a00; background: #fff4dd; border: 1px solid #f0c674; border-radius: 6px; padding: 8px 12px; font-size: 13px; margin: 0 0 10px; }
 .form-success { color: #1c7566; font-size: 13px; }
 .hint { color: var(--ink-soft); font-size: 12.5px; margin: -4px 0 4px; }
 .filter-config { border: 1px solid var(--line); border-radius: 4px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }

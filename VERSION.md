@@ -15,6 +15,27 @@ không chặt: patch/minor/major), GIỮ NGUYÊN không đánh số lại — `0
 (gần nhất theo quy tắc cũ) tương ứng **`4.1`** theo quy tắc mới, là điểm
 bắt đầu đếm tiếp từ đây.
 
+## 4.5 — Composite report: loại riêng thực thể lỗi thay vì im lặng sai/chặn cả báo cáo
+
+Theo yêu cầu (sau khi so sánh 2 lựa chọn "giữ cảnh báo" và "chặn cứng" ở
+bản 4.4): làm phương án giữa cho `rp-server/lib/compositeReportRunner.js`
+khi 1 khối nguồn trả về NHIỀU HƠN 1 dòng cho cùng entityCode (dấu hiệu lỗi
+cấu hình filter, xem Q8 bản trước) —
+- **Trước đây**: chỉ `console.warn()`, vẫn giữ dòng cuối cùng gặp được →
+  hiện số liệu CÓ THỂ SAI mà không ai biết trên giao diện.
+- **Giờ**: LOẠI HẲN đúng thực thể đó khỏi kết quả (không đụng tới các thực
+  thể khác — báo cáo vẫn chạy bình thường cho phần còn lại), và trả thêm
+  `warnings: string[]` trong response `/reports/:id/run` — rp-user hiện
+  banner cảnh báo màu cam phía trên bảng dữ liệu ("Đã loại N thực thể khỏi
+  báo cáo do dữ liệu nguồn không nhất quán..."), không lộ entityCode cụ thể
+  ra giao diện người dùng cuối (chi tiết vẫn ở log server qua `console.warn`
+  cho admin).
+- Áp dụng cho cả 2 nhánh trả về (có/không `groupBy`) — dòng "Tổng cộng" tự
+  động không cộng cả thực thể bị loại (tính từ `mergedRows` đã lọc).
+- Test bằng script Node độc lập: entity bình thường vẫn xuất hiện, entity
+  có khối trả 2 dòng bị loại đúng + có warning; không có entity lỗi thì
+  warnings rỗng, không đổi hành vi cũ. Build sạch rp-user.
+
 ## 4.4 — Rà soát báo cáo bảo mật/kiến trúc lần 2 (Copilot Chat) — 1 lỗi thật, còn lại đã vá/không đúng
 
 Team security gửi tiếp 1 báo cáo dài (2 phần: bảo mật chung + kiến trúc/logic

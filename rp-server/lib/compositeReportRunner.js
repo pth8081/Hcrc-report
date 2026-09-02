@@ -197,20 +197,24 @@ async function runCompositeReport(definition, filterValues = {}) {
   // Map giữ thứ tự chèn -> thứ tự dòng trả về ổn định, khớp thứ tự khối
   // ĐẦU TIÊN gặp mỗi entityCode (thường là khối "hôm nay").
   const merged = new Map();
+  // entityCode nào có khối trả về >1 dòng (xem cảnh báo bên dưới) — LOẠI HẲN
+  // khỏi kết quả (xem đoạn lọc mergedRows), KHÔNG chỉ cảnh báo âm thầm rồi
+  // vẫn trả dòng có thể sai như TRƯỚC ĐÂY — tránh 2 thái cực: (a) im lặng
+  // hiện số liệu SAI (rủi ro cao hơn — người xem tin tưởng số liệu, không
+  // biết mà kiểm tra lại) và (b) chặn CỨNG cả báo cáo chỉ vì 1 thực thể lỗi
+  // cấu hình (ảnh hưởng mọi người xem MỌI thực thể khác, kể cả khi đúng
+  // 100%). Loại riêng đúng thực thể lỗi + trả "warnings" cho caller hiển thị
+  // là điểm cân bằng giữa 2 rủi ro đó.
+  const ambiguousEntityCodes = new Set();
   definition.blocks.forEach((block, i) => {
     for (const row of blockRowsList[i]) {
       const entityCode = row.entityCode;
       if (!entityCode) continue;
       if (!merged.has(entityCode)) merged.set(entityCode, { entityCode });
       const target = merged.get(entityCode);
-      // Khối trả về >1 dòng cho CÙNG entityCode (vd cấu hình filters của
-      // khối lỏng hơn dự kiến, hoặc nguồn có nhiều dòng/thực thể mà báo cáo
-      // đang giả định 1 dòng/thực thể) khiến dòng SAU âm thầm ghi đè dòng
-      // TRƯỚC — không có lỗi nào ném ra, chỉ số liệu sai lặng lẽ. Cảnh báo
-      // ra log để phát hiện sớm, KHÔNG chặn chạy báo cáo (vẫn trả kết quả,
-      // dùng dòng cuối cùng gặp — giữ nguyên hành vi cũ).
       if (target[block.key] !== undefined) {
-        console.warn(`⚠️  [composite] khối "${block.key}" trả về NHIỀU HƠN 1 dòng cho entityCode "${entityCode}" — chỉ giữ dòng cuối cùng, kiểm tra lại cấu hình filters của khối này`);
+        console.warn(`⚠️  [composite] khối "${block.key}" trả về NHIỀU HƠN 1 dòng cho entityCode "${entityCode}" — LOẠI thực thể này khỏi báo cáo, kiểm tra lại cấu hình filters của khối này`);
+        ambiguousEntityCodes.add(entityCode);
       }
       target[block.key] = row;
     }
@@ -243,15 +247,24 @@ async function runCompositeReport(definition, filterValues = {}) {
   // etl/lib/salesTargetsImport.js) — CHỈ loại khi có đánh dấu TƯỜNG MINH.
   // Thực thể THIẾU dòng chỉ tiêu (chưa kịp nhập) vẫn phải hiện ra như bình
   // thường — không suy luận "thiếu dòng = đã đóng cửa", tránh mất siêu thị
-  // khỏi báo cáo chỉ vì ai đó quên nhập 1 dòng.
+  // khỏi báo cáo chỉ vì ai đó quên nhập 1 dòng. Cùng lượt lọc này LOẠI LUÔN
+  // thực thể trong ambiguousEntityCodes (xem vòng ghép ở trên) — dữ liệu
+  // không đủ tin cậy để tính đúng, không hiện ra thay vì hiện số có thể sai.
   const targetBlockKeys = definition.blocks.filter(b => b.isTarget).map(b => b.key);
   const mergedRows = [...merged.values()].filter(
-    r => !targetBlockKeys.some(key => r[key]?.TrangThai === 'DaDong')
+    r => !targetBlockKeys.some(key => r[key]?.TrangThai === 'DaDong') && !ambiguousEntityCodes.has(r.entityCode)
   );
   const columns = describeColumns(definition.columns);
+  // warnings — CHỈ cảnh báo "có thực thể bị loại", không liệt kê entityCode
+  // cụ thể ra tận giao diện người dùng cuối (rp-user) — thông tin đó dành
+  // cho admin xem qua log server (console.warn ở trên), tránh lộ mã thực
+  // thể/chi tiết cấu hình nội bộ cho người dùng thường.
+  const warnings = ambiguousEntityCodes.size
+    ? [`Đã loại ${ambiguousEntityCodes.size} thực thể khỏi báo cáo do dữ liệu nguồn không nhất quán (1 khối trả nhiều hơn 1 dòng cho cùng thực thể) — liên hệ quản trị viên để kiểm tra lại cấu hình.`]
+    : [];
 
   if (!definition.groupBy) {
-    return { columns, rows: mergedRows.map(r => projectCompositeRow(r, definition.columns)) };
+    return { columns, rows: mergedRows.map(r => projectCompositeRow(r, definition.columns)), warnings };
   }
 
   const { field, groups = [], grandTotalLabel, labelColumn } = definition.groupBy;
@@ -281,7 +294,7 @@ async function runCompositeReport(definition, filterValues = {}) {
   grandRow.__isGrandTotal = true;
   rows.push(grandRow);
 
-  return { columns, rows };
+  return { columns, rows, warnings };
 }
 
 module.exports = { runCompositeReport };
