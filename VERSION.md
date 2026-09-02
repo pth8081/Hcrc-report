@@ -15,6 +15,53 @@ không chặt: patch/minor/major), GIỮ NGUYÊN không đánh số lại — `0
 (gần nhất theo quy tắc cũ) tương ứng **`4.1`** theo quy tắc mới, là điểm
 bắt đầu đếm tiếp từ đây.
 
+## 4.4 — Rà soát báo cáo bảo mật/kiến trúc lần 2 (Copilot Chat) — 1 lỗi thật, còn lại đã vá/không đúng
+
+Team security gửi tiếp 1 báo cáo dài (2 phần: bảo mật chung + kiến trúc/logic
+nghiệp vụ) từ Copilot Chat — rà lại từng mục với code thật trước khi sửa,
+vì nhiều mục đã lỗi thời (không cập nhật các đợt vá 4.1-4.3 trong phiên làm
+việc này) hoặc suy đoán sai. Kết quả:
+
+- **Lỗi thật, đã vá**: `etl/routes/admin/syncJobs.js` — tạo/sửa job KHÔNG
+  kiểm tra `cronExpression` hợp lệ lúc lưu (POST/PUT). `jobs/scheduler.js`
+  có `cron.validate()` nhưng chỉ `console.error()` rồi bỏ qua (job coi như
+  tắt, không cron nào chạy) — KHÔNG báo gì lên giao diện. Admin gõ sai cú
+  pháp cron vẫn thấy lưu "thành công", job không bao giờ tự chạy, chỉ phát
+  hiện được nếu soi log console server. Giờ chặn ngay lúc lưu bằng
+  `cron.validate()`, trả 400 rõ ràng.
+- **Repo đang PUBLIC thật** — xác nhận đúng qua GitHub, nhưng đây là quyết
+  định của người dùng (đổi private ảnh hưởng ai truy cập được), không tự ý
+  đổi — đã báo lại rõ, chờ người dùng quyết.
+- **Đã vá TỪ TRƯỚC (báo cáo không cập nhật)**: zip-bomb guard cho
+  `api-server/lib/dataSourcesImport.js` (bản 4.3), khả năng xoay khoá mã
+  hoá (`lib/crypto.js` x3, bản 4.3), rate limit đăng nhập, 2FA, custom
+  connector dùng whitelist tĩnh (không `require()` động).
+- **Sai/không phải lỗi (đã xác minh lại với code thật)**:
+  - `api-server/routes/admin/consumers.js` rotate API key — ĐÃ gọi
+    `invalidate()` ngay sau khi đổi CSDL, không có khoảng hở cache 30s.
+  - `rp-server/routes/roles.js` — ĐÃ gọi `invalidateAll()` sau mọi lượt sửa
+    quyền vai trò (PUT tên, xoá, gán menu, gán báo cáo) — cache KHÔNG bị hở
+    khi đổi quyền vai trò.
+  - `compositeReportRunner.js: deepSumBlock()` — báo cáo cho rằng nhóm toàn
+    giá trị `null` sẽ cộng ra `0`; dò lại code: nhánh `values.some(v =>
+    typeof v === 'number')` false khi TOÀN BỘ giá trị null → rơi xuống
+    `values.find(v => v !== null)` → `undefined`, không phải `0`. Không có
+    lỗi này.
+  - `api-server/routes/v1/reports.js` — thứ tự kiểm tra "quyền trước, tồn
+    tại sau" là CHỦ Ý (chống dò danh mục ReportId qua phân biệt 403/404),
+    đúng như comment trong code — không phải lỗi.
+  - `formulaEngine.js` không dùng `eval()` (tokenizer/parser riêng) — an
+    toàn như báo cáo tự xác nhận ở phần sau.
+- **Chưa sửa, mức thấp, cần thêm thời gian đánh giá cùng người dùng**: cảnh
+  báo (không chặn) khi 1 khối composite trả nhiều dòng cho cùng entityCode
+  — đã có từ bản trước (Q8), giữ nguyên chủ ý "không chặn cả báo cáo vì 1
+  khối lỗi"; kiểm tra chéo domain giữa khối `isTarget` và khối `directDb`
+  trong composite report — chưa thêm, vì đây là tính năng CHO PHÉP kết hợp
+  domain tuỳ ý (không phải luôn phải trùng), cần người dùng xác nhận có
+  muốn thêm cảnh báo hay không trước khi đổi.
+- Test bằng script Node độc lập: POST/PUT `/admin/sync-jobs` với cron sai
+  cú pháp → 400 kèm thông báo rõ; cron đúng vẫn tạo/sửa job bình thường.
+
 ## 4.3 — Xử lý các phát hiện của team security (rà soát + vá)
 
 Team security đưa checklist 15 mục kèm mức độ nghiêm trọng — rà soát lại

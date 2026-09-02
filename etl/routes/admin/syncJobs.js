@@ -14,6 +14,7 @@
 // ở đây không thay thế được lớp đó (schema có thể đổi giữa lúc lưu và lúc
 // chạy).
 const express = require('express');
+const cron = require('node-cron');
 const { sql, getPool } = require('../../db');
 const { requireAdminAuth, requireAdminRole, blockTargetImporter } = require('../../lib/adminAuth');
 const sourcesRegistry = require('../../sources');
@@ -87,6 +88,14 @@ router.post('/', requireAdminRole, async (req, res, next) => {
     if (b.type === 'custom' && !b.customConnectorKey) {
       return res.status(400).json({ error: 'Job Type="custom" thiếu customConnectorKey' });
     }
+    // jobs/scheduler.js:registerJob() cũng gọi cron.validate() trước khi
+    // đăng ký — nhưng lỗi ở đó chỉ console.error() rồi bỏ qua (job coi như
+    // TẮT, không có cron nào chạy), KHÔNG có gì báo lại cho admin thấy trên
+    // giao diện. Lưu job xong tưởng đã bật, job không bao giờ tự chạy —
+    // chặn ngay lúc lưu để admin thấy lỗi rõ ràng thay vì phải soi log server.
+    if (b.cronExpression && !cron.validate(b.cronExpression)) {
+      return res.status(400).json({ error: `Lịch chạy (cron) không hợp lệ: "${b.cronExpression}"` });
+    }
     if (b.type === 'table') {
       try {
         await validateTableJobSchema(b);
@@ -145,6 +154,9 @@ router.put('/:id', requireAdminRole, async (req, res, next) => {
     const existing = await pool.request().input('id', sql.Int, jobId)
       .query('SELECT Type, DataSourceId, SourceSchema, SourceTable FROM etl.SyncJobs WHERE Id = @id');
     if (!existing.recordset.length) return res.status(404).json({ error: 'Không tìm thấy job' });
+    if (b.cronExpression && !cron.validate(b.cronExpression)) {
+      return res.status(400).json({ error: `Lịch chạy (cron) không hợp lệ: "${b.cronExpression}"` });
+    }
     const job = existing.recordset[0];
     if (job.Type === 'table') {
       try {
