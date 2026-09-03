@@ -101,7 +101,9 @@ button:hover { opacity: 0.9; }
 .dashboard-title { font-size: 16px; margin: 4px 0 12px; }
 .dashboard-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 20px; }
 .dashboard-tile { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px 20px; box-shadow: 0 1px 3px rgba(20, 30, 40, .06); overflow-x: auto; }
-.dashboard-tile-title { font-size: 14px; margin: 0 0 12px; color: var(--ink); }
+.dashboard-tile-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 12px; }
+.dashboard-tile-title { font-size: 14px; margin: 0; color: var(--ink); }
+.dashboard-tile-toggle { font-size: 12px; padding: 4px 10px; white-space: nowrap; }
 .dashboard-crossfilter-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 8px 0 16px; font-size: 13px; color: var(--ink-soft); }
 .dashboard-crossfilter-chip { display: inline-flex; align-items: center; gap: 6px; background: var(--accent-soft); border-radius: 999px; padding: 4px 10px; font-weight: 600; color: var(--ink); }
 .dashboard-crossfilter-chip button { border: none; background: none; cursor: pointer; font-size: 12px; line-height: 1; padding: 0; color: var(--ink-soft); }

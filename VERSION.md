@@ -15,6 +15,23 @@ không chặt: patch/minor/major), GIỮ NGUYÊN không đánh số lại — `0
 (gần nhất theo quy tắc cũ) tương ứng **`4.1`** theo quy tắc mới, là điểm
 bắt đầu đếm tiếp từ đây.
 
+## 5.0 — Dashboard: thêm nút "Xem bảng" cho từng tile (không bớt bảng số)
+
+Theo phản hồi "bảng số vẫn cần cho các trường hợp báo cáo, không bỏ" — ở
+bản 4.9, mỗi tile Dashboard bị đặt cứng luôn hiện biểu đồ/pivot, KHÔNG có
+lựa chọn xem lại bảng số như trang Báo cáo (`ReportsPage.jsx` đã có nút
+này từ Giai đoạn A). Sửa cho nhất quán:
+
+- `rp-user/src/modules/dashboard/DashboardTile.jsx` — thêm state
+  `showTable` cục bộ mỗi tile + nút "📋 Xem bảng"/"📊 Xem biểu đồ" (chỉ hiện
+  khi tile có khai `visualization` — tile không khai thì vốn đã luôn là
+  bảng, không có gì để bấm). `showTable=true` LUÔN thắng, đúng luật đã
+  dùng ở `ReportBody.jsx`.
+- `rp-user/src/styles.css` — `.dashboard-tile-header`/`.dashboard-tile-toggle`.
+- Test: Playwright xác nhận nút chỉ hiện đúng ở tile có biểu đồ, bấm "Xem
+  bảng" ra đúng số dòng, và lọc chéo (4.9) vẫn hoạt động bình thường sau
+  khi bật/tắt bảng.
+
 ## 4.9 — Hướng Power BI, Giai đoạn C: Dashboard nhiều biểu đồ + lọc chéo
 
 Tiếp lộ trình 4 giai đoạn (sau A: biểu đồ, B: pivot) — dashboard gồm nhiều

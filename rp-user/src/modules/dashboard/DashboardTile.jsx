@@ -18,6 +18,10 @@ export default function DashboardTile({ tile, crossFilters, onPointClick }) {
   const [definition, setDefinition] = useState(null);
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
+  // Cùng luật với trang Báo cáo (ReportsPage.jsx): showTable=true LUÔN xem
+  // được, bất kể tile có khai visualization hay không — bảng số KHÔNG bị
+  // bớt đi khi thêm biểu đồ, chỉ thêm lựa chọn xem khác.
+  const [showTable, setShowTable] = useState(false);
 
   useEffect(() => {
     api.get(`/reports/${tile.reportId}`).then(setDefinition).catch(err => setError(err.message));
@@ -33,13 +37,23 @@ export default function DashboardTile({ tile, crossFilters, onPointClick }) {
 
   return (
     <div className="dashboard-tile">
-      <h3 className="dashboard-tile-title">{tile.title || definition?.title || tile.reportId}</h3>
+      <div className="dashboard-tile-header">
+        <h3 className="dashboard-tile-title">{tile.title || definition?.title || tile.reportId}</h3>
+        {/* Chỉ hiện nút chuyển đổi khi tile THẬT SỰ có biểu đồ để chuyển
+            sang/về — tile không khai visualization luôn là bảng sẵn (xem
+            ReportBody.jsx), không có gì để bấm. */}
+        {definition?.visualization && (
+          <button type="button" className="dashboard-tile-toggle" onClick={() => setShowTable(v => !v)}>
+            {showTable ? '📊 Xem biểu đồ' : '📋 Xem bảng'}
+          </button>
+        )}
+      </div>
       {error && <p className="form-error">{error}</p>}
       {!error && !result && <p>Đang tải...</p>}
       {result && (
         <ReportBody
           visualization={definition.visualization}
-          showTable={false}
+          showTable={showTable}
           result={result}
           onPointClick={(field, value) => onPointClick(field, value)}
         />
