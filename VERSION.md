@@ -15,6 +15,45 @@ không chặt: patch/minor/major), GIỮ NGUYÊN không đánh số lại — `0
 (gần nhất theo quy tắc cũ) tương ứng **`4.1`** theo quy tắc mới, là điểm
 bắt đầu đếm tiếp từ đây.
 
+## 4.7 — Hướng Power BI, Giai đoạn A: biểu đồ (bar/line/pie/KPI) thay bảng số
+
+Theo yêu cầu "xây dựng theo hướng báo cáo Power BI" — bắt đầu lộ trình 4
+giai đoạn (A: biểu đồ, B: pivot, C: dashboard lọc chéo, D: drill-through)
+bằng giai đoạn nhẹ nhất, không đổi CSDL/backend đáng kể:
+
+- Thêm khoá tuỳ chọn `"visualization": { type, xField, valueFields }` vào
+  `DefinitionJson` — rp-server đã tự forward nguyên key này (không lọc bớt
+  như các trường nội bộ khác), chỉ cần thêm đúng 1 dòng ở
+  `routes/reports.js` (`GET /:reportId`) để lộ ra cho rp-user. Xem
+  `hướng_dẫn_báo_cáo.md` mục 8 cho cấu trúc đầy đủ + ví dụ.
+- `rp-user/src/components/ReportChart.jsx` (mới) — vẽ bar/line/pie (thư
+  viện **Recharts v3**, `npm install recharts@3`) hoặc thẻ KPI (cộng dồn
+  toàn báo cáo, ưu tiên dùng dòng "Tổng cộng" có sẵn nếu composite report
+  đã tính). `ReportsPage.jsx` tự chọn Chart hay DataTable tuỳ báo cáo có/
+  không khai `visualization`, kèm nút "📋 Xem bảng"/"📊 Xem biểu đồ" cho
+  người xem tự chuyển đổi (giống Power BI: 1 visual luôn xem lại được
+  dạng bảng).
+- **Tối ưu cỡ file**: Recharts kéo theo ~190KB gzip (d3-shape/d3-scale) —
+  tách thành 1 chunk RIÊNG qua `React.lazy()`, chỉ tải khi người dùng thật
+  sự mở 1 báo cáo có `visualization` (đa số báo cáo hiện tại chưa có) —
+  bundle chính giữ nguyên ~73KB gzip như trước, không bắt mọi người dùng
+  tải thêm dù không xem báo cáo nào có biểu đồ.
+- **Xác nhận không phá CSP vừa siết ở 4.6**: Recharts là SVG, có set
+  `style=""` nội tuyến qua React trên vài phần tử — đã kiểm tra bằng
+  Playwright với `style-src 'self'` (không unsafe-inline) giống hệt
+  `deploy/nginx.conf` thật, KHÔNG có vi phạm CSP nào (biểu đồ SVG không đụng
+  `style-src`, chỉ CSS class + thuộc tính SVG thường).
+- `isAnimationActive={false}` ở mọi biểu đồ — Recharts mặc định vẽ dần lúc
+  mount (Pie đặc biệt rõ: sector quét dần từ góc 0), gây hiện tượng biểu đồ
+  "trống trơn" nếu chụp/đọc đúng lúc animation chưa xong — tắt hẳn để LUÔN
+  hiện đúng trạng thái cuối ngay khi vẽ.
+- Trục Y hiện số rút gọn kiểu Việt ("120 Tr" thay vì "120000000",
+  `Intl.NumberFormat('vi-VN', {notation:'compact'})`) — số nguyên đầy đủ
+  vẫn hiện khi rê chuột (tooltip).
+- Test: script Node độc lập (route `GET /:reportId` trả đúng
+  `visualization`/`null`) + Playwright chụp demo bar/pie/KPI + xác nhận
+  chuyển đổi bảng↔biểu đồ + không vi phạm CSP.
+
 ## 4.6 — Loại bỏ toàn bộ style nội tuyến + thêm Content-Security-Policy cho 3 giao diện tĩnh
 
 Theo yêu cầu: kiểm tra "unsafe inline" ở index.html của 3 giao diện

@@ -88,7 +88,10 @@ router.get('/:reportId', async (req, res, next) => {
     // domain+filters SQL nội bộ/formula thô) cho MỌI người dùng có quyền
     // xem báo cáo đó, lộ chi tiết kiến trúc nguồn dữ liệu không cần cho
     // hiển thị — hữu ích cho kẻ tấn công nếu tài khoản đó bị chiếm.
-    res.json({ title: definition.title, filters: definition.filters || [] });
+    // "visualization" (xem hướng_dẫn_báo_cáo.md mục "Biểu đồ") an toàn để lộ
+    // thêm — chỉ khai loại biểu đồ/cột nào vẽ trục X, trục giá trị, không
+    // đụng gì tới nguồn dữ liệu nội bộ như 3 trường bị chặn ở trên.
+    res.json({ title: definition.title, filters: definition.filters || [], visualization: definition.visualization || null });
   } catch (err) { next(err); }
 });
 

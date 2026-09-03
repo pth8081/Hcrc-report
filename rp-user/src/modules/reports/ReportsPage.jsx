@@ -5,11 +5,17 @@
 // (GET /api/me — xem lib/permissions.js), báo cáo trong từng nhóm vẫn lọc
 // riêng theo app.RoleReportAccess (GET /api/reports?menuCode=...). Vẽ thành
 // TAB bên trong 1 trang thay vì 3 route/3 mục sidebar riêng.
-import { useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { api, downloadFile } from '../../lib/api';
 import { useAuth } from '../../lib/AuthContext';
 import FilterForm from '../../components/FilterForm';
 import DataTable from '../../components/DataTable';
+
+// recharts (~190KB gzip, xem package.json) kéo theo d3-shape/d3-scale — TÁCH
+// RIÊNG thành 1 chunk, chỉ tải khi người dùng THẬT SỰ mở 1 báo cáo có khai
+// visualization (đa số báo cáo hiện tại chưa có) — không bắt MỌI người dùng
+// (kể cả người chỉ xem báo cáo dạng bảng) tải thêm ~190KB ngay từ đầu.
+const ReportChart = lazy(() => import('../../components/ReportChart'));
 
 export default function ReportsPage() {
   const { me } = useAuth();
@@ -26,6 +32,11 @@ export default function ReportsPage() {
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  // Báo cáo có khai definition.visualization -> mặc định xem biểu đồ, vẫn
+  // cho chuyển qua bảng số bất kỳ lúc nào (giống Power BI: 1 visual luôn
+  // xem lại được dạng bảng). Báo cáo KHÔNG khai visualization thì luôn là
+  // bảng, không có nút chuyển (không có gì để chuyển sang).
+  const [showTable, setShowTable] = useState(false);
 
   // Vào trang lần đầu (hoặc quyền vừa đổi) -> tự chọn tab ĐẦU TIÊN còn hợp lệ.
   useEffect(() => {
@@ -47,6 +58,7 @@ export default function ReportsPage() {
     if (!selectedId) return;
     setFilterValues({});
     setResult(null);
+    setShowTable(false);
     api.get(`/reports/${selectedId}`).then(setDefinition).catch(err => setError(err.message));
   }, [selectedId]);
 
@@ -109,6 +121,14 @@ export default function ReportsPage() {
               <div className="export-actions">
                 <button type="button" onClick={() => exportAs('excel')}>Xuất Excel</button>
                 <button type="button" onClick={() => exportAs('pdf')}>Xuất PDF</button>
+                {/* Chỉ hiện nút chuyển đổi khi báo cáo THẬT SỰ có biểu đồ để
+                    chuyển sang/về — báo cáo không khai visualization luôn ở
+                    dạng bảng, không có gì để bấm. */}
+                {definition.visualization && (
+                  <button type="button" onClick={() => setShowTable(v => !v)}>
+                    {showTable ? '📊 Xem biểu đồ' : '📋 Xem bảng'}
+                  </button>
+                )}
               </div>
               {/* warnings — CHỈ có ở báo cáo composite (xem
                   rp-server/lib/compositeReportRunner.js), khi 1 khối nguồn
@@ -119,10 +139,13 @@ export default function ReportsPage() {
               {result.warnings?.map((w, i) => <p key={i} className="form-warning">⚠️ {w}</p>)}
               {/* result.columns đã là [{key,label}] — rp-server chuẩn hoá sẵn
                   (kể cả cột công thức), xem rp-server/lib/reportEngine.js:describeColumns(). */}
-              <DataTable
-                columns={result.columns}
-                rows={result.rows}
-              />
+              {definition.visualization && !showTable ? (
+                <Suspense fallback={<p>Đang tải biểu đồ...</p>}>
+                  <ReportChart columns={result.columns} rows={result.rows} visualization={definition.visualization} />
+                </Suspense>
+              ) : (
+                <DataTable columns={result.columns} rows={result.rows} />
+              )}
             </>
           )}
           {loading && <p>Đang tải...</p>}

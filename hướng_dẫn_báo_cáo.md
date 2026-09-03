@@ -850,3 +850,72 @@ ban, admin vào trang "Người dùng" bấm lại "Đồng bộ tài khoản" k
 | 500 | Lỗi phía máy chủ HCRC Workspace |
 
 Định dạng lỗi chung (400/401/403/404/429/500): `{ "error": "Mô tả lỗi" }`.
+
+## 8. Biểu đồ (visualization) cho báo cáo — hướng Power BI
+
+### Khi nào dùng
+
+Mặc định mọi báo cáo hiện dạng bảng số (`DataTable`). Thêm khoá
+`"visualization"` vào `DefinitionJson` (áp dụng cho **mọi** `SourceType` —
+`directDb`, `composite`, `apiReport`...) để rp-user vẽ biểu đồ thay bảng,
+kèm nút "📋 Xem bảng" để người xem tự chuyển qua lại — không cần đổi gì ở
+CSDL hay backend, `DefinitionJson` vẫn sửa qua đúng ô textarea JSON như
+trước (rp-server tự forward nguyên `visualization` sang rp-user, không lọc
+bớt như 3 trường nội bộ `dataSourceId`/`apiConnectionId`/`blocks`).
+
+### Cấu trúc
+
+```json
+"visualization": {
+  "type": "bar",
+  "xField": "tenCuaHang",
+  "valueFields": ["thucDat", "chiTieu"]
+}
+```
+
+- **`type`**: `"bar"` | `"line"` | `"pie"` | `"kpi"`.
+- **`xField`**/**`valueFields`**: dùng ĐÚNG `key` đã khai trong
+  `columns` phía trên (KHÔNG phải path thô kiểu `current.measures.x`) — vì
+  dữ liệu tới lúc vẽ biểu đồ đã được chiếu phẳng theo `columns`, không cần
+  biết field gốc nằm ở Dimensions/Measures/khối nào.
+- **`"bar"`/`"line"`**: `xField` là trục ngang (thường là tên thực thể/mốc
+  thời gian), `valueFields` vẽ 1 cột/đường MỖI PHẦN TỬ trong mảng (nhiều
+  chuỗi số so sánh cạnh nhau được, vd "Thực đạt" cạnh "Chỉ tiêu" như ví dụ
+  mục 1 ở trên).
+- **`"pie"`**: chỉ dùng `valueFields[0]` (đúng ngữ nghĩa biểu đồ tròn —
+  "phần trăm của tổng" chỉ có ý nghĩa với 1 chuỗi số).
+- **`"kpi"`**: không cần `xField` — mỗi phần tử trong `valueFields` vẽ 1
+  thẻ số tổng (cộng dồn toàn bộ dòng; nếu báo cáo có `groupBy` với dòng
+  "Tổng cộng" chính thì dùng thẳng dòng đó, không cộng lại).
+- Dòng "Tổng cộng"/"Tổng nhóm" (`groupBy`, xem mục 4) tự động **không** vẽ
+  lên bar/line/pie (chỉ có ý nghĩa trong bảng số, lẫn vào biểu đồ sẽ làm
+  méo trục) — riêng `"kpi"` thì NGƯỢC LẠI, ưu tiên dùng đúng dòng tổng đó.
+
+### Ví dụ đầy đủ — thêm biểu đồ cho báo cáo mục 1
+
+Thêm đúng 1 khoá vào `DefinitionJson` đã có ở mục 1 (giữ nguyên `columns`/
+`blocks`/`groupBy`), không cần sửa gì khác:
+
+```json
+{
+  "title": "Báo cáo nhanh doanh thu",
+  "domain": "doanhthu_chinhanh",
+  "blocks": [ "... giữ nguyên như mục 1 ..." ],
+  "columns": [ "... giữ nguyên như mục 1 ..." ],
+  "groupBy": { "...": "giữ nguyên như mục 1" },
+  "visualization": {
+    "type": "bar",
+    "xField": "tenCuaHang",
+    "valueFields": ["thucDat", "chiTieu"]
+  }
+}
+```
+
+### Giới hạn hiện tại (bản đầu)
+
+- Chỉ admin định nghĩa sẵn `visualization` lúc tạo/sửa báo cáo — người
+  dùng cuối KHÔNG tự chọn loại biểu đồ/trường vẽ (chỉ chuyển "xem bảng" ↔
+  "xem biểu đồ" của ĐÚNG cấu hình admin đã đặt).
+- Chưa có pivot/cross-tab, dashboard nhiều biểu đồ + lọc chéo, hay
+  drill-through — các phần này nằm trong lộ trình tiếp theo cùng đợt
+  nâng cấp "hướng Power BI".
