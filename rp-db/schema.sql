@@ -414,6 +414,28 @@ BEGIN
 END
 GO
 
+-- Dashboard (hướng Power BI, Giai đoạn C) — 1 trang gộp NHIỀU báo cáo có sẵn
+-- (app.ReportCatalog) thành các "ô" (tiles), xem DefinitionJson.tiles =
+-- [{key, reportId, title?}]. KHÔNG có MenuItemId/bảng quyền riêng — toàn bộ
+-- Dashboard chỉ nằm sau ĐÚNG 1 mục menu tĩnh "dashboard" (xem seed
+-- app.MenuItems bên dưới, RoleMenuAccess đã đủ để bật/tắt CẢ TRANG), còn
+-- QUYỀN XEM TỪNG Ô vẫn do CHÍNH app.RoleReportAccess của report đó quyết
+-- định (routes/dashboards.js lọc bớt tile nào role không có quyền trước khi
+-- trả về, và mỗi tile khi CHẠY vẫn gọi qua đúng route /api/reports/:id/run
+-- đã có sẵn requireReportAccess — không có đường tắt nào bỏ qua kiểm tra đó
+-- chỉ vì đi qua dashboard) — không cần thêm 1 bảng ACL mới trùng lặp.
+IF OBJECT_ID('app.Dashboards', 'U') IS NULL
+BEGIN
+    CREATE TABLE app.Dashboards (
+        DashboardId    VARCHAR(80)   NOT NULL PRIMARY KEY,
+        Title          NVARCHAR(200) NOT NULL,
+        DefinitionJson NVARCHAR(MAX) NOT NULL,
+        IsActive       BIT           NOT NULL DEFAULT 1,
+        CreatedAt      DATETIME2(3)  NOT NULL DEFAULT SYSUTCDATETIME()
+    );
+END
+GO
+
 -- Danh mục dùng chung (Phòng ban, Đơn vị tính, Loại báo cáo...) — một bảng
 -- cho nhiều danh mục nhỏ, phân biệt bằng CategoryType, cùng tinh thần
 -- dbo.Records của vpdt-pms — tránh tạo hàng chục bảng nhỏ lẻ cho mỗi danh mục.

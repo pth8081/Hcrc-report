@@ -5,38 +5,11 @@
 // (GET /api/me — xem lib/permissions.js), báo cáo trong từng nhóm vẫn lọc
 // riêng theo app.RoleReportAccess (GET /api/reports?menuCode=...). Vẽ thành
 // TAB bên trong 1 trang thay vì 3 route/3 mục sidebar riêng.
-import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { api, downloadFile } from '../../lib/api';
 import { useAuth } from '../../lib/AuthContext';
 import FilterForm from '../../components/FilterForm';
-import DataTable from '../../components/DataTable';
-import PivotTable from '../../components/PivotTable';
-
-// recharts (~190KB gzip, xem package.json) kéo theo d3-shape/d3-scale — TÁCH
-// RIÊNG thành 1 chunk, chỉ tải khi người dùng THẬT SỰ mở 1 báo cáo có khai
-// visualization dạng biểu đồ (bar/line/pie/kpi — đa số báo cáo hiện tại
-// chưa có) — không bắt MỌI người dùng (kể cả người chỉ xem bảng/pivot) tải
-// thêm ~190KB ngay từ đầu. Pivot KHÔNG cần tách chunk — thuần React + JS,
-// không kéo thêm thư viện nặng nào (xem lib/pivot.js).
-const ReportChart = lazy(() => import('../../components/ReportChart'));
-
-// Tách khỏi component chính (không phụ thuộc state/props ngoài 3 tham số) —
-// dễ đọc luồng "báo cáo này hiện gì" hơn là if/else lồng trong JSX.
-// showTable=true LUÔN thắng (giống Power BI: 1 visual bất kỳ luôn xem lại
-// được dạng bảng) — bất kể visualization.type là gì.
-function renderReportBody(visualization, showTable, result) {
-  if (!visualization || showTable) {
-    return <DataTable columns={result.columns} rows={result.rows} />;
-  }
-  if (visualization.type === 'pivot') {
-    return <PivotTable columns={result.columns} rows={result.rows} visualization={visualization} />;
-  }
-  return (
-    <Suspense fallback={<p>Đang tải biểu đồ...</p>}>
-      <ReportChart columns={result.columns} rows={result.rows} visualization={visualization} />
-    </Suspense>
-  );
-}
+import ReportBody from '../../components/ReportBody';
 
 export default function ReportsPage() {
   const { me } = useAuth();
@@ -162,7 +135,7 @@ export default function ReportsPage() {
               {result.warnings?.map((w, i) => <p key={i} className="form-warning">⚠️ {w}</p>)}
               {/* result.columns đã là [{key,label}] — rp-server chuẩn hoá sẵn
                   (kể cả cột công thức), xem rp-server/lib/reportEngine.js:describeColumns(). */}
-              {renderReportBody(definition.visualization, showTable, result)}
+              <ReportBody visualization={definition.visualization} showTable={showTable} result={result} />
             </>
           )}
           {loading && <p>Đang tải...</p>}

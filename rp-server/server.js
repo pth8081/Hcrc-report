@@ -25,6 +25,8 @@ const externalConnectionsRoutes = require('./routes/externalConnections');
 const reportEmailSchedulesRoutes = require('./routes/reportEmailSchedules');
 const anomalyAlertsRoutes = require('./routes/anomalyAlerts');
 const hcrcWorkspaceSettingsRoutes = require('./routes/hcrcWorkspaceSettings');
+const dashboardCatalogRoutes = require('./routes/dashboardCatalog');
+const dashboardsRoutes = require('./routes/dashboards');
 const {
   verifyCredentials, issueToken, COOKIE_NAME, getSecret, setSessionCookie,
   issuePending2FAToken, issueSetupRequiredToken
@@ -159,6 +161,7 @@ app.use('/api/health', healthRoutes);
 app.use('/api/2fa', twoFactorRoutes);
 app.use('/api/me', meRoutes);
 app.use('/api/reports', reportRoutes);
+app.use('/api/dashboards', dashboardsRoutes);
 
 // "Hệ thống" — mỗi route con tự kiểm tra đúng 1 mã menu tương ứng (xem
 // requireMenuAccess trong từng file route).
@@ -175,6 +178,7 @@ app.use('/api/system/external-connections', externalConnectionsRoutes);
 app.use('/api/system/report-email-schedules', reportEmailSchedulesRoutes);
 app.use('/api/system/anomaly-alerts', anomalyAlertsRoutes);
 app.use('/api/system/hcrc-workspace', hcrcWorkspaceSettingsRoutes);
+app.use('/api/system/dashboards', dashboardCatalogRoutes);
 
 app.use((err, req, res, next) => { // eslint-disable-line no-unused-vars
   console.error(err);

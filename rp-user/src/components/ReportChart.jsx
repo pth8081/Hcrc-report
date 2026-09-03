@@ -98,13 +98,14 @@ export default function ReportChart({ columns, rows, visualization, onPointClick
   const ChartComponent = type === 'line' ? LineChart : BarChart;
   const SeriesComponent = type === 'line' ? Line : Bar;
 
+  // onClick đặt TRỰC TIẾP trên từng Bar/Line (nhận thẳng payload của điểm đã
+  // bấm) thay vì onClick ở cấp ChartComponent đọc activePayload — cách cũ
+  // phụ thuộc trạng thái "activeCoordinate" nội bộ Recharts (chỉ cập nhật
+  // qua mousemove trước đó), click lập trình (Playwright, hoặc chuột thật đi
+  // rất nhanh) không luôn kích hoạt được, khiến bấm cột không lọc chéo được.
   return (
     <ResponsiveContainer width="100%" height={360}>
-      <ChartComponent
-        data={chartRows}
-        margin={{ left: 12, right: 12, top: 8, bottom: 8 }}
-        onClick={(e) => handleClick(xField, e?.activePayload?.[0]?.payload?.[xField])}
-      >
+      <ChartComponent data={chartRows} margin={{ left: 12, right: 12, top: 8, bottom: 8 }}>
         <CartesianGrid strokeDasharray="3 3" />
         <XAxis dataKey={xField} />
         <YAxis tickFormatter={compactNumberFmt} width={56} />
@@ -118,6 +119,8 @@ export default function ReportChart({ columns, rows, visualization, onPointClick
             fill={PALETTE[i % PALETTE.length]}
             stroke={PALETTE[i % PALETTE.length]}
             isAnimationActive={false}
+            cursor={onPointClick ? 'pointer' : undefined}
+            onClick={(data) => handleClick(xField, data?.[xField] ?? data?.payload?.[xField])}
           />
         ))}
       </ChartComponent>

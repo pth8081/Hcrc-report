@@ -946,7 +946,65 @@ Thêm đúng 1 khoá vào `DefinitionJson` đã có ở mục 1 (giữ nguyên `
 - Chỉ admin định nghĩa sẵn `visualization` lúc tạo/sửa báo cáo — người
   dùng cuối KHÔNG tự chọn loại biểu đồ/trường vẽ (chỉ chuyển "xem bảng" ↔
   "xem biểu đồ"/"xem pivot" của ĐÚNG cấu hình admin đã đặt).
-- Chưa có dashboard nhiều biểu đồ + lọc chéo, hay drill-through (nhảy sang
-  báo cáo KHÁC đã lọc sẵn — khác drill-down của pivot, vốn chỉ xổ dữ liệu
-  ĐÃ TẢI trong cùng báo cáo) — các phần này nằm trong lộ trình tiếp theo
-  cùng đợt nâng cấp "hướng Power BI".
+- Dashboard nhiều biểu đồ + lọc chéo — xem mục 9. Chưa có drill-through
+  (nhảy sang báo cáo KHÁC đã lọc sẵn — khác drill-down của pivot, vốn chỉ
+  xổ dữ liệu ĐÃ TẢI trong cùng báo cáo) — phần này nằm trong lộ trình tiếp
+  theo cùng đợt nâng cấp "hướng Power BI".
+
+## 9. Dashboard nhiều biểu đồ + lọc chéo — hướng Power BI
+
+### Khi nào dùng
+
+Khi cần XEM NHIỀU báo cáo (đã tạo ở "Biểu mẫu → Báo cáo", mục 8) CÙNG lúc
+trên 1 màn hình, thay vì mở từng cái riêng — vào "Biểu mẫu → Dashboard" để
+tạo, người dùng cuối xem ở mục "Dashboard" (menu có sẵn). Dashboard KHÔNG
+định nghĩa lại nguồn dữ liệu/công thức riêng — mỗi ô ("tile") chỉ TRỎ TỚI 1
+`reportId` đã có, dùng lại nguyên `visualization` đã khai ở báo cáo đó.
+
+### Cấu trúc `DefinitionJson`
+
+```json
+{
+  "tiles": [
+    { "key": "doanhThuChiNhanh", "reportId": "doanhthu-chinhanh" },
+    { "key": "topSanPham", "reportId": "top-san-pham", "title": "Top sản phẩm" }
+  ]
+}
+```
+
+- **`key`**: định danh riêng của ô trong dashboard (không trùng nhau) —
+  KHÔNG phải `reportId`, vì 1 báo cáo có thể xuất hiện ở nhiều ô/dashboard
+  khác nhau.
+- **`reportId`**: phải khớp 1 báo cáo đã có trong "Biểu mẫu → Báo cáo" —
+  lưu dashboard sẽ báo lỗi ngay nếu gõ sai/báo cáo đã bị xoá.
+- **`title`** (tuỳ chọn): tên hiện trên ô — để trống thì dùng đúng `Title`
+  của báo cáo nguồn.
+
+### Quyền xem
+
+KHÔNG có bảng phân quyền riêng cho từng dashboard/từng ô — 2 lớp quyền sẵn
+có tự động áp dụng, không cần cấu hình thêm:
+1. Mục menu "Dashboard" (`app.MenuItems`, mã `dashboard`) — vào được trang
+   hay không do `RoleMenuAccess` như mọi mục menu khác.
+2. TỪNG Ô tự lọc theo đúng `app.RoleReportAccess` của báo cáo nó trỏ tới
+   (gọi thẳng `GET/POST /api/reports/:reportId` đã có sẵn, không có API
+   "chạy dashboard" riêng bỏ qua bước này) — vai trò không có quyền xem 1
+   báo cáo thì ô tương ứng tự BIẾN MẤT khỏi dashboard, không hiện lỗi.
+
+### Lọc chéo (cross-filter)
+
+Bấm vào 1 điểm/cột/lát bất kỳ trên biểu đồ (bar/line/pie) ở MỘT ô sẽ lọc
+LẠI toàn bộ các ô còn lại theo đúng trường đã bấm — không cần khai báo
+"ô nào lọc theo ô nào" trong `DefinitionJson`:
+
+- Field lọc dùng ĐÚNG tên `key` đã khai trong `columns`/`xField` của báo
+  cáo nguồn (vd bấm cột "Chi nhánh" trên biểu đồ tile1 → lọc chéo theo
+  field `chiNhanh`).
+- MỌI ô khác tự chạy lại với bộ lọc này — ô nào không khai field đó trong
+  `filters` của báo cáo mình thì rp-server tự bỏ qua (không lỗi), nên
+  không có gì phải cấu hình thêm ở phía tile.
+- Thanh "Đang lọc chéo" phía trên hiện các field đang áp dụng, bấm ✕ từng
+  cái hoặc "Xoá hết lọc" để bỏ.
+- Bảng Pivot (mục 8) KHÔNG phát lọc chéo khi bấm — click trong pivot vẫn
+  chỉ để drill-down (xổ dữ liệu chi tiết), tránh 1 thao tác bấm mang 2 ý
+  nghĩa khác nhau gây nhầm lẫn.

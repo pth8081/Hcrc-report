@@ -15,6 +15,56 @@ không chặt: patch/minor/major), GIỮ NGUYÊN không đánh số lại — `0
 (gần nhất theo quy tắc cũ) tương ứng **`4.1`** theo quy tắc mới, là điểm
 bắt đầu đếm tiếp từ đây.
 
+## 4.9 — Hướng Power BI, Giai đoạn C: Dashboard nhiều biểu đồ + lọc chéo
+
+Tiếp lộ trình 4 giai đoạn (sau A: biểu đồ, B: pivot) — dashboard gồm nhiều
+"tile", mỗi tile TRỎ TỚI 1 báo cáo đã có (không định nghĩa lại nguồn dữ
+liệu/công thức riêng), bấm vào 1 biểu đồ ở tile này lọc lại các tile khác:
+
+- `rp-db/schema.sql` — bảng `app.Dashboards` mới (`DashboardId`, `Title`,
+  `DefinitionJson` chứa `{ tiles: [{key, reportId, title?}] }`, `IsActive`)
+  — KHÔNG thêm bảng ACL riêng, tận dụng lại đúng menu `dashboard` (đã có
+  sẵn từ trước) + `app.RoleReportAccess` của từng báo cáo mà tile trỏ tới.
+- `rp-server/routes/dashboardCatalog.js` (mới) — CRUD admin, validate cấu
+  trúc `tiles` (khoá `key` không trùng, có `reportId`) + đối chiếu
+  `reportId` với `app.ReportCatalog` THẬT trước khi lưu (báo lỗi ngay lúc
+  admin lưu, không đợi người dùng mở dashboard mới phát hiện trỏ sai).
+- `rp-server/routes/dashboards.js` (mới, mount `/api/dashboards`) — xem
+  cho người dùng cuối: `GET /` danh sách dashboard đang hoạt động, `GET
+  /:id` trả `{title, tiles}` đã LỌC BỚT tile nào role không có quyền xem
+  báo cáo tương ứng (dùng `req.userContext.reportIds` có sẵn từ
+  `requireMenuAccess`) — ẩn hẳn, không hiện "ô lỗi 403" gây khó hiểu.
+- `rp-user/src/components/ReportBody.jsx` (mới) — tách phần chọn DataTable/
+  PivotTable/ReportChart ra khỏi `ReportsPage.jsx` (trước là hàm nội bộ
+  `renderReportBody()`) để dùng chung với tile dashboard, không viết lại
+  logic 2 nơi.
+- `rp-user/src/modules/dashboard/DashboardTile.jsx` (mới) + viết lại
+  `DashboardPage.jsx` (trước là khung trống chờ yêu cầu) — trang liệt kê
+  dashboard (nếu >1), vẽ lưới tile, giữ 1 state `crossFilters` DÙNG CHUNG:
+  mỗi tile LUÔN gửi toàn bộ `crossFilters` làm bộ lọc khi chạy báo cáo của
+  mình — field nào báo cáo đó không khai thì rp-server tự bỏ qua (hành vi
+  đã có sẵn ở `reportEngine.js`), nên KHÔNG cần khai "tile nào lọc theo
+  tile nào" trong `DefinitionJson`. Thanh "Đang lọc chéo" hiện các field
+  đang áp dụng + nút xoá từng cái/xoá hết.
+- `rp-user/src/components/ReportChart.jsx` — sửa `onClick` từ đặt ở cấp
+  `<BarChart>`/`<LineChart>` (đọc `activePayload` nội bộ Recharts, chỉ cập
+  nhật qua `mousemove` trước đó — phát hiện qua test Playwright: click lập
+  trình không kích hoạt được) sang đặt TRỰC TIẾP trên từng `<Bar>`/`<Line>`
+  (nhận thẳng payload điểm đã bấm) — đúng cả với chuột thật lẫn test tự
+  động, không phụ thuộc trạng thái hover trước đó.
+- `rp-user/src/modules/system/report-catalog/DashboardsPanel.jsx` (mới) +
+  thêm tab "Dashboard" vào `ReportCatalogPage.jsx` — CRUD cùng khuôn các
+  tab khác (`DefinitionJson` sửa dạng textarea JSON thô).
+- Test: script Node (mock `db.js`/`lib/auth.js`/`lib/auditLog.js`, gọi qua
+  HTTP thật vào router thật) cho `dashboardCatalog.js`/`dashboards.js` —
+  validate tiles, đối chiếu `reportId`, và ĐẶC BIỆT xác nhận tile bị LỌC
+  ĐÚNG theo quyền báo cáo của từng vai trò (15/15 assertion PASS) + Playwright
+  chụp demo dashboard 2 tile, bấm cột biểu đồ ở tile 1 → tile 2 lọc lại
+  đúng (6 dòng còn 2 dòng), không lỗi console, không vi phạm CSP (không
+  còn `style=""` inline nào trong bundle build).
+- Tài liệu: `hướng_dẫn_báo_cáo.md` thêm mục 9 — cấu trúc `DefinitionJson`,
+  mô hình quyền, cơ chế lọc chéo.
+
 ## 4.8 — Hướng Power BI, Giai đoạn B: bảng Pivot/cross-tab + drill-down
 
 Tiếp lộ trình 4 giai đoạn (sau A: biểu đồ) — thêm `visualization.type =
