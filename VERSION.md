@@ -15,6 +15,28 @@ không chặt: patch/minor/major), GIỮ NGUYÊN không đánh số lại — `0
 (gần nhất theo quy tắc cũ) tương ứng **`4.1`** theo quy tắc mới, là điểm
 bắt đầu đếm tiếp từ đây.
 
+## 5.2 — Rà soát hướng dẫn triển khai production (`deploy/README.md`)
+
+Theo yêu cầu kiểm tra tài liệu deploy đã có khớp code hiện tại chưa (sau
+nhiều đợt thay đổi) — rà soát toàn bộ `deploy/README.md`/`deploy/nginx.conf`/
+`deploy/ecosystem.config.js` đối chiếu với code thật (biến môi trường bắt
+buộc, route health, tên tiến trình PM2/cổng, script `seed:admin`, file
+schema/grants, domain + CSP trong nginx.conf, cột `TwoFactorEnabled`, cấu
+hình chống restart-loop, `lib/processGuards.js`, lệnh build/`dist/`). Kết
+quả: tài liệu đã khớp code — không có sai lệch, chỉ bổ sung 2 chỗ còn
+thiếu (không phải sửa lỗi):
+
+- Thêm ghi chú về chế độ cluster PM2 (mặc định 2 worker/app, 6 tiến trình
+  Node tổng cộng) vào mục 1 — trước đây chỉ giải thích trong chú thích code
+  (`deploy/ecosystem.config.js`), chưa có trong README: mỗi worker tự mở
+  pool CSDL RIÊNG, tổng kết nối thật = `instances × *_POOL_MAX`, cần tính
+  lại cả 2 số cùng lúc khi đổi 1 trong 2 (tránh vượt giới hạn kết nối SQL
+  Server khi tăng `instances` theo số lõi CPU mà quên chỉnh `*_POOL_MAX`).
+- Làm rõ mục 4 (checklist sau triển khai): `GET /health` của etl trả dạng
+  response HƠI KHÁC 2 route health kia (`db` là chuỗi `"ok"|"error"`,
+  không phải object `{rp,dwh}`/`{admin,dwh}`, không có `version`) — etl chỉ
+  có 1 pool CSDL quản trị cần ping, không có DWH riêng để phân biệt.
+
 ## 5.1 — Hướng Power BI, Giai đoạn D: Drill-through
 
 Tiếp lộ trình 4 giai đoạn (A: biểu đồ, B: pivot, C: dashboard lọc chéo) —

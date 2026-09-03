@@ -110,6 +110,18 @@ pm2 save          # tự khởi động lại cùng hệ điều hành
 pm2 startup       # in lệnh cần chạy 1 lần để đăng ký PM2 với systemd
 ```
 
+**Chế độ cluster (mặc định 2 worker/app)**: `deploy/ecosystem.config.js`
+chạy MỖI app (`etl`/`rp-server`/`api-server`) ở `exec_mode: 'cluster'`,
+mặc định `instances: 2` — tổng cộng **6 tiến trình Node** trên cùng 1 máy
+(chỉnh qua `PM2_INSTANCES_ETL`/`PM2_INSTANCES_RP`/`PM2_INSTANCES_API`, xem
+chú thích đầu file). Điểm cần nhớ: **mỗi worker tự mở 1 pool kết nối CSDL
+riêng** (không dùng chung giữa các worker) — tổng số kết nối thật sự mở
+tới SQL Server = `instances × *_POOL_MAX` (biến trong `.env` từng service).
+Tăng `instances` theo số lõi CPU máy chủ mà KHÔNG chỉnh lại `*_POOL_MAX`
+tương ứng dễ vượt giới hạn kết nối cho phép của SQL Server (đặc biệt nếu
+CSDL dùng chung cho DBA khác/công cụ giám sát) — luôn tính lại tổng trước
+khi đổi 1 trong 2 số.
+
 ## 2. Máy chủ CSDL riêng
 
 Cài SQL Server trên máy chủ CSDL, mở port 1433 **CHỈ cho máy chủ ứng dụng**
@@ -174,8 +186,12 @@ sudo certbot renew --dry-run   # kiểm tra hook chạy đúng, không đợi t�
 - `curl https://api.hcrc.vidu.vn/api/v1/health` — cùng dạng, ping pool
   `admin`/`dwh`.
 - `curl https://<domain-etl-noi-bo>/health` (từ máy trong VPN — etl không
-  có route công khai) — cùng dạng, ping pool `admin`. **Trước đây bị bỏ sót
-  khỏi checklist này** — etl không phục vụ request công khai nên
+  có route công khai) — ping pool `admin`, PHẢI trả 200 (503 nếu CSDL
+  không kết nối được). Dạng response HƠI KHÁC 2 route trên (`{"status",
+  "db", "time"}` — `db` là chuỗi `"ok"|"error"`, KHÔNG phải object lồng
+  `{rp, dwh}`/`{admin, dwh}`, và không có `version`) vì etl chỉ có 1 pool
+  CSDL quản trị cần ping, không có DWH riêng để phân biệt. **Trước đây bị
+  bỏ sót khỏi checklist này** — etl không phục vụ request công khai nên
   "tiến trình PM2 đang chạy" không nói lên được gì về việc ĐỒNG BỘ có đang
   hoạt động thật hay không; xem thêm trang "Dashboard" (etl-admin/) để biết
   job nào đang lỗi/quá hạn.
