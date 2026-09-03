@@ -15,6 +15,26 @@ không chặt: patch/minor/major), GIỮ NGUYÊN không đánh số lại — `0
 (gần nhất theo quy tắc cũ) tương ứng **`4.1`** theo quy tắc mới, là điểm
 bắt đầu đếm tiếp từ đây.
 
+## 5.4 — Bật gzip cho file tĩnh 3 giao diện (Nginx)
+
+Phát hiện khi rà soát câu hỏi "đã dùng compression chưa": `compression()`
+(express) đã bật sẵn từ lâu cho cả 3 backend (`etl`/`rp-server`/`api-server`
+— chỉ áp dụng cho response `/api/*`/`/admin/*`), NHƯNG file TĨNH của 3 giao
+diện (`rp-user`/`api-admin`/`etl-admin` — JS/CSS bundle, vd ~250KB JS chính
++ ~420KB chunk Recharts, xem Giai đoạn A) do Nginx phục vụ TRỰC TIẾP
+(không qua Node) thì KHÔNG được nén — `deploy/nginx.conf` trước đây không
+có khối `gzip` nào, phụ thuộc hoàn toàn vào `nginx.conf` GỐC của hệ điều
+hành có bật gzip mặc định hay không (không kiểm soát được từ repo này).
+
+- `deploy/nginx.conf` — thêm `gzip on` + `gzip_types`/`gzip_min_length`/
+  `gzip_comp_level`/`gzip_vary` vào cả 3 server block phục vụ file tĩnh
+  (`report`/`api-admin`/`etl-admin`.hcrc.vidu.vn) — khai TƯỜNG MINH, không
+  phụ thuộc giá trị mặc định. KHÔNG đụng domain `api.hcrc.vidu.vn` (không
+  phục vụ file tĩnh nào, response `/api/v1/*` đã tự nén từ api-server).
+- `deploy/README.md` mục 4 — thêm bước kiểm tra `curl -H "Accept-Encoding:
+  gzip"` xác nhận header `Content-Encoding: gzip` trên file JS thật sau khi
+  triển khai.
+
 ## 5.3 — Sửa công thức "Tỷ lệ % LFL" trong ví dụ hướng_dẫn_báo_cáo.md mục 1
 
 Phát hiện khi demo báo cáo "BRGMART - Báo cáo nhanh doanh thu" theo đúng

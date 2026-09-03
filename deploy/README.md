@@ -210,6 +210,14 @@ sudo certbot renew --dry-run   # kiểm tra hook chạy đúng, không đợi t�
   (không có request nào đang chạy bị cắt ngang) trước khi PM2 khởi động lại
   — xác nhận `lib/processGuards.js` hoạt động đúng (đóng dần thay vì bị
   giết ngay).
+- `curl -H "Accept-Encoding: gzip" -sI https://report.hcrc.vidu.vn/assets/<tên-file>.js`
+  (lấy đúng tên file JS thật trong `rp-user/dist/assets/` sau khi build) —
+  header trả về PHẢI có `Content-Encoding: gzip`. Đây là file TĨNH Nginx tự
+  phục vụ (không qua rp-server) nên KHÔNG được hưởng `compression()`
+  (express) đã bật sẵn cho `/api/*` — phải tự khai `gzip on;` riêng trong
+  `deploy/nginx.conf` (xem chú thích ở đó) mới có, không phụ thuộc cấu hình
+  mặc định (có thể có hoặc không) của `nginx.conf` GỐC hệ điều hành. Lặp lại
+  tương tự cho `api-admin.hcrc.vidu.vn`/`etl-admin.hcrc.vidu.vn`.
 
 ## 5. Xác thực hai yếu tố (2FA) cho tài khoản admin
 
