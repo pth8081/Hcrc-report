@@ -15,6 +15,26 @@ không chặt: patch/minor/major), GIỮ NGUYÊN không đánh số lại — `0
 (gần nhất theo quy tắc cũ) tương ứng **`4.1`** theo quy tắc mới, là điểm
 bắt đầu đếm tiếp từ đây.
 
+## 5.3 — Sửa công thức "Tỷ lệ % LFL" trong ví dụ hướng_dẫn_báo_cáo.md mục 1
+
+Phát hiện khi demo báo cáo "BRGMART - Báo cáo nhanh doanh thu" theo đúng
+mẫu thật người dùng gửi (số liệu thật, không phải dữ liệu bịa) — đối chiếu
+công thức ví dụ trong mục 1 với số liệu mẫu thật thì SAI: ví dụ cũ tính
+`(current - lastYear) / lastYear * 100` (tăng trưởng, vd "+10%"), nhưng
+kiểm chứng qua nhiều dòng số liệu mẫu thật (cả cột doanh thu lẫn giao dịch)
+thì "Tỷ lệ % LFL" thực tế là TỶ SỐ `current / lastYear * 100` (vd "110%" —
+cùng cách tính với "Tỷ lệ đạt" so chỉ tiêu, KHÔNG PHẢI phần trăm tăng
+trưởng) — sửa lại công thức ví dụ cho khớp đúng quy ước thật.
+
+Demo đầy đủ báo cáo này (composite 3 khối current/lastYear/target, 33 chi
+nhánh MART+MINIMART, đủ cột doanh thu/lãi gộp/giao dịch/trung bình GD/
+doanh thu-m2, dòng "Tổng cộng" theo nhóm) chạy qua ĐÚNG
+`compositeReportRunner.js`/`formulaEngine.js` thật (không giả lập kết quả
+tính sẵn) — số liệu tính ra khớp gần như tuyệt đối với mẫu PDF (chênh lệch
+1 đơn vị ở vài chỗ do làm tròn tầng cuối, không đáng kể) — xác nhận cả
+kiến trúc composite (Giai đoạn cũ) lẫn biểu đồ (Giai đoạn A) hoạt động
+đúng trên 1 báo cáo thật, đủ phức tạp.
+
 ## 5.2 — Rà soát hướng dẫn triển khai production (`deploy/README.md`)
 
 Theo yêu cầu kiểm tra tài liệu deploy đã có khớp code hiện tại chưa (sau

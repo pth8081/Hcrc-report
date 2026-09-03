@@ -93,7 +93,7 @@ Vào **Hệ thống → Biểu mẫu → tab "Báo cáo"**, tạo báo cáo mớ
     { "key": "chiTieu", "label": "Chỉ tiêu", "formula": "target.ChiTieuDoanhThu" },
     { "key": "tyLeDat", "label": "Tỷ lệ đạt (%)", "formula": "ROUND(current.measures.doanhThu / target.ChiTieuDoanhThu * 100, 1)" },
     { "key": "cungKyNamTruoc", "label": "Cùng kỳ năm trước", "formula": "lastYear.measures.doanhThu" },
-    { "key": "tyLeLFL", "label": "Tỷ lệ % LFL", "formula": "ROUND((current.measures.doanhThu - lastYear.measures.doanhThu) / lastYear.measures.doanhThu * 100, 1)" }
+    { "key": "tyLeLFL", "label": "Tỷ lệ % LFL", "formula": "ROUND(current.measures.doanhThu / lastYear.measures.doanhThu * 100, 1)" }
   ],
   "groupBy": {
     "field": "current.dimensions.chain",
