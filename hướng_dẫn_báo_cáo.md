@@ -873,7 +873,9 @@ bớt như 3 trường nội bộ `dataSourceId`/`apiConnectionId`/`blocks`).
 }
 ```
 
-- **`type`**: `"bar"` | `"line"` | `"pie"` | `"kpi"`.
+- **`type`**: `"bar"` | `"line"` | `"pie"` | `"kpi"` | `"pivot"` (xem cấu
+  trúc riêng của `"pivot"` bên dưới — dùng `rowField`/`colField` thay vì
+  `xField`/`valueFields`).
 - **`xField`**/**`valueFields`**: dùng ĐÚNG `key` đã khai trong
   `columns` phía trên (KHÔNG phải path thô kiểu `current.measures.x`) — vì
   dữ liệu tới lúc vẽ biểu đồ đã được chiếu phẳng theo `columns`, không cần
@@ -911,11 +913,40 @@ Thêm đúng 1 khoá vào `DefinitionJson` đã có ở mục 1 (giữ nguyên `
 }
 ```
 
+### `"type": "pivot"` — bảng chéo (cross-tab) + drill-down
+
+```json
+"visualization": {
+  "type": "pivot",
+  "rowField": "chain",
+  "colField": "entityCode",
+  "valueField": "doanhThu",
+  "agg": "sum"
+}
+```
+
+- `rowField`/`colField`: 2 trường dùng để nhóm theo hàng/cột (cùng quy tắc
+  `key` như trên) — vd nhóm theo "Chuỗi" (hàng) x "Siêu thị" (cột).
+- `valueField`: trường số cộng dồn vào từng ô.
+- `agg` (mặc định `"sum"`): `"sum"` | `"avg"` | `"count"` — `"count"` đếm
+  SỐ DÒNG rơi vào ô đó, không quan tâm `valueField` có phải số hay không.
+- Tự động thêm dòng/cột "Tổng" + góc "Tổng" chung — tính từ TOÀN BỘ dòng
+  gốc khớp điều kiện (không phải cộng lại các ô đã tổng hợp), đúng cho cả
+  `"avg"` (không phải "trung bình của các trung bình").
+- **Drill-down**: bấm vào 1 ô số → xổ ra bảng chi tiết đúng các dòng gốc
+  tạo nên ô đó (dùng lại dữ liệu ĐÃ TẢI, không gọi lại API) — bấm lại (hoặc
+  "Đóng") để thu gọn.
+- Nhiều dòng cùng `(rowField, colField)` được **cộng dồn** vào 1 ô (đúng
+  hành vi pivot chuẩn) — vd báo cáo có cột `eventDate` riêng (chi tiết theo
+  ngày) nhưng pivot theo `chain x entityCode` thì mọi ngày trong khoảng đã
+  lọc gộp thành 1 số duy nhất mỗi ô, xem chi tiết từng ngày qua drill-down.
+
 ### Giới hạn hiện tại (bản đầu)
 
 - Chỉ admin định nghĩa sẵn `visualization` lúc tạo/sửa báo cáo — người
   dùng cuối KHÔNG tự chọn loại biểu đồ/trường vẽ (chỉ chuyển "xem bảng" ↔
-  "xem biểu đồ" của ĐÚNG cấu hình admin đã đặt).
-- Chưa có pivot/cross-tab, dashboard nhiều biểu đồ + lọc chéo, hay
-  drill-through — các phần này nằm trong lộ trình tiếp theo cùng đợt
-  nâng cấp "hướng Power BI".
+  "xem biểu đồ"/"xem pivot" của ĐÚNG cấu hình admin đã đặt).
+- Chưa có dashboard nhiều biểu đồ + lọc chéo, hay drill-through (nhảy sang
+  báo cáo KHÁC đã lọc sẵn — khác drill-down của pivot, vốn chỉ xổ dữ liệu
+  ĐÃ TẢI trong cùng báo cáo) — các phần này nằm trong lộ trình tiếp theo
+  cùng đợt nâng cấp "hướng Power BI".

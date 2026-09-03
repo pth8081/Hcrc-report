@@ -87,6 +87,15 @@ button:hover { opacity: 0.9; }
 .kpi-tile { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 20px 24px; min-width: 180px; box-shadow: 0 1px 3px rgba(20, 30, 40, .06); }
 .kpi-tile-label { font-size: 12.5px; color: var(--ink-soft); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 8px; }
 .kpi-tile-value { font-size: 28px; font-weight: 700; color: var(--ink); }
+/* PivotTable.jsx — bảng cross-tab + panel drill-down. */
+.pivot-table th, .pivot-table td { text-align: right; }
+.pivot-table thead th:first-child, .pivot-table tbody th { text-align: left; }
+.pivot-cell--clickable { cursor: pointer; }
+.pivot-cell--clickable:hover { background: var(--bg); }
+.pivot-cell--selected { background: var(--accent-soft); font-weight: 600; }
+.pivot-total-row, .pivot-cell--total { font-weight: 700; background: var(--bg); }
+.pivot-drill { margin-top: 16px; border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; background: var(--surface); }
+.pivot-drill-title { display: flex; align-items: center; gap: 10px; margin: 0 0 10px; font-size: 13.5px; color: var(--ink-soft); }
 .template-upload { margin-bottom: 20px; font-size: 13px; }
 
 .muted { color: var(--ink-soft); }

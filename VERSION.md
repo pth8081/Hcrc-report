@@ -15,6 +15,35 @@ không chặt: patch/minor/major), GIỮ NGUYÊN không đánh số lại — `0
 (gần nhất theo quy tắc cũ) tương ứng **`4.1`** theo quy tắc mới, là điểm
 bắt đầu đếm tiếp từ đây.
 
+## 4.8 — Hướng Power BI, Giai đoạn B: bảng Pivot/cross-tab + drill-down
+
+Tiếp lộ trình 4 giai đoạn (sau A: biểu đồ) — thêm `visualization.type =
+"pivot"` cho báo cáo, KHÔNG cần gọi lại API để đổi chiều/tổng hợp hay
+drill-down (mọi việc chạy trên `rows` đã tải sẵn từ lượt `/run` đầu tiên):
+
+- `rp-user/src/lib/pivot.js` (mới) — hàm thuần `buildPivot(rows, {rowField,
+  colField, valueField, agg})` nhóm theo 2 chiều + cộng dồn
+  (`sum`/`avg`/`count`), giữ nguyên mảng dòng gốc theo TỪNG Ô (phục vụ
+  drill-down) — tách riêng khỏi component để test bằng script Node thường,
+  không cần dựng React/JSDOM.
+- `rp-user/src/components/PivotTable.jsx` (mới) — vẽ lưới hàng×cột + dòng/
+  cột "Tổng" (tính từ TOÀN BỘ dòng gốc khớp điều kiện, không cộng lại các ô
+  đã tổng hợp — đúng cho cả `avg`). Bấm 1 ô số → xổ bảng chi tiết đúng các
+  dòng gốc tạo nên ô đó (`DataTable` dùng lại, không gọi API mới) — bấm lại
+  hoặc "Đóng" để thu gọn.
+- `ReportsPage.jsx`: `renderReportBody()` (tách khỏi JSX chính cho dễ đọc)
+  chọn DataTable/PivotTable/ReportChart tuỳ `visualization.type` + trạng
+  thái nút chuyển đổi — nút đổi nhãn theo ngữ cảnh ("🔀 Xem Pivot" khi đang ở
+  bảng chi tiết của 1 báo cáo pivot, khác nhãn "📊 Xem biểu đồ" của báo cáo
+  chart).
+- Không kéo thêm thư viện nào (thuần React + JS) — bundle chính chỉ tăng
+  ~3KB gzip, không cần tách chunk riêng như Recharts ở Giai đoạn A.
+- Test: script Node độc lập cho `pivot.js` (cộng dồn nhiều dòng cùng ô,
+  null cho ô trống/thiếu số — không phải 0, cả 3 kiểu agg, `cellRawRows()`
+  đúng cho drill-down) + Playwright chụp demo bảng pivot + drill-down, xác
+  nhận không vi phạm CSP.
+- Tài liệu: `hướng_dẫn_báo_cáo.md` mục 8 bổ sung cấu trúc `"pivot"`.
+
 ## 4.7 — Hướng Power BI, Giai đoạn A: biểu đồ (bar/line/pie/KPI) thay bảng số
 
 Theo yêu cầu "xây dựng theo hướng báo cáo Power BI" — bắt đầu lộ trình 4
