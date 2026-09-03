@@ -55,7 +55,7 @@ export default function DashboardTile({ tile, crossFilters, onPointClick }) {
           visualization={definition.visualization}
           showTable={showTable}
           result={result}
-          onPointClick={(field, value) => onPointClick(field, value)}
+          onPointClick={(row, xField) => onPointClick(xField, row[xField])}
         />
       )}
     </div>

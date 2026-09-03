@@ -946,10 +946,8 @@ Thêm đúng 1 khoá vào `DefinitionJson` đã có ở mục 1 (giữ nguyên `
 - Chỉ admin định nghĩa sẵn `visualization` lúc tạo/sửa báo cáo — người
   dùng cuối KHÔNG tự chọn loại biểu đồ/trường vẽ (chỉ chuyển "xem bảng" ↔
   "xem biểu đồ"/"xem pivot" của ĐÚNG cấu hình admin đã đặt).
-- Dashboard nhiều biểu đồ + lọc chéo — xem mục 9. Chưa có drill-through
-  (nhảy sang báo cáo KHÁC đã lọc sẵn — khác drill-down của pivot, vốn chỉ
-  xổ dữ liệu ĐÃ TẢI trong cùng báo cáo) — phần này nằm trong lộ trình tiếp
-  theo cùng đợt nâng cấp "hướng Power BI".
+- Dashboard nhiều biểu đồ + lọc chéo — xem mục 9. Drill-through (nhảy sang
+  báo cáo KHÁC đã lọc sẵn) — xem mục 10.
 
 ## 9. Dashboard nhiều biểu đồ + lọc chéo — hướng Power BI
 
@@ -1008,3 +1006,56 @@ LẠI toàn bộ các ô còn lại theo đúng trường đã bấm — không 
 - Bảng Pivot (mục 8) KHÔNG phát lọc chéo khi bấm — click trong pivot vẫn
   chỉ để drill-down (xổ dữ liệu chi tiết), tránh 1 thao tác bấm mang 2 ý
   nghĩa khác nhau gây nhầm lẫn.
+
+## 10. Drill-through — bấm 1 điểm nhảy sang báo cáo KHÁC đã lọc sẵn
+
+### Khác gì drill-down (mục 8, pivot)
+
+- **Drill-down** (pivot): xổ ra dữ liệu CHI TIẾT của CÙNG báo cáo, dùng lại
+  dữ liệu ĐÃ TẢI, không gọi API mới — vd bấm ô "Tổng doanh thu Q1" xem
+  từng dòng gộp nên số đó.
+- **Drill-through** (mục này): nhảy sang MỘT báo cáo KHÁC (đã tạo sẵn ở
+  "Biểu mẫu"), tự lọc theo giá trị vừa bấm — vd bấm cột "Chi nhánh A" trên
+  biểu đồ tổng quan → mở báo cáo "Danh sách đơn hàng" đã lọc sẵn theo chi
+  nhánh đó.
+
+### Cấu trúc
+
+Thêm khoá `drillThrough` vào TRONG `visualization` đã có (mục 8):
+
+```json
+"visualization": {
+  "type": "bar",
+  "xField": "tenCuaHang",
+  "valueFields": ["thucDat"],
+  "drillThrough": { "field": "maCuaHang", "targetReportId": "chi-tiet-don-hang" }
+}
+```
+
+- **`field`**: tên field LỌC ở báo cáo ĐÍCH (khớp `filters[].field` của báo
+  cáo đích, KHÔNG nhất thiết trùng `xField` của báo cáo nguồn — vd nguồn
+  nhóm theo tên chi nhánh để hiển thị đẹp, đích lọc theo mã chi nhánh).
+- **`targetReportId`**: `ReportId` của báo cáo đích — phải là báo cáo đã có
+  và người xem phải có quyền (`app.RoleReportAccess`) mới mở được, đúng
+  luật phân quyền hiện có (không có đường tắt bỏ qua quyền qua drill-through).
+- Giá trị lọc luôn lấy từ điểm THẬT SỰ vừa bấm trên biểu đồ nguồn.
+
+### Chỉ áp dụng cho bar/line/pie
+
+`drillThrough` CHỈ có tác dụng khi bấm vào 1 cột/đường/lát trên biểu đồ
+bar/line/pie ở trang Báo cáo (`/reports`) — KHÔNG áp dụng cho:
+- **`"kpi"`**: 1 thẻ số cộng dồn TOÀN BỘ dòng, không có 1 giá trị đơn lẻ
+  nào để lọc báo cáo đích theo đó.
+- **`"pivot"`**: bấm ô pivot đã dành riêng cho drill-down (xem mục 8) —
+  tránh 1 thao tác bấm mang 2 ý nghĩa khác nhau.
+- **Tile trong Dashboard** (mục 9): bấm biểu đồ trong dashboard đã dành
+  riêng cho lọc chéo giữa các tile — `drillThrough` bị BỎ QUA nếu khai ở
+  báo cáo đang dùng làm tile (không xung đột, chỉ đơn giản không áp dụng).
+
+### Sau khi nhảy sang báo cáo đích
+
+Trang `/reports` VẪN LÀ TRANG CŨ (không mở tab/route mới) — chỉ tự chuyển
+báo cáo đang chọn + tự điền bộ lọc + tự chạy ngay (không cần bấm "Lọc" lại
+lần nữa). Muốn quay lại báo cáo trước, chọn lại từ ô "Chọn báo cáo" hoặc
+đổi tab như bình thường — bộ lọc đã áp SẴN vẫn sửa được tiếp qua form lọc
+phía trên như mọi báo cáo khác.

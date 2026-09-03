@@ -15,6 +15,43 @@ không chặt: patch/minor/major), GIỮ NGUYÊN không đánh số lại — `0
 (gần nhất theo quy tắc cũ) tương ứng **`4.1`** theo quy tắc mới, là điểm
 bắt đầu đếm tiếp từ đây.
 
+## 5.1 — Hướng Power BI, Giai đoạn D: Drill-through
+
+Tiếp lộ trình 4 giai đoạn (A: biểu đồ, B: pivot, C: dashboard lọc chéo) —
+bấm 1 điểm trên biểu đồ nhảy sang MỘT báo cáo KHÁC đã lọc sẵn:
+
+- Thêm khoá tuỳ chọn `visualization.drillThrough: {field, targetReportId}`
+  — `field` là field LỌC ở báo cáo ĐÍCH (có thể khác `xField` của biểu đồ
+  nguồn), `targetReportId` là báo cáo đích (phải có quyền xem — đi qua
+  ĐÚNG `/api/reports/:reportId(/run)` đã có sẵn, không có đường tắt bỏ qua
+  `RoleReportAccess`). Backend KHÔNG cần đổi gì — `visualization` đã được
+  forward nguyên vẹn từ trước (Giai đoạn A).
+- `rp-user/src/modules/reports/ReportsPage.jsx` — đọc/ghi
+  `?reportId=&filters=` qua `useSearchParams` để chuyển báo cáo + tự điền
+  bộ lọc + TỰ CHẠY ngay (không cần bấm "Lọc" lại) khi đến từ 1 lượt bấm
+  drill-through — vẫn CÙNG trang `/reports`, không dựng route/khung riêng.
+  Dropdown "Chọn báo cáo" tự thêm 1 lựa chọn tạm khi báo cáo đích thuộc
+  nhóm nghiệp vụ khác tab đang mở.
+- CHỈ áp dụng cho bar/line/pie — KHÔNG áp dụng cho `"kpi"` (không có 1 giá
+  trị đơn lẻ để lọc theo), `"pivot"` (bấm ô đã dành cho drill-down), và
+  tile trong Dashboard (bấm biểu đồ trong dashboard đã dành cho lọc chéo —
+  `drillThrough` bị bỏ qua nếu khai ở báo cáo dùng làm tile, không xung đột).
+- Sửa 1 lỗi phát hiện qua test: `rp-user/src/components/ReportChart.jsx` —
+  `onPointClick` trước đó chỉ truyền `(field, value)` của ĐÚNG `xField` vừa
+  bấm, không đủ cho drill-through khi `drillThrough.field` KHÁC `xField`
+  (test thực tế bắt được: bấm cột "CN Quận 1" ra đúng tên chi nhánh thay vì
+  mã cửa hàng cần lọc) — đổi chữ ký thành `onPointClick(row, xField)` (dòng
+  dữ liệu gốc lấy từ `data.payload` của Recharts, không dùng thẳng `data`
+  vì có nguy cơ field nội bộ Recharts đè lên field thật cùng tên) — cross-
+  filter Dashboard (`DashboardTile.jsx`, Giai đoạn C) cập nhật theo, test
+  lại xác nhận không hỏng.
+- Test: Playwright demo drill-through 2 báo cáo thật (bar chart lọc theo
+  field khác `xField` → báo cáo đích tự điền đúng giá trị + tự chạy đúng
+  số dòng) + chạy lại toàn bộ test Giai đoạn C (cross-filter, nút "Xem
+  bảng") xác nhận không hồi quy sau khi đổi chữ ký `onPointClick`.
+- Tài liệu: `hướng_dẫn_báo_cáo.md` mục 10 (mới) — cấu trúc, phân biệt với
+  drill-down (pivot, mục 8), phạm vi áp dụng.
+
 ## 5.0 — Dashboard: thêm nút "Xem bảng" cho từng tile (không bớt bảng số)
 
 Theo phản hồi "bảng số vẫn cần cho các trường hợp báo cáo, không bỏ" — ở

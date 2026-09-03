@@ -5,7 +5,8 @@
 // (GET /api/me — xem lib/permissions.js), báo cáo trong từng nhóm vẫn lọc
 // riêng theo app.RoleReportAccess (GET /api/reports?menuCode=...). Vẽ thành
 // TAB bên trong 1 trang thay vì 3 route/3 mục sidebar riêng.
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { api, downloadFile } from '../../lib/api';
 import { useAuth } from '../../lib/AuthContext';
 import FilterForm from '../../components/FilterForm';
@@ -32,6 +33,15 @@ export default function ReportsPage() {
   // bảng, không có nút chuyển (không có gì để chuyển sang).
   const [showTable, setShowTable] = useState(false);
 
+  // Drill-through (Giai đoạn D — xem VERSION.md): bấm 1 điểm trên biểu đồ
+  // của báo cáo NÀY điều hướng sang MỘT báo cáo KHÁC đã lọc sẵn, qua URL
+  // `?reportId=...&filters=...` (đọc bên dưới) — cùng trang /reports, không
+  // dựng route/khung riêng. `[selectedId]` effect bên dưới đọc cờ này để
+  // biết có cần TỰ CHẠY báo cáo ngay (không đợi bấm "Lọc") hay không.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const pendingDrillFiltersRef = useRef(null);
+  const autoRunRef = useRef(false);
+
   // Vào trang lần đầu (hoặc quyền vừa đổi) -> tự chọn tab ĐẦU TIÊN còn hợp lệ.
   useEffect(() => {
     if (groups.length && !groups.some(g => g.code === activeCode)) {
@@ -48,13 +58,52 @@ export default function ReportsPage() {
     setResult(null);
   }, [activeCode]);
 
+  // Drill-through đến (URL có ?reportId=...) — CHỌN THẲNG báo cáo đích, BỎ
+  // QUA yêu cầu phải nằm trong danh sách `reports` của tab đang mở (báo cáo
+  // đích có thể thuộc nhóm nghiệp vụ khác) — dropdown bên dưới tự thêm 1 lựa
+  // chọn tạm cho trường hợp này. Chỉ tác dụng khi component ĐANG MỞ SẴN (bấm
+  // 1 biểu đồ trong khi đang xem /reports) — activeCode lúc đó đã ổn định
+  // nên effect ở trên không chạy lại, không có tranh chấp reset selectedId.
+  useEffect(() => {
+    const drillReportId = searchParams.get('reportId');
+    if (!drillReportId) return;
+    let filters = {};
+    try { filters = JSON.parse(searchParams.get('filters') || '{}'); } catch { /* bỏ qua, coi như không có bộ lọc */ }
+    pendingDrillFiltersRef.current = filters;
+    setSelectedId(drillReportId);
+    setSearchParams({}, { replace: true }); // dọn query string sau khi đã áp dụng
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
   useEffect(() => {
     if (!selectedId) return;
-    setFilterValues({});
+    const drillFilters = pendingDrillFiltersRef.current;
+    pendingDrillFiltersRef.current = null;
+    setFilterValues(drillFilters || {});
     setResult(null);
     setShowTable(false);
+    autoRunRef.current = !!drillFilters; // đến từ drill-through -> tự chạy ngay khi có definition, không đợi bấm "Lọc"
     api.get(`/reports/${selectedId}`).then(setDefinition).catch(err => setError(err.message));
   }, [selectedId]);
+
+  useEffect(() => {
+    if (definition && autoRunRef.current) {
+      autoRunRef.current = false;
+      runReport();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [definition]);
+
+  // Bấm 1 điểm trên biểu đồ có khai visualization.drillThrough — điều hướng
+  // sang báo cáo đích, đặt SẴN 1 bộ lọc {field: value}. `field` lấy từ cấu
+  // hình drillThrough — có thể KHÁC field đang vẽ trục X của biểu đồ nguồn
+  // (vd biểu đồ nguồn nhóm theo "tenCuaHang" cho đẹp, nhưng báo cáo đích lọc
+  // theo "maCuaHang") — nên đọc `value` từ NGUYÊN dòng dữ liệu của điểm vừa
+  // bấm (`row`, xem ReportChart.jsx), không phải chỉ mỗi giá trị trục X.
+  function handleDrillThrough(row) {
+    const { field, targetReportId } = definition.visualization.drillThrough;
+    setSearchParams({ reportId: targetReportId, filters: JSON.stringify({ [field]: row[field] }) });
+  }
 
   async function runReport() {
     setLoading(true);
@@ -104,6 +153,13 @@ export default function ReportsPage() {
         <select value={selectedId} onChange={(e) => setSelectedId(e.target.value)}>
           <option value="">— Chọn —</option>
           {reports.map(r => <option key={r.ReportId} value={r.ReportId}>{r.Title}</option>)}
+          {/* Đến từ drill-through, báo cáo đích thuộc nhóm nghiệp vụ KHÁC tab
+              đang mở -> không nằm trong `reports` (đã lọc theo activeCode) —
+              thêm 1 lựa chọn tạm để dropdown không hiện trống dù nội dung
+              bên dưới đã đúng báo cáo đích. */}
+          {selectedId && definition && !reports.some(r => r.ReportId === selectedId) && (
+            <option value={selectedId}>{definition.title} (từ báo cáo khác)</option>
+          )}
         </select>
       </label>
 
@@ -135,7 +191,12 @@ export default function ReportsPage() {
               {result.warnings?.map((w, i) => <p key={i} className="form-warning">⚠️ {w}</p>)}
               {/* result.columns đã là [{key,label}] — rp-server chuẩn hoá sẵn
                   (kể cả cột công thức), xem rp-server/lib/reportEngine.js:describeColumns(). */}
-              <ReportBody visualization={definition.visualization} showTable={showTable} result={result} />
+              <ReportBody
+                visualization={definition.visualization}
+                showTable={showTable}
+                result={result}
+                onPointClick={definition.visualization?.drillThrough ? (row) => handleDrillThrough(row) : undefined}
+              />
             </>
           )}
           {loading && <p>Đang tải...</p>}

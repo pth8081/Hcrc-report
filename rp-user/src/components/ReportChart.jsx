@@ -15,9 +15,16 @@
 //   - 'pie': chỉ dùng valueFields[0] (1 chuỗi số duy nhất, đúng ngữ nghĩa
 //     biểu đồ tròn — nhiều chuỗi không có ý nghĩa "phần trăm của tổng").
 //
-// onPointClick(field, value) — TUỲ CHỌN, chưa dùng ở bản này (không có nơi
-// gọi truyền vào) — chừa sẵn để tái dùng cho lọc chéo dashboard/drill-through
-// sau này mà không phải đổi lại chữ ký component.
+// onPointClick(row, xField) — TUỲ CHỌN. `row` là NGUYÊN dòng dữ liệu gốc
+// của điểm vừa bấm (đủ mọi field đã chiếu phẳng, không CHỈ mỗi giá trị
+// xField) — cần vậy vì bên gọi có thể muốn đọc field KHÁC field vẽ trục X
+// (vd drill-through lọc báo cáo đích theo "maCuaHang" trong khi trục X hiện
+// "chiNhanh" cho đẹp). `xField` kèm theo để bên gọi tự lấy `row[xField]` khi
+// cần đúng field đã dùng để nhóm/vẽ trục (vd lọc chéo dashboard). Lấy từ
+// `data.payload` của Recharts (dòng gốc SẠCH, không lẫn field nội bộ như
+// x/y/width/height/fill mà Recharts gắn thêm vào tham số onClick) — dùng
+// thẳng `data` (không qua `.payload`) có nguy cơ những field nội bộ đó ĐÈ
+// lên field thật cùng tên (vd cột dữ liệu tên "value"/"x").
 //
 // isAnimationActive={false} ở mọi biểu đồ — Recharts mặc định "vẽ dần" hình
 // (đặc biệt Pie: sector bắt đầu từ góc 0 rồi quét dần ra) khi mount; test
@@ -70,7 +77,7 @@ export default function ReportChart({ columns, rows, visualization, onPointClick
   const chartRows = rows.filter(r => !r.__isSubtotal);
   if (!chartRows.length) return <p className="empty-message">Không có dữ liệu.</p>;
 
-  const handleClick = (field, value) => { if (onPointClick && value !== undefined) onPointClick(field, value); };
+  const handleClick = (data) => { const row = data?.payload; if (onPointClick && row) onPointClick(row, xField); };
 
   if (type === 'pie') {
     const field = valueFields[0];
@@ -84,7 +91,7 @@ export default function ReportChart({ columns, rows, visualization, onPointClick
             outerRadius={130}
             label={(d) => d[xField]}
             isAnimationActive={false}
-            onClick={(d) => handleClick(xField, d?.[xField])}
+            onClick={handleClick}
           >
             {chartRows.map((_, i) => <Cell key={i} fill={PALETTE[i % PALETTE.length]} />)}
           </Pie>
@@ -120,7 +127,7 @@ export default function ReportChart({ columns, rows, visualization, onPointClick
             stroke={PALETTE[i % PALETTE.length]}
             isAnimationActive={false}
             cursor={onPointClick ? 'pointer' : undefined}
-            onClick={(data) => handleClick(xField, data?.[xField] ?? data?.payload?.[xField])}
+            onClick={handleClick}
           />
         ))}
       </ChartComponent>
