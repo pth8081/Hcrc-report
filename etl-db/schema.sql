@@ -161,7 +161,7 @@ BEGIN
         Id           BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
         SyncJobId    INT           NOT NULL REFERENCES etl.SyncJobs(Id),
         Status       VARCHAR(20)   NOT NULL,   -- 'SUCCESS' | 'FAILED'
-        RowCount     INT           NOT NULL DEFAULT 0,
+        RowsProcessed INT          NOT NULL DEFAULT 0,   -- "RowCount" là từ khoá dành riêng của T-SQL, không đặt tên cột trùng
         ErrorMessage NVARCHAR(MAX) NULL,
         StartedAt    DATETIME2(3)  NOT NULL,
         FinishedAt   DATETIME2(3)  NOT NULL

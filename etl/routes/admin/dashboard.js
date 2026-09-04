@@ -34,7 +34,7 @@ router.get('/', blockTargetImporter, async (req, res, next) => {
     `);
 
     const recentRuns = await pool.request().query(`
-      SELECT TOP 20 j.Name AS JobName, l.Status, l.RowCount, l.StartedAt, l.FinishedAt
+      SELECT TOP 20 j.Name AS JobName, l.Status, l.RowsProcessed AS RowCount, l.StartedAt, l.FinishedAt
       FROM etl.SyncLog l JOIN etl.SyncJobs j ON l.SyncJobId = j.Id
       ORDER BY l.StartedAt DESC
     `);

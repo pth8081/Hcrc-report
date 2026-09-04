@@ -69,7 +69,7 @@ async function logRun({ jobId, status, rowCount = 0, errorMessage = null, starte
     .input('startedAt', sql.DateTime2, startedAt)
     .input('finishedAt', sql.DateTime2, finishedAt)
     .query(`
-      INSERT INTO etl.SyncLog (SyncJobId, Status, RowCount, ErrorMessage, StartedAt, FinishedAt)
+      INSERT INTO etl.SyncLog (SyncJobId, Status, RowsProcessed, ErrorMessage, StartedAt, FinishedAt)
       VALUES (@jobId, @status, @rowCount, @errorMessage, @startedAt, @finishedAt)
     `);
 }

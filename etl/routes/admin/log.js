@@ -32,7 +32,7 @@ router.get('/', blockTargetImporter, async (req, res, next) => {
 
     const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
     const result = await request.query(`
-      SELECT l.Id, l.SyncJobId, j.Name AS JobName, l.Status, l.RowCount, l.ErrorMessage, l.StartedAt, l.FinishedAt
+      SELECT l.Id, l.SyncJobId, j.Name AS JobName, l.Status, l.RowsProcessed AS RowCount, l.ErrorMessage, l.StartedAt, l.FinishedAt
       FROM etl.SyncLog l JOIN etl.SyncJobs j ON l.SyncJobId = j.Id
       ${where}
       ORDER BY l.StartedAt DESC, l.Id DESC

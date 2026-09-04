@@ -15,6 +15,27 @@ không chặt: patch/minor/major), GIỮ NGUYÊN không đánh số lại — `0
 (gần nhất theo quy tắc cũ) tương ứng **`4.1`** theo quy tắc mới, là điểm
 bắt đầu đếm tiếp từ đây.
 
+## 5.7 — Sửa lỗi CREATE TABLE etl.SyncLog: cột "RowCount" trùng từ khoá dành riêng T-SQL
+
+Người dùng chạy `etl-db/schema.sql` qua SSMS, báo lỗi `Msg 156 ... Incorrect
+syntax near the keyword 'RowCount'` đúng tại dòng khai báo cột `RowCount` —
+`ROWCOUNT` là từ khoá dành riêng của T-SQL (liên quan câu lệnh `SET
+ROWCOUNT`), không dùng được làm tên cột KHÔNG có ngoặc vuông bao quanh.
+`CREATE TABLE etl.SyncLog` chưa từng chạy thành công ở bất kỳ đâu (lỗi xảy
+ra ngay từ lần chạy `schema.sql` đầu tiên) nên không có dữ liệu cũ cần
+chuyển đổi — đổi thẳng tên cột, không cần script migrate.
+
+- `etl-db/schema.sql` — đổi cột `RowCount` → `RowsProcessed` trong
+  `CREATE TABLE etl.SyncLog`.
+- `etl/jobs/runSync.js` — câu `INSERT INTO etl.SyncLog` dùng đúng tên cột
+  mới.
+- `etl/routes/admin/log.js`, `etl/routes/admin/dashboard.js` — câu `SELECT`
+  đổi thành `RowsProcessed AS RowCount` — JSON trả về API vẫn giữ nguyên
+  field `RowCount` như cũ, KHÔNG cần sửa gì ở `etl-admin` (2 trang
+  `LogPage.jsx`/`DashboardPage.jsx` vẫn đọc đúng key `RowCount` sẵn có).
+- Rà soát lại cả 4 file `*/schema.sql` — không còn tên cột nào khác trùng
+  từ khoá dành riêng T-SQL.
+
 ## 5.6 — Sổ tay kết nối DSMART16 (2 nguồn Live + Lịch sử) + file mẫu Nguồn dữ liệu
 
 Yêu cầu: chuẩn bị phần kết nối ETL để lấy TOÀN BỘ dữ liệu từ hệ thống
