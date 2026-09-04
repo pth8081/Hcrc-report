@@ -15,6 +15,23 @@ không chặt: patch/minor/major), GIỮ NGUYÊN không đánh số lại — `0
 (gần nhất theo quy tắc cũ) tương ứng **`4.1`** theo quy tắc mới, là điểm
 bắt đầu đếm tiếp từ đây.
 
+## 5.5 — Bổ sung bước tạo database trước khi chạy schema.sql
+
+Người dùng báo chạy `dwh/schema.sql` qua SSMS "thành công" nhưng không
+thấy database — đúng như thiết kế: cả 4 file `*/schema.sql` (`dwh/`,
+`etl-db/`, `api-db/`, `rp-db/`) CHỈ tạo schema + bảng BÊN TRONG 1 database
+đã có sẵn, KHÔNG tự `CREATE DATABASE` (đã ghi rõ trong chú thích đầu mỗi
+file) — nhưng `deploy/README.md` trước đây CHƯA có bước tạo 4 database
+trước khi chạy schema, khiến chạy nhầm vào database mặc định (vd `master`)
+mà không có lỗi rõ ràng để biết — đặc biệt dễ gặp khi dùng SSMS (ô chọn
+database ở toolbar không tự cảnh báo nếu quên đổi) hơn `sqlcmd -d <tên>`
+(báo lỗi ngay nếu database chưa tồn tại).
+
+- `deploy/README.md` mục 2 — thêm 4 câu `CREATE DATABASE` trước bước chạy
+  schema, thêm lưu ý dùng SSMS phải tự kiểm tra ô chọn database, thêm cách
+  kiểm tra/dọn lại nếu lỡ chạy nhầm database (`SELECT DB_NAME()`, `DROP
+  TABLE`/`DROP SCHEMA`).
+
 ## 5.4 — Bật gzip cho file tĩnh 3 giao diện (Nginx)
 
 Phát hiện khi rà soát câu hỏi "đã dùng compression chưa": `compression()`

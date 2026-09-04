@@ -125,8 +125,24 @@ khi đổi 1 trong 2 số.
 ## 2. Máy chủ CSDL riêng
 
 Cài SQL Server trên máy chủ CSDL, mở port 1433 **CHỈ cho máy chủ ứng dụng**
-(firewall/security group — KHÔNG public port 1433 ra Internet). Chạy lần
-lượt 4 file schema (an toàn chạy lại nhiều lần):
+(firewall/security group — KHÔNG public port 1433 ra Internet).
+
+**Tạo 4 database RỖNG trước** — mọi file `*/schema.sql` trong repo này đều
+CHỈ tạo schema + bảng BÊN TRONG 1 database đã có sẵn, KHÔNG tự
+`CREATE DATABASE` (xem chú thích đầu mỗi file) — thiếu bước này, script vẫn
+chạy "thành công" nhưng tạo nhầm bảng vào database MẶC ĐỊNH đang chọn (vd
+`master`), không lỗi rõ ràng để biết mà sửa ngay, đặc biệt dễ gặp khi chạy
+bằng SSMS (ô chọn database ở toolbar bị bỏ trống/chưa đổi) hơn là `sqlcmd`
+(dùng `-d <tên>` sẽ báo lỗi ngay nếu database chưa tồn tại):
+
+```sql
+CREATE DATABASE HCRC_DWH;
+CREATE DATABASE HCRC_ETL;
+CREATE DATABASE HCRC_API;
+CREATE DATABASE HCRC_RP;
+```
+
+Rồi chạy lần lượt 4 file schema (an toàn chạy lại nhiều lần):
 
 ```bash
 # Trên máy chủ CSDL, hoặc từ máy bất kỳ có sqlcmd trỏ tới máy chủ CSDL:
@@ -134,6 +150,22 @@ sqlcmd -S <ip-may-chu-csdl> -d HCRC_DWH -i dwh/schema.sql
 sqlcmd -S <ip-may-chu-csdl> -d HCRC_ETL -i etl-db/schema.sql
 sqlcmd -S <ip-may-chu-csdl> -d HCRC_API -i api-db/schema.sql
 sqlcmd -S <ip-may-chu-csdl> -d HCRC_RP  -i rp-db/schema.sql
+```
+
+Dùng SSMS thay vì `sqlcmd` — sau khi mở file `.sql`, LUÔN kiểm tra ô chọn
+database ở toolbar (phía trên cửa sổ Query) đang trỏ ĐÚNG tên database
+tương ứng trước khi bấm Execute, hoặc gõ `USE HCRC_DWH; GO` (đổi tên) làm
+dòng đầu file trước khi chạy — SSMS KHÔNG tự cảnh báo nếu bạn quên đổi, chỉ
+âm thầm chạy vào database đang chọn sẵn.
+
+**Lỡ chạy nhầm database (schema/bảng nằm sai chỗ)** — kiểm tra bằng
+`SELECT DB_NAME();` ngay trong cửa sổ Query vừa chạy; nếu không phải tên
+đúng, dọn lại trước khi tạo đúng chỗ:
+
+```sql
+USE <tên-database-bị-nhầm>; -- vd master
+DROP TABLE IF EXISTS dwh.ReportFacts; -- đổi tên bảng/schema theo đúng file schema.sql vừa chạy nhầm
+DROP SCHEMA IF EXISTS dwh;
 ```
 
 Tạo tài khoản quyền tối thiểu (xem `dwh/grants.sql`, `etl-db/grants.sql`,
