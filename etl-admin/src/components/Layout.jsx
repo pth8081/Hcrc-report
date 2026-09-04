@@ -8,6 +8,7 @@ const NAV = [
   { path: '/log', label: 'Log', icon: '🧾' },
   { path: '/audit-log', label: 'Nhật ký thao tác', icon: '📜' },
   { path: '/sales-targets', label: 'Nhập chỉ tiêu', icon: '🎯' },
+  { path: '/branch-code-map', label: 'Ánh xạ mã chi nhánh', icon: '🔗' },
   { path: '/users', label: 'Phân quyền', icon: '🔐' }
 ];
 

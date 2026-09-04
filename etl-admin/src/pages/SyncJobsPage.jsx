@@ -16,7 +16,7 @@ const EMPTY_FORM = {
   dimensionColumns: [], measureColumns: [],
   useJoin: false, joinSchema: '', joinTable: '', joinType: 'LEFT',
   mainJoinColumn: '', lookupJoinColumn: '', lookupDimensionColumns: [],
-  customConnectorKey: '', keepHistory: false
+  customConnectorKey: '', keepHistory: false, branchCodeMapType: ''
 };
 
 function toggleInList(list, value) {
@@ -120,6 +120,7 @@ export default function SyncJobsPage() {
         dimensionColumns: JSON.parse(job.DimensionColumnsJson || '[]'),
         measureColumns: JSON.parse(job.MeasureColumnsJson || '[]'),
         keepHistory: !!job.KeepHistory,
+        branchCodeMapType: job.BranchCodeMapType || '',
         isActive: !job.IsActive
       });
       reload();
@@ -146,6 +147,7 @@ export default function SyncJobsPage() {
           { key: 'TargetDomain', label: 'Domain' },
           { key: 'CronExpression', label: 'Lịch chạy' },
           { key: 'KeepHistory', label: 'Giữ lịch sử', render: (j) => (j.KeepHistory ? 'Có' : 'Không') },
+          { key: 'BranchCodeMapType', label: 'Ánh xạ mã chi nhánh', render: (j) => j.BranchCodeMapType || '—' },
           { key: 'IsActive', label: 'Trạng thái', render: (j) => (j.IsActive ? 'Bật' : 'Tắt') },
           {
             key: 'checkSchema', label: '', render: (j) => (
@@ -303,6 +305,11 @@ export default function SyncJobsPage() {
               <input type="checkbox" checked={form.keepHistory} onChange={(e) => setForm({ ...form, keepHistory: e.target.checked })} />
               Giữ lịch sử theo ngày (mỗi EventDate 1 dòng riêng, không ghi đè — bật cho domain cần so cùng kỳ năm trước)
             </label>
+            <input
+              placeholder="Ánh xạ mã chi nhánh (tuỳ chọn — vd BU_ID, khớp Loại mã khai ở trang Ánh xạ mã chi nhánh)"
+              value={form.branchCodeMapType}
+              onChange={(e) => setForm({ ...form, branchCodeMapType: e.target.value })}
+            />
             <button type="submit">Tạo job đồng bộ</button>
           </form>
         </>

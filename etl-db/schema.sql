@@ -144,6 +144,52 @@ BEGIN
 END
 GO
 
+-- NULL = không áp dụng ánh xạ mã chi nhánh gì (giữ nguyên hành vi cũ, mã
+-- khoá nguồn dùng thẳng làm EntityCode). Có giá trị = trước khi ghi
+-- dwh.ReportFacts, etl/jobs/runSync.js tra etl.BranchCodeMap
+-- WHERE LoaiMaKhac = giá trị này để quy đổi mã khoá nguồn (vd BU_ID) sang
+-- đúng mã chuẩn (vd STK_ID/mã siêu thị) đã dùng ở domain khác — xem
+-- etl.BranchCodeMap bên dưới + etl/lib/tableSyncEngine.js.
+IF COL_LENGTH('etl.SyncJobs', 'BranchCodeMapType') IS NULL
+BEGIN
+    ALTER TABLE etl.SyncJobs ADD BranchCodeMapType VARCHAR(50) NULL;
+END
+GO
+
+-- Ánh xạ mã chi nhánh — 1 chi nhánh vật lý đôi khi có NHIỀU mã khác nhau
+-- tuỳ bảng nguồn (vd DSMART16: bảng doanh thu/tồn kho dùng STK_ID, bảng
+-- giao dịch dùng BU_ID — không chắc trùng số) — bảng này cho admin tự khai
+-- (và SỬA LẠI khi mã đổi, không cần đụng code) "mã X ở nguồn nào đó" tương
+-- ứng "mã chuẩn Y" nào, để mọi job "Theo bảng" quy về CÙNG 1 EntityCode
+-- trước khi ghi dwh.ReportFacts — nếu không, composite report (khối
+-- "directDb" ghép theo entityCode, xem rp-server/lib/compositeReportRunner.js)
+-- sẽ KHÔNG ghép được domain "doanh thu" (mã STK_ID) với domain "giao dịch"
+-- (mã BU_ID) dù cùng 1 chi nhánh — mỗi mã bị coi là 1 thực thể riêng.
+--
+-- LoaiMaKhac: admin tự đặt tên (vd "BU_ID"), PHẢI khớp CHÍNH XÁC giá trị
+-- chọn ở etl.SyncJobs.BranchCodeMapType của job cần áp dụng. MaKhac: giá
+-- trị mã gốc ở nguồn (vd giá trị BU_ID thật). MaChuan: mã chuẩn dùng làm
+-- EntityCode sau cùng — PHẢI khớp đúng mã đã dùng ở domain doanh thu/tồn
+-- kho (mục 11 hướng_dẫn_báo_cáo.md, thường là STK_ID/STK_CODE của bảng
+-- STOCK). TenSieuThi chỉ để hiển thị cho dễ đọc lúc nhập, KHÔNG dùng để đối
+-- chiếu. TrangThai để trống = đang áp dụng, "DaDong" = ngừng áp dụng dòng
+-- này (không xoá, giữ lịch sử) — cùng quy ước với dwh.SalesTargets.TrangThai.
+IF OBJECT_ID('etl.BranchCodeMap', 'U') IS NULL
+BEGIN
+    CREATE TABLE etl.BranchCodeMap (
+        Id          INT           IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        LoaiMaKhac  VARCHAR(50)   NOT NULL,
+        MaKhac      NVARCHAR(50)  NOT NULL,
+        MaChuan     NVARCHAR(100) NOT NULL,
+        TenSieuThi  NVARCHAR(200) NULL,
+        TrangThai   VARCHAR(20)   NULL,
+        ImportedAt  DATETIME2(3)  NOT NULL DEFAULT SYSUTCDATETIME(),
+        ImportedBy  NVARCHAR(50)  NULL,
+        CONSTRAINT UX_BranchCodeMap_Loai_MaKhac UNIQUE (LoaiMaKhac, MaKhac)
+    );
+END
+GO
+
 -- Chuyển từ dwh.SyncState — khoá theo SyncJobId thay vì chuỗi SourceSystem tự do.
 IF OBJECT_ID('etl.SyncState', 'U') IS NULL
 BEGIN

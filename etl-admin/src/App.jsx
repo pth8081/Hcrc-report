@@ -10,6 +10,7 @@ import LogPage from './pages/LogPage';
 import AuditLogPage from './pages/AuditLogPage';
 import UsersPage from './pages/UsersPage';
 import SalesTargetsPage from './pages/SalesTargetsPage';
+import BranchCodeMapPage from './pages/BranchCodeMapPage';
 
 // target_importer không thấy "/dashboard" trong menu (xem Layout.jsx) —
 // đưa thẳng vào trang họ thật sự dùng được, tránh hạ cánh vào trang trống/
@@ -33,6 +34,7 @@ export default function App() {
           <Route path="/log" element={<LogPage />} />
           <Route path="/audit-log" element={<AuditLogPage />} />
           <Route path="/sales-targets" element={<SalesTargetsPage />} />
+          <Route path="/branch-code-map" element={<BranchCodeMapPage />} />
           <Route path="/users" element={<UsersPage />} />
         </Route>
       </Routes>

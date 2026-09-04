@@ -1109,12 +1109,49 @@ bước gộp/SUM nào ở tầng ETL. Vì vậy:
 ### Sổ tay theo từng nhóm báo cáo (dựa trên DSMART16_SCHEMA.json đã gửi)
 
 Cột chính xác lấy trực tiếp từ file schema — KHÔNG suy đoán tên cột. Riêng
-mối liên hệ `BU_ID` (dùng ở `TRANSHDR`/`RV_ORDER`/`DLVHDR`) với `STK_ID`
-(dùng ở `DSTK_INFO`/`STK_INFO`/`STOCK`) chưa xác nhận được (file schema chỉ
-có tên cột, không có khoá ngoại) — sổ tay dưới đây giả định 2 mã này CÙNG
-đại diện 1 chi nhánh vật lý (thực tế phổ biến với DSMART16), nhưng cần đối
-chiếu lại với đội kỹ thuật DSMART16/DBA trước khi tạo job "Theo bảng" cho
-các domain dùng `TRANSHDR`/`RV_ORDER`/`DLVHDR`.
+mối liên hệ `BU_ID` (dùng ở `TRANSHDR`/`RV_ORDER`/`DLVHDR`/`CRDTRANS`) với
+`STK_ID` (dùng ở `DSTK_INFO`/`STK_INFO`/`STOCK`) chưa xác nhận được (file
+schema chỉ có tên cột, không có khoá ngoại) — sổ tay dưới đây coi 2 mã này
+là 2 mã KHÁC NHAU của CÙNG 1 chi nhánh (thực tế phổ biến với hệ thống nhiều
+lớp như DSMART16), và dùng **"Ánh xạ mã chi nhánh"** (trang mới trên
+etl-admin, xem mục "Ánh xạ mã chi nhánh khi 1 chi nhánh có nhiều mã khác
+nhau" ngay dưới) để quy đổi — domain dùng `TRANSHDR`/`RV_ORDER`/`DLVHDR`/
+`CRDTRANS` (EntityCode gốc là `BU_ID`) tự động ghi đúng `STK_ID`/mã siêu thị
+chuẩn vào `dwh.ReportFacts`,
+không cần biết trước quan hệ `BU_ID`↔`STK_ID` lúc tạo job — chỉ cần khai
+đúng cặp mã trong bảng ánh xạ (đối chiếu với đội kỹ thuật DSMART16/DBA nếu
+chưa chắc), sửa lại bất cứ lúc nào qua giao diện nếu mã đổi, không cần đụng
+tới cấu hình job hay code.
+
+### Ánh xạ mã chi nhánh khi 1 chi nhánh có nhiều mã khác nhau
+
+**etl-admin → Ánh xạ mã chi nhánh** (trang mới) — khai "mã X ở nguồn nào
+đó" tương ứng "mã chuẩn Y" nào, upload hàng loạt qua Excel (giống hệt cách
+dùng trang **Nhập chỉ tiêu**) hoặc sửa từng dòng qua form:
+
+| LoaiMaKhac | MaKhac | MaChuan | TenSieuThi | TrangThai |
+|---|---|---|---|---|
+| BU_ID | 1001 | BRGHP | Hải Phòng | |
+| BU_ID | 1002 | BRGHD | Hải Dương | |
+
+- **LoaiMaKhac**: tên tự đặt (vd `BU_ID`) — PHẢI khớp CHÍNH XÁC ô "Ánh xạ mã
+  chi nhánh" chọn ở job "Theo bảng" (etl-admin → Đồng bộ) cần áp dụng.
+- **MaKhac**: giá trị mã gốc ở nguồn (vd giá trị `BU_ID` thật đọc được từ
+  `TRANSHDR`).
+- **MaChuan**: mã chuẩn dùng làm EntityCode cuối cùng — PHẢI khớp đúng mã
+  đã dùng ở domain doanh thu/tồn kho (thường là `STK_ID`/`STK_CODE` của
+  bảng `STOCK`, xem mục a bên dưới).
+- **TrangThai**: để trống = đang áp dụng, `DaDong` = ngừng áp dụng dòng này
+  (giữ lại lịch sử, không xoá).
+
+Khi job "Theo bảng" bật đúng "Ánh xạ mã chi nhánh" = `BU_ID`, mỗi dòng đồng
+bộ tự tra bảng này (nạp 1 lần/lượt chạy, không tốn 1 truy vấn/dòng) TRƯỚC
+khi ghi `dwh.ReportFacts` — mã khớp thì dùng `MaChuan`, mã CHƯA khai trong
+bảng vẫn GIỮ NGUYÊN mã gốc (không rớt dòng, không chặn đồng bộ) và được ghi
+cảnh báo vào log ETL (liệt kê rõ những mã chưa ánh xạ trong lượt chạy đó) để
+admin biết cần bổ sung thêm dòng nào. Vì vậy có thể bật tính năng này TRƯỚC
+khi khai đủ toàn bộ ~30-40 chi nhánh — bổ sung dần theo cảnh báo, không cần
+chờ có đủ danh sách mới bắt đầu đồng bộ.
 
 **a) Thông tin siêu thị (`thongtin_sieuthi`) — bảng KHÔNG phải fact, dùng để JOIN/tra cứu tên hiển thị**
 
@@ -1165,8 +1202,12 @@ các domain dùng `TRANSHDR`/`RV_ORDER`/`DLVHDR`.
   WHERE STATUS <> 'X' -- loại giao dịch huỷ, đối chiếu đúng mã STATUS thật với DBA DSMART16
   GROUP BY BU_ID, CAST(TRAN_DATE AS DATE);
   ```
-- EntityCode = `BU_ID` (cần đối chiếu = `STK_ID` thật, xem cảnh báo đầu
-  mục), EventDate = `TRAN_DATE`.
+- Cột khoá (EntityCode) chọn `BU_ID` khi tạo job như bình thường — **BẬT
+  "Ánh xạ mã chi nhánh"** ở job này (chọn đúng Loại mã đã khai, vd `BU_ID`)
+  để engine tự quy đổi sang mã chuẩn (khớp `STK_ID`/mã siêu thị ở domain
+  `doanhthu_chinhanh`) TRƯỚC khi ghi `dwh.ReportFacts` — xem mục "Ánh xạ mã
+  chi nhánh khi 1 chi nhánh có nhiều mã khác nhau" ngay dưới đây. EventDate
+  = `TRAN_DATE`.
 - Measures: `SoGiaoDich`, `TongTien`, `TongGiamGia`, `TongVAT`.
 - Watermark: dùng `TRAN_DATE` (cùng lý do như mục b) — nếu DSMART16 có cột
   cập nhật thật (vd `UPDATED`, đã thấy trong `TRANSHDR` nhưng chưa rõ kiểu
@@ -1191,8 +1232,10 @@ các domain dùng `TRANSHDR`/`RV_ORDER`/`DLVHDR`.
   FROM CRDTRANS
   GROUP BY BU_ID, CAST(TRAN_DATE AS DATE);
   ```
-  EntityCode = `BU_ID`, EventDate = `TRAN_DATE`. (Mã `TYPE`/quy ước điểm
-  âm-dương trong `CRDTRANS` cần DBA DSMART16 xác nhận trước khi dùng thật —
+  Cột khoá chọn `BU_ID` — cũng BẬT "Ánh xạ mã chi nhánh" ở job này như mục
+  c) để quy đổi đúng mã chuẩn. EventDate = `TRAN_DATE`. (Mã `TYPE`/quy ước
+  điểm âm-dương trong `CRDTRANS` cần DBA DSMART16 xác nhận trước khi dùng
+  thật —
   đây chỉ là khung, không đoán đúng-sai logic nghiệp vụ điểm thưởng.)
 
 **e) Tồn kho (`tonkho_chinhanh`)**

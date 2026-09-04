@@ -15,6 +15,45 @@ không chặt: patch/minor/major), GIỮ NGUYÊN không đánh số lại — `0
 (gần nhất theo quy tắc cũ) tương ứng **`4.1`** theo quy tắc mới, là điểm
 bắt đầu đếm tiếp từ đây.
 
+## 5.8 — Ánh xạ mã chi nhánh: quy đổi EntityCode khi 1 chi nhánh có nhiều mã khác nhau
+
+Người dùng đề xuất: 1 chi nhánh vật lý có thể có NHIỀU mã khác nhau tuỳ
+bảng nguồn (vd DSMART16: bảng doanh thu/tồn kho dùng `STK_ID`, bảng giao
+dịch dùng `BU_ID` — chưa chắc trùng số), và muốn upload bảng tương ứng qua
+ETL (giống cách nhập chỉ tiêu/KPI) để dùng làm tham chiếu lâu dài, tự sửa
+được khi mã đổi mà không cần đụng code. Trước đây (mục 11
+`hướng_dẫn_báo_cáo.md`) chỉ có thể xử lý việc này bằng cách viết cứng
+JOIN/CASE vào VIEW phía DSMART16 — không tự sửa được qua giao diện.
+
+- `etl-db/schema.sql` — bảng mới `etl.BranchCodeMap` (LoaiMaKhac, MaKhac ->
+  MaChuan, TenSieuThi, TrangThai — khoá UNIQUE theo LoaiMaKhac+MaKhac); cột
+  mới `etl.SyncJobs.BranchCodeMapType` (tuỳ chọn — job "Theo bảng" chọn
+  đúng Loại mã cần áp dụng).
+- `etl/lib/branchCodeMapImport.js` (mới) — parse Excel + upsert (staging +
+  MERGE, cùng mẫu `salesTargetsImport.js`), giữ nguyên `TrangThai` cũ khi
+  re-upload không đề cập (COALESCE, tránh âm thầm "mở lại" 1 dòng đã ngừng
+  áp dụng).
+- `etl/routes/admin/branchCodeMap.js` (mới) — GET danh sách (lọc theo
+  LoaiMaKhac), PUT sửa/thêm 1 dòng, DELETE, POST nhập Excel — vai trò
+  'admin' (không dùng vai trò hẹp 'target_importer', vì ảnh hưởng cách
+  MỌI job "Theo bảng" ghi EntityCode).
+- `etl/lib/tableSyncEngine.js` — `transformRow()` nhận thêm tham số
+  `branchCodeMap` (Map, tuỳ chọn) + `unmappedCodes` (Set, tuỳ chọn): mã
+  khớp thì quy đổi entityCode sang `MaChuan`, mã CHƯA khai vẫn giữ nguyên
+  (không rớt dòng) và được gom vào `unmappedCodes`.
+- `etl/jobs/runSync.js` — `runTableJob()` nạp TOÀN BỘ `etl.BranchCodeMap`
+  cho đúng 1 `LoaiMaKhac` vào bộ nhớ MỘT LẦN trước vòng lặp dòng (không
+  truy vấn lặp lại theo từng dòng nguồn), cảnh báo 1 lần/lượt chạy liệt kê
+  các mã chưa ánh xạ.
+- `etl/routes/admin/syncJobs.js` — POST/PUT nhận thêm `branchCodeMapType`.
+- `etl-admin/` — trang mới "Ánh xạ mã chi nhánh" (upload Excel + sửa từng
+  dòng, cùng mẫu trang "Nhập chỉ tiêu"); trang "Đồng bộ" thêm ô chọn "Ánh xạ
+  mã chi nhánh" khi tạo job.
+- `hướng_dẫn_báo_cáo.md` mục 11 — thêm mục "Ánh xạ mã chi nhánh khi 1 chi
+  nhánh có nhiều mã khác nhau", cập nhật domain "Số lượng giao dịch"/"Tích
+  điểm" (dùng `BU_ID`) trỏ đúng cơ chế mới thay vì chỉ nêu cảnh báo cần DBA
+  xác nhận thủ công.
+
 ## 5.7 — Sửa lỗi CREATE TABLE etl.SyncLog: cột "RowCount" trùng từ khoá dành riêng T-SQL
 
 Người dùng chạy `etl-db/schema.sql` qua SSMS, báo lỗi `Msg 156 ... Incorrect

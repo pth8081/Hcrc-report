@@ -74,10 +74,31 @@ async function logRun({ jobId, status, rowCount = 0, errorMessage = null, starte
     `);
 }
 
+// Nạp TOÀN BỘ ánh xạ (etl.BranchCodeMap) cho ĐÚNG 1 loaiMaKhac vào bộ nhớ
+// MỘT LẦN trước vòng lặp dòng — số dòng thực tế nhỏ (vài chục/vài trăm chi
+// nhánh), tránh truy vấn DB LẶP LẠI theo từng dòng nguồn (có thể hàng nghìn
+// dòng/lượt chạy). TrangThai='DaDong' bị loại — dòng ánh xạ ngừng áp dụng
+// coi như KHÔNG có, entityCode gốc giữ nguyên (rơi vào nhánh unmappedCodes).
+async function loadBranchCodeMap(loaiMaKhac) {
+  const pool = await getPool('ADMIN');
+  const result = await pool.request().input('loaiMaKhac', sql.VarChar(50), loaiMaKhac).query(`
+    SELECT MaKhac, MaChuan FROM etl.BranchCodeMap
+    WHERE LoaiMaKhac = @loaiMaKhac AND (TrangThai IS NULL OR TrangThai <> 'DaDong')
+  `);
+  const map = new Map();
+  for (const r of result.recordset) map.set(String(r.MaKhac).trim(), String(r.MaChuan).trim());
+  return map;
+}
+
 async function runTableJob(job, lastSyncedAt) {
   const connection = await getConnection(job.DataSourceId);
   const { rows, ...meta } = await extractTable(connection, job, lastSyncedAt);
-  const transformed = rows.map(r => transformRow(job, meta, r));
+  const branchCodeMap = job.BranchCodeMapType ? await loadBranchCodeMap(job.BranchCodeMapType) : null;
+  const unmappedCodes = branchCodeMap ? new Set() : null;
+  const transformed = rows.map(r => transformRow(job, meta, r, branchCodeMap, unmappedCodes));
+  if (unmappedCodes && unmappedCodes.size) {
+    console.warn(`⚠️  [${job.Name}] ${unmappedCodes.size} mã "${job.BranchCodeMapType}" chưa có trong "Ánh xạ mã chi nhánh", giữ nguyên mã gốc: ${[...unmappedCodes].join(', ')}`);
+  }
   const rawMaxUpdatedAt = rows.reduce((max, r) => {
     const v = r[`m_${meta.updatedCol}`];
     return v > max ? v : max;
