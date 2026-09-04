@@ -1252,21 +1252,77 @@ chờ có đủ danh sách mới bắt đầu đồng bộ.
   quân).
 - Watermark: `LAST_DATE`.
 
-**f) Xuất/nhập hàng giữa các chi nhánh (`xuatnhap_chinhanh`)**
+**f) Xuất hàng giữa các chi nhánh (`xuatkho_chinhanh`)**
 
-- Nguồn: **VIEW gộp** từ `DLVTRANS` (chứng từ điều chuyển hàng, `STK_ID`
-  nơi xuất / `OSTK_ID` nơi nhận):
+- Nguồn: **VIEW gộp** từ `DLVTRANS` (chứng từ điều chuyển hàng nội bộ,
+  `STK_ID` = kho/chi nhánh XUẤT, `OSTK_ID` = kho/chi nhánh NHẬN):
   ```sql
-  CREATE VIEW V_HCRC_XUATNHAP_CHINHANH AS
+  CREATE VIEW V_HCRC_XUATKHO_CHINHANH AS
   SELECT STK_ID, CAST(TRAN_DATE AS DATE) AS TRAN_DATE,
          SUM(QTY) AS SoLuongXuat, COUNT(DISTINCT TRANS_NUM) AS SoChungTu
   FROM DLVTRANS
   GROUP BY STK_ID, CAST(TRAN_DATE AS DATE);
   ```
-  EntityCode = `STK_ID`, EventDate = `TRAN_DATE`. Muốn tách riêng chiều
-  NHẬP (theo `OSTK_ID`), tạo thêm 1 VIEW/job thứ 2 cùng mẫu nhưng
-  `GROUP BY OSTK_ID` — Domain khác (vd `nhaphang_chinhanh`) vì khác chiều
-  dữ liệu, không gộp chung EntityCode với chiều xuất.
+- EntityCode = `STK_ID` (chi nhánh xuất), EventDate = `TRAN_DATE`.
+- Measures: `SoLuongXuat`, `SoChungTu`.
+- Watermark: `TRAN_DATE` (cùng hạn chế như mục b/c — `DLVTRANS` không có cột
+  giờ cập nhật riêng biệt trong file schema đã gửi).
+
+**g) Nhập hàng giữa các chi nhánh (`nhapkho_noibo_chinhanh`)**
+
+- CÙNG bảng `DLVTRANS` như mục f) nhưng đổi chiều gộp — group theo `OSTK_ID`
+  (kho/chi nhánh NHẬN) thay vì `STK_ID`:
+  ```sql
+  CREATE VIEW V_HCRC_NHAPKHO_NOIBO_CHINHANH AS
+  SELECT OSTK_ID, CAST(TRAN_DATE AS DATE) AS TRAN_DATE,
+         SUM(QTY) AS SoLuongNhap, COUNT(DISTINCT TRANS_NUM) AS SoChungTu
+  FROM DLVTRANS
+  GROUP BY OSTK_ID, CAST(TRAN_DATE AS DATE);
+  ```
+- EntityCode = `OSTK_ID` (chi nhánh nhận) — Domain RIÊNG với mục f)
+  (`nhapkho_noibo_chinhanh` ≠ `xuatkho_chinhanh`) dù cùng 1 bảng nguồn, vì
+  1 chứng từ điều chuyển ĐỒNG THỜI là "xuất" của chi nhánh A và "nhập" của
+  chi nhánh B — gộp chung 1 Domain sẽ cộng nhầm 2 chiều vào cùng 1 chi
+  nhánh nếu chi nhánh đó vừa xuất vừa nhận trong cùng ngày.
+- Measures: `SoLuongNhap`, `SoChungTu`. Watermark: `TRAN_DATE`.
+
+**h) Nhập hàng từ nhà cung cấp (`nhaphang_nhacc`)**
+
+- Nguồn: **VIEW gộp** từ `RV_ORDER` (chứng từ nhập hàng từ NCC — khác
+  `DLVTRANS` là điều chuyển NỘI BỘ giữa các chi nhánh, bảng này có `SUPP_ID`
+  = mã nhà cung cấp):
+  ```sql
+  CREATE VIEW V_HCRC_NHAPHANG_NHACC AS
+  SELECT STK_ID, CAST(TRAN_DATE AS DATE) AS TRAN_DATE,
+         SUM(QTY) AS SoLuongNhap, SUM(AMOUNT) AS GiaTriNhap,
+         SUM(VAT_AMT) AS TienVAT, COUNT(DISTINCT TRANS_NUM) AS SoChungTu,
+         COUNT(DISTINCT SUPP_ID) AS SoNhaCungCap
+  FROM RV_ORDER
+  WHERE STATUS <> 'X' -- loại chứng từ huỷ, đối chiếu đúng mã STATUS thật với DBA
+  GROUP BY STK_ID, CAST(TRAN_DATE AS DATE);
+  ```
+- EntityCode = `STK_ID` (chi nhánh nhận hàng), EventDate = `TRAN_DATE`.
+- Measures: `SoLuongNhap`, `GiaTriNhap`, `TienVAT`, `SoChungTu`,
+  `SoNhaCungCap`.
+- **Watermark**: `RV_ORDER` CÓ cột `UPDATED` (thấy trong file schema) —
+  ưu tiên dùng cột này thay vì `TRAN_DATE` nếu đúng là kiểu ngày/giờ cập
+  nhật thật (chưa xác nhận kiểu dữ liệu chính xác) — cho phép đồng bộ
+  ĐÚNG các đơn được sửa/duyệt sau khi tạo, không chỉ đơn mới tạo trong
+  ngày (khác `TRAN_DATE` — vốn là ngày phát sinh, không đổi dù đơn được
+  sửa sau đó).
+- Muốn báo cáo theo TỪNG nhà cung cấp (không chỉ gộp theo chi nhánh) — đổi
+  `GROUP BY` thêm `SUPP_ID`, và EntityCode ghép `<STK_ID>_<SUPP_ID>` (cùng
+  kiểu ghép mã đã dùng ở mục 5 "Chỉ tiêu theo ngành hàng").
+
+### Domain nâng cao — chưa dựng, cân nhắc khi cần
+
+`STARGETS`/`STARGETS_ARC` (đã thấy trong schema, có cả `TRG_AMT` chỉ tiêu
+VÀ `ACT_AMT` thực đạt trong CÙNG 1 bảng) khả năng thay thế được quy trình
+nhập tay "Nhập chỉ tiêu" (mục 5) nếu DSMART16 đã tự tính chỉ tiêu/thực đạt
+đáng tin cậy — CHƯA dựng domain này vì chưa xác nhận được `PRD_CODE`/
+`RPS_CODE`/`GDS_CODE` trong bảng đó có khớp đúng quy ước mã chi nhánh/ngành
+hàng đang dùng hay không. Cân nhắc dựng sau khi đối chiếu với DBA DSMART16,
+nếu đáng tin cậy sẽ thay được bước nhập Excel thủ công hàng tháng.
 
 ### File mẫu Nguồn dữ liệu (điền tài khoản SQL rồi nhập luôn, không cần gõ form)
 

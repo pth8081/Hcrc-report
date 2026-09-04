@@ -15,6 +15,24 @@ không chặt: patch/minor/major), GIỮ NGUYÊN không đánh số lại — `0
 (gần nhất theo quy tắc cũ) tương ứng **`4.1`** theo quy tắc mới, là điểm
 bắt đầu đếm tiếp từ đây.
 
+## 5.9 — Hoàn thiện sổ tay mục 11: xuất/nhập kho nội bộ + nhập hàng từ NCC
+
+Sổ tay DSMART16 (mục 11) trước đây chỉ dựng đầy đủ chiều "xuất" của
+`DLVTRANS` (điều chuyển nội bộ), chiều "nhập" chỉ có 1 câu gợi ý chưa kèm
+VIEW cụ thể, và chưa có domain nào cho "nhập hàng từ nhà cung cấp" (dù đã
+nằm trong yêu cầu gốc "báo cáo hàng xuất & nhập") — hoàn thiện nốt phần còn
+lại, không có thay đổi code (docs-only).
+
+- `hướng_dẫn_báo_cáo.md` mục 11 — tách domain f) "Xuất hàng giữa các chi
+  nhánh" (`xuatkho_chinhanh`) và g) "Nhập hàng giữa các chi nhánh"
+  (`nhapkho_noibo_chinhanh`, cùng bảng `DLVTRANS` nhưng đổi chiều gộp theo
+  `OSTK_ID`, tách Domain riêng — tránh cộng nhầm 2 chiều khi 1 chi nhánh
+  vừa xuất vừa nhận trong ngày); thêm domain h) "Nhập hàng từ nhà cung cấp"
+  (`nhaphang_nhacc`, nguồn `RV_ORDER` — có `SUPP_ID`, có cột `UPDATED` dùng
+  làm watermark chính xác hơn `TRAN_DATE`); ghi chú domain nâng cao
+  `STARGETS`/`STARGETS_ARC` (khả năng thay quy trình nhập chỉ tiêu tay,
+  chưa dựng — cần đối chiếu DBA trước).
+
 ## 5.8 — Ánh xạ mã chi nhánh: quy đổi EntityCode khi 1 chi nhánh có nhiều mã khác nhau
 
 Người dùng đề xuất: 1 chi nhánh vật lý có thể có NHIỀU mã khác nhau tuỳ
