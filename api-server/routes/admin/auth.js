@@ -1,9 +1,9 @@
 const express = require('express');
 const {
-  verifyCredentials, issueToken, requireAdminAuth, COOKIE_NAME, setSessionCookie,
+  verifyCredentials, getRoleForRateLimit, issueToken, requireAdminAuth, COOKIE_NAME, setSessionCookie,
   issuePending2FAToken, issueSetupRequiredToken
 } = require('../../lib/adminAuth');
-const { isBlocked, recordFailure, recordSuccess } = require('../../lib/loginRateLimit');
+const { isBlocked, recordFailure, recordSuccess, DEFAULT_PROFILE, ADMIN_PROFILE } = require('../../lib/loginRateLimit');
 const { logAction } = require('../../lib/auditLog');
 
 const router = express.Router();
@@ -12,7 +12,14 @@ router.post('/login', async (req, res, next) => {
   try {
     const { username, password } = req.body || {};
 
-    const retryAfter = isBlocked(req.ip, username);
+    // Tra Role TRƯỚC (chỉ đọc cột Role, không so mật khẩu) để chọn đúng
+    // ngưỡng — Role='admin' dùng ADMIN_PROFILE (nới lỏng hơn, xem chú thích
+    // lib/loginRateLimit.js), username không tồn tại/vai trò khác dùng
+    // DEFAULT_PROFILE (ngưỡng chặt như cũ).
+    const role = await getRoleForRateLimit(username);
+    const profile = role === 'admin' ? ADMIN_PROFILE : DEFAULT_PROFILE;
+
+    const retryAfter = isBlocked(req.ip, username, profile);
     if (retryAfter) {
       res.setHeader('Retry-After', String(retryAfter));
       return res.status(429).json({ error: 'Đăng nhập sai quá nhiều lần, thử lại sau ít phút' });
@@ -20,7 +27,7 @@ router.post('/login', async (req, res, next) => {
 
     const admin = await verifyCredentials(username, password);
     if (!admin) {
-      recordFailure(req.ip, username);
+      recordFailure(req.ip, username, profile);
       // req.admin chưa có (chưa xác thực) -> tự ghép object tối thiểu cho logAction
       // (chỉ đọc req.ip + req.admin.username), giữ đúng tên ĐÃ GÕ dù sai/không tồn tại.
       await logAction({ ip: req.ip, admin: { username: username || 'unknown' } }, {

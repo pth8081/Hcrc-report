@@ -92,6 +92,25 @@ async function verifyCredentials(username, password) {
   return { id: user.Id, username: user.Username, twoFactorEnabled: !!user.TwoFactorEnabled };
 }
 
+// Tra xem 1 username có vai trò IsSystemRole=1 hay không, TRƯỚC khi kiểm
+// tra/ghi nhận giới hạn đăng nhập sai liên tiếp (xem lib/loginRateLimit.js)
+// — để chọn đúng "profile" ngưỡng (tài khoản hệ thống được nới lỏng hơn
+// user thường). CHỈ đọc vai trò, KHÔNG so mật khẩu — không phải bước xác
+// thực, chỉ để phân loại ngưỡng. Trả về false nếu username không tồn tại
+// (rơi vào profile ngưỡng CHẶT mặc định, đúng ý).
+async function isSystemRoleForRateLimit(username) {
+  if (!username) return false;
+  const pool = await getPool('RP');
+  const result = await pool.request().input('username', sql.NVarChar(50), username).query(`
+    SELECT TOP 1 r.IsSystemRole
+    FROM app.Users u
+    JOIN app.UserRoles ur ON ur.UserId = u.Id
+    JOIN app.Roles r ON r.Id = ur.RoleId
+    WHERE u.Username = @username AND r.IsSystemRole = 1
+  `);
+  return result.recordset.length > 0;
+}
+
 // Token phiên ĐẦY ĐỦ (đặt vào cookie, xem requireAuth) — KHÔNG bao giờ mang
 // claim "twofa": chỉ token loại này mới qua được requireAuth, xem 3 hàm
 // issue*2FA*Token bên dưới cho các bước TRUNG GIAN trước khi tới đây.
@@ -244,6 +263,7 @@ module.exports = {
   COOKIE_NAME,
   TOKEN_TTL,
   verifyCredentials,
+  isSystemRoleForRateLimit,
   issueToken,
   verifyToken,
   requireSystemRoleActor,

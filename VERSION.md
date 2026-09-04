@@ -15,7 +15,53 @@ không chặt: patch/minor/major), GIỮ NGUYÊN không đánh số lại — `0
 (gần nhất theo quy tắc cũ) tương ứng **`4.1`** theo quy tắc mới, là điểm
 bắt đầu đếm tiếp từ đây.
 
-## 5.9 — Hoàn thiện sổ tay mục 11: xuất/nhập kho nội bộ + nhập hàng từ NCC
+## 6.0 — Nới lỏng khoá đăng nhập cho tài khoản admin + vá lỗ hổng thiếu giới hạn ở 2FA setup/confirm
+
+Người dùng kiểm tra thấy `/2fa/setup` (đổi thiết bị) và `/2fa/confirm`
+(đăng ký lần đầu) KHÔNG có giới hạn số lần nhập sai riêng (chỉ có giới hạn
+chung 300 request/phút cho toàn hệ thống) — trong khi `/2fa/verify` (bước
+đăng nhập) đã có. Đồng thời người dùng đề nghị tài khoản admin không bao
+giờ bị khoá vì sợ rủi ro khoá nhầm — sau khi trao đổi (khoá hiện tại đã
+tự hết hạn sau 15 phút, không phải vĩnh viễn, và chỉ khoá theo từng cặp
+IP+username nên không ảnh hưởng các admin khác/admin đó từ mạng khác),
+người dùng chọn phương án NỚI LỎNG ngưỡng cho vai trò admin/IsSystemRole=1
+thay vì bỏ hẳn giới hạn.
+
+- `lib/loginRateLimit.js` (etl, api-server, rp-server) — thêm 2 "profile"
+  ngưỡng: `DEFAULT_PROFILE` (10 lần/15 phút, giữ nguyên cho tài khoản
+  thường) và `ADMIN_PROFILE` (50 lần/2 phút, áp dụng cho Role='admin'
+  hoặc IsSystemRole=1). `isBlocked`/`recordFailure` nhận thêm tham số
+  `profile` tuỳ chọn (mặc định `DEFAULT_PROFILE`, không đổi hành vi cũ
+  nếu không truyền).
+- `lib/adminAuth.js` (etl, api-server): thêm `getRoleForRateLimit(username)`
+  — tra CHỈ cột Role (không so mật khẩu) TRƯỚC bước `isBlocked`, để chọn
+  đúng profile mà không tốn bcrypt cho tài khoản đã bị khoá. Tương tự
+  `lib/auth.js` (rp-server): `isSystemRoleForRateLimit(username)`.
+- `routes/admin/auth.js` (etl, api-server) và `server.js` (rp-server):
+  bước đăng nhập mật khẩu giờ tra Role/IsSystemRole trước, chọn
+  `ADMIN_PROFILE` hoặc `DEFAULT_PROFILE` tương ứng rồi mới gọi
+  `isBlocked`/`recordFailure` — username không tồn tại luôn rơi vào
+  `DEFAULT_PROFILE` (ngưỡng chặt, đúng ý vì không có admin thật để bảo vệ).
+- `routes/admin/twoFactor.js` (etl, api-server) và `routes/twoFactor.js`
+  (rp-server):
+  - `/setup` (nhánh đổi thiết bị, xác minh `currentCode`) — THÊM giới hạn
+    mới, namespace `2fa-setup:<username>`, dùng `ADMIN_PROFILE` (route chỉ
+    tới được với phiên admin/IsSystemRole đã đăng nhập).
+  - `/confirm` (xác nhận mã đầu tiên khi đăng ký) — THÊM giới hạn mới,
+    namespace `2fa-confirm:<username>`, dùng `ADMIN_PROFILE`.
+  - `/verify` (bước 2FA khi đăng nhập) — SỬA lỗi đang dùng nhầm
+    `DEFAULT_PROFILE` ngầm định (10 lần/15 phút) dù route này chỉ dành
+    cho admin/IsSystemRole — nay dùng `ADMIN_PROFILE` tường minh.
+- Test: file test mới xác minh cả 3 profile/route trên (fakeModule) +
+  chạy lại 4 bộ test hồi quy có sẵn từ trước (`test-etl-2fa-flow.js`,
+  `test-api-2fa-flow.js`, `test-rp-2fa-flow.js`, `test-login-hardening.js`)
+  — phát hiện và sửa các mock CSDL giả lập trong chính các file test đó đã
+  lỗi thời (thiếu cột `AuthSource`/`SessionsInvalidatedAt`/truy vấn
+  `SELECT Role`/`IsSystemRole` mới, và 1 assertion còn thiếu trường
+  `twoFactorEnabled`) — không phải lỗi ở code sản phẩm, chỉ là mock test
+  chưa cập nhật theo các tính năng đã thêm ở các phiên bản trước.
+
+
 
 Sổ tay DSMART16 (mục 11) trước đây chỉ dựng đầy đủ chiều "xuất" của
 `DLVTRANS` (điều chuyển nội bộ), chiều "nhập" chỉ có 1 câu gợi ý chưa kèm

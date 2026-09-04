@@ -28,13 +28,13 @@ const hcrcWorkspaceSettingsRoutes = require('./routes/hcrcWorkspaceSettings');
 const dashboardCatalogRoutes = require('./routes/dashboardCatalog');
 const dashboardsRoutes = require('./routes/dashboards');
 const {
-  verifyCredentials, issueToken, COOKIE_NAME, getSecret, setSessionCookie,
+  verifyCredentials, isSystemRoleForRateLimit, issueToken, COOKIE_NAME, getSecret, setSessionCookie,
   issuePending2FAToken, issueSetupRequiredToken
 } = require('./lib/auth');
 const { getUserContext } = require('./lib/permissions');
 const reportEmailScheduler = require('./jobs/reportEmailScheduler');
 const anomalyAlertScheduler = require('./jobs/anomalyAlertScheduler');
-const { isBlocked, recordFailure, recordSuccess } = require('./lib/loginRateLimit');
+const { isBlocked, recordFailure, recordSuccess, DEFAULT_PROFILE, ADMIN_PROFILE } = require('./lib/loginRateLimit');
 const { logAction } = require('./lib/auditLog');
 const { cleanupAuditLog } = require('./jobs/cleanupAuditLog');
 const { isSchedulerLeader } = require('./lib/clusterLeader');
@@ -100,7 +100,15 @@ app.post('/api/auth/login', async (req, res, next) => {
   try {
     const { username, password } = req.body || {};
 
-    const retryAfter = isBlocked(req.ip, username);
+    // Tra vai trò TRƯỚC (chỉ đọc app.UserRoles/app.Roles, không so mật khẩu)
+    // để chọn đúng ngưỡng — tài khoản hệ thống (IsSystemRole) dùng
+    // ADMIN_PROFILE (nới lỏng hơn, xem chú thích lib/loginRateLimit.js),
+    // username không tồn tại/user thường dùng DEFAULT_PROFILE (ngưỡng chặt
+    // như cũ).
+    const isSystemRole = await isSystemRoleForRateLimit(username);
+    const profile = isSystemRole ? ADMIN_PROFILE : DEFAULT_PROFILE;
+
+    const retryAfter = isBlocked(req.ip, username, profile);
     if (retryAfter) {
       res.setHeader('Retry-After', String(retryAfter));
       return res.status(429).json({ error: 'Đăng nhập sai quá nhiều lần, thử lại sau ít phút' });
@@ -108,7 +116,7 @@ app.post('/api/auth/login', async (req, res, next) => {
 
     const user = await verifyCredentials(username, password);
     if (!user) {
-      recordFailure(req.ip, username);
+      recordFailure(req.ip, username, profile);
       // req.user chưa có (chưa xác thực) -> tự ghép object tối thiểu cho
       // logAction (chỉ đọc req.ip + req.user.username), giữ đúng tên ĐÃ GÕ
       // dù sai/không tồn tại.

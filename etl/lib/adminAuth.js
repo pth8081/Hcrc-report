@@ -65,6 +65,20 @@ async function verifyCredentials(username, password) {
   return { id: user.Id, username: user.Username, role: user.Role, twoFactorEnabled: !!user.TwoFactorEnabled };
 }
 
+// Tra Role của 1 username TRƯỚC khi kiểm tra/ghi nhận giới hạn đăng nhập sai
+// liên tiếp (xem lib/loginRateLimit.js) — để chọn đúng "profile" ngưỡng
+// (Role='admin' được nới lỏng hơn tài khoản thường). CHỈ đọc cột Role, KHÔNG
+// so mật khẩu — không phải bước xác thực, chỉ để phân loại ngưỡng. Trả về
+// null nếu username không tồn tại (rơi vào profile ngưỡng CHẶT mặc định,
+// đúng ý — không có admin thật nào để bảo vệ ở đây).
+async function getRoleForRateLimit(username) {
+  if (!username) return null;
+  const pool = await getPool('ADMIN');
+  const result = await pool.request().input('username', sql.NVarChar(50), username)
+    .query('SELECT Role FROM admin.AdminUsers WHERE Username = @username');
+  return result.recordset[0]?.Role || null;
+}
+
 // Token phiên ĐẦY ĐỦ (đặt vào cookie, xem requireAdminAuth) — KHÔNG bao giờ
 // mang claim "twofa": chỉ token loại này mới qua được requireAdminAuth, xem
 // 3 hàm issue*2FA*Token bên dưới cho các bước TRUNG GIAN trước khi tới đây.
@@ -219,7 +233,7 @@ function blockTargetImporter(req, res, next) {
 // getSecret xuất thêm CHỈ để server.js gọi 1 LẦN lúc khởi động — xem
 // chú thích tương tự trong rp-server/lib/auth.js.
 module.exports = {
-  COOKIE_NAME, verifyCredentials, issueToken, verifyToken,
+  COOKIE_NAME, verifyCredentials, getRoleForRateLimit, issueToken, verifyToken,
   requireAdminAuth, requireAdminRole, requireTargetImporterRole, blockTargetImporter, getSecret,
   issuePending2FAToken, issueSetupRequiredToken, issueEnrollToken, requireTwoFactorToken, setSessionCookie
 };

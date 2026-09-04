@@ -20,7 +20,7 @@ const {
   newSecret, encryptSecret, qrDataUrl, verifyTotp,
   generateRecoveryCodes, hashRecoveryCodes, verifyRecoveryCode
 } = require('../lib/twoFactor');
-const { isBlocked, recordFailure, recordSuccess } = require('../lib/loginRateLimit');
+const { isBlocked, recordFailure, recordSuccess, ADMIN_PROFILE } = require('../lib/loginRateLimit');
 const { logAction } = require('../lib/auditLog');
 
 const router = express.Router();
@@ -45,13 +45,27 @@ router.post('/setup', async (req, res, next) => {
       if (payload.twofa) return res.status(401).json({ error: 'Phiên chưa hoàn tất xác thực hai yếu tố' });
       userId = payload.sub; username = payload.username;
 
+      // Khoá theo (IP + username), namespace RIÊNG "2fa-setup:" — ADMIN_PROFILE
+      // vì route này chỉ tới được với phiên đầy đủ đã đăng nhập với vai trò
+      // IsSystemRole=1 (2FA chỉ bắt buộc cho vai trò đó, xem server.js).
+      const setupRateLimitKey = `2fa-setup:${username}`;
+      const setupRetryAfter = isBlocked(req.ip, setupRateLimitKey, ADMIN_PROFILE);
+      if (setupRetryAfter) {
+        res.setHeader('Retry-After', String(setupRetryAfter));
+        return res.status(429).json({ error: 'Nhập sai quá nhiều lần, thử lại sau ít phút' });
+      }
+
       const pool = await getPool('RP');
       const result = await pool.request().input('id', sql.Int, userId)
         .query('SELECT TwoFactorEnabled, TwoFactorSecretEncrypted FROM app.Users WHERE Id = @id');
       const row = result.recordset[0];
       if (!row?.TwoFactorEnabled) return res.status(400).json({ error: 'Tài khoản chưa bật 2FA — đăng xuất rồi đăng nhập lại để đăng ký lần đầu' });
       const ok = await verifyTotp(userId, row.TwoFactorSecretEncrypted, req.body?.currentCode);
-      if (!ok) return res.status(401).json({ error: 'Mã xác thực hiện tại không đúng' });
+      if (!ok) {
+        recordFailure(req.ip, setupRateLimitKey, ADMIN_PROFILE);
+        return res.status(401).json({ error: 'Mã xác thực hiện tại không đúng' });
+      }
+      recordSuccess(req.ip, setupRateLimitKey);
     }
 
     const secret = newSecret();
@@ -64,8 +78,23 @@ router.post('/setup', async (req, res, next) => {
 router.post('/confirm', requireTwoFactorToken('enroll'), async (req, res, next) => {
   try {
     const { sub: userId, username, secretEncrypted } = req.twoFactorPayload;
+
+    // Namespace RIÊNG "2fa-confirm:" — ADMIN_PROFILE vì bước "enroll" chỉ
+    // tới được sau khi đã có token trung gian hợp lệ của 1 tài khoản vai trò
+    // hệ thống (đăng ký lần đầu hoặc đổi thiết bị, xem POST /setup).
+    const confirmRateLimitKey = `2fa-confirm:${username}`;
+    const confirmRetryAfter = isBlocked(req.ip, confirmRateLimitKey, ADMIN_PROFILE);
+    if (confirmRetryAfter) {
+      res.setHeader('Retry-After', String(confirmRetryAfter));
+      return res.status(429).json({ error: 'Nhập sai quá nhiều lần, thử lại sau ít phút' });
+    }
+
     const ok = await verifyTotp(userId, secretEncrypted, req.body?.code);
-    if (!ok) return res.status(401).json({ error: 'Mã xác thực không đúng' });
+    if (!ok) {
+      recordFailure(req.ip, confirmRateLimitKey, ADMIN_PROFILE);
+      return res.status(401).json({ error: 'Mã xác thực không đúng' });
+    }
+    recordSuccess(req.ip, confirmRateLimitKey);
 
     const pool = await getPool('RP');
     await pool.request()
@@ -101,8 +130,11 @@ router.post('/verify', requireTwoFactorToken('pending'), async (req, res, next) 
 
     // Namespace RIÊNG "2fa:<username>" trong cùng bộ đếm login — không trộn
     // với số lần sai MẬT KHẨU của chính tài khoản đó (2 bước khác nhau).
+    // ADMIN_PROFILE trực tiếp (không cần tra vai trò) — route "verify" chỉ
+    // tới được sau khi đăng nhập ĐÚNG mật khẩu của 1 tài khoản IsSystemRole=1
+    // (xem server.js, chỉ vai trò đó mới nhận token "pending").
     const rateLimitKey = `2fa:${username}`;
-    const retryAfter = isBlocked(req.ip, rateLimitKey);
+    const retryAfter = isBlocked(req.ip, rateLimitKey, ADMIN_PROFILE);
     if (retryAfter) {
       res.setHeader('Retry-After', String(retryAfter));
       return res.status(429).json({ error: 'Nhập sai quá nhiều lần, thử lại sau ít phút' });
@@ -129,7 +161,7 @@ router.post('/verify', requireTwoFactorToken('pending'), async (req, res, next) 
     }
 
     if (!ok) {
-      recordFailure(req.ip, rateLimitKey);
+      recordFailure(req.ip, rateLimitKey, ADMIN_PROFILE);
       await logAction({ ip: req.ip, user: { sub: userId, username } }, {
         module: 'Đăng nhập', actionType: 'DANG_NHAP_THAT_BAI', description: 'Sai mã xác thực hai yếu tố', status: 'FAILED'
       });
