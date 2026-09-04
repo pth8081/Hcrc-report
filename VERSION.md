@@ -15,6 +15,42 @@ không chặt: patch/minor/major), GIỮ NGUYÊN không đánh số lại — `0
 (gần nhất theo quy tắc cũ) tương ứng **`4.1`** theo quy tắc mới, là điểm
 bắt đầu đếm tiếp từ đây.
 
+## 5.6 — Sổ tay kết nối DSMART16 (2 nguồn Live + Lịch sử) + file mẫu Nguồn dữ liệu
+
+Yêu cầu: chuẩn bị phần kết nối ETL để lấy TOÀN BỘ dữ liệu từ hệ thống
+trung tâm DSMART16 (schema 435 bảng người dùng đã gửi) qua 2 nguồn (CSDL
+Live + CSDL Lịch sử) cho dữ liệu OLAP, chỉ cần điền tài khoản SQL thật.
+Không có code mới — job "Theo bảng" hiện có (bảng/view + Dimensions/
+Measures do admin tự chọn qua UI duyệt schema thật) đã đủ dùng, và không
+thể tạo job thay người dùng từ phiên làm việc này (cần kết nối THẬT tới
+CSDL DSMART16 để duyệt bảng/cột qua etl-admin, phiên này không có mạng tới
+hạ tầng người dùng) — thay vào đó cung cấp: (1) đối chiếu tên cột CHÍNH
+XÁC từ file schema đã gửi cho từng nhóm báo cáo (doanh thu/giao dịch/tích
+điểm/tồn kho/xuất-nhập/thông tin siêu thị), giải quyết câu hỏi còn treo
+"bảng nào là thông tin siêu thị" → xác nhận là `STOCK` (có `STK_NAME`/
+`STK_ADDR`/`DIMENSION`/`ISCLOSED`, khác `NODE_DEF`/`BU_INFO` là bảng cấu
+hình hạ tầng hệ thống, có `SRV_IP`/`PWD`); (2) xác nhận thiết kế 2-nguồn:
+`SourceSystem` tự sinh theo `DataSourceId`, báo cáo `directDb` chỉ lọc
+theo `Domain` → 2 nguồn cùng `Domain` tự ghép liền mạch, không cần cấu
+hình gì thêm; (3) cảnh báo + mẫu VIEW gộp cho các bảng chi tiết theo SKU
+(vd `DSTK_INFO`) — đồng bộ THẲNG bảng gốc với EntityCode=mã chi nhánh sẽ
+bị ghi đè sai (khoá `ReportFacts` không có SKU) do engine "Theo bảng"
+không tự GROUP BY.
+
+- `hướng_dẫn_báo_cáo.md` — thêm mục 11: cách job "Theo bảng" hoạt động
+  (1 dòng nguồn = 1 dòng ReportFacts, vì sao "đồng bộ hết 435 bảng" không
+  khớp thiết kế), điều kiện 2 nguồn ghép chung Domain, sổ tay 6 nhóm domain
+  (bảng/view nguồn, EntityCode/EventDate/watermark, Dimensions/Measures cụ
+  thể — tick dư hơn nhu cầu 1 báo cáo để dùng lại cho báo cáo khác sau
+  này), nêu rõ điểm CHƯA xác nhận được (mối liên hệ `BU_ID`↔`STK_ID`, mã
+  `TYPE`/`STATUS` nghiệp vụ trong `TRANSHDR`/`CRDTRANS`) cần đối chiếu với
+  DBA DSMART16 trước khi dùng thật.
+- File mẫu `mau-nguon-du-lieu-dsmart16.xlsx` (gửi kèm, không lưu trong
+  repo) — khớp đúng định dạng `etl/lib/dataSourcesImport.js`, đã dựng sẵn
+  2 dòng `DSMART16 - Live`/`DSMART16 - Lich su`, chỉ cần điền Server/
+  DatabaseName/Username/Password thật rồi tải lên etl-admin → Nguồn dữ
+  liệu → "Nhập từ Excel" (tính năng đã có sẵn từ trước, không phải mới).
+
 ## 5.5 — Bổ sung bước tạo database trước khi chạy schema.sql
 
 Người dùng báo chạy `dwh/schema.sql` qua SSMS "thành công" nhưng không

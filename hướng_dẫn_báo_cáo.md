@@ -1059,3 +1059,178 @@ báo cáo đang chọn + tự điền bộ lọc + tự chạy ngay (không cầ
 lần nữa). Muốn quay lại báo cáo trước, chọn lại từ ô "Chọn báo cáo" hoặc
 đổi tab như bình thường — bộ lọc đã áp SẴN vẫn sửa được tiếp qua form lọc
 phía trên như mọi báo cáo khác.
+
+---
+
+## 11. Kết nối DSMART16 (2 nguồn Live + Lịch sử) — chuẩn bị dữ liệu rộng cho nhiều loại báo cáo
+
+### Cách job "Theo bảng" thực sự hoạt động (đọc trước khi làm theo sổ tay dưới)
+
+1 job "Theo bảng" = `SELECT <các cột đã tick> FROM <1 bảng/view> [JOIN <tối
+đa 1 bảng/view khác cùng nguồn>] WHERE <cột watermark> > <lần đồng bộ
+trước>`. Mỗi DÒNG NGUỒN đọc được biến thành ĐÚNG 1 dòng `dwh.ReportFacts`,
+ghi đè theo khoá `(SourceSystem, Domain, EntityCode, EventDate)` — KHÔNG có
+bước gộp/SUM nào ở tầng ETL. Vì vậy:
+
+- **Không có khái niệm "đồng bộ hết 435 bảng"** — mỗi job vẫn là 1
+  bảng/view → 1 Domain với 1 bộ Dimensions/Measures admin tự chọn, giống
+  hệt cách mục 1–7 đã làm. "Lấy dữ liệu OLAP rộng cho nhiều báo cáo sau
+  này" trong thực tế nghĩa là: **tick DƯ Dimensions/Measures** hơn mức 1
+  báo cáo cụ thể cần (sổ tay dưới đây đã làm vậy), không phải đồng bộ toàn
+  bộ schema.
+- **Bảng nào có NHIỀU dòng cho cùng 1 (chi nhánh, ngày)** — vd `DSTK_INFO`
+  (schema DSMART16, 1 dòng/chi nhánh/SKU/ngày, rất nhiều SKU mỗi chi
+  nhánh/ngày) — **KHÔNG được trỏ job thẳng vào bảng gốc** nếu
+  `EntityCode` = mã chi nhánh: mỗi dòng SKU sẽ LẦN LƯỢT ghi đè cùng 1 khoá
+  `(chi nhánh, ngày)`, kết quả cuối chỉ còn số liệu của SKU đồng bộ SAU
+  CÙNG trong ngày đó — SAI hoàn toàn. Bắt buộc tạo 1 **VIEW gộp sẵn theo
+  đúng cấp (chi nhánh, ngày)** ngay trong DSMART16 (`SUM(...) GROUP BY
+  STK_ID, WORK_DATE`), rồi trỏ job vào VIEW đó — etl-admin duyệt VIEW y hệt
+  bảng thật (không cần cấu hình gì khác).
+
+### 2 nguồn (Live + Lịch sử) tự động ghép liền mạch — không cần cấu hình gì thêm
+
+- Mỗi **Nguồn dữ liệu** (etl.DataSources) tự có 1 `SourceSystem` riêng
+  (`ds<Id>`, hệ thống tự sinh theo Id của nguồn — admin không gõ tay).
+- Báo cáo (`directDb`) chỉ lọc theo `Domain`, KHÔNG lọc theo `SourceSystem`
+  — nên nếu bạn tạo 2 job "Theo bảng" CÙNG `Domain` (vd `doanhthu_chinhanh`),
+  1 job trỏ nguồn Live, 1 job trỏ nguồn Lịch sử, dữ liệu 2 nguồn sẽ **tự
+  gộp thành 1 dải liên tục** khi báo cáo chạy — không đụng, không cần khai
+  báo gì thêm, miễn 2 nguồn KHÔNG cùng ghi đè 1 (chi nhánh, ngày) — thực tế
+  luôn đúng vì DB lịch sử chỉ chứa ngày cũ, DB Live chỉ chứa ngày hiện tại.
+- **Điều kiện bắt buộc để dùng chung 1 Domain**: 2 DB phải cùng cấu trúc
+  bảng/cột VÀ cùng quy ước mã hoá `STK_ID`/`SKU_ID` (cùng 1 chi nhánh phải
+  ra cùng 1 `STK_ID` ở cả 2 DB). Nếu DB lịch sử là bản backup/clone cũ của
+  chính DSMART16 — gần như chắc chắn đúng. Nếu là hệ thống khác (đổi phần
+  mềm ở giai đoạn trước) — phải khai Domain riêng (vd
+  `doanhthu_chinhanh_v1`) và composite báo cáo tự ghép 2 domain lại (xem
+  mục 1 khối `blocks`, thêm khối `directDb` thứ 2 trỏ domain kia).
+
+### Sổ tay theo từng nhóm báo cáo (dựa trên DSMART16_SCHEMA.json đã gửi)
+
+Cột chính xác lấy trực tiếp từ file schema — KHÔNG suy đoán tên cột. Riêng
+mối liên hệ `BU_ID` (dùng ở `TRANSHDR`/`RV_ORDER`/`DLVHDR`) với `STK_ID`
+(dùng ở `DSTK_INFO`/`STK_INFO`/`STOCK`) chưa xác nhận được (file schema chỉ
+có tên cột, không có khoá ngoại) — sổ tay dưới đây giả định 2 mã này CÙNG
+đại diện 1 chi nhánh vật lý (thực tế phổ biến với DSMART16), nhưng cần đối
+chiếu lại với đội kỹ thuật DSMART16/DBA trước khi tạo job "Theo bảng" cho
+các domain dùng `TRANSHDR`/`RV_ORDER`/`DLVHDR`.
+
+**a) Thông tin siêu thị (`thongtin_sieuthi`) — bảng KHÔNG phải fact, dùng để JOIN/tra cứu tên hiển thị**
+
+- Nguồn: bảng **`STOCK`** (KHÔNG phải `NODE_DEF`/`BU_INFO` — 2 bảng đó là
+  cấu hình hạ tầng hệ thống DSMART16, có cột `SRV_IP`/`UID`/`PWD`, không
+  phải dữ liệu nghiệp vụ chi nhánh).
+- Cột khoá gợi ý: `STK_ID` = EntityCode.
+- Dimensions tick dư: `STK_CODE`, `STK_NAME`, `STK_ADDR`, `DIMENSION`
+  (diện tích), `PLACE`, `PHONE`, `EMAIL`, `ISCLOSED`, `OPEN_DATE`,
+  `INVENTORY`.
+- Không có Measures (bảng thông tin, không phải số liệu phát sinh) —
+  EventDate dùng tạm `OPEN_DATE` hoặc `MODI_DATE` (không có "ngày phát
+  sinh" thật vì đây là bảng master).
+- Dùng làm bảng JOIN (mục "Quy tắc chung", xem mục 3) cho các domain khác
+  cần hiện tên/địa chỉ chi nhánh thay vì chỉ mã.
+
+**b) Doanh thu theo chi nhánh (`doanhthu_chinhanh`) — mở rộng mục 1**
+
+- Nguồn: **VIEW gộp** từ `DSTK_INFO`, vd:
+  ```sql
+  CREATE VIEW V_HCRC_DOANHTHU_CHINHANH AS
+  SELECT STK_ID, WORK_DATE,
+         SUM(TOCUST_QTY) AS SoLuongBan, SUM(TOCUST_AMT) AS DoanhThu,
+         SUM(TOCUST_VAT) AS TienVAT, SUM(TOCUST_DIS) AS TienGiamGia,
+         SUM(TOCUST_COM) AS HoaHong
+  FROM DSTK_INFO
+  GROUP BY STK_ID, WORK_DATE;
+  ```
+- EntityCode = `STK_ID`, EventDate = `WORK_DATE`.
+- Measures: `DoanhThu`, `SoLuongBan`, `TienVAT`, `TienGiamGia`, `HoaHong`
+  (dư ra so với mục 1 gốc chỉ có `doanhThu`/`giaoDich`/`laiGop` — có sẵn để
+  dùng cho báo cáo khác sau này).
+- **Watermark**: `DSTK_INFO` là bảng tổng hợp CUỐI NGÀY, không có cột "giờ
+  cập nhật" riêng — dùng tạm `WORK_DATE` làm cột watermark (chấp nhận: số
+  liệu 1 ngày chỉ được đồng bộ sau khi ngày đó đã có dữ liệu, sửa số liệu
+  NGÀY CŨ sau khi đã đồng bộ sẽ KHÔNG tự cập nhật lại — cần chạy lại job
+  "Đồng bộ lại từ đầu" thủ công nếu có chỉnh sửa hồi tố).
+
+**c) Số lượng giao dịch (`giaodich_chinhanh`)**
+
+- Nguồn: **VIEW đếm** từ `TRANSHDR` (1 dòng/giao dịch, `TRANS_NUM` là khoá):
+  ```sql
+  CREATE VIEW V_HCRC_GIAODICH_CHINHANH AS
+  SELECT BU_ID, CAST(TRAN_DATE AS DATE) AS TRAN_DATE,
+         COUNT(*) AS SoGiaoDich, SUM(AMOUNT) AS TongTien,
+         SUM(DISCOUNT) AS TongGiamGia, SUM(VAT_AMT) AS TongVAT
+  FROM TRANSHDR
+  WHERE STATUS <> 'X' -- loại giao dịch huỷ, đối chiếu đúng mã STATUS thật với DBA DSMART16
+  GROUP BY BU_ID, CAST(TRAN_DATE AS DATE);
+  ```
+- EntityCode = `BU_ID` (cần đối chiếu = `STK_ID` thật, xem cảnh báo đầu
+  mục), EventDate = `TRAN_DATE`.
+- Measures: `SoGiaoDich`, `TongTien`, `TongGiamGia`, `TongVAT`.
+- Watermark: dùng `TRAN_DATE` (cùng lý do như mục b) — nếu DSMART16 có cột
+  cập nhật thật (vd `UPDATED`, đã thấy trong `TRANSHDR` nhưng chưa rõ kiểu
+  dữ liệu/có phải timestamp không) thì ưu tiên dùng cột đó, chính xác hơn.
+
+**d) Tích điểm / thẻ thành viên (`thetv_giaodich`, `thetv_hoso`)**
+
+- **Hồ sơ thẻ** (`thetv_hoso`) — nguồn bảng **`CSCARD`** (bản đầy đủ hơn
+  `CS_CARD`, có thêm `MOBI`/địa chỉ chi tiết `CITY`/`DISTRICT`/`WARD`).
+  EntityCode = `CARD_ID`, Dimensions: `NAME`, `PHONE`, `MOBI`, `EMAIL`,
+  `DISC_LVL`, `BIRTHDAY`, `ISS_DATE`, `STATUS`. Không có Measures (bảng
+  master) — EventDate dùng `LAST_DATE` (lần giao dịch gần nhất) hoặc
+  `ISS_DATE`.
+- **Giao dịch tích/đổi điểm** (`thetv_giaodich`) — nguồn **VIEW gộp** từ
+  `CRDTRANS` (1 dòng/lần tích hoặc đổi điểm):
+  ```sql
+  CREATE VIEW V_HCRC_THETV_GIAODICH AS
+  SELECT BU_ID, CAST(TRAN_DATE AS DATE) AS TRAN_DATE,
+         SUM(CASE WHEN TYPE = 'A' THEN MARK ELSE 0 END) AS DiemTich,   -- đối chiếu đúng mã TYPE thật với DBA
+         SUM(CASE WHEN TYPE = 'R' THEN MARK ELSE 0 END) AS DiemDoi,
+         SUM(AMOUNT) AS TongTienPhatSinh, COUNT(*) AS SoLuotGiaoDich
+  FROM CRDTRANS
+  GROUP BY BU_ID, CAST(TRAN_DATE AS DATE);
+  ```
+  EntityCode = `BU_ID`, EventDate = `TRAN_DATE`. (Mã `TYPE`/quy ước điểm
+  âm-dương trong `CRDTRANS` cần DBA DSMART16 xác nhận trước khi dùng thật —
+  đây chỉ là khung, không đoán đúng-sai logic nghiệp vụ điểm thưởng.)
+
+**e) Tồn kho (`tonkho_chinhanh`)**
+
+- Nguồn: bảng **`STK_INFO`** (tồn tức thời, đã có sẵn `M_BEGIN`/nhập/xuất
+  luỹ kế trong tháng, không cần GROUP BY — 1 dòng/chi nhánh/SKU, ĐÃ đúng
+  cấp thấp nhất nên KHÔNG gộp theo chi nhánh được nếu muốn giữ chi tiết SKU
+  — nếu chỉ cần tồn kho THEO CHI NHÁNH (không theo SKU), vẫn phải tạo VIEW
+  gộp `SUM(END_AMT) GROUP BY STK_ID`).
+- EntityCode = `STK_ID` (hoặc VIEW gộp nếu bỏ chi tiết SKU), EventDate =
+  `LAST_DATE` hoặc `CACL_DATE`.
+- Measures: `END_AMT` (tồn cuối), `M_BEGAMT` (tồn đầu kỳ), `M_IMPAMT`
+  (nhập trong kỳ), `M_EXPAMT` (xuất trong kỳ), `AVERIMPPR` (giá vốn bình
+  quân).
+- Watermark: `LAST_DATE`.
+
+**f) Xuất/nhập hàng giữa các chi nhánh (`xuatnhap_chinhanh`)**
+
+- Nguồn: **VIEW gộp** từ `DLVTRANS` (chứng từ điều chuyển hàng, `STK_ID`
+  nơi xuất / `OSTK_ID` nơi nhận):
+  ```sql
+  CREATE VIEW V_HCRC_XUATNHAP_CHINHANH AS
+  SELECT STK_ID, CAST(TRAN_DATE AS DATE) AS TRAN_DATE,
+         SUM(QTY) AS SoLuongXuat, COUNT(DISTINCT TRANS_NUM) AS SoChungTu
+  FROM DLVTRANS
+  GROUP BY STK_ID, CAST(TRAN_DATE AS DATE);
+  ```
+  EntityCode = `STK_ID`, EventDate = `TRAN_DATE`. Muốn tách riêng chiều
+  NHẬP (theo `OSTK_ID`), tạo thêm 1 VIEW/job thứ 2 cùng mẫu nhưng
+  `GROUP BY OSTK_ID` — Domain khác (vd `nhaphang_chinhanh`) vì khác chiều
+  dữ liệu, không gộp chung EntityCode với chiều xuất.
+
+### File mẫu Nguồn dữ liệu (điền tài khoản SQL rồi nhập luôn, không cần gõ form)
+
+etl-admin đã có sẵn tính năng **Nguồn dữ liệu → Nhập từ Excel** (mục B
+trong lịch sử phát triển) — chỉ cần điền `Server`/`DatabaseName`/`Username`/
+`Password` thật vào file mẫu (đã dựng sẵn 2 dòng `DSMART16 - Live` và
+`DSMART16 - Lich su`, còn lại điền là xong) rồi tải lên, KHÔNG cần bấm form
+từng nguồn. File gốc không lưu lại phía máy chủ (đọc thẳng vào bộ nhớ, xem
+`etl/lib/dataSourcesImport.js`) — chỉ cần xoá file trên máy sau khi tải
+lên.
