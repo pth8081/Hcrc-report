@@ -15,6 +15,34 @@ không chặt: patch/minor/major), GIỮ NGUYÊN không đánh số lại — `0
 (gần nhất theo quy tắc cũ) tương ứng **`4.1`** theo quy tắc mới, là điểm
 bắt đầu đếm tiếp từ đây.
 
+## 6.5 — Thêm mục 9 "Cập nhật code (redeploy)" — vá lỗ hổng quy trình phát hiện qua thử thật
+
+Người dùng hỏi: sau khi phân quyền xong (mục 6.4), up code mới thì làm
+sao? Phát hiện chính ghi chú CŨ trong Bước 5/FAQ Cách B (mục 6.4) SAI —
+viết "cập nhật code dùng `sudo -u hcrc-etl -H git pull`" nhưng KHÔNG THẬT
+SỰ chạy thử trước khi viết. Lần này tự dựng 1 repo Git + 2 tài khoản
+Linux thật (`useradd`/`chown`/`git`) để kiểm chứng trước khi viết bất kỳ
+dòng hướng dẫn nào — phát hiện CẢ HAI cách làm tắt đều thất bại thật sự:
+tài khoản sở hữu `.git` (thư mục gốc) `git pull` được nhưng bị "Permission
+denied" khi ghi file bên trong 3 thư mục service đã khoá; tài khoản dịch
+vụ sở hữu thư mục service lại không đọc/ghi được `.git` ở thư mục gốc
+("cannot open .git/FETCH_HEAD"). Cách ĐÚNG (đã kiểm chứng chạy thật,
+không chỉ suy luận): tạm `chown` trả quyền sở hữu 3 thư mục service về
+tài khoản vận hành, `git pull`, cài lại/build lại, RỒI `chown` khoá lại
+đúng như Bước 5. Docs-only, không đổi code sản phẩm.
+
+- `deploy/README.md` mục 9 (mới) — quy trình cập nhật code đầy đủ cho cả
+  2 Cách: Cách A (PM2) đơn giản — mọi việc làm dưới quyền `hcrc` (tài
+  khoản sở hữu toàn bộ cây thư mục) như lúc cài đặt ban đầu, không có gì
+  đặc biệt. Cách B (systemd) — quy trình 2 pha "mở khoá tạm → cập nhật →
+  khoá lại" đã kiểm chứng thật, cộng ghi chú giải thích RÕ VÌ SAO cần 2
+  pha (không có tài khoản nào vừa đọc `.git` vừa ghi được cả 3 thư mục
+  service cùng lúc — đây là hệ quả trực tiếp, cố ý của mô hình phân quyền
+  theo từng service).
+- Sửa 2 chỗ ghi chú CŨ (Bước 5 + FAQ, mục 6.4) đang hướng dẫn SAI (`sudo -u
+  hcrc-etl -H git pull` — không hoạt động, đã kiểm chứng) — nay trỏ sang
+  mục 9 thay vì lặp lại hướng dẫn ngắn gọn nhưng thiếu.
+
 ## 6.4 — Cách B (systemd) chuyển sang 3 tài khoản riêng theo service + hỗ trợ cluster
 
 Người dùng muốn Cách B (systemd, mục 6.2/6.3) đi xa hơn: mỗi service có

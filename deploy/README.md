@@ -350,9 +350,11 @@ done
 ```
 
 Sau lệnh này, TÀI KHOẢN CỦA BẠN không còn tự `cd`/sửa được 3 thư mục đó
-nữa (đúng ý — chỉ tài khoản dịch vụ tương ứng + root vào được) — cập nhật
-code sau này (git pull/build lại) dùng `sudo -u hcrc-etl -H <lệnh>` (tương
-tự cách dùng `sudo -u hcrc` ở Cách A).
+nữa (đúng ý — chỉ tài khoản dịch vụ tương ứng + root vào được). Cập nhật
+code sau này (`git pull`/build lại) KHÔNG đơn giản như 1 lệnh `sudo -u` —
+xem mục 9 "Cập nhật code (redeploy)" để biết đúng cách (cần tạm mở khoá
+rồi khoá lại, vì không có tài khoản nào vừa đọc được `.git` vừa ghi được
+cả 3 thư mục cùng lúc).
 
 #### Cả 2 cách
 
@@ -593,6 +595,101 @@ Server production nào khác (backup định kỳ `HCRC_DWH`/`HCRC_ETL`/
 khác máy chủ CSDL chính). Ghi rõ ở đây để KHÔNG ai lầm tưởng việc này đã có
 sẵn/tự động chỉ vì không thấy nhắc tới ở đâu khác trong tài liệu triển khai.
 
+## 9. Cập nhật code (redeploy) sau khi đã triển khai
+
+Sau Bước 5 (mục 1), thư mục ứng dụng đã bị siết quyền — tài khoản của bạn
+KHÔNG còn tự `cd`/ghi trực tiếp vào đó nữa (đúng ý, đó chính là mục đích
+của việc phân quyền). Cách cập nhật code MỚI (`git pull` + cài lại +
+build lại) sau đó khác nhau tuỳ Cách đã chọn.
+
+#### Nếu chọn Cách A (PM2)
+
+Đơn giản — tài khoản `hcrc` sở hữu TOÀN BỘ cây thư mục, chỉ cần làm mọi
+việc DƯỚI QUYỀN `hcrc` như lúc cài đặt ban đầu (Bước 2):
+
+```bash
+sudo -u hcrc -H -s /bin/bash
+cd /home/hcrc/hcrc
+git pull
+
+# Chỉ cài lại/build lại phần THẬT SỰ đổi (xem git log/diff để biết) —
+# an toàn nếu cứ chạy hết cả 6 dòng dưới đây, chỉ hơi tốn thời gian hơn:
+for svc in etl rp-server api-server; do (cd $svc && npm install --omit=dev); done
+for app in rp-user api-admin etl-admin; do (cd $app && npm install && npm run build); done
+
+exit
+```
+
+Copy lại giao diện tĩnh (nếu build lại ở trên) + reload tiến trình (không
+rớt request, đổi lần lượt để không gián đoạn cả 3 cùng lúc):
+
+```bash
+for app in rp-user api-admin etl-admin; do
+  sudo rm -rf /var/www/hcrc/$app
+  sudo cp -r /home/hcrc/hcrc/$app/dist /var/www/hcrc/$app
+done
+
+sudo -u hcrc -H pm2 reload hcrc-etl
+sudo -u hcrc -H pm2 reload hcrc-rp-server
+sudo -u hcrc -H pm2 reload hcrc-api-server
+```
+
+#### Nếu chọn Cách B (systemd)
+
+Phức tạp hơn 1 bước — KHÔNG có tài khoản nào sở hữu ĐỦ CẢ `.git` (ở thư
+mục gốc) LẪN 3 thư mục service (mỗi thư mục thuộc 1 tài khoản khác nhau),
+nên `git pull` không thể chạy trực tiếp dưới bất kỳ tài khoản nào — phải
+**tạm trả quyền sở hữu 3 thư mục service về tài khoản của bạn, pull xong
+rồi khoá lại đúng như Bước 5** (đã tự kiểm thực tế bằng `useradd`/`chown`
++ 1 repo Git thử — 2 cách làm tắt đều thất bại: tài khoản của bạn pull
+được `.git` nhưng KHÔNG ghi được file bên trong 3 thư mục đã khoá; tài
+khoản dịch vụ ghi được file bên trong nhưng KHÔNG chạm được `.git` ở thư
+mục gốc):
+
+```bash
+HCRC_DIR=/opt/hcrc   # đổi lại nếu bạn clone vào đường dẫn khác
+
+# 1) Tạm trả quyền sở hữu 3 thư mục service về tài khoản của bạn
+sudo chown -R "$(whoami)" "$HCRC_DIR/etl" "$HCRC_DIR/rp-server" "$HCRC_DIR/api-server"
+
+# 2) Cập nhật code (từ thư mục gốc, nơi có .git)
+cd "$HCRC_DIR" && git pull
+
+# 3) Cài lại dependency + build lại (an toàn chạy hết, dù chỉ vài phần đổi)
+for svc in etl rp-server api-server; do (cd $svc && npm install --omit=dev); done
+for app in rp-user api-admin etl-admin; do (cd $app && npm install && npm run build); done
+
+# 4) KHOÁ LẠI đúng như Bước 5 — bước này KHÔNG ĐƯỢC QUÊN
+sudo chown -R hcrc-etl:hcrc-etl "$HCRC_DIR/etl"
+sudo chown -R hcrc-rp-server:hcrc-rp-server "$HCRC_DIR/rp-server"
+sudo chown -R hcrc-api-server:hcrc-api-server "$HCRC_DIR/api-server"
+for svc_dir in etl rp-server api-server; do
+  sudo find "$HCRC_DIR/$svc_dir" -type d -exec chmod 750 {} \;
+  sudo find "$HCRC_DIR/$svc_dir" -name ".env" -exec chmod 600 {} \;
+done
+```
+
+Copy lại giao diện tĩnh (không cần "trả quyền" gì — `rp-user/`/`api-admin/`/
+`etl-admin/` không thuộc tài khoản dịch vụ nào, vẫn là tài khoản của bạn từ
+Bước 2) rồi khởi động lại từng worker để nạp code mới:
+
+```bash
+for app in rp-user api-admin etl-admin; do
+  sudo rm -rf /var/www/hcrc/$app
+  sudo cp -r "$HCRC_DIR/$app/dist" /var/www/hcrc/$app
+done
+
+sudo systemctl restart hcrc-etl@0          # + @1, @2... nếu bạn chạy nhiều worker
+sudo systemctl restart hcrc-rp-server@0    # + @1, @2...
+sudo systemctl restart hcrc-api-server@0   # + @1, @2...
+```
+
+**Vì sao không đơn giản như Cách A?** Đây chính là CÁI GIÁ của việc phân
+quyền theo từng service (mục đích ban đầu — 1 service bị hack không lộ
+file của 2 service kia) — không có tài khoản "vạn năng" nào vừa đọc được
+`.git` vừa ghi được cả 3 thư mục cùng lúc, nên phải làm 2 bước (mở khoá
+tạm thời → khoá lại) thay vì 1 lệnh `git pull` duy nhất như Cách A.
+
 ## Câu hỏi thường gặp
 
 **Vì sao 2 trang quản trị (`api-admin`/`etl-admin`) không dùng domain
@@ -650,5 +747,6 @@ khẩu CSDL của CẢ 3 hệ thống coi như lộ. Ở Cách B, `etl` chạy d
 `hcrc-etl`, thư mục `rp-server/api-server` thuộc sở hữu tài khoản KHÁC
 (`hcrc-rp-server`/`hcrc-api-server`) với quyền `750` — `hcrc-etl` bị chiếm
 quyền cũng KHÔNG tự đọc được 2 thư mục đó. Đánh đổi: nhiều bước cài đặt
-hơn, và việc cập nhật code sau này cũng phải làm riêng cho từng thư mục
-(`sudo -u hcrc-etl -H git pull` thay vì 1 lệnh chung).
+hơn, và việc cập nhật code sau này cũng phức tạp hơn (không có tài khoản
+nào vừa đọc được `.git` vừa ghi được cả 3 thư mục cùng lúc — phải tạm mở
+khoá rồi khoá lại, xem mục 9 "Cập nhật code (redeploy)").
