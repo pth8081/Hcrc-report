@@ -15,6 +15,38 @@ không chặt: patch/minor/major), GIỮ NGUYÊN không đánh số lại — `0
 (gần nhất theo quy tắc cũ) tương ứng **`4.1`** theo quy tắc mới, là điểm
 bắt đầu đếm tiếp từ đây.
 
+## 6.3 — Viết lại mục 1 (deploy/README.md) dễ hiểu hơn cho người quản trị
+
+Người dùng phản hồi hướng dẫn "cách chạy services" (mục 6.2, PM2 vs
+systemd) khó đọc — nhiều cross-reference qua lại giữa các mục con
+(1.0/1.1/1.2), lệnh dịch nghĩa PM2→systemd rải rác nhiều chỗ. Viết lại
+toàn bộ mục 1 thành 5 "Bước" tuyến tính, mỗi bước tự đủ (không cần nhảy
+qua lại), gộp phần dịch lệnh PM2→systemd thành 1 bảng tra duy nhất. Trong
+lúc viết lại, TỰ KIỂM bằng cách chạy thật đoạn script mẫu (không chỉ đọc
+lại) và phát hiện 1 lỗi thật trong chính các file `deploy/systemd/*.service`
+từ đợt 6.2: `ExecStart=<DUONG-DAN-NODE-THAT>/node server.js` cộng thêm
+"/node" vào SAU kết quả `which node` (vốn đã là đường dẫn ĐẦY ĐỦ tới file
+thực thi, vd `/usr/bin/node`) — ra đường dẫn sai `/usr/bin/node/node`,
+`systemd-analyze verify` báo "not a directory". Docs + sửa file mẫu,
+không đổi code sản phẩm.
+
+- `deploy/README.md` mục 1 — viết lại thành "Bước 1" (tạo tài khoản
+  `hcrc`) → "Bước 5" (siết quyền), mỗi bước có khối lệnh chạy được ngay,
+  không phải tra cứu chỗ khác. Bước 4 (chạy 3 tiến trình) có thêm gợi ý
+  chọn nhanh ("chưa chắc thì chọn PM2") và 1 "Bảng tra lệnh nhanh" PM2↔
+  systemd dùng chung cho mục 4/7/FAQ (thay cho các ghi chú rời rạc trước
+  đó). Cách B (systemd) đổi từ "tự sửa 2 chỗ `<...>` bằng tay" sang 1 khối
+  lệnh `sed` chạy 1 lần cho cả 3 file.
+- `deploy/systemd/hcrc-{etl,rp-server,api-server}.service` — SỬA LỖI:
+  `ExecStart` đổi thành `<DUONG-DAN-NODE-THAT> server.js` (bỏ "/node" thừa)
+  — placeholder giờ là đường dẫn ĐẦY ĐỦ tới file thực thi `node` (đúng
+  khớp kết quả `which node`), không phải thư mục chứa nó. Đã kiểm lại
+  bằng `systemd-analyze verify` sau khi sed thay placeholder bằng giá trị
+  thật — sạch, không lỗi/cảnh báo.
+- Mọi cross-reference nội bộ ("mục 1.0"/"1.1"/"1.2") đổi thành "Bước
+  X, mục 1" khớp cấu trúc mới — bao gồm cả comment trong 3 file
+  `deploy/systemd/*.service`.
+
 ## 6.2 — Thêm cách chạy bằng systemd (thay cho PM2) trong hướng dẫn triển khai
 
 Người dùng muốn tài liệu triển khai có SẴN 2 cách chạy 3 tiến trình nền để

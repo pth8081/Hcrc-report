@@ -1,5 +1,5 @@
 # deploy/systemd/hcrc-etl.service — Cách B (thay cho PM2, xem deploy/README.md
-# mục 1.1) chạy etl/ trực tiếp bằng systemd, không qua PM2. Copy file này vào
+# Bước 4, mục 1) chạy etl/ trực tiếp bằng systemd, không qua PM2. Copy file này vào
 # /etc/systemd/system/hcrc-etl.service, SỬA 2 chỗ đánh dấu <...> bên dưới
 # trước khi dùng — ExecStart cần ĐƯỜNG DẪN TUYỆT ĐỐI thật của Node (chạy
 # `which node` để lấy, KHÔNG giả định /usr/bin/node — nvm/nodesource/tự biên
@@ -32,8 +32,9 @@ WorkingDirectory=<DUONG-DAN-TOI-THU-MUC-CLONE>/etl
 # vd /home/hcrc/hcrc/etl — PHẢI trỏ đúng thư mục etl/ (dotenv đọc .env theo
 # thư mục làm việc hiện tại, không phải theo đường dẫn script)
 
-ExecStart=<DUONG-DAN-NODE-THAT>/node server.js
+ExecStart=<DUONG-DAN-NODE-THAT> server.js
 # vd /usr/bin/node hoặc /opt/node22/bin/node — chạy `which node` để lấy đúng
+# (dán NGUYÊN VĂN kết quả `which node`, KHÔNG thêm "/node" ở sau)
 
 Environment=NODE_ENV=production
 Restart=on-failure
