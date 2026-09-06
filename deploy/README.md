@@ -25,7 +25,8 @@ api-admin, etl-admin) có domain/kết nối riêng, truy cập thẳng vào đ�
                           |            |          |
    ┌──────────────────────────────────────────────────────────────────┐
    │                     MÁY CHỦ ỨNG DỤNG (1 máy)                     │
-   │  PM2: hcrc-rp-server (:4001)  hcrc-api-server (:4002)  hcrc-etl (:4003) │
+   │  hcrc-rp-server (:4001)  hcrc-api-server (:4002)  hcrc-etl (:4003) │
+   │  (chạy bằng PM2 hoặc systemd — chọn 1 trong 2, xem mục 1)          │
    │  Tĩnh: rp-user/dist  api-admin/dist  etl-admin/dist               │
    └──────────────────────────────────────────────────────────────────┘
                           |            |            |
@@ -44,26 +45,42 @@ Không có gì trong Nginx cần biết máy chủ CSDL ở đâu — đó là v
 
 ## 1. Chuẩn bị máy chủ ứng dụng
 
-Mục 1 gồm 5 bước làm THEO THỨ TỰ. Đọc nhanh danh sách này trước, rồi làm
-từng bước bên dưới:
+Mục 1 gồm 5 bước làm THEO THỨ TỰ:
 
-1. Tạo tài khoản `hcrc` — tài khoản chạy ứng dụng (không phải tài khoản
-   quản trị bạn đang SSH vào).
-2. Cài đặt code + build — làm bên trong quyền `hcrc`.
-3. Copy giao diện sang Nginx — làm bằng tài khoản của bạn.
-4. Bật 3 tiến trình nền — **chọn 1 trong 2**: PM2 hoặc systemd.
+1. **Chọn cách chạy + tạo tài khoản tương ứng** — quyết định QUAN TRỌNG
+   NHẤT, vì nó quyết định luôn cách làm ở 4 bước còn lại.
+2. Cài đặt code + build.
+3. Copy giao diện sang Nginx.
+4. Bật tiến trình nền (theo cách đã chọn ở Bước 1).
 5. Siết quyền file/thư mục lần cuối.
 
-### Bước 1 — Tạo tài khoản `hcrc` chạy ứng dụng
+### Bước 1 — Chọn cách chạy + tạo tài khoản
 
-**Vì sao cần bước này?** Nếu không tạo riêng, tiến trình Node sẽ chạy dưới
-tài khoản bạn đang SSH vào (thường là `root`) — 1 lỗ hổng bất kỳ trong code
-sẽ cho kẻ tấn công LUÔN quyền của tài khoản đó, tức là toàn quyền máy chủ.
-`hcrc` là tài khoản HỆ ĐIỀU HÀNH, không đăng nhập được, không sudo, chỉ để
-sở hữu tiến trình + file — **khác hoàn toàn** tài khoản CSDL (`DWH_USER`/
-`RP_USER`/..., xem mục 2) là 2 việc riêng, không thay thế nhau được.
+**Vì sao phải tạo tài khoản riêng?** Nếu không, tiến trình Node sẽ chạy
+dưới tài khoản bạn đang SSH vào (thường là `root`) — 1 lỗ hổng bất kỳ
+trong code sẽ cho kẻ tấn công LUÔN quyền của tài khoản đó, tức là toàn
+quyền máy chủ. Tài khoản này là tài khoản HỆ ĐIỀU HÀNH, không đăng nhập
+được, không sudo — **khác hoàn toàn** tài khoản CSDL (`DWH_USER`/
+`RP_USER`/..., xem mục 2), 2 việc riêng, không thay thế nhau được (xem
+FAQ cuối bài).
 
-Chạy 2 lệnh sau, 1 lần, bằng tài khoản của bạn (sudo):
+**Chọn 1 trong 2 cách** (không đổi ý giữa chừng — cách chọn ở đây quyết
+định toàn bộ các bước sau):
+
+| So sánh nhanh | Cách A — PM2 | Cách B — systemd |
+|---|---|---|
+| Tài khoản chạy ứng dụng | **1 tài khoản dùng chung** cho cả 3 service | **3 tài khoản riêng**, mỗi service 1 tài khoản — service này bị hack không lộ file của 2 service kia |
+| Cần cài thêm gì | Có — `npm install -g pm2` | Không — `systemd` có sẵn trên hầu hết Linux server |
+| Nhiều worker/CPU (cluster) | Có sẵn, cấu hình 1 dòng | Có, cần thêm vài bước (cổng riêng + sửa Nginx) — hướng dẫn đủ ở Bước 4 |
+| Xem log | `pm2 logs <tên>` | `journalctl -u <tên> -f` |
+| Xoay vòng log | Phải cài thêm `pm2-logrotate` | Có sẵn qua `journald`, không cần cài gì |
+| Phù hợp khi nào | Muốn đơn giản, thao tác quen thuộc (`pm2 status`, `pm2 logs`...) | Muốn cô lập mạnh hơn giữa 3 service, không muốn cài thêm phần mềm ngoài |
+
+**Chưa chắc chọn cách nào? Chọn Cách A (PM2)** — đơn giản hơn, đủ an toàn
+cho hầu hết trường hợp. Chọn Cách B nếu bạn CHỦ ĐỘNG muốn tài khoản riêng
+biệt cho từng service (an toàn hơn 1 bậc, đổi lại nhiều bước hơn).
+
+#### Nếu chọn Cách A (PM2) — tạo 1 tài khoản `hcrc`
 
 ```bash
 sudo useradd --system --create-home --home-dir /home/hcrc \
@@ -71,33 +88,64 @@ sudo useradd --system --create-home --home-dir /home/hcrc \
 sudo passwd -l hcrc   # khoá mật khẩu — không ai đăng nhập được bằng mật khẩu
 ```
 
-### Bước 2 — Cài đặt code + build
+(`--create-home` cần thiết dù tài khoản không login được — PM2 lưu trạng
+thái/log tại `~/.pm2` của tài khoản đang chạy nó.)
 
-**Cài Node.js >= 18 và PM2 TOÀN MÁY trước, nếu chưa có** (bằng tài khoản
-của bạn, sudo — PM2 vẫn cần cài kể cả nếu ở Bước 4 bạn định chọn chạy bằng
-systemd, xem ghi chú trong Bước 4):
+#### Nếu chọn Cách B (systemd) — tạo 3 tài khoản riêng
 
 ```bash
-sudo npm install -g pm2
+for svc in etl rp-server api-server; do
+  sudo useradd --system --no-create-home --shell /usr/sbin/nologin hcrc-$svc
+  sudo passwd -l hcrc-$svc
+done
 ```
 
-Từ đây, MỌI lệnh trong Bước 2 chạy **bên trong 1 shell mang quyền `hcrc`**
-— mở shell đó bằng lệnh dưới đây (giữ shell này mở tới hết Bước 2, đừng
-tắt cửa sổ terminal):
+(`--no-create-home` — KHÔNG cần thư mục home như PM2, vì systemd tự quản
+lý log qua `journald`, không cần nơi lưu trạng thái riêng như `~/.pm2`.)
+Kết quả: 3 tài khoản `hcrc-etl`, `hcrc-rp-server`, `hcrc-api-server` — mỗi
+tài khoản sẽ CHỈ sở hữu đúng 1 thư mục service tương ứng (làm ở Bước 5),
+không đọc được `.env` của 2 service còn lại dù bị chiếm quyền.
+
+### Bước 2 — Cài đặt code + build
+
+**Cài Node.js >= 18 trước, nếu chưa có** (bằng tài khoản của bạn, sudo).
+Cách A còn cần cài PM2 toàn máy — Cách B thì không:
+
+```bash
+sudo npm install -g pm2   # CHỈ cần nếu chọn Cách A ở Bước 1 — bỏ qua nếu chọn Cách B
+```
+
+#### Nếu chọn Cách A (PM2)
+
+MỌI lệnh còn lại trong Bước 2 chạy **bên trong 1 shell mang quyền `hcrc`**
+— mở shell đó, giữ mở tới hết Bước 2:
 
 ```bash
 sudo -u hcrc -H -s /bin/bash
-```
-
-Bên trong shell `hcrc`, tải code + cài từng service:
-
-```bash
 git clone <repo> hcrc && cd hcrc
 
 for svc in etl rp-server api-server; do
   (cd $svc && npm install --omit=dev && cp .env.example .env)
 done
 ```
+
+#### Nếu chọn Cách B (systemd)
+
+Chưa có tài khoản nào sở hữu TOÀN BỘ cây thư mục (3 tài khoản ở Bước 1
+mỗi tài khoản chỉ sở hữu ĐÚNG 1 thư mục service, gán ở Bước 5) — nên cài
+đặt/build làm BẰNG TÀI KHOẢN CỦA BẠN, vào 1 thư mục dùng chung:
+
+```bash
+sudo mkdir -p /opt/hcrc
+sudo chown "$(whoami)" /opt/hcrc   # tạm thời, để bạn tự cài/build không cần sudo từng lệnh
+git clone <repo> /opt/hcrc && cd /opt/hcrc
+
+for svc in etl rp-server api-server; do
+  (cd $svc && npm install --omit=dev && cp .env.example .env)
+done
+```
+
+#### Cả 2 cách — điền `.env` + build giao diện
 
 Điền `.env` từng service (mở bằng `nano etl/.env` chẳng hạn) — 3 việc
 QUAN TRỌNG nhất, đủ để chạy đúng mô hình "CSDL máy khác":
@@ -109,14 +157,14 @@ QUAN TRỌNG nhất, đủ để chạy đúng mô hình "CSDL máy khác":
 - Đổi MỌI secret còn là giá trị mẫu (`*_JWT_SECRET`, `*_ENCRYPTION_KEY`) —
   để nguyên giá trị mẫu thì tiến trình DỪNG NGAY lúc khởi động với lỗi rõ
   ràng (xem log ở Bước 4), không lặng lẽ chạy hỏng.
-- Giữ nguyên `TRUST_PROXY_HOPS=1` (đúng mô hình 1 Nginx duy nhất) —
-  `NODE_ENV=production` đã đặt sẵn trong `deploy/ecosystem.config.js`, chỉ
-  cần dùng đúng file đó ở Bước 4.
+- Giữ nguyên `TRUST_PROXY_HOPS=1` (đúng mô hình 1 Nginx duy nhất). Cách A
+  đã có sẵn `NODE_ENV=production` trong `deploy/ecosystem.config.js`; Cách
+  B đặt trong file service ở Bước 4 — không cần tự thêm vào `.env`.
 
 Sau khi điền `.env`, chạy schema + tạo tài khoản CSDL quyền tối thiểu
 (TRÊN MÁY CHỦ CSDL, xem mục 2 bên dưới — không làm trên máy này), rồi tạo
 tài khoản quản trị đầu tiên (`npm run seed:admin`, xem README từng
-service). Xong 2 việc đó mới build giao diện (vẫn trong shell `hcrc`):
+service). Xong 2 việc đó mới build giao diện:
 
 ```bash
 for app in rp-user api-admin etl-admin; do
@@ -124,41 +172,27 @@ for app in rp-user api-admin etl-admin; do
 done
 ```
 
-Xong Bước 2, thoát khỏi shell `hcrc`:
-
-```bash
-exit
-```
+Cách A: thoát khỏi shell `hcrc` (`exit`) trước khi qua Bước 3. Cách B:
+không cần thoát gì (đang ở tài khoản của bạn từ đầu).
 
 ### Bước 3 — Copy giao diện sang Nginx
 
-Từ đây trở đi, MỌI lệnh chạy BẰNG TÀI KHOẢN CỦA BẠN (sudo) — `/var/www`
-bình thường chỉ `root` ghi được, `hcrc` không có sudo nên không tự tạo
-thư mục ở đó:
+Chạy BẰNG TÀI KHOẢN CỦA BẠN (sudo) — `/var/www` bình thường chỉ `root` ghi
+được:
 
 ```bash
+SRC_DIR=/home/hcrc/hcrc   # Cách A — đổi thành /opt/hcrc nếu bạn chọn Cách B
+
 sudo mkdir -p /var/www/hcrc
 for app in rp-user api-admin etl-admin; do
   sudo rm -rf /var/www/hcrc/$app
-  sudo cp -r /home/hcrc/hcrc/$app/dist /var/www/hcrc/$app
+  sudo cp -r "$SRC_DIR/$app/dist" /var/www/hcrc/$app
 done
 ```
 
-### Bước 4 — Bật 3 tiến trình nền (chọn 1 trong 2 cách)
+### Bước 4 — Bật tiến trình nền
 
-**Chưa biết chọn cách nào? Chọn PM2** — cách còn lại (systemd) chỉ dành
-cho ai chủ động muốn không cài thêm PM2. Cả 2 cách đều chạy dưới tài khoản
-`hcrc`, đều tự bật lại cùng máy chủ và tự khởi động lại khi crash.
-
-| So sánh nhanh | PM2 | systemd |
-|---|---|---|
-| Cần cài thêm gì | Có — `npm install -g pm2` | Không — có sẵn trên hầu hết Linux server |
-| Chạy nhiều tiến trình/CPU (cluster) | Có, 2 worker/app mặc định | Không — mỗi service 1 tiến trình (xem ghi chú cuối mục này nếu vẫn cần) |
-| Xem log | `pm2 logs <tên>` | `journalctl -u <tên> -f` |
-| Xoay vòng log (đỡ đầy ổ đĩa) | Phải cài thêm `pm2-logrotate` | Có sẵn, không cần cài gì |
-| Phần còn lại của tài liệu này viết theo cách nào | **Cách này (mặc định)** | Cần tự đổi lệnh — xem "Bảng tra lệnh nhanh" cuối mục này |
-
-#### Cách A — PM2
+#### Nếu chọn Cách A (PM2)
 
 3 lệnh, chạy bằng tài khoản của bạn (sudo):
 
@@ -178,67 +212,116 @@ systemd.
 Kiểm tra: `sudo -u hcrc -H pm2 status` — cả 3 tiến trình (`hcrc-etl`,
 `hcrc-rp-server`, `hcrc-api-server`) phải ở trạng thái `online`.
 
-#### Cách B — systemd (không dùng PM2)
+**Cluster/nhiều worker đã có sẵn, không cần làm gì thêm**:
+`deploy/ecosystem.config.js` chạy MỖI service ở `exec_mode: 'cluster'`,
+mặc định `instances: 2` — tổng cộng **6 tiến trình Node** trên cùng 1 máy
+(chỉnh số này qua biến môi trường `PM2_INSTANCES_ETL`/`PM2_INSTANCES_RP`/
+`PM2_INSTANCES_API` trước khi `pm2 start`, xem chú thích đầu
+`deploy/ecosystem.config.js`). Mỗi worker tự mở 1 pool kết nối CSDL riêng
+— tổng số kết nối thật sự mở tới SQL Server = `instances × *_POOL_MAX`
+(biến trong `.env` từng service). Tăng `instances` theo số lõi CPU máy chủ
+mà KHÔNG chỉnh lại `*_POOL_MAX` tương ứng dễ vượt giới hạn kết nối cho
+phép của SQL Server.
 
-3 file mẫu có sẵn trong `deploy/systemd/`. Trước khi dùng, sửa 2 chỗ
-`<DUONG-DAN-...>` trong TỪNG file (đường dẫn thư mục clone, và đường dẫn
-`node` thật — chạy `which node` để lấy chính xác, KHÔNG giả định
-`/usr/bin/node`). Cách nhanh nhất là dùng `sed` để tự thay 1 lần cho cả 3
-file — copy đúng khối lệnh dưới đây, đổi 2 dòng đầu cho khớp máy bạn rồi
-chạy:
+#### Nếu chọn Cách B (systemd)
+
+3 file mẫu (dạng TEMPLATE — tên có `@`) có sẵn trong `deploy/systemd/`:
+`hcrc-etl@.service`, `hcrc-rp-server@.service`, `hcrc-api-server@.service`
+— mỗi service chạy dưới TÀI KHOẢN RIÊNG đã tạo ở Bước 1 (khai sẵn trong
+file, không cần `sudo -u` khi chạy lệnh — chính systemd tự hạ quyền).
+"Template" nghĩa là 1 file dùng chung cho N worker — bật `hcrc-etl@0` là 1
+worker, bật thêm `hcrc-etl@1` là worker thứ 2, v.v.
+
+**Sửa đường dẫn trong file mẫu** (2 chỗ `<...>` — đường dẫn thư mục clone,
+đường dẫn `node` thật lấy từ `which node`, KHÔNG giả định `/usr/bin/node`):
 
 ```bash
-NODE_PATH=$(which node)                # tự lấy đường dẫn node thật
-HCRC_DIR=/home/hcrc/hcrc               # đổi nếu bạn clone vào chỗ khác
+NODE_PATH=$(which node)
+HCRC_DIR=/opt/hcrc               # đổi nếu bạn clone vào chỗ khác
 
-sudo mkdir -p /etc/systemd/system
-for f in $HCRC_DIR/deploy/systemd/hcrc-*.service; do
+sudo mkdir -p /etc/systemd/system /etc/hcrc
+for f in $HCRC_DIR/deploy/systemd/hcrc-*@.service; do
   sed -e "s|<DUONG-DAN-TOI-THU-MUC-CLONE>|$HCRC_DIR|" \
       -e "s|<DUONG-DAN-NODE-THAT>|$NODE_PATH|" \
       "$f" | sudo tee "/etc/systemd/system/$(basename "$f")" > /dev/null
 done
 ```
 
-Đăng ký với systemd rồi bật cả 3:
+**Tạo file cổng cho worker 0** (đủ dùng nếu chỉ chạy 1 worker/service —
+xem bảng bên dưới nếu muốn nhiều worker):
+
+```bash
+echo "PORT=4003" | sudo tee /etc/hcrc/etl-worker-0.conf > /dev/null
+echo "PORT=4001" | sudo tee /etc/hcrc/rp-server-worker-0.conf > /dev/null
+echo "PORT=4002" | sudo tee /etc/hcrc/api-server-worker-0.conf > /dev/null
+```
+
+Đăng ký với systemd rồi bật worker 0 của cả 3 service:
 
 ```bash
 sudo systemctl daemon-reload
-sudo systemctl enable --now hcrc-etl hcrc-rp-server hcrc-api-server
+sudo systemctl enable --now hcrc-etl@0 hcrc-rp-server@0 hcrc-api-server@0
 ```
 
-Kiểm tra: `sudo systemctl status hcrc-etl hcrc-rp-server hcrc-api-server`
-— cả 3 phải hiện `active (running)`.
+Kiểm tra: `sudo systemctl status hcrc-etl@0 hcrc-rp-server@0
+hcrc-api-server@0` — cả 3 phải hiện `active (running)`.
+
+**Muốn nhiều worker/CPU (cluster)?** Lặp lại: tạo thêm 1 file cổng, rồi
+`enable --now` thêm 1 worker, cho MỖI worker thêm — cổng đã tính sẵn ở
+bảng dưới (không trùng nhau, không trùng cổng nào khác trên máy):
+
+| Service | worker 0 (mặc định) | worker 1 | worker 2 | worker 3 |
+|---|---|---|---|---|
+| etl | 4003 | 4013 | 4023 | 4033 |
+| rp-server | 4001 | 4011 | 4021 | 4031 |
+| api-server | 4002 | 4012 | 4022 | 4032 |
+
+Ví dụ bật thêm worker 1 cho `rp-server`:
+
+```bash
+echo "PORT=4011" | sudo tee /etc/hcrc/rp-server-worker-1.conf > /dev/null
+sudo systemctl enable --now hcrc-rp-server@1
+```
+
+Rồi **thêm 1 dòng vào `deploy/nginx.conf`** (khối `upstream hcrc_rp_server`
+— xem ghi chú "Nhiều worker" ngay phía trên khối đó) để Nginx biết chia
+tải sang worker mới, sau đó `nginx -t && sudo systemctl reload nginx`.
+KHÔNG cần sửa gì cho `etl` (không có route Nginx công khai, VPN gọi trực
+tiếp `/health` không cần chia tải nhiều worker).
+
+Mỗi worker tự mở 1 pool kết nối CSDL riêng (không dùng chung) — tổng số
+kết nối thật sự mở tới SQL Server = (số worker) × `*_POOL_MAX` (biến trong
+`.env`). Tăng số worker theo số lõi CPU máy chủ mà KHÔNG chỉnh lại
+`*_POOL_MAX` tương ứng dễ vượt giới hạn kết nối cho phép của SQL Server.
 
 Không cần chỉnh gì thêm cho việc gửi email báo cáo/cảnh báo/dọn log định
-kỳ — các job đó vẫn chạy đúng 1 lần dưới systemd (xem chú thích trong
-`lib/clusterLeader.js` nếu muốn hiểu vì sao).
+kỳ — CHỈ worker `@0` chạy các job đó (xem `Environment=NODE_APP_INSTANCE`
+trong file service + chú thích `lib/clusterLeader.js`), các worker khác
+không chạy lại, không lo gửi trùng lặp.
 
-**Nâng cao, ít khi cần**: muốn nhiều tiến trình/CPU dưới systemd như PM2
-cluster mode — tạo unit dạng template (`hcrc-etl@.service`) + nhiều cổng
-+ thêm dòng vào `upstream` trong `deploy/nginx.conf` để Nginx tự chia tải.
-Phức tạp hơn đáng kể so với chỉ dùng PM2, chỉ nên làm nếu có lý do rõ ràng
-không dùng được PM2 — không hướng dẫn chi tiết ở đây.
-
-#### Bảng tra lệnh nhanh (dùng khi đọc tiếp mục 4, 7 — viết mặc định theo PM2)
+#### Bảng tra lệnh nhanh (dùng khi đọc tiếp mục 4, 7 — viết mặc định theo Cách A)
 
 Từ mục 4 trở đi, tài liệu viết lệnh theo Cách A (PM2). Nếu bạn chọn Cách B
-(systemd), tra bảng này để đổi lệnh:
+(systemd), tra bảng này để đổi lệnh — `<tên>` là 1 trong 3
+(`hcrc-etl`/`hcrc-rp-server`/`hcrc-api-server`), `<worker>` là số worker
+(`0` nếu chỉ chạy 1 worker):
 
 | Việc cần làm | PM2 (mặc định tài liệu) | systemd (nếu bạn chọn Cách B) |
 |---|---|---|
-| Xem trạng thái | `sudo -u hcrc -H pm2 status` | `sudo systemctl status <tên>` |
-| Xem log | `sudo -u hcrc -H pm2 logs <tên>` | `journalctl -u <tên> -f` |
-| Khởi động lại, không rớt request | `sudo -u hcrc -H pm2 reload <tên>` | `sudo systemctl restart <tên>` (dừng hẳn rồi bật lại — có ngắt ngắn vì chỉ 1 tiến trình) |
-| Dừng hẳn | `sudo -u hcrc -H pm2 stop <tên>` | `sudo systemctl stop <tên>` |
+| Xem trạng thái | `sudo -u hcrc -H pm2 status` | `sudo systemctl status <tên>@<worker>` |
+| Xem log | `sudo -u hcrc -H pm2 logs <tên>` | `journalctl -u <tên>@<worker> -f` |
+| Khởi động lại, không rớt request | `sudo -u hcrc -H pm2 reload <tên>` | `sudo systemctl restart <tên>@<worker>` (dừng hẳn rồi bật lại — có ngắt ngắn, chỉ worker đó bị ảnh hưởng, worker khác vẫn phục vụ) |
+| Dừng hẳn | `sudo -u hcrc -H pm2 stop <tên>` | `sudo systemctl stop <tên>@<worker>` |
 | Xoay vòng log | Cài `pm2-logrotate` (mục 7) | Tự động, không cần làm gì |
-
-(`<tên>` là 1 trong 3: `hcrc-etl`, `hcrc-rp-server`, `hcrc-api-server`.)
 
 ### Bước 5 — Siết quyền file/thư mục lần cuối
 
-Chạy bằng tài khoản của bạn (sudo), sau khi đã xong Bước 2-4 — đảm bảo dù
-`git clone`/`npm install` để lại quyền mặc định lỏng lẻo, thư mục ứng
-dụng vẫn CHỈ `hcrc` và `root` truy cập được:
+Chạy bằng tài khoản của bạn (sudo), sau khi đã xong Bước 2-4.
+
+#### Nếu chọn Cách A (PM2)
+
+Đảm bảo dù `git clone`/`npm install` để lại quyền mặc định lỏng lẻo, thư
+mục ứng dụng vẫn CHỈ `hcrc` và `root` truy cập được:
 
 ```bash
 HCRC_DIR=/home/hcrc/hcrc   # đổi lại nếu bạn clone vào đường dẫn khác
@@ -248,41 +331,57 @@ sudo find "$HCRC_DIR" -type d -exec chmod 750 {} \;   # thư mục: chỉ hcrc +
 sudo find "$HCRC_DIR" -name ".env" -exec chmod 600 {} \;   # .env: CHỈ hcrc đọc/ghi được
 ```
 
-Ghi chú: KHÔNG chỉnh quyền từng file bên trong `$HCRC_DIR` (chỉ chỉnh cấp
-thư mục ở trên) — `node_modules/.bin/*` cần giữ nguyên bit thực thi để lần
-`npm install`/`build` SAU (khi cập nhật code) không lỗi "Permission
-denied". Siết `750` ở thư mục đã đủ chặn "người khác" trên máy — Linux đòi
-quyền "đi qua" ở MỌI thư mục cha mới đọc được file bên trong, "người khác"
-không vào nổi `$HCRC_DIR` thì quyền của từng file bên trong không còn ý
-nghĩa. `.env` vẫn siết riêng để phòng khi sau này ai đó lỡ nới `$HCRC_DIR`.
+#### Nếu chọn Cách B (systemd)
 
-Thư mục tĩnh cho Nginx (`/var/www/hcrc`) cần quy tắc riêng — Nginx (tài
-khoản `www-data` trên Debian/Ubuntu, `nginx` trên RHEL/CentOS) cần ĐỌC
-được nhưng không bao giờ cần GHI:
+**Đây chính là bước "phân quyền" bạn muốn** — mỗi tài khoản CHỈ sở hữu
+ĐÚNG 1 thư mục service, không đọc được `.env` của 2 service còn lại:
 
 ```bash
-sudo chown -R hcrc:www-data /var/www/hcrc   # đổi www-data -> nginx nếu dùng RHEL/CentOS
+HCRC_DIR=/opt/hcrc   # đổi lại nếu bạn clone vào đường dẫn khác
+
+sudo chown -R hcrc-etl:hcrc-etl "$HCRC_DIR/etl"
+sudo chown -R hcrc-rp-server:hcrc-rp-server "$HCRC_DIR/rp-server"
+sudo chown -R hcrc-api-server:hcrc-api-server "$HCRC_DIR/api-server"
+
+for svc_dir in etl rp-server api-server; do
+  sudo find "$HCRC_DIR/$svc_dir" -type d -exec chmod 750 {} \;
+  sudo find "$HCRC_DIR/$svc_dir" -name ".env" -exec chmod 600 {} \;
+done
+```
+
+Sau lệnh này, TÀI KHOẢN CỦA BẠN không còn tự `cd`/sửa được 3 thư mục đó
+nữa (đúng ý — chỉ tài khoản dịch vụ tương ứng + root vào được) — cập nhật
+code sau này (git pull/build lại) dùng `sudo -u hcrc-etl -H <lệnh>` (tương
+tự cách dùng `sudo -u hcrc` ở Cách A).
+
+#### Cả 2 cách
+
+Ghi chú chung: KHÔNG chỉnh quyền từng file bên trong (chỉ chỉnh cấp thư
+mục ở trên) — `node_modules/.bin/*` cần giữ nguyên bit thực thi để lần
+`npm install`/`build` SAU không lỗi "Permission denied". Siết `750` ở
+thư mục đã đủ chặn "người khác" trên máy — Linux đòi quyền "đi qua" ở MỌI
+thư mục cha mới đọc được file bên trong. `.env` vẫn siết riêng để phòng
+khi sau này ai đó lỡ nới thư mục cha.
+
+Thư mục tĩnh cho Nginx (`/var/www/hcrc`) cần quy tắc riêng, GIỐNG NHAU cho
+cả 2 cách — Nginx (tài khoản `www-data` trên Debian/Ubuntu, `nginx` trên
+RHEL/CentOS) cần ĐỌC được nhưng không bao giờ cần GHI:
+
+```bash
+sudo chown -R root:www-data /var/www/hcrc   # đổi www-data -> nginx nếu dùng RHEL/CentOS
 sudo find /var/www/hcrc -type d -exec chmod 750 {} \;
 sudo find /var/www/hcrc -type f -exec chmod 640 {} \;
 ```
 
 **Còn thiếu, khuyến nghị làm ở đợt sau**: 3 tiến trình Node hiện lắng nghe
-trên MỌI địa chỉ mạng (`0.0.0.0`), dù Nginx chỉ gọi vào `127.0.0.1:400x` —
-nếu máy chủ có IP công khai và thiếu firewall chặn riêng 3 cổng
-`4001-4003`, có thể bị gọi thẳng vào, bỏ qua giới hạn IP nội bộ Nginx đang
-áp cho `api-admin`/`etl-admin`. 2 cách vá (chọn 1, làm sau): (a) firewall
-chặn 3 cổng đó từ mọi nguồn trừ chính máy chủ, hoặc (b) sửa
+trên MỌI địa chỉ mạng (`0.0.0.0`), dù Nginx chỉ gọi vào `127.0.0.1:<cổng>`
+— nếu máy chủ có IP công khai và thiếu firewall chặn riêng các cổng đang
+dùng (4001-4003, hoặc thêm các cổng worker phụ nếu chạy cluster), có thể
+bị gọi thẳng vào, bỏ qua giới hạn IP nội bộ Nginx đang áp cho
+`api-admin`/`etl-admin`. 2 cách vá (chọn 1, làm sau): (a) firewall chặn
+các cổng đó từ mọi nguồn trừ chính máy chủ, hoặc (b) sửa
 `app.listen(PORT, ...)` thành `app.listen(PORT, '127.0.0.1', ...)` ở cả 3
 `server.js`.
-
-**Chế độ cluster (mặc định 2 worker/app, CHỈ áp dụng Cách A — PM2)**:
-`deploy/ecosystem.config.js` chạy MỖI app ở `exec_mode: 'cluster'`, mặc
-định `instances: 2` — tổng cộng **6 tiến trình Node** trên cùng 1 máy
-(chỉnh qua `PM2_INSTANCES_ETL`/`PM2_INSTANCES_RP`/`PM2_INSTANCES_API`).
-**Mỗi worker tự mở 1 pool kết nối CSDL riêng** — tổng số kết nối thật sự
-mở tới SQL Server = `instances × *_POOL_MAX` (biến trong `.env` từng
-service). Tăng `instances` theo số lõi CPU máy chủ mà KHÔNG chỉnh lại
-`*_POOL_MAX` tương ứng dễ vượt giới hạn kết nối cho phép của SQL Server.
 
 ## 2. Máy chủ CSDL riêng
 
@@ -518,23 +617,38 @@ chuyển trạng thái `errored` (`pm2 status` thấy rõ) thay vì cắm restar
 mãi. Sửa xong `.env` rồi chạy `pm2 restart <tên>` (nhớ `sudo -u hcrc -H`,
 xem lưu ý đầu mục 4) để PM2 thử lại từ đầu. Cách B (systemd) tương đương
 bằng `StartLimitIntervalSec`/`StartLimitBurst` (đã đặt sẵn trong
-`deploy/systemd/*.service`) — thoát quá 10 lần trong 200 giây thì chuyển
-`failed` (`systemctl status <tên>` thấy rõ), sửa xong `.env` rồi
-`sudo systemctl restart <tên>` để thử lại.
+`deploy/systemd/*@.service`) — thoát quá 10 lần trong 200 giây thì chuyển
+`failed` (`systemctl status <tên>@<worker>` thấy rõ), sửa xong `.env` rồi
+`sudo systemctl restart <tên>@<worker>` để thử lại.
 
 **Nginx có cần cấu hình gì cho CSDL không?** — Không. CSDL chỉ được các
 tiến trình Node kết nối trực tiếp qua `.env` (`*_SERVER`/`*_PORT`), không
 đi qua Nginx, không có route/domain nào của Nginx trỏ tới CSDL.
 
-**Tài khoản `hcrc` (Bước 1, mục 1) và tài khoản CSDL (`DWH_USER`/`RP_USER`/...,
-mục 2) có phải 1 không, có cần trùng tên/mật khẩu không?** — KHÔNG liên
-quan gì tới nhau, dù có thể trùng tên "hcrc" nghe giống. `hcrc` là tài
-khoản HỆ ĐIỀU HÀNH sở hữu tiến trình Node + file trên máy chủ ứng dụng —
-tự tạo bằng `useradd`, không cần mật khẩu, không đăng nhập được. Tài
-khoản CSDL là bên trong SQL Server (`sqlcmd`/SSMS tạo bằng `*/grants.sql`)
-— dùng để tiến trình Node XÁC THỰC VỚI CSDL qua `.env`, hoàn toàn không
+**Tài khoản `hcrc`/`hcrc-etl`/... (Bước 1, mục 1) và tài khoản CSDL
+(`DWH_USER`/`RP_USER`/..., mục 2) có phải 1 không, có cần trùng tên/mật
+khẩu không?** — KHÔNG liên quan gì tới nhau, dù có thể trùng tên "hcrc"
+nghe giống. Tài khoản ở Bước 1 là tài khoản HỆ ĐIỀU HÀNH sở hữu tiến trình
+Node + file trên máy chủ ứng dụng — tự tạo bằng `useradd`, không cần mật
+khẩu, không đăng nhập được (Cách A: 1 tài khoản chung `hcrc`; Cách B: 3
+tài khoản riêng `hcrc-etl`/`hcrc-rp-server`/`hcrc-api-server`). Tài khoản
+CSDL là bên trong SQL Server (`sqlcmd`/SSMS tạo bằng `*/grants.sql`) —
+dùng để tiến trình Node XÁC THỰC VỚI CSDL qua `.env`, hoàn toàn không
 liên quan tới hệ điều hành. Cần làm ĐỦ CẢ 2, thiếu 1 trong 2 vẫn hở: chỉ
-tạo `hcrc` mà vẫn dùng tài khoản CSDL `sa`/quyền cao cho `.env` thì 1 lỗi
-SQL injection lọt qua vẫn đọc/sửa được TOÀN BỘ CSDL; chỉ tạo tài khoản
-CSDL quyền hẹp mà vẫn chạy Node bằng `root` thì 1 lỗi RCE vẫn cho kẻ tấn
-công toàn quyền máy chủ.
+tạo tài khoản hệ điều hành riêng mà vẫn dùng tài khoản CSDL `sa`/quyền cao
+cho `.env` thì 1 lỗi SQL injection lọt qua vẫn đọc/sửa được TOÀN BỘ CSDL;
+chỉ tạo tài khoản CSDL quyền hẹp mà vẫn chạy Node bằng `root` thì 1 lỗi
+RCE vẫn cho kẻ tấn công toàn quyền máy chủ.
+
+**Cách B (systemd, 3 tài khoản riêng) có thật sự an toàn hơn Cách A
+không, hay chỉ phức tạp hơn cho có?** — An toàn hơn THẬT, không chỉ hình
+thức: ở Cách A, nếu `etl` bị khai thác 1 lỗ hổng RCE, tiến trình độc hại
+chạy dưới tài khoản `hcrc` — CÙNG tài khoản đang sở hữu luôn `.env` của
+`rp-server` và `api-server` (cùng 1 người dùng hệ điều hành thì đọc được
+hết file của chính mình, bất kể nằm ở thư mục con nào) — bí mật JWT/mật
+khẩu CSDL của CẢ 3 hệ thống coi như lộ. Ở Cách B, `etl` chạy dưới
+`hcrc-etl`, thư mục `rp-server/api-server` thuộc sở hữu tài khoản KHÁC
+(`hcrc-rp-server`/`hcrc-api-server`) với quyền `750` — `hcrc-etl` bị chiếm
+quyền cũng KHÔNG tự đọc được 2 thư mục đó. Đánh đổi: nhiều bước cài đặt
+hơn, và việc cập nhật code sau này cũng phải làm riêng cho từng thư mục
+(`sudo -u hcrc-etl -H git pull` thay vì 1 lệnh chung).

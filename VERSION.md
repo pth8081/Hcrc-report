@@ -15,6 +15,48 @@ không chặt: patch/minor/major), GIỮ NGUYÊN không đánh số lại — `0
 (gần nhất theo quy tắc cũ) tương ứng **`4.1`** theo quy tắc mới, là điểm
 bắt đầu đếm tiếp từ đây.
 
+## 6.4 — Cách B (systemd) chuyển sang 3 tài khoản riêng theo service + hỗ trợ cluster
+
+Người dùng muốn Cách B (systemd, mục 6.2/6.3) đi xa hơn: mỗi service có
+TÀI KHOẢN HỆ ĐIỀU HÀNH RIÊNG (không dùng chung 1 tài khoản như PM2) để có
+thể phân quyền độc lập trên từng thư mục ứng dụng + `.env`, và hỗ trợ
+chạy nhiều worker (cluster) như PM2 đã có. Viết lại toàn bộ hướng dẫn
+triển khai cho dễ hiểu hơn theo yêu cầu — cấu trúc "chọn cách TRƯỚC, rồi
+rẽ nhánh làm theo" xuyên suốt cả 5 bước (không chỉ riêng bước bật tiến
+trình như trước). Đã tự kiểm bằng `systemd-analyze verify` cho cả 2 kịch
+bản (1 worker, nhiều worker) trước khi đưa vào tài liệu — sạch, không
+lỗi/cảnh báo. Docs + file mẫu, không đổi code sản phẩm.
+
+- `deploy/systemd/hcrc-etl.service`, `hcrc-rp-server.service`,
+  `hcrc-api-server.service` (từ 6.2/6.3) — XOÁ, thay bằng 3 file TEMPLATE
+  `hcrc-etl@.service`, `hcrc-rp-server@.service`, `hcrc-api-server@.service`
+  (tên có `@`, hỗ trợ N worker qua `systemctl enable --now <tên>@<số>`).
+  Mỗi service `User=`/`Group=` là tài khoản RIÊNG (`hcrc-etl`,
+  `hcrc-rp-server`, `hcrc-api-server` — tạo bằng `useradd --no-create-home`,
+  không cần `~/.pm2` như PM2 vì log qua `journald`). Thêm
+  `EnvironmentFile=/etc/hcrc/<service>-worker-%i.conf` (1 dòng `PORT=...`
+  riêng cho từng worker) và `Environment=NODE_APP_INSTANCE=%i` (chỉ worker
+  "0" chạy cron nội bộ, xác nhận qua `lib/clusterLeader.js`, không đổi code).
+- `deploy/README.md` mục 1 — viết lại: Bước 1 (chọn cách + tạo tài khoản)
+  giờ là bước rẽ nhánh ĐẦU TIÊN thay vì chỉ ở Bước 4 (chạy tiến trình) —
+  vì tài khoản dùng chung (PM2) hay 3 tài khoản riêng (systemd) quyết định
+  luôn nơi clone/build (Bước 2: PM2 build trong shell `hcrc`; systemd build
+  bằng tài khoản người vận hành vào `/opt/hcrc` vì chưa có tài khoản nào sở
+  hữu toàn bộ cây thư mục). Bước 4 (systemd) thêm bảng cổng dựng sẵn cho
+  tới 4 worker/service (`BASE + 10×worker`, vd rp-server 4001/4011/4021/4031)
+  + hướng dẫn thêm dòng `upstream` vào `deploy/nginx.conf`. Bước 5 (systemd)
+  là bước "phân quyền" người dùng yêu cầu — `chown` riêng từng thư mục
+  service cho đúng tài khoản, `chmod 750` + `.env` riêng `600`.
+- `deploy/nginx.conf` — thêm chú thích "Nhiều worker (cluster)" ngay trên 3
+  khối `upstream`, hướng dẫn thêm dòng `server 127.0.0.1:<cổng>` khi bật
+  thêm worker (PM2 tự lo ở tầng Node, không cần sửa file này; systemd cần
+  tự thêm dòng khớp cổng worker mới).
+- FAQ mới: so sánh cụ thể mức độ an toàn Cách A (1 tài khoản, service này
+  bị RCE thì đọc được `.env` của cả 3) so với Cách B (tài khoản riêng,
+  service bị RCE KHÔNG đọc được `.env` của 2 service kia) — kèm đánh đổi
+  (nhiều bước hơn, cập nhật code sau này phải làm riêng từng thư mục qua
+  `sudo -u <tài khoản> -H`).
+
 ## 6.3 — Viết lại mục 1 (deploy/README.md) dễ hiểu hơn cho người quản trị
 
 Người dùng phản hồi hướng dẫn "cách chạy services" (mục 6.2, PM2 vs

@@ -1,0 +1,28 @@
+# deploy/systemd/hcrc-api-server@.service — Cách B (systemd, tài khoản
+# dịch vụ RIÊNG cho từng service). Xem chú thích đầy đủ trong
+# hcrc-etl@.service (cùng thư mục) — file này chỉ khác
+# WorkingDirectory/tài khoản/tên service. File cấu hình cổng cho từng
+# worker: /etc/hcrc/api-server-worker-<số>.conf.
+[Unit]
+Description=HCRC API Server - worker %i (systemd, tai khoan rieng hcrc-api-server)
+After=network.target
+StartLimitIntervalSec=200
+StartLimitBurst=10
+
+[Service]
+Type=simple
+User=hcrc-api-server
+Group=hcrc-api-server
+WorkingDirectory=<DUONG-DAN-TOI-THU-MUC-CLONE>/api-server
+EnvironmentFile=/etc/hcrc/api-server-worker-%i.conf
+Environment=NODE_ENV=production
+Environment=NODE_APP_INSTANCE=%i
+ExecStart=<DUONG-DAN-NODE-THAT> server.js
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=hcrc-api-server-%i
+
+[Install]
+WantedBy=multi-user.target

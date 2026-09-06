@@ -1,0 +1,27 @@
+# deploy/systemd/hcrc-rp-server@.service — Cách B (systemd, tài khoản dịch
+# vụ RIÊNG cho từng service). Xem chú thích đầy đủ trong hcrc-etl@.service
+# (cùng thư mục) — file này chỉ khác WorkingDirectory/tài khoản/tên service.
+# File cấu hình cổng cho từng worker: /etc/hcrc/rp-server-worker-<số>.conf.
+[Unit]
+Description=HCRC Report Server - worker %i (systemd, tai khoan rieng hcrc-rp-server)
+After=network.target
+StartLimitIntervalSec=200
+StartLimitBurst=10
+
+[Service]
+Type=simple
+User=hcrc-rp-server
+Group=hcrc-rp-server
+WorkingDirectory=<DUONG-DAN-TOI-THU-MUC-CLONE>/rp-server
+EnvironmentFile=/etc/hcrc/rp-server-worker-%i.conf
+Environment=NODE_ENV=production
+Environment=NODE_APP_INSTANCE=%i
+ExecStart=<DUONG-DAN-NODE-THAT> server.js
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=hcrc-rp-server-%i
+
+[Install]
+WantedBy=multi-user.target

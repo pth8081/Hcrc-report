@@ -1,0 +1,56 @@
+# deploy/systemd/hcrc-etl@.service — Cách B (systemd, tài khoản dịch vụ
+# RIÊNG cho từng service — xem deploy/README.md Bước 1+4, mục 1). File này
+# là TEMPLATE (tên có "@") — mỗi "worker" là 1 tiến trình Node riêng, khởi
+# động bằng `systemctl enable --now hcrc-etl@0` (worker số 0),
+# `hcrc-etl@1` (worker số 1), v.v. — %i bên dưới tự thay bằng số đó.
+# Chạy 1 worker (mặc định, đủ dùng hầu hết trường hợp) chỉ cần bật đúng
+# `hcrc-etl@0`. Muốn nhiều worker (cluster, tận dụng nhiều lõi CPU) thì bật
+# thêm `hcrc-etl@1`, `hcrc-etl@2`... — xem bảng cổng dựng sẵn trong
+# deploy/README.md, và nhớ thêm dòng `server 127.0.0.1:<cổng>` tương ứng
+# vào khối `upstream hcrc_etl_server` trong deploy/nginx.conf.
+#
+# SỬA 2 chỗ <...> bên dưới trước khi dùng (đường dẫn thư mục clone, đường
+# dẫn `node` thật — chạy `which node` để lấy, KHÔNG giả định /usr/bin/node).
+# Mỗi worker CẦN 1 file cấu hình cổng riêng tại
+# /etc/hcrc/etl-worker-<số>.conf (nội dung chỉ 1 dòng "PORT=..."), tạo
+# TRƯỚC khi enable — xem deploy/README.md.
+[Unit]
+Description=HCRC ETL Server - worker %i (systemd, tai khoan rieng hcrc-etl)
+After=network.target
+
+# Chống restart-loop vô hạn nếu tiến trình thoát NGAY lúc khởi động (tương
+# đương min_uptime/max_restarts của PM2) — thoát quá 10 lần trong 200 giây
+# thì systemd NGỪNG tự thử, chuyển "failed" thay vì cắm restart mãi. BẮT
+# BUỘC nằm ở [Unit], KHÔNG phải [Service] (đã kiểm bằng `systemd-analyze
+# verify`).
+StartLimitIntervalSec=200
+StartLimitBurst=10
+
+[Service]
+Type=simple
+User=hcrc-etl
+Group=hcrc-etl
+WorkingDirectory=<DUONG-DAN-TOI-THU-MUC-CLONE>/etl
+
+# File nhỏ chứa đúng 1 dòng "PORT=..." — khác nhau cho từng worker, tạo
+# trước khi enable service này (xem deploy/README.md).
+EnvironmentFile=/etc/hcrc/etl-worker-%i.conf
+
+Environment=NODE_ENV=production
+# NODE_APP_INSTANCE=%i — CHỈ worker "0" chạy cron nội bộ (gửi email báo
+# cáo/dọn log định kỳ), xem lib/clusterLeader.js — worker khác KHÔNG chạy
+# lại cron đó (tránh gửi trùng lặp).
+Environment=NODE_APP_INSTANCE=%i
+
+ExecStart=<DUONG-DAN-NODE-THAT> server.js
+Restart=on-failure
+RestartSec=5
+
+# Log ra journald — systemd-journald tự xoay vòng theo dung lượng, không
+# cần cấu hình logrotate riêng như PM2.
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=hcrc-etl-%i
+
+[Install]
+WantedBy=multi-user.target
