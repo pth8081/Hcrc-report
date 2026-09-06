@@ -1,0 +1,25 @@
+# deploy/systemd/hcrc-api-server.service — Cách B (thay cho PM2, xem
+# deploy/README.md mục 1.1) chạy api-server/ trực tiếp bằng systemd, không
+# qua PM2. Xem chú thích đầy đủ trong hcrc-etl.service (cùng thư mục) —
+# file này chỉ khác WorkingDirectory/tên service.
+[Unit]
+Description=HCRC API Server (khong qua PM2)
+After=network.target
+StartLimitIntervalSec=200
+StartLimitBurst=10
+
+[Service]
+Type=simple
+User=hcrc
+Group=hcrc
+WorkingDirectory=<DUONG-DAN-TOI-THU-MUC-CLONE>/api-server
+ExecStart=<DUONG-DAN-NODE-THAT>/node server.js
+Environment=NODE_ENV=production
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=hcrc-api-server
+
+[Install]
+WantedBy=multi-user.target

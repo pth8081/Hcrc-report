@@ -135,8 +135,7 @@ exit
 
 **Từ đây trở xuống, chạy BẰNG TÀI KHOẢN CỦA BẠN (sudo)** — `/var/www` bình
 thường chỉ `root` mới ghi được (`755`), `hcrc` KHÔNG có sudo nên không tự
-tạo thư mục ở đó được; đây cũng là lúc đăng ký PM2 chạy cùng hệ điều hành
-(cần quyền root để tạo file service systemd), nên gộp làm 1 lần cho gọn:
+tạo thư mục ở đó được:
 
 Copy `dist/` của mỗi app sang đúng thư mục Nginx phục vụ (khớp `root`/`alias`
 trong `deploy/nginx.conf`):
@@ -149,7 +148,22 @@ for app in rp-user api-admin etl-admin; do
 done
 ```
 
-Đăng ký PM2 chạy dưới quyền `hcrc`, tự khởi động lại cùng hệ điều hành:
+### 1.1. Chạy 3 tiến trình nền — chọn 1 trong 2 cách
+
+Cả 2 cách đều chạy dưới tài khoản `hcrc` (mục 1.0), cả 2 đều tự khởi động
+lại cùng hệ điều hành và tự restart khi tiến trình crash — khác nhau ở
+CÔNG CỤ quản lý tiến trình:
+
+| | **Cách A — PM2** | **Cách B — systemd** |
+|---|---|---|
+| Khuyến nghị | **Có — mặc định của tài liệu này**, phần còn lại (mục 4, 7, FAQ) viết theo cách này | Cho ai muốn dùng ĐÚNG hạ tầng hệ điều hành sẵn có, không cài thêm PM2 toàn máy |
+| Nhiều worker/CPU (cluster) | Có sẵn, 2 worker/app mặc định (`deploy/ecosystem.config.js`) | KHÔNG — mỗi service là 1 tiến trình DUY NHẤT (xem ghi chú "nâng cao" cuối mục này nếu vẫn muốn nhiều worker) |
+| Xem log | `pm2 logs <tên>` | `journalctl -u hcrc-etl -f` (hoặc đổi tên service) |
+| Xoay vòng log | Cần cài thêm `pm2-logrotate` (mục 7) | Tự động qua `journald`, không cần cài thêm gì |
+| Reload không rớt request | `pm2 reload <tên>` (đổi lần lượt từng worker) | `systemctl restart hcrc-etl` (dừng hẳn rồi bật lại — có 1 khoảng ngắt kết nối ngắn vì chỉ có 1 tiến trình, không có worker khác đỡ) |
+| Cài thêm gì | `npm install -g pm2` (ngoài Node.js) | Không cần cài gì thêm — `systemd` có sẵn trên hầu hết bản Linux server |
+
+**Cách A — PM2** (nội dung y hệt bản trước, giữ nguyên nếu bạn đã quen dùng):
 
 ```bash
 sudo -u hcrc -H pm2 start /home/hcrc/hcrc/deploy/ecosystem.config.js
@@ -164,7 +178,44 @@ PATH=$PATH:/usr/bin pm2 startup systemd -u hcrc --hp /home/hcrc`, **copy
 cần làm gì thêm) — bước này cần quyền root vì phải tạo file service
 systemd, PM2 không tự xin quyền thay bạn được.
 
-### 1.1. Siết quyền file/thư mục sau khi cài đặt xong
+**Cách B — systemd (không dùng PM2)**: 3 file mẫu có sẵn trong
+`deploy/systemd/` (`hcrc-etl.service`, `hcrc-rp-server.service`,
+`hcrc-api-server.service`) — mỗi service Node chạy như 1 unit systemd
+riêng, `User=hcrc` sẵn trong file (không cần `sudo -u hcrc` nữa vì chính
+systemd tự hạ quyền xuống `hcrc` trước khi khởi động tiến trình). SỬA 2
+chỗ `<DUONG-DAN-...>` trong TỪNG file trước khi copy (đường dẫn tới thư
+mục clone, và đường dẫn `node` thật — chạy `which node` để lấy, ĐỪNG giả
+định `/usr/bin/node` vì tuỳ cách cài (apt/nodesource/nvm/tự biên dịch) mà
+khác nhau):
+
+```bash
+sudo cp /home/hcrc/hcrc/deploy/systemd/hcrc-*.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now hcrc-etl hcrc-rp-server hcrc-api-server
+sudo systemctl status hcrc-etl hcrc-rp-server hcrc-api-server   # cả 3 phải "active (running)"
+```
+
+`Restart=on-failure` + `StartLimitIntervalSec`/`StartLimitBurst` trong mỗi
+file đã có sẵn — tương đương `min_uptime`/`max_restarts` của PM2 (chống
+restart-loop vô hạn nếu cấu hình sai). Cron nội bộ (gửi email báo cáo/cảnh
+báo/dọn log định kỳ) vẫn chạy bình thường, đúng 1 lần — xem chú thích
+trong `lib/clusterLeader.js` (chạy ngoài PM2, không có
+`NODE_APP_INSTANCE`, tự coi là "leader duy nhất").
+
+**Nâng cao (không thuộc phạm vi tài liệu này)**: muốn nhiều worker/CPU
+dưới Cách B như PM2 cluster mode — tạo unit dạng template
+(`hcrc-etl@.service` dùng `%i` làm số worker, mỗi instance 1 `PORT` khác
+nhau qua `Environment=PORT=...`), rồi thêm N dòng `server 127.0.0.1:<cổng>`
+vào từng khối `upstream` tương ứng trong `deploy/nginx.conf` để Nginx tự
+cân bằng tải — phức tạp hơn Cách A đáng kể, chỉ nên làm nếu có lý do rõ
+ràng không dùng được PM2.
+
+**Đã chọn Cách B?** — từ mục 4 trở đi, tài liệu này viết lệnh theo Cách A
+(PM2) mặc định; đổi `sudo -u hcrc -H pm2 <lệnh> <tên>` thành
+`sudo systemctl <lệnh tương ứng> <tên>` (`start`/`stop`/`restart`/`status`),
+và `pm2 logs <tên>` thành `journalctl -u <tên> -f`.
+
+### 1.2. Siết quyền file/thư mục sau khi cài đặt xong
 
 Chạy các lệnh dưới đây BẰNG TÀI KHOẢN CỦA BẠN (sudo) — không phải trong
 shell `hcrc` — để đảm bảo dù `git clone`/`npm install` để lại quyền mặc
@@ -208,13 +259,14 @@ gọi vào `127.0.0.1:400x` — nếu máy chủ ứng dụng có địa chỉ I
 (không chỉ sau NAT/VPN) và không có firewall chặn riêng 3 cổng
 `4001-4003`, ai đó có thể gọi thẳng vào cổng đó, BỎ QUA hoàn toàn giới hạn
 IP nội bộ Nginx đang áp cho `api-admin`/`etl-admin` và bỏ qua luôn TLS. 2
-cách vá (chọn 1, làm sau, không thuộc phạm vi mục 1.1 này): (a) firewall
+cách vá (chọn 1, làm sau, không thuộc phạm vi mục 1.2 này): (a) firewall
 (`ufw deny 4001:4003/tcp` hoặc tương đương ở security group) chặn 3 cổng
 từ mọi nguồn TRỪ chính máy chủ, hoặc (b) sửa `app.listen(PORT, ...)` thành
 `app.listen(PORT, '127.0.0.1', ...)` ở cả 3 `server.js` (an toàn triệt để
 hơn, không phụ thuộc cấu hình firewall có bật đúng hay không).
 
-**Chế độ cluster (mặc định 2 worker/app)**: `deploy/ecosystem.config.js`
+**Chế độ cluster (mặc định 2 worker/app, CHỈ áp dụng Cách A — PM2)**:
+`deploy/ecosystem.config.js`
 chạy MỖI app (`etl`/`rp-server`/`api-server`) ở `exec_mode: 'cluster'`,
 mặc định `instances: 2` — tổng cộng **6 tiến trình Node** trên cùng 1 máy
 (chỉnh qua `PM2_INSTANCES_ETL`/`PM2_INSTANCES_RP`/`PM2_INSTANCES_API`, xem
@@ -314,12 +366,15 @@ sudo certbot renew --dry-run   # kiểm tra hook chạy đúng, không đợi t�
 
 ## 4. Kiểm tra sau triển khai
 
-**Mọi lệnh `pm2 ...` từ mục này trở đi** (kể cả các mục sau) chạy dưới
-tài khoản dịch vụ `hcrc` (mục 1.0) — gõ `sudo -u hcrc -H pm2 ...` thay vì
-`pm2 ...` trực tiếp nếu bạn không đang ở trong shell đã mở bằng `sudo -u
-hcrc -H -s /bin/bash`, nếu không PM2 sẽ tìm nhầm sang "bản PM2 của riêng
-tài khoản bạn" (rỗng, chưa từng `pm2 start` gì) và báo không thấy tiến
-trình nào dù `hcrc` vẫn đang chạy bình thường.
+**Mọi lệnh `pm2 ...` từ mục này trở đi** (kể cả các mục sau) giả định bạn
+chạy theo **Cách A — PM2** (mục 1.1) — chạy dưới tài khoản dịch vụ `hcrc`
+(mục 1.0), gõ `sudo -u hcrc -H pm2 ...` thay vì `pm2 ...` trực tiếp nếu
+bạn không đang ở trong shell đã mở bằng `sudo -u hcrc -H -s /bin/bash`,
+nếu không PM2 sẽ tìm nhầm sang "bản PM2 của riêng tài khoản bạn" (rỗng,
+chưa từng `pm2 start` gì) và báo không thấy tiến trình nào dù `hcrc` vẫn
+đang chạy bình thường. **Đang dùng Cách B — systemd?** — đổi mọi lệnh
+`pm2 <lệnh> <tên>` thành `sudo systemctl <lệnh> <tên>` và `pm2 logs <tên>`
+thành `journalctl -u <tên> -f` (xem bảng so sánh cuối mục 1.1).
 
 - `curl -I https://report.hcrc.vidu.vn/` — ra trang `rp-user/`.
 - `curl https://report.hcrc.vidu.vn/api/health` — JSON `{"status":"ok",
@@ -399,15 +454,21 @@ nên bật trước khi mở ra Internet thật.
 Chạy dài ngày không xoay vòng log sẽ dần chiếm hết dung lượng đĩa — 2 nguồn
 log cần quan tâm:
 
-- **PM2** (`console.log`/`console.error` của cả 3 tiến trình — lịch sử
-  đồng bộ, lỗi request...) ghi vào `~/.pm2/logs/*.log` **của tài khoản
-  `hcrc`** (tức `/home/hcrc/.pm2/logs/*.log`), PM2 KHÔNG tự xoay vòng các
-  file này. Cài `pm2-logrotate` (nhớ `sudo -u hcrc -H`, xem lưu ý đầu mục 4):
+- **PM2 (Cách A, mục 1.1)** (`console.log`/`console.error` của cả 3 tiến
+  trình — lịch sử đồng bộ, lỗi request...) ghi vào `~/.pm2/logs/*.log`
+  **của tài khoản `hcrc`** (tức `/home/hcrc/.pm2/logs/*.log`), PM2 KHÔNG tự
+  xoay vòng các file này. Cài `pm2-logrotate` (nhớ `sudo -u hcrc -H`, xem
+  lưu ý đầu mục 4):
   ```bash
   sudo -u hcrc -H pm2 install pm2-logrotate
   sudo -u hcrc -H pm2 set pm2-logrotate:max_size 50M
   sudo -u hcrc -H pm2 set pm2-logrotate:retain 14
   ```
+  **Dùng Cách B (systemd) thay vì PM2?** — KHÔNG cần bước này: log đã ghi
+  thẳng vào `journald` (`StandardOutput=journal` trong `deploy/systemd/*.service`),
+  `systemd-journald` tự xoay vòng theo dung lượng — chỉnh mức trần ở
+  `/etc/systemd/journald.conf` (`SystemMaxUse=500M` chẳng hạn) rồi
+  `sudo systemctl restart systemd-journald` nếu muốn đổi mặc định.
 - **Nginx** (`hcrc-report`/`hcrc-api`/`hcrc-api-admin`/`hcrc-etl-admin.access.log`
   — xem `deploy/nginx.conf`) — bản Nginx cài qua package của Debian/Ubuntu
   thường có sẵn `/etc/logrotate.d/nginx` khớp mẫu `/var/log/nginx/*.log`
@@ -442,15 +503,19 @@ giản nhất tránh phải đổi cấu hình build (`base` path) của các gi
 tĩnh. Xem ghi chú "PHƯƠNG ÁN 1 DOMAIN" ở cuối `deploy/nginx.conf` nếu chỉ
 có 1 domain thật.
 
-**PM2 tự khởi động lại khi 1 tiến trình lỗi/crash?** — Có. 3 tiến trình độc
-lập nhau (`deploy/ecosystem.config.js`) — `etl` lỗi không kéo sập
-`rp-server`/`api-server` và ngược lại. Có giới hạn (`min_uptime`/
-`max_restarts`) chống restart-loop vô hạn nếu tiến trình thoát NGAY lúc
-khởi động (vd cấu hình sai — xem mục "Kiểm tra cấu hình" ở trên): sau 10
-lần thoát sớm liên tiếp, PM2 NGỪNG tự thử, chuyển trạng thái `errored`
-(`pm2 status` thấy rõ) thay vì cắm restart mãi. Sửa xong `.env` rồi chạy
-`pm2 restart <tên>` (nhớ `sudo -u hcrc -H`, xem lưu ý đầu mục 4) để PM2
-thử lại từ đầu.
+**PM2/systemd tự khởi động lại khi 1 tiến trình lỗi/crash?** — Có, cả 2
+Cách (mục 1.1). 3 tiến trình độc lập nhau — `etl` lỗi không kéo sập
+`rp-server`/`api-server` và ngược lại. Cách A (PM2, `deploy/ecosystem.config.js`)
+có giới hạn `min_uptime`/`max_restarts` chống restart-loop vô hạn nếu
+tiến trình thoát NGAY lúc khởi động (vd cấu hình sai — xem mục "Kiểm tra
+cấu hình" ở trên): sau 10 lần thoát sớm liên tiếp, PM2 NGỪNG tự thử,
+chuyển trạng thái `errored` (`pm2 status` thấy rõ) thay vì cắm restart
+mãi. Sửa xong `.env` rồi chạy `pm2 restart <tên>` (nhớ `sudo -u hcrc -H`,
+xem lưu ý đầu mục 4) để PM2 thử lại từ đầu. Cách B (systemd) tương đương
+bằng `StartLimitIntervalSec`/`StartLimitBurst` (đã đặt sẵn trong
+`deploy/systemd/*.service`) — thoát quá 10 lần trong 200 giây thì chuyển
+`failed` (`systemctl status <tên>` thấy rõ), sửa xong `.env` rồi
+`sudo systemctl restart <tên>` để thử lại.
 
 **Nginx có cần cấu hình gì cho CSDL không?** — Không. CSDL chỉ được các
 tiến trình Node kết nối trực tiếp qua `.env` (`*_SERVER`/`*_PORT`), không

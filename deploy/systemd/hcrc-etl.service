@@ -1,0 +1,50 @@
+# deploy/systemd/hcrc-etl.service — Cách B (thay cho PM2, xem deploy/README.md
+# mục 1.1) chạy etl/ trực tiếp bằng systemd, không qua PM2. Copy file này vào
+# /etc/systemd/system/hcrc-etl.service, SỬA 2 chỗ đánh dấu <...> bên dưới
+# trước khi dùng — ExecStart cần ĐƯỜNG DẪN TUYỆT ĐỐI thật của Node (chạy
+# `which node` để lấy, KHÔNG giả định /usr/bin/node — nvm/nodesource/tự biên
+# dịch mỗi kiểu cài một đường dẫn khác nhau).
+#
+# KHÔNG có tính năng "nhiều worker chia sẻ 1 cổng" (cluster mode) như PM2 —
+# đây là 1 TIẾN TRÌNH DUY NHẤT. Không cần chỉnh gì thêm cho cron nội bộ (gửi
+# email báo cáo/cảnh báo/dọn log định kỳ) — process.env.NODE_APP_INSTANCE
+# không được đặt khi chạy ngoài PM2, và lib/clusterLeader.js coi "undefined"
+# là leader (xem chú thích trong chính file đó) — cron vẫn chạy bình thường,
+# đúng 1 lần, không trùng lặp.
+[Unit]
+Description=HCRC ETL Server (khong qua PM2)
+After=network.target
+
+# Chống restart-loop vô hạn nếu tiến trình thoát NGAY lúc khởi động (tương
+# đương min_uptime/max_restarts của PM2, xem deploy/ecosystem.config.js) —
+# thoát quá 10 lần trong 200 giây thì systemd NGỪNG tự thử, chuyển "failed"
+# (systemctl status hcrc-etl thấy rõ) thay vì cắm restart mãi. 2 khoá này
+# BẮT BUỘC nằm ở [Unit], KHÔNG phải [Service] (systemd bỏ qua + báo "Unknown
+# key" nếu đặt nhầm chỗ — đã kiểm bằng `systemd-analyze verify`).
+StartLimitIntervalSec=200
+StartLimitBurst=10
+
+[Service]
+Type=simple
+User=hcrc
+Group=hcrc
+WorkingDirectory=<DUONG-DAN-TOI-THU-MUC-CLONE>/etl
+# vd /home/hcrc/hcrc/etl — PHẢI trỏ đúng thư mục etl/ (dotenv đọc .env theo
+# thư mục làm việc hiện tại, không phải theo đường dẫn script)
+
+ExecStart=<DUONG-DAN-NODE-THAT>/node server.js
+# vd /usr/bin/node hoặc /opt/node22/bin/node — chạy `which node` để lấy đúng
+
+Environment=NODE_ENV=production
+Restart=on-failure
+RestartSec=5
+
+# Log ra journald (không phải file riêng) — systemd-journald tự xoay vòng
+# theo dung lượng (xem SystemMaxUse trong /etc/systemd/journald.conf), không
+# cần cấu hình logrotate riêng như PM2 (xem deploy/README.md mục 7).
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=hcrc-etl
+
+[Install]
+WantedBy=multi-user.target

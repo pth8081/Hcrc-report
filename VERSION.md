@@ -15,6 +15,38 @@ không chặt: patch/minor/major), GIỮ NGUYÊN không đánh số lại — `0
 (gần nhất theo quy tắc cũ) tương ứng **`4.1`** theo quy tắc mới, là điểm
 bắt đầu đếm tiếp từ đây.
 
+## 6.2 — Thêm cách chạy bằng systemd (thay cho PM2) trong hướng dẫn triển khai
+
+Người dùng muốn tài liệu triển khai có SẴN 2 cách chạy 3 tiến trình nền để
+chọn: PM2 (Cách A, đã có từ trước) và systemd thuần (Cách B, mới) — không
+phải cài PM2 toàn máy cho ai muốn dùng đúng hạ tầng hệ điều hành sẵn có.
+Docs + 3 file mẫu, không đổi code sản phẩm.
+
+- `deploy/systemd/hcrc-etl.service`, `hcrc-rp-server.service`,
+  `hcrc-api-server.service` (mới) — mỗi service Node 1 unit systemd riêng,
+  `User=hcrc`/`Group=hcrc` sẵn trong file (không cần `sudo -u hcrc`, chính
+  systemd hạ quyền trước khi khởi động tiến trình), `Restart=on-failure` +
+  `StartLimitIntervalSec=200`/`StartLimitBurst=10` ở `[Unit]` (tương đương
+  `min_uptime`/`max_restarts` của PM2 — LƯU Ý 2 khoá này BẮT BUỘC ở
+  `[Unit]`, không phải `[Service]`, systemd âm thầm bỏ qua + ghi "Unknown
+  key" nếu đặt nhầm chỗ, đã tự kiểm bằng `systemd-analyze verify` cho cả 3
+  file trước khi thêm vào repo). Log ra `journald`
+  (`StandardOutput=journal`) — tự xoay vòng theo dung lượng, không cần cài
+  thêm `pm2-logrotate`. 2 chỗ `<DUONG-DAN-...>` (thư mục clone + đường dẫn
+  `node` thật) cần tự điền trước khi dùng — đường dẫn `node` KHÔNG giả định
+  `/usr/bin/node` vì tuỳ cách cài (apt/nodesource/nvm/tự biên dịch).
+- `deploy/README.md` mục 1.1 (đổi số từ 1.0/1.1 cũ — mục siết quyền file
+  dời thành 1.2) — bảng so sánh PM2 và systemd (nhiều worker/CPU, xem log,
+  xoay vòng log, reload, cài thêm gì), hướng dẫn từng bước Cách B, ghi chú
+  "nâng cao" cho ai muốn nhiều worker dưới systemd (unit template + nhiều
+  cổng + nhiều dòng `upstream` trong Nginx — không triển khai chi tiết,
+  chỉ nêu hướng). Cập nhật mọi chỗ dùng lệnh `pm2 ...` ở mục 4/7/FAQ thêm
+  ghi chú "đang dùng Cách B thì đổi sang lệnh nào".
+- Xác nhận qua `lib/clusterLeader.js` (không đổi code): chạy ngoài PM2
+  (`NODE_APP_INSTANCE` không được đặt) tự coi là "leader duy nhất" — cron
+  nội bộ (gửi email báo cáo/cảnh báo/dọn log định kỳ) vẫn chạy đúng 1 lần
+  dưới Cách B, không cần cấu hình gì thêm.
+
 ## 6.1 — Tài khoản dịch vụ (service account) chạy ứng dụng + siết quyền file (docs-only)
 
 Người dùng muốn cấp quyền hệ điều hành hạn chế cho tiến trình chạy app
