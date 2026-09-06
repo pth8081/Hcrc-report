@@ -44,10 +44,45 @@ Không có gì trong Nginx cần biết máy chủ CSDL ở đâu — đó là v
 
 ## 1. Chuẩn bị máy chủ ứng dụng
 
-```bash
-# Node.js >= 18, PM2 chạy nền
-npm install -g pm2
+### 1.0. Tài khoản dịch vụ (service account) chạy ứng dụng — làm TRƯỚC tiên
 
+Trước đây tài liệu này không nói tiến trình PM2 chạy dưới quyền ai — mặc
+định là tài khoản bạn đang SSH vào (rất có thể là `root` hoặc 1 tài khoản
+có sudo đầy đủ). Rủi ro: 1 lỗ hổng bất kỳ trong code Node (RCE) sẽ cho kẻ
+tấn công LUÔN quyền của tài khoản đó — nếu là root, coi như mất toàn quyền
+máy chủ ngay lập tức. **Đây là tài khoản HỆ ĐIỀU HÀNH chạy tiến trình —
+KHÁC HOÀN TOÀN với tài khoản CSDL** (`DWH_USER`/`RP_USER`/... trong
+`.env`, tạo bằng `*/grants.sql`) — 2 lớp độc lập, làm đủ cả 2 mới kín.
+
+Tạo 1 tài khoản dịch vụ DÙNG CHUNG cho cả 3 tiến trình (`etl`, `rp-server`,
+`api-server`) — không có shell đăng nhập, không mật khẩu, không sudo, chỉ
+tồn tại để sở hữu tiến trình + file:
+
+```bash
+sudo useradd --system --create-home --home-dir /home/hcrc \
+  --shell /usr/sbin/nologin hcrc   # 1 số bản Linux dùng /sbin/nologin
+sudo passwd -l hcrc   # khoá mật khẩu — không ai đăng nhập được bằng mật khẩu
+```
+
+`--create-home` CẦN THIẾT dù tài khoản không login được — PM2 lưu trạng
+thái/log tại `~/.pm2` của tài khoản đang chạy nó. `--shell nologin` chặn
+đăng nhập SSH/console trực tiếp bằng tài khoản này, nhưng KHÔNG chặn chạy
+lệnh THAY MẶT nó qua `sudo -u hcrc` (cách dùng chuẩn cho service account,
+xem bên dưới) — không cần sửa `sshd_config`.
+
+**Từ đây tới hết mục 1, mở 1 shell mang quyền `hcrc` để làm toàn bộ các
+bước cài đặt/build (y hệt các lệnh vốn có bên dưới, không đổi gì), rồi
+thoát ra ở cuối:**
+
+Node.js >= 18 và PM2 (`npm install -g pm2`) cần cài TOÀN MÁY (`-g`) — nếu
+CHƯA cài, làm việc này TRƯỚC, bằng tài khoản của bạn (sudo), CHƯA vào
+shell `hcrc`. Cài xong rồi mới vào shell `hcrc` để làm phần còn lại:
+
+```bash
+sudo -u hcrc -H -s /bin/bash
+```
+
+```bash
 git clone <repo> hcrc && cd hcrc
 ```
 
@@ -83,7 +118,8 @@ Chạy schema + tài khoản CSDL quyền tối thiểu (trên MÁY CHỦ CSDL, 
 máy ứng dụng — xem mục 2 bên dưới), rồi tạo tài khoản quản trị đầu tiên cho
 từng trang quản trị (`npm run seed:admin`, xem README từng service).
 
-Build 3 giao diện tĩnh:
+Build 3 giao diện tĩnh (vẫn trong shell `hcrc` — chỉ ghi vào `$app/dist/`
+bên trong chính thư mục vừa clone, `hcrc` đã có sẵn quyền ghi ở đó):
 
 ```bash
 for app in rp-user api-admin etl-admin; do
@@ -91,24 +127,92 @@ for app in rp-user api-admin etl-admin; do
 done
 ```
 
+Xong các bước trên, thoát khỏi shell `hcrc`:
+
+```bash
+exit
+```
+
+**Từ đây trở xuống, chạy BẰNG TÀI KHOẢN CỦA BẠN (sudo)** — `/var/www` bình
+thường chỉ `root` mới ghi được (`755`), `hcrc` KHÔNG có sudo nên không tự
+tạo thư mục ở đó được; đây cũng là lúc đăng ký PM2 chạy cùng hệ điều hành
+(cần quyền root để tạo file service systemd), nên gộp làm 1 lần cho gọn:
+
 Copy `dist/` của mỗi app sang đúng thư mục Nginx phục vụ (khớp `root`/`alias`
 trong `deploy/nginx.conf`):
 
 ```bash
-mkdir -p /var/www/hcrc
+sudo mkdir -p /var/www/hcrc
 for app in rp-user api-admin etl-admin; do
-  rm -rf /var/www/hcrc/$app
-  cp -r $app/dist /var/www/hcrc/$app
+  sudo rm -rf /var/www/hcrc/$app
+  sudo cp -r /home/hcrc/hcrc/$app/dist /var/www/hcrc/$app
 done
 ```
 
-Chạy 3 tiến trình nền bằng PM2:
+Đăng ký PM2 chạy dưới quyền `hcrc`, tự khởi động lại cùng hệ điều hành:
 
 ```bash
-pm2 start deploy/ecosystem.config.js
-pm2 save          # tự khởi động lại cùng hệ điều hành
-pm2 startup       # in lệnh cần chạy 1 lần để đăng ký PM2 với systemd
+sudo -u hcrc -H pm2 start /home/hcrc/hcrc/deploy/ecosystem.config.js
+sudo -u hcrc -H pm2 save          # tự khởi động lại cùng hệ điều hành
+sudo -u hcrc -H pm2 startup       # in ra 1 LỆNH cần chạy — xem chú thích ngay dưới đây
 ```
+
+`pm2 startup` khi chạy DƯỚI tài khoản `hcrc` (không phải root) sẽ KHÔNG tự
+đăng ký được với systemd — nó chỉ IN RA MÀN HÌNH 1 dòng lệnh dạng `sudo env
+PATH=$PATH:/usr/bin pm2 startup systemd -u hcrc --hp /home/hcrc`, **copy
+đúng dòng đó rồi chạy tiếp** (đã đang ở tài khoản của bạn, có sudo, không
+cần làm gì thêm) — bước này cần quyền root vì phải tạo file service
+systemd, PM2 không tự xin quyền thay bạn được.
+
+### 1.1. Siết quyền file/thư mục sau khi cài đặt xong
+
+Chạy các lệnh dưới đây BẰNG TÀI KHOẢN CỦA BẠN (sudo) — không phải trong
+shell `hcrc` — để đảm bảo dù `git clone`/`npm install` để lại quyền mặc
+định lỏng lẻo (thường `644`/`755`, "người khác" trên máy đọc được), thư
+mục ứng dụng vẫn CHỈ `hcrc` và `root` truy cập được:
+
+```bash
+HCRC_DIR=/home/hcrc/hcrc   # đổi lại nếu bạn clone vào đường dẫn khác
+
+sudo chown -R hcrc:hcrc "$HCRC_DIR"
+sudo find "$HCRC_DIR" -type d -exec chmod 750 {} \;   # thư mục: chỉ hcrc + root vào được
+sudo find "$HCRC_DIR" -name ".env" -exec chmod 600 {} \;   # .env: CHỈ hcrc đọc/ghi được, kể cả "group"
+```
+
+**Không chỉnh quyền 750/640 cho TỪNG FILE** như thư mục tĩnh bên dưới —
+`node_modules/.bin/*` (vd `vite`, các script build) cần giữ nguyên bit
+thực thi (`+x`) để `npm install`/`npm run build` những lần SAU (khi cập
+nhật code) không bị lỗi "Permission denied"; đã siết `750` ở CẤP THƯ MỤC
+là đủ chặn "người khác" trên máy — Linux đòi quyền "đi qua" (execute) ở
+MỌI thư mục cha trên đường dẫn mới đọc được file bên trong, "người khác"
+không vào nổi `$HCRC_DIR` thì quyền của file bên trong (dù `644`) không
+còn ý nghĩa. `.env` vẫn siết `600` riêng — phòng khi sau này có ai lỡ nới
+`$HCRC_DIR` lên `755` (vd để chạy 1 công cụ đọc mã nguồn), `.env` vẫn được
+bảo vệ độc lập.
+
+Thư mục tĩnh phục vụ qua Nginx (`/var/www/hcrc`) cần MỘT quy tắc KHÁC —
+Nginx chạy dưới tài khoản riêng của nó (`www-data` trên Debian/Ubuntu,
+`nginx` trên RHEL/CentOS — kiểm tra bằng `ps aux | grep nginx` hoặc dòng
+`user` đầu `/etc/nginx/nginx.conf` GỐC nếu không chắc), cần ĐỌC được
+nhưng KHÔNG BAO GIỜ cần GHI:
+
+```bash
+sudo chown -R hcrc:www-data /var/www/hcrc   # đổi www-data -> nginx nếu dùng RHEL/CentOS
+sudo find /var/www/hcrc -type d -exec chmod 750 {} \;
+sudo find /var/www/hcrc -type f -exec chmod 640 {} \;
+```
+
+**Còn thiếu, khuyến nghị làm ở đợt sau (chưa nằm trong lần này)**: 3 tiến
+trình Node hiện lắng nghe trên MỌI địa chỉ mạng (`0.0.0.0`), dù Nginx chỉ
+gọi vào `127.0.0.1:400x` — nếu máy chủ ứng dụng có địa chỉ IP công khai
+(không chỉ sau NAT/VPN) và không có firewall chặn riêng 3 cổng
+`4001-4003`, ai đó có thể gọi thẳng vào cổng đó, BỎ QUA hoàn toàn giới hạn
+IP nội bộ Nginx đang áp cho `api-admin`/`etl-admin` và bỏ qua luôn TLS. 2
+cách vá (chọn 1, làm sau, không thuộc phạm vi mục 1.1 này): (a) firewall
+(`ufw deny 4001:4003/tcp` hoặc tương đương ở security group) chặn 3 cổng
+từ mọi nguồn TRỪ chính máy chủ, hoặc (b) sửa `app.listen(PORT, ...)` thành
+`app.listen(PORT, '127.0.0.1', ...)` ở cả 3 `server.js` (an toàn triệt để
+hơn, không phụ thuộc cấu hình firewall có bật đúng hay không).
 
 **Chế độ cluster (mặc định 2 worker/app)**: `deploy/ecosystem.config.js`
 chạy MỖI app (`etl`/`rp-server`/`api-server`) ở `exec_mode: 'cluster'`,
@@ -210,6 +314,13 @@ sudo certbot renew --dry-run   # kiểm tra hook chạy đúng, không đợi t�
 
 ## 4. Kiểm tra sau triển khai
 
+**Mọi lệnh `pm2 ...` từ mục này trở đi** (kể cả các mục sau) chạy dưới
+tài khoản dịch vụ `hcrc` (mục 1.0) — gõ `sudo -u hcrc -H pm2 ...` thay vì
+`pm2 ...` trực tiếp nếu bạn không đang ở trong shell đã mở bằng `sudo -u
+hcrc -H -s /bin/bash`, nếu không PM2 sẽ tìm nhầm sang "bản PM2 của riêng
+tài khoản bạn" (rỗng, chưa từng `pm2 start` gì) và báo không thấy tiến
+trình nào dù `hcrc` vẫn đang chạy bình thường.
+
 - `curl -I https://report.hcrc.vidu.vn/` — ra trang `rp-user/`.
 - `curl https://report.hcrc.vidu.vn/api/health` — JSON `{"status":"ok",
   "db":{"rp":"ok","dwh":"ok"},...}` (xem `rp-server/routes/health.js`) —
@@ -289,12 +400,13 @@ Chạy dài ngày không xoay vòng log sẽ dần chiếm hết dung lượng �
 log cần quan tâm:
 
 - **PM2** (`console.log`/`console.error` của cả 3 tiến trình — lịch sử
-  đồng bộ, lỗi request...) ghi vào `~/.pm2/logs/*.log`, PM2 KHÔNG tự xoay
-  vòng các file này. Cài `pm2-logrotate`:
+  đồng bộ, lỗi request...) ghi vào `~/.pm2/logs/*.log` **của tài khoản
+  `hcrc`** (tức `/home/hcrc/.pm2/logs/*.log`), PM2 KHÔNG tự xoay vòng các
+  file này. Cài `pm2-logrotate` (nhớ `sudo -u hcrc -H`, xem lưu ý đầu mục 4):
   ```bash
-  pm2 install pm2-logrotate
-  pm2 set pm2-logrotate:max_size 50M
-  pm2 set pm2-logrotate:retain 14
+  sudo -u hcrc -H pm2 install pm2-logrotate
+  sudo -u hcrc -H pm2 set pm2-logrotate:max_size 50M
+  sudo -u hcrc -H pm2 set pm2-logrotate:retain 14
   ```
 - **Nginx** (`hcrc-report`/`hcrc-api`/`hcrc-api-admin`/`hcrc-etl-admin.access.log`
   — xem `deploy/nginx.conf`) — bản Nginx cài qua package của Debian/Ubuntu
@@ -337,8 +449,22 @@ lập nhau (`deploy/ecosystem.config.js`) — `etl` lỗi không kéo sập
 khởi động (vd cấu hình sai — xem mục "Kiểm tra cấu hình" ở trên): sau 10
 lần thoát sớm liên tiếp, PM2 NGỪNG tự thử, chuyển trạng thái `errored`
 (`pm2 status` thấy rõ) thay vì cắm restart mãi. Sửa xong `.env` rồi chạy
-`pm2 restart <tên>` để PM2 thử lại từ đầu.
+`pm2 restart <tên>` (nhớ `sudo -u hcrc -H`, xem lưu ý đầu mục 4) để PM2
+thử lại từ đầu.
 
 **Nginx có cần cấu hình gì cho CSDL không?** — Không. CSDL chỉ được các
 tiến trình Node kết nối trực tiếp qua `.env` (`*_SERVER`/`*_PORT`), không
 đi qua Nginx, không có route/domain nào của Nginx trỏ tới CSDL.
+
+**Tài khoản `hcrc` (mục 1.0) và tài khoản CSDL (`DWH_USER`/`RP_USER`/...,
+mục 2) có phải 1 không, có cần trùng tên/mật khẩu không?** — KHÔNG liên
+quan gì tới nhau, dù có thể trùng tên "hcrc" nghe giống. `hcrc` là tài
+khoản HỆ ĐIỀU HÀNH sở hữu tiến trình Node + file trên máy chủ ứng dụng —
+tự tạo bằng `useradd`, không cần mật khẩu, không đăng nhập được. Tài
+khoản CSDL là bên trong SQL Server (`sqlcmd`/SSMS tạo bằng `*/grants.sql`)
+— dùng để tiến trình Node XÁC THỰC VỚI CSDL qua `.env`, hoàn toàn không
+liên quan tới hệ điều hành. Cần làm ĐỦ CẢ 2, thiếu 1 trong 2 vẫn hở: chỉ
+tạo `hcrc` mà vẫn dùng tài khoản CSDL `sa`/quyền cao cho `.env` thì 1 lỗi
+SQL injection lọt qua vẫn đọc/sửa được TOÀN BỘ CSDL; chỉ tạo tài khoản
+CSDL quyền hẹp mà vẫn chạy Node bằng `root` thì 1 lỗi RCE vẫn cho kẻ tấn
+công toàn quyền máy chủ.

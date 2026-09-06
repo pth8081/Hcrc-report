@@ -15,6 +15,45 @@ không chặt: patch/minor/major), GIỮ NGUYÊN không đánh số lại — `0
 (gần nhất theo quy tắc cũ) tương ứng **`4.1`** theo quy tắc mới, là điểm
 bắt đầu đếm tiếp từ đây.
 
+## 6.1 — Tài khoản dịch vụ (service account) chạy ứng dụng + siết quyền file (docs-only)
+
+Người dùng muốn cấp quyền hệ điều hành hạn chế cho tiến trình chạy app
+(thay vì mặc định chạy dưới tài khoản SSH/root như trước đây) để giảm
+thiệt hại nếu 1 lỗ hổng Node bị khai thác — thảo luận trước khi làm, chọn
+phương án 1 tài khoản dịch vụ dùng chung cho cả 3 tiến trình (đơn giản,
+khớp cách vận hành PM2 hiện có) + chỉ siết quyền file/thư mục cơ bản
+(không đụng tới systemd hardening, không tách 3 tài khoản riêng — cân
+nhắc lại sau nếu cần cô lập sâu hơn giữa 3 service). Không có thay đổi
+code (docs-only) — trừ 1 phát hiện liên quan (cổng Node đang mở
+`0.0.0.0`) được GHI NHẬN nhưng CHƯA vá theo yêu cầu người dùng, để đợt sau.
+
+- `deploy/README.md` mục 1.0 (mới) — tạo tài khoản `hcrc` (`useradd
+  --system --create-home --shell nologin`, khoá mật khẩu) chạy CẢ 3 tiến
+  trình PM2, không login được, không sudo; toàn bộ cài đặt/build chạy
+  trong 1 shell mở bằng `sudo -u hcrc -H -s /bin/bash`; `pm2 startup` dưới
+  tài khoản không phải root chỉ in ra 1 lệnh cần dán chạy riêng bằng
+  root — ghi rõ bước này.
+- Mục 1.1 (mới) — siết quyền sau khi cài đặt xong: thư mục ứng dụng
+  `chown hcrc:hcrc` + `chmod 750` (chỉ cấp thư mục, KHÔNG chỉnh từng file
+  để không mất bit thực thi `node_modules/.bin/*` cần cho lần
+  `npm install`/`build` sau), riêng `.env` siết thêm `600`; thư mục tĩnh
+  `/var/www/hcrc` đổi `chown hcrc:www-data` + `750`/`640` (Nginx đọc được,
+  không bao giờ ghi được).
+- Cập nhật mọi chỗ dùng lệnh `pm2 ...` trực tiếp trong tài liệu (mục
+  "Kiểm tra sau triển khai", "Xoay vòng log", FAQ) — nay PHẢI qua `sudo -u
+  hcrc -H pm2 ...` vì tiến trình chạy dưới tài khoản khác, không phải
+  tài khoản người vận hành.
+- FAQ mới: phân biệt rõ tài khoản HỆ ĐIỀU HÀNH (`hcrc`, mục này) với tài
+  khoản CSDL (`DWH_USER`/`RP_USER`/..., `*/grants.sql`, đã có từ trước) —
+  2 lớp độc lập, tránh nhầm lẫn "làm 1 cái là đủ".
+- **Ghi nhận, chưa vá (người dùng chọn để đợt sau)**: 3 `server.js` hiện
+  `app.listen(PORT, ...)` không chỉ định địa chỉ — mặc định lắng nghe
+  `0.0.0.0` dù Nginx chỉ gọi `127.0.0.1:400x`, nếu thiếu firewall chặn
+  riêng 3 cổng `4001-4003` thì có thể gọi thẳng vào, bỏ qua giới hạn IP
+  nội bộ của Nginx cho `api-admin`/`etl-admin`. Đã ghi chú hướng vá (firewall
+  hoặc `app.listen(PORT, '127.0.0.1', ...)`) ngay trong `deploy/README.md`
+  mục 1.1.
+
 ## 6.0 — Nới lỏng khoá đăng nhập cho tài khoản admin + vá lỗ hổng thiếu giới hạn ở 2FA setup/confirm
 
 Người dùng kiểm tra thấy `/2fa/setup` (đổi thiết bị) và `/2fa/confirm`
