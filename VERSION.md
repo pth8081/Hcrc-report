@@ -15,6 +15,43 @@ không chặt: patch/minor/major), GIỮ NGUYÊN không đánh số lại — `0
 (gần nhất theo quy tắc cũ) tương ứng **`4.1`** theo quy tắc mới, là điểm
 bắt đầu đếm tiếp từ đây.
 
+## 6.7 — Sửa lại toàn bộ 2 file hướng dẫn (6.6 mô tả nhầm hệ thống khác)
+
+Người dùng báo team IT làm theo hướng dẫn KHÔNG chạy được. Kiểm tra lại
+phát hiện lỗi NGHIÊM TRỌNG ở mục 6.6: 2 file `Hướng dẫn nghiệp vụ.md`/
+`Hướng dẫn triển khai.md` mô tả 1 ứng dụng "HCRC Voucher Redemption App"
+KHÔNG hề tồn tại trong repo này (`src/server.js`, `sql/001-013`, 1 tài
+khoản `hcrcapp` duy nhất...) — nhầm lẫn với nội dung 1 file tham khảo
+khác được đưa vào cùng lúc. Repo THẬT có `etl/`+`rp-server/`+`api-server/`
++ `etl-admin/`+`rp-user/`+`api-admin/`, hoàn toàn khác cấu trúc đã viết.
+
+Viết lại HOÀN TOÀN cả 2 file, lần này đối chiếu trực tiếp với code/README
+thật của từng service (không suy diễn từ tài liệu tham khảo ngoài):
+
+- `deploy/Hướng dẫn triển khai.md` — viết lại dựa trên `deploy/README.md`
+  (đã kiểm thử thật trong phiên trước) + `.env.example` từng service,
+  tổ chức lại thành các bước tuần tự rõ ràng, bổ sung mục MỚI "Đăng nhập
+  lần đầu vào từng trang" (URL + tài khoản cho cả 3 hệ thống, bắt buộc
+  2FA) — đây là phần bị thiếu khiến IT không biết cách vào được trang sau
+  khi triển khai.
+- `deploy/Hướng dẫn nghiệp vụ.md` — viết lại thành bản đồ định hướng thật
+  (kiến trúc etl → Data Warehouse → rp-user/api-server, 3 giao diện dùng
+  để làm gì, đăng nhập/2FA, phân quyền, bảng đầy đủ TỪNG TRANG thật của
+  cả 3 giao diện — đối chiếu trực tiếp `ls src/pages`/`src/modules` của
+  etl-admin/api-admin/rp-user, không đoán), trỏ sang `hướng_dẫn_báo_cáo.md`
+  (đã có sẵn, rất đầy đủ) cho công thức cấu hình chi tiết từng kịch bản,
+  tránh trùng lặp/lệch nội dung giữa 2 file.
+- Dựng thử NGAY trong sandbox để kiểm chứng tài liệu mới đúng: build lại
+  cả 3 frontend (`npm run build`), phục vụ tĩnh + 1 API giả trả về đúng
+  hình dạng `GET /api/me` thật, dùng Playwright chụp màn hình đăng nhập
+  thật của cả 3 hệ thống + màn Trang chủ/Biểu mẫu/Phân quyền của rp-user
+  sau khi "đăng nhập" — xác nhận cấu trúc menu/trang mô tả trong tài liệu
+  khớp ĐÚNG với giao diện thật đang chạy, gửi ảnh chụp cho người dùng.
+- Docs-only, không đổi code sản phẩm. Rút kinh nghiệm: khi viết tài liệu
+  dựa theo file tham khảo do người dùng cung cấp, PHẢI xác minh lại với
+  code thật của repo trước khi coi nội dung tham khảo là sự thật, đặc
+  biệt khi tham khảo mô tả 1 hệ thống có thể không phải hệ thống đang có.
+
 ## 6.6 — Thêm 2 file hướng dẫn riêng cho ứng dụng HCRC Voucher Redemption App
 
 Người dùng cung cấp 2 file tham khảo (README.md mô tả nghiệp vụ + triển
