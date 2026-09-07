@@ -20,6 +20,26 @@ hạ tầng), xem file `Hướng dẫn nghiệp vụ.md` (cùng thư mục).
 CHÍNH file này (và đối chiếu với `deploy/README.md` nếu cần chi tiết kỹ
 thuật sâu hơn — 2 file cùng mô tả 1 hệ thống thật, không mâu thuẫn nhau).
 
+> ## Đường đi nhanh nhất — để chạy được ứng dụng ngay lần đầu
+>
+> Không cần quyết định gì thêm về cluster hay Nginx `upstream` — cả 2 đã
+> được xử lý sẵn theo lựa chọn đơn giản nhất, chỉ cần làm đúng các bước
+> 1 → 10 theo thứ tự bên dưới, KHÔNG bỏ bước nào:
+>
+> - **Cluster (nhiều worker/CPU)**: chọn **Cách A — PM2** (mục 4) —
+>   cluster đã BẬT SẴN MẶC ĐỊNH trong `deploy/ecosystem.config.js`
+>   (`instances: 2` cho cả 3 service), `.env.example` cũng đã tính sẵn
+>   kích thước pool CSDL cho đúng 2 worker đó. KHÔNG cần sửa gì để có
+>   cluster — chỉ cần dùng nguyên file mẫu. Nếu chọn Cách B (systemd),
+>   hướng dẫn ở mục 8 mặc định chỉ chạy **1 worker** — cũng chạy được
+>   bình thường, cluster ở đó là TÙY CHỌN làm sau khi cần mở rộng.
+> - **Nginx `upstream`**: bắt buộc phải có (đây là cách Nginx biết
+>   chuyển tiếp request sang đúng tiến trình Node phía sau), nhưng ĐÃ CÓ
+>   SẴN đầy đủ trong `deploy/nginx.conf` — chỉ copy nguyên file (mục 9),
+>   đổi domain + đường dẫn chứng chỉ TLS, KHÔNG cần tự thêm/sửa khối
+>   `upstream` nào. Khối này cần thiết dù chỉ chạy 1 worker, không phải
+>   thứ chỉ dùng khi có nhiều worker.
+
 ## Mục lục
 
 1. [Mô hình hệ thống thật](#1-mô-hình-hệ-thống-thật)
@@ -292,12 +312,16 @@ systemd -u hcrc --hp /home/hcrc`) — copy đúng dòng đó và chạy tiếp, 
 PM2 tự bật lại cùng máy chủ mỗi khi reboot.
 
 Kiểm tra: `sudo -u hcrc -H pm2 status` — cả 3 tiến trình (`hcrc-etl`,
-`hcrc-rp-server`, `hcrc-api-server`) phải ở trạng thái `online`.
+`hcrc-rp-server`, `hcrc-api-server`) phải ở trạng thái `online`, cột
+`instances` hiện `2` (mỗi service THỰC RA đang chạy 2 tiến trình worker
+song song — `pm2 status` gộp hiển thị chung 1 dòng theo tên).
 
-Cluster nhiều worker đã có sẵn (`deploy/ecosystem.config.js`, mặc định
-`instances: 2`) — không cần làm gì thêm, chỉnh qua biến
-`PM2_INSTANCES_ETL`/`PM2_INSTANCES_RP`/`PM2_INSTANCES_API` nếu muốn đổi
-số worker.
+**Không cần làm gì thêm để có cluster** — `deploy/ecosystem.config.js` đã
+đặt sẵn `exec_mode: 'cluster'` + `instances: 2` cho cả 3 service, dùng
+đúng nguyên file mẫu ở lệnh `pm2 start` trên là ĐÃ chạy cluster 2
+worker/service rồi. Chỉ cần chỉnh qua biến `PM2_INSTANCES_ETL`/
+`PM2_INSTANCES_RP`/`PM2_INSTANCES_API` (đặt trước khi `pm2 start`) nếu
+sau này muốn tăng/giảm số worker theo tải thật.
 
 #### Nếu chọn Cách B (systemd)
 
@@ -339,6 +363,17 @@ certbot certonly --nginx -d report.hcrc.vidu.vn -d api.hcrc.vidu.vn \
 Copy `deploy/nginx.conf` vào `/etc/nginx/conf.d/hcrc.conf`, đổi domain
 mẫu `hcrc.vidu.vn` thành domain thật, đổi dải IP `allow` (2 domain nội
 bộ `api-admin.*`/`etl-admin.*`) thành IP văn phòng/VPN thật, rồi:
+
+> **Về khối `upstream` trong file này** (`upstream hcrc_rp_server { server
+> 127.0.0.1:4001; keepalive 32; }` và 2 khối tương tự cho `api_server`/
+> `etl_server`) — ĐÃ CÓ SẴN, KHÔNG cần tự thêm hay sửa gì. Đây là cách
+> Nginx biết chuyển tiếp request sang đúng tiến trình Node đang chạy ở
+> cổng nội bộ, cần thiết dù chỉ chạy 1 worker/service — chỉ cần thêm dòng
+> `server 127.0.0.1:<cổng>;` vào khối tương ứng nếu SAU NÀY mở rộng thêm
+> worker (xem bảng cổng ở Bước 6/Cách B, `deploy/README.md` mục 1). Với
+> Cách A (PM2), PM2 tự cân bằng tải giữa các worker ở tầng Node — Nginx
+> luôn chỉ thấy đúng 1 cổng, không cần sửa `upstream` dù tăng/giảm
+> `PM2_INSTANCES_*`.
 
 ```bash
 nginx -t && systemctl reload nginx

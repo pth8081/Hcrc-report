@@ -15,6 +15,27 @@ không chặt: patch/minor/major), GIỮ NGUYÊN không đánh số lại — `0
 (gần nhất theo quy tắc cũ) tương ứng **`4.1`** theo quy tắc mới, là điểm
 bắt đầu đếm tiếp từ đây.
 
+## 6.8 — Làm rõ cluster + Nginx upstream trong Hướng dẫn triển khai (docs-only)
+
+Người dùng hỏi có cần cluster không, Nginx có cần `upstream` không, để
+đưa cho team IT 1 đường đi chắc chắn chạy được ngay lần đầu — không phải
+tự suy đoán/quyết định thêm gì. Trả lời + chốt vào tài liệu:
+
+- Cách A (PM2): cluster **đã bật sẵn mặc định** (`deploy/ecosystem.config.js`
+  `instances: 2` + `.env.example` đã tính pool CSDL sẵn cho đúng số đó) —
+  không cần làm gì thêm để có cluster.
+- Cách B (systemd): mặc định hướng dẫn chỉ chạy 1 worker (`@0`) — đủ
+  chạy được, cluster ở đây là tuỳ chọn mở rộng sau.
+- Nginx `upstream`: bắt buộc phải có nhưng đã có sẵn nguyên trong
+  `deploy/nginx.conf` — chỉ đổi domain/chứng chỉ, không cần tự thêm/sửa
+  khối `upstream` cho lần triển khai đầu (kể cả PM2 cluster 2 worker, vì
+  PM2 tự cân bằng tải ở tầng Node, Nginx luôn chỉ thấy 1 cổng).
+
+Cập nhật `deploy/Hướng dẫn triển khai.md`: thêm khung "Đường đi nhanh
+nhất" ngay đầu file (mở đầu tóm tắt 2 điểm trên), làm rõ thêm tại Bước 6
+(PM2 status hiện `instances: 2`) và Bước 7 (giải thích khối `upstream`
+có sẵn, khi nào mới cần sửa). Docs-only, không đổi code/cấu hình mẫu.
+
 ## 6.7 — Sửa lại toàn bộ 2 file hướng dẫn (6.6 mô tả nhầm hệ thống khác)
 
 Người dùng báo team IT làm theo hướng dẫn KHÔNG chạy được. Kiểm tra lại
