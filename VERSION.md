@@ -15,6 +15,42 @@ không chặt: patch/minor/major), GIỮ NGUYÊN không đánh số lại — `0
 (gần nhất theo quy tắc cũ) tương ứng **`4.1`** theo quy tắc mới, là điểm
 bắt đầu đếm tiếp từ đây.
 
+## 6.6 — Thêm 2 file hướng dẫn riêng cho ứng dụng HCRC Voucher Redemption App
+
+Người dùng cung cấp 2 file tham khảo (README.md mô tả nghiệp vụ + triển
+khai của "HCRC Voucher Redemption App" — ứng dụng thu hồi voucher tại
+quầy, tách biệt hoàn toàn với hệ thống ETL/Report/API Server đang có
+trong repo; và DEPLOYMENT.md của 1 dự án khác không liên quan, chỉ dùng
+làm MẪU CẤU TRÚC trình bày). Yêu cầu: tách nội dung thành 2 file riêng
+trong `deploy/`, và từ nay các cập nhật nghiệp vụ đi vào file "Hướng dẫn
+nghiệp vụ", cập nhật triển khai đi vào file "Hướng dẫn triển khai".
+
+- `deploy/Hướng dẫn nghiệp vụ.md` (mới) — mô tả nghiệp vụ thu hồi voucher
+  (quét → kiểm tra → thu hồi, có sơ đồ mermaid), mô hình dữ liệu (bảng có
+  sẵn dùng chung với hệ thống Core vs bảng bổ sung riêng của app), cấu
+  hình kết nối Core Voucher API qua giao diện Admin (kèm hợp đồng JSON
+  fallback qua `.env`), chức năng từng màn hình, mô hình Công ty → Điểm
+  tiêu + báo cáo tổng hợp + phân quyền xem báo cáo theo công ty, tài
+  khoản (2FA bắt buộc cho admin, đăng nhập vân tay/Face ID qua WebAuthn,
+  thời hạn tài khoản, bắt buộc đổi mật khẩu lần đầu, chống dò mật khẩu),
+  hàng đợi đồng bộ khi Core API mất kết nối, và bảng tham chiếu API đầy
+  đủ.
+- `deploy/Hướng dẫn triển khai.md` (mới) — hướng dẫn triển khai production
+  đầy đủ cho app này (dựa theo nội dung mục 3 "Triển khai ứng dụng" của
+  README.md nguồn, KHÔNG liên quan gì tới `deploy/README.md` hiện có của
+  hệ thống ETL/Report/API Server), trình bày lại theo cấu trúc/phong cách
+  của DEPLOYMENT.md tham khảo (mục lục có neo, bảng vận hành hàng ngày,
+  mục xử lý sự cố, bảng biến môi trường) nhưng KHÔNG lấy bất kỳ nội dung
+  nghiệp vụ nào của DEPLOYMENT.md (MariaDB/DMS/PDF — dự án khác hẳn) —
+  gồm: yêu cầu hệ thống, kết nối vào DB MSSQL hiện có + migrate + tạo tài
+  khoản admin, cấu hình domain thật cho PWA/WebAuthn, tài khoản hệ thống
+  riêng (bảo mật), chạy production bằng PM2 hoặc systemd, cluster nhiều
+  worker, Nginx + HTTPS, tường lửa, checklist, vận hành hàng ngày, sao
+  lưu, cập nhật code, xử lý sự cố, bảng biến môi trường.
+- Đây là 2 file tài liệu HOÀN TOÀN MỚI, độc lập với `deploy/README.md` và
+  các file `deploy/` khác đã có — không sửa/xoá gì ở các file cũ. Docs-
+  only, không đổi code.
+
 ## 6.5 — Thêm mục 9 "Cập nhật code (redeploy)" — vá lỗ hổng quy trình phát hiện qua thử thật
 
 Người dùng hỏi: sau khi phân quyền xong (mục 6.4), up code mới thì làm
