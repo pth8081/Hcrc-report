@@ -12,12 +12,13 @@ thống này dùng để làm gì, có những trang nào, đăng nhập ra sao,
 chi tiết từng kịch bản báo cáo cụ thể (đã có sẵn, rất đầy đủ), xem file
 `hướng_dẫn_báo_cáo.md` ở thư mục gốc repo — file này chỉ là bản đồ định
 hướng, KHÔNG lặp lại nội dung đó. Nếu cần cài đặt/triển khai máy chủ, xem
-file `Hướng dẫn triển khai.md` (cùng thư mục).
+file `Hướng dẫn triển khai PM2.md` (cùng thư mục — có thêm file
+`Hướng dẫn triển khai sử dụng PM2 + Nginx.md` nếu cần domain/HTTPS).
 
 **Ghi chú cập nhật**: mọi thay đổi/tính năng nghiệp vụ mới nên bổ sung
 vào CHÍNH file này (phần bản đồ định hướng) và/hoặc `hướng_dẫn_báo_cáo.md`
-(phần công thức chi tiết theo kịch bản) — không bổ sung vào
-`Hướng dẫn triển khai.md`.
+(phần công thức chi tiết theo kịch bản) — không bổ sung vào 2 file
+hướng dẫn triển khai.
 
 ## Mục lục
 
@@ -97,9 +98,9 @@ riêng, vào thẳng đúng địa chỉ cần dùng.
 
 Tài khoản đăng nhập của 3 giao diện là **3 hệ thống HOÀN TOÀN riêng**
 (không dùng chung 1 lần đăng nhập cho cả 3) — mỗi hệ thống có tài khoản
-quản trị đầu tiên do IT tạo sẵn bằng lệnh (xem `Hướng dẫn triển khai.md`
-mục 6), sau đó đăng nhập bằng tên đăng nhập/mật khẩu đó tại đúng domain
-tương ứng (mục 2).
+quản trị đầu tiên do IT tạo sẵn bằng lệnh (xem `Hướng dẫn triển khai
+PM2.md` mục 6), sau đó đăng nhập bằng tên đăng nhập/mật khẩu đó tại đúng
+domain tương ứng (mục 2).
 
 **Lần đăng nhập ĐẦU TIÊN của mọi tài khoản vai trò `admin`** (cả 3 hệ
 thống) sẽ bị bắt buộc thiết lập **xác thực hai yếu tố (2FA)** trước khi
@@ -199,7 +200,7 @@ cho các kịch bản phổ biến — tra theo mục số:
 
 **Tạo được tài khoản `admin` ở `etl-admin` rồi thì có tự đăng nhập được
 `rp-user`/`api-admin` không?** — Không. 3 hệ thống có bảng tài khoản
-RIÊNG (mục 3) — phải tạo đủ cả 3 (xem `Hướng dẫn triển khai.md` mục 6).
+RIÊNG (mục 3) — phải tạo đủ cả 3 (xem `Hướng dẫn triển khai PM2.md` mục 6).
 
 **Muốn thêm 1 báo cáo mới thì vào đâu?** — `rp-user`, menu "Hệ thống →
 Biểu mẫu" (mục 7) — hoặc thêm trực tiếp 1 dòng vào `app.ReportCatalog`

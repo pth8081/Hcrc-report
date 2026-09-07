@@ -1,24 +1,19 @@
 // deploy/ecosystem.config.js — Chạy bằng PM2, độc lập với nhau (một app lỗi
 // không kéo sập app còn lại): pm2 start deploy/ecosystem.config.js
 //
-// MẶC ĐỊNH: 3 app (3 service backend, exec_mode 'cluster') — 3 giao diện
-// tĩnh (rp-user/api-admin/etl-admin) do NGINX đọc thẳng file (xem
-// deploy/nginx.conf, khối "root"/"try_files").
+// MẶC ĐỊNH: chỉ 3 app (3 service backend, exec_mode 'cluster').
 //
-// TUỲ CHỌN — phục vụ CẢ 3 giao diện tĩnh bằng PM2 luôn (giống mô hình 1 nơi
-// quản lý toàn bộ tiến trình bằng PM2, `pm2 status`/`pm2 logs` thấy đủ 6
-// app, không tách 2 kiểu quản lý khác nhau): đặt biến môi trường
-// HCRC_STATIC_VIA_PM2=1 TRƯỚC khi `pm2 start` (thêm dòng đó vào trước lệnh
-// pm2 start trong ~/.bashrc của tài khoản hcrc, hoặc gõ
-// `HCRC_STATIC_VIA_PM2=1 pm2 start deploy/ecosystem.config.js` — PM2 LƯU
-// LẠI giá trị đã dùng lúc `pm2 start`, không cần đặt lại mỗi lần
-// `pm2 restart/reload` sau đó, CHỈ cần đặt lại nếu `pm2 delete` rồi
-// `pm2 start` lại từ đầu). Bật cờ này rồi PHẢI đổi tương ứng 3 khối
-// "location /" trong deploy/nginx.conf sang "proxy_pass" — xem chú thích
-// ngay trong file đó + "Hướng dẫn triển khai.md" mục 7, KHÔNG bật 1 bên mà
-// quên bên kia (Nginx đọc file trong khi PM2 không chạy tiến trình đó, hoặc
-// ngược lại PM2 chạy tiến trình mà Nginx vẫn đọc thẳng file, đều dẫn tới
-// hoặc lỗi 502 hoặc chạy code CŨ không được cập nhật).
+// Đặt biến môi trường HCRC_STATIC_VIA_PM2=1 TRƯỚC khi `pm2 start` để bật
+// thêm 3 app phục vụ giao diện tĩnh (rp-user/api-admin/etl-admin) —
+// BẮT BUỘC nếu triển khai theo "Hướng dẫn triển khai PM2.md" (không dùng
+// Nginx, không có ai khác đọc file tĩnh thay); TUỲ CHỌN nếu triển khai theo
+// "Hướng dẫn triển khai sử dụng PM2 + Nginx.md" (mặc định file đó vẫn để
+// Nginx đọc thẳng file — chỉ bật cờ này nếu muốn `pm2 status` thấy đủ cả 6
+// tiến trình, và nhớ đổi tương ứng khối `location /` trong deploy/nginx.conf
+// sang `proxy_pass`, xem hướng dẫn Nginx mục "Bước 2"). `HCRC_STATIC_VIA_PM2=1
+// pm2 start deploy/ecosystem.config.js` — PM2 LƯU LẠI giá trị đã dùng lúc
+// `pm2 start`, không cần đặt lại mỗi lần `pm2 restart/reload` sau đó, CHỈ
+// cần đặt lại nếu `pm2 delete` rồi `pm2 start` lại từ đầu.
 //
 // min_uptime/max_restarts — PM2 MẶC ĐỊNH khởi động lại VÔ HẠN lần mỗi khi
 // tiến trình thoát (đúng ý khi lỗi thật hiếm gặp) — nhưng nếu tiến trình

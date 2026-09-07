@@ -1,11 +1,11 @@
 // deploy/serve-static.js — Server tĩnh tối giản để chạy 3 giao diện SPA
-// (rp-user/api-admin/etl-admin) BẰNG PM2 giống 3 service backend, thay vì để
-// Nginx đọc thẳng file — dùng khi muốn thao tác vận hành đồng nhất (mọi thứ
-// đều thấy trong `pm2 status`/`pm2 logs`, không tách 2 kiểu quản lý khác
-// nhau). Không phụ thuộc gói ngoài (chỉ dùng module có sẵn của Node) — tránh
-// phải cài thêm gói global trên máy chủ. Đây là PHƯƠNG ÁN THAY THẾ, không
-// bắt buộc — mặc định Nginx vẫn có thể đọc thẳng file tĩnh (xem
-// "Hướng dẫn triển khai.md" mục 7).
+// (rp-user/api-admin/etl-admin) BẰNG PM2 giống 3 service backend. Dùng
+// BẮT BUỘC nếu triển khai theo "Hướng dẫn triển khai PM2.md" (không có
+// Nginx nào khác đọc file tĩnh thay); TUỲ CHỌN nếu triển khai theo
+// "Hướng dẫn triển khai sử dụng PM2 + Nginx.md" (mặc định file đó để
+// Nginx đọc thẳng file, xem `deploy/nginx.conf`). Không phụ thuộc gói
+// ngoài (chỉ dùng module có sẵn của Node) — tránh phải cài thêm gói
+// global trên máy chủ.
 //
 // Tham số qua biến môi trường (đặt trong deploy/ecosystem.config.js):
 //   STATIC_DIST_DIR — đường dẫn thư mục dist/, TÍNH TƯƠNG ĐỐI so với chính

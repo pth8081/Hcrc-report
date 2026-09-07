@@ -15,6 +15,39 @@ không chặt: patch/minor/major), GIỮ NGUYÊN không đánh số lại — `0
 (gần nhất theo quy tắc cũ) tương ứng **`4.1`** theo quy tắc mới, là điểm
 bắt đầu đếm tiếp từ đây.
 
+## 6.10 — Tách "Hướng dẫn triển khai.md" thành 2 file PM2/PM2+Nginx riêng
+
+Người dùng phản hồi file `Hướng dẫn triển khai.md` (gộp Cách A/Cách B,
+rồi lại Cách 1/Cách 2 bên trong Cách A) vẫn khó đọc — quá nhiều nhánh rẽ
+trong CÙNG 1 file gây phân tâm. Yêu cầu cụ thể: xoá file đó, tách thành
+đúng 2 file riêng — 1 file chỉ PM2, 1 file PM2 + Nginx — để đọc 1 mạch
+không rẽ nhánh.
+
+- **Xoá** `deploy/Hướng dẫn triển khai.md`.
+- **`deploy/Hướng dẫn triển khai PM2.md`** (mới) — hướng dẫn ĐỘC LẬP, 1
+  đường thẳng từ đầu tới cuối: DB → tài khoản OS → `.env` → seed:admin →
+  build → chạy TOÀN BỘ 6 tiến trình bằng PM2 (kể cả 3 giao diện tĩnh qua
+  `serve-static.js`, KHÔNG còn tuỳ chọn — vì không có Nginx nào khác đọc
+  file thay) → truy cập trực tiếp bằng IP:cổng (không domain/HTTPS). Bỏ
+  hẳn nhánh systemd (Cách B cũ) khỏi tài liệu này — ai cần systemd vẫn
+  tra được ở `deploy/README.md` (không xoá, giữ làm tài liệu kỹ thuật
+  đầy đủ).
+- **`deploy/Hướng dẫn triển khai sử dụng PM2 + Nginx.md`** (mới) — tài
+  liệu TIẾP NỐI (không lặp lại DB/`.env`/seed:admin/PM2 đã có ở file
+  trên), chỉ nói phần THÊM VÀO: vì sao cần Nginx, DNS/TLS, sửa 3 khối
+  `location /` trong `deploy/nginx.conf` sang `proxy_pass` (khớp đúng
+  cách File 1 đã chạy tĩnh qua PM2), đăng nhập lại qua domain, tường lửa
+  đóng 6 cổng nội bộ, gia hạn chứng chỉ, xử lý sự cố riêng cho tầng
+  Nginx (404 do quên sửa location, 502 do PM2 chưa chạy đủ...).
+- Cập nhật tham chiếu chéo: `deploy/Hướng dẫn nghiệp vụ.md` (2 chỗ),
+  chú thích trong `deploy/ecosystem.config.js`, `deploy/nginx.conf` (2
+  chỗ), `deploy/serve-static.js` — toàn bộ trỏ đúng sang 1 trong 2 file
+  mới thay vì file đã xoá. KHÔNG sửa các mục lịch sử cũ trong chính
+  VERSION.md (quy ước không sửa lại changelog cũ).
+- Docs-only, không đổi hành vi code (`ecosystem.config.js`/`nginx.conf`/
+  `serve-static.js` giữ nguyên logic, chỉ đổi text chú thích trỏ đúng
+  tên file mới).
+
 ## 6.9 — Thêm phương án phục vụ 3 trang tĩnh bằng PM2 (tuỳ chọn)
 
 Người dùng có 1 hệ thống khác (VPDT) đang chạy toàn bộ bằng PM2, muốn 3
