@@ -15,6 +15,39 @@ không chặt: patch/minor/major), GIỮ NGUYÊN không đánh số lại — `0
 (gần nhất theo quy tắc cũ) tương ứng **`4.1`** theo quy tắc mới, là điểm
 bắt đầu đếm tiếp từ đây.
 
+## 6.9 — Thêm phương án phục vụ 3 trang tĩnh bằng PM2 (tuỳ chọn)
+
+Người dùng có 1 hệ thống khác (VPDT) đang chạy toàn bộ bằng PM2, muốn 3
+trang tĩnh của HCRC (`rp-user`/`api-admin`/`etl-admin`) cũng chạy theo
+kiểu đó — thao tác vận hành đồng nhất (`pm2 status`/`pm2 logs` thấy đủ
+mọi tiến trình), thay vì tách riêng Nginx đọc thẳng file. Cũng hỏi mức
+ảnh hưởng hiệu năng.
+
+- `deploy/serve-static.js` (mới) — server tĩnh tối giản, không phụ thuộc
+  gói ngoài, tự làm SPA fallback (trả `index.html` cho path không khớp
+  file thật, giống hệt `try_files` của Nginx) + chặn path traversal, chỉ
+  lắng nghe `127.0.0.1` (không lộ ra ngoài dù máy chủ có IP công khai).
+  Đã tự test: root 200, SPA fallback 200, path traversal 400.
+- `deploy/ecosystem.config.js` — thêm 3 app tĩnh (`hcrc-rp-user`/
+  `hcrc-api-admin`/`hcrc-etl-admin`), CHỈ được đưa vào danh sách khi bật
+  biến môi trường `HCRC_STATIC_VIA_PM2=1` lúc `pm2 start` (mặc định TẮT —
+  không ảnh hưởng ai đang dùng file mẫu cũ, không tốn thêm RAM nếu không
+  cần). Đã tự test cả 2 trạng thái bật/tắt bằng `require()` trực tiếp.
+- `deploy/nginx.conf` — thêm 3 khối `upstream *_static` (cổng
+  5173/5174/5175, trùng cổng dev cho dễ nhớ). 3 domain `report.*`/
+  `api-admin.*`/`etl-admin.*` GIỮ NGUYÊN mặc định `root`/`try_files`
+  (Nginx đọc thẳng file — KHÔNG đổi hành vi mặc định cho ai khác), thêm
+  khối `proxy_pass` tương ứng dưới dạng chú thích rõ ràng để bật thủ công
+  khi cần (đã tự đếm dấu ngoặc `{`/`}` xác nhận cân bằng sau khi sửa).
+- `deploy/Hướng dẫn triển khai.md` — Bước 5 tách "Cách 1" (Nginx đọc file,
+  mặc định)/"Cách 2" (phục vụ qua PM2, tuỳ chọn) + giải thích hiệu năng
+  (không đáng kể ở quy mô nội bộ: ~1-3ms/lần tải trang, ~100-150MB RAM
+  tổng cho 3 tiến trình); Bước 6/7/9/14 cập nhật tương ứng theo Cách đã
+  chọn, kèm cảnh báo cụ thể 2 lỗi dễ gặp nếu bật 1 nửa (404 nếu bật cờ PM2
+  nhưng quên sửa Nginx; 502 nếu sửa Nginx nhưng quên bật cờ PM2).
+- Không đổi hành vi mặc định của bất kỳ ai đang triển khai theo tài liệu
+  cũ — toàn bộ thay đổi là CỘNG THÊM, tắt theo mặc định.
+
 ## 6.8 — Làm rõ cluster + Nginx upstream trong Hướng dẫn triển khai (docs-only)
 
 Người dùng hỏi có cần cluster không, Nginx có cần `upstream` không, để

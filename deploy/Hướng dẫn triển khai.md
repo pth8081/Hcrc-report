@@ -39,6 +39,11 @@ thuật sâu hơn — 2 file cùng mô tả 1 hệ thống thật, không mâu t
 >   đổi domain + đường dẫn chứng chỉ TLS, KHÔNG cần tự thêm/sửa khối
 >   `upstream` nào. Khối này cần thiết dù chỉ chạy 1 worker, không phải
 >   thứ chỉ dùng khi có nhiều worker.
+> - **3 trang tĩnh** (`rp-user`/`api-admin`/`etl-admin`): mặc định do
+>   Nginx đọc thẳng file (Bước 5, Cách 1) — không cần tiến trình nào
+>   thêm. Muốn cả 3 trang này cũng chạy bằng PM2 (để `pm2 status` thấy
+>   đủ mọi tiến trình, ví dụ khi bạn đã quen thao tác kiểu này với hệ
+>   thống khác) — xem Bước 5 "Cách 2" và ghi chú tương ứng ở Bước 6/7.
 
 ## Mục lục
 
@@ -273,13 +278,17 @@ Vai trò mặc định là `admin` (đủ quyền thấy mọi trang) — có th
 tài khoản `viewer` (etl-admin/api-admin) sau khi đã đăng nhập được bằng
 tài khoản `admin` đầu tiên, qua trang "Phân quyền".
 
-## 7. Bước 5 — Build 3 giao diện + copy sang Nginx
+## 7. Bước 5 — Build 3 giao diện + phục vụ tĩnh
 
 ```bash
 for app in rp-user api-admin etl-admin; do
   (cd $app && npm install && npm run build)
 done
 ```
+
+Có **2 cách** để Nginx phục vụ được 3 giao diện vừa build — chọn 1:
+
+#### Cách 1 (mặc định): Nginx đọc thẳng file — đơn giản nhất
 
 Copy sang thư mục Nginx phục vụ tĩnh (chạy BẰNG TÀI KHOẢN CỦA BẠN, sudo
 — `/var/www` bình thường chỉ `root` ghi được):
@@ -297,6 +306,21 @@ done
 Cách A: thoát khỏi shell `hcrc` (`exit`) sau khi build xong, trước khi
 làm bước copy này bằng tài khoản của bạn.
 
+#### Cách 2 (tuỳ chọn, CHỈ áp dụng nếu chọn Cách A/PM2): phục vụ tĩnh cũng bằng PM2
+
+Nếu muốn `pm2 status`/`pm2 logs` thấy ĐỦ cả 6 tiến trình (3 backend + 3
+giao diện) thay vì tách riêng 2 kiểu quản lý (giống mô hình bạn đang quen
+với hệ thống khác đang chạy PM2) — **KHÔNG cần copy sang `/var/www`**,
+`dist/` cứ để nguyên trong thư mục đã build (đã thuộc quyền sở hữu `hcrc`
+sẵn). Bước 6 dưới đây sẽ bật thêm 3 tiến trình đọc thẳng `dist/` này.
+
+> **Hiệu năng có bị ảnh hưởng không?** Không đáng kể ở quy mô nội bộ công
+> ty — Nginx vẫn đứng trước lo TLS/nén/header bảo mật như cũ, chỉ thêm 1
+> bước Nginx chuyển tiếp sang tiến trình Node thay vì đọc thẳng đĩa (thêm
+> khoảng 1-3ms/lần tải trang, không ai cảm nhận được) và khoảng 30-50MB
+> RAM/tiến trình × 3 (~100-150MB tổng) — không đáng kể trên server thông
+> thường.
+
 ## 8. Bước 6 — Bật tiến trình nền (PM2 hoặc systemd)
 
 #### Nếu chọn Cách A (PM2)
@@ -307,14 +331,42 @@ sudo -u hcrc -H pm2 save
 sudo -u hcrc -H pm2 startup
 ```
 
+**Nếu ở Bước 5 bạn chọn Cách 2 (phục vụ tĩnh cũng bằng PM2)**, đổi dòng
+`pm2 start` đầu tiên thành:
+
+```bash
+sudo -u hcrc -H env HCRC_STATIC_VIA_PM2=1 pm2 start /home/hcrc/hcrc/deploy/ecosystem.config.js
+```
+
+Chỉ cần đặt biến `HCRC_STATIC_VIA_PM2=1` đúng 1 LẦN lúc `pm2 start` này —
+`pm2 save` ở dòng tiếp theo lưu lại toàn bộ danh sách 6 tiến trình, các
+lần `pm2 restart`/`pm2 reload`/reboot máy chủ sau đó tự dùng lại đúng
+danh sách đã lưu, không cần gõ lại biến môi trường. (Chỉ cần đặt lại nếu
+sau này bạn `pm2 delete` hết rồi `pm2 start` lại từ đầu.)
+
 Lệnh cuối in ra 1 dòng lệnh khác (dạng `sudo env PATH=... pm2 startup
 systemd -u hcrc --hp /home/hcrc`) — copy đúng dòng đó và chạy tiếp, để
 PM2 tự bật lại cùng máy chủ mỗi khi reboot.
 
-Kiểm tra: `sudo -u hcrc -H pm2 status` — cả 3 tiến trình (`hcrc-etl`,
+Kiểm tra: `sudo -u hcrc -H pm2 status` — 3 tiến trình (`hcrc-etl`,
 `hcrc-rp-server`, `hcrc-api-server`) phải ở trạng thái `online`, cột
 `instances` hiện `2` (mỗi service THỰC RA đang chạy 2 tiến trình worker
-song song — `pm2 status` gộp hiển thị chung 1 dòng theo tên).
+song song — `pm2 status` gộp hiển thị chung 1 dòng theo tên). Nếu đã bật
+Cách 2 ở Bước 5, thấy thêm 3 dòng `hcrc-rp-user`/`hcrc-api-admin`/
+`hcrc-etl-admin` cũng `online` (các dòng này `instances` luôn là `1`,
+không cần cluster cho việc chỉ đọc file tĩnh).
+
+> **Đã bật `HCRC_STATIC_VIA_PM2=1` (Cách 2) thì BẮT BUỘC đổi Nginx theo —
+> đừng bỏ qua Bước 7 bên dưới**: ở Cách 2 bạn KHÔNG copy `dist/` sang
+> `/var/www/hcrc` — nếu quên sửa `deploy/nginx.conf` (vẫn để
+> `root`/`try_files` mặc định trỏ vào `/var/www/hcrc` rỗng), người dùng
+> sẽ thấy **404 ngay khi mở trang**, không phải lỗi khó nhận ra. Ngược
+> lại nếu bạn KHÔNG bật cờ này (giữ Cách 1) mà lại sửa nhầm
+> `deploy/nginx.conf` sang `proxy_pass`, sẽ thấy **502 Bad Gateway** vì
+> không có tiến trình nào lắng nghe ở cổng 5173-5175. Cả 2 lỗi đều dễ
+> phát hiện ngay ở Bước 12 (kiểm tra sau triển khai) — chỉ cần nhớ 2 chỗ
+> (biến môi trường lúc `pm2 start` + khối `location` trong `nginx.conf`)
+> phải LUÔN đi cùng nhau, chọn 1 trong 2 Cách, không trộn lẫn.
 
 **Không cần làm gì thêm để có cluster** — `deploy/ecosystem.config.js` đã
 đặt sẵn `exec_mode: 'cluster'` + `instances: 2` cho cả 3 service, dùng
@@ -363,6 +415,14 @@ certbot certonly --nginx -d report.hcrc.vidu.vn -d api.hcrc.vidu.vn \
 Copy `deploy/nginx.conf` vào `/etc/nginx/conf.d/hcrc.conf`, đổi domain
 mẫu `hcrc.vidu.vn` thành domain thật, đổi dải IP `allow` (2 domain nội
 bộ `api-admin.*`/`etl-admin.*`) thành IP văn phòng/VPN thật, rồi:
+
+> **Đã chọn Cách 2 ở Bước 5 (phục vụ tĩnh bằng PM2)?** Trong file vừa
+> copy, với CẢ 3 domain `report.*`/`api-admin.*`/`etl-admin.*`: xoá 3
+> dòng `root ...;`/`index index.html;`/`location / { try_files ...; }`,
+> thay bằng khối `location /` dùng `proxy_pass` đã có sẵn NGAY DƯỚI dạng
+> chú thích (tìm dòng "PHƯƠNG ÁN THAY THẾ" trong file) — chỉ cần bỏ dấu
+> `#` đầu mỗi dòng. Giữ nguyên mặc định (`root`/`try_files`) nếu bạn chọn
+> Cách 1.
 
 > **Về khối `upstream` trong file này** (`upstream hcrc_rp_server { server
 > 127.0.0.1:4001; keepalive 32; }` và 2 khối tương tự cho `api_server`/
@@ -443,7 +503,11 @@ for svc_dir in etl rp-server api-server; do
 done
 ```
 
-#### Cả 2 cách — thư mục tĩnh Nginx
+#### Thư mục tĩnh Nginx — CHỈ áp dụng nếu dùng Cách 1 (Bước 5)
+
+Bỏ qua khối này nếu bạn chọn Cách 2 (phục vụ tĩnh bằng PM2) — không có
+`/var/www/hcrc` nào để siết quyền, `dist/` đã nằm trong cây thư mục
+`hcrc` sở hữu, được siết quyền chung ở khối phía trên rồi.
 
 ```bash
 sudo chown -R root:www-data /var/www/hcrc   # đổi www-data -> nginx nếu dùng RHEL/CentOS
@@ -503,14 +567,30 @@ for svc in etl rp-server api-server; do (cd $svc && npm install --omit=dev); don
 for app in rp-user api-admin etl-admin; do (cd $app && npm install && npm run build); done
 exit
 
+sudo -u hcrc -H pm2 reload hcrc-etl
+sudo -u hcrc -H pm2 reload hcrc-rp-server
+sudo -u hcrc -H pm2 reload hcrc-api-server
+```
+
+**Nếu dùng Cách 1 (Nginx đọc thẳng file, Bước 5)** — cần thêm bước copy
+`dist/` mới sang `/var/www/hcrc` TRƯỚC khi reload (build xong là Nginx
+vẫn phục vụ bản CŨ cho tới khi copy đè lên):
+
+```bash
 for app in rp-user api-admin etl-admin; do
   sudo rm -rf /var/www/hcrc/$app
   sudo cp -r /home/hcrc/hcrc/$app/dist /var/www/hcrc/$app
 done
+```
 
-sudo -u hcrc -H pm2 reload hcrc-etl
-sudo -u hcrc -H pm2 reload hcrc-rp-server
-sudo -u hcrc -H pm2 reload hcrc-api-server
+**Nếu dùng Cách 2 (phục vụ tĩnh bằng PM2)** — KHÔNG cần bước copy ở
+trên (Nginx đọc thẳng `dist/` mới qua tiến trình PM2), chỉ cần reload
+thêm 3 tiến trình tĩnh:
+
+```bash
+sudo -u hcrc -H pm2 reload hcrc-rp-user
+sudo -u hcrc -H pm2 reload hcrc-api-admin
+sudo -u hcrc -H pm2 reload hcrc-etl-admin
 ```
 
 #### Nếu chọn Cách B (systemd)

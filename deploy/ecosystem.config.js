@@ -1,7 +1,24 @@
-// deploy/ecosystem.config.js — Chạy 3 tiến trình bằng PM2, độc lập với nhau
-// (một app lỗi không kéo sập app còn lại): pm2 start deploy/ecosystem.config.js
-// rp-user/, api-admin/, etl-admin/ là build tĩnh (npm run build -> dist/),
-// phục vụ qua Nginx — không phải tiến trình PM2.
+// deploy/ecosystem.config.js — Chạy bằng PM2, độc lập với nhau (một app lỗi
+// không kéo sập app còn lại): pm2 start deploy/ecosystem.config.js
+//
+// MẶC ĐỊNH: 3 app (3 service backend, exec_mode 'cluster') — 3 giao diện
+// tĩnh (rp-user/api-admin/etl-admin) do NGINX đọc thẳng file (xem
+// deploy/nginx.conf, khối "root"/"try_files").
+//
+// TUỲ CHỌN — phục vụ CẢ 3 giao diện tĩnh bằng PM2 luôn (giống mô hình 1 nơi
+// quản lý toàn bộ tiến trình bằng PM2, `pm2 status`/`pm2 logs` thấy đủ 6
+// app, không tách 2 kiểu quản lý khác nhau): đặt biến môi trường
+// HCRC_STATIC_VIA_PM2=1 TRƯỚC khi `pm2 start` (thêm dòng đó vào trước lệnh
+// pm2 start trong ~/.bashrc của tài khoản hcrc, hoặc gõ
+// `HCRC_STATIC_VIA_PM2=1 pm2 start deploy/ecosystem.config.js` — PM2 LƯU
+// LẠI giá trị đã dùng lúc `pm2 start`, không cần đặt lại mỗi lần
+// `pm2 restart/reload` sau đó, CHỈ cần đặt lại nếu `pm2 delete` rồi
+// `pm2 start` lại từ đầu). Bật cờ này rồi PHẢI đổi tương ứng 3 khối
+// "location /" trong deploy/nginx.conf sang "proxy_pass" — xem chú thích
+// ngay trong file đó + "Hướng dẫn triển khai.md" mục 7, KHÔNG bật 1 bên mà
+// quên bên kia (Nginx đọc file trong khi PM2 không chạy tiến trình đó, hoặc
+// ngược lại PM2 chạy tiến trình mà Nginx vẫn đọc thẳng file, đều dẫn tới
+// hoặc lỗi 502 hoặc chạy code CŨ không được cập nhật).
 //
 // min_uptime/max_restarts — PM2 MẶC ĐỊNH khởi động lại VÔ HẠN lần mỗi khi
 // tiến trình thoát (đúng ý khi lỗi thật hiếm gặp) — nhưng nếu tiến trình
@@ -36,6 +53,38 @@
 // PHẢI đi kèm chỉnh lại *_POOL_MAX trong .env của từng service (xem chú
 // thích ở đó) — mỗi worker tự mở pool CSDL RIÊNG (không dùng chung), tổng
 // kết nối tới SQL Server = instances × tổng pool.max của 1 worker.
+const STATIC_VIA_PM2 = process.env.HCRC_STATIC_VIA_PM2 === '1';
+
+// 3 tiến trình phục vụ TĨNH cho rp-user/api-admin/etl-admin (build sẵn bằng
+// `npm run build` -> dist/), dùng deploy/serve-static.js — CHỈ đưa vào danh
+// sách "apps" khi bật HCRC_STATIC_VIA_PM2=1 (xem chú thích đầu file). 1 tiến
+// trình/giao diện là đủ (không cần cluster: chỉ đọc file tĩnh, không có
+// công việc nặng CPU nào). Cổng trùng với cổng dev (`npm run dev`) của từng
+// giao diện — dễ nhớ, không đụng dải cổng 4001-4033 của 3 service backend.
+const staticApps = STATIC_VIA_PM2 ? [
+  {
+    name: 'hcrc-rp-user',
+    script: 'serve-static.js',
+    env: { STATIC_DIST_DIR: '../rp-user/dist', PORT: 5173, NODE_ENV: 'production' },
+    min_uptime: '5s',
+    max_restarts: 10
+  },
+  {
+    name: 'hcrc-api-admin',
+    script: 'serve-static.js',
+    env: { STATIC_DIST_DIR: '../api-admin/dist', PORT: 5174, NODE_ENV: 'production' },
+    min_uptime: '5s',
+    max_restarts: 10
+  },
+  {
+    name: 'hcrc-etl-admin',
+    script: 'serve-static.js',
+    env: { STATIC_DIST_DIR: '../etl-admin/dist', PORT: 5175, NODE_ENV: 'production' },
+    min_uptime: '5s',
+    max_restarts: 10
+  }
+] : [];
+
 module.exports = {
   apps: [
     {
@@ -67,6 +116,7 @@ module.exports = {
       env: { NODE_ENV: 'production' },
       min_uptime: '10s',
       max_restarts: 10
-    }
+    },
+    ...staticApps
   ]
 };
