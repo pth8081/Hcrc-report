@@ -165,7 +165,7 @@ export default function ReportsPage() {
 
       {definition && (
         <>
-          <FilterForm filters={definition.filters} values={filterValues} onChange={setFilterValues} onSubmit={runReport} />
+          <FilterForm reportId={selectedId} filters={definition.filters} values={filterValues} onChange={setFilterValues} onSubmit={runReport} />
           {result && (
             <>
               <div className="export-actions">

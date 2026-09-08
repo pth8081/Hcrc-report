@@ -2,10 +2,40 @@
 // một báo cáo (rp-server trả về từ GET /api/reports/:id) — không có
 // component riêng cho từng báo cáo, một component này dùng cho mọi báo cáo.
 //
-// GIỚI HẠN Ở BƯỚC KHUNG NÀY: type "select"/"multiSelect" chưa nối với danh
-// mục thật (app.Categories) — đang vẽ dạng ô nhập tay. Khi cần, đổi field
-// filter này sang tra cứu app.Categories theo CategoryType tương ứng.
-export default function FilterForm({ filters, values, onChange, onSubmit }) {
+// type "select"/"multiSelect" dùng chung SearchableSelect.jsx (dropdown
+// searchable + multi-select + "chọn tất cả" — yêu cầu áp dụng cho TẤT CẢ
+// báo cáo, không riêng gì 1 báo cáo cụ thể). Lựa chọn (options) có 2 nguồn:
+//   - Tĩnh: definition.filters[].options = [{value,label}] (khai sẵn trong
+//     DefinitionJson, vd 4 lựa chọn "Khoảng thời gian xếp hạng").
+//   - Động: definition.filters[].hasDynamicOptions = true — gọi GET
+//     /api/reports/:reportId/filter-options/:field (xem routes/reports.js)
+//     để lấy danh sách giá trị THẬT từ dữ liệu đã đồng bộ (vd danh sách chi
+//     nhánh) — cần `reportId` (prop mới) để gọi đúng route.
+import { useEffect, useState } from 'react';
+import { api } from '../lib/api';
+import SearchableSelect from './SearchableSelect';
+
+export default function FilterForm({ reportId, filters, values, onChange, onSubmit }) {
+  const [dynamicOptions, setDynamicOptions] = useState({});
+  const [loadingFields, setLoadingFields] = useState({});
+
+  useEffect(() => {
+    setDynamicOptions({});
+    let cancelled = false;
+    (filters || []).filter(f => f.hasDynamicOptions).forEach(f => {
+      setLoadingFields(s => ({ ...s, [f.field]: true }));
+      api.get(`/reports/${reportId}/filter-options/${encodeURIComponent(f.field)}`)
+        .then(rows => {
+          if (cancelled) return;
+          setDynamicOptions(s => ({ ...s, [f.field]: rows.map(r => ({ value: r.value, label: r.label || r.value })) }));
+        })
+        .catch(() => { if (!cancelled) setDynamicOptions(s => ({ ...s, [f.field]: [] })); })
+        .finally(() => { if (!cancelled) setLoadingFields(s => ({ ...s, [f.field]: false })); });
+    });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reportId, filters]);
+
   function setValue(field, value) {
     onChange({ ...values, [field]: value });
   }
@@ -36,11 +66,21 @@ export default function FilterForm({ filters, values, onChange, onSubmit }) {
               />
             </span>
           ) : f.type === 'multiSelect' ? (
-            <input
-              type="text"
-              placeholder="Cách nhau bởi dấu phẩy"
-              value={(values[f.field] || []).join(', ')}
-              onChange={(e) => setValue(f.field, e.target.value.split(',').map(s => s.trim()).filter(Boolean))}
+            <SearchableSelect
+              multi
+              options={f.hasDynamicOptions ? (dynamicOptions[f.field] || []) : (f.options || [])}
+              value={values[f.field] || []}
+              onChange={(v) => setValue(f.field, v)}
+              loading={!!loadingFields[f.field]}
+              placeholder="Tất cả"
+            />
+          ) : f.type === 'select' ? (
+            <SearchableSelect
+              options={f.hasDynamicOptions ? (dynamicOptions[f.field] || []) : (f.options || [])}
+              value={values[f.field] ?? f.default ?? ''}
+              onChange={(v) => setValue(f.field, v)}
+              loading={!!loadingFields[f.field]}
+              placeholder="Chọn..."
             />
           ) : (
             <input

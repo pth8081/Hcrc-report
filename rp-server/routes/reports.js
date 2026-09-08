@@ -18,10 +18,13 @@
 //                    cần trộn "hôm nay" (directDb/apiRealtime) với "cùng kỳ
 //                    năm trước" + "chỉ tiêu" (dwh.SalesTargets), xem README
 //                    mục "Báo cáo ghép nhiều nguồn (composite)".
+//   'topZeroStock' — báo cáo riêng "Top bán chạy tồn kho = 0" (tự xếp hạng +
+//                    lọc ngưỡng tồn kho, không phải SELECT phẳng), xem
+//                    lib/topSellingZeroStockRunner.js.
 const express = require('express');
 const { sql, getPool } = require('../db');
 const { requireAuth } = require('../lib/auth');
-const { loadDefinition, runDefinition } = require('../lib/reportRunner');
+const { loadDefinition, runDefinition, resolveFactsPool } = require('../lib/reportRunner');
 const { exportExcel } = require('../lib/exportExcel');
 const { exportPdf } = require('../lib/exportPdf');
 const { getUserContext } = require('../lib/permissions');
@@ -91,7 +94,63 @@ router.get('/:reportId', async (req, res, next) => {
     // "visualization" (xem hướng_dẫn_báo_cáo.md mục "Biểu đồ") an toàn để lộ
     // thêm — chỉ khai loại biểu đồ/cột nào vẽ trục X, trục giá trị, không
     // đụng gì tới nguồn dữ liệu nội bộ như 3 trường bị chặn ở trên.
-    res.json({ title: definition.title, filters: definition.filters || [], visualization: definition.visualization || null });
+    // filters[].optionsSource (domain/tên field JSON nội bộ dùng để dựng
+    // danh sách lựa chọn động — xem GET /:reportId/filter-options/:field)
+    // cũng là chi tiết kiến trúc nguồn, KHÔNG gửi nguyên cho client — chỉ
+    // báo `hasDynamicOptions: true` để rp-user biết cần gọi route đó.
+    const filters = (definition.filters || []).map(f => {
+      if (!f.optionsSource) return f;
+      const { optionsSource, ...rest } = f;
+      return { ...rest, hasDynamicOptions: true };
+    });
+    res.json({ title: definition.title, filters, visualization: definition.visualization || null });
+  } catch (err) { next(err); }
+});
+
+// Lấy danh sách lựa chọn THẬT cho 1 ô lọc select/multiSelect (yêu cầu:
+// "tất cả kiểu chọn và lọc trong report" phải là dropdown searchable +
+// multi-select nối dữ liệu thật, không gõ tay) — chỉ áp dụng cho filter có
+// khai `optionsSource` (đọc DISTINCT giá trị 1 field trong Dimensions của
+// domain đã đồng bộ qua ETL, vd danh sách chi nhánh của báo cáo
+// topZeroStock). Filter KHÔNG khai optionsSource (đã có sẵn `options` tĩnh
+// trong definition.filters, vd 4 lựa chọn "Khoảng thời gian xếp hạng") thì
+// KHÔNG gọi route này — rp-user dùng luôn `options` trả về ở GET
+// /:reportId. `optionsSource` (tên domain/field nội bộ) KHÔNG lộ ra
+// response — chỉ dùng ở server để dựng câu truy vấn, cùng nguyên tắc che
+// giấu kiến trúc nguồn dữ liệu như route GET /:reportId ở trên.
+router.get('/:reportId/filter-options/:field', async (req, res, next) => {
+  try {
+    if (!(await requireReportAccess(req, res, req.params.reportId))) return;
+    const definition = await loadDefinition(req.params.reportId);
+    if (!definition || !definition.isActive) return res.status(404).json({ error: 'Không tìm thấy báo cáo' });
+
+    const filterDef = (definition.filters || []).find(f => f.field === req.params.field);
+    if (!filterDef || !filterDef.optionsSource) return res.status(404).json({ error: 'Bộ lọc không có danh sách lựa chọn động' });
+
+    const { domain, valueField, labelField } = filterDef.optionsSource;
+    // valueField/labelField chèn thẳng vào chuỗi SQL (JSON_VALUE path) —
+    // dù đến từ DefinitionJson do admin cấu hình (không phải người dùng
+    // cuối gõ), vẫn kiểm tra ký tự để nhất quán với nguyên tắc "không cột
+    // nào ngoài chữ/số/gạch dưới lọt vào câu SQL" (xem
+    // etl/lib/tableSyncEngine.js:assertSafeIdentifier).
+    const FIELD_RE = /^[A-Za-z0-9_]+$/;
+    if (!FIELD_RE.test(valueField) || (labelField && !FIELD_RE.test(labelField))) {
+      return res.status(500).json({ error: 'Cấu hình optionsSource không hợp lệ' });
+    }
+    const pool = await resolveFactsPool(definition);
+    const result = await pool.request()
+      .input('domain', sql.VarChar(50), domain)
+      .query(`
+        SELECT
+          JSON_VALUE(Dimensions, '$.${valueField}') AS value,
+          MAX(JSON_VALUE(Dimensions, '$.${labelField || valueField}')) AS label
+        FROM dwh.ReportFacts
+        WHERE Domain = @domain
+        GROUP BY JSON_VALUE(Dimensions, '$.${valueField}')
+        HAVING JSON_VALUE(Dimensions, '$.${valueField}') IS NOT NULL
+        ORDER BY MAX(JSON_VALUE(Dimensions, '$.${labelField || valueField}'))
+      `);
+    res.json(result.recordset);
   } catch (err) { next(err); }
 });
 

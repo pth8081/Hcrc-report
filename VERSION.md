@@ -15,6 +15,54 @@ không chặt: patch/minor/major), GIỮ NGUYÊN không đánh số lại — `0
 (gần nhất theo quy tắc cũ) tương ứng **`4.1`** theo quy tắc mới, là điểm
 bắt đầu đếm tiếp từ đây.
 
+## 6.11 — Báo cáo "Top bán chạy đang tồn kho = 0" (tự xếp hạng) + dropdown searchable cho mọi bộ lọc
+
+Yêu cầu ban đầu (upload thủ công top-50 mặt hàng) được thảo luận lại và
+đổi hướng: báo cáo TỰ TÍNH danh sách bán chạy nhất mỗi chi nhánh từ dữ
+liệu bán hàng thật (theo SỐ LƯỢNG), không upload/chọn từ danh sách có
+sẵn — chỉ những mặt hàng ĐANG hết hàng trong top đó mới hiện ra.
+
+- **`rp-db/schema.sql`** — thêm `'topZeroStock'` vào
+  `CK_ReportCatalog_SourceType` (cả CREATE TABLE lẫn khối migration
+  drop+recreate).
+- **`rp-server/lib/topSellingZeroStockRunner.js`** (mới) — bộ máy báo cáo
+  riêng cho `SourceType='topZeroStock'`: cộng dồn số lượng bán mỗi thực
+  thể (`<MãChiNhánh>_<MãHàng>`) trong khoảng ngày người dùng chọn
+  (`rankWindow`: `1` ngày hôm trước / `7` / `30` ngày gần nhất / `daily`
+  trong ngày), xếp hạng TOP N (mặc định 50) riêng từng chi nhánh, tra tồn
+  kho ở NGÀY GẦN NHẤT CÓ DỮ LIỆU (tự lùi ngày nếu hôm nay chưa đồng bộ,
+  không cố định "hôm nay"), giữ lại thực thể tồn kho <= ngưỡng
+  (`threshold`, mặc định 0, sửa được trong `DefinitionJson` không cần đổi
+  code — giống `dwh.AnomalyAlerts`). Chỉ tính mặt hàng có bán > 0 trong kỳ
+  (hàng không bán không bị coi là "hết hàng").
+- **`rp-server/lib/reportRunner.js`** — thêm nhánh dispatch
+  `sourceType==='topZeroStock'`, xuất thêm `resolveFactsPool` để dùng
+  chung cho route lấy danh sách lựa chọn động bên dưới.
+- **`rp-server/routes/reports.js`** — route mới
+  `GET /:reportId/filter-options/:field`: đọc DISTINCT giá trị 1 field
+  trong `Dimensions` của domain đã đồng bộ (khai qua
+  `definition.filters[].optionsSource`), dùng để lấp danh sách chi nhánh
+  thật cho bộ lọc `branches` — KHÔNG lộ `optionsSource` (tên domain/field
+  nội bộ) ra `GET /:reportId` cho client, chỉ báo cờ `hasDynamicOptions`.
+- **Áp dụng CHUNG cho mọi báo cáo** (không riêng báo cáo này) — yêu cầu
+  "tất cả kiểu chọn và lọc trong report" phải là dropdown searchable +
+  multi-select + "chọn tất cả":
+  - **`rp-user/src/components/SearchableSelect.jsx`** (mới) — dropdown
+    dùng chung, có ô tìm kiếm, chế độ multi có "Chọn tất cả"/"Bỏ chọn tất
+    cả", đóng khi bấm ra ngoài/Esc.
+  - **`rp-user/src/components/FilterForm.jsx`** — viết lại, dùng
+    `SearchableSelect` cho `select`/`multiSelect` (trước đây là ô nhập
+    tay/gõ mã cách nhau dấu phẩy); tự gọi
+    `GET /reports/:reportId/filter-options/:field` khi filter có
+    `hasDynamicOptions`.
+  - **`rp-user/src/styles.css`** — thêm CSS cho `.searchable-select*`.
+- **`hướng_dẫn_báo_cáo.md`** — thêm mục 12: 2 mẫu VIEW nguồn
+  (`vw_BanHangTheoSKU` lọc `TRANS_CODE` đúng giao dịch bán — DBA chỉnh lại
+  bằng `ALTER VIEW` khi cần, không cần sửa etl-admin/code;
+  `vw_TonKhoTheoSKU`), cấu hình 2 job "Theo bảng" (BẬT "Giữ lịch sử theo
+  ngày" — bắt buộc), mẫu `DefinitionJson` đầy đủ, tóm tắt công thức tính,
+  và ghi chú áp dụng dropdown searchable cho mọi báo cáo.
+
 ## 6.10 — Tách "Hướng dẫn triển khai.md" thành 2 file PM2/PM2+Nginx riêng
 
 Người dùng phản hồi file `Hướng dẫn triển khai.md` (gộp Cách A/Cách B,

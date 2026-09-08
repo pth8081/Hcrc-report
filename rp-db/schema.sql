@@ -350,7 +350,15 @@ GO
 --                   DefinitionJson.columns dạng field thô đơn giản như
 --                   'directDb' — mọi cột nên là công thức tham chiếu
 --                   "tenKhoi.field..." (dữ liệu đã lồng theo từng khối).
--- 'apiReport'/'apiRealtime'/'externalApi'/'composite' đều KHÔNG cần
+--   'topZeroStock' — bc riêng "Top bán chạy tồn kho = 0" (tự XẾP HẠNG top N
+--                   mặt hàng bán chạy nhất mỗi chi nhánh theo Qty trong 1
+--                   khoảng thời gian chọn được, rồi LỌC những mặt hàng đang
+--                   tồn kho <= ngưỡng) — không phải SELECT phẳng như
+--                   'directDb' nên có bộ máy riêng, xem
+--                   lib/topSellingZeroStockRunner.js đầu file cho hình dạng
+--                   DefinitionJson đầy đủ (salesDomain/stockDomain/topN/
+--                   threshold).
+-- 'apiReport'/'apiRealtime'/'externalApi'/'composite'/'topZeroStock' đều KHÔNG cần
 -- DataSourceId ở CỘT NÀY — Report Server không tự mở thêm kết nối DB riêng
 -- cho các loại này ('composite' có thể tự khai dataSourceId RIÊNG cho từng
 -- khối trong DefinitionJson.blocks).
@@ -363,7 +371,7 @@ BEGIN
         MenuItemId     INT           NOT NULL REFERENCES app.MenuItems(Id),
         DataSourceId   INT           NULL REFERENCES app.ReportDataSources(Id),
         SourceType     VARCHAR(20)   NOT NULL DEFAULT 'directDb'
-            CONSTRAINT CK_ReportCatalog_SourceType CHECK (SourceType IN ('directDb', 'apiReport', 'apiRealtime', 'externalApi', 'composite')),
+            CONSTRAINT CK_ReportCatalog_SourceType CHECK (SourceType IN ('directDb', 'apiReport', 'apiRealtime', 'externalApi', 'composite', 'topZeroStock')),
         ApiConnectionId INT          NULL REFERENCES app.ApiConnections(Id),
         ApiTarget       NVARCHAR(200) NULL,
         ExternalConnectionId INT     NULL REFERENCES app.ExternalApiConnections(Id),
@@ -394,14 +402,14 @@ BEGIN
     ALTER TABLE app.ReportCatalog ADD ExternalConnectionId INT NULL REFERENCES app.ExternalApiConnections(Id);
 END
 -- Bản cũ tạo CK_ReportCatalog_SourceType chưa đủ giá trị mới nhất (thiếu
--- 'externalApi' và/hoặc 'composite') — xoá và tạo lại cho đủ, kể cả khi đã
--- đủ (rẻ, an toàn).
+-- 'externalApi'/'composite'/'topZeroStock') — xoá và tạo lại cho đủ, kể cả
+-- khi đã đủ (rẻ, an toàn).
 IF EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = 'CK_ReportCatalog_SourceType')
 BEGIN
     ALTER TABLE app.ReportCatalog DROP CONSTRAINT CK_ReportCatalog_SourceType;
 END
 ALTER TABLE app.ReportCatalog ADD CONSTRAINT CK_ReportCatalog_SourceType
-    CHECK (SourceType IN ('directDb', 'apiReport', 'apiRealtime', 'externalApi', 'composite'));
+    CHECK (SourceType IN ('directDb', 'apiReport', 'apiRealtime', 'externalApi', 'composite', 'topZeroStock'));
 GO
 
 IF OBJECT_ID('app.RoleReportAccess', 'U') IS NULL

@@ -1333,3 +1333,173 @@ trong lịch sử phát triển) — chỉ cần điền `Server`/`DatabaseName`
 từng nguồn. File gốc không lưu lại phía máy chủ (đọc thẳng vào bộ nhớ, xem
 `etl/lib/dataSourcesImport.js`) — chỉ cần xoá file trên máy sau khi tải
 lên.
+
+## 12. Báo cáo "Top bán chạy đang tồn kho = 0" — tự xếp hạng, không upload danh sách
+
+Báo cáo tự động daily, mỗi chi nhánh tự tính TOP N mặt hàng bán chạy nhất
+(theo SỐ LƯỢNG bán, không phải doanh thu) trong 1 khoảng thời gian chọn
+được, rồi lọc ra đúng những mặt hàng trong top đó ĐANG hết hàng (tồn kho
+<= ngưỡng) — khác hẳn kiểu "Chỉ tiêu" (mục 1/6): KHÔNG upload danh sách mặt
+hàng lên etl-admin, hệ thống tự tính lại danh sách top mỗi lần chạy báo
+cáo, dùng ngay dữ liệu bán hàng/tồn kho đã đồng bộ.
+
+Gửi email tự động: dùng NGUYÊN tính năng "Lịch gửi email báo cáo" đã có sẵn
+(`rp-server/jobs/reportEmailScheduler.js`, chế độ đính kèm Excel) — báo cáo
+này chỉ cần tồn tại như 1 dòng `app.ReportCatalog` bình thường là chọn được
+trong lịch gửi, không cần code thêm gì cho phần email.
+
+### Bước 1 — Nguồn: 2 VIEW tại DSMART16, gộp sẵn "Mã thực thể" = ChiNhánh_MãHàng
+
+Giống nguyên tắc mục 6 — job "Theo bảng" chỉ nhận 1 cột có sẵn làm EntityCode
+và không tự gộp (SUM) được nhiều dòng trùng khoá khi ghi vào
+`dwh.ReportFacts` (xem `etl/lib/upsert.js` — MERGE báo lỗi nếu dữ liệu nạp
+vào trùng khoá `EntityCode+EventDate`, không tự cộng dồn) — nên PHẢI gộp sẵn
+theo ngày TẠI NGUỒN bằng VIEW trước khi ETL đọc.
+
+**VIEW doanh số theo SKU** (đã lọc đúng giao dịch BÁN THẬT qua `TRANS_CODE`
+— danh sách mã trong `WHERE` dưới đây CHỈ LÀ VÍ DỤ, phải đối chiếu với DBA
+DSMART16 xem mã nào là bán lẻ thật, khác trả hàng/chuyển kho/nhập hàng —
+xem `TRCODE.TRAN_TYPE`/`TRCODE.TRAN_GRP`; sửa lại danh sách này bằng
+`ALTER VIEW` bất kỳ lúc nào KHÔNG cần đổi code hay cấu hình etl-admin):
+
+```sql
+CREATE VIEW dbo.vw_BanHangTheoSKU AS
+SELECT
+    s.STK_ID + '_' + CAST(s.SKU_ID AS VARCHAR(50)) AS MaThucThe,  -- Cột khoá (EntityCode)
+    s.STK_ID     AS MaChiNhanh,
+    st.STK_NAME  AS TenChiNhanh,
+    k.SKU_CODE   AS MaHangHienThi,
+    k.FULL_NAME  AS TenHang,
+    CAST(s.TRAN_DATE AS DATE) AS EventDate,     -- Cột ngày
+    SUM(s.QTY)   AS SoLuongBan,                 -- Measures
+    MAX(s.TRAN_DATE) AS UpdatedAt               -- Cột watermark
+FROM dbo.STRANS s
+JOIN dbo.SKU_DEF k ON k.SKU_ID = s.SKU_ID
+JOIN dbo.STOCK st ON st.STK_ID = s.STK_ID
+WHERE s.TRANS_CODE IN ('01', '02')  -- CHỈ VÍ DỤ — thay đúng mã bán lẻ thật
+GROUP BY s.STK_ID, st.STK_NAME, s.SKU_ID, k.SKU_CODE, k.FULL_NAME, CAST(s.TRAN_DATE AS DATE);
+```
+
+**VIEW tồn kho theo SKU** (đã có sẵn 1 dòng/chi nhánh/mặt hàng/ngày trong
+`DSTK_INFO`, không cần `GROUP BY`):
+
+```sql
+CREATE VIEW dbo.vw_TonKhoTheoSKU AS
+SELECT
+    d.STK_ID + '_' + CAST(d.SKU_ID AS VARCHAR(50)) AS MaThucThe,
+    d.STK_ID    AS MaChiNhanh,
+    st.STK_NAME AS TenChiNhanh,
+    k.SKU_CODE  AS MaHangHienThi,
+    k.FULL_NAME AS TenHang,
+    d.WORK_DATE AS EventDate,
+    d.STOCK_QTY AS SoLuongTon,
+    d.WORK_DATE AS UpdatedAt
+FROM dbo.DSTK_INFO d
+JOIN dbo.SKU_DEF k ON k.SKU_ID = d.SKU_ID
+JOIN dbo.STOCK st ON st.STK_ID = d.STK_ID;
+```
+
+(Đổi tên bảng/cột đúng CSDL thật nếu khác — đây là khung dựng theo cấu
+trúc DSMART16 đã học ở mục 11.)
+
+### Bước 2 — etl-admin: 2 job "Theo bảng" mới
+
+**Job doanh số:**
+- **Bảng nguồn**: `dbo.vw_BanHangTheoSKU`.
+- **Cột khoá (EntityCode)**: `MaThucThe`. **Cột ngày**: `EventDate`.
+  **Cột watermark**: `UpdatedAt`.
+- **Dimensions**: tick `MaChiNhanh`, `TenChiNhanh`, `MaHangHienThi`, `TenHang`.
+- **Measures**: tick `SoLuongBan`.
+- **Domain**: `banhang_sku`.
+- **BẬT "Giữ lịch sử theo ngày"** — BẮT BUỘC (không phải tuỳ chọn): báo cáo
+  cần cộng dồn nhiều ngày cho lựa chọn "7 ngày gần nhất"/"30 ngày gần
+  nhất" — tắt "Giữ lịch sử" sẽ chỉ còn đúng 1 ngày mới nhất, sai hoàn toàn
+  với 2 lựa chọn đó.
+
+**Job tồn kho:**
+- **Bảng nguồn**: `dbo.vw_TonKhoTheoSKU`.
+- **Cột khoá (EntityCode)**: `MaThucThe`. **Cột ngày**: `EventDate`.
+  **Cột watermark**: `UpdatedAt`.
+- **Dimensions**: tick `MaChiNhanh`, `TenChiNhanh`, `MaHangHienThi`, `TenHang`.
+- **Measures**: tick `SoLuongTon`.
+- **Domain**: `tonkho_sku`.
+- **BẬT "Giữ lịch sử theo ngày"** — BẮT BUỘC: báo cáo LUÔN lấy tồn kho ở
+  NGÀY GẦN NHẤT CÓ DỮ LIỆU (không cố định "hôm nay") — nếu job etl-admin
+  hôm nay chưa kịp chạy, báo cáo tự lùi về ngày gần nhất đã đồng bộ, cần
+  còn giữ các ngày cũ mới lùi được.
+
+### Bước 3 — rp-user (thật ra là admin): tạo báo cáo `SourceType='topZeroStock'`
+
+Đây là `SourceType` RIÊNG (khác `directDb`/`composite`) — có bộ máy tính
+toán chuyên biệt (`rp-server/lib/topSellingZeroStockRunner.js`), không dùng
+`definition.columns` như báo cáo thường (cột hiển thị CỐ ĐỊNH: Chi nhánh,
+Mã hàng, Tên hàng, Số lượng bán (trong kỳ), Tồn kho hiện tại).
+
+```json
+{
+  "title": "Top bán chạy đang tồn kho = 0",
+  "salesDomain": "banhang_sku",
+  "stockDomain": "tonkho_sku",
+  "topN": 50,
+  "threshold": 0,
+  "filters": [
+    {
+      "field": "rankWindow",
+      "type": "select",
+      "label": "Khoảng thời gian xếp hạng",
+      "options": [
+        { "value": "1", "label": "Ngày hôm trước" },
+        { "value": "7", "label": "7 ngày gần nhất" },
+        { "value": "30", "label": "30 ngày gần nhất" },
+        { "value": "daily", "label": "Trong ngày" }
+      ]
+    },
+    {
+      "field": "branches",
+      "type": "multiSelect",
+      "label": "Chi nhánh",
+      "optionsSource": { "domain": "banhang_sku", "valueField": "MaChiNhanh", "labelField": "TenChiNhanh" }
+    }
+  ]
+}
+```
+
+Lưu vào `app.ReportCatalog` với `SourceType = 'topZeroStock'` (cần
+migration đã chạy sẵn thêm giá trị này vào `CK_ReportCatalog_SourceType`,
+xem `rp-db/schema.sql`), `DefinitionJson` là JSON ở trên.
+
+Giải thích 2 loại bộ lọc:
+- `rankWindow` — 4 lựa chọn CỐ ĐỊNH khai thẳng trong `options` (không cần
+  dữ liệu động) — rp-user vẽ dropdown chọn 1.
+- `branches` — dùng `optionsSource` thay vì `options` tĩnh: rp-user gọi
+  `GET /api/reports/:reportId/filter-options/branches` để lấy đúng danh
+  sách MÃ CHI NHÁNH đang có dữ liệu thật (đọc DISTINCT `Dimensions` của
+  domain khai trong `optionsSource` — xem `routes/reports.js`), không phải
+  gõ tay/liệt kê cứng trong code. Bỏ trống (không chọn chi nhánh nào) =
+  coi như CHỌN TẤT CẢ, đúng yêu cầu ban đầu ("chọn all là liệt kê all siêu
+  thị").
+
+### Bước 4 — Cách tính (đã cài trong `topSellingZeroStockRunner.js`), tóm tắt để đối chiếu khi có sai lệch
+
+1. Cộng dồn `SoLuongBan` mỗi thực thể (`MaChiNhanh_MaHang`) trong khoảng
+   ngày theo `rankWindow` (`1`/`7`/`30` tính theo ngày ĐÃ CHỐT SỔ, kết thúc
+   ở hôm qua; `daily` là trong ngày hôm nay) — CHỈ giữ thực thể có tổng > 0
+   (hàng không bán trong kỳ không được coi là "hết hàng").
+2. Xếp hạng TOP N (mặc định 50) theo `SoLuongBan` RIÊNG TỪNG chi nhánh.
+3. Với đúng các thực thể lọt top, tra `SoLuongTon` ở dòng NGÀY GẦN NHẤT CÓ
+   DỮ LIỆU của domain tồn kho (không phụ thuộc `rankWindow`) — thực thể
+   chưa từng có dữ liệu tồn kho bị loại (không đủ căn cứ kết luận hết
+   hàng), không mặc định coi là 0.
+4. Giữ lại thực thể có `SoLuongTon <= threshold` (mặc định 0). Đổi ngưỡng
+   sau này CHỈ cần sửa `threshold` trong `DefinitionJson` (giống cách
+   `dwh.AnomalyAlerts` cấu hình ngưỡng) — không cần sửa code.
+
+### Áp dụng chung: mọi ô chọn/lọc trong rp-user giờ là dropdown searchable + multi-select
+
+Từ báo cáo này trở đi, MỌI ô lọc kiểu `select`/`multiSelect` trong
+`FilterForm.jsx` đều vẽ qua `components/SearchableSelect.jsx` — có ô tìm
+kiếm, multi-select có thêm "Chọn tất cả"/"Bỏ chọn tất cả" — thay cho ô nhập
+tay/gõ mã cách nhau dấu phẩy trước đây. Áp dụng cho MỌI báo cáo cũ lẫn mới,
+không riêng báo cáo này. Lựa chọn (options) khai tĩnh trong
+`DefinitionJson.filters[].options`, hoặc khai `optionsSource` (như
+`branches` ở trên) để lấy danh sách thật từ `dwh.ReportFacts`.

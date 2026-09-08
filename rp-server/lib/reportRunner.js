@@ -9,6 +9,7 @@ const { runReport, projectColumns, describeColumns } = require('./reportEngine')
 const { runApiReport } = require('./apiReportClient');
 const { runExternalReport } = require('./externalReportClient');
 const { runCompositeReport } = require('./compositeReportRunner');
+const { runTopZeroStockReport } = require('./topSellingZeroStockRunner');
 
 async function loadDefinition(reportId) {
   const rpPool = await getPool('RP');
@@ -51,12 +52,18 @@ async function resolveFactsPool(definition) {
 // 1 dòng/thực thể theo entityCode RỒI mới tự chiếu cột + tính công thức tại
 // chỗ (xem lib/compositeReportRunner.js) — KHÔNG áp dụng pagination
 // (composite luôn trả toàn bộ dòng, cần đủ để tính "Tổng cộng" ở tầng gọi).
+// 'topZeroStock' tự xếp hạng top N mặt hàng bán chạy mỗi chi nhánh rồi lọc
+// tồn kho <= ngưỡng, cột hiển thị CỐ ĐỊNH (không dùng definition.columns) —
+// xem lib/topSellingZeroStockRunner.js.
 async function runDefinition(definition, filterValues, pagination) {
   if (definition.sourceType === 'externalApi') {
     return runExternalReport(definition, filterValues);
   }
   if (definition.sourceType === 'composite') {
     return runCompositeReport(definition, filterValues);
+  }
+  if (definition.sourceType === 'topZeroStock') {
+    return runTopZeroStockReport(definition, filterValues);
   }
   if (definition.sourceType && definition.sourceType !== 'directDb') {
     return runApiReport(definition, filterValues, pagination);
@@ -66,4 +73,4 @@ async function runDefinition(definition, filterValues, pagination) {
   return { columns: describeColumns(definition.columns), rows: rows.map(r => projectColumns(r, definition.columns)) };
 }
 
-module.exports = { loadDefinition, runDefinition };
+module.exports = { loadDefinition, runDefinition, resolveFactsPool };

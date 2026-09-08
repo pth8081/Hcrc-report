@@ -37,6 +37,21 @@ button:hover { opacity: 0.9; }
 .stacked-form { display: flex; flex-direction: column; gap: 10px; max-width: 420px; margin-bottom: 20px; }
 .checkbox-row { flex-direction: row; align-items: center; gap: 6px; font-size: 14px; color: var(--ink); }
 .date-range { display: flex; align-items: center; gap: 6px; }
+
+/* SearchableSelect (components/SearchableSelect.jsx) — dropdown searchable +
+   multi-select dùng chung cho mọi ô chọn/lọc, xem FilterForm.jsx. */
+.searchable-select { position: relative; min-width: 220px; }
+.searchable-select-toggle { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px; background: var(--surface); color: var(--ink); border: 1px solid var(--line); text-align: left; }
+.searchable-select-toggle span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.searchable-select-caret { color: var(--ink-soft); font-size: 11px; }
+.searchable-select-panel { position: absolute; z-index: 20; top: calc(100% + 4px); left: 0; min-width: 100%; width: max-content; max-width: 320px; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; box-shadow: 0 6px 18px rgba(0,0,0,0.12); padding: 8px; }
+.searchable-select-search { width: 100%; margin-bottom: 6px; }
+.searchable-select-actions { display: flex; gap: 6px; margin-bottom: 6px; }
+.searchable-select-actions button { padding: 4px 8px; font-size: 12px; background: var(--accent-soft); border-color: var(--accent-soft); color: var(--ink); }
+.searchable-select-list { max-height: 220px; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
+.searchable-select-option { flex-direction: row; align-items: center; gap: 6px; font-size: 13px; color: var(--ink); padding: 3px 4px; border-radius: 4px; cursor: pointer; }
+.searchable-select-option:hover { background: var(--bg); }
+.searchable-select-empty { color: var(--ink-soft); font-size: 12.5px; padding: 6px 4px; }
 .form-error { color: #b3261e; font-size: 13px; }
 .form-warning { color: #8a5a00; background: #fff4dd; border: 1px solid #f0c674; border-radius: 6px; padding: 8px 12px; font-size: 13px; margin: 0 0 10px; }
 .form-success { color: #1c7566; font-size: 13px; }
