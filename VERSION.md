@@ -15,6 +15,18 @@ không chặt: patch/minor/major), GIỮ NGUYÊN không đánh số lại — `0
 (gần nhất theo quy tắc cũ) tương ứng **`4.1`** theo quy tắc mới, là điểm
 bắt đầu đếm tiếp từ đây.
 
+**TỰ ĐỘNG, không cần nhắc**: mọi lần merge vào `main` PHẢI kèm 1 mục mới ở
+đây trong CÙNG một lượt (đọc số mới nhất bên dưới, tự tăng theo quy tắc
+trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
+hỏi lại số tiếp theo là gì.
+
+## 6.14 — Ghi rõ quy tắc: tự động đánh version ở mọi lần merge, không cần nhắc
+
+Người dùng yêu cầu việc cập nhật `VERSION.md` diễn ra tự động sau mỗi lần
+merge vào `main`, không cần nhắc riêng — ghi thẳng thành quy tắc trong
+chính file này (đoạn "TỰ ĐỘNG, không cần nhắc" ở đầu file) để chắc chắn áp
+dụng nhất quán, kể cả ở phiên làm việc sau này.
+
 ## 6.13 — Báo cáo tồn=0: sửa công thức tồn kho + thêm cột Chờ nhập/Đã nhập
 
 Người dùng phát hiện công thức tồn kho cũ (đọc thẳng snapshot "ngày gần
