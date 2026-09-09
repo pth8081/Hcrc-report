@@ -20,6 +20,16 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 6.16 — Voucher: xác nhận giá trị thật STATUS trên PMCRDINF
+
+Người dùng xác nhận `PMCRDINF.STATUS`: `1` = CHƯA thu hồi (voucher còn
+dùng được), `0` = ĐÃ thu hồi (đã dùng) — thay cho placeholder "CẦN DBA xác
+nhận" ở mục 13. Không cần đổi code (giá trị "đã dùng" vốn đã cấu hình được
+qua trang "Endpoint ghi", xem phiên bản 6.12) — chỉ cập nhật
+`hướng_dẫn_báo_cáo.md` mục 13 với giá trị thật, để lúc tạo endpoint ghi
+`vouchers-redeem` điền đúng `0` vào ô "Giá trị đánh dấu đã dùng" ngay từ
+đầu, không cần đoán/sửa lại sau.
+
 ## 6.15 — Xoá deploy/README.md — 2 file "Hướng dẫn triển khai..." + "Hướng dẫn nghiệp vụ.md" là tài liệu chính thức duy nhất
 
 Người dùng yêu cầu xoá hẳn `deploy/README.md` (bản gốc trước khi tách

@@ -1615,12 +1615,12 @@ không riêng báo cáo này. Lựa chọn (options) khai tĩnh trong
 ## 13. Voucher: đối tác ngoài kiểm tra trạng thái + báo đã dùng
 
 Yêu cầu: đồng bộ dữ liệu voucher sang DWH, cho đối tác ngoài (1) kiểm tra
-trạng thái 1 voucher, (2) báo voucher đã dùng. Bảng nguồn tại DSMART16 (cần
-DBA xác nhận đúng — cấu trúc học được từ schema, CHƯA có dữ liệu thật để
-đối chiếu):
+trạng thái 1 voucher, (2) báo voucher đã dùng. Bảng nguồn tại DSMART16:
 
 - `PMCRDINF` — thẻ/voucher gốc: `CARD_ID`, `BARCODE`, `VALUE_AMT`,
-  `BAL_AMT` (số dư), `STATUS`, `DUE_DATE`, `ISS_DATE`, `STK_ID`.
+  `BAL_AMT` (số dư), `STATUS`, `DUE_DATE`, `ISS_DATE`, `STK_ID`. **Đã xác
+  nhận với người dùng**: `STATUS = 1` là CHƯA thu hồi (voucher còn dùng
+  được), `STATUS = 0` là ĐÃ thu hồi (đã dùng).
 - `PMCRDISS` — giao dịch PHÁT HÀNH voucher.
 - `PMCRDRCV` — giao dịch NHẬN/ĐỔI (redeem) voucher.
 
@@ -1650,9 +1650,12 @@ liệu vận hành (mọi engine khác — ETL, Endpoint realtime, mọi báo c�
 - **Bảng**: `PMCRDINF`.
 - **Cột khoá**: `BARCODE` (giá trị đối tác gửi trong URL).
 - **Cột trạng thái**: `STATUS` — cột SẼ BỊ GHI ĐÈ.
-- **Giá trị đánh dấu "đã dùng"**: giá trị `STATUS` thật thể hiện voucher đã
-  dùng/đóng — CẦN DBA xác nhận đúng mã (chưa có dữ liệu thật để suy ra,
-  nhập tạm rồi sửa lại qua "Sửa" nếu sai — không cần deploy lại).
+- **Giá trị đánh dấu "đã dùng"**: `0` (đã xác nhận với người dùng —
+  `PMCRDINF.STATUS`: `1` = CHƯA thu hồi, `0` = ĐÃ thu hồi/đã dùng). Endpoint
+  ghi sẽ đổi `STATUS` từ `1` sang `0`; voucher đã ở `STATUS = 0` từ trước
+  thì trả `alreadyUsed: true`, không ghi đè lại. Đổi mã này sau nếu DBA
+  xác nhận khác đi chỉ cần sửa qua trang "Endpoint ghi", không cần deploy
+  lại.
 
 Sau khi lưu, đối tác gọi:
 
