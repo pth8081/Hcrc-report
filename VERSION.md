@@ -15,6 +15,44 @@ không chặt: patch/minor/major), GIỮ NGUYÊN không đánh số lại — `0
 (gần nhất theo quy tắc cũ) tương ứng **`4.1`** theo quy tắc mới, là điểm
 bắt đầu đếm tiếp từ đây.
 
+## 6.12 — Voucher: "Endpoint ghi" mới — đối tác ngoài báo đã dùng, ghi thẳng vào bảng nguồn
+
+Hoàn thiện yêu cầu voucher (kiểm tra trạng thái đã làm được từ trước qua
+"Endpoint realtime" có sẵn) — phần còn thiếu là cho đối tác ngoài BÁO đã
+dùng 1 voucher. Người dùng chốt: ghi thẳng vào bảng nguồn đang có (không
+tạo bảng riêng của HCRC), và voucher dùng 1 lần là thu luôn (không theo số
+dư). Đây là lần đầu hệ thống có đường GHI ngược lại nguồn dữ liệu vận hành
+— mọi engine khác từ trước tới giờ (ETL, Endpoint realtime, mọi báo cáo)
+đều chỉ đọc, nên tách hẳn bảng/route/scope/quyền riêng thay vì mở rộng cái
+đã có, và cố tình giới hạn chỉ 1 thao tác đơn giản (đổi 1 cột trạng thái)
+để dễ kiểm soát rủi ro.
+
+- **`api-db/schema.sql`** — 2 bảng mới: `api.RealtimeWriteEndpointDefs`
+  (Endpoint, DataSourceId, SchemaName, TableName, KeyColumn, StatusColumn,
+  UsedValue...) và `api.ConsumerRealtimeWriteAccess` (cấp quyền theo từng
+  đối tác, mặc định rỗng — cùng khuôn `ConsumerRealtimeAccess` nhưng bảng
+  riêng, đọc được không có nghĩa ghi được).
+- **`api-server/lib/realtimeWriteEngine.js`** (mới) — `runRedeem()`: 1
+  UPDATE nguyên tử `WHERE KeyColumn=@key AND (StatusColumn<>UsedValue OR
+  StatusColumn IS NULL)`, dùng `OUTPUT` để biết có đổi dòng không; không
+  đổi dòng nào thì SELECT lại phân biệt "không tồn tại" (404) với "đã dùng
+  từ trước" (idempotent — đối tác gọi trùng do timeout/lỗi mạng không bị
+  ghi đè/kích hoạt side-effect lần 2, không báo lỗi).
+- **`api-server/routes/admin/realtimeWriteEndpoints.js`** (mới) — CRUD,
+  đối chiếu schema thật lúc lưu (mirror `realtimeEndpoints.js` nhưng cấu
+  hình đơn giản hơn nhiều — không JOIN, không nhiều cột).
+- **`api-server/routes/v1/realtimeWrite.js`** (mới) —
+  `POST /api/v1/realtime-write/:endpoint/:key`, scope `realtimeWrite`
+  riêng (khác `realtime` đọc).
+- **`api-server/routes/admin/consumers.js`** — thêm GET/PUT
+  `/:id/write-access` (cùng khuôn report-access/realtime-access).
+- **`api-admin`** — trang mới "Endpoint ghi"
+  (`RealtimeWriteEndpointsPage.jsx`) + nav; `ConsumersPage.jsx` thêm scope
+  `realtimeWrite` và nút "Ghi được gọi".
+- **`hướng_dẫn_báo_cáo.md`** — mục 13: cấu hình đầy đủ cho voucher
+  (`PMCRDINF`, cột `STATUS`, giá trị "đã dùng" cần DBA xác nhận), giải
+  thích vì sao chỉ hỗ trợ đúng 1 thao tác đơn giản.
+
 ## 6.11 — Báo cáo "Top bán chạy đang tồn kho = 0" (tự xếp hạng) + dropdown searchable cho mọi bộ lọc
 
 Yêu cầu ban đầu (upload thủ công top-50 mặt hàng) được thảo luận lại và

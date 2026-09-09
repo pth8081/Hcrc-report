@@ -339,6 +339,55 @@ BEGIN
 END
 GO
 
+-- Định nghĩa MỘT endpoint GHI ngược lại nguồn dữ liệu vận hành (vd đối tác
+-- ngoài báo "voucher đã dùng" -> đổi thẳng STATUS trên bảng voucher gốc,
+-- xem hướng_dẫn_báo_cáo.md mục 13) — ĐƯỜNG DUY NHẤT trong toàn hệ thống
+-- được UPDATE ngược lại nguồn (mọi engine khác — ETL, Realtime đọc, báo cáo
+-- — CHỈ ĐỌC), nên tách hẳn bảng/route/scope riêng ('realtimeWrite', khác
+-- 'realtime' đọc — xem api-server/lib/apiAuth.js), không lẫn với
+-- RealtimeEndpointDefs (đọc) dù cùng dùng chung lib/schemaBrowser.js để
+-- admin chọn bảng/cột qua dropdown (xem
+-- api-server/lib/realtimeWriteEngine.js).
+--
+-- Chỉ hỗ trợ ĐÚNG 1 kiểu thao tác: đổi 1 CỘT TRẠNG THÁI (StatusColumn) của
+-- ĐÚNG 1 dòng (khớp KeyColumn) sang giá trị cố định (UsedValue) — đủ cho
+-- "voucher dùng 1 lần là thu luôn" (xác nhận với người dùng) — KHÔNG phải
+-- engine ghi tổng quát (không cập nhật nhiều cột, không trừ dần số dư).
+-- UPDATE có điều kiện StatusColumn <> UsedValue (hoặc NULL) ngay trong
+-- WHERE — atomic ở tầng CSDL, gọi trùng (đối tác thử lại do timeout) không
+-- ghi đè/kích hoạt side-effect (trigger nguồn) lần 2, xem runRedeem().
+IF OBJECT_ID('api.RealtimeWriteEndpointDefs', 'U') IS NULL
+BEGIN
+    CREATE TABLE api.RealtimeWriteEndpointDefs (
+        Endpoint     VARCHAR(50)   NOT NULL PRIMARY KEY,
+        Label        NVARCHAR(200) NOT NULL,
+        DataSourceId INT           NOT NULL REFERENCES api.DataSources(Id),
+        SchemaName   NVARCHAR(128) NOT NULL,
+        TableName    NVARCHAR(128) NOT NULL,
+        KeyColumn    NVARCHAR(128) NOT NULL,
+        StatusColumn NVARCHAR(128) NOT NULL,
+        UsedValue    NVARCHAR(50)  NOT NULL,
+        IsActive     BIT           NOT NULL DEFAULT 1,
+        CreatedAt    DATETIME2(3)  NOT NULL DEFAULT SYSUTCDATETIME()
+    );
+END
+GO
+
+-- Đối tác nào được gọi ENDPOINT GHI nào — CÙNG khuôn với
+-- api.ConsumerRealtimeAccess nhưng RIÊNG BẢNG (khác quyền đọc/ghi hoàn
+-- toàn) — MẶC ĐỊNH KHÔNG được gọi endpoint ghi nào dù API key có scope
+-- 'realtimeWrite' hợp lệ, phải admin gán rõ ràng từng endpoint (trang "Đối
+-- tác") — xem routes/v1/realtimeWrite.js.
+IF OBJECT_ID('api.ConsumerRealtimeWriteAccess', 'U') IS NULL
+BEGIN
+    CREATE TABLE api.ConsumerRealtimeWriteAccess (
+        ConsumerId INT         NOT NULL REFERENCES api.ApiConsumers(Id) ON DELETE CASCADE,
+        Endpoint   VARCHAR(50) NOT NULL REFERENCES api.RealtimeWriteEndpointDefs(Endpoint) ON DELETE CASCADE,
+        CONSTRAINT PK_ConsumerRealtimeWriteAccess PRIMARY KEY (ConsumerId, Endpoint)
+    );
+END
+GO
+
 -- Xác thực hai yếu tố (2FA/TOTP) — BẮT BUỘC cho Role='admin' (xem
 -- lib/twoFactor.js + routes/admin/twoFactor.js). TwoFactorSecretEncrypted mã
 -- hoá bằng API_ENCRYPTION_KEY (lib/crypto.js) — KHÔNG lưu plaintext.

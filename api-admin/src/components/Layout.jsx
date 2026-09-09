@@ -9,6 +9,7 @@ const NAV = [
   { path: '/consumers', label: 'Đối tác', icon: '🤝' },
   { path: '/data-sources', label: 'Nguồn dữ liệu', icon: '🔌' },
   { path: '/realtime-endpoints', label: 'Endpoint realtime', icon: '⚡' },
+  { path: '/realtime-write-endpoints', label: 'Endpoint ghi', icon: '✍️' },
   { path: '/report-catalog', label: 'Báo cáo', icon: '📊' },
   { path: '/live', label: 'Kết nối hiện tại', icon: '🌐' },
   { path: '/history', label: 'Lịch sử', icon: '🕓' },

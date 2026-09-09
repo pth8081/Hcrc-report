@@ -15,12 +15,17 @@
 // realtime thay vì báo cáo (xem routes/v1/realtime.js). Quan trọng khi nhiều
 // chi nhánh/siêu thị dùng chung API Server — không gán riêng, 1 đối tác có
 // scope "realtime" đọc được TOÀN BỘ endpoint của MỌI chi nhánh.
+//
+// "Ghi được gọi" (api.ConsumerRealtimeWriteAccess) — CÙNG khuôn nhưng BẢNG
+// RIÊNG hoàn toàn, cho endpoint GHI ngược lại nguồn (xem
+// routes/v1/realtimeWrite.js, trang "Endpoint ghi") — có quyền đọc 1
+// endpoint KHÔNG mặc nhiên ghi được endpoint cùng tên, phải gán riêng.
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/AuthContext';
 import DataTable from '../components/DataTable';
 
-const SCOPE_OPTIONS = ['reports', 'realtime'];
+const SCOPE_OPTIONS = ['reports', 'realtime', 'realtimeWrite'];
 const EMPTY_FORM = { name: '', authMethod: 'apiKey', scopes: [], rateLimitPerMinute: 120, allowedIps: '' };
 const AUTH_METHOD_LABELS = {
   apiKey: 'API key tĩnh',
@@ -62,6 +67,9 @@ export default function ConsumersPage() {
   const [accessReportIds, setAccessReportIds] = useState([]);
   const [realtimeAccessFor, setRealtimeAccessFor] = useState(null); // consumer đang gán endpoint realtime, hoặc null
   const [accessEndpoints, setAccessEndpoints] = useState([]);
+  const [writeEndpoints, setWriteEndpoints] = useState([]);
+  const [writeAccessFor, setWriteAccessFor] = useState(null); // consumer đang gán endpoint ghi, hoặc null
+  const [accessWriteEndpoints, setAccessWriteEndpoints] = useState([]);
   const [revealedCreds, setRevealedCreds] = useState(null); // { authMethod, ...bí mật } vừa tạo/luân chuyển
   const [error, setError] = useState('');
 
@@ -69,6 +77,7 @@ export default function ConsumersPage() {
     api.get('/consumers').then(setConsumers).catch(err => setError(err.message));
     api.get('/report-catalog').then(setReports).catch(err => setError(err.message));
     api.get('/realtime-endpoints').then(setEndpoints).catch(err => setError(err.message));
+    api.get('/realtime-write-endpoints').then(setWriteEndpoints).catch(err => setError(err.message));
   }
   useEffect(reload, []);
 
@@ -109,6 +118,26 @@ export default function ConsumersPage() {
     try {
       await api.put(`/consumers/${realtimeAccessFor.Id}/realtime-access`, { endpoints: accessEndpoints });
       setRealtimeAccessFor(null);
+    } catch (err) { setError(err.message); }
+  }
+
+  async function openWriteAccess(consumer) {
+    setError('');
+    try {
+      const { endpoints: current } = await api.get(`/consumers/${consumer.Id}/write-access`);
+      setAccessWriteEndpoints(current);
+      setWriteAccessFor(consumer);
+    } catch (err) { setError(err.message); }
+  }
+
+  function toggleWriteEndpointAccess(endpoint) {
+    setAccessWriteEndpoints(list => (list.includes(endpoint) ? list.filter(e => e !== endpoint) : [...list, endpoint]));
+  }
+
+  async function saveWriteAccess() {
+    try {
+      await api.put(`/consumers/${writeAccessFor.Id}/write-access`, { endpoints: accessWriteEndpoints });
+      setWriteAccessFor(null);
     } catch (err) { setError(err.message); }
   }
 
@@ -214,6 +243,7 @@ export default function ConsumersPage() {
                 <button type="button" onClick={() => setEditing({ ...c })}>Sửa</button>{' '}
                 <button type="button" onClick={() => openReportAccess(c)}>Báo cáo được gọi</button>{' '}
                 <button type="button" onClick={() => openRealtimeAccess(c)}>Realtime được gọi</button>{' '}
+                <button type="button" onClick={() => openWriteAccess(c)}>Ghi được gọi</button>{' '}
                 <button type="button" onClick={() => rotateSecret(c)}>Luân chuyển bí mật</button>{' '}
                 <button type="button" onClick={() => deleteConsumer(c)}>Xoá</button>
               </>
@@ -299,6 +329,32 @@ export default function ConsumersPage() {
             <div className="modal-actions">
               <button type="button" onClick={saveRealtimeAccess}>Lưu</button>
               <button type="button" onClick={() => setRealtimeAccessFor(null)}>Huỷ</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {writeAccessFor && (
+        <div className="modal">
+          <div className="modal-body">
+            <h3>Ghi được gọi — {writeAccessFor.Name}</h3>
+            <p>
+              Mặc định đối tác KHÔNG gọi được endpoint ghi nào dù có scope <code>realtimeWrite</code> — chỉ những
+              endpoint tick dưới đây mới gọi được qua <code>POST /api/v1/realtime-write/:endpoint/:key</code>. Đây
+              là endpoint GHI NGƯỢC LẠI nguồn dữ liệu vận hành — chỉ cấp cho đối tác thật sự cần.
+            </p>
+            {!writeEndpoints.length && <p className="empty-message">Chưa có endpoint ghi nào — thêm ở trang "Endpoint ghi" trước.</p>}
+            <div className="scope-picker">
+              {writeEndpoints.map(e => (
+                <label key={e.Endpoint} className="checkbox-row">
+                  <input type="checkbox" checked={accessWriteEndpoints.includes(e.Endpoint)} onChange={() => toggleWriteEndpointAccess(e.Endpoint)} />
+                  {e.Label} ({e.Endpoint} — {e.DataSourceName})
+                </label>
+              ))}
+            </div>
+            <div className="modal-actions">
+              <button type="button" onClick={saveWriteAccess}>Lưu</button>
+              <button type="button" onClick={() => setWriteAccessFor(null)}>Huỷ</button>
             </div>
           </div>
         </div>

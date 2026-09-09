@@ -1503,3 +1503,70 @@ tay/gõ mã cách nhau dấu phẩy trước đây. Áp dụng cho MỌI báo c�
 không riêng báo cáo này. Lựa chọn (options) khai tĩnh trong
 `DefinitionJson.filters[].options`, hoặc khai `optionsSource` (như
 `branches` ở trên) để lấy danh sách thật từ `dwh.ReportFacts`.
+
+## 13. Voucher: đối tác ngoài kiểm tra trạng thái + báo đã dùng
+
+Yêu cầu: đồng bộ dữ liệu voucher sang DWH, cho đối tác ngoài (1) kiểm tra
+trạng thái 1 voucher, (2) báo voucher đã dùng. Bảng nguồn tại DSMART16 (cần
+DBA xác nhận đúng — cấu trúc học được từ schema, CHƯA có dữ liệu thật để
+đối chiếu):
+
+- `PMCRDINF` — thẻ/voucher gốc: `CARD_ID`, `BARCODE`, `VALUE_AMT`,
+  `BAL_AMT` (số dư), `STATUS`, `DUE_DATE`, `ISS_DATE`, `STK_ID`.
+- `PMCRDISS` — giao dịch PHÁT HÀNH voucher.
+- `PMCRDRCV` — giao dịch NHẬN/ĐỔI (redeem) voucher.
+
+Quyết định đã chốt với người dùng: voucher **dùng 1 lần là thu luôn** (không
+theo số dư trừ dần), và **ghi thẳng vào bảng đang có** (`PMCRDINF`) — KHÔNG
+tạo bảng riêng của HCRC để lưu trạng thái "đã dùng".
+
+### 13.1. Kiểm tra trạng thái — dùng NGUYÊN tính năng "Endpoint realtime" đã có (chỉ đọc)
+
+Không cần code gì thêm — vào **api-admin → Endpoint realtime**, tạo 1
+endpoint mới trỏ vào `PMCRDINF` (hoặc kèm JOIN sang `PMCRDISS`/`PMCRDRCV`
+nếu cần thêm cột lịch sử phát hành/đổi, xem mục "Quy tắc chung" — JOIN đơn
+giản dùng ô có sẵn, phức tạp hơn thì tạo VIEW), Cột khoá = `BARCODE` (hoặc
+`CARD_ID`), Cột hiển thị tick `STATUS`, `BAL_AMT`, `DUE_DATE`... Đối tác gọi
+`GET /api/v1/realtime/{endpoint}/{barcode}` — xem mục 3 cho ví dụ đầy đủ
+kiểu này (kiểm tra voucher tương tự).
+
+### 13.2. Báo đã dùng — tính năng MỚI "Endpoint ghi" (`api.RealtimeWriteEndpointDefs`)
+
+Đây là chỗ DUY NHẤT trong toàn hệ thống được phép UPDATE ngược lại nguồn dữ
+liệu vận hành (mọi engine khác — ETL, Endpoint realtime, mọi báo cáo — CHỈ
+ĐỌC) — cố ý tách hẳn bảng/route/scope riêng vì rủi ro cao hơn hẳn phần đọc.
+
+**Cấu hình (api-admin → Endpoint ghi)**:
+- **Tên endpoint**: vd `vouchers-redeem`.
+- **Nguồn dữ liệu**: chọn đúng nguồn trỏ tới DSMART16 (Live).
+- **Bảng**: `PMCRDINF`.
+- **Cột khoá**: `BARCODE` (giá trị đối tác gửi trong URL).
+- **Cột trạng thái**: `STATUS` — cột SẼ BỊ GHI ĐÈ.
+- **Giá trị đánh dấu "đã dùng"**: giá trị `STATUS` thật thể hiện voucher đã
+  dùng/đóng — CẦN DBA xác nhận đúng mã (chưa có dữ liệu thật để suy ra,
+  nhập tạm rồi sửa lại qua "Sửa" nếu sai — không cần deploy lại).
+
+Sau khi lưu, đối tác gọi:
+
+```
+POST /api/v1/realtime-write/vouchers-redeem/{barcode}
+```
+
+(xác thực như mọi endpoint khác — API key/HMAC/OAuth2, xem mục 2). Trả về:
+- `{"ok": true, "alreadyUsed": false, "message": "Đã cập nhật trạng thái sử dụng"}` — vừa đổi `STATUS` thành công.
+- `{"ok": true, "alreadyUsed": true, "message": "..."}` — voucher ĐÃ ở đúng trạng thái "đã dùng" từ trước (gọi trùng do đối tác thử lại timeout/lỗi mạng KHÔNG bị ghi đè lần 2, không báo lỗi).
+- `404 {"error": "Không tìm thấy mã"}` — barcode không tồn tại trên bảng nguồn.
+
+**Cấp quyền gọi** (bắt buộc, 2 bước, mặc định KHÔNG ai gọi được):
+1. Trang "Đối tác" → sửa đối tác → thêm scope `realtimeWrite` (khác scope
+   `realtime` đọc — 1 đối tác có thể có cả 2, hoặc chỉ 1 trong 2).
+2. Cùng trang, bấm "Ghi được gọi" → tick đúng endpoint `vouchers-redeem` —
+   scope đúng vẫn KHÔNG gọi được nếu chưa tick ở đây (cùng nguyên tắc "Báo
+   cáo được gọi"/"Realtime được gọi" đã có).
+
+**Vì sao chỉ hỗ trợ đúng 1 thao tác đơn giản** (đổi 1 cột trạng thái của 1
+dòng sang 1 giá trị cố định, không phải engine ghi tổng quát): ghi ngược
+vào CSDL vận hành rủi ro cao hơn hẳn đọc — hạn chế phạm vi thao tác giúp dễ
+kiểm soát/kiểm tra hơn là 1 engine UPDATE tuỳ ý nhiều cột. Cần thêm thao tác
+khác (vd trừ dần `BAL_AMT` nếu sau này đổi sang voucher theo số dư) thì mở
+rộng riêng, không tận dụng lại `UsedValue` hiện tại.

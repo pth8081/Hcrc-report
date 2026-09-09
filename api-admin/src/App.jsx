@@ -6,6 +6,7 @@ import LoginPage from './pages/LoginPage';
 import ConsumersPage from './pages/ConsumersPage';
 import DataSourcesPage from './pages/DataSourcesPage';
 import RealtimeEndpointsPage from './pages/RealtimeEndpointsPage';
+import RealtimeWriteEndpointsPage from './pages/RealtimeWriteEndpointsPage';
 import ReportCatalogPage from './pages/ReportCatalogPage';
 import LivePage from './pages/LivePage';
 import HistoryPage from './pages/HistoryPage';
@@ -24,6 +25,7 @@ export default function App() {
           <Route path="/consumers" element={<ConsumersPage />} />
           <Route path="/data-sources" element={<DataSourcesPage />} />
           <Route path="/realtime-endpoints" element={<RealtimeEndpointsPage />} />
+          <Route path="/realtime-write-endpoints" element={<RealtimeWriteEndpointsPage />} />
           <Route path="/report-catalog" element={<ReportCatalogPage />} />
           <Route path="/live" element={<LivePage />} />
           <Route path="/history" element={<HistoryPage />} />

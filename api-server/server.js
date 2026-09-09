@@ -17,6 +17,7 @@ const { rateLimit } = require('express-rate-limit');
 const healthRoutes = require('./routes/v1/health');
 const reportsRoutes = require('./routes/v1/reports');
 const realtimeRoutes = require('./routes/v1/realtime');
+const realtimeWriteRoutes = require('./routes/v1/realtimeWrite');
 const oauthRoutes = require('./routes/v1/oauth');
 const adminAuthRoutes = require('./routes/admin/auth');
 const adminTwoFactorRoutes = require('./routes/admin/twoFactor');
@@ -24,6 +25,7 @@ const adminConsumersRoutes = require('./routes/admin/consumers');
 const adminUsersRoutes = require('./routes/admin/users');
 const adminDataSourcesRoutes = require('./routes/admin/dataSources');
 const adminRealtimeEndpointsRoutes = require('./routes/admin/realtimeEndpoints');
+const adminRealtimeWriteEndpointsRoutes = require('./routes/admin/realtimeWriteEndpoints');
 const adminReportCatalogRoutes = require('./routes/admin/reportCatalog');
 const adminLiveRoutes = require('./routes/admin/live');
 const adminHistoryRoutes = require('./routes/admin/history');
@@ -117,6 +119,7 @@ app.use('/api/v1/health', healthRoutes);
 app.use('/api/v1/oauth', oauthRoutes);
 app.use('/api/v1/reports', reportsRoutes);
 app.use('/api/v1/realtime', realtimeRoutes); // /api/v1/realtime/{endpoint}/list, /{endpoint}/{key}
+app.use('/api/v1/realtime-write', realtimeWriteRoutes); // POST /api/v1/realtime-write/{endpoint}/{key}
 
 // ===== /admin/* — api-admin/ =====
 app.use('/admin', adminIpAllowlist);
@@ -126,6 +129,7 @@ app.use('/admin/consumers', adminConsumersRoutes);
 app.use('/admin/users', adminUsersRoutes);
 app.use('/admin/data-sources', adminDataSourcesRoutes);
 app.use('/admin/realtime-endpoints', adminRealtimeEndpointsRoutes);
+app.use('/admin/realtime-write-endpoints', adminRealtimeWriteEndpointsRoutes);
 app.use('/admin/report-catalog', adminReportCatalogRoutes);
 app.use('/admin/live', adminLiveRoutes);
 app.use('/admin/history', adminHistoryRoutes);

@@ -222,4 +222,41 @@ router.put('/:id/realtime-access', requireAdminRole, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// GET/PUT /:id/write-access — CÙNG khuôn với realtime-access ở trên nhưng
+// cho api.ConsumerRealtimeWriteAccess (endpoint GHI, xem
+// routes/v1/realtimeWrite.js) — BẢNG RIÊNG hoàn toàn, có quyền đọc endpoint
+// nào không mặc nhiên ghi được endpoint đó.
+router.get('/:id/write-access', async (req, res, next) => {
+  try {
+    const pool = await getPool('ADMIN');
+    const result = await pool.request().input('id', sql.Int, req.params.id)
+      .query('SELECT Endpoint FROM api.ConsumerRealtimeWriteAccess WHERE ConsumerId = @id');
+    res.json({ endpoints: result.recordset.map(r => r.Endpoint) });
+  } catch (err) { next(err); }
+});
+
+router.put('/:id/write-access', requireAdminRole, async (req, res, next) => {
+  try {
+    const { endpoints = [] } = req.body || {};
+    const pool = await getPool('ADMIN');
+    const tx = new sql.Transaction(pool);
+    await tx.begin();
+    try {
+      await new sql.Request(tx).input('id', sql.Int, req.params.id).query('DELETE FROM api.ConsumerRealtimeWriteAccess WHERE ConsumerId = @id');
+      for (const endpoint of endpoints) {
+        await new sql.Request(tx)
+          .input('id', sql.Int, req.params.id)
+          .input('endpoint', sql.VarChar(50), endpoint)
+          .query('INSERT INTO api.ConsumerRealtimeWriteAccess (ConsumerId, Endpoint) VALUES (@id, @endpoint)');
+      }
+      await tx.commit();
+    } catch (err) {
+      await tx.rollback().catch(() => {});
+      throw err;
+    }
+    await logAction(req, { module: 'Đối tác API', actionType: 'SUA_QUYEN_GHI', targetObject: req.params.id, description: `Cập nhật quyền endpoint ghi đối tác #${req.params.id}: ${endpoints.join(', ') || '(rỗng)'}` });
+    res.json({ ok: true });
+  } catch (err) { next(err); }
+});
+
 module.exports = router;
