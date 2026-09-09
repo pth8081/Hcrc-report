@@ -218,8 +218,9 @@ MỌI request, làm hỏng ngầm: giới hạn IP riêng từng đối tác, `A
 giới hạn tần suất theo IP nặc danh, và cột `IpAddress` trong `api.RequestLog`
 (log sẽ ghi IP Nginx thay vì IP đối tác thật — mất khả năng truy vết khi có
 sự cố). Xem mẫu cấu hình Nginx thật ở `deploy/nginx.conf` (thư mục gốc repo)
-và hướng dẫn triển khai đầy đủ (DNS, TLS, PM2, CSDL máy chủ riêng) ở
-`deploy/README.md`.
+và hướng dẫn triển khai đầy đủ (PM2, CSDL máy chủ riêng) ở
+`deploy/Hướng dẫn triển khai PM2.md` (thêm DNS/TLS/Nginx ở
+`deploy/Hướng dẫn triển khai sử dụng PM2 + Nginx.md`).
 
 **Chống dò mật khẩu đăng nhập `/admin/auth/login`** — `lib/loginRateLimit.js`,
 tối đa 10 lần sai liên tiếp theo (IP + username) trong 15 phút, đăng nhập

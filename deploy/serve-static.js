@@ -11,9 +11,9 @@
 //   STATIC_DIST_DIR — đường dẫn thư mục dist/, TÍNH TƯƠNG ĐỐI so với chính
 //                      file này (KHÔNG phụ thuộc cwd lúc `pm2 start`).
 //   PORT             — cổng nội bộ, CHỈ lắng nghe 127.0.0.1 (không lộ ra
-//                      ngoài dù máy chủ có IP công khai — giống lưu ý ở mục
-//                      1, Bước 5 của deploy/README.md, nhưng ở đây làm đúng
-//                      ngay từ đầu thay vì để "khuyến nghị làm sau").
+//                      ngoài dù máy chủ có IP công khai — cùng nguyên tắc
+//                      "không public cổng nội bộ" áp dụng cho cả 3 service
+//                      backend, xem "Hướng dẫn triển khai PM2.md").
 const http = require('http');
 const fs = require('fs');
 const path = require('path');

@@ -339,7 +339,9 @@ khác `/admin/*` bên api-server/etl (chỉ nội bộ). Vài điểm cần bi�
   request, làm hỏng ngầm giới hạn tần suất theo IP và cột `IpAddress` trong
   `app.AuditLog` (log sẽ ghi IP Nginx thay vì IP người dùng thật). Xem mẫu
   cấu hình Nginx thật ở `deploy/nginx.conf` (thư mục gốc repo) và hướng dẫn
-  triển khai đầy đủ (DNS, TLS, PM2, CSDL máy chủ riêng) ở `deploy/README.md`.
+  triển khai đầy đủ (PM2, CSDL máy chủ riêng) ở
+  `deploy/Hướng dẫn triển khai PM2.md` (thêm DNS/TLS/Nginx ở
+  `deploy/Hướng dẫn triển khai sử dụng PM2 + Nginx.md`).
 - **Chống dò mật khẩu đăng nhập** (`lib/loginRateLimit.js`) — tối đa 10 lần
   sai liên tiếp theo (IP + username) trong 15 phút, đăng nhập đúng xoá ngay
   bộ đếm — độc lập với giới hạn tần suất chung của toàn server.

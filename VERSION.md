@@ -20,6 +20,37 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 6.15 — Xoá deploy/README.md — 2 file "Hướng dẫn triển khai..." + "Hướng dẫn nghiệp vụ.md" là tài liệu chính thức duy nhất
+
+Người dùng yêu cầu xoá hẳn `deploy/README.md` (bản gốc trước khi tách
+thành 2 file PM2/PM2+Nginx ở phiên bản 6.10 — vẫn còn tồn tại song song từ
+đó tới giờ, gây nhầm lẫn không biết theo file nào) để từ nay MỌI cập nhật
+tài liệu triển khai chỉ vào đúng 3 file:
+`deploy/Hướng dẫn triển khai PM2.md`,
+`deploy/Hướng dẫn triển khai sử dụng PM2 + Nginx.md`, và
+`deploy/Hướng dẫn nghiệp vụ.md`.
+
+Trước khi xoá, đã rà soát và port nốt nội dung còn THIẾU ở 2 file mới
+(README.md có nhưng 2 file mới chưa có đủ chi tiết):
+- **`Hướng dẫn triển khai PM2.md`** — bổ sung đầy đủ phần 2FA (điện thoại
+  dùng chung, mã khôi phục, đặt lại giúp admin khác, cách xử lý khi mất cả
+  điện thoại lẫn mã khôi phục) thay cho câu trỏ sang `deploy/README.md`;
+  bỏ mục FAQ "muốn dùng systemd" (không còn tài liệu nào cho systemd sau
+  khi xoá — `deploy/systemd/` vẫn còn trong repo nhưng không có hướng dẫn
+  đi kèm).
+- **`Hướng dẫn triển khai sử dụng PM2 + Nginx.md`** — thêm mục fail2ban
+  (trỏ thẳng `deploy/fail2ban/README.md`, vẫn giữ nguyên file đó) và bước
+  kiểm tra nén gzip cho file tĩnh qua `proxy_pass` (dễ bị bỏ sót vì
+  `serve-static.js` tự nó không nén).
+- Sửa mọi tham chiếu `deploy/README.md` còn sót lại sang đúng 1 trong 2
+  file mới: `README.md` gốc, `rp-server/README.md`, `etl/README.md`,
+  `api-server/README.md`, `hướng_dẫn_báo_cáo.md`, `deploy/serve-static.js`
+  (KHÔNG sửa các mục lịch sử trong chính `VERSION.md` — quy tắc không sửa
+  lại lịch sử).
+- **`Hướng dẫn nghiệp vụ.md`** — inline luôn bước DBA xử lý khi mất cả
+  điện thoại lẫn mã khôi phục 2FA (trước đó trỏ sang `deploy/README.md`
+  mục 5).
+
 ## 6.14 — Ghi rõ quy tắc: tự động đánh version ở mọi lần merge, không cần nhắc
 
 Người dùng yêu cầu việc cập nhật `VERSION.md` diễn ra tự động sau mỗi lần

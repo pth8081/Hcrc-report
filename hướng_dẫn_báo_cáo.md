@@ -10,7 +10,8 @@ cách cấu hình.
 Quy ước tên viết tắt dùng xuyên suốt file:
 - **DWH** — Data Warehouse (`dwh.ReportFacts`, `dwh.SalesTargets`).
 - **etl-admin** — trang quản trị ETL (`http://<host-etl>:5175` lúc phát
-  triển, hoặc domain nội bộ lúc triển khai thật — xem `deploy/README.md`).
+  triển, hoặc domain nội bộ lúc triển khai thật — xem
+  `deploy/Hướng dẫn triển khai PM2.md`).
 - **api-admin** — trang quản trị API Server.
 - **rp-user** — trang người dùng/quản trị Report Server, mục "Hệ thống →
   Biểu mẫu" là nơi tạo báo cáo.

@@ -119,8 +119,10 @@ Authenticator sau khi nhập đúng mật khẩu. **Vai trò khác `admin`** (vd
 **Quên/mất điện thoại xác thực** — 1 admin khác trong CÙNG hệ thống có
 thể vào trang "Phân quyền"/"Tài khoản quản trị" bấm "Đặt lại 2FA" giúp;
 lần đăng nhập kế tiếp sẽ bắt thiết lập lại từ đầu. Nếu KHÔNG còn admin
-nào khác và cũng mất luôn mã khôi phục — cần DBA can thiệp trực tiếp CSDL
-(xem `deploy/README.md` mục 5).
+nào khác và cũng mất luôn mã khôi phục — không có đường tự khôi phục qua
+giao diện, cần DBA can thiệp trực tiếp CSDL (đặt `TwoFactorEnabled = 0`
+trên đúng dòng `admin.AdminUsers`/`app.Users` của tài khoản đó) rồi đăng
+nhập lại.
 
 ## 4. Phân quyền
 

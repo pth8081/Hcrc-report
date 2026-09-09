@@ -35,9 +35,10 @@ PM2/CSDL/`.env`/tài khoản (không đụng gì tới Nginx) bổ sung vào fil
 6. [Kiểm tra sau khi thêm Nginx](#6-kiểm-tra-sau-khi-thêm-nginx)
 7. [Gia hạn chứng chỉ tự động](#7-gia-hạn-chứng-chỉ-tự-động)
 8. [Xoay vòng log Nginx](#8-xoay-vòng-log-nginx)
-9. [Cập nhật code (khác gì so với file PM2)](#9-cập-nhật-code-khác-gì-so-với-file-pm2)
-10. [Xử lý sự cố thường gặp](#10-xử-lý-sự-cố-thường-gặp)
-11. [Câu hỏi thường gặp](#11-câu-hỏi-thường-gặp)
+9. [fail2ban (bổ sung, khuyến nghị)](#9-fail2ban-bổ-sung-khuyến-nghị)
+10. [Cập nhật code (khác gì so với file PM2)](#10-cập-nhật-code-khác-gì-so-với-file-pm2)
+11. [Xử lý sự cố thường gặp](#11-xử-lý-sự-cố-thường-gặp)
+12. [Câu hỏi thường gặp](#12-câu-hỏi-thường-gặp)
 
 ---
 
@@ -191,6 +192,22 @@ Từ máy NGOÀI mạng nội bộ, gọi thẳng vào 1 trong 6 cổng cũ:
 curl -I http://<ip-may-chu>:5173/    # PHẢI bị từ chối/timeout (tường lửa Bước 4 đã chặn)
 ```
 
+**Nén gzip cho file tĩnh** — `serve-static.js` (Nginx `proxy_pass` sang đó,
+xem Bước 2) tự nó KHÔNG nén, chỉ đọc file thô — phải trông cậy vào `gzip
+on;` đã khai sẵn trong `deploy/nginx.conf` (áp dụng cả cho response từ
+`proxy_pass`, không chỉ file Nginx tự đọc bằng `root`). Xác nhận:
+
+```bash
+curl -H "Accept-Encoding: gzip" -sI https://report.hcrc.<domain>/assets/<tên-file>.js
+# (lấy đúng tên file JS thật trong rp-user/dist/assets/ sau khi build)
+```
+
+Header trả về PHẢI có `Content-Encoding: gzip` — lặp lại tương tự cho
+`api-admin.hcrc.<domain>`/`etl-admin.hcrc.<domain>`. Thiếu header này
+thường do `nginx.conf` GỐC của hệ điều hành đã có sẵn 1 khối `gzip`
+khác đè lên (kiểm tra `/etc/nginx/nginx.conf`), không phải do
+`deploy/nginx.conf` sai.
+
 ## 7. Gia hạn chứng chỉ tự động
 
 `certbot certonly` (không phải `--nginx`/`--apache`) KHÔNG tự sửa Nginx,
@@ -217,7 +234,19 @@ cat /etc/logrotate.d/nginx
 sudo logrotate -d /etc/logrotate.d/nginx   # chạy thử (dry-run)
 ```
 
-## 9. Cập nhật code (khác gì so với file PM2)
+## 9. fail2ban (bổ sung, khuyến nghị)
+
+Lớp phòng thủ THÊM ở tầng firewall (chặn hẳn IP sau nhiều lần đăng nhập
+sai liên tiếp, KHÔNG thay thế rate-limit đã có sẵn trong code) — cần
+Nginx đã hoạt động (Bước 2) vì fail2ban đọc log truy cập theo domain của
+Nginx (`hcrc-report`/`hcrc-api`/`hcrc-api-admin`/`hcrc-etl-admin.access.log`
+trong `/var/log/nginx/`). Không bắt buộc để chạy được hệ thống, nhưng nên
+bật trước khi mở ra Internet thật — xem `deploy/fail2ban/README.md` cho
+hướng dẫn cài đặt đầy đủ (copy filter + jail, đổi `ignoreip` thành IP/VPN
+tin cậy của bạn TRƯỚC khi khởi động — quên bước này rất dễ tự khoá chính
+mình).
+
+## 10. Cập nhật code (khác gì so với file PM2)
 
 Quy trình cập nhật code **giống hệt** mục "Cập nhật lên phiên bản mới"
 trong `Hướng dẫn triển khai PM2.md` — reload 6 tiến trình PM2 là đủ.
@@ -232,7 +261,7 @@ Không sửa `nginx.conf` thì không cần đụng gì tới Nginx khi cập nh
 code — Nginx chỉ chuyển tiếp request, không quan tâm code phía sau đã
 đổi hay chưa.
 
-## 10. Xử lý sự cố thường gặp
+## 11. Xử lý sự cố thường gặp
 
 **Trang trắng/404 khi mở qua domain nhưng IP:cổng vẫn vào được** — Bước
 2 chưa sửa đúng cả 3 khối `location /` sang `proxy_pass`, Nginx vẫn đọc
@@ -252,7 +281,7 @@ số nginx báo, so lại với khối mẫu trong file.
 dải IP `allow` ở Bước 2 chưa đổi đúng IP văn phòng/VPN thật (vẫn để dải
 mẫu quá rộng, hoặc quên đổi hẳn).
 
-## 11. Câu hỏi thường gặp
+## 12. Câu hỏi thường gặp
 
 **Có bắt buộc đúng 4 domain/subdomain không?** — Không, xem ghi chú
 "PHƯƠNG ÁN 1 DOMAIN" ở cuối `deploy/nginx.conf` nếu chỉ có 1 domain

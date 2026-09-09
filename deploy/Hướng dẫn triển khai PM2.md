@@ -274,9 +274,27 @@ ngay ở màn "Bắt buộc đăng ký 2FA" — quét mã QR bằng app Authenti
 (Google Authenticator, Authy, Microsoft Authenticator...), nhập mã 6 số
 để xác nhận, KHÔNG vào được trang nào khác cho tới khi hoàn tất. Sau khi
 bật 2FA, hệ thống hiện ĐÚNG 1 LẦN 10 mã khôi phục — chép lại/in ra, cất
-nơi an toàn (dùng khi mất điện thoại). Chi tiết đầy đủ về 2FA (đặt lại
-giúp admin khác, xử lý khi mất cả điện thoại lẫn mã khôi phục) xem
-`deploy/README.md` mục 5.
+nơi an toàn (dùng khi mất điện thoại).
+
+**Xác thực hai yếu tố (2FA) — chi tiết đầy đủ**: bắt buộc cho vai trò
+**admin** ở cả 3 hệ thống, vai trò khác không cần.
+
+- **1 điện thoại dùng chung được cho cả 3 hệ thống** — mỗi hệ thống đăng
+  ký RIÊNG (3 mã QR khác nhau, 3 secret khác nhau), app Authenticator
+  hiện 3 dòng phân biệt ("HCRC ETL", "HCRC API", "HCRC Report").
+- **Mã khôi phục**: 10 mã dùng 1 lần (dạng `AAAAA-BBBBB`) hiện đúng 1 lần
+  lúc bật 2FA — dùng khi mất điện thoại và không có admin nào khác trong
+  CÙNG hệ thống để nhờ.
+- **Đặt lại 2FA giúp admin khác**: trang "Phân quyền"/"Tài khoản quản
+  trị" có nút "Đặt lại 2FA" trên hàng của admin khác — dùng khi họ mất
+  thiết bị và không còn mã khôi phục. Sau khi đặt lại, lần đăng nhập kế
+  tiếp của admin đó bị bắt đăng ký 2FA lại từ đầu (2FA vẫn bắt buộc,
+  không tắt hẳn). Thao tác này được ghi vào Nhật ký thao tác (ai gỡ cho
+  ai, lúc nào).
+- **MẤT ĐIỆN THOẠI + KHÔNG CÒN mã khôi phục + KHÔNG có admin nào khác**
+  trong hệ thống đó — không có đường tự khôi phục qua giao diện, cần DBA
+  can thiệp trực tiếp CSDL (đặt `TwoFactorEnabled = 0` trên đúng dòng
+  `admin.AdminUsers`/`app.Users` của tài khoản đó) rồi đăng nhập lại.
 
 ## 10. Bước 8 — Siết quyền file/thư mục lần cuối
 
@@ -431,7 +449,3 @@ không đăng nhập được, không có mật khẩu web. Tài khoản đăng 
 `Hướng dẫn triển khai sử dụng PM2 + Nginx.md` (cùng thư mục) — chỉ cần
 làm thêm phần Nginx, KHÔNG cần làm lại từ đầu, mọi thứ ở hướng dẫn này
 vẫn giữ nguyên.
-
-**Muốn dùng systemd thay vì PM2?** — Xem `deploy/README.md` (tài liệu kỹ
-thuật đầy đủ, có cả mô hình PM2 và systemd với 3 tài khoản riêng theo
-từng service) — hướng dẫn này CHỦ Ý chỉ tập trung vào PM2 cho dễ đọc.

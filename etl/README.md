@@ -152,7 +152,8 @@ của TOÀN BỘ nguồn dữ liệu đã cấu hình (`etl.DataSources`, có th
 CSDL cửa hàng/chi nhánh), rủi ro cao nhất trong 3 hệ thống nếu bị xâm nhập.
 `/admin/*` của `etl` VẪN CÓ THỂ đứng sau CÙNG Nginx với 2 hệ kia (mô hình
 khuyến nghị khi cả 3 chạy chung 1 máy chủ — xem `deploy/nginx.conf` +
-`deploy/README.md` ở thư mục gốc repo) — miễn là trên domain RIÊNG, chỉ mở
+`deploy/Hướng dẫn triển khai sử dụng PM2 + Nginx.md` ở thư mục gốc repo) —
+miễn là trên domain RIÊNG, chỉ mở
 `allow`/`deny` cho IP nội bộ/VPN ở tầng Nginx (domain `etl-admin.*` trong
 mẫu cấu hình), KHÔNG chung domain/route với `/api/v1/*` hay `/api/*` công
 khai. Dù triển khai qua Nginx chung hay tách máy chủ hoàn toàn riêng, luôn
