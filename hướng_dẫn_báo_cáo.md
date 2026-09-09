@@ -1423,23 +1423,112 @@ trúc DSMART16 đã học ở mục 11.)
 - **Dimensions**: tick `MaChiNhanh`, `TenChiNhanh`, `MaHangHienThi`, `TenHang`.
 - **Measures**: tick `SoLuongTon`.
 - **Domain**: `tonkho_sku`.
-- **BẬT "Giữ lịch sử theo ngày"** — BẮT BUỘC: báo cáo LUÔN lấy tồn kho ở
-  NGÀY GẦN NHẤT CÓ DỮ LIỆU (không cố định "hôm nay") — nếu job etl-admin
-  hôm nay chưa kịp chạy, báo cáo tự lùi về ngày gần nhất đã đồng bộ, cần
-  còn giữ các ngày cũ mới lùi được.
+- **BẬT "Giữ lịch sử theo ngày"** — BẮT BUỘC: báo cáo cần dòng tồn kho của
+  NGÀY HÔM QUA (dòng gần nhất TRƯỚC hôm nay — xem công thức Bước 4 bên
+  dưới, đã sửa lại theo yêu cầu người dùng), tắt "Giữ lịch sử" sẽ chỉ còn
+  đúng 1 ngày mới nhất, không lùi được về hôm qua.
+
+### Bước 2b (TUỲ CHỌN) — 4 VIEW/job "Chờ nhập"/"Đã nhập" — cấu hình được, KHÔNG hardcode
+
+Người dùng yêu cầu thêm 4 cột thông tin THAM KHẢO (không ảnh hưởng cách
+tính tồn=0 ở Bước 4): "Chờ nhập"/"Đã nhập hôm nay", mỗi loại tách theo
+nguồn NCC/Điều chuyển — và tên bảng/điều kiện trạng thái phải CẤU HÌNH
+ĐƯỢC lúc tạo báo cáo (không hardcode trong `topSellingZeroStockRunner.js`)
+vì mã `STATUS`/cột mốc ngày giao hàng thật trong DSMART16 cần DBA xác nhận
+và có thể đổi theo thời gian. Cách làm: y hệt nguyên tắc TRANS_CODE ở Bước
+1 — điều kiện lọc "chờ" hay "đã" nằm TRONG VIEW nguồn (DBA sửa bằng `ALTER
+VIEW` khi cần, không đụng code/etl-admin), còn TÊN DOMAIN thì admin tự đặt
+lúc tạo job rồi điền vào `DefinitionJson` của báo cáo (xem Bước 3) — code
+chỉ đọc đúng domain được khai, không biết trước tên bảng/điều kiện gì.
+
+**VIEW "Chờ/đã nhập từ NCC"** — nguồn `RV_ORDER` (đã có `SKU_ID`, xem mục
+11h) — `DELIVER_DT`/`FINISH_DT` NULL = đơn CHƯA giao (chọn đúng cột nào
+thể hiện "đã giao hàng thật" với DBA — ví dụ dưới dùng `DELIVER_DT`):
+
+```sql
+-- "Chờ nhập" — số lượng đang treo TẠI THỜI ĐIỂM đồng bộ (KHÔNG lọc theo
+-- ngày phát sinh đơn — đơn có thể đặt từ trước) — EventDate = ngày đồng bộ
+-- (snapshot tính lại mỗi lần chạy job, giống DSTK_INFO).
+CREATE VIEW dbo.vw_ChoNhapNCCTheoSKU AS
+SELECT
+    STK_ID + '_' + CAST(SKU_ID AS VARCHAR(50)) AS MaThucThe,
+    CAST(GETDATE() AS DATE) AS EventDate,
+    SUM(QTY) AS SoLuongChoNhap,
+    GETDATE() AS UpdatedAt
+FROM dbo.RV_ORDER
+WHERE STATUS <> 'X'          -- CHỈ VÍ DỤ — đối chiếu đúng mã "huỷ" với DBA
+  AND DELIVER_DT IS NULL     -- CHỈ VÍ DỤ — đối chiếu đúng cột "đã giao" với DBA (DELIVER_DT hay FINISH_DT)
+GROUP BY STK_ID, SKU_ID;
+
+-- "Đã nhập" — gộp theo NGÀY GIAO THẬT (DELIVER_DT), giữ lịch sử nhiều
+-- ngày (không chỉ hôm nay) — runner tự lọc đúng "hôm nay" lúc chạy báo cáo.
+CREATE VIEW dbo.vw_DaNhapNCCTheoSKU AS
+SELECT
+    STK_ID + '_' + CAST(SKU_ID AS VARCHAR(50)) AS MaThucThe,
+    CAST(DELIVER_DT AS DATE) AS EventDate,
+    SUM(QTY) AS SoLuongDaNhap,
+    MAX(UPDATED) AS UpdatedAt
+FROM dbo.RV_ORDER
+WHERE STATUS <> 'X' AND DELIVER_DT IS NOT NULL
+GROUP BY STK_ID, SKU_ID, CAST(DELIVER_DT AS DATE);
+```
+
+**VIEW "Chờ/đã nhập điều chuyển"** — nguồn `DLVTRANS` (điều chuyển nội bộ
+giữa chi nhánh, xem mục 11f/g) — `RCV_DATE` NULL = chi nhánh nhận CHƯA
+thực nhận hàng, nhóm theo `OSTK_ID` (chi nhánh NHẬN, không phải chi nhánh
+xuất `STK_ID`):
+
+```sql
+CREATE VIEW dbo.vw_ChoNhapDieuChuyenTheoSKU AS
+SELECT
+    OSTK_ID + '_' + CAST(SKU_ID AS VARCHAR(50)) AS MaThucThe,
+    CAST(GETDATE() AS DATE) AS EventDate,
+    SUM(QTY) AS SoLuongChoNhap,
+    GETDATE() AS UpdatedAt
+FROM dbo.DLVTRANS
+WHERE RCV_DATE IS NULL       -- CHỈ VÍ DỤ — đối chiếu đúng cột "đã nhận" với DBA
+GROUP BY OSTK_ID, SKU_ID;
+
+CREATE VIEW dbo.vw_DaNhapDieuChuyenTheoSKU AS
+SELECT
+    OSTK_ID + '_' + CAST(SKU_ID AS VARCHAR(50)) AS MaThucThe,
+    CAST(RCV_DATE AS DATE) AS EventDate,
+    SUM(QTY) AS SoLuongDaNhap,
+    MAX(RCV_DATE) AS UpdatedAt
+FROM dbo.DLVTRANS
+WHERE RCV_DATE IS NOT NULL
+GROUP BY OSTK_ID, SKU_ID, CAST(RCV_DATE AS DATE);
+```
+
+**etl-admin**: tạo 4 job "Theo bảng" (nếu dùng cột nào) trỏ 4 VIEW trên,
+EntityCode = `MaThucThe`, Measures tick đúng `SoLuongChoNhap`/`SoLuongDaNhap`
+(ĐÚNG TÊN — runner đọc cố định 2 tên Measures này, xem Bước 4), KHÔNG cần
+Dimensions (đã có sẵn từ `banhang_sku`/`tonkho_sku`). Domain đặt tên tuỳ ý,
+vd `chonhap_ncc`/`danhap_ncc`/`chonhap_dieuchuyen`/`danhap_dieuchuyen` —
+BẬT "Giữ lịch sử theo ngày" cho 2 job "Đã nhập" (cần nhiều ngày để runner
+lọc đúng "hôm nay"); job "Chờ nhập" bật hay tắt đều được (chỉ đọc dòng mới
+nhất). **4 job này ĐỀU TUỲ CHỌN** — không tạo job nào thì báo cáo vẫn chạy
+bình thường, chỉ là không có 4 cột này.
 
 ### Bước 3 — rp-user (thật ra là admin): tạo báo cáo `SourceType='topZeroStock'`
 
 Đây là `SourceType` RIÊNG (khác `directDb`/`composite`) — có bộ máy tính
 toán chuyên biệt (`rp-server/lib/topSellingZeroStockRunner.js`), không dùng
-`definition.columns` như báo cáo thường (cột hiển thị CỐ ĐỊNH: Chi nhánh,
-Mã hàng, Tên hàng, Số lượng bán (trong kỳ), Tồn kho hiện tại).
+`definition.columns` như báo cáo thường. Cột hiển thị CỐ ĐỊNH phần đầu
+(Chi nhánh, Mã hàng, Tên hàng, Số lượng bán (trong kỳ), Tồn kho hiện tại);
+4 cột "Chờ nhập"/"Đã nhập" ở Bước 2b chỉ hiện khi domain tương ứng được
+khai trong `DefinitionJson` (bỏ trống domain nào thì cột đó không hiện,
+không bắt buộc khai đủ cả 4).
 
 ```json
 {
   "title": "Top bán chạy đang tồn kho = 0",
   "salesDomain": "banhang_sku",
   "stockDomain": "tonkho_sku",
+  "pendingSupplierDomain": "chonhap_ncc",
+  "pendingTransferDomain": "chonhap_dieuchuyen",
+  "receivedSupplierDomain": "danhap_ncc",
+  "receivedTransferDomain": "danhap_dieuchuyen",
   "topN": 50,
   "threshold": 0,
   "filters": [
@@ -1484,15 +1573,33 @@ Giải thích 2 loại bộ lọc:
 1. Cộng dồn `SoLuongBan` mỗi thực thể (`MaChiNhanh_MaHang`) trong khoảng
    ngày theo `rankWindow` (`1`/`7`/`30` tính theo ngày ĐÃ CHỐT SỔ, kết thúc
    ở hôm qua; `daily` là trong ngày hôm nay) — CHỈ giữ thực thể có tổng > 0
-   (hàng không bán trong kỳ không được coi là "hết hàng").
+   (hàng không bán trong kỳ không được coi là "hết hàng"). `rankWindow`
+   CHỈ dùng để chọn TOP N bán chạy — KHÔNG ảnh hưởng cách tính tồn ở bước
+   3 dưới đây, luôn dùng đúng "hôm nay"/"hôm qua" thật.
 2. Xếp hạng TOP N (mặc định 50) theo `SoLuongBan` RIÊNG TỪNG chi nhánh.
-3. Với đúng các thực thể lọt top, tra `SoLuongTon` ở dòng NGÀY GẦN NHẤT CÓ
-   DỮ LIỆU của domain tồn kho (không phụ thuộc `rankWindow`) — thực thể
-   chưa từng có dữ liệu tồn kho bị loại (không đủ căn cứ kết luận hết
-   hàng), không mặc định coi là 0.
-4. Giữ lại thực thể có `SoLuongTon <= threshold` (mặc định 0). Đổi ngưỡng
-   sau này CHỈ cần sửa `threshold` trong `DefinitionJson` (giống cách
-   `dwh.AnomalyAlerts` cấu hình ngưỡng) — không cần sửa code.
+3. **Tồn kho ƯỚC TÍNH HÔM NAY** = `SoLuongTon` ở dòng GẦN NHẤT TRƯỚC HÔM
+   NAY của domain tồn kho (tức "tồn cuối kỳ ngày hôm qua" — đúng ý người
+   dùng: "hàng ngày tính lại tồn kho và chuyển tồn cuối ngày HN sang đầu
+   ngày hôm sau") **TRỪ** `SoLuongBan` PHÁT SINH ĐÚNG HÔM NAY (không phải
+   khoảng `rankWindow`) — **KHÔNG CỘNG LẠI** bất kỳ hàng nào đã nhập trong
+   ngày (dù từ NCC hay điều chuyển) — xác nhận của người dùng: *"để biết
+   hàng tồn kho =0 [...] là hàng bán so với tồn cuối kỳ ngày hôm trước
+   không phụ thuộc hàng nhập"* — mục đích là phát hiện thực chất đã bán
+   hết vốn tồn cũ, không để lô hàng vừa nhập "che" mất tín hiệu sắp/đã hết
+   hàng. Thực thể chưa từng có dữ liệu tồn kho (hôm qua) bị loại (không đủ
+   căn cứ kết luận hết hàng), không mặc định coi là 0.
+4. Giữ lại thực thể có tồn ƯỚC TÍNH (bước 3) `<= threshold` (mặc định 0).
+   Đổi ngưỡng sau này CHỈ cần sửa `threshold` trong `DefinitionJson` (giống
+   cách `dwh.AnomalyAlerts` cấu hình ngưỡng) — không cần sửa code.
+5. (TUỲ CHỌN, xem Bước 2b) — với đúng các thực thể đã lọt bước 4, tra
+   thêm: `SoLuongChoNhap` ở dòng MỚI NHẤT của `pendingSupplierDomain`/
+   `pendingTransferDomain` (nếu có khai) — số lượng đang treo, KHÔNG giới
+   hạn ngày; `SoLuongDaNhap` ĐÚNG NGÀY HÔM NAY của `receivedSupplierDomain`/
+   `receivedTransferDomain` (nếu có khai) — không có dòng nào thì hiện
+   trống (chưa nhận gì hôm nay), KHÔNG lùi ngày như tồn kho ở bước 3 (đã
+   nhập hôm nay khác hẳn "hôm qua" hay "gần nhất", không có nghĩa lùi
+   ngày). 4 cột này CHỈ để tham khảo, KHÔNG cộng/trừ vào tồn ước tính ở
+   bước 3/4.
 
 ### Áp dụng chung: mọi ô chọn/lọc trong rp-user giờ là dropdown searchable + multi-select
 

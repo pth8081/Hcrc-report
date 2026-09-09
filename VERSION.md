@@ -15,6 +15,36 @@ không chặt: patch/minor/major), GIỮ NGUYÊN không đánh số lại — `0
 (gần nhất theo quy tắc cũ) tương ứng **`4.1`** theo quy tắc mới, là điểm
 bắt đầu đếm tiếp từ đây.
 
+## 6.13 — Báo cáo tồn=0: sửa công thức tồn kho + thêm cột Chờ nhập/Đã nhập
+
+Người dùng phát hiện công thức tồn kho cũ (đọc thẳng snapshot "ngày gần
+nhất có dữ liệu") có thể bị "che" bởi lô hàng vừa nhập trong ngày — sửa lại
+đúng ý: tồn ước tính hôm nay = tồn cuối kỳ HÔM QUA trừ số lượng bán HÔM NAY
+(luôn đúng ngày, không theo `rankWindow`), KHÔNG cộng lại bất kỳ hàng nào
+đã nhập trong ngày. Đồng thời thêm 4 cột thông tin tham khảo "Chờ nhập"/
+"Đã nhập hôm nay" (mỗi loại tách NCC/Điều chuyển) — theo yêu cầu, KHÔNG
+hardcode bảng/điều kiện trạng thái trong code, mà cấu hình qua tên domain
+khai trong `DefinitionJson` lúc tạo báo cáo (giống cách `salesDomain`/
+`stockDomain` đã làm) — điều kiện lọc "chờ"/"đã" nằm trong VIEW nguồn (DBA
+sửa bằng `ALTER VIEW`, không đụng code).
+
+- **`rp-server/lib/topSellingZeroStockRunner.js`** — viết lại bước tính tồn
+  kho: thêm `loadLatestMeasureBefore()` (tồn "hôm qua" — dòng gần nhất
+  TRƯỚC hôm nay, khác `loadLatestMeasure()` cũ là "gần nhất bất kỳ ngày
+  nào") và `loadSumOnDate()` (bán "hôm nay"/"đã nhập hôm nay" — ĐÚNG 1
+  ngày, không lùi). Thêm 4 field tuỳ chọn trong `DefinitionJson`:
+  `pendingSupplierDomain`/`pendingTransferDomain` (đọc dòng mới nhất, TUỲ
+  CHỌN) và `receivedSupplierDomain`/`receivedTransferDomain` (đọc đúng
+  ngày hôm nay, TUỲ CHỌN) — `describeColumns()` giờ nhận `definition`, chỉ
+  thêm cột nào có domain tương ứng được khai.
+- **`hướng_dẫn_báo_cáo.md`** mục 12 — thêm Bước 2b: mẫu 4 VIEW nguồn
+  (`RV_ORDER` cho NCC — `DELIVER_DT`/`FINISH_DT` NULL = chờ; `DLVTRANS`
+  cho điều chuyển, nhóm theo `OSTK_ID` — `RCV_DATE` NULL = chờ), cấu hình
+  4 job "Theo bảng" tương ứng (tuỳ chọn, không bắt buộc tạo đủ cả 4); viết
+  lại Bước 4 mô tả công thức mới; cập nhật mẫu `DefinitionJson`.
+- Test lại bằng fakeModule (tồn ước tính đúng công thức mới, cột Chờ
+  nhập/Đã nhập chỉ hiện khi domain được cấu hình).
+
 ## 6.12 — Voucher: "Endpoint ghi" mới — đối tác ngoài báo đã dùng, ghi thẳng vào bảng nguồn
 
 Hoàn thiện yêu cầu voucher (kiểm tra trạng thái đã làm được từ trước qua
