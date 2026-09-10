@@ -424,7 +424,13 @@ tường lửa port 1433 giữa 2 máy chủ.
 
 **Không mở được trang từ máy khác (chỉ mở được từ chính máy chủ)** —
 kiểm tra tường lửa máy chủ ứng dụng có mở 6 cổng `4001-4003`/`5173-5175`
-cho đúng dải IP/mạng đang gọi tới hay chưa (mục 9).
+cho đúng dải IP/mạng đang gọi tới hay chưa (mục 9). Tường lửa đã mở đúng
+mà vẫn không vào được 3 trang tĩnh (`5173`/`5174`/`5175`) — có thể máy
+chủ đang chạy bản `deploy/serve-static.js` CŨ (trước bản vá lỗi thật:
+file này từng cố tình chỉ lắng nghe `127.0.0.1`, khiến máy khác KHÔNG BAO
+GIỜ gọi vào được dù tường lửa đúng) — cập nhật code (mục 13) rồi
+`pm2 restart hcrc-rp-user hcrc-api-admin hcrc-etl-admin` để áp dụng bản
+vá.
 
 ## 15. Bảng biến môi trường (`.env`)
 

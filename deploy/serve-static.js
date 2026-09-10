@@ -10,10 +10,18 @@
 // Tham số qua biến môi trường (đặt trong deploy/ecosystem.config.js):
 //   STATIC_DIST_DIR — đường dẫn thư mục dist/, TÍNH TƯƠNG ĐỐI so với chính
 //                      file này (KHÔNG phụ thuộc cwd lúc `pm2 start`).
-//   PORT             — cổng nội bộ, CHỈ lắng nghe 127.0.0.1 (không lộ ra
-//                      ngoài dù máy chủ có IP công khai — cùng nguyên tắc
-//                      "không public cổng nội bộ" áp dụng cho cả 3 service
-//                      backend, xem "Hướng dẫn triển khai PM2.md").
+//   PORT             — lắng nghe TẤT CẢ interface (giống 3 service backend
+//                      — rp-server/api-server/etl đều `app.listen(PORT)`
+//                      không chỉ định host) — BẮT BUỘC để "Hướng dẫn triển
+//                      khai PM2.md" (không Nginx) truy cập được bằng
+//                      `http://<ip-máy-chủ>:<port>/` từ máy khác như tài
+//                      liệu đã hứa. Ranh giới an toàn thật sự là TƯỜNG LỬA
+//                      (đóng port này lại khi thêm Nginx — xem "Hướng dẫn
+//                      triển khai sử dụng PM2 + Nginx.md" mục 5), không
+//                      phải địa chỉ bind — từng cố tình bind riêng
+//                      127.0.0.1 ở đây, khiến bản PM2-only KHÔNG TRUY CẬP
+//                      ĐƯỢC từ máy khác dù tường lửa đã mở đúng port (lỗi
+//                      thật đã gặp, sửa ở đây).
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
@@ -101,6 +109,6 @@ http.createServer((req, res) => {
     });
     fs.createReadStream(filePath).pipe(res);
   });
-}).listen(PORT, '127.0.0.1', () => {
-  console.log(`serve-static: ${DIST_DIR} -> http://127.0.0.1:${PORT}`);
+}).listen(PORT, () => {
+  console.log(`serve-static: ${DIST_DIR} -> http://0.0.0.0:${PORT}`);
 });

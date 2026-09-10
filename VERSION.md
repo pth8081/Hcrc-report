@@ -20,6 +20,30 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 6.19 — Sửa lỗi thật: 3 trang tĩnh không truy cập được từ máy khác (serve-static.js chỉ bind 127.0.0.1)
+
+Người dùng build + chạy PM2 xong nhưng không vào được trang từ trình
+duyệt. Nguyên nhân: `deploy/serve-static.js` đang cố tình
+`.listen(PORT, '127.0.0.1', ...)` — chỉ chấp nhận kết nối TỪ CHÍNH máy
+chủ, không khác gì so với việc CHƯA mở tường lửa — trong khi
+`Hướng dẫn triển khai PM2.md` (bản không dùng Nginx) lại hứa truy cập
+được bằng `http://<ip-máy-chủ>:<port>/` từ máy khác. Không nhất quán với
+3 service backend (`rp-server`/`api-server`/`etl` đều `app.listen(PORT)`
+không chỉ định host, tức lắng nghe MỌI interface) — ranh giới an toàn
+thật sự nằm ở TƯỜNG LỬA (đã hướng dẫn đóng port khi thêm Nginx), không
+phải địa chỉ bind.
+
+- **`deploy/serve-static.js`** — bỏ tham số host `'127.0.0.1'`, đổi thành
+  `.listen(PORT, ...)` (lắng nghe mọi interface, giống 3 service
+  backend). An toàn cho cả 2 cách triển khai: PM2-only cần truy cập
+  ngoài nên bắt buộc phải sửa; PM2+Nginx không đổi gì (Nginx vẫn gọi qua
+  `127.0.0.1` như cũ, tường lửa mục 5 của "Hướng dẫn triển khai sử dụng
+  PM2 + Nginx.md" đã đóng sẵn 3 port này với Internet từ trước, không
+  cần sửa thêm).
+- **`Hướng dẫn triển khai PM2.md`** mục 14 — bổ sung tình huống "tường
+  lửa đã mở đúng mà vẫn không vào được 3 trang tĩnh" — chỉ thẳng nguyên
+  nhân (bản `serve-static.js` cũ) và cách áp dụng bản vá.
+
 ## 6.18 — rp-user thành PWA thật (manifest + service worker), cài được lên màn hình chính
 
 Bước nền cho yêu cầu đóng gói lên App Store/Play Store sau này (chưa làm
