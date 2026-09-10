@@ -56,25 +56,45 @@ const STATIC_VIA_PM2 = process.env.HCRC_STATIC_VIA_PM2 === '1';
 // trình/giao diện là đủ (không cần cluster: chỉ đọc file tĩnh, không có
 // công việc nặng CPU nào). Cổng trùng với cổng dev (`npm run dev`) của từng
 // giao diện — dễ nhớ, không đụng dải cổng 4001-4033 của 3 service backend.
+//
+// PROXY_PREFIX/PROXY_TARGET_PORT — BẮT BUỘC ở đây (chế độ PM2-only): mỗi
+// frontend gọi API bằng đường dẫn tương đối cùng domain/port với chính nó
+// (`/api/...` cho rp-user, `/admin/...` cho api-admin/etl-admin — xem
+// src/lib/api.js), nên chính serve-static.js phải tự chuyển tiếp sang đúng
+// backend (4001/4002/4003, xem PORT mặc định trong .env.example từng
+// service) — thiếu 2 biến này, request "biến mất" vào nhánh SPA fallback,
+// bấm Đăng nhập không báo lỗi gì và pm2 logs backend không hề có dòng nào
+// (lỗi thật đã gặp, xem chú thích đầu deploy/serve-static.js). Bản có Nginx
+// không cần (Nginx tự định tuyến /api, /admin trước khi tới tiến trình
+// này — xem deploy/nginx.conf).
 const staticApps = STATIC_VIA_PM2 ? [
   {
     name: 'hcrc-rp-user',
     script: 'serve-static.js',
-    env: { STATIC_DIST_DIR: '../rp-user/dist', PORT: 5173, NODE_ENV: 'production' },
+    env: {
+      STATIC_DIST_DIR: '../rp-user/dist', PORT: 5173, NODE_ENV: 'production',
+      PROXY_PREFIX: '/api', PROXY_TARGET_PORT: 4001
+    },
     min_uptime: '5s',
     max_restarts: 10
   },
   {
     name: 'hcrc-api-admin',
     script: 'serve-static.js',
-    env: { STATIC_DIST_DIR: '../api-admin/dist', PORT: 5174, NODE_ENV: 'production' },
+    env: {
+      STATIC_DIST_DIR: '../api-admin/dist', PORT: 5174, NODE_ENV: 'production',
+      PROXY_PREFIX: '/admin', PROXY_TARGET_PORT: 4002
+    },
     min_uptime: '5s',
     max_restarts: 10
   },
   {
     name: 'hcrc-etl-admin',
     script: 'serve-static.js',
-    env: { STATIC_DIST_DIR: '../etl-admin/dist', PORT: 5175, NODE_ENV: 'production' },
+    env: {
+      STATIC_DIST_DIR: '../etl-admin/dist', PORT: 5175, NODE_ENV: 'production',
+      PROXY_PREFIX: '/admin', PROXY_TARGET_PORT: 4003
+    },
     min_uptime: '5s',
     max_restarts: 10
   }

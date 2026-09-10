@@ -432,6 +432,35 @@ GIỜ gọi vào được dù tường lửa đúng) — cập nhật code (mụ
 `pm2 restart hcrc-rp-user hcrc-api-admin hcrc-etl-admin` để áp dụng bản
 vá.
 
+**Bấm "Đăng nhập" không có phản ứng gì (không báo lỗi, không vào được),
+và `pm2 logs hcrc-rp-server`/`hcrc-api-server`/`hcrc-etl` không hề có
+dòng nào ghi lại lần thử đó** — dấu hiệu chắc chắn của lỗi thật đã gặp:
+3 giao diện gọi API bằng đường dẫn TƯƠNG ĐỐI (`/api/...` hoặc
+`/admin/...`, cùng domain/port với chính trang đang mở), nhưng bản
+`deploy/serve-static.js`/`deploy/ecosystem.config.js` CŨ (trước khi có
+`PROXY_PREFIX`/`PROXY_TARGET_PORT`) không biết chuyển tiếp các đường dẫn
+đó sang backend (`4001`/`4002`/`4003`) — request rơi vào nhánh "SPA
+fallback", âm thầm nhận lại `index.html` thay vì gọi được `rp-server`/
+`api-server`/`etl`, nên phía sau (backend) không hề thấy request nào tới
+mà LỖI đó vẫn không hiện ra ở màn hình (mã lỗi trả về là `200 OK`, không
+phải lỗi thật). Khắc phục — cập nhật code (mục 13, đủ cả 3 file
+`serve-static.js`/`ecosystem.config.js` mới), sau đó BẮT BUỘC dùng
+`restart` kèm `--update-env` (không phải `reload`, vì lần này đổi biến
+môi trường mới thêm vào `ecosystem.config.js`, `reload` không đọc lại
+được):
+
+```bash
+sudo -u hcrc -H env HCRC_STATIC_VIA_PM2=1 \
+  pm2 restart /home/hcrc/hcrc/deploy/ecosystem.config.js --update-env
+sudo -u hcrc -H pm2 save
+```
+
+Kiểm tra lại bằng `sudo -u hcrc -H pm2 show hcrc-rp-user` (hoặc
+`hcrc-api-admin`/`hcrc-etl-admin`), xem mục biến môi trường — phải thấy
+có `PROXY_PREFIX` và `PROXY_TARGET_PORT` đúng giá trị (`/api`+`4001` cho
+`rp-user`, `/admin`+`4002` cho `api-admin`, `/admin`+`4003` cho
+`etl-admin`).
+
 ## 15. Bảng biến môi trường (`.env`)
 
 Tham khảo đầy đủ trong `.env.example` của từng service (có chú thích chi

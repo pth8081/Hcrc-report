@@ -20,6 +20,43 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 6.20 — Sửa lỗi thật: đăng nhập bấm không phản ứng gì ở bản PM2-only (thiếu proxy /api, /admin sang backend)
+
+Người dùng đã seed tài khoản admin đúng cả 3 service, bấm "Đăng nhập" ở
+`rp-user`/`api-admin`/`etl-admin` (triển khai theo `Hướng dẫn triển khai
+PM2.md`, không Nginx) nhưng KHÔNG có phản ứng gì (không báo lỗi), và
+`pm2 logs` của `hcrc-rp-server`/`hcrc-api-server`/`hcrc-etl` không hề có
+dòng nào ghi lại lần thử đó. Nguyên nhân: cả 3 frontend gọi API bằng
+đường dẫn TƯƠNG ĐỐI (`fetch('/api/...')` ở rp-user, `fetch('/admin/...')`
+ở api-admin/etl-admin — xem `src/lib/api.js`), đúng domain/PORT với
+chính trang đang mở. Ở bản có Nginx việc này ổn vì Nginx đứng CHUNG 1
+cổng, tự định tuyến `/api`/`/admin` sang đúng backend; nhưng ở bản
+PM2-only, 3 giao diện (cổng `5173-5175`) và 3 backend (cổng `4001-4003`)
+là 2 tiến trình HOÀN TOÀN riêng trên 2 dải cổng khác nhau — request
+`/api/auth/login` từ trang `rp-user` (`:5173`) rơi thẳng vào chính
+`deploy/serve-static.js` (không phải `rp-server`), tiến trình này không
+biết `/api` là gì nên áp dụng nhánh "SPA fallback" — trả về `index.html`
+(200 OK, không phải JSON) một cách ÂM THẦM. Vì phản hồi có `res.ok` nhưng
+không phải JSON, code login ở frontend không ném lỗi (`result?.ok` là
+`undefined`), nút "Đăng nhập" chỉ lặng lẽ quay lại — và vì request
+CHƯA TỪNG chạm tới backend, `pm2 logs` phía backend trống trơn.
+
+- **`deploy/serve-static.js`** — thêm khả năng proxy TCP thô (không dùng
+  thư viện ngoài): đọc `PROXY_PREFIX`/`PROXY_TARGET_PORT` từ biến môi
+  trường, request có đường dẫn khớp tiền tố được forward nguyên method/
+  headers/body sang `http://127.0.0.1:<PROXY_TARGET_PORT>` (kèm
+  `X-Forwarded-For`/`X-Forwarded-Proto`/`X-Forwarded-Host` để
+  `TRUST_PROXY_HOPS=1` đã đặt sẵn ở cả 3 service nhận đúng IP người dùng
+  thật thay vì luôn thấy `127.0.0.1`), response pipe thẳng về nguyên vẹn.
+- **`deploy/ecosystem.config.js`** — set `PROXY_PREFIX`/`PROXY_TARGET_PORT`
+  cho cả 3 tiến trình tĩnh: `hcrc-rp-user` → `/api`+`4001`, `hcrc-api-admin`
+  → `/admin`+`4002`, `hcrc-etl-admin` → `/admin`+`4003`. Không ảnh hưởng
+  bản có Nginx (Nginx đã chặn `/api`/`/admin` trước khi tới tiến trình
+  tĩnh này — xem `deploy/nginx.conf`).
+- **`Hướng dẫn triển khai PM2.md`** mục 14 — bổ sung tình huống này, kèm
+  lệnh áp dụng bản vá cho deployment cũ (`pm2 restart ... --update-env`,
+  không phải `reload`, vì lần này thêm biến môi trường mới).
+
 ## 6.19 — Sửa lỗi thật: 3 trang tĩnh không truy cập được từ máy khác (serve-static.js chỉ bind 127.0.0.1)
 
 Người dùng build + chạy PM2 xong nhưng không vào được trang từ trình

@@ -22,6 +22,30 @@
 //                      127.0.0.1 ở đây, khiến bản PM2-only KHÔNG TRUY CẬP
 //                      ĐƯỢC từ máy khác dù tường lửa đã mở đúng port (lỗi
 //                      thật đã gặp, sửa ở đây).
+//   PROXY_PREFIX,
+//   PROXY_TARGET_PORT — CHỈ dùng ở "Hướng dẫn triển khai PM2.md" (không
+//                      Nginx). Frontend (rp-user/api-admin/etl-admin) gọi
+//                      API bằng đường dẫn TƯƠNG ĐỐI (`fetch('/api/...')`
+//                      hay `fetch('/admin/...')`, xem src/lib/api.js của
+//                      từng giao diện) — đúng domain/port với chính trang
+//                      đang mở. Bản Nginx không sao vì Nginx đứng CHUNG 1
+//                      cổng, tự định tuyến `/api`/`/admin` sang đúng service
+//                      (xem deploy/nginx.conf); nhưng bản PM2-only KHÔNG có
+//                      lớp đó — tiến trình NÀY (serve-static.js, phục vụ
+//                      trang tĩnh ở cổng 5173/5174/5175) mới là nơi nhận
+//                      request, không phải backend (cổng 4001-4003). Thiếu
+//                      2 biến này, request rơi vào nhánh "SPA fallback" bên
+//                      dưới — trả về `index.html` (200 OK, không phải JSON)
+//                      một cách ÂM THẦM: bấm "Đăng nhập" không báo lỗi gì
+//                      (code frontend thấy response không phải JSON, không
+//                      ném lỗi), và vì request chưa từng tới backend nên
+//                      `pm2 logs hcrc-rp-server`/`hcrc-api-server`/`hcrc-etl`
+//                      cũng KHÔNG có dòng nào — lỗi thật đã gặp, sửa ở đây
+//                      bằng cách proxy thẳng các đường dẫn có tiền tố này
+//                      sang `http://127.0.0.1:<PROXY_TARGET_PORT>`, kèm
+//                      X-Forwarded-For/-Proto để TRUST_PROXY_HOPS=1 (đã đặt
+//                      sẵn ở cả 3 service, xem server.js) nhận đúng IP người
+//                      dùng thật thay vì luôn thấy 127.0.0.1.
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
@@ -29,6 +53,10 @@ const path = require('path');
 const PORT = parseInt(process.env.PORT, 10);
 const DIST_DIR = process.env.STATIC_DIST_DIR
   ? path.resolve(__dirname, process.env.STATIC_DIST_DIR)
+  : null;
+const PROXY_PREFIX = process.env.PROXY_PREFIX || null;
+const PROXY_TARGET_PORT = process.env.PROXY_TARGET_PORT
+  ? parseInt(process.env.PROXY_TARGET_PORT, 10)
   : null;
 
 if (!PORT || !DIST_DIR) {
@@ -84,8 +112,43 @@ function cacheControlFor(filePath) {
   return 'public, max-age=3600';
 }
 
+// Proxy TCP thô sang backend (không dùng thư viện ngoài, xem đầu file) —
+// forward nguyên request (method/headers/body) và pipe thẳng response về,
+// không đụng vào Cache-Control/JSON gì (để nguyên response gốc của backend).
+function proxyToBackend(req, res) {
+  const forwardedFor = req.headers['x-forwarded-for']
+    ? `${req.headers['x-forwarded-for']}, ${req.socket.remoteAddress}`
+    : req.socket.remoteAddress;
+  const proxyReq = http.request({
+    host: '127.0.0.1',
+    port: PROXY_TARGET_PORT,
+    method: req.method,
+    path: req.url,
+    headers: {
+      ...req.headers,
+      'x-forwarded-for': forwardedFor,
+      'x-forwarded-proto': 'http',
+      'x-forwarded-host': req.headers.host || ''
+    }
+  }, (proxyRes) => {
+    res.writeHead(proxyRes.statusCode, proxyRes.headers);
+    proxyRes.pipe(res);
+  });
+  proxyReq.on('error', (err) => {
+    console.error(`serve-static: lỗi proxy sang 127.0.0.1:${PROXY_TARGET_PORT} — ${err.message}`);
+    res.writeHead(502, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify({ error: 'Không kết nối được backend' }));
+  });
+  req.pipe(proxyReq);
+}
+
 http.createServer((req, res) => {
   const urlPath = decodeURIComponent((req.url || '/').split('?')[0]);
+
+  if (PROXY_PREFIX && PROXY_TARGET_PORT && (urlPath === PROXY_PREFIX || urlPath.startsWith(`${PROXY_PREFIX}/`))) {
+    return proxyToBackend(req, res);
+  }
+
   let filePath = path.join(DIST_DIR, urlPath === '/' ? 'index.html' : urlPath);
 
   // Chặn thoát ra ngoài DIST_DIR (vd "..%2F..%2Fetc/passwd") — path.join ở
