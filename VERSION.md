@@ -20,6 +20,42 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 6.18 — rp-user thành PWA thật (manifest + service worker), cài được lên màn hình chính
+
+Bước nền cho yêu cầu đóng gói lên App Store/Play Store sau này (chưa làm
+— cần PWA thật trước) và để tận dụng `registerType:'autoUpdate'` giúp
+người dùng đã cài app luôn thấy bản mới nhất, cộng thêm bản sửa
+Cache-Control ở 6.17. Phạm vi CHỈ `rp-user` (theo yêu cầu — `api-admin`/
+`etl-admin` để sau).
+
+- **`rp-user/vite.config.js`** — thêm plugin `vite-plugin-pwa`
+  (`registerType: 'autoUpdate'`, tự inject `<link rel="manifest">` +
+  script đăng ký service worker vào `index.html` lúc build, tự sinh
+  `sw.js`/`workbox-*.js`/`manifest.webmanifest`).
+- **`rp-user/public/icons/`** (mới) — 4 icon PNG (192/512/512-maskable/
+  apple-touch-icon 180) sinh bằng script pure-Node (không cần thư viện
+  ảnh, môi trường build không có sẵn) — nền màu `--accent` (#b5551f) +
+  glyph biểu đồ cột trắng đơn giản, PLACEHOLDER tạm cho tới khi có logo
+  thật của công ty.
+- **`rp-user/index.html`** — thêm `theme-color`, `apple-touch-icon`,
+  các meta `apple-mobile-web-app-*` (Safari/iOS đọc thẳng thẻ này, không
+  đọc web manifest như Android Chrome).
+- **`deploy/serve-static.js`** — thêm mime type `.webmanifest` (tránh rơi
+  về `application/octet-stream`); mở rộng danh sách file luôn `no-cache`
+  gồm cả `sw.js`/`registerSW.js`/`manifest.webmanifest` (không chỉ
+  `index.html`) — thiếu bước này thì chính service worker lại tự tạo ra
+  một tầng cache MỚI giữ bản cũ, lặp lại đúng lỗi vừa sửa ở 6.17.
+- **`deploy/nginx.conf`** — thêm `location = /manifest.webmanifest` khai
+  đúng `default_type application/manifest+json` cho domain `report.*`
+  (mime.types mặc định của nhiều bản Nginx đóng gói sẵn không có đuôi
+  `.webmanifest`); `location /` đã sẵn `no-cache` từ 6.17 nên tự phủ luôn
+  `sw.js`/`registerSW.js`.
+- **`deploy/Hướng dẫn nghiệp vụ.md`** mục 2 — thêm hướng dẫn "Cài đặt ứng
+  dụng"/"Thêm vào Màn hình chính" cho người dùng cuối (Android Chrome +
+  iOS Safari, khác nhau ở thao tác).
+- Đã kiểm thử bằng Playwright: manifest tải đúng content-type, service
+  worker đăng ký + active, trang render đúng, không lỗi console.
+
 ## 6.17 — Sửa lỗi người dùng không thấy tính năng mới sau khi cập nhật (thiếu Cache-Control)
 
 Người dùng phản ánh dùng PWA/web hay bị "chưa thấy tính năng đã cập nhật"

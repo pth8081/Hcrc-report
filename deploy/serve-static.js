@@ -37,6 +37,7 @@ const MIME = {
   '.js': 'application/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
   '.json': 'application/json; charset=utf-8',
+  '.webmanifest': 'application/manifest+json; charset=utf-8',
   '.svg': 'image/svg+xml',
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
@@ -63,8 +64,14 @@ const MIME = {
 //     cùng tên nhưng khác nội dung.
 //   - File tĩnh khác không hash tên (vd favicon) -> cache ngắn, vẫn tự
 //     revalidate được nếu đổi.
+//   - `sw.js`/`registerSW.js`/`manifest.webmanifest` (rp-user — service
+//     worker PWA, xem vite-plugin-pwa trong vite.config.js) -> CŨNG
+//     `no-cache` như index.html: service worker cache CŨ mà không tự biết
+//     kiểm tra bản mới thì coi như tự tạo ra lại ĐÚNG lỗi vừa sửa ở trên,
+//     lần này khó phát hiện hơn vì lỗi nằm trong chính cơ chế cập nhật.
+const NO_CACHE_FILES = new Set(['index.html', 'sw.js', 'registerSW.js', 'manifest.webmanifest']);
 function cacheControlFor(filePath) {
-  if (path.basename(filePath) === 'index.html') return 'no-cache';
+  if (NO_CACHE_FILES.has(path.basename(filePath))) return 'no-cache';
   if (path.dirname(filePath).endsWith(`${path.sep}assets`)) return 'public, max-age=31536000, immutable';
   return 'public, max-age=3600';
 }

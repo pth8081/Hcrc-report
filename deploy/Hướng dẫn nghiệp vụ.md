@@ -94,6 +94,20 @@ Warehouse) — xem `hướng_dẫn_báo_cáo.md` mục 2 cho ví dụ đầy đ�
 **Không có 1 trang "cổng vào chung"** — mỗi giao diện có địa chỉ (domain)
 riêng, vào thẳng đúng địa chỉ cần dùng.
 
+**Cài `rp-user` lên màn hình chính điện thoại (PWA)** — `rp-user` là ứng
+dụng web đầy đủ (có "manifest" + "service worker"), cài được như 1 app
+thật, không cần qua App Store/Play Store:
+- **Android (Chrome)**: mở `report.*`, bấm menu (⋮) → "Cài đặt ứng dụng"
+  (hoặc "Thêm vào Màn hình chính").
+- **iPhone/iPad (Safari — BẮT BUỘC dùng Safari, Chrome trên iOS không hỗ
+  trợ)**: mở `report.*`, bấm nút Chia sẻ (hình vuông + mũi tên lên) →
+  "Thêm vào Màn hình chính".
+
+Sau khi cài, mở icon trên màn hình chính chạy như 1 app riêng (không
+thấy thanh địa chỉ trình duyệt). Tự cập nhật bản mới ở lần mở KẾ TIẾP sau
+khi máy chủ deploy xong, không cần gỡ cài lại. `api-admin`/`etl-admin`
+CHƯA hỗ trợ cài kiểu này (chỉ mới làm cho `rp-user`).
+
 ## 3. Đăng nhập lần đầu + 2FA
 
 Tài khoản đăng nhập của 3 giao diện là **3 hệ thống HOÀN TOÀN riêng**
