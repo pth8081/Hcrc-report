@@ -378,6 +378,29 @@ sudo -u hcrc -H pm2 reload hcrc-etl-admin
 Vì `hcrc` sở hữu TOÀN BỘ cây thư mục, không cần "tạm mở khoá/khoá lại"
 gì cả — làm mọi việc dưới quyền `hcrc` như lúc cài đặt ban đầu là đủ.
 
+**Không lấy code qua `git clone`, mà tải file (zip/tải thủ công) rồi copy
+lên server?** — Thay `git pull` bằng: tải bản mới, copy đè lên
+`/home/hcrc/hcrc` (giữ nguyên cấu trúc thư mục). 2 điều PHẢI cẩn thận,
+đúng nguyên nhân một lỗi thật đã gặp (thiếu `npm install` cho 1 service):
+
+- **KHÔNG có "git diff" để biết chỗ nào đổi** — nên LUÔN chạy đủ cả 2 dòng
+  `for` ở trên cho CẢ 3 service + CẢ 3 giao diện mỗi lần cập nhật, không
+  đoán/bỏ bớt service nào — thiếu đúng 1 `npm install` là service đó lỗi
+  `Cannot find module '...'` ngay khi PM2 khởi động.
+- **KHÔNG copy đè file `.env`** — bản tải về thường có `.env.example`, nếu
+  lỡ ghi đè `.env` thật đang chạy bằng bản mẫu, service dừng ngay với lỗi
+  "còn giá trị mẫu" (mục 14). Backup `.env` của cả 3 service ra ngoài
+  TRƯỚC khi copy đè code, xong copy lại vào.
+
+**Người dùng vẫn thấy giao diện cũ, chưa có tính năng mới sau khi cập
+nhật?** — Từ phiên bản có Cache-Control đúng (xem `deploy/serve-static.js`),
+`index.html` luôn bắt trình duyệt hỏi lại server (`no-cache`) nên lần mở
+trang KẾ TIẾP sau khi `pm2 reload`/Nginx đã có bản mới sẽ tự thấy ngay,
+không cần xoá cache tay. Chỉ CẦN xoá cache/mở lại 1 LẦN DUY NHẤT nếu trình
+duyệt của người dùng đã lỡ cache `index.html` từ TRƯỚC KHI máy chủ có bản
+sửa Cache-Control này (cache cũ không tự biết quy tắc mới) — sau lần đó về
+sau luôn tự động, không cần lặp lại.
+
 ## 14. Xử lý sự cố thường gặp
 
 **Không đăng nhập được vào bất kỳ trang nào (báo sai tài khoản/mật

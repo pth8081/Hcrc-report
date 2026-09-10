@@ -20,6 +20,35 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 6.17 — Sửa lỗi người dùng không thấy tính năng mới sau khi cập nhật (thiếu Cache-Control)
+
+Người dùng phản ánh dùng PWA/web hay bị "chưa thấy tính năng đã cập nhật"
+sau khi deploy bản mới. Nguyên nhân: `deploy/serve-static.js` và
+`deploy/nginx.conf` KHÔNG hề gửi header `Cache-Control` cho bất kỳ file
+nào — trình duyệt (nặng nhất trên mobile, và nặng hơn ở chế độ "Thêm vào
+màn hình chính") tự suy đoán thời hạn cache theo giờ sửa file, có thể giữ
+`index.html` CŨ rất lâu mà không hỏi lại server — người dùng không bao
+giờ tải được `index.html` mới để biết tên file JS/CSS mới (Vite đổi tên
+theo hash nội dung mỗi lần build, nhưng phải có `index.html` mới mới biết
+tên mới là gì).
+
+- **`deploy/serve-static.js`** — thêm `cacheControlFor()`: `index.html`
+  (kể cả khi trả về do SPA fallback) → `no-cache` (luôn revalidate);
+  file trong `assets/` (Vite tự hash tên) → `public, max-age=31536000,
+  immutable`; file tĩnh khác → `public, max-age=3600`.
+- **`deploy/nginx.conf`** — thêm khối `location /assets/` (cache dài +
+  immutable) và `add_header Cache-Control "no-cache"` cho `location /`
+  ở cả 3 domain (`report`/`api-admin`/`etl-admin`), áp dụng cho nhánh
+  Nginx đọc thẳng file (`root`/`try_files`) — nhánh `proxy_pass` sang
+  `serve-static.js` tự nhận header từ đó, không cần sửa thêm.
+- **`Hướng dẫn triển khai PM2.md`** — thêm lưu ý: cache cũ (từ TRƯỚC khi
+  máy chủ có bản sửa này) cần xoá/mở lại 1 lần duy nhất, về sau tự động
+  không cần lặp lại; đồng thời bổ sung nhánh "cập nhật code khi KHÔNG dùng
+  git" (tải file/copy tay lên server) — đúng thực tế một triển khai thật
+  đang dùng cách này, kèm 2 lưu ý (chạy đủ `npm install` cho cả 3 service
+  mỗi lần vì không có `git diff` để biết chỗ đổi; không copy đè `.env`
+  thật bằng file mẫu).
+
 ## 6.16 — Voucher: xác nhận giá trị thật STATUS trên PMCRDINF
 
 Người dùng xác nhận `PMCRDINF.STATUS`: `1` = CHƯA thu hồi (voucher còn

@@ -45,6 +45,30 @@ const MIME = {
   '.woff2': 'font/woff2',
 };
 
+// Cache-Control ĐÚNG bắt buộc để cập nhật bản mới hiện ra ngay — thiếu hẳn
+// header này trước đây (mọi file trả về không kèm Cache-Control gì) khiến
+// trình duyệt (nặng nhất trên mobile, và nặng hơn nữa ở chế độ "Thêm vào
+// màn hình chính" — webview giữ cache rất lâu, ít khi tự revalidate) tự
+// suy đoán thời hạn cache theo giờ sửa file, có thể giữ `index.html` CŨ
+// hàng giờ/hàng ngày mà không gọi lại server — người dùng vẫn thấy bản cũ
+// dù server đã có bản mới, vì trình duyệt chưa từng biết tên file JS/CSS
+// mới (Vite đổi tên theo hash nội dung, nhưng phải tải `index.html` MỚI
+// mới biết tên mới đó là gì).
+//   - `index.html` (kể cả khi trả về do SPA fallback) -> `no-cache` — LUÔN
+//     phải hỏi lại server (kèm ETag, server trả 304 nếu chưa đổi — vẫn rẻ,
+//     không phải tải lại toàn bộ), không được dùng bản cache cũ mù quáng.
+//   - File trong `assets/` (Vite tự đặt tên kèm hash nội dung, vd
+//     `index-Dz04KvoF.js`) -> cache CỰC DÀI + `immutable` — an toàn tuyệt
+//     đối vì nội dung đổi là tên file đổi theo, không bao giờ có chuyện
+//     cùng tên nhưng khác nội dung.
+//   - File tĩnh khác không hash tên (vd favicon) -> cache ngắn, vẫn tự
+//     revalidate được nếu đổi.
+function cacheControlFor(filePath) {
+  if (path.basename(filePath) === 'index.html') return 'no-cache';
+  if (path.dirname(filePath).endsWith(`${path.sep}assets`)) return 'public, max-age=31536000, immutable';
+  return 'public, max-age=3600';
+}
+
 http.createServer((req, res) => {
   const urlPath = decodeURIComponent((req.url || '/').split('?')[0]);
   let filePath = path.join(DIST_DIR, urlPath === '/' ? 'index.html' : urlPath);
@@ -64,7 +88,10 @@ http.createServer((req, res) => {
       filePath = path.join(DIST_DIR, 'index.html');
     }
     const ext = path.extname(filePath);
-    res.writeHead(200, { 'Content-Type': MIME[ext] || 'application/octet-stream' });
+    res.writeHead(200, {
+      'Content-Type': MIME[ext] || 'application/octet-stream',
+      'Cache-Control': cacheControlFor(filePath)
+    });
     fs.createReadStream(filePath).pipe(res);
   });
 }).listen(PORT, '127.0.0.1', () => {
