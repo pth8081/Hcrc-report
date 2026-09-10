@@ -147,4 +147,8 @@ async function runReport(pool, definition, filterValues = {}, { page = 1, pageSi
   return result.recordset.map(parseRow);
 }
 
-module.exports = { runReport, projectColumns, describeColumns };
+// FIELD_NAME_RE xuất thêm CHỈ để lib/adhocReportEngine.js dùng lại đúng 1
+// quy tắc validate tên field JSON (chữ/số/gạch dưới) — cùng service, không
+// có lý do "mỗi server tự chứa đủ code khi triển khai riêng" như 2 bản sao
+// rp-server/api-server nói ở đầu file, nên tái dùng thẳng thay vì chép lại.
+module.exports = { runReport, projectColumns, describeColumns, FIELD_NAME_RE };

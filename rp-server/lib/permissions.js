@@ -1,7 +1,8 @@
 // lib/permissions.js — Tra quyền của một user: vai trò, menu được thấy, báo
-// cáo được chạy. Cache trong bộ nhớ TTL ngắn (không nhúng vào JWT) — để admin
-// thu hồi/đổi quyền có hiệu lực gần như ngay, không phải chờ người dùng đăng
-// xuất/đăng nhập lại (xem tài liệu kiến trúc, mục 07).
+// cáo được chạy, Domain được tự khám phá (Báo cáo tự do, xem
+// routes/adhocReports.js). Cache trong bộ nhớ TTL ngắn (không nhúng vào
+// JWT) — để admin thu hồi/đổi quyền có hiệu lực gần như ngay, không phải
+// chờ người dùng đăng xuất/đăng nhập lại (xem tài liệu kiến trúc, mục 07).
 const { sql, getPool } = require('../db');
 
 const CACHE_TTL_MS = 60 * 1000;
@@ -26,19 +27,27 @@ async function loadContext(userId) {
   const roles = roleResult.recordset;
   const isSystemRole = roles.some(r => r.IsSystemRole);
 
-  let menuCodes, reportIds;
+  let menuCodes, reportIds, domains;
   if (isSystemRole) {
     const allMenu = await pool.request().query('SELECT Code FROM app.MenuItems');
     const allReports = await pool.request().query('SELECT ReportId FROM app.ReportCatalog WHERE IsActive = 1');
     menuCodes = new Set(allMenu.recordset.map(r => r.Code));
     reportIds = new Set(allReports.recordset.map(r => r.ReportId));
+    // Admin hệ thống thấy TOÀN BỘ Domain đang có dữ liệu thật trong DWH —
+    // cùng tinh thần "bỏ qua RoleReportAccess" ở trên, áp dụng cho
+    // app.RoleDomainAccess (Báo cáo tự do, xem routes/adhocReports.js).
+    const dwhPool = await getPool('DWH');
+    const allDomains = await dwhPool.request().query('SELECT DISTINCT Domain FROM dwh.ReportFacts');
+    domains = new Set(allDomains.recordset.map(r => r.Domain));
   } else if (roles.length) {
     const roleIds = roles.map(r => r.Id);
     const menuReq = pool.request();
     const reportReq = pool.request();
+    const domainReq = pool.request();
     const inClause = roleIds.map((id, i) => {
       menuReq.input(`r${i}`, sql.Int, id);
       reportReq.input(`r${i}`, sql.Int, id);
+      domainReq.input(`r${i}`, sql.Int, id);
       return `@r${i}`;
     }).join(', ');
 
@@ -50,11 +59,16 @@ async function loadContext(userId) {
     const reportResult = await reportReq.query(`
       SELECT DISTINCT ReportId FROM app.RoleReportAccess WHERE RoleId IN (${inClause})
     `);
+    const domainResult = await domainReq.query(`
+      SELECT DISTINCT Domain FROM app.RoleDomainAccess WHERE RoleId IN (${inClause})
+    `);
     menuCodes = new Set(menuResult.recordset.map(r => r.Code));
     reportIds = new Set(reportResult.recordset.map(r => r.ReportId));
+    domains = new Set(domainResult.recordset.map(r => r.Domain));
   } else {
     menuCodes = new Set();
     reportIds = new Set();
+    domains = new Set();
   }
 
   return {
@@ -64,7 +78,8 @@ async function loadContext(userId) {
     roles: roles.map(r => ({ id: r.Id, code: r.Code, name: r.Name })),
     isSystemRole,
     menuCodes,
-    reportIds
+    reportIds,
+    domains
   };
 }
 

@@ -11,16 +11,19 @@ export default function RolesPage() {
   const [roles, setRoles] = useState([]);
   const [menuItems, setMenuItems] = useState([]);
   const [reportCatalog, setReportCatalog] = useState([]);
+  const [domainCatalog, setDomainCatalog] = useState([]);
   const [error, setError] = useState('');
   const [form, setForm] = useState({ code: '', name: '' });
   const [editingAccessFor, setEditingAccessFor] = useState(null);
   const [selectedMenuIds, setSelectedMenuIds] = useState([]);
   const [selectedReportIds, setSelectedReportIds] = useState([]);
+  const [selectedDomains, setSelectedDomains] = useState([]);
 
   function reload() {
     api.get('/system/roles').then(setRoles).catch(err => setError(err.message));
     api.get('/system/menu-items').then(setMenuItems).catch(err => setError(err.message));
     api.get('/system/report-catalog').then(setReportCatalog).catch(err => setError(err.message));
+    api.get('/system/roles/domains-catalog').then(setDomainCatalog).catch(err => setError(err.message));
   }
   useEffect(reload, []);
 
@@ -47,12 +50,14 @@ export default function RolesPage() {
     const access = await api.get(`/system/roles/${role.Id}/access`);
     setSelectedMenuIds(access.menuItemIds);
     setSelectedReportIds(access.reportIds);
+    setSelectedDomains(access.domains);
   }
 
   async function saveAccess() {
     try {
       await api.put(`/system/roles/${editingAccessFor.Id}/menu-access`, { menuItemIds: selectedMenuIds });
       await api.put(`/system/roles/${editingAccessFor.Id}/report-access`, { reportIds: selectedReportIds });
+      await api.put(`/system/roles/${editingAccessFor.Id}/domain-access`, { domains: selectedDomains });
       setEditingAccessFor(null);
     } catch (err) { setError(err.message); }
   }
@@ -118,7 +123,22 @@ export default function RolesPage() {
               </label>
             ))}
 
-            {/* Sửa quyền menu/báo cáo của 1 vai trò chỉ Admin hệ thống thật mới
+            <h4>Domain được tự khám phá (Báo cáo tự do)</h4>
+            {!domainCatalog.length && <p className="form-hint">Chưa có Domain nào có dữ liệu trong Data Warehouse.</p>}
+            {domainCatalog.map(d => (
+              <label key={d} className="checkbox-row">
+                <input
+                  type="checkbox"
+                  checked={selectedDomains.includes(d)}
+                  onChange={(e) => setSelectedDomains(e.target.checked
+                    ? [...selectedDomains, d]
+                    : selectedDomains.filter(x => x !== d))}
+                />
+                {d}
+              </label>
+            ))}
+
+            {/* Sửa quyền menu/báo cáo/domain của 1 vai trò chỉ Admin hệ thống thật mới
                 làm được (server đã chặn — xem lib/auth.js requireSystemRoleActor,
                 tránh 1 người chỉ có menu "Phân quyền" tự cấp quyền hệ thống cho
                 mình) — người xem thường vẫn xem được quyền hiện có, chỉ ẩn nút Lưu. */}

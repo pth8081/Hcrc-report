@@ -83,10 +83,25 @@ router.get('/:id/access', async (req, res, next) => {
       .query('SELECT MenuItemId FROM app.RoleMenuAccess WHERE RoleId = @id');
     const reports = await pool.request().input('id', sql.Int, req.params.id)
       .query('SELECT ReportId FROM app.RoleReportAccess WHERE RoleId = @id');
+    const domains = await pool.request().input('id', sql.Int, req.params.id)
+      .query('SELECT Domain FROM app.RoleDomainAccess WHERE RoleId = @id');
     res.json({
       menuItemIds: menu.recordset.map(r => r.MenuItemId),
-      reportIds: reports.recordset.map(r => r.ReportId)
+      reportIds: reports.recordset.map(r => r.ReportId),
+      domains: domains.recordset.map(r => r.Domain)
     });
+  } catch (err) { next(err); }
+});
+
+// Toàn bộ Domain THẬT đang có trong Data Warehouse — nguồn liệt kê cho
+// checkbox "Báo cáo tự do" bên dưới (KHÁC app.ReportCatalog.Domain, chỉ là
+// nhãn mô tả — đây đọc thẳng dwh.ReportFacts, đúng Domain có thể tự khám
+// phá được).
+router.get('/domains-catalog', async (req, res, next) => {
+  try {
+    const dwhPool = await getPool('DWH');
+    const result = await dwhPool.request().query('SELECT DISTINCT Domain FROM dwh.ReportFacts ORDER BY Domain');
+    res.json(result.recordset.map(r => r.Domain));
   } catch (err) { next(err); }
 });
 
@@ -140,6 +155,33 @@ router.put('/:id/report-access', requireSystemRoleActor, async (req, res, next) 
     }
     invalidateAll();
     await logAction(req, { module: 'Phân quyền', actionType: 'GAN_QUYEN_BAO_CAO', targetObject: req.params.id, description: `Cập nhật quyền báo cáo vai trò #${req.params.id}` });
+    res.json({ ok: true });
+  } catch (err) { next(err); }
+});
+
+// Cùng lý do — chỉ Admin hệ thống thật mới cấp quyền tự khám phá DOMAIN cho
+// 1 vai trò (Báo cáo tự do, xem routes/adhocReports.js).
+router.put('/:id/domain-access', requireSystemRoleActor, async (req, res, next) => {
+  try {
+    const { domains = [] } = req.body || {};
+    const pool = await getPool('RP');
+    const tx = new sql.Transaction(pool);
+    await tx.begin();
+    try {
+      await new sql.Request(tx).input('id', sql.Int, req.params.id).query('DELETE FROM app.RoleDomainAccess WHERE RoleId = @id');
+      for (const domain of domains) {
+        await new sql.Request(tx)
+          .input('id', sql.Int, req.params.id)
+          .input('domain', sql.VarChar(50), domain)
+          .query('INSERT INTO app.RoleDomainAccess (RoleId, Domain) VALUES (@id, @domain)');
+      }
+      await tx.commit();
+    } catch (err) {
+      await tx.rollback().catch(() => {});
+      throw err;
+    }
+    invalidateAll();
+    await logAction(req, { module: 'Phân quyền', actionType: 'GAN_QUYEN_DOMAIN', targetObject: req.params.id, description: `Cập nhật quyền Domain (Báo cáo tự do) vai trò #${req.params.id}` });
     res.json({ ok: true });
   } catch (err) { next(err); }
 });

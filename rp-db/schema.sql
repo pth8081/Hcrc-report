@@ -422,6 +422,23 @@ BEGIN
 END
 GO
 
+-- "Báo cáo tự do" (self-service, hướng Power BI, xem hướng_dẫn_báo_cáo.md) —
+-- KHÁC app.RoleReportAccess (đó là quyền xem 1 báo cáo ADMIN ĐÃ ĐỊNH NGHĨA
+-- SẴN): bảng này quyết định vai trò nào được TỰ CHỌN Domain nào (dwh.ReportFacts.Domain)
+-- để tự dựng báo cáo — không có dòng nào ở đây thì vai trò đó không thấy
+-- Domain nào cả (trừ IsSystemRole=1, luôn thấy hết, xem lib/permissions.js).
+-- Domain là VARCHAR tự do (không FK) vì Domain sống trong CSDL DWH riêng
+-- (dwh.ReportFacts), không phải bảng trong chính CSDL RP này.
+IF OBJECT_ID('app.RoleDomainAccess', 'U') IS NULL
+BEGIN
+    CREATE TABLE app.RoleDomainAccess (
+        RoleId INT         NOT NULL REFERENCES app.Roles(Id) ON DELETE CASCADE,
+        Domain VARCHAR(50) NOT NULL,
+        CONSTRAINT PK_RoleDomainAccess PRIMARY KEY (RoleId, Domain)
+    );
+END
+GO
+
 -- Dashboard (hướng Power BI, Giai đoạn C) — 1 trang gộp NHIỀU báo cáo có sẵn
 -- (app.ReportCatalog) thành các "ô" (tiles), xem DefinitionJson.tiles =
 -- [{key, reportId, title?}]. KHÔNG có MenuItemId/bảng quyền riêng — toàn bộ
@@ -441,6 +458,27 @@ BEGIN
         IsActive       BIT           NOT NULL DEFAULT 1,
         CreatedAt      DATETIME2(3)  NOT NULL DEFAULT SYSUTCDATETIME()
     );
+END
+GO
+
+-- Cấu hình "Báo cáo tự do" người dùng TỰ LƯU cho CHÍNH MÌNH (domain + field
+-- đã chọn + bộ lọc + kiểu hiển thị, xem rp-server/lib/adhocReportEngine.js) —
+-- KHÁC MỌI bảng cấu hình khác trong file này (ReportCatalog/Dashboards...,
+-- toàn bộ do ADMIN tạo cho người khác dùng): đây là bảng ĐẦU TIÊN người dùng
+-- thường tự sở hữu dòng dữ liệu của mình — bắt buộc có UserId, mọi route CRUD
+-- phải lọc theo UserId = người đang đăng nhập (không có route admin xem của
+-- người khác ở bản đầu, xem routes/adhocReports.js).
+IF OBJECT_ID('app.UserSavedReports', 'U') IS NULL
+BEGIN
+    CREATE TABLE app.UserSavedReports (
+        Id          INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        UserId      INT           NOT NULL REFERENCES app.Users(Id) ON DELETE CASCADE,
+        Title       NVARCHAR(200) NOT NULL,
+        ConfigJson  NVARCHAR(MAX) NOT NULL,
+        CreatedAt   DATETIME2(3)  NOT NULL DEFAULT SYSUTCDATETIME(),
+        UpdatedAt   DATETIME2(3)  NOT NULL DEFAULT SYSUTCDATETIME()
+    );
+    CREATE INDEX IX_UserSavedReports_UserId ON app.UserSavedReports (UserId);
 END
 GO
 
@@ -686,8 +724,10 @@ IF NOT EXISTS (SELECT 1 FROM app.MenuItems WHERE Code = 'reports-van-hanh')
     INSERT INTO app.MenuItems (Code, ParentId, Label, Path, SortOrder) VALUES ('reports-van-hanh', NULL, N'Báo cáo vận hành', '/reports', 4);
 IF NOT EXISTS (SELECT 1 FROM app.MenuItems WHERE Code = 'reports-mua-hang')
     INSERT INTO app.MenuItems (Code, ParentId, Label, Path, SortOrder) VALUES ('reports-mua-hang', NULL, N'Báo cáo Mua hàng', '/reports', 5);
+IF NOT EXISTS (SELECT 1 FROM app.MenuItems WHERE Code = 'reports-adhoc')
+    INSERT INTO app.MenuItems (Code, ParentId, Label, Path, SortOrder) VALUES ('reports-adhoc', NULL, N'Báo cáo tự do', '/reports/adhoc', 6);
 IF NOT EXISTS (SELECT 1 FROM app.MenuItems WHERE Code = 'system')
-    INSERT INTO app.MenuItems (Code, ParentId, Label, Path, SortOrder) VALUES ('system', NULL, N'Hệ thống', '/system', 6);
+    INSERT INTO app.MenuItems (Code, ParentId, Label, Path, SortOrder) VALUES ('system', NULL, N'Hệ thống', '/system', 7);
 GO
 
 IF NOT EXISTS (SELECT 1 FROM app.MenuItems WHERE Code = 'system-permissions')

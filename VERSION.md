@@ -20,6 +20,56 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 6.22 — "Báo cáo tự do" (self-service, hướng Power BI) — người dùng cuối tự dựng bảng/biểu đồ, không cần admin tạo sẵn
+
+Yêu cầu mới: bên cạnh Danh mục báo cáo hiện có (admin định nghĩa sẵn cột/
+lọc/nguồn trong `app.ReportCatalog`), thêm MỘT LỚP song song để người dùng
+cuối tự chọn Domain (dữ liệu đã đồng bộ vào Data Warehouse) + tự chọn
+trường nhóm (dimensions) + số liệu tổng hợp (measures, kèm hàm tổng hợp) +
+tự chọn kiểu hiển thị (bảng/bảng chéo/biểu đồ) — tái dùng nguyên
+`ReportBody`/`ReportChart`/`PivotTable` đã có (mục 8-9 `hướng_dẫn_báo_cáo.md`),
+không viết lại UI hiển thị.
+
+Khác MỌI tính năng `DefinitionJson`/composite trước đây (chỉ admin cấu
+hình được — nguồn tin cậy kiểm soát): input domain/field/hàm tổng hợp ở
+đây tới THẲNG từ request của người dùng cuối bất kỳ — mọi field/domain
+được re-validate lại đúng ngay trong `lib/adhocReportEngine.js` (không chỉ
+ở route), không ghép chuỗi người dùng gửi lên vào SQL dưới bất kỳ hình
+thức nào.
+
+- **`rp-db/schema.sql`** — `app.RoleDomainAccess` (vai trò nào được tự
+  khám phá Domain nào, admin cấp ở trang Phân quyền) + `app.UserSavedReports`
+  (mỗi người dùng tự lưu cấu hình CỦA RIÊNG MÌNH, có `UserId` — bảng ĐẦU
+  TIÊN trong hệ thống người dùng thường tự sở hữu dòng dữ liệu của mình) +
+  seed menu `reports-adhoc`.
+- **`rp-server/lib/permissions.js`** — nạp thêm `domains` (Set) vào user
+  context: `isSystemRole` thấy toàn bộ Domain có dữ liệu thật trong DWH,
+  vai trò khác chỉ thấy Domain đã cấp qua `RoleDomainAccess`.
+- **`rp-server/lib/adhocReportEngine.js`** (mới) — `discoverDomainFields()`
+  dò field THẬT bằng `OPENJSON` trên 500 dòng mới nhất của Domain (không
+  quét toàn bộ, tránh chậm); `runAdhocQuery()` RE-VALIDATE field/hàm tổng
+  hợp trước khi dựng SQL động (whitelist field theo đúng lần dò lại +
+  `FIELD_NAME_RE`, hàm tổng hợp map cứng sang SQL, mọi filter tham số hoá),
+  giới hạn `TOP 5000` dòng kết quả sau GROUP BY.
+- **`rp-server/routes/adhocReports.js`** (mới) — `GET /domains`,
+  `GET /domains/:domain/fields`, `POST /run` (đều kiểm tra Domain nằm
+  trong quyền của người dùng), CRUD `/saved` lọc theo `UserId`, 404 (không
+  phải 403) khi không đúng chủ sở hữu để không lộ báo cáo người khác.
+- **`rp-server/routes/roles.js`** — thêm `GET /domains-catalog` +
+  `PUT /:id/domain-access` (mirror `report-access` đã có, cũng chỉ Admin
+  hệ thống thật cấp được — `requireSystemRoleActor`).
+- **`rp-user`** — trang mới "Báo cáo tự do" (`/reports/adhoc`,
+  `AdhocReportPage.jsx`), thêm section "Domain được tự khám phá" vào
+  `RolesPage.jsx` (trang Phân quyền).
+- **Test**: smoke test `discoverDomainFields`/`runAdhocQuery` chặn đúng
+  field lạ/agg lạ/domain lạ/field dạng SQL-injection-shaped, smoke test
+  `permissions.js` cho cả 3 trường hợp (isSystemRole, vai trò thường có
+  cấp Domain, không vai trò nào), `npm run build` `rp-user` sạch.
+- **`hướng_dẫn_báo_cáo.md`** mục 14 (mới) — hướng dẫn admin cấp
+  `RoleDomainAccess` + người dùng tự dựng báo cáo, ghi rõ giới hạn (mẫu
+  500 dòng dò field, tối đa 5000 dòng kết quả, chỉ 1 Domain/lần — ghép
+  nhiều nguồn vẫn cần admin tạo `composite`).
+
 ## 6.21 — Lỗi "Kiểm tra kết nối" HCRC Workspace chỉ báo "fetch failed" — bổ sung nguyên nhân thật (DNS/TLS/timeout)
 
 Người dùng cấu hình "Xác thực HCRC Workspace" (`https://vpdt.hcrc.vn`),

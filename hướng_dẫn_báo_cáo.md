@@ -1681,3 +1681,52 @@ vào CSDL vận hành rủi ro cao hơn hẳn đọc — hạn chế phạm vi t
 kiểm soát/kiểm tra hơn là 1 engine UPDATE tuỳ ý nhiều cột. Cần thêm thao tác
 khác (vd trừ dần `BAL_AMT` nếu sau này đổi sang voucher theo số dư) thì mở
 rộng riêng, không tận dụng lại `UsedValue` hiện tại.
+
+---
+
+## 14. Báo cáo tự do (self-service, hướng Power BI) — người dùng cuối tự dựng, không cần admin tạo sẵn
+
+### Khác gì mục 1-13 (Danh mục báo cáo)
+
+Toàn bộ mục 1-13 là báo cáo ADMIN định nghĩa SẴN (`app.ReportCatalog`,
+"Biểu mẫu") — người dùng cuối chỉ chọn bộ lọc, không tự chọn được trường
+dữ liệu. Mục này là MỘT LỚP KHÁC, song song, không thay thế: người dùng
+cuối tự chọn 1 Domain (dữ liệu ETL đã đồng bộ vào Data Warehouse, mục 1)
++ tự chọn trường nhóm (dimensions) + số liệu tổng hợp (measures, kèm hàm
+tổng hợp: Tổng/Trung bình/Đếm/Nhỏ nhất/Lớn nhất) + tự chọn kiểu hiển thị
+(bảng/bảng chéo/biểu đồ, tái dùng đúng `visualization` ở mục 8-9) — vào
+menu **"Báo cáo tự do"**.
+
+### Bước 1 — Phân quyền: admin cấp Domain nào được tự khám phá
+
+Trang **"Hệ thống → Phân quyền" → Gán quyền → "Domain được tự khám phá"**:
+tick đúng Domain (tên đặt lúc tạo Sync job, mục 1 Bước 1) muốn cho vai trò
+đó tự dựng báo cáo. KHÁC HẲN "Báo cáo được chạy" (đó là quyền xem 1 báo
+cáo ĐÃ CÓ SẴN) — không có dòng nào ở đây, vai trò đó vào "Báo cáo tự do"
+sẽ thấy trống trơn (không phải lỗi). Vai trò `admin` luôn thấy TOÀN BỘ
+Domain đang có dữ liệu, không cần cấp riêng.
+
+### Bước 2 — Người dùng: dựng báo cáo
+
+1. Chọn Domain.
+2. Tick trường nhóm (dimensions — gồm cả `entityCode`, luôn có sẵn) và số
+   liệu (measures, mỗi số liệu chọn 1 hàm tổng hợp riêng).
+3. Chọn khoảng ngày (bắt buộc) + lọc theo mã (tuỳ chọn).
+4. Chọn kiểu hiển thị — "Bảng chéo (pivot)" cần đúng 2 trường nhóm (1 theo
+   hàng, 1 theo cột) + 1 số liệu; "Cột/Đường/Tròn/KPI" dùng luôn các số
+   liệu đã tick làm `valueFields`.
+5. Bấm "Chạy". Muốn giữ lại cấu hình để mở lại lần sau, bấm "Lưu báo cáo
+   của tôi" — RIÊNG TƯ (chỉ chính người lưu thấy được, không chia sẻ cho
+   người khác ở bản này).
+
+### Giới hạn cần biết
+
+- **Trường hiển thị được dò tự động** từ 500 dòng dữ liệu MỚI NHẤT của
+  Domain đó (không quét toàn bộ, tránh chậm) — field CHỈ xuất hiện ở dữ
+  liệu cũ hơn 500 dòng gần nhất có thể KHÔNG hiện trong danh sách chọn.
+- **Kết quả tối đa 5000 dòng** sau khi gộp nhóm — nếu bị cắt (`truncated`),
+  trang tự báo, thu hẹp bộ lọc/khoảng ngày để xem đầy đủ (thường do chọn
+  nhầm 1 trường gần như duy nhất mỗi dòng làm số nhóm quá lớn).
+- **Chỉ đọc 1 Domain tại 1 thời điểm** — ghép NHIỀU Domain (vd doanh thu +
+  chỉ tiêu, so cùng kỳ năm trước) vẫn cần admin tạo báo cáo `composite`
+  sẵn (mục 1) — bản đầu của "Báo cáo tự do" không hỗ trợ ghép nguồn.

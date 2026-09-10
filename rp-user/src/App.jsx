@@ -9,6 +9,7 @@ import LoginPage from './pages/LoginPage';
 import HomePage from './modules/home/HomePage';
 import DashboardPage from './modules/dashboard/DashboardPage';
 import ReportsPage from './modules/reports/ReportsPage';
+import AdhocReportPage from './modules/reports/AdhocReportPage';
 import PermissionsPage from './modules/system/permissions/PermissionsPage';
 import ReportCatalogPage from './modules/system/report-catalog/ReportCatalogPage';
 import AuditLogPage from './modules/system/audit-log/AuditLogPage';
@@ -34,6 +35,7 @@ export default function App() {
           <Route path="/reports" element={
             <RequireMenuAccess codes={['reports-kinh-doanh', 'reports-van-hanh', 'reports-mua-hang']}><ReportsPage /></RequireMenuAccess>
           } />
+          <Route path="/reports/adhoc" element={<RequireMenuAccess code="reports-adhoc"><AdhocReportPage /></RequireMenuAccess>} />
 
           <Route path="/system/permissions" element={<RequireMenuAccess code="system-permissions"><PermissionsPage /></RequireMenuAccess>} />
           <Route path="/system/report-catalog" element={<RequireMenuAccess code="system-report-catalog"><ReportCatalogPage /></RequireMenuAccess>} />

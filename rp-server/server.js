@@ -27,6 +27,7 @@ const anomalyAlertsRoutes = require('./routes/anomalyAlerts');
 const hcrcWorkspaceSettingsRoutes = require('./routes/hcrcWorkspaceSettings');
 const dashboardCatalogRoutes = require('./routes/dashboardCatalog');
 const dashboardsRoutes = require('./routes/dashboards');
+const adhocReportsRoutes = require('./routes/adhocReports');
 const {
   verifyCredentials, isSystemRoleForRateLimit, issueToken, COOKIE_NAME, getSecret, setSessionCookie,
   issuePending2FAToken, issueSetupRequiredToken
@@ -170,6 +171,7 @@ app.use('/api/2fa', twoFactorRoutes);
 app.use('/api/me', meRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/dashboards', dashboardsRoutes);
+app.use('/api/adhoc-reports', adhocReportsRoutes);
 
 // "Hệ thống" — mỗi route con tự kiểm tra đúng 1 mã menu tương ứng (xem
 // requireMenuAccess trong từng file route).
