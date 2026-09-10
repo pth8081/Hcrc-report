@@ -20,6 +20,24 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 6.21 — Lỗi "Kiểm tra kết nối" HCRC Workspace chỉ báo "fetch failed" — bổ sung nguyên nhân thật (DNS/TLS/timeout)
+
+Người dùng cấu hình "Xác thực HCRC Workspace" (`https://vpdt.hcrc.vn`),
+bấm "Kiểm tra kết nối" thì báo lỗi cụt lủn `fetch failed`, không biết bắt
+đầu tìm ở đâu. Nguyên nhân: `fetch()` gốc của Node (undici) LUÔN ném đúng
+message `"fetch failed"` cho MỌI lỗi tầng mạng (DNS không phân giải được,
+bị từ chối kết nối, TLS lỗi, hết thời gian chờ...) — lý do thật nằm ở
+`err.cause` (vd `{code: 'ENOTFOUND', ...}`), nhưng `lib/hcrcWorkspaceClient.js`
+chỉ ghép `err.message` vào thông báo lỗi trả về, bỏ qua `err.cause` — thông
+tin chẩn đoán bị mất ngay từ lúc bắt lỗi, không phải do người dùng thiếu
+cấu hình gì.
+
+- **`rp-server/lib/hcrcWorkspaceClient.js`** — `callJson()` ghép thêm
+  `err.cause.code`/`err.cause.message` vào thông báo lỗi (vd
+  `fetch failed (ENOTFOUND)`) — route "Kiểm tra kết nối" chỉ Admin hệ
+  thống tự cấu hình mới gọi được, lộ chi tiết mạng của chính endpoint họ
+  vừa khai không phải rò rỉ nội bộ server.
+
 ## 6.20 — Sửa lỗi thật: đăng nhập bấm không phản ứng gì ở bản PM2-only (thiếu proxy /api, /admin sang backend)
 
 Người dùng đã seed tài khoản admin đúng cả 3 service, bấm "Đăng nhập" ở

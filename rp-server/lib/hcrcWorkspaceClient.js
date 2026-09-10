@@ -74,7 +74,17 @@ async function callJson(url, options, timeoutMs) {
   try {
     res = await fetch(url, { ...options, signal: AbortSignal.timeout(timeoutMs) });
   } catch (err) {
-    throw serviceUnavailableError(`Không gọi được HCRC Workspace: ${err.message}`);
+    // fetch() gốc (undici) luôn ném đúng message "fetch failed" cho MỌI lỗi
+    // tầng mạng (DNS không phân giải được, bị từ chối kết nối, TLS lỗi, hết
+    // thời gian chờ...) — lý do thật nằm ở err.cause, KHÔNG phải err.message
+    // (lỗi thật đã gặp: admin thấy đúng chữ "fetch failed" trên màn hình,
+    // không biết bắt đầu tìm ở đâu). Ghép thêm cause vào đây — route này chỉ
+    // Admin hệ thống tự cấu hình mới gọi được (requireSystemRoleActor), lộ
+    // chi tiết mạng của chính endpoint họ vừa khai KHÔNG phải rò rỉ nội bộ
+    // server như stack trace/lỗi CSDL (khác các route "Sanitize err.message"
+    // dành cho response công khai).
+    const cause = err.cause ? ` (${err.cause.code || err.cause.message || err.cause})` : '';
+    throw serviceUnavailableError(`Không gọi được HCRC Workspace: ${err.message}${cause}`);
   }
   const text = await res.text();
   let data;
