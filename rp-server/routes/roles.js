@@ -93,6 +93,22 @@ router.get('/:id/access', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// Danh sách báo cáo (chỉ ReportId+Title) CHO MỤC ĐÍCH TICK CHỌN ở màn "Gán
+// quyền" bên dưới — route RIÊNG, chỉ cần menu 'system-permissions' (đang bảo
+// vệ chính trang Vai trò), KHÔNG dùng chung GET /system/report-catalog
+// (routes/reportCatalog.js — đòi thêm menu 'system-report-catalog' để quản
+// trị danh mục báo cáo, mục đích khác hẳn). Thiếu route riêng này trước đây
+// khiến 1 vai trò được giao đúng CHỦ ĐÍCH "chỉ quản lý Phân quyền, không cần
+// là Admin hệ thống" (xem lib/auth.js:264-274) không tải được danh sách báo
+// cáo để tick — mirror đúng cách domains-catalog bên dưới đã làm.
+router.get('/report-catalog', async (req, res, next) => {
+  try {
+    const pool = await getPool('RP');
+    const result = await pool.request().query('SELECT ReportId, Title FROM app.ReportCatalog ORDER BY Title');
+    res.json(result.recordset);
+  } catch (err) { next(err); }
+});
+
 // Toàn bộ Domain THẬT đang có trong Data Warehouse — nguồn liệt kê cho
 // checkbox "Báo cáo tự do" bên dưới (KHÁC app.ReportCatalog.Domain, chỉ là
 // nhãn mô tả — đây đọc thẳng dwh.ReportFacts, đúng Domain có thể tự khám

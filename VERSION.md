@@ -20,6 +20,16 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 6.28 — Hoàn thiện tạo tài khoản + phân quyền theo nhóm (etl-admin, api-admin, rp-user)
+
+Rà soát riêng tính đầy đủ của "tạo tài khoản" + "phân quyền theo nhóm" (3 agent, mỗi hệ thống 1 agent, đối chiếu từng trang ↔ MenuCode ↔ enforce backend ↔ UI). Kết luận chung: nền tảng RBAC ở cả 3 hệ thống đã đầy đủ và đúng (không trang nào thiếu MenuCode, không "quyền ảo"), nhưng phát hiện + xử lý các khoảng trống cụ thể sau:
+
+- **(Cao)** `rp-user`: thêm nút "Đặt lại mật khẩu" cho tài khoản `local` trong trang Người dùng — backend `POST /system/users/:id/reset-password` đã sẵn sàng từ trước nhưng chưa có UI nào gọi tới, trước đây admin phải đi vòng qua "Nguồn xác thực" mới đặt lại được.
+- **(Trung bình)** `rp-server`: thêm route `GET /system/roles/report-catalog` (chỉ cần menu `system-permissions`, mirror `domains-catalog`) — trước đây trang "Vai trò" phần gán quyền báo cáo gọi `GET /system/report-catalog` (đòi thêm menu `system-report-catalog` khác), khiến 1 vai trò chỉ được giao đúng menu `system-permissions` (đúng kịch bản "trưởng nhóm không phải Admin hệ thống" mà hệ thống đã thiết kế) không tải được danh sách báo cáo để tick chọn.
+- **(Thấp)** Thêm UI "Sửa tên vai trò" ở cả 3 hệ thống (etl-admin/api-admin/rp-user) — route `PUT /roles/:id` đã có sẵn nhưng chưa có nút nào gọi tới; thiếu nút này khiến muốn đổi tên phải Xoá+Tạo lại (mất quyền đã gán do cascade).
+- **(Thấp)** `etl-admin` + `api-admin`: sửa điều kiện hiện nút "Đặt lại mật khẩu" từ `canManage` (=`canEdit('users')`) sang `isSystemRole` cho khớp đúng yêu cầu backend `requireSystemRoleActor` — trước đây nút vẫn hiện cho nhóm quyền "chỉ quản lý tài khoản thường" dù bấm chắc chắn bị từ chối.
+- **(Thấp)** `etl-admin`: làm rõ trực quan trong màn "Gán quyền" rằng dòng "Ánh xạ mã chi nhánh" không có mức "chỉ xem" (thay ô checkbox Xem bằng dấu "—" + chú thích) — trang này bắt buộc quyền Sửa cho mọi thao tác kể cả xem, trước đây vẽ y hệt 8 dòng khác nên admin dễ tưởng đã cấp quyền xem thành công.
+
 ## 6.27 — Xử lý các mục còn lại từ đợt rà soát lại (Thấp)
 
 Tiếp tục xử lý 4 mục "để bạn quyết định" chưa làm ở 6.26:

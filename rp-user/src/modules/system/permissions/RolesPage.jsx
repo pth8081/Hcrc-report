@@ -18,11 +18,13 @@ export default function RolesPage() {
   const [selectedMenuIds, setSelectedMenuIds] = useState([]);
   const [selectedReportIds, setSelectedReportIds] = useState([]);
   const [selectedDomains, setSelectedDomains] = useState([]);
+  const [editingNameFor, setEditingNameFor] = useState(null);
+  const [nameForm, setNameForm] = useState('');
 
   function reload() {
     api.get('/system/roles').then(setRoles).catch(err => setError(err.message));
     api.get('/system/menu-items').then(setMenuItems).catch(err => setError(err.message));
-    api.get('/system/report-catalog').then(setReportCatalog).catch(err => setError(err.message));
+    api.get('/system/roles/report-catalog').then(setReportCatalog).catch(err => setError(err.message));
     api.get('/system/roles/domains-catalog').then(setDomainCatalog).catch(err => setError(err.message));
   }
   useEffect(reload, []);
@@ -33,6 +35,25 @@ export default function RolesPage() {
     try {
       await api.post('/system/roles', form);
       setForm({ code: '', name: '' });
+      reload();
+    } catch (err) { setError(err.message); }
+  }
+
+  // Đổi tên vai trò — route PUT /system/roles/:id đã có sẵn từ trước nhưng
+  // chưa có UI nào gọi tới; thiếu nút này thì cách duy nhất để đổi tên là
+  // Xoá + Tạo lại (mất luôn RoleMenuAccess/RoleReportAccess/RoleDomainAccess/
+  // UserRoles đã gán do ON DELETE CASCADE theo RoleId).
+  function openEditName(role) {
+    setEditingNameFor(role);
+    setNameForm(role.Name);
+  }
+
+  async function saveName(e) {
+    e.preventDefault();
+    setError('');
+    try {
+      await api.put(`/system/roles/${editingNameFor.Id}`, { name: nameForm });
+      setEditingNameFor(null);
       reload();
     } catch (err) { setError(err.message); }
   }
@@ -81,6 +102,7 @@ export default function RolesPage() {
           {
             key: 'actions', label: '', render: (r) => r.IsSystemRole ? '—' : (
               <>
+                <button type="button" onClick={() => openEditName(r)}>Sửa tên</button>{' '}
                 <button type="button" onClick={() => openAccessEditor(r)}>Gán quyền</button>{' '}
                 <button type="button" onClick={() => deleteRole(r)}>Xoá</button>
               </>
@@ -148,6 +170,21 @@ export default function RolesPage() {
                 : <span className="form-hint">Chỉ Admin hệ thống mới sửa được quyền này.</span>}
               <button type="button" onClick={() => setEditingAccessFor(null)}>Đóng</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {editingNameFor && (
+        <div className="modal">
+          <div className="modal-body">
+            <h3>Sửa tên vai trò — {editingNameFor.Code}</h3>
+            <form className="stacked-form" onSubmit={saveName}>
+              <input value={nameForm} onChange={(e) => setNameForm(e.target.value)} autoFocus required />
+              <div className="modal-actions">
+                <button type="submit">Lưu</button>
+                <button type="button" onClick={() => setEditingNameFor(null)}>Huỷ</button>
+              </div>
+            </form>
           </div>
         </div>
       )}

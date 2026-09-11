@@ -114,7 +114,7 @@ export default function AdminUsersPage() {
               <>
                 {canManage && <button type="button" onClick={() => openEdit(u)}>Sửa</button>}{' '}
                 {isSystemRole && <button type="button" onClick={() => openAssignRoles(u)}>Gán vai trò</button>}{' '}
-                {canManage && <button type="button" onClick={() => resetPassword(u)}>Đặt lại mật khẩu</button>}{' '}
+                {isSystemRole && <button type="button" onClick={() => resetPassword(u)}>Đặt lại mật khẩu</button>}{' '}
                 {isSystemRole && u.roles?.some(r => r.isSystemRole) && <button type="button" onClick={() => reset2fa(u)}>Đặt lại 2FA</button>}
               </>
             )

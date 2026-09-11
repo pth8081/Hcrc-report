@@ -17,6 +17,8 @@ export default function RolesPage() {
   const [form, setForm] = useState({ code: '', name: '' });
   const [editingAccessFor, setEditingAccessFor] = useState(null);
   const [access, setAccess] = useState({}); // { [menuCode]: { checked, canEdit } }
+  const [editingNameFor, setEditingNameFor] = useState(null);
+  const [nameForm, setNameForm] = useState('');
 
   function reload() {
     api.get('/roles').then(setRoles).catch(err => setError(err.message));
@@ -30,6 +32,24 @@ export default function RolesPage() {
     try {
       await api.post('/roles', form);
       setForm({ code: '', name: '' });
+      reload();
+    } catch (err) { setError(err.message); }
+  }
+
+  // Đổi tên vai trò — route PUT /roles/:id đã có sẵn từ trước nhưng chưa có
+  // UI nào gọi tới; thiếu nút này thì cách duy nhất để đổi tên là Xoá + Tạo
+  // lại (mất luôn quyền menu đã gán do ON DELETE CASCADE).
+  function openEditName(role) {
+    setEditingNameFor(role);
+    setNameForm(role.Name);
+  }
+
+  async function saveName(e) {
+    e.preventDefault();
+    setError('');
+    try {
+      await api.put(`/roles/${editingNameFor.Id}`, { name: nameForm });
+      setEditingNameFor(null);
       reload();
     } catch (err) { setError(err.message); }
   }
@@ -87,6 +107,7 @@ export default function RolesPage() {
           {
             key: 'actions', label: '', render: (r) => r.IsSystemRole ? '—' : (
               <>
+                {canEditRoles && <button type="button" onClick={() => openEditName(r)}>Sửa tên</button>}{' '}
                 <button type="button" onClick={() => openAccessEditor(r)}>Gán quyền</button>{' '}
                 {canEditRoles && <button type="button" onClick={() => deleteRole(r)}>Xoá</button>}
               </>
@@ -106,12 +127,19 @@ export default function RolesPage() {
                 {menuCatalog.map(m => (
                   <tr key={m.code}>
                     <td>{m.label}</td>
-                    <td><input type="checkbox" checked={!!access[m.code]?.checked} onChange={(e) => setChecked(m.code, e.target.checked)} /></td>
+                    <td>
+                      {m.code === 'branch-code-map'
+                        ? <span title="Trang này yêu cầu quyền Sửa cho MỌI thao tác kể cả xem — không có mức chỉ-xem riêng">—</span>
+                        : <input type="checkbox" checked={!!access[m.code]?.checked} onChange={(e) => setChecked(m.code, e.target.checked)} />}
+                    </td>
                     <td><input type="checkbox" checked={!!access[m.code]?.canEdit} onChange={(e) => setCanEdit(m.code, e.target.checked)} /></td>
                   </tr>
                 ))}
               </tbody>
             </table>
+            <p className="form-hint">
+              Riêng "Ánh xạ mã chi nhánh" không có mức "chỉ xem" — phải tick "Sửa/Xoá" mới vào được trang này (kể cả để xem).
+            </p>
 
             {/* Sửa quyền menu của 1 vai trò chỉ Admin hệ thống thật mới làm được
                 (server đã chặn — xem lib/adminPermissions.js requireSystemRoleActor,
@@ -123,6 +151,21 @@ export default function RolesPage() {
                 : <span className="form-hint">Chỉ Admin hệ thống mới sửa được quyền này.</span>}
               <button type="button" onClick={() => setEditingAccessFor(null)}>Đóng</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {editingNameFor && (
+        <div className="modal">
+          <div className="modal-body">
+            <h3>Sửa tên vai trò — {editingNameFor.Code}</h3>
+            <form className="stacked-form" onSubmit={saveName}>
+              <input value={nameForm} onChange={(e) => setNameForm(e.target.value)} autoFocus required />
+              <div className="modal-actions">
+                <button type="submit">Lưu</button>
+                <button type="button" onClick={() => setEditingNameFor(null)}>Huỷ</button>
+              </div>
+            </form>
           </div>
         </div>
       )}

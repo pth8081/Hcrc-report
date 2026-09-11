@@ -17,6 +17,8 @@ export default function UsersPage() {
   const [editingAuthFor, setEditingAuthFor] = useState(null);
   const [authForm, setAuthForm] = useState({ authSource: 'local', password: '' });
   const [syncing, setSyncing] = useState(false);
+  const [resettingPasswordFor, setResettingPasswordFor] = useState(null);
+  const [newPassword, setNewPassword] = useState('');
 
   function reload() {
     api.get('/system/users').then(setUsers).catch(err => setError(err.message));
@@ -88,6 +90,27 @@ export default function UsersPage() {
     } catch (err) { setError(err.message); }
   }
 
+  // Đặt lại mật khẩu cho tài khoản local quên mật khẩu — trước đây KHÔNG có
+  // nút nào trên giao diện gọi tới route này dù backend đã sẵn sàng, admin
+  // phải đi vòng qua "Nguồn xác thực" (đổi sang rồi lại về 'local' kèm mật
+  // khẩu mới) mới đặt lại được. Chỉ Admin hệ thống mới làm được — server đã
+  // chặn (requireSystemRoleActor), ẩn nút ở đây cho gọn nếu không phải Admin.
+  function openResetPassword(user) {
+    setResettingPasswordFor(user);
+    setNewPassword('');
+  }
+
+  async function saveResetPassword(e) {
+    e.preventDefault();
+    setError('');
+    if (!newPassword || newPassword.length < 8) return setError('Mật khẩu phải có ít nhất 8 ký tự');
+    try {
+      await api.post(`/system/users/${resettingPasswordFor.Id}/reset-password`, { password: newPassword });
+      setResettingPasswordFor(null);
+      alert('Đã đặt lại mật khẩu.');
+    } catch (err) { setError(err.message); }
+  }
+
   // Giúp Admin khác bị mất thiết bị/cần khôi phục — 2FA vẫn BẮT BUỘC, chỉ
   // xoá đăng ký cũ, lần đăng nhập kế tiếp của họ bị bắt đăng ký lại từ đầu
   // (xem rp-server/routes/users.js). Chỉ Admin hệ thống mới làm được — server
@@ -139,6 +162,7 @@ export default function UsersPage() {
                 {me?.isSystemRole && <button type="button" onClick={() => toggleActive(u)}>{u.IsActive ? 'Khoá' : 'Cho phép kết nối'}</button>}{' '}
                 <button type="button" onClick={() => openRoleEditor(u)}>Gán vai trò</button>{' '}
                 {me?.isSystemRole && !u.roles.some(r => r.isSystemRole) && <button type="button" onClick={() => openAuthEditor(u)}>Nguồn xác thực</button>}{' '}
+                {me?.isSystemRole && u.AuthSource === 'local' && <button type="button" onClick={() => openResetPassword(u)}>Đặt lại mật khẩu</button>}{' '}
                 {me?.isSystemRole && u.roles.some(r => r.isSystemRole) && <button type="button" onClick={() => reset2fa(u)}>Đặt lại 2FA</button>}
               </>
             )
@@ -199,6 +223,28 @@ export default function UsersPage() {
               <button type="button" onClick={saveAuthSource}>Lưu</button>
               <button type="button" onClick={() => setEditingAuthFor(null)}>Huỷ</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {resettingPasswordFor && (
+        <div className="modal">
+          <div className="modal-body">
+            <h3>Đặt lại mật khẩu — {resettingPasswordFor.Username}</h3>
+            <form className="stacked-form" onSubmit={saveResetPassword}>
+              <input
+                placeholder="Mật khẩu mới (tối thiểu 8 ký tự)"
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                autoFocus
+                required
+              />
+              <div className="modal-actions">
+                <button type="submit">Lưu</button>
+                <button type="button" onClick={() => setResettingPasswordFor(null)}>Huỷ</button>
+              </div>
+            </form>
           </div>
         </div>
       )}
