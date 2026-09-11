@@ -136,6 +136,7 @@ app.use('/admin/live', adminLiveRoutes);
 app.use('/admin/history', adminHistoryRoutes);
 app.use('/admin/audit-log', adminAuditLogRoutes);
 app.use('/admin/stats', adminStatsRoutes);
+app.use('/admin/roles', adminRolesRoutes);
 
 app.use((err, req, res, next) => { // eslint-disable-line no-unused-vars
   console.error(err);
