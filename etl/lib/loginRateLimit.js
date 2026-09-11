@@ -33,8 +33,16 @@
 // Bản sao CÙNG NỘI DUNG cũng có ở rp-server/lib/ và api-server/lib/ — cố ý
 // trùng lặp, theo đúng nguyên tắc "mỗi server tự chứa đủ code" đã áp dụng
 // xuyên suốt dự án (không dùng thư mục shared/).
-const DEFAULT_PROFILE = { windowMs: 15 * 60 * 1000, maxAttempts: 10 }; // 10 lần/15 phút — tài khoản thường
-const ADMIN_PROFILE = { windowMs: 2 * 60 * 1000, maxAttempts: 50 };    // 50 lần/2 phút — Role='admin'
+const DEFAULT_PROFILE = { windowMs: 15 * 60 * 1000, maxAttempts: 10 }; // 10 lần/15 phút — tài khoản thường (~0.67 lần/phút)
+// GIỮ NGUYÊN cửa sổ chờ NGẮN (2 phút, đúng ý định UX ban đầu: admin lỡ gõ
+// sai vài lần không bị treo tới 15 phút) NHƯNG giảm maxAttempts — bản trước
+// (50 lần/2 phút ≈ 25 lần/phút) LỎNG HƠN ~37 lần so với DEFAULT_PROFILE dù
+// đây là tài khoản giá trị cao nhất (username thường đoán được, vd "admin");
+// 2FA là lớp chặn cuối nhưng không nên vì vậy mà nới bước dò MẬT KHẨU rộng
+// đến vậy (rà soát an ninh, mục 1.3). 8 lần/2 phút vẫn đủ rộng cho người
+// gõ nhầm thật (không ai gõ sai 8 lần liên tiếp trong 2 phút) nhưng giảm
+// tốc độ dò tối đa từ ~25 xuống ~4 lần/phút.
+const ADMIN_PROFILE = { windowMs: 2 * 60 * 1000, maxAttempts: 8 };     // 8 lần/2 phút — vai trò hệ thống (~4 lần/phút)
 const MAX_WINDOW_MS = Math.max(DEFAULT_PROFILE.windowMs, ADMIN_PROFILE.windowMs);
 const attempts = new Map(); // "ip:username" -> { count, windowStart }
 

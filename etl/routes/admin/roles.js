@@ -7,7 +7,7 @@
 const express = require('express');
 const { sql, getPool } = require('../../db');
 const { requireAdminAuth } = require('../../lib/adminAuth');
-const { requireMenuAccess, requireSystemRoleActor, invalidateAll } = require('../../lib/adminPermissions');
+const { requireMenuAccess, requireMenuEdit, requireSystemRoleActor, invalidateAll } = require('../../lib/adminPermissions');
 const { logAction } = require('../../lib/auditLog');
 
 const router = express.Router();
@@ -51,7 +51,11 @@ router.get('/', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.post('/', async (req, res, next) => {
+// requireMenuEdit('roles') — router.use() ở trên chỉ đòi requireMenuAccess
+// (XEM), nên nếu không thêm riêng ở đây thì 1 admin cấp "chỉ xem trang Vai
+// trò" cho ai đó vô tình cấp luôn CRUD đầy đủ (tạo/sửa/xoá vai trò không
+// phải hệ thống) — khác mọi route ghi khác trong toàn bộ etl/api-server.
+router.post('/', requireMenuEdit('roles'), async (req, res, next) => {
   try {
     const { code, name } = req.body || {};
     if (!code || !name) return res.status(400).json({ error: 'Thiếu code/name' });
@@ -68,7 +72,7 @@ router.post('/', async (req, res, next) => {
   }
 });
 
-router.put('/:id', async (req, res, next) => {
+router.put('/:id', requireMenuEdit('roles'), async (req, res, next) => {
   try {
     const pool = await getPool('ADMIN');
     if (!(await assertNotSystemRole(pool, req.params.id, res))) return;
@@ -83,7 +87,7 @@ router.put('/:id', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.delete('/:id', async (req, res, next) => {
+router.delete('/:id', requireMenuEdit('roles'), async (req, res, next) => {
   try {
     const pool = await getPool('ADMIN');
     if (!(await assertNotSystemRole(pool, req.params.id, res))) return;

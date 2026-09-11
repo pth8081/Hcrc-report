@@ -27,8 +27,11 @@ router.get('/', requireMenuAccess('log'), async (req, res, next) => {
       conditions.push('l.Status = @status');
     }
 
-    const page = parseInt(req.query.page || '1', 10);
-    const pageSize = Math.min(parseInt(req.query.pageSize || '50', 10), 500);
+    // Math.max(1, ...) chặn page/pageSize âm/0/NaN (query param không hợp
+    // lệ) tạo ra OFFSET âm hoặc NaN — trước đây rơi thẳng vào SQL, trả 500
+    // thô thay vì tự về giá trị mặc định hợp lệ.
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const pageSize = Math.min(Math.max(1, parseInt(req.query.pageSize, 10) || 50), 500);
     request.input('offset', sql.Int, (page - 1) * pageSize);
     request.input('pageSize', sql.Int, pageSize);
 

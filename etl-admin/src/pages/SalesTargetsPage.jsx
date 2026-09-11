@@ -9,11 +9,20 @@
 // thành tên chỉ tiêu — xem chú thích trong etl/lib/salesTargetsImport.js.
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
+import { useAuth } from '../lib/AuthContext';
 import DataTable from '../components/DataTable';
 
 const EMPTY_EDIT_FORM = { domain: '', entityCode: '', periodMonth: '', trangThai: false, otherTargetsJson: '{}' };
 
 export default function SalesTargetsPage() {
+  // Server đã chặn đúng (requireMenuEdit('sales-targets')) nếu tài khoản
+  // chỉ được cấp quyền XEM trang này — nhưng trước đây giao diện vẫn hiện
+  // đủ 2 form nhập/sửa bất kể quyền, khiến người chỉ-xem bấm "Nhập chỉ
+  // tiêu"/"Lưu" mới thấy lỗi 403 (UX gây hiểu lầm, không phải lỗ hổng —
+  // rà soát nghiệp vụ). Ẩn hẳn 2 form khi không có quyền sửa, khớp cách
+  // DataSourcesPage.jsx/SyncJobsPage.jsx đã làm.
+  const { canEdit } = useAuth();
+  const isEditor = canEdit('sales-targets');
   const [domain, setDomain] = useState('');
   const [file, setFile] = useState(null);
   const [importResult, setImportResult] = useState(null);
@@ -131,16 +140,18 @@ export default function SalesTargetsPage() {
       </p>
       {error && <p className="form-error">{error}</p>}
 
-      <form className="stacked-form" onSubmit={submitImport}>
-        <input
-          placeholder="Domain báo cáo áp dụng (vd doanhthu_chinhanh)"
-          value={domain}
-          onChange={(e) => setDomain(e.target.value)}
-          required
-        />
-        <input type="file" accept=".xlsx" onChange={(e) => setFile(e.target.files?.[0] ?? null)} required />
-        <button type="submit">Nhập chỉ tiêu</button>
-      </form>
+      {isEditor && (
+        <form className="stacked-form" onSubmit={submitImport}>
+          <input
+            placeholder="Domain báo cáo áp dụng (vd doanhthu_chinhanh)"
+            value={domain}
+            onChange={(e) => setDomain(e.target.value)}
+            required
+          />
+          <input type="file" accept=".xlsx" onChange={(e) => setFile(e.target.files?.[0] ?? null)} required />
+          <button type="submit">Nhập chỉ tiêu</button>
+        </form>
+      )}
 
       {importResult && (
         <div className="import-result">
@@ -168,59 +179,63 @@ export default function SalesTargetsPage() {
           { key: 'targets', label: 'Chỉ tiêu', render: (r) => Object.entries(r.targets).map(([k, v]) => `${k}=${v}`).join(', ') },
           { key: 'importedBy', label: 'Người nhập' },
           { key: 'importedAt', label: 'Lúc nhập', render: (r) => new Date(r.importedAt).toLocaleString('vi-VN') },
-          { key: 'actions', label: '', render: (r) => <button type="button" onClick={() => startEdit(r)}>Sửa</button> }
+          ...(isEditor ? [{ key: 'actions', label: '', render: (r) => <button type="button" onClick={() => startEdit(r)}>Sửa</button> }] : [])
         ]}
         rows={rows}
       />
 
-      <h2>Sửa / thêm 1 siêu thị</h2>
-      <p>
-        Dùng khi giữa tháng có siêu thị mới mở hoặc đóng cửa — KHÔNG cần chuẩn bị lại cả file
-        Excel. Bấm "Sửa" ở 1 dòng trên để tự điền sẵn dữ liệu hiện có, hoặc "Thêm siêu thị mới"
-        cho dòng trống. Lưu sẽ GHI ĐÈ nguyên chỉ tiêu của đúng siêu thị + tháng đó — dữ liệu
-        hiện có đã tự điền sẵn nên không lo mất, chỉ cần sửa đúng phần cần đổi.
-      </p>
-      {editError && <p className="form-error">{editError}</p>}
-      {editResult && <p className="form-success">{editResult}</p>}
+      {isEditor && (
+        <>
+          <h2>Sửa / thêm 1 siêu thị</h2>
+          <p>
+            Dùng khi giữa tháng có siêu thị mới mở hoặc đóng cửa — KHÔNG cần chuẩn bị lại cả file
+            Excel. Bấm "Sửa" ở 1 dòng trên để tự điền sẵn dữ liệu hiện có, hoặc "Thêm siêu thị mới"
+            cho dòng trống. Lưu sẽ GHI ĐÈ nguyên chỉ tiêu của đúng siêu thị + tháng đó — dữ liệu
+            hiện có đã tự điền sẵn nên không lo mất, chỉ cần sửa đúng phần cần đổi.
+          </p>
+          {editError && <p className="form-error">{editError}</p>}
+          {editResult && <p className="form-success">{editResult}</p>}
 
-      <form className="stacked-form" onSubmit={submitEdit}>
-        <input
-          placeholder="Domain (vd doanhthu_chinhanh)"
-          value={editForm.domain}
-          onChange={(e) => setEditForm({ ...editForm, domain: e.target.value })}
-          required
-        />
-        <input
-          placeholder="Mã thực thể — MaSieuThi (vd BRGHP), hoặc MaSieuThi_MaNganhHang cho chỉ tiêu theo ngành hàng (vd BRGHP_THUCPHAM)"
-          value={editForm.entityCode}
-          onChange={(e) => setEditForm({ ...editForm, entityCode: e.target.value })}
-          required
-        />
-        <input
-          type="month"
-          value={editForm.periodMonth}
-          onChange={(e) => setEditForm({ ...editForm, periodMonth: e.target.value })}
-          required
-        />
-        <label className="checkbox-row">
-          <input
-            type="checkbox"
-            checked={editForm.trangThai}
-            onChange={(e) => setEditForm({ ...editForm, trangThai: e.target.checked })}
-          />
-          Đã đóng cửa (loại khỏi báo cáo tháng này)
-        </label>
-        <textarea
-          placeholder='Chỉ tiêu khác dạng JSON, vd {"ChiTieuDoanhThu": 150000000} — nếu Mã thực thể ở trên là dạng ghép ngành hàng, nên thêm cả {"MaSieuThi": "BRGHP", "MaNganhHang": "THUCPHAM", "ChiTieuDoanhThu": 50000000} để báo cáo đọc thẳng, không phải tự tách chuỗi'
-          rows={4}
-          value={editForm.otherTargetsJson}
-          onChange={(e) => setEditForm({ ...editForm, otherTargetsJson: e.target.value })}
-        />
-        <div className="inline-actions">
-          <button type="submit">Lưu</button>
-          <button type="button" onClick={startAdd}>Thêm siêu thị mới (form trống)</button>
-        </div>
-      </form>
+          <form className="stacked-form" onSubmit={submitEdit}>
+            <input
+              placeholder="Domain (vd doanhthu_chinhanh)"
+              value={editForm.domain}
+              onChange={(e) => setEditForm({ ...editForm, domain: e.target.value })}
+              required
+            />
+            <input
+              placeholder="Mã thực thể — MaSieuThi (vd BRGHP), hoặc MaSieuThi_MaNganhHang cho chỉ tiêu theo ngành hàng (vd BRGHP_THUCPHAM)"
+              value={editForm.entityCode}
+              onChange={(e) => setEditForm({ ...editForm, entityCode: e.target.value })}
+              required
+            />
+            <input
+              type="month"
+              value={editForm.periodMonth}
+              onChange={(e) => setEditForm({ ...editForm, periodMonth: e.target.value })}
+              required
+            />
+            <label className="checkbox-row">
+              <input
+                type="checkbox"
+                checked={editForm.trangThai}
+                onChange={(e) => setEditForm({ ...editForm, trangThai: e.target.checked })}
+              />
+              Đã đóng cửa (loại khỏi báo cáo tháng này)
+            </label>
+            <textarea
+              placeholder='Chỉ tiêu khác dạng JSON, vd {"ChiTieuDoanhThu": 150000000} — nếu Mã thực thể ở trên là dạng ghép ngành hàng, nên thêm cả {"MaSieuThi": "BRGHP", "MaNganhHang": "THUCPHAM", "ChiTieuDoanhThu": 50000000} để báo cáo đọc thẳng, không phải tự tách chuỗi'
+              rows={4}
+              value={editForm.otherTargetsJson}
+              onChange={(e) => setEditForm({ ...editForm, otherTargetsJson: e.target.value })}
+            />
+            <div className="inline-actions">
+              <button type="submit">Lưu</button>
+              <button type="button" onClick={startAdd}>Thêm siêu thị mới (form trống)</button>
+            </div>
+          </form>
+        </>
+      )}
     </div>
   );
 }

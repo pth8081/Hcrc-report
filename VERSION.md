@@ -20,6 +20,68 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 6.25 — Vá lỗ hổng phân quyền + cứng hoá bảo mật (theo báo cáo rà soát 6 agent)
+
+Sau đợt rà soát chuyên sâu nghiệp vụ + an ninh (6 agent: 3 chức năng theo
+hệ thống + 3 an ninh SQLi/XSS/authN-brute-force/mạng-TLS), người dùng đồng
+ý triển khai toàn bộ đề xuất. Không tìm thấy SQL injection/XSS khai thác
+được ở bất kỳ đâu — các thay đổi dưới đây chủ yếu vá lỗ hổng phân quyền
+(authorization) và cứng hoá cấu hình mạng/transport.
+
+**Cao (High) — vá ngay:**
+- `POST /:id/reset-password` (etl/api-server/rp-server) thiếu
+  `requireSystemRoleActor` — một tài khoản chỉ được giao "quản lý tài
+  khoản" (không phải vai trò hệ thống) có thể đặt lại mật khẩu của CHÍNH
+  tài khoản Admin hệ thống rồi tự đăng ký 2FA (nếu nạn nhân chưa bật) để
+  chiếm quyền. Thêm `requireSystemRoleActor` vào cả 3 service (mirror
+  `/:id/reset-2fa`), kèm giới hạn mật khẩu tối thiểu 8 ký tự.
+- `ExternalApiConnections` (rp-server) không ép `https://` — API key/mật
+  khẩu Basic-Auth/OAuth2 client secret của đối tác bên ngoài có thể truyền
+  cleartext nếu cấu hình nhầm `http://`. Ép `https://` cho các `authType`
+  mang bí mật trên dây, kiểm tra lại ở cả lúc lưu VÀ mỗi lần nạp kết nối.
+
+**Trung bình (Medium):**
+- `roles.js` (etl/api-server): CRUD vai trò (tạo/sửa/xoá) chỉ yêu cầu
+  quyền XEM (`requireMenuAccess`), không yêu cầu quyền SỬA — một admin cấp
+  "chỉ xem trang Vai trò" vô tình cấp luôn CRUD đầy đủ. Thêm
+  `requireMenuEdit('roles')` cho 3 route ghi, ẩn nút Thêm/Xoá trên giao
+  diện theo `canEdit('roles')`.
+- Gán vai trò hệ thống giữa phiên cho tài khoản chưa bật 2FA (etl/
+  api-server): `PUT /:id/roles` giờ LUÔN thu hồi phiên hiện có (mirror
+  rp-server) — buộc đăng nhập lại, gặp màn hình bắt buộc đăng ký 2FA nếu
+  vai trò mới có `IsSystemRole=1`.
+- Ngưỡng dò mật khẩu cho tài khoản vai trò hệ thống (`ADMIN_PROFILE`) giảm
+  từ 50 lần/2 phút (~25/phút) xuống 8 lần/2 phút (~4/phút) — vẫn đủ rộng
+  cho người gõ nhầm thật, giảm ~6 lần tốc độ dò tối đa cho tài khoản giá
+  trị cao nhất.
+- Pool CSDL cố định (`etl/db.js`, `rp-server/db.js`, `api-server/db.js`)
+  đổi mặc định `encrypt=true`, `trustServerCertificate=false` (trước đây
+  ngược lại) — **operator cần kiểm tra `.env` thật đã set đúng biến `
+  *_ENCRYPT`/`*_TRUST_CERT` trước khi nâng cấp**, xem mục 15 sổ tay triển
+  khai.
+- `deploy/serve-static.js` (topology PM2-only) trước đây không gửi bất kỳ
+  header bảo mật nào — thêm CSP/X-Frame-Options/X-Content-Type-Options/
+  Referrer-Policy, mirror bộ đã có ở `nginx.conf`.
+- Xung đột `NODE_ENV=production` (luôn bật cookie Secure) với topology
+  PM2-only (không TLS) — thêm escape hatch
+  `ADMIN_COOKIE_FORCE_INSECURE`/`COOKIE_FORCE_INSECURE`, CHỈ dùng khi chắc
+  chắn không có Nginx/TLS phía trước.
+- `branchCodeMap.js` (etl): sửa lỗi không thể kích hoạt lại 1 dòng ánh xạ
+  đã đóng qua form sửa đơn (thêm cờ `preserveTrangThaiIfUnspecified`,
+  mirror `salesTargetsImport.js`).
+
+**Thấp (Low) — dọn dần, cứng hoá phòng thủ chiều sâu:** `rp-server`
+`PUT /:id` (khoá/mở khoá người dùng) thêm `requireSystemRoleActor`; JWT
+secret bắt buộc tối thiểu 32 ký tự (cả 3 service); `topSellingZeroStockRunner.js`
+thêm whitelist ký tự cho `measureKey`; `nginx.conf` thêm `server_tokens off`
++ HSTS tường minh ở 3 domain giao diện tĩnh; `SalesTargetsPage.jsx`
+(etl-admin) ẩn form nhập/sửa khi chỉ có quyền xem; `dataSources.js`/
+`syncJobs.js` (etl+api-server) thêm validate trường bắt buộc ở PUT (khớp
+POST); `log.js`/`auditLog.js`/`history.js` (cả 3 service) chặn
+`page`/`pageSize` âm/NaN; `LANDING_ORDER` (etl-admin) bổ sung đủ
+roles/log/audit-log/branch-code-map; `adhocReports.js` (rp-server)
+`PUT /saved/:id` kiểm tra lại quyền domain giống `POST /saved`.
+
 ## 6.24 — Hiện số phiên bản đang chạy cho cả 3 giao diện tĩnh (etl-admin, api-admin, rp-user)
 
 Người dùng báo: chạy PM2 không thấy version ở đâu cả — IT không biết máy

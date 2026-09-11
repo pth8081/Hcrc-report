@@ -82,12 +82,20 @@ async function parseBranchCodeMapFile(buffer) {
 }
 
 // Staging + MERGE — cùng mẫu với lib/dataSourcesImport.js, khoá theo
-// (LoaiMaKhac, MaKhac). TrangThai không đề cập ở dòng nào đó (file không có
-// cột, hoặc để trống) -> COALESCE giữ nguyên giá trị cũ (nếu có), KHÔNG tự
-// ý xoá TrangThai='DaDong' đang có — cùng lý do với dwh.SalesTargets (xem
-// lib/salesTargetsImport.js) — re-upload chỉ sửa vài dòng không được âm
-// thầm "mở lại" các dòng khác lỡ quên cột TrangThai.
-async function upsertBranchCodeMap(pool, rows, importedBy) {
+// (LoaiMaKhac, MaKhac).
+// preserveTrangThaiIfUnspecified — CHỈ bật cho POST /import (nhập file, mirror
+// lib/salesTargetsImport.js): file re-upload có thể không đề cập TrangThai ở
+// 1 dòng nào đó (file không có cột, hoặc để trống) -> COALESCE giữ nguyên
+// giá trị cũ (nếu có), KHÔNG tự ý xoá TrangThai='DaDong' đang có — re-upload
+// chỉ sửa vài dòng không được âm thầm "mở lại" các dòng khác lỡ quên cột
+// TrangThai. PUT /one (sửa 1 dòng) KHÔNG bật cờ này — route đó có tài liệu
+// rõ "GHI ĐÈ nguyên" vì giao diện đã tự tải dữ liệu hiện có lên form: để
+// trống nghĩa là admin CHỦ Ý đặt về đang áp dụng (NULL/HoatDong), không phải
+// "không biết/không đụng tới" — thiếu nhánh này trước đây khiến 1 dòng đã
+// đóng ('DaDong') KHÔNG BAO GIỜ mở lại được qua form sửa đơn (frontend không
+// có cách gửi literal "HoatDong", chỉ gửi '' hoặc "DaDong" — '' bị coi là
+// "không đề cập" nên COALESCE luôn giữ nguyên "DaDong" cũ).
+async function upsertBranchCodeMap(pool, rows, importedBy, { preserveTrangThaiIfUnspecified = false } = {}) {
   if (!rows.length) return { inserted: 0, updated: 0 };
 
   const tx = new sql.Transaction(pool);
@@ -118,6 +126,7 @@ async function upsertBranchCodeMap(pool, rows, importedBy) {
 
     const mergeResult = await new sql.Request(tx)
       .input('importedBy', sql.NVarChar(50), importedBy || null)
+      .input('preserveTrangThai', sql.Bit, preserveTrangThaiIfUnspecified ? 1 : 0)
       .query(`
         MERGE etl.BranchCodeMap AS target
         USING #StagingBranchCodeMap AS src
@@ -127,7 +136,7 @@ async function upsertBranchCodeMap(pool, rows, importedBy) {
           UPDATE SET
             MaChuan = src.MaChuan,
             TenSieuThi = src.TenSieuThi,
-            TrangThai = COALESCE(src.TrangThai, target.TrangThai),
+            TrangThai = CASE WHEN @preserveTrangThai = 1 THEN COALESCE(src.TrangThai, target.TrangThai) ELSE src.TrangThai END,
             ImportedAt = SYSUTCDATETIME(),
             ImportedBy = @importedBy
         WHEN NOT MATCHED THEN

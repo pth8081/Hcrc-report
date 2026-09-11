@@ -14,6 +14,14 @@ const { sql, getPool } = require('../db');
 const { decrypt } = require('./crypto');
 const { fetchSafe } = require('./urlSafety');
 
+// authType nào gửi thẳng 1 bí mật (API key/mật khẩu/client secret) TRÊN DÂY
+// mỗi lần gọi thì bắt buộc https — kiểm tra lại NGAY MỖI LẦN NẠP kết nối
+// (không chỉ lúc admin lưu ở routes/externalConnections.js), phòng trường
+// hợp 1 dòng được ghi thẳng vào DB từ trước khi có ràng buộc này, hoặc bị
+// sửa tay — cùng tinh thần loadSettings() trong lib/hcrcWorkspaceClient.js.
+const AUTH_TYPES_REQUIRING_HTTPS = new Set(['headerKey', 'queryParam', 'basicAuth', 'oauth2ClientCredentials']);
+const HTTPS_RE = /^https:\/\//i;
+
 const cache = new Map(); // externalConnectionId -> Promise<connection>
 const tokenCache = new Map(); // externalConnectionId -> { accessToken, expiresAt }
 const tokenLoadingPromises = new Map(); // externalConnectionId -> Promise<string> đang đổi token, dedupe request đồng thời (xem getOAuth2Token)
@@ -29,6 +37,14 @@ async function loadConnection(id) {
     `);
   if (!result.recordset.length) throw new Error(`Không tìm thấy kết nối API đối tác #${id}`);
   const row = result.recordset[0];
+  if (AUTH_TYPES_REQUIRING_HTTPS.has(row.AuthType)) {
+    if (!HTTPS_RE.test(row.BaseUrl)) {
+      throw new Error(`Kết nối API đối tác "${row.Name}" dùng authType "${row.AuthType}" (gửi bí mật trên đường truyền) nhưng baseUrl không phải https:// — sửa lại cấu hình trước khi dùng`);
+    }
+    if (row.AuthType === 'oauth2ClientCredentials' && !HTTPS_RE.test(row.TokenUrl)) {
+      throw new Error(`Kết nối API đối tác "${row.Name}" dùng authType "oauth2ClientCredentials" nhưng tokenUrl không phải https:// — sửa lại cấu hình trước khi dùng`);
+    }
+  }
   return {
     id: row.Id,
     name: row.Name,

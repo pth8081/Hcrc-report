@@ -392,6 +392,17 @@ sudo -u hcrc -H pm2 reload hcrc-etl-admin
 Vì `hcrc` sở hữu TOÀN BỘ cây thư mục, không cần "tạm mở khoá/khoá lại"
 gì cả — làm mọi việc dưới quyền `hcrc` như lúc cài đặt ban đầu là đủ.
 
+**Cập nhật lên bản 6.25 trở đi (đổi mặc định mã hoá kết nối CSDL)** —
+`etl/db.js`/`rp-server/db.js`/`api-server/db.js` đổi mặc định
+`encrypt=true`, `trustServerCertificate=false` cho 2 pool cố định của mỗi
+service (trước đây ngược lại). Nếu `.env` của bạn ĐÃ set tường minh
+`*_ENCRYPT`/`*_TRUST_CERT` (đúng như `.env.example` khuyến nghị từ đầu)
+thì không ảnh hưởng gì. Nếu chưa từng set các biến này (dùng mặc định cũ),
+kiểm tra SQL Server đã bật mã hoá kết nối trước khi `pm2 reload` — nếu
+chưa, service sẽ báo lỗi kết nối thay vì kết nối cleartext như trước; đặt
+tạm `*_TRUST_CERT=true` (hoặc `*_ENCRYPT=false` nếu SQL Server thật sự
+chưa hỗ trợ TLS) trong lúc chờ bật TLS đúng cách ở SQL Server.
+
 **Xác nhận cập nhật đúng bản** — sau khi `npm run build`/`pm2 reload`, kiểm
 tra bằng 1 trong 3 cách ở mục 11 (sidebar, `pm2 logs`, hoặc
 `curl .../__version`) — số phải khớp mục mới nhất trong `VERSION.md`. Số
@@ -482,6 +493,16 @@ có `PROXY_PREFIX` và `PROXY_TARGET_PORT` đúng giá trị (`/api`+`4001` cho
 `rp-user`, `/admin`+`4002` cho `api-admin`, `/admin`+`4003` cho
 `etl-admin`).
 
+**Đăng nhập thành công nhưng thoát ra ngay lập tức, hoặc không giữ được
+phiên (F5 lại là văng ra trang đăng nhập)** — `deploy/ecosystem.config.js`
+đặt `NODE_ENV=production` cho MỌI app kể cả ở hướng dẫn này (không có
+Nginx/TLS), khiến cookie phiên bị đánh dấu `Secure` — trình duyệt TỪ CHỐI
+lưu cookie đó trên kết nối `http://` thường. Đặt thêm 1 trong 3 biến sau
+vào đúng `.env` của từng service (CHỈ khi chắc chắn không có Nginx/TLS nào
+phía trước — mạng nội bộ/VPN đã kiểm soát truy cập, xem mục 15):
+`ADMIN_COOKIE_FORCE_INSECURE=true` (etl/api-server) hoặc
+`COOKIE_FORCE_INSECURE=true` (rp-server), rồi `pm2 restart <tên> --update-env`.
+
 ## 15. Bảng biến môi trường (`.env`)
 
 Tham khảo đầy đủ trong `.env.example` của từng service (có chú thích chi
@@ -495,6 +516,7 @@ tiết kèm theo từng biến). Các biến quan trọng nhất:
 | `ADMIN_SERVER/PORT/DATABASE/USER/PASSWORD` | Kết nối `HCRC_ETL` (nguồn dữ liệu, job đồng bộ, tài khoản quản trị) |
 | `ETL_ADMIN_JWT_SECRET` | Ký phiên đăng nhập `etl-admin/` — bắt buộc đổi khỏi giá trị mẫu |
 | `ETL_ENCRYPTION_KEY` | Mã hoá mật khẩu các nguồn dữ liệu lưu trong `etl.DataSources` |
+| `ADMIN_COOKIE_FORCE_INSECURE` | CHỈ đặt `true` nếu KHÔNG có Nginx/TLS nào phía trước (mục 14) |
 
 **`rp-server/.env`**
 
@@ -504,6 +526,7 @@ tiết kèm theo từng biến). Các biến quan trọng nhất:
 | `DWH_SERVER/PORT/DATABASE/USER/PASSWORD` | Kết nối `HCRC_DWH` (chỉ đọc, nguồn báo cáo mặc định) |
 | `RP_JWT_SECRET` | Ký phiên đăng nhập `rp-user/` |
 | `APP_ENCRYPTION_KEY` | Mã hoá mật khẩu nguồn dữ liệu bổ sung + cấu hình email |
+| `COOKIE_FORCE_INSECURE` | CHỈ đặt `true` nếu KHÔNG có Nginx/TLS nào phía trước (mục 14) |
 
 **`api-server/.env`**
 
@@ -514,6 +537,7 @@ tiết kèm theo từng biến). Các biến quan trọng nhất:
 | `API_ADMIN_JWT_SECRET` | Ký phiên đăng nhập `api-admin/` |
 | `OAUTH_JWT_SECRET` | Ký access token OAuth2 cho đối tác dùng `AuthMethod='oauth2'` |
 | `API_ENCRYPTION_KEY` | Mã hoá mật khẩu nguồn dữ liệu + `HmacSecret` đối tác |
+| `ADMIN_COOKIE_FORCE_INSECURE` | CHỈ đặt `true` nếu KHÔNG có Nginx/TLS nào phía trước (mục 14) |
 
 ## 16. Câu hỏi thường gặp
 

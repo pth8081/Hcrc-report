@@ -36,12 +36,26 @@ function usesKeyValue(authType) {
   return authType === 'headerKey' || authType === 'queryParam' || authType === 'hmacSignature' || authType === 'oauth2ClientCredentials';
 }
 
+// authType nào gửi thẳng 1 bí mật (API key/mật khẩu/client secret) TRÊN DÂY
+// mỗi lần gọi thì bắt buộc https — cùng logic đã áp cho
+// lib/hcrcWorkspaceClient.js (mật khẩu nhân viên thật). hmacSignature KHÔNG
+// nằm trong danh sách này: bí mật chỉ dùng để KÝ cục bộ, không gửi đi.
+const AUTH_TYPES_REQUIRING_HTTPS = new Set(['headerKey', 'queryParam', 'basicAuth', 'oauth2ClientCredentials']);
+
 // Chặn SSRF NGAY LÚC LƯU cấu hình — baseUrl/tokenUrl không được trỏ tới
 // mạng nội bộ/địa chỉ riêng tư (xem lib/urlSafety.js). Ném lỗi thẳng, để
 // route bắt và trả 400 rõ ràng thay vì lưu một cấu hình nguy hiểm.
 async function assertSafeConnectionUrls(baseUrl, authType, tokenUrl) {
   await assertPublicUrl(baseUrl);
   if (authType === 'oauth2ClientCredentials') await assertPublicUrl(tokenUrl);
+  if (AUTH_TYPES_REQUIRING_HTTPS.has(authType)) {
+    if (!/^https:\/\//i.test(baseUrl)) {
+      throw new Error(`authType "${authType}" gửi bí mật (API key/mật khẩu/client secret) trên đường truyền — baseUrl phải là https://, không được http:// (tránh lộ dạng cleartext qua MITM)`);
+    }
+    if (authType === 'oauth2ClientCredentials' && !/^https:\/\//i.test(tokenUrl)) {
+      throw new Error('authType "oauth2ClientCredentials" gửi client secret khi lấy token — tokenUrl phải là https://, không được http://');
+    }
+  }
 }
 
 router.get('/', async (req, res, next) => {

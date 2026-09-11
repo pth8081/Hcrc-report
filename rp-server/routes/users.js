@@ -72,7 +72,11 @@ router.post('/', async (req, res, next) => {
   }
 });
 
-router.put('/:id', async (req, res, next) => {
+// requireSystemRoleActor — thao tác này có thể khoá/mở khoá BẤT KỲ tài
+// khoản nào kể cả Admin hệ thống khác, và có thể vô hiệu hoá cơ chế tự khoá
+// tài khoản hcrcWorkspace (xem POST /sync bên dưới) bằng cách bật lại
+// isActive thủ công — chỉ Admin hệ thống thật mới được làm việc này.
+router.put('/:id', requireSystemRoleActor, async (req, res, next) => {
   try {
     const { fullName, email, phone, department, position, workLocation, isActive } = req.body || {};
     const pool = await getPool('RP');
@@ -95,10 +99,15 @@ router.put('/:id', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.post('/:id/reset-password', async (req, res, next) => {
+// Thao tác NHẠY CẢM — requireSystemRoleActor, không phải chỉ menu
+// 'system-permissions' (menu đó có thể giao cho 1 user không phải Admin hệ
+// thống): nếu không chặn riêng, 1 user như vậy có thể đặt lại mật khẩu của
+// CHÍNH tài khoản Admin hệ thống rồi tự đăng ký 2FA (nếu nạn nhân chưa bật)
+// để chiếm quyền — xem chú thích đầu file.
+router.post('/:id/reset-password', requireSystemRoleActor, async (req, res, next) => {
   try {
     const { password } = req.body || {};
-    if (!password) return res.status(400).json({ error: 'Thiếu password' });
+    if (!password || password.length < 8) return res.status(400).json({ error: 'Mật khẩu phải có ít nhất 8 ký tự' });
     const passwordHash = await bcrypt.hash(password, 10);
     const pool = await getPool('RP');
     await pool.request()

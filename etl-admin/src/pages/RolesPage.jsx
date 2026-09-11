@@ -9,7 +9,8 @@ import { useAuth } from '../lib/AuthContext';
 import DataTable from '../components/DataTable';
 
 export default function RolesPage() {
-  const { isSystemRole } = useAuth();
+  const { isSystemRole, canEdit } = useAuth();
+  const canEditRoles = canEdit('roles');
   const [roles, setRoles] = useState([]);
   const [menuCatalog, setMenuCatalog] = useState([]);
   const [error, setError] = useState('');
@@ -70,11 +71,13 @@ export default function RolesPage() {
       <h1>Vai trò</h1>
       {error && <p className="form-error">{error}</p>}
 
-      <form className="inline-form" onSubmit={createRole}>
-        <input placeholder="Mã (vd nhan-vien-kho)" value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} required />
-        <input placeholder="Tên vai trò" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
-        <button type="submit">Thêm vai trò</button>
-      </form>
+      {canEditRoles && (
+        <form className="inline-form" onSubmit={createRole}>
+          <input placeholder="Mã (vd nhan-vien-kho)" value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} required />
+          <input placeholder="Tên vai trò" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
+          <button type="submit">Thêm vai trò</button>
+        </form>
+      )}
 
       <DataTable
         columns={[
@@ -85,7 +88,7 @@ export default function RolesPage() {
             key: 'actions', label: '', render: (r) => r.IsSystemRole ? '—' : (
               <>
                 <button type="button" onClick={() => openAccessEditor(r)}>Gán quyền</button>{' '}
-                <button type="button" onClick={() => deleteRole(r)}>Xoá</button>
+                {canEditRoles && <button type="button" onClick={() => deleteRole(r)}>Xoá</button>}
               </>
             )
           }

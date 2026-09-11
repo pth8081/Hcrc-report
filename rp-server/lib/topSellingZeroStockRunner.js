@@ -92,6 +92,21 @@ async function resolvePool(definition) {
   return getPool('DWH');
 }
 
+// Whitelist ký tự cho measureKey trước khi nội suy vào JSON_VALUE(...) —
+// cùng mẫu FIELD_NAME_RE dùng ở lib/reportEngine.js/lib/adhocReportEngine.js.
+// Phòng thủ chiều sâu THUẦN TUÝ: mọi lời gọi hiện tại đều truyền literal
+// cứng ('SoLuongTon'/'SoLuongBan'/'SoLuongChoNhap'/'SoLuongDaNhap', xem cuối
+// file), KHÔNG có input người dùng nào chạm tới tham số này hôm nay — nhưng
+// nếu 1 lần sửa sau này lỡ truyền thẳng 1 giá trị lấy từ definition/
+// filterValues vào đây, assertion này chặn injection thay vì im lặng cho
+// qua (rà soát an ninh, mục 1.3 Low).
+const MEASURE_KEY_RE = /^[a-zA-Z0-9_]+$/;
+function assertSafeMeasureKey(measureKey) {
+  if (!MEASURE_KEY_RE.test(measureKey)) {
+    throw new Error(`Tên measureKey không hợp lệ: "${measureKey}"`);
+  }
+}
+
 function buildEntityCodeParams(request, entityCodes, prefix = 'code') {
   return entityCodes.map((code, i) => {
     const p = `${prefix}${i}`;
@@ -104,6 +119,7 @@ function buildEntityCodeParams(request, entityCodes, prefix = 'code') {
 // KHÔNG lấy dòng của chính ngày mốc hay sau đó, để luôn là số liệu ĐÃ CHỐT
 // SỔ, không lẫn số liệu đang cập nhật dở trong ngày.
 async function loadLatestMeasureBefore(pool, domain, entityCodes, measureKey, beforeDate) {
+  assertSafeMeasureKey(measureKey);
   if (!entityCodes.length) return new Map();
   const request = pool.request();
   request.input('domain', sql.VarChar(50), domain);
@@ -127,6 +143,7 @@ async function loadLatestMeasureBefore(pool, domain, entityCodes, measureKey, be
 // hướng_dẫn_báo_cáo.md mục 12) — khác loadLatestMeasureBefore ở chỗ không
 // giới hạn "trước 1 ngày mốc", lấy đúng số liệu MỚI NHẤT đã đồng bộ.
 async function loadLatestMeasure(pool, domain, entityCodes, measureKey) {
+  assertSafeMeasureKey(measureKey);
   if (!entityCodes.length) return new Map();
   const request = pool.request();
   request.input('domain', sql.VarChar(50), domain);
@@ -150,6 +167,7 @@ async function loadLatestMeasure(pool, domain, entityCodes, measureKey) {
 // người dùng "đã nhập ngày HN"). Domain có nhiều dòng cùng ngày (vd nhiều
 // chứng từ) thì SUM lại — measureKey đo lường TỪNG dòng, tổng theo ngày.
 async function loadSumOnDate(pool, domain, entityCodes, measureKey, onDate) {
+  assertSafeMeasureKey(measureKey);
   if (!entityCodes.length) return new Map();
   const request = pool.request();
   request.input('domain', sql.VarChar(50), domain);

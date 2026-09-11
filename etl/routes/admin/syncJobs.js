@@ -152,6 +152,9 @@ router.post('/', requireMenuEdit('sync-jobs'), async (req, res, next) => {
 router.put('/:id', requireMenuEdit('sync-jobs'), async (req, res, next) => {
   try {
     const b = req.body || {};
+    if (!b.name || !b.targetDomain) {
+      return res.status(400).json({ error: 'Thiếu name/targetDomain' });
+    }
     const pool = await getPool('ADMIN');
     const jobId = parseInt(req.params.id, 10);
     const existing = await pool.request().input('id', sql.Int, jobId)

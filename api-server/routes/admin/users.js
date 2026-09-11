@@ -108,15 +108,28 @@ router.put('/:id/roles', requireSystemRoleActor, async (req, res, next) => {
       throw err;
     }
     invalidateUser(parseInt(req.params.id, 10));
+    // Luôn thu hồi phiên hiện có của tài khoản bị đổi vai trò (mirror
+    // rp-server/routes/users.js) — phòng thủ chiều sâu: (1) tránh 1 tài khoản
+    // vừa được nâng lên vai trò hệ thống nhưng CHƯA bật 2FA giữ nguyên phiên
+    // cũ vô thời hạn (2FA bắt buộc chỉ ép lúc đăng nhập, không tự tái kiểm
+    // tra mỗi request); (2) không phụ thuộc riêng cache 60s của
+    // lib/adminPermissions.js trong trường hợp 1 route tương lai lỡ quên
+    // kiểm tra quyền tươi.
+    await revokeSessions(parseInt(req.params.id, 10));
     await logAction(req, { module: 'Phân quyền', actionType: 'GAN_VAI_TRO', targetObject: req.params.id, description: `Cập nhật vai trò tài khoản #${req.params.id}` });
     res.json({ ok: true });
   } catch (err) { next(err); }
 });
 
-router.post('/:id/reset-password', requireMenuEdit('users'), async (req, res, next) => {
+// Thao tác NHẠY CẢM — requireSystemRoleActor, không phải chỉ
+// requireMenuEdit('users'): nếu chỉ chặn bằng menu 'users' thì 1 tài khoản
+// chỉ được giao "quản lý tài khoản thông thường" (không phải vai trò hệ
+// thống) có thể đặt lại mật khẩu của CHÍNH tài khoản hệ thống, rồi tự đăng
+// ký 2FA (nếu nạn nhân chưa bật) để chiếm quyền — xem chú thích đầu file.
+router.post('/:id/reset-password', requireSystemRoleActor, async (req, res, next) => {
   try {
     const { password } = req.body || {};
-    if (!password) return res.status(400).json({ error: 'Thiếu password' });
+    if (!password || password.length < 8) return res.status(400).json({ error: 'Mật khẩu phải có ít nhất 8 ký tự' });
     const passwordHash = await bcrypt.hash(password, 10);
     const pool = await getPool('ADMIN');
     await pool.request()

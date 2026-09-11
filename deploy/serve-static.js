@@ -129,6 +129,22 @@ function cacheControlFor(filePath) {
   return 'public, max-age=3600';
 }
 
+// Header bảo mật — mirror ĐÚNG bộ đã áp cho topology "PM2 + Nginx"
+// (deploy/nginx.conf, add_header CSP/X-Frame-Options/X-Content-Type-Options/
+// Referrer-Policy ở mọi server{} phục vụ 3 giao diện tĩnh). Topology
+// "PM2-only" (dùng chính file này, không qua Nginx) trước đây KHÔNG gửi
+// header nào trong số này — nếu có XSS thì script chèn được sẽ có toàn
+// quyền script-src, và trang đăng nhập admin/report có thể bị nhúng iframe
+// (clickjacking) — rà soát an ninh mạng, mục Medium-High. Không áp cho
+// proxyToBackend() (JSON, đã có helmet riêng ở từng service, rủi ro thấp
+// hơn nhiều — xem chú thích proxyToBackend()).
+const SECURITY_HEADERS = {
+  'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'",
+  'X-Frame-Options': 'DENY',
+  'X-Content-Type-Options': 'nosniff',
+  'Referrer-Policy': 'strict-origin-when-cross-origin'
+};
+
 // Proxy TCP thô sang backend (không dùng thư viện ngoài, xem đầu file) —
 // forward nguyên request (method/headers/body) và pipe thẳng response về,
 // không đụng vào Cache-Control/JSON gì (để nguyên response gốc của backend).
@@ -165,7 +181,7 @@ http.createServer((req, res) => {
   // GET /__version — kiểm tra nhanh bản đang chạy qua curl/script, không đi
   // qua SPA fallback (không trả về index.html) hay proxy backend.
   if (urlPath === '/__version') {
-    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-cache' });
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-cache', ...SECURITY_HEADERS });
     return res.end(JSON.stringify({ version: APP_VERSION, distDir: DIST_DIR }));
   }
 
@@ -178,7 +194,7 @@ http.createServer((req, res) => {
   // Chặn thoát ra ngoài DIST_DIR (vd "..%2F..%2Fetc/passwd") — path.join ở
   // trên đã chuẩn hoá "../", so sánh lại cho chắc trước khi đọc file.
   if (!filePath.startsWith(DIST_DIR)) {
-    res.writeHead(400);
+    res.writeHead(400, SECURITY_HEADERS);
     return res.end('Bad request');
   }
 
@@ -192,7 +208,8 @@ http.createServer((req, res) => {
     const ext = path.extname(filePath);
     res.writeHead(200, {
       'Content-Type': MIME[ext] || 'application/octet-stream',
-      'Cache-Control': cacheControlFor(filePath)
+      'Cache-Control': cacheControlFor(filePath),
+      ...SECURITY_HEADERS
     });
     fs.createReadStream(filePath).pipe(res);
   });

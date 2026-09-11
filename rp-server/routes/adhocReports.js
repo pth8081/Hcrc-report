@@ -111,7 +111,15 @@ router.put('/saved/:id', async (req, res, next) => {
   try {
     const { title, configJson } = req.body || {};
     if (!title || !configJson) return res.status(400).json({ error: 'Thiếu title/configJson' });
-    try { JSON.parse(configJson); } catch { return res.status(400).json({ error: 'configJson không phải JSON hợp lệ' }); }
+    let parsed;
+    try { parsed = JSON.parse(configJson); } catch { return res.status(400).json({ error: 'configJson không phải JSON hợp lệ' }); }
+    // Kiểm tra lại quyền domain NGAY LÚC SỬA, giống POST /saved — không có
+    // nhánh này trước đây thì việc chạy thật (POST /run) vẫn tự kiểm tra lại
+    // domain nên không khai thác được, nhưng thiếu nó khiến 1 báo cáo lưu có
+    // thể bị sửa đổi trỏ sang domain người dùng KHÔNG còn quyền (vd sau khi
+    // admin thu hồi quyền) mà route này không báo lỗi ngay, chỉ phát hiện ở
+    // lần chạy tiếp theo — sửa sớm cho nhất quán.
+    if (!parsed.domain || !requireDomainAccess(req, res, parsed.domain)) return;
 
     const pool = await getPool('RP');
     const result = await pool.request()

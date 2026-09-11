@@ -16,7 +16,12 @@ import BranchCodeMapPage from './pages/BranchCodeMapPage';
 // Vai trò hẹp (vd chỉ thấy "Nhập chỉ tiêu") không thấy "/dashboard" trong
 // menu (xem components/Layout.jsx) — đưa thẳng vào trang đầu tiên họ thật
 // sự vào được, tránh hạ cánh vào trang trống/không có trong nav.
-const LANDING_ORDER = ['dashboard', 'sales-targets', 'data-sources', 'sync-jobs', 'users'];
+// Đầy đủ MỌI MenuCode có thể cấp quyền (mirror routes/admin/roles.js
+// MENU_CATALOG) — trước đây thiếu roles/log/audit-log/branch-code-map,
+// khiến 1 tài khoản CHỈ được cấp 1 trong 4 trang này bị điều hướng về
+// '/dashboard' (trang không thấy được) ngay sau đăng nhập thay vì vào đúng
+// trang mình có quyền.
+const LANDING_ORDER = ['dashboard', 'sales-targets', 'data-sources', 'sync-jobs', 'branch-code-map', 'log', 'audit-log', 'users', 'roles'];
 
 function IndexRedirect() {
   const { can } = useAuth();

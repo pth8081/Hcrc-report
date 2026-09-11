@@ -21,8 +21,15 @@ function buildConfig(prefix) {
     user: process.env[`${prefix}_USER`],
     password: process.env[`${prefix}_PASSWORD`],
     options: {
-      encrypt: process.env[`${prefix}_ENCRYPT`] === 'true',
-      trustServerCertificate: process.env[`${prefix}_TRUST_CERT`] !== 'false',
+      // Mặc định AN TOÀN cho 2 pool CỐ ĐỊNH của service này (ADMIN/DWH, khai
+      // cứng trong code — KHÁC nguồn dữ liệu admin tự thêm qua
+      // lib/dataSourcePool.js, nơi vẫn giữ Encrypt/TrustServerCert do admin tự
+      // chọn per-source, đúng UX "tick Trust Server Certificate" quen thuộc):
+      // mã hoá BẬT sẵn, xác thực chứng chỉ BẬT sẵn — operator phải CHỦ ĐỘNG
+      // tắt (đặt "false") thay vì phải nhớ CHỦ ĐỘNG bật (rà soát an ninh —
+      // mặc định trước đây là encrypt=false, trustServerCertificate=true).
+      encrypt: process.env[`${prefix}_ENCRYPT`] !== 'false',
+      trustServerCertificate: process.env[`${prefix}_TRUST_CERT`] === 'true',
       enableArithAbort: true
     },
     pool: {

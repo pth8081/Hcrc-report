@@ -104,7 +104,7 @@ router.post('/import', requireMenuEdit('branch-code-map'), upload.single('file')
     }
 
     const pool = await getPool('ADMIN');
-    const result = await upsertBranchCodeMap(pool, rows, req.admin.username);
+    const result = await upsertBranchCodeMap(pool, rows, req.admin.username, { preserveTrangThaiIfUnspecified: true });
     await logAction(req, { module: 'Ánh xạ mã chi nhánh', actionType: 'NHAP_ANH_XA', targetObject: 'BranchCodeMap', description: `Nhập file ánh xạ mã chi nhánh: thêm mới ${result.inserted}, cập nhật ${result.updated} dòng` });
     res.json({ ...result, rowErrors });
   } catch (err) { next(err); }

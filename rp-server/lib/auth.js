@@ -47,11 +47,20 @@ const PLACEHOLDER_SECRETS = new Set([
 // hợp lệ từ xa (bcrypt.compare cố ý chậm, chỉ chạy khi user tồn tại).
 const DUMMY_HASH = '$2a$10$CwTycUXWue0Thq9StjUM0uJ8Q0DKvSPBFEqz6GqUEmMFY6BVtR1e';
 
+// Độ dài tối thiểu 32 ký tự — mirror ràng buộc APP_ENCRYPTION_KEY (đúng 32
+// byte, xem lib/crypto.js) — trước đây chỉ kiểm tra có đặt/không phải giá
+// trị mẫu, một secret ngắn (vd "x") vẫn khởi động được, dễ bị dò/brute-force
+// chữ ký JWT (rà soát an ninh, mục Low).
+const MIN_SECRET_LENGTH = 32;
+
 function getSecret() {
   const secret = process.env.RP_JWT_SECRET;
   if (!secret) throw new Error('Thiếu RP_JWT_SECRET trong .env');
   if (PLACEHOLDER_SECRETS.has(secret)) {
     throw new Error('RP_JWT_SECRET vẫn là giá trị mẫu trong .env.example — đổi thành chuỗi ngẫu nhiên thật trước khi chạy');
+  }
+  if (secret.length < MIN_SECRET_LENGTH) {
+    throw new Error(`RP_JWT_SECRET quá ngắn (${secret.length} ký tự) — cần tối thiểu ${MIN_SECRET_LENGTH} ký tự ngẫu nhiên`);
   }
   return secret;
 }
@@ -195,11 +204,24 @@ async function requireAuth(req, res, next) {
 // Đặt cookie phiên ĐẦY ĐỦ — dùng chung ở server.js (đăng nhập không cần
 // 2FA) VÀ routes/twoFactor.js (sau khi qua đủ 2 yếu tố), tránh lặp lại cấu
 // hình cookie ở 2 nơi dễ lệch nhau.
+//
+// COOKIE_FORCE_INSECURE — ĐÚNG 1 TRƯỜNG HỢP dùng: triển khai "PM2-only"
+// (deploy/Hướng dẫn triển khai PM2.md) — KHÔNG có Nginx/TLS ở BẤT KỲ đâu
+// (tài liệu đó nói rõ chỉ chạy http://), nhưng deploy/ecosystem.config.js
+// vẫn đặt NODE_ENV=production cho mọi app (đúng cho các mục đích khác — vd
+// React/Express tối ưu production) — nếu không có cờ này, "secure" LUÔN bật
+// (OR ưu tiên NODE_ENV, xem dưới) khiến trình duyệt TỪ CHỐI lưu cookie phiên
+// khi trang chỉ phục vụ qua http:// (Set-Cookie có Secure không được chấp
+// nhận trên kết nối không mã hoá) — đăng nhập sẽ không giữ được phiên,
+// không phải lỗ hổng rò rỉ (rà soát an ninh, mục Medium). CHỈ đặt biến này
+// khi CHẮC CHẮN không có Nginx/TLS nào phía trước (mạng nội bộ/VPN đã kiểm
+// soát truy cập) — nếu có Nginx/TLS thật, để mặc định (không đặt biến này).
+const FORCE_INSECURE = process.env.COOKIE_FORCE_INSECURE === 'true';
 function setSessionCookie(res, token) {
   res.cookie(COOKIE_NAME, token, {
     httpOnly: true,
     sameSite: 'lax',
-    secure: process.env.NODE_ENV === 'production' || process.env.COOKIE_SECURE === 'true',
+    secure: !FORCE_INSECURE && (process.env.NODE_ENV === 'production' || process.env.COOKIE_SECURE === 'true'),
     maxAge: TOKEN_TTL_MS
   });
 }

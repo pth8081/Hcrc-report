@@ -101,6 +101,9 @@ router.post('/', requireMenuEdit('data-sources'), async (req, res, next) => {
 router.put('/:id', requireMenuEdit('data-sources'), async (req, res, next) => {
   try {
     const { name, server, port, databaseName, username, password, encrypt: enc, trustServerCert, isActive } = req.body || {};
+    if (!name || !server || !databaseName || !username) {
+      return res.status(400).json({ error: 'Thiếu name/server/databaseName/username' });
+    }
     const pool = await getPool('ADMIN');
 
     let passwordEncrypted;
