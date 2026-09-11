@@ -11,7 +11,8 @@ import DataTable from '../components/DataTable';
 const EMPTY_FORM = { name: '', server: '', port: 1433, databaseName: '', username: '', password: '', encrypt: true, trustServerCert: false };
 
 export default function DataSourcesPage() {
-  const { isAdmin } = useAuth();
+  const { canEdit } = useAuth();
+  const isAdmin = canEdit('data-sources');
   const [sources, setSources] = useState([]);
   const [form, setForm] = useState(EMPTY_FORM);
   const [testResult, setTestResult] = useState('');

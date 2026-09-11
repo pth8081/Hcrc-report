@@ -23,7 +23,8 @@
 const express = require('express');
 const multer = require('multer');
 const { sql, getPool } = require('../../db');
-const { requireAdminAuth, requireAdminRole } = require('../../lib/adminAuth');
+const { requireAdminAuth } = require('../../lib/adminAuth');
+const { requireMenuAccess, requireMenuEdit } = require('../../lib/adminPermissions');
 const { encrypt, decrypt } = require('../../lib/crypto');
 const { invalidate, testConnection, testConnectionsBatch } = require('../../lib/dataSourcePool');
 const schemaBrowser = require('../../lib/schemaBrowser');
@@ -43,7 +44,7 @@ async function tryTestConnection(config) {
 }
 
 const router = express.Router();
-router.use(requireAdminAuth);
+router.use(requireAdminAuth, requireMenuAccess('data-sources'));
 
 // memoryStorage — chỉ đọc để parse ngay trong bộ nhớ, KHÔNG lưu file gốc lên
 // đĩa (file chứa mật khẩu thật dạng chữ thường, xem lib/dataSourcesImport.js).
@@ -67,7 +68,7 @@ router.get('/', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.post('/', requireAdminRole, async (req, res, next) => {
+router.post('/', requireMenuEdit('data-sources'), async (req, res, next) => {
   try {
     const { name, server, port, databaseName, username, password, encrypt: enc, trustServerCert } = req.body || {};
     if (!name || !server || !databaseName || !username || !password) {
@@ -97,7 +98,7 @@ router.post('/', requireAdminRole, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.put('/:id', requireAdminRole, async (req, res, next) => {
+router.put('/:id', requireMenuEdit('data-sources'), async (req, res, next) => {
   try {
     const { name, server, port, databaseName, username, password, encrypt: enc, trustServerCert, isActive } = req.body || {};
     const pool = await getPool('ADMIN');
@@ -140,7 +141,7 @@ router.put('/:id', requireAdminRole, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.delete('/:id', requireAdminRole, async (req, res, next) => {
+router.delete('/:id', requireMenuEdit('data-sources'), async (req, res, next) => {
   try {
     const pool = await getPool('ADMIN');
     await pool.request().input('id', sql.Int, req.params.id).query('DELETE FROM api.DataSources WHERE Id = @id');
@@ -153,7 +154,7 @@ router.delete('/:id', requireAdminRole, async (req, res, next) => {
   }
 });
 
-router.post('/test', requireAdminRole, async (req, res) => {
+router.post('/test', requireMenuEdit('data-sources'), async (req, res) => {
   try {
     const { server, port, databaseName, username, password, encrypt: enc, trustServerCert } = req.body || {};
     await testConnection({ server, port: port || 1433, database: databaseName, user: username, password, encrypt: enc !== false, trustServerCert });
@@ -164,7 +165,7 @@ router.post('/test', requireAdminRole, async (req, res) => {
 });
 
 // Tạo/cập nhật hàng loạt qua file Excel — xem chú thích đầu file.
-router.post('/import', requireAdminRole, upload.single('file'), async (req, res, next) => {
+router.post('/import', requireMenuEdit('data-sources'), upload.single('file'), async (req, res, next) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'Thiếu file' });
     // fileFilter (đuôi .xlsx) chỉ soi được originalname, CHƯA có nội dung —

@@ -20,13 +20,14 @@
 // lớp đó (schema có thể đổi sau khi lưu).
 const express = require('express');
 const { sql, getPool } = require('../../db');
-const { requireAdminAuth, requireAdminRole } = require('../../lib/adminAuth');
+const { requireAdminAuth } = require('../../lib/adminAuth');
+const { requireMenuAccess, requireMenuEdit } = require('../../lib/adminPermissions');
 const { assertSafeIdentifier } = require('../../lib/realtimeEngine');
 const schemaBrowser = require('../../lib/schemaBrowser');
 const { logAction } = require('../../lib/auditLog');
 
 const router = express.Router();
-router.use(requireAdminAuth);
+router.use(requireAdminAuth, requireMenuAccess('realtime-endpoints'));
 
 const ENDPOINT_RE = /^[a-z0-9-]+$/;
 
@@ -104,7 +105,7 @@ async function checkJoinCardinalityWarning({ joinTable, dataSourceId, joinSchema
   return `Cột nối "${joinSchema}.${joinTable}.${lookupJoinColumn}" không có ràng buộc UNIQUE/khoá chính trên nguồn — nếu 1 giá trị của cột này khớp NHIỀU dòng ở bảng liên kết, lookup theo khoá có thể trả về nhầm dòng (xem log server khi endpoint chạy).`;
 }
 
-router.post('/', requireAdminRole, async (req, res, next) => {
+router.post('/', requireMenuEdit('realtime-endpoints'), async (req, res, next) => {
   try {
     const {
       endpoint, label, dataSourceId, schemaName, tableName, keyColumn, columns, orderColumn,
@@ -156,7 +157,7 @@ router.post('/', requireAdminRole, async (req, res, next) => {
   }
 });
 
-router.put('/:endpoint', requireAdminRole, async (req, res, next) => {
+router.put('/:endpoint', requireMenuEdit('realtime-endpoints'), async (req, res, next) => {
   try {
     const {
       label, dataSourceId, schemaName, tableName, keyColumn, columns, orderColumn, isActive,
@@ -243,7 +244,7 @@ router.post('/:endpoint/check-schema', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.delete('/:endpoint', requireAdminRole, async (req, res, next) => {
+router.delete('/:endpoint', requireMenuEdit('realtime-endpoints'), async (req, res, next) => {
   try {
     const pool = await getPool('ADMIN');
     await pool.request().input('endpoint', sql.VarChar(50), req.params.endpoint)

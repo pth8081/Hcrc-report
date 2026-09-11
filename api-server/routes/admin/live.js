@@ -5,12 +5,13 @@
 // như trước — 3 endpoint realtime giờ đọc theo cấu hình trong CSDL.
 const express = require('express');
 const { requireAdminAuth } = require('../../lib/adminAuth');
+const { requireMenuAccess } = require('../../lib/adminPermissions');
 const liveTracker = require('../../lib/liveTracker');
 const { getPool } = require('../../db');
 const { listActivePoolStats } = require('../../lib/dataSourcePool');
 
 const router = express.Router();
-router.use(requireAdminAuth);
+router.use(requireAdminAuth, requireMenuAccess('live'));
 
 router.get('/stream', (req, res) => {
   res.set({

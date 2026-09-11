@@ -16,7 +16,8 @@
 const express = require('express');
 const cron = require('node-cron');
 const { sql, getPool } = require('../../db');
-const { requireAdminAuth, requireAdminRole, blockTargetImporter } = require('../../lib/adminAuth');
+const { requireAdminAuth } = require('../../lib/adminAuth');
+const { requireMenuAccess, requireMenuEdit } = require('../../lib/adminPermissions');
 const sourcesRegistry = require('../../sources');
 const { rescheduleJob, runJobIfNotAlreadyRunning } = require('../../jobs/scheduler');
 const schemaBrowser = require('../../lib/schemaBrowser');
@@ -59,11 +60,10 @@ async function validateTableJobSchema(b) {
   }
 }
 
-// blockTargetImporter (không chỉ requireAdminAuth) — 'target_importer' (vai
-// trò hẹp, giao diện đã ẩn hẳn trang này khỏi menu) không được thấy cấu
-// hình đồng bộ dù gọi thẳng API. 'viewer' vẫn xem được như cũ (chỉ không
-// sửa) — xem lib/adminAuth.js.
-router.get('/', blockTargetImporter, async (req, res, next) => {
+// requireMenuAccess('sync-jobs') (không chỉ requireAdminAuth) — vai trò
+// không được cấp trang này (vd 'target_importer' cũ) không được thấy cấu
+// hình đồng bộ dù gọi thẳng API — xem lib/adminPermissions.js.
+router.get('/', requireMenuAccess('sync-jobs'), async (req, res, next) => {
   try {
     const pool = await getPool('ADMIN');
     const result = await pool.request().query('SELECT * FROM etl.SyncJobs ORDER BY Name');
@@ -72,11 +72,11 @@ router.get('/', blockTargetImporter, async (req, res, next) => {
 });
 
 // Danh sách connector "tuỳ biến" có sẵn trong code — dùng khi tạo job Type='custom'.
-router.get('/custom-connectors', blockTargetImporter, (req, res) => {
+router.get('/custom-connectors', requireMenuAccess('sync-jobs'), (req, res) => {
   res.json(sourcesRegistry.map(s => ({ key: s.key, label: s.label, domain: s.domain })));
 });
 
-router.post('/', requireAdminRole, async (req, res, next) => {
+router.post('/', requireMenuEdit('sync-jobs'), async (req, res, next) => {
   try {
     const b = req.body || {};
     if (!b.name || !b.type || !b.dataSourceId || !b.targetDomain) {
@@ -149,7 +149,7 @@ router.post('/', requireAdminRole, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.put('/:id', requireAdminRole, async (req, res, next) => {
+router.put('/:id', requireMenuEdit('sync-jobs'), async (req, res, next) => {
   try {
     const b = req.body || {};
     const pool = await getPool('ADMIN');
@@ -193,7 +193,7 @@ router.put('/:id', requireAdminRole, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.delete('/:id', requireAdminRole, async (req, res, next) => {
+router.delete('/:id', requireMenuEdit('sync-jobs'), async (req, res, next) => {
   try {
     const jobId = parseInt(req.params.id, 10);
     const pool = await getPool('ADMIN');
@@ -210,9 +210,9 @@ router.delete('/:id', requireAdminRole, async (req, res, next) => {
 // không ai vào sửa lại nên không tự phát hiện (chỉ lộ ra khi job CHẠY THẬT
 // và báo lỗi SQL). Job Type='custom' không có bảng/cột để đối chiếu (logic
 // tự viết tay trong etl/sources/) — trả ok:true kèm skipped:true, không
-// phải lỗi. Đọc-only, không đổi dữ liệu gì — dùng blockTargetImporter như
-// route GET, không cần requireAdminRole.
-router.post('/:id/check-schema', blockTargetImporter, async (req, res, next) => {
+// phải lỗi. Đọc-only, không đổi dữ liệu gì — dùng requireMenuAccess như
+// route GET, không cần requireMenuEdit.
+router.post('/:id/check-schema', requireMenuAccess('sync-jobs'), async (req, res, next) => {
   try {
     const jobId = parseInt(req.params.id, 10);
     const pool = await getPool('ADMIN');
@@ -257,7 +257,7 @@ router.post('/:id/check-schema', blockTargetImporter, async (req, res, next) => 
   } catch (err) { next(err); }
 });
 
-router.post('/:id/run-now', requireAdminRole, async (req, res, next) => {
+router.post('/:id/run-now', requireMenuEdit('sync-jobs'), async (req, res, next) => {
   try {
     const jobId = parseInt(req.params.id, 10);
     const pool = await getPool('ADMIN');

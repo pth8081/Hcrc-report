@@ -3,9 +3,10 @@
 const express = require('express');
 const { sql, getPool } = require('../../db');
 const { requireAdminAuth } = require('../../lib/adminAuth');
+const { requireMenuAccess } = require('../../lib/adminPermissions');
 
 const router = express.Router();
-router.use(requireAdminAuth);
+router.use(requireAdminAuth, requireMenuAccess('stats'));
 
 const WINDOW_HOURS = { '1h': 1, '24h': 24, '7d': 24 * 7 };
 

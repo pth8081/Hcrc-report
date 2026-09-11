@@ -28,7 +28,8 @@ function renderSyncStatus(syncStatus) {
 }
 
 export default function DataSourcesPage() {
-  const { isAdmin } = useAuth();
+  const { canEdit } = useAuth();
+  const isAdmin = canEdit('data-sources');
   const [sources, setSources] = useState([]);
   const [form, setForm] = useState(EMPTY_FORM);
   const [testResult, setTestResult] = useState('');

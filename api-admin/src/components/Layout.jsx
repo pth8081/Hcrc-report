@@ -1,25 +1,26 @@
-// components/Layout.jsx — Điều hướng cố định 4 trang — không cần đọc từ
-// server như rp-user/ chính (không có cây menu/quyền cho quy mô nhỏ này,
-// xem tài liệu kiến trúc, mục 03). Ẩn/hiện theo vai trò chỉ áp dụng ở TỪNG
-// trang (vd nút thêm/sửa/xoá đối tác), không áp dụng ở cấp điều hướng.
+// components/Layout.jsx — Điều hướng lọc theo quyền THẬT (nhóm quyền động,
+// xem api-server/lib/adminPermissions.js) — thay danh sách cố định cũ (mọi
+// admin/viewer thấy MỌI trang, chỉ nút thêm/sửa/xoá gói theo vai trò).
 import { NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '../lib/AuthContext';
 
 const NAV = [
-  { path: '/consumers', label: 'Đối tác', icon: '🤝' },
-  { path: '/data-sources', label: 'Nguồn dữ liệu', icon: '🔌' },
-  { path: '/realtime-endpoints', label: 'Endpoint realtime', icon: '⚡' },
-  { path: '/realtime-write-endpoints', label: 'Endpoint ghi', icon: '✍️' },
-  { path: '/report-catalog', label: 'Báo cáo', icon: '📊' },
-  { path: '/live', label: 'Kết nối hiện tại', icon: '🌐' },
-  { path: '/history', label: 'Lịch sử', icon: '🕓' },
-  { path: '/stats', label: 'Top truy vấn', icon: '📈' },
-  { path: '/audit-log', label: 'Nhật ký thao tác', icon: '📜' },
-  { path: '/admin-users', label: 'Tài khoản quản trị', icon: '🔐' }
+  { path: '/consumers', label: 'Đối tác', icon: '🤝', menuCode: 'consumers' },
+  { path: '/data-sources', label: 'Nguồn dữ liệu', icon: '🔌', menuCode: 'data-sources' },
+  { path: '/realtime-endpoints', label: 'Endpoint realtime', icon: '⚡', menuCode: 'realtime-endpoints' },
+  { path: '/realtime-write-endpoints', label: 'Endpoint ghi', icon: '✍️', menuCode: 'realtime-write-endpoints' },
+  { path: '/report-catalog', label: 'Báo cáo', icon: '📊', menuCode: 'report-catalog' },
+  { path: '/live', label: 'Kết nối hiện tại', icon: '🌐', menuCode: 'live' },
+  { path: '/history', label: 'Lịch sử', icon: '🕓', menuCode: 'history' },
+  { path: '/stats', label: 'Top truy vấn', icon: '📈', menuCode: 'stats' },
+  { path: '/audit-log', label: 'Nhật ký thao tác', icon: '📜', menuCode: 'audit-log' },
+  { path: '/admin-users', label: 'Tài khoản quản trị', icon: '🔐', menuCode: 'users' },
+  { path: '/roles', label: 'Vai trò', icon: '🛡️', menuCode: 'roles' }
 ];
 
 export default function Layout() {
-  const { me, isAdmin, logout } = useAuth();
+  const { me, isSystemRole, can, logout } = useAuth();
+  const nav = NAV.filter(item => can(item.menuCode));
 
   return (
     <div className="app-shell">
@@ -32,7 +33,7 @@ export default function Layout() {
           </div>
         </div>
         <ul className="menu">
-          {NAV.map(item => (
+          {nav.map(item => (
             <li key={item.path}>
               <NavLink to={item.path} className={({ isActive }) => (isActive ? 'active' : '')}>
                 <span className="nav-icon">{item.icon}</span>
@@ -42,7 +43,7 @@ export default function Layout() {
           ))}
         </ul>
         <div className="sidebar-footer">
-          <div className="user-name">{me?.username} <span className="role-badge">{isAdmin ? 'admin' : 'viewer'}</span></div>
+          <div className="user-name">{me?.username} {isSystemRole && <span className="role-badge">hệ thống</span>}</div>
           <button type="button" className="logout-link" onClick={logout}>↩ Đăng xuất</button>
         </div>
       </aside>

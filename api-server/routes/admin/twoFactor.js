@@ -1,6 +1,7 @@
-// routes/admin/twoFactor.js — Đăng ký/Xác thực hai yếu tố (2FA/TOTP) cho
-// admin.AdminUsers.Role='admin' — BẮT BUỘC (xem lib/twoFactor.js +
-// routes/admin/auth.js cho luồng đăng nhập chèn bước này trước khi tới đây).
+// routes/admin/twoFactor.js — Đăng ký/Xác thực hai yếu tố (2FA/TOTP) cho tài
+// khoản có VAI TRÒ HỆ THỐNG (IsSystemRole, xem lib/adminPermissions.js) —
+// BẮT BUỘC (xem routes/admin/auth.js cho luồng đăng nhập chèn bước này
+// trước khi tới đây).
 // 3 endpoint:
 //   POST /setup   — token "setupRequired" (đăng ký lần đầu, bắt buộc) HOẶC
 //                   phiên đầy đủ + mã hiện tại (đổi thiết bị) -> sinh secret
@@ -46,8 +47,9 @@ router.post('/setup', async (req, res, next) => {
       userId = payload.sub; username = payload.username;
 
       // Khoá theo (IP + username), namespace RIÊNG "2fa-setup:" — ADMIN_PROFILE
-      // vì route này chỉ tới được với phiên đầy đủ đã đăng nhập với Role='admin'
-      // (2FA chỉ bắt buộc cho vai trò đó, xem routes/admin/auth.js).
+      // vì route này chỉ tới được với phiên đầy đủ đã đăng nhập của 1 tài
+      // khoản có vai trò hệ thống (2FA chỉ bắt buộc cho vai trò đó, xem
+      // routes/admin/auth.js).
       const setupRateLimitKey = `2fa-setup:${username}`;
       const setupRetryAfter = isBlocked(req.ip, setupRateLimitKey, ADMIN_PROFILE);
       if (setupRetryAfter) {
@@ -80,8 +82,8 @@ router.post('/confirm', requireTwoFactorToken('enroll'), async (req, res, next) 
     const { sub: userId, username, secretEncrypted } = req.twoFactorPayload;
 
     // Namespace RIÊNG "2fa-confirm:" — ADMIN_PROFILE vì bước "enroll" chỉ
-    // tới được sau khi đã có token trung gian hợp lệ của 1 tài khoản
-    // Role='admin' (đăng ký lần đầu hoặc đổi thiết bị, xem POST /setup).
+    // tới được sau khi đã có token trung gian hợp lệ của 1 tài khoản vai trò
+    // hệ thống (đăng ký lần đầu hoặc đổi thiết bị, xem POST /setup).
     const confirmRateLimitKey = `2fa-confirm:${username}`;
     const confirmRetryAfter = isBlocked(req.ip, confirmRateLimitKey, ADMIN_PROFILE);
     if (confirmRetryAfter) {
@@ -97,16 +99,14 @@ router.post('/confirm', requireTwoFactorToken('enroll'), async (req, res, next) 
     recordSuccess(req.ip, confirmRateLimitKey);
 
     const pool = await getPool('ADMIN');
-    const updateResult = await pool.request()
+    await pool.request()
       .input('id', sql.Int, userId)
       .input('secret', sql.NVarChar(500), secretEncrypted)
       .query(`
         UPDATE admin.AdminUsers
         SET TwoFactorSecretEncrypted = @secret, TwoFactorEnabled = 1, TwoFactorEnrolledAt = SYSUTCDATETIME()
-        OUTPUT INSERTED.Role
         WHERE Id = @id
       `);
-    const role = updateResult.recordset[0]?.Role;
 
     const recoveryCodes = generateRecoveryCodes();
     const hashes = await hashRecoveryCodes(recoveryCodes);
@@ -120,7 +120,7 @@ router.post('/confirm', requireTwoFactorToken('enroll'), async (req, res, next) 
       module: 'Đăng nhập', actionType: 'BAT_2FA', description: 'Bật xác thực hai yếu tố thành công'
     });
 
-    setSessionCookie(res, issueToken({ id: userId, username, role }));
+    setSessionCookie(res, issueToken({ id: userId, username }));
     res.json({ ok: true, recoveryCodes });
   } catch (err) { next(err); }
 });
@@ -132,9 +132,9 @@ router.post('/verify', requireTwoFactorToken('pending'), async (req, res, next) 
 
     // Namespace RIÊNG "2fa:<username>" trong cùng bộ đếm login — không trộn
     // với số lần sai MẬT KHẨU của chính tài khoản đó (2 bước khác nhau).
-    // ADMIN_PROFILE trực tiếp (không cần tra Role) — route "verify" chỉ tới
-    // được sau khi đăng nhập ĐÚNG mật khẩu của 1 tài khoản Role='admin'
-    // (xem routes/admin/auth.js, chỉ role đó mới nhận token "pending").
+    // ADMIN_PROFILE trực tiếp (không cần tra quyền) — route "verify" chỉ tới
+    // được sau khi đăng nhập ĐÚNG mật khẩu của 1 tài khoản vai trò hệ thống
+    // (xem routes/admin/auth.js, chỉ vai trò đó mới nhận token "pending").
     const rateLimitKey = `2fa:${username}`;
     const retryAfter = isBlocked(req.ip, rateLimitKey, ADMIN_PROFILE);
     if (retryAfter) {
@@ -144,7 +144,7 @@ router.post('/verify', requireTwoFactorToken('pending'), async (req, res, next) 
 
     const pool = await getPool('ADMIN');
     const userResult = await pool.request().input('id', sql.Int, userId)
-      .query('SELECT Role, TwoFactorSecretEncrypted FROM admin.AdminUsers WHERE Id = @id AND IsActive = 1');
+      .query('SELECT TwoFactorSecretEncrypted FROM admin.AdminUsers WHERE Id = @id AND IsActive = 1');
     const row = userResult.recordset[0];
     if (!row) return res.status(401).json({ error: 'Tài khoản không còn hoạt động' });
 
@@ -174,7 +174,7 @@ router.post('/verify', requireTwoFactorToken('pending'), async (req, res, next) 
     await logAction({ ip: req.ip, admin: { sub: userId, username } }, {
       module: 'Đăng nhập', actionType: 'DANG_NHAP', description: 'Đăng nhập thành công (2FA)'
     });
-    setSessionCookie(res, issueToken({ id: userId, username, role: row.Role }));
+    setSessionCookie(res, issueToken({ id: userId, username }));
     res.json({ ok: true });
   } catch (err) { next(err); }
 });

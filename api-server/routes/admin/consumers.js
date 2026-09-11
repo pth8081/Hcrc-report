@@ -15,14 +15,15 @@
 const crypto = require('crypto');
 const express = require('express');
 const { sql, getPool } = require('../../db');
-const { requireAdminAuth, requireAdminRole } = require('../../lib/adminAuth');
+const { requireAdminAuth } = require('../../lib/adminAuth');
+const { requireMenuAccess, requireMenuEdit } = require('../../lib/adminPermissions');
 const { sha256Hex } = require('../../lib/hash');
 const { encrypt } = require('../../lib/crypto');
 const { invalidate } = require('../../lib/apiConsumers');
 const { logAction } = require('../../lib/auditLog');
 
 const router = express.Router();
-router.use(requireAdminAuth);
+router.use(requireAdminAuth, requireMenuAccess('consumers'));
 
 const AUTH_METHODS = ['apiKey', 'oauth2', 'hmac'];
 
@@ -37,7 +38,7 @@ router.get('/', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.post('/', requireAdminRole, async (req, res, next) => {
+router.post('/', requireMenuEdit('consumers'), async (req, res, next) => {
   try {
     const { name, authMethod = 'apiKey', scopes = [], rateLimitPerMinute = 120, allowedIps = '' } = req.body || {};
     if (!name || !scopes.length) return res.status(400).json({ error: 'Thiếu name/scopes' });
@@ -91,7 +92,7 @@ router.post('/', requireAdminRole, async (req, res, next) => {
 // được AuthMethod ở đây). 'oauth2' chỉ đổi clientSecret, giữ nguyên
 // clientId; 'hmac' chỉ đổi hmacSecret, giữ nguyên hmacKeyId — đối tác không
 // cần cấu hình lại định danh công khai, chỉ cần thay bí mật mới.
-router.post('/:id/rotate', requireAdminRole, async (req, res, next) => {
+router.post('/:id/rotate', requireMenuEdit('consumers'), async (req, res, next) => {
   try {
     const pool = await getPool('ADMIN');
     const existing = await pool.request().input('id', sql.Int, req.params.id)
@@ -123,7 +124,7 @@ router.post('/:id/rotate', requireAdminRole, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.put('/:id', requireAdminRole, async (req, res, next) => {
+router.put('/:id', requireMenuEdit('consumers'), async (req, res, next) => {
   try {
     const { name, scopes = [], rateLimitPerMinute, isActive, allowedIps = '' } = req.body || {};
     const pool = await getPool('ADMIN');
@@ -146,7 +147,7 @@ router.put('/:id', requireAdminRole, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.delete('/:id', requireAdminRole, async (req, res, next) => {
+router.delete('/:id', requireMenuEdit('consumers'), async (req, res, next) => {
   try {
     const pool = await getPool('ADMIN');
     await pool.request().input('id', sql.Int, req.params.id).query('DELETE FROM api.ApiConsumers WHERE Id = @id');
@@ -165,7 +166,7 @@ router.get('/:id/report-access', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.put('/:id/report-access', requireAdminRole, async (req, res, next) => {
+router.put('/:id/report-access', requireMenuEdit('consumers'), async (req, res, next) => {
   try {
     const { reportIds = [] } = req.body || {};
     const pool = await getPool('ADMIN');
@@ -198,7 +199,7 @@ router.get('/:id/realtime-access', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.put('/:id/realtime-access', requireAdminRole, async (req, res, next) => {
+router.put('/:id/realtime-access', requireMenuEdit('consumers'), async (req, res, next) => {
   try {
     const { endpoints = [] } = req.body || {};
     const pool = await getPool('ADMIN');
@@ -235,7 +236,7 @@ router.get('/:id/write-access', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.put('/:id/write-access', requireAdminRole, async (req, res, next) => {
+router.put('/:id/write-access', requireMenuEdit('consumers'), async (req, res, next) => {
   try {
     const { endpoints = [] } = req.body || {};
     const pool = await getPool('ADMIN');

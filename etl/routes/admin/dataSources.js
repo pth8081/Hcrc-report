@@ -20,7 +20,8 @@
 const express = require('express');
 const multer = require('multer');
 const { sql, getPool } = require('../../db');
-const { requireAdminAuth, requireAdminRole, blockTargetImporter } = require('../../lib/adminAuth');
+const { requireAdminAuth } = require('../../lib/adminAuth');
+const { requireMenuAccess, requireMenuEdit } = require('../../lib/adminPermissions');
 const { encrypt, decrypt } = require('../../lib/crypto');
 const { invalidate, testConnection, testConnectionsBatch } = require('../../lib/dataSourcePool');
 const schemaBrowser = require('../../lib/schemaBrowser');
@@ -58,12 +59,11 @@ const upload = multer({
 // etl.SyncJobs trỏ vào nguồn đó, kèm lần chạy (etl.SyncLog) GẦN NHẤT của
 // từng job (OUTER APPLY TOP 1, nhanh hơn nhiều so với self-join + GROUP BY
 // khi mỗi job có hàng nghìn dòng log). null = nguồn chưa gắn job nào.
-// blockTargetImporter (không chỉ requireAdminAuth) trên MỌI route GET dưới
-// đây — 'target_importer' (vai trò hẹp, giao diện đã ẩn hẳn trang này khỏi
-// menu) không được đọc host/port/database/username của các kết nối nguồn
-// hay duyệt schema thật (tên bảng/cột) dù gọi thẳng API. 'viewer' vẫn xem
-// được như cũ (chỉ không sửa) — xem lib/adminAuth.js.
-router.get('/', blockTargetImporter, async (req, res, next) => {
+// requireMenuAccess('data-sources') (không chỉ requireAdminAuth) trên MỌI
+// route GET dưới đây — vai trò không được cấp trang này (vd 'target_importer'
+// cũ) không được đọc host/port/database/username của các kết nối nguồn hay
+// duyệt schema thật (tên bảng/cột) dù gọi thẳng API — xem lib/adminPermissions.js.
+router.get('/', requireMenuAccess('data-sources'), async (req, res, next) => {
   try {
     const pool = await getPool('ADMIN');
     const sourcesResult = await pool.request().query(`
@@ -92,7 +92,7 @@ router.get('/', blockTargetImporter, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.post('/', requireAdminRole, async (req, res, next) => {
+router.post('/', requireMenuEdit('data-sources'), async (req, res, next) => {
   try {
     const { name, engine, server, port, databaseName, username, password, encrypt: enc, trustServerCert } = req.body || {};
     if (!name || !engine || !server || !databaseName || !username || !password) {
@@ -124,7 +124,7 @@ router.post('/', requireAdminRole, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.put('/:id', requireAdminRole, async (req, res, next) => {
+router.put('/:id', requireMenuEdit('data-sources'), async (req, res, next) => {
   try {
     const { name, server, port, databaseName, username, password, encrypt: enc, trustServerCert, isActive } = req.body || {};
     const pool = await getPool('ADMIN');
@@ -166,7 +166,7 @@ router.put('/:id', requireAdminRole, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.delete('/:id', requireAdminRole, async (req, res, next) => {
+router.delete('/:id', requireMenuEdit('data-sources'), async (req, res, next) => {
   try {
     const pool = await getPool('ADMIN');
     await pool.request().input('id', sql.Int, req.params.id).query('DELETE FROM etl.DataSources WHERE Id = @id');
@@ -177,7 +177,7 @@ router.delete('/:id', requireAdminRole, async (req, res, next) => {
 });
 
 // Thử một cấu hình CHƯA lưu — nút "Kiểm tra kết nối".
-router.post('/test', requireAdminRole, async (req, res) => {
+router.post('/test', requireMenuEdit('data-sources'), async (req, res) => {
   try {
     const { engine, server, port, databaseName, username, password, encrypt: enc, trustServerCert } = req.body || {};
     await testConnection({ engine, server, port, database: databaseName, user: username, password, encrypt: enc !== false, trustServerCert });
@@ -188,7 +188,7 @@ router.post('/test', requireAdminRole, async (req, res) => {
 });
 
 // Tạo/cập nhật hàng loạt qua file Excel — xem chú thích đầu file.
-router.post('/import', requireAdminRole, upload.single('file'), async (req, res, next) => {
+router.post('/import', requireMenuEdit('data-sources'), upload.single('file'), async (req, res, next) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'Thiếu file' });
     // fileFilter (đuôi .xlsx) chỉ soi được originalname, CHƯA có nội dung —
@@ -222,19 +222,19 @@ router.post('/import', requireAdminRole, upload.single('file'), async (req, res,
 });
 
 // ===== Duyệt schema thật =====
-router.get('/:id/tables', blockTargetImporter, async (req, res, next) => {
+router.get('/:id/tables', requireMenuAccess('data-sources'), async (req, res, next) => {
   try {
     res.json(await schemaBrowser.listTables(req.params.id));
   } catch (err) { next(err); }
 });
 
-router.get('/:id/tables/:schemaName/:tableName/columns', blockTargetImporter, async (req, res, next) => {
+router.get('/:id/tables/:schemaName/:tableName/columns', requireMenuAccess('data-sources'), async (req, res, next) => {
   try {
     res.json(await schemaBrowser.listColumns(req.params.id, req.params.schemaName, req.params.tableName));
   } catch (err) { next(err); }
 });
 
-router.get('/:id/tables/:schemaName/:tableName/foreign-keys', blockTargetImporter, async (req, res, next) => {
+router.get('/:id/tables/:schemaName/:tableName/foreign-keys', requireMenuAccess('data-sources'), async (req, res, next) => {
   try {
     res.json(await schemaBrowser.listForeignKeys(req.params.id, req.params.schemaName, req.params.tableName));
   } catch (err) { next(err); }

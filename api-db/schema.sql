@@ -448,3 +448,81 @@ BEGIN
     CREATE INDEX IX_HmacUsedSignatures_ExpiresAt ON admin.HmacUsedSignatures(ExpiresAt);
 END
 GO
+
+-- ===== Nhóm quyền (thay mô hình 2 Role cố định 'admin'/'viewer' bằng nhóm
+-- quyền admin tự tạo tuỳ ý — mirror app.Roles/app.RoleMenuAccess bên
+-- rp-server, xem rp-db/schema.sql; ĐỒNG BỘ CHỦ Ý với etl-db/schema.sql —
+-- 2 service tự chứa code/schema riêng, không dùng chung) =====
+--
+-- admin.AdminUsers.Role (cột cũ ở trên) VẪN GIỮ NGUYÊN, không xoá — từ nay
+-- CHỈ còn là nhãn hiển thị/lịch sử, KHÔNG còn được đọc để quyết định quyền
+-- (nguồn sự thật DUY NHẤT từ đây là admin.AdminUserRoles/RoleMenuAccess, xem
+-- lib/adminPermissions.js).
+IF OBJECT_ID('admin.Roles', 'U') IS NULL
+BEGIN
+    CREATE TABLE admin.Roles (
+        Id           INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        Code         VARCHAR(50)   NOT NULL,
+        Name         NVARCHAR(200) NOT NULL,
+        IsSystemRole BIT           NOT NULL DEFAULT 0,
+        CONSTRAINT UX_Roles_Code UNIQUE (Code)
+    );
+END
+GO
+
+IF OBJECT_ID('admin.AdminUserRoles', 'U') IS NULL
+BEGIN
+    CREATE TABLE admin.AdminUserRoles (
+        AdminUserId INT NOT NULL REFERENCES admin.AdminUsers(Id) ON DELETE CASCADE,
+        RoleId      INT NOT NULL REFERENCES admin.Roles(Id) ON DELETE CASCADE,
+        CONSTRAINT PK_AdminUserRoles PRIMARY KEY (AdminUserId, RoleId)
+    );
+END
+GO
+
+-- MenuCode = 1 trong 10 trang CỐ ĐỊNH của api-admin/ (khai trong code —
+-- lib/adminPermissions.js). CanEdit phân biệt "chỉ xem" (mặc định, đúng
+-- vai trò `viewer` cũ — xem MỌI trang nhưng không tạo/sửa/xoá được gì) với
+-- "xem + thêm/sửa/xoá".
+IF OBJECT_ID('admin.RoleMenuAccess', 'U') IS NULL
+BEGIN
+    CREATE TABLE admin.RoleMenuAccess (
+        RoleId   INT         NOT NULL REFERENCES admin.Roles(Id) ON DELETE CASCADE,
+        MenuCode VARCHAR(50) NOT NULL,
+        CanEdit  BIT         NOT NULL DEFAULT 0,
+        CONSTRAINT PK_RoleMenuAccess PRIMARY KEY (RoleId, MenuCode)
+    );
+END
+GO
+
+-- Seed 2 nhóm quyền mặc định — khớp CHÍNH XÁC hành vi 2 Role cũ (không đổi
+-- quyền tài khoản đang chạy khi nâng cấp) — an toàn chạy lại nhiều lần.
+IF NOT EXISTS (SELECT 1 FROM admin.Roles WHERE Code = 'admin')
+    INSERT INTO admin.Roles (Code, Name, IsSystemRole) VALUES ('admin', N'Admin hệ thống', 1);
+IF NOT EXISTS (SELECT 1 FROM admin.Roles WHERE Code = 'viewer')
+    INSERT INTO admin.Roles (Code, Name, IsSystemRole) VALUES ('viewer', N'Chỉ xem', 0);
+GO
+
+-- viewer (cũ): xem được TOÀN BỘ 10 trang, KHÔNG tạo/sửa/xoá được gì (trước
+-- đây không route GET nào bị chặn với viewer — chỉ các route ghi mới đòi
+-- requireAdminRole).
+IF NOT EXISTS (SELECT 1 FROM admin.RoleMenuAccess rma JOIN admin.Roles r ON rma.RoleId = r.Id WHERE r.Code = 'viewer')
+BEGIN
+    DECLARE @viewerRoleId INT = (SELECT Id FROM admin.Roles WHERE Code = 'viewer');
+    INSERT INTO admin.RoleMenuAccess (RoleId, MenuCode, CanEdit)
+    SELECT @viewerRoleId, v.MenuCode, 0
+    FROM (VALUES
+        ('consumers'), ('data-sources'), ('realtime-endpoints'), ('realtime-write-endpoints'),
+        ('report-catalog'), ('live'), ('history'), ('stats'), ('audit-log'), ('users')
+    ) AS v(MenuCode);
+END
+GO
+
+-- Migrate dữ liệu CŨ: mỗi tài khoản admin.AdminUsers đã có -> gán đúng nhóm
+-- quyền tương ứng theo cột Role cũ (idempotent — chỉ thêm dòng CHƯA có).
+INSERT INTO admin.AdminUserRoles (AdminUserId, RoleId)
+SELECT u.Id, r.Id
+FROM admin.AdminUsers u
+JOIN admin.Roles r ON r.Code = u.Role
+WHERE NOT EXISTS (SELECT 1 FROM admin.AdminUserRoles aur WHERE aur.AdminUserId = u.Id AND aur.RoleId = r.Id);
+GO

@@ -1,5 +1,5 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider } from './lib/AuthContext';
+import { AuthProvider, useAuth } from './lib/AuthContext';
 import Layout from './components/Layout';
 import RequireAuth from './components/RequireAuth';
 import LoginPage from './pages/LoginPage';
@@ -13,6 +13,18 @@ import HistoryPage from './pages/HistoryPage';
 import StatsPage from './pages/StatsPage';
 import AuditLogPage from './pages/AuditLogPage';
 import AdminUsersPage from './pages/AdminUsersPage';
+import RolesPage from './pages/RolesPage';
+
+// Vai trò hẹp không thấy "/consumers" trong menu (xem components/Layout.jsx)
+// — đưa thẳng vào trang đầu tiên họ thật sự vào được, tránh hạ cánh vào
+// trang trống/không có trong nav.
+const LANDING_ORDER = ['consumers', 'data-sources', 'live', 'history', 'stats', 'audit-log', 'users'];
+
+function IndexRedirect() {
+  const { can } = useAuth();
+  const menuCode = LANDING_ORDER.find(code => can(code)) || 'consumers';
+  return <Navigate to={`/${menuCode === 'users' ? 'admin-users' : menuCode}`} replace />;
+}
 
 export default function App() {
   return (
@@ -21,7 +33,7 @@ export default function App() {
         <Route path="/login" element={<LoginPage />} />
 
         <Route element={<RequireAuth><Layout /></RequireAuth>}>
-          <Route path="/" element={<Navigate to="/consumers" replace />} />
+          <Route path="/" element={<IndexRedirect />} />
           <Route path="/consumers" element={<ConsumersPage />} />
           <Route path="/data-sources" element={<DataSourcesPage />} />
           <Route path="/realtime-endpoints" element={<RealtimeEndpointsPage />} />
@@ -32,6 +44,7 @@ export default function App() {
           <Route path="/stats" element={<StatsPage />} />
           <Route path="/audit-log" element={<AuditLogPage />} />
           <Route path="/admin-users" element={<AdminUsersPage />} />
+          <Route path="/roles" element={<RolesPage />} />
         </Route>
       </Routes>
     </AuthProvider>

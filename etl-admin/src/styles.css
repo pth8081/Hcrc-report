@@ -43,6 +43,13 @@ legend { font-size: 12px; color: var(--ink-soft); padding: 0 6px; }
 .fk-suggestions button { background: var(--accent-soft); color: var(--accent); border: none; padding: 3px 8px; font-size: 11px; }
 .inline-actions { display: flex; gap: 8px; }
 
+.modal { position: fixed; inset: 0; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; }
+.modal-body { background: var(--surface); padding: 24px; border-radius: 6px; width: 420px; max-height: 80vh; overflow-y: auto; }
+.modal-actions { display: flex; gap: 8px; margin-top: 16px; align-items: center; }
+.access-table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 13.5px; }
+.access-table th, .access-table td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--line); }
+.form-hint { color: var(--ink-soft); font-size: 12.5px; margin: 4px 0 12px; }
+
 .table-scroll { overflow-x: auto; }
 .data-table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
 .data-table th { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); color: var(--ink-soft); font-weight: 600; }

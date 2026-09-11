@@ -24,7 +24,8 @@ function toggleInList(list, value) {
 }
 
 export default function SyncJobsPage() {
-  const { isAdmin } = useAuth();
+  const { canEdit } = useAuth();
+  const isAdmin = canEdit('sync-jobs');
   const [jobs, setJobs] = useState([]);
   const [dataSources, setDataSources] = useState([]);
   const [customConnectors, setCustomConnectors] = useState([]);

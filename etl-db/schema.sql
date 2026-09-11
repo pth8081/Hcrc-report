@@ -257,3 +257,95 @@ BEGIN
     CREATE INDEX IX_AdminTwoFactorRecoveryCodes_AdminUserId ON admin.AdminTwoFactorRecoveryCodes (AdminUserId);
 END
 GO
+
+-- ===== Nhóm quyền (thay mô hình 3 Role cố định ở trên bằng nhóm quyền admin
+-- tự tạo tuỳ ý — mirror app.Roles/app.RoleMenuAccess bên rp-server, xem
+-- rp-db/schema.sql) =====
+--
+-- admin.AdminUsers.Role (cột cũ ở trên) VẪN GIỮ NGUYÊN, không xoá — từ nay
+-- CHỈ còn là nhãn hiển thị/lịch sử, KHÔNG còn được đọc để quyết định quyền
+-- (nguồn sự thật DUY NHẤT từ đây là admin.AdminUserRoles/RoleMenuAccess, xem
+-- lib/adminPermissions.js) — seedAdmin.js/route tạo tài khoản vẫn ghi cột
+-- này (tương thích ngược, tránh phải dò sửa mọi chỗ khác có thể còn đọc nó)
+-- nhưng ghi ĐỒNG THỜI cả AdminUserRoles.
+IF OBJECT_ID('admin.Roles', 'U') IS NULL
+BEGIN
+    CREATE TABLE admin.Roles (
+        Id           INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        Code         VARCHAR(50)   NOT NULL,
+        Name         NVARCHAR(200) NOT NULL,
+        IsSystemRole BIT           NOT NULL DEFAULT 0,
+        CONSTRAINT UX_Roles_Code UNIQUE (Code)
+    );
+END
+GO
+
+IF OBJECT_ID('admin.AdminUserRoles', 'U') IS NULL
+BEGIN
+    CREATE TABLE admin.AdminUserRoles (
+        AdminUserId INT NOT NULL REFERENCES admin.AdminUsers(Id) ON DELETE CASCADE,
+        RoleId      INT NOT NULL REFERENCES admin.Roles(Id) ON DELETE CASCADE,
+        CONSTRAINT PK_AdminUserRoles PRIMARY KEY (AdminUserId, RoleId)
+    );
+END
+GO
+
+-- MenuCode = 1 trong các trang CỐ ĐỊNH của etl-admin/ (khai trong code —
+-- lib/adminPermissions.js — KHÔNG có bảng MenuItems riêng như rp-db: số
+-- trang ít, cố định theo route thật, không có CRUD thêm trang mới). CanEdit
+-- phân biệt "chỉ xem" (mặc định) với "xem + thêm/sửa/xoá" — giữ ĐÚNG khả
+-- năng vai trò `viewer` cũ đang có (xem được nhưng không sửa), khác hẳn
+-- app.RoleMenuAccess bên rp-server (ở đó chỉ có "thấy trang hay không", vì
+-- rp-server không có khái niệm 1 trang vừa xem vừa sửa cho người không phải
+-- admin).
+IF OBJECT_ID('admin.RoleMenuAccess', 'U') IS NULL
+BEGIN
+    CREATE TABLE admin.RoleMenuAccess (
+        RoleId   INT         NOT NULL REFERENCES admin.Roles(Id) ON DELETE CASCADE,
+        MenuCode VARCHAR(50) NOT NULL,
+        CanEdit  BIT         NOT NULL DEFAULT 0,
+        CONSTRAINT PK_RoleMenuAccess PRIMARY KEY (RoleId, MenuCode)
+    );
+END
+GO
+
+-- Seed 3 nhóm quyền mặc định — khớp CHÍNH XÁC hành vi 3 Role cũ (không đổi
+-- quyền của tài khoản đang chạy khi nâng cấp) — an toàn chạy lại nhiều lần.
+IF NOT EXISTS (SELECT 1 FROM admin.Roles WHERE Code = 'admin')
+    INSERT INTO admin.Roles (Code, Name, IsSystemRole) VALUES ('admin', N'Admin hệ thống', 1);
+IF NOT EXISTS (SELECT 1 FROM admin.Roles WHERE Code = 'viewer')
+    INSERT INTO admin.Roles (Code, Name, IsSystemRole) VALUES ('viewer', N'Chỉ xem', 0);
+IF NOT EXISTS (SELECT 1 FROM admin.Roles WHERE Code = 'target_importer')
+    INSERT INTO admin.Roles (Code, Name, IsSystemRole) VALUES ('target_importer', N'Nhập chỉ tiêu', 0);
+GO
+
+-- viewer (cũ): xem được Nguồn dữ liệu/Đồng bộ dữ liệu/Log/Nhật ký thao
+-- tác/Dashboard/Tài khoản quản trị (đúng danh sách route dùng
+-- blockTargetImporter cũ) — KHÔNG xem được Nhập chỉ tiêu/Ánh xạ mã chi
+-- nhánh (2 trang đó trước đây chặn cả viewer, không phải chỉ target_importer).
+IF NOT EXISTS (SELECT 1 FROM admin.RoleMenuAccess rma JOIN admin.Roles r ON rma.RoleId = r.Id WHERE r.Code = 'viewer')
+BEGIN
+    DECLARE @viewerRoleId INT = (SELECT Id FROM admin.Roles WHERE Code = 'viewer');
+    INSERT INTO admin.RoleMenuAccess (RoleId, MenuCode, CanEdit)
+    SELECT @viewerRoleId, v.MenuCode, 0
+    FROM (VALUES ('data-sources'), ('sync-jobs'), ('log'), ('audit-log'), ('dashboard'), ('users')) AS v(MenuCode);
+END
+GO
+
+-- target_importer (cũ): CHỈ trang Nhập chỉ tiêu, có sửa (đúng
+-- requireTargetImporterRole cũ cho phép admin HOẶC target_importer ghi).
+IF NOT EXISTS (SELECT 1 FROM admin.RoleMenuAccess rma JOIN admin.Roles r ON rma.RoleId = r.Id WHERE r.Code = 'target_importer')
+BEGIN
+    DECLARE @targetImporterRoleId INT = (SELECT Id FROM admin.Roles WHERE Code = 'target_importer');
+    INSERT INTO admin.RoleMenuAccess (RoleId, MenuCode, CanEdit) VALUES (@targetImporterRoleId, 'sales-targets', 1);
+END
+GO
+
+-- Migrate dữ liệu CŨ: mỗi tài khoản admin.AdminUsers đã có -> gán đúng nhóm
+-- quyền tương ứng theo cột Role cũ (idempotent — chỉ thêm dòng CHƯA có).
+INSERT INTO admin.AdminUserRoles (AdminUserId, RoleId)
+SELECT u.Id, r.Id
+FROM admin.AdminUsers u
+JOIN admin.Roles r ON r.Code = u.Role
+WHERE NOT EXISTS (SELECT 1 FROM admin.AdminUserRoles aur WHERE aur.AdminUserId = u.Id AND aur.RoleId = r.Id);
+GO

@@ -1,23 +1,24 @@
 import { NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '../lib/AuthContext';
 
+// menuCode dùng để lọc nav theo quyền THẬT (xem etl/lib/adminPermissions.js)
+// — branch-code-map yêu cầu CanEdit ngay cả để XEM (giữ đúng hành vi cũ,
+// requireMenuEdit áp cho mọi route kể cả GET — xem etl/routes/admin/branchCodeMap.js).
 const NAV = [
-  { path: '/dashboard', label: 'Dashboard', icon: '📊' },
-  { path: '/data-sources', label: 'Nguồn dữ liệu', icon: '🔌' },
-  { path: '/sync-jobs', label: 'Đồng bộ', icon: '🔄' },
-  { path: '/log', label: 'Log', icon: '🧾' },
-  { path: '/audit-log', label: 'Nhật ký thao tác', icon: '📜' },
-  { path: '/sales-targets', label: 'Nhập chỉ tiêu', icon: '🎯' },
-  { path: '/branch-code-map', label: 'Ánh xạ mã chi nhánh', icon: '🔗' },
-  { path: '/users', label: 'Phân quyền', icon: '🔐' }
+  { path: '/dashboard', label: 'Dashboard', icon: '📊', menuCode: 'dashboard' },
+  { path: '/data-sources', label: 'Nguồn dữ liệu', icon: '🔌', menuCode: 'data-sources' },
+  { path: '/sync-jobs', label: 'Đồng bộ', icon: '🔄', menuCode: 'sync-jobs' },
+  { path: '/log', label: 'Log', icon: '🧾', menuCode: 'log' },
+  { path: '/audit-log', label: 'Nhật ký thao tác', icon: '📜', menuCode: 'audit-log' },
+  { path: '/sales-targets', label: 'Nhập chỉ tiêu', icon: '🎯', menuCode: 'sales-targets' },
+  { path: '/branch-code-map', label: 'Ánh xạ mã chi nhánh', icon: '🔗', menuCode: 'branch-code-map', editOnly: true },
+  { path: '/users', label: 'Phân quyền', icon: '🔐', menuCode: 'users' },
+  { path: '/roles', label: 'Vai trò', icon: '🛡️', menuCode: 'roles' }
 ];
 
 export default function Layout() {
-  const { me, isAdmin, isTargetImporter, logout } = useAuth();
-  // target_importer là vai trò HẸP — CHỈ thấy đúng "Nhập chỉ tiêu", không
-  // thấy DataSources/SyncJobs/Log/Users (hạ tầng ETL thật, không liên quan
-  // tới việc nhập chỉ tiêu — xem etl/lib/adminAuth.js).
-  const nav = isTargetImporter ? NAV.filter(item => item.path === '/sales-targets') : NAV;
+  const { me, isSystemRole, can, canEdit, logout } = useAuth();
+  const nav = NAV.filter(item => (item.editOnly ? canEdit(item.menuCode) : can(item.menuCode)));
 
   return (
     <div className="app-shell">
@@ -40,7 +41,7 @@ export default function Layout() {
           ))}
         </ul>
         <div className="sidebar-footer">
-          <div className="user-name">{me?.username} <span className="role-badge">{me?.role}</span></div>
+          <div className="user-name">{me?.username} {isSystemRole && <span className="role-badge">hệ thống</span>}</div>
           <button type="button" className="logout-link" onClick={logout}>↩ Đăng xuất</button>
         </div>
       </aside>

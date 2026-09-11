@@ -4,13 +4,15 @@
 // nằm trong CSDL etl cùng etl.SyncJobs/etl.DataSources, KHÔNG cần vai trò
 // riêng như dwh.SalesTargets — bảng này không chạm dwh.ReportFacts).
 //
-// Quyền: requireAdminRole ('admin') — CHỈ admin đầy đủ mới cấu hình ánh xạ
-// mã chi nhánh (ảnh hưởng cách MỌI job "Theo bảng" ghi EntityCode, khác
-// phạm vi hẹp của 'target_importer').
+// Quyền: requireMenuEdit('branch-code-map') CHO MỌI THAO TÁC KỂ CẢ XEM —
+// khác mọi trang khác (đọc dùng requireMenuAccess, ghi mới cần requireMenuEdit)
+// — trang này ảnh hưởng cách MỌI job "Theo bảng" ghi EntityCode, cố ý không
+// có mức "chỉ xem" riêng, chỉ nhóm quyền được cấp CanEdit=1 mới vào được.
 const express = require('express');
 const multer = require('multer');
 const { sql, getPool } = require('../../db');
-const { requireAdminAuth, requireAdminRole } = require('../../lib/adminAuth');
+const { requireAdminAuth } = require('../../lib/adminAuth');
+const { requireMenuEdit } = require('../../lib/adminPermissions');
 const { parseBranchCodeMapFile, upsertBranchCodeMap, TRANG_THAI_VALUES } = require('../../lib/branchCodeMapImport');
 const { logAction } = require('../../lib/auditLog');
 const { hasZipSignature } = require('../../lib/fileSignature');
@@ -27,7 +29,7 @@ const upload = multer({
   }
 });
 
-router.get('/', requireAdminRole, async (req, res, next) => {
+router.get('/', requireMenuEdit('branch-code-map'), async (req, res, next) => {
   try {
     const { loaiMaKhac } = req.query;
     const pool = await getPool('ADMIN');
@@ -48,7 +50,7 @@ router.get('/', requireAdminRole, async (req, res, next) => {
 
 // Sửa/thêm ĐÚNG 1 dòng — dùng khi 1 mã đổi giữa chừng, không cần chuẩn bị
 // lại cả file Excel (cùng tinh thần routes/admin/salesTargets.js PUT /one).
-router.put('/one', requireAdminRole, async (req, res, next) => {
+router.put('/one', requireMenuEdit('branch-code-map'), async (req, res, next) => {
   try {
     const { loaiMaKhac, maKhac, maChuan, tenSieuThi, trangThai } = req.body || {};
     if (!loaiMaKhac || !String(loaiMaKhac).trim()) return res.status(400).json({ error: 'Thiếu loaiMaKhac' });
@@ -71,7 +73,7 @@ router.put('/one', requireAdminRole, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.delete('/:id', requireAdminRole, async (req, res, next) => {
+router.delete('/:id', requireMenuEdit('branch-code-map'), async (req, res, next) => {
   try {
     const pool = await getPool('ADMIN');
     const result = await pool.request().input('id', sql.Int, req.params.id)
@@ -83,7 +85,7 @@ router.delete('/:id', requireAdminRole, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.post('/import', requireAdminRole, upload.single('file'), async (req, res, next) => {
+router.post('/import', requireMenuEdit('branch-code-map'), upload.single('file'), async (req, res, next) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'Thiếu file (.xlsx)' });
     if (!hasZipSignature(req.file.buffer)) {

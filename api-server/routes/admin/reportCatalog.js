@@ -7,12 +7,13 @@
 // không đồng bộ tự động với rp-server.
 const express = require('express');
 const { sql, getPool } = require('../../db');
-const { requireAdminAuth, requireAdminRole } = require('../../lib/adminAuth');
+const { requireAdminAuth } = require('../../lib/adminAuth');
+const { requireMenuAccess, requireMenuEdit } = require('../../lib/adminPermissions');
 const { parseFormula } = require('../../lib/formulaEngine');
 const { logAction } = require('../../lib/auditLog');
 
 const router = express.Router();
-router.use(requireAdminAuth);
+router.use(requireAdminAuth, requireMenuAccess('report-catalog'));
 
 // Cột dạng công thức ({ key, label, formula }) — kiểm tra cú pháp NGAY LÚC
 // LƯU, không đợi tới lúc chạy báo cáo mới lộ lỗi (xem lib/formulaEngine.js).
@@ -41,7 +42,7 @@ router.get('/', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.post('/', requireAdminRole, async (req, res, next) => {
+router.post('/', requireMenuEdit('report-catalog'), async (req, res, next) => {
   try {
     const { reportId, title, domain, definitionJson } = req.body || {};
     if (!reportId || !title || !domain || !definitionJson) {
@@ -70,7 +71,7 @@ router.post('/', requireAdminRole, async (req, res, next) => {
   }
 });
 
-router.put('/:reportId', requireAdminRole, async (req, res, next) => {
+router.put('/:reportId', requireMenuEdit('report-catalog'), async (req, res, next) => {
   try {
     const { title, domain, definitionJson, isActive } = req.body || {};
     if (definitionJson) {
@@ -99,7 +100,7 @@ router.put('/:reportId', requireAdminRole, async (req, res, next) => {
   }
 });
 
-router.delete('/:reportId', requireAdminRole, async (req, res, next) => {
+router.delete('/:reportId', requireMenuEdit('report-catalog'), async (req, res, next) => {
   try {
     const pool = await getPool('ADMIN');
     await pool.request().input('reportId', sql.VarChar(80), req.params.reportId)

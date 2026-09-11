@@ -1,13 +1,16 @@
-// lib/AuthContext.jsx — Người quản trị hiện tại (username, role). Chỉ 2 vai
-// trò ('admin'/'viewer') — không có cây quyền như rp-user/ chính, quy mô
-// trang quản trị API nhỏ hơn nhiều (xem tài liệu kiến trúc, mục 03).
+// lib/AuthContext.jsx — Người quản trị hiện tại (username + quyền tra theo
+// nhóm quyền động, xem api-server/lib/adminPermissions.js) — thay mô hình 2
+// Role cố định cũ ('admin'/'viewer'). `isSystemRole` (mirror rp-user) vào
+// được MỌI trang; còn lại tra `menuAccess[menuCode]` — có mặt nghĩa là
+// "xem", `canEdit` là "sửa/xoá" (giữ đúng phân biệt view/edit của mô hình
+// cũ, khác rp-user vốn chỉ nhị phân thấy/không thấy).
 import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { api } from './api';
 
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
-  const [me, setMe] = useState(null); // { username, role }
+  const [me, setMe] = useState(null);
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
@@ -24,7 +27,7 @@ export function AuthProvider({ children }) {
   useEffect(() => { refresh(); }, [refresh]);
 
   // Trả nguyên response cho LoginPage tự quyết định bước tiếp theo:
-  // { ok: true } -> xong ngay (vai trò khác 'admin', không cần 2FA)
+  // { ok: true } -> xong ngay (không phải vai trò hệ thống, không cần 2FA)
   // { twofa: 'pending', token } -> đã bật 2FA, cần nhập mã (xem 2fa/verify)
   // { twofa: 'setupRequired', token } -> CHƯA bật 2FA, bắt buộc đăng ký ngay
   const login = useCallback(async (username, password) => {
@@ -52,10 +55,12 @@ export function AuthProvider({ children }) {
     setMe(null);
   }, []);
 
-  const isAdmin = me?.role === 'admin';
+  const isSystemRole = !!me?.isSystemRole;
+  const can = useCallback((menuCode) => isSystemRole || !!me?.menuAccess?.[menuCode], [isSystemRole, me]);
+  const canEdit = useCallback((menuCode) => isSystemRole || !!me?.menuAccess?.[menuCode]?.canEdit, [isSystemRole, me]);
 
   return (
-    <AuthContext.Provider value={{ me, loading, login, logout, isAdmin, refresh, setupTwoFactor, confirmTwoFactor, verifyTwoFactor }}>
+    <AuthContext.Provider value={{ me, loading, login, logout, isSystemRole, can, canEdit, refresh, setupTwoFactor, confirmTwoFactor, verifyTwoFactor }}>
       {children}
     </AuthContext.Provider>
   );

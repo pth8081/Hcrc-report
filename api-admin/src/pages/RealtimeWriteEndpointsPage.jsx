@@ -17,7 +17,8 @@ import DataTable from '../components/DataTable';
 const EMPTY_FORM = { endpoint: '', label: '', dataSourceId: '', schemaName: '', tableName: '', keyColumn: '', statusColumn: '', usedValue: '' };
 
 export default function RealtimeWriteEndpointsPage() {
-  const { isAdmin } = useAuth();
+  const { canEdit } = useAuth();
+  const isAdmin = canEdit('realtime-write-endpoints');
   const [endpoints, setEndpoints] = useState([]);
   const [dataSources, setDataSources] = useState([]);
   const [tables, setTables] = useState([]);

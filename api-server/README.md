@@ -297,22 +297,58 @@ vô hạn. Lớp phòng thủ độc lập, không thay được timeout riêng 
 | `GET /api/v1/realtime/:endpoint/:key` | `realtime` | Tra 1 khoá — `endpoint` bất kỳ đã tạo qua trang "Endpoint realtime" (vd `inventory`, `loyalty`, `vouchers`, hoặc endpoint mới tự đặt) |
 | `GET /api/v1/realtime/:endpoint/list` | `realtime` | Danh sách cùng endpoint, phân trang |
 
+## Nhóm quyền (RBAC)
+
+Trước đây phân quyền là 2 giá trị CỐ ĐỊNH trong cột `admin.AdminUsers.Role`
+(`admin`/`viewer`) — và KHÔNG có gate riêng theo trang (mọi tài khoản đăng
+nhập được thấy MỌI trang, chỉ nút ghi mới kiểm tra `admin`). Từ nay thay
+bằng nhóm quyền ĐỘNG (mirror `rp-server`, cùng mô hình với `etl`, xem tài
+liệu kiến trúc): admin tự tạo bao nhiêu vai trò tuỳ ý ở trang "Vai trò", mỗi
+vai trò cấp quyền theo TỪNG trang (`admin.RoleMenuAccess`, `MenuCode` + cờ
+`CanEdit`), gán 1+ vai trò cho mỗi tài khoản (`admin.AdminUserRoles`).
+
+- **Vai trò hệ thống** (`IsSystemRole=1`, mặc định chỉ vai trò `admin` khi
+  migrate) qua MỌI kiểm tra quyền. Đăng nhập vai trò hệ thống BẮT BUỘC bật
+  2FA (thay kiểm tra `Role === 'admin'` cũ).
+  Migrate tự động: 2 vai trò cũ (`admin`/`viewer`) được tạo sẵn trong
+  `admin.Roles`, `viewer` được cấp xem (không sửa) TẤT CẢ các trang (đúng
+  hành vi cũ — trước đây viewer xem được mọi trang), mọi tài khoản hiện có
+  được gán lại đúng vai trò theo cột `Role` cũ (`api-db/schema.sql`, chạy
+  lại an toàn — idempotent). Cột `AdminUsers.Role` GIỮ NGUYÊN — chỉ còn là
+  nhãn hiển thị/lịch sử.
+- Không xoá cứng tài khoản — chỉ khoá (`IsActive=0`, `PUT /admin/users/:id`,
+  MỚI — trước đây phải chạy `scripts/seedAdmin.js` tay, không có route tạo/
+  sửa/khoá tài khoản nào).
+- Gán vai trò (`PUT /admin/users/:id/roles`) và đặt lại 2FA hộ người khác
+  (`POST /admin/users/:id/reset-2fa`) cần vai trò hệ thống thật — chặt hơn
+  quyền sửa `users` thông thường (chặn đường leo thang qua 1 tài khoản chỉ
+  được giao quản lý tài khoản).
+- Quyền được tra TƯƠI mỗi request (cache trong bộ nhớ, TTL 60 giây) thay vì
+  nhúng vào JWT — đổi quyền có hiệu lực trong vòng ~60 giây, không cần đăng
+  xuất/đăng nhập lại.
+
 ## API — `/admin/*` (nội bộ, cookie phiên)
 
-| Endpoint | Vai trò | Mô tả |
+| Endpoint | Quyền | Mô tả |
 |---|---|---|
-| `POST /admin/auth/login`, `/logout`, `GET /me` | — | Đăng nhập/đăng xuất |
-| `GET/POST/PUT/DELETE /admin/consumers` | `admin` sửa, ai đăng nhập cũng xem được | CRUD đối tác API |
-| `POST /admin/consumers/:id/rotate` | `admin` | Luân chuyển bí mật (apiKey/clientSecret/hmacSecret tuỳ `AuthMethod` của đối tác) — định danh công khai (ClientId/HmacKeyId) giữ nguyên |
-| `GET/PUT /admin/consumers/:id/report-access` | `admin` sửa | Báo cáo đối tác được gọi (`api.ConsumerReportAccess`) |
-| `GET/PUT /admin/consumers/:id/realtime-access` | `admin` sửa | Endpoint realtime đối tác được gọi (`api.ConsumerRealtimeAccess`) |
-| `GET/POST/PUT/DELETE /admin/data-sources` | `admin` sửa | CRUD nguồn dữ liệu OLTP (kết nối vật lý) |
-| `POST /admin/data-sources/test` | `admin` | Kiểm tra kết nối một cấu hình chưa lưu |
-| `GET /admin/data-sources/:id/tables` | — | Duyệt bảng/view thật của một nguồn |
-| `GET /admin/data-sources/:id/tables/:schema/:table/columns` | — | Duyệt cột thật của một bảng/view |
-| `GET/POST/PUT/DELETE /admin/realtime-endpoints` | `admin` sửa | CRUD định nghĩa endpoint realtime (`api.RealtimeEndpointDefs`) |
-| `GET/POST/PUT/DELETE /admin/report-catalog` | `admin` sửa | CRUD danh mục báo cáo tổng hợp (`api.ReportCatalog`) |
-| `GET /admin/live/stream` | — | SSE: request đang chạy realtime |
-| `GET /admin/live/pools` | — | Số kết nối CSDL đang dùng/tối đa (DWH) |
-| `GET /admin/history` | — | Lịch sử request, lọc + phân trang |
-| `GET /admin/stats/top?since=1h\|24h\|7d` | — | Top endpoint/đối tác theo số lượt gọi |
+| `POST /admin/auth/login`, `/logout`, `GET /me` | — | Đăng nhập/đăng xuất — `GET /me` trả `isSystemRole` + `menuAccess` |
+| `GET /admin/roles`, `POST /admin/roles`, `PUT/DELETE /admin/roles/:id` | menu `roles` | CRUD vai trò (không sửa/xoá được vai trò hệ thống) |
+| `GET /admin/roles/menu-catalog`, `GET /admin/roles/:id/access` | menu `roles` | Danh sách trang hợp lệ + quyền hiện có của 1 vai trò |
+| `PUT /admin/roles/:id/menu-access` | vai trò hệ thống | Gán quyền trang (kèm `CanEdit`) cho 1 vai trò |
+| `GET /admin/users`, `POST /admin/users`, `PUT /admin/users/:id`, `POST /:id/reset-password` | menu `users` sửa | CRUD tài khoản quản trị (khoá qua `PUT` `isActive:false`, không xoá cứng) |
+| `PUT /admin/users/:id/roles`, `POST /admin/users/:id/reset-2fa` | vai trò hệ thống | Gán vai trò / đặt lại 2FA hộ tài khoản khác |
+| `GET/POST/PUT/DELETE /admin/consumers` | menu `consumers` xem/sửa | CRUD đối tác API |
+| `POST /admin/consumers/:id/rotate` | menu `consumers` sửa | Luân chuyển bí mật (apiKey/clientSecret/hmacSecret tuỳ `AuthMethod` của đối tác) — định danh công khai (ClientId/HmacKeyId) giữ nguyên |
+| `GET/PUT /admin/consumers/:id/report-access` | menu `consumers` sửa | Báo cáo đối tác được gọi (`api.ConsumerReportAccess`) |
+| `GET/PUT /admin/consumers/:id/realtime-access` | menu `consumers` sửa | Endpoint realtime đối tác được gọi (`api.ConsumerRealtimeAccess`) |
+| `GET/POST/PUT/DELETE /admin/data-sources` | menu `data-sources` xem/sửa | CRUD nguồn dữ liệu OLTP (kết nối vật lý) |
+| `POST /admin/data-sources/test` | menu `data-sources` sửa | Kiểm tra kết nối một cấu hình chưa lưu |
+| `GET /admin/data-sources/:id/tables` | menu `data-sources` xem | Duyệt bảng/view thật của một nguồn |
+| `GET /admin/data-sources/:id/tables/:schema/:table/columns` | menu `data-sources` xem | Duyệt cột thật của một bảng/view |
+| `GET/POST/PUT/DELETE /admin/realtime-endpoints` | menu `realtime-endpoints` xem/sửa | CRUD định nghĩa endpoint realtime (`api.RealtimeEndpointDefs`) |
+| `GET/POST/PUT/DELETE /admin/realtime-write-endpoints` | menu `realtime-write-endpoints` xem/sửa | CRUD định nghĩa "Endpoint ghi" (`api.RealtimeWriteEndpointDefs`) |
+| `GET/POST/PUT/DELETE /admin/report-catalog` | menu `report-catalog` xem/sửa | CRUD danh mục báo cáo tổng hợp (`api.ReportCatalog`) |
+| `GET /admin/live/stream`, `GET /admin/live/pools` | menu `live` xem | SSE request đang chạy realtime + số kết nối CSDL đang dùng/tối đa (DWH) |
+| `GET /admin/history` | menu `history` xem | Lịch sử request, lọc + phân trang |
+| `GET /admin/stats/top?since=1h\|24h\|7d` | menu `stats` xem | Top endpoint/đối tác theo số lượt gọi |
+| `GET /admin/audit-log` | menu `audit-log` xem | Nhật ký thao tác |

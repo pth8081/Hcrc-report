@@ -6,13 +6,15 @@
 // dwh.ReportFacts, phòng thủ chiều sâu: lỗi ở route này không thể chạm được
 // dwh.ReportFacts (xem dwh/grants.sql).
 //
-// Quyền: requireTargetImporterRole — 'admin' HOẶC 'target_importer' (vai
-// trò hẹp, chỉ vào được đúng trang này, không thấy DataSources/SyncJobs —
-// xem lib/adminAuth.js).
+// Quyền: requireMenuAccess('sales-targets') để xem, requireMenuEdit cho
+// PUT/import — vai trò hệ thống luôn qua; vai trò khác cần được cấp đúng
+// trang này (xem lib/adminPermissions.js) — thay 'admin' HOẶC
+// 'target_importer' cố định trước đây.
 const express = require('express');
 const multer = require('multer');
 const { sql, getPool } = require('../../db');
-const { requireAdminAuth, requireTargetImporterRole } = require('../../lib/adminAuth');
+const { requireAdminAuth } = require('../../lib/adminAuth');
+const { requireMenuAccess, requireMenuEdit } = require('../../lib/adminPermissions');
 const { parseSalesTargetsFile, upsertSalesTargets, PERIOD_RE, TRANG_THAI_VALUES } = require('../../lib/salesTargetsImport');
 const { logAction } = require('../../lib/auditLog');
 const { hasZipSignature } = require('../../lib/fileSignature');
@@ -33,7 +35,7 @@ const upload = multer({
   }
 });
 
-router.get('/', requireTargetImporterRole, async (req, res, next) => {
+router.get('/', requireMenuAccess('sales-targets'), async (req, res, next) => {
   try {
     const { domain, periodMonth } = req.query;
     const pool = await getPool('DWH_TARGET_IMPORTER');
@@ -62,7 +64,7 @@ router.get('/', requireTargetImporterRole, async (req, res, next) => {
 // bị xoá nếu server tự ý merge. Giao diện (etl-admin) tự tải dữ liệu hiện
 // có của dòng đó lên form trước khi cho sửa, để không mất dữ liệu ngoài ý
 // muốn.
-router.put('/one', requireTargetImporterRole, async (req, res, next) => {
+router.put('/one', requireMenuEdit('sales-targets'), async (req, res, next) => {
   try {
     const { domain, entityCode, periodMonth, trangThai, targets } = req.body || {};
     if (!domain || !domain.trim()) return res.status(400).json({ error: 'Thiếu domain' });
@@ -92,7 +94,7 @@ router.put('/one', requireTargetImporterRole, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.post('/import', requireTargetImporterRole, upload.single('file'), async (req, res, next) => {
+router.post('/import', requireMenuEdit('sales-targets'), upload.single('file'), async (req, res, next) => {
   try {
     const { domain } = req.body || {};
     if (!domain || !domain.trim()) return res.status(400).json({ error: 'Thiếu domain' });

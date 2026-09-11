@@ -20,6 +20,90 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 6.23 — Nhóm quyền (RBAC) đầy đủ + CRUD tài khoản cho etl-admin và api-admin
+
+Yêu cầu: `etl-admin`, `api-admin` chưa có phân quyền theo nhóm quyền (chỉ 2-3
+`Role` cố định trong code) và thiếu thao tác sửa/khoá/mở khoá tài khoản
+(`api-admin` còn phải tạo/sửa tài khoản bằng cách chạy `scripts/seedAdmin.js`
+tay). `rp-server` đã có sẵn mô hình này đầy đủ — port nguyên kiến trúc đó
+sang 2 hệ còn lại, GIỮ NGUYÊN 100% hành vi của mọi tài khoản hiện có (migrate
+tự động, không cần thao tác tay) và thêm 1 khả năng mới mà `rp-server` không
+có: phân biệt "chỉ xem" và "xem + sửa" theo TỪNG trang (`CanEdit`), để giữ
+đúng vai trò `viewer` cũ (etl/api-server có `viewer`, `rp-server` không cần
+vì quyền menu ở đó vốn nhị phân thấy/không thấy). Quyết định đã chốt: KHÔNG
+xoá cứng tài khoản ở đâu cả (chỉ khoá `IsActive=0`, giữ tham chiếu
+`AuditLog`), xây nhóm quyền ĐỘNG giống hệt `rp-server` (admin tự tạo vai trò
+tuỳ ý, gán quyền theo trang) cho cả `etl` và `api-server`.
+
+- **`etl-db/schema.sql`, `api-db/schema.sql`** — `admin.Roles`
+  (`Code`/`Name`/`IsSystemRole`), `admin.AdminUserRoles` (nhiều-nhiều),
+  `admin.RoleMenuAccess` (`RoleId`/`MenuCode`/`CanEdit`). Seed + migrate
+  idempotent: tạo lại đúng vai trò cũ (`admin` IsSystemRole=1, `viewer`,
+  riêng `etl` thêm `target_importer`) với ĐÚNG quyền hiện có hôm nay (viewer
+  etl bị chặn `branch-code-map`+`sales-targets` như cũ; viewer api-server
+  xem được cả 10 trang như cũ; `target_importer` chỉ `sales-targets`, có
+  sửa), gán lại mọi tài khoản hiện có vào đúng vai trò theo cột `Role` cũ.
+  Cột `AdminUsers.Role` GIỮ NGUYÊN (không xoá) — chỉ còn nhãn hiển thị/lịch
+  sử, không còn quyết định quyền.
+- **`etl/lib/adminPermissions.js`, `api-server/lib/adminPermissions.js`**
+  (mới, mirror `rp-server/lib/permissions.js`) — `getAdminContext()` tra
+  `isSystemRole` + `menuAccess` (Map menuCode -> `{canEdit}`, MAX(CanEdit)
+  khi 1 tài khoản giữ nhiều vai trò cấp khác nhau cho cùng trang), cache bộ
+  nhớ TTL 60 giây + `invalidateUser`/`invalidateAll`. `requireMenuAccess`/
+  `requireMenuEdit(menuCode)` thay toàn bộ `requireAdminRole`/
+  `blockTargetImporter`/`requireTargetImporterRole` cũ. `requireSystemRoleActor`
+  (mirror `rp-server/lib/auth.js`) chặn đường leo thang: gán vai trò/đặt lại
+  2FA hộ người khác cần vai trò hệ thống THẬT, chặt hơn quyền sửa `users`
+  thông thường (menu `users` giờ CÓ THỂ giao cho 1 tài khoản không phải vai
+  trò hệ thống — lần đầu tiên có thể "giao quản lý tài khoản" mà không cấp
+  toàn quyền).
+- **`etl/lib/adminAuth.js`, `api-server/lib/adminAuth.js`** — bỏ nhúng
+  `role` vào JWT (quyền tra tươi mỗi request thay vì đóng băng lúc đăng
+  nhập, giống `rp-server` đã làm) — ép 2FA lúc đăng nhập và chọn ngưỡng
+  rate-limit nay theo `isSystemRole` thay `role === 'admin'`.
+- **Route guard** — đổi TOÀN BỘ route ghi (POST/PUT/DELETE) và route đọc có
+  gate riêng sang `requireMenuAccess`/`requireMenuEdit(menuCode)` đúng theo
+  từng trang (`data-sources`, `sync-jobs`, `branch-code-map` — edit-only kể
+  cả xem, giữ đúng hành vi cũ —, `sales-targets`, `log`, `audit-log`,
+  `dashboard` bên `etl`; `consumers`, `data-sources`, `realtime-endpoints`,
+  `realtime-write-endpoints`, `report-catalog`, `live`, `history`, `stats`,
+  `audit-log` bên `api-server` — MỚI, trước đây các trang đọc này không có
+  gate riêng, ai đăng nhập cũng thấy hết).
+- **`etl/routes/admin/roles.js`, `api-server/routes/admin/roles.js`** (mới,
+  mirror `rp-server/routes/roles.js`) — CRUD `admin.Roles` (chặn sửa/xoá vai
+  trò hệ thống), `GET /menu-catalog` (danh sách trang hợp lệ để giao diện tự
+  vẽ checkbox), `GET /:id/access`, `PUT /:id/menu-access` (transaction xoá-
+  ghi-lại, chỉ vai trò hệ thống thật).
+- **`etl/routes/admin/users.js`** — thêm `PUT /:id/roles` (gán vai trò, bỏ
+  dropdown Role cố định khỏi form tạo). **`api-server/routes/admin/users.js`**
+  — viết gần như mới: `POST /` (tạo), `PUT /:id` (sửa tên + khoá/mở khoá,
+  TRƯỚC ĐÂY KHÔNG CÓ), `PUT /:id/roles`, `POST /:id/reset-password` (TRƯỚC
+  ĐÂY KHÔNG CÓ), giữ `POST /:id/reset-2fa` nhưng đổi điều kiện sang
+  `isSystemRole` của tài khoản đích thay vì `Role !== 'admin'`.
+- **`etl/scripts/seedAdmin.js`, `api-server/scripts/seedAdmin.js`** — ngoài
+  ghi cột `Role` (giữ tương thích ngược), nay tra `admin.Roles` theo `Code`
+  và ghi thêm `admin.AdminUserRoles` — tài khoản tạo qua script vẫn có đúng
+  quyền ngay từ đầu.
+- **Frontend** (`etl-admin`, `api-admin`) — `AuthContext.jsx` đổi
+  `isAdmin`/`isTargetImporter` cố định thành `isSystemRole` + `can(menuCode)`/
+  `canEdit(menuCode)` tra theo `menuAccess` server trả về; `Layout.jsx` lọc
+  nav theo quyền thật thay danh sách cố định; trang "Vai trò" MỚI
+  (`RolesPage.jsx`, mirror `rp-user`, đơn giản hơn — chỉ 1 lớp quyền menu
+  kèm `CanEdit`, không có report/domain access); `UsersPage.jsx` (etl)/
+  `AdminUsersPage.jsx` (api-admin, viết gần như mới) — thêm form sửa tên/
+  khoá-mở khoá, modal "Gán vai trò" (chỉ vai trò hệ thống thấy nút), giữ
+  "Đặt lại mật khẩu"/"Đặt lại 2FA" (điều kiện theo `isSystemRole` của tài
+  khoản đích).
+- **Test**: 24 assertion (`fakeModule`) xác nhận `adminPermissions.js` (cache
+  TTL, `invalidateUser`/`invalidateAll`, MAX(CanEdit) khi nhiều vai trò, cả 4
+  middleware, `isSystemRoleForRateLimit`) đúng hệt nhau ở `etl` VÀ
+  `api-server`; 28 assertion riêng cho `routes/admin/roles.js` (chặn sửa/xoá
+  vai trò hệ thống, transaction gán quyền) và `PUT /users/:id/roles` ở cả 2
+  service; `npm run build` sạch `etl-admin` + `api-admin`.
+- Tài khoản hiện có KHÔNG bị ảnh hưởng khi deploy: chạy lại `schema.sql` là
+  đủ, mọi tài khoản tự động có đúng vai trò/quyền như trước — không cần đăng
+  xuất/đăng nhập lại, không cần thao tác tay nào.
+
 ## 6.22 — "Báo cáo tự do" (self-service, hướng Power BI) — người dùng cuối tự dựng bảng/biểu đồ, không cần admin tạo sẵn
 
 Yêu cầu mới: bên cạnh Danh mục báo cáo hiện có (admin định nghĩa sẵn cột/

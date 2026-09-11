@@ -11,7 +11,8 @@ import DataTable from '../components/DataTable';
 const EMPTY_FORM = { reportId: '', title: '', domain: '', definitionJson: '' };
 
 export default function ReportCatalogPage() {
-  const { isAdmin } = useAuth();
+  const { canEdit } = useAuth();
+  const isAdmin = canEdit('report-catalog');
   const [reports, setReports] = useState([]);
   const [form, setForm] = useState(EMPTY_FORM);
   const [error, setError] = useState('');

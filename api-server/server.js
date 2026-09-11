@@ -31,6 +31,7 @@ const adminLiveRoutes = require('./routes/admin/live');
 const adminHistoryRoutes = require('./routes/admin/history');
 const adminAuditLogRoutes = require('./routes/admin/auditLog');
 const adminStatsRoutes = require('./routes/admin/stats');
+const adminRolesRoutes = require('./routes/admin/roles');
 const { requestLogger } = require('./lib/requestLogger');
 const { adminIpAllowlist } = require('./lib/adminIpAllowlist');
 const { corsAllowlist } = require('./lib/corsAllowlist');

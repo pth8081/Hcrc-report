@@ -3,15 +3,16 @@
 // động), chỉ đọc, lọc theo username/module/khoảng thời gian, có phân trang.
 const express = require('express');
 const { sql, getPool } = require('../../db');
-const { requireAdminAuth, blockTargetImporter } = require('../../lib/adminAuth');
+const { requireAdminAuth } = require('../../lib/adminAuth');
+const { requireMenuAccess } = require('../../lib/adminPermissions');
 
 const router = express.Router();
 router.use(requireAdminAuth);
 
-// blockTargetImporter — 'target_importer' (vai trò hẹp, giao diện đã ẩn
-// hẳn trang này khỏi menu) không được đọc nhật ký thao tác của admin/viewer
-// khác dù gọi thẳng API. 'viewer' vẫn xem được như cũ.
-router.get('/', blockTargetImporter, async (req, res, next) => {
+// requireMenuAccess('audit-log') — vai trò không được cấp trang này (vd
+// 'target_importer' cũ) không đọc được nhật ký thao tác của người khác dù
+// gọi thẳng API — xem lib/adminPermissions.js.
+router.get('/', requireMenuAccess('audit-log'), async (req, res, next) => {
   try {
     const pool = await getPool('ADMIN');
     const request = pool.request();

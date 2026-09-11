@@ -27,7 +27,8 @@ function toggleInList(list, value) {
 }
 
 export default function RealtimeEndpointsPage() {
-  const { isAdmin } = useAuth();
+  const { canEdit } = useAuth();
+  const isAdmin = canEdit('realtime-endpoints');
   const [endpoints, setEndpoints] = useState([]);
   const [dataSources, setDataSources] = useState([]);
   const [tables, setTables] = useState([]);

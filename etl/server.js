@@ -24,6 +24,7 @@ const adminAuditLogRoutes = require('./routes/admin/auditLog');
 const adminDashboardRoutes = require('./routes/admin/dashboard');
 const adminSalesTargetsRoutes = require('./routes/admin/salesTargets');
 const adminBranchCodeMapRoutes = require('./routes/admin/branchCodeMap');
+const adminRolesRoutes = require('./routes/admin/roles');
 const { getPool, closeAll, assertConfigured } = require('./db');
 const { getSecret } = require('./lib/adminAuth');
 const { getKey } = require('./lib/crypto');
@@ -102,6 +103,7 @@ app.use('/admin/audit-log', adminAuditLogRoutes);
 app.use('/admin/dashboard', adminDashboardRoutes);
 app.use('/admin/sales-targets', adminSalesTargetsRoutes);
 app.use('/admin/branch-code-map', adminBranchCodeMapRoutes);
+app.use('/admin/roles', adminRolesRoutes);
 
 app.use((err, req, res, next) => { // eslint-disable-line no-unused-vars
   console.error(err);

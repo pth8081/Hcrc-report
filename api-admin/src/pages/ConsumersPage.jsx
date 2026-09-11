@@ -57,7 +57,8 @@ function RevealedCredentials({ creds, onClose }) {
 }
 
 export default function ConsumersPage() {
-  const { isAdmin } = useAuth();
+  const { canEdit } = useAuth();
+  const isAdmin = canEdit('consumers');
   const [consumers, setConsumers] = useState([]);
   const [reports, setReports] = useState([]);
   const [endpoints, setEndpoints] = useState([]);

@@ -181,22 +181,63 @@ giữ:
 - **Header bảo mật** (`helmet()`) và **giới hạn thời gian tầng HTTP server**
   (chống client gửi request/body nhỏ giọt giữ kết nối mở gần như vô hạn).
 
+## Nhóm quyền (RBAC)
+
+Trước đây phân quyền là 3 giá trị CỐ ĐỊNH trong cột `admin.AdminUsers.Role`
+(`admin`/`viewer`/`target_importer`) — admin thấy sửa mọi trang, viewer chỉ
+xem hầu hết trang, target_importer chỉ vào được "Nhập chỉ tiêu". Từ nay thay
+bằng nhóm quyền ĐỘNG (mirror `rp-server`, xem tài liệu kiến trúc): admin tự
+tạo bao nhiêu vai trò tuỳ ý ở trang "Vai trò", mỗi vai trò cấp quyền theo
+TỪNG trang (`admin.RoleMenuAccess`, `MenuCode` + cờ `CanEdit` — khác
+`rp-server` vốn chỉ nhị phân "thấy/không thấy", ở đây còn phân biệt "chỉ
+xem" và "xem + sửa" để giữ đúng hành vi `viewer` cũ), gán 1+ vai trò cho mỗi
+tài khoản (`admin.AdminUserRoles`).
+
+- **Vai trò hệ thống** (`IsSystemRole=1`, mặc định chỉ vai trò `admin` khi
+  migrate) qua MỌI kiểm tra quyền — không cần cấp `RoleMenuAccess` riêng.
+  Đăng nhập vai trò hệ thống BẮT BUỘC bật 2FA (thay kiểm tra
+  `Role === 'admin'` cũ).
+- Migrate tự động, không cần thao tác tay: 3 vai trò cũ (`admin`/`viewer`/
+  `target_importer`) được tạo sẵn trong `admin.Roles` với đúng quyền hiện có
+  hôm nay, mọi tài khoản hiện có được gán lại đúng vai trò tương ứng theo
+  cột `Role` cũ (`etl-db/schema.sql`, chạy lại an toàn — idempotent). Cột
+  `AdminUsers.Role` GIỮ NGUYÊN (không xoá) — chỉ còn là nhãn hiển thị/lịch
+  sử, KHÔNG còn quyết định quyền.
+- Không xoá cứng tài khoản — chỉ khoá (`IsActive=0`, `PUT /admin/users/:id`),
+  giữ nguyên lịch sử `admin.AuditLog`/`etl.SyncLog` đang tham chiếu `UserId`
+  (nhất quán với `rp-server`).
+- Gán vai trò (`PUT /admin/users/:id/roles`) và đặt lại 2FA hộ người khác
+  (`POST /admin/users/:id/reset-2fa`) là thao tác NHẠY CẢM, cần vai trò hệ
+  thống thật — chặt hơn quyền sửa `users` thông thường (chặn 1 tài khoản chỉ
+  được giao quản lý tài khoản tự tạo vai trò hệ thống rồi gán cho chính
+  mình).
+- Quyền được tra TƯƠI mỗi request (cache trong bộ nhớ, TTL 60 giây) thay vì
+  nhúng vào JWT — đổi quyền của 1 vai trò/1 tài khoản có hiệu lực trong vòng
+  ~60 giây, không cần đăng xuất/đăng nhập lại.
+
 ## API — `/admin/*`
 
-| Endpoint | Vai trò | Mô tả |
+| Endpoint | Quyền | Mô tả |
 |---|---|---|
-| `POST /admin/auth/login`, `/logout`, `GET /me` | — | Đăng nhập/đăng xuất |
-| `GET/POST/PUT /admin/users`, `POST /:id/reset-password` | `admin` sửa | Phân quyền — tài khoản quản trị ETL |
-| `GET/POST/PUT/DELETE /admin/data-sources` | `admin` sửa | Nguồn dữ liệu |
-| `POST /admin/data-sources/test` | `admin` | Kiểm tra kết nối một cấu hình chưa lưu |
-| `GET /admin/data-sources/:id/tables` | — | Duyệt bảng/VIEW thật của một nguồn |
-| `GET /admin/data-sources/:id/tables/:schema/:table/columns` | — | Duyệt cột thật |
-| `GET /admin/data-sources/:id/tables/:schema/:table/foreign-keys` | — | Gợi ý cặp cột nối (nếu có khoá ngoại thật — VIEW thường không có, trả rỗng) |
-| `GET/POST/PUT/DELETE /admin/sync-jobs` | `admin` sửa | Cấu hình đồng bộ |
-| `GET /admin/sync-jobs/custom-connectors` | — | Danh sách connector "tuỳ biến" có sẵn trong code |
-| `POST /admin/sync-jobs/:id/run-now` | `admin` | Chạy thử một job ngay |
-| `GET /admin/log` | — | Nhật ký đồng bộ, lọc + phân trang |
-| `GET /admin/dashboard` | — | Tổng hợp tình trạng đồng bộ |
+| `POST /admin/auth/login`, `/logout`, `GET /me` | — | Đăng nhập/đăng xuất — `GET /me` trả `isSystemRole` + `menuAccess` |
+| `GET /admin/roles`, `POST /admin/roles`, `PUT/DELETE /admin/roles/:id` | menu `roles` | CRUD vai trò (không sửa/xoá được vai trò hệ thống) |
+| `GET /admin/roles/menu-catalog`, `GET /admin/roles/:id/access` | menu `roles` | Danh sách trang hợp lệ + quyền hiện có của 1 vai trò |
+| `PUT /admin/roles/:id/menu-access` | vai trò hệ thống | Gán quyền trang (kèm `CanEdit`) cho 1 vai trò |
+| `GET /admin/users`, `POST /admin/users`, `PUT /admin/users/:id`, `POST /:id/reset-password` | menu `users` sửa | Phân quyền — tài khoản quản trị ETL (khoá qua `PUT` `isActive:false`, không xoá cứng) |
+| `PUT /admin/users/:id/roles`, `POST /admin/users/:id/reset-2fa` | vai trò hệ thống | Gán vai trò / đặt lại 2FA hộ tài khoản khác |
+| `GET/POST/PUT/DELETE /admin/data-sources` | menu `data-sources` sửa | Nguồn dữ liệu |
+| `POST /admin/data-sources/test` | menu `data-sources` sửa | Kiểm tra kết nối một cấu hình chưa lưu |
+| `GET /admin/data-sources/:id/tables` | menu `data-sources` xem | Duyệt bảng/VIEW thật của một nguồn |
+| `GET /admin/data-sources/:id/tables/:schema/:table/columns` | menu `data-sources` xem | Duyệt cột thật |
+| `GET /admin/data-sources/:id/tables/:schema/:table/foreign-keys` | menu `data-sources` xem | Gợi ý cặp cột nối (nếu có khoá ngoại thật — VIEW thường không có, trả rỗng) |
+| `GET/POST/PUT/DELETE /admin/sync-jobs` | menu `sync-jobs` sửa | Cấu hình đồng bộ |
+| `GET /admin/sync-jobs/custom-connectors` | menu `sync-jobs` xem | Danh sách connector "tuỳ biến" có sẵn trong code |
+| `POST /admin/sync-jobs/:id/run-now` | menu `sync-jobs` sửa | Chạy thử một job ngay |
+| `GET/PUT/DELETE/POST /admin/branch-code-map` | menu `branch-code-map` sửa (kể cả xem) | Ánh xạ mã chi nhánh |
+| `GET /admin/sales-targets`, `PUT /admin/sales-targets/one`, `POST /import` | menu `sales-targets` xem/sửa | Nhập chỉ tiêu |
+| `GET /admin/log` | menu `log` xem | Nhật ký đồng bộ, lọc + phân trang |
+| `GET /admin/audit-log` | menu `audit-log` xem | Nhật ký thao tác |
+| `GET /admin/dashboard` | menu `dashboard` xem | Tổng hợp tình trạng đồng bộ |
 
 ## Còn thiếu để dùng thật
 

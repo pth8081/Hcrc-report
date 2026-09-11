@@ -1,6 +1,9 @@
-// lib/AuthContext.jsx — Người quản trị hiện tại (username, role). 3 vai trò
-// ('admin'/'viewer'/'target_importer', xem etl/lib/adminAuth.js) — vẫn gọn
-// hơn nhiều so với cây phân quyền của HCRC_RP.
+// lib/AuthContext.jsx — Người quản trị hiện tại (username + quyền tra theo
+// nhóm quyền động, xem etl/lib/adminPermissions.js) — thay mô hình 3 Role cố
+// định cũ ('admin'/'viewer'/'target_importer'). `isSystemRole` (mirror
+// rp-user) vào được MỌI trang; còn lại tra `menuAccess[menuCode]` — có mặt
+// nghĩa là "xem", `canEdit` là "sửa/xoá" (giữ đúng phân biệt view/edit của
+// mô hình cũ, khác rp-user vốn chỉ nhị phân thấy/không thấy).
 import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { api } from './api';
 
@@ -24,7 +27,7 @@ export function AuthProvider({ children }) {
   useEffect(() => { refresh(); }, [refresh]);
 
   // Trả nguyên response cho LoginPage tự quyết định bước tiếp theo:
-  // { ok: true } -> xong ngay (vai trò khác 'admin', không cần 2FA)
+  // { ok: true } -> xong ngay (không phải vai trò hệ thống, không cần 2FA)
   // { twofa: 'pending', token } -> đã bật 2FA, cần nhập mã (xem 2fa/verify)
   // { twofa: 'setupRequired', token } -> CHƯA bật 2FA, bắt buộc đăng ký ngay
   const login = useCallback(async (username, password) => {
@@ -52,14 +55,12 @@ export function AuthProvider({ children }) {
     setMe(null);
   }, []);
 
-  const isAdmin = me?.role === 'admin';
-  const isTargetImporter = me?.role === 'target_importer';
-  // 'admin' vào được MỌI trang (kể cả Nhập chỉ tiêu); 'target_importer' CHỈ
-  // vào được trang Nhập chỉ tiêu (xem components/Layout.jsx lọc menu theo cờ này).
-  const canImportTargets = isAdmin || isTargetImporter;
+  const isSystemRole = !!me?.isSystemRole;
+  const can = useCallback((menuCode) => isSystemRole || !!me?.menuAccess?.[menuCode], [isSystemRole, me]);
+  const canEdit = useCallback((menuCode) => isSystemRole || !!me?.menuAccess?.[menuCode]?.canEdit, [isSystemRole, me]);
 
   return (
-    <AuthContext.Provider value={{ me, loading, login, logout, isAdmin, isTargetImporter, canImportTargets, refresh, setupTwoFactor, confirmTwoFactor, verifyTwoFactor }}>
+    <AuthContext.Provider value={{ me, loading, login, logout, isSystemRole, can, canEdit, refresh, setupTwoFactor, confirmTwoFactor, verifyTwoFactor }}>
       {children}
     </AuthContext.Provider>
   );

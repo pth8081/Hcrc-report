@@ -50,7 +50,7 @@ async function verifyCredentials(username, password) {
   const pool = await getPool('ADMIN');
   const result = await pool.request()
     .input('username', sql.NVarChar(50), username)
-    .query('SELECT Id, Username, PasswordHash, Role, IsActive, TwoFactorEnabled FROM admin.AdminUsers WHERE Username = @username');
+    .query('SELECT Id, Username, PasswordHash, IsActive, TwoFactorEnabled FROM admin.AdminUsers WHERE Username = @username');
   const user = result.recordset[0];
   if (!user || !user.IsActive) {
     await bcrypt.compare(password, DUMMY_HASH);
@@ -62,28 +62,19 @@ async function verifyCredentials(username, password) {
   await pool.request().input('id', sql.Int, user.Id)
     .query('UPDATE admin.AdminUsers SET LastLoginAt = SYSUTCDATETIME() WHERE Id = @id');
 
-  return { id: user.Id, username: user.Username, role: user.Role, twoFactorEnabled: !!user.TwoFactorEnabled };
-}
-
-// Tra Role của 1 username TRƯỚC khi kiểm tra/ghi nhận giới hạn đăng nhập sai
-// liên tiếp (xem lib/loginRateLimit.js) — để chọn đúng "profile" ngưỡng
-// (Role='admin' được nới lỏng hơn tài khoản thường). CHỈ đọc cột Role, KHÔNG
-// so mật khẩu — không phải bước xác thực, chỉ để phân loại ngưỡng. Trả về
-// null nếu username không tồn tại (rơi vào profile ngưỡng CHẶT mặc định,
-// đúng ý — không có admin thật nào để bảo vệ ở đây).
-async function getRoleForRateLimit(username) {
-  if (!username) return null;
-  const pool = await getPool('ADMIN');
-  const result = await pool.request().input('username', sql.NVarChar(50), username)
-    .query('SELECT Role FROM admin.AdminUsers WHERE Username = @username');
-  return result.recordset[0]?.Role || null;
+  return { id: user.Id, username: user.Username, twoFactorEnabled: !!user.TwoFactorEnabled };
 }
 
 // Token phiên ĐẦY ĐỦ (đặt vào cookie, xem requireAdminAuth) — KHÔNG bao giờ
 // mang claim "twofa": chỉ token loại này mới qua được requireAdminAuth, xem
 // 3 hàm issue*2FA*Token bên dưới cho các bước TRUNG GIAN trước khi tới đây.
+// KHÔNG nhúng vai trò/quyền vào đây (khác bản trước đây nhúng thẳng "role")
+// — quyền tra TƯƠI mỗi request qua lib/adminPermissions.js (cache 60s), nên
+// đổi nhóm quyền/vai trò của 1 tài khoản có hiệu lực gần như ngay, không cần
+// đợi token cũ hết hạn hay gọi revokeSessions() riêng cho trường hợp này
+// (xem chú thích isSessionRevoked bên dưới).
 function issueToken(user) {
-  return jwt.sign({ sub: user.id, username: user.username, role: user.role }, getSecret(), {
+  return jwt.sign({ sub: user.id, username: user.username }, getSecret(), {
     expiresIn: TOKEN_TTL, algorithm: 'HS256', issuer: ISSUER, audience: ISSUER
   });
 }
@@ -122,18 +113,14 @@ function verifyToken(token) {
   return jwt.verify(token, getSecret(), { algorithms: ['HS256'], issuer: ISSUER, audience: ISSUER });
 }
 
-// Gọi SAU khi payload đã qua verify chữ ký + isSessionRevoked (không trượt
-// phiên cho token sắp bị coi là thu hồi) — role NHÚNG THẲNG lại vào token
-// mới TỪ CHÍNH payload cũ, không tự tra lại CSDL: đúng tinh thần thiết kế
-// hiện tại (đổi role LUÔN gọi revokeSessions(), xem chú thích isSessionRevoked
-// bên dưới) — 1 request đã qua được nhánh isSessionRevoked=false nghĩa là
-// role trong payload vẫn đang là role hiện hành, an toàn để mang sang token
-// mới.
+// Gọi SAU khi payload đã qua verify chữ ký + isSessionRevoked — token không
+// còn mang role/quyền gì để giữ nguyên, chỉ cần phát hành lại đúng
+// sub/username với TTL mới.
 function maybeSlideSession(payload, res) {
   if (typeof payload.exp !== 'number') return;
   const secondsLeft = payload.exp - Math.floor(Date.now() / 1000);
   if (secondsLeft > REFRESH_THRESHOLD_SECONDS) return;
-  const fresh = issueToken({ id: payload.sub, username: payload.username, role: payload.role });
+  const fresh = issueToken({ id: payload.sub, username: payload.username });
   setSessionCookie(res, fresh);
 }
 
@@ -151,10 +138,10 @@ async function requireAdminAuth(req, res, next) {
   // qua đủ 2 yếu tố) — dòng này chỉ chặn trường hợp lỗi logic lỡ gán nhầm.
   if (payload.twofa) return res.status(401).json({ error: 'Phiên chưa hoàn tất xác thực hai yếu tố' });
   try {
-    // Thu hồi phiên khi đổi mật khẩu/gỡ 2FA/đổi role/khoá tài khoản — role
-    // NHÚNG THẲNG vào token (payload.role) nên đây còn là cách DUY NHẤT để
-    // 1 lượt đổi role có hiệu lực trước khi token tự hết hạn — xem
-    // lib/sessionRevocation.js.
+    // Thu hồi phiên khi đổi mật khẩu/gỡ 2FA/khoá tài khoản — ĐỔI VAI TRÒ/
+    // NHÓM QUYỀN không còn cần cơ chế này nữa (JWT không nhúng quyền, tự tra
+    // tươi mỗi request qua lib/adminPermissions.js, cache tối đa 60s) — vẫn
+    // giữ nguyên cho các lý do khác, xem lib/sessionRevocation.js.
     if (await isSessionRevoked(payload.sub, payload.iat)) {
       return res.status(401).json({ error: 'Phiên đăng nhập đã bị thu hồi (đổi mật khẩu/2FA/vai trò, hoặc tài khoản bị khoá) — đăng nhập lại' });
     }
@@ -194,46 +181,16 @@ function requireTwoFactorToken(expectedPurpose) {
   };
 }
 
-// Dùng SAU requireAdminAuth trên route chỉ dành cho vai trò 'admin' — 'viewer'
-// chỉ xem Dashboard/Log, không sửa được gì.
-function requireAdminRole(req, res, next) {
-  if (req.admin?.role !== 'admin') {
-    return res.status(403).json({ error: 'Chỉ vai trò admin mới thực hiện được thao tác này' });
-  }
-  next();
-}
-
-// Dùng SAU requireAdminAuth trên route "Nhập chỉ tiêu" (routes/admin/salesTargets.js)
-// — 'admin' vẫn vào được (không hạ quyền admin đầy đủ), CỘNG THÊM
-// 'target_importer' (vai trò hẹp, CHỈ thấy trang này, không thấy
-// DataSources/SyncJobs) — 'viewer' không vào được.
-function requireTargetImporterRole(req, res, next) {
-  if (req.admin?.role !== 'admin' && req.admin?.role !== 'target_importer') {
-    return res.status(403).json({ error: 'Chỉ vai trò admin hoặc target_importer mới thực hiện được thao tác này' });
-  }
-  next();
-}
-
-// Dùng SAU requireAdminAuth trên route ĐỌC hạ tầng ETL thật (DataSources/
-// SyncJobs/AuditLog/Users...) mà 'target_importer' (vai trò HẸP, CHỈ thấy
-// đúng trang "Nhập chỉ tiêu" — etl-admin/src/components/Layout.jsx đã ẩn
-// mọi mục khác khỏi menu của vai trò này) KHÔNG được thấy dù gọi thẳng API
-// (bỏ qua giao diện) — trước đây các route này chỉ có requireAdminAuth nên
-// một tài khoản target_importer vẫn đọc được host/port/username của mọi
-// kết nối nguồn + toàn bộ schema đã duyệt, dù giao diện chưa từng cho họ
-// nhìn thấy trang đó. 'viewer' vẫn xem được như cũ (chỉ không sửa được gì —
-// xem requireAdminRole ở trên) — KHÔNG đổi hành vi của 'viewer'.
-function blockTargetImporter(req, res, next) {
-  if (req.admin?.role === 'target_importer') {
-    return res.status(403).json({ error: 'Vai trò target_importer không có quyền xem mục này' });
-  }
-  next();
-}
+// requireAdminRole/requireTargetImporterRole/blockTargetImporter/
+// getRoleForRateLimit (kiểm tra role='admin'/'viewer'/'target_importer' cố
+// định) ĐÃ CHUYỂN sang lib/adminPermissions.js — requireMenuAccess(menuCode)/
+// requireMenuEdit(menuCode)/isSystemRoleForRateLimit(), tra theo nhóm quyền
+// admin tự tạo (admin.Roles/RoleMenuAccess) thay vì 3 giá trị cứng.
 
 // getSecret xuất thêm CHỈ để server.js gọi 1 LẦN lúc khởi động — xem
 // chú thích tương tự trong rp-server/lib/auth.js.
 module.exports = {
-  COOKIE_NAME, verifyCredentials, getRoleForRateLimit, issueToken, verifyToken,
-  requireAdminAuth, requireAdminRole, requireTargetImporterRole, blockTargetImporter, getSecret,
+  COOKIE_NAME, verifyCredentials, issueToken, verifyToken,
+  requireAdminAuth, getSecret,
   issuePending2FAToken, issueSetupRequiredToken, issueEnrollToken, requireTwoFactorToken, setSessionCookie
 };

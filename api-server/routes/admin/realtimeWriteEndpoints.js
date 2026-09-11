@@ -14,13 +14,14 @@
 // vẫn bị chặn ngay nếu sai tên bảng/cột.
 const express = require('express');
 const { sql, getPool } = require('../../db');
-const { requireAdminAuth, requireAdminRole } = require('../../lib/adminAuth');
+const { requireAdminAuth } = require('../../lib/adminAuth');
+const { requireMenuAccess, requireMenuEdit } = require('../../lib/adminPermissions');
 const { assertSafeIdentifier } = require('../../lib/realtimeWriteEngine');
 const schemaBrowser = require('../../lib/schemaBrowser');
 const { logAction } = require('../../lib/auditLog');
 
 const router = express.Router();
-router.use(requireAdminAuth);
+router.use(requireAdminAuth, requireMenuAccess('realtime-write-endpoints'));
 
 const ENDPOINT_RE = /^[a-z0-9-]+$/;
 
@@ -64,7 +65,7 @@ router.get('/', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.post('/', requireAdminRole, async (req, res, next) => {
+router.post('/', requireMenuEdit('realtime-write-endpoints'), async (req, res, next) => {
   try {
     const { endpoint, label, dataSourceId, schemaName, tableName, keyColumn, statusColumn, usedValue } = req.body || {};
     const validationError = validatePayload({ endpoint, dataSourceId, schemaName, tableName, keyColumn, statusColumn, usedValue });
@@ -97,7 +98,7 @@ router.post('/', requireAdminRole, async (req, res, next) => {
   }
 });
 
-router.put('/:endpoint', requireAdminRole, async (req, res, next) => {
+router.put('/:endpoint', requireMenuEdit('realtime-write-endpoints'), async (req, res, next) => {
   try {
     const { label, dataSourceId, schemaName, tableName, keyColumn, statusColumn, usedValue, isActive } = req.body || {};
     const validationError = validatePayload({ endpoint: req.params.endpoint, dataSourceId, schemaName, tableName, keyColumn, statusColumn, usedValue });
@@ -153,7 +154,7 @@ router.post('/:endpoint/check-schema', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.delete('/:endpoint', requireAdminRole, async (req, res, next) => {
+router.delete('/:endpoint', requireMenuEdit('realtime-write-endpoints'), async (req, res, next) => {
   try {
     const pool = await getPool('ADMIN');
     await pool.request().input('endpoint', sql.VarChar(50), req.params.endpoint)
