@@ -59,6 +59,23 @@ const PROXY_TARGET_PORT = process.env.PROXY_TARGET_PORT
   ? parseInt(process.env.PROXY_TARGET_PORT, 10)
   : null;
 
+// Số phiên bản chung của cả hệ thống, đọc từ VERSION.md gốc repo (mục mới
+// nhất luôn ở ĐẦU file) — in ra log khởi động (thấy ngay qua `pm2 list`/
+// `pm2 logs`, không cần mở web) + lộ qua GET /__version (JSON, không đi qua
+// SPA fallback hay proxy) cho script/monitoring tự kiểm tra. Bản TĨNH đã
+// build sẵn nhúng version lúc build (xem vite.config.js, __APP_VERSION__ ở
+// sidebar) — số ở đây LUÔN khớp vì cùng đọc từ 1 nguồn, chỉ khác thời điểm
+// đọc (build-time vs runtime của chính serve-static.js).
+function readAppVersion() {
+  try {
+    const text = fs.readFileSync(path.resolve(__dirname, '../VERSION.md'), 'utf8');
+    return text.match(/^## (\d+\.\d+)/m)?.[1] || '?';
+  } catch {
+    return '?';
+  }
+}
+const APP_VERSION = readAppVersion();
+
 if (!PORT || !DIST_DIR) {
   console.error('Thiếu PORT hoặc STATIC_DIST_DIR trong biến môi trường.');
   process.exit(1);
@@ -145,6 +162,13 @@ function proxyToBackend(req, res) {
 http.createServer((req, res) => {
   const urlPath = decodeURIComponent((req.url || '/').split('?')[0]);
 
+  // GET /__version — kiểm tra nhanh bản đang chạy qua curl/script, không đi
+  // qua SPA fallback (không trả về index.html) hay proxy backend.
+  if (urlPath === '/__version') {
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-cache' });
+    return res.end(JSON.stringify({ version: APP_VERSION, distDir: DIST_DIR }));
+  }
+
   if (PROXY_PREFIX && PROXY_TARGET_PORT && (urlPath === PROXY_PREFIX || urlPath.startsWith(`${PROXY_PREFIX}/`))) {
     return proxyToBackend(req, res);
   }
@@ -173,5 +197,5 @@ http.createServer((req, res) => {
     fs.createReadStream(filePath).pipe(res);
   });
 }).listen(PORT, () => {
-  console.log(`serve-static: ${DIST_DIR} -> http://0.0.0.0:${PORT}`);
+  console.log(`serve-static: ${DIST_DIR} -> http://0.0.0.0:${PORT} (bản ${APP_VERSION})`);
 });

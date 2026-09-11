@@ -106,6 +106,7 @@ legend { font-size: 12px; color: var(--ink-soft); padding: 0 6px; }
 .sidebar-footer { padding: 14px 16px; border-top: 1px solid var(--nav-border); font-size: 12.5px; }
 .user-name { margin-bottom: 6px; display: flex; align-items: center; gap: 6px; color: #fff; font-weight: 600; }
 .role-badge { font-size: 10px; text-transform: uppercase; letter-spacing: .04em; background: var(--nav-bg-active); color: #cfe0ff; padding: 1px 6px; border-radius: 3px; font-weight: 500; }
+.app-version { margin-top: 6px; font-size: 11px; color: rgba(255,255,255,0.5); }
 .logout-link { color: #ff8a8a; background: none; border: none; padding: 0; margin-top: 4px; font-size: 12.5px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
 .logout-link:hover { text-decoration: underline; opacity: 1; }
 .app-version { color: var(--nav-text); opacity: .45; font-size: 10px; margin-top: 10px; }

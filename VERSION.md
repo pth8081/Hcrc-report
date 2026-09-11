@@ -20,6 +20,42 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 6.24 — Hiện số phiên bản đang chạy cho cả 3 giao diện tĩnh (etl-admin, api-admin, rp-user)
+
+Người dùng báo: chạy PM2 không thấy version ở đâu cả — IT không biết máy
+chủ đang chạy đúng bản mới nhất hay chưa sau khi cập nhật. Khác 3 service
+backend (đã có `GET /health`/`/api/v1/health` trả `version`, dù đọc từ
+`package.json` riêng, lệch với `VERSION.md`), 3 giao diện tĩnh trước đây
+KHÔNG hiện version ở BẤT KỲ đâu — không sidebar, không log PM2, không route
+nào kiểm tra được.
+
+- **`etl-admin/vite.config.js`, `api-admin/vite.config.js`,
+  `rp-user/vite.config.js`** — đọc số phiên bản MỚI NHẤT thẳng từ
+  `VERSION.md` gốc repo (dòng `## X.Y` đầu tiên) ngay lúc `npm run build`,
+  nhúng vào bundle qua `define: { __APP_VERSION__ }` — không cần đồng bộ
+  tay `package.json` (vẫn giữ nguyên `0.1.0` cũ, không dùng làm nguồn version
+  nữa), không lệch với changelog vì cùng đọc 1 file.
+- **`components/Layout.jsx`** (cả 3 giao diện) — thêm dòng `v{__APP_VERSION__}`
+  ở sidebar-footer (cạnh username/nút đăng xuất) — mở web lên là thấy ngay,
+  không cần hỏi ai.
+- **`deploy/serve-static.js`** — đọc lại `VERSION.md` (tương tự, cùng regex)
+  lúc khởi động: in kèm vào log (`serve-static: ... (bản 6.24)` — thấy ngay
+  qua `pm2 logs`/`pm2 list`, không cần mở web) + route MỚI `GET /__version`
+  trả JSON `{version, distDir}` (không đi qua SPA fallback hay proxy
+  backend) — kiểm tra được bằng `curl`, kể cả sau Nginx (path không đổi tuỳ
+  mô hình triển khai).
+- **`deploy/Hướng dẫn triển khai PM2.md`, `deploy/Hướng dẫn triển khai sử
+  dụng PM2 + Nginx.md`** — thêm hướng dẫn 3 cách kiểm tra version (sidebar/
+  `pm2 logs`/`curl .../__version`) vào mục "Kiểm tra sau triển khai" và mục
+  "Cập nhật lên phiên bản mới" (xác nhận version đã đổi sau khi
+  `npm run build` + `pm2 reload` — chưa đổi thường là dấu hiệu thiếu 1 bước
+  build hoặc `git pull` chưa lấy commit mới).
+- **Test**: build sạch cả 3 giao diện, xác nhận số `6.24` (đọc tại thời
+  điểm build) THẬT SỰ nằm trong file JS đã build (`grep` trên `dist/`,
+  không chỉ tin code không lỗi); chạy `serve-static.js` cục bộ xác nhận
+  `GET /__version` trả đúng JSON và `GET /` vẫn phục vụ `index.html` bình
+  thường (route mới không ảnh hưởng SPA fallback/proxy có sẵn).
+
 ## 6.23 — Nhóm quyền (RBAC) đầy đủ + CRUD tài khoản cho etl-admin và api-admin
 
 Yêu cầu: `etl-admin`, `api-admin` chưa có phân quyền theo nhóm quyền (chỉ 2-3

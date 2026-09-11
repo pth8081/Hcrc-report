@@ -323,6 +323,20 @@ curl -I http://<ip-may-chu>:5174/                     # ra trang đăng nhập a
 curl -I http://<ip-may-chu>:5175/                     # ra trang đăng nhập etl-admin
 ```
 
+**Kiểm tra đang chạy đúng bản nào** — cả 3 giao diện tĩnh nhúng sẵn số
+phiên bản (đọc từ `VERSION.md` gốc repo lúc `npm run build`, xem
+`vite.config.js`), IT không cần đối chiếu tay:
+
+- Mở web, nhìn góc dưới sidebar (vd "v6.23").
+- Hoặc `pm2 logs <tên>` — dòng `serve-static: ... (bản 6.23)` in ra mỗi khi
+  tiến trình khởi động/reload.
+- Hoặc gọi thẳng, không cần mở web:
+  ```bash
+  curl http://<ip-may-chu>:5173/__version   # rp-user
+  curl http://<ip-may-chu>:5174/__version   # api-admin
+  curl http://<ip-may-chu>:5175/__version   # etl-admin
+  ```
+
 - `.env` đã được `chown` cho `hcrc` và `chmod 600` (Bước 8) — **không**
   chạy bất kỳ tiến trình nào bằng tài khoản SSH cá nhân của admin.
 - `JWT_SECRET`/`ENCRYPTION_KEY` các loại (mục 15) đã đổi khỏi giá trị
@@ -377,6 +391,13 @@ sudo -u hcrc -H pm2 reload hcrc-etl-admin
 
 Vì `hcrc` sở hữu TOÀN BỘ cây thư mục, không cần "tạm mở khoá/khoá lại"
 gì cả — làm mọi việc dưới quyền `hcrc` như lúc cài đặt ban đầu là đủ.
+
+**Xác nhận cập nhật đúng bản** — sau khi `npm run build`/`pm2 reload`, kiểm
+tra bằng 1 trong 3 cách ở mục 11 (sidebar, `pm2 logs`, hoặc
+`curl .../__version`) — số phải khớp mục mới nhất trong `VERSION.md`. Số
+KHÔNG đổi sau khi `pm2 reload` thường có nghĩa `npm run build` chưa chạy
+lại (thiếu 1 giao diện trong dòng `for` ở trên) hoặc `git pull` chưa lấy
+được commit mới.
 
 **Không lấy code qua `git clone`, mà tải file (zip/tải thủ công) rồi copy
 lên server?** — Thay `git pull` bằng: tải bản mới, copy đè lên

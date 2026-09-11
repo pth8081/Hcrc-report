@@ -96,6 +96,7 @@ export default function Layout() {
         <div className="sidebar-footer">
           <div className="user-name">{me?.fullName}</div>
           <button type="button" className="logout-link" onClick={logout}>↩ Đăng xuất</button>
+          <div className="app-version">v{__APP_VERSION__}</div>
         </div>
       </aside>
       <main className="content">

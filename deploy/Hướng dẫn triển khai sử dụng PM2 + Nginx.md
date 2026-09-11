@@ -208,6 +208,15 @@ thường do `nginx.conf` GỐC của hệ điều hành đã có sẵn 1 khối
 khác đè lên (kiểm tra `/etc/nginx/nginx.conf`), không phải do
 `deploy/nginx.conf` sai.
 
+**Kiểm tra đang chạy đúng bản nào** — sidebar mỗi giao diện hiện sẵn số
+phiên bản (vd "v6.23"), hoặc gọi qua Nginx (không cần biết cổng nội bộ):
+
+```bash
+curl https://report.hcrc.<domain>/__version
+curl https://api-admin.hcrc.<domain>/__version
+curl https://etl-admin.hcrc.<domain>/__version
+```
+
 ## 7. Gia hạn chứng chỉ tự động
 
 `certbot certonly` (không phải `--nginx`/`--apache`) KHÔNG tự sửa Nginx,
