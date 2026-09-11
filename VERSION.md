@@ -20,6 +20,43 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 6.26 — Sửa 2 hồi quy giao diện phát hiện qua rà soát lại sau 6.25
+
+Sau khi merge 6.25, chạy lại đợt rà soát 6 agent (xác minh từng fix + quét
+lại toàn diện) — 2 lỗ hổng phân quyền/mạng đã xác nhận đúng 100%, phát hiện
+thêm 2 hồi quy giao diện trực tiếp do chính các fix ở 6.25 gây ra (đã sửa
+ngay vì rõ ràng, không cần thảo luận thêm — cùng mẫu với các nút khác đã có
+sẵn trong chính file đó):
+
+- `rp-user/src/modules/system/permissions/UsersPage.jsx`: nút "Khoá/Cho
+  phép kết nối" không ẩn khi tài khoản không phải Admin hệ thống — sau khi
+  6.25 thêm `requireSystemRoleActor` cho `PUT /:id`, một tài khoản chỉ được
+  giao quyền "quản lý người dùng" bấm nút này sẽ gặp lỗi 403 thay vì nút bị
+  ẩn đi (giống 2 nút "Nguồn xác thực"/"Đặt lại 2FA" cạnh bên đã ẩn đúng).
+- `etl-admin/src/pages/LoginPage.jsx` + `api-admin/src/pages/LoginPage.jsx`:
+  fallback sau đăng nhập hard-code về `/dashboard`/`/consumers` thay vì `/`
+  (nơi `IndexRedirect` tự chọn đúng trang theo `LANDING_ORDER`) — tài khoản
+  chỉ có 1 quyền hẹp vẫn bị đưa nhầm trang dù `LANDING_ORDER` đã sửa đủ ở
+  6.25. Tiện thể phát hiện `api-admin/src/App.jsx`'s `LANDING_ORDER` cũng
+  thiếu `realtime-endpoints`/`realtime-write-endpoints`/`report-catalog`/
+  `roles` (cùng lỗi đã sửa cho etl-admin ở 6.25 nhưng bỏ sót api-admin) —
+  sửa luôn.
+
+Các phát hiện KHÁC từ đợt rà soát lại (không phải hồi quy, giữ nguyên chờ
+thảo luận, chưa sửa): `api-server` `POST /:endpoint/check-schema`
+(realtime-endpoints/realtime-write-endpoints) chỉ yêu cầu quyền xem, không
+yêu cầu quyền sửa (Thấp, không có tác động CRUD thật — chỉ đọc + ghi audit
+log); `etl/routes/admin/auditLog.js` tham số `from`/`to` chưa validate định
+dạng ngày (Thấp, lỗi 500 thô thay vì 400 sạch khi nhập sai); nút "Đồng bộ
+tài khoản"/trang "Xác thực HCRC Workspace" (rp-user) có cùng kiểu chưa ẩn
+nút theo quyền nhưng đã tồn tại từ trước, không phải hồi quy của 6.25; 1
+khác biệt độ trễ nhỏ giữa so khớp bcrypt cục bộ và gọi mạng HCRC Workspace
+có thể tiết lộ `AuthSource` của 1 username (không tiết lộ mật khẩu).
+
+Không phát hiện thêm SQL injection/XSS, và toàn bộ 18/18 hạng mục còn lại
+của 6.25 (2 High + 6 Medium khác + 10 Low khác) đều xác nhận ĐÚNG như mô
+tả qua 6 agent độc lập, không có hồi quy nào khác.
+
 ## 6.25 — Vá lỗ hổng phân quyền + cứng hoá bảo mật (theo báo cáo rà soát 6 agent)
 
 Sau đợt rà soát chuyên sâu nghiệp vụ + an ninh (6 agent: 3 chức năng theo

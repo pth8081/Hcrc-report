@@ -17,8 +17,11 @@ import RolesPage from './pages/RolesPage';
 
 // Vai trò hẹp không thấy "/consumers" trong menu (xem components/Layout.jsx)
 // — đưa thẳng vào trang đầu tiên họ thật sự vào được, tránh hạ cánh vào
-// trang trống/không có trong nav.
-const LANDING_ORDER = ['consumers', 'data-sources', 'live', 'history', 'stats', 'audit-log', 'users'];
+// trang trống/không có trong nav. Đầy đủ MỌI MenuCode có thể cấp quyền
+// (mirror routes/admin/roles.js MENU_CATALOG) — trước đây thiếu
+// realtime-endpoints/realtime-write-endpoints/report-catalog/roles, cùng
+// lỗi đã sửa bên etl-admin (xem chú thích tương tự trong etl-admin/src/App.jsx).
+const LANDING_ORDER = ['consumers', 'data-sources', 'realtime-endpoints', 'realtime-write-endpoints', 'report-catalog', 'live', 'history', 'stats', 'audit-log', 'users', 'roles'];
 
 function IndexRedirect() {
   const { can } = useAuth();

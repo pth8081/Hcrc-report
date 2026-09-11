@@ -123,7 +123,12 @@ export default function LoginPage() {
   const [twofa, setTwofa] = useState(null); // { twofa: 'pending'|'setupRequired', token }
   const [done, setDone] = useState(false);
 
-  if (me || done) return <Navigate to={location.state?.from?.pathname || '/dashboard'} replace />;
+  // Không có location.state.from (vào /login trực tiếp, không phải bị
+  // RequireAuth đá về đây) -> điều hướng '/' (IndexRedirect trong App.jsx,
+  // tự chọn đúng trang đầu tiên theo LANDING_ORDER) thay vì hard-code
+  // '/dashboard' — tài khoản chỉ có quyền 1 trang hẹp (vd "Nhập chỉ tiêu")
+  // trước đây bị đưa thẳng vào '/dashboard' (403) thay vì trang họ vào được.
+  if (me || done) return <Navigate to={location.state?.from?.pathname || '/'} replace />;
 
   async function handleSubmit(e) {
     e.preventDefault();
