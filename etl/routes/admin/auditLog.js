@@ -26,12 +26,19 @@ router.get('/', requireMenuAccess('audit-log'), async (req, res, next) => {
       request.input('module', sql.VarChar(50), req.query.module);
       conditions.push('Module = @module');
     }
+    // isNaN(getTime()) chặn ngày không hợp lệ (vd chuỗi gõ tay sai định
+    // dạng) tạo ra Invalid Date rơi thẳng vào SQL Server — trước đây trả
+    // 500 thô thay vì 400 sạch.
     if (req.query.from) {
-      request.input('from', sql.DateTime2, new Date(req.query.from));
+      const from = new Date(req.query.from);
+      if (isNaN(from.getTime())) return res.status(400).json({ error: '"from" không phải ngày hợp lệ' });
+      request.input('from', sql.DateTime2, from);
       conditions.push('CreatedAt >= @from');
     }
     if (req.query.to) {
-      request.input('to', sql.DateTime2, new Date(req.query.to));
+      const to = new Date(req.query.to);
+      if (isNaN(to.getTime())) return res.status(400).json({ error: '"to" không phải ngày hợp lệ' });
+      request.input('to', sql.DateTime2, to);
       conditions.push('CreatedAt <= @to');
     }
 

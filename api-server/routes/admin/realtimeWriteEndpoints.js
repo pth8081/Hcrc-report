@@ -133,8 +133,10 @@ router.put('/:endpoint', requireMenuEdit('realtime-write-endpoints'), async (req
 
 // "Kiểm tra schema" — đối chiếu LẠI endpoint ĐÃ LƯU với schema THẬT hiện tại
 // của nguồn (bắt trường hợp bảng/cột nguồn bị đổi tên/xoá SAU khi endpoint
-// đã tạo). Đọc-only, không đổi dữ liệu gì.
-router.post('/:endpoint/check-schema', async (req, res, next) => {
+// đã tạo). Đọc-only, không đổi dữ liệu gì — dùng requireMenuAccess (không
+// phải requireMenuEdit) THEO ĐÚNG chủ đích, đặt tường minh ở đây cho khớp
+// quy ước routes/admin/syncJobs.js:check-schema (etl).
+router.post('/:endpoint/check-schema', requireMenuAccess('realtime-write-endpoints'), async (req, res, next) => {
   try {
     const pool = await getPool('ADMIN');
     const result = await pool.request().input('endpoint', sql.VarChar(50), req.params.endpoint).query(`

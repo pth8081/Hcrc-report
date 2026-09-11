@@ -20,6 +20,40 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 6.27 — Xử lý các mục còn lại từ đợt rà soát lại (Thấp)
+
+Tiếp tục xử lý 4 mục "để bạn quyết định" chưa làm ở 6.26:
+
+- `api-server/routes/admin/{realtimeEndpoints,realtimeWriteEndpoints}.js`:
+  đặt tường minh `requireMenuAccess(...)` cho `POST /:endpoint/check-schema`
+  (đọc-only, khớp quy ước `etl/routes/admin/syncJobs.js:check-schema`) —
+  không đổi hành vi thực tế (router-level đã áp cùng quyền), chỉ rõ ràng
+  hoá chủ đích trong code.
+- `etl/routes/admin/auditLog.js`, `api-server/routes/admin/{auditLog,history}.js`,
+  `rp-server/routes/auditLog.js`: validate `from`/`to` là ngày hợp lệ trước
+  khi đưa vào SQL Server — trả 400 rõ ràng thay vì 500 thô khi nhập sai
+  định dạng.
+- `rp-user` `UsersPage.jsx`: ẩn nút "Đồng bộ tài khoản" khi không phải
+  Admin hệ thống (route `POST /sync` đã yêu cầu `requireSystemRoleActor`
+  từ trước, giờ giao diện khớp).
+- `rp-user` `HcrcWorkspaceSettingsPage.jsx`: ẩn form "Lưu cấu hình" + nút
+  "Kiểm tra kết nối" khi không phải Admin hệ thống (route `PUT /`/
+  `POST /test-connection` đã yêu cầu `requireSystemRoleActor` từ trước),
+  chỉ hiện thông tin đọc-only (Base URL, bật/tắt) cho người chỉ được cấp
+  quyền xem.
+
+**Không xử lý** (khác 4 mục trên — cân nhắc kỹ, quyết định KHÔNG vá): kênh
+side-channel thời gian phản hồi giữa so khớp mật khẩu cục bộ (bcrypt, có
+thời lượng khá ổn định) và gọi mạng sang HCRC Workspace (thời lượng biến
+thiên nhiều hơn, thường CHẬM HƠN) khi đăng nhập — về lý thuyết có thể giúp
+kẻ tấn công đoán được 1 username đang dùng `AuthSource` nào (KHÔNG lộ mật
+khẩu). Đây là hệ quả kiến trúc cố hữu (một nhánh phải gọi API ngoài, nhánh
+kia không) — vá triệt để đòi hỏi làm chậm giả tạo TOÀN BỘ lượt đăng nhập
+local để khớp độ trễ mạng biến thiên của HCRC Workspace, đánh đổi UX thật
+cho mọi người dùng chỉ để giảm 1 rủi ro Thấp/Info trên hệ thống nội bộ
+(không lộ mật khẩu, không có tấn công từ Internet công khai). Chấp nhận rủi
+ro còn lại thay vì vá vội dễ gây lỗi mới.
+
 ## 6.26 — Sửa 2 hồi quy giao diện phát hiện qua rà soát lại sau 6.25
 
 Sau khi merge 6.25, chạy lại đợt rà soát 6 agent (xác minh từng fix + quét

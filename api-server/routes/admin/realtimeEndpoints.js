@@ -210,8 +210,12 @@ router.put('/:endpoint', requireMenuEdit('realtime-endpoints'), async (req, res,
 // của nguồn (KHÔNG chỉ lúc Lưu như assertFullSchemaMatches() ở trên) — bắt
 // được trường hợp bảng/cột nguồn bị đổi tên/xoá SAU khi endpoint đã tạo, mà
 // không ai vào sửa lại nên không tự phát hiện (chỉ lộ ra khi ĐỐI TÁC NGOÀI
-// gọi endpoint và nhận lỗi). Đọc-only, không đổi dữ liệu gì.
-router.post('/:endpoint/check-schema', async (req, res, next) => {
+// gọi endpoint và nhận lỗi). Đọc-only, không đổi dữ liệu gì — dùng
+// requireMenuAccess (không phải requireMenuEdit) THEO ĐÚNG chủ đích, đặt
+// tường minh ở đây (dù router-level đã áp) cho khớp quy ước
+// routes/admin/syncJobs.js:check-schema (etl) — rà soát an ninh xác nhận
+// không có tác động ghi dữ liệu.
+router.post('/:endpoint/check-schema', requireMenuAccess('realtime-endpoints'), async (req, res, next) => {
   try {
     const pool = await getPool('ADMIN');
     const result = await pool.request().input('endpoint', sql.VarChar(50), req.params.endpoint).query(`

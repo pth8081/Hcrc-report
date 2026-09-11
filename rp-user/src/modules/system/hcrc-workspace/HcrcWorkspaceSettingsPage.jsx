@@ -5,10 +5,18 @@
 // giữ nguyên khoá đã lưu.
 import { useEffect, useState } from 'react';
 import { api } from '../../../lib/api';
+import { useAuth } from '../../../lib/AuthContext';
 
 const EMPTY = { baseUrl: '', apiKey: '', verifyPath: '/api/external/verify-credentials', directoryPath: '/api/external/users', isEnabled: false };
 
 export default function HcrcWorkspaceSettingsPage() {
+  // PUT /system/hcrc-workspace và POST /test-connection đều yêu cầu
+  // requireSystemRoleActor (server chặn đúng) — trang này chỉ hiện được cho
+  // menu 'system-hcrc-workspace' (có thể giao cho 1 người không phải Admin
+  // hệ thống, xem lib/auth.js), nên ẩn form Lưu + nút Kiểm tra kết nối khi
+  // không phải Admin hệ thống, khớp cách RolesPage.jsx đã làm cho phần Lưu
+  // quyền menu.
+  const { me } = useAuth();
   const [form, setForm] = useState(EMPTY);
   const [hasApiKey, setHasApiKey] = useState(false);
   const [lastSync, setLastSync] = useState(null);
@@ -58,18 +66,27 @@ export default function HcrcWorkspaceSettingsPage() {
       {error && <p className="form-error">{error}</p>}
       {message && <p className="form-success">{message}</p>}
 
-      <form className="stacked-form" onSubmit={save}>
-        <input placeholder="Base URL (vd https://workspace.noi-bo.hcrc.vn)" value={form.baseUrl} onChange={(e) => setForm({ ...form, baseUrl: e.target.value })} required />
-        <input placeholder={hasApiKey ? 'Khoá API (bỏ trống để giữ nguyên)' : 'Khoá API'} type="password" value={form.apiKey} onChange={(e) => setForm({ ...form, apiKey: e.target.value })} />
-        <input placeholder="Đường dẫn xác thực" value={form.verifyPath} onChange={(e) => setForm({ ...form, verifyPath: e.target.value })} />
-        <input placeholder="Đường dẫn danh bạ" value={form.directoryPath} onChange={(e) => setForm({ ...form, directoryPath: e.target.value })} />
-        <label className="checkbox-row"><input type="checkbox" checked={form.isEnabled} onChange={(e) => setForm({ ...form, isEnabled: e.target.checked })} /> Bật xác thực HCRC Workspace</label>
-        <button type="submit">Lưu cấu hình</button>
-      </form>
+      {me?.isSystemRole ? (
+        <>
+          <form className="stacked-form" onSubmit={save}>
+            <input placeholder="Base URL (vd https://workspace.noi-bo.hcrc.vn)" value={form.baseUrl} onChange={(e) => setForm({ ...form, baseUrl: e.target.value })} required />
+            <input placeholder={hasApiKey ? 'Khoá API (bỏ trống để giữ nguyên)' : 'Khoá API'} type="password" value={form.apiKey} onChange={(e) => setForm({ ...form, apiKey: e.target.value })} />
+            <input placeholder="Đường dẫn xác thực" value={form.verifyPath} onChange={(e) => setForm({ ...form, verifyPath: e.target.value })} />
+            <input placeholder="Đường dẫn danh bạ" value={form.directoryPath} onChange={(e) => setForm({ ...form, directoryPath: e.target.value })} />
+            <label className="checkbox-row"><input type="checkbox" checked={form.isEnabled} onChange={(e) => setForm({ ...form, isEnabled: e.target.checked })} /> Bật xác thực HCRC Workspace</label>
+            <button type="submit">Lưu cấu hình</button>
+          </form>
 
-      <div className="inline-form">
-        <button type="button" onClick={testConnection}>Kiểm tra kết nối</button>
-      </div>
+          <div className="inline-form">
+            <button type="button" onClick={testConnection}>Kiểm tra kết nối</button>
+          </div>
+        </>
+      ) : (
+        <p className="form-hint">
+          Base URL hiện tại: {form.baseUrl || '—'} — {form.isEnabled ? 'đang bật' : 'đang tắt'}.
+          Chỉ Admin hệ thống mới sửa được cấu hình này.
+        </p>
+      )}
 
       {lastSync?.at && (
         <p className="page-hint">

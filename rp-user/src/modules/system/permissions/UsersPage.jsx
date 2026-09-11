@@ -106,9 +106,11 @@ export default function UsersPage() {
       <h2>Người dùng</h2>
       {error && <p className="form-error">{error}</p>}
 
-      <div className="inline-form">
-        <button type="button" onClick={syncAccounts} disabled={syncing}>{syncing ? 'Đang đồng bộ...' : 'Đồng bộ tài khoản (HCRC Workspace)'}</button>
-      </div>
+      {me?.isSystemRole && (
+        <div className="inline-form">
+          <button type="button" onClick={syncAccounts} disabled={syncing}>{syncing ? 'Đang đồng bộ...' : 'Đồng bộ tài khoản (HCRC Workspace)'}</button>
+        </div>
+      )}
 
       <form className="inline-form" onSubmit={createUser}>
         <input placeholder="Username" value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} required />
