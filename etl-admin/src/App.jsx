@@ -12,6 +12,7 @@ import UsersPage from './pages/UsersPage';
 import RolesPage from './pages/RolesPage';
 import SalesTargetsPage from './pages/SalesTargetsPage';
 import BranchCodeMapPage from './pages/BranchCodeMapPage';
+import AccountPage from './pages/AccountPage';
 
 // Vai trò hẹp (vd chỉ thấy "Nhập chỉ tiêu") không thấy "/dashboard" trong
 // menu (xem components/Layout.jsx) — đưa thẳng vào trang đầu tiên họ thật
@@ -46,6 +47,7 @@ export default function App() {
           <Route path="/branch-code-map" element={<BranchCodeMapPage />} />
           <Route path="/users" element={<UsersPage />} />
           <Route path="/roles" element={<RolesPage />} />
+          <Route path="/account" element={<AccountPage />} />
         </Route>
       </Routes>
     </AuthProvider>

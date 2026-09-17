@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../../../lib/api';
 import { useAuth } from '../../../lib/AuthContext';
 import DataTable from '../../../components/DataTable';
+import PasswordInput from '../../../components/PasswordInput';
 
 export default function UsersPage() {
   const { me } = useAuth();
@@ -19,6 +20,7 @@ export default function UsersPage() {
   const [syncing, setSyncing] = useState(false);
   const [resettingPasswordFor, setResettingPasswordFor] = useState(null);
   const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
 
   function reload() {
     api.get('/system/users').then(setUsers).catch(err => setError(err.message));
@@ -98,16 +100,17 @@ export default function UsersPage() {
   function openResetPassword(user) {
     setResettingPasswordFor(user);
     setNewPassword('');
+    setConfirmPassword('');
   }
 
   async function saveResetPassword(e) {
     e.preventDefault();
     setError('');
     if (!newPassword || newPassword.length < 8) return setError('Mật khẩu phải có ít nhất 8 ký tự');
+    if (newPassword !== confirmPassword) return setError('Xác nhận mật khẩu không khớp');
     try {
       await api.post(`/system/users/${resettingPasswordFor.Id}/reset-password`, { password: newPassword });
       setResettingPasswordFor(null);
-      alert('Đã đặt lại mật khẩu.');
     } catch (err) { setError(err.message); }
   }
 
@@ -137,7 +140,7 @@ export default function UsersPage() {
 
       <form className="inline-form" onSubmit={createUser}>
         <input placeholder="Username" value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} required />
-        <input placeholder="Mật khẩu" type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required />
+        <PasswordInput placeholder="Mật khẩu" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required autoComplete="new-password" />
         <input placeholder="Họ tên" value={form.fullName} onChange={(e) => setForm({ ...form, fullName: e.target.value })} required />
         <input placeholder="Email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
         <button type="submit">Thêm người dùng</button>
@@ -216,8 +219,8 @@ export default function UsersPage() {
               HCRC Workspace (mật khẩu quản lý bên hệ thống HCRC Workspace)
             </label>
             {authForm.authSource === 'local' && (
-              <input placeholder="Mật khẩu (bỏ trống nếu tài khoản đã có mật khẩu local)" type="password"
-                value={authForm.password} onChange={(e) => setAuthForm({ ...authForm, password: e.target.value })} />
+              <PasswordInput placeholder="Mật khẩu (bỏ trống nếu tài khoản đã có mật khẩu local)"
+                value={authForm.password} onChange={(e) => setAuthForm({ ...authForm, password: e.target.value })} autoComplete="new-password" />
             )}
             <div className="modal-actions">
               <button type="button" onClick={saveAuthSource}>Lưu</button>
@@ -231,13 +234,22 @@ export default function UsersPage() {
         <div className="modal">
           <div className="modal-body">
             <h3>Đặt lại mật khẩu — {resettingPasswordFor.Username}</h3>
+            <p className="form-hint">Admin đặt trực tiếp, không cần biết mật khẩu cũ — tài khoản này sẽ bị đăng xuất ngay và phải đăng nhập lại bằng mật khẩu mới.</p>
             <form className="stacked-form" onSubmit={saveResetPassword}>
-              <input
-                placeholder="Mật khẩu mới (tối thiểu 8 ký tự)"
-                type="password"
+              <label>Mật khẩu mới</label>
+              <PasswordInput
+                placeholder="Tối thiểu 8 ký tự"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
+                autoComplete="new-password"
                 autoFocus
+                required
+              />
+              <label>Xác nhận mật khẩu mới</label>
+              <PasswordInput
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                autoComplete="new-password"
                 required
               />
               <div className="modal-actions">

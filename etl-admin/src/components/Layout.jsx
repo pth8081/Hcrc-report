@@ -42,6 +42,7 @@ export default function Layout() {
         </ul>
         <div className="sidebar-footer">
           <div className="user-name">{me?.username} {isSystemRole && <span className="role-badge">hệ thống</span>}</div>
+          <NavLink to="/account" className={({ isActive }) => `account-link${isActive ? ' active' : ''}`}>👤 Tài khoản của tôi</NavLink>
           <button type="button" className="logout-link" onClick={logout}>↩ Đăng xuất</button>
           <div className="app-version">v{__APP_VERSION__}</div>
         </div>

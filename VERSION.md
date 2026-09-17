@@ -20,6 +20,16 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 6.29 — Ẩn mật khẩu khi đổi + tách "Tự đổi mật khẩu" ra khỏi "Admin đặt lại" (etl-admin, api-admin, rp-user)
+
+Rà soát theo yêu cầu: (1) khi đổi mật khẩu, ô nhập lại hiện chữ thô, rủi ro lộ mật khẩu cho người đứng cạnh/camera màn hình; (2) kiểm tra cả 3 hệ đã tách rõ "tự đổi mật khẩu của chính mình" (màn hình cá nhân) khỏi "Admin đặt lại mật khẩu cho người khác" (phần quản trị) chưa.
+
+- **(Cao)** `etl-admin` + `api-admin`: trang "Phân quyền"/"Tài khoản quản trị" TRƯỚC ĐÂY dùng `window.prompt()` để "Đặt lại mật khẩu" cho người khác — hộp thoại trình duyệt LUÔN hiện chữ thô, không cách nào ẩn, cũng không có bước xác nhận. Thay bằng modal đúng chuẩn: ô nhập ẩn mặc định (`PasswordInput` — component mới, có nút 👁 hiện/ẩn tạm thời) + ô "Xác nhận mật khẩu mới" (chặn gõ nhầm) + thông báo lỗi hiển thị tại chỗ thay vì `alert()`.
+- **(Cao)** Cả 3 hệ (etl-admin/api-admin/rp-user): TRƯỚC ĐÂY không có nơi nào cho một tài khoản tự đổi mật khẩu của CHÍNH MÌNH — chỉ có "Admin đặt lại cho người khác" (không cần biết mật khẩu cũ, chỉ Admin hệ thống mới bấm được). Thêm trang mới **"Tài khoản của tôi"** (link ở chân sidebar, mọi tài khoản đã đăng nhập đều thấy, không cần quyền menu nào) với form "Đổi mật khẩu" — bắt buộc nhập đúng mật khẩu hiện tại, có ô xác nhận, đổi xong tự đăng xuất để đăng nhập lại bằng mật khẩu mới (nhất quán với hành vi "đổi mật khẩu → thu hồi phiên" đã có).
+  - Backend: `POST /admin/auth/me/change-password` (etl, api-server), `POST /api/me/change-password` (rp-server, chỉ áp dụng tài khoản `AuthSource='local'` — tài khoản HCRC Workspace không có mật khẩu local để đổi ở đây).
+- **(Trung bình)** `rp-user`: modal "Đặt lại mật khẩu" (trang Người dùng, Admin đặt cho người khác) đã ẩn mật khẩu từ trước nhưng thiếu ô xác nhận — bổ sung ô "Xác nhận mật khẩu mới" cùng mẫu 2 hệ kia.
+- Nâng cấp UI/UX đi kèm: mọi ô nhập mật khẩu còn lại (tạo tài khoản mới, đổi "Nguồn xác thực" sang Local) đổi từ `<input type="password">` trần sang `PasswordInput` (có nút hiện/ẩn) cho nhất quán toàn hệ thống; `RequireMenuAccess` (rp-user) hỗ trợ route không gắn menuCode nào (chỉ đòi đăng nhập) để phục vụ trang "Tài khoản của tôi".
+
 ## 6.28 — Hoàn thiện tạo tài khoản + phân quyền theo nhóm (etl-admin, api-admin, rp-user)
 
 Rà soát riêng tính đầy đủ của "tạo tài khoản" + "phân quyền theo nhóm" (3 agent, mỗi hệ thống 1 agent, đối chiếu từng trang ↔ MenuCode ↔ enforce backend ↔ UI). Kết luận chung: nền tảng RBAC ở cả 3 hệ thống đã đầy đủ và đúng (không trang nào thiếu MenuCode, không "quyền ảo"), nhưng phát hiện + xử lý các khoảng trống cụ thể sau:

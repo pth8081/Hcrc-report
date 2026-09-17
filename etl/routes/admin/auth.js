@@ -1,10 +1,13 @@
 const express = require('express');
+const bcrypt = require('bcryptjs');
+const { sql, getPool } = require('../../db');
 const {
   verifyCredentials, issueToken, requireAdminAuth, COOKIE_NAME, setSessionCookie,
   issuePending2FAToken, issueSetupRequiredToken
 } = require('../../lib/adminAuth');
 const { getAdminContext, isSystemRoleForRateLimit } = require('../../lib/adminPermissions');
 const { isBlocked, recordFailure, recordSuccess, DEFAULT_PROFILE, ADMIN_PROFILE } = require('../../lib/loginRateLimit');
+const { revokeSessions } = require('../../lib/sessionRevocation');
 const { logAction } = require('../../lib/auditLog');
 
 const router = express.Router();
@@ -76,6 +79,40 @@ router.get('/me', requireAdminAuth, async (req, res, next) => {
       isSystemRole: context.isSystemRole,
       menuAccess: Object.fromEntries(context.menuAccess)
     });
+  } catch (err) { next(err); }
+});
+
+// Tự đổi mật khẩu CỦA CHÍNH MÌNH (trang "Tài khoản của tôi") — KHÁC hẳn
+// POST /admin/users/:id/reset-password (admin đặt lại cho NGƯỜI KHÁC, không
+// cần biết mật khẩu cũ, chỉ isSystemRole thật mới gọi được). Route này bất
+// kỳ ai đã đăng nhập cũng gọi được cho CHÍNH tài khoản mình (req.admin.sub,
+// không nhận :id) — bắt buộc đúng mật khẩu HIỆN TẠI mới cho đổi, chặn 1
+// phiên bị chiếm (vd XSS) tự ý đổi mật khẩu mà không biết mật khẩu thật.
+// Đổi xong THU HỒI mọi phiên (kể cả phiên hiện tại) rồi xoá cookie — bắt
+// đăng nhập lại bằng mật khẩu mới ngay, không cố giữ phiên hiện tại sống
+// tiếp (tránh lệch múi giờ SQL Server/Node quanh mốc thu hồi).
+router.post('/me/change-password', requireAdminAuth, async (req, res, next) => {
+  try {
+    const { currentPassword, newPassword } = req.body || {};
+    if (!currentPassword || !newPassword) return res.status(400).json({ error: 'Thiếu mật khẩu hiện tại/mật khẩu mới' });
+    if (newPassword.length < 8) return res.status(400).json({ error: 'Mật khẩu mới phải có ít nhất 8 ký tự' });
+
+    const pool = await getPool('ADMIN');
+    const result = await pool.request().input('id', sql.Int, req.admin.sub)
+      .query('SELECT PasswordHash FROM admin.AdminUsers WHERE Id = @id');
+    const row = result.recordset[0];
+    if (!row) return res.status(404).json({ error: 'Không tìm thấy tài khoản' });
+    if (!(await bcrypt.compare(currentPassword, row.PasswordHash))) {
+      return res.status(400).json({ error: 'Mật khẩu hiện tại không đúng' });
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+    await pool.request().input('id', sql.Int, req.admin.sub).input('passwordHash', sql.NVarChar(200), passwordHash)
+      .query('UPDATE admin.AdminUsers SET PasswordHash = @passwordHash WHERE Id = @id');
+    await revokeSessions(req.admin.sub);
+    res.clearCookie(COOKIE_NAME);
+    await logAction(req, { module: 'Tài khoản', actionType: 'TU_DOI_MAT_KHAU', targetObject: String(req.admin.sub), description: 'Tự đổi mật khẩu' });
+    res.json({ ok: true });
   } catch (err) { next(err); }
 });
 

@@ -9,6 +9,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/AuthContext';
 import DataTable from '../components/DataTable';
+import PasswordInput from '../components/PasswordInput';
 
 const EMPTY_FORM = { username: '', password: '', fullName: '' };
 
@@ -23,6 +24,10 @@ export default function AdminUsersPage() {
   const [editForm, setEditForm] = useState({ fullName: '', isActive: true });
   const [assigningUser, setAssigningUser] = useState(null);
   const [selectedRoleIds, setSelectedRoleIds] = useState([]);
+  const [resettingPasswordFor, setResettingPasswordFor] = useState(null);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [resetError, setResetError] = useState('');
 
   function reload() {
     api.get('/users').then(setUsers).catch(err => setError(err.message));
@@ -66,13 +71,26 @@ export default function AdminUsersPage() {
     } catch (err) { setError(err.message); }
   }
 
-  async function resetPassword(user) {
-    const password = prompt(`Mật khẩu mới cho "${user.Username}":`);
-    if (!password) return;
+  // window.prompt() cũ TRƯỚC ĐÂY hiện mật khẩu THÔ (hộp thoại trình duyệt
+  // không có cách nào ẩn), không có bước xác nhận — thay bằng modal có
+  // PasswordInput (ẩn mặc định, có nút hiện/ẩn) + ô xác nhận, giống mẫu
+  // trang "Tài khoản của tôi" (pages/AccountPage.jsx) và etl-admin/rp-user.
+  function openResetPassword(user) {
+    setResettingPasswordFor(user);
+    setNewPassword('');
+    setConfirmPassword('');
+    setResetError('');
+  }
+
+  async function saveResetPassword(e) {
+    e.preventDefault();
+    setResetError('');
+    if (newPassword.length < 8) return setResetError('Mật khẩu phải có ít nhất 8 ký tự');
+    if (newPassword !== confirmPassword) return setResetError('Xác nhận mật khẩu không khớp');
     try {
-      await api.post(`/users/${user.Id}/reset-password`, { password });
-      alert('Đã đặt lại mật khẩu.');
-    } catch (err) { setError(err.message); }
+      await api.post(`/users/${resettingPasswordFor.Id}/reset-password`, { password: newPassword });
+      setResettingPasswordFor(null);
+    } catch (err) { setResetError(err.message); }
   }
 
   // Giúp admin khác bị mất thiết bị/cần khôi phục — 2FA vẫn BẮT BUỘC, chỉ
@@ -95,7 +113,7 @@ export default function AdminUsersPage() {
       {canManage && (
         <form className="inline-form" onSubmit={createUser}>
           <input placeholder="Username" value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} required />
-          <input placeholder="Mật khẩu" type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required />
+          <PasswordInput placeholder="Mật khẩu" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required autoComplete="new-password" />
           <input placeholder="Họ tên" value={form.fullName} onChange={(e) => setForm({ ...form, fullName: e.target.value })} required />
           <button type="submit">Thêm người dùng</button>
         </form>
@@ -114,7 +132,7 @@ export default function AdminUsersPage() {
               <>
                 {canManage && <button type="button" onClick={() => openEdit(u)}>Sửa</button>}{' '}
                 {isSystemRole && <button type="button" onClick={() => openAssignRoles(u)}>Gán vai trò</button>}{' '}
-                {isSystemRole && <button type="button" onClick={() => resetPassword(u)}>Đặt lại mật khẩu</button>}{' '}
+                {isSystemRole && <button type="button" onClick={() => openResetPassword(u)}>Đặt lại mật khẩu</button>}{' '}
                 {isSystemRole && u.roles?.some(r => r.isSystemRole) && <button type="button" onClick={() => reset2fa(u)}>Đặt lại 2FA</button>}
               </>
             )
@@ -161,6 +179,26 @@ export default function AdminUsersPage() {
               <button type="button" onClick={saveRoles}>Lưu</button>
               <button type="button" onClick={() => setAssigningUser(null)}>Đóng</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {resettingPasswordFor && (
+        <div className="modal">
+          <div className="modal-body">
+            <h3>Đặt lại mật khẩu — {resettingPasswordFor.Username}</h3>
+            <p className="form-hint">Admin đặt trực tiếp, không cần biết mật khẩu cũ — tài khoản này sẽ bị đăng xuất ngay và phải đăng nhập lại bằng mật khẩu mới.</p>
+            {resetError && <p className="form-error">{resetError}</p>}
+            <form className="stacked-form" onSubmit={saveResetPassword}>
+              <label>Mật khẩu mới</label>
+              <PasswordInput value={newPassword} onChange={(e) => setNewPassword(e.target.value)} autoComplete="new-password" required autoFocus />
+              <label>Xác nhận mật khẩu mới</label>
+              <PasswordInput value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} autoComplete="new-password" required />
+              <div className="modal-actions">
+                <button type="submit">Lưu</button>
+                <button type="button" onClick={() => setResettingPasswordFor(null)}>Huỷ</button>
+              </div>
+            </form>
           </div>
         </div>
       )}

@@ -14,6 +14,7 @@ import StatsPage from './pages/StatsPage';
 import AuditLogPage from './pages/AuditLogPage';
 import AdminUsersPage from './pages/AdminUsersPage';
 import RolesPage from './pages/RolesPage';
+import AccountPage from './pages/AccountPage';
 
 // Vai trò hẹp không thấy "/consumers" trong menu (xem components/Layout.jsx)
 // — đưa thẳng vào trang đầu tiên họ thật sự vào được, tránh hạ cánh vào
@@ -48,6 +49,7 @@ export default function App() {
           <Route path="/audit-log" element={<AuditLogPage />} />
           <Route path="/admin-users" element={<AdminUsersPage />} />
           <Route path="/roles" element={<RolesPage />} />
+          <Route path="/account" element={<AccountPage />} />
         </Route>
       </Routes>
     </AuthProvider>
