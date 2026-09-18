@@ -20,6 +20,16 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 6.39 — Làm rõ "làm ngoài web" nghĩa là gì ở Bước 1 (docs)
+
+Người dùng hỏi "làm ngoài web là làm ở đâu và như thế nào" cho bước tạo 2
+VIEW SQL trên DSMART16. Bổ sung vào Bước 1 của `báo cáo doanh thu cuối
+ngày.md`: giải thích rõ dùng SQL Server Management Studio/Azure Data
+Studio (không phải etl-admin/rp-user), các bước cụ thể (Connect to Server,
+New Query, Execute, kiểm tra ở mục Views), và lưu ý ai nên làm (DBA/IT quản
+trị DSMART16 — tài khoản etl-admin dùng để đọc chỉ cần quyền SELECT trên
+VIEW, không cần quyền tạo VIEW). Không có thay đổi code — chỉ tài liệu.
+
 ## 6.38 — Tách "báo cáo doanh thu cuối ngày.md" thành file độc lập, tự đủ (docs)
 
 Theo yêu cầu người dùng ("tôi muốn riêng ra") — file không còn phải mở

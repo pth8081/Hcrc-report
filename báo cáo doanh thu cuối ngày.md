@@ -33,9 +33,43 @@ làm theo file này.
 
 ## Bước 1 — Tạo VIEW trên CSDL DSMART16 (làm trước, ngoài giao diện web)
 
-Mở SQL Server Management Studio (hoặc công cụ tương đương), kết nối tới
-CSDL DSMART16, chạy 2 câu lệnh sau (đã có sẵn, chỉ cần điền đúng 2 mã
-`STYPE_ID` thật của MART/MINIMART — xem chú thích ngay dưới):
+"Ngoài giao diện web" nghĩa là chạy trực tiếp trên CSDL DSMART16 bằng 1
+công cụ quản trị SQL Server — KHÔNG phải vào etl-admin/rp-user (2 trang đó
+cố tình không có chỗ gõ SQL tuỳ ý, chỉ duyệt bảng/cột có sẵn, vì lý do an
+toàn).
+
+**Công cụ**: SQL Server Management Studio (SSMS — phổ biến nhất, tải miễn
+phí từ Microsoft) hoặc Azure Data Studio. Dùng bản IT/DBA đã cài sẵn nếu có.
+
+**Các bước cụ thể**:
+
+1. Mở SSMS → hộp thoại "Connect to Server" hiện ra:
+   - **Server name**: địa chỉ máy chủ SQL Server đang chạy DSMART16 (hỏi
+     DBA/IT nếu chưa biết — thường dạng `192.168.x.x` hoặc
+     `tenmaychu\SQLEXPRESS`).
+   - **Authentication**: SQL Server Authentication → nhập Username/Password
+     của **tài khoản có quyền tạo VIEW** trên CSDL đó.
+   - Bấm **Connect**.
+2. Cây bên trái (Object Explorer) → mở rộng **Databases** → chọn đúng CSDL
+   DSMART16.
+3. Bấm **New Query** (hoặc `Ctrl+N`) — mở cửa sổ soạn thảo trống, đang trỏ
+   đúng CSDL vừa chọn.
+4. Dán nguyên 2 câu `CREATE VIEW...` dưới đây (nhớ điền đúng 2 mã
+   `STYPE_ID` thật của MART/MINIMART trước khi chạy — xem chú thích ngay
+   dưới 2 câu lệnh).
+5. Bấm **Execute** (hoặc phím `F5`). Không có dòng lỗi đỏ ở khung kết quả
+   phía dưới là thành công.
+6. Kiểm tra: mở rộng CSDL đó → mục **Views** → thấy đủ
+   `V_HCRC_DOANHTHU_CHINHANH` và `V_HCRC_GIAODICH_CHINHANH` trong danh sách.
+
+**Về quyền — ai nên làm bước này**: tài khoản chạy `CREATE VIEW` ở đây
+KHÁC tài khoản sẽ khai ở etl-admin (mục "Nguồn dữ liệu", Bước 2 dưới) —
+tài khoản khai ở etl-admin chỉ nên **CHỈ ĐỌC** (SELECT), không đủ quyền tạo
+VIEW. Vì vậy bước này thường là việc của **DBA/IT quản trị DSMART16** — gửi
+2 đoạn SQL này cho họ chạy giúp nếu bạn không có tài khoản quyền cao hơn.
+Sau khi VIEW đã tồn tại, tài khoản chỉ-đọc dùng ở etl-admin cần được cấp
+thêm quyền `SELECT` trên đúng 2 VIEW đó (DBA cấp quyền, không cần quyền tạo
+VIEW).
 
 ```sql
 -- VIEW 1: Doanh thu + Lãi gộp + Diện tích + Nhóm chuỗi, gộp theo (chi nhánh, ngày)
