@@ -20,6 +20,24 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 6.35 — Thêm hướng dẫn ETL cụ thể (VIEW/Sync Job DSMART16) cho domain báo cáo LDTD/HCRC (docs)
+
+Bổ sung mục 15 (`hướng_dẫn_báo_cáo.md`): "Bước 1 — etl-admin" chỉ rõ 2 Sync
+Job cần tạo từ DSMART16 (domain `doanhthu_chinhanh` + `giaodich_chinhanh`),
+kèm phát hiện và giải thích 1 rủi ro kỹ thuật thật: `dwh.ReportFacts` MERGE
+GHI ĐÈ NGUYÊN CỘT Measures khi trùng khoá (`etl/lib/upsert.js`) — nếu gộp
+doanh thu (`DSTK_INFO`, khoá `STK_ID`) và giao dịch (`TRANSHDR`, khoá
+`BU_ID`) vào CHUNG 1 domain bằng 2 job riêng, job chạy sau sẽ xoá mất
+Measures của job chạy trước (lỗi âm thầm, không cảnh báo). Sửa lại
+`DefinitionJson` LDTD/HCRC ở mục 15: tách khối `current`/`lastYear` (doanh
+thu) khỏi khối MỚI `currentGD`/`lastYearGD` (giao dịch, domain riêng), thay
+mọi công thức `current.measures.giaoDich` bằng `currentGD.measures.SoGiaoDich`.
+Mở rộng VIEW doanh thu ở mục 11 b) — JOIN thêm `COSTPRICE` (Lãi gộp) và
+`STOCK` (Diện tích/Chain) vào cùng 1 VIEW, cờ rõ 2 điểm CHƯA XÁC NHẬN cần
+DBA DSMART16 đối chiếu trước khi tin số liệu thật (định dạng `COSTPRICE.MEC_YM`,
+giá trị `STOCK.STYPE_ID` ứng với MART/MINIMART). Không có thay đổi code —
+chỉ tài liệu.
+
 ## 6.34 — Thêm hướng dẫn cấu hình báo cáo LDTD/HCRC vào sổ tay (docs)
 
 Bổ sung mục 15 vào `hướng_dẫn_báo_cáo.md`: 2 `DefinitionJson` mẫu đầy đủ cho

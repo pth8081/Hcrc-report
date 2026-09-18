@@ -1180,20 +1180,56 @@ chờ có đủ danh sách mới bắt đầu đồng bộ.
 
 **b) Doanh thu theo chi nhánh (`doanhthu_chinhanh`) — mở rộng mục 1**
 
-- Nguồn: **VIEW gộp** từ `DSTK_INFO`, vd:
+- Nguồn: **VIEW gộp** từ `DSTK_INFO`, JOIN thêm `STOCK` (mục a — lấy diện
+  tích + nhóm chuỗi có sẵn trong CÙNG 1 dòng, khỏi phải ghép domain riêng)
+  và JOIN thêm `COSTPRICE` (giá vốn theo SKU/tháng — để tính Lãi gộp) —
+  bản MỞ RỘNG này phục vụ trực tiếp báo cáo "Báo cáo nhanh doanh thu -
+  LDTD/HCRC" (mục 15, cần đủ Doanh thu+Lãi gộp+Diện tích+Nhóm chuỗi trong
+  ĐÚNG 1 khối `current`):
   ```sql
   CREATE VIEW V_HCRC_DOANHTHU_CHINHANH AS
-  SELECT STK_ID, WORK_DATE,
-         SUM(TOCUST_QTY) AS SoLuongBan, SUM(TOCUST_AMT) AS DoanhThu,
-         SUM(TOCUST_VAT) AS TienVAT, SUM(TOCUST_DIS) AS TienGiamGia,
-         SUM(TOCUST_COM) AS HoaHong
-  FROM DSTK_INFO
-  GROUP BY STK_ID, WORK_DATE;
+  SELECT
+      d.STK_ID, d.WORK_DATE,
+      SUM(d.TOCUST_QTY) AS SoLuongBan,
+      SUM(d.TOCUST_AMT) AS doanhThu,
+      SUM(d.TOCUST_VAT) AS TienVAT,
+      SUM(d.TOCUST_DIS) AS TienGiamGia,
+      SUM(d.TOCUST_COM) AS HoaHong,
+      SUM(d.TOCUST_AMT) - SUM(d.TOCUST_QTY * ISNULL(c.COSTPRICE, 0)) AS laiGop,
+      MAX(s.DIMENSION) AS dienTich,
+      MAX(CASE WHEN s.STYPE_ID = '<mã MART thật>' THEN 'MART'
+               WHEN s.STYPE_ID = '<mã MINIMART thật>' THEN 'MINIMART'
+               ELSE s.STYPE_ID END) AS chain
+  FROM DSTK_INFO d
+  JOIN STOCK s
+      ON s.STK_ID = d.STK_ID
+  LEFT JOIN COSTPRICE c
+      ON c.STK_ID = d.STK_ID AND c.SKU_ID = d.SKU_ID
+     AND c.MEC_YM = LEFT(CONVERT(char(8), d.WORK_DATE, 112), 6)
+  GROUP BY d.STK_ID, d.WORK_DATE;
   ```
-- EntityCode = `STK_ID`, EventDate = `WORK_DATE`.
-- Measures: `DoanhThu`, `SoLuongBan`, `TienVAT`, `TienGiamGia`, `HoaHong`
-  (dư ra so với mục 1 gốc chỉ có `doanhThu`/`giaoDich`/`laiGop` — có sẵn để
-  dùng cho báo cáo khác sau này).
+- EntityCode = `STK_ID`, EventDate = `WORK_DATE` (không đổi so với bản gốc).
+- Measures: `doanhThu`, `laiGop` (**MỚI**) + `SoLuongBan`/`TienVAT`/
+  `TienGiamGia`/`HoaHong` (giữ nguyên bản gốc, dư ra để dùng cho báo cáo
+  khác sau này). Dimensions: `dienTich`, `chain` (**MỚI**, join từ `STOCK`).
+- **CHƯA XÁC NHẬN, cần đối chiếu với DBA DSMART16 trước khi tin số liệu
+  thật** (2 điểm rủi ro riêng của bản mở rộng này, khác các domain a/c/d
+  đã dựng trước đó):
+  1. `c.MEC_YM = LEFT(CONVERT(char(8), d.WORK_DATE, 112), 6)` — giả định
+     `COSTPRICE.MEC_YM` lưu dạng chuỗi `YYYYMM` (`'202609'`) khớp tháng của
+     `WORK_DATE` — CHƯA xác nhận đúng định dạng thật (có thể khác, vd
+     `'2026-09'`/số nguyên). Sai định dạng → JOIN không khớp dòng nào →
+     `laiGop` = `doanhThu` (coi giá vốn = 0), SAI mà KHÔNG báo lỗi gì (JOIN
+     là `LEFT JOIN` nên không rớt dòng) — **kiểm tra kỹ cột "Lãi gộp - Tỷ
+     lệ (%)" sau khi chạy thử, tỷ lệ = 100% ở MỌI siêu thị là dấu hiệu JOIN
+     sai định dạng này**.
+  2. `s.STYPE_ID` — CHƯA xác nhận đây đúng là cột phân loại MART/MINIMART
+     của `STOCK` (chỉ là ứng viên hợp lý từ tên cột, không có mô tả trong
+     file schema) — cần dò 2 giá trị mã thật (vd chạy
+     `SELECT DISTINCT STYPE_ID FROM STOCK`) rồi điền đúng vào 2 chỗ
+     `'<mã MART thật>'`/`'<mã MINIMART thật>'` ở trên trước khi dùng cho
+     `groupBy` ở mục 15 — để nguyên placeholder sẽ khiến MỌI siêu thị rơi
+     vào nhánh `ELSE` (không nhóm được).
 - **Watermark**: `DSTK_INFO` là bảng tổng hợp CUỐI NGÀY, không có cột "giờ
   cập nhật" riêng — dùng tạm `WORK_DATE` làm cột watermark (chấp nhận: số
   liệu 1 ngày chỉ được đồng bộ sau khi ngày đó đã có dữ liệu, sửa số liệu
@@ -1756,25 +1792,65 @@ chung 1 bộ số để tránh nhóm này vô tình sửa/ghi đè chỉ tiêu c
 `target_importer_LDTD`/`target_importer_hcrc` quản lý độc lập).
 
 Đây là báo cáo lấy **TRỰC TIẾP từ Data Warehouse** (đúng Cách 1 ở mục 1 —
-`sourceType: "directDb"` cho cả khối `current`/`lastYear`, KHÔNG qua API
-Server/realtime) — làm theo đúng Bước 1+2 của mục 1 trước (đồng bộ domain
-doanh thu vào DWH với **"Giữ lịch sử theo ngày" bật**, tick Dimensions
-`chain`/`dienTich`, Measures `doanhThu`/`giaoDich`/`laiGop`), rồi tạo 2 báo
-cáo dưới đây ở **Hệ thống → Biểu mẫu**, SourceType **"Ghép nhiều nguồn
-(composite)"**.
+`sourceType: "directDb"`, KHÔNG qua API Server/realtime) — dữ liệu thực đạt
+đến từ 2 domain DSMART16 đã dựng ở mục 11 (`doanhthu_chinhanh`/
+`giaodich_chinhanh`), KHÔNG phải domain giả định chung chung của mục 1.
 
-`current`/`lastYear` của 2 báo cáo dùng **CHUNG 1 domain thực đạt thật**
-(đổi `doanhthu_chinhanh` bên dưới thành đúng domain bạn đặt ở Sync Job) —
-chỉ khối `target` mới trỏ khác nhau (`targetDomain: "sales-targets-ldtd"`
-hay `"sales-targets-hcrc"`), đúng cơ chế "1 format chung, chỉ khác import
-target" (khối `target`/`isTarget:true` đọc `targetDomain` HOÀN TOÀN ĐỘC LẬP
-với domain của `current`/`lastYear` — xem mục 1).
+### Vì sao 2 domain riêng (Doanh thu và Giao dịch), không gộp làm 1
 
-**Tên field còn lại (`dienTich`, `doanhThu`, `giaoDich`, `laiGop`,
-`ChiTieuDoanhThu`, `ChiTieuGiaoDich`) là ĐẶT THEO VÍ DỤ mục 1** — sửa lại
-đúng tên Dimensions/Measures thật bạn đã tick lúc tạo Sync Job (etl-admin)
-và đúng tên cột trong file Excel nhập chỉ tiêu, KHÔNG copy nguyên văn nếu
-tên bạn đặt khác.
+Doanh thu (`DSTK_INFO`, khoá `STK_ID`) và Giao dịch (`TRANSHDR`, khoá
+`BU_ID` — phải Ánh xạ mã chi nhánh mới ra `STK_ID`) là **2 bảng nguồn khác
+nhau, xử lý bởi 2 job "Theo bảng" khác nhau**. `dwh.ReportFacts` ghi theo
+`MERGE ... WHEN MATCHED THEN UPDATE SET Dimensions = src.Dimensions,
+Measures = src.Measures` (xem `etl/lib/upsert.js`) — **GHI ĐÈ NGUYÊN CỘT
+Measures**, không gộp từng field. Nếu 2 job cùng ghi vào 1 Domain, job nào
+chạy SAU trong ngày sẽ **XOÁ MẤT** Measures của job chạy trước (vd job
+Giao dịch chạy sau sẽ làm mất Doanh thu/Lãi gộp của job Doanh thu, dù 2
+job không hề lỗi) — lỗi âm thầm, không cảnh báo gì. Vì vậy **BẮT BUỘC 2
+Domain riêng**, và báo cáo composite ghép lại đúng theo `entityCode` ở
+TẦNG BÁO CÁO (rp-server) bằng 2 cặp khối `current`/`currentGD` — đây chính
+là mục đích thiết kế của SourceType `composite` (xem "Quy tắc chung" phía
+trên), không phải hạn chế của DSMART16.
+
+### Bước 1 — etl-admin: 2 Sync Job đọc từ DSMART16
+
+1. **Job Doanh thu** — domain `doanhthu_chinhanh`, trỏ VIEW
+   `V_HCRC_DOANHTHU_CHINHANH` (đã có công thức đầy đủ ở mục 11 b — SUM
+   doanh thu + Lãi gộp qua JOIN `COSTPRICE`, Diện tích + Chain qua JOIN
+   `STOCK`). Cột khoá = `STK_ID`, cột ngày = `WORK_DATE`. Tick Measures
+   `doanhThu`/`laiGop` (+ các measure dư khác nếu muốn), Dimensions
+   `dienTich`/`chain`. **BẬT "Giữ lịch sử theo ngày"** (bắt buộc cho "Cùng
+   kỳ năm trước"). **KHÔNG cần Ánh xạ mã chi nhánh** ở job này — `STK_ID`
+   đã là mã chuẩn.
+2. **Job Giao dịch** — domain `giaodich_chinhanh`, trỏ VIEW
+   `V_HCRC_GIAODICH_CHINHANH` (mục 11 c). Cột khoá = `BU_ID`, cột ngày =
+   `TRAN_DATE`. Tick Measures `SoGiaoDich` (đúng tên cột VIEW đã đặt, giữ
+   nguyên chữ hoa). **BẬT "Ánh xạ mã chi nhánh"** = Loại mã `BU_ID` (mục
+   11, phần "Ánh xạ mã chi nhánh khi 1 chi nhánh có nhiều mã khác nhau" —
+   khai bảng quy đổi TRƯỚC ở etl-admin nếu chưa có) để engine tự quy đổi
+   `BU_ID` → `STK_ID` khớp đúng job Doanh thu ở trên. **BẬT "Giữ lịch sử
+   theo ngày"** như job Doanh thu.
+3. Trước khi dùng thật — đối chiếu 2 điểm CHƯA XÁC NHẬN ghi ở mục 11 b:
+   định dạng `COSTPRICE.MEC_YM` (ảnh hưởng số Lãi gộp) và giá trị thật của
+   `STOCK.STYPE_ID` ứng với MART/MINIMART (ảnh hưởng dòng "Tổng cộng"
+   nhóm theo chuỗi) — CHƯA sửa 2 chỗ này thì Lãi gộp/nhóm chuỗi sẽ SAI dù
+   job chạy không báo lỗi gì (xem cảnh báo chi tiết ở mục 11 b).
+
+### Bước 2 — etl-admin: nhập chỉ tiêu tháng (không đổi so với đã dựng)
+
+Qua đúng 2 trang khoá domain riêng — **"Chỉ tiêu Lãnh đạo Tập đoàn"**
+(`sales-targets-ldtd`) và **"Chỉ tiêu HCRC"** (`sales-targets-hcrc`) — xem
+`etl/README.md` mục "Nhập chỉ tiêu". File Excel cần cột `ChiTieuDoanhThu`/
+`ChiTieuGiaoDich` khớp đúng tên dùng trong công thức Bước 3 dưới đây.
+
+### Bước 3 — rp-user: tạo báo cáo
+
+Vào **Hệ thống → Biểu mẫu**, SourceType **"Ghép nhiều nguồn (composite)"**.
+4 khối `directDb` (2 domain × hôm nay/cùng kỳ) + 1 khối `target` — `current`/
+`currentGD` đọc đúng 2 domain Bước 1, KHÔNG gộp chung 1 khối như ví dụ
+tổng quát ở mục 1 (lý do đã giải thích ở trên). `target` vẫn HOÀN TOÀN ĐỘC
+LẬP với domain của `current`/`currentGD` (đúng cơ chế `targetDomain` — xem
+mục 1) — chỉ khác nhau giữa LDTD/HCRC ở đúng chỗ này.
 
 ### Báo cáo Lãnh đạo Tập đoàn (LDTD)
 
@@ -1791,7 +1867,9 @@ tên bạn đặt khác.
   ],
   "blocks": [
     { "key": "current", "sourceType": "directDb", "domain": "doanhthu_chinhanh" },
+    { "key": "currentGD", "sourceType": "directDb", "domain": "giaodich_chinhanh" },
     { "key": "lastYear", "sourceType": "directDb", "domain": "doanhthu_chinhanh", "dateOffsetYears": -1 },
+    { "key": "lastYearGD", "sourceType": "directDb", "domain": "giaodich_chinhanh", "dateOffsetYears": -1 },
     { "key": "target", "isTarget": true, "targetDomain": "sales-targets-ldtd" }
   ],
   "columns": [
@@ -1808,12 +1886,12 @@ tên bạn đặt khác.
     { "key": "lg_giaTri", "label": "Lãi gộp - Giá trị", "formula": "current.measures.laiGop" },
 
     { "key": "gd_chiTieu", "label": "Giao dịch - Chỉ tiêu", "formula": "target.ChiTieuGiaoDich" },
-    { "key": "gd_thucDat", "label": "Giao dịch - Thực đạt", "formula": "current.measures.giaoDich" },
-    { "key": "gd_tyLeDat", "label": "Giao dịch - Tỷ lệ đạt (%)", "formula": "ROUND(current.measures.giaoDich / target.ChiTieuGiaoDich * 100, 1)" },
-    { "key": "gd_cungKy", "label": "Giao dịch - Cùng kỳ năm 2025", "formula": "lastYear.measures.giaoDich" },
-    { "key": "gd_lfl", "label": "Giao dịch - Tỷ lệ % LFL", "formula": "ROUND(current.measures.giaoDich / lastYear.measures.giaoDich * 100, 1)" },
+    { "key": "gd_thucDat", "label": "Giao dịch - Thực đạt", "formula": "currentGD.measures.SoGiaoDich" },
+    { "key": "gd_tyLeDat", "label": "Giao dịch - Tỷ lệ đạt (%)", "formula": "ROUND(currentGD.measures.SoGiaoDich / target.ChiTieuGiaoDich * 100, 1)" },
+    { "key": "gd_cungKy", "label": "Giao dịch - Cùng kỳ năm 2025", "formula": "lastYearGD.measures.SoGiaoDich" },
+    { "key": "gd_lfl", "label": "Giao dịch - Tỷ lệ % LFL", "formula": "ROUND(currentGD.measures.SoGiaoDich / lastYearGD.measures.SoGiaoDich * 100, 1)" },
 
-    { "key": "trungBinhGD", "label": "Trung bình GD", "formula": "ROUND(current.measures.doanhThu / current.measures.giaoDich, 0)" },
+    { "key": "trungBinhGD", "label": "Trung bình GD", "formula": "ROUND(current.measures.doanhThu / currentGD.measures.SoGiaoDich, 0)" },
     { "key": "doanhThuTrenM2", "label": "Doanh thu/m2", "formula": "ROUND(current.measures.doanhThu / current.dimensions.dienTich, 0)" }
   ],
   "groupBy": {
@@ -1827,6 +1905,10 @@ tên bạn đặt khác.
   }
 }
 ```
+
+Siêu thị thiếu 1 trong 2 domain (chưa đồng bộ kịp, hoặc job Ánh xạ mã chi
+nhánh chưa khai đủ) — cột Giao dịch trống, không lỗi, không ảnh hưởng cột
+Doanh thu (đúng hành vi composite đã mô tả ở "Phụ lục" mục 1/2).
 
 ### Báo cáo HCRC
 
@@ -1845,7 +1927,9 @@ Hệt trên, chỉ đổi `title` và `targetDomain` sang `"sales-targets-hcrc"`
   ],
   "blocks": [
     { "key": "current", "sourceType": "directDb", "domain": "doanhthu_chinhanh" },
+    { "key": "currentGD", "sourceType": "directDb", "domain": "giaodich_chinhanh" },
     { "key": "lastYear", "sourceType": "directDb", "domain": "doanhthu_chinhanh", "dateOffsetYears": -1 },
+    { "key": "lastYearGD", "sourceType": "directDb", "domain": "giaodich_chinhanh", "dateOffsetYears": -1 },
     { "key": "target", "isTarget": true, "targetDomain": "sales-targets-hcrc" }
   ],
   "columns": [
@@ -1862,12 +1946,12 @@ Hệt trên, chỉ đổi `title` và `targetDomain` sang `"sales-targets-hcrc"`
     { "key": "lg_giaTri", "label": "Lãi gộp - Giá trị", "formula": "current.measures.laiGop" },
 
     { "key": "gd_chiTieu", "label": "Giao dịch - Chỉ tiêu", "formula": "target.ChiTieuGiaoDich" },
-    { "key": "gd_thucDat", "label": "Giao dịch - Thực đạt", "formula": "current.measures.giaoDich" },
-    { "key": "gd_tyLeDat", "label": "Giao dịch - Tỷ lệ đạt (%)", "formula": "ROUND(current.measures.giaoDich / target.ChiTieuGiaoDich * 100, 1)" },
-    { "key": "gd_cungKy", "label": "Giao dịch - Cùng kỳ năm 2025", "formula": "lastYear.measures.giaoDich" },
-    { "key": "gd_lfl", "label": "Giao dịch - Tỷ lệ % LFL", "formula": "ROUND(current.measures.giaoDich / lastYear.measures.giaoDich * 100, 1)" },
+    { "key": "gd_thucDat", "label": "Giao dịch - Thực đạt", "formula": "currentGD.measures.SoGiaoDich" },
+    { "key": "gd_tyLeDat", "label": "Giao dịch - Tỷ lệ đạt (%)", "formula": "ROUND(currentGD.measures.SoGiaoDich / target.ChiTieuGiaoDich * 100, 1)" },
+    { "key": "gd_cungKy", "label": "Giao dịch - Cùng kỳ năm 2025", "formula": "lastYearGD.measures.SoGiaoDich" },
+    { "key": "gd_lfl", "label": "Giao dịch - Tỷ lệ % LFL", "formula": "ROUND(currentGD.measures.SoGiaoDich / lastYearGD.measures.SoGiaoDich * 100, 1)" },
 
-    { "key": "trungBinhGD", "label": "Trung bình GD", "formula": "ROUND(current.measures.doanhThu / current.measures.giaoDich, 0)" },
+    { "key": "trungBinhGD", "label": "Trung bình GD", "formula": "ROUND(current.measures.doanhThu / currentGD.measures.SoGiaoDich, 0)" },
     { "key": "doanhThuTrenM2", "label": "Doanh thu/m2", "formula": "ROUND(current.measures.doanhThu / current.dimensions.dienTich, 0)" }
   ],
   "groupBy": {
@@ -1882,14 +1966,23 @@ Hệt trên, chỉ đổi `title` và `targetDomain` sang `"sales-targets-hcrc"`
 }
 ```
 
-### Sau khi lưu
+### Bước 4 — Sau khi lưu
 
-1. **Hệ thống → Phân quyền** — gán quyền xem `bc-doanh-thu-ldtd` cho vai
-   trò/nhóm Lãnh đạo Tập đoàn, `bc-doanh-thu-hcrc` cho vai trò/nhóm HCRC
-   (2 báo cáo, 2 danh sách người xem riêng — không tự động chia sẻ chéo).
-2. Nhập chỉ tiêu tháng qua đúng 2 trang khoá domain riêng ở etl-admin
-   (không phải trang "Nhập chỉ tiêu" chung cũ) TRƯỚC khi chạy thử — thiếu
-   chỉ tiêu domain tương ứng thì cột "Chỉ tiêu"/"Tỉ lệ đạt" trống.
-3. Kiểm tra như Bước 4 mục 1 — thêm: đối chiếu đúng báo cáo LDTD đọc chỉ
-   tiêu domain `sales-targets-ldtd`, báo cáo HCRC đọc `sales-targets-hcrc`
-   (sửa thử 1 dòng chỉ tiêu ở 1 trang, xác nhận báo cáo BÊN KIA KHÔNG đổi).
+**Hệ thống → Phân quyền** — gán quyền xem `bc-doanh-thu-ldtd` cho vai
+trò/nhóm Lãnh đạo Tập đoàn, `bc-doanh-thu-hcrc` cho vai trò/nhóm HCRC (2
+báo cáo, 2 danh sách người xem riêng — không tự động chia sẻ chéo).
+
+### Bước 5 — Kiểm tra
+
+1. Đối chiếu **cả 2 job** ở Bước 1 đã chạy ít nhất 1 lần (Dashboard/Log
+   etl-admin) — thiếu job Giao dịch thì cột Giao dịch trống dù job Doanh
+   thu chạy đúng (2 job độc lập, không phụ thuộc nhau).
+2. Mở báo cáo, chọn "Ngày báo cáo" — kiểm tra: đủ số siêu thị đang hoạt
+   động, đúng nhóm MART/MINIMART (xem lại `STYPE_ID` đã điền đúng mã thật
+   chưa — mục 11 b), dòng "Tổng cộng" khớp tổng cộng dồn.
+3. **Kiểm tra riêng cột Lãi gộp** — nếu "Lãi gộp - Tỷ lệ (%)" ra ĐÚNG
+   100% ở MỌI siêu thị, gần như chắc chắn `COSTPRICE.MEC_YM` sai định
+   dạng (JOIN không khớp dòng nào, coi giá vốn = 0) — xem lại mục 11 b).
+4. Đối chiếu đúng báo cáo LDTD đọc chỉ tiêu domain `sales-targets-ldtd`,
+   báo cáo HCRC đọc `sales-targets-hcrc` (sửa thử 1 dòng chỉ tiêu ở 1
+   trang, xác nhận báo cáo BÊN KIA KHÔNG đổi).
