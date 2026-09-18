@@ -68,7 +68,7 @@ trong `.env`), CHỈ có quyền trên đúng 1 bảng `dwh.SalesTargets`, khôn
 `dwh/grants.sql`. Ở tầng ứng dụng: 2 báo cáo này KHÔNG dùng chung 1 vai trò
 — 2 nhóm nghiệp vụ khác nhau quản lý/nhập liệu, không cùng IT quản lý —
 nên có 2 vai trò MỚI HOÀN TOÀN, mỗi vai trò CHỈ thấy đúng 1 trang:
-`target_importer_corp` (CHỈ "Chỉ tiêu Lãnh đạo Tập đoàn") và
+`target_importer_LDTD` (CHỈ "Chỉ tiêu Lãnh đạo Tập đoàn" — LDTD viết tắt "Lãnh Đạo Tập Đoàn") và
 `target_importer_hcrc` (CHỈ "Chỉ tiêu HCRC") — cả 2 đều KHÔNG thấy Nguồn dữ
 liệu/Đồng bộ (hạ tầng ETL thật), cấp đúng cho nhân sự chỉ cần nhập chỉ tiêu
 hàng tháng của ĐÚNG 1 báo cáo, không phải quản trị ETL đầy đủ. Vai trò

@@ -20,6 +20,10 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 6.32 — Đổi tên vai trò target_importer_corp -> target_importer_LDTD (etl)
+
+Theo yêu cầu người dùng, đổi Code vai trò `target_importer_corp` (seed ở 6.31) thành `target_importer_LDTD` (viết tắt "Lãnh Đạo Tập Đoàn") cho dễ phân biệt với `target_importer_hcrc`. `etl-db/schema.sql` UPDATE Code (không xoá+tạo lại) để giữ nguyên mọi `AdminUserRoles`/`RoleMenuAccess` đã gán nếu DB đã chạy qua bản 6.31 — an toàn chạy lại nhiều lần.
+
 ## 6.31 — Sửa 6.30: 2 vai trò MỚI riêng biệt thay vì gộp chung target_importer (etl)
 
 Người dùng làm rõ ngay sau 6.30: 2 báo cáo "Lãnh đạo Tập đoàn"/"HCRC" **không được cùng IT quản lý** — tức không tự động gộp quyền vào vai trò `target_importer` cũ (hay bất kỳ vai trò IT nào đang có), phải là 2 vai trò MỚI HOÀN TOÀN, mỗi vai trò CHỈ gắn đúng 1 trong 2 trang.

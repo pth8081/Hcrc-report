@@ -362,16 +362,26 @@ GO
 -- vì không có cơ sở để tự chọn đúng).
 DELETE FROM admin.RoleMenuAccess WHERE MenuCode = 'sales-targets';
 
-IF NOT EXISTS (SELECT 1 FROM admin.Roles WHERE Code = 'target_importer_corp')
-    INSERT INTO admin.Roles (Code, Name, IsSystemRole) VALUES ('target_importer_corp', N'Nhập chỉ tiêu - Lãnh đạo Tập đoàn', 0);
+-- Đổi tên Code 'target_importer_corp' -> 'target_importer_LDTD' (viết tắt
+-- "Lãnh Đạo Tập Đoàn", theo yêu cầu người dùng cho dễ phân biệt) — UPDATE
+-- thay vì xoá+tạo lại để KHÔNG mất admin.AdminUserRoles/RoleMenuAccess đã
+-- gán nếu DB đã chạy qua bản seed 'target_importer_corp' cũ (6.31). Chỉ
+-- chạy nếu Code cũ còn tồn tại và Code mới CHƯA có (an toàn chạy lại nhiều lần).
+IF EXISTS (SELECT 1 FROM admin.Roles WHERE Code = 'target_importer_corp')
+   AND NOT EXISTS (SELECT 1 FROM admin.Roles WHERE Code = 'target_importer_LDTD')
+    UPDATE admin.Roles SET Code = 'target_importer_LDTD' WHERE Code = 'target_importer_corp';
+GO
+
+IF NOT EXISTS (SELECT 1 FROM admin.Roles WHERE Code = 'target_importer_LDTD')
+    INSERT INTO admin.Roles (Code, Name, IsSystemRole) VALUES ('target_importer_LDTD', N'Nhập chỉ tiêu - Lãnh đạo Tập đoàn', 0);
 IF NOT EXISTS (SELECT 1 FROM admin.Roles WHERE Code = 'target_importer_hcrc')
     INSERT INTO admin.Roles (Code, Name, IsSystemRole) VALUES ('target_importer_hcrc', N'Nhập chỉ tiêu - HCRC', 0);
 GO
 
-IF NOT EXISTS (SELECT 1 FROM admin.RoleMenuAccess rma JOIN admin.Roles r ON rma.RoleId = r.Id WHERE r.Code = 'target_importer_corp')
+IF NOT EXISTS (SELECT 1 FROM admin.RoleMenuAccess rma JOIN admin.Roles r ON rma.RoleId = r.Id WHERE r.Code = 'target_importer_LDTD')
 BEGIN
-    DECLARE @targetImporterCorpRoleId INT = (SELECT Id FROM admin.Roles WHERE Code = 'target_importer_corp');
-    INSERT INTO admin.RoleMenuAccess (RoleId, MenuCode, CanEdit) VALUES (@targetImporterCorpRoleId, 'sales-targets-corp', 1);
+    DECLARE @targetImporterLDTDRoleId INT = (SELECT Id FROM admin.Roles WHERE Code = 'target_importer_LDTD');
+    INSERT INTO admin.RoleMenuAccess (RoleId, MenuCode, CanEdit) VALUES (@targetImporterLDTDRoleId, 'sales-targets-corp', 1);
 END
 IF NOT EXISTS (SELECT 1 FROM admin.RoleMenuAccess rma JOIN admin.Roles r ON rma.RoleId = r.Id WHERE r.Code = 'target_importer_hcrc')
 BEGIN
