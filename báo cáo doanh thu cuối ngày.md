@@ -7,6 +7,19 @@ VIEW SQL, thao tác trên giao diện (kèm ảnh), và nguyên khối `Definiti
 thêm `hướng_dẫn_báo_cáo.md` mục 11/15 — nhưng không bắt buộc phải đọc để
 làm theo file này.
 
+**DSMART16 thật ra là 2 CSDL riêng** — `DSMART16` (dữ liệu ĐANG PHÁT SINH
+trong tháng hiện tại, "Live") và `DSMART16_EOM` (dữ liệu các tháng ĐÃ ĐÓNG
+sổ trong quá khứ — "End Of Month"). Vì cột "Cùng kỳ năm trước"/"Tỷ lệ %
+LFL" của báo cáo cần dữ liệu 1 NĂM TRƯỚC — chắc chắn không còn nằm trong
+`DSMART16` (DB Live chỉ giữ tháng hiện tại) mà nằm trong `DSMART16_EOM` —
+nên phải đọc dữ liệu doanh thu/giao dịch từ **CẢ 2 CSDL**, không phải 1.
+May mắn là kiến trúc ETL đã có sẵn cơ chế đúng cho việc này (mục 11
+`hướng_dẫn_báo_cáo.md` gọi đây là mô hình "2 nguồn Live + Lịch sử") — chỉ
+cần tạo 2 "Nguồn dữ liệu" (1 trỏ `DSMART16`, 1 trỏ `DSMART16_EOM`) rồi tạo
+2 Sync Job CÙNG 1 Domain cho mỗi loại số liệu (1 job đọc Live, 1 job đọc
+Lịch sử) — dữ liệu 2 nguồn tự động ghép thành 1 dải liên tục khi báo cáo
+chạy, không cần cấu hình gì thêm ở phía rp-user. Xem chi tiết ở Bước 2.
+
 > **Lưu ý về ảnh minh hoạ**: ảnh chụp dưới đây lấy từ ĐÚNG giao diện thật
 > của etl-admin/rp-user (không phải hình vẽ tay), nhưng dữ liệu hiển thị
 > (tên nguồn, số liệu chỉ tiêu, danh sách báo cáo...) là **dữ liệu mẫu**
@@ -18,9 +31,12 @@ làm theo file này.
 
 ## Tổng quan các bước
 
-1. Tạo 2 VIEW trên CSDL DSMART16 (làm ở SQL Server Management Studio hoặc
-   công cụ quản trị CSDL — KHÔNG phải trên giao diện web).
-2. etl-admin → **Đồng bộ**: tạo 2 job đồng bộ trỏ vào 2 VIEW đó.
+1. Tạo 2 VIEW — **trên CẢ 2 CSDL** `DSMART16` và `DSMART16_EOM` (làm ở SQL
+   Server Management Studio hoặc công cụ quản trị CSDL — KHÔNG phải trên
+   giao diện web).
+2. etl-admin → **Nguồn dữ liệu**: khai 2 kết nối (Live + Lịch sử) →
+   **Đồng bộ**: tạo 4 job đồng bộ (Doanh thu × 2 nguồn, Giao dịch × 2
+   nguồn — mỗi cặp CÙNG 1 Domain để tự ghép).
 3. etl-admin → **Chỉ tiêu Lãnh đạo Tập đoàn** / **Chỉ tiêu HCRC**: nhập file
    chỉ tiêu tháng cho từng bên.
 4. rp-user → **Hệ thống → Biểu mẫu**: tạo 2 báo cáo (LDTD, HCRC) bằng
@@ -33,7 +49,7 @@ làm theo file này.
 
 ---
 
-## Bước 1 — Tạo VIEW trên CSDL DSMART16 (làm trước, ngoài giao diện web)
+## Bước 1 — Tạo VIEW trên CẢ 2 CSDL DSMART16 (làm trước, ngoài giao diện web)
 
 "Ngoài giao diện web" nghĩa là chạy trực tiếp trên CSDL DSMART16 bằng 1
 công cụ quản trị SQL Server — KHÔNG phải vào etl-admin/rp-user (2 trang đó
@@ -43,19 +59,24 @@ toàn).
 **Công cụ**: SQL Server Management Studio (SSMS — phổ biến nhất, tải miễn
 phí từ Microsoft) hoặc Azure Data Studio. Dùng bản IT/DBA đã cài sẵn nếu có.
 
-**Các bước cụ thể**:
+**Các bước cụ thể — LẶP LẠI Y HỆT CHO CẢ 2 CSDL** (`DSMART16` rồi
+`DSMART16_EOM` — 2 lượt Connect + New Query + Execute riêng, VIEW là object
+CỦA TỪNG CSDL, tạo ở CSDL này không tự có ở CSDL kia dù cùng 1 máy chủ):
 
 1. Mở SSMS → hộp thoại "Connect to Server" hiện ra:
    - **Server name**: địa chỉ máy chủ SQL Server đang chạy DSMART16 (hỏi
      DBA/IT nếu chưa biết — thường dạng `192.168.x.x` hoặc
-     `tenmaychu\SQLEXPRESS`).
+     `tenmaychu\SQLEXPRESS`). Thường CẢ 2 CSDL nằm CHUNG 1 máy chủ, chỉ
+     khác tên Database — nếu vậy chỉ cần Connect 1 lần, đổi CSDL ở bước 2.
    - **Authentication**: SQL Server Authentication → nhập Username/Password
      của **tài khoản có quyền tạo VIEW** trên CSDL đó.
    - Bấm **Connect**.
-2. Cây bên trái (Object Explorer) → mở rộng **Databases** → chọn đúng CSDL
-   DSMART16.
+2. Cây bên trái (Object Explorer) → mở rộng **Databases** → chọn CSDL
+   `DSMART16` (lượt đầu) hoặc `DSMART16_EOM` (lượt sau).
 3. Bấm **New Query** (hoặc `Ctrl+N`) — mở cửa sổ soạn thảo trống, đang trỏ
-   đúng CSDL vừa chọn.
+   đúng CSDL vừa chọn ở bước 2 (kiểm tra lại ô chọn Database ở thanh công
+   cụ phía trên cửa sổ Query, ngay cạnh nút Execute — chọn NHẦM CSDL sẽ
+   tạo VIEW vào sai chỗ mà không báo lỗi gì).
 4. Dán nguyên 2 câu `CREATE VIEW...` dưới đây (nhớ điền đúng 2 mã
    `STYPE_ID` thật của MART/MINIMART trước khi chạy — xem chú thích ngay
    dưới 2 câu lệnh).
@@ -63,6 +84,7 @@ phí từ Microsoft) hoặc Azure Data Studio. Dùng bản IT/DBA đã cài sẵ
    phía dưới là thành công.
 6. Kiểm tra: mở rộng CSDL đó → mục **Views** → thấy đủ
    `V_HCRC_DOANHTHU_CHINHANH` và `V_HCRC_GIAODICH_CHINHANH` trong danh sách.
+7. Lặp lại đúng bước 2-6 cho CSDL còn lại.
 
 **Về quyền — ai nên làm bước này**: tài khoản chạy `CREATE VIEW` ở đây
 KHÁC tài khoản sẽ khai ở etl-admin (mục "Nguồn dữ liệu", Bước 2 dưới) —
@@ -124,7 +146,7 @@ GROUP BY BU_ID, CAST(TRAN_DATE AS DATE);
 GO
 ```
 
-**Trước khi chạy thật, cần xác nhận 2 điều với DBA DSMART16** (chưa xác
+**Trước khi chạy thật, cần xác nhận 3 điều với DBA DSMART16** (chưa xác
 nhận được từ file schema, chỉ là dự đoán hợp lý theo tên cột):
 
 1. `STOCK.STYPE_ID` — cột phân loại MART/MINIMART. Chạy thử
@@ -132,80 +154,112 @@ nhận được từ file schema, chỉ là dự đoán hợp lý theo tên cộ
    `'<mã MART thật>'`/`'<mã MINIMART thật>'` ở trên.
 2. `COSTPRICE.MEC_YM` — định dạng tháng (giả định `YYYYMM`, vd `'202609'`).
    Nếu sai định dạng, cột Lãi gộp sẽ ra sai (coi giá vốn = 0) mà KHÔNG báo
-   lỗi gì — xem cách phát hiện ở Bước 6.
+   lỗi gì — xem cách phát hiện ở Bước 7.
+3. **`DSMART16_EOM` có đủ bảng `STOCK`/`COSTPRICE` không?** — VIEW doanh thu
+   JOIN thêm 2 bảng "danh mục" này (tên siêu thị/diện tích/giá vốn), vốn ít
+   khi cần lưu lại theo từng tháng quá khứ — có khả năng `DSMART16_EOM` CHỈ
+   lưu 2 bảng "phát sinh" (`DSTK_INFO`/`TRANSHDR`), KHÔNG có `STOCK`/
+   `COSTPRICE`. Chạy thử `SELECT TOP 1 * FROM STOCK` trên `DSMART16_EOM`
+   trước khi chạy `CREATE VIEW` ở đó:
+   - **Có bảng, chạy được** → dùng nguyên VIEW dưới đây, không cần sửa.
+   - **Báo lỗi "Invalid object name 'STOCK'"** → 2 bảng đó chỉ có ở
+     `DSMART16` (Live). Nếu 2 CSDL nằm CHUNG 1 máy chủ SQL Server, sửa VIEW
+     bên `DSMART16_EOM` để tham chiếu CHÉO sang `DSMART16` bằng tên đủ 3
+     phần (`<TênCSDL>.<schema>.<bảng>`), đổi `JOIN STOCK s` thành
+     `JOIN DSMART16.dbo.STOCK s` và `LEFT JOIN COSTPRICE c` thành
+     `LEFT JOIN DSMART16.dbo.COSTPRICE c` (chỉ 2 chỗ này, phần còn lại giữ
+     nguyên) — vẫn hợp lệ vì cùng máy chủ, không cần Linked Server. Diện
+     tích/nhóm chuỗi vốn ít đổi nên dùng bản MỚI NHẤT ở `DSMART16` cho cả
+     dữ liệu quá khứ là hợp lý; riêng giá vốn (`COSTPRICE`) đã tự khớp
+     đúng tháng qua điều kiện `MEC_YM` sẵn có trong câu JOIN, không bị ảnh
+     hưởng bởi việc bảng nằm ở CSDL nào.
+   - Nếu 2 CSDL nằm **KHÁC máy chủ** — báo lại cho DBA, cần hướng xử lý
+     khác (Linked Server hoặc đồng bộ riêng bảng danh mục), ngoài phạm vi
+     hướng dẫn này.
 
 ---
 
-## Bước 2 — etl-admin: tạo 2 job đồng bộ
+## Bước 2 — etl-admin: khai 2 Nguồn dữ liệu + tạo 4 job đồng bộ
 
-Vào etl-admin, menu **"Đồng bộ"** (sidebar bên trái). Trang hiện danh sách
-job đã có + form "Thêm đồng bộ mới" ngay dưới:
+Vì DSMART16 là **2 CSDL riêng** (`DSMART16` Live + `DSMART16_EOM` Lịch sử
+— xem giải thích ở đầu file), mỗi loại số liệu (Doanh thu, Giao dịch) cần
+**2 job** — 1 đọc CSDL Live, 1 đọc CSDL Lịch sử, CÙNG 1 Domain để tự ghép
+lại thành 1 dải liên tục khi báo cáo chạy. Tổng cộng **4 job**, không phải
+2.
 
-![Trang Đồng bộ — danh sách job](hinh-huong-dan-ldtd-hcrc/01-dong-bo-danh-sach.png)
+### 2.1 — Khai 2 "Nguồn dữ liệu"
 
-### Job 1 — Doanh thu chi nhánh
+Vào etl-admin, menu **"Nguồn dữ liệu"** (sidebar bên trái). Điền form 2
+lần, mỗi lần 1 kết nối:
 
-Điền form "Thêm đồng bộ mới":
+**Nguồn 1 — Live**:
+- **Tên nguồn**: "DSMART16 - Live".
+- **Loại**: SQL Server.
+- **Server**: địa chỉ máy chủ SQL Server (giống bước 1).
+- **Database**: `DSMART16`.
+- **Username/Password**: tài khoản **CHỈ ĐỌC** (SELECT) — KHÔNG dùng tài
+  khoản đã tạo VIEW ở Bước 1 (tài khoản đó quyền rộng hơn cần thiết).
+- Bấm **"Kiểm tra kết nối"** trước, thấy ✅ mới bấm **"Lưu nguồn dữ liệu"**.
 
-1. **Tên job**: đặt tên dễ nhận, vd "Doanh thu chi nhánh (DSMART16)".
-2. Tab **"Theo bảng"** (mặc định).
-3. **Chọn nguồn dữ liệu** — chọn kết nối DSMART16 đã khai ở "Nguồn dữ liệu"
-   (nếu chưa có, vào menu "Nguồn dữ liệu" tạo trước — điền Server/Database/
-   Username/Password của DSMART16, tài khoản chỉ đọc).
-4. **Chọn bảng/view chính** — chọn `dbo.V_HCRC_DOANHTHU_CHINHANH` (VIEW vừa
-   tạo ở Bước 1 — hệ thống tự duyệt danh sách bảng/view thật của nguồn,
-   không gõ tay).
-5. Sau khi chọn VIEW, hệ thống hiện đủ cột thật — điền:
-   - **Cột khoá (EntityCode)**: `STK_ID`
-   - **Cột ngày (EventDate)**: `WORK_DATE`
-   - **Cột thời gian cập nhật (watermark)**: `WORK_DATE`
-   - **Cột đưa vào Dimensions**: tick `dienTich`, `chain`
-   - **Cột đưa vào Measures**: tick `doanhThu`, `laiGop` (tick thêm
-     `SoLuongBan`/`TienVAT`/`TienGiamGia`/`HoaHong` nếu muốn dùng cho báo
-     cáo khác sau này — không bắt buộc cho 2 báo cáo này)
-6. **KHÔNG tick "Thêm bảng/view liên kết"** — VIEW đã tự JOIN sẵn
-   `STOCK`/`COSTPRICE`, không cần ETL join thêm.
-7. **Domain**: gõ `doanhthu_chinhanh`.
-8. **Lịch chạy (cron)**: giữ mặc định `*/15 * * * *` (15 phút/lần) hoặc đổi
-   theo nhu cầu.
-9. **Tick "Giữ lịch sử theo ngày"** — BẮT BUỘC, nếu không sẽ không có số
-   "Cùng kỳ năm trước".
-10. **Bỏ trống "Ánh xạ mã chi nhánh"** — `STK_ID` đã là mã chuẩn, không cần
-    quy đổi.
-11. Bấm **"Tạo job đồng bộ"**.
+**Nguồn 2 — Lịch sử**: y hệt, chỉ đổi **Tên nguồn**: "DSMART16 - Lịch sử",
+**Database**: `DSMART16_EOM`.
 
-Form sau khi điền đủ trông như sau:
+Sau khi lưu cả 2, danh sách hiện như sau:
 
-![Form tạo job — điền đầy đủ](hinh-huong-dan-ldtd-hcrc/02-dong-bo-form-day-du.png)
+![Trang Nguồn dữ liệu — 2 nguồn Live + Lịch sử](hinh-huong-dan-ldtd-hcrc/11-nguon-du-lieu-danh-sach.png)
 
-### Job 2 — Giao dịch chi nhánh
+### 2.2 — Tạo 4 job đồng bộ
 
-Lặp lại y hệt, đổi các ô sau:
+Vào menu **"Đồng bộ"**. Tạo lần lượt 4 job — form giống hệt nhau, chỉ khác
+**Chọn nguồn dữ liệu**/**Domain**/**Lịch chạy** theo bảng dưới:
 
-- **Tên job**: "Giao dịch chi nhánh (DSMART16)".
-- **Chọn bảng/view chính**: `dbo.V_HCRC_GIAODICH_CHINHANH`.
-- **Cột khoá (EntityCode)**: `BU_ID`.
-- **Cột ngày (EventDate)**: `TRAN_DATE`.
-- **Cột thời gian cập nhật**: `TRAN_DATE`.
-- **Cột đưa vào Measures**: tick `SoGiaoDich` (đúng chữ hoa như VIEW đã đặt).
-- **Domain**: gõ `giaodich_chinhanh` (KHÁC domain job 1 — BẮT BUỘC 2 domain
-  riêng: `dwh.ReportFacts` ghi đè NGUYÊN CỘT số liệu khi trùng khoá
-  (SourceSystem, Domain, EntityCode, EventDate); doanh thu (khoá `STK_ID`)
-  và giao dịch (khoá `BU_ID`) là 2 job/2 bảng nguồn khác nhau — nếu dùng
-  chung 1 domain, job nào chạy sau trong ngày sẽ XOÁ MẤT số liệu job chạy
-  trước mà không báo lỗi gì. Báo cáo ở Bước 4 sẽ tự ghép lại 2 domain này
-  theo đúng mã siêu thị).
-- **Tick "Giữ lịch sử theo ngày"**.
-- **Ánh xạ mã chi nhánh**: gõ `BU_ID` — BẮT BUỘC cho job này, để hệ thống tự
-  quy đổi `BU_ID` sang đúng mã siêu thị chuẩn (khớp `STK_ID` ở job 1) trước
-  khi ghi vào Data Warehouse. Cần khai sẵn bảng quy đổi ở menu **"Ánh xạ mã
-  chi nhánh"** (mỗi dòng: `BU_ID` nào ứng với mã siêu thị nào) TRƯỚC khi
-  job này chạy thật — chưa khai đủ vẫn chạy được, chỉ ghi cảnh báo ở Log
-  cho những mã chưa khai (xem `etl/README.md`).
+| # | Tên job (gợi ý) | Nguồn dữ liệu | Bảng/view chính | Cột khoá | Cột ngày | Domain | Ánh xạ mã chi nhánh | Lịch chạy |
+|---|---|---|---|---|---|---|---|---|
+| 1 | Doanh thu chi nhánh - Live | DSMART16 - Live | `dbo.V_HCRC_DOANHTHU_CHINHANH` | `STK_ID` | `WORK_DATE` | `doanhthu_chinhanh` | (để trống) | `*/15 * * * *` |
+| 2 | Doanh thu chi nhánh - Lịch sử | DSMART16 - Lịch sử | `dbo.V_HCRC_DOANHTHU_CHINHANH` | `STK_ID` | `WORK_DATE` | `doanhthu_chinhanh` | (để trống) | `0 3 * * *` |
+| 3 | Giao dịch chi nhánh - Live | DSMART16 - Live | `dbo.V_HCRC_GIAODICH_CHINHANH` | `BU_ID` | `TRAN_DATE` | `giaodich_chinhanh` | `BU_ID` | `*/15 * * * *` |
+| 4 | Giao dịch chi nhánh - Lịch sử | DSMART16 - Lịch sử | `dbo.V_HCRC_GIAODICH_CHINHANH` | `BU_ID` | `TRAN_DATE` | `giaodich_chinhanh` | `BU_ID` | `0 3 * * *` |
 
-Sau khi tạo xong, quay lại trang "Đồng bộ" sẽ thấy đủ 2 job trong bảng
-(đúng như ảnh danh sách ở trên, cột "Ánh xạ mã chi nhánh" của job 2 hiện
-`BU_ID`).
+Cả 4 job đều: **Cột thời gian cập nhật (watermark)** = giống Cột ngày;
+job 1-2 tick Dimensions `dienTich`/`chain` + Measures `doanhThu`/`laiGop`;
+job 3-4 tick Measures `SoGiaoDich`; **BẬT "Giữ lịch sử theo ngày"** ở CẢ 4
+job (bắt buộc, không riêng job Live — thiếu ở job nào thì domain đó mất
+dữ liệu ngày cũ của đúng nguồn đó); KHÔNG tick "Thêm bảng/view liên kết"
+(VIEW đã tự JOIN sẵn).
+
+**Vì sao lịch chạy job Lịch sử thưa hơn (`0 3 * * *` = 3h sáng/ngày thay vì
+15 phút/lần)**: CSDL `DSMART16_EOM` là kho lưu trữ tháng ĐÃ ĐÓNG SỔ, không
+phát sinh giao dịch mới trong ngày — chạy dày như job Live chỉ tốn tải CSDL
+vô ích. Job Live vẫn cần chạy dày vì dữ liệu HÔM NAY đang phát sinh liên
+tục.
+
+**Vì sao domain của job 1 và job 2 phải TRÙNG NHAU (`doanhthu_chinhanh`)**
+— đây là điểm khác với lý do tách domain doanh thu/giao dịch: 2 job cùng
+đọc CÙNG 1 VIEW (`V_HCRC_DOANHTHU_CHINHANH`), CÙNG khoá `STK_ID` — không hề
+xung đột ghi đè như trường hợp doanh thu-vs-giao dịch (khác bảng/khác
+khoá). Mỗi `Nguồn dữ liệu` tự có 1 `SourceSystem` riêng (etl tự sinh, không
+phải gõ tay), nên khoá ghi thật sự vào Data Warehouse là
+`(SourceSystem, Domain, EntityCode, EventDate)` — 2 job Live/Lịch sử khác
+nhau ở `SourceSystem` (2 nguồn khác nhau) và khác nhau ở `EventDate` (Live
+= ngày hiện tại, Lịch sử = ngày quá khứ), nên KHÔNG BAO GIỜ trùng khoá,
+KHÔNG ghi đè nhau — dữ liệu 2 nguồn tự nhiên xếp cạnh nhau thành 1 dải
+liên tục theo thời gian.
+
+Điền xong cả 4 job (job 1 minh hoạ, các job sau đổi đúng bảng trên):
+
+![Form tạo job — điền đầy đủ (job Doanh thu - Live)](hinh-huong-dan-ldtd-hcrc/02-dong-bo-form-day-du.png)
+
+Sau khi tạo đủ 4 job, trang "Đồng bộ" hiện như sau — 2 job đầu cùng domain
+`doanhthu_chinhanh`, 2 job sau cùng domain `giaodich_chinhanh`:
+
+![Trang Đồng bộ — đủ 4 job](hinh-huong-dan-ldtd-hcrc/12-dong-bo-4-job.png)
+
+**Riêng Ánh xạ mã chi nhánh (`BU_ID`)** — job 3 VÀ job 4 đều cần bật, vì cả
+2 đều đọc từ `TRANSHDR` (khoá gốc `BU_ID`, chưa phải mã chuẩn). Khai sẵn
+bảng quy đổi ở menu **"Ánh xạ mã chi nhánh"** (mỗi dòng: `BU_ID` nào ứng
+với mã siêu thị chuẩn nào) TRƯỚC khi 2 job này chạy thật — chưa khai đủ
+vẫn chạy được, chỉ ghi cảnh báo ở Log cho những mã chưa khai (xem
+`etl/README.md`).
 
 ---
 
@@ -439,21 +493,33 @@ nhận riêng theo đúng nhóm HCRC.
 
 ## Bước 7 — Kiểm tra
 
-1. **etl-admin → Đồng bộ** — đối chiếu cả 2 job đã chạy ít nhất 1 lần
-   (xem menu "Log"), không báo lỗi.
-2. **etl-admin → Log** — nếu job Giao dịch báo "còn mã BU_ID chưa ánh xạ",
-   bổ sung tiếp vào "Ánh xạ mã chi nhánh".
-3. Mở báo cáo LDTD ở rp-user, chọn "Ngày báo cáo", bấm chạy — kiểm tra:
+1. **etl-admin → Đồng bộ** — đối chiếu cả **4 job** đã chạy ít nhất 1 lần
+   (xem menu "Log"), không báo lỗi — kể cả 2 job "Lịch sử" (chạy lần đầu
+   có thể mất thời gian hơn Live vì kéo nguyên lịch sử nhiều tháng/năm).
+2. **etl-admin → Log** — nếu job Giao dịch (Live hoặc Lịch sử) báo "còn mã
+   BU_ID chưa ánh xạ", bổ sung tiếp vào "Ánh xạ mã chi nhánh".
+3. Mở báo cáo LDTD ở rp-user, chọn "Ngày báo cáo" là **hôm nay**, bấm chạy
+   — kiểm tra:
    - Đủ số siêu thị đang hoạt động, đúng nhóm MART/MINIMART.
    - Cột "Lãi gộp - Tỷ lệ (%)" KHÔNG phải 100% ở mọi siêu thị (nếu đúng
      100% ở mọi dòng — dấu hiệu `COSTPRICE.MEC_YM` sai định dạng, xem lại
      Bước 1).
    - Cột Giao dịch có số liệu (không trống toàn bộ — nếu trống, kiểm tra
      lại "Ánh xạ mã chi nhánh").
-4. Sửa thử 1 dòng chỉ tiêu ở trang "Chỉ tiêu Lãnh đạo Tập đoàn", xác nhận
+   - **Cột "Cùng kỳ năm 2025" và "Tỷ lệ % LFL" có số liệu** (không trống)
+     — đây là cột lấy từ CSDL Lịch sử (`DSMART16_EOM`), nếu trống nghĩa là
+     2 job "Lịch sử" (Doanh thu + Giao dịch) chưa chạy được hoặc VIEW ở
+     `DSMART16_EOM` chưa tạo đúng — quay lại kiểm tra Bước 1/2.2.
+4. Đối chiếu 1 siêu thị bất kỳ: mở lại báo cáo, đổi "Ngày báo cáo" sang
+   **đúng ngày này năm ngoái** — số ở cột "Thực đạt" của lần chạy đó phải
+   KHỚP với số ở cột "Cùng kỳ năm 2025" khi chạy báo cáo cho ngày hôm nay
+   (cùng 1 số liệu, chỉ khác đọc từ domain `directDb` bình thường hay từ
+   khối `lastYear`/`dateOffsetYears: -1`) — xác nhận dữ liệu Lịch sử đúng,
+   không bị lệch ngày.
+5. Sửa thử 1 dòng chỉ tiêu ở trang "Chỉ tiêu Lãnh đạo Tập đoàn", xác nhận
    báo cáo HCRC KHÔNG đổi theo (và ngược lại) — xác nhận đúng 2 domain chỉ
    tiêu độc lập.
-5. Ở trang Phân quyền, đăng nhập thử bằng 1 tài khoản chỉ có vai trò "HCRC"
+6. Ở trang Phân quyền, đăng nhập thử bằng 1 tài khoản chỉ có vai trò "HCRC"
    — xác nhận CHỈ thấy báo cáo `bc-doanh-thu-hcrc`, không thấy báo cáo
    LDTD.
 

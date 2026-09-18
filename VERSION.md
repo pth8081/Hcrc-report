@@ -20,6 +20,30 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 6.41 — Sửa lại kiến trúc ETL cho đúng: DSMART16 là 2 CSDL (Live + DSMART16_EOM) (docs)
+
+Người dùng cho biết DSMART16 thật ra gồm 2 CSDL — `DSMART16` (dữ liệu
+trong tháng, Live) và `DSMART16_EOM` (dữ liệu quá khứ) — nên "Cùng kỳ năm
+trước"/"Tỷ lệ % LFL" của báo cáo LDTD/HCRC phải đọc từ CẢ 2 nguồn, không
+phải 1 như bản trước. Viết lại `báo cáo doanh thu cuối ngày.md`:
+- Bối cảnh đầu file + "Tổng quan các bước" giải thích rõ mô hình 2 CSDL,
+  khớp đúng cơ chế "2 nguồn Live + Lịch sử" đã có sẵn ở
+  `hướng_dẫn_báo_cáo.md` mục 11 (domain trùng nhau giữa 2 job tự ghép theo
+  SourceSystem/EventDate, không ghi đè nhau).
+- Bước 1: chạy VIEW trên CẢ 2 CSDL (không phải 1), thêm cảnh báo cụ thể
+  `DSMART16_EOM` có thể THIẾU bảng `STOCK`/`COSTPRICE` (bảng danh mục ít
+  khi lưu theo tháng quá khứ) kèm cách sửa VIEW tham chiếu chéo CSDL nếu
+  cùng máy chủ.
+- Bước 2 viết lại hoàn toàn: thêm bước khai 2 "Nguồn dữ liệu" (Live trỏ
+  `DSMART16`, Lịch sử trỏ `DSMART16_EOM`), đổi từ 2 job thành **4 job**
+  (Doanh thu × 2 nguồn, Giao dịch × 2 nguồn — mỗi cặp CÙNG domain, lịch
+  chạy job Lịch sử thưa hơn vì dữ liệu đã đóng sổ), kèm 2 ảnh mới
+  (`11-nguon-du-lieu-danh-sach.png`, `12-dong-bo-4-job.png`) thay ảnh danh
+  sách 2-job cũ (đã xoá).
+- Bước 7 (Kiểm tra) thêm bước đối chiếu số liệu "Cùng kỳ năm trước" khớp
+  đúng ngày cùng kỳ khi tự chạy lại, xác nhận cả 4 job (không phải 2) đã
+  chạy được. Không có thay đổi code — chỉ tài liệu.
+
 ## 6.40 — Thêm Bước 6 "Lịch gửi email" (kèm ảnh) + trả lời VIEW có tồn tại mãi mãi không (docs)
 
 `báo cáo doanh thu cuối ngày.md`: (1) bổ sung vào cuối Bước 1 phần giải
