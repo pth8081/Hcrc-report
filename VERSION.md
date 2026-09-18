@@ -20,6 +20,16 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 6.38 — Tách "báo cáo doanh thu cuối ngày.md" thành file độc lập, tự đủ (docs)
+
+Theo yêu cầu người dùng ("tôi muốn riêng ra") — file không còn phải mở
+`hướng_dẫn_báo_cáo.md` để lấy `DefinitionJson`: chèn nguyên khối JSON đầy
+đủ (cả LDTD lẫn HCRC) trực tiếp vào Bước 4, và giải thích ngắn gọn ngay tại
+chỗ lý do bắt buộc 2 domain riêng cho doanh thu/giao dịch (thay vì trỏ sang
+mục 15). File giờ làm được từ đầu đến cuối độc lập; `hướng_dẫn_báo_cáo.md`
+mục 11/15 chỉ còn cần thiết cho ai muốn đọc sâu kiến trúc/lý do kỹ thuật.
+Không có thay đổi code — chỉ tài liệu.
+
 ## 6.37 — Liên kết mục 15 sổ tay tới file có ảnh minh hoạ (docs)
 
 `hướng_dẫn_báo_cáo.md` mục 15 thêm callout đầu mục trỏ sang

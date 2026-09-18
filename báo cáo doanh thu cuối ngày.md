@@ -1,10 +1,11 @@
 # Hướng dẫn từng bước: tạo báo cáo "Báo cáo nhanh doanh thu" cho Lãnh đạo Tập đoàn (LDTD) và HCRC
 
-File này gộp lại thành 1 quy trình đầy đủ, có ảnh minh hoạ, để tự tay dựng
-2 báo cáo cuối ngày — dựa trên phần kỹ thuật đã viết ở `hướng_dẫn_báo_cáo.md`
-mục 15 (và mục 11 cho phần DSMART16). Đọc file đó nếu cần đối chiếu chi tiết
-công thức/`DefinitionJson` đầy đủ — file này tập trung vào **thao tác trên
-giao diện, theo đúng thứ tự bấm**.
+File này ĐỘC LẬP, đủ để làm từ đầu đến cuối không cần mở file khác — gồm cả
+VIEW SQL, thao tác trên giao diện (kèm ảnh), và nguyên khối `DefinitionJson`
+để dán thẳng vào rp-user. Phần giải thích kiến trúc/lý do kỹ thuật sâu hơn
+(vì sao 2 domain riêng, các domain DSMART16 khác ngoài 2 báo cáo này...) xem
+thêm `hướng_dẫn_báo_cáo.md` mục 11/15 — nhưng không bắt buộc phải đọc để
+làm theo file này.
 
 > **Lưu ý về ảnh minh hoạ**: ảnh chụp dưới đây lấy từ ĐÚNG giao diện thật
 > của etl-admin/rp-user (không phải hình vẽ tay), nhưng dữ liệu hiển thị
@@ -136,8 +137,13 @@ Lặp lại y hệt, đổi các ô sau:
 - **Cột ngày (EventDate)**: `TRAN_DATE`.
 - **Cột thời gian cập nhật**: `TRAN_DATE`.
 - **Cột đưa vào Measures**: tick `SoGiaoDich` (đúng chữ hoa như VIEW đã đặt).
-- **Domain**: gõ `giaodich_chinhanh` (KHÁC domain job 1 — xem giải thích ở
-  `hướng_dẫn_báo_cáo.md` mục 15 vì sao bắt buộc 2 domain riêng).
+- **Domain**: gõ `giaodich_chinhanh` (KHÁC domain job 1 — BẮT BUỘC 2 domain
+  riêng: `dwh.ReportFacts` ghi đè NGUYÊN CỘT số liệu khi trùng khoá
+  (SourceSystem, Domain, EntityCode, EventDate); doanh thu (khoá `STK_ID`)
+  và giao dịch (khoá `BU_ID`) là 2 job/2 bảng nguồn khác nhau — nếu dùng
+  chung 1 domain, job nào chạy sau trong ngày sẽ XOÁ MẤT số liệu job chạy
+  trước mà không báo lỗi gì. Báo cáo ở Bước 4 sẽ tự ghép lại 2 domain này
+  theo đúng mã siêu thị).
 - **Tick "Giữ lịch sử theo ngày"**.
 - **Ánh xạ mã chi nhánh**: gõ `BU_ID` — BẮT BUỘC cho job này, để hệ thống tự
   quy đổi `BU_ID` sang đúng mã siêu thị chuẩn (khớp `STK_ID` ở job 1) trước
@@ -187,6 +193,11 @@ cứng `sales-targets-hcrc` — độc lập hoàn toàn với trang trên):
 
 Vào rp-user, menu **"Hệ thống → Biểu mẫu"**, tab **"Báo cáo"** (mặc định).
 
+**Tên field cần đối chiếu lại theo đúng tên bạn đặt khi tạo Sync Job/nhập
+chỉ tiêu** (`dienTich`, `doanhThu`, `laiGop`, `SoGiaoDich`,
+`ChiTieuDoanhThu`, `ChiTieuGiaoDich`) — JSON dưới đây khớp đúng tên đã dùng
+xuyên suốt file này (Bước 2/3), không cần sửa nếu bạn làm đúng theo trên.
+
 ### Báo cáo Lãnh đạo Tập đoàn
 
 Điền form:
@@ -196,11 +207,55 @@ Vào rp-user, menu **"Hệ thống → Biểu mẫu"**, tab **"Báo cáo"** (m�
 - **Domain**: `doanhthu_chinhanh`
 - **Trang báo cáo**: chọn 1 trang (vd "Báo cáo kinh doanh")
 - **SourceType**: chọn **"Ghép nhiều nguồn (composite)"**
-- **DefinitionJson**: dán nguyên khối JSON đầy đủ ở
-  `hướng_dẫn_báo_cáo.md` mục 15 (mục "Báo cáo Lãnh đạo Tập đoàn (LDTD)") —
-  khối `blocks` có 5 phần tử (`current`, `currentGD`, `lastYear`,
-  `lastYearGD`, `target`), `targetDomain` của khối `target` là
-  `"sales-targets-ldtd"`.
+- **DefinitionJson**: dán nguyên khối sau:
+
+```json
+{
+  "title": "Báo cáo nhanh doanh thu - Lãnh đạo Tập đoàn",
+  "domain": "doanhthu_chinhanh",
+  "filters": [
+    { "field": "eventDate", "type": "date", "label": "Ngày báo cáo" }
+  ],
+  "blocks": [
+    { "key": "current", "sourceType": "directDb", "domain": "doanhthu_chinhanh" },
+    { "key": "currentGD", "sourceType": "directDb", "domain": "giaodich_chinhanh" },
+    { "key": "lastYear", "sourceType": "directDb", "domain": "doanhthu_chinhanh", "dateOffsetYears": -1 },
+    { "key": "lastYearGD", "sourceType": "directDb", "domain": "giaodich_chinhanh", "dateOffsetYears": -1 },
+    { "key": "target", "isTarget": true, "targetDomain": "sales-targets-ldtd" }
+  ],
+  "columns": [
+    { "key": "tenCuaHang", "label": "Siêu thị/Cửa hàng", "formula": "entityCode" },
+    { "key": "dienTich", "label": "Diện tích", "formula": "current.dimensions.dienTich" },
+
+    { "key": "dt_chiTieu", "label": "Doanh thu - Chỉ tiêu", "formula": "target.ChiTieuDoanhThu" },
+    { "key": "dt_thucDat", "label": "Doanh thu - Thực đạt", "formula": "current.measures.doanhThu" },
+    { "key": "dt_tyLeDat", "label": "Doanh thu - Tỉ lệ đạt (%)", "formula": "ROUND(current.measures.doanhThu / target.ChiTieuDoanhThu * 100, 1)" },
+    { "key": "dt_cungKy", "label": "Doanh thu - Cùng kỳ năm 2025", "formula": "lastYear.measures.doanhThu" },
+    { "key": "dt_lfl", "label": "Doanh thu - Tỷ lệ % LFL", "formula": "ROUND(current.measures.doanhThu / lastYear.measures.doanhThu * 100, 1)" },
+
+    { "key": "lg_tyLe", "label": "Lãi gộp - Tỷ lệ (%)", "formula": "ROUND(current.measures.laiGop / current.measures.doanhThu * 100, 1)" },
+    { "key": "lg_giaTri", "label": "Lãi gộp - Giá trị", "formula": "current.measures.laiGop" },
+
+    { "key": "gd_chiTieu", "label": "Giao dịch - Chỉ tiêu", "formula": "target.ChiTieuGiaoDich" },
+    { "key": "gd_thucDat", "label": "Giao dịch - Thực đạt", "formula": "currentGD.measures.SoGiaoDich" },
+    { "key": "gd_tyLeDat", "label": "Giao dịch - Tỷ lệ đạt (%)", "formula": "ROUND(currentGD.measures.SoGiaoDich / target.ChiTieuGiaoDich * 100, 1)" },
+    { "key": "gd_cungKy", "label": "Giao dịch - Cùng kỳ năm 2025", "formula": "lastYearGD.measures.SoGiaoDich" },
+    { "key": "gd_lfl", "label": "Giao dịch - Tỷ lệ % LFL", "formula": "ROUND(currentGD.measures.SoGiaoDich / lastYearGD.measures.SoGiaoDich * 100, 1)" },
+
+    { "key": "trungBinhGD", "label": "Trung bình GD", "formula": "ROUND(current.measures.doanhThu / currentGD.measures.SoGiaoDich, 0)" },
+    { "key": "doanhThuTrenM2", "label": "Doanh thu/m2", "formula": "ROUND(current.measures.doanhThu / current.dimensions.dienTich, 0)" }
+  ],
+  "groupBy": {
+    "field": "current.dimensions.chain",
+    "groups": [
+      { "value": "MART", "label": "Tổng cộng MART" },
+      { "value": "MINIMART", "label": "Tổng cộng MINIMART" }
+    ],
+    "grandTotalLabel": "Tổng cộng",
+    "labelColumn": "tenCuaHang"
+  }
+}
+```
 
 Form lúc đang dán JSON (khung cuộn xuống thấy phần cuối, khối `target`):
 
@@ -216,9 +271,56 @@ Lặp lại y hệt, đổi:
 
 - **Mã báo cáo**: `bc-doanh-thu-hcrc`
 - **Tiêu đề**: `Báo cáo nhanh doanh thu - HCRC`
-- **DefinitionJson**: dùng khối JSON "Báo cáo HCRC" ở mục 15 — chỉ khác
-  `title` và `targetDomain` = `"sales-targets-hcrc"`, mọi thứ khác GIỐNG HỆT
-  báo cáo LDTD (cùng domain thực đạt).
+- **DefinitionJson**: HỆT khối trên, chỉ đổi `title` và `targetDomain` của
+  khối `target`:
+
+```json
+{
+  "title": "Báo cáo nhanh doanh thu - HCRC",
+  "domain": "doanhthu_chinhanh",
+  "filters": [
+    { "field": "eventDate", "type": "date", "label": "Ngày báo cáo" }
+  ],
+  "blocks": [
+    { "key": "current", "sourceType": "directDb", "domain": "doanhthu_chinhanh" },
+    { "key": "currentGD", "sourceType": "directDb", "domain": "giaodich_chinhanh" },
+    { "key": "lastYear", "sourceType": "directDb", "domain": "doanhthu_chinhanh", "dateOffsetYears": -1 },
+    { "key": "lastYearGD", "sourceType": "directDb", "domain": "giaodich_chinhanh", "dateOffsetYears": -1 },
+    { "key": "target", "isTarget": true, "targetDomain": "sales-targets-hcrc" }
+  ],
+  "columns": [
+    { "key": "tenCuaHang", "label": "Siêu thị/Cửa hàng", "formula": "entityCode" },
+    { "key": "dienTich", "label": "Diện tích", "formula": "current.dimensions.dienTich" },
+
+    { "key": "dt_chiTieu", "label": "Doanh thu - Chỉ tiêu", "formula": "target.ChiTieuDoanhThu" },
+    { "key": "dt_thucDat", "label": "Doanh thu - Thực đạt", "formula": "current.measures.doanhThu" },
+    { "key": "dt_tyLeDat", "label": "Doanh thu - Tỉ lệ đạt (%)", "formula": "ROUND(current.measures.doanhThu / target.ChiTieuDoanhThu * 100, 1)" },
+    { "key": "dt_cungKy", "label": "Doanh thu - Cùng kỳ năm 2025", "formula": "lastYear.measures.doanhThu" },
+    { "key": "dt_lfl", "label": "Doanh thu - Tỷ lệ % LFL", "formula": "ROUND(current.measures.doanhThu / lastYear.measures.doanhThu * 100, 1)" },
+
+    { "key": "lg_tyLe", "label": "Lãi gộp - Tỷ lệ (%)", "formula": "ROUND(current.measures.laiGop / current.measures.doanhThu * 100, 1)" },
+    { "key": "lg_giaTri", "label": "Lãi gộp - Giá trị", "formula": "current.measures.laiGop" },
+
+    { "key": "gd_chiTieu", "label": "Giao dịch - Chỉ tiêu", "formula": "target.ChiTieuGiaoDich" },
+    { "key": "gd_thucDat", "label": "Giao dịch - Thực đạt", "formula": "currentGD.measures.SoGiaoDich" },
+    { "key": "gd_tyLeDat", "label": "Giao dịch - Tỷ lệ đạt (%)", "formula": "ROUND(currentGD.measures.SoGiaoDich / target.ChiTieuGiaoDich * 100, 1)" },
+    { "key": "gd_cungKy", "label": "Giao dịch - Cùng kỳ năm 2025", "formula": "lastYearGD.measures.SoGiaoDich" },
+    { "key": "gd_lfl", "label": "Giao dịch - Tỷ lệ % LFL", "formula": "ROUND(currentGD.measures.SoGiaoDich / lastYearGD.measures.SoGiaoDich * 100, 1)" },
+
+    { "key": "trungBinhGD", "label": "Trung bình GD", "formula": "ROUND(current.measures.doanhThu / currentGD.measures.SoGiaoDich, 0)" },
+    { "key": "doanhThuTrenM2", "label": "Doanh thu/m2", "formula": "ROUND(current.measures.doanhThu / current.dimensions.dienTich, 0)" }
+  ],
+  "groupBy": {
+    "field": "current.dimensions.chain",
+    "groups": [
+      { "value": "MART", "label": "Tổng cộng MART" },
+      { "value": "MINIMART", "label": "Tổng cộng MINIMART" }
+    ],
+    "grandTotalLabel": "Tổng cộng",
+    "labelColumn": "tenCuaHang"
+  }
+}
+```
 
 ---
 
