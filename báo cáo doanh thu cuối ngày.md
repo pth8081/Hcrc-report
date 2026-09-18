@@ -27,7 +27,9 @@ làm theo file này.
    `DefinitionJson`.
 5. rp-user → **Hệ thống → Phân quyền**: gán quyền xem đúng báo cáo cho đúng
    nhóm.
-6. Kiểm tra lại.
+6. rp-user → **Hệ thống → Lịch gửi email báo cáo**: đặt lịch gửi tự động
+   (không bắt buộc).
+7. Kiểm tra lại.
 
 ---
 
@@ -70,6 +72,21 @@ VIEW. Vì vậy bước này thường là việc của **DBA/IT quản trị DS
 Sau khi VIEW đã tồn tại, tài khoản chỉ-đọc dùng ở etl-admin cần được cấp
 thêm quyền `SELECT` trên đúng 2 VIEW đó (DBA cấp quyền, không cần quyền tạo
 VIEW).
+
+**VIEW có tồn tại mãi mãi không?** Có — `CREATE VIEW` tạo ra 1 object lưu
+CỐ ĐỊNH trong CSDL (giống như tạo 1 bảng), KHÔNG tự hết hạn, KHÔNG mất khi
+khởi động lại máy chủ SQL Server, KHÔNG cần chạy lại. VIEW chỉ mất đi nếu
+có ai đó chủ động chạy `DROP VIEW <tên>`. Cần lưu ý 2 điều:
+
+- VIEW **không lưu dữ liệu riêng** — nó chỉ là 1 câu `SELECT` đã lưu sẵn
+  tên. Mỗi lần job đồng bộ (Bước 2) đọc VIEW, SQL Server tự chạy LẠI câu
+  `SELECT` đó trên dữ liệu THẬT MỚI NHẤT của `DSTK_INFO`/`TRANSHDR`/
+  `STOCK`/`COSTPRICE` — không phải đọc số liệu cũ đã "chụp" từ lúc tạo VIEW.
+- Nếu sau này DBA đổi cấu trúc 1 trong 4 bảng nguồn (đổi tên cột, xoá cột
+  đang dùng trong VIEW...), VIEW sẽ báo lỗi khi chạy — cần sửa lại câu
+  `CREATE VIEW` (dùng `ALTER VIEW` để sửa, không cần xoá tạo lại) cho khớp
+  cấu trúc mới. Việc này hiếm khi xảy ra với 1 hệ thống đã ổn định như
+  DSMART16.
 
 ```sql
 -- VIEW 1: Doanh thu + Lãi gộp + Diện tích + Nhóm chuỗi, gộp theo (chi nhánh, ngày)
@@ -380,7 +397,47 @@ Lặp lại cho vai trò còn lại (chọn đúng báo cáo tương ứng).
 
 ---
 
-## Bước 6 — Kiểm tra
+## Bước 6 — rp-user: đặt lịch gửi email tự động (không bắt buộc, nhưng thường cần cho báo cáo cuối ngày)
+
+Vào **"Hệ thống → Lịch gửi email báo cáo"**. Trang này gửi tự động MỘT báo
+cáo cho danh sách người nhận theo lịch — dùng cấu hình SMTP chung đã khai ở
+trang "Thiết lập email" (khai 1 lần cho cả hệ thống, không nằm trong phạm
+vi file này).
+
+Điền form "Thêm đồng bộ mới" (phần trên trang):
+
+1. **Tên lịch**: đặt tên dễ nhận, vd "Doanh thu ngày - Lãnh đạo Tập đoàn".
+2. **Báo cáo**: chọn đúng `bc-doanh-thu-ldtd` vừa tạo ở Bước 4.
+3. Tab **"Đơn giản"** (mặc định) → **Tần suất**: "Hàng ngày". **Giờ gửi**:
+   mặc định 1 dòng `07:00` — bấm **"+ Thêm giờ gửi"** nếu cần gửi nhiều lần
+   trong ngày (vd thêm dòng `17:00` để gửi cả sáng lẫn chiều — mỗi giờ theo
+   dõi thành công/lỗi riêng).
+4. **Người nhận**: gõ danh sách email, phân tách dấu phẩy (vd
+   `bangiamdoc@hcrc.vn, ketoantruong@hcrc.vn`).
+5. **Tiêu đề email (Subject)**: gõ `{ngay}` ở chỗ muốn chèn ngày gửi, vd
+   `Báo Cáo Nhanh Doanh Thu, Ngày: {ngay}`. Để trống thì dùng mẫu mặc định.
+6. **Cách gửi**: giữ **"File đính kèm (Excel/PDF)"** (đơn giản nhất) rồi
+   chọn **Định dạng xuất** — Excel hoặc PDF. (Có tuỳ chọn khác "Bảng ngay
+   trong nội dung email" kèm tô màu cảnh báo theo ngưỡng — không bắt buộc,
+   xem thêm ở `hướng_dẫn_báo_cáo.md` mục 4 nếu cần).
+7. Bấm **"Tạo lịch"**.
+
+Form lúc đã điền đủ (2 giờ gửi 09:00 và 17:00):
+
+![Form tạo lịch gửi email — điền đầy đủ](hinh-huong-dan-ldtd-hcrc/09-lich-gui-email-form.png)
+
+Sau khi tạo, lịch xuất hiện trong bảng bên dưới — bấm **"Gửi ngay"** để thử
+gửi ngay lập tức (không cần đợi tới giờ đã đặt), kiểm tra hộp thư người
+nhận có tới không:
+
+![Danh sách lịch — đã gửi thử thành công](hinh-huong-dan-ldtd-hcrc/10-lich-gui-email-da-gui.png)
+
+Lặp lại y hệt cho báo cáo HCRC (`bc-doanh-thu-hcrc`) — đặt tên lịch, người
+nhận riêng theo đúng nhóm HCRC.
+
+---
+
+## Bước 7 — Kiểm tra
 
 1. **etl-admin → Đồng bộ** — đối chiếu cả 2 job đã chạy ít nhất 1 lần
    (xem menu "Log"), không báo lỗi.

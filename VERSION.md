@@ -20,6 +20,18 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 6.40 — Thêm Bước 6 "Lịch gửi email" (kèm ảnh) + trả lời VIEW có tồn tại mãi mãi không (docs)
+
+`báo cáo doanh thu cuối ngày.md`: (1) bổ sung vào cuối Bước 1 phần giải
+thích VIEW là object lưu cố định trong CSDL, không tự hết hạn, luôn đọc dữ
+liệu SỐNG mỗi lần job chạy (không phải bản chụp cũ) — chỉ mất nếu ai đó
+chủ động `DROP VIEW`; (2) thêm Bước 6 mới "rp-user: đặt lịch gửi email tự
+động" với 2 ảnh chụp giao diện thật (`09-lich-gui-email-form.png`,
+`10-lich-gui-email-da-gui.png`) — form tạo lịch (tên, báo cáo, nhiều giờ
+gửi/ngày, người nhận, subject, cách gửi) và danh sách sau khi bấm "Gửi
+ngay" thành công; đổi "Kiểm tra" thành Bước 7. Không có thay đổi code —
+chỉ tài liệu.
+
 ## 6.39 — Làm rõ "làm ngoài web" nghĩa là gì ở Bước 1 (docs)
 
 Người dùng hỏi "làm ngoài web là làm ở đâu và như thế nào" cho bước tạo 2
