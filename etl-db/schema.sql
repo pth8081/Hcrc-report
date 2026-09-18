@@ -346,29 +346,37 @@ GO
 
 -- Tách trang "Nhập chỉ tiêu" (MenuCode cũ 'sales-targets') thành 2 trang ĐỘC
 -- LẬP theo đúng 2 báo cáo tiêu thụ chỉ tiêu — "Lãnh đạo Tập đoàn" và "HCRC"
--- — mỗi báo cáo do 1 nhóm khác nhau quản lý/nhập liệu, cần giao quyền tách
--- bạch (xem routes/admin/roles.js MENU_CATALOG + routes/admin/salesTargets.js).
--- MỌI vai trò (kể cả tuỳ chỉnh do admin tự tạo qua UI, không chỉ
--- target_importer) đang có MenuCode='sales-targets' -> tự động được cấp
--- LUÔN CẢ 2 trang mới với đúng CanEdit cũ (an toàn nhất khi migrate: không
--- biết trước admin dự định giao vai trò đó cho báo cáo nào trong 2 báo cáo
--- — admin tự vào "Vai trò" bớt lại 1 trong 2 nếu muốn tách hẳn). Idempotent
--- — chỉ chạy nếu vẫn còn dòng 'sales-targets' cũ.
-IF EXISTS (SELECT 1 FROM admin.RoleMenuAccess WHERE MenuCode = 'sales-targets')
+-- (xem routes/admin/roles.js MENU_CATALOG + routes/admin/salesTargets.js).
+-- Theo YÊU CẦU RÕ của người dùng: 2 báo cáo này KHÔNG được gộp chung vai
+-- trò với nhau (kể cả vai trò `target_importer` cũ) — mỗi báo cáo có 1 NHÓM
+-- NGHIỆP VỤ RIÊNG quản lý/nhập liệu, không liên quan/không cùng IT quản lý
+-- — nên KHÔNG tự động copy quyền cũ sang CẢ 2 trang mới (khác cách làm ban
+-- đầu — xem lịch sử Git nếu cần đối chiếu). Thay vào đó: xoá sạch mọi dòng
+-- RoleMenuAccess còn giữ MenuCode cũ đã hết hiệu lực, và seed 2 vai trò MỚI
+-- HOÀN TOÀN, mỗi vai trò CHỈ gắn ĐÚNG 1 trong 2 trang mới.
+--
+-- Vai trò `target_importer` cũ giữ nguyên (không xoá, tránh vỡ tài khoản
+-- đang gán) nhưng từ nay KHÔNG còn trang nào cả — admin PHẢI chủ động vào
+-- "Vai trò" gán lại từng tài khoản đang có vai trò này sang ĐÚNG 1 trong 2
+-- vai trò mới bên dưới theo đúng nhóm nghiệp vụ họ phụ trách (không đoán hộ
+-- vì không có cơ sở để tự chọn đúng).
+DELETE FROM admin.RoleMenuAccess WHERE MenuCode = 'sales-targets';
+
+IF NOT EXISTS (SELECT 1 FROM admin.Roles WHERE Code = 'target_importer_corp')
+    INSERT INTO admin.Roles (Code, Name, IsSystemRole) VALUES ('target_importer_corp', N'Nhập chỉ tiêu - Lãnh đạo Tập đoàn', 0);
+IF NOT EXISTS (SELECT 1 FROM admin.Roles WHERE Code = 'target_importer_hcrc')
+    INSERT INTO admin.Roles (Code, Name, IsSystemRole) VALUES ('target_importer_hcrc', N'Nhập chỉ tiêu - HCRC', 0);
+GO
+
+IF NOT EXISTS (SELECT 1 FROM admin.RoleMenuAccess rma JOIN admin.Roles r ON rma.RoleId = r.Id WHERE r.Code = 'target_importer_corp')
 BEGIN
-    INSERT INTO admin.RoleMenuAccess (RoleId, MenuCode, CanEdit)
-    SELECT rma.RoleId, 'sales-targets-corp', rma.CanEdit
-    FROM admin.RoleMenuAccess rma
-    WHERE rma.MenuCode = 'sales-targets'
-      AND NOT EXISTS (SELECT 1 FROM admin.RoleMenuAccess x WHERE x.RoleId = rma.RoleId AND x.MenuCode = 'sales-targets-corp');
-
-    INSERT INTO admin.RoleMenuAccess (RoleId, MenuCode, CanEdit)
-    SELECT rma.RoleId, 'sales-targets-hcrc', rma.CanEdit
-    FROM admin.RoleMenuAccess rma
-    WHERE rma.MenuCode = 'sales-targets'
-      AND NOT EXISTS (SELECT 1 FROM admin.RoleMenuAccess x WHERE x.RoleId = rma.RoleId AND x.MenuCode = 'sales-targets-hcrc');
-
-    DELETE FROM admin.RoleMenuAccess WHERE MenuCode = 'sales-targets';
+    DECLARE @targetImporterCorpRoleId INT = (SELECT Id FROM admin.Roles WHERE Code = 'target_importer_corp');
+    INSERT INTO admin.RoleMenuAccess (RoleId, MenuCode, CanEdit) VALUES (@targetImporterCorpRoleId, 'sales-targets-corp', 1);
+END
+IF NOT EXISTS (SELECT 1 FROM admin.RoleMenuAccess rma JOIN admin.Roles r ON rma.RoleId = r.Id WHERE r.Code = 'target_importer_hcrc')
+BEGIN
+    DECLARE @targetImporterHcrcRoleId INT = (SELECT Id FROM admin.Roles WHERE Code = 'target_importer_hcrc');
+    INSERT INTO admin.RoleMenuAccess (RoleId, MenuCode, CanEdit) VALUES (@targetImporterHcrcRoleId, 'sales-targets-hcrc', 1);
 END
 GO
 

@@ -65,13 +65,17 @@ ranh giới "chỉ etl ghi DWH" xuyên suốt kiến trúc.
 RIÊNG tài khoản CSDL `dwh_target_importer` (biến `DWH_TARGET_IMPORTER_*`
 trong `.env`), CHỈ có quyền trên đúng 1 bảng `dwh.SalesTargets`, không đụng
 được `dwh.ReportFacts` dù chạy trong cùng tiến trình `etl` — xem
-`dwh/grants.sql`. Ở tầng ứng dụng, vai trò `target_importer` (mặc định được
-cấp CẢ 2 trang mới qua migrate — xem `etl-db/schema.sql`) CHỈ thấy 2 trang
-"Chỉ tiêu Lãnh đạo Tập đoàn"/"Chỉ tiêu HCRC" trong `etl-admin/`, không thấy
-Nguồn dữ liệu/Đồng bộ (hạ tầng ETL thật) — cấp cho nhân sự chỉ cần nhập chỉ
-tiêu hàng tháng, không phải quản trị ETL đầy đủ. Muốn tách hẳn 1 nhóm chỉ
-nhập ĐÚNG 1 trong 2 báo cáo — vào "Vai trò" tạo vai trò mới, chỉ tick đúng 1
-MenuCode (`sales-targets-corp` hoặc `sales-targets-hcrc`).
+`dwh/grants.sql`. Ở tầng ứng dụng: 2 báo cáo này KHÔNG dùng chung 1 vai trò
+— 2 nhóm nghiệp vụ khác nhau quản lý/nhập liệu, không cùng IT quản lý —
+nên có 2 vai trò MỚI HOÀN TOÀN, mỗi vai trò CHỈ thấy đúng 1 trang:
+`target_importer_corp` (CHỈ "Chỉ tiêu Lãnh đạo Tập đoàn") và
+`target_importer_hcrc` (CHỈ "Chỉ tiêu HCRC") — cả 2 đều KHÔNG thấy Nguồn dữ
+liệu/Đồng bộ (hạ tầng ETL thật), cấp đúng cho nhân sự chỉ cần nhập chỉ tiêu
+hàng tháng của ĐÚNG 1 báo cáo, không phải quản trị ETL đầy đủ. Vai trò
+`target_importer` cũ (1 trang chung trước đây) vẫn còn trong `admin.Roles`
+nhưng từ nay KHÔNG còn menu nào — nếu có tài khoản đang gán vai trò này,
+vào "Vai trò" gán lại thủ công sang ĐÚNG 1 trong 2 vai trò mới theo đúng
+báo cáo người đó phụ trách.
 
 **Định dạng file** — dòng 1 là header, 2 cột đầu CỐ ĐỊNH tên `MaSieuThi` và
 `Thang` (dạng `YYYY-MM`), các cột sau tuỳ ý — tên cột trở thành tên khoá

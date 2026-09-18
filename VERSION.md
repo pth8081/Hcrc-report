@@ -20,6 +20,14 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 6.31 — Sửa 6.30: 2 vai trò MỚI riêng biệt thay vì gộp chung target_importer (etl)
+
+Người dùng làm rõ ngay sau 6.30: 2 báo cáo "Lãnh đạo Tập đoàn"/"HCRC" **không được cùng IT quản lý** — tức không tự động gộp quyền vào vai trò `target_importer` cũ (hay bất kỳ vai trò IT nào đang có), phải là 2 vai trò MỚI HOÀN TOÀN, mỗi vai trò CHỈ gắn đúng 1 trong 2 trang.
+
+- `etl-db/schema.sql`: bỏ hẳn cách làm cũ ở 6.30 (tự động copy quyền `sales-targets` sang CẢ 2 MenuCode mới cho MỌI vai trò đang có) — thay bằng: xoá sạch `RoleMenuAccess` còn giữ MenuCode `sales-targets` đã hết hiệu lực, seed 2 vai trò MỚI `target_importer_corp` (CHỈ `sales-targets-corp`) và `target_importer_hcrc` (CHỈ `sales-targets-hcrc`).
+- Vai trò `target_importer` cũ GIỮ NGUYÊN trong `admin.Roles` (không xoá, tránh vỡ tài khoản đang gán) nhưng từ nay KHÔNG còn menu nào — nếu có tài khoản thật đang gán vai trò này, admin cần chủ động vào "Vai trò" gán lại thủ công sang đúng 1 trong 2 vai trò mới theo đúng người phụ trách từng báo cáo (không có cơ sở để hệ thống tự đoán).
+- `etl/README.md` cập nhật mô tả 2 vai trò mới.
+
 ## 6.30 — Tách "Nhập chỉ tiêu" thành 2 trang độc lập: Lãnh đạo Tập đoàn / HCRC (etl)
 
 Theo yêu cầu: đọc code 2 hệ thống báo cáo ngoài (`ttbc-api.hcrc.vn`, `ttbc.hcrc.vn` — cổng báo cáo nội bộ tên "HCRC Reports", CSDL riêng `BRG_TrungTamBaoCao`, không liên quan kỹ thuật tới `HCRC_DWH` của hệ này) để tìm cấu trúc 2 báo cáo "Lãnh đạo Tập đoàn" và "HCRC cuối ngày". Xác nhận đây là hệ thống báo cáo ĐỘNG (report/cột chỉ tiêu cấu hình bằng dữ liệu trong CSDL, không hardcode trong code đã build) nên không lấy được cấu trúc cột cụ thể từ code — theo xác nhận của người dùng, tách trang hiện có mà KHÔNG đổi cấu trúc nhập liệu (vẫn nhập chỉ tiêu tự do qua cột Exci trong file, domain gõ tay như cũ):
