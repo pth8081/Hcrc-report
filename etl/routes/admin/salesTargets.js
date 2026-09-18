@@ -10,12 +10,24 @@
 // TÁCH thành 2 trang ĐỘC LẬP theo đúng 2 báo cáo tiêu thụ chỉ tiêu ("Lãnh
 // đạo Tập đoàn" / "HCRC"), mỗi báo cáo do 1 nhóm khác nhau quản lý/nhập
 // liệu (xem etl-db/schema.sql phần migrate MenuCode). Route logic HỆT NHAU
-// giữa 2 trang (cùng bảng dwh.SalesTargets, cùng cách nhập Excel — domain
-// vẫn gõ tự do, KHÔNG ép namespace riêng vì Domain phải khớp đúng domain
-// thật đang chạy trong composite report, xem hướng_dẫn_báo_cáo.md mục 5)
-// — chỉ khác MenuCode kiểm quyền, nên dựng thành factory
-// createSalesTargetsRouter(menuCode) thay vì chép file, mount 2 lần ở
-// server.js với 2 menuCode khác nhau.
+// giữa 2 trang (cùng bảng dwh.SalesTargets, cùng cách nhập Excel) — chỉ
+// khác MenuCode kiểm quyền VÀ Domain — nên dựng thành factory
+// createSalesTargetsRouter(menuCode, domain) thay vì chép file, mount 2
+// lần ở server.js với 2 cặp (menuCode, domain) khác nhau.
+//
+// KHOÁ CỨNG Domain theo THAM SỐ (không đọc từ req.query/req.body nữa) —
+// TRƯỚC ĐÂY domain do người dùng gõ tự do giống hệt nhau ở cả 2 trang,
+// khiến 2 nhóm LDTD/HCRC dễ vô tình gõ TRÙNG 1 chuỗi domain (đều đang nhắm
+// tới cùng nghiệp vụ "doanh thu chi nhánh") — dwh.SalesTargets khoá duy
+// nhất theo (Domain, EntityCode, PeriodMonth) nên trùng domain sẽ khiến 2
+// bên GHI ĐÈ CHỈ TIÊU CỦA NHAU, phá đúng yêu cầu "2 nhóm quản lý độc lập,
+// chỉ khác import target" (rà soát theo yêu cầu người dùng). Domain khoá
+// này KHÔNG cần trùng domain của khối "current"/"lastYear" bên báo cáo
+// composite (rp-server) — khối "target" (isTarget:true) đọc targetDomain
+// HOÀN TOÀN ĐỘC LẬP với domain của khối actual/cùng-kỳ, xem
+// hướng_dẫn_báo_cáo.md mục 1 — nên 2 báo cáo LDTD/HCRC vẫn dùng CHUNG 1
+// khối "current" (cùng số liệu thực đạt thật) nhưng trỏ "targetDomain" tới
+// ĐÚNG 1 trong 2 domain khoá cứng dưới đây khi cấu hình báo cáo ở rp-user.
 //
 // Quyền: requireMenuAccess(menuCode) để xem, requireMenuEdit cho PUT/import
 // — vai trò hệ thống luôn qua; vai trò khác cần được cấp đúng trang này
@@ -42,19 +54,18 @@ const upload = multer({
   }
 });
 
-function createSalesTargetsRouter(menuCode) {
+function createSalesTargetsRouter(menuCode, domain) {
 const router = express.Router();
 router.use(requireAdminAuth);
 
 router.get('/', requireMenuAccess(menuCode), async (req, res, next) => {
   try {
-    const { domain, periodMonth } = req.query;
+    const { periodMonth } = req.query;
     const pool = await getPool('DWH_TARGET_IMPORTER');
-    const request = pool.request();
-    const conditions = [];
-    if (domain) { request.input('domain', sql.VarChar(50), domain); conditions.push('Domain = @domain'); }
+    const request = pool.request().input('domain', sql.VarChar(50), domain);
+    const conditions = ['Domain = @domain'];
     if (periodMonth) { request.input('periodMonth', sql.Date, periodMonth); conditions.push('PeriodMonth = @periodMonth'); }
-    const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+    const where = `WHERE ${conditions.join(' AND ')}`;
     const result = await request.query(`
       SELECT Id, Domain, EntityCode, PeriodMonth, TargetsJson, ImportedAt, ImportedBy
       FROM dwh.SalesTargets ${where}
@@ -77,8 +88,7 @@ router.get('/', requireMenuAccess(menuCode), async (req, res, next) => {
 // muốn.
 router.put('/one', requireMenuEdit(menuCode), async (req, res, next) => {
   try {
-    const { domain, entityCode, periodMonth, trangThai, targets } = req.body || {};
-    if (!domain || !domain.trim()) return res.status(400).json({ error: 'Thiếu domain' });
+    const { entityCode, periodMonth, trangThai, targets } = req.body || {};
     if (!entityCode || !String(entityCode).trim()) return res.status(400).json({ error: 'Thiếu entityCode (mã siêu thị)' });
     if (!PERIOD_RE.test(periodMonth || '')) {
       return res.status(400).json({ error: '"periodMonth" phải dạng YYYY-MM' });
@@ -95,20 +105,18 @@ router.put('/one', requireMenuEdit(menuCode), async (req, res, next) => {
     }
 
     const pool = await getPool('DWH_TARGET_IMPORTER');
-    const result = await upsertSalesTargets(pool, domain.trim(), [{
+    const result = await upsertSalesTargets(pool, domain, [{
       entityCode: String(entityCode).trim(),
       periodMonth: new Date(`${periodMonth}-01T00:00:00Z`),
       targets: mergedTargets
     }], req.admin.username);
-    await logAction(req, { module: 'Nhập chỉ tiêu', actionType: 'SUA_CHI_TIEU', targetObject: `${domain.trim()}/${entityCode}/${periodMonth}`, description: `Sửa chỉ tiêu "${entityCode}" tháng ${periodMonth} (domain "${domain.trim()}")` });
+    await logAction(req, { module: 'Nhập chỉ tiêu', actionType: 'SUA_CHI_TIEU', targetObject: `${domain}/${entityCode}/${periodMonth}`, description: `Sửa chỉ tiêu "${entityCode}" tháng ${periodMonth} (domain "${domain}")` });
     res.json(result);
   } catch (err) { next(err); }
 });
 
 router.post('/import', requireMenuEdit(menuCode), upload.single('file'), async (req, res, next) => {
   try {
-    const { domain } = req.body || {};
-    if (!domain || !domain.trim()) return res.status(400).json({ error: 'Thiếu domain' });
     if (!req.file) return res.status(400).json({ error: 'Thiếu file (.xlsx)' });
     // fileFilter (đuôi .xlsx) chỉ soi được originalname, CHƯA có nội dung —
     // kiểm tra thêm chữ ký ZIP thật của file trước khi đưa vào ExcelJS,
@@ -132,8 +140,8 @@ router.post('/import', requireMenuEdit(menuCode), upload.single('file'), async (
     // preserveTrangThaiIfUnspecified: file nhập không nhất thiết có cột
     // TrangThai (chỉ dùng để sửa số liệu) — không được để re-upload âm thầm
     // mở lại 1 siêu thị đã đóng (xem chú thích trong lib/salesTargetsImport.js).
-    const result = await upsertSalesTargets(pool, domain.trim(), rows, req.admin.username, { preserveTrangThaiIfUnspecified: true });
-    await logAction(req, { module: 'Nhập chỉ tiêu', actionType: 'NHAP_CHI_TIEU', targetObject: domain.trim(), description: `Nhập file chỉ tiêu domain "${domain.trim()}": thêm mới ${result.inserted}, cập nhật ${result.updated} dòng` });
+    const result = await upsertSalesTargets(pool, domain, rows, req.admin.username, { preserveTrangThaiIfUnspecified: true });
+    await logAction(req, { module: 'Nhập chỉ tiêu', actionType: 'NHAP_CHI_TIEU', targetObject: domain, description: `Nhập file chỉ tiêu domain "${domain}": thêm mới ${result.inserted}, cập nhật ${result.updated} dòng` });
     res.json({ ...result, rowErrors });
   } catch (err) { next(err); }
 });

@@ -4,8 +4,15 @@
 // "Nhập chỉ tiêu", tách ra vì 2 báo cáo do 2 nhóm khác nhau quản lý/nhập
 // liệu, xem App.jsx nơi render 2 instance với menuCode/apiBase/title khác
 // nhau) — logic HỆT NHAU, chỉ khác quyền (menuCode) và route gọi (apiBase),
-// mirror routes/admin/salesTargets.js createSalesTargetsRouter(menuCode)
+// mirror routes/admin/salesTargets.js createSalesTargetsRouter(menuCode, domain)
 // phía server.
+//
+// KHÔNG có ô nhập "Domain" trên trang này nữa (TRƯỚC ĐÂY có, gõ tự do) —
+// server đã KHOÁ CỨNG domain theo route (xem routes/admin/salesTargets.js)
+// để 2 trang LDTD/HCRC không thể vô tình dùng trùng domain rồi ghi đè chỉ
+// tiêu của nhau (dwh.SalesTargets khoá duy nhất theo Domain+EntityCode+
+// PeriodMonth) — mọi request từ trang này LUÔN áp domain cố định của đúng
+// trang đó, không phụ thuộc gì người dùng gõ.
 //
 // File .xlsx: dòng 1 header, 2 cột đầu CỐ ĐỊNH "MaSieuThi" + "Thang"
 // (YYYY-MM), các cột sau tuỳ ý — tên cột trở thành tên chỉ tiêu. Cột
@@ -16,7 +23,7 @@ import { api } from '../lib/api';
 import { useAuth } from '../lib/AuthContext';
 import DataTable from '../components/DataTable';
 
-const EMPTY_EDIT_FORM = { domain: '', entityCode: '', periodMonth: '', trangThai: false, otherTargetsJson: '{}' };
+const EMPTY_EDIT_FORM = { entityCode: '', periodMonth: '', trangThai: false, otherTargetsJson: '{}' };
 
 export default function SalesTargetsPage({ menuCode, apiBase, title }) {
   // Server đã chặn đúng (requireMenuEdit(menuCode)) nếu tài khoản chỉ được
@@ -27,11 +34,9 @@ export default function SalesTargetsPage({ menuCode, apiBase, title }) {
   // DataSourcesPage.jsx/SyncJobsPage.jsx đã làm.
   const { canEdit } = useAuth();
   const isEditor = canEdit(menuCode);
-  const [domain, setDomain] = useState('');
   const [file, setFile] = useState(null);
   const [importResult, setImportResult] = useState(null);
   const [error, setError] = useState('');
-  const [filterDomain, setFilterDomain] = useState('');
   const [filterPeriod, setFilterPeriod] = useState('');
   const [rows, setRows] = useState([]);
   const [editForm, setEditForm] = useState(EMPTY_EDIT_FORM);
@@ -40,12 +45,11 @@ export default function SalesTargetsPage({ menuCode, apiBase, title }) {
 
   function reload() {
     const params = new URLSearchParams();
-    if (filterDomain) params.set('domain', filterDomain);
     if (filterPeriod) params.set('periodMonth', `${filterPeriod}-01`);
     const qs = params.toString();
     api.get(`${apiBase}${qs ? `?${qs}` : ''}`).then(setRows).catch(err => setError(err.message));
   }
-  useEffect(reload, [filterDomain, filterPeriod]);
+  useEffect(reload, [filterPeriod]);
 
   // Điền sẵn dữ liệu HIỆN CÓ của dòng đó lên form — sửa xong gửi lại NGUYÊN
   // targets (route PUT `${apiBase}/one` ghi đè cả TargetsJson, không tự
@@ -53,7 +57,6 @@ export default function SalesTargetsPage({ menuCode, apiBase, title }) {
   function startEdit(row) {
     const { TrangThai, ...otherTargets } = row.targets;
     setEditForm({
-      domain: row.domain,
       entityCode: row.entityCode,
       periodMonth: String(row.periodMonth).slice(0, 7),
       trangThai: TrangThai === 'DaDong',
@@ -64,7 +67,7 @@ export default function SalesTargetsPage({ menuCode, apiBase, title }) {
   }
 
   function startAdd() {
-    setEditForm({ ...EMPTY_EDIT_FORM, domain: filterDomain || '', periodMonth: filterPeriod || '' });
+    setEditForm({ ...EMPTY_EDIT_FORM, periodMonth: filterPeriod || '' });
     setEditError('');
     setEditResult('');
   }
@@ -73,7 +76,6 @@ export default function SalesTargetsPage({ menuCode, apiBase, title }) {
     e.preventDefault();
     setEditError('');
     setEditResult('');
-    if (!editForm.domain.trim()) return setEditError('Thiếu domain');
     if (!editForm.entityCode.trim()) return setEditError('Thiếu mã siêu thị');
     if (!editForm.periodMonth) return setEditError('Thiếu tháng áp dụng');
     let otherTargets;
@@ -84,7 +86,6 @@ export default function SalesTargetsPage({ menuCode, apiBase, title }) {
     }
     try {
       await api.put(`${apiBase}/one`, {
-        domain: editForm.domain.trim(),
         entityCode: editForm.entityCode.trim(),
         periodMonth: editForm.periodMonth,
         trangThai: editForm.trangThai ? 'DaDong' : '',
@@ -102,11 +103,9 @@ export default function SalesTargetsPage({ menuCode, apiBase, title }) {
     e.preventDefault();
     setError('');
     setImportResult(null);
-    if (!domain.trim()) return setError('Thiếu domain');
     if (!file) return setError('Chọn file .xlsx trước');
 
     const formData = new FormData();
-    formData.append('domain', domain.trim());
     formData.append('file', file);
     try {
       const result = await api.post(`${apiBase}/import`, formData, true);
@@ -123,9 +122,11 @@ export default function SalesTargetsPage({ menuCode, apiBase, title }) {
       <h1>{title}</h1>
       <p>
         Tải lên file Excel (.xlsx) chỉ tiêu theo tháng cho từng siêu thị — nhập lại đúng
-        domain + tháng sẽ GHI ĐÈ số liệu cũ, không cộng dồn. Dòng 1 là header, 2 cột đầu
-        cố định tên <code>MaSieuThi</code> và <code>Thang</code> (dạng <code>YYYY-MM</code>),
-        các cột sau tuỳ ý — tên cột trở thành tên chỉ tiêu (vd <code>ChiTieuDoanhThu</code>,
+        tháng sẽ GHI ĐÈ số liệu cũ, không cộng dồn. Chỉ tiêu nhập ở trang này ĐỘC LẬP hoàn
+        toàn với chỉ tiêu ở trang kia (2 domain khác nhau đã khoá cứng sẵn, không thể trùng)
+        — không cần lo ghi đè lẫn nhau. Dòng 1 là header, 2 cột đầu cố định tên{' '}
+        <code>MaSieuThi</code> và <code>Thang</code> (dạng <code>YYYY-MM</code>), các cột sau
+        tuỳ ý — tên cột trở thành tên chỉ tiêu (vd <code>ChiTieuDoanhThu</code>,{' '}
         <code>ChiTieuGiaoDich</code>).
       </p>
       <p>
@@ -146,12 +147,6 @@ export default function SalesTargetsPage({ menuCode, apiBase, title }) {
 
       {isEditor && (
         <form className="stacked-form" onSubmit={submitImport}>
-          <input
-            placeholder="Domain báo cáo áp dụng (vd doanhthu_chinhanh)"
-            value={domain}
-            onChange={(e) => setDomain(e.target.value)}
-            required
-          />
           <input type="file" accept=".xlsx" onChange={(e) => setFile(e.target.files?.[0] ?? null)} required />
           <button type="submit">Nhập chỉ tiêu</button>
         </form>
@@ -171,13 +166,11 @@ export default function SalesTargetsPage({ menuCode, apiBase, title }) {
 
       <h2>Chỉ tiêu đã nhập</h2>
       <div className="inline-actions">
-        <input placeholder="Lọc theo domain" value={filterDomain} onChange={(e) => setFilterDomain(e.target.value)} />
         <input type="month" value={filterPeriod} onChange={(e) => setFilterPeriod(e.target.value)} />
       </div>
 
       <DataTable
         columns={[
-          { key: 'domain', label: 'Domain' },
           { key: 'entityCode', label: 'Mã siêu thị' },
           { key: 'periodMonth', label: 'Tháng', render: (r) => String(r.periodMonth).slice(0, 7) },
           { key: 'targets', label: 'Chỉ tiêu', render: (r) => Object.entries(r.targets).map(([k, v]) => `${k}=${v}`).join(', ') },
@@ -201,12 +194,6 @@ export default function SalesTargetsPage({ menuCode, apiBase, title }) {
           {editResult && <p className="form-success">{editResult}</p>}
 
           <form className="stacked-form" onSubmit={submitEdit}>
-            <input
-              placeholder="Domain (vd doanhthu_chinhanh)"
-              value={editForm.domain}
-              onChange={(e) => setEditForm({ ...editForm, domain: e.target.value })}
-              required
-            />
             <input
               placeholder="Mã thực thể — MaSieuThi (vd BRGHP), hoặc MaSieuThi_MaNganhHang cho chỉ tiêu theo ngành hàng (vd BRGHP_THUCPHAM)"
               value={editForm.entityCode}

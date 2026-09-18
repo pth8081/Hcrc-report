@@ -102,9 +102,13 @@ app.use('/admin/log', adminLogRoutes);
 app.use('/admin/audit-log', adminAuditLogRoutes);
 app.use('/admin/dashboard', adminDashboardRoutes);
 // Tách 1 route cũ ('/admin/sales-targets') thành 2 route ĐỘC LẬP theo đúng
-// 2 báo cáo tiêu thụ chỉ tiêu — xem chú thích đầu routes/admin/salesTargets.js.
-app.use('/admin/sales-targets-corp', createSalesTargetsRouter('sales-targets-corp'));
-app.use('/admin/sales-targets-hcrc', createSalesTargetsRouter('sales-targets-hcrc'));
+// 2 báo cáo tiêu thụ chỉ tiêu — Domain KHOÁ CỨNG riêng từng route (khác
+// nhau, không cho gõ tay) để 2 nhóm LDTD/HCRC không thể vô tình ghi đè
+// chỉ tiêu của nhau — xem chú thích đầy đủ đầu routes/admin/salesTargets.js.
+// Khi cấu hình báo cáo composite ở rp-user, khối "target" (isTarget:true)
+// dùng ĐÚNG 1 trong 2 chuỗi domain dưới đây làm "targetDomain".
+app.use('/admin/sales-targets-corp', createSalesTargetsRouter('sales-targets-corp', 'sales-targets-ldtd'));
+app.use('/admin/sales-targets-hcrc', createSalesTargetsRouter('sales-targets-hcrc', 'sales-targets-hcrc'));
 app.use('/admin/branch-code-map', adminBranchCodeMapRoutes);
 app.use('/admin/roles', adminRolesRoutes);
 

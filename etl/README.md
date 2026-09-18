@@ -50,11 +50,20 @@ MENU_CATALOG), vì 2 báo cáo tiêu thụ chỉ tiêu do 2 nhóm khác nhau qu�
 lý/nhập liệu, cần giao quyền tách bạch. Upload file Excel (.xlsx) chỉ tiêu
 kinh doanh theo tháng cho từng siêu thị, cả 2 trang cùng ghi vào MỘT bảng
 `dwh.SalesTargets` (bảng RIÊNG khỏi `dwh.ReportFacts` — xem `dwh/schema.sql`)
-— chỉ khác quyền/menu, KHÔNG khác cấu trúc dữ liệu hay logic (xem
-`routes/admin/salesTargets.js` — `createSalesTargetsRouter(menuCode)`, dựng
-router 2 lần thay vì 2 file riêng). Dùng cho báo cáo cần so "Thực đạt" với
-"Chỉ tiêu" (report bên `rp-server` đọc bảng này qua `SourceType='composite'`,
-xem `rp-server/README.md`).
+— chỉ khác quyền/menu VÀ **Domain KHOÁ CỨNG theo trang** (xem
+`routes/admin/salesTargets.js` — `createSalesTargetsRouter(menuCode, domain)`,
+dựng router 2 lần thay vì 2 file riêng): trang LDTD luôn ghi/đọc Domain
+`sales-targets-ldtd`, trang HCRC luôn ghi/đọc Domain `sales-targets-hcrc` —
+KHÔNG có ô nhập Domain tự do trên giao diện nữa (khác trước đây), tránh 2
+nhóm vô tình gõ trùng 1 chuỗi domain rồi ghi đè chỉ tiêu của nhau
+(`dwh.SalesTargets` khoá duy nhất theo `Domain + EntityCode + PeriodMonth`).
+Dùng cho báo cáo cần so "Thực đạt" với "Chỉ tiêu" (report bên `rp-server`
+đọc bảng này qua `SourceType='composite'`, xem `rp-server/README.md`) — 2
+báo cáo LDTD/HCRC có thể dùng CHUNG 1 khối `current`/`lastYear` (cùng số
+liệu thực đạt) nhưng PHẢI khai `targetDomain` khác nhau, đúng 1 trong 2
+chuỗi domain khoá cứng ở trên, để đọc đúng bộ chỉ tiêu của từng báo cáo
+(xem `hướng_dẫn_báo_cáo.md` mục 1 — `targetDomain` độc lập với domain của
+khối actual).
 
 **Vì sao đặt ở `etl`, không phải `rp-server`** — chỉ `etl` được GHI vào
 DWH (`rp-server`/`api-server` chỉ có quyền đọc, xem `dwh/grants.sql`); đặt
@@ -80,9 +89,10 @@ báo cáo người đó phụ trách.
 **Định dạng file** — dòng 1 là header, 2 cột đầu CỐ ĐỊNH tên `MaSieuThi` và
 `Thang` (dạng `YYYY-MM`), các cột sau tuỳ ý — tên cột trở thành tên khoá
 chỉ tiêu (vd `ChiTieuDoanhThu`, `ChiTieuGiaoDich`), không cố định trước
-trong code. Nhập lại đúng domain + tháng sẽ GHI ĐÈ (upsert theo khoá
-`Domain + EntityCode + PeriodMonth`), không cộng dồn — nhập cuối tháng
-trước để có sẵn chỉ tiêu khi tháng mới bắt đầu.
+trong code. Nhập lại đúng siêu thị + tháng (trong CÙNG 1 trang) sẽ GHI ĐÈ
+(upsert theo khoá `Domain + EntityCode + PeriodMonth`, Domain đã khoá cứng
+theo trang), không cộng dồn — nhập cuối tháng trước để có sẵn chỉ tiêu khi
+tháng mới bắt đầu.
 
 **Cột `TrangThai` (tuỳ chọn) — đóng cửa siêu thị** — ghi `DaDong` để LOẠI
 HẲN siêu thị đó khỏi báo cáo `composite` tháng này (xem

@@ -20,6 +20,15 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 6.33 — Khoá cứng Domain theo trang cho 2 trang Nhập chỉ tiêu LDTD/HCRC (etl)
+
+Người dùng gửi PDF "Báo cáo nhanh doanh thu" (mẫu có sẵn ở `hướng_dẫn_báo_cáo.md` mục 1) và hỏi liệu code hiện tại có đúng mô hình "1 format báo cáo chung, chỉ khác import target" giữa LDTD và HCRC không. Xác nhận kiến trúc report composite (`isTarget`/`targetDomain` độc lập với domain của khối `current`) đã hỗ trợ đúng mô hình này từ trước — nhưng phát hiện lỗ hổng thực sự ở 2 trang ETL vừa tách (6.30): cả 2 đều dùng chung 1 ô "Domain" gõ tự do giống hệt nhau, dễ khiến 2 nhóm LDTD/HCRC vô tình gõ trùng domain rồi ghi đè chỉ tiêu của nhau (`dwh.SalesTargets` khoá duy nhất theo `Domain+EntityCode+PeriodMonth`).
+
+- `etl/routes/admin/salesTargets.js`: `createSalesTargetsRouter(menuCode)` → `createSalesTargetsRouter(menuCode, domain)` — Domain nay là THAM SỐ khoá cứng, không đọc từ `req.query`/`req.body` nữa; mọi GET/PUT/POST đều ép dùng đúng domain đã khoá.
+- `etl/server.js`: mount 2 route với 2 domain cố định — `sales-targets-corp` → `sales-targets-ldtd`, `sales-targets-hcrc` → `sales-targets-hcrc`.
+- `etl-admin/src/pages/SalesTargetsPage.jsx`: bỏ hẳn ô nhập "Domain" (cả form nhập file, form sửa 1 dòng, và ô lọc) — không còn gì để gõ nhầm.
+- `etl/README.md` + `hướng_dẫn_báo_cáo.md` mục 1: cập nhật — khi cấu hình báo cáo composite cho LDTD/HCRC, `targetDomain` phải trỏ đúng 1 trong 2 domain khoá cứng trên (không cần trùng domain của khối `current`/`lastYear` — 2 báo cáo vẫn dùng chung số liệu thực đạt thật).
+
 ## 6.32 — Đổi tên vai trò target_importer_corp -> target_importer_LDTD (etl)
 
 Theo yêu cầu người dùng, đổi Code vai trò `target_importer_corp` (seed ở 6.31) thành `target_importer_LDTD` (viết tắt "Lãnh Đạo Tập Đoàn") cho dễ phân biệt với `target_importer_hcrc`. `etl-db/schema.sql` UPDATE Code (không xoá+tạo lại) để giữ nguyên mọi `AdminUserRoles`/`RoleMenuAccess` đã gán nếu DB đã chạy qua bản 6.31 — an toàn chạy lại nhiều lần.

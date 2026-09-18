@@ -62,6 +62,15 @@ trống với siêu thị đang hoạt động bình thường. Giữa tháng c�
 siêu thị, dùng mục "Sửa / thêm 1 siêu thị" ngay dưới bảng — không cần chỉnh
 lại cả file.
 
+> **Riêng 2 trang "Chỉ tiêu Lãnh đạo Tập đoàn"/"Chỉ tiêu HCRC"** (xem
+> `etl/README.md` mục "Nhập chỉ tiêu") KHÔNG có ô nhập Domain — mỗi trang
+> khoá cứng sẵn 1 Domain riêng (`sales-targets-ldtd`/`sales-targets-hcrc`)
+> để 2 nhóm quản lý độc lập không vô tình ghi đè chỉ tiêu của nhau. Khi
+> dựng báo cáo composite cho 2 trang đó ở Bước 3 dưới đây, đặt `targetDomain`
+> đúng 1 trong 2 chuỗi này (KHÔNG cần trùng `domain` của khối `current`/
+> `lastYear` — 2 khối này vẫn đọc domain thực đạt thật như bình thường, chỉ
+> khối `target` mới cần trỏ đúng domain khoá cứng tương ứng).
+
 ### Bước 3 — rp-user: tạo báo cáo
 
 Vào **Hệ thống → Biểu mẫu → tab "Báo cáo"**, tạo báo cáo mới:
