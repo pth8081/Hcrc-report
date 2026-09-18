@@ -20,6 +20,17 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 6.36 — Sổ tay từng bước có ảnh minh hoạ: tạo báo cáo LDTD/HCRC (docs)
+
+Thêm file mới `báo cáo doanh thu cuối ngày.md` — gộp toàn bộ quy trình từ
+`hướng_dẫn_báo_cáo.md` mục 11/15 thành 1 chuỗi bước bấm cụ thể kèm 8 ảnh
+chụp giao diện thật (etl-admin: Đồng bộ, Chỉ tiêu Lãnh đạo Tập đoàn/HCRC;
+rp-user: Biểu mẫu, Phân quyền — thư mục `hinh-huong-dan-ldtd-hcrc/`). Ảnh
+chụp từ giao diện thật (dựng tạm 2 backend giả lập trả dữ liệu mẫu để
+chạy được 2 frontend mà không cần CSDL DSMART16 thật) — bố cục nút/ô nhập
+đúng 100% với bản thật, chỉ số liệu hiển thị là dữ liệu mẫu minh hoạ (đã
+ghi rõ trong file). Không có thay đổi code — chỉ tài liệu.
+
 ## 6.35 — Thêm hướng dẫn ETL cụ thể (VIEW/Sync Job DSMART16) cho domain báo cáo LDTD/HCRC (docs)
 
 Bổ sung mục 15 (`hướng_dẫn_báo_cáo.md`): "Bước 1 — etl-admin" chỉ rõ 2 Sync
