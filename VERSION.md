@@ -20,6 +20,18 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 6.34 — Thêm hướng dẫn cấu hình báo cáo LDTD/HCRC vào sổ tay (docs)
+
+Bổ sung mục 15 vào `hướng_dẫn_báo_cáo.md`: 2 `DefinitionJson` mẫu đầy đủ cho
+"Báo cáo nhanh doanh thu - Lãnh đạo Tập đoàn" và "- HCRC", khớp đúng bố cục
+cột trong PDF mẫu người dùng gửi (Diện tích; Doanh thu Chỉ tiêu/Thực đạt/Tỉ
+lệ đạt/Cùng kỳ 2025/Tỷ lệ % LFL; Lãi gộp Tỷ lệ/Giá trị; Giao dịch Chỉ tiêu/
+Thực đạt/Tỷ lệ đạt/Cùng kỳ 2025/Tỷ lệ % LFL; Trung bình GD; Doanh thu/m2;
+groupBy MART/MINIMART) — cả 2 dùng `sourceType: "directDb"` (lấy trực tiếp
+từ Data Warehouse, không qua API Server realtime), chung 1 domain thực đạt
+nhưng khác `targetDomain` (`sales-targets-ldtd`/`sales-targets-hcrc`, đã
+khoá cứng từ bản 6.33). Không có thay đổi code — chỉ tài liệu.
+
 ## 6.33 — Khoá cứng Domain theo trang cho 2 trang Nhập chỉ tiêu LDTD/HCRC (etl)
 
 Người dùng gửi PDF "Báo cáo nhanh doanh thu" (mẫu có sẵn ở `hướng_dẫn_báo_cáo.md` mục 1) và hỏi liệu code hiện tại có đúng mô hình "1 format báo cáo chung, chỉ khác import target" giữa LDTD và HCRC không. Xác nhận kiến trúc report composite (`isTarget`/`targetDomain` độc lập với domain của khối `current`) đã hỗ trợ đúng mô hình này từ trước — nhưng phát hiện lỗ hổng thực sự ở 2 trang ETL vừa tách (6.30): cả 2 đều dùng chung 1 ô "Domain" gõ tự do giống hệt nhau, dễ khiến 2 nhóm LDTD/HCRC vô tình gõ trùng domain rồi ghi đè chỉ tiêu của nhau (`dwh.SalesTargets` khoá duy nhất theo `Domain+EntityCode+PeriodMonth`).

@@ -1739,3 +1739,157 @@ Domain đang có dữ liệu, không cần cấp riêng.
 - **Chỉ đọc 1 Domain tại 1 thời điểm** — ghép NHIỀU Domain (vd doanh thu +
   chỉ tiêu, so cùng kỳ năm trước) vẫn cần admin tạo báo cáo `composite`
   sẵn (mục 1) — bản đầu của "Báo cáo tự do" không hỗ trợ ghép nguồn.
+
+---
+
+## 15. Báo cáo nhanh doanh thu — Lãnh đạo Tập đoàn (LDTD) và HCRC — 1 format chung, 2 chỉ tiêu độc lập
+
+### Bối cảnh
+
+2 báo cáo "Báo cáo nhanh doanh thu" gửi cho Lãnh đạo Tập đoàn và cho HCRC
+dùng **chung 1 format cột** (đúng mẫu email cuối ngày thật), chỉ khác NGUỒN
+CHỈ TIÊU đối chiếu — mỗi bên tự nhập/quản lý chỉ tiêu riêng, không dùng
+chung 1 bộ số để tránh nhóm này vô tình sửa/ghi đè chỉ tiêu của nhóm kia
+(xem `etl/README.md` mục "Nhập chỉ tiêu" — 2 trang **"Chỉ tiêu Lãnh đạo Tập
+đoàn"/"Chỉ tiêu HCRC"** ở etl-admin, mỗi trang khoá cứng sẵn 1 Domain riêng
+`sales-targets-ldtd`/`sales-targets-hcrc`, không có ô nhập Domain, 2 vai trò
+`target_importer_LDTD`/`target_importer_hcrc` quản lý độc lập).
+
+Đây là báo cáo lấy **TRỰC TIẾP từ Data Warehouse** (đúng Cách 1 ở mục 1 —
+`sourceType: "directDb"` cho cả khối `current`/`lastYear`, KHÔNG qua API
+Server/realtime) — làm theo đúng Bước 1+2 của mục 1 trước (đồng bộ domain
+doanh thu vào DWH với **"Giữ lịch sử theo ngày" bật**, tick Dimensions
+`chain`/`dienTich`, Measures `doanhThu`/`giaoDich`/`laiGop`), rồi tạo 2 báo
+cáo dưới đây ở **Hệ thống → Biểu mẫu**, SourceType **"Ghép nhiều nguồn
+(composite)"**.
+
+`current`/`lastYear` của 2 báo cáo dùng **CHUNG 1 domain thực đạt thật**
+(đổi `doanhthu_chinhanh` bên dưới thành đúng domain bạn đặt ở Sync Job) —
+chỉ khối `target` mới trỏ khác nhau (`targetDomain: "sales-targets-ldtd"`
+hay `"sales-targets-hcrc"`), đúng cơ chế "1 format chung, chỉ khác import
+target" (khối `target`/`isTarget:true` đọc `targetDomain` HOÀN TOÀN ĐỘC LẬP
+với domain của `current`/`lastYear` — xem mục 1).
+
+**Tên field còn lại (`dienTich`, `doanhThu`, `giaoDich`, `laiGop`,
+`ChiTieuDoanhThu`, `ChiTieuGiaoDich`) là ĐẶT THEO VÍ DỤ mục 1** — sửa lại
+đúng tên Dimensions/Measures thật bạn đã tick lúc tạo Sync Job (etl-admin)
+và đúng tên cột trong file Excel nhập chỉ tiêu, KHÔNG copy nguyên văn nếu
+tên bạn đặt khác.
+
+### Báo cáo Lãnh đạo Tập đoàn (LDTD)
+
+- **Mã báo cáo**: vd `bc-doanh-thu-ldtd`.
+- **Tiêu đề**: "Báo cáo nhanh doanh thu - Lãnh đạo Tập đoàn".
+- **DefinitionJson**:
+
+```json
+{
+  "title": "Báo cáo nhanh doanh thu - Lãnh đạo Tập đoàn",
+  "domain": "doanhthu_chinhanh",
+  "filters": [
+    { "field": "eventDate", "type": "date", "label": "Ngày báo cáo" }
+  ],
+  "blocks": [
+    { "key": "current", "sourceType": "directDb", "domain": "doanhthu_chinhanh" },
+    { "key": "lastYear", "sourceType": "directDb", "domain": "doanhthu_chinhanh", "dateOffsetYears": -1 },
+    { "key": "target", "isTarget": true, "targetDomain": "sales-targets-ldtd" }
+  ],
+  "columns": [
+    { "key": "tenCuaHang", "label": "Siêu thị/Cửa hàng", "formula": "entityCode" },
+    { "key": "dienTich", "label": "Diện tích", "formula": "current.dimensions.dienTich" },
+
+    { "key": "dt_chiTieu", "label": "Doanh thu - Chỉ tiêu", "formula": "target.ChiTieuDoanhThu" },
+    { "key": "dt_thucDat", "label": "Doanh thu - Thực đạt", "formula": "current.measures.doanhThu" },
+    { "key": "dt_tyLeDat", "label": "Doanh thu - Tỉ lệ đạt (%)", "formula": "ROUND(current.measures.doanhThu / target.ChiTieuDoanhThu * 100, 1)" },
+    { "key": "dt_cungKy", "label": "Doanh thu - Cùng kỳ năm 2025", "formula": "lastYear.measures.doanhThu" },
+    { "key": "dt_lfl", "label": "Doanh thu - Tỷ lệ % LFL", "formula": "ROUND(current.measures.doanhThu / lastYear.measures.doanhThu * 100, 1)" },
+
+    { "key": "lg_tyLe", "label": "Lãi gộp - Tỷ lệ (%)", "formula": "ROUND(current.measures.laiGop / current.measures.doanhThu * 100, 1)" },
+    { "key": "lg_giaTri", "label": "Lãi gộp - Giá trị", "formula": "current.measures.laiGop" },
+
+    { "key": "gd_chiTieu", "label": "Giao dịch - Chỉ tiêu", "formula": "target.ChiTieuGiaoDich" },
+    { "key": "gd_thucDat", "label": "Giao dịch - Thực đạt", "formula": "current.measures.giaoDich" },
+    { "key": "gd_tyLeDat", "label": "Giao dịch - Tỷ lệ đạt (%)", "formula": "ROUND(current.measures.giaoDich / target.ChiTieuGiaoDich * 100, 1)" },
+    { "key": "gd_cungKy", "label": "Giao dịch - Cùng kỳ năm 2025", "formula": "lastYear.measures.giaoDich" },
+    { "key": "gd_lfl", "label": "Giao dịch - Tỷ lệ % LFL", "formula": "ROUND(current.measures.giaoDich / lastYear.measures.giaoDich * 100, 1)" },
+
+    { "key": "trungBinhGD", "label": "Trung bình GD", "formula": "ROUND(current.measures.doanhThu / current.measures.giaoDich, 0)" },
+    { "key": "doanhThuTrenM2", "label": "Doanh thu/m2", "formula": "ROUND(current.measures.doanhThu / current.dimensions.dienTich, 0)" }
+  ],
+  "groupBy": {
+    "field": "current.dimensions.chain",
+    "groups": [
+      { "value": "MART", "label": "Tổng cộng MART" },
+      { "value": "MINIMART", "label": "Tổng cộng MINIMART" }
+    ],
+    "grandTotalLabel": "Tổng cộng",
+    "labelColumn": "tenCuaHang"
+  }
+}
+```
+
+### Báo cáo HCRC
+
+Hệt trên, chỉ đổi `title` và `targetDomain` sang `"sales-targets-hcrc"`:
+
+- **Mã báo cáo**: vd `bc-doanh-thu-hcrc`.
+- **Tiêu đề**: "Báo cáo nhanh doanh thu - HCRC".
+- **DefinitionJson**:
+
+```json
+{
+  "title": "Báo cáo nhanh doanh thu - HCRC",
+  "domain": "doanhthu_chinhanh",
+  "filters": [
+    { "field": "eventDate", "type": "date", "label": "Ngày báo cáo" }
+  ],
+  "blocks": [
+    { "key": "current", "sourceType": "directDb", "domain": "doanhthu_chinhanh" },
+    { "key": "lastYear", "sourceType": "directDb", "domain": "doanhthu_chinhanh", "dateOffsetYears": -1 },
+    { "key": "target", "isTarget": true, "targetDomain": "sales-targets-hcrc" }
+  ],
+  "columns": [
+    { "key": "tenCuaHang", "label": "Siêu thị/Cửa hàng", "formula": "entityCode" },
+    { "key": "dienTich", "label": "Diện tích", "formula": "current.dimensions.dienTich" },
+
+    { "key": "dt_chiTieu", "label": "Doanh thu - Chỉ tiêu", "formula": "target.ChiTieuDoanhThu" },
+    { "key": "dt_thucDat", "label": "Doanh thu - Thực đạt", "formula": "current.measures.doanhThu" },
+    { "key": "dt_tyLeDat", "label": "Doanh thu - Tỉ lệ đạt (%)", "formula": "ROUND(current.measures.doanhThu / target.ChiTieuDoanhThu * 100, 1)" },
+    { "key": "dt_cungKy", "label": "Doanh thu - Cùng kỳ năm 2025", "formula": "lastYear.measures.doanhThu" },
+    { "key": "dt_lfl", "label": "Doanh thu - Tỷ lệ % LFL", "formula": "ROUND(current.measures.doanhThu / lastYear.measures.doanhThu * 100, 1)" },
+
+    { "key": "lg_tyLe", "label": "Lãi gộp - Tỷ lệ (%)", "formula": "ROUND(current.measures.laiGop / current.measures.doanhThu * 100, 1)" },
+    { "key": "lg_giaTri", "label": "Lãi gộp - Giá trị", "formula": "current.measures.laiGop" },
+
+    { "key": "gd_chiTieu", "label": "Giao dịch - Chỉ tiêu", "formula": "target.ChiTieuGiaoDich" },
+    { "key": "gd_thucDat", "label": "Giao dịch - Thực đạt", "formula": "current.measures.giaoDich" },
+    { "key": "gd_tyLeDat", "label": "Giao dịch - Tỷ lệ đạt (%)", "formula": "ROUND(current.measures.giaoDich / target.ChiTieuGiaoDich * 100, 1)" },
+    { "key": "gd_cungKy", "label": "Giao dịch - Cùng kỳ năm 2025", "formula": "lastYear.measures.giaoDich" },
+    { "key": "gd_lfl", "label": "Giao dịch - Tỷ lệ % LFL", "formula": "ROUND(current.measures.giaoDich / lastYear.measures.giaoDich * 100, 1)" },
+
+    { "key": "trungBinhGD", "label": "Trung bình GD", "formula": "ROUND(current.measures.doanhThu / current.measures.giaoDich, 0)" },
+    { "key": "doanhThuTrenM2", "label": "Doanh thu/m2", "formula": "ROUND(current.measures.doanhThu / current.dimensions.dienTich, 0)" }
+  ],
+  "groupBy": {
+    "field": "current.dimensions.chain",
+    "groups": [
+      { "value": "MART", "label": "Tổng cộng MART" },
+      { "value": "MINIMART", "label": "Tổng cộng MINIMART" }
+    ],
+    "grandTotalLabel": "Tổng cộng",
+    "labelColumn": "tenCuaHang"
+  }
+}
+```
+
+### Sau khi lưu
+
+1. **Hệ thống → Phân quyền** — gán quyền xem `bc-doanh-thu-ldtd` cho vai
+   trò/nhóm Lãnh đạo Tập đoàn, `bc-doanh-thu-hcrc` cho vai trò/nhóm HCRC
+   (2 báo cáo, 2 danh sách người xem riêng — không tự động chia sẻ chéo).
+2. Nhập chỉ tiêu tháng qua đúng 2 trang khoá domain riêng ở etl-admin
+   (không phải trang "Nhập chỉ tiêu" chung cũ) TRƯỚC khi chạy thử — thiếu
+   chỉ tiêu domain tương ứng thì cột "Chỉ tiêu"/"Tỉ lệ đạt" trống.
+3. Kiểm tra như Bước 4 mục 1 — thêm: đối chiếu đúng báo cáo LDTD đọc chỉ
+   tiêu domain `sales-targets-ldtd`, báo cáo HCRC đọc `sales-targets-hcrc`
+   (sửa thử 1 dòng chỉ tiêu ở 1 trang, xác nhận báo cáo BÊN KIA KHÔNG đổi).
