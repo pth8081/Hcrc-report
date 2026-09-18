@@ -20,6 +20,14 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 6.37 — Liên kết mục 15 sổ tay tới file có ảnh minh hoạ (docs)
+
+`hướng_dẫn_báo_cáo.md` mục 15 thêm callout đầu mục trỏ sang
+`báo cáo doanh thu cuối ngày.md` (bản 6.36) — mục 15 giữ vai trò tài liệu
+kỹ thuật đầy đủ (VIEW SQL, lý do kiến trúc, `DefinitionJson`), file kia là
+bản thao tác cụ thể kèm ảnh, không lặp lại nội dung. Không có thay đổi code
+— chỉ tài liệu.
+
 ## 6.36 — Sổ tay từng bước có ảnh minh hoạ: tạo báo cáo LDTD/HCRC (docs)
 
 Thêm file mới `báo cáo doanh thu cuối ngày.md` — gộp toàn bộ quy trình từ

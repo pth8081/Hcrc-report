@@ -1780,6 +1780,12 @@ Domain đang có dữ liệu, không cần cấp riêng.
 
 ## 15. Báo cáo nhanh doanh thu — Lãnh đạo Tập đoàn (LDTD) và HCRC — 1 format chung, 2 chỉ tiêu độc lập
 
+> **Bản có ảnh minh hoạ từng bước bấm** (etl-admin lẫn rp-user) — xem file
+> `báo cáo doanh thu cuối ngày.md` ở gốc repo (thư mục ảnh
+> `hinh-huong-dan-ldtd-hcrc/`). Mục này bên dưới là bản kỹ thuật đầy đủ
+> (VIEW SQL, lý do kiến trúc, `DefinitionJson` nguyên khối) — file kia gộp
+> lại thành thao tác cụ thể, không lặp lại phần giải thích.
+
 ### Bối cảnh
 
 2 báo cáo "Báo cáo nhanh doanh thu" gửi cho Lãnh đạo Tập đoàn và cho HCRC
