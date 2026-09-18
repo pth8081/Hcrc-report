@@ -1,7 +1,11 @@
-// pages/SalesTargetsPage.jsx — Trang "Nhập chỉ tiêu": upload file Excel
-// chỉ tiêu (target/KPI) theo tháng, ghi vào dwh.SalesTargets. Vào được bởi
-// role 'admin' HOẶC 'target_importer' (vai trò hẹp, chỉ thấy đúng trang
-// này — xem components/Layout.jsx + etl/lib/adminAuth.js).
+// pages/SalesTargetsPage.jsx — Upload file Excel chỉ tiêu (target/KPI) theo
+// tháng, ghi vào dwh.SalesTargets. Component DÙNG CHUNG cho 2 trang ĐỘC LẬP
+// ("Chỉ tiêu Lãnh đạo Tập đoàn" + "Chỉ tiêu HCRC" — trước là 1 trang chung
+// "Nhập chỉ tiêu", tách ra vì 2 báo cáo do 2 nhóm khác nhau quản lý/nhập
+// liệu, xem App.jsx nơi render 2 instance với menuCode/apiBase/title khác
+// nhau) — logic HỆT NHAU, chỉ khác quyền (menuCode) và route gọi (apiBase),
+// mirror routes/admin/salesTargets.js createSalesTargetsRouter(menuCode)
+// phía server.
 //
 // File .xlsx: dòng 1 header, 2 cột đầu CỐ ĐỊNH "MaSieuThi" + "Thang"
 // (YYYY-MM), các cột sau tuỳ ý — tên cột trở thành tên chỉ tiêu. Cột
@@ -14,15 +18,15 @@ import DataTable from '../components/DataTable';
 
 const EMPTY_EDIT_FORM = { domain: '', entityCode: '', periodMonth: '', trangThai: false, otherTargetsJson: '{}' };
 
-export default function SalesTargetsPage() {
-  // Server đã chặn đúng (requireMenuEdit('sales-targets')) nếu tài khoản
-  // chỉ được cấp quyền XEM trang này — nhưng trước đây giao diện vẫn hiện
-  // đủ 2 form nhập/sửa bất kể quyền, khiến người chỉ-xem bấm "Nhập chỉ
-  // tiêu"/"Lưu" mới thấy lỗi 403 (UX gây hiểu lầm, không phải lỗ hổng —
-  // rà soát nghiệp vụ). Ẩn hẳn 2 form khi không có quyền sửa, khớp cách
+export default function SalesTargetsPage({ menuCode, apiBase, title }) {
+  // Server đã chặn đúng (requireMenuEdit(menuCode)) nếu tài khoản chỉ được
+  // cấp quyền XEM trang này — nhưng trước đây giao diện vẫn hiện đủ 2 form
+  // nhập/sửa bất kể quyền, khiến người chỉ-xem bấm "Nhập chỉ tiêu"/"Lưu"
+  // mới thấy lỗi 403 (UX gây hiểu lầm, không phải lỗ hổng — rà soát nghiệp
+  // vụ). Ẩn hẳn 2 form khi không có quyền sửa, khớp cách
   // DataSourcesPage.jsx/SyncJobsPage.jsx đã làm.
   const { canEdit } = useAuth();
-  const isEditor = canEdit('sales-targets');
+  const isEditor = canEdit(menuCode);
   const [domain, setDomain] = useState('');
   const [file, setFile] = useState(null);
   const [importResult, setImportResult] = useState(null);
@@ -39,12 +43,12 @@ export default function SalesTargetsPage() {
     if (filterDomain) params.set('domain', filterDomain);
     if (filterPeriod) params.set('periodMonth', `${filterPeriod}-01`);
     const qs = params.toString();
-    api.get(`/sales-targets${qs ? `?${qs}` : ''}`).then(setRows).catch(err => setError(err.message));
+    api.get(`${apiBase}${qs ? `?${qs}` : ''}`).then(setRows).catch(err => setError(err.message));
   }
   useEffect(reload, [filterDomain, filterPeriod]);
 
   // Điền sẵn dữ liệu HIỆN CÓ của dòng đó lên form — sửa xong gửi lại NGUYÊN
-  // targets (route PUT /sales-targets/one ghi đè cả TargetsJson, không tự
+  // targets (route PUT `${apiBase}/one` ghi đè cả TargetsJson, không tự
   // merge từng phần ở server), tránh mất chỉ tiêu khác chỉ vì tick 1 ô.
   function startEdit(row) {
     const { TrangThai, ...otherTargets } = row.targets;
@@ -79,7 +83,7 @@ export default function SalesTargetsPage() {
       return setEditError('Ô "Chỉ tiêu khác" phải là JSON hợp lệ, vd {"ChiTieuDoanhThu": 100000000}');
     }
     try {
-      await api.put('/sales-targets/one', {
+      await api.put(`${apiBase}/one`, {
         domain: editForm.domain.trim(),
         entityCode: editForm.entityCode.trim(),
         periodMonth: editForm.periodMonth,
@@ -105,7 +109,7 @@ export default function SalesTargetsPage() {
     formData.append('domain', domain.trim());
     formData.append('file', file);
     try {
-      const result = await api.post('/sales-targets/import', formData, true);
+      const result = await api.post(`${apiBase}/import`, formData, true);
       setImportResult(result);
       setFile(null);
       reload();
@@ -116,7 +120,7 @@ export default function SalesTargetsPage() {
 
   return (
     <div className="page">
-      <h1>Nhập chỉ tiêu</h1>
+      <h1>{title}</h1>
       <p>
         Tải lên file Excel (.xlsx) chỉ tiêu theo tháng cho từng siêu thị — nhập lại đúng
         domain + tháng sẽ GHI ĐÈ số liệu cũ, không cộng dồn. Dòng 1 là header, 2 cột đầu

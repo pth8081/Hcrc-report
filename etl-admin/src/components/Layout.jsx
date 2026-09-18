@@ -10,7 +10,12 @@ const NAV = [
   { path: '/sync-jobs', label: 'Đồng bộ', icon: '🔄', menuCode: 'sync-jobs' },
   { path: '/log', label: 'Log', icon: '🧾', menuCode: 'log' },
   { path: '/audit-log', label: 'Nhật ký thao tác', icon: '📜', menuCode: 'audit-log' },
-  { path: '/sales-targets', label: 'Nhập chỉ tiêu', icon: '🎯', menuCode: 'sales-targets' },
+  // Trước là 1 mục "Nhập chỉ tiêu" chung — tách 2 mục ĐỘC LẬP theo đúng 2
+  // báo cáo tiêu thụ chỉ tiêu (Lãnh đạo Tập đoàn / HCRC), mỗi báo cáo do 1
+  // nhóm khác nhau quản lý/nhập liệu, cần MenuCode riêng để giao quyền
+  // tách bạch (xem etl/routes/admin/roles.js MENU_CATALOG).
+  { path: '/sales-targets-corp', label: 'Chỉ tiêu Lãnh đạo Tập đoàn', icon: '🎯', menuCode: 'sales-targets-corp' },
+  { path: '/sales-targets-hcrc', label: 'Chỉ tiêu HCRC', icon: '🎯', menuCode: 'sales-targets-hcrc' },
   { path: '/branch-code-map', label: 'Ánh xạ mã chi nhánh', icon: '🔗', menuCode: 'branch-code-map', editOnly: true },
   { path: '/users', label: 'Phân quyền', icon: '🔐', menuCode: 'users' },
   { path: '/roles', label: 'Vai trò', icon: '🛡️', menuCode: 'roles' }

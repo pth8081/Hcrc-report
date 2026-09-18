@@ -6,10 +6,20 @@
 // dwh.ReportFacts, phòng thủ chiều sâu: lỗi ở route này không thể chạm được
 // dwh.ReportFacts (xem dwh/grants.sql).
 //
-// Quyền: requireMenuAccess('sales-targets') để xem, requireMenuEdit cho
-// PUT/import — vai trò hệ thống luôn qua; vai trò khác cần được cấp đúng
-// trang này (xem lib/adminPermissions.js) — thay 'admin' HOẶC
-// 'target_importer' cố định trước đây.
+// TRƯỚC ĐÂY 1 trang "Nhập chỉ tiêu" chung (MenuCode 'sales-targets') — nay
+// TÁCH thành 2 trang ĐỘC LẬP theo đúng 2 báo cáo tiêu thụ chỉ tiêu ("Lãnh
+// đạo Tập đoàn" / "HCRC"), mỗi báo cáo do 1 nhóm khác nhau quản lý/nhập
+// liệu (xem etl-db/schema.sql phần migrate MenuCode). Route logic HỆT NHAU
+// giữa 2 trang (cùng bảng dwh.SalesTargets, cùng cách nhập Excel — domain
+// vẫn gõ tự do, KHÔNG ép namespace riêng vì Domain phải khớp đúng domain
+// thật đang chạy trong composite report, xem hướng_dẫn_báo_cáo.md mục 5)
+// — chỉ khác MenuCode kiểm quyền, nên dựng thành factory
+// createSalesTargetsRouter(menuCode) thay vì chép file, mount 2 lần ở
+// server.js với 2 menuCode khác nhau.
+//
+// Quyền: requireMenuAccess(menuCode) để xem, requireMenuEdit cho PUT/import
+// — vai trò hệ thống luôn qua; vai trò khác cần được cấp đúng trang này
+// (xem lib/adminPermissions.js).
 const express = require('express');
 const multer = require('multer');
 const { sql, getPool } = require('../../db');
@@ -18,9 +28,6 @@ const { requireMenuAccess, requireMenuEdit } = require('../../lib/adminPermissio
 const { parseSalesTargetsFile, upsertSalesTargets, PERIOD_RE, TRANG_THAI_VALUES } = require('../../lib/salesTargetsImport');
 const { logAction } = require('../../lib/auditLog');
 const { hasZipSignature } = require('../../lib/fileSignature');
-
-const router = express.Router();
-router.use(requireAdminAuth);
 
 // memoryStorage — CHỈ đọc để parse ngay trong bộ nhớ, KHÔNG lưu file gốc
 // lên đĩa (không cần giữ lại sau khi đã ghi xong dữ liệu vào DWH — tránh
@@ -35,7 +42,11 @@ const upload = multer({
   }
 });
 
-router.get('/', requireMenuAccess('sales-targets'), async (req, res, next) => {
+function createSalesTargetsRouter(menuCode) {
+const router = express.Router();
+router.use(requireAdminAuth);
+
+router.get('/', requireMenuAccess(menuCode), async (req, res, next) => {
   try {
     const { domain, periodMonth } = req.query;
     const pool = await getPool('DWH_TARGET_IMPORTER');
@@ -64,7 +75,7 @@ router.get('/', requireMenuAccess('sales-targets'), async (req, res, next) => {
 // bị xoá nếu server tự ý merge. Giao diện (etl-admin) tự tải dữ liệu hiện
 // có của dòng đó lên form trước khi cho sửa, để không mất dữ liệu ngoài ý
 // muốn.
-router.put('/one', requireMenuEdit('sales-targets'), async (req, res, next) => {
+router.put('/one', requireMenuEdit(menuCode), async (req, res, next) => {
   try {
     const { domain, entityCode, periodMonth, trangThai, targets } = req.body || {};
     if (!domain || !domain.trim()) return res.status(400).json({ error: 'Thiếu domain' });
@@ -94,7 +105,7 @@ router.put('/one', requireMenuEdit('sales-targets'), async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.post('/import', requireMenuEdit('sales-targets'), upload.single('file'), async (req, res, next) => {
+router.post('/import', requireMenuEdit(menuCode), upload.single('file'), async (req, res, next) => {
   try {
     const { domain } = req.body || {};
     if (!domain || !domain.trim()) return res.status(400).json({ error: 'Thiếu domain' });
@@ -127,4 +138,7 @@ router.post('/import', requireMenuEdit('sales-targets'), upload.single('file'), 
   } catch (err) { next(err); }
 });
 
-module.exports = router;
+  return router;
+}
+
+module.exports = { createSalesTargetsRouter };

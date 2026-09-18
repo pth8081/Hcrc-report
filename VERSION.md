@@ -20,6 +20,16 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 6.30 — Tách "Nhập chỉ tiêu" thành 2 trang độc lập: Lãnh đạo Tập đoàn / HCRC (etl)
+
+Theo yêu cầu: đọc code 2 hệ thống báo cáo ngoài (`ttbc-api.hcrc.vn`, `ttbc.hcrc.vn` — cổng báo cáo nội bộ tên "HCRC Reports", CSDL riêng `BRG_TrungTamBaoCao`, không liên quan kỹ thuật tới `HCRC_DWH` của hệ này) để tìm cấu trúc 2 báo cáo "Lãnh đạo Tập đoàn" và "HCRC cuối ngày". Xác nhận đây là hệ thống báo cáo ĐỘNG (report/cột chỉ tiêu cấu hình bằng dữ liệu trong CSDL, không hardcode trong code đã build) nên không lấy được cấu trúc cột cụ thể từ code — theo xác nhận của người dùng, tách trang hiện có mà KHÔNG đổi cấu trúc nhập liệu (vẫn nhập chỉ tiêu tự do qua cột Exci trong file, domain gõ tay như cũ):
+
+- Trang "Nhập chỉ tiêu" cũ (1 trang, MenuCode `sales-targets`) tách thành **2 trang độc lập**: "Chỉ tiêu Lãnh đạo Tập đoàn" (`sales-targets-corp`) và "Chỉ tiêu HCRC" (`sales-targets-hcrc`) — 2 MenuCode riêng để giao quyền tách bạch cho 2 nhóm khác nhau quản lý/nhập liệu (theo xác nhận của người dùng).
+- Backend: `etl/routes/admin/salesTargets.js` đổi thành factory `createSalesTargetsRouter(menuCode)` — logic HỆT NHAU (cùng bảng `dwh.SalesTargets`, cùng cách parse Excel), mount 2 lần ở `etl/server.js` dưới `/admin/sales-targets-corp` và `/admin/sales-targets-hcrc`.
+- Frontend: `etl-admin/src/pages/SalesTargetsPage.jsx` đổi thành component dùng chung, nhận props `menuCode`/`apiBase`/`title` — `App.jsx` render 2 route riêng, `Layout.jsx` thêm 2 mục nav riêng thay 1 mục cũ.
+- `etl-db/schema.sql`: migrate MỌI vai trò đang có MenuCode `sales-targets` (kể cả vai trò tuỳ chỉnh do admin tự tạo, không chỉ `target_importer`) sang CẢ 2 MenuCode mới với đúng `CanEdit` cũ (an toàn nhất — admin tự vào "Vai trò" bớt lại 1 trong 2 nếu muốn tách hẳn quyền theo đúng người phụ trách từng báo cáo).
+- `etl/routes/admin/roles.js` MENU_CATALOG cập nhật theo 2 MenuCode mới; `etl/README.md` cập nhật tài liệu.
+
 ## 6.29 — Ẩn mật khẩu khi đổi + tách "Tự đổi mật khẩu" ra khỏi "Admin đặt lại" (etl-admin, api-admin, rp-user)
 
 Rà soát theo yêu cầu: (1) khi đổi mật khẩu, ô nhập lại hiện chữ thô, rủi ro lộ mật khẩu cho người đứng cạnh/camera màn hình; (2) kiểm tra cả 3 hệ đã tách rõ "tự đổi mật khẩu của chính mình" (màn hình cá nhân) khỏi "Admin đặt lại mật khẩu cho người khác" (phần quản trị) chưa.

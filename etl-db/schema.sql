@@ -333,11 +333,42 @@ END
 GO
 
 -- target_importer (cũ): CHỈ trang Nhập chỉ tiêu, có sửa (đúng
--- requireTargetImporterRole cũ cho phép admin HOẶC target_importer ghi).
+-- requireTargetImporterRole cũ cho phép admin HOẶC target_importer ghi) —
+-- seed CŨ, giữ nguyên để không ghi lại nếu DB đã chạy qua bản trước (dòng
+-- 'sales-targets' được TÁCH thành 'sales-targets-corp'/'sales-targets-hcrc'
+-- ở khối migrate NGAY DƯỚI ĐÂY, không sửa lại seed gốc này).
 IF NOT EXISTS (SELECT 1 FROM admin.RoleMenuAccess rma JOIN admin.Roles r ON rma.RoleId = r.Id WHERE r.Code = 'target_importer')
 BEGIN
     DECLARE @targetImporterRoleId INT = (SELECT Id FROM admin.Roles WHERE Code = 'target_importer');
     INSERT INTO admin.RoleMenuAccess (RoleId, MenuCode, CanEdit) VALUES (@targetImporterRoleId, 'sales-targets', 1);
+END
+GO
+
+-- Tách trang "Nhập chỉ tiêu" (MenuCode cũ 'sales-targets') thành 2 trang ĐỘC
+-- LẬP theo đúng 2 báo cáo tiêu thụ chỉ tiêu — "Lãnh đạo Tập đoàn" và "HCRC"
+-- — mỗi báo cáo do 1 nhóm khác nhau quản lý/nhập liệu, cần giao quyền tách
+-- bạch (xem routes/admin/roles.js MENU_CATALOG + routes/admin/salesTargets.js).
+-- MỌI vai trò (kể cả tuỳ chỉnh do admin tự tạo qua UI, không chỉ
+-- target_importer) đang có MenuCode='sales-targets' -> tự động được cấp
+-- LUÔN CẢ 2 trang mới với đúng CanEdit cũ (an toàn nhất khi migrate: không
+-- biết trước admin dự định giao vai trò đó cho báo cáo nào trong 2 báo cáo
+-- — admin tự vào "Vai trò" bớt lại 1 trong 2 nếu muốn tách hẳn). Idempotent
+-- — chỉ chạy nếu vẫn còn dòng 'sales-targets' cũ.
+IF EXISTS (SELECT 1 FROM admin.RoleMenuAccess WHERE MenuCode = 'sales-targets')
+BEGIN
+    INSERT INTO admin.RoleMenuAccess (RoleId, MenuCode, CanEdit)
+    SELECT rma.RoleId, 'sales-targets-corp', rma.CanEdit
+    FROM admin.RoleMenuAccess rma
+    WHERE rma.MenuCode = 'sales-targets'
+      AND NOT EXISTS (SELECT 1 FROM admin.RoleMenuAccess x WHERE x.RoleId = rma.RoleId AND x.MenuCode = 'sales-targets-corp');
+
+    INSERT INTO admin.RoleMenuAccess (RoleId, MenuCode, CanEdit)
+    SELECT rma.RoleId, 'sales-targets-hcrc', rma.CanEdit
+    FROM admin.RoleMenuAccess rma
+    WHERE rma.MenuCode = 'sales-targets'
+      AND NOT EXISTS (SELECT 1 FROM admin.RoleMenuAccess x WHERE x.RoleId = rma.RoleId AND x.MenuCode = 'sales-targets-hcrc');
+
+    DELETE FROM admin.RoleMenuAccess WHERE MenuCode = 'sales-targets';
 END
 GO
 

@@ -22,7 +22,7 @@ const adminSyncJobsRoutes = require('./routes/admin/syncJobs');
 const adminLogRoutes = require('./routes/admin/log');
 const adminAuditLogRoutes = require('./routes/admin/auditLog');
 const adminDashboardRoutes = require('./routes/admin/dashboard');
-const adminSalesTargetsRoutes = require('./routes/admin/salesTargets');
+const { createSalesTargetsRouter } = require('./routes/admin/salesTargets');
 const adminBranchCodeMapRoutes = require('./routes/admin/branchCodeMap');
 const adminRolesRoutes = require('./routes/admin/roles');
 const { getPool, closeAll, assertConfigured } = require('./db');
@@ -101,7 +101,10 @@ app.use('/admin/sync-jobs', adminSyncJobsRoutes);
 app.use('/admin/log', adminLogRoutes);
 app.use('/admin/audit-log', adminAuditLogRoutes);
 app.use('/admin/dashboard', adminDashboardRoutes);
-app.use('/admin/sales-targets', adminSalesTargetsRoutes);
+// Tách 1 route cũ ('/admin/sales-targets') thành 2 route ĐỘC LẬP theo đúng
+// 2 báo cáo tiêu thụ chỉ tiêu — xem chú thích đầu routes/admin/salesTargets.js.
+app.use('/admin/sales-targets-corp', createSalesTargetsRouter('sales-targets-corp'));
+app.use('/admin/sales-targets-hcrc', createSalesTargetsRouter('sales-targets-hcrc'));
 app.use('/admin/branch-code-map', adminBranchCodeMapRoutes);
 app.use('/admin/roles', adminRolesRoutes);
 

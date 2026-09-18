@@ -22,7 +22,7 @@ import AccountPage from './pages/AccountPage';
 // khiến 1 tài khoản CHỈ được cấp 1 trong 4 trang này bị điều hướng về
 // '/dashboard' (trang không thấy được) ngay sau đăng nhập thay vì vào đúng
 // trang mình có quyền.
-const LANDING_ORDER = ['dashboard', 'sales-targets', 'data-sources', 'sync-jobs', 'branch-code-map', 'log', 'audit-log', 'users', 'roles'];
+const LANDING_ORDER = ['dashboard', 'sales-targets-corp', 'sales-targets-hcrc', 'data-sources', 'sync-jobs', 'branch-code-map', 'log', 'audit-log', 'users', 'roles'];
 
 function IndexRedirect() {
   const { can } = useAuth();
@@ -43,7 +43,15 @@ export default function App() {
           <Route path="/sync-jobs" element={<SyncJobsPage />} />
           <Route path="/log" element={<LogPage />} />
           <Route path="/audit-log" element={<AuditLogPage />} />
-          <Route path="/sales-targets" element={<SalesTargetsPage />} />
+          {/* Trước là 1 route "/sales-targets" chung — tách 2 instance ĐỘC
+              LẬP của cùng 1 component theo đúng 2 báo cáo tiêu thụ chỉ tiêu
+              (xem chú thích đầu pages/SalesTargetsPage.jsx). */}
+          <Route path="/sales-targets-corp" element={
+            <SalesTargetsPage menuCode="sales-targets-corp" apiBase="/sales-targets-corp" title="Chỉ tiêu Lãnh đạo Tập đoàn" />
+          } />
+          <Route path="/sales-targets-hcrc" element={
+            <SalesTargetsPage menuCode="sales-targets-hcrc" apiBase="/sales-targets-hcrc" title="Chỉ tiêu HCRC" />
+          } />
           <Route path="/branch-code-map" element={<BranchCodeMapPage />} />
           <Route path="/users" element={<UsersPage />} />
           <Route path="/roles" element={<RolesPage />} />

@@ -21,7 +21,12 @@ const MENU_CATALOG = [
   { code: 'data-sources', label: 'Nguồn dữ liệu' },
   { code: 'sync-jobs', label: 'Đồng bộ dữ liệu' },
   { code: 'branch-code-map', label: 'Ánh xạ mã chi nhánh' },
-  { code: 'sales-targets', label: 'Nhập chỉ tiêu' },
+  // Trước là 1 trang "sales-targets" chung, đổi thành 2 trang ĐỘC LẬP theo
+  // đúng 2 báo cáo tiêu thụ chỉ tiêu (Lãnh đạo Tập đoàn / HCRC) — 2 nhóm
+  // khác nhau quản lý/nhập liệu, cần 2 MenuCode riêng để giao quyền tách
+  // bạch (xem etl-db/schema.sql phần migrate + routes/admin/salesTargets.js).
+  { code: 'sales-targets-corp', label: 'Chỉ tiêu Lãnh đạo Tập đoàn' },
+  { code: 'sales-targets-hcrc', label: 'Chỉ tiêu HCRC' },
   { code: 'log', label: 'Nhật ký đồng bộ' },
   { code: 'audit-log', label: 'Nhật ký thao tác' },
   { code: 'users', label: 'Phân quyền' },

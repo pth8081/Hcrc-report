@@ -42,11 +42,19 @@ muốn.
 
 ## Nhập chỉ tiêu (target/KPI)
 
-Trang "Nhập chỉ tiêu" (`etl-admin/`) — upload file Excel (.xlsx) chỉ tiêu
-kinh doanh theo tháng cho từng siêu thị, ghi vào `dwh.SalesTargets` (bảng
-RIÊNG khỏi `dwh.ReportFacts` — xem `dwh/schema.sql`). Dùng cho báo cáo cần
-so "Thực đạt" với "Chỉ tiêu" (report bên `rp-server` đọc bảng này qua
-`SourceType='composite'`, xem `rp-server/README.md`).
+Trước là 1 trang "Nhập chỉ tiêu" chung — nay TÁCH thành 2 trang ĐỘC LẬP
+trong `etl-admin/`: **"Chỉ tiêu Lãnh đạo Tập đoàn"** (`/sales-targets-corp`)
+và **"Chỉ tiêu HCRC"** (`/sales-targets-hcrc`) — mỗi trang 1 MenuCode riêng
+(`sales-targets-corp`/`sales-targets-hcrc`, xem `routes/admin/roles.js`
+MENU_CATALOG), vì 2 báo cáo tiêu thụ chỉ tiêu do 2 nhóm khác nhau quản
+lý/nhập liệu, cần giao quyền tách bạch. Upload file Excel (.xlsx) chỉ tiêu
+kinh doanh theo tháng cho từng siêu thị, cả 2 trang cùng ghi vào MỘT bảng
+`dwh.SalesTargets` (bảng RIÊNG khỏi `dwh.ReportFacts` — xem `dwh/schema.sql`)
+— chỉ khác quyền/menu, KHÔNG khác cấu trúc dữ liệu hay logic (xem
+`routes/admin/salesTargets.js` — `createSalesTargetsRouter(menuCode)`, dựng
+router 2 lần thay vì 2 file riêng). Dùng cho báo cáo cần so "Thực đạt" với
+"Chỉ tiêu" (report bên `rp-server` đọc bảng này qua `SourceType='composite'`,
+xem `rp-server/README.md`).
 
 **Vì sao đặt ở `etl`, không phải `rp-server`** — chỉ `etl` được GHI vào
 DWH (`rp-server`/`api-server` chỉ có quyền đọc, xem `dwh/grants.sql`); đặt
@@ -57,11 +65,13 @@ ranh giới "chỉ etl ghi DWH" xuyên suốt kiến trúc.
 RIÊNG tài khoản CSDL `dwh_target_importer` (biến `DWH_TARGET_IMPORTER_*`
 trong `.env`), CHỈ có quyền trên đúng 1 bảng `dwh.SalesTargets`, không đụng
 được `dwh.ReportFacts` dù chạy trong cùng tiến trình `etl` — xem
-`dwh/grants.sql`. Ở tầng ứng dụng, thêm vai trò `target_importer` trong
-`admin.AdminUsers.Role` — tài khoản gán vai trò này CHỈ thấy trang "Nhập
-chỉ tiêu" trong `etl-admin/`, không thấy Nguồn dữ liệu/Đồng bộ (hạ tầng ETL
-thật) — cấp cho nhân sự chỉ cần nhập chỉ tiêu hàng tháng, không phải quản
-trị ETL đầy đủ.
+`dwh/grants.sql`. Ở tầng ứng dụng, vai trò `target_importer` (mặc định được
+cấp CẢ 2 trang mới qua migrate — xem `etl-db/schema.sql`) CHỈ thấy 2 trang
+"Chỉ tiêu Lãnh đạo Tập đoàn"/"Chỉ tiêu HCRC" trong `etl-admin/`, không thấy
+Nguồn dữ liệu/Đồng bộ (hạ tầng ETL thật) — cấp cho nhân sự chỉ cần nhập chỉ
+tiêu hàng tháng, không phải quản trị ETL đầy đủ. Muốn tách hẳn 1 nhóm chỉ
+nhập ĐÚNG 1 trong 2 báo cáo — vào "Vai trò" tạo vai trò mới, chỉ tick đúng 1
+MenuCode (`sales-targets-corp` hoặc `sales-targets-hcrc`).
 
 **Định dạng file** — dòng 1 là header, 2 cột đầu CỐ ĐỊNH tên `MaSieuThi` và
 `Thang` (dạng `YYYY-MM`), các cột sau tuỳ ý — tên cột trở thành tên khoá
@@ -84,7 +94,8 @@ siêu thị khỏi báo cáo chỉ vì lỗi nhập liệu. File có thể CHỈ
 "Sửa / thêm 1 siêu thị" ngay dưới bảng chỉ tiêu (nút "Sửa" ở mỗi dòng tự
 điền sẵn dữ liệu hiện có, hoặc "Thêm siêu thị mới" cho dòng trống). Dùng
 khi giữa tháng phát sinh mở/đóng 1-2 siêu thị, không cần chuẩn bị lại
-nguyên file Excel. Route `PUT /admin/sales-targets/one` — GHI ĐÈ nguyên
+nguyên file Excel. Route `PUT /admin/sales-targets-corp/one` (hoặc
+`-hcrc`) — GHI ĐÈ nguyên
 `TargetsJson` của đúng siêu thị + tháng đó (giống hệt semantics upload
 file, chỉ khác 1 dòng thay vì cả file) — giao diện tự tải dữ liệu hiện có
 lên form trước khi cho sửa nên không lo mất chỉ tiêu khác chỉ vì tick 1 ô
@@ -234,7 +245,8 @@ tài khoản (`admin.AdminUserRoles`).
 | `GET /admin/sync-jobs/custom-connectors` | menu `sync-jobs` xem | Danh sách connector "tuỳ biến" có sẵn trong code |
 | `POST /admin/sync-jobs/:id/run-now` | menu `sync-jobs` sửa | Chạy thử một job ngay |
 | `GET/PUT/DELETE/POST /admin/branch-code-map` | menu `branch-code-map` sửa (kể cả xem) | Ánh xạ mã chi nhánh |
-| `GET /admin/sales-targets`, `PUT /admin/sales-targets/one`, `POST /import` | menu `sales-targets` xem/sửa | Nhập chỉ tiêu |
+| `GET/PUT /admin/sales-targets-corp`, `.../one`, `.../import` | menu `sales-targets-corp` xem/sửa | Chỉ tiêu Lãnh đạo Tập đoàn |
+| `GET/PUT /admin/sales-targets-hcrc`, `.../one`, `.../import` | menu `sales-targets-hcrc` xem/sửa | Chỉ tiêu HCRC |
 | `GET /admin/log` | menu `log` xem | Nhật ký đồng bộ, lọc + phân trang |
 | `GET /admin/audit-log` | menu `audit-log` xem | Nhật ký thao tác |
 | `GET /admin/dashboard` | menu `dashboard` xem | Tổng hợp tình trạng đồng bộ |
