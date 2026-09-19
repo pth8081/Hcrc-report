@@ -2,13 +2,18 @@
 // hình DUY NHẤT (Id=1, xem rp-db/schema.sql app.HcrcWorkspaceSettings) cho
 // lib/hcrcWorkspaceClient.js — BaseUrl + khoá API (mã hoá) dùng cho MỌI lần
 // đăng nhập của account AuthSource='hcrcWorkspace' VÀ mỗi lần "Đồng bộ tài
-// khoản" (routes/users.js POST /system/users/sync). Khoá API KHÔNG BAO GIỜ
-// trả về nguyên văn qua API — GET chỉ báo hasApiKey để giao diện biết đã
-// cấu hình hay chưa (giống routes/emailSettings.js).
+// khoản" (routes/users.js POST /system/users/sync). GET / KHÔNG trả khoá
+// nguyên văn — chỉ báo hasApiKey (giống routes/emailSettings.js). Khoá THẬT
+// chỉ lộ ra qua GET /api-key riêng, cùng mức bảo vệ requireSystemRoleActor
+// + có ghi Audit Log mỗi lần xem — khác api-server/routes/admin/consumers.js
+// (khoá đối tác NGOÀI lưu dạng BĂM 1 chiều, không tài nào xem lại được dù
+// có muốn) vì khoá NÀY là bí mật CỦA CHÍNH hệ thống dùng để tự gọi ra HCRC
+// Workspace (không phát cho bên thứ 3 nào), nên lưu mã hoá 2 CHIỀU
+// (`lib/crypto.js`) — Admin hệ thống xem lại được là chấp nhận được.
 const express = require('express');
 const { sql, getPool } = require('../db');
 const { requireAuth, requireMenuAccess, requireSystemRoleActor } = require('../lib/auth');
-const { encrypt } = require('../lib/crypto');
+const { encrypt, decrypt } = require('../lib/crypto');
 const { logAction } = require('../lib/auditLog');
 const { fetchDirectory } = require('../lib/hcrcWorkspaceClient');
 
@@ -39,6 +44,20 @@ router.get('/', async (req, res, next) => {
       lastSyncStatus: row.LastSyncStatus,
       lastSyncError: row.LastSyncError
     });
+  } catch (err) { next(err); }
+});
+
+// Xem lại khoá THẬT (đã mã hoá 2 chiều, giải mã được) — cùng mức nhạy cảm
+// như sửa cấu hình, dùng chung requireSystemRoleActor, và ghi Audit Log vì
+// đây là hành động XEM bí mật, không phải chỉ sửa.
+router.get('/api-key', requireSystemRoleActor, async (req, res, next) => {
+  try {
+    const pool = await getPool('RP');
+    const result = await pool.request().query('SELECT ApiKeyEncrypted FROM app.HcrcWorkspaceSettings WHERE Id = 1');
+    const encrypted = result.recordset[0]?.ApiKeyEncrypted;
+    if (!encrypted) return res.status(404).json({ error: 'Chưa cấu hình khoá API' });
+    await logAction(req, { module: 'Xác thực HCRC Workspace', actionType: 'XEM_KHOA_API', description: 'Xem lại khoá API HCRC Workspace' });
+    res.json({ apiKey: decrypt(encrypted) });
   } catch (err) { next(err); }
 });
 

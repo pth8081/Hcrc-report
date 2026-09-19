@@ -20,6 +20,29 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 6.46 — rp-user: nút "Xem khoá API hiện tại" cho HCRC Workspace
+
+Trang "Xác thực HCRC Workspace" trước đây (đúng như "Đối tác API" ở
+api-admin) không cho xem lại khoá đã lưu — ô Khoá API luôn để trống, chỉ
+nhập được khoá MỚI đè lên. Khác api-admin (khoá đối tác NGOÀI lưu dạng BĂM
+1 chiều, không tài nào giải mã lại được dù muốn), khoá HCRC Workspace là bí
+mật CỦA CHÍNH hệ thống (rp-server tự dùng để gọi ra API của HCRC, không
+phát cho bên thứ 3) và được lưu MÃ HOÁ 2 CHIỀU (`lib/crypto.js`) — về mặt
+kỹ thuật giải mã lại được, nên hợp lý để Admin hệ thống xem lại khi cần.
+
+- `rp-server/routes/hcrcWorkspaceSettings.js` — route mới `GET /api-key`
+  (cùng mức bảo vệ `requireSystemRoleActor` như route sửa cấu hình), giải
+  mã và trả khoá thật, GHI AUDIT LOG mỗi lần xem (`XEM_KHOA_API`) — khác
+  `GET /` vẫn chỉ trả `hasApiKey` như cũ, không tự động lộ khoá.
+- `HcrcWorkspaceSettingsPage.jsx` — nút "Xem khoá API hiện tại" (chỉ hiện
+  khi đã có khoá), gọi route trên khi bấm (không tự tải cùng lúc vào trang,
+  tránh ghi audit log thừa mỗi lần mở trang), kèm nút "Sao chép" và "Ẩn".
+
+Test bằng script mock route (giả `../db`/`../lib/crypto`/`../lib/auditLog`,
+gọi thẳng route handler) xác nhận giải mã đúng + có ghi audit log + trả 404
+khi chưa cấu hình khoá — không commit file test vào repo (đúng quy ước dự
+án, test kiểu này chỉ chạy 1 lần ở scratchpad). Kèm vite build sạch rp-user.
+
 ## 6.45 — etl-admin: nút "Sửa" cho Nguồn dữ liệu (Server/Database/Username/Password)
 
 `etl-admin/src/pages/DataSourcesPage.jsx` trước đây chỉ có Tắt/Bật/Xoá —

@@ -2,7 +2,8 @@
 // xác thực ngoài "HCRC Workspace" (BaseUrl + khoá API dùng cho MỌI account
 // AuthSource='hcrcWorkspace' và "Đồng bộ tài khoản" ở trang Người dùng — xem
 // rp-server/routes/hcrcWorkspaceSettings.js). Ô khoá API để trống khi sửa =
-// giữ nguyên khoá đã lưu.
+// giữ nguyên khoá đã lưu. "Xem khoá API hiện tại" gọi route GET /api-key
+// riêng (chỉ khi bấm — mỗi lần xem đều ghi Audit Log ở server).
 import { useEffect, useState } from 'react';
 import { api } from '../../../lib/api';
 import { useAuth } from '../../../lib/AuthContext';
@@ -22,6 +23,7 @@ export default function HcrcWorkspaceSettingsPage() {
   const [lastSync, setLastSync] = useState(null);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [revealedApiKey, setRevealedApiKey] = useState(null);
 
   function reload() {
     api.get('/system/hcrc-workspace').then(data => {
@@ -42,7 +44,26 @@ export default function HcrcWorkspaceSettingsPage() {
       setMessage('Đã lưu.');
       setHasApiKey(hasApiKey || !!form.apiKey);
       setForm({ ...form, apiKey: '' });
+      setRevealedApiKey(null);
     } catch (err) { setError(err.message); }
+  }
+
+  // Xem lại khoá thật — gọi riêng, chỉ khi bấm (không tự tải cùng reload())
+  // để không tự động lộ khoá qua Audit Log mỗi lần vào trang.
+  async function revealApiKey() {
+    setError('');
+    try {
+      const { apiKey } = await api.get('/system/hcrc-workspace/api-key');
+      setRevealedApiKey(apiKey);
+    } catch (err) { setError(err.message); }
+  }
+
+  async function copyRevealedKey() {
+    try {
+      await navigator.clipboard.writeText(revealedApiKey);
+    } catch {
+      alert('Không tự sao chép được (trình duyệt chặn) — bôi đen khoá và Ctrl+C thủ công.');
+    }
   }
 
   async function testConnection() {
@@ -71,6 +92,18 @@ export default function HcrcWorkspaceSettingsPage() {
           <form className="stacked-form" onSubmit={save}>
             <input placeholder="Base URL (vd https://workspace.noi-bo.hcrc.vn)" value={form.baseUrl} onChange={(e) => setForm({ ...form, baseUrl: e.target.value })} required />
             <input placeholder={hasApiKey ? 'Khoá API (bỏ trống để giữ nguyên)' : 'Khoá API'} type="password" value={form.apiKey} onChange={(e) => setForm({ ...form, apiKey: e.target.value })} />
+            {hasApiKey && (
+              <div className="inline-actions">
+                <button type="button" onClick={revealApiKey}>Xem khoá API hiện tại</button>
+                {revealedApiKey && (
+                  <>
+                    <code>{revealedApiKey}</code>
+                    <button type="button" onClick={copyRevealedKey}>Sao chép</button>
+                    <button type="button" onClick={() => setRevealedApiKey(null)}>Ẩn</button>
+                  </>
+                )}
+              </div>
+            )}
             <input placeholder="Đường dẫn xác thực" value={form.verifyPath} onChange={(e) => setForm({ ...form, verifyPath: e.target.value })} />
             <input placeholder="Đường dẫn danh bạ" value={form.directoryPath} onChange={(e) => setForm({ ...form, directoryPath: e.target.value })} />
             <label className="checkbox-row"><input type="checkbox" checked={form.isEnabled} onChange={(e) => setForm({ ...form, isEnabled: e.target.checked })} /> Bật xác thực HCRC Workspace</label>
