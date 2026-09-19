@@ -42,6 +42,9 @@ export default function ReportCatalogPanel() {
   const [testResult, setTestResult] = useState(null);
   const [testError, setTestError] = useState('');
   const [testing, setTesting] = useState(false);
+  // null = đang tạo mới; có giá trị = đang sửa ĐÚNG report đó (khoá ô "Mã báo
+  // cáo" — PUT theo reportId trong URL, không đổi được khoá chính qua form).
+  const [editingReportId, setEditingReportId] = useState(null);
 
   function reload() {
     api.get('/system/report-catalog').then(setReports).catch(err => setError(err.message));
@@ -70,26 +73,66 @@ export default function ReportCatalogPanel() {
     return { definitionJson: JSON.stringify(parsed), error: null };
   }
 
-  async function createReport(e) {
+  async function submitReport(e) {
     e.preventDefault();
     setError('');
     const { definitionJson, error: buildError } = buildDefinitionJson();
     if (buildError) return setError(buildError);
+    const payload = {
+      ...form,
+      definitionJson,
+      menuItemId: Number(form.menuItemId),
+      dataSourceId: form.sourceType === 'directDb' && form.dataSourceId ? Number(form.dataSourceId) : null,
+      apiConnectionId: (form.sourceType === 'apiReport' || form.sourceType === 'apiRealtime') && form.apiConnectionId ? Number(form.apiConnectionId) : null,
+      apiTarget: form.sourceType === 'apiReport' || form.sourceType === 'apiRealtime' ? form.apiTarget : null,
+      externalConnectionId: form.sourceType === 'externalApi' && form.externalConnectionId ? Number(form.externalConnectionId) : null
+    };
     try {
-      await api.post('/system/report-catalog', {
-        ...form,
-        definitionJson,
-        menuItemId: Number(form.menuItemId),
-        dataSourceId: form.sourceType === 'directDb' && form.dataSourceId ? Number(form.dataSourceId) : null,
-        apiConnectionId: (form.sourceType === 'apiReport' || form.sourceType === 'apiRealtime') && form.apiConnectionId ? Number(form.apiConnectionId) : null,
-        apiTarget: form.sourceType === 'apiReport' || form.sourceType === 'apiRealtime' ? form.apiTarget : null,
-        externalConnectionId: form.sourceType === 'externalApi' && form.externalConnectionId ? Number(form.externalConnectionId) : null
-      });
+      if (editingReportId) {
+        await api.put(`/system/report-catalog/${editingReportId}`, { ...payload, isActive: true });
+      } else {
+        await api.post('/system/report-catalog', payload);
+      }
       setForm(EMPTY_FORM);
+      setEditingReportId(null);
       setTestResult(null);
       setTestError('');
       reload();
     } catch (err) { setError(err.message); }
+  }
+
+  // Nạp sẵn dữ liệu report đã có vào ĐÚNG form Tạo báo cáo bên trên (dùng lại
+  // 1 form cho cả 2 việc, khác chỗ gọi PUT thay vì POST khi Lưu) — cuộn lên
+  // đầu trang để thấy ngay form đã đổi sang chế độ Sửa.
+  function startEdit(r) {
+    let externalPath = '', externalShape = 'lookup', externalListPath = '';
+    if (r.SourceType === 'externalApi') {
+      try {
+        const def = JSON.parse(r.DefinitionJson || '{}');
+        externalPath = def.externalPath || '';
+        externalShape = def.externalShape || 'lookup';
+        externalListPath = def.externalListPath || '';
+      } catch { /* JSON hỏng thì để trống, người dùng tự gõ lại */ }
+    }
+    setForm({
+      reportId: r.ReportId, title: r.Title, domain: r.Domain,
+      menuItemId: String(r.MenuItemId), dataSourceId: r.DataSourceId ? String(r.DataSourceId) : '',
+      definitionJson: r.DefinitionJson, sourceType: r.SourceType,
+      apiConnectionId: r.ApiConnectionId ? String(r.ApiConnectionId) : '', apiTarget: r.ApiTarget || '',
+      externalConnectionId: r.ExternalConnectionId ? String(r.ExternalConnectionId) : '',
+      externalPath, externalShape, externalListPath
+    });
+    setEditingReportId(r.ReportId);
+    setError('');
+    setTestResult(null);
+    setTestError('');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function cancelEdit() {
+    setForm(EMPTY_FORM);
+    setEditingReportId(null);
+    setError('');
   }
 
   async function deleteReport(r) {
@@ -150,8 +193,9 @@ export default function ReportCatalogPanel() {
     <div>
       {error && <p className="form-error">{error}</p>}
 
-      <form className="stacked-form" onSubmit={createReport}>
-        <input placeholder="Mã báo cáo (reportId)" value={form.reportId} onChange={(e) => setForm({ ...form, reportId: e.target.value })} required />
+      <form className="stacked-form" onSubmit={submitReport}>
+        {editingReportId && <p className="hint">Đang sửa báo cáo "{editingReportId}" — Mã báo cáo không đổi được, xoá rồi tạo lại nếu cần đổi mã.</p>}
+        <input placeholder="Mã báo cáo (reportId)" value={form.reportId} onChange={(e) => setForm({ ...form, reportId: e.target.value })} required disabled={!!editingReportId} />
         <input placeholder="Tiêu đề" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required />
         <input placeholder="Domain (dwh.ReportFacts.Domain)" value={form.domain} onChange={(e) => setForm({ ...form, domain: e.target.value })} required />
         <select value={form.menuItemId} onChange={(e) => setForm({ ...form, menuItemId: e.target.value })} required>
@@ -249,7 +293,10 @@ export default function ReportCatalogPanel() {
           onChange={(e) => setForm({ ...form, definitionJson: e.target.value })}
           required
         />
-        <button type="submit">Tạo báo cáo</button>
+        <div className="inline-actions">
+          <button type="submit">{editingReportId ? 'Cập nhật báo cáo' : 'Tạo báo cáo'}</button>
+          {editingReportId && <button type="button" onClick={cancelEdit}>Huỷ</button>}
+        </div>
       </form>
 
       <div className="template-upload">
@@ -276,7 +323,14 @@ export default function ReportCatalogPanel() {
             )
           },
           { key: 'IsActive', label: 'Trạng thái', render: (r) => (r.IsActive ? 'Hoạt động' : 'Tắt') },
-          { key: 'actions', label: '', render: (r) => <button type="button" onClick={() => deleteReport(r)}>Xoá</button> }
+          {
+            key: 'actions', label: '', render: (r) => (
+              <div className="inline-actions">
+                <button type="button" onClick={() => startEdit(r)}>Sửa</button>
+                <button type="button" onClick={() => deleteReport(r)}>Xoá</button>
+              </div>
+            )
+          }
         ]}
         rows={reports}
       />

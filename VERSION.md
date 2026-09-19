@@ -20,6 +20,28 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 6.43 — Nút "Sửa" cho Báo cáo (rp-user) và Job đồng bộ (etl-admin)
+
+Trước đây sửa 1 báo cáo/job đã tạo phải xoá rồi tạo lại — 2 route backend
+`PUT /system/report-catalog/:reportId` và `PUT /admin/sync-jobs/:id` đã có
+sẵn từ trước nhưng chưa có nút bấm nào gọi tới. Thêm giao diện:
+
+- `rp-user/.../report-catalog/ReportCatalogPanel.jsx` — nút "Sửa" ở mỗi
+  dòng nạp lại TOÀN BỘ dữ liệu report đó vào ĐÚNG form "Tạo báo cáo" phía
+  trên (dùng chung 1 form, không tạo form riêng) — ô "Mã báo cáo" bị khoá
+  (không đổi được khoá chính qua PUT), nút "Lưu" đổi tên thành "Cập nhật
+  báo cáo" và gọi PUT thay vì POST, có nút "Huỷ" quay lại chế độ tạo mới.
+- `etl-admin/src/pages/SyncJobsPage.jsx` — nút "Sửa" mở 1 modal RIÊNG
+  (không dùng chung form Tạo mới, vì PUT không nhận Nguồn dữ liệu/bảng
+  nguồn/cấu hình join — đổi các trường đó vẫn phải xoá job cũ tạo job mới,
+  đúng giới hạn có chủ đích của route) — sửa được Tên/Domain/Lịch chạy
+  (cron)/Giữ lịch sử/Ánh xạ mã chi nhánh, và với job Type="table" còn sửa
+  được Dimensions/Measures (tự tải lại danh sách cột THẬT từ bảng nguồn
+  hiện có của job qua endpoint duyệt schema có sẵn, không gõ tay).
+
+Không đổi backend (2 route PUT đã đủ, chỉ thiếu UI). Test bằng vite build
+sạch cả 2 frontend.
+
 ## 6.42 — Script tạo tự động 2 Nguồn dữ liệu + 4 job đồng bộ + 2 báo cáo LDTD/HCRC
 
 Thay bấm tay qua giao diện (Bước 2 + Bước 4 của "báo cáo doanh thu cuối

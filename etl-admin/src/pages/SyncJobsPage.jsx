@@ -36,6 +36,45 @@ export default function SyncJobsPage() {
   const [joinColumns, setJoinColumns] = useState([]);
   const [fkSuggestions, setFkSuggestions] = useState([]);
   const [error, setError] = useState('');
+  // Sửa job: chỉ đổi được Name/CronExpression/TargetDomain/KeepHistory/
+  // BranchCodeMapType/Dimension+MeasureColumns — PUT /sync-jobs/:id KHÔNG
+  // nhận DataSourceId/SourceSchema/SourceTable/cấu hình join (đổi bảng nguồn
+  // thì phải xoá job cũ, tạo job mới), nên dùng modal riêng thay vì tái dùng
+  // form Thêm mới ở trên.
+  const [editingJob, setEditingJob] = useState(null);
+  const [editForm, setEditForm] = useState(null);
+  const [editColumns, setEditColumns] = useState([]);
+
+  function openEdit(job) {
+    setEditingJob(job);
+    setEditForm({
+      name: job.Name, cronExpression: job.CronExpression, targetDomain: job.TargetDomain,
+      keepHistory: !!job.KeepHistory, branchCodeMapType: job.BranchCodeMapType || '',
+      dimensionColumns: JSON.parse(job.DimensionColumnsJson || '[]'),
+      measureColumns: JSON.parse(job.MeasureColumnsJson || '[]')
+    });
+    setEditColumns([]);
+    if (job.Type === 'table' && job.DataSourceId && job.SourceSchema && job.SourceTable) {
+      api.get(`/data-sources/${job.DataSourceId}/tables/${job.SourceSchema}/${job.SourceTable}/columns`)
+        .then(setEditColumns).catch(err => setError(err.message));
+    }
+  }
+
+  function closeEdit() {
+    setEditingJob(null);
+    setEditForm(null);
+    setEditColumns([]);
+  }
+
+  async function submitEdit(e) {
+    e.preventDefault();
+    setError('');
+    try {
+      await api.put(`/sync-jobs/${editingJob.Id}`, { ...editForm, isActive: !!editingJob.IsActive });
+      closeEdit();
+      reload();
+    } catch (err) { setError(err.message); }
+  }
 
   function reload() {
     api.get('/sync-jobs').then(setJobs).catch(err => setError(err.message));
@@ -158,6 +197,7 @@ export default function SyncJobsPage() {
           isAdmin && {
             key: 'actions', label: '', render: (j) => (
               <>
+                <button type="button" onClick={() => openEdit(j)}>Sửa</button>{' '}
                 <button type="button" onClick={() => runNow(j)}>Chạy thử</button>{' '}
                 <button type="button" onClick={() => toggleActive(j)}>{j.IsActive ? 'Tắt' : 'Bật'}</button>{' '}
                 <button type="button" onClick={() => deleteJob(j)}>Xoá</button>
@@ -314,6 +354,60 @@ export default function SyncJobsPage() {
             <button type="submit">Tạo job đồng bộ</button>
           </form>
         </>
+      )}
+
+      {editingJob && editForm && (
+        <div className="modal-overlay">
+          <div className="modal">
+            <h3>Sửa job "{editingJob.Name}"</h3>
+            <p className="hint">
+              Nguồn dữ liệu/bảng/cột nối vẫn giữ nguyên ({editingJob.Type === 'table' ? `${editingJob.SourceSchema}.${editingJob.SourceTable}` : 'connector tuỳ biến'}) —
+              đổi bảng nguồn thì xoá job này rồi tạo job mới.
+            </p>
+            <form className="stacked-form" onSubmit={submitEdit}>
+              <input placeholder="Tên job" value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} required />
+              <input placeholder="Domain (dwh.ReportFacts.Domain)" value={editForm.targetDomain} onChange={(e) => setEditForm({ ...editForm, targetDomain: e.target.value })} required />
+              <input placeholder="Lịch chạy (cron)" value={editForm.cronExpression} onChange={(e) => setEditForm({ ...editForm, cronExpression: e.target.value })} required />
+              <label className="checkbox-row">
+                <input type="checkbox" checked={editForm.keepHistory} onChange={(e) => setEditForm({ ...editForm, keepHistory: e.target.checked })} />
+                Giữ lịch sử theo ngày
+              </label>
+              <input
+                placeholder="Ánh xạ mã chi nhánh (tuỳ chọn)"
+                value={editForm.branchCodeMapType}
+                onChange={(e) => setEditForm({ ...editForm, branchCodeMapType: e.target.value })}
+              />
+
+              {editingJob.Type === 'table' && editColumns.length > 0 && (
+                <>
+                  <div className="column-picker">
+                    <span>Cột đưa vào Dimensions</span>
+                    {editColumns.map(c => (
+                      <label key={c.columnName} className="checkbox-row">
+                        <input type="checkbox" checked={editForm.dimensionColumns.includes(c.columnName)} onChange={() => setEditForm({ ...editForm, dimensionColumns: toggleInList(editForm.dimensionColumns, c.columnName) })} />
+                        {c.columnName}
+                      </label>
+                    ))}
+                  </div>
+                  <div className="column-picker">
+                    <span>Cột đưa vào Measures</span>
+                    {editColumns.map(c => (
+                      <label key={c.columnName} className="checkbox-row">
+                        <input type="checkbox" checked={editForm.measureColumns.includes(c.columnName)} onChange={() => setEditForm({ ...editForm, measureColumns: toggleInList(editForm.measureColumns, c.columnName) })} />
+                        {c.columnName}
+                      </label>
+                    ))}
+                  </div>
+                </>
+              )}
+
+              <div className="inline-actions">
+                <button type="submit">Cập nhật job</button>
+                <button type="button" onClick={closeEdit}>Huỷ</button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
     </div>
   );
