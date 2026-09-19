@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '../lib/AuthContext';
 
@@ -24,10 +25,20 @@ const NAV = [
 export default function Layout() {
   const { me, isSystemRole, can, canEdit, logout } = useAuth();
   const nav = NAV.filter(item => (item.editOnly ? canEdit(item.menuCode) : can(item.menuCode)));
+  // Dưới breakpoint di động (xem styles.css @media max-width:880px), sidebar
+  // chuyển từ dải cố định 240px cạnh nội dung sang drawer ẩn/hiện qua nút ☰.
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const closeSidebar = () => setSidebarOpen(false);
 
   return (
     <div className="app-shell">
-      <aside className="sidebar">
+      <div className="mobile-topbar">
+        <button type="button" className="mobile-menu-toggle" onClick={() => setSidebarOpen(true)} aria-label="Mở menu">☰</button>
+        <div className="h-logo">H</div>
+        <span className="mobile-topbar-title">HCRC · ETL</span>
+      </div>
+      {sidebarOpen && <div className="sidebar-backdrop" onClick={closeSidebar} />}
+      <aside className={`sidebar${sidebarOpen ? ' open' : ''}`}>
         <div className="sidebar-brand">
           <div className="h-logo">H</div>
           <div className="sidebar-brand-text">
@@ -38,7 +49,7 @@ export default function Layout() {
         <ul className="menu">
           {nav.map(item => (
             <li key={item.path}>
-              <NavLink to={item.path} className={({ isActive }) => (isActive ? 'active' : '')}>
+              <NavLink to={item.path} onClick={closeSidebar} className={({ isActive }) => (isActive ? 'active' : '')}>
                 <span className="nav-icon">{item.icon}</span>
                 {item.label}
               </NavLink>
@@ -47,7 +58,7 @@ export default function Layout() {
         </ul>
         <div className="sidebar-footer">
           <div className="user-name">{me?.username} {isSystemRole && <span className="role-badge">hệ thống</span>}</div>
-          <NavLink to="/account" className={({ isActive }) => `account-link${isActive ? ' active' : ''}`}>👤 Tài khoản của tôi</NavLink>
+          <NavLink to="/account" onClick={closeSidebar} className={({ isActive }) => `account-link${isActive ? ' active' : ''}`}>👤 Tài khoản của tôi</NavLink>
           <button type="button" className="logout-link" onClick={logout}>↩ Đăng xuất</button>
           <div className="app-version">v{__APP_VERSION__}</div>
         </div>

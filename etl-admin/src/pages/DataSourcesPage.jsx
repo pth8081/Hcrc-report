@@ -243,8 +243,8 @@ export default function DataSourcesPage() {
       />
 
       {editing && (
-        <div className="modal-overlay">
-          <div className="modal">
+        <div className="modal">
+          <div className="modal-body">
             <h3>Sửa nguồn "{editing.Name}"</h3>
             <p className="hint">Loại CSDL ({editing.Engine === 'mysql' ? 'MySQL/MariaDB' : 'SQL Server'}) không đổi được — tạo nguồn mới nếu cần đổi loại.</p>
             <form className="stacked-form" onSubmit={saveEdit}>

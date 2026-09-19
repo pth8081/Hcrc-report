@@ -20,6 +20,38 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 6.47 — Giao diện di động: sidebar dạng drawer cho cả 3 app quản trị
+
+Trước đây `.sidebar` rộng cố định 240px nằm CẠNH `.content` trong
+`.app-shell` (`display:flex`) ở MỌI kích thước màn hình — trên điện thoại
+(~360-420px), 240px chiếm hơn nửa màn hình, phần nội dung còn lại quá hẹp
+và một số khối con (`.modal-body` rộng cố định 420px, `.dashboard-grid`
+`minmax(380px,...)`) không co lại được, đẩy cả trang tràn ngang phải cuộn
+mới xem hết — đúng lỗi người dùng chụp màn hình thấy trên `report.hcrc.vn`.
+Sửa cho cả `rp-user`, `etl-admin`, `api-admin` (code trùng lặp có chủ đích,
+đúng quy ước hiện có — mỗi app tự chứa đủ CSS/component):
+
+- Dưới breakpoint 880px: `.sidebar` chuyển từ dải cố định sang **drawer ẩn/
+  hiện** (`position:fixed`, trượt vào/ra bằng `transform: translateX`), mở
+  bằng nút ☰ trên thanh `.mobile-topbar` mới (sticky trên cùng, có logo +
+  tên hệ thống), đóng bằng bấm `.sidebar-backdrop` (lớp phủ tối mờ) hoặc
+  bấm 1 mục điều hướng thật (không đóng khi chỉ mở/đóng nhóm "Hệ thống" ở
+  rp-user). `.content` không còn bị ép chung hàng với sidebar → hết tràn
+  ngang.
+- `.modal-body` đổi `width: 420px` cố định → `width: min(420px, 92vw)` (cả
+  3 app) — hộp thoại Sửa không còn tràn khỏi màn hình hẹp.
+- `rp-user`: `.dashboard-grid` (`minmax(380px,...)`) thêm breakpoint riêng
+  460px → 1 cột, vì `minmax` không tự co dưới mức sàn 380px.
+- Tiện thể sửa 1 lỗi CSS thật phát hiện khi rà lại: modal "Sửa" ở
+  `etl-admin` (`SyncJobsPage.jsx`/`DataSourcesPage.jsx`, thêm ở đợt trước)
+  dùng nhầm tên class (`modal-overlay` chưa từng định nghĩa, `modal` bị
+  gán sai lớp) — đổi đúng về `modal`/`modal-body` như quy ước sẵn có.
+
+Test bằng Playwright thật (viewport di động 390×844, `isMobile`/`hasTouch`),
+chụp cả 3 trạng thái (đóng/mở drawer/đóng lại sau khi bấm ra ngoài) cho cả
+3 app — xác nhận không còn tràn ngang, nút ☰ mở đúng menu thật, bấm ra
+ngoài đóng lại đúng. Kèm vite build sạch cả 3 frontend.
+
 ## 6.46 — rp-user: nút "Xem khoá API hiện tại" cho HCRC Workspace
 
 Trang "Xác thực HCRC Workspace" trước đây (đúng như "Đối tác API" ở

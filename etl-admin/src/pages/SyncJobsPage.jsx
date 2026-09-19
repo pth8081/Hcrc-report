@@ -357,8 +357,8 @@ export default function SyncJobsPage() {
       )}
 
       {editingJob && editForm && (
-        <div className="modal-overlay">
-          <div className="modal">
+        <div className="modal">
+          <div className="modal-body">
             <h3>Sửa job "{editingJob.Name}"</h3>
             <p className="hint">
               Nguồn dữ liệu/bảng/cột nối vẫn giữ nguyên ({editingJob.Type === 'table' ? `${editingJob.SourceSchema}.${editingJob.SourceTable}` : 'connector tuỳ biến'}) —

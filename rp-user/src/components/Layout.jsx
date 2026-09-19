@@ -27,6 +27,12 @@ function iconFor(code) { return ICONS[code] || '📄'; }
 export default function Layout() {
   const { me, logout } = useAuth();
   const [systemOpen, setSystemOpen] = useState(true);
+  // Dưới breakpoint di động (xem styles.css @media max-width:880px), sidebar
+  // chuyển từ dải cố định 240px cạnh nội dung sang drawer ẩn/hiện qua nút ☰
+  // — mặc định đóng, tự đóng lại khi bấm 1 mục điều hướng thật (không đóng
+  // khi chỉ bấm mở/đóng nhóm "Hệ thống").
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const closeSidebar = () => setSidebarOpen(false);
   const menu = me?.menu || [];
   // 3 nhóm báo cáo (mã "reports-*") gộp thành 1 mục sidebar duy nhất -> trang
   // /reports (xem modules/reports/ReportsPage.jsx) tự vẽ tab theo nhóm còn
@@ -47,7 +53,13 @@ export default function Layout() {
 
   return (
     <div className="app-shell">
-      <aside className="sidebar">
+      <div className="mobile-topbar">
+        <button type="button" className="mobile-menu-toggle" onClick={() => setSidebarOpen(true)} aria-label="Mở menu">☰</button>
+        <div className="h-logo">H</div>
+        <span className="mobile-topbar-title">HCRC · Báo cáo</span>
+      </div>
+      {sidebarOpen && <div className="sidebar-backdrop" onClick={closeSidebar} />}
+      <aside className={`sidebar${sidebarOpen ? ' open' : ''}`}>
         <div className="sidebar-brand">
           <div className="h-logo">H</div>
           <div className="sidebar-brand-text">
@@ -72,7 +84,7 @@ export default function Layout() {
                     <span className="nav-chevron">{systemOpen ? '▾' : '▸'}</span>
                   </button>
                 ) : (
-                  <NavLink to={item.path} end={item.code !== 'system'} className={({ isActive }) => (isActive ? 'active' : '')}>
+                  <NavLink to={item.path} end={item.code !== 'system'} onClick={closeSidebar} className={({ isActive }) => (isActive ? 'active' : '')}>
                     <span className="nav-icon">{iconFor(item.code)}</span>
                     {item.label}
                   </NavLink>
@@ -81,7 +93,7 @@ export default function Layout() {
                   <ul className="submenu">
                     {systemChildren.map(child => (
                       <li key={child.code}>
-                        <NavLink to={child.path} className={({ isActive }) => (isActive ? 'active' : '')}>
+                        <NavLink to={child.path} onClick={closeSidebar} className={({ isActive }) => (isActive ? 'active' : '')}>
                           <span className="nav-icon">{iconFor(child.code)}</span>
                           {child.label}
                         </NavLink>
@@ -95,7 +107,7 @@ export default function Layout() {
         </ul>
         <div className="sidebar-footer">
           <div className="user-name">{me?.fullName}</div>
-          <NavLink to="/account" className={({ isActive }) => `account-link${isActive ? ' active' : ''}`}>👤 Tài khoản của tôi</NavLink>
+          <NavLink to="/account" onClick={closeSidebar} className={({ isActive }) => `account-link${isActive ? ' active' : ''}`}>👤 Tài khoản của tôi</NavLink>
           <button type="button" className="logout-link" onClick={logout}>↩ Đăng xuất</button>
           <div className="app-version">v{__APP_VERSION__}</div>
         </div>
