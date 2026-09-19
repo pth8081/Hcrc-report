@@ -20,6 +20,39 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 6.42 — Script tạo tự động 2 Nguồn dữ liệu + 4 job đồng bộ + 2 báo cáo LDTD/HCRC
+
+Thay bấm tay qua giao diện (Bước 2 + Bước 4 của "báo cáo doanh thu cuối
+ngày.md") bằng 2 script idempotent (chạy lại nhiều lần an toàn — khớp theo
+Name/ReportId để UPDATE thay vì tạo trùng):
+
+- `etl/scripts/seedLdtdHcrcSync.js` — đọc `DSMART16_SERVER`/`DSMART16_USER`/
+  `DSMART16_PASSWORD` (+ các biến `DSMART16_EOM_*`/`DSMART16_LIVE_DB`/
+  `DSMART16_EOM_DB` tuỳ chọn) từ `.env`, tạo/cập nhật 2 `etl.DataSources`
+  ("DSMART16 - Live"/"DSMART16 - Lịch sử", mật khẩu mã hoá qua
+  `lib/crypto.js` — cùng hàm route POST /admin/data-sources dùng) và 4
+  `etl.SyncJobs` (Doanh thu/Giao dịch × Live/Lịch sử, đúng domain/cron/ánh
+  xạ mã chi nhánh đã tài liệu hoá). TỰ KIỂM TRA VIEW `V_HCRC_DOANHTHU_CHINHANH`/
+  `V_HCRC_GIAODICH_CHINHANH` đã tồn tại + đủ cột qua `lib/schemaBrowser.js`
+  (cùng cơ chế route POST /admin/sync-jobs dùng) TRƯỚC khi ghi bất kỳ job
+  nào — dừng rõ ràng, không tạo nửa vời nếu thiếu VIEW. `jobs/scheduler.js`
+  tự nạp lại job mới trong tối đa 60 giây, không cần khởi động lại ETL.
+- `rp-server/scripts/seedLdtdHcrcReports.js` — tạo/cập nhật 2
+  `app.ReportCatalog` (`bc-doanh-thu-ldtd`/`bc-doanh-thu-hcrc`, nguyên khối
+  `DefinitionJson` đã viết ở mục 15/file hướng dẫn), gán vào menu
+  `reports-kinh-doanh` (đổi được qua tham số dòng lệnh). KHÔNG tự gán quyền
+  xem — vẫn cần làm ở giao diện Phân quyền.
+
+Test bằng fakeModule (mock `../db`/`../lib/crypto`/`../lib/schemaBrowser`,
+không cần SQL Server thật): xác nhận chạy 2 lần liên tiếp là idempotent
+(giữ nguyên Id, chỉ UPDATE), và script ETL dừng đúng (không tạo job nào)
+khi VIEW chưa tồn tại — phát hiện + sửa 1 lỗi thật lúc viết test: vòng lặp
+tạo job cũ dựa vào `process.exit(1)` dừng tiến trình ngay để bỏ qua các
+job còn lại, nay tách thành 2 vòng lặp (kiểm tra đủ cả 4 job trước, chỉ ghi
+job sau khi kiểm tra xong tất cả) để không phụ thuộc side-effect đó. Thêm
+ghi chú trỏ sang 2 script này ở Bước 2/4 của `báo cáo doanh thu cuối
+ngày.md` (giữ nguyên hướng dẫn bấm tay cho ai muốn tự làm/hiểu rõ từng ô).
+
 ## 6.41 — Sửa lại kiến trúc ETL cho đúng: DSMART16 là 2 CSDL (Live + DSMART16_EOM) (docs)
 
 Người dùng cho biết DSMART16 thật ra gồm 2 CSDL — `DSMART16` (dữ liệu

@@ -187,6 +187,14 @@ Vì DSMART16 là **2 CSDL riêng** (`DSMART16` Live + `DSMART16_EOM` Lịch sử
 lại thành 1 dải liên tục khi báo cáo chạy. Tổng cộng **4 job**, không phải
 2.
 
+> **Có cách làm nhanh hơn bấm tay 4 lần**: sau khi tạo xong 2 VIEW ở Bước 1,
+> chạy `node etl/scripts/seedLdtdHcrcSync.js` (điền `DSMART16_SERVER`/
+> `DSMART16_USER`/`DSMART16_PASSWORD` vào `.env` trước — xem chú thích đầu
+> file script) — script tự tạo/CẬP NHẬT đúng 2 Nguồn dữ liệu + 4 job dưới
+> đây (chạy lại nhiều lần AN TOÀN, tự nhận diện job/nguồn đã có để sửa thay
+> vì tạo trùng), tự kiểm tra VIEW đã tồn tại trước khi tạo job. Đọc tiếp
+> mục dưới nếu muốn hiểu rõ từng ô trên giao diện, hoặc muốn tự bấm tay.
+
 ### 2.1 — Khai 2 "Nguồn dữ liệu"
 
 Vào etl-admin, menu **"Nguồn dữ liệu"** (sidebar bên trái). Điền form 2
@@ -295,6 +303,13 @@ cứng `sales-targets-hcrc` — độc lập hoàn toàn với trang trên):
 ---
 
 ## Bước 4 — rp-user: tạo báo cáo
+
+> **Cách làm nhanh**: chạy `node rp-server/scripts/seedLdtdHcrcReports.js`
+> — script tự tạo/CẬP NHẬT đúng 2 báo cáo `bc-doanh-thu-ldtd`/
+> `bc-doanh-thu-hcrc` với nguyên khối `DefinitionJson` dưới đây (chạy lại
+> nhiều lần an toàn, không tạo trùng). Script CHƯA gán quyền xem — vẫn cần
+> làm Bước 5 (giao diện) sau đó. Đọc tiếp mục dưới nếu muốn tự dán tay qua
+> giao diện hoặc muốn hiểu rõ từng ô.
 
 Vào rp-user, menu **"Hệ thống → Biểu mẫu"**, tab **"Báo cáo"** (mặc định).
 
