@@ -59,9 +59,13 @@ toàn).
 **Công cụ**: SQL Server Management Studio (SSMS — phổ biến nhất, tải miễn
 phí từ Microsoft) hoặc Azure Data Studio. Dùng bản IT/DBA đã cài sẵn nếu có.
 
-**Các bước cụ thể — LẶP LẠI Y HỆT CHO CẢ 2 CSDL** (`DSMART16` rồi
-`DSMART16_EOM` — 2 lượt Connect + New Query + Execute riêng, VIEW là object
-CỦA TỪNG CSDL, tạo ở CSDL này không tự có ở CSDL kia dù cùng 1 máy chủ):
+**Các bước cụ thể — LẶP LẠI CHO CẢ 2 CSDL** (`DSMART16` rồi `DSMART16_EOM`
+— 2 lượt Connect + New Query + Execute riêng, VIEW là object CỦA TỪNG CSDL,
+tạo ở CSDL này không tự có ở CSDL kia dù cùng 1 máy chủ `172.16.70.20`).
+Tên VIEW **giống hệt nhau** ở cả 2 CSDL (`V_HCRC_DOANHTHU_CHINHANH`/
+`V_HCRC_GIAODICH_CHINHANH`) — nhưng nội dung câu lệnh **khác nhau 2 dòng**
+ở VIEW Doanh thu (đã dựng sẵn thành 2 script riêng ngay dưới đây, không
+cần tự sửa tay):
 
 1. Mở SSMS → hộp thoại "Connect to Server" hiện ra:
    - **Server name**: địa chỉ máy chủ SQL Server đang chạy DSMART16 (hỏi
@@ -77,9 +81,10 @@ CỦA TỪNG CSDL, tạo ở CSDL này không tự có ở CSDL kia dù cùng 1 
    đúng CSDL vừa chọn ở bước 2 (kiểm tra lại ô chọn Database ở thanh công
    cụ phía trên cửa sổ Query, ngay cạnh nút Execute — chọn NHẦM CSDL sẽ
    tạo VIEW vào sai chỗ mà không báo lỗi gì).
-4. Dán nguyên 2 câu `CREATE VIEW...` dưới đây (nhớ điền đúng 2 mã
-   `STYPE_ID` thật của MART/MINIMART trước khi chạy — xem chú thích ngay
-   dưới 2 câu lệnh).
+4. Dán nguyên **Script A** (đang ở CSDL `DSMART16`) hoặc **Script B**
+   (đang ở CSDL `DSMART16_EOM`) — 2 script khác nhau, xem ngay dưới đây
+   (nhớ điền đúng 2 mã `STYPE_ID` thật của MART/MINIMART trước khi chạy —
+   GIỐNG NHAU ở cả 2 script — xem chú thích ngay dưới).
 5. Bấm **Execute** (hoặc phím `F5`). Không có dòng lỗi đỏ ở khung kết quả
    phía dưới là thành công.
 6. Kiểm tra: mở rộng CSDL đó → mục **Views** → thấy đủ
@@ -109,6 +114,8 @@ có ai đó chủ động chạy `DROP VIEW <tên>`. Cần lưu ý 2 điều:
   `CREATE VIEW` (dùng `ALTER VIEW` để sửa, không cần xoá tạo lại) cho khớp
   cấu trúc mới. Việc này hiếm khi xảy ra với 1 hệ thống đã ổn định như
   DSMART16.
+
+### Script A — chạy trên CSDL `DSMART16` (Live)
 
 ```sql
 -- VIEW 1: Doanh thu + Lãi gộp + Diện tích + Nhóm chuỗi, gộp theo (chi nhánh, ngày)
@@ -146,8 +153,60 @@ GROUP BY BU_ID, CAST(TRAN_DATE AS DATE);
 GO
 ```
 
+### Script B — chạy trên CSDL `DSMART16_EOM` (Lịch sử)
+
+**Y HỆT Script A**, chỉ khác **2 dòng** (`JOIN STOCK` → `JOIN DSMART16.dbo.STOCK`,
+`LEFT JOIN COSTPRICE` → `LEFT JOIN DSMART16.dbo.COSTPRICE`) — vì `DSMART16_EOM`
+chỉ lưu 2 bảng "phát sinh" (`DSTK_INFO`/`TRANSHDR`), 2 bảng "danh mục"
+`STOCK`/`COSTPRICE` (tên siêu thị/diện tích/giá vốn) chỉ có ở `DSMART16`.
+Tham chiếu chéo sang CSDL khác bằng tên đủ 3 phần (`<TênCSDL>.<schema>.<bảng>`)
+hợp lệ vì đã xác nhận 2 CSDL CÙNG 1 máy chủ `172.16.70.20` (không cần
+Linked Server). VIEW 2 (Giao dịch) không đụng tới `STOCK`/`COSTPRICE` nên
+Script B dùng lại NGUYÊN VĂN VIEW 2 của Script A, không đổi gì:
+
+```sql
+-- VIEW 1: Doanh thu + Lãi gộp + Diện tích + Nhóm chuỗi, gộp theo (chi nhánh, ngày)
+-- — khác Script A đúng 2 dòng JOIN, tham chiếu chéo sang CSDL DSMART16
+CREATE VIEW V_HCRC_DOANHTHU_CHINHANH AS
+SELECT
+    d.STK_ID, d.WORK_DATE,
+    SUM(d.TOCUST_QTY) AS SoLuongBan,
+    SUM(d.TOCUST_AMT) AS doanhThu,
+    SUM(d.TOCUST_VAT) AS TienVAT,
+    SUM(d.TOCUST_DIS) AS TienGiamGia,
+    SUM(d.TOCUST_COM) AS HoaHong,
+    SUM(d.TOCUST_AMT) - SUM(d.TOCUST_QTY * ISNULL(c.COSTPRICE, 0)) AS laiGop,
+    MAX(s.DIMENSION) AS dienTich,
+    MAX(CASE WHEN s.STYPE_ID = '<mã MART thật>' THEN 'MART'
+             WHEN s.STYPE_ID = '<mã MINIMART thật>' THEN 'MINIMART'
+             ELSE s.STYPE_ID END) AS chain
+FROM DSTK_INFO d
+JOIN DSMART16.dbo.STOCK s
+    ON s.STK_ID = d.STK_ID
+LEFT JOIN DSMART16.dbo.COSTPRICE c
+    ON c.STK_ID = d.STK_ID AND c.SKU_ID = d.SKU_ID
+   AND c.MEC_YM = LEFT(CONVERT(char(8), d.WORK_DATE, 112), 6)
+GROUP BY d.STK_ID, d.WORK_DATE;
+GO
+
+-- VIEW 2: y hệt Script A — không JOIN STOCK/COSTPRICE nên không cần đổi gì
+CREATE VIEW V_HCRC_GIAODICH_CHINHANH AS
+SELECT BU_ID, CAST(TRAN_DATE AS DATE) AS TRAN_DATE,
+       COUNT(*) AS SoGiaoDich, SUM(AMOUNT) AS TongTien,
+       SUM(DISCOUNT) AS TongGiamGia, SUM(VAT_AMT) AS TongVAT
+FROM TRANSHDR
+WHERE STATUS <> 'X' -- đối chiếu đúng mã STATUS "đã huỷ" thật với DBA DSMART16
+GROUP BY BU_ID, CAST(TRAN_DATE AS DATE);
+GO
+```
+
+> Nếu sau này kiểm tra lại thấy `DSMART16_EOM` THỰC RA có sẵn `STOCK`/
+> `COSTPRICE` riêng (không cần tham chiếu chéo) — chạy Script A nguyên bản
+> ở đó thay vì Script B cũng được, 2 cách đều tạo đúng tên VIEW.
+
 **Trước khi chạy thật, cần xác nhận 2 điều với DBA DSMART16** (chưa xác
-nhận được từ file schema, chỉ là dự đoán hợp lý theo tên cột):
+nhận được từ file schema, chỉ là dự đoán hợp lý theo tên cột — áp dụng
+CHO CẢ 2 script, điền giống nhau):
 
 1. `STOCK.STYPE_ID` — cột phân loại MART/MINIMART. Chạy thử
    `SELECT DISTINCT STYPE_ID FROM STOCK` để biết 2 mã thật, điền vào chỗ
@@ -156,23 +215,14 @@ nhận được từ file schema, chỉ là dự đoán hợp lý theo tên cộ
    Nếu sai định dạng, cột Lãi gộp sẽ ra sai (coi giá vốn = 0) mà KHÔNG báo
    lỗi gì — xem cách phát hiện ở Bước 7.
 
-**`DSMART16_EOM` có đủ bảng `STOCK`/`COSTPRICE` không?** — ĐÃ XÁC NHẬN
-`DSMART16` và `DSMART16_EOM` nằm CHUNG 1 máy chủ SQL Server thật (`172.16.70.20`).
-VIEW doanh thu JOIN thêm 2 bảng "danh mục" này (tên siêu thị/diện tích/giá
-vốn), vốn ít khi cần lưu lại theo từng tháng quá khứ — nếu `DSMART16_EOM`
-CHỈ lưu 2 bảng "phát sinh" (`DSTK_INFO`/`TRANSHDR`), KHÔNG có `STOCK`/
-`COSTPRICE` (chạy thử `SELECT TOP 1 * FROM STOCK` trên `DSMART16_EOM` để
-biết chắc), sửa VIEW bên `DSMART16_EOM` để tham chiếu CHÉO sang `DSMART16`
-bằng tên đủ 3 phần (`<TênCSDL>.<schema>.<bảng>`) — vì cùng 1 máy chủ nên
-CHẮC CHẮN hợp lệ, không cần Linked Server:
-- Đổi `JOIN STOCK s` thành `JOIN DSMART16.dbo.STOCK s`.
-- Đổi `LEFT JOIN COSTPRICE c` thành `LEFT JOIN DSMART16.dbo.COSTPRICE c`.
-- Chỉ 2 chỗ này, phần còn lại của VIEW giữ nguyên.
-
+**Vì sao Script B join chéo sang `DSMART16` mà vẫn đúng số liệu quá khứ?**
 Diện tích/nhóm chuỗi vốn ít đổi nên dùng bản MỚI NHẤT ở `DSMART16` cho cả
 dữ liệu quá khứ là hợp lý; riêng giá vốn (`COSTPRICE`) đã tự khớp đúng
 tháng qua điều kiện `MEC_YM` sẵn có trong câu JOIN, không bị ảnh hưởng bởi
-việc bảng nằm ở CSDL nào.
+việc bảng nằm ở CSDL nào. Nếu muốn chắc chắn `DSMART16_EOM` thật sự thiếu
+2 bảng này trước khi chạy, thử `SELECT TOP 1 * FROM STOCK` trên
+`DSMART16_EOM` — báo lỗi "Invalid object name" nghĩa là đúng như dự đoán,
+dùng Script B; nếu chạy được (có bảng riêng), dùng Script A cho cả 2 CSDL.
 
 ---
 
@@ -207,7 +257,11 @@ lần, mỗi lần 1 kết nối:
 - Bấm **"Kiểm tra kết nối"** trước, thấy ✅ mới bấm **"Lưu nguồn dữ liệu"**.
 
 **Nguồn 2 — Lịch sử**: y hệt, chỉ đổi **Tên nguồn**: "DSMART16 - Lịch sử",
-**Database**: `DSMART16_EOM`.
+**Database**: `DSMART16_EOM`. Tên này PHẢI khớp đúng chữ với tên script
+`etl/scripts/seedLdtdHcrcSync.js` tìm/cập nhật theo (xem hộp "cách làm
+nhanh hơn" ở trên) — nếu đã tự tạo nguồn này qua giao diện với tên khác,
+đổi lại đúng "DSMART16 - Lịch sử" (nút "Sửa") trước khi chạy script, để
+script chỉ CẬP NHẬT thay vì tạo thêm 1 nguồn trùng.
 
 Sau khi lưu cả 2, danh sách hiện như sau:
 

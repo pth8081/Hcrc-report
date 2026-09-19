@@ -20,6 +20,17 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 6.49 — "báo cáo doanh thu cuối ngày.md": 2 script VIEW riêng (A/B) cho Live/Lịch sử
+
+Bước 1 trước đây đưa 1 câu `CREATE VIEW` chung + hướng dẫn "tự sửa 2 dòng
+nếu cần" cho `DSMART16_EOM` — nay tách hẳn thành **Script A** (chạy trên
+`DSMART16`, không đổi) và **Script B** (chạy trên `DSMART16_EOM`, đã join
+chéo sẵn `DSMART16.dbo.STOCK`/`DSMART16.dbo.COSTPRICE`) — dán thẳng đúng
+script theo CSDL đang chọn, không cần tự sửa tay nữa. Xác nhận thêm: tên
+"Nguồn dữ liệu" `DSMART16 - Lịch sử` người dùng đã tạo qua giao diện khớp
+CHÍNH XÁC với tên `etl/scripts/seedLdtdHcrcSync.js` tìm/cập nhật theo —
+không cần sửa code.
+
 ## 6.48 — Xác nhận DSMART16/DSMART16_EOM cùng 1 máy chủ — cập nhật hướng dẫn
 
 `báo cáo doanh thu cuối ngày.md` (Bước 1) trước đây để ngỏ 2 khả năng
