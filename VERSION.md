@@ -20,6 +20,28 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 6.44 — api-admin: nút Sửa/Tắt-Bật/Sao chép bí mật cho Đối tác API
+
+`api-admin/src/pages/ConsumersPage.jsx` (trang "Đối tác API") đã có sẵn nút
+"Sửa" (đổi Tên/Phạm vi/Giới hạn/IP cho phép/Hoạt động qua modal) nhưng chưa
+có nút Tắt/Bật nhanh và chưa có nút sao chép bí mật — bổ sung:
+
+- Nút "Tắt"/"Bật" riêng ở mỗi dòng (1 cú bấm, không cần mở modal Sửa chỉ để
+  đổi mỗi cờ `IsActive`) — cùng route `PUT /consumers/:id` đã có.
+- Nút "Sao chép" cạnh mỗi bí mật vừa hiện ra (banner sau khi Tạo/Luân chuyển) —
+  dùng `navigator.clipboard`, báo lỗi rõ ràng nếu trình duyệt chặn (context
+  không an toàn) thay vì im lặng không làm gì.
+
+**Giới hạn có chủ đích, không đổi được**: `ApiKeyHash`/`ClientSecretHash` lưu
+dạng BĂM SHA-256 một chiều (`api-db/schema.sql`), `HmacSecretEncrypted` mã
+hoá AES-256-GCM nhưng key mã hoá không lộ ra API — hệ thống KHÔNG thể (và cố
+tình không) đọc lại bí mật CŨ sau khi đóng banner, giống cơ chế mật khẩu đăng
+nhập. Vì vậy không có nút "xem lại API key hiện tại" — chỉ có "Luân chuyển bí
+mật" để cấp bí mật MỚI (bí mật cũ ngừng hoạt động ngay lúc đó). Banner đã ghi
+rõ điều này để tránh hiểu nhầm là bug.
+
+Test bằng vite build sạch (`api-admin`).
+
 ## 6.43 — Nút "Sửa" cho Báo cáo (rp-user) và Job đồng bộ (etl-admin)
 
 Trước đây sửa 1 báo cáo/job đã tạo phải xoá rồi tạo lại — 2 route backend

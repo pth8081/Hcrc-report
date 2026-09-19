@@ -29,6 +29,7 @@ input, select, textarea { padding: 7px 10px; border: 1px solid var(--line); bord
 button { padding: 7px 14px; border: 1px solid var(--accent); border-radius: 4px; background: var(--accent); color: #fff; cursor: pointer; }
 button:hover { opacity: 0.9; }
 .inline-form { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 16px; }
+.inline-actions { display: flex; gap: 8px; align-items: center; }
 .stacked-form { display: flex; flex-direction: column; gap: 10px; max-width: 360px; margin-bottom: 20px; }
 .checkbox-row { flex-direction: row; align-items: center; gap: 6px; font-size: 14px; color: var(--ink); }
 .scope-picker { display: flex; gap: 16px; }

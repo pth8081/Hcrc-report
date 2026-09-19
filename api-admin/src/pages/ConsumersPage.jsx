@@ -33,24 +33,49 @@ const AUTH_METHOD_LABELS = {
   hmac: 'HMAC ký từng request'
 };
 
+// Sao chép vào clipboard — dùng API chuẩn khi có (context https, hoặc
+// localhost lúc dev); nếu trình duyệt chặn (http không an toàn) thì báo lỗi
+// rõ ràng thay vì im lặng không làm gì, để người dùng biết tự bôi đen copy.
+async function copyToClipboard(text, label) {
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch {
+    alert(`Không tự sao chép được (trình duyệt chặn) — bôi đen "${label}" và Ctrl+C thủ công.`);
+  }
+}
+
+function CopyableSecret({ value, label }) {
+  return (
+    <span className="inline-actions">
+      <code>{value}</code>
+      <button type="button" onClick={() => copyToClipboard(value, label)}>Sao chép</button>
+    </span>
+  );
+}
+
 // Hiện đúng bí mật vừa được cấp — hình dạng response khác nhau theo authMethod.
+// CHỈ hiện đúng 1 lần lúc này — hệ thống lưu bí mật dưới dạng BĂM (SHA-256/
+// bcrypt/mã hoá 1 chiều tương đương), không có cách nào đọc lại bí mật CŨ sau
+// khi đóng banner này (giống mật khẩu đăng nhập) — mất/quên thì phải bấm
+// "Luân chuyển bí mật" để cấp bí mật MỚI (bí mật cũ ngừng hoạt động ngay).
 function RevealedCredentials({ creds, onClose }) {
   return (
     <div className="key-banner">
       <p><strong>Thông tin xác thực mới — chỉ hiện đúng một lần, sao chép ngay:</strong></p>
-      {creds.authMethod === 'apiKey' && <code>{creds.apiKey}</code>}
+      {creds.authMethod === 'apiKey' && <CopyableSecret value={creds.apiKey} label="API key" />}
       {creds.authMethod === 'oauth2' && (
         <>
           <p>Client ID (công khai, đối tác dùng lâu dài — không đổi khi luân chuyển): <code>{creds.clientId}</code></p>
-          <p>Client Secret: <code>{creds.clientSecret}</code></p>
+          <p>Client Secret: <CopyableSecret value={creds.clientSecret} label="Client Secret" /></p>
         </>
       )}
       {creds.authMethod === 'hmac' && (
         <>
           <p>Key ID (công khai, đối tác dùng lâu dài — không đổi khi luân chuyển): <code>{creds.hmacKeyId}</code></p>
-          <p>Secret: <code>{creds.hmacSecret}</code></p>
+          <p>Secret: <CopyableSecret value={creds.hmacSecret} label="Secret" /></p>
         </>
       )}
+      <p className="hint">Đóng lại là KHÔNG xem lại được nữa (hệ thống chỉ lưu bản băm, không lưu bản gốc) — quên thì phải "Luân chuyển bí mật" để cấp bí mật mới.</p>
       <button type="button" onClick={onClose}>Đã lưu, đóng lại</button>
     </div>
   );
@@ -179,6 +204,20 @@ export default function ConsumersPage() {
     } catch (err) { setError(err.message); }
   }
 
+  // Bật/Tắt nhanh 1 cú bấm — không cần mở modal Sửa chỉ để đổi mỗi cờ này.
+  async function toggleActive(consumer) {
+    try {
+      await api.put(`/consumers/${consumer.Id}`, {
+        name: consumer.Name,
+        scopes: consumer.Scopes,
+        rateLimitPerMinute: consumer.RateLimitPerMinute,
+        allowedIps: consumer.AllowedIps || '',
+        isActive: !consumer.IsActive
+      });
+      reload();
+    } catch (err) { setError(err.message); }
+  }
+
   async function deleteConsumer(consumer) {
     if (!confirm(`Xoá đối tác "${consumer.Name}"? Không hoàn tác được.`)) return;
     try {
@@ -242,6 +281,7 @@ export default function ConsumersPage() {
             key: 'actions', label: '', render: (c) => (
               <>
                 <button type="button" onClick={() => setEditing({ ...c })}>Sửa</button>{' '}
+                <button type="button" onClick={() => toggleActive(c)}>{c.IsActive ? 'Tắt' : 'Bật'}</button>{' '}
                 <button type="button" onClick={() => openReportAccess(c)}>Báo cáo được gọi</button>{' '}
                 <button type="button" onClick={() => openRealtimeAccess(c)}>Realtime được gọi</button>{' '}
                 <button type="button" onClick={() => openWriteAccess(c)}>Ghi được gọi</button>{' '}
