@@ -37,6 +37,7 @@ export default function DataSourcesPage() {
   const [importFile, setImportFile] = useState(null);
   const [importResult, setImportResult] = useState(null);
   const [importError, setImportError] = useState('');
+  const [editing, setEditing] = useState(null); // { ...source, password: '' } đang sửa, hoặc null
 
   function reload() {
     api.get('/data-sources').then(setSources).catch(err => setError(err.message));
@@ -108,6 +109,30 @@ export default function DataSourcesPage() {
         // password bỏ trống -> route giữ nguyên mật khẩu đã lưu
       });
       setTestResult(renderConnectionTest(result.connectionTest));
+      reload();
+    } catch (err) { setError(err.message); }
+  }
+
+  // Mật khẩu để trống -> route giữ nguyên mật khẩu đã lưu (không bắt gõ lại
+  // mật khẩu chỉ để đổi Server/Username, đúng hành vi PUT đã có ở backend).
+  function openEdit(source) {
+    setEditing({ ...source, password: '' });
+  }
+
+  async function saveEdit(e) {
+    e.preventDefault();
+    setError('');
+    try {
+      const body = {
+        name: editing.Name, server: editing.Server, port: editing.Port,
+        databaseName: editing.DatabaseName, username: editing.Username,
+        encrypt: editing.Encrypt, trustServerCert: editing.TrustServerCert,
+        isActive: editing.IsActive
+      };
+      if (editing.password) body.password = editing.password;
+      const result = await api.put(`/data-sources/${editing.Id}`, body);
+      setTestResult(renderConnectionTest(result.connectionTest));
+      setEditing(null);
       reload();
     } catch (err) { setError(err.message); }
   }
@@ -207,6 +232,7 @@ export default function DataSourcesPage() {
           isAdmin && {
             key: 'actions', label: '', render: (s) => (
               <>
+                <button type="button" onClick={() => openEdit(s)}>Sửa</button>{' '}
                 <button type="button" onClick={() => toggleActive(s)}>{s.IsActive ? 'Tắt' : 'Bật'}</button>{' '}
                 <button type="button" onClick={() => deleteSource(s)}>Xoá</button>
               </>
@@ -215,6 +241,35 @@ export default function DataSourcesPage() {
         ].filter(Boolean)}
         rows={sources}
       />
+
+      {editing && (
+        <div className="modal-overlay">
+          <div className="modal">
+            <h3>Sửa nguồn "{editing.Name}"</h3>
+            <p className="hint">Loại CSDL ({editing.Engine === 'mysql' ? 'MySQL/MariaDB' : 'SQL Server'}) không đổi được — tạo nguồn mới nếu cần đổi loại.</p>
+            <form className="stacked-form" onSubmit={saveEdit}>
+              <input placeholder="Tên nguồn" value={editing.Name} onChange={(e) => setEditing({ ...editing, Name: e.target.value })} required />
+              <input placeholder="Server" value={editing.Server} onChange={(e) => setEditing({ ...editing, Server: e.target.value })} required />
+              <input placeholder="Port" type="number" value={editing.Port} onChange={(e) => setEditing({ ...editing, Port: Number(e.target.value) })} />
+              <input placeholder="Database" value={editing.DatabaseName} onChange={(e) => setEditing({ ...editing, DatabaseName: e.target.value })} required />
+              <input placeholder="Username" value={editing.Username} onChange={(e) => setEditing({ ...editing, Username: e.target.value })} required />
+              <input
+                placeholder="Mật khẩu mới (để trống = giữ nguyên mật khẩu đã lưu)"
+                type="password"
+                value={editing.password}
+                onChange={(e) => setEditing({ ...editing, password: e.target.value })}
+              />
+              <label className="checkbox-row"><input type="checkbox" checked={editing.Encrypt} onChange={(e) => setEditing({ ...editing, Encrypt: e.target.checked })} /> Mã hoá kết nối</label>
+              <label className="checkbox-row"><input type="checkbox" checked={editing.TrustServerCert} onChange={(e) => setEditing({ ...editing, TrustServerCert: e.target.checked })} /> Tin chứng chỉ tự ký</label>
+              <label className="checkbox-row"><input type="checkbox" checked={editing.IsActive} onChange={(e) => setEditing({ ...editing, IsActive: e.target.checked })} /> Hoạt động</label>
+              <div className="inline-actions">
+                <button type="submit">Cập nhật nguồn dữ liệu</button>
+                <button type="button" onClick={() => setEditing(null)}>Huỷ</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

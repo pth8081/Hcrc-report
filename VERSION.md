@@ -20,6 +20,21 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 6.45 — etl-admin: nút "Sửa" cho Nguồn dữ liệu (Server/Database/Username/Password)
+
+`etl-admin/src/pages/DataSourcesPage.jsx` trước đây chỉ có Tắt/Bật/Xoá —
+đổi Server/Username/Password của 1 nguồn đã tạo (vd tài khoản đọc DSMART16
+do DBA cấp) phải xoá job/report liên quan rồi tạo lại nguồn mới. Route
+backend `PUT /admin/data-sources/:id` đã hỗ trợ sẵn đầy đủ các trường này
+(kể cả mật khẩu để trống = giữ nguyên mật khẩu đã lưu) — chỉ thiếu UI. Thêm
+nút "Sửa" mở modal sửa Tên/Server/Port/Database/Username/Mật khẩu mới (tuỳ
+chọn)/Mã hoá kết nối/Tin chứng chỉ tự ký/Hoạt động — lưu xong tự kiểm tra
+kết nối lại ngay (giữ đúng hành vi `renderConnectionTest` đã có). Người
+dùng tự điền tài khoản DSMART16 thật (do họ tạo/quản lý) qua form này thay
+vì phải nhờ chỉnh code.
+
+Test bằng vite build sạch (`etl-admin`).
+
 ## 6.44 — api-admin: nút Sửa/Tắt-Bật/Sao chép bí mật cho Đối tác API
 
 `api-admin/src/pages/ConsumersPage.jsx` (trang "Đối tác API") đã có sẵn nút
