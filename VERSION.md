@@ -20,6 +20,15 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 6.48 — Xác nhận DSMART16/DSMART16_EOM cùng 1 máy chủ — cập nhật hướng dẫn
+
+`báo cáo doanh thu cuối ngày.md` (Bước 1) trước đây để ngỏ 2 khả năng
+("nếu cùng máy chủ" / "nếu khác máy chủ") cho trường hợp `DSMART16_EOM`
+thiếu bảng `STOCK`/`COSTPRICE` — nay đã XÁC NHẬN thật (172.16.70.20, cùng
+1 máy chủ cho cả 2 CSDL), rút gọn hướng dẫn: chỉ còn 1 cách xử lý duy nhất
+— tham chiếu chéo 3 phần tên (`DSMART16.dbo.STOCK`/`DSMART16.dbo.COSTPRICE`)
+ngay trong VIEW ở `DSMART16_EOM`, bỏ nhánh "khác máy chủ" không còn áp dụng.
+
 ## 6.47 — Giao diện di động: sidebar dạng drawer cho cả 3 app quản trị
 
 Trước đây `.sidebar` rộng cố định 240px nằm CẠNH `.content` trong

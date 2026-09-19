@@ -146,7 +146,7 @@ GROUP BY BU_ID, CAST(TRAN_DATE AS DATE);
 GO
 ```
 
-**Trước khi chạy thật, cần xác nhận 3 điều với DBA DSMART16** (chưa xác
+**Trước khi chạy thật, cần xác nhận 2 điều với DBA DSMART16** (chưa xác
 nhận được từ file schema, chỉ là dự đoán hợp lý theo tên cột):
 
 1. `STOCK.STYPE_ID` — cột phân loại MART/MINIMART. Chạy thử
@@ -155,27 +155,24 @@ nhận được từ file schema, chỉ là dự đoán hợp lý theo tên cộ
 2. `COSTPRICE.MEC_YM` — định dạng tháng (giả định `YYYYMM`, vd `'202609'`).
    Nếu sai định dạng, cột Lãi gộp sẽ ra sai (coi giá vốn = 0) mà KHÔNG báo
    lỗi gì — xem cách phát hiện ở Bước 7.
-3. **`DSMART16_EOM` có đủ bảng `STOCK`/`COSTPRICE` không?** — VIEW doanh thu
-   JOIN thêm 2 bảng "danh mục" này (tên siêu thị/diện tích/giá vốn), vốn ít
-   khi cần lưu lại theo từng tháng quá khứ — có khả năng `DSMART16_EOM` CHỈ
-   lưu 2 bảng "phát sinh" (`DSTK_INFO`/`TRANSHDR`), KHÔNG có `STOCK`/
-   `COSTPRICE`. Chạy thử `SELECT TOP 1 * FROM STOCK` trên `DSMART16_EOM`
-   trước khi chạy `CREATE VIEW` ở đó:
-   - **Có bảng, chạy được** → dùng nguyên VIEW dưới đây, không cần sửa.
-   - **Báo lỗi "Invalid object name 'STOCK'"** → 2 bảng đó chỉ có ở
-     `DSMART16` (Live). Nếu 2 CSDL nằm CHUNG 1 máy chủ SQL Server, sửa VIEW
-     bên `DSMART16_EOM` để tham chiếu CHÉO sang `DSMART16` bằng tên đủ 3
-     phần (`<TênCSDL>.<schema>.<bảng>`), đổi `JOIN STOCK s` thành
-     `JOIN DSMART16.dbo.STOCK s` và `LEFT JOIN COSTPRICE c` thành
-     `LEFT JOIN DSMART16.dbo.COSTPRICE c` (chỉ 2 chỗ này, phần còn lại giữ
-     nguyên) — vẫn hợp lệ vì cùng máy chủ, không cần Linked Server. Diện
-     tích/nhóm chuỗi vốn ít đổi nên dùng bản MỚI NHẤT ở `DSMART16` cho cả
-     dữ liệu quá khứ là hợp lý; riêng giá vốn (`COSTPRICE`) đã tự khớp
-     đúng tháng qua điều kiện `MEC_YM` sẵn có trong câu JOIN, không bị ảnh
-     hưởng bởi việc bảng nằm ở CSDL nào.
-   - Nếu 2 CSDL nằm **KHÁC máy chủ** — báo lại cho DBA, cần hướng xử lý
-     khác (Linked Server hoặc đồng bộ riêng bảng danh mục), ngoài phạm vi
-     hướng dẫn này.
+
+**`DSMART16_EOM` có đủ bảng `STOCK`/`COSTPRICE` không?** — ĐÃ XÁC NHẬN
+`DSMART16` và `DSMART16_EOM` nằm CHUNG 1 máy chủ SQL Server thật (`172.16.70.20`).
+VIEW doanh thu JOIN thêm 2 bảng "danh mục" này (tên siêu thị/diện tích/giá
+vốn), vốn ít khi cần lưu lại theo từng tháng quá khứ — nếu `DSMART16_EOM`
+CHỈ lưu 2 bảng "phát sinh" (`DSTK_INFO`/`TRANSHDR`), KHÔNG có `STOCK`/
+`COSTPRICE` (chạy thử `SELECT TOP 1 * FROM STOCK` trên `DSMART16_EOM` để
+biết chắc), sửa VIEW bên `DSMART16_EOM` để tham chiếu CHÉO sang `DSMART16`
+bằng tên đủ 3 phần (`<TênCSDL>.<schema>.<bảng>`) — vì cùng 1 máy chủ nên
+CHẮC CHẮN hợp lệ, không cần Linked Server:
+- Đổi `JOIN STOCK s` thành `JOIN DSMART16.dbo.STOCK s`.
+- Đổi `LEFT JOIN COSTPRICE c` thành `LEFT JOIN DSMART16.dbo.COSTPRICE c`.
+- Chỉ 2 chỗ này, phần còn lại của VIEW giữ nguyên.
+
+Diện tích/nhóm chuỗi vốn ít đổi nên dùng bản MỚI NHẤT ở `DSMART16` cho cả
+dữ liệu quá khứ là hợp lý; riêng giá vốn (`COSTPRICE`) đã tự khớp đúng
+tháng qua điều kiện `MEC_YM` sẵn có trong câu JOIN, không bị ảnh hưởng bởi
+việc bảng nằm ở CSDL nào.
 
 ---
 
