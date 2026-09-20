@@ -299,10 +299,23 @@ xung đột ghi đè như trường hợp doanh thu-vs-giao dịch (khác bảng
 khoá). Mỗi `Nguồn dữ liệu` tự có 1 `SourceSystem` riêng (etl tự sinh, không
 phải gõ tay), nên khoá ghi thật sự vào Data Warehouse là
 `(SourceSystem, Domain, EntityCode, EventDate)` — 2 job Live/Lịch sử khác
-nhau ở `SourceSystem` (2 nguồn khác nhau) và khác nhau ở `EventDate` (Live
-= ngày hiện tại, Lịch sử = ngày quá khứ), nên KHÔNG BAO GIỜ trùng khoá,
-KHÔNG ghi đè nhau — dữ liệu 2 nguồn tự nhiên xếp cạnh nhau thành 1 dải
+nhau ở `SourceSystem` (2 nguồn khác nhau), nên KHÔNG BAO GIỜ ghi đè lên
+nhau dù có cùng `EventDate` — dữ liệu 2 nguồn xếp cạnh nhau thành 1 dải
 liên tục theo thời gian.
+
+**Lưu ý đã xác nhận với DBA — `DSMART16_EOM` NHẬN THÊM dữ liệu mỗi khi hết
+tháng** (không phải đổ 1 lần rồi thôi) — nghĩa là đúng những ngày quanh lúc
+đóng sổ tháng, có khả năng 1 chi nhánh/1 ngày tồn tại dữ liệu Ở CẢ 2 nguồn
+cùng lúc (bản Live "đóng băng" trước khi bị dọn khỏi `DSMART16`, VÀ bản mới
+chép sang `DSMART16_EOM`) — 2 dòng khác `SourceSystem` như trên, KHÔNG ghi
+đè nhau, nhưng CÓ trùng `EntityCode`+`EventDate`. Báo cáo composite
+(`rp-server/lib/compositeReportRunner.js`) đã có sẵn cơ chế an toàn cho
+đúng trường hợp này: phát hiện 1 chi nhánh có >1 dòng trong cùng 1 khối ở
+cùng 1 ngày → **loại hẳn chi nhánh đó khỏi báo cáo ngày hôm đó** (ghi cảnh
+báo ở Log/console, KHÔNG hiện số sai/số gấp đôi). Quyết định đã chốt: CHẤP
+NHẬN hiện trạng này (không sửa code để tự chọn nguồn nào đúng hơn) — ảnh
+hưởng chỉ đúng 1-2 ngày/tháng, các ngày còn lại bình thường. Xem cách phát
+hiện việc này xảy ra ở Bước 7.
 
 Điền xong cả 4 job (job 1 minh hoạ, các job sau đổi đúng bảng trên):
 
@@ -588,6 +601,14 @@ nhận riêng theo đúng nhóm HCRC.
 6. Ở trang Phân quyền, đăng nhập thử bằng 1 tài khoản chỉ có vai trò "HCRC"
    — xác nhận CHỈ thấy báo cáo `bc-doanh-thu-hcrc`, không thấy báo cáo
    LDTD.
+7. **Đúng vào ngày/vài ngày quanh lúc hết tháng** (khi `DSMART16_EOM` vừa
+   nhận thêm dữ liệu tháng mới đóng sổ — xem lưu ý ở Bước 2.2) — kiểm tra
+   Log của etl (hoặc console rp-server) có dòng cảnh báo
+   `"trả về NHIỀU HƠN 1 dòng cho entityCode"` không. Có dòng này nghĩa là
+   đúng chi nhánh/ngày đó tạm thời BỊ THIẾU trên báo cáo composite (hành vi
+   ĐÃ BIẾT, chấp nhận được — xem giải thích Bước 2.2) — không phải lỗi cấu
+   hình, tự hết sau khi qua ngày giao thời (dữ liệu Live phía đó không còn
+   nữa, chỉ còn đúng 1 dòng từ Lịch sử).
 
 Xong — 2 báo cáo cuối ngày độc lập cho Lãnh đạo Tập đoàn và HCRC đã sẵn
 sàng, cùng 1 format cột, chỉ khác nguồn chỉ tiêu.

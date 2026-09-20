@@ -20,6 +20,28 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 6.50 — Tài liệu hoá rủi ro trùng ngày giao tháng Live/Lịch sử — chấp nhận hiện trạng
+
+Đã xác nhận với người dùng: `DSMART16_EOM` NHẬN THÊM dữ liệu mỗi khi hết
+tháng (không phải đổ 1 lần) — nghĩa là đúng ngày/vài ngày quanh lúc đóng
+sổ, có khả năng 1 chi nhánh/1 ngày tồn tại dữ liệu ở CẢ 2 nguồn (Live +
+Lịch sử) cùng lúc, cùng `EntityCode`+`EventDate` nhưng khác `SourceSystem`
+(không ghi đè nhau, nhưng gây "trùng" cho báo cáo composite). Cơ chế an
+toàn có sẵn (Q8, đợt rà soát trước) đã xử lý ĐÚNG hướng: phát hiện >1 dòng
+cho 1 entityCode trong 1 khối → loại hẳn khỏi báo cáo ngày đó (không hiện
+số sai/gấp đôi). Đã hỏi người dùng có muốn sửa code để ưu tiên nguồn Lịch
+sử khi trùng thay vì loại bỏ — **quyết định: CHẤP NHẬN hiện trạng**, không
+sửa code (rủi ro thấp, chỉ ảnh hưởng 1-2 ngày/tháng).
+
+Cập nhật `báo cáo doanh thu cuối ngày.md`:
+- Bước 2.2 — sửa lại đoạn giải thích khoá ghi (trước đây khẳng định NHẦM
+  Live/Lịch sử "khác nhau ở EventDate" nên không bao giờ trùng — SAI, đúng
+  ra là khác `SourceSystem`, và CÓ THỂ trùng `EventDate` đúng lúc giao
+  tháng) + thêm đoạn giải thích đầy đủ rủi ro/cách xử lý/quyết định.
+- Bước 7 — thêm mục kiểm tra mới: theo dõi Log quanh ngày giao tháng, tìm
+  dòng cảnh báo "trả về NHIỀU HƠN 1 dòng cho entityCode" để xác nhận đây
+  là hành vi đã biết, không phải lỗi cấu hình.
+
 ## 6.49 — "báo cáo doanh thu cuối ngày.md": 2 script VIEW riêng (A/B) cho Live/Lịch sử
 
 Bước 1 trước đây đưa 1 câu `CREATE VIEW` chung + hướng dẫn "tự sửa 2 dòng
