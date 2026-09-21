@@ -4,8 +4,9 @@ File này tách riêng phần "chạy script như thế nào" từ hướng dẫ
 tổng (`deploy/Cập nhật bản 6.28-6.50 — Báo cáo doanh thu LDTD-HCRC.md`) để
 dễ gửi riêng cho người trực tiếp thao tác.
 
-Có **2 loại script khác nhau**, mục đích khác nhau — làm đúng loại nào cần
-loại đó, không thay thế nhau được.
+Có **3 loại script khác nhau**, mục đích khác nhau — làm đúng loại nào cần
+loại đó, không thay thế nhau được. (Cập nhật: thêm mục 3 — `dwh/grants.sql`
+— từ bản 6.52, chưa có trong bản gửi trước đó nếu bạn đang cầm file cũ.)
 
 ---
 
@@ -70,14 +71,49 @@ nhiều lần** (idempotent): khớp theo tên đã có sẵn để CẬP NHẬT
 trùng. Đổi thông tin kết nối/mật khẩu DSMART16 thì chỉ cần sửa lại `.env`
 rồi chạy lại `seedLdtdHcrcSync.js` là đủ.
 
+> ⚠️ **Nếu đã từng chạy `seedLdtdHcrcReports.js` TRƯỚC bản 6.51 — PHẢI CHẠY
+> LẠI ít nhất 1 lần** dù không đổi gì ở DSMART16. Bản 6.51 đổi NỘI DUNG
+> script này (thêm `targetGranularity: "day"` cho đúng chỉ tiêu theo ngày)
+> — script UPDATE ghi đè TOÀN BỘ cấu hình báo cáo mỗi lần chạy, nên chỉ
+> deploy code mới (`git pull` + `pm2 restart rp-server`) KHÔNG tự cập nhật
+> báo cáo đã tạo từ trước — phải chạy lại đúng lệnh ở mục 2.2 để ghi đè lại.
+
+---
+
+## 3. Script SQL (`dwh/grants.sql`) — chạy trên CSDL DWH (khác CSDL `etl` ở mục 1)
+
+**Mục đích**: cấp quyền cho các tài khoản CSDL dùng chung giữa etl/rp-server/
+api-server trên CSDL Data Warehouse (DWH) — KHÔNG BẮT BUỘC cho mọi bản, chỉ
+cần chạy khi file này có thay đổi (xem `VERSION.md`, tìm dòng nhắc tới
+`dwh/grants.sql`). **Từ bản 6.52**: thêm 1 quyền ĐỌC (`GRANT SELECT ON
+dwh.ReportFacts TO dwh_target_importer`) để tính năng "cảnh báo mã siêu thị
+sai khi nhập chỉ tiêu LDTD/HCRC" hoạt động.
+
+**Có bắt buộc không?** KHÔNG bắt buộc để hệ thống chạy được — thiếu quyền
+này chỉ khiến tính năng cảnh báo im lặng không hiện gì (import chỉ tiêu vẫn
+thành công bình thường, chỉ mất cảnh báo). Khuyến nghị chạy để tận dụng đủ
+tính năng.
+
+**Cách chạy** (giống mục 1, nhưng chọn đúng CSDL DWH — thường tên
+`HCRC_DWH`, khác CSDL `etl`):
+1. Mở SSMS → Connect vào server chứa CSDL DWH → chọn đúng CSDL đó (xem
+   dòng `USE HCRC_DWH;` đầu file `dwh/grants.sql` để biết tên CSDL thật).
+2. Mở file `dwh/grants.sql` → chọn hết → copy → dán vào Query mới → **Execute**.
+3. An toàn chạy lại toàn bộ file (mọi `CREATE LOGIN`/`CREATE USER` đều kiểm
+   tra tồn tại trước, không reset mật khẩu tài khoản đã có) — không cần tách
+   riêng dòng `GRANT` mới, chạy nguyên file như lần đầu là đủ.
+
+> Cần quyền `sa`/`db_owner` trên CSDL DWH để chạy (khác tài khoản CHỈ ĐỌC
+> dùng ở mục 2.1) — nhờ DBA chạy giúp nếu không có quyền này.
+
 ---
 
 ## Bảng tóm tắt nhanh
 
-| | Script SQL (mục 1) | Script Node (mục 2) |
-|---|---|---|
-| File | `etl-db/schema.sql` | `etl/scripts/seedLdtdHcrcSync.js`, `rp-server/scripts/seedLdtdHcrcReports.js` |
-| Chạy bằng | SSMS hoặc `sqlcmd` | `node <file>.js` |
-| Chạy ở đâu | Trực tiếp trên SQL Server (CSDL `etl`) | Máy có Node.js + kết nối mạng tới DSMART16 |
-| Khi nào cần | Sau mỗi lần code có đổi `etl-db/schema.sql` (xem `VERSION.md`) | Sau khi tạo/sửa VIEW DSMART16, hoặc đổi tài khoản/địa chỉ kết nối |
-| Chạy lại nhiều lần | An toàn | An toàn |
+| | Script SQL (mục 1) | Script Node (mục 2) | Script SQL (mục 3) |
+|---|---|---|---|
+| File | `etl-db/schema.sql` | `etl/scripts/seedLdtdHcrcSync.js`, `rp-server/scripts/seedLdtdHcrcReports.js` | `dwh/grants.sql` |
+| Chạy bằng | SSMS hoặc `sqlcmd` | `node <file>.js` | SSMS hoặc `sqlcmd` |
+| Chạy ở đâu | Trực tiếp trên SQL Server (CSDL `etl`) | Máy có Node.js + kết nối mạng tới DSMART16 | Trực tiếp trên SQL Server (CSDL DWH) |
+| Khi nào cần | Sau mỗi lần code có đổi `etl-db/schema.sql` (xem `VERSION.md`) | Sau khi tạo/sửa VIEW DSMART16, hoặc đổi tài khoản/địa chỉ kết nối, **hoặc sau bản 6.51 dù đã chạy trước đó** | Chỉ khi `dwh/grants.sql` có đổi (xem `VERSION.md`) — không bắt buộc, chỉ ảnh hưởng 1 tính năng cảnh báo |
+| Chạy lại nhiều lần | An toàn | An toàn | An toàn |
