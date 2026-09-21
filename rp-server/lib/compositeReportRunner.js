@@ -19,7 +19,12 @@
 //   dateOffsetYears,        // directDb: 0 = ngày yêu cầu (mặc định), -1 = cùng kỳ năm trước
 //   filters,                // directDb: definition.filters bổ sung, giống 'directDb' thường
 //   apiConnectionId, apiTarget, // apiReport/apiRealtime
-//   isTarget, targetDomain  // true -> đọc dwh.SalesTargets (lib/salesTargetsReader.js)
+//   isTarget, targetDomain, // true -> đọc dwh.SalesTargets (lib/salesTargetsReader.js)
+//   targetGranularity       // isTarget: 'day' tra ĐÚNG ngày yêu cầu (chỉ
+//                           // tiêu THEO NGÀY, mẫu file thật LDTD/HCRC — xem
+//                           // etl/lib/salesTargetsImport.js), mặc định/bỏ
+//                           // trống = tra theo ngày 1 đầu tháng (chỉ tiêu
+//                           // THEO THÁNG, hành vi cũ)
 // }]
 // Công thức trong definition.columns tham chiếu field dạng "tenKhoi.field..."
 // (vd "current.measures.doanhThu", "target.ChiTieuDoanhThu",
@@ -88,7 +93,8 @@ function firstOfMonth(dateStr) {
 async function runBlock(block, requestedEventDate, filterValues) {
   if (block.isTarget) {
     const dwhPool = await getPool('DWH');
-    return runSalesTargetsBlock(dwhPool, block.targetDomain, firstOfMonth(requestedEventDate));
+    const periodKey = block.targetGranularity === 'day' ? requestedEventDate : firstOfMonth(requestedEventDate);
+    return runSalesTargetsBlock(dwhPool, block.targetDomain, periodKey);
   }
   if (block.sourceType === 'directDb') {
     const pool = block.dataSourceId ? await getPoolForDataSource(block.dataSourceId) : await getPool('DWH');

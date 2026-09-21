@@ -37,7 +37,7 @@ const multer = require('multer');
 const { sql, getPool } = require('../../db');
 const { requireAdminAuth } = require('../../lib/adminAuth');
 const { requireMenuAccess, requireMenuEdit } = require('../../lib/adminPermissions');
-const { parseSalesTargetsFile, upsertSalesTargets, PERIOD_RE, TRANG_THAI_VALUES } = require('../../lib/salesTargetsImport');
+const { parseSalesTargetsFile, upsertSalesTargets, PERIOD_RE, PERIOD_DATE_RE, TRANG_THAI_VALUES } = require('../../lib/salesTargetsImport');
 const { logAction } = require('../../lib/auditLog');
 const { hasZipSignature } = require('../../lib/fileSignature');
 
@@ -90,9 +90,14 @@ router.put('/one', requireMenuEdit(menuCode), async (req, res, next) => {
   try {
     const { entityCode, periodMonth, trangThai, targets } = req.body || {};
     if (!entityCode || !String(entityCode).trim()) return res.status(400).json({ error: 'Thiếu entityCode (mã siêu thị)' });
-    if (!PERIOD_RE.test(periodMonth || '')) {
-      return res.status(400).json({ error: '"periodMonth" phải dạng YYYY-MM' });
-    }
+    // Chấp nhận CẢ 2 dạng — "YYYY-MM" (chỉ tiêu THEO THÁNG, hành vi cũ, quy
+    // về ngày 1 đầu tháng) và "YYYY-MM-DD" (chỉ tiêu THEO NGÀY, dùng cho
+    // LDTD/HCRC từ khi 2 mẫu file thật là chỉ tiêu ngày — xem
+    // etl/lib/salesTargetsImport.js).
+    let periodDateISO;
+    if (PERIOD_RE.test(periodMonth || '')) periodDateISO = `${periodMonth}-01`;
+    else if (PERIOD_DATE_RE.test(periodMonth || '')) periodDateISO = periodMonth;
+    else return res.status(400).json({ error: '"periodMonth" phải dạng YYYY-MM (chỉ tiêu tháng) hoặc YYYY-MM-DD (chỉ tiêu theo ngày)' });
     if (trangThai && !TRANG_THAI_VALUES.includes(trangThai)) {
       return res.status(400).json({ error: `"trangThai" phải là một trong: ${TRANG_THAI_VALUES.join(', ')} (hoặc để trống)` });
     }
@@ -107,7 +112,7 @@ router.put('/one', requireMenuEdit(menuCode), async (req, res, next) => {
     const pool = await getPool('DWH_TARGET_IMPORTER');
     const result = await upsertSalesTargets(pool, domain, [{
       entityCode: String(entityCode).trim(),
-      periodMonth: new Date(`${periodMonth}-01T00:00:00Z`),
+      periodMonth: new Date(`${periodDateISO}T00:00:00Z`),
       targets: mergedTargets
     }], req.admin.username);
     await logAction(req, { module: 'Nhập chỉ tiêu', actionType: 'SUA_CHI_TIEU', targetObject: `${domain}/${entityCode}/${periodMonth}`, description: `Sửa chỉ tiêu "${entityCode}" tháng ${periodMonth} (domain "${domain}")` });

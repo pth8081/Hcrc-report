@@ -20,6 +20,47 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 6.51 — Chỉ tiêu LDTD/HCRC chuyển sang THEO NGÀY, khớp đúng 2 file mẫu thật
+
+Người dùng gửi 2 file mẫu chỉ tiêu THẬT đội Lãnh đạo Tập đoàn/HCRC đang
+dùng — phát hiện thiết kế cũ (chỉ tiêu THEO THÁNG, 1 số cố định chia đều cả
+tháng, file `MaSieuThi`+`Thang`) SAI với thực tế: cả 2 đội đều tính chỉ
+tiêu THEO NGÀY (khác nhau mỗi ngày theo tỷ lệ N-1/LFL), và 2 file mẫu có
+2 hình dạng cột HOÀN TOÀN KHÁC NHAU (LDTD: bảng "rộng" `Điểm`+`Doanh thu`+
+`Bill`; HCRC: bảng "dài" `Kỳ`+`Mã đối tượng chứa`+`Mã loại chỉ tiêu`+
+`Giá trị chỉ tiêu`, mỗi dòng 1 loại chỉ tiêu). Sửa để khớp ĐÚNG 2 file thật
+thay vì bắt IT đổi tên cột trước khi tải lên — không cần đổi schema CSDL
+(`dwh.SalesTargets.PeriodMonth` vẫn là kiểu DATE thường, giờ lưu ĐÚNG 1
+ngày cụ thể thay vì luôn ngày 1 đầu tháng).
+
+- `etl/lib/salesTargetsImport.js` — viết lại `parseSalesTargetsFile()` tự
+  nhận diện 1 trong 3 định dạng cột (dò tối đa 3 dòng đầu): (1) mẫu tổng
+  quát cũ `MaSieuThi`+`Thang` (chỉ tiêu tháng, giữ nguyên hành vi); (2) mẫu
+  thật LDTD `Ngày/tháng`+`Điểm`+`Nhóm điểm`+`Doanh thu`+`Bill` (chỉ tiêu
+  ngày, cắt phần thập phân bằng `Math.trunc()` đúng như ghi chú trong file
+  mẫu); (3) mẫu thật HCRC `Kỳ`+`Mã đối tượng chứa`+`Mã loại chỉ tiêu`+
+  `Giá trị chỉ tiêu` (chỉ tiêu ngày dạng "dài", ghép nhiều dòng cùng
+  (Kỳ, Mã đối tượng chứa) thành 1 dòng chỉ tiêu qua `HCRC_TARGET_TYPE_MAP`
+  — mã "01"/"03" SUY LUẬN từ độ lớn số liệu mẫu, cần đội HCRC xác nhận lại).
+  Cả 2 mẫu ngày đều ghi ra đúng tên field `ChiTieuDoanhThu`/`ChiTieuGiaoDich`
+  — không cần sửa gì công thức báo cáo.
+- `etl/routes/admin/salesTargets.js` — `PUT /one` chấp nhận cả `YYYY-MM`
+  (chỉ tiêu tháng) và `YYYY-MM-DD` (chỉ tiêu ngày).
+- `rp-server/lib/compositeReportRunner.js` — khối `isTarget` thêm tuỳ chọn
+  `targetGranularity: 'day'` để tra ĐÚNG ngày báo cáo thay vì luôn quy về
+  ngày 1 đầu tháng (mặc định giữ nguyên hành vi cũ nếu bỏ trống).
+- `rp-server/scripts/seedLdtdHcrcReports.js` + `báo cáo doanh thu cuối
+  ngày.md` (Bước 3 viết lại theo 2 mẫu thật, Bước 4 thêm
+  `"targetGranularity": "day"`, Bước 7 thêm mục kiểm tra) — cả 2 báo cáo
+  LDTD/HCRC chuyển hẳn sang tra chỉ tiêu theo ngày.
+- Đã kiểm thử bằng cách chạy thật `parseSalesTargetsFile()` trên 2 file
+  mẫu người dùng gửi (script tạm, không commit) — ra đúng 990 dòng (LDTD,
+  33 kho × 30 ngày) và 30 dòng (HCRC, 1 kho mẫu × 30 ngày), số liệu khớp
+  đúng file gốc.
+- Giới hạn đã biết: 2 mẫu thật KHÔNG có cột đánh dấu "đã đóng cửa"
+  (`TrangThai`) như mẫu tổng quát cũ — siêu thị đóng cửa giữa tháng xử lý
+  bằng cách ngừng gửi dòng của những ngày sau đó, không có cờ tường minh.
+
 ## 6.50 — Tài liệu hoá rủi ro trùng ngày giao tháng Live/Lịch sử — chấp nhận hiện trạng
 
 Đã xác nhận với người dùng: `DSMART16_EOM` NHẬN THÊM dữ liệu mỗi khi hết

@@ -335,7 +335,13 @@ vẫn chạy được, chỉ ghi cảnh báo ở Log cho những mã chưa khai 
 
 ---
 
-## Bước 3 — etl-admin: nhập chỉ tiêu tháng
+## Bước 3 — etl-admin: nhập chỉ tiêu
+
+**Chỉ tiêu ở đây là chỉ tiêu THEO NGÀY** (không phải chia đều cả tháng) —
+khớp đúng 2 mẫu file Excel thật đội Lãnh đạo Tập đoàn/HCRC đang dùng để
+tính chỉ tiêu ngày từ tỷ lệ N-1/LFL. Hệ thống TỰ NHẬN DIỆN định dạng file
+theo tên cột (xem chi tiết trong `etl/lib/salesTargetsImport.js`) — tải
+NGUYÊN VĂN file mẫu thật lên, không cần đổi tên cột gì cả.
 
 ### Chỉ tiêu Lãnh đạo Tập đoàn
 
@@ -344,25 +350,55 @@ Domain — đã khoá cứng sẵn `sales-targets-ldtd`, không lo trùng với 
 
 ![Trang Chỉ tiêu Lãnh đạo Tập đoàn](hinh-huong-dan-ldtd-hcrc/03-chi-tieu-ldtd.png)
 
-1. Chuẩn bị file Excel (.xlsx), dòng 1 là header, cột `MaSieuThi` +
-   `Thang` (dạng `YYYY-MM`) cố định, các cột sau tuỳ ý đặt tên — vd:
+1. File Excel (.xlsx) đúng mẫu thật đội Lãnh đạo Tập đoàn gửi — dòng 1 là
+   ghi chú (bỏ qua), dòng 2 là header, dữ liệu từ dòng 3, cột cố định:
 
-   | MaSieuThi | Thang | ChiTieuDoanhThu | ChiTieuGiaoDich |
-   |---|---|---|---|
-   | BRGHP | 2026-09 | 177798956 | 646 |
-   | BRGHD | 2026-09 | 241498448 | 615 |
+   | Ngày/tháng | Ngày | Điểm | Nhóm điểm | Doanh thu | Bill |
+   |---|---|---|---|---|---|
+   | 20260901 | 01 | 001 | Mart | 212013820.47 | 831.43 |
+   | 20260902 | 02 | 001 | Mart | 215404906.78 | 844.73 |
 
+   `Ngày/tháng` = ngày áp dụng (chấp nhận số YYYYMMDD hoặc ô định dạng
+   ngày thật). `Điểm` = mã siêu thị (EntityCode). `Nhóm điểm` (Mart/Mini) —
+   ghi thêm vào TargetsJson để tham khảo, báo cáo hiện tại không dùng field
+   này. `Doanh thu`/`Bill` — 2 chỉ tiêu, hệ thống TỰ CẮT phần thập phân
+   (không làm tròn), lưu thành `ChiTieuDoanhThu`/`ChiTieuGiaoDich` — khớp
+   sẵn công thức trong DefinitionJson Bước 4, không cần đổi gì. Phải điền
+   ĐỦ CẢ 2 cột Doanh thu và Bill ở 1 dòng (không điền riêng lẻ 1 trong 2).
 2. Bấm **"Choose File"**, chọn file → bấm **"Nhập chỉ tiêu"**.
 3. Bảng "Chỉ tiêu đã nhập" cập nhật ngay — mỗi dòng có nút "Sửa" để chỉnh
-   riêng 1 siêu thị (mở/đóng cửa giữa tháng) mà không cần chuẩn bị lại cả
-   file.
+   riêng 1 siêu thị/1 ngày (mở/đóng cửa giữa tháng, hoặc chỉnh tay 1 ngày)
+   mà không cần chuẩn bị lại cả file.
 
 ### Chỉ tiêu HCRC
 
-Vào menu **"Chỉ tiêu HCRC"**, làm y hệt (file Excel riêng, domain khoá
-cứng `sales-targets-hcrc` — độc lập hoàn toàn với trang trên):
+Vào menu **"Chỉ tiêu HCRC"** (domain khoá cứng `sales-targets-hcrc` — độc
+lập hoàn toàn với trang trên). File Excel đúng mẫu thật đội HCRC gửi lại
+khác hẳn về hình dạng — dòng 1 là header, mỗi dòng là 1 CẶP (ngày, chi
+nhánh, loại chỉ tiêu) thay vì 1 dòng/1 cột cho mỗi chỉ tiêu:
 
 ![Trang Chỉ tiêu HCRC](hinh-huong-dan-ldtd-hcrc/04-chi-tieu-hcrc.png)
+
+| Kỳ | Loại đối tượng chứa | Mã đối tượng chứa | Mã loại chỉ tiêu | Giá trị chỉ tiêu |
+|---|---|---|---|---|
+| 20260901 | 02 | 203 | 01 | 58855013 |
+| 20260901 | 02 | 203 | 03 | 258 |
+
+Hệ thống tự GHÉP các dòng cùng (`Kỳ`, `Mã đối tượng chứa`) thành 1 dòng chỉ
+tiêu, ánh xạ `Mã loại chỉ tiêu` → tên field theo bảng cố định trong
+`etl/lib/salesTargetsImport.js` (`HCRC_TARGET_TYPE_MAP`): `"01"` →
+`ChiTieuDoanhThu`, `"03"` → `ChiTieuGiaoDich`.
+
+> **Bảng ánh xạ mã "01"/"03" ở trên là SUY LUẬN từ độ lớn số liệu mẫu**
+> (file mẫu thật không có cột chú giải "Tên loại chỉ tiêu" điền sẵn) — XÁC
+> NHẬN LẠI với đội kế hoạch HCRC bằng dữ liệu thật trước khi coi là chính
+> thức. Nếu mã sai hoặc phát sinh mã loại chỉ tiêu mới, sửa hằng số
+> `HCRC_TARGET_TYPE_MAP` trong `etl/lib/salesTargetsImport.js` (mã lạ không
+> có trong bảng sẽ bị TỪ CHỐI rõ ràng khi nhập, không âm thầm bỏ qua).
+
+**Lưu ý chung cho cả 2 mẫu** — không có cột đánh dấu "đã đóng cửa" như mẫu
+tổng quát cũ (`TrangThai`): siêu thị đóng cửa giữa tháng thì đơn giản là
+KHÔNG gửi dòng của những ngày sau khi đóng, không cần đánh dấu gì thêm.
 
 ---
 
@@ -405,7 +441,7 @@ xuyên suốt file này (Bước 2/3), không cần sửa nếu bạn làm đún
     { "key": "currentGD", "sourceType": "directDb", "domain": "giaodich_chinhanh" },
     { "key": "lastYear", "sourceType": "directDb", "domain": "doanhthu_chinhanh", "dateOffsetYears": -1 },
     { "key": "lastYearGD", "sourceType": "directDb", "domain": "giaodich_chinhanh", "dateOffsetYears": -1 },
-    { "key": "target", "isTarget": true, "targetDomain": "sales-targets-ldtd" }
+    { "key": "target", "isTarget": true, "targetDomain": "sales-targets-ldtd", "targetGranularity": "day" }
   ],
   "columns": [
     { "key": "tenCuaHang", "label": "Siêu thị/Cửa hàng", "formula": "entityCode" },
@@ -470,7 +506,7 @@ Lặp lại y hệt, đổi:
     { "key": "currentGD", "sourceType": "directDb", "domain": "giaodich_chinhanh" },
     { "key": "lastYear", "sourceType": "directDb", "domain": "doanhthu_chinhanh", "dateOffsetYears": -1 },
     { "key": "lastYearGD", "sourceType": "directDb", "domain": "giaodich_chinhanh", "dateOffsetYears": -1 },
-    { "key": "target", "isTarget": true, "targetDomain": "sales-targets-hcrc" }
+    { "key": "target", "isTarget": true, "targetDomain": "sales-targets-hcrc", "targetGranularity": "day" }
   ],
   "columns": [
     { "key": "tenCuaHang", "label": "Siêu thị/Cửa hàng", "formula": "entityCode" },
@@ -609,6 +645,13 @@ nhận riêng theo đúng nhóm HCRC.
    ĐÃ BIẾT, chấp nhận được — xem giải thích Bước 2.2) — không phải lỗi cấu
    hình, tự hết sau khi qua ngày giao thời (dữ liệu Live phía đó không còn
    nữa, chỉ còn đúng 1 dòng từ Lịch sử).
+
+8. **Chỉ tiêu là THEO NGÀY** (Bước 3) — đổi "Ngày báo cáo" sang 1 ngày khác
+   đã nhập chỉ tiêu, xác nhận cột "Chỉ tiêu" đổi số ĐÚNG theo ngày đó (khác
+   số của ngày hôm nay), không phải 1 số cố định lặp lại suốt tháng. Nếu
+   cột "Chỉ tiêu" trống ở ngày đã có nhập liệu — kiểm tra lại
+   `"targetGranularity": "day"` có trong DefinitionJson của khối `target`
+   không (Bước 4), thiếu dòng này báo cáo sẽ tra sai theo ngày 1 đầu tháng.
 
 Xong — 2 báo cáo cuối ngày độc lập cho Lãnh đạo Tập đoàn và HCRC đã sẵn
 sàng, cùng 1 format cột, chỉ khác nguồn chỉ tiêu.

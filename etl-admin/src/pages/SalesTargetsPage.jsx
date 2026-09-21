@@ -14,10 +14,14 @@
 // PeriodMonth) — mọi request từ trang này LUÔN áp domain cố định của đúng
 // trang đó, không phụ thuộc gì người dùng gõ.
 //
-// File .xlsx: dòng 1 header, 2 cột đầu CỐ ĐỊNH "MaSieuThi" + "Thang"
-// (YYYY-MM), các cột sau tuỳ ý — tên cột trở thành tên chỉ tiêu. Cột
-// "TrangThai"/"MaNganhHang" (cả 2 TUỲ CHỌN) có ý nghĩa riêng, không trở
-// thành tên chỉ tiêu — xem chú thích trong etl/lib/salesTargetsImport.js.
+// File .xlsx: hệ thống TỰ NHẬN DIỆN 1 trong 3 định dạng cột (xem
+// etl/lib/salesTargetsImport.js) — (1) "MaSieuThi"+"Thang" (chỉ tiêu THEO
+// THÁNG, cột sau tuỳ ý); (2) đúng mẫu file thật Lãnh đạo Tập đoàn gửi
+// ("Điểm"+"Doanh thu"+"Bill", chỉ tiêu THEO NGÀY); (3) đúng mẫu file thật
+// HCRC gửi ("Kỳ"+"Mã đối tượng chứa"+"Mã loại chỉ tiêu"+"Giá trị chỉ
+// tiêu", chỉ tiêu THEO NGÀY). Cột "TrangThai"/"MaNganhHang" (cả 2 TUỲ CHỌN,
+// CHỈ áp dụng cho định dạng (1)) có ý nghĩa riêng, không trở thành tên chỉ
+// tiêu — xem chú thích trong etl/lib/salesTargetsImport.js.
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/AuthContext';
@@ -45,7 +49,7 @@ export default function SalesTargetsPage({ menuCode, apiBase, title }) {
 
   function reload() {
     const params = new URLSearchParams();
-    if (filterPeriod) params.set('periodMonth', `${filterPeriod}-01`);
+    if (filterPeriod) params.set('periodMonth', filterPeriod);
     const qs = params.toString();
     api.get(`${apiBase}${qs ? `?${qs}` : ''}`).then(setRows).catch(err => setError(err.message));
   }
@@ -58,7 +62,7 @@ export default function SalesTargetsPage({ menuCode, apiBase, title }) {
     const { TrangThai, ...otherTargets } = row.targets;
     setEditForm({
       entityCode: row.entityCode,
-      periodMonth: String(row.periodMonth).slice(0, 7),
+      periodMonth: String(row.periodMonth).slice(0, 10),
       trangThai: TrangThai === 'DaDong',
       otherTargetsJson: JSON.stringify(otherTargets, null, 2)
     });
@@ -77,7 +81,7 @@ export default function SalesTargetsPage({ menuCode, apiBase, title }) {
     setEditError('');
     setEditResult('');
     if (!editForm.entityCode.trim()) return setEditError('Thiếu mã siêu thị');
-    if (!editForm.periodMonth) return setEditError('Thiếu tháng áp dụng');
+    if (!editForm.periodMonth) return setEditError('Thiếu ngày áp dụng chỉ tiêu');
     let otherTargets;
     try {
       otherTargets = JSON.parse(editForm.otherTargetsJson || '{}');
@@ -121,27 +125,32 @@ export default function SalesTargetsPage({ menuCode, apiBase, title }) {
     <div className="page">
       <h1>{title}</h1>
       <p>
-        Tải lên file Excel (.xlsx) chỉ tiêu theo tháng cho từng siêu thị — nhập lại đúng
-        tháng sẽ GHI ĐÈ số liệu cũ, không cộng dồn. Chỉ tiêu nhập ở trang này ĐỘC LẬP hoàn
-        toàn với chỉ tiêu ở trang kia (2 domain khác nhau đã khoá cứng sẵn, không thể trùng)
-        — không cần lo ghi đè lẫn nhau. Dòng 1 là header, 2 cột đầu cố định tên{' '}
-        <code>MaSieuThi</code> và <code>Thang</code> (dạng <code>YYYY-MM</code>), các cột sau
-        tuỳ ý — tên cột trở thành tên chỉ tiêu (vd <code>ChiTieuDoanhThu</code>,{' '}
-        <code>ChiTieuGiaoDich</code>).
+        Tải lên file Excel (.xlsx) chỉ tiêu cho từng siêu thị — nhập lại đúng ngày/tháng sẽ
+        GHI ĐÈ số liệu cũ, không cộng dồn. Chỉ tiêu nhập ở trang này ĐỘC LẬP hoàn toàn với
+        chỉ tiêu ở trang kia (2 domain khác nhau đã khoá cứng sẵn, không thể trùng) — không
+        cần lo ghi đè lẫn nhau. Hệ thống tự nhận diện định dạng file theo tên cột, hỗ trợ
+        nguyên văn file mẫu thật đang dùng — không cần đổi tên cột trước khi tải lên:
       </p>
+      <ul>
+        <li>Mẫu <strong>Lãnh đạo Tập đoàn</strong>: cột <code>Ngày/tháng</code>,{' '}
+          <code>Điểm</code>, <code>Nhóm điểm</code> (tuỳ chọn), <code>Doanh thu</code>,{' '}
+          <code>Bill</code> — chỉ tiêu THEO NGÀY.</li>
+        <li>Mẫu <strong>HCRC</strong>: cột <code>Kỳ</code>, <code>Mã đối tượng chứa</code>,{' '}
+          <code>Mã loại chỉ tiêu</code>, <code>Giá trị chỉ tiêu</code> — chỉ tiêu THEO NGÀY
+          (mỗi dòng 1 loại chỉ tiêu, hệ thống tự ghép các dòng cùng ngày/chi nhánh).</li>
+        <li>Mẫu tổng quát (cũ): dòng 1 header, cột <code>MaSieuThi</code> +{' '}
+          <code>Thang</code> (dạng <code>YYYY-MM</code>), các cột sau tuỳ ý trở thành tên
+          chỉ tiêu — chỉ tiêu THEO THÁNG.</li>
+      </ul>
       <p>
-        Cột <code>TrangThai</code> (TUỲ CHỌN) — ghi <code>DaDong</code> để LOẠI HẲN siêu thị
-        đó khỏi báo cáo (composite) tháng này, để trống hoặc ghi <code>HoatDong</code> = hiện
-        bình thường. Bỏ trống cả cột này (không nhập gì) KHÔNG loại siêu thị — chỉ đánh dấu
-        rõ <code>DaDong</code> mới loại, tránh mất siêu thị khỏi báo cáo chỉ vì quên nhập.
-      </p>
-      <p>
-        Cột <code>MaNganhHang</code> (TUỲ CHỌN) — điền chỉ tiêu THEO NGÀNH HÀNG thay vì cả
-        siêu thị: dòng nào có giá trị cột này thì mã thực thể lưu lại thành
-        <code>&lt;MaSieuThi&gt;_&lt;MaNganhHang&gt;</code> — PHẢI khớp đúng cách ETL đặt "Cột
-        khoá" cho domain thực đạt tương ứng mới ghép đúng vào báo cáo (xem
-        hướng_dẫn_báo_cáo.md mục 5). Dòng để trống cột này vẫn là chỉ tiêu THEO SIÊU THỊ như
-        trước — dùng lẫn cả 2 kiểu trong cùng 1 file được.
+        Cột <code>TrangThai</code>/<code>MaNganhHang</code> (cả 2 TUỲ CHỌN, CHỈ áp dụng cho
+        mẫu tổng quát ở trên — 2 mẫu thật Lãnh đạo Tập đoàn/HCRC không có 2 cột này): ghi{' '}
+        <code>DaDong</code> ở cột <code>TrangThai</code> để LOẠI HẲN siêu thị đó khỏi báo cáo
+        tháng này (để trống/<code>HoatDong</code> = hiện bình thường, bỏ trống KHÔNG loại —
+        chỉ đánh dấu rõ <code>DaDong</code> mới loại). Cột <code>MaNganhHang</code> điền chỉ
+        tiêu THEO NGÀNH HÀNG thay vì cả siêu thị — mã thực thể lưu lại thành
+        <code>&lt;MaSieuThi&gt;_&lt;MaNganhHang&gt;</code>, PHẢI khớp đúng "Cột khoá" ETL của
+        domain thực đạt tương ứng (xem hướng_dẫn_báo_cáo.md mục 5).
       </p>
       {error && <p className="form-error">{error}</p>}
 
@@ -166,13 +175,13 @@ export default function SalesTargetsPage({ menuCode, apiBase, title }) {
 
       <h2>Chỉ tiêu đã nhập</h2>
       <div className="inline-actions">
-        <input type="month" value={filterPeriod} onChange={(e) => setFilterPeriod(e.target.value)} />
+        <input type="date" value={filterPeriod} onChange={(e) => setFilterPeriod(e.target.value)} />
       </div>
 
       <DataTable
         columns={[
           { key: 'entityCode', label: 'Mã siêu thị' },
-          { key: 'periodMonth', label: 'Tháng', render: (r) => String(r.periodMonth).slice(0, 7) },
+          { key: 'periodMonth', label: 'Ngày áp dụng', render: (r) => String(r.periodMonth).slice(0, 10) },
           { key: 'targets', label: 'Chỉ tiêu', render: (r) => Object.entries(r.targets).map(([k, v]) => `${k}=${v}`).join(', ') },
           { key: 'importedBy', label: 'Người nhập' },
           { key: 'importedAt', label: 'Lúc nhập', render: (r) => new Date(r.importedAt).toLocaleString('vi-VN') },
@@ -201,7 +210,7 @@ export default function SalesTargetsPage({ menuCode, apiBase, title }) {
               required
             />
             <input
-              type="month"
+              type="date"
               value={editForm.periodMonth}
               onChange={(e) => setEditForm({ ...editForm, periodMonth: e.target.value })}
               required
