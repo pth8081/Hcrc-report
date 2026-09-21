@@ -71,6 +71,18 @@ nhiều lần** (idempotent): khớp theo tên đã có sẵn để CẬP NHẬT
 trùng. Đổi thông tin kết nối/mật khẩu DSMART16 thì chỉ cần sửa lại `.env`
 rồi chạy lại `seedLdtdHcrcSync.js` là đủ.
 
+**Lỗi thường gặp — `Failed to connect ... self-signed certificate`**: máy
+chủ SQL Server đang dùng chứng chỉ TỰ KÝ (rất phổ biến với server nội bộ
+không mua chứng chỉ CA công cộng) — mặc định script BẬT mã hoá kết nối
+nhưng KHÔNG tin chứng chỉ tự ký. Thêm 1 dòng vào `.env` rồi chạy lại:
+```
+DSMART16_TRUST_CERT=true
+```
+(1 biến DUY NHẤT áp dụng cho CẢ 2 nguồn Live/Lịch sử — script hiện KHÔNG có
+biến riêng cho từng bên. Nếu sau này 2 CSDL nằm ở 2 server khác nhau và chỉ
+1 bên tự ký chứng chỉ, phải sửa thêm code mới tách được — báo lại nếu gặp
+đúng trường hợp này.)
+
 > ⚠️ **Nếu đã từng chạy `seedLdtdHcrcReports.js` TRƯỚC bản 6.51 — PHẢI CHẠY
 > LẠI ít nhất 1 lần** dù không đổi gì ở DSMART16. Bản 6.51 đổi NỘI DUNG
 > script này (thêm `targetGranularity: "day"` cho đúng chỉ tiêu theo ngày)
