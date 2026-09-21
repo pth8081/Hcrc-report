@@ -170,6 +170,16 @@ export default function SalesTargetsPage({ menuCode, apiBase, title }) {
               <ul>{importResult.rowErrors.map((e, i) => <li key={i}>{e}</li>)}</ul>
             </>
           )}
+          {importResult.unknownEntityCodes?.length > 0 && (
+            <>
+              <p>
+                ⚠️ {importResult.unknownEntityCodes.length} mã KHÔNG khớp bất kỳ chi nhánh nào
+                đang có dữ liệu thực đạt — vẫn đã nhập bình thường, nhưng kiểm tra lại chính tả
+                (nếu là siêu thị mới mở chưa kịp có dữ liệu đồng bộ thì bỏ qua cảnh báo này):
+              </p>
+              <ul>{importResult.unknownEntityCodes.map((code, i) => <li key={i}>{code}</li>)}</ul>
+            </>
+          )}
         </div>
       )}
 

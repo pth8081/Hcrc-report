@@ -400,6 +400,17 @@ tiêu, ánh xạ `Mã loại chỉ tiêu` → tên field theo bảng cố địn
 tổng quát cũ (`TrangThai`): siêu thị đóng cửa giữa tháng thì đơn giản là
 KHÔNG gửi dòng của những ngày sau khi đóng, không cần đánh dấu gì thêm.
 
+**Cảnh báo tự động mã gõ sai/nhầm** — sau khi nhập file, hệ thống đối chiếu
+mọi `Điểm`/`Mã đối tượng chứa` trong file với danh sách EntityCode ĐANG CÓ
+THẬT trong dữ liệu đồng bộ (domain `doanhthu_chinhanh`) — mã nào không khớp
+bất kỳ chi nhánh nào đang có dữ liệu sẽ hiện cảnh báo ngay dưới kết quả
+nhập, dạng "N mã KHÔNG khớp bất kỳ chi nhánh nào...". **Đây chỉ là CẢNH
+BÁO, không chặn nhập** — dòng chỉ tiêu đó vẫn được lưu bình thường, tự bỏ
+qua nếu siêu thị mới mở chưa kịp có dữ liệu đồng bộ (chưa có gì để đối
+chiếu thì không cảnh báo gì). Cảnh báo này giúp bắt sớm lỗi gõ nhầm mã siêu
+thị — trước đây nhập vẫn thành công nhưng dòng chỉ tiêu đó ÂM THẦM không
+bao giờ ghép được vào báo cáo (không có lỗi/cảnh báo gì khác báo hiệu).
+
 ---
 
 ## Bước 4 — rp-user: tạo báo cáo

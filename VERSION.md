@@ -20,6 +20,36 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 6.52 — Cảnh báo mã siêu thị sai khi nhập chỉ tiêu LDTD/HCRC
+
+Người dùng hỏi có nên đối chiếu chỉ tiêu với file mẫu báo cáo trước khi
+nhập để chặn lỗi — ĐỒNG Ý làm ở mức CẢNH BÁO (không chặn), vì trước đây gõ
+sai/nhầm mã siêu thị trong file chỉ tiêu vẫn nhập THÀNH CÔNG bình thường,
+nhưng dòng đó ÂM THẦM không bao giờ ghép được vào báo cáo composite (ghép
+đúng theo entityCode, không báo lỗi gì khi 1 dòng "mồ côi").
+
+- `etl/lib/salesTargetsImport.js` — thêm `findUnknownEntityCodes()`: đối
+  chiếu EntityCode trong file vừa nhập với danh sách EntityCode ĐANG CÓ
+  THẬT trong `dwh.ReportFacts` của domain thực đạt tương ứng, trả về mã nào
+  không khớp. Bỏ qua hoàn toàn (không cảnh báo sai) khi domain thực đạt
+  chưa có dữ liệu nào (ETL chưa đồng bộ lần nào — không có gì để đối
+  chiếu).
+- `dwh/grants.sql` — bổ sung `GRANT SELECT ON dwh.ReportFacts TO
+  dwh_target_importer` (nới lỏng có chủ đích so với thiết kế gốc "không
+  đụng ReportFacts dù chỉ để đọc" — chỉ mở quyền ĐỌC, KHÔNG mở quyền GHI,
+  không ảnh hưởng mục tiêu cô lập ghi ban đầu).
+- `etl/routes/admin/salesTargets.js` + `etl/server.js` — route nhập chỉ
+  tiêu nhận thêm tham số `actualDataDomain` (`doanhthu_chinhanh` cho cả 2
+  trang LDTD/HCRC), trả thêm `unknownEntityCodes` trong kết quả `POST
+  /import` (không chặn — lỗi đối chiếu chỉ log cảnh báo, không làm hỏng lượt
+  nhập).
+- `etl-admin/src/pages/SalesTargetsPage.jsx` — hiện danh sách mã cảnh báo
+  ngay dưới kết quả nhập, tách riêng khỏi `rowErrors` (đây là cảnh báo, các
+  dòng đó vẫn đã nhập thành công).
+- Đã test `findUnknownEntityCodes()` bằng pool giả (4 tình huống: không
+  truyền domain, danh sách mã rỗng, chưa có dữ liệu thực đạt, và trường hợp
+  bình thường có mã sai) + `npm run build` etl-admin.
+
 ## 6.51 — Chỉ tiêu LDTD/HCRC chuyển sang THEO NGÀY, khớp đúng 2 file mẫu thật
 
 Người dùng gửi 2 file mẫu chỉ tiêu THẬT đội Lãnh đạo Tập đoàn/HCRC đang

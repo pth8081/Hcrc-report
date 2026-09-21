@@ -76,8 +76,18 @@ BEGIN
     CREATE USER dwh_target_importer FOR LOGIN dwh_target_importer;
 END
 GO
--- CỐ Ý GRANT theo TỪNG BẢNG (dwh.SalesTargets), KHÔNG theo SCHEMA::dwh như
--- 2 tài khoản trên — tài khoản này không được phép chạm dwh.ReportFacts dù
--- chỉ để đọc, đúng tinh thần "chỉ nhập chỉ tiêu, không hơn".
+-- CỐ Ý GRANT theo TỪNG BẢNG, KHÔNG theo SCHEMA::dwh như 2 tài khoản trên —
+-- tài khoản này KHÔNG ĐƯỢC GHI dwh.ReportFacts (chỉ SalesTargets), đúng
+-- tinh thần "chỉ nhập chỉ tiêu, không hơn".
 GRANT SELECT, INSERT, UPDATE ON dwh.SalesTargets TO dwh_target_importer;
+-- Bổ sung SAU (bản chỉ tiêu THEO NGÀY LDTD/HCRC) — CHỈ ĐỌC dwh.ReportFacts,
+-- để route nhập chỉ tiêu đối chiếu EntityCode trong file với EntityCode
+-- THẬT đang có dữ liệu đồng bộ, cảnh báo mã gõ sai/nhầm chính tả trước khi
+-- nó âm thầm "mồ côi" không khớp được vào báo cáo (xem
+-- etl/lib/salesTargetsImport.js findUnknownEntityCodes()). Đây là NỚI LỎNG
+-- có chủ đích so với ghi chú "không được phép chạm dwh.ReportFacts dù chỉ
+-- để đọc" ở bản gốc — cân nhắc lại: rủi ro ban đầu muốn chặn là GHI nhầm/
+-- GHI ác ý vào ReportFacts từ 1 route hẹp quyền, còn quyền ĐỌC không mở ra
+-- rủi ro đó (tài khoản này vẫn KHÔNG THỂ ghi bất kỳ gì ngoài SalesTargets).
+GRANT SELECT ON dwh.ReportFacts TO dwh_target_importer;
 GO

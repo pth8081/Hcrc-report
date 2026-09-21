@@ -37,7 +37,7 @@ const multer = require('multer');
 const { sql, getPool } = require('../../db');
 const { requireAdminAuth } = require('../../lib/adminAuth');
 const { requireMenuAccess, requireMenuEdit } = require('../../lib/adminPermissions');
-const { parseSalesTargetsFile, upsertSalesTargets, PERIOD_RE, PERIOD_DATE_RE, TRANG_THAI_VALUES } = require('../../lib/salesTargetsImport');
+const { parseSalesTargetsFile, upsertSalesTargets, findUnknownEntityCodes, PERIOD_RE, PERIOD_DATE_RE, TRANG_THAI_VALUES } = require('../../lib/salesTargetsImport');
 const { logAction } = require('../../lib/auditLog');
 const { hasZipSignature } = require('../../lib/fileSignature');
 
@@ -54,7 +54,14 @@ const upload = multer({
   }
 });
 
-function createSalesTargetsRouter(menuCode, domain) {
+// actualDataDomain (TUỲ CHỌN) — domain THỰC ĐẠT tương ứng (vd
+// "doanhthu_chinhanh") dùng để ĐỐI CHIẾU EntityCode trong file chỉ tiêu vừa
+// nhập với EntityCode THẬT đang có dữ liệu đồng bộ, cảnh báo (không chặn)
+// mã gõ sai/nhầm chính tả — xem findUnknownEntityCodes() trong
+// lib/salesTargetsImport.js. Bỏ trống thì KHÔNG đối chiếu (route dùng cho
+// domain khác ngoài LDTD/HCRC, không biết chắc domain thực đạt nào tương
+// ứng).
+function createSalesTargetsRouter(menuCode, domain, actualDataDomain) {
 const router = express.Router();
 router.use(requireAdminAuth);
 
@@ -147,7 +154,17 @@ router.post('/import', requireMenuEdit(menuCode), upload.single('file'), async (
     // mở lại 1 siêu thị đã đóng (xem chú thích trong lib/salesTargetsImport.js).
     const result = await upsertSalesTargets(pool, domain, rows, req.admin.username, { preserveTrangThaiIfUnspecified: true });
     await logAction(req, { module: 'Nhập chỉ tiêu', actionType: 'NHAP_CHI_TIEU', targetObject: domain, description: `Nhập file chỉ tiêu domain "${domain}": thêm mới ${result.inserted}, cập nhật ${result.updated} dòng` });
-    res.json({ ...result, rowErrors });
+    // CẢNH BÁO (không chặn) mã EntityCode nào trong file không khớp bất kỳ
+    // chi nhánh nào đang có dữ liệu đồng bộ thật — xem chú thích
+    // findUnknownEntityCodes() trong lib/salesTargetsImport.js. Chạy SAU khi
+    // đã nhập xong (không trì hoãn/chặn việc nhập chỉ vì lỗi đối chiếu).
+    let unknownEntityCodes = [];
+    try {
+      unknownEntityCodes = await findUnknownEntityCodes(pool, actualDataDomain, rows.map(r => r.entityCode));
+    } catch (warnErr) {
+      console.warn('⚠️  [sales-targets] Không đối chiếu được EntityCode với dữ liệu thực đạt:', warnErr.message);
+    }
+    res.json({ ...result, rowErrors, unknownEntityCodes });
   } catch (err) { next(err); }
 });
 

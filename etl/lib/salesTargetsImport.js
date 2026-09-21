@@ -494,4 +494,38 @@ async function upsertSalesTargets(pool, domain, rows, importedBy, { preserveTran
   }
 }
 
-module.exports = { parseSalesTargetsFile, upsertSalesTargets, PERIOD_RE, PERIOD_DATE_RE, TRANG_THAI_VALUES, HCRC_TARGET_TYPE_MAP };
+// Đối chiếu EntityCode trong file chỉ tiêu vừa nhập với danh sách EntityCode
+// ĐANG CÓ THẬT trong dwh.ReportFacts của domain thực đạt tương ứng — CẢNH
+// BÁO (không chặn) mã nào không khớp bất kỳ chi nhánh nào đang có dữ liệu,
+// bắt lỗi gõ nhầm/sai chính tả mã siêu thị — trước đây nhập vẫn THÀNH CÔNG
+// bình thường nhưng dòng đó NGẦM không bao giờ ghép được vào báo cáo
+// (composite ghép đúng theo entityCode, không báo lỗi gì khi 1 dòng chỉ
+// tiêu "mồ côi" không entityCode nào khớp — xem
+// rp-server/lib/compositeReportRunner.js).
+//
+// CHỈ chạy khi actualDataDomain được truyền (routes/admin/salesTargets.js
+// chỉ truyền cho 2 trang LDTD/HCRC, nơi biết chắc domain thực đạt dùng
+// chung — xem etl/server.js) — và CHỈ khi đã có ít nhất 1 EntityCode thực
+// đạt trong domain đó (ETL đã đồng bộ ít nhất 1 lần); nếu CHƯA có dữ liệu
+// thực đạt nào, KHÔNG thể đối chiếu (mọi mã sẽ "không khớp" một cách vô
+// nghĩa vì chưa có gì để so sánh) — trả về mảng rỗng thay vì cảnh báo sai.
+//
+// Đọc dwh.ReportFacts qua CÙNG pool hẹp quyền "DWH_TARGET_IMPORTER" — CHỈ
+// SELECT (không INSERT/UPDATE/DELETE), xem GRANT bổ sung trong
+// dwh/grants.sql — không phá vỡ mục tiêu cô lập GHI của pool này (route này
+// vẫn không thể GHI được dwh.ReportFacts), chỉ mở thêm quyền ĐỌC để đối
+// chiếu.
+async function findUnknownEntityCodes(pool, actualDataDomain, entityCodes) {
+  if (!actualDataDomain || !entityCodes.length) return [];
+  const result = await pool.request()
+    .input('domain', sql.VarChar(50), actualDataDomain)
+    .query('SELECT DISTINCT EntityCode FROM dwh.ReportFacts WHERE Domain = @domain');
+  if (!result.recordset.length) return [];
+  const known = new Set(result.recordset.map(r => r.EntityCode));
+  return [...new Set(entityCodes)].filter(code => !known.has(code)).sort();
+}
+
+module.exports = {
+  parseSalesTargetsFile, upsertSalesTargets, findUnknownEntityCodes,
+  PERIOD_RE, PERIOD_DATE_RE, TRANG_THAI_VALUES, HCRC_TARGET_TYPE_MAP
+};

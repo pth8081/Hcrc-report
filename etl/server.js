@@ -107,8 +107,11 @@ app.use('/admin/dashboard', adminDashboardRoutes);
 // chỉ tiêu của nhau — xem chú thích đầy đủ đầu routes/admin/salesTargets.js.
 // Khi cấu hình báo cáo composite ở rp-user, khối "target" (isTarget:true)
 // dùng ĐÚNG 1 trong 2 chuỗi domain dưới đây làm "targetDomain".
-app.use('/admin/sales-targets-corp', createSalesTargetsRouter('sales-targets-corp', 'sales-targets-ldtd'));
-app.use('/admin/sales-targets-hcrc', createSalesTargetsRouter('sales-targets-hcrc', 'sales-targets-hcrc'));
+// 'doanhthu_chinhanh' — domain thực đạt CHUNG cho cả 2 báo cáo LDTD/HCRC
+// (xem rp-server/scripts/seedLdtdHcrcReports.js DOMAIN) — dùng để cảnh báo
+// EntityCode gõ sai/nhầm khi nhập chỉ tiêu (xem routes/admin/salesTargets.js).
+app.use('/admin/sales-targets-corp', createSalesTargetsRouter('sales-targets-corp', 'sales-targets-ldtd', 'doanhthu_chinhanh'));
+app.use('/admin/sales-targets-hcrc', createSalesTargetsRouter('sales-targets-hcrc', 'sales-targets-hcrc', 'doanhthu_chinhanh'));
 app.use('/admin/branch-code-map', adminBranchCodeMapRoutes);
 app.use('/admin/roles', adminRolesRoutes);
 
