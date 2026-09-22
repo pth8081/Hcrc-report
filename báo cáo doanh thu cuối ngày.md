@@ -91,9 +91,9 @@ cần tự sửa tay):
    cụ phía trên cửa sổ Query, ngay cạnh nút Execute — chọn NHẦM CSDL sẽ
    tạo VIEW vào sai chỗ mà không báo lỗi gì).
 4. Dán nguyên **Script A** (đang ở CSDL `DSMART16`) hoặc **Script B**
-   (đang ở CSDL `DSMART16_EOM`) — 2 script khác nhau, xem ngay dưới đây
-   (nhớ điền đúng 2 mã `STYPE_ID` thật của MART/MINIMART trước khi chạy —
-   GIỐNG NHAU ở cả 2 script — xem chú thích ngay dưới).
+   (đang ở CSDL `DSMART16_EOM`) — 2 script khác nhau, xem ngay dưới đây.
+   Cả 2 script đã điền sẵn mã MART/MINIMART thật (`STOCK.TYPE = '01'`/`'02'`)
+   — KHÔNG cần điền gì thêm, dán chạy thẳng.
 5. Bấm **Execute** (hoặc phím `F5`). Không có dòng lỗi đỏ ở khung kết quả
    phía dưới là thành công.
 6. Kiểm tra: mở rộng CSDL đó → mục **Views** → thấy đủ
@@ -132,6 +132,10 @@ có ai đó chủ động chạy `DROP VIEW <tên>`. Cần lưu ý 2 điều:
 -- STRANS = bảng CHI TIẾT giao dịch thật (KHÔNG phải DSTK_INFO — bảng đó
 -- rỗng, đã xác nhận bằng SELECT COUNT(*) thật). JOIN sang TRANSHDR qua
 -- TRANS_NUM CHỈ để lấy STATUS đáng tin (loại đúng giao dịch huỷ).
+-- STOCK.TYPE (KHÔNG phải STYPE_ID — cột đó luôn trống) phân loại
+-- '01'=MART, '02'=MINIMART, đã xác nhận qua tên chi nhánh thật.
+-- COSTPRICE.STK_ID LUÔN TRỐNG (giá vốn dùng CHUNG toàn hệ thống, không
+-- theo từng chi nhánh) — CHỈ JOIN theo SKU_ID + MEC_YM, KHÔNG có STK_ID.
 CREATE OR ALTER VIEW V_HCRC_DOANHTHU_CHINHANH AS
 SELECT
     d.STK_ID, CAST(d.TRAN_DATE AS DATE) AS WORK_DATE,
@@ -142,16 +146,16 @@ SELECT
     SUM(d.COMM_AMT) AS HoaHong,
     SUM(d.AMOUNT) - SUM(d.QTY * ISNULL(c.COSTPRICE, 0)) AS laiGop,
     MAX(s.DIMENSION) AS dienTich,
-    MAX(CASE WHEN s.STYPE_ID = '<mã MART thật>' THEN 'MART'
-             WHEN s.STYPE_ID = '<mã MINIMART thật>' THEN 'MINIMART'
-             ELSE s.STYPE_ID END) AS chain
+    MAX(CASE WHEN s.TYPE = '01' THEN 'MART'
+             WHEN s.TYPE = '02' THEN 'MINIMART'
+             ELSE s.TYPE END) AS chain
 FROM STRANS d
 JOIN TRANSHDR h
     ON h.TRANS_NUM = d.TRANS_NUM
 JOIN STOCK s
     ON s.STK_ID = d.STK_ID
 LEFT JOIN COSTPRICE c
-    ON c.STK_ID = d.STK_ID AND c.SKU_ID = d.SKU_ID
+    ON c.SKU_ID = d.SKU_ID
    AND c.MEC_YM = LEFT(CONVERT(char(8), d.TRAN_DATE, 112), 6)
 WHERE h.STATUS <> 'D' -- 'D' = Huỷ (đã xác nhận với người quản trị DSMART16); 'N'=Mới, 'M'=Sửa đều tính vào doanh thu
 GROUP BY d.STK_ID, CAST(d.TRAN_DATE AS DATE);
@@ -226,12 +230,12 @@ SELECT
     SUM(d.COMM_AMT) AS HoaHong,
     SUM(d.AMOUNT) - SUM(d.QTY * ISNULL(c.COSTPRICE, 0)) AS laiGop,
     MAX(s.DIMENSION) AS dienTich,
-    MAX(CASE WHEN s.STYPE_ID = ''<mã MART thật>'' THEN ''MART''
-             WHEN s.STYPE_ID = ''<mã MINIMART thật>'' THEN ''MINIMART''
-             ELSE s.STYPE_ID END) AS chain
+    MAX(CASE WHEN s.TYPE = ''01'' THEN ''MART''
+             WHEN s.TYPE = ''02'' THEN ''MINIMART''
+             ELSE s.TYPE END) AS chain
 FROM (' + @sql + N') d
 JOIN DSMART16.dbo.STOCK s ON s.STK_ID = d.STK_ID
-LEFT JOIN DSMART16.dbo.COSTPRICE c ON c.STK_ID = d.STK_ID AND c.SKU_ID = d.SKU_ID
+LEFT JOIN DSMART16.dbo.COSTPRICE c ON c.SKU_ID = d.SKU_ID
    AND c.MEC_YM = LEFT(CONVERT(char(8), d.TRAN_DATE, 112), 6)
 GROUP BY d.STK_ID, CAST(d.TRAN_DATE AS DATE);';
 
@@ -287,12 +291,12 @@ BEGIN
         SUM(d.COMM_AMT) AS HoaHong,
         SUM(d.AMOUNT) - SUM(d.QTY * ISNULL(c.COSTPRICE, 0)) AS laiGop,
         MAX(s.DIMENSION) AS dienTich,
-        MAX(CASE WHEN s.STYPE_ID = ''<mã MART thật>'' THEN ''MART''
-                 WHEN s.STYPE_ID = ''<mã MINIMART thật>'' THEN ''MINIMART''
-                 ELSE s.STYPE_ID END) AS chain
+        MAX(CASE WHEN s.TYPE = ''01'' THEN ''MART''
+                 WHEN s.TYPE = ''02'' THEN ''MINIMART''
+                 ELSE s.TYPE END) AS chain
     FROM (' + @sql + N') d
     JOIN DSMART16.dbo.STOCK s ON s.STK_ID = d.STK_ID
-    LEFT JOIN DSMART16.dbo.COSTPRICE c ON c.STK_ID = d.STK_ID AND c.SKU_ID = d.SKU_ID
+    LEFT JOIN DSMART16.dbo.COSTPRICE c ON c.SKU_ID = d.SKU_ID
        AND c.MEC_YM = LEFT(CONVERT(char(8), d.TRAN_DATE, 112), 6)
     GROUP BY d.STK_ID, CAST(d.TRAN_DATE AS DATE);';
 
@@ -301,9 +305,9 @@ END
 GO
 ```
 
-Điền `<mã MART thật>`/`<mã MINIMART thật>` NGAY TRONG stored procedure này
-trước khi chạy (giống hệt VIEW đã tạo tay ở trên). Chạy thử ngay:
-`EXEC dbo.sp_HCRC_RebuildDoanhThuView;` — không lỗi là xong bước này.
+Stored procedure trên đã điền sẵn mã MART/MINIMART thật, KHÔNG cần sửa gì
+thêm. Chạy thử ngay: `EXEC dbo.sp_HCRC_RebuildDoanhThuView;` — không lỗi là
+xong bước này.
 
 Sau đó tạo Job gọi lại ĐÚNG stored procedure này vào ngày 2 mỗi tháng
 (chừa 1 ngày sau khi bảng tháng mới thường được tạo) — @command ở đây chỉ
@@ -348,14 +352,27 @@ bỏ qua phần Job, chỉ cần tạo stored procedure ở trên rồi đặt l
 `EXEC dbo.sp_HCRC_RebuildDoanhThuView;` mỗi đầu tháng, hoặc bất cứ khi nào
 thấy cột "Cùng kỳ năm trước" thiếu dữ liệu của tháng gần đây (xem Bước 7).
 
-**Còn thiếu xác nhận cuối cùng** (chưa có dữ liệu để kiểm tra):
+**Đã xác nhận đầy đủ bằng dữ liệu thật** (không còn placeholder nào trong
+2 script trên):
 
-1. `STOCK.STYPE_ID` — cột phân loại MART/MINIMART. Chạy thử
-   `SELECT DISTINCT STYPE_ID FROM STOCK` để biết 2 mã thật, điền vào chỗ
-   `'<mã MART thật>'`/`'<mã MINIMART thật>'` ở CẢ 2 script trên.
-2. `COSTPRICE.MEC_YM` — định dạng tháng (giả định `YYYYMM`, vd `'202609'`).
-   Nếu sai định dạng, cột Lãi gộp sẽ ra sai (coi giá vốn = 0) mà KHÔNG báo
-   lỗi gì — xem cách phát hiện ở Bước 7.
+1. `STOCK.TYPE` (KHÔNG phải `STYPE_ID` — cột đó luôn trống ở mọi dòng, đã
+   xác nhận `SELECT DISTINCT STYPE_ID FROM STOCK` chỉ ra 1 giá trị trống) là
+   cột phân loại MART/MINIMART thật: `'01'` = MART (118 chi nhánh, tên
+   "Siêu thị BRGMart..."), `'02'` = MINIMART (168 chi nhánh) — đã xác nhận
+   qua tên chi nhánh thật và người quản trị DSMART16. *Lưu ý nhỏ*: trong mẫu
+   `TYPE='02'` có vài dòng tên "Kho hàng..." (không phải branding MiniMart
+   bán lẻ) — nhiều khả năng là kho trung chuyển được xếp chung nhóm `02`;
+   không ảnh hưởng báo cáo nếu các kho này không phát sinh giao dịch bán lẻ
+   (STRANS).
+2. `COSTPRICE.MEC_YM` — định dạng `YYYYMM` (vd `'202609'`) đã xác nhận đúng
+   qua dữ liệu thật, không cần sửa.
+3. **Phát hiện thêm (không có trong hướng dẫn gốc)**: `COSTPRICE.STK_ID`
+   LUÔN TRỐNG ở 100% dòng (đã xác nhận: số dòng trống = tổng số dòng bảng).
+   COSTPRICE là bảng giá vốn DÙNG CHUNG toàn hệ thống (1 giá/SKU/tháng,
+   KHÔNG theo từng chi nhánh) — nếu JOIN theo cả `STK_ID` (như bản gốc từng
+   giả định) thì KHÔNG BAO GIỜ khớp, khiến giá vốn luôn = 0 và "Lãi gộp"
+   luôn bằng đúng doanh thu (sai, nhưng KHÔNG báo lỗi gì). Cả 2 script trên
+   đã sửa: JOIN COSTPRICE CHỈ theo `SKU_ID + MEC_YM`, KHÔNG có `STK_ID`.
 
 ---
 

@@ -20,6 +20,31 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 6.54 — Sửa nốt 2 chỗ đoán sai còn lại trong VIEW Doanh thu (STOCK.TYPE, COSTPRICE)
+
+Tiếp nối 6.53 — sau khi có nguồn `STRANS` đúng, còn 2 chỗ trong Script A/B
+`báo cáo doanh thu cuối ngày.md` vẫn để placeholder/giả định chưa kiểm
+chứng, nay đã xác nhận bằng dữ liệu thật và sửa cả 3 nơi (Script A, Script
+B, stored procedure `sp_HCRC_RebuildDoanhThuView`):
+
+- **Cột phân loại MART/MINIMART**: `STOCK.STYPE_ID` (giả định ban đầu)
+  LUÔN TRỐNG (xác nhận `SELECT DISTINCT STYPE_ID` chỉ ra 1 giá trị trống ở
+  toàn bộ 286 dòng) — cột đúng là `STOCK.TYPE`: `'01'`=MART (118 chi
+  nhánh), `'02'`=MINIMART (168 chi nhánh), xác nhận qua tên chi nhánh thật
+  và người quản trị DSMART16.
+- **Phát hiện thêm, chưa từng có trong hướng dẫn gốc**: `COSTPRICE.STK_ID`
+  LUÔN TRỐNG ở 100% dòng (2,358,829/2,358,829) — COSTPRICE là bảng giá vốn
+  DÙNG CHUNG toàn hệ thống (1 giá/SKU/tháng), KHÔNG theo từng chi nhánh.
+  JOIN cũ `c.STK_ID = d.STK_ID AND c.SKU_ID = d.SKU_ID AND c.MEC_YM = ...`
+  KHÔNG BAO GIỜ khớp — khiến giá vốn luôn tính = 0 và "Lãi gộp" luôn bằng
+  đúng doanh thu (sai âm thầm, không báo lỗi gì). Đã bỏ điều kiện `STK_ID`
+  khỏi JOIN, chỉ còn `SKU_ID + MEC_YM`.
+- `COSTPRICE.MEC_YM` (định dạng `YYYYMM`) đã xác nhận đúng như dự đoán ban
+  đầu — không cần sửa.
+- Cập nhật mục "Còn thiếu xác nhận cuối cùng" trong sổ tay thành mục "Đã
+  xác nhận đầy đủ bằng dữ liệu thật" — không còn placeholder nào trong 2
+  script, dán chạy thẳng được.
+
 ## 6.53 — Sửa lại đúng nguồn dữ liệu thật cho VIEW Doanh thu (Bước 1)
 
 Người dùng chạy thử Script A/B ở `báo cáo doanh thu cuối ngày.md` trên
