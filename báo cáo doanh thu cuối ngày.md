@@ -51,6 +51,14 @@ chạy, không cần cấu hình gì thêm ở phía rp-user. Xem chi tiết ở
 
 ## Bước 1 — Tạo VIEW trên CẢ 2 CSDL DSMART16 (làm trước, ngoài giao diện web)
 
+> **Đã kiểm chứng lại bằng dữ liệu THẬT (không còn là dự đoán theo tên
+> cột)** — bản trước của mục này dùng bảng `DSTK_INFO` cho VIEW "Doanh
+> thu", nhưng thực tế `DSTK_INFO` HOÀN TOÀN TRỐNG (0 dòng) trên cả
+> `DSMART16` lẫn `DSMART16_EOM` — không phải bảng chứa dữ liệu bán hàng
+> thật. Bảng đúng là **`STRANS`** (Live) / **`STRANS_EOM`** + các bảng
+> `STRANS_YYYYMM` theo tháng (Lịch sử). Xem lại toàn bộ script bên dưới —
+> ĐÃ đổi khác hẳn bản trước, không chỉ sửa 2 dòng như cũ.
+
 "Ngoài giao diện web" nghĩa là chạy trực tiếp trên CSDL DSMART16 bằng 1
 công cụ quản trị SQL Server — KHÔNG phải vào etl-admin/rp-user (2 trang đó
 cố tình không có chỗ gõ SQL tuỳ ý, chỉ duyệt bảng/cột có sẵn, vì lý do an
@@ -63,8 +71,9 @@ phí từ Microsoft) hoặc Azure Data Studio. Dùng bản IT/DBA đã cài sẵ
 — 2 lượt Connect + New Query + Execute riêng, VIEW là object CỦA TỪNG CSDL,
 tạo ở CSDL này không tự có ở CSDL kia dù cùng 1 máy chủ `172.16.70.20`).
 Tên VIEW **giống hệt nhau** ở cả 2 CSDL (`V_HCRC_DOANHTHU_CHINHANH`/
-`V_HCRC_GIAODICH_CHINHANH`) — nhưng nội dung câu lệnh **khác nhau 2 dòng**
-ở VIEW Doanh thu (đã dựng sẵn thành 2 script riêng ngay dưới đây, không
+`V_HCRC_GIAODICH_CHINHANH`) — nhưng nội dung câu lệnh **khác nhau khá
+nhiều** ở VIEW Doanh thu (2 CSDL dùng 2 bảng nguồn khác cấu trúc — xem giải
+thích ở Script B, đã dựng sẵn thành 2 script riêng ngay dưới đây, không
 cần tự sửa tay):
 
 1. Mở SSMS → hộp thoại "Connect to Server" hiện ra:
@@ -107,8 +116,9 @@ có ai đó chủ động chạy `DROP VIEW <tên>`. Cần lưu ý 2 điều:
 
 - VIEW **không lưu dữ liệu riêng** — nó chỉ là 1 câu `SELECT` đã lưu sẵn
   tên. Mỗi lần job đồng bộ (Bước 2) đọc VIEW, SQL Server tự chạy LẠI câu
-  `SELECT` đó trên dữ liệu THẬT MỚI NHẤT của `DSTK_INFO`/`TRANSHDR`/
-  `STOCK`/`COSTPRICE` — không phải đọc số liệu cũ đã "chụp" từ lúc tạo VIEW.
+  `SELECT` đó trên dữ liệu THẬT MỚI NHẤT của `STRANS`/`TRANSHDR`/`STOCK`/
+  `COSTPRICE` (Live) hoặc `STRANS_YYYYMM`/`STRANS_EOM`/`TRANSHDR_ARC`
+  (Lịch sử) — không phải đọc số liệu cũ đã "chụp" từ lúc tạo VIEW.
 - Nếu sau này DBA đổi cấu trúc 1 trong 4 bảng nguồn (đổi tên cột, xoá cột
   đang dùng trong VIEW...), VIEW sẽ báo lỗi khi chạy — cần sửa lại câu
   `CREATE VIEW` (dùng `ALTER VIEW` để sửa, không cần xoá tạo lại) cho khớp
@@ -119,110 +129,233 @@ có ai đó chủ động chạy `DROP VIEW <tên>`. Cần lưu ý 2 điều:
 
 ```sql
 -- VIEW 1: Doanh thu + Lãi gộp + Diện tích + Nhóm chuỗi, gộp theo (chi nhánh, ngày)
-CREATE VIEW V_HCRC_DOANHTHU_CHINHANH AS
+-- STRANS = bảng CHI TIẾT giao dịch thật (KHÔNG phải DSTK_INFO — bảng đó
+-- rỗng, đã xác nhận bằng SELECT COUNT(*) thật). JOIN sang TRANSHDR qua
+-- TRANS_NUM CHỈ để lấy STATUS đáng tin (loại đúng giao dịch huỷ).
+CREATE OR ALTER VIEW V_HCRC_DOANHTHU_CHINHANH AS
 SELECT
-    d.STK_ID, d.WORK_DATE,
-    SUM(d.TOCUST_QTY) AS SoLuongBan,
-    SUM(d.TOCUST_AMT) AS doanhThu,
-    SUM(d.TOCUST_VAT) AS TienVAT,
-    SUM(d.TOCUST_DIS) AS TienGiamGia,
-    SUM(d.TOCUST_COM) AS HoaHong,
-    SUM(d.TOCUST_AMT) - SUM(d.TOCUST_QTY * ISNULL(c.COSTPRICE, 0)) AS laiGop,
+    d.STK_ID, CAST(d.TRAN_DATE AS DATE) AS WORK_DATE,
+    SUM(d.QTY) AS SoLuongBan,
+    SUM(d.AMOUNT) AS doanhThu,
+    SUM(d.VAT_AMT) AS TienVAT,
+    SUM(d.DISCOUNT) AS TienGiamGia,
+    SUM(d.COMM_AMT) AS HoaHong,
+    SUM(d.AMOUNT) - SUM(d.QTY * ISNULL(c.COSTPRICE, 0)) AS laiGop,
     MAX(s.DIMENSION) AS dienTich,
     MAX(CASE WHEN s.STYPE_ID = '<mã MART thật>' THEN 'MART'
              WHEN s.STYPE_ID = '<mã MINIMART thật>' THEN 'MINIMART'
              ELSE s.STYPE_ID END) AS chain
-FROM DSTK_INFO d
+FROM STRANS d
+JOIN TRANSHDR h
+    ON h.TRANS_NUM = d.TRANS_NUM
 JOIN STOCK s
     ON s.STK_ID = d.STK_ID
 LEFT JOIN COSTPRICE c
     ON c.STK_ID = d.STK_ID AND c.SKU_ID = d.SKU_ID
-   AND c.MEC_YM = LEFT(CONVERT(char(8), d.WORK_DATE, 112), 6)
-GROUP BY d.STK_ID, d.WORK_DATE;
+   AND c.MEC_YM = LEFT(CONVERT(char(8), d.TRAN_DATE, 112), 6)
+WHERE h.STATUS <> 'D' -- 'D' = Huỷ (đã xác nhận với người quản trị DSMART16); 'N'=Mới, 'M'=Sửa đều tính vào doanh thu
+GROUP BY d.STK_ID, CAST(d.TRAN_DATE AS DATE);
 GO
 
 -- VIEW 2: Số giao dịch, gộp theo (chi nhánh, ngày) — BU_ID chưa phải mã chuẩn,
 -- sẽ quy đổi ở Bước 2 bằng "Ánh xạ mã chi nhánh"
-CREATE VIEW V_HCRC_GIAODICH_CHINHANH AS
+CREATE OR ALTER VIEW V_HCRC_GIAODICH_CHINHANH AS
 SELECT BU_ID, CAST(TRAN_DATE AS DATE) AS TRAN_DATE,
        COUNT(*) AS SoGiaoDich, SUM(AMOUNT) AS TongTien,
        SUM(DISCOUNT) AS TongGiamGia, SUM(VAT_AMT) AS TongVAT
 FROM TRANSHDR
-WHERE STATUS <> 'X' -- đối chiếu đúng mã STATUS "đã huỷ" thật với DBA DSMART16
+WHERE STATUS <> 'D' -- 'D' = Huỷ
 GROUP BY BU_ID, CAST(TRAN_DATE AS DATE);
 GO
 ```
+
+**Mã `STATUS` đã xác nhận với người quản trị DSMART16** (bảng `TRANSHDR`,
+áp dụng chung cho cả `STRANS`/`STRANS_EOM`/`TRANSHDR_ARC`): `N` = Mới,
+`M` = Sửa (vẫn là giao dịch hợp lệ, tính vào doanh thu), `D` = Huỷ (LOẠI
+khỏi doanh thu/giao dịch). Trước đây bản hướng dẫn dùng nhầm `STATUS <>
+'X'` — mã `'X'` KHÔNG tồn tại trong dữ liệu thật, không lọc được gì.
 
 ### Script B — chạy trên CSDL `DSMART16_EOM` (Lịch sử)
 
-**Y HỆT Script A**, chỉ khác **2 dòng** (`JOIN STOCK` → `JOIN DSMART16.dbo.STOCK`,
-`LEFT JOIN COSTPRICE` → `LEFT JOIN DSMART16.dbo.COSTPRICE`) — vì `DSMART16_EOM`
-chỉ lưu 2 bảng "phát sinh" (`DSTK_INFO`/`TRANSHDR`), 2 bảng "danh mục"
-`STOCK`/`COSTPRICE` (tên siêu thị/diện tích/giá vốn) chỉ có ở `DSMART16`.
-Tham chiếu chéo sang CSDL khác bằng tên đủ 3 phần (`<TênCSDL>.<schema>.<bảng>`)
-hợp lệ vì đã xác nhận 2 CSDL CÙNG 1 máy chủ `172.16.70.20` (không cần
-Linked Server). VIEW 2 (Giao dịch) không đụng tới `STOCK`/`COSTPRICE` nên
-Script B dùng lại NGUYÊN VĂN VIEW 2 của Script A, không đổi gì:
+**KHÁC HẲN Script A, không chỉ đổi 2 dòng như dự đoán ban đầu** — 2 điều
+đã xác nhận bằng dữ liệu thật:
+
+1. `DSMART16_EOM` KHÔNG có 1 bảng `STRANS_EOM` duy nhất chứa đủ lịch sử —
+   dữ liệu bị chia thành **93 bảng theo tháng** (`STRANS_201812` …
+   `STRANS_202608`, cùng cấu trúc HỆT `STRANS_EOM`, đã đối chiếu từng cột
+   bằng file schema thật) + `STRANS_EOM` (vùng đệm ~1-2 tháng gần nhất).
+   Phải `UNION ALL` hết các bảng này mới đủ dữ liệu cho "Cùng kỳ năm
+   trước" (dùng script sinh SQL tự động bên dưới, KHÔNG gõ tay 93 tên
+   bảng).
+2. **`TRANS_NUM` giữa `STRANS_EOM` và `TRANSHDR_ARC` sinh theo 2 QUY TẮC
+   KHÁC NHAU** (vd `STRANS_EOM` có dạng `004AB2212609001203` xen chữ cái,
+   `TRANSHDR_ARC` thuần số) — **JOIN qua `TRANS_NUM` như Script A KHÔNG
+   khớp được** ở CSDL này (đã kiểm chứng: JOIN ra 0 dòng dù cả 2 bảng đều
+   có dữ liệu riêng). Vì vậy VIEW "Doanh thu" ở `DSMART16_EOM` dùng THẲNG
+   cột `STATUS` có sẵn TRONG chính `STRANS_EOM`/`STRANS_YYYYMM` (không
+   JOIN sang `TRANSHDR_ARC`) — đã đối chiếu số liệu 1 ngày/1 chi nhánh
+   trùng giữa Live và EOM, chênh lệch < 0.5%, đủ tin cậy.
+
+`STOCK`/`COSTPRICE` vẫn CHỈ có ở `DSMART16` (không có ở EOM, đúng dự đoán
+ban đầu) — tham chiếu chéo `DSMART16.dbo.STOCK`/`DSMART16.dbo.COSTPRICE`
+như cũ.
 
 ```sql
--- VIEW 1: Doanh thu + Lãi gộp + Diện tích + Nhóm chuỗi, gộp theo (chi nhánh, ngày)
--- — khác Script A đúng 2 dòng JOIN, tham chiếu chéo sang CSDL DSMART16
-CREATE VIEW V_HCRC_DOANHTHU_CHINHANH AS
+-- VIEW 1: Doanh thu — GỘP (UNION ALL) toàn bộ bảng STRANS_YYYYMM + STRANS_EOM.
+-- Chạy nguyên khối này (kể cả phần DECLARE/EXEC) — KHÔNG tách riêng câu
+-- CREATE VIEW, vì danh sách 93 bảng được sinh TỰ ĐỘNG từ sys.tables, không
+-- gõ tay để tránh gõ sai/sót tên bảng.
+DECLARE @sql NVARCHAR(MAX);
+
+SELECT @sql = STRING_AGG(
+    'SELECT STK_ID, SKU_ID, TRAN_DATE, QTY, AMOUNT, VAT_AMT, DISCOUNT, COMM_AMT FROM '
+    + QUOTENAME(name) + ' WHERE STATUS <> ''D''',
+    ' UNION ALL '
+)
+FROM sys.tables
+WHERE name LIKE 'STRANS[_][0-9][0-9][0-9][0-9][0-9][0-9]' OR name = 'STRANS_EOM';
+
+SET @sql = N'
+CREATE OR ALTER VIEW V_HCRC_DOANHTHU_CHINHANH AS
 SELECT
-    d.STK_ID, d.WORK_DATE,
-    SUM(d.TOCUST_QTY) AS SoLuongBan,
-    SUM(d.TOCUST_AMT) AS doanhThu,
-    SUM(d.TOCUST_VAT) AS TienVAT,
-    SUM(d.TOCUST_DIS) AS TienGiamGia,
-    SUM(d.TOCUST_COM) AS HoaHong,
-    SUM(d.TOCUST_AMT) - SUM(d.TOCUST_QTY * ISNULL(c.COSTPRICE, 0)) AS laiGop,
+    d.STK_ID, CAST(d.TRAN_DATE AS DATE) AS WORK_DATE,
+    SUM(d.QTY) AS SoLuongBan,
+    SUM(d.AMOUNT) AS doanhThu,
+    SUM(d.VAT_AMT) AS TienVAT,
+    SUM(d.DISCOUNT) AS TienGiamGia,
+    SUM(d.COMM_AMT) AS HoaHong,
+    SUM(d.AMOUNT) - SUM(d.QTY * ISNULL(c.COSTPRICE, 0)) AS laiGop,
     MAX(s.DIMENSION) AS dienTich,
-    MAX(CASE WHEN s.STYPE_ID = '<mã MART thật>' THEN 'MART'
-             WHEN s.STYPE_ID = '<mã MINIMART thật>' THEN 'MINIMART'
+    MAX(CASE WHEN s.STYPE_ID = ''<mã MART thật>'' THEN ''MART''
+             WHEN s.STYPE_ID = ''<mã MINIMART thật>'' THEN ''MINIMART''
              ELSE s.STYPE_ID END) AS chain
-FROM DSTK_INFO d
-JOIN DSMART16.dbo.STOCK s
-    ON s.STK_ID = d.STK_ID
-LEFT JOIN DSMART16.dbo.COSTPRICE c
-    ON c.STK_ID = d.STK_ID AND c.SKU_ID = d.SKU_ID
-   AND c.MEC_YM = LEFT(CONVERT(char(8), d.WORK_DATE, 112), 6)
-GROUP BY d.STK_ID, d.WORK_DATE;
+FROM (' + @sql + N') d
+JOIN DSMART16.dbo.STOCK s ON s.STK_ID = d.STK_ID
+LEFT JOIN DSMART16.dbo.COSTPRICE c ON c.STK_ID = d.STK_ID AND c.SKU_ID = d.SKU_ID
+   AND c.MEC_YM = LEFT(CONVERT(char(8), d.TRAN_DATE, 112), 6)
+GROUP BY d.STK_ID, CAST(d.TRAN_DATE AS DATE);';
+
+EXEC sp_executesql @sql;
 GO
 
--- VIEW 2: y hệt Script A — không JOIN STOCK/COSTPRICE nên không cần đổi gì
-CREATE VIEW V_HCRC_GIAODICH_CHINHANH AS
+-- VIEW 2: Giao dịch — TRANSHDR_ARC là 1 bảng lưu trữ ĐẦY ĐỦ (đã xác nhận
+-- phủ từ 2018 tới nay), KHÔNG cần UNION ALL như VIEW 1.
+CREATE OR ALTER VIEW V_HCRC_GIAODICH_CHINHANH AS
 SELECT BU_ID, CAST(TRAN_DATE AS DATE) AS TRAN_DATE,
        COUNT(*) AS SoGiaoDich, SUM(AMOUNT) AS TongTien,
        SUM(DISCOUNT) AS TongGiamGia, SUM(VAT_AMT) AS TongVAT
-FROM TRANSHDR
-WHERE STATUS <> 'X' -- đối chiếu đúng mã STATUS "đã huỷ" thật với DBA DSMART16
+FROM TRANSHDR_ARC
+WHERE STATUS <> 'D'
 GROUP BY BU_ID, CAST(TRAN_DATE AS DATE);
 GO
 ```
 
-> Nếu sau này kiểm tra lại thấy `DSMART16_EOM` THỰC RA có sẵn `STOCK`/
-> `COSTPRICE` riêng (không cần tham chiếu chéo) — chạy Script A nguyên bản
-> ở đó thay vì Script B cũng được, 2 cách đều tạo đúng tên VIEW.
+> **Bảo trì lâu dài — QUAN TRỌNG**: đoạn tạo VIEW "Doanh thu" ở trên phải
+> **CHẠY LẠI mỗi khi có thêm bảng `STRANS_YYYYMM` mới** (hệ thống DSMART16
+> tự tạo thêm bảng tháng mới định kỳ) — vì `CREATE VIEW` chỉ chụp danh
+> sách bảng tại THỜI ĐIỂM chạy, không tự nhận bảng phát sinh sau đó. Dùng
+> `CREATE OR ALTER` nên chạy lại bao nhiêu lần cũng an toàn (không tạo
+> trùng).
 
-**Trước khi chạy thật, cần xác nhận 2 điều với DBA DSMART16** (chưa xác
-nhận được từ file schema, chỉ là dự đoán hợp lý theo tên cột — áp dụng
-CHO CẢ 2 script, điền giống nhau):
+**Tự động chạy lại hàng tháng — dùng SQL Server Agent (khuyên dùng, đỡ
+phải nhớ tay)**: gói đoạn sinh VIEW ở trên thành 1 stored procedure trên
+`DSMART16_EOM` (chạy 1 lần — NGUYÊN VĂN đoạn `DECLARE...EXEC sp_executesql`
+đã chạy tay ở trên, chỉ bọc thêm `CREATE OR ALTER PROCEDURE ... AS BEGIN
+... END`, không đổi logic bên trong nên không cần lồng thêm dấu nháy đơn):
+
+```sql
+CREATE OR ALTER PROCEDURE dbo.sp_HCRC_RebuildDoanhThuView AS
+BEGIN
+    DECLARE @sql NVARCHAR(MAX);
+
+    SELECT @sql = STRING_AGG(
+        'SELECT STK_ID, SKU_ID, TRAN_DATE, QTY, AMOUNT, VAT_AMT, DISCOUNT, COMM_AMT FROM '
+        + QUOTENAME(name) + ' WHERE STATUS <> ''D''',
+        ' UNION ALL '
+    )
+    FROM sys.tables
+    WHERE name LIKE 'STRANS[_][0-9][0-9][0-9][0-9][0-9][0-9]' OR name = 'STRANS_EOM';
+
+    SET @sql = N'
+    CREATE OR ALTER VIEW V_HCRC_DOANHTHU_CHINHANH AS
+    SELECT
+        d.STK_ID, CAST(d.TRAN_DATE AS DATE) AS WORK_DATE,
+        SUM(d.QTY) AS SoLuongBan,
+        SUM(d.AMOUNT) AS doanhThu,
+        SUM(d.VAT_AMT) AS TienVAT,
+        SUM(d.DISCOUNT) AS TienGiamGia,
+        SUM(d.COMM_AMT) AS HoaHong,
+        SUM(d.AMOUNT) - SUM(d.QTY * ISNULL(c.COSTPRICE, 0)) AS laiGop,
+        MAX(s.DIMENSION) AS dienTich,
+        MAX(CASE WHEN s.STYPE_ID = ''<mã MART thật>'' THEN ''MART''
+                 WHEN s.STYPE_ID = ''<mã MINIMART thật>'' THEN ''MINIMART''
+                 ELSE s.STYPE_ID END) AS chain
+    FROM (' + @sql + N') d
+    JOIN DSMART16.dbo.STOCK s ON s.STK_ID = d.STK_ID
+    LEFT JOIN DSMART16.dbo.COSTPRICE c ON c.STK_ID = d.STK_ID AND c.SKU_ID = d.SKU_ID
+       AND c.MEC_YM = LEFT(CONVERT(char(8), d.TRAN_DATE, 112), 6)
+    GROUP BY d.STK_ID, CAST(d.TRAN_DATE AS DATE);';
+
+    EXEC sp_executesql @sql;
+END
+GO
+```
+
+Điền `<mã MART thật>`/`<mã MINIMART thật>` NGAY TRONG stored procedure này
+trước khi chạy (giống hệt VIEW đã tạo tay ở trên). Chạy thử ngay:
+`EXEC dbo.sp_HCRC_RebuildDoanhThuView;` — không lỗi là xong bước này.
+
+Sau đó tạo Job gọi lại ĐÚNG stored procedure này vào ngày 2 mỗi tháng
+(chừa 1 ngày sau khi bảng tháng mới thường được tạo) — @command ở đây chỉ
+1 dòng gọi procedure, không lồng dấu nháy phức tạp:
+
+```sql
+USE msdb;
+GO
+EXEC dbo.sp_add_job
+    @job_name = N'HCRC - Cap nhat lai VIEW V_HCRC_DOANHTHU_CHINHANH';
+GO
+EXEC dbo.sp_add_jobstep
+    @job_name = N'HCRC - Cap nhat lai VIEW V_HCRC_DOANHTHU_CHINHANH',
+    @step_name = N'Goi stored procedure sinh lai VIEW',
+    @database_name = N'DSMART16_EOM',
+    @subsystem = N'TSQL',
+    @command = N'EXEC dbo.sp_HCRC_RebuildDoanhThuView;';
+GO
+EXEC dbo.sp_add_schedule
+    @schedule_name = N'Hang thang - ngay 2',
+    @freq_type = 16,          -- Hàng tháng
+    @freq_interval = 2,       -- Ngày 2
+    @active_start_time = 30000; -- 03:00:00
+GO
+EXEC dbo.sp_attach_schedule
+    @job_name = N'HCRC - Cap nhat lai VIEW V_HCRC_DOANHTHU_CHINHANH',
+    @schedule_name = N'Hang thang - ngay 2';
+GO
+EXEC dbo.sp_add_jobserver
+    @job_name = N'HCRC - Cap nhat lai VIEW V_HCRC_DOANHTHU_CHINHANH';
+GO
+```
+
+Cần quyền `SQLAgentOperatorRole` trở lên để chạy đoạn tạo Job này — nếu
+không có, nhờ DBA chạy giúp. Sau khi tạo, kiểm tra lại: SQL Server Agent →
+Jobs → thấy đúng tên job, chuột phải → "Start Job at Step..." để chạy thử
+ngay 1 lần (không cần đợi tới ngày 2).
+
+**Không có SQL Server Agent (bản Express) hoặc không có quyền tạo Job** —
+bỏ qua phần Job, chỉ cần tạo stored procedure ở trên rồi đặt lịch nhắc
+(Outlook/Google Calendar/lịch nhắc việc nội bộ) cho DBA tự chạy tay
+`EXEC dbo.sp_HCRC_RebuildDoanhThuView;` mỗi đầu tháng, hoặc bất cứ khi nào
+thấy cột "Cùng kỳ năm trước" thiếu dữ liệu của tháng gần đây (xem Bước 7).
+
+**Còn thiếu xác nhận cuối cùng** (chưa có dữ liệu để kiểm tra):
 
 1. `STOCK.STYPE_ID` — cột phân loại MART/MINIMART. Chạy thử
    `SELECT DISTINCT STYPE_ID FROM STOCK` để biết 2 mã thật, điền vào chỗ
-   `'<mã MART thật>'`/`'<mã MINIMART thật>'` ở trên.
+   `'<mã MART thật>'`/`'<mã MINIMART thật>'` ở CẢ 2 script trên.
 2. `COSTPRICE.MEC_YM` — định dạng tháng (giả định `YYYYMM`, vd `'202609'`).
    Nếu sai định dạng, cột Lãi gộp sẽ ra sai (coi giá vốn = 0) mà KHÔNG báo
    lỗi gì — xem cách phát hiện ở Bước 7.
-
-**Vì sao Script B join chéo sang `DSMART16` mà vẫn đúng số liệu quá khứ?**
-Diện tích/nhóm chuỗi vốn ít đổi nên dùng bản MỚI NHẤT ở `DSMART16` cho cả
-dữ liệu quá khứ là hợp lý; riêng giá vốn (`COSTPRICE`) đã tự khớp đúng
-tháng qua điều kiện `MEC_YM` sẵn có trong câu JOIN, không bị ảnh hưởng bởi
-việc bảng nằm ở CSDL nào. Nếu muốn chắc chắn `DSMART16_EOM` thật sự thiếu
-2 bảng này trước khi chạy, thử `SELECT TOP 1 * FROM STOCK` trên
-`DSMART16_EOM` — báo lỗi "Invalid object name" nghĩa là đúng như dự đoán,
-dùng Script B; nếu chạy được (có bảng riêng), dùng Script A cho cả 2 CSDL.
 
 ---
 

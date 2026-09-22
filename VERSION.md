@@ -20,6 +20,44 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 6.53 — Sửa lại đúng nguồn dữ liệu thật cho VIEW Doanh thu (Bước 1)
+
+Người dùng chạy thử Script A/B ở `báo cáo doanh thu cuối ngày.md` trên
+DSMART16 thật, phát hiện `DSTK_INFO` (bảng VIEW "Doanh thu" dựa vào) HOÀN
+TOÀN TRỐNG trên cả 2 CSDL — bản hướng dẫn trước đó ĐOÁN SAI tên bảng chỉ
+theo quy ước đặt tên cột, chưa từng kiểm chứng bằng dữ liệu thật. Đã cùng
+người dùng tra ngược qua nhiều vòng (danh sách bảng thật, đối chiếu cột,
+đối chiếu số liệu Live/EOM cùng ngày) để tìm đúng nguồn — quá trình này
+cũng phát hiện thêm 2 điều bất ngờ khác so với giả định ban đầu.
+
+- **`STRANS`** (Live) mới là bảng chi tiết giao dịch thật (không phải
+  `DSTK_INFO`) — VIEW "Doanh thu" giờ JOIN `STRANS` sang `TRANSHDR` qua
+  `TRANS_NUM` để lấy `STATUS` đáng tin, loại đúng giao dịch huỷ.
+- Mã `STATUS` thật đã xác nhận với người quản trị DSMART16: `N`=Mới,
+  `M`=Sửa (vẫn tính vào doanh thu), `D`=Huỷ (loại) — bản cũ dùng nhầm
+  `STATUS <> 'X'` (mã `'X'` không tồn tại, không lọc được gì).
+- `DSMART16_EOM` KHÔNG có 1 bảng lịch sử duy nhất — dữ liệu chia thành
+  **93 bảng theo tháng** (`STRANS_YYYYMM`) + `STRANS_EOM` (vùng đệm gần
+  nhất, cùng cấu trúc, đã đối chiếu từng cột bằng file schema thật) — VIEW
+  "Doanh thu" ở EOM giờ `UNION ALL` toàn bộ (sinh SQL tự động từ
+  `sys.tables`, không gõ tay 93 tên bảng).
+- **Phát hiện quan trọng**: `TRANS_NUM` giữa `STRANS_EOM` và `TRANSHDR_ARC`
+  sinh theo 2 quy tắc khác nhau (1 bên xen chữ cái, 1 bên thuần số) — JOIN
+  qua `TRANS_NUM` như bên Live KHÔNG khớp được ở EOM (kiểm chứng: JOIN ra
+  0 dòng dù cả 2 bảng đều có dữ liệu). VIEW "Doanh thu" ở EOM vì vậy dùng
+  THẲNG cột `STATUS` có sẵn trong `STRANS_EOM`/`STRANS_YYYYMM`, không JOIN
+  sang `TRANSHDR_ARC` — đã đối chiếu số liệu 1 ngày/1 chi nhánh trùng giữa
+  Live và EOM, chênh lệch < 0.5%, đủ tin cậy. VIEW "Giao dịch" ở EOM vẫn
+  dùng `TRANSHDR_ARC` (1 bảng lưu trữ đủ 2018-2026, không cần UNION ALL).
+- Thêm hướng dẫn tự động hoá bảo trì: gói script sinh VIEW EOM thành
+  stored procedure `sp_HCRC_RebuildDoanhThuView` + SQL Server Agent Job
+  chạy lại hàng tháng (ngày 2) — cần thiết vì `CREATE VIEW` không tự nhận
+  bảng `STRANS_YYYYMM` mới phát sinh theo thời gian.
+- `STOCK`/`COSTPRICE` vẫn đúng như dự đoán ban đầu — chỉ có ở `DSMART16`,
+  không đổi cách tham chiếu chéo.
+- Cập nhật toàn bộ Bước 1 trong `báo cáo doanh thu cuối ngày.md` (Script
+  A/B viết lại hoàn toàn, không chỉ sửa 2 dòng như bản cũ).
+
 ## 6.52 — Cảnh báo mã siêu thị sai khi nhập chỉ tiêu LDTD/HCRC
 
 Người dùng hỏi có nên đối chiếu chỉ tiêu với file mẫu báo cáo trước khi
