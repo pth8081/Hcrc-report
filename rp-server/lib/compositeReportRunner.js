@@ -50,11 +50,33 @@
 //                   tổng = SUM(thực đạt)/SUM(chỉ tiêu), KHÔNG PHẢI trung
 //                   bình cộng % từng dòng (xem sumMergedRows()).
 //
-// Bộ lọc filterValues.eventDate (YYYY-MM-DD) là ngày "hôm nay" của báo cáo
-// — mặc định ngày hiện tại của máy chủ nếu không truyền. Các khối
-// dateOffsetYears dịch theo đúng ngày này (dương lịch, khớp câu trả lời đã
-// chốt — "28/08 <-> 28/08"), khối target tính PeriodMonth = ngày 1 của
-// tháng chứa ngày đó.
+// Bộ lọc filterValues.eventDate là NGÀY (chuỗi "YYYY-MM-DD", tương thích
+// ngược với báo cáo cũ khai filter type="date") HOẶC KHOẢNG NGÀY ({from,to},
+// khai filter type="dateRange" — xem seedLdtdHcrcReports.js) — mặc định
+// ngày hiện tại của máy chủ nếu không truyền gì. resolveRequestedRange()
+// CHUẨN HOÁ cả 2 dạng về CÙNG 1 hình dạng {from, to} (1 ngày = khoảng có
+// from===to), để MỌI khối bên dưới chỉ cần viết 1 đường xử lý (khoảng),
+// không phải 2 đường riêng cho "1 ngày" và "nhiều ngày" — khi from===to,
+// mọi phép cộng dồn dưới đây tự nhiên cho ra ĐÚNG kết quả y hệt hành vi cũ
+// (tổng của 1 phần tử = chính nó).
+//
+// Khối directDb: CỘNG DỒN (SUM) measures của mọi ngày trong khoảng theo
+// TỪNG entityCode (xem aggregateDailyRowsByEntity) — dimensions (vd
+// dienTich, chain) KHÔNG cộng dồn, lấy giá trị không rỗng đầu tiên (thuộc
+// tính tĩnh của chi nhánh, không đổi theo ngày). Khối dateOffsetYears dịch
+// CẢ 2 đầu mút của khoảng theo đúng số năm (dương lịch, khớp câu trả lời đã
+// chốt — "28/08 <-> 28/08"), cho ra khoảng "cùng kỳ năm trước" tương ứng.
+//
+// Khối isTarget: CỘNG DỒN chỉ tiêu TỪNG NGÀY (targetGranularity='day') hoặc
+// TỪNG THÁNG (mặc định) trong khoảng, xem lib/salesTargetsReader.js —
+// quyết định nghiệp vụ đã chốt với người dùng (không quy đổi/chia tỷ lệ
+// theo số ngày thực chọn trong tháng).
+//
+// GIỚI HẠN ĐÃ BIẾT: khối apiReport/apiRealtime (gọi API Server ngoài) CHƯA
+// hỗ trợ khoảng ngày — API bên ngoài chỉ nhận 1 ngày. Nếu người dùng chọn
+// khoảng nhiều ngày, khối này chỉ nhận ngày CUỐI khoảng (best-effort, không
+// cộng dồn) — KHÔNG dùng loại khối này trong 1 báo cáo composite đã khai
+// filter "dateRange" trừ khi chấp nhận giới hạn này.
 //
 // KHÔNG áp dụng page/pageSize — báo cáo composite trả về TOÀN BỘ dòng đã
 // ghép (thường là danh sách cố định các điểm bán, không phân trang được
@@ -73,7 +95,7 @@ const { getPoolForDataSource } = require('./dataSourcePool');
 const { runReport, describeColumns } = require('./reportEngine');
 const { runApiReport } = require('./apiReportClient');
 const { evaluateFormula } = require('./formulaEngine');
-const { runSalesTargetsBlock } = require('./salesTargetsReader');
+const { runSalesTargetsBlockRange } = require('./salesTargetsReader');
 
 function formatDateISO(d) {
   return d.toISOString().slice(0, 10);
@@ -90,21 +112,86 @@ function firstOfMonth(dateStr) {
   return `${dateStr.slice(0, 7)}-01`;
 }
 
-async function runBlock(block, requestedEventDate, filterValues) {
+// Chuẩn hoá filterValues.eventDate về {from, to} — chấp nhận CẢ 2 dạng: chuỗi
+// "YYYY-MM-DD" (1 ngày, báo cáo cũ khai filter type="date") và {from, to}
+// (khoảng ngày, filter type="dateRange"). Không truyền gì -> ngày hiện tại
+// của máy chủ (hành vi cũ, 1 ngày). from > to (người dùng lỡ chọn ngược) ->
+// tự hoán đổi lại cho đúng, không báo lỗi.
+function resolveRequestedRange(filterValues) {
+  const raw = filterValues.eventDate;
+  const today = formatDateISO(new Date());
+  if (raw && typeof raw === 'object') {
+    const from = raw.from || raw.to || today;
+    const to = raw.to || raw.from || today;
+    return from <= to ? { from, to } : { from: to, to: from };
+  }
+  const day = raw || today;
+  return { from: day, to: day };
+}
+
+// Gộp NHIỀU DÒNG THEO NGÀY (kết quả thô của runReport trên 1 khoảng ngày,
+// có thể nhiều dòng/entityCode — 1 dòng/ngày) thành ĐÚNG 1 dòng/entityCode —
+// bắt buộc, vì bước ghép ở runCompositeReport() coi 1 khối trả >1 dòng cho
+// cùng entityCode là LỖI CẤU HÌNH (loại hẳn thực thể đó). CỘNG DỒN mọi
+// measures (số liệu phát sinh THEO NGÀY — doanh thu, số giao dịch...),
+// KHÔNG cộng dồn dimensions (thuộc tính TĨNH của chi nhánh — diện tích,
+// nhóm chuỗi — cộng theo ngày sẽ ra số vô nghĩa, vd diện tích x N ngày) mà
+// lấy giá trị không rỗng đầu tiên gặp được.
+function aggregateDailyRowsByEntity(rows, representativeEventDate) {
+  const byEntity = new Map();
+  for (const row of rows) {
+    if (!row.entityCode) continue;
+    if (!byEntity.has(row.entityCode)) byEntity.set(row.entityCode, []);
+    byEntity.get(row.entityCode).push(row);
+  }
+  const out = [];
+  for (const [entityCode, group] of byEntity) {
+    const measures = {};
+    const measureKeys = new Set();
+    for (const r of group) for (const k of Object.keys(r.measures || {})) measureKeys.add(k);
+    for (const k of measureKeys) {
+      measures[k] = group.reduce((sum, r) => sum + (typeof r.measures[k] === 'number' ? r.measures[k] : 0), 0);
+    }
+    const dimensions = {};
+    const dimensionKeys = new Set();
+    for (const r of group) for (const k of Object.keys(r.dimensions || {})) dimensionKeys.add(k);
+    for (const k of dimensionKeys) {
+      const found = group.map(r => r.dimensions[k]).find(v => v !== null && v !== undefined);
+      if (found !== undefined) dimensions[k] = found;
+    }
+    out.push({
+      entityCode,
+      sourceSystem: group[0].sourceSystem,
+      eventDate: representativeEventDate,
+      dimensions,
+      measures
+    });
+  }
+  return out;
+}
+
+async function runBlock(block, requestedRange, filterValues) {
+  const { from, to } = requestedRange;
   if (block.isTarget) {
     const dwhPool = await getPool('DWH');
-    const periodKey = block.targetGranularity === 'day' ? requestedEventDate : firstOfMonth(requestedEventDate);
-    return runSalesTargetsBlock(dwhPool, block.targetDomain, periodKey);
+    const fromPeriod = block.targetGranularity === 'day' ? from : firstOfMonth(from);
+    const toPeriod = block.targetGranularity === 'day' ? to : firstOfMonth(to);
+    return runSalesTargetsBlockRange(dwhPool, block.targetDomain, fromPeriod, toPeriod);
   }
   if (block.sourceType === 'directDb') {
     const pool = block.dataSourceId ? await getPoolForDataSource(block.dataSourceId) : await getPool('DWH');
-    const eventDate = shiftYears(requestedEventDate, block.dateOffsetYears || 0);
-    const blockDefinition = { domain: block.domain, filters: [{ field: 'eventDate' }, ...(block.filters || [])] };
-    const blockFilterValues = { ...filterValues, eventDate };
-    return runReport(pool, blockDefinition, blockFilterValues, { page: 1, pageSize: 5000 });
+    const years = block.dateOffsetYears || 0;
+    const eventDateRange = { from: shiftYears(from, years), to: shiftYears(to, years) };
+    const blockDefinition = { domain: block.domain, filters: [{ field: 'eventDate', type: 'dateRange' }, ...(block.filters || [])] };
+    const blockFilterValues = { ...filterValues, eventDate: eventDateRange };
+    const rawRows = await runReport(pool, blockDefinition, blockFilterValues, { page: 1, pageSize: 5000 });
+    return aggregateDailyRowsByEntity(rawRows, eventDateRange.to);
   }
   if (block.sourceType === 'apiReport' || block.sourceType === 'apiRealtime') {
-    const { rows } = await runApiReport(block, filterValues, { page: 1, pageSize: 5000 });
+    // GIỚI HẠN ĐÃ BIẾT (xem chú thích đầu file): API ngoài chưa hiểu khoảng
+    // ngày — chỉ truyền đúng 1 ngày CUỐI khoảng, best-effort, KHÔNG cộng dồn.
+    const apiFilterValues = { ...filterValues, eventDate: to };
+    const { rows } = await runApiReport(block, apiFilterValues, { page: 1, pageSize: 5000 });
     return rows;
   }
   throw new Error(`Khối nguồn "${block.key}" thiếu/sai sourceType (và không phải isTarget)`);
@@ -189,7 +276,7 @@ async function runCompositeReport(definition, filterValues = {}) {
   if (!Array.isArray(definition.blocks) || !definition.blocks.length) {
     throw new Error('Báo cáo composite thiếu "blocks"');
   }
-  const requestedEventDate = filterValues.eventDate || formatDateISO(new Date());
+  const requestedRange = resolveRequestedRange(filterValues);
 
   // Chạy TẤT CẢ khối song song — Promise.all giữ nguyên đúng thứ tự kết quả
   // theo definition.blocks (không phải thứ tự khối nào resolve trước), nên
@@ -197,7 +284,7 @@ async function runCompositeReport(definition, filterValues = {}) {
   // hành vi merge — chỉ khác ở chỗ mọi khối bắt đầu chạy CÙNG LÚC thay vì
   // đợi khối trước xong mới bắt đầu khối sau.
   const blockRowsList = await Promise.all(
-    definition.blocks.map(block => runBlock(block, requestedEventDate, filterValues))
+    definition.blocks.map(block => runBlock(block, requestedRange, filterValues))
   );
 
   // Map giữ thứ tự chèn -> thứ tự dòng trả về ổn định, khớp thứ tự khối

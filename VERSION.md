@@ -20,6 +20,51 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 6.55 — Báo cáo nhanh doanh thu: chọn 1 ngày HOẶC 1 khoảng ngày (cộng dồn)
+
+Người dùng hỏi báo cáo doanh thu LDTD/HCRC đã có bộ lọc "từ ngày - đến
+ngày" chưa — kiểm tra thấy CHƯA, bộ lọc `eventDate` trước đó CHỈ chọn được
+đúng 1 ngày (`type: "date"`), dù hệ thống đã có sẵn cơ chế `dateRange` cho
+báo cáo thường (`directDb`, dùng ở "Lịch gửi email báo cáo"/"Cảnh báo bất
+thường"). Đây là SỬA LÕI kiến trúc `compositeReportRunner.js` (báo cáo
+composite trước giờ chỉ tính theo ĐÚNG 1 ngày cho mọi khối), không phải
+thêm 1 ô input đơn giản.
+
+- Đổi filter `eventDate` của báo cáo LDTD/HCRC sang `type: "dateRange"` —
+  chọn 1 ngày (từ=đến) hoặc nhiều ngày liên tiếp.
+- `compositeReportRunner.js`: `resolveRequestedRange()` chuẩn hoá MỌI dạng
+  input (chuỗi 1 ngày cũ, hoặc `{from,to}` mới) về CÙNG 1 khoảng — 1 ngày
+  chỉ là khoảng có from=to, nên mọi phép cộng dồn bên dưới tự động cho ra
+  đúng kết quả cũ khi chọn 1 ngày (không có 2 đường code riêng, giảm rủi ro
+  lệch hành vi).
+- Khối `directDb` (`current`/`lastYear`): CỘNG DỒN (SUM) các `measures`
+  (doanh thu, số giao dịch...) của mọi ngày trong khoảng theo từng
+  entityCode (`aggregateDailyRowsByEntity()`) — CỐ Ý KHÔNG cộng dồn
+  `dimensions` (diện tích, nhóm MART/MINIMART — thuộc tính tĩnh của chi
+  nhánh, cộng theo ngày sẽ ra số vô nghĩa), lấy giá trị không rỗng đầu
+  tiên. Khối `dateOffsetYears: -1` dịch CẢ 2 đầu mút của khoảng theo đúng
+  số năm, cho ra khoảng "cùng kỳ năm trước" tương ứng.
+- Khối `isTarget`: `salesTargetsReader.js` đổi hẳn từ `runSalesTargetsBlock`
+  (1 kỳ) sang `runSalesTargetsBlockRange` (khoảng kỳ, `PeriodMonth BETWEEN`)
+  — cộng dồn chỉ tiêu TỪNG NGÀY/THÁNG có thật trong khoảng theo từng
+  entityCode. `TrangThai='DaDong'` xử lý ĐÚNG THEO TỪNG KỲ trong khoảng:
+  chỉ tiêu của kỳ đã đóng KHÔNG được cộng vào tổng (không loại cả thực thể
+  chỉ vì đóng 1 vài ngày), thực thể chỉ bị LOẠI HẲN khỏi báo cáo khi TẤT CẢ
+  kỳ trong khoảng đã chọn đều đóng — khớp đúng hành vi cũ khi khoảng chỉ có
+  1 kỳ duy nhất.
+- Khối `apiReport`/`apiRealtime` CHƯA hỗ trợ khoảng ngày (API ngoài chỉ
+  nhận 1 ngày) — nhận best-effort đúng ngày CUỐI khoảng, không cộng dồn,
+  ghi rõ giới hạn này trong code + `hướng_dẫn_báo_cáo.md`.
+- **Lợi ích phụ không ngờ tới**: cơ chế preset khoảng ngày tương đối (hôm
+  nay/hôm qua/7 ngày qua/tháng này...) đã có sẵn cho "Lịch gửi email báo
+  cáo"/"Cảnh báo bất thường" (`lib/reportEmailFilters.js`) giờ DÙNG ĐƯỢC
+  NGAY cho báo cáo LDTD/HCRC mà không cần sửa gì thêm, vì cùng dùng chung 1
+  filter `dateRange`.
+- Test bằng fake DB pool (không cần SQL Server thật): 1 ngày ra đúng số cũ,
+  khoảng 3 ngày cộng dồn đúng, siêu thị đóng cửa 1 ngày giữa khoảng vẫn
+  hiện ra (chỉ mất chỉ tiêu ngày đó), siêu thị đóng cửa cả khoảng bị loại
+  hẳn — cả 3 trường hợp đều pass.
+
 ## 6.54 — Sửa nốt 2 chỗ đoán sai còn lại trong VIEW Doanh thu (STOCK.TYPE, COSTPRICE)
 
 Tiếp nối 6.53 — sau khi có nguồn `STRANS` đúng, còn 2 chỗ trong Script A/B

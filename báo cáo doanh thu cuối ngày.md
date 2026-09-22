@@ -595,7 +595,7 @@ xuyên suốt file này (Bước 2/3), không cần sửa nếu bạn làm đún
   "title": "Báo cáo nhanh doanh thu - Lãnh đạo Tập đoàn",
   "domain": "doanhthu_chinhanh",
   "filters": [
-    { "field": "eventDate", "type": "date", "label": "Ngày báo cáo" }
+    { "field": "eventDate", "type": "dateRange", "label": "Khoảng ngày báo cáo" }
   ],
   "blocks": [
     { "key": "current", "sourceType": "directDb", "domain": "doanhthu_chinhanh" },
@@ -660,7 +660,7 @@ Lặp lại y hệt, đổi:
   "title": "Báo cáo nhanh doanh thu - HCRC",
   "domain": "doanhthu_chinhanh",
   "filters": [
-    { "field": "eventDate", "type": "date", "label": "Ngày báo cáo" }
+    { "field": "eventDate", "type": "dateRange", "label": "Khoảng ngày báo cáo" }
   ],
   "blocks": [
     { "key": "current", "sourceType": "directDb", "domain": "doanhthu_chinhanh" },
@@ -774,24 +774,29 @@ nhận riêng theo đúng nhóm HCRC.
    có thể mất thời gian hơn Live vì kéo nguyên lịch sử nhiều tháng/năm).
 2. **etl-admin → Log** — nếu job Giao dịch (Live hoặc Lịch sử) báo "còn mã
    BU_ID chưa ánh xạ", bổ sung tiếp vào "Ánh xạ mã chi nhánh".
-3. Mở báo cáo LDTD ở rp-user, chọn "Ngày báo cáo" là **hôm nay**, bấm chạy
-   — kiểm tra:
+3. Mở báo cáo LDTD ở rp-user, chọn "Khoảng ngày báo cáo" là **hôm nay**
+   (điền CÙNG 1 ngày ở cả 2 ô từ/đến), bấm chạy — kiểm tra:
    - Đủ số siêu thị đang hoạt động, đúng nhóm MART/MINIMART.
    - Cột "Lãi gộp - Tỷ lệ (%)" KHÔNG phải 100% ở mọi siêu thị (nếu đúng
-     100% ở mọi dòng — dấu hiệu `COSTPRICE.MEC_YM` sai định dạng, xem lại
-     Bước 1).
+     100% ở mọi dòng — kiểm tra lại VIEW có JOIN `COSTPRICE` nhầm theo cả
+     `STK_ID` không, xem lại Bước 1).
    - Cột Giao dịch có số liệu (không trống toàn bộ — nếu trống, kiểm tra
      lại "Ánh xạ mã chi nhánh").
    - **Cột "Cùng kỳ năm 2025" và "Tỷ lệ % LFL" có số liệu** (không trống)
      — đây là cột lấy từ CSDL Lịch sử (`DSMART16_EOM`), nếu trống nghĩa là
      2 job "Lịch sử" (Doanh thu + Giao dịch) chưa chạy được hoặc VIEW ở
      `DSMART16_EOM` chưa tạo đúng — quay lại kiểm tra Bước 1/2.2.
-4. Đối chiếu 1 siêu thị bất kỳ: mở lại báo cáo, đổi "Ngày báo cáo" sang
-   **đúng ngày này năm ngoái** — số ở cột "Thực đạt" của lần chạy đó phải
-   KHỚP với số ở cột "Cùng kỳ năm 2025" khi chạy báo cáo cho ngày hôm nay
-   (cùng 1 số liệu, chỉ khác đọc từ domain `directDb` bình thường hay từ
-   khối `lastYear`/`dateOffsetYears: -1`) — xác nhận dữ liệu Lịch sử đúng,
-   không bị lệch ngày.
+   - **Thử chọn 1 khoảng nhiều ngày** (vd 3 ngày gần nhất, ô từ khác ô đến)
+     — mọi cột số liệu (Doanh thu, Giao dịch, Chỉ tiêu, Lãi gộp, Cùng kỳ
+     năm trước) phải CỘNG DỒN đúng theo 3 ngày đó; riêng Diện tích/nhóm
+     MART-MINIMART KHÔNG đổi (không cộng dồn, xem
+     `rp-server/lib/compositeReportRunner.js`).
+4. Đối chiếu 1 siêu thị bất kỳ: mở lại báo cáo, đổi "Khoảng ngày báo cáo"
+   sang **đúng ngày này năm ngoái** (1 ngày, from=to) — số ở cột "Thực đạt"
+   của lần chạy đó phải KHỚP với số ở cột "Cùng kỳ năm 2025" khi chạy báo
+   cáo cho ngày hôm nay (cùng 1 số liệu, chỉ khác đọc từ domain `directDb`
+   bình thường hay từ khối `lastYear`/`dateOffsetYears: -1`) — xác nhận dữ
+   liệu Lịch sử đúng, không bị lệch ngày.
 5. Sửa thử 1 dòng chỉ tiêu ở trang "Chỉ tiêu Lãnh đạo Tập đoàn", xác nhận
    báo cáo HCRC KHÔNG đổi theo (và ngược lại) — xác nhận đúng 2 domain chỉ
    tiêu độc lập.
@@ -807,12 +812,17 @@ nhận riêng theo đúng nhóm HCRC.
    hình, tự hết sau khi qua ngày giao thời (dữ liệu Live phía đó không còn
    nữa, chỉ còn đúng 1 dòng từ Lịch sử).
 
-8. **Chỉ tiêu là THEO NGÀY** (Bước 3) — đổi "Ngày báo cáo" sang 1 ngày khác
-   đã nhập chỉ tiêu, xác nhận cột "Chỉ tiêu" đổi số ĐÚNG theo ngày đó (khác
-   số của ngày hôm nay), không phải 1 số cố định lặp lại suốt tháng. Nếu
-   cột "Chỉ tiêu" trống ở ngày đã có nhập liệu — kiểm tra lại
+8. **Chỉ tiêu là THEO NGÀY** (Bước 3) — đổi "Khoảng ngày báo cáo" sang 1
+   ngày khác đã nhập chỉ tiêu, xác nhận cột "Chỉ tiêu" đổi số ĐÚNG theo
+   ngày đó (khác số của ngày hôm nay), không phải 1 số cố định lặp lại suốt
+   tháng. Nếu cột "Chỉ tiêu" trống ở ngày đã có nhập liệu — kiểm tra lại
    `"targetGranularity": "day"` có trong DefinitionJson của khối `target`
    không (Bước 4), thiếu dòng này báo cáo sẽ tra sai theo ngày 1 đầu tháng.
+9. **Chọn khoảng nhiều ngày có xen 1 siêu thị đóng cửa giữa chừng** (đánh
+   dấu `TrangThai=DaDong` ở 1 ngày trong khoảng, xem "Nhập chỉ tiêu") — xác
+   nhận siêu thị đó VẪN xuất hiện trong báo cáo với "Chỉ tiêu" chỉ tính
+   NHỮNG NGÀY còn mở (không cộng nhầm chỉ tiêu ngày đã đóng) — khác trường
+   hợp đóng cửa CẢ khoảng đã chọn (khi đó siêu thị mới bị loại hẳn).
 
 Xong — 2 báo cáo cuối ngày độc lập cho Lãnh đạo Tập đoàn và HCRC đã sẵn
 sàng, cùng 1 format cột, chỉ khác nguồn chỉ tiêu.

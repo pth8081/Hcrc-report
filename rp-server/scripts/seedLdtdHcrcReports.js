@@ -27,7 +27,10 @@ function buildDefinition(title, targetDomain) {
     title,
     domain: DOMAIN,
     filters: [
-      { field: 'eventDate', type: 'date', label: 'Ngày báo cáo' }
+      // type: 'dateRange' (trước là 'date', chỉ chọn được 1 ngày) — chọn 1
+      // ngày (from=to) hoặc nhiều ngày liên tiếp để xem tổng cộng dồn, xem
+      // rp-server/lib/compositeReportRunner.js.
+      { field: 'eventDate', type: 'dateRange', label: 'Khoảng ngày báo cáo' }
     ],
     blocks: [
       { key: 'current', sourceType: 'directDb', domain: DOMAIN },

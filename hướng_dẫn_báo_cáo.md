@@ -1869,14 +1869,14 @@ mục 1) — chỉ khác nhau giữa LDTD/HCRC ở đúng chỗ này.
   "title": "Báo cáo nhanh doanh thu - Lãnh đạo Tập đoàn",
   "domain": "doanhthu_chinhanh",
   "filters": [
-    { "field": "eventDate", "type": "date", "label": "Ngày báo cáo" }
+    { "field": "eventDate", "type": "dateRange", "label": "Khoảng ngày báo cáo" }
   ],
   "blocks": [
     { "key": "current", "sourceType": "directDb", "domain": "doanhthu_chinhanh" },
     { "key": "currentGD", "sourceType": "directDb", "domain": "giaodich_chinhanh" },
     { "key": "lastYear", "sourceType": "directDb", "domain": "doanhthu_chinhanh", "dateOffsetYears": -1 },
     { "key": "lastYearGD", "sourceType": "directDb", "domain": "giaodich_chinhanh", "dateOffsetYears": -1 },
-    { "key": "target", "isTarget": true, "targetDomain": "sales-targets-ldtd" }
+    { "key": "target", "isTarget": true, "targetDomain": "sales-targets-ldtd", "targetGranularity": "day" }
   ],
   "columns": [
     { "key": "tenCuaHang", "label": "Siêu thị/Cửa hàng", "formula": "entityCode" },
@@ -1929,14 +1929,14 @@ Hệt trên, chỉ đổi `title` và `targetDomain` sang `"sales-targets-hcrc"`
   "title": "Báo cáo nhanh doanh thu - HCRC",
   "domain": "doanhthu_chinhanh",
   "filters": [
-    { "field": "eventDate", "type": "date", "label": "Ngày báo cáo" }
+    { "field": "eventDate", "type": "dateRange", "label": "Khoảng ngày báo cáo" }
   ],
   "blocks": [
     { "key": "current", "sourceType": "directDb", "domain": "doanhthu_chinhanh" },
     { "key": "currentGD", "sourceType": "directDb", "domain": "giaodich_chinhanh" },
     { "key": "lastYear", "sourceType": "directDb", "domain": "doanhthu_chinhanh", "dateOffsetYears": -1 },
     { "key": "lastYearGD", "sourceType": "directDb", "domain": "giaodich_chinhanh", "dateOffsetYears": -1 },
-    { "key": "target", "isTarget": true, "targetDomain": "sales-targets-hcrc" }
+    { "key": "target", "isTarget": true, "targetDomain": "sales-targets-hcrc", "targetGranularity": "day" }
   ],
   "columns": [
     { "key": "tenCuaHang", "label": "Siêu thị/Cửa hàng", "formula": "entityCode" },
@@ -1983,12 +1983,29 @@ báo cáo, 2 danh sách người xem riêng — không tự động chia sẻ ch
 1. Đối chiếu **cả 2 job** ở Bước 1 đã chạy ít nhất 1 lần (Dashboard/Log
    etl-admin) — thiếu job Giao dịch thì cột Giao dịch trống dù job Doanh
    thu chạy đúng (2 job độc lập, không phụ thuộc nhau).
-2. Mở báo cáo, chọn "Ngày báo cáo" — kiểm tra: đủ số siêu thị đang hoạt
-   động, đúng nhóm MART/MINIMART (xem lại `STYPE_ID` đã điền đúng mã thật
-   chưa — mục 11 b), dòng "Tổng cộng" khớp tổng cộng dồn.
+2. Mở báo cáo, chọn "Khoảng ngày báo cáo" — kiểm tra: đủ số siêu thị đang
+   hoạt động, đúng nhóm MART/MINIMART (xem lại `STOCK.TYPE` đã đúng
+   `'01'`=MART/`'02'`=MINIMART chưa — mục 11 b), dòng "Tổng cộng" khớp tổng
+   cộng dồn.
+   - Bộ lọc này chọn được **1 ngày** (chọn CÙNG 1 ngày ở cả 2 ô từ/đến) hoặc
+     **1 khoảng nhiều ngày liên tiếp** — chọn khoảng thì mọi cột số liệu
+     (Doanh thu, Lãi gộp, Giao dịch, Chỉ tiêu, Cùng kỳ năm trước) đều CỘNG
+     DỒN đúng các ngày trong khoảng, riêng Diện tích/Nhóm chuỗi (MART/
+     MINIMART) KHÔNG cộng dồn (thuộc tính tĩnh của chi nhánh). Chỉ tiêu
+     cộng dồn theo TỪNG ngày thật đã nhập (không quy đổi/chia đều) — siêu
+     thị đóng cửa ĐÚNG 1 vài ngày trong khoảng chỉ mất chỉ tiêu NHỮNG NGÀY
+     đó, siêu thị đóng cửa CẢ khoảng đã chọn mới bị loại hẳn khỏi báo cáo
+     (xem `rp-server/lib/compositeReportRunner.js`/`salesTargetsReader.js`).
+   - Muốn gửi email tự động theo khoảng tương đối (vd "7 ngày qua", "Tháng
+     này") thay vì đúng 1 ngày cố định — dùng preset khoảng ngày ở "Lịch
+     gửi email báo cáo" (mục Phụ lục cuối bài), áp dụng được ngay cho báo
+     cáo này vì cùng dùng chung 1 filter `dateRange`.
 3. **Kiểm tra riêng cột Lãi gộp** — nếu "Lãi gộp - Tỷ lệ (%)" ra ĐÚNG
-   100% ở MỌI siêu thị, gần như chắc chắn `COSTPRICE.MEC_YM` sai định
-   dạng (JOIN không khớp dòng nào, coi giá vốn = 0) — xem lại mục 11 b).
+   100% ở MỌI siêu thị, kiểm tra lại VIEW `V_HCRC_DOANHTHU_CHINHANH` có
+   JOIN `COSTPRICE` nhầm theo cả `STK_ID` không — cột đó LUÔN TRỐNG (giá
+   vốn dùng chung toàn hệ thống, không theo chi nhánh), JOIN có `STK_ID`
+   không bao giờ khớp, coi giá vốn = 0 (xem "báo cáo doanh thu cuối ngày.md"
+   Bước 1, mục "Đã xác nhận đầy đủ bằng dữ liệu thật").
 4. Đối chiếu đúng báo cáo LDTD đọc chỉ tiêu domain `sales-targets-ldtd`,
    báo cáo HCRC đọc `sales-targets-hcrc` (sửa thử 1 dòng chỉ tiêu ở 1
    trang, xác nhận báo cáo BÊN KIA KHÔNG đổi).
