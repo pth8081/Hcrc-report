@@ -20,12 +20,24 @@
 //   filters,                // directDb: definition.filters bổ sung, giống 'directDb' thường
 //   apiConnectionId, apiTarget, // apiReport/apiRealtime
 //   isTarget, targetDomain, // true -> đọc dwh.SalesTargets (lib/salesTargetsReader.js)
-//   targetGranularity       // isTarget: 'day' tra ĐÚNG ngày yêu cầu (chỉ
+//   targetGranularity,      // isTarget: 'day' tra ĐÚNG ngày yêu cầu (chỉ
 //                           // tiêu THEO NGÀY, mẫu file thật LDTD/HCRC — xem
 //                           // etl/lib/salesTargetsImport.js), mặc định/bỏ
 //                           // trống = tra theo ngày 1 đầu tháng (chỉ tiêu
 //                           // THEO THÁNG, hành vi cũ)
+//   skipWhen                // TUỲ CHỌN {field, equals} — BỎ QUA HẲN khối này
+//                           // (không gọi truy vấn, coi như không có dòng
+//                           // nào) khi filterValues[field] === equals (so
+//                           // sánh CHUỖI, an toàn với select trả string) —
+//                           // dùng cho "chế độ xem" tuỳ chọn ẩn bớt khối so
+//                           // sánh, xem seedLdtdHcrcReports.js.
 // }]
+// definition.columns[].hideWhen — TUỲ CHỌN {field, equals}, CÙNG cơ chế như
+// block.skipWhen ở trên — ẨN HẲN cột đó khỏi describeColumns()/dòng kết quả
+// (không chỉ để trống) khi điều kiện khớp — thường đi kèm skipWhen của
+// đúng khối mà cột đó tham chiếu tới (ẩn cột thì cũng nên bỏ qua khối cho
+// đỡ tốn 1 lượt truy vấn không ai xem).
+//
 // Công thức trong definition.columns tham chiếu field dạng "tenKhoi.field..."
 // (vd "current.measures.doanhThu", "target.ChiTieuDoanhThu",
 // "lastYear.measures.doanhThu") — xem resolveCompositeField() bên dưới.
@@ -110,6 +122,15 @@ function shiftYears(dateStr, years) {
 
 function firstOfMonth(dateStr) {
   return `${dateStr.slice(0, 7)}-01`;
+}
+
+// So khớp block.skipWhen/column.hideWhen — CHUYỂN VỀ CHUỖI trước khi so
+// sánh (`filterValues[field]` đến từ query string/JSON body, thường là
+// chuỗi từ SearchableSelect ở frontend, nhưng không ép kiểu cứng để tránh
+// vỡ nếu ai đó gọi thẳng API với kiểu boolean/số thật).
+function matchesCondition(cond, filterValues) {
+  if (!cond) return false;
+  return String(filterValues[cond.field]) === String(cond.equals);
 }
 
 // Chuẩn hoá filterValues.eventDate về {from, to} — chấp nhận CẢ 2 dạng: chuỗi
@@ -282,9 +303,13 @@ async function runCompositeReport(definition, filterValues = {}) {
   // theo definition.blocks (không phải thứ tự khối nào resolve trước), nên
   // vòng ghép bên dưới vẫn duyệt đúng thứ tự cấu hình như trước, KHÔNG đổi
   // hành vi merge — chỉ khác ở chỗ mọi khối bắt đầu chạy CÙNG LÚC thay vì
-  // đợi khối trước xong mới bắt đầu khối sau.
+  // đợi khối trước xong mới bắt đầu khối sau. Khối khớp `skipWhen` KHÔNG gọi
+  // runBlock() (bỏ qua hẳn truy vấn, không chỉ ẩn kết quả) — coi như trả về
+  // mảng rỗng, giống hệt "không có dữ liệu" ở bước ghép bên dưới.
   const blockRowsList = await Promise.all(
-    definition.blocks.map(block => runBlock(block, requestedRange, filterValues))
+    definition.blocks.map(block => (
+      matchesCondition(block.skipWhen, filterValues) ? [] : runBlock(block, requestedRange, filterValues)
+    ))
   );
 
   // Map giữ thứ tự chèn -> thứ tự dòng trả về ổn định, khớp thứ tự khối
@@ -347,7 +372,11 @@ async function runCompositeReport(definition, filterValues = {}) {
   const mergedRows = [...merged.values()].filter(
     r => !targetBlockKeys.some(key => r[key]?.TrangThai === 'DaDong') && !ambiguousEntityCodes.has(r.entityCode)
   );
-  const columns = describeColumns(definition.columns);
+  // Cột khớp `hideWhen` -> LOẠI HẲN khỏi danh sách cột trả về (không chỉ để
+  // trống giá trị) — dùng cho "chế độ xem" tuỳ chọn ẩn bớt nhóm cột so sánh,
+  // xem chú thích block.skipWhen/column.hideWhen ở đầu file.
+  const visibleColumns = definition.columns.filter(col => !matchesCondition(col.hideWhen, filterValues));
+  const columns = describeColumns(visibleColumns);
   // warnings — CHỈ cảnh báo "có thực thể bị loại", không liệt kê entityCode
   // cụ thể ra tận giao diện người dùng cuối (rp-user) — thông tin đó dành
   // cho admin xem qua log server (console.warn ở trên), tránh lộ mã thực
@@ -357,7 +386,7 @@ async function runCompositeReport(definition, filterValues = {}) {
     : [];
 
   if (!definition.groupBy) {
-    return { columns, rows: mergedRows.map(r => projectCompositeRow(r, definition.columns)), warnings };
+    return { columns, rows: mergedRows.map(r => projectCompositeRow(r, visibleColumns)), warnings };
   }
 
   const { field, groups = [], grandTotalLabel, labelColumn } = definition.groupBy;
@@ -370,8 +399,8 @@ async function runCompositeReport(definition, filterValues = {}) {
     matchedValues.add(g.value);
     const groupRows = mergedRows.filter(r => resolveCompositeField(r, groupPath) === g.value);
     if (!groupRows.length) continue;
-    rows.push(...groupRows.map(r => projectCompositeRow(r, definition.columns)));
-    const subtotalRow = projectCompositeRow(sumMergedRows(groupRows, blockKeys), definition.columns);
+    rows.push(...groupRows.map(r => projectCompositeRow(r, visibleColumns)));
+    const subtotalRow = projectCompositeRow(sumMergedRows(groupRows, blockKeys), visibleColumns);
     if (labelColumn) subtotalRow[labelColumn] = g.label;
     subtotalRow.__isSubtotal = true;
     rows.push(subtotalRow);
@@ -379,9 +408,9 @@ async function runCompositeReport(definition, filterValues = {}) {
   // Dòng không khớp nhóm nào đã khai (dữ liệu ngoài dự kiến) — vẫn xuất
   // hiện ở cuối, KHÔNG âm thầm mất, để lộ ngay lỗi cấu hình "groups" thiếu.
   const unmatched = mergedRows.filter(r => !matchedValues.has(resolveCompositeField(r, groupPath)));
-  rows.push(...unmatched.map(r => projectCompositeRow(r, definition.columns)));
+  rows.push(...unmatched.map(r => projectCompositeRow(r, visibleColumns)));
 
-  const grandRow = projectCompositeRow(sumMergedRows(mergedRows, blockKeys), definition.columns);
+  const grandRow = projectCompositeRow(sumMergedRows(mergedRows, blockKeys), visibleColumns);
   if (labelColumn) grandRow[labelColumn] = grandTotalLabel || 'Tổng cộng';
   grandRow.__isSubtotal = true;
   grandRow.__isGrandTotal = true;

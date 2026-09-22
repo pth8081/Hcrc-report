@@ -2000,6 +2000,15 @@ báo cáo, 2 danh sách người xem riêng — không tự động chia sẻ ch
      này") thay vì đúng 1 ngày cố định — dùng preset khoảng ngày ở "Lịch
      gửi email báo cáo" (mục Phụ lục cuối bài), áp dụng được ngay cho báo
      cáo này vì cùng dùng chung 1 filter `dateRange`.
+   - **Bộ lọc "Chế độ so sánh"** — mặc định "Đầy đủ" (kèm Cùng kỳ năm
+     trước/LFL như cũ). Chọn **"So sánh quá khứ"** khi xem lại 1 khoảng
+     ngày ĐÃ QUA và không cần đối chiếu cùng kỳ năm trước — báo cáo ẨN HẲN
+     4 cột Cùng kỳ/LFL (Doanh thu + Giao dịch), CHỈ còn Doanh thu/Giao dịch
+     thực đạt so với Chỉ tiêu (và vẫn giữ Lãi gộp, Diện tích, nhóm MART/
+     MINIMART) — đồng thời BỎ QUA HẲN 2 lượt truy vấn CSDL Lịch sử cho cùng
+     kỳ năm trước (nhanh hơn, không phải chỉ ẩn cột trên giao diện). Cơ chế
+     chung `block.skipWhen`/`column.hideWhen` — xem
+     `rp-server/lib/compositeReportRunner.js`.
 3. **Kiểm tra riêng cột Lãi gộp** — nếu "Lãi gộp - Tỷ lệ (%)" ra ĐÚNG
    100% ở MỌI siêu thị, kiểm tra lại VIEW `V_HCRC_DOANHTHU_CHINHANH` có
    JOIN `COSTPRICE` nhầm theo cả `STK_ID` không — cột đó LUÔN TRỐNG (giá

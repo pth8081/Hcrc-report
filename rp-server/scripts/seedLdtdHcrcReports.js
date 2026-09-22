@@ -30,13 +30,26 @@ function buildDefinition(title, targetDomain) {
       // type: 'dateRange' (trước là 'date', chỉ chọn được 1 ngày) — chọn 1
       // ngày (from=to) hoặc nhiều ngày liên tiếp để xem tổng cộng dồn, xem
       // rp-server/lib/compositeReportRunner.js.
-      { field: 'eventDate', type: 'dateRange', label: 'Khoảng ngày báo cáo' }
+      { field: 'eventDate', type: 'dateRange', label: 'Khoảng ngày báo cáo' },
+      // "So sánh quá khứ" — ẨN HẲN 4 cột Cùng kỳ năm trước/LFL (Doanh thu +
+      // Giao dịch) và BỎ QUA (không truy vấn) 2 khối lastYear/lastYearGD —
+      // dùng khi xem lại 1 khoảng ngày ĐÃ QUA và không cần đối chiếu thêm
+      // với cùng kỳ năm trước, chỉ cần Doanh thu/Giao dịch thực đạt so với
+      // Chỉ tiêu (đỡ 1 lượt truy vấn CSDL Lịch sử không ai xem tới, xem
+      // block.skipWhen/column.hideWhen ở rp-server/lib/compositeReportRunner.js).
+      {
+        field: 'cheDoSoSanh', type: 'select', label: 'Chế độ so sánh', default: 'full',
+        options: [
+          { value: 'full', label: 'Đầy đủ (kèm Cùng kỳ năm trước)' },
+          { value: 'past', label: 'So sánh quá khứ (ẩn Cùng kỳ, chỉ Doanh thu/Giao dịch vs Chỉ tiêu)' }
+        ]
+      }
     ],
     blocks: [
       { key: 'current', sourceType: 'directDb', domain: DOMAIN },
       { key: 'currentGD', sourceType: 'directDb', domain: 'giaodich_chinhanh' },
-      { key: 'lastYear', sourceType: 'directDb', domain: DOMAIN, dateOffsetYears: -1 },
-      { key: 'lastYearGD', sourceType: 'directDb', domain: 'giaodich_chinhanh', dateOffsetYears: -1 },
+      { key: 'lastYear', sourceType: 'directDb', domain: DOMAIN, dateOffsetYears: -1, skipWhen: { field: 'cheDoSoSanh', equals: 'past' } },
+      { key: 'lastYearGD', sourceType: 'directDb', domain: 'giaodich_chinhanh', dateOffsetYears: -1, skipWhen: { field: 'cheDoSoSanh', equals: 'past' } },
       // targetGranularity: 'day' — 2 mẫu file chỉ tiêu thật (LDTD/HCRC) đều
       // là chỉ tiêu THEO NGÀY (xem etl/lib/salesTargetsImport.js), không
       // phải chỉ tiêu tháng chia đều — tra đúng ngày báo cáo thay vì gộp cả
@@ -50,8 +63,8 @@ function buildDefinition(title, targetDomain) {
       { key: 'dt_chiTieu', label: 'Doanh thu - Chỉ tiêu', formula: 'target.ChiTieuDoanhThu' },
       { key: 'dt_thucDat', label: 'Doanh thu - Thực đạt', formula: 'current.measures.doanhThu' },
       { key: 'dt_tyLeDat', label: 'Doanh thu - Tỉ lệ đạt (%)', formula: 'ROUND(current.measures.doanhThu / target.ChiTieuDoanhThu * 100, 1)' },
-      { key: 'dt_cungKy', label: 'Doanh thu - Cùng kỳ năm 2025', formula: 'lastYear.measures.doanhThu' },
-      { key: 'dt_lfl', label: 'Doanh thu - Tỷ lệ % LFL', formula: 'ROUND(current.measures.doanhThu / lastYear.measures.doanhThu * 100, 1)' },
+      { key: 'dt_cungKy', label: 'Doanh thu - Cùng kỳ năm 2025', formula: 'lastYear.measures.doanhThu', hideWhen: { field: 'cheDoSoSanh', equals: 'past' } },
+      { key: 'dt_lfl', label: 'Doanh thu - Tỷ lệ % LFL', formula: 'ROUND(current.measures.doanhThu / lastYear.measures.doanhThu * 100, 1)', hideWhen: { field: 'cheDoSoSanh', equals: 'past' } },
 
       { key: 'lg_tyLe', label: 'Lãi gộp - Tỷ lệ (%)', formula: 'ROUND(current.measures.laiGop / current.measures.doanhThu * 100, 1)' },
       { key: 'lg_giaTri', label: 'Lãi gộp - Giá trị', formula: 'current.measures.laiGop' },
@@ -59,8 +72,8 @@ function buildDefinition(title, targetDomain) {
       { key: 'gd_chiTieu', label: 'Giao dịch - Chỉ tiêu', formula: 'target.ChiTieuGiaoDich' },
       { key: 'gd_thucDat', label: 'Giao dịch - Thực đạt', formula: 'currentGD.measures.SoGiaoDich' },
       { key: 'gd_tyLeDat', label: 'Giao dịch - Tỷ lệ đạt (%)', formula: 'ROUND(currentGD.measures.SoGiaoDich / target.ChiTieuGiaoDich * 100, 1)' },
-      { key: 'gd_cungKy', label: 'Giao dịch - Cùng kỳ năm 2025', formula: 'lastYearGD.measures.SoGiaoDich' },
-      { key: 'gd_lfl', label: 'Giao dịch - Tỷ lệ % LFL', formula: 'ROUND(currentGD.measures.SoGiaoDich / lastYearGD.measures.SoGiaoDich * 100, 1)' },
+      { key: 'gd_cungKy', label: 'Giao dịch - Cùng kỳ năm 2025', formula: 'lastYearGD.measures.SoGiaoDich', hideWhen: { field: 'cheDoSoSanh', equals: 'past' } },
+      { key: 'gd_lfl', label: 'Giao dịch - Tỷ lệ % LFL', formula: 'ROUND(currentGD.measures.SoGiaoDich / lastYearGD.measures.SoGiaoDich * 100, 1)', hideWhen: { field: 'cheDoSoSanh', equals: 'past' } },
 
       { key: 'trungBinhGD', label: 'Trung bình GD', formula: 'ROUND(current.measures.doanhThu / currentGD.measures.SoGiaoDich, 0)' },
       { key: 'doanhThuTrenM2', label: 'Doanh thu/m2', formula: 'ROUND(current.measures.doanhThu / current.dimensions.dienTich, 0)' }

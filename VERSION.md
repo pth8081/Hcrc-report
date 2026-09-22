@@ -20,6 +20,35 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 6.56 — Báo cáo nhanh doanh thu: thêm "Chế độ so sánh" — ẩn cùng kỳ năm trước khi xem quá khứ
+
+Người dùng yêu cầu (SAU KHI đã có 6.55 nhưng CHƯA merge vào `main` — làm
+tiếp trên nhánh feature theo đúng yêu cầu "đừng merge vội"): thêm tuỳ chọn
+"so sánh quá khứ" cho báo cáo LDTD/HCRC — khi bật, CHỈ còn Doanh thu/Giao
+dịch thực đạt so với Chỉ tiêu, ẩn bớt phần so sánh cùng kỳ năm trước (dùng
+khi xem lại 1 khoảng ngày ĐÃ QUA, không cần đối chiếu thêm cùng kỳ).
+
+- Thêm cơ chế TỔNG QUÁT (dùng được cho MỌI báo cáo composite khác sau
+  này, không riêng LDTD/HCRC) vào `compositeReportRunner.js`:
+  - `block.skipWhen: {field, equals}` — BỎ QUA HẲN 1 khối (không gọi truy
+    vấn) khi `filterValues[field] === equals`.
+  - `column.hideWhen: {field, equals}` — LOẠI HẲN 1 cột khỏi
+    `describeColumns()`/dòng kết quả (không chỉ để trống giá trị) khi
+    điều kiện khớp.
+- Báo cáo LDTD/HCRC thêm filter `cheDoSoSanh` (select: "Đầy đủ"/"So sánh
+  quá khứ") — khối `lastYear`/`lastYearGD` gắn `skipWhen`, 4 cột Cùng kỳ/
+  LFL (Doanh thu + Giao dịch) gắn `hideWhen`, cùng điều kiện
+  `cheDoSoSanh === 'past'`. KHÔNG truyền filter này (báo cáo/lịch cũ chưa
+  biết field mới) -> hành vi CŨ, đầy đủ như trước, không đổi gì.
+- Bật "So sánh quá khứ" tiết kiệm ĐÚNG 2 lượt truy vấn CSDL (Doanh thu +
+  Giao dịch cùng kỳ năm trước) mỗi lần chạy báo cáo — không chỉ ẩn cột
+  trên giao diện.
+- Không cần sửa gì ở frontend (`FilterForm.jsx` đã có sẵn `type: 'select'`
+  từ trước) — chỉ đổi `DefinitionJson` phía `rp-server`.
+- Test bằng fake DB pool: chế độ mới ẩn đúng 4 cột + xác nhận KHÔNG gọi
+  truy vấn cho khối cùng kỳ năm trước (đếm số lượt query), chế độ mặc định
+  (không truyền filter) giữ nguyên đầy đủ cột như cũ — cả 2 case pass.
+
 ## 6.55 — Báo cáo nhanh doanh thu: chọn 1 ngày HOẶC 1 khoảng ngày (cộng dồn)
 
 Người dùng hỏi báo cáo doanh thu LDTD/HCRC đã có bộ lọc "từ ngày - đến
