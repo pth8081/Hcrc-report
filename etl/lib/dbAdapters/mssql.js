@@ -13,6 +13,15 @@ function param(name) {
   return `@${name}`;
 }
 
+// requestTimeout MẶC ĐỊNH 30 GIÂY của thư viện `mssql` KHÔNG đủ cho job
+// "Lịch sử" chạy LẦN ĐẦU (chưa có mốc đồng bộ, đọc VIEW gộp UNION ALL ~93
+// bảng/bảng lưu trữ hàng chục triệu dòng không lọc ngày — xem "báo cáo
+// doanh thu cuối ngày.md" phần tempdb) — đã gặp lỗi thật
+// "Timeout: Request failed to complete in 30000ms". Nâng mặc định lên 10
+// phút, và cho phép chỉnh qua .env nếu vẫn chưa đủ (server chậm/dữ liệu
+// càng ngày càng lớn) mà không cần sửa code.
+const DEFAULT_REQUEST_TIMEOUT_MS = parseInt(process.env.DATASOURCE_REQUEST_TIMEOUT_MS || '600000', 10);
+
 async function createPool(config) {
   const pool = new sql.ConnectionPool({
     server: config.server,
@@ -26,7 +35,7 @@ async function createPool(config) {
       enableArithAbort: true
     },
     connectionTimeout: 10000,
-    requestTimeout: 30000
+    requestTimeout: DEFAULT_REQUEST_TIMEOUT_MS
   });
   await pool.connect();
   return pool;

@@ -20,6 +20,23 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 6.59 — Sửa timeout 30 giây cố định khi đồng bộ Nguồn dữ liệu SQL Server
+
+Người dùng chạy thật job "Doanh thu/Giao dịch chi nhánh - Lịch sử
+(DSMART16_EOM)" lần đầu, log ETL báo lỗi thật `Timeout: Request failed to
+complete in 30000ms` — phát hiện `etl/lib/dbAdapters/mssql.js` CỐ ĐỊNH
+CỨNG `requestTimeout: 30000` (30 giây) cho MỌI truy vấn tới Nguồn dữ liệu
+SQL Server tự khai qua etl-admin, không cấu hình được — không đủ cho job
+"Lịch sử" chạy LẦN ĐẦU (chưa có mốc đồng bộ, đọc VIEW gộp UNION ALL ~93
+bảng/bảng lưu trữ hàng chục triệu dòng không lọc ngày, xem 6.53/6.57).
+
+- Nâng mặc định lên 600000ms (10 phút), thêm biến môi trường
+  `DATASOURCE_REQUEST_TIMEOUT_MS` (etl/.env.example) để chỉnh thêm nếu
+  vẫn chưa đủ, không cần sửa code.
+- CHỈ áp dụng cho pool Nguồn dữ liệu tự khai (etl.DataSources) — không
+  đụng tới `*_REQUEST_TIMEOUT_MS` riêng của pool `DWH`/`ADMIN` cố định
+  (đã có sẵn từ trước, xem `etl/db.js`).
+
 ## 6.58 — Sửa lỗi thiếu @freq_recurrence_factor khi tạo lịch Agent Job hàng tháng
 
 Người dùng chạy thật khối tạo SQL Server Agent Job (`báo cáo doanh thu
