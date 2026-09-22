@@ -20,6 +20,20 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 6.58 — Sửa lỗi thiếu @freq_recurrence_factor khi tạo lịch Agent Job hàng tháng
+
+Người dùng chạy thật khối tạo SQL Server Agent Job (`báo cáo doanh thu
+cuối ngày.md` Bước 1, phần "Tự động chạy lại hàng tháng"), báo lỗi
+`Msg 14278: The schedule for this job is invalid (reason:
+@freq_recurrence_factor must be at least 1.)` — `sp_add_schedule` với
+`@freq_type = 16` (hàng tháng) BẮT BUỘC phải kèm `@freq_recurrence_factor`
+(số tháng giữa 2 lần chạy), script cũ thiếu tham số này (mặc định 0, không
+hợp lệ). Sửa: thêm `@freq_recurrence_factor = 1` (chạy mỗi tháng).
+
+(Lỗi này khiến `sp_add_schedule` thất bại → `sp_attach_schedule` ngay sau
+đó lỗi theo do lịch chưa từng được tạo — 2 dòng lỗi liên tiếp cùng 1
+nguyên nhân gốc, không phải 2 lỗi riêng.)
+
 ## 6.57 — Sửa lỗi STRING_AGG vượt 8000 byte khi tạo VIEW Doanh thu trên DSMART16_EOM
 
 Người dùng chạy thật Script B (`báo cáo doanh thu cuối ngày.md` Bước 1) trên

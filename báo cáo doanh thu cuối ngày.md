@@ -336,8 +336,13 @@ EXEC dbo.sp_add_jobstep
 GO
 EXEC dbo.sp_add_schedule
     @schedule_name = N'Hang thang - ngay 2',
-    @freq_type = 16,          -- Hàng tháng
-    @freq_interval = 2,       -- Ngày 2
+    @freq_type = 16,              -- Hàng tháng
+    @freq_interval = 2,           -- Ngày 2
+    @freq_recurrence_factor = 1,  -- BẮT BUỘC khi @freq_type=16 — số tháng
+                                   -- giữa 2 lần chạy (1 = mỗi tháng); thiếu
+                                   -- dòng này SQL Server báo lỗi
+                                   -- "@freq_recurrence_factor must be at
+                                   -- least 1" (đã gặp thật khi chạy).
     @active_start_time = 30000; -- 03:00:00
 GO
 EXEC dbo.sp_attach_schedule
