@@ -211,9 +211,15 @@ như cũ.
 -- gõ tay để tránh gõ sai/sót tên bảng.
 DECLARE @sql NVARCHAR(MAX);
 
+-- CAST(... AS NVARCHAR(MAX)) BẮT BUỘC — thiếu ép kiểu này, SQL Server tự suy
+-- luận kiểu trả về của STRING_AGG theo kiểu chuỗi NGẮN NHẤT trong biểu thức
+-- (ở đây là chuỗi literal, mặc định KHÔNG phải MAX), rồi báo lỗi "STRING_AGG
+-- aggregation result exceeded the limit of 8000 bytes" ngay khi ghép đủ ~93
+-- bảng (đã gặp thật khi chạy) — ép kiểu 1 lần ở ĐÚNG chuỗi đầu tiên là đủ để
+-- cả biểu thức cộng chuỗi tính theo NVARCHAR(MAX).
 SELECT @sql = STRING_AGG(
-    'SELECT STK_ID, SKU_ID, TRAN_DATE, QTY, AMOUNT, VAT_AMT, DISCOUNT, COMM_AMT FROM '
-    + QUOTENAME(name) + ' WHERE STATUS <> ''D''',
+    CAST('SELECT STK_ID, SKU_ID, TRAN_DATE, QTY, AMOUNT, VAT_AMT, DISCOUNT, COMM_AMT FROM '
+    + QUOTENAME(name) + ' WHERE STATUS <> ''D''' AS NVARCHAR(MAX)),
     ' UNION ALL '
 )
 FROM sys.tables
@@ -272,9 +278,11 @@ CREATE OR ALTER PROCEDURE dbo.sp_HCRC_RebuildDoanhThuView AS
 BEGIN
     DECLARE @sql NVARCHAR(MAX);
 
+    -- CAST(... AS NVARCHAR(MAX)) BẮT BUỘC — xem chú thích ở Script B (cùng
+    -- lỗi "STRING_AGG aggregation result exceeded the limit of 8000 bytes").
     SELECT @sql = STRING_AGG(
-        'SELECT STK_ID, SKU_ID, TRAN_DATE, QTY, AMOUNT, VAT_AMT, DISCOUNT, COMM_AMT FROM '
-        + QUOTENAME(name) + ' WHERE STATUS <> ''D''',
+        CAST('SELECT STK_ID, SKU_ID, TRAN_DATE, QTY, AMOUNT, VAT_AMT, DISCOUNT, COMM_AMT FROM '
+        + QUOTENAME(name) + ' WHERE STATUS <> ''D''' AS NVARCHAR(MAX)),
         ' UNION ALL '
     )
     FROM sys.tables

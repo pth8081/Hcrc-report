@@ -20,6 +20,24 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 6.57 — Sửa lỗi STRING_AGG vượt 8000 byte khi tạo VIEW Doanh thu trên DSMART16_EOM
+
+Người dùng chạy thật Script B (`báo cáo doanh thu cuối ngày.md` Bước 1) trên
+`DSMART16_EOM`, báo lỗi `Msg 9829: STRING_AGG aggregation result exceeded
+the limit of 8000 bytes` — do ghép UNION ALL ~93 bảng `STRANS_YYYYMM`
+thành 1 chuỗi SQL động, SQL Server suy luận kiểu trả về của `STRING_AGG`
+theo kiểu NGẮN NHẤT trong biểu thức cộng chuỗi (ở đây là chuỗi literal,
+không phải `NVARCHAR(MAX)`), vượt 8000 byte thì báo lỗi thay vì tự động mở
+rộng. Sửa: ép kiểu `CAST(... AS NVARCHAR(MAX))` ngay chuỗi đầu tiên trong
+`STRING_AGG` — áp dụng cho cả Script B và bản sao trong stored procedure
+`sp_HCRC_RebuildDoanhThuView`.
+
+(Trước đó cùng buổi debug, người dùng gặp lỗi `Invalid object name
+'TRANSHDR_ARC'` khi chạy VIEW 2 (Giao dịch) — xác nhận đây KHÔNG phải lỗi
+tên bảng sai, mà do cửa sổ Query còn đang chọn nhầm CSDL `DSMART16` [Live]
+thay vì `DSMART16_EOM` — không cần sửa gì trong code/tài liệu cho trường
+hợp này, chỉ là thao tác chọn sai CSDL của người chạy.)
+
 ## 6.56 — Báo cáo nhanh doanh thu: thêm "Chế độ so sánh" — ẩn cùng kỳ năm trước khi xem quá khứ
 
 Người dùng yêu cầu (SAU KHI đã có 6.55 nhưng CHƯA merge vào `main` — làm
