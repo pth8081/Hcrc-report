@@ -20,6 +20,24 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 6.60 — Sửa lỗi cú pháp "RowCount" khiến trang Log/Dashboard etl-admin báo "Lỗi máy chủ"
+
+Người dùng chạy thật, trang "Log" báo "Lỗi máy chủ" — log server thật cho
+thấy `Msg 156: Incorrect syntax near the keyword 'RowCount'`. Nguyên nhân:
+`etl-db/schema.sql` từng ghi chú rõ "`RowCount` là từ khoá dành riêng của
+T-SQL, không đặt tên CỘT trùng" nên cột thật đặt tên `RowsProcessed` — NHƯNG
+`etl/routes/admin/log.js` và `etl/routes/admin/dashboard.js` lại đặt lại
+đúng tên đó khi làm BÍ DANH trong câu SELECT (`RowsProcessed AS RowCount`,
+không có ngoặc vuông) — lặp lại đúng vấn đề đã né ở tên cột, khiến SQL
+Server từ chối cú pháp ngay khi có ≥1 dòng trong `etl.SyncLog` (bảng rỗng
+thì câu SELECT không lỗi, nên bug này ẩn cho tới khi có job chạy thật).
+
+- Sửa cả 2 chỗ thành `RowsProcessed AS [RowCount]` (thêm ngoặc vuông) —
+  JSON trả về giữ nguyên key `RowCount`, KHÔNG cần sửa gì ở frontend
+  (`LogPage.jsx`/`DashboardPage.jsx` đã đọc đúng key này từ trước).
+- Ảnh hưởng CẢ 2 trang: "Log" (etl-admin) và trang chủ Dashboard (mục
+  "Đồng bộ gần đây") — cả 2 cùng lỗi, cùng nguyên nhân, sửa 1 lượt.
+
 ## 6.59 — Sửa timeout 30 giây cố định khi đồng bộ Nguồn dữ liệu SQL Server
 
 Người dùng chạy thật job "Doanh thu/Giao dịch chi nhánh - Lịch sử
