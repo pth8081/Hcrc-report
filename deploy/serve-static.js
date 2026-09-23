@@ -122,7 +122,13 @@ const MIME = {
 //     `no-cache` như index.html: service worker cache CŨ mà không tự biết
 //     kiểm tra bản mới thì coi như tự tạo ra lại ĐÚNG lỗi vừa sửa ở trên,
 //     lần này khó phát hiện hơn vì lỗi nằm trong chính cơ chế cập nhật.
-const NO_CACHE_FILES = new Set(['index.html', 'sw.js', 'registerSW.js', 'manifest.webmanifest']);
+//   - `version.json` (ghi lúc build, xem vite.config.js mỗi giao diện) ->
+//     CŨNG `no-cache` — components/UpdateBanner.jsx đọc file này để phát
+//     hiện bản mới (so với __APP_VERSION__ đã nhúng lúc trang được tải);
+//     cache dài hạn ở đây sẽ khiến banner báo "có bản mới" TRỄ tới 1 giờ
+//     (mức mặc định của nhánh else bên dưới) sau khi server thực sự đã có
+//     bản mới.
+const NO_CACHE_FILES = new Set(['index.html', 'sw.js', 'registerSW.js', 'manifest.webmanifest', 'version.json']);
 function cacheControlFor(filePath) {
   if (NO_CACHE_FILES.has(path.basename(filePath))) return 'no-cache';
   if (path.dirname(filePath).endsWith(`${path.sep}assets`)) return 'public, max-age=31536000, immutable';

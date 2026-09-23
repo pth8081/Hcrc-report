@@ -70,6 +70,15 @@ button:hover { opacity: 0.9; }
 
 .pager { display: flex; align-items: center; gap: 12px; margin-top: 12px; font-size: 13px; }
 
+/* .update-banner — toast cố định góc dưới-phải, xem components/UpdateBanner.jsx */
+.update-banner {
+  position: fixed; right: 20px; bottom: 20px; z-index: 60; max-width: 360px;
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  background: var(--surface); border: 1px solid var(--accent); border-radius: 8px;
+  padding: 12px 16px; box-shadow: 0 4px 16px rgba(20, 30, 40, .18); font-size: 13px;
+}
+.update-banner button { flex-shrink: 0; padding: 6px 12px; font-size: 12.5px; }
+
 /* ================= HCRC brand: logo + dark sidebar + login hero ================= */
 :root {
   --nav-bg: #0a1628;

@@ -20,6 +20,37 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 6.64 — Báo "có bản cập nhật mới" trên cả 3 giao diện tĩnh (rp-user/api-admin/etl-admin)
+
+Gặp thật trong lúc triển khai bản 6.63: đã `git pull` xong nhưng quên
+`npm run build` lại frontend — sidebar vẫn hiện số phiên bản CŨ, không có
+cách nào biết ngoài tự nhớ hoặc hỏi lại. Thêm cơ chế tự phát hiện + mời tải
+lại trang, giống tinh thần các hệ thống SPA khác (banner "có bản mới").
+
+- `vite.config.js` (cả 3 giao diện) — thêm plugin `closeBundle` ghi
+  `dist/version.json` (`{ "version": "<X.Y>" }`) ngay sau khi build xong,
+  cùng nguồn `VERSION.md` với `__APP_VERSION__` đã nhúng vào bundle từ
+  trước — 2 giá trị LUÔN khớp, chỉ khác thời điểm đọc (lúc build vs lúc
+  chạy). rp-user có thêm service worker PWA (`vite-plugin-pwa`) — đặt plugin
+  ghi file này SAU `VitePWA(...)` trong mảng `plugins` để `version.json`
+  không lọt vào danh sách precache của service worker (luôn phải là request
+  mạng thật, không phải bản cache cũ).
+- `src/components/UpdateBanner.jsx` (mới, 3 bản trùng nhau theo đúng quy
+  ước "mỗi giao diện tự chứa đủ code") — poll `/version.json` mỗi 5 phút +
+  ngay khi quay lại tab (`visibilitychange`), so với `__APP_VERSION__`;
+  khác nhau thì hiện toast góc dưới-phải mời "Tải lại trang"
+  (`window.location.reload()`). Gắn vào `components/Layout.jsx` — điểm
+  chung duy nhất mọi trang đã đăng nhập đều đi qua.
+- `deploy/serve-static.js` — thêm `version.json` vào `NO_CACHE_FILES` (chế
+  độ PM2-only, không Nginx) — thiếu bước này thì file có thể bị cache tới 1
+  giờ, banner báo trễ. Bản Nginx không cần sửa gì — `deploy/nginx.conf` đã
+  có `location /` catch-all `Cache-Control: no-cache` cho mọi file không
+  nằm trong `/assets/`, tự động phủ luôn `version.json`.
+- Đã build cả 3 giao diện + kiểm tra `dist/version.json` sinh đúng nội
+  dung, `curl` trực tiếp `deploy/serve-static.js` xác nhận header
+  `Cache-Control: no-cache`, và xác nhận `version.json` KHÔNG xuất hiện
+  trong `dist/sw.js` (precache manifest) của rp-user.
+
 ## 6.63 — Sửa lỗi "Invalid object name '#StagingTargets'" khi nhập chỉ tiêu LDTD/HCRC + hiện rõ lỗi đồng bộ rỗng
 
 Người dùng báo "Chưa upload được chỉ tiêu LDTD và chỉ tiêu HCRC" kèm log lỗi

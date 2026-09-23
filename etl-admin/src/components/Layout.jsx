@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '../lib/AuthContext';
+import UpdateBanner from './UpdateBanner';
 
 // menuCode dùng để lọc nav theo quyền THẬT (xem etl/lib/adminPermissions.js)
 // — branch-code-map yêu cầu CanEdit ngay cả để XEM (giữ đúng hành vi cũ,
@@ -32,6 +33,7 @@ export default function Layout() {
 
   return (
     <div className="app-shell">
+      <UpdateBanner />
       <div className="mobile-topbar">
         <button type="button" className="mobile-menu-toggle" onClick={() => setSidebarOpen(true)} aria-label="Mở menu">☰</button>
         <div className="h-logo">H</div>

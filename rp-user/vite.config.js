@@ -1,4 +1,4 @@
-import { readFileSync } from 'fs';
+import { readFileSync, writeFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, resolve } from 'path';
 import { defineConfig } from 'vite';
@@ -21,13 +21,34 @@ function readAppVersion() {
     return '?';
   }
 }
+const APP_VERSION = readAppVersion();
+
+// Ghi dist/version.json SAU KHI build xong — components/UpdateBanner.jsx đọc
+// lại file này lúc CHẠY (không nằm trong bundle JS, không bị cache dài hạn
+// như assets/ — xem NO_CACHE_FILES ở deploy/serve-static.js + catch-all
+// no-cache của deploy/nginx.conf) để so với __APP_VERSION__ đã nhúng lúc
+// TRANG ĐANG MỞ được tải. Khác nhau nghĩa là server đã build/deploy bản MỚI
+// HƠN sau khi người dùng mở tab — trước đây không có cách nào biết ngoài tự
+// Ctrl+F5, dễ dùng nhầm giao diện cũ. KHÔNG liên quan tới service worker PWA
+// (registerType:'autoUpdate' bên dưới) — cơ chế đó tự thay asset ngầm, không
+// báo cho người dùng biết; version.json + UpdateBanner mới là kênh CHỦ ĐỘNG
+// mời người dùng tải lại, đồng nhất với 2 giao diện admin còn lại (chúng
+// không có service worker).
+function writeVersionFile() {
+  return {
+    name: 'write-version-json',
+    closeBundle() {
+      writeFileSync(resolve(__dirname, 'dist', 'version.json'), JSON.stringify({ version: APP_VERSION }));
+    }
+  };
+}
 
 // Dev server proxy /api sang rp-server (cổng 4001) — tránh phải cấu hình
 // CORS khi phát triển; production build phục vụ tĩnh sau Nginx cùng domain
 // với rp-server nên không cần proxy.
 export default defineConfig({
   define: {
-    __APP_VERSION__: JSON.stringify(readAppVersion())
+    __APP_VERSION__: JSON.stringify(APP_VERSION)
   },
   plugins: [
     react(),
@@ -61,7 +82,12 @@ export default defineConfig({
           { src: '/icons/icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' }
         ]
       }
-    })
+    }),
+    // Đặt SAU VitePWA — closeBundle() chạy sau khi VitePWA đã quét dist/ để
+    // sinh precache manifest, đảm bảo version.json KHÔNG bị cuốn vào cache
+    // của service worker (phải luôn là request mạng thật, xem chú thích ở
+    // writeVersionFile() phía trên).
+    writeVersionFile()
   ],
   server: {
     port: 5173,

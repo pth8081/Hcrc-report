@@ -433,6 +433,16 @@ duyệt của người dùng đã lỡ cache `index.html` từ TRƯỚC KHI máy
 sửa Cache-Control này (cache cũ không tự biết quy tắc mới) — sau lần đó về
 sau luôn tự động, không cần lặp lại.
 
+**Người dùng ĐANG MỞ SẴN 1 tab từ trước khi cập nhật** (chưa đóng/mở lại
+trang) vẫn không tự biết có bản mới cho tới khi họ tự F5 — cả 3 giao diện
+đã có banner "Đã có bản cập nhật mới — Tải lại trang" tự hiện góc dưới-phải
+(xem `src/components/UpdateBanner.jsx`, kiểm tra `dist/version.json` mỗi 5
+phút + ngay khi quay lại tab), không cần người dùng tự nhớ F5 nữa. Banner
+này CHỈ hoạt động đúng nếu `version.json` được server trả về `Cache-Control:
+no-cache` — bản PM2-only đã tự có (`NO_CACHE_FILES` trong
+`deploy/serve-static.js`), bản Nginx dùng đúng `location /` catch-all sẵn
+có, không cần sửa `nginx.conf`.
+
 ## 14. Xử lý sự cố thường gặp
 
 **Không đăng nhập được vào bất kỳ trang nào (báo sai tài khoản/mật

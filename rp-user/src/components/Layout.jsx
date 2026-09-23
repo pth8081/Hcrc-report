@@ -4,6 +4,7 @@
 import { useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '../lib/AuthContext';
+import UpdateBanner from './UpdateBanner';
 
 // Icon theo "code" menu (đến từ CSDL app.MenuItems, không phải danh sách
 // tĩnh) — mục mới thêm sau này không khớp map thì dùng icon mặc định 📄,
@@ -53,6 +54,7 @@ export default function Layout() {
 
   return (
     <div className="app-shell">
+      <UpdateBanner />
       <div className="mobile-topbar">
         <button type="button" className="mobile-menu-toggle" onClick={() => setSidebarOpen(true)} aria-label="Mở menu">☰</button>
         <div className="h-logo">H</div>
