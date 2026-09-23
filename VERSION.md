@@ -20,6 +20,31 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 6.70 — Áp cùng bản sửa "Invalid object name" cho nhập chỉ tiêu LĐTĐ/HCRC (etl/lib/salesTargetsImport.js)
+
+Người dùng vẫn không nhập được file chỉ tiêu, chỉ thấy "Lỗi máy chủ" chung
+chung trên giao diện (route nhập chỉ tiêu không ghi qua Nhật ký hệ thống,
+chỉ `console.error` ra pm2 log) — lấy đúng log pm2 lộ ra:
+```
+RequestError: Invalid object name '#StagingTargets'.
+    at BulkLoad.done [as callback] (mssql/lib/tedious/request.js:307:19)
+```
+`at BulkLoad.done` xác nhận `etl/lib/salesTargetsImport.js` **vẫn đang dùng
+`request.bulk()`/`sql.Table`** để nạp `#StagingTargets` — bản sửa 6.63
+trước đây chỉ bỏ `.input()` ở câu MERGE, CHƯA bỏ `bulk()` ở bước nạp, nên
+vẫn dính đúng lỗi gốc đã tìm ra và sửa cho `dwh.ReportFacts` (6.68/6.69).
+
+- `etl/lib/salesTargetsImport.js` — áp dụng ĐÚNG cách đã chứng minh ổn định
+  ở `lib/upsert.js`: bỏ hẳn `request.bulk()`/`sql.Table`, gộp CREATE TABLE +
+  INSERT (literal, escape thủ công, không `.input()`) + MERGE vào CÙNG 1
+  chuỗi SQL/1 lượt `.query()`; chia theo `TARGETS_ROWS_PER_TRANSACTION =
+  2000` (mỗi lô chạy trọn 1 transaction độc lập, giống `ROWS_PER_TRANSACTION`
+  của `upsert.js`) dù file chỉ tiêu hiếm khi vượt `MAX_IMPORT_ROWS = 5000`.
+- Test bằng driver SQL giả lập: insert cơ bản, re-upload giữ nguyên
+  `TrangThai` khi `preserveTrangThaiIfUnspecified` (logic nghiệp vụ quan
+  trọng nhất của hàm này), 4500 dòng → đúng 3 transaction, escape dấu nháy
+  đơn trong mã siêu thị/JSON chỉ tiêu.
+
 ## 6.69 — Chia lô theo transaction cho job "Lịch sử" (backfill nhiều dữ liệu) — bản 6.68 chỉ đủ cho job Live
 
 Sau bản 6.68 (gộp batch), job **Live** (~600 dòng/lượt) chạy hoàn toàn ổn —

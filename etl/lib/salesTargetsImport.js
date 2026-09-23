@@ -466,8 +466,20 @@ async function parseSalesTargetsFile(buffer) {
   return parseHcrcDailyShape(sheet, detected);
 }
 
-// Staging + MERGE — cùng mẫu với lib/upsert.js, khoá theo
+// Staging + MERGE — cùng mẫu với lib/upsert.js (bản 6.68/6.69), khoá theo
 // (Domain, EntityCode, PeriodMonth) thay vì (SourceSystem, Domain, EntityCode).
+//
+// LƯU Ý QUAN TRỌNG — TẠI SAO KHÔNG DÙNG request.bulk()/sql.Table: trước đây
+// dùng bulk() để nạp #StagingTargets (né .input() trên câu MERGE — xem lịch
+// sử bên dưới), nhưng đã gặp THẬT lỗi "Invalid object name '#StagingTargets'."
+// NGAY TẠI CHÍNH request.bulk() đó — cùng nguyên nhân gốc đã tìm ra và sửa
+// cho lib/upsert.js/dwh.ReportFacts (bulk() trên Request gắn Transaction có
+// lúc không thấy được bảng tạm vừa tạo). Sửa GIỐNG HỆT cách đã chứng minh ổn
+// định: gộp CREATE TABLE + INSERT (literal, escape thủ công — KHÔNG dùng
+// .input()) + MERGE vào CÙNG 1 chuỗi SQL, gửi qua ĐÚNG 1 lượt .query(); chia
+// theo ROWS_PER_TRANSACTION (dù file chỉ tiêu hiếm khi vượt quá — MAX_IMPORT_ROWS
+// = 5000 — vẫn áp dụng đồng nhất, phòng file lớn trong tương lai).
+//
 // preserveTrangThaiIfUnspecified — CHỈ bật cho POST /import (nhập file):
 // file re-upload có thể không đụng gì tới cột TrangThai (không có cột đó,
 // hoặc để trống ở dòng này), khi đó GIỮ NGUYÊN TrangThai đang có thay vì để
@@ -475,80 +487,95 @@ async function parseSalesTargetsFile(buffer) {
 // này — route đó có tài liệu rõ "GHI ĐÈ nguyên TargetsJson" vì giao diện đã
 // tự tải dữ liệu hiện có lên form, để trống trangThai trong form nghĩa là
 // admin CHỦ Ý xoá, không phải "không biết/không đụng tới".
+const TARGETS_ROWS_PER_TRANSACTION = 2000;
+const TARGETS_INSERT_BATCH_SIZE = 500; // giới hạn 1000 dòng/câu VALUES của SQL Server
+
+function sqlNStr(value) {
+  return `N'${String(value).replace(/'/g, "''")}'`;
+}
+function sqlDateLiteral(value) {
+  const d = value instanceof Date ? value : new Date(value);
+  return `'${d.toISOString().slice(0, 10)}'`;
+}
+
+const CREATE_STAGING_TARGETS_SQL = `
+IF OBJECT_ID('tempdb..#StagingTargets') IS NOT NULL DROP TABLE #StagingTargets;
+CREATE TABLE #StagingTargets (
+  Domain            VARCHAR(50)   NOT NULL,
+  EntityCode        NVARCHAR(100) NOT NULL,
+  PeriodMonth       DATE          NOT NULL,
+  TargetsJson       NVARCHAR(MAX) NOT NULL,
+  ImportedBy        NVARCHAR(50)  NULL,
+  PreserveTrangThai BIT           NOT NULL
+);`;
+
+// TargetsJson = src.TargetsJson (ghi đè NGUYÊN VẸN) TRỪ TrangThai khi
+// preserveTrangThaiIfUnspecified=1: lượt nhập KHÔNG đề cập TrangThai (file
+// không có cột đó, hoặc ô trống ở dòng này — parseSalesTargetsFile() không
+// đưa key TrangThai vào targets trong 2 trường hợp đó), mà dòng CŨ đang có
+// TrangThai — GIỮ NGUYÊN giá trị cũ thay vì để mất theo TargetsJson mới.
+// Không có nhánh này, 1 lượt re-upload chỉ để sửa SỐ LIỆU (không đụng gì
+// tới TrangThai) sẽ ÂM THẦM MỞ LẠI 1 siêu thị đã đánh dấu "DaDong" ở lượt
+// nhập trước — đúng kịch bản "quên 1 cột" gây sai lệch composite report
+// (xem chú thích đầu file). Upload MỚI có ghi rõ TrangThai (kể cả
+// 'HoatDong' để chủ động mở lại) vẫn LUÔN thắng — chỉ giữ giá trị cũ khi
+// upload không nói gì tới trường này.
+const MERGE_TARGETS_SQL = `
+MERGE dwh.SalesTargets AS target
+USING #StagingTargets AS src
+  ON  target.Domain = src.Domain
+  AND target.EntityCode = src.EntityCode
+  AND target.PeriodMonth = src.PeriodMonth
+WHEN MATCHED THEN
+  UPDATE SET
+    TargetsJson = CASE
+      WHEN src.PreserveTrangThai = 1
+           AND JSON_VALUE(src.TargetsJson, '$.TrangThai') IS NULL
+           AND JSON_VALUE(target.TargetsJson, '$.TrangThai') IS NOT NULL
+      THEN JSON_MODIFY(src.TargetsJson, '$.TrangThai', JSON_VALUE(target.TargetsJson, '$.TrangThai'))
+      ELSE src.TargetsJson
+    END,
+    ImportedAt = SYSUTCDATETIME(),
+    ImportedBy = src.ImportedBy
+WHEN NOT MATCHED THEN
+  INSERT (Domain, EntityCode, PeriodMonth, TargetsJson, ImportedAt, ImportedBy)
+  VALUES (src.Domain, src.EntityCode, src.PeriodMonth, src.TargetsJson, SYSUTCDATETIME(), src.ImportedBy)
+OUTPUT $action AS Action;`;
+
+function buildTargetsInsertBatches(rows, domain, importedBy, preserveTrangThaiValue) {
+  const batches = [];
+  for (let i = 0; i < rows.length; i += TARGETS_INSERT_BATCH_SIZE) {
+    const chunk = rows.slice(i, i + TARGETS_INSERT_BATCH_SIZE);
+    const values = chunk.map(r => `(${sqlNStr(domain)}, ${sqlNStr(r.entityCode)}, ${sqlDateLiteral(r.periodMonth)}, ${sqlNStr(JSON.stringify(r.targets))}, ${importedBy ? sqlNStr(importedBy) : 'NULL'}, ${preserveTrangThaiValue ? 1 : 0})`).join(',\n');
+    batches.push(`INSERT INTO #StagingTargets (Domain, EntityCode, PeriodMonth, TargetsJson, ImportedBy, PreserveTrangThai) VALUES\n${values};`);
+  }
+  return batches;
+}
+
 async function upsertSalesTargets(pool, domain, rows, importedBy, { preserveTrangThaiIfUnspecified = false } = {}) {
   if (!rows.length) return { inserted: 0, updated: 0 };
+
+  let inserted = 0;
+  let updated = 0;
+  for (let i = 0; i < rows.length; i += TARGETS_ROWS_PER_TRANSACTION) {
+    const chunk = rows.slice(i, i + TARGETS_ROWS_PER_TRANSACTION);
+    const result = await upsertSalesTargetsChunk(pool, domain, chunk, importedBy, { preserveTrangThaiIfUnspecified });
+    inserted += result.inserted;
+    updated += result.updated;
+  }
+  return { inserted, updated };
+}
+
+async function upsertSalesTargetsChunk(pool, domain, rows, importedBy, { preserveTrangThaiIfUnspecified = false } = {}) {
+  const preserveTrangThaiValue = !!preserveTrangThaiIfUnspecified;
+  const setupSql = [CREATE_STAGING_TARGETS_SQL, ...buildTargetsInsertBatches(rows, domain, importedBy, preserveTrangThaiValue)].join('\n');
 
   const tx = new sql.Transaction(pool);
   await tx.begin();
   try {
-    await new sql.Request(tx).query(`
-      IF OBJECT_ID('tempdb..#StagingTargets') IS NOT NULL DROP TABLE #StagingTargets;
-      CREATE TABLE #StagingTargets (
-        Domain            VARCHAR(50)   NOT NULL,
-        EntityCode        NVARCHAR(100) NOT NULL,
-        PeriodMonth       DATE          NOT NULL,
-        TargetsJson       NVARCHAR(MAX) NOT NULL,
-        ImportedBy        NVARCHAR(50)  NULL,
-        PreserveTrangThai BIT           NOT NULL
-      );
-    `);
-
-    // ImportedBy/PreserveTrangThai NẠP CÙNG BULK INSERT (mỗi dòng lặp lại 2
-    // giá trị NHƯ NHAU) thay vì `.input()` trên câu MERGE bên dưới — ĐÃ GẶP
-    // THẬT lỗi "Invalid object name '#StagingTargets'" khi câu MERGE có
-    // `.input()` (driver mssql chuyển sang chạy qua sp_executesql, không còn
-    // thấy temp table tạo ở request TRƯỚC trong CÙNG transaction — khác
-    // hẳn lib/upsert.js, câu MERGE ở đó KHÔNG dùng `.input()` nên không dính
-    // lỗi này). Cách này giữ nguyên tham số hoá AN TOÀN (qua kiểu cột
-    // sql.Table, không phải nối chuỗi) mà không cần `.input()` trên câu
-    // truy vấn có nhắc tới temp table.
-    const table = new sql.Table('#StagingTargets');
-    table.create = false;
-    table.columns.add('Domain', sql.VarChar(50), { nullable: false });
-    table.columns.add('EntityCode', sql.NVarChar(100), { nullable: false });
-    table.columns.add('PeriodMonth', sql.Date, { nullable: false });
-    table.columns.add('TargetsJson', sql.NVarChar(sql.MAX), { nullable: false });
-    table.columns.add('ImportedBy', sql.NVarChar(50), { nullable: true });
-    table.columns.add('PreserveTrangThai', sql.Bit, { nullable: false });
-    const preserveTrangThaiValue = preserveTrangThaiIfUnspecified ? true : false;
-    for (const r of rows) {
-      table.rows.add(domain, r.entityCode, r.periodMonth, JSON.stringify(r.targets), importedBy || null, preserveTrangThaiValue);
-    }
-    await new sql.Request(tx).bulk(table);
-
-    // TargetsJson = src.TargetsJson (ghi đè NGUYÊN VẸN) TRỪ TrangThai khi
-    // preserveTrangThaiIfUnspecified=1: lượt nhập KHÔNG đề cập TrangThai
-    // (file không có cột đó, hoặc ô trống ở dòng này — parseSalesTargetsFile()
-    // không đưa key TrangThai vào targets trong 2 trường hợp đó), mà dòng
-    // CŨ đang có TrangThai — GIỮ NGUYÊN giá trị cũ thay vì để mất theo
-    // TargetsJson mới. Không có nhánh này, 1 lượt re-upload chỉ để sửa SỐ
-    // LIỆU (không đụng gì tới TrangThai) sẽ ÂM THẦM MỞ LẠI 1 siêu thị đã
-    // đánh dấu "DaDong" ở lượt nhập trước — đúng kịch bản "quên 1 cột" gây
-    // sai lệch composite report (xem chú thích đầu file). Upload MỚI có ghi
-    // rõ TrangThai (kể cả 'HoatDong' để chủ động mở lại) vẫn LUÔN thắng —
-    // chỉ giữ giá trị cũ khi upload không nói gì tới trường này.
-    const mergeResult = await new sql.Request(tx).query(`
-        MERGE dwh.SalesTargets AS target
-        USING #StagingTargets AS src
-          ON  target.Domain = src.Domain
-          AND target.EntityCode = src.EntityCode
-          AND target.PeriodMonth = src.PeriodMonth
-        WHEN MATCHED THEN
-          UPDATE SET
-            TargetsJson = CASE
-              WHEN src.PreserveTrangThai = 1
-                   AND JSON_VALUE(src.TargetsJson, '$.TrangThai') IS NULL
-                   AND JSON_VALUE(target.TargetsJson, '$.TrangThai') IS NOT NULL
-              THEN JSON_MODIFY(src.TargetsJson, '$.TrangThai', JSON_VALUE(target.TargetsJson, '$.TrangThai'))
-              ELSE src.TargetsJson
-            END,
-            ImportedAt = SYSUTCDATETIME(),
-            ImportedBy = src.ImportedBy
-        WHEN NOT MATCHED THEN
-          INSERT (Domain, EntityCode, PeriodMonth, TargetsJson, ImportedAt, ImportedBy)
-          VALUES (src.Domain, src.EntityCode, src.PeriodMonth, src.TargetsJson, SYSUTCDATETIME(), src.ImportedBy)
-        OUTPUT $action AS Action;
-      `);
+    // 1 round-trip DUY NHẤT: tạo bảng tạm + nạp dữ liệu + MERGE, tất cả
+    // trong CÙNG 1 batch/1 lượt .query() — xem giải thích ở đầu hàm.
+    const mergeResult = await new sql.Request(tx).query([setupSql, MERGE_TARGETS_SQL].join('\n'));
 
     await tx.commit();
     const actions = mergeResult.recordset.map(r => r.Action);
