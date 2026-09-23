@@ -20,6 +20,26 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 6.68 — Gộp batch để né dứt điểm "Invalid object name '#Staging'" vẫn còn tái diễn sau bản 6.67
+
+Bản 6.67 (bỏ `request.bulk()`) chưa dứt điểm — người dùng xác nhận qua log
+pm2 thật (đã kiểm chứng code/deploy/restart đều đúng bản mới) rằng lỗi
+`Invalid object name '#Staging'.` vẫn xảy ra dù chỉ còn dùng `.query()`
+thuần trên nhiều `Request` rời rạc tạo trên CÙNG 1 `Transaction`.
+
+- `etl/lib/upsert.js` — gộp mọi câu lệnh liên quan `#Staging` (CREATE TABLE
+  + tất cả INSERT + SELECT dò lịch sử/MERGE) vào **CÙNG một chuỗi SQL, gửi
+  qua ĐÚNG MỘT lượt `.query()`** thay vì tạo `new sql.Request(tx)` riêng
+  cho từng bước — giảm từ 5+ round-trip xuống còn tối đa 2 (`keepHistory`
+  bật: 1 round-trip duy nhất tạo bảng+nạp dữ liệu+MERGE; tắt: round-trip 1
+  tạo bảng+nạp dữ liệu+đo lịch sử, round-trip 2 dọn dòng cũ+MERGE). Dù
+  chưa xác định được 100% cơ chế nội tại của thư viện `mssql` gây ra hiện
+  tượng này, gộp batch loại bỏ hoàn toàn "khoảng hở" giữa các `Request` rời
+  rạc — cách né triệt để nhất, không phụ thuộc giả thuyết đúng/sai.
+- Test lại toàn bộ bằng driver SQL giả lập (kết nối đơn), xác nhận đúng số
+  round-trip theo từng nhánh `keepHistory` và luồng insert/update qua MERGE
+  vẫn chính xác.
+
 ## 6.67 — Sửa lỗi gốc khiến dwh.ReportFacts CHƯA TỪNG ghi được dòng nào (Invalid object name '#Staging')
 
 Người dùng phát hiện qua `SELECT TOP 1000 * FROM dwh.ReportFacts` cho 0 dòng

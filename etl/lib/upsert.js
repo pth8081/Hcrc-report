@@ -2,23 +2,30 @@
 // MERGE, khớp theo khoá nghiệp vụ (SourceSystem, Domain, EntityCode,
 // EventDate — EventDate NẰM TRONG khoá, xem dwh/schema.sql). Nạp dữ liệu
 // qua bảng tạm #Staging bằng câu INSERT...VALUES viết trực tiếp (nhiều
-// dòng/câu, chia lô — xem buildInsertBatches bên dưới) trước khi MERGE —
-// nhanh hơn nhiều so với upsert từng dòng khi một lượt đồng bộ có hàng
-// nghìn dòng. Toàn bộ chạy trong 1 transaction: lỗi giữa chừng thì
+// dòng/câu, chia lô — xem buildStagingInsertBatches bên dưới) trước khi
+// MERGE — nhanh hơn nhiều so với upsert từng dòng khi một lượt đồng bộ có
+// hàng nghìn dòng. Toàn bộ chạy trong 1 transaction: lỗi giữa chừng thì
 // rollback, không có dòng nào được ghi nửa vời.
 //
-// LƯU Ý QUAN TRỌNG — TẠI SAO KHÔNG DÙNG request.bulk()/sql.Table: đã gặp
-// lỗi thật "Invalid object name '#Staging'." khi dùng request.bulk(table)
-// trên Request gắn với Transaction — thư viện mssql có lỗi khiến .bulk()
-// dùng một KẾT NỐI VẬT LÝ KHÁC với kết nối đang giữ transaction, nên bảng
-// tạm #Staging (tạo trên kết nối của transaction) "không tồn tại" với thao
-// tác bulk. Đây là nguyên nhân khiến dwh.ReportFacts CHƯA TỪNG có dòng nào
-// ghi thành công (mọi lượt sync đều rollback ngay ở bước này, ẩn sau lỗi
-// chung chung trước khi describeSyncError() lộ được thông điệp thật). Cách
-// né: build câu INSERT...VALUES bằng literal (escape thủ công, KHÔNG dùng
-// .input()/sp_executesql — cũng từng gây lỗi tương tự với #StagingTargets,
-// xem lib/salesTargetsImport.js), chạy qua .query() thuần trên CÙNG request
-// pattern với CREATE TABLE/DELETE/MERGE bên dưới (đã xác nhận ổn định).
+// LƯU Ý QUAN TRỌNG — TẠI SAO GỘP MỌI CÂU LỆNH LIÊN QUAN #Staging VÀO CÙNG
+// 1 BATCH/1 LƯỢT .query(): đã gặp lỗi thật "Invalid object name '#Staging'."
+// LẶP LẠI NHIỀU LẦN dù đã bỏ hẳn request.bulk()/sql.Table (nghi ngờ ban đầu)
+// và thay bằng .query() thuần — kể cả vậy, việc tạo bảng tạm ở MỘT
+// new sql.Request(tx) rồi INSERT/SELECT/DELETE/MERGE ở CÁC new sql.Request(tx)
+// KHÁC (dù cùng 1 Transaction) vẫn có lúc không thấy được #Staging — không
+// loại trừ hết khả năng thư viện mssql không giữ đúng 1 kết nối vật lý cho
+// MỌI Request tạo rời rạc trên cùng Transaction trong một số trường hợp.
+// Cách né triệt để: GỘP TẠO BẢNG + NẠP DỮ LIỆU + (SELECT dò lịch sử hoặc
+// MERGE) vào CÙNG MỘT chuỗi SQL, gửi qua ĐÚNG MỘT lượt .query() — CHỈ CÒN
+// TỐI ĐA 2 lượt gọi .query() cho toàn bộ hàm (thay vì 5+ trước đây), nên dù
+// nguyên nhân thật là gì, #Staging luôn được tạo/đọc/ghi trong CÙNG một
+// round-trip/batch, không có khoảng hở nào giữa các Request rời rạc để lộ
+// ra vấn đề (nếu có) nữa. Đây là nguyên nhân khiến dwh.ReportFacts CHƯA
+// TỪNG có dòng nào ghi thành công kể từ khi triển khai — lỗi bị ẩn sau
+// thông điệp chung chung trước khi describeSyncError() (bản 6.63/6.66) lộ
+// được thông điệp thật. KHÔNG dùng .input() cho các câu lệnh này (cùng lý
+// do đã né ở bản 6.63 cho #StagingTargets — xem lib/salesTargetsImport.js)
+// — mọi giá trị đều escape thủ công thành literal T-SQL.
 //
 // keepHistory (etl.SyncJobs.KeepHistory, xem etl-db/schema.sql) — TẮT mặc
 // định: TRƯỚC khi MERGE, dọn các dòng CŨ của đúng thực thể này nhưng KHÁC
@@ -40,7 +47,11 @@
 // 1-2 ngày gần nhau, vd hôm qua -> hôm nay). Gặp trường hợp đó thì CHẶN
 // CỨNG — không xoá, không MERGE, ném lỗi để lượt chạy hiện LỖI rõ ràng trên
 // Dashboard/Log, admin vào bật lại "Giữ lịch sử" rồi chạy lại — dữ liệu cũ
-// không đụng gì trong lúc chờ sửa.
+// không đụng gì trong lúc chờ sửa. Vì cần ĐỌC kết quả đo (Cnt/MinDate/
+// MaxDate) ở tầng JS TRƯỚC KHI quyết định có DELETE hay không, bước này bắt
+// buộc phải là 1 round-trip riêng — không gộp được vào batch tạo bảng/nạp
+// dữ liệu (không có gì để gộp SỚM hơn) lẫn batch DELETE+MERGE (phụ thuộc
+// kết quả của chính SELECT này).
 const { sql } = require('../db');
 
 const STALE_HISTORY_SPAN_DAYS = 3;
@@ -75,9 +86,82 @@ function buildStagingInsertBatches(rows) {
   return batches;
 }
 
+const CREATE_STAGING_SQL = `
+IF OBJECT_ID('tempdb..#Staging') IS NOT NULL DROP TABLE #Staging;
+CREATE TABLE #Staging (
+  SourceSystem  VARCHAR(50)   NOT NULL,
+  Domain        VARCHAR(50)   NOT NULL,
+  EntityCode    NVARCHAR(100) NULL,
+  EventDate     DATE          NOT NULL,
+  Dimensions    NVARCHAR(MAX) NOT NULL,
+  Measures      NVARCHAR(MAX) NULL
+);`;
+
+// "target.EntityCode = src.EntityCode OR (... IS NULL AND ... IS NULL)" —
+// KHÔNG được viết gọn "target.EntityCode = src.EntityCode" (ANSI NULL: NULL
+// = NULL luôn UNKNOWN, không khớp). Domain không gắn 1 thực thể cụ thể
+// (EntityCode NULL, xem dwh/schema.sql) khớp ON kiểu ANSI sẽ LUÔN rơi vào
+// WHEN NOT MATCHED -> INSERT — nhưng UNIQUE constraint
+// UX_ReportFacts_Source_Domain_Entity_Date lại coi 2 NULL là TRÙNG NHAU
+// (ngữ nghĩa NULL của SQL Server cho unique index, khác ANSI). Lệch pha 2
+// ngữ nghĩa này khiến lần đồng bộ THỨ 2 của 1 dòng EntityCode NULL cùng
+// EventDate (dữ liệu nguồn đổi, UpdatedAtColumn tăng) vẫn cố INSERT thay vì
+// UPDATE, vi phạm UNIQUE KEY, rollback NGUYÊN CẢ LÔ — job lỗi lặp lại vô
+// thời hạn. Viết tường minh vế OR để khớp ĐÚNG ngữ nghĩa UNIQUE constraint,
+// không dựa vào ANSI NULL mặc định của ON clause.
+const MERGE_SQL = `
+MERGE dwh.ReportFacts AS target
+USING #Staging AS src
+  ON  target.SourceSystem = src.SourceSystem
+  AND target.Domain = src.Domain
+  AND (target.EntityCode = src.EntityCode OR (target.EntityCode IS NULL AND src.EntityCode IS NULL))
+  AND target.EventDate = src.EventDate
+WHEN MATCHED THEN
+  UPDATE SET
+    Dimensions = src.Dimensions,
+    Measures = src.Measures,
+    SyncedAt = SYSUTCDATETIME()
+WHEN NOT MATCHED THEN
+  INSERT (SourceSystem, Domain, EntityCode, EventDate, Dimensions, Measures, SyncedAt)
+  VALUES (src.SourceSystem, src.Domain, src.EntityCode, src.EventDate, src.Dimensions, src.Measures, SYSUTCDATETIME())
+OUTPUT $action AS Action;`;
+
+const STALE_CHECK_SQL = `
+SELECT COUNT(*) AS Cnt, MIN(EventDate) AS MinDate, MAX(EventDate) AS MaxDate
+FROM dwh.ReportFacts
+WHERE EXISTS (
+  SELECT 1 FROM #Staging s
+  WHERE s.SourceSystem = dwh.ReportFacts.SourceSystem
+    AND s.Domain = dwh.ReportFacts.Domain
+    AND (s.EntityCode = dwh.ReportFacts.EntityCode OR (s.EntityCode IS NULL AND dwh.ReportFacts.EntityCode IS NULL))
+)
+AND NOT EXISTS (
+  SELECT 1 FROM #Staging s
+  WHERE s.SourceSystem = dwh.ReportFacts.SourceSystem
+    AND s.Domain = dwh.ReportFacts.Domain
+    AND (s.EntityCode = dwh.ReportFacts.EntityCode OR (s.EntityCode IS NULL AND dwh.ReportFacts.EntityCode IS NULL))
+    AND s.EventDate = dwh.ReportFacts.EventDate
+);`;
+
+const DELETE_STALE_SQL = `
+DELETE FROM dwh.ReportFacts
+WHERE EXISTS (
+  SELECT 1 FROM #Staging s
+  WHERE s.SourceSystem = dwh.ReportFacts.SourceSystem
+    AND s.Domain = dwh.ReportFacts.Domain
+    AND (s.EntityCode = dwh.ReportFacts.EntityCode OR (s.EntityCode IS NULL AND dwh.ReportFacts.EntityCode IS NULL))
+)
+AND NOT EXISTS (
+  SELECT 1 FROM #Staging s
+  WHERE s.SourceSystem = dwh.ReportFacts.SourceSystem
+    AND s.Domain = dwh.ReportFacts.Domain
+    AND (s.EntityCode = dwh.ReportFacts.EntityCode OR (s.EntityCode IS NULL AND dwh.ReportFacts.EntityCode IS NULL))
+    AND s.EventDate = dwh.ReportFacts.EventDate
+);`;
+
 // Hàm THUẦN (không đụng CSDL) — tách riêng để test được không cần SQL Server
 // thật. { count, minDate, maxDate } là kết quả đo trước của TẬP DÒNG SẮP bị
-// DELETE (cùng predicate với câu DELETE thật ở dưới).
+// DELETE (cùng predicate với DELETE_STALE_SQL ở trên).
 function shouldBlockHistoryWipe({ count, minDate, maxDate }) {
   if (!count) return false;
   if (!minDate || !maxDate) return false;
@@ -88,49 +172,22 @@ function shouldBlockHistoryWipe({ count, minDate, maxDate }) {
 async function upsertReportFacts(pool, rows, { keepHistory = false } = {}) {
   if (!rows.length) return { inserted: 0, updated: 0 };
 
+  const setupSql = [CREATE_STAGING_SQL, ...buildStagingInsertBatches(rows)].join('\n');
+
   const tx = new sql.Transaction(pool);
   await tx.begin();
   try {
-    await new sql.Request(tx).query(`
-      IF OBJECT_ID('tempdb..#Staging') IS NOT NULL DROP TABLE #Staging;
-      CREATE TABLE #Staging (
-        SourceSystem  VARCHAR(50)   NOT NULL,
-        Domain        VARCHAR(50)   NOT NULL,
-        EntityCode    NVARCHAR(100) NULL,
-        EventDate     DATE          NOT NULL,
-        Dimensions    NVARCHAR(MAX) NOT NULL,
-        Measures      NVARCHAR(MAX) NULL
-      );
-    `);
-
-    for (const insertSql of buildStagingInsertBatches(rows)) {
-      await new sql.Request(tx).query(insertSql);
-    }
-
-    if (!keepHistory) {
-      // Dọn dòng CŨ của đúng thực thể này nhưng KHÁC EventDate với bất kỳ
-      // dòng nào trong lô mới — giữ đúng "1 dòng/thực thể" (không giữ lịch
-      // sử) dù EventDate giờ đã nằm trong khoá UNIQUE. TRƯỚC KHI xoá thật,
-      // đo span của tập dòng sắp bị xoá (cùng predicate WHERE/NOT EXISTS) —
-      // xem shouldBlockHistoryWipe() ở đầu file.
-      const staleCheck = await new sql.Request(tx).query(`
-        SELECT COUNT(*) AS Cnt, MIN(EventDate) AS MinDate, MAX(EventDate) AS MaxDate
-        FROM dwh.ReportFacts
-        WHERE EXISTS (
-          SELECT 1 FROM #Staging s
-          WHERE s.SourceSystem = dwh.ReportFacts.SourceSystem
-            AND s.Domain = dwh.ReportFacts.Domain
-            AND (s.EntityCode = dwh.ReportFacts.EntityCode OR (s.EntityCode IS NULL AND dwh.ReportFacts.EntityCode IS NULL))
-        )
-        AND NOT EXISTS (
-          SELECT 1 FROM #Staging s
-          WHERE s.SourceSystem = dwh.ReportFacts.SourceSystem
-            AND s.Domain = dwh.ReportFacts.Domain
-            AND (s.EntityCode = dwh.ReportFacts.EntityCode OR (s.EntityCode IS NULL AND dwh.ReportFacts.EntityCode IS NULL))
-            AND s.EventDate = dwh.ReportFacts.EventDate
-        );
-      `);
-      const { Cnt, MinDate, MaxDate } = staleCheck.recordset[0];
+    let mergeResult;
+    if (keepHistory) {
+      // 1 round-trip DUY NHẤT: tạo bảng tạm + nạp dữ liệu + MERGE, tất cả
+      // trong CÙNG 1 batch/1 lượt .query() — xem giải thích ở đầu file.
+      mergeResult = await new sql.Request(tx).query([setupSql, MERGE_SQL].join('\n'));
+    } else {
+      // Round-trip 1: tạo bảng tạm + nạp dữ liệu + đo span lịch sử sắp xoá
+      // (SELECT cuối cùng của batch quyết định .recordset trả về — xem
+      // buildInsertBatches, các câu CREATE TABLE/INSERT không tạo recordset).
+      const setupResult = await new sql.Request(tx).query([setupSql, STALE_CHECK_SQL].join('\n'));
+      const { Cnt, MinDate, MaxDate } = setupResult.recordset[0];
       if (shouldBlockHistoryWipe({ count: Cnt, minDate: MinDate, maxDate: MaxDate })) {
         throw Object.assign(
           new Error(
@@ -140,53 +197,9 @@ async function upsertReportFacts(pool, rows, { keepHistory = false } = {}) {
         );
       }
 
-      await new sql.Request(tx).query(`
-        DELETE FROM dwh.ReportFacts
-        WHERE EXISTS (
-          SELECT 1 FROM #Staging s
-          WHERE s.SourceSystem = dwh.ReportFacts.SourceSystem
-            AND s.Domain = dwh.ReportFacts.Domain
-            AND (s.EntityCode = dwh.ReportFacts.EntityCode OR (s.EntityCode IS NULL AND dwh.ReportFacts.EntityCode IS NULL))
-        )
-        AND NOT EXISTS (
-          SELECT 1 FROM #Staging s
-          WHERE s.SourceSystem = dwh.ReportFacts.SourceSystem
-            AND s.Domain = dwh.ReportFacts.Domain
-            AND (s.EntityCode = dwh.ReportFacts.EntityCode OR (s.EntityCode IS NULL AND dwh.ReportFacts.EntityCode IS NULL))
-            AND s.EventDate = dwh.ReportFacts.EventDate
-        );
-      `);
+      // Round-trip 2: dọn dòng cũ + MERGE, gộp chung 1 batch.
+      mergeResult = await new sql.Request(tx).query([DELETE_STALE_SQL, MERGE_SQL].join('\n'));
     }
-
-    // "target.EntityCode = src.EntityCode OR (... IS NULL AND ... IS NULL)"
-    // — KHÔNG được viết gọn "target.EntityCode = src.EntityCode" (ANSI NULL:
-    // NULL = NULL luôn UNKNOWN, không khớp). Domain không gắn 1 thực thể cụ
-    // thể (EntityCode NULL, xem dwh/schema.sql) khớp ON kiểu ANSI sẽ LUÔN
-    // rơi vào WHEN NOT MATCHED -> INSERT — nhưng UNIQUE constraint
-    // UX_ReportFacts_Source_Domain_Entity_Date lại coi 2 NULL là TRÙNG NHAU
-    // (ngữ nghĩa NULL của SQL Server cho unique index, khác ANSI). Lệch pha
-    // 2 ngữ nghĩa này khiến lần đồng bộ THỨ 2 của 1 dòng EntityCode NULL
-    // cùng EventDate (dữ liệu nguồn đổi, UpdatedAtColumn tăng) vẫn cố INSERT
-    // thay vì UPDATE, vi phạm UNIQUE KEY, rollback NGUYÊN CẢ LÔ — job lỗi
-    // lặp lại vô thời hạn. Viết tường minh vế OR để khớp ĐÚNG ngữ nghĩa
-    // UNIQUE constraint, không dựa vào ANSI NULL mặc định của ON clause.
-    const mergeResult = await new sql.Request(tx).query(`
-      MERGE dwh.ReportFacts AS target
-      USING #Staging AS src
-        ON  target.SourceSystem = src.SourceSystem
-        AND target.Domain = src.Domain
-        AND (target.EntityCode = src.EntityCode OR (target.EntityCode IS NULL AND src.EntityCode IS NULL))
-        AND target.EventDate = src.EventDate
-      WHEN MATCHED THEN
-        UPDATE SET
-          Dimensions = src.Dimensions,
-          Measures = src.Measures,
-          SyncedAt = SYSUTCDATETIME()
-      WHEN NOT MATCHED THEN
-        INSERT (SourceSystem, Domain, EntityCode, EventDate, Dimensions, Measures, SyncedAt)
-        VALUES (src.SourceSystem, src.Domain, src.EntityCode, src.EventDate, src.Dimensions, src.Measures, SYSUTCDATETIME())
-      OUTPUT $action AS Action;
-    `);
 
     await tx.commit();
     const actions = mergeResult.recordset.map(r => r.Action);
