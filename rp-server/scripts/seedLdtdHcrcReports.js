@@ -56,8 +56,15 @@ function buildDefinition(title, targetDomain) {
       // tháng (xem rp-server/lib/compositeReportRunner.js).
       { key: 'target', isTarget: true, targetDomain, targetGranularity: 'day' }
     ],
+    // Chỉ hiện thực thể CÓ chỉ tiêu (loại mã rác/mã test có dữ liệu thực đạt
+    // nhưng chưa từng được nhập chỉ tiêu) — xem compositeReportRunner.js.
+    requireTargetMatch: true,
     columns: [
-      { key: 'tenCuaHang', label: 'Siêu thị/Cửa hàng', formula: 'entityCode' },
+      // "current.dimensions.tenSieuThi" — tên siêu thị THẬT, do ETL ghi vào
+      // lúc đồng bộ nếu job đã cấu hình "Ánh xạ mã chi nhánh" có cột
+      // TenSieuThi (xem etl/jobs/runSync.js). Chưa cấu hình/chưa có tên thì
+      // "||" rơi về hiện đúng entityCode như trước (không để trống).
+      { key: 'tenCuaHang', label: 'Siêu thị/Cửa hàng', formula: 'current.dimensions.tenSieuThi || entityCode' },
       { key: 'dienTich', label: 'Diện tích', formula: 'current.dimensions.dienTich' },
 
       { key: 'dt_chiTieu', label: 'Doanh thu - Chỉ tiêu', formula: 'target.ChiTieuDoanhThu' },

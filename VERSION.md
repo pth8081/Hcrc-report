@@ -20,6 +20,41 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 6.72 — Báo cáo doanh thu LDTD/HCRC: lọc theo chỉ tiêu (bỏ mã rác) + hiện tên siêu thị thay vì mã
+
+Theo yêu cầu người dùng: báo cáo "Báo cáo nhanh doanh thu - LDTD/HCRC" đang
+hiện CẢ những entityCode có dữ liệu thực đạt nhưng CHƯA từng được nhập chỉ
+tiêu ("mã rác"/mã test), và cột "Siêu thị/Cửa hàng" chỉ hiện mã thay vì tên
+thật.
+
+- `rp-server/lib/compositeReportRunner.js` — thêm cờ tuỳ chọn (mặc định tắt,
+  không đổi hành vi báo cáo khác) `DefinitionJson.requireTargetMatch: true`
+  — khi bật, chỉ giữ lại các dòng CÓ mặt trong khối `isTarget` (chỉ tiêu),
+  loại các entityCode không có chỉ tiêu nào ra khỏi kết quả.
+- `etl/jobs/runSync.js` (`loadBranchCodeMap`) + `etl/lib/tableSyncEngine.js`
+  (`transformRow`) — cột `TenSieuThi` trong "Ánh xạ mã chi nhánh"
+  (etl.BranchCodeMap, trước đây chỉ để hiển thị trong etl-admin) nay được
+  ghi thêm vào `dimensions.tenSieuThi` của mỗi dòng dwh.ReportFacts khi job
+  đồng bộ có bật BranchCodeMapType — tận dụng luôn cơ chế cộng dồn
+  dimensions theo entityCode đã có sẵn (lấy giá trị không rỗng đầu tiên),
+  không cần sửa gì thêm ở tầng gộp báo cáo.
+- `rp-server/scripts/seedLdtdHcrcReports.js` — bật `requireTargetMatch:
+  true` cho cả 2 báo cáo (LDTD + HCRC), đổi công thức cột "Siêu thị/Cửa
+  hàng" thành `current.dimensions.tenSieuThi || entityCode` (rơi về mã cũ
+  nếu chưa có tên).
+- `báo cáo doanh thu cuối ngày.md` — cập nhật giải thích + cả 2
+  DefinitionJson mẫu (LDTD/HCRC) khớp thay đổi trên.
+
+**Cần làm thêm ở môi trường vận hành để tính năng có hiệu lực** (không tự
+động, xem chi tiết trong tài liệu trên): (1) chạy lại
+`node rp-server/scripts/seedLdtdHcrcReports.js` hoặc sửa tay DefinitionJson
+qua rp-user để áp thay đổi vào 2 báo cáo ĐANG LƯU trong app.ReportCatalog —
+sửa code không tự cập nhật ngược; (2) khởi động lại rp-server và etl với code
+mới; (3) để cột tên hiện tên thật thay vì mã: bật `BranchCodeMapType` cho
+sync job "Doanh thu chi nhánh" (domain doanhthu_chinhanh) trong etl-admin,
+nhập cột `TenSieuThi` ở "Ánh xạ mã chi nhánh", rồi chạy lại job đồng bộ đó
+(dữ liệu đã đồng bộ TRƯỚC khi bật sẽ chưa có tên cho tới khi đồng bộ lại).
+
 ## 6.71 — Rà soát và sửa CHỦ ĐỘNG mọi chỗ khác còn dùng request.bulk()/sql.Table trong repo
 
 Sau khi xác nhận nguyên nhân gốc (request.bulk() trên Request gắn Transaction

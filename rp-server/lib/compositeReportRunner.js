@@ -48,6 +48,16 @@
 // (siêu thị chưa kịp nhập chỉ tiêu tháng đó vẫn hiện ra bình thường, chỉ
 // trống field target — xem đoạn lọc mergedRows trong runCompositeReport()).
 //
+// DefinitionJson.requireTargetMatch (TUỲ CHỌN, mặc định false/không đổi
+// hành vi cũ ở trên) — BẬT thì lật ngược logic: CHỈ giữ thực thể có mặt
+// trong khối target (mọi entityCode KHÁC — có thực đạt nhưng KHÔNG có chỉ
+// tiêu — bị loại khỏi kết quả). Dùng cho báo cáo coi danh sách chỉ tiêu là
+// "danh sách chuẩn" của các siêu thị/cửa hàng thật (chặn mã rác/mã test lọt
+// vào từ nguồn dữ liệu thô) — xem seedLdtdHcrcReports.js. Yêu cầu
+// definition.blocks có ít nhất 1 khối isTarget; không có khối target nào
+// thì cờ này coi như không đặt (không loại gì, tránh vô tình xoá sạch báo
+// cáo nếu ai đó bật nhầm cờ mà quên khai khối target).
+//
 // DefinitionJson.groupBy (TUỲ CHỌN) — dòng "Tổng cộng" theo nhóm + tổng
 // toàn báo cáo (vd "Tổng cộng MART"/"Tổng cộng MINIMART"/"Tổng cộng"):
 //   field         — path "tenKhoi.field" dùng để nhóm (vd "current.dimensions.chain")
@@ -369,8 +379,14 @@ async function runCompositeReport(definition, filterValues = {}) {
   // thực thể trong ambiguousEntityCodes (xem vòng ghép ở trên) — dữ liệu
   // không đủ tin cậy để tính đúng, không hiện ra thay vì hiện số có thể sai.
   const targetBlockKeys = definition.blocks.filter(b => b.isTarget).map(b => b.key);
+  // requireTargetMatch (xem chú thích ở đầu file) — CHỈ áp dụng khi có ít
+  // nhất 1 khối target thật sự khai trong definition, tránh lỡ bật cờ mà
+  // quên khai khối target làm trống sạch báo cáo.
+  const requireTargetMatch = !!definition.requireTargetMatch && targetBlockKeys.length > 0;
   const mergedRows = [...merged.values()].filter(
-    r => !targetBlockKeys.some(key => r[key]?.TrangThai === 'DaDong') && !ambiguousEntityCodes.has(r.entityCode)
+    r => !targetBlockKeys.some(key => r[key]?.TrangThai === 'DaDong')
+      && !ambiguousEntityCodes.has(r.entityCode)
+      && (!requireTargetMatch || targetBlockKeys.some(key => r[key] !== undefined))
   );
   // Cột khớp `hideWhen` -> LOẠI HẲN khỏi danh sách cột trả về (không chỉ để
   // trống giá trị) — dùng cho "chế độ xem" tuỳ chọn ẩn bớt nhóm cột so sánh,

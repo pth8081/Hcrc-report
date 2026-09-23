@@ -593,6 +593,23 @@ bao giờ ghép được vào báo cáo (không có lỗi/cảnh báo gì khác 
 
 ## Bước 4 — rp-user: tạo báo cáo
 
+> **`requireTargetMatch: true`** (mới) — báo cáo CHỈ hiện thực thể CÓ dòng
+> chỉ tiêu trong khoảng ngày đang xem (loại mã "rác"/mã test có dữ liệu thực
+> đạt từ nguồn nhưng chưa từng được nhập chỉ tiêu) — khác hành vi mặc định
+> của composite report (hiện MỌI mã có thực đạt, kể cả thiếu chỉ tiêu, xem
+> `rp-server/lib/compositeReportRunner.js`). Nếu 1 siêu thị THẬT bị "biến
+> mất" khỏi báo cáo, kiểm tra lại đã nhập đủ chỉ tiêu cho đúng entityCode đó
+> chưa (mục "Chỉ tiêu đã nhập" ở etl-admin) trước khi nghi ngờ lỗi khác.
+>
+> **Cột "Siêu thị/Cửa hàng" hiện TÊN thay vì MÃ** (mới) — đọc
+> `current.dimensions.tenSieuThi`, do ETL ghi vào lúc đồng bộ NẾU job đồng
+> bộ domain `doanhthu_chinhanh` đã bật "Ánh xạ mã chi nhánh"
+> (`etl.SyncJobs.BranchCodeMapType`) VÀ có nhập cột `TenSieuThi` cho đúng mã
+> đó (etl-admin → "Ánh xạ mã chi nhánh"). Không cần mã nguồn thực sự cần đổi
+> — có thể khai dòng ánh xạ `MaKhac = MaChuan = entityCode` chỉ để gắn tên.
+> Chưa cấu hình thì cột này tự rơi về hiện đúng mã như trước (`||` trong
+> formula), không để trống.
+>
 > **Cách làm nhanh**: chạy `node rp-server/scripts/seedLdtdHcrcReports.js`
 > — script tự tạo/CẬP NHẬT đúng 2 báo cáo `bc-doanh-thu-ldtd`/
 > `bc-doanh-thu-hcrc` với nguyên khối `DefinitionJson` dưới đây (chạy lại
@@ -639,8 +656,9 @@ xuyên suốt file này (Bước 2/3), không cần sửa nếu bạn làm đún
     { "key": "lastYearGD", "sourceType": "directDb", "domain": "giaodich_chinhanh", "dateOffsetYears": -1, "skipWhen": { "field": "cheDoSoSanh", "equals": "past" } },
     { "key": "target", "isTarget": true, "targetDomain": "sales-targets-ldtd", "targetGranularity": "day" }
   ],
+  "requireTargetMatch": true,
   "columns": [
-    { "key": "tenCuaHang", "label": "Siêu thị/Cửa hàng", "formula": "entityCode" },
+    { "key": "tenCuaHang", "label": "Siêu thị/Cửa hàng", "formula": "current.dimensions.tenSieuThi || entityCode" },
     { "key": "dienTich", "label": "Diện tích", "formula": "current.dimensions.dienTich" },
 
     { "key": "dt_chiTieu", "label": "Doanh thu - Chỉ tiêu", "formula": "target.ChiTieuDoanhThu" },
@@ -711,8 +729,9 @@ Lặp lại y hệt, đổi:
     { "key": "lastYearGD", "sourceType": "directDb", "domain": "giaodich_chinhanh", "dateOffsetYears": -1, "skipWhen": { "field": "cheDoSoSanh", "equals": "past" } },
     { "key": "target", "isTarget": true, "targetDomain": "sales-targets-hcrc", "targetGranularity": "day" }
   ],
+  "requireTargetMatch": true,
   "columns": [
-    { "key": "tenCuaHang", "label": "Siêu thị/Cửa hàng", "formula": "entityCode" },
+    { "key": "tenCuaHang", "label": "Siêu thị/Cửa hàng", "formula": "current.dimensions.tenSieuThi || entityCode" },
     { "key": "dienTich", "label": "Diện tích", "formula": "current.dimensions.dienTich" },
 
     { "key": "dt_chiTieu", "label": "Doanh thu - Chỉ tiêu", "formula": "target.ChiTieuDoanhThu" },

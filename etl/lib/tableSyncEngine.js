@@ -89,15 +89,20 @@ function normalizeEventDate(rawValue, engine) {
   return new Date(Date.UTC(rawValue.getFullYear(), rawValue.getMonth(), rawValue.getDate()));
 }
 
-// branchCodeMap (tuỳ chọn, Map<string,string> MaKhac -> MaChuan, đã nạp sẵn
-// TRƯỚC vòng lặp — xem jobs/runSync.js:loadBranchCodeMap()) — khi job có
-// BranchCodeMapType (etl.SyncJobs), quy đổi entityCode gốc của nguồn (vd
-// BU_ID) sang mã chuẩn (vd STK_ID/mã siêu thị) đã dùng ở domain khác, để
+// branchCodeMap (tuỳ chọn, Map<string,{maChuan,tenSieuThi}> MaKhac -> đích,
+// đã nạp sẵn TRƯỚC vòng lặp — xem jobs/runSync.js:loadBranchCodeMap()) — khi
+// job có BranchCodeMapType (etl.SyncJobs), quy đổi entityCode gốc của nguồn
+// (vd BU_ID) sang mã chuẩn (vd STK_ID/mã siêu thị) đã dùng ở domain khác, để
 // composite report ghép được theo entityCode (xem etl.BranchCodeMap trong
 // etl-db/schema.sql). Mã KHÔNG tìm thấy trong bảng ánh xạ vẫn GIỮ NGUYÊN mã
 // gốc (không rớt dòng, không chặn đồng bộ) — chỉ thêm vào unmappedCodes (Set,
 // tuỳ chọn) để caller cảnh báo 1 lần/lượt chạy, không phải lỗi cứng vì admin
-// có thể chưa kịp khai đủ ánh xạ cho toàn bộ chi nhánh.
+// có thể chưa kịp khai đủ ánh xạ cho toàn bộ chi nhánh. TenSieuThi (nếu admin
+// có gõ) ghi thêm vào dimensions.tenSieuThi — thuộc tính TĨNH của chi nhánh,
+// đi theo đúng cơ chế "lấy giá trị không rỗng đầu tiên" đã có sẵn cho
+// dimensions khi cộng dồn nhiều ngày (xem
+// rp-server/lib/compositeReportRunner.js:aggregateDailyRowsByEntity) —
+// KHÔNG cần sửa gì thêm ở tầng đó.
 function transformRow(job, meta, row, branchCodeMap, unmappedCodes) {
   const dimensions = {};
   for (const c of meta.dimCols) dimensions[c] = row[`m_${c}`];
@@ -120,8 +125,11 @@ function transformRow(job, meta, row, branchCodeMap, unmappedCodes) {
   let entityCode = trimmedEntityCode;
   if (branchCodeMap) {
     const key = trimmedEntityCode == null ? '' : String(trimmedEntityCode);
-    if (branchCodeMap.has(key)) entityCode = branchCodeMap.get(key);
-    else if (unmappedCodes) unmappedCodes.add(key);
+    const mapped = branchCodeMap.get(key);
+    if (mapped) {
+      entityCode = mapped.maChuan;
+      if (mapped.tenSieuThi) dimensions.tenSieuThi = mapped.tenSieuThi;
+    } else if (unmappedCodes) unmappedCodes.add(key);
   }
   return {
     sourceSystem: `ds${job.DataSourceId}`,
