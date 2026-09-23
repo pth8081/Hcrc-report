@@ -20,6 +20,35 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 6.69 — Chia lô theo transaction cho job "Lịch sử" (backfill nhiều dữ liệu) — bản 6.68 chỉ đủ cho job Live
+
+Sau bản 6.68 (gộp batch), job **Live** (~600 dòng/lượt) chạy hoàn toàn ổn —
+xác nhận qua log pm2 thật ("Xong — 627 dòng mới"/"575 dòng mới"). Nhưng job
+**"Lịch sử (DSMART16_EOM)"** (backfill nhiều tháng/năm dữ liệu, có thể hàng
+chục nghìn dòng) vẫn gặp LẠI đúng lỗi `Invalid object name '#Staging'.` —
+nhiều khả năng batch gộp toàn bộ (CREATE TABLE + hàng chục nghìn dòng
+INSERT) trong 1 câu `.query()` duy nhất đã chạm một giới hạn nào đó
+(kích thước/số câu lệnh) mà batch nhỏ (Live) không chạm tới.
+
+- `etl/lib/upsert.js` — thêm `ROWS_PER_TRANSACTION = 2000`: `rows` được
+  chia thành nhiều LÔ, mỗi lô chạy TRỌN VẸN 1 chu trình transaction độc
+  lập (đúng pattern gộp-batch của 6.68 đã CHỨNG MINH ổn định ở quy mô
+  nhỏ), kết quả `inserted`/`updated` cộng dồn qua các lô. Đổi tên hàm cũ
+  thành `upsertReportFactsChunk` (xử lý đúng 1 lô), `upsertReportFacts`
+  giờ là vòng lặp gọi hàm đó.
+  - Đánh đổi: bước "dọn dòng cũ" (stale wipe, khi `KeepHistory=false`) chỉ
+    thấy được dữ liệu của ĐÚNG lô đang xử lý — 1 thực thể có dữ liệu trải
+    trên nhiều lô có thể bị dọn "nhầm" ở lô này rồi được lô sau ghi lại
+    đúng ngay sau đó (tự sửa trong cùng 1 lượt chạy job, không lộ ra
+    ngoài vì mọi lô chạy xong mới coi job kết thúc); lưới an toàn
+    `shouldBlockHistoryWipe()` cũng chỉ đánh giá theo từng lô. Chấp nhận
+    được vì chia lô chỉ kích hoạt với dữ liệu backfill bất thường lớn,
+    không ảnh hưởng job hàng ngày thông thường (≤2000 dòng vẫn 1 lô như
+    trước).
+- Test bằng driver SQL giả lập: 4500 dòng → đúng 3 transaction, 4000 dòng →
+  đúng 2 transaction (chia hết), 600 dòng (mô phỏng job Live thật) → vẫn
+  đúng 1 transaction như bản 6.68 (không có hồi quy).
+
 ## 6.68 — Gộp batch để né dứt điểm "Invalid object name '#Staging'" vẫn còn tái diễn sau bản 6.67
 
 Bản 6.67 (bỏ `request.bulk()`) chưa dứt điểm — người dùng xác nhận qua log

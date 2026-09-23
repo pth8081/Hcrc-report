@@ -27,6 +27,24 @@
 // do đã né ở bản 6.63 cho #StagingTargets — xem lib/salesTargetsImport.js)
 // — mọi giá trị đều escape thủ công thành literal T-SQL.
 //
+// CHIA LÔ THEO TRANSACTION (ROWS_PER_TRANSACTION, xem bên dưới) — gộp batch
+// ở trên (bản 6.68) chỉ đúng cho lượng dòng VỪA PHẢI (job "Live" ~600 dòng
+// chạy ổn): job "Lịch sử" backfill nhiều tháng/năm dữ liệu (có thể hàng
+// chục nghìn dòng) vẫn gặp LẠI đúng lỗi "Invalid object name '#Staging'."
+// khi nhồi TOÀN BỘ vào 1 câu .query() — nhiều khả năng chạm một giới hạn
+// nào đó (kích thước/số câu lệnh trong 1 batch) mà batch nhỏ không chạm
+// tới. Thay vì cố tìm đúng ngưỡng, chia rows thành nhiều LÔ nhỏ
+// (ROWS_PER_TRANSACTION dòng/lô), mỗi lô chạy TRỌN VẸN 1 chu trình
+// transaction độc lập (đúng pattern đã CHỨNG MINH ổn định ở quy mô nhỏ),
+// cộng dồn kết quả. Đánh đổi: bước "dọn dòng cũ" (stale wipe, xem dưới)
+// chỉ thấy được dữ liệu của ĐÚNG lô đang xử lý — 1 thực thể có dữ liệu trải
+// trên NHIỀU lô có thể bị dọn "nhầm" ở lô này rồi được lô sau ghi lại đúng
+// ngay sau đó (tự sửa trong cùng 1 lượt chạy job, không lộ ra ngoài); lưới
+// an toàn shouldBlockHistoryWipe() cũng chỉ đánh giá theo từng lô — chấp
+// nhận được vì chia lô chỉ kích hoạt với dữ liệu backfill bất thường lớn,
+// không phải job hàng ngày thông thường.
+const ROWS_PER_TRANSACTION = 2000;
+//
 // keepHistory (etl.SyncJobs.KeepHistory, xem etl-db/schema.sql) — TẮT mặc
 // định: TRƯỚC khi MERGE, dọn các dòng CŨ của đúng thực thể này nhưng KHÁC
 // EventDate với dòng mới sắp ghi — giữ đúng "1 dòng/thực thể" như thiết kế
@@ -172,6 +190,20 @@ function shouldBlockHistoryWipe({ count, minDate, maxDate }) {
 async function upsertReportFacts(pool, rows, { keepHistory = false } = {}) {
   if (!rows.length) return { inserted: 0, updated: 0 };
 
+  let inserted = 0;
+  let updated = 0;
+  for (let i = 0; i < rows.length; i += ROWS_PER_TRANSACTION) {
+    const chunk = rows.slice(i, i + ROWS_PER_TRANSACTION);
+    const result = await upsertReportFactsChunk(pool, chunk, { keepHistory });
+    inserted += result.inserted;
+    updated += result.updated;
+  }
+  return { inserted, updated };
+}
+
+// 1 lô ≤ ROWS_PER_TRANSACTION dòng, chạy TRỌN VẸN trong 1 transaction độc
+// lập — xem giải thích chia lô ở đầu file.
+async function upsertReportFactsChunk(pool, rows, { keepHistory = false } = {}) {
   const setupSql = [CREATE_STAGING_SQL, ...buildStagingInsertBatches(rows)].join('\n');
 
   const tx = new sql.Transaction(pool);
@@ -213,4 +245,4 @@ async function upsertReportFacts(pool, rows, { keepHistory = false } = {}) {
   }
 }
 
-module.exports = { upsertReportFacts, shouldBlockHistoryWipe, STALE_HISTORY_SPAN_DAYS, buildStagingInsertBatches };
+module.exports = { upsertReportFacts, shouldBlockHistoryWipe, STALE_HISTORY_SPAN_DAYS, buildStagingInsertBatches, ROWS_PER_TRANSACTION };
