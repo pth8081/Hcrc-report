@@ -20,6 +20,36 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 6.66 — Gộp trang "Log" về 1 bảng duy nhất, ghi đầy đủ thông tin lượt chạy job vào Nhật ký hệ thống
+
+Người dùng phản hồi trang "Log" có 2 bảng (Log job cũ + "Nhật ký hệ thống"
+mới thêm ở bản 6.61) xếp chồng nhau, bấm tab dễ nhầm đang lọc bảng nào —
+yêu cầu chỉ giữ lại "Nhật ký hệ thống", đồng thời đảm bảo thông tin bảng
+kia (bắt đầu/kết quả/lỗi từng lượt đồng bộ) vẫn được ghi đầy đủ vào đó,
+giống hệt nội dung xem qua pm2 log.
+
+- `etl/jobs/runSync.js` — mọi `console.log`/`console.warn`/`console.error`
+  trong vòng đời 1 lượt đồng bộ (bắt đầu, không có dòng mới, thành công,
+  cảnh báo mã chi nhánh chưa ánh xạ, bỏ qua do khoá chồng lấn, lỗi) đổi
+  sang `logInfo`/`logWarn`/`logError` (`lib/systemLog.js`) — vẫn in
+  console y hệt cũ, CHỈ THÊM ghi `etl.SystemLog`.
+- `describeSyncError()` — bổ sung đọc `.precedingErrors[]` (nhiều lỗi con
+  cùng 1 batch SQL Server) và `.originalError.message` (lỗi gốc bên dưới,
+  vd lỗi socket hệ điều hành) — trước đây lỗi driver mssql nhiều khi chỉ
+  hiện gọn "RequestError (EREQUEST)", không đủ chẩn đoán mà không SSH xem
+  pm2 log riêng; giờ tự đủ chi tiết ngay trên web.
+- `etl-admin/src/pages/LogPage.jsx` — bỏ hẳn khối bảng `etl.SyncLog` + bộ
+  tab Tất cả/Thành công/Lỗi riêng, chỉ còn 1 bảng "Nhật ký hệ thống" (đổi
+  tiêu đề trang lại thành "Log").
+- `etl/routes/admin/log.js` — bỏ route `GET /admin/log` (không còn frontend
+  nào gọi), chỉ giữ `GET /admin/log/system`. `etl.SyncLog`/bảng của nó vẫn
+  giữ nguyên (Dashboard "Đồng bộ gần đây" đọc trực tiếp, không qua route
+  này) — chỉ bỏ giao diện xem RIÊNG trên trang Log.
+
+Đã test `describeSyncError()` với 4 dạng lỗi thật (precedingErrors rỗng
+message, originalError kèm chi tiết socket, AggregateError, lỗi đơn giản)
++ build sạch etl-admin.
+
 ## 6.65 — Nhận nhập chỉ tiêu LĐTĐ khi mẫu file đổi cấu trúc (nhiều sheet, tiêu đề trải 2 dòng)
 
 Người dùng gửi file mẫu mới ("Mẫu Target TĐ T9.xlsx"), báo vẫn không nhập

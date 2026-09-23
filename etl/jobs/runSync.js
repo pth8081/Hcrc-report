@@ -12,6 +12,7 @@ const { getConnection } = require('../lib/dataSourcePool');
 const { extractTable, transformRow } = require('../lib/tableSyncEngine');
 const { upsertReportFacts } = require('../lib/upsert');
 const { alertSyncFailure } = require('../lib/mailer');
+const { logInfo, logWarn, logError } = require('../lib/systemLog');
 const sourcesRegistry = require('../sources');
 
 const EPOCH = new Date('1970-01-01T00:00:00.000Z');
@@ -97,7 +98,7 @@ async function runTableJob(job, lastSyncedAt) {
   const unmappedCodes = branchCodeMap ? new Set() : null;
   const transformed = rows.map(r => transformRow(job, meta, r, branchCodeMap, unmappedCodes));
   if (unmappedCodes && unmappedCodes.size) {
-    console.warn(`⚠️  [${job.Name}] ${unmappedCodes.size} mã "${job.BranchCodeMapType}" chưa có trong "Ánh xạ mã chi nhánh", giữ nguyên mã gốc: ${[...unmappedCodes].join(', ')}`);
+    logWarn(`⚠️  [${job.Name}] ${unmappedCodes.size} mã "${job.BranchCodeMapType}" chưa có trong "Ánh xạ mã chi nhánh", giữ nguyên mã gốc: ${[...unmappedCodes].join(', ')}`);
   }
   const rawMaxUpdatedAt = rows.reduce((max, r) => {
     const v = r[`m_${meta.updatedCol}`];
@@ -155,7 +156,7 @@ async function runWithCrossProcessLock(job, fn) {
     `);
   const lockResult = result.recordset[0].LockResult;
   if (lockResult < 0) {
-    console.warn(`⏭  [${job.Name}] bỏ qua lượt chạy này — 1 tiến trình khác đang ghi CÙNG nguồn+domain "${effectiveSourceSystem(job)}/${job.TargetDomain}" (chính job này chạy ở tiến trình khác, HOẶC 1 job KHÁC trỏ cùng nguồn+domain — server.js theo lịch, nút "Chạy thử", hoặc etl/index.js chạy tay)`);
+    logWarn(`⏭  [${job.Name}] bỏ qua lượt chạy này — 1 tiến trình khác đang ghi CÙNG nguồn+domain "${effectiveSourceSystem(job)}/${job.TargetDomain}" (chính job này chạy ở tiến trình khác, HOẶC 1 job KHÁC trỏ cùng nguồn+domain — server.js theo lịch, nút "Chạy thử", hoặc etl/index.js chạy tay)`);
     await transaction.rollback();
     return;
   }
@@ -177,18 +178,46 @@ async function runJobObject(job) {
 // message thứ 2 lúc tạo — lý do thật nằm trong mảng .errors[], không phải
 // .message. Không xử lý riêng thì console.error/etl.SyncLog.ErrorMessage
 // đều ghi rỗng, không ai đọc lại được lý do thật.
+//
+// GẶP THẬT THÊM: lỗi driver mssql/tedious (vd RequestError) nhiều khi
+// .message CHỈ là nhãn chung chung, lý do THẬT nằm ở .precedingErrors[]
+// (nhiều lỗi con cùng 1 batch SQL) hoặc .originalError (lỗi gốc bên dưới,
+// vd lỗi hệ điều hành/socket) — đúng những trường xem được qua pm2 log khi
+// Node in cả object lỗi, nhưng trước đây describeSyncError() không đọc tới
+// nên trang "Log"/etl.SyncLog.ErrorMessage chỉ hiện gọn "RequestError
+// (EREQUEST)" — không đủ để chẩn đoán mà không cần SSH xem pm2 log riêng.
+// Luôn CỐ GẮNG bổ sung thêm phần "chi tiết" từ các trường này (nếu có và
+// chưa trùng lặp với thông điệp chính) để trang "Nhật ký hệ thống" tự đủ
+// thông tin, không cần đối chiếu ngược pm2 log nữa.
 function describeSyncError(err) {
-  if (err && err.message) return err.message;
-  if (err && Array.isArray(err.errors) && err.errors.length) {
-    return err.errors.map(e => (e && e.message) || String(e)).join('; ');
+  if (!err) return String(err);
+  let primary;
+  if (err.message) {
+    primary = err.message;
+  } else if (Array.isArray(err.errors) && err.errors.length) {
+    primary = err.errors.map(e => (e && e.message) || String(e)).join('; ');
+  } else if (Array.isArray(err.precedingErrors) && err.precedingErrors.length) {
+    primary = err.precedingErrors.map(e => (e && e.message) || String(e)).join('; ');
+  } else if (err.code) {
+    primary = `${err.name || 'Error'} (${err.code})`;
+  } else {
+    primary = String(err);
   }
-  if (err && err.code) return `${err.name || 'Error'} (${err.code})`;
-  return String(err);
+
+  const extra = [];
+  const addExtra = (m) => { if (m && !primary.includes(m) && !extra.includes(m)) extra.push(m); };
+  if (err.originalError && err.originalError.message) addExtra(err.originalError.message);
+  if (Array.isArray(err.precedingErrors)) {
+    for (const e of err.precedingErrors) addExtra(e && e.message);
+  }
+  if (err.code && !primary.includes(err.code)) extra.push(`mã lỗi: ${err.code}`);
+
+  return extra.length ? `${primary} — chi tiết: ${extra.join('; ')}` : primary;
 }
 
 async function runJobObjectLocked(job) {
   const startedAt = new Date();
-  console.log(`▶ [${job.Name}] Bắt đầu đồng bộ...`);
+  logInfo(`▶ [${job.Name}] Bắt đầu đồng bộ...`);
   try {
     const lastSyncedAt = await getLastSyncedAt(job.Id);
     const { transformed, maxUpdatedAt, rawCount } = job.Type === 'table'
@@ -196,7 +225,7 @@ async function runJobObjectLocked(job) {
       : await runCustomJob(job, lastSyncedAt);
 
     if (!rawCount) {
-      console.log(`  [${job.Name}] Không có dòng nào thay đổi kể từ ${lastSyncedAt.toISOString()}.`);
+      logInfo(`  [${job.Name}] Không có dòng nào thay đổi kể từ ${lastSyncedAt.toISOString()}.`);
       await logRun({ jobId: job.Id, status: 'SUCCESS', rowCount: 0, startedAt, finishedAt: new Date() });
       return;
     }
@@ -205,10 +234,10 @@ async function runJobObjectLocked(job) {
     const { inserted, updated } = await upsertReportFacts(dwhPool, transformed, { keepHistory: !!job.KeepHistory });
     await setLastSyncedAt(job.Id, maxUpdatedAt);
     await logRun({ jobId: job.Id, status: 'SUCCESS', rowCount: transformed.length, startedAt, finishedAt: new Date() });
-    console.log(`✅ [${job.Name}] Xong — ${inserted} dòng mới, ${updated} dòng cập nhật.`);
+    logInfo(`✅ [${job.Name}] Xong — ${inserted} dòng mới, ${updated} dòng cập nhật.`);
   } catch (err) {
     const message = describeSyncError(err);
-    console.error(`⛔ [${job.Name}] Lỗi đồng bộ:`, message);
+    logError(`⛔ [${job.Name}] Lỗi đồng bộ: ${message}`);
     await logRun({
       jobId: job.Id,
       status: 'FAILED',

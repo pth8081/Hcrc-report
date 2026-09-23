@@ -261,8 +261,7 @@ tài khoản (`admin.AdminUserRoles`).
 | `GET/PUT/DELETE/POST /admin/branch-code-map` | menu `branch-code-map` sửa (kể cả xem) | Ánh xạ mã chi nhánh |
 | `GET/PUT /admin/sales-targets-corp`, `.../one`, `.../import` | menu `sales-targets-corp` xem/sửa | Chỉ tiêu Lãnh đạo Tập đoàn |
 | `GET/PUT /admin/sales-targets-hcrc`, `.../one`, `.../import` | menu `sales-targets-hcrc` xem/sửa | Chỉ tiêu HCRC |
-| `GET /admin/log` | menu `log` xem | Nhật ký đồng bộ (etl.SyncLog), lọc + phân trang |
-| `GET /admin/log/system` | menu `log` xem | Nhật ký vận hành chung (etl.SystemLog) — kết nối thành công/thất bại (pool cố định + nguồn dữ liệu tự khai), cảnh báo cấu hình (vd chưa khai SMTP) — trước đây chỉ xem qua console/pm2 log |
+| `GET /admin/log/system` | menu `log` xem | Nhật ký vận hành chung (etl.SystemLog) — bắt đầu/thành công/lỗi từng lượt đồng bộ (kèm chi tiết lỗi driver mssql đầy đủ), kết nối thành công/thất bại (pool cố định + nguồn dữ liệu tự khai), cảnh báo cấu hình (vd chưa khai SMTP) — trước đây chỉ xem qua console/pm2 log. Trang duy nhất trên giao diện "Log" (đã bỏ bảng `etl.SyncLog` riêng để tránh 2 bảng/2 bộ tab lọc chồng nhau) |
 | `GET /admin/audit-log` | menu `audit-log` xem | Nhật ký thao tác |
 | `GET /admin/dashboard` | menu `dashboard` xem | Tổng hợp tình trạng đồng bộ |
 
