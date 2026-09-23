@@ -261,7 +261,8 @@ tài khoản (`admin.AdminUserRoles`).
 | `GET/PUT/DELETE/POST /admin/branch-code-map` | menu `branch-code-map` sửa (kể cả xem) | Ánh xạ mã chi nhánh |
 | `GET/PUT /admin/sales-targets-corp`, `.../one`, `.../import` | menu `sales-targets-corp` xem/sửa | Chỉ tiêu Lãnh đạo Tập đoàn |
 | `GET/PUT /admin/sales-targets-hcrc`, `.../one`, `.../import` | menu `sales-targets-hcrc` xem/sửa | Chỉ tiêu HCRC |
-| `GET /admin/log` | menu `log` xem | Nhật ký đồng bộ, lọc + phân trang |
+| `GET /admin/log` | menu `log` xem | Nhật ký đồng bộ (etl.SyncLog), lọc + phân trang |
+| `GET /admin/log/system` | menu `log` xem | Nhật ký vận hành chung (etl.SystemLog) — kết nối thành công/thất bại (pool cố định + nguồn dữ liệu tự khai), cảnh báo cấu hình (vd chưa khai SMTP) — trước đây chỉ xem qua console/pm2 log |
 | `GET /admin/audit-log` | menu `audit-log` xem | Nhật ký thao tác |
 | `GET /admin/dashboard` | menu `dashboard` xem | Tổng hợp tình trạng đồng bộ |
 
@@ -271,5 +272,6 @@ tài khoản (`admin.AdminUserRoles`).
 - Sửa (`PUT /admin/sync-jobs/:id`) chỉ đổi tên/lịch/bật-tắt/domain/cột — đổi
   bảng nguồn hay bảng liên kết phải xoá job cũ, tạo job mới (tránh cấu hình
   nửa vời).
-- Chưa có job dọn `etl.SyncLog` cũ định kỳ — bảng này lớn dần theo số lượt
-  chạy, cần thêm khi cần (giống `api-server/jobs/cleanupRequestLog.js`).
+- `jobs/cleanupLogs.js` đã dọn định kỳ `etl.SyncLog`/`admin.AuditLog`/
+  `etl.SystemLog` (mặc định 90 ngày, `SYNC_LOG_RETENTION_DAYS`/
+  `AUDIT_LOG_RETENTION_DAYS`, lịch `CLEANUP_CRON` — xem `server.js`).

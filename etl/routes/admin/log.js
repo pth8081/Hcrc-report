@@ -1,5 +1,6 @@
-// routes/admin/log.js — Trang "Log": etl.SyncLog, lọc theo job/trạng thái,
-// phân trang.
+// routes/admin/log.js — Trang "Log": etl.SyncLog (lượt chạy job, lọc theo
+// job/trạng thái) + etl.SystemLog (nhật ký vận hành chung — kết nối thành
+// công/thất bại, cảnh báo cấu hình, xem lib/systemLog.js), đều phân trang.
 const express = require('express');
 const { sql, getPool } = require('../../db');
 const { requireAdminAuth } = require('../../lib/adminAuth');
@@ -41,6 +42,37 @@ router.get('/', requireMenuAccess('log'), async (req, res, next) => {
       FROM etl.SyncLog l JOIN etl.SyncJobs j ON l.SyncJobId = j.Id
       ${where}
       ORDER BY l.StartedAt DESC, l.Id DESC
+      OFFSET @offset ROWS FETCH NEXT @pageSize ROWS ONLY
+    `);
+    res.json({ page, pageSize, rows: result.recordset });
+  } catch (err) { next(err); }
+});
+
+// GET /admin/log/system — etl.SystemLog, lọc theo mức độ, phân trang riêng
+// với bảng SyncLog ở trên (2 nguồn dữ liệu độc lập, hiển thị 2 khối trên
+// cùng trang "Log" ở etl-admin).
+router.get('/system', requireMenuAccess('log'), async (req, res, next) => {
+  try {
+    const pool = await getPool('ADMIN');
+    const request = pool.request();
+    const conditions = [];
+
+    if (req.query.level) {
+      request.input('level', sql.VarChar(10), req.query.level);
+      conditions.push('Level = @level');
+    }
+
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const pageSize = Math.min(Math.max(1, parseInt(req.query.pageSize, 10) || 50), 500);
+    request.input('offset', sql.Int, (page - 1) * pageSize);
+    request.input('pageSize', sql.Int, pageSize);
+
+    const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+    const result = await request.query(`
+      SELECT Id, Level, Message, CreatedAt
+      FROM etl.SystemLog
+      ${where}
+      ORDER BY CreatedAt DESC, Id DESC
       OFFSET @offset ROWS FETCH NEXT @pageSize ROWS ONLY
     `);
     res.json({ page, pageSize, rows: result.recordset });

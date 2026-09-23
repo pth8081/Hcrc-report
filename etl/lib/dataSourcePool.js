@@ -5,6 +5,7 @@
 const { sql, getPool } = require('../db');
 const { decrypt } = require('./crypto');
 const { getAdapter } = require('./dbAdapters');
+const { logInfo, logError } = require('./systemLog');
 
 const connections = new Map(); // dataSourceId -> Promise<{ pool, adapter, engine, name }>
 
@@ -32,10 +33,11 @@ async function getConnection(id) {
         encrypt: !!source.Encrypt,
         trustServerCert: !!source.TrustServerCert
       });
-      console.log(`✅ Đã kết nối nguồn [#${id} ${source.Name}] (${source.Engine}): ${source.Server} - ${source.DatabaseName}`);
+      logInfo(`✅ Đã kết nối nguồn [#${id} ${source.Name}] (${source.Engine}): ${source.Server} - ${source.DatabaseName}`);
       return { pool, adapter, engine: source.Engine, name: source.Name };
     })().catch(err => {
       connections.delete(id);
+      logError(`⛔ Lỗi kết nối nguồn #${id}: ${err.message}`);
       throw err;
     });
     connections.set(id, promise);

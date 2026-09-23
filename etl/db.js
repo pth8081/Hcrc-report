@@ -57,15 +57,22 @@ async function getPool(prefix) {
   if (!pools.has(prefix)) {
     assertConfigured(prefix);
     const config = buildConfig(prefix);
+    // require() TRỄ (trong hàm, không phải đầu file) — lib/systemLog.js
+    // cũng require('../db'), require() ở đầu file 2 bên sẽ vòng lặp lẫn
+    // nhau lúc NẠP MODULE (module.exports của bên kia chưa kịp gán xong),
+    // khiến logInfo/getPool có thể undefined. require() trong hàm chỉ chạy
+    // lúc GỌI THẬT (module đã nạp xong từ lâu), an toàn — Node cache theo
+    // đường dẫn nên không tốn gì thêm từ lần gọi thứ 2.
+    const { logInfo, logError } = require('./lib/systemLog');
     const promise = new sql.ConnectionPool(config)
       .connect()
       .then(pool => {
-        console.log(`✅ Đã kết nối [${prefix}]: ${config.server}:${config.port} - ${config.database}`);
+        logInfo(`✅ Đã kết nối [${prefix}]: ${config.server}:${config.port} - ${config.database}`);
         return pool;
       })
       .catch(err => {
         pools.delete(prefix); // cho phép thử kết nối lại ở lượt chạy sau
-        console.error(`⛔ Lỗi kết nối [${prefix}]:`, err.message);
+        logError(`⛔ Lỗi kết nối [${prefix}]: ${err.message}`);
         throw err;
       });
     pools.set(prefix, promise);

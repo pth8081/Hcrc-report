@@ -2,6 +2,7 @@
 // cấu hình SMTP_HOST/ALERT_EMAIL_TO trong .env thì chỉ log cảnh báo ra console
 // thay vì lỗi — ETL vẫn chạy bình thường, chỉ là chưa có kênh báo lỗi chủ động.
 const nodemailer = require('nodemailer');
+const { logWarn } = require('./systemLog');
 
 function getTransport() {
   if (!process.env.SMTP_HOST) return null;
@@ -17,7 +18,7 @@ async function alertSyncFailure(source, err) {
   const to = process.env.ALERT_EMAIL_TO;
   const transport = getTransport();
   if (!transport || !to) {
-    console.warn('⚠️  Chưa cấu hình SMTP_HOST/ALERT_EMAIL_TO trong .env — bỏ qua gửi email cảnh báo lỗi ETL.');
+    logWarn('⚠️  Chưa cấu hình SMTP_HOST/ALERT_EMAIL_TO trong .env — bỏ qua gửi email cảnh báo lỗi ETL.');
     return;
   }
   await transport.sendMail({

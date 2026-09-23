@@ -216,6 +216,27 @@ BEGIN
 END
 GO
 
+-- Nhật ký VẬN HÀNH chung, KHÔNG gắn với 1 lượt chạy job cụ thể — kết nối
+-- pool cố định (RP/DWH/ADMIN/DWH_TARGET_IMPORTER — xem db.js) thành công/
+-- thất bại, kết nối Nguồn dữ liệu tự khai thành công/thất bại (xem
+-- lib/dataSourcePool.js), cảnh báo cấu hình thiếu (vd chưa khai SMTP) —
+-- những dòng trước giờ CHỈ in ra console/pm2 log, không xem lại được qua
+-- web (xem lib/systemLog.js, hiển thị ở routes/admin/log.js mục "Nhật ký
+-- hệ thống"). KHÁC etl.SyncLog (log CHẠY JOB, có SyncJobId/Status/
+-- RowsProcessed riêng) — bảng này chỉ 3 cột phẳng, ghi TỰ DO từ bất kỳ đâu
+-- trong code, không ràng buộc khoá ngoại.
+IF OBJECT_ID('etl.SystemLog', 'U') IS NULL
+BEGIN
+    CREATE TABLE etl.SystemLog (
+        Id        BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        Level     VARCHAR(10)   NOT NULL,   -- 'INFO' | 'WARN' | 'ERROR'
+        Message   NVARCHAR(1000) NOT NULL,
+        CreatedAt DATETIME2(3)  NOT NULL DEFAULT SYSUTCDATETIME()
+    );
+    CREATE INDEX IX_SystemLog_CreatedAt ON etl.SystemLog (CreatedAt DESC);
+END
+GO
+
 -- Xác thực hai yếu tố (2FA/TOTP) — BẮT BUỘC cho Role='admin' (xem
 -- lib/twoFactor.js + routes/admin/twoFactor.js). TwoFactorSecretEncrypted mã
 -- hoá bằng ETL_ENCRYPTION_KEY (lib/crypto.js) — KHÔNG lưu plaintext.

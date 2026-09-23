@@ -20,6 +20,37 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 6.61 — Nhật ký hệ thống (etl.SystemLog) — gộp log kết nối/cảnh báo vào trang "Log"
+
+Người dùng chạy thật gặp nhiều lỗi kết nối (nguồn dữ liệu, DWH...) nhưng
+trước đây các dòng "kết nối thành công"/"lỗi kết nối"/cảnh báo cấu hình (vd
+chưa khai SMTP) chỉ in ra console/pm2 log — phải SSH vào server mới xem
+được, gây khó khi debug từ xa. Yêu cầu: gộp hết các thông tin này vào trang
+"Log" (etl-admin) để xem trực tiếp trên web.
+
+- `etl-db/schema.sql` — bảng mới `etl.SystemLog` (Id/Level/Message/
+  CreatedAt), tách biệt hoàn toàn với `etl.SyncLog` (log CHẠY JOB có
+  SyncJobId/Status/RowsProcessed riêng) — bảng này chỉ 3 cột phẳng, ghi tự
+  do từ bất kỳ đâu trong code.
+- `etl/lib/systemLog.js` (mới) — `logInfo`/`logWarn`/`logError`: vẫn in ra
+  console như cũ, THÊM bước ghi `etl.SystemLog` (fire-and-forget, không
+  `await`, bọc try/catch nuốt lỗi — không được làm hỏng luồng gọi nó dù
+  chính CSDL etl đang là nguồn gây lỗi).
+- Gắn vào 3 điểm sinh log vận hành quan trọng nhất: `db.js` (kết nối/lỗi
+  kết nối của mọi pool cố định RP/DWH/ADMIN/DWH_TARGET_IMPORTER — require
+  `systemLog.js` TRỄ trong hàm để tránh vòng lặp require với `db.js`),
+  `lib/dataSourcePool.js` (kết nối/lỗi kết nối từng "Nguồn dữ liệu" admin tự
+  khai — trước đây lỗi kết nối HOÀN TOÀN không được log ở đâu cả), và
+  `lib/mailer.js` (cảnh báo chưa cấu hình SMTP_HOST/ALERT_EMAIL_TO).
+- `routes/admin/log.js` — thêm `GET /admin/log/system` (lọc theo mức độ,
+  phân trang riêng, cùng quyền menu `log` như route cũ).
+- `etl-admin/src/pages/LogPage.jsx` — thêm khối "Nhật ký hệ thống" bên dưới
+  bảng log job hiện có, tab lọc Tất cả/Thông tin/Cảnh báo/Lỗi, badge màu
+  theo mức độ.
+- `jobs/cleanupLogs.js` + `server.js` — dọn định kỳ `etl.SystemLog` (dùng
+  chung ngưỡng `SYNC_LOG_RETENTION_DAYS`, mặc định 90 ngày) — ghi ở mọi lần
+  kết nối nên phình nhanh hơn cả `SyncLog` nếu không dọn.
+
 ## 6.60 — Sửa lỗi cú pháp "RowCount" khiến trang Log/Dashboard etl-admin báo "Lỗi máy chủ"
 
 Người dùng chạy thật, trang "Log" báo "Lỗi máy chủ" — log server thật cho

@@ -24,4 +24,17 @@ async function cleanupAuditLog() {
   console.log(`🧹 Đã dọn ${result.rowsAffected[0]} dòng AuditLog cũ hơn ${days} ngày.`);
 }
 
-module.exports = { cleanupSyncLog, cleanupAuditLog };
+// etl.SystemLog (lib/systemLog.js) ghi ở MỌI lần kết nối thành công — phình
+// nhanh hơn cả SyncLog trên hệ nhiều pool/nhiều nguồn — dùng chung ngưỡng
+// SYNC_LOG_RETENTION_DAYS (cùng bản chất "log vận hành", không cần biến
+// riêng).
+async function cleanupSystemLog() {
+  const days = parseInt(process.env.SYNC_LOG_RETENTION_DAYS || '90', 10);
+  const pool = await getPool('ADMIN');
+  const result = await pool.request()
+    .input('cutoff', sql.DateTime2, new Date(Date.now() - days * 24 * 60 * 60 * 1000))
+    .query('DELETE FROM etl.SystemLog WHERE CreatedAt < @cutoff');
+  console.log(`🧹 Đã dọn ${result.rowsAffected[0]} dòng SystemLog cũ hơn ${days} ngày.`);
+}
+
+module.exports = { cleanupSyncLog, cleanupAuditLog, cleanupSystemLog };

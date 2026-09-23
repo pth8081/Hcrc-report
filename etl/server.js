@@ -11,7 +11,7 @@ const { rateLimit } = require('express-rate-limit');
 const cron = require('node-cron');
 
 const scheduler = require('./jobs/scheduler');
-const { cleanupSyncLog, cleanupAuditLog } = require('./jobs/cleanupLogs');
+const { cleanupSyncLog, cleanupAuditLog, cleanupSystemLog } = require('./jobs/cleanupLogs');
 const { isSchedulerLeader } = require('./lib/clusterLeader');
 const { adminIpAllowlist } = require('./lib/adminIpAllowlist');
 const adminAuthRoutes = require('./routes/admin/auth');
@@ -144,5 +144,6 @@ if (isSchedulerLeader()) {
   cron.schedule(process.env.CLEANUP_CRON || '0 2 * * *', () => {
     cleanupSyncLog().catch(err => console.error('⛔ Lỗi dọn SyncLog:', err.message));
     cleanupAuditLog().catch(err => console.error('⛔ Lỗi dọn AuditLog:', err.message));
+    cleanupSystemLog().catch(err => console.error('⛔ Lỗi dọn SystemLog:', err.message));
   });
 }
