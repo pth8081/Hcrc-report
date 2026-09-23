@@ -20,6 +20,36 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 6.67 — Sửa lỗi gốc khiến dwh.ReportFacts CHƯA TỪNG ghi được dòng nào (Invalid object name '#Staging')
+
+Người dùng phát hiện qua `SELECT TOP 1000 * FROM dwh.ReportFacts` cho 0 dòng
+dù đã đồng bộ nhiều lần và nguồn kết nối thành công — chẩn đoán từng bước
+(test quyền `etl_writer` qua SSMS chạy ổn, sau đó lấy được log pm2 thật)
+lộ ra lỗi SQL Server thật: `Invalid object name '#Staging'.` xảy ra ngay
+tại bước bulk insert vào bảng tạm.
+
+- **Nguyên nhân gốc**: `etl/lib/upsert.js` dùng `request.bulk(table)`
+  (`sql.Table`) để nạp dữ liệu vào `#Staging` trong 1 `Transaction` — thư
+  viện `mssql` có lỗi khiến `.bulk()` dùng một KẾT NỐI VẬT LÝ KHÁC với kết
+  nối đang giữ transaction, nên bảng tạm `#Staging` (tạo trên kết nối của
+  transaction) "không tồn tại" đối với thao tác bulk. Kết quả: MỌI lượt
+  đồng bộ đều rollback ngay ở bước này — `dwh.ReportFacts` chưa từng nhận
+  được dòng nào kể từ khi triển khai, lỗi bị ẩn sau thông điệp chung chung
+  trước khi `describeSyncError()` (bản 6.63/6.66) lộ được text thật.
+- **Cách sửa**: bỏ hẳn `request.bulk()`/`sql.Table`, thay bằng câu
+  `INSERT INTO #Staging (...) VALUES (...), (...)` viết trực tiếp (literal,
+  escape thủ công dấu nháy đơn — KHÔNG dùng `.input()`, cùng lý do đã né ở
+  bản 6.63 cho `#StagingTargets`), chia lô ≤500 dòng/câu (giới hạn 1000
+  dòng/câu `VALUES` của SQL Server), chạy qua `.query()` thuần trên CÙNG
+  `Request`/`Transaction` pattern với CREATE TABLE/DELETE/MERGE — các bước
+  này vốn đã chạy ổn định, xác nhận qua test SSMS trực tiếp bằng tài khoản
+  `etl_writer`.
+- Test bằng driver SQL giả lập kết nối đơn (`Module._load` stub) xác nhận:
+  build đúng nhiều lô INSERT khi >500 dòng, escape đúng dấu nháy đơn trong
+  JSON Dimensions/Measures, và toàn bộ luồng insert/update qua MERGE chạy
+  đúng khi mọi `Request` đều bám cùng 1 "kết nối" — đúng cơ chế đã gây lỗi
+  thật.
+
 ## 6.66 — Gộp trang "Log" về 1 bảng duy nhất, ghi đầy đủ thông tin lượt chạy job vào Nhật ký hệ thống
 
 Người dùng phản hồi trang "Log" có 2 bảng (Log job cũ + "Nhật ký hệ thống"

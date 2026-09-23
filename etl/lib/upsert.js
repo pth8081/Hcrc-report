@@ -1,10 +1,24 @@
 // lib/upsert.js — Ghi một lô dòng đã transform vào dwh.ReportFacts bằng
 // MERGE, khớp theo khoá nghiệp vụ (SourceSystem, Domain, EntityCode,
 // EventDate — EventDate NẰM TRONG khoá, xem dwh/schema.sql). Nạp dữ liệu
-// qua bảng tạm #Staging bằng bulk insert trước khi MERGE — nhanh hơn nhiều
-// so với upsert từng dòng khi một lượt đồng bộ có hàng nghìn dòng. Toàn bộ
-// chạy trong 1 transaction: lỗi giữa chừng thì rollback, không có dòng nào
-// được ghi nửa vời.
+// qua bảng tạm #Staging bằng câu INSERT...VALUES viết trực tiếp (nhiều
+// dòng/câu, chia lô — xem buildInsertBatches bên dưới) trước khi MERGE —
+// nhanh hơn nhiều so với upsert từng dòng khi một lượt đồng bộ có hàng
+// nghìn dòng. Toàn bộ chạy trong 1 transaction: lỗi giữa chừng thì
+// rollback, không có dòng nào được ghi nửa vời.
+//
+// LƯU Ý QUAN TRỌNG — TẠI SAO KHÔNG DÙNG request.bulk()/sql.Table: đã gặp
+// lỗi thật "Invalid object name '#Staging'." khi dùng request.bulk(table)
+// trên Request gắn với Transaction — thư viện mssql có lỗi khiến .bulk()
+// dùng một KẾT NỐI VẬT LÝ KHÁC với kết nối đang giữ transaction, nên bảng
+// tạm #Staging (tạo trên kết nối của transaction) "không tồn tại" với thao
+// tác bulk. Đây là nguyên nhân khiến dwh.ReportFacts CHƯA TỪNG có dòng nào
+// ghi thành công (mọi lượt sync đều rollback ngay ở bước này, ẩn sau lỗi
+// chung chung trước khi describeSyncError() lộ được thông điệp thật). Cách
+// né: build câu INSERT...VALUES bằng literal (escape thủ công, KHÔNG dùng
+// .input()/sp_executesql — cũng từng gây lỗi tương tự với #StagingTargets,
+// xem lib/salesTargetsImport.js), chạy qua .query() thuần trên CÙNG request
+// pattern với CREATE TABLE/DELETE/MERGE bên dưới (đã xác nhận ổn định).
 //
 // keepHistory (etl.SyncJobs.KeepHistory, xem etl-db/schema.sql) — TẮT mặc
 // định: TRƯỚC khi MERGE, dọn các dòng CŨ của đúng thực thể này nhưng KHÁC
@@ -30,6 +44,36 @@
 const { sql } = require('../db');
 
 const STALE_HISTORY_SPAN_DAYS = 3;
+
+// SQL Server giới hạn tối đa 1000 dòng/câu INSERT...VALUES — chia lô an
+// toàn dưới ngưỡng đó.
+const STAGING_INSERT_BATCH_SIZE = 500;
+
+// Escape thủ công cho literal T-SQL (KHÔNG dùng .input() — xem lý do ở
+// đầu file). Chỉ cần nhân đôi dấu nháy đơn, T-SQL không coi backslash là
+// ký tự đặc biệt trong chuỗi.
+function sqlNStr(value) {
+  return `N'${String(value).replace(/'/g, "''")}'`;
+}
+function sqlNStrOrNull(value) {
+  return value === null || value === undefined ? 'NULL' : sqlNStr(value);
+}
+function sqlDateLiteral(value) {
+  const d = value instanceof Date ? value : new Date(value);
+  return `'${d.toISOString().slice(0, 10)}'`; // YYYY-MM-DD — không mơ hồ với kiểu DATE bất kể DATEFORMAT/LANGUAGE
+}
+
+// Build 1 hoặc nhiều câu INSERT INTO #Staging (...) VALUES (...), (...)
+// — mỗi câu ≤ STAGING_INSERT_BATCH_SIZE dòng.
+function buildStagingInsertBatches(rows) {
+  const batches = [];
+  for (let i = 0; i < rows.length; i += STAGING_INSERT_BATCH_SIZE) {
+    const chunk = rows.slice(i, i + STAGING_INSERT_BATCH_SIZE);
+    const values = chunk.map(r => `(${sqlNStr(r.sourceSystem)}, ${sqlNStr(r.domain)}, ${sqlNStrOrNull(r.entityCode ?? null)}, ${sqlDateLiteral(r.eventDate)}, ${sqlNStr(JSON.stringify(r.dimensions || {}))}, ${r.measures ? sqlNStr(JSON.stringify(r.measures)) : 'NULL'})`).join(',\n');
+    batches.push(`INSERT INTO #Staging (SourceSystem, Domain, EntityCode, EventDate, Dimensions, Measures) VALUES\n${values};`);
+  }
+  return batches;
+}
 
 // Hàm THUẦN (không đụng CSDL) — tách riêng để test được không cần SQL Server
 // thật. { count, minDate, maxDate } là kết quả đo trước của TẬP DÒNG SẮP bị
@@ -59,25 +103,9 @@ async function upsertReportFacts(pool, rows, { keepHistory = false } = {}) {
       );
     `);
 
-    const table = new sql.Table('#Staging');
-    table.create = false;
-    table.columns.add('SourceSystem', sql.VarChar(50), { nullable: false });
-    table.columns.add('Domain', sql.VarChar(50), { nullable: false });
-    table.columns.add('EntityCode', sql.NVarChar(100), { nullable: true });
-    table.columns.add('EventDate', sql.Date, { nullable: false });
-    table.columns.add('Dimensions', sql.NVarChar(sql.MAX), { nullable: false });
-    table.columns.add('Measures', sql.NVarChar(sql.MAX), { nullable: true });
-    for (const r of rows) {
-      table.rows.add(
-        r.sourceSystem,
-        r.domain,
-        r.entityCode ?? null,
-        r.eventDate,
-        JSON.stringify(r.dimensions || {}),
-        r.measures ? JSON.stringify(r.measures) : null
-      );
+    for (const insertSql of buildStagingInsertBatches(rows)) {
+      await new sql.Request(tx).query(insertSql);
     }
-    await new sql.Request(tx).bulk(table);
 
     if (!keepHistory) {
       // Dọn dòng CŨ của đúng thực thể này nhưng KHÁC EventDate với bất kỳ
@@ -172,4 +200,4 @@ async function upsertReportFacts(pool, rows, { keepHistory = false } = {}) {
   }
 }
 
-module.exports = { upsertReportFacts, shouldBlockHistoryWipe, STALE_HISTORY_SPAN_DAYS };
+module.exports = { upsertReportFacts, shouldBlockHistoryWipe, STALE_HISTORY_SPAN_DAYS, buildStagingInsertBatches };
