@@ -94,6 +94,17 @@ function parseVietnameseNumber(str) {
   return Number.isFinite(n) ? n : undefined;
 }
 
+// Ngày "31" của tháng chỉ có 30 ngày (vd 20260931) là NGÀY KHÔNG TỒN TẠI —
+// gặp thật trong file mẫu (dòng cuối bảng lịch, rõ ràng do công thức Excel
+// tự sinh đủ 31 dòng/tháng không phân biệt tháng ngắn/dài). Không chặn ở
+// đây thì chuỗi "2026-09-31" vẫn lọt qua như hợp lệ, tới lúc tạo `new
+// Date(...)` mới thành Invalid Date — lỗi chỉ lộ ra tận khi ghi CSDL
+// (kiểu sql.Date nhận Invalid Date), khó truy ngược lại đúng dòng nguồn.
+function isValidCalendarDate(year, month, day) {
+  const d = new Date(Date.UTC(year, month - 1, day));
+  return d.getUTCFullYear() === year && d.getUTCMonth() === month - 1 && d.getUTCDate() === day;
+}
+
 // Đọc "ngày" LINH HOẠT — 2 mẫu file thật LDTD/HCRC đều ghi ngày dưới dạng
 // SỐ YYYYMMDD (vd 20260901) chứ không phải ô định dạng Ngày chuẩn Excel, và
 // KHÔNG NHẤT QUÁN kiểu dữ liệu giữa các dòng (dòng đầu Excel lưu thành
@@ -105,12 +116,16 @@ function parseFlexibleDate(raw) {
   if (v instanceof Date) return v.toISOString().slice(0, 10);
   if (v === null || v === undefined || v === '') return null;
   const str = String(v).trim();
-  if (PERIOD_DATE_RE.test(str)) return str;
+  if (PERIOD_DATE_RE.test(str)) {
+    const [y, m, d] = str.split('-').map(Number);
+    return isValidCalendarDate(y, m, d) ? str : null;
+  }
   const digits = str.replace(/\.0+$/, '');
   if (/^\d{8}$/.test(digits)) {
     const month = digits.slice(4, 6);
     const day = digits.slice(6, 8);
     if (month < '01' || month > '12' || day < '01' || day > '31') return null;
+    if (!isValidCalendarDate(Number(digits.slice(0, 4)), Number(month), Number(day))) return null;
     return `${digits.slice(0, 4)}-${month}-${day}`;
   }
   return null;
@@ -124,24 +139,52 @@ const MAX_IMPORT_ROWS = 5000;
 // xem chú thích cùng tên trong lib/dataSourcesImport.js.
 const MAX_UNCOMPRESSED_BYTES = 200 * 1024 * 1024;
 
+function matchShape(set) {
+  if (set.has('MaSieuThi') && set.has('Thang')) return 'generic';
+  if (set.has('Điểm') && set.has('Doanh thu') && set.has('Bill')) return 'ldtd-daily';
+  if (set.has('Kỳ') && set.has('Mã đối tượng chứa') && set.has('Mã loại chỉ tiêu') && set.has('Giá trị chỉ tiêu')) {
+    return 'hcrc-daily';
+  }
+  return null;
+}
+
 // Dò dòng tiêu đề trong tối đa 3 dòng đầu (mẫu LDTD có 1 dòng ghi chú ở
 // trên dòng tiêu đề thật) — nhận diện theo TẬP HỢP tên cột đặc trưng của
 // từng định dạng, không cần khớp CHÍNH XÁC toàn bộ danh sách cột (mẫu HCRC
 // thật có 1-2 tên cột hơi khác chuẩn chính tả — dò theo vài cột ổn định
 // nhất, ít rủi ro đổi tên hơn).
+//
+// GẶP THẬT (bản cập nhật "Mẫu Target TĐ T9.xlsx"): tiêu đề trải trên 2 DÒNG
+// LIỀN KỀ thay vì gọn 1 dòng — dòng trên ghi "Ngày"/"Doanh thu"/"Bill", dòng
+// dưới ghi "Điểm"/"Nhóm điểm" (cùng vài ô "rác" khác như "TONG"/"vV" không
+// thuộc mẫu nào) — dò riêng từng dòng như cũ không bao giờ thấy ĐỦ bộ cột
+// cần thiết trong CÙNG 1 dòng. Thử ĐÚNG dòng hiện tại trước (không đổi hành
+// vi cho mọi file tiêu đề gọn 1 dòng như trước giờ); chỉ khi dòng đó KHÔNG
+// đủ mới thử GHÉP với dòng NGAY TRÊN — dòng TRÊN ưu tiên (giữ nguyên nếu đã
+// có), dòng HIỆN TẠI chỉ bù vào ô dòng trên còn để trống. Thứ tự ưu tiên
+// này QUAN TRỌNG: nếu đảo ngược, ô "rác" ở dòng dưới (vd "vV") có thể đè mất
+// tên cột đúng đã có ở dòng trên (vd "Ngày").
 function detectHeaderRow(sheet) {
   const maxScan = Math.min(3, sheet.rowCount);
-  for (let rowNumber = 1; rowNumber <= maxScan; rowNumber++) {
-    const headers = [];
+  function rowHeaders(rowNumber) {
+    const h = [];
     sheet.getRow(rowNumber).eachCell({ includeEmpty: false }, (cell, colNumber) => {
-      headers[colNumber] = String(extractCellValue(cell.value) ?? '').trim();
+      h[colNumber] = String(extractCellValue(cell.value) ?? '').trim();
     });
-    const set = new Set(headers.filter(Boolean));
-    if (set.has('MaSieuThi') && set.has('Thang')) return { rowNumber, headers, shape: 'generic' };
-    if (set.has('Điểm') && set.has('Doanh thu') && set.has('Bill')) return { rowNumber, headers, shape: 'ldtd-daily' };
-    if (set.has('Kỳ') && set.has('Mã đối tượng chứa') && set.has('Mã loại chỉ tiêu') && set.has('Giá trị chỉ tiêu')) {
-      return { rowNumber, headers, shape: 'hcrc-daily' };
+    return h;
+  }
+  let prevHeaders = [];
+  for (let rowNumber = 1; rowNumber <= maxScan; rowNumber++) {
+    const own = rowHeaders(rowNumber);
+    let shape = matchShape(new Set(own.filter(Boolean)));
+    let headers = own;
+    if (!shape) {
+      headers = prevHeaders.slice();
+      own.forEach((v, i) => { if (v && !headers[i]) headers[i] = v; });
+      shape = matchShape(new Set(headers.filter(Boolean)));
     }
+    if (shape) return { rowNumber, headers, shape };
+    prevHeaders = own;
   }
   return null;
 }
@@ -251,13 +294,16 @@ function parseGenericShape(sheet, detected) {
 function parseLdtdDailyShape(sheet, detected) {
   const { rowNumber: headerRow, headers } = detected;
   const col = (name) => headers.indexOf(name);
-  const dateCol = col('Ngày/tháng');
+  // "Ngày/tháng" (tên cũ) hoặc "Ngày" (bản cập nhật "Mẫu Target TĐ T9.xlsx")
+  // — chấp nhận cả 2, cùng ý nghĩa (ngày áp dụng chỉ tiêu).
+  const dateColRaw = col('Ngày/tháng');
+  const dateCol = dateColRaw !== -1 ? dateColRaw : col('Ngày');
   const diemCol = col('Điểm');
   const nhomDiemCol = col('Nhóm điểm');
   const doanhThuCol = col('Doanh thu');
   const billCol = col('Bill');
   if (dateCol === -1 || diemCol === -1) {
-    throw new Error('File thiếu cột bắt buộc "Ngày/tháng" hoặc "Điểm"');
+    throw new Error('File thiếu cột bắt buộc "Ngày/tháng" (hoặc "Ngày") hoặc "Điểm"');
   }
 
   const rows = [];
@@ -270,7 +316,7 @@ function parseLdtdDailyShape(sheet, detected) {
     if (!entityCode && !dateISO) return; // dòng trống bỏ qua, không tính là lỗi
 
     if (!entityCode) { rowErrors.push(`Dòng ${rowNumber}: thiếu "Điểm" (mã siêu thị)`); return; }
-    if (!dateISO) { rowErrors.push(`Dòng ${rowNumber}: "Ngày/tháng" không đọc được (cần dạng ngày hoặc số YYYYMMDD)`); return; }
+    if (!dateISO) { rowErrors.push(`Dòng ${rowNumber}: cột ngày không đọc được (cần dạng ngày, số YYYYMMDD, hoặc ngày không tồn tại trong tháng — vd 31/09)`); return; }
 
     const doanhThuRaw = doanhThuCol !== -1 ? extractCellValue(row.getCell(doanhThuCol).value) : null;
     const billRaw = billCol !== -1 ? extractCellValue(row.getCell(billCol).value) : null;
@@ -388,20 +434,31 @@ async function parseSalesTargetsFile(buffer) {
   guardZipBombSize(buffer, MAX_UNCOMPRESSED_BYTES);
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(buffer);
-  const sheet = workbook.worksheets[0];
-  if (!sheet) throw new Error('File không có sheet nào');
-  if (sheet.rowCount > MAX_IMPORT_ROWS) {
-    throw new Error(`File có ${sheet.rowCount} dòng, vượt giới hạn ${MAX_IMPORT_ROWS} dòng/lượt nhập — chia nhỏ file rồi nhập nhiều lượt`);
-  }
+  if (!workbook.worksheets.length) throw new Error('File không có sheet nào');
 
-  const detected = detectHeaderRow(sheet);
+  // Thử nhận diện tiêu đề trên TỪNG SHEET theo đúng thứ tự trong file — GẶP
+  // THẬT ở bản cập nhật "Mẫu Target TĐ T9.xlsx": file có 3 sheet, sheet dữ
+  // liệu THẬT cần nhập ("File update Report_center") nằm ở VỊ TRÍ THỨ 3,
+  // trước đó là 2 sheet tổng hợp/pivot tham khảo ("CT ngay", "BRG") không
+  // khớp mẫu cột nào — trước đây LUÔN đọc CỨNG sheet ĐẦU TIÊN
+  // (workbook.worksheets[0]), báo "Không nhận diện được định dạng file" dù
+  // sheet đúng vẫn nằm phía sau, hoàn toàn hợp lệ.
+  let sheet = null;
+  let detected = null;
+  for (const candidate of workbook.worksheets) {
+    const found = detectHeaderRow(candidate);
+    if (found) { sheet = candidate; detected = found; break; }
+  }
   if (!detected) {
     throw new Error(
-      'Không nhận diện được định dạng file — cần đúng 1 trong 3 mẫu cột: ' +
+      'Không nhận diện được định dạng file (đã thử mọi sheet trong file) — cần đúng 1 trong 3 mẫu cột: ' +
       '(1) "MaSieuThi"+"Thang"; ' +
       '(2) "Điểm"+"Doanh thu"+"Bill" (mẫu Lãnh đạo Tập đoàn); ' +
       '(3) "Kỳ"+"Mã đối tượng chứa"+"Mã loại chỉ tiêu"+"Giá trị chỉ tiêu" (mẫu HCRC)'
     );
+  }
+  if (sheet.rowCount > MAX_IMPORT_ROWS) {
+    throw new Error(`File có ${sheet.rowCount} dòng, vượt giới hạn ${MAX_IMPORT_ROWS} dòng/lượt nhập — chia nhỏ file rồi nhập nhiều lượt`);
   }
 
   if (detected.shape === 'generic') return parseGenericShape(sheet, detected);

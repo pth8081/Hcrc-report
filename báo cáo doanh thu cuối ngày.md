@@ -513,21 +513,36 @@ Domain — đã khoá cứng sẵn `sales-targets-ldtd`, không lo trùng với 
 
 ![Trang Chỉ tiêu Lãnh đạo Tập đoàn](hinh-huong-dan-ldtd-hcrc/03-chi-tieu-ldtd.png)
 
-1. File Excel (.xlsx) đúng mẫu thật đội Lãnh đạo Tập đoàn gửi — dòng 1 là
-   ghi chú (bỏ qua), dòng 2 là header, dữ liệu từ dòng 3, cột cố định:
+1. File Excel (.xlsx) đúng mẫu thật đội Lãnh đạo Tập đoàn gửi ("Mẫu Target
+   TĐ ...xlsx") — dòng 1 là tiêu đề (bỏ qua), TIÊU ĐỀ CỘT trải trên 2 DÒNG
+   LIỀN KỀ (dòng 2 ghi "Ngày"/"Doanh thu"/"Bill", dòng 3 ghi "Điểm"/"Nhóm
+   điểm" — hệ thống tự GHÉP 2 dòng này lại, không cần gộp tay), dữ liệu từ
+   dòng 4:
 
-   | Ngày/tháng | Ngày | Điểm | Nhóm điểm | Doanh thu | Bill |
-   |---|---|---|---|---|---|
-   | 20260901 | 01 | 001 | Mart | 212013820.47 | 831.43 |
-   | 20260902 | 02 | 001 | Mart | 215404906.78 | 844.73 |
+   | (dòng 2) | | | | Ngày | | | | | Doanh thu | Bill |
+   |---|---|---|---|---|---|---|---|---|---|---|
+   | (dòng 3) | vV | TONG | Điểm | Nhóm điểm | | | | | | |
+   | (dòng 4+) | 20260901 | 01 | 001 | Mart | | | | | 212013820.47 | 831.43 |
+   | | 20260902 | 02 | 001 | Mart | | | | | 215404906.78 | 844.73 |
 
-   `Ngày/tháng` = ngày áp dụng (chấp nhận số YYYYMMDD hoặc ô định dạng
-   ngày thật). `Điểm` = mã siêu thị (EntityCode). `Nhóm điểm` (Mart/Mini) —
-   ghi thêm vào TargetsJson để tham khảo, báo cáo hiện tại không dùng field
-   này. `Doanh thu`/`Bill` — 2 chỉ tiêu, hệ thống TỰ CẮT phần thập phân
-   (không làm tròn), lưu thành `ChiTieuDoanhThu`/`ChiTieuGiaoDich` — khớp
-   sẵn công thức trong DefinitionJson Bước 4, không cần đổi gì. Phải điền
-   ĐỦ CẢ 2 cột Doanh thu và Bill ở 1 dòng (không điền riêng lẻ 1 trong 2).
+   Bảng trên minh hoạ ĐÚNG cách các ô rải trong file thật (nhiều ô trống xen
+   giữa) — không cần hiểu hết, chỉ cần biết hệ thống DÒ theo TÊN cột chứ
+   không theo VỊ TRÍ cột, nên thứ tự/số cột thừa (`vV`, `TONG`) không ảnh
+   hưởng gì. File cũ hơn có thể vẫn ghi "Ngày/tháng" (thay vì "Ngày") và
+   toàn bộ tiêu đề gọn trong 1 dòng duy nhất — hệ thống chấp nhận CẢ 2 kiểu.
+   Nếu file có NHIỀU SHEET (bảng tổng hợp/pivot tham khảo kèm theo), hệ
+   thống tự dò qua TỪNG SHEET để tìm đúng sheet dữ liệu, không cần xoá bớt
+   sheet thừa trước khi tải lên.
+
+   `Ngày`/`Ngày/tháng` = ngày áp dụng (chấp nhận số YYYYMMDD hoặc ô định
+   dạng ngày thật — ngày không có thật trong tháng, vd 31/09, bị TỪ CHỐI rõ
+   ràng thay vì âm thầm lưu sai). `Điểm` = mã siêu thị (EntityCode). `Nhóm
+   điểm` (Mart/Mini) — ghi thêm vào TargetsJson để tham khảo, báo cáo hiện
+   tại không dùng field này. `Doanh thu`/`Bill` — 2 chỉ tiêu, hệ thống TỰ
+   CẮT phần thập phân (không làm tròn), lưu thành
+   `ChiTieuDoanhThu`/`ChiTieuGiaoDich` — khớp sẵn công thức trong
+   DefinitionJson Bước 4, không cần đổi gì. Phải điền ĐỦ CẢ 2 cột Doanh thu
+   và Bill ở 1 dòng (không điền riêng lẻ 1 trong 2).
 2. Bấm **"Choose File"**, chọn file → bấm **"Nhập chỉ tiêu"**.
 3. Bảng "Chỉ tiêu đã nhập" cập nhật ngay — mỗi dòng có nút "Sửa" để chỉnh
    riêng 1 siêu thị/1 ngày (mở/đóng cửa giữa tháng, hoặc chỉnh tay 1 ngày)

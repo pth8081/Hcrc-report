@@ -20,6 +20,42 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 6.65 — Nhận nhập chỉ tiêu LĐTĐ khi mẫu file đổi cấu trúc (nhiều sheet, tiêu đề trải 2 dòng)
+
+Người dùng gửi file mẫu mới ("Mẫu Target TĐ T9.xlsx"), báo vẫn không nhập
+được chỉ tiêu. Đọc trực tiếp file thật, phát hiện 3 thay đổi cấu trúc so
+với mẫu cũ mà `etl/lib/salesTargetsImport.js` chưa nhận diện được:
+
+1. **File có 3 sheet** ("CT ngay", "BRG" — 2 bảng tổng hợp/pivot tham
+   khảo — rồi mới tới "File update Report_center" chứa dữ liệu thật cần
+   nhập) — code cũ LUÔN đọc CỨNG sheet ĐẦU TIÊN
+   (`workbook.worksheets[0]`), rơi đúng vào sheet pivot không khớp mẫu cột
+   nào, báo "Không nhận diện được định dạng file" dù sheet đúng vẫn ở phía
+   sau. Sửa: `parseSalesTargetsFile()` giờ dò tiêu đề TRÊN TỪNG SHEET theo
+   thứ tự, dùng sheet ĐẦU TIÊN khớp được 1 trong 3 mẫu.
+2. **Tiêu đề cột trải trên 2 DÒNG LIỀN KỀ** thay vì gọn 1 dòng (dòng trên
+   ghi "Ngày"/"Doanh thu"/"Bill", dòng dưới ghi "Điểm"/"Nhóm điểm", xen vài
+   ô "rác" như "TONG"/"vV") — `detectHeaderRow()` dò riêng từng dòng như cũ
+   không bao giờ thấy ĐỦ bộ cột trong CÙNG 1 dòng. Sửa: thử đúng dòng hiện
+   tại trước (không đổi hành vi mẫu tiêu đề gọn 1 dòng cũ); chỉ khi không
+   đủ mới GHÉP với dòng NGAY TRÊN (dòng trên ưu tiên, dòng dưới chỉ bù ô
+   còn trống — thứ tự này để tránh 1 ô "rác" ở dòng dưới đè mất tên cột
+   đúng đã có ở dòng trên).
+3. **Cột ngày đổi tên** từ "Ngày/tháng" thành "Ngày" — `parseLdtdDailyShape()`
+   giờ chấp nhận cả 2 tên.
+
+**Tiện thể phát hiện thêm** qua chính file mẫu này: 36 dòng cuối bảng có
+ngày "31" của các tháng chỉ có 30 ngày (vd `20260931`) — công thức Excel tự
+sinh đủ 31 dòng/tháng không phân biệt tháng ngắn/dài. Trước đây các dòng
+này lọt qua như hợp lệ, chỉ vỡ tận lúc ghi CSDL (`Invalid Date`). Thêm
+`isValidCalendarDate()` — từ chối rõ ràng ngay từ bước đọc file, không âm
+thầm lưu sai hoặc lỗi mù mờ ở tầng khác.
+
+Đã test bằng CHÍNH file thật người dùng gửi (1080/1116 dòng hợp lệ, 36 dòng
+ngày ảo bị từ chối đúng, 31 dòng lịch thừa cuối bảng không có "Điểm" cũng bị
+từ chối đúng) + test hồi quy xác nhận 2 mẫu cũ (generic, HCRC) và kiểu tiêu
+đề gọn 1 dòng cũ của LĐTĐ đều không bị ảnh hưởng.
+
 ## 6.64 — Báo "có bản cập nhật mới" trên cả 3 giao diện tĩnh (rp-user/api-admin/etl-admin)
 
 Gặp thật trong lúc triển khai bản 6.63: đã `git pull` xong nhưng quên
