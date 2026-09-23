@@ -110,8 +110,8 @@ app.use('/admin/dashboard', adminDashboardRoutes);
 // 'doanhthu_chinhanh' — domain thực đạt CHUNG cho cả 2 báo cáo LDTD/HCRC
 // (xem rp-server/scripts/seedLdtdHcrcReports.js DOMAIN) — dùng để cảnh báo
 // EntityCode gõ sai/nhầm khi nhập chỉ tiêu (xem routes/admin/salesTargets.js).
-app.use('/admin/sales-targets-corp', createSalesTargetsRouter('sales-targets-corp', 'sales-targets-ldtd', 'doanhthu_chinhanh'));
-app.use('/admin/sales-targets-hcrc', createSalesTargetsRouter('sales-targets-hcrc', 'sales-targets-hcrc', 'doanhthu_chinhanh'));
+app.use('/admin/sales-targets-corp', createSalesTargetsRouter('sales-targets-corp', 'sales-targets-ldtd', 'doanhthu_chinhanh', 'ldtd-daily'));
+app.use('/admin/sales-targets-hcrc', createSalesTargetsRouter('sales-targets-hcrc', 'sales-targets-hcrc', 'doanhthu_chinhanh', 'hcrc-daily'));
 app.use('/admin/branch-code-map', adminBranchCodeMapRoutes);
 app.use('/admin/roles', adminRolesRoutes);
 

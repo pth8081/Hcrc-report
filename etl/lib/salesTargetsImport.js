@@ -620,7 +620,72 @@ async function findUnknownEntityCodes(pool, actualDataDomain, entityCodes) {
   return [...new Set(entityCodes)].filter(code => !known.has(code)).sort();
 }
 
+// ---- Xuất file mẫu (template) + xuất dữ liệu hiện có (export) — theo yêu
+// cầu người dùng ("làm cho tôi file mẫu, nhập và xuất file excel cho hai
+// mẫu chỉ tiêu"). Dùng ĐÚNG khuôn cột của 2 mẫu thật LDTD/HCRC ở trên
+// (parseLdtdDailyShape/parseHcrcDailyShape) — tải "file mẫu" về, điền số
+// liệu rồi NHẬP LẠI được luôn qua chính POST /import, không cần đổi tên
+// cột. "Xuất dữ liệu hiện có" đọc lại TargetsJson đã lưu, dựng NGƯỢC về
+// đúng hình dạng file gốc (đặc biệt mẫu HCRC — bảng "dài", 1 dòng/loại chỉ
+// tiêu) để mở lại/sửa tiếp đúng như file đã nhập lần trước, không phải tự
+// suy ra khuôn cột.
+async function buildWorkbook(sheetName, headers, dataRows, noteLine) {
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet(sheetName);
+  if (noteLine) sheet.addRow([noteLine]);
+  const headerRow = sheet.addRow(headers);
+  headerRow.font = { bold: true };
+  for (const row of dataRows) sheet.addRow(row);
+  sheet.columns.forEach((col) => { col.width = 22; });
+  return workbook.xlsx.writeBuffer();
+}
+
+// Mã "VIDU" (không khớp bất kỳ siêu thị thật nào) — XOÁ trước khi nhập,
+// ghi rõ trong noteLine để tránh nhập nhầm dòng ví dụ thành chỉ tiêu thật.
+async function buildLdtdDailyTemplate() {
+  return buildWorkbook(
+    'Chi tieu',
+    ['Ngày', 'Điểm', 'Nhóm điểm', 'Doanh thu', 'Bill'],
+    [[new Date('2026-01-01'), 'VIDU', 'MART', 1500000000, 1200]],
+    'XOÁ dòng ví dụ (mã "VIDU") trước khi nhập — "Ngày" là ngày áp dụng chỉ tiêu, "Điểm" là mã siêu thị (phải khớp mã dùng ở domain doanh thu), "Nhóm điểm" tuỳ chọn, "Doanh thu"/"Bill" phải cập nhật cùng lúc.'
+  );
+}
+
+async function buildHcrcDailyTemplate() {
+  return buildWorkbook(
+    'Chi tieu',
+    ['Kỳ', 'Mã đối tượng chứa', 'Loại đối tượng chứa', 'Mã loại chỉ tiêu', 'Tên loại chỉ tiêu', 'Giá trị chỉ tiêu'],
+    [
+      [new Date('2026-01-01'), 'VIDU', '', '01', 'Doanh thu', 1500000000],
+      [new Date('2026-01-01'), 'VIDU', '', '03', 'Giao dịch', 1200]
+    ],
+    'XOÁ 2 dòng ví dụ (mã "VIDU") trước khi nhập — mỗi (Kỳ, Mã đối tượng chứa) cần 2 dòng: "Mã loại chỉ tiêu"="01" là Doanh thu, ="03" là Giao dịch (Bill), xem HCRC_TARGET_TYPE_MAP trong lib/salesTargetsImport.js.'
+  );
+}
+
+function buildLdtdDailyExport(rows) {
+  const dataRows = rows.map(r => [
+    r.periodMonth, r.entityCode, r.targets.NhomDiem || '',
+    r.targets.ChiTieuDoanhThu ?? '', r.targets.ChiTieuGiaoDich ?? ''
+  ]);
+  return buildWorkbook('Chi tieu', ['Ngày', 'Điểm', 'Nhóm điểm', 'Doanh thu', 'Bill'], dataRows);
+}
+
+function buildHcrcDailyExport(rows) {
+  const dataRows = [];
+  for (const r of rows) {
+    if (r.targets.ChiTieuDoanhThu !== undefined) {
+      dataRows.push([r.periodMonth, r.entityCode, r.targets.LoaiDoiTuongChua || '', '01', 'Doanh thu', r.targets.ChiTieuDoanhThu]);
+    }
+    if (r.targets.ChiTieuGiaoDich !== undefined) {
+      dataRows.push([r.periodMonth, r.entityCode, r.targets.LoaiDoiTuongChua || '', '03', 'Giao dịch', r.targets.ChiTieuGiaoDich]);
+    }
+  }
+  return buildWorkbook('Chi tieu', ['Kỳ', 'Mã đối tượng chứa', 'Loại đối tượng chứa', 'Mã loại chỉ tiêu', 'Tên loại chỉ tiêu', 'Giá trị chỉ tiêu'], dataRows);
+}
+
 module.exports = {
   parseSalesTargetsFile, upsertSalesTargets, findUnknownEntityCodes,
+  buildLdtdDailyTemplate, buildHcrcDailyTemplate, buildLdtdDailyExport, buildHcrcDailyExport,
   PERIOD_RE, PERIOD_DATE_RE, TRANG_THAI_VALUES, HCRC_TARGET_TYPE_MAP
 };

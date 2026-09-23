@@ -191,4 +191,41 @@ async function upsertBranchCodeMapChunk(pool, rows, importedBy, { preserveTrangT
   }
 }
 
-module.exports = { parseBranchCodeMapFile, upsertBranchCodeMap, REQUIRED_HEADERS, TRANG_THAI_VALUES };
+// ---- Xuất file mẫu (template) + xuất dữ liệu hiện có (export) — theo yêu
+// cầu người dùng, cùng tinh thần lib/salesTargetsImport.js: tải "file mẫu"
+// về, điền rồi NHẬP LẠI được luôn qua chính POST /import; "xuất dữ liệu
+// hiện có" đọc lại etl.BranchCodeMap, dựng về đúng khuôn cột file gốc.
+async function buildWorkbook(sheetName, headers, dataRows, noteLine) {
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet(sheetName);
+  if (noteLine) sheet.addRow([noteLine]);
+  const headerRow = sheet.addRow(headers);
+  headerRow.font = { bold: true };
+  for (const row of dataRows) sheet.addRow(row);
+  sheet.columns.forEach((col) => { col.width = 22; });
+  return workbook.xlsx.writeBuffer();
+}
+
+// Mã "VIDU" (không khớp mã thật nào) — XOÁ trước khi nhập. KHÔNG kèm dòng
+// ghi chú phía trên header (khác lib/salesTargetsImport.js) — parser file
+// này đọc CỐ ĐỊNH dòng 1 là header (xem parseBranchCodeMapFile() ở trên,
+// không có detectHeaderRow dò nhiều dòng như salesTargetsImport.js), thêm
+// dòng ghi chú sẽ khiến chính file mẫu KHÔNG nhập lại được — giải thích cột
+// đã có sẵn trong đoạn hướng dẫn trên trang (BranchCodeMapPage.jsx).
+async function buildBranchCodeMapTemplate() {
+  return buildWorkbook(
+    'Anh xa',
+    ['LoaiMaKhac', 'MaKhac', 'MaChuan', 'TenSieuThi', 'TrangThai'],
+    [['BU_ID', 'VIDU-00100', '13061', 'Tên siêu thị ví dụ - XOÁ dòng này trước khi nhập', '']]
+  );
+}
+
+function buildBranchCodeMapExport(rows) {
+  const dataRows = rows.map(r => [r.loaiMaKhac, r.maKhac, r.maChuan, r.tenSieuThi || '', r.trangThai || '']);
+  return buildWorkbook('Anh xa', ['LoaiMaKhac', 'MaKhac', 'MaChuan', 'TenSieuThi', 'TrangThai'], dataRows);
+}
+
+module.exports = {
+  parseBranchCodeMapFile, upsertBranchCodeMap, REQUIRED_HEADERS, TRANG_THAI_VALUES,
+  buildBranchCodeMapTemplate, buildBranchCodeMapExport
+};

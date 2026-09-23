@@ -13,9 +13,13 @@ const multer = require('multer');
 const { sql, getPool } = require('../../db');
 const { requireAdminAuth } = require('../../lib/adminAuth');
 const { requireMenuEdit } = require('../../lib/adminPermissions');
-const { parseBranchCodeMapFile, upsertBranchCodeMap, TRANG_THAI_VALUES } = require('../../lib/branchCodeMapImport');
+const {
+  parseBranchCodeMapFile, upsertBranchCodeMap, TRANG_THAI_VALUES,
+  buildBranchCodeMapTemplate, buildBranchCodeMapExport
+} = require('../../lib/branchCodeMapImport');
 const { logAction } = require('../../lib/auditLog');
 const { hasZipSignature } = require('../../lib/fileSignature');
+const { sendXlsx } = require('../../lib/xlsxResponse');
 
 const router = express.Router();
 router.use(requireAdminAuth);
@@ -82,6 +86,37 @@ router.delete('/:id', requireMenuEdit('branch-code-map'), async (req, res, next)
     const { LoaiMaKhac, MaKhac } = result.recordset[0];
     await logAction(req, { module: 'Ánh xạ mã chi nhánh', actionType: 'XOA_ANH_XA', targetObject: `${LoaiMaKhac}/${MaKhac}`, description: `Xoá ánh xạ "${LoaiMaKhac}/${MaKhac}"` });
     res.json({ ok: true });
+  } catch (err) { next(err); }
+});
+
+// Tải "file mẫu" đúng khuôn cột — điền rồi nhập lại được luôn qua POST
+// /import bên dưới.
+router.get('/template', requireMenuEdit('branch-code-map'), async (req, res, next) => {
+  try {
+    const buffer = await buildBranchCodeMapTemplate();
+    sendXlsx(res, buffer, 'mau-anh-xa-ma-chi-nhanh.xlsx');
+  } catch (err) { next(err); }
+});
+
+// Xuất TOÀN BỘ ánh xạ đang lưu ra Excel — đúng khuôn cột file mẫu, cùng
+// tham số lọc loaiMaKhac như GET '/'.
+router.get('/export', requireMenuEdit('branch-code-map'), async (req, res, next) => {
+  try {
+    const { loaiMaKhac } = req.query;
+    const pool = await getPool('ADMIN');
+    const request = pool.request();
+    let where = '';
+    if (loaiMaKhac) { request.input('loaiMaKhac', sql.VarChar(50), loaiMaKhac); where = 'WHERE LoaiMaKhac = @loaiMaKhac'; }
+    const result = await request.query(`
+      SELECT LoaiMaKhac, MaKhac, MaChuan, TenSieuThi, TrangThai
+      FROM etl.BranchCodeMap ${where}
+      ORDER BY LoaiMaKhac, MaKhac
+    `);
+    const rows = result.recordset.map(r => ({
+      loaiMaKhac: r.LoaiMaKhac, maKhac: r.MaKhac, maChuan: r.MaChuan, tenSieuThi: r.TenSieuThi, trangThai: r.TrangThai
+    }));
+    const buffer = await buildBranchCodeMapExport(rows);
+    sendXlsx(res, buffer, 'anh-xa-ma-chi-nhanh.xlsx');
   } catch (err) { next(err); }
 });
 

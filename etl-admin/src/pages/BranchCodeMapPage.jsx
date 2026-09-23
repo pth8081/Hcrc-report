@@ -94,6 +94,25 @@ export default function BranchCodeMapPage() {
     }
   }
 
+  async function downloadTemplate() {
+    setError('');
+    try {
+      await api.downloadFile('/branch-code-map/template', 'mau-anh-xa-ma-chi-nhanh.xlsx');
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  async function downloadExport() {
+    setError('');
+    try {
+      const qs = filterLoai ? `?loaiMaKhac=${encodeURIComponent(filterLoai)}` : '';
+      await api.downloadFile(`/branch-code-map/export${qs}`, 'anh-xa-ma-chi-nhanh.xlsx');
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
   return (
     <div className="page">
       <h1>Ánh xạ mã chi nhánh</h1>
@@ -110,11 +129,30 @@ export default function BranchCodeMapPage() {
         File .xlsx: dòng 1 header, cột bắt buộc <code>LoaiMaKhac</code> (tên bạn tự đặt, vd{' '}
         <code>BU_ID</code>), <code>MaKhac</code> (giá trị mã gốc ở nguồn), <code>MaChuan</code> (mã
         chuẩn dùng làm EntityCode — phải khớp mã đã dùng ở domain doanh thu/tồn kho). Cột tuỳ
-        chọn: <code>TenSieuThi</code> (chỉ để dễ đọc), <code>TrangThai</code> (để trống = đang
-        dùng, <code>DaDong</code> = ngừng áp dụng dòng này).
+        chọn: <code>TenSieuThi</code> (dùng để hiện tên siêu thị thật trong báo cáo, xem giải
+        thích bên dưới), <code>TrangThai</code> (để trống = đang dùng, <code>DaDong</code> = ngừng
+        áp dụng dòng này). Bấm <strong>Tải file mẫu</strong> để lấy file đúng khuôn cột (xoá dòng
+        ví dụ mã "VIDU-00100" rồi điền dữ liệu thật), hoặc <strong>Xuất Excel</strong> ở bảng bên
+        dưới để tải về đúng dữ liệu đang lưu.
+      </p>
+      <p>
+        <strong>Mã ánh xạ này dùng để làm gì?</strong> Chỉ 2 việc: (1) quy đổi mã nguồn (vd{' '}
+        <code>BU_ID</code> ở bảng giao dịch DSMART16) về đúng "mã chuẩn" đã dùng ở domain doanh
+        thu — để báo cáo GHÉP đúng 1 dòng thực đạt (doanh thu + giao dịch) cho cùng 1 chi nhánh dù
+        2 bảng nguồn dùng 2 hệ mã khác nhau; và (2) TUỲ CHỌN gắn thêm <code>TenSieuThi</code> để
+        cột "Siêu thị/Cửa hàng" trên báo cáo hiện TÊN THẬT thay vì mã. Bảng ánh xạ này KHÔNG tự
+        "lấy đúng doanh thu" — số liệu thực đạt vẫn đọc thẳng từ DSMART16 như bình thường (xem
+        trang <strong>Đồng bộ</strong>), ánh xạ chỉ đổi TÊN GỌI của mã khoá dùng để ghép dữ liệu,
+        không đổi giá trị doanh thu. Báo cáo vẫn PHẢI so khớp với chỉ tiêu (mã nào không có trong
+        "Chỉ tiêu Lãnh đạo Tập đoàn"/"Chỉ tiêu HCRC" sẽ bị loại khỏi báo cáo, coi là "mã rác") —
+        2 cơ chế (ánh xạ mã + đối chiếu chỉ tiêu) độc lập nhau, dùng chỉ tiêu để LỌC mã hợp lệ,
+        dùng ánh xạ để HIỂN THỊ tên đẹp và GHÉP đúng mã giữa các bảng nguồn khác nhau.
       </p>
       {error && <p className="form-error">{error}</p>}
 
+      <div className="inline-actions">
+        <button type="button" onClick={downloadTemplate}>Tải file mẫu</button>
+      </div>
       <form className="stacked-form" onSubmit={submitImport}>
         <input type="file" accept=".xlsx" onChange={(e) => setFile(e.target.files?.[0] ?? null)} required />
         <button type="submit">Nhập file ánh xạ</button>
@@ -135,6 +173,7 @@ export default function BranchCodeMapPage() {
       <h2>Ánh xạ đã khai</h2>
       <div className="inline-actions">
         <input placeholder="Lọc theo Loại mã (vd BU_ID)" value={filterLoai} onChange={(e) => setFilterLoai(e.target.value)} />
+        <button type="button" onClick={downloadExport}>Xuất Excel</button>
       </div>
 
       <DataTable

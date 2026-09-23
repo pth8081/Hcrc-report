@@ -494,7 +494,9 @@ Sau khi tạo đủ 4 job, trang "Đồng bộ" hiện như sau — 2 job đầu
 bảng quy đổi ở menu **"Ánh xạ mã chi nhánh"** (mỗi dòng: `BU_ID` nào ứng
 với mã siêu thị chuẩn nào) TRƯỚC khi 2 job này chạy thật — chưa khai đủ
 vẫn chạy được, chỉ ghi cảnh báo ở Log cho những mã chưa khai (xem
-`etl/README.md`).
+`etl/README.md`). Trang này có nút **"Tải file mẫu"** (file .xlsx đúng
+khuôn cột, kèm 1 dòng ví dụ mã "VIDU-00100" cần xoá trước khi nhập) và
+**"Xuất Excel"** (tải về đúng dữ liệu đang lưu để sửa tiếp rồi nhập lại).
 
 ---
 
@@ -504,7 +506,11 @@ vẫn chạy được, chỉ ghi cảnh báo ở Log cho những mã chưa khai 
 khớp đúng 2 mẫu file Excel thật đội Lãnh đạo Tập đoàn/HCRC đang dùng để
 tính chỉ tiêu ngày từ tỷ lệ N-1/LFL. Hệ thống TỰ NHẬN DIỆN định dạng file
 theo tên cột (xem chi tiết trong `etl/lib/salesTargetsImport.js`) — tải
-NGUYÊN VĂN file mẫu thật lên, không cần đổi tên cột gì cả.
+NGUYÊN VĂN file mẫu thật lên, không cần đổi tên cột gì cả. Cả 2 trang
+"Chỉ tiêu Lãnh đạo Tập đoàn"/"Chỉ tiêu HCRC" đều có nút **"Tải file mẫu"**
+(đúng khuôn cột của trang đó, kèm dòng ví dụ mã "VIDU" cần xoá trước khi
+nhập) và **"Xuất Excel"** (tải về đúng chỉ tiêu đang lưu, đúng khuôn cột
+gốc — kể cả mẫu HCRC dạng bảng "dài" — để sửa tiếp rồi nhập lại).
 
 ### Chỉ tiêu Lãnh đạo Tập đoàn
 

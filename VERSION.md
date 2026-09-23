@@ -20,6 +20,37 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 6.73 — Tải file mẫu + Xuất Excel cho "Chỉ tiêu LDTD/HCRC" và "Ánh xạ mã chi nhánh"
+
+Theo yêu cầu người dùng: 3 trang nhập liệu bằng Excel ("Chỉ tiêu Lãnh đạo Tập
+đoàn", "Chỉ tiêu HCRC", "Ánh xạ mã chi nhánh") nay có thêm 2 nút:
+
+- **"Tải file mẫu"** — file .xlsx trống đúng khuôn cột của đúng trang đó
+  (kèm 1-2 dòng ví dụ rõ ràng mã "VIDU"/"VIDU-00100" cần xoá trước khi
+  nhập), tải về điền số liệu rồi nhập lại được luôn qua chính nút "Nhập"
+  hiện có, không cần tự dò tên cột.
+- **"Xuất Excel"** — tải về ĐÚNG dữ liệu đang lưu (theo bộ lọc hiện tại),
+  dựng lại đúng khuôn cột file gốc (mẫu HCRC dạng bảng "dài" — 1 dòng chỉ
+  tiêu tách thành 2 dòng loại "01"/"03" — được dựng NGƯỢC đúng như file
+  thật) để mở sửa tiếp rồi nhập lại, khỏi tự tay dựng lại từ đầu.
+
+Cài đặt: `etl/lib/salesTargetsImport.js`/`etl/lib/branchCodeMapImport.js`
+thêm hàm dựng workbook (ExcelJS) cho từng khuôn cột đã có sẵn (mirror đúng
+`parseLdtdDailyShape`/`parseHcrcDailyShape`/parser ánh xạ), route mới
+`GET .../template` và `GET .../export` (quyền như GET hiện có — xem/sửa
+tuỳ trang), header response dùng chung `etl/lib/xlsxResponse.js`. Frontend
+thêm `api.downloadFile()` (etl-admin/src/lib/api.js) — fetch + tạo link tải
+tạm, đọc tên file từ `Content-Disposition` server trả về.
+
+Nhân dịp trả lời câu hỏi người dùng về cơ chế "Ánh xạ mã chi nhánh": trang
+đó CHỈ (1) quy đổi mã nguồn (vd `BU_ID` DSMART16) về mã chuẩn để báo cáo
+ghép đúng dữ liệu thực đạt giữa các bảng nguồn khác hệ mã, và (2) TUỲ CHỌN
+gắn `TenSieuThi` để báo cáo hiện tên thật (xem 6.72) — KHÔNG tự "chọn đúng
+doanh thu", số liệu thực đạt vẫn đọc nguyên từ DSMART16 qua job Đồng bộ như
+cũ. Việc lọc "mã rác" vẫn hoàn toàn do đối chiếu với Chỉ tiêu
+(`requireTargetMatch`, xem 6.72) đảm nhiệm — 2 cơ chế độc lập nhau, đã ghi
+rõ thêm trong etl-admin (BranchCodeMapPage.jsx) và tài liệu.
+
 ## 6.72 — Báo cáo doanh thu LDTD/HCRC: lọc theo chỉ tiêu (bỏ mã rác) + hiện tên siêu thị thay vì mã
 
 Theo yêu cầu người dùng: báo cáo "Báo cáo nhanh doanh thu - LDTD/HCRC" đang

@@ -37,9 +37,14 @@ const multer = require('multer');
 const { sql, getPool } = require('../../db');
 const { requireAdminAuth } = require('../../lib/adminAuth');
 const { requireMenuAccess, requireMenuEdit } = require('../../lib/adminPermissions');
-const { parseSalesTargetsFile, upsertSalesTargets, findUnknownEntityCodes, PERIOD_RE, PERIOD_DATE_RE, TRANG_THAI_VALUES } = require('../../lib/salesTargetsImport');
+const {
+  parseSalesTargetsFile, upsertSalesTargets, findUnknownEntityCodes,
+  buildLdtdDailyTemplate, buildHcrcDailyTemplate, buildLdtdDailyExport, buildHcrcDailyExport,
+  PERIOD_RE, PERIOD_DATE_RE, TRANG_THAI_VALUES
+} = require('../../lib/salesTargetsImport');
 const { logAction } = require('../../lib/auditLog');
 const { hasZipSignature } = require('../../lib/fileSignature');
+const { sendXlsx } = require('../../lib/xlsxResponse');
 
 // memoryStorage — CHỈ đọc để parse ngay trong bộ nhớ, KHÔNG lưu file gốc
 // lên đĩa (không cần giữ lại sau khi đã ghi xong dữ liệu vào DWH — tránh
@@ -61,7 +66,12 @@ const upload = multer({
 // lib/salesTargetsImport.js. Bỏ trống thì KHÔNG đối chiếu (route dùng cho
 // domain khác ngoài LDTD/HCRC, không biết chắc domain thực đạt nào tương
 // ứng).
-function createSalesTargetsRouter(menuCode, domain, actualDataDomain) {
+//
+// shape — 'ldtd-daily' hoặc 'hcrc-daily' (xem lib/salesTargetsImport.js) —
+// chọn ĐÚNG khuôn cột file mẫu/xuất Excel khớp định dạng file thật của
+// từng trang (2 route /template và /export bên dưới), theo yêu cầu người
+// dùng "làm file mẫu, nhập và xuất file excel cho 2 mẫu chỉ tiêu".
+function createSalesTargetsRouter(menuCode, domain, actualDataDomain, shape) {
 const router = express.Router();
 router.use(requireAdminAuth);
 
@@ -124,6 +134,39 @@ router.put('/one', requireMenuEdit(menuCode), async (req, res, next) => {
     }], req.admin.username);
     await logAction(req, { module: 'Nhập chỉ tiêu', actionType: 'SUA_CHI_TIEU', targetObject: `${domain}/${entityCode}/${periodMonth}`, description: `Sửa chỉ tiêu "${entityCode}" tháng ${periodMonth} (domain "${domain}")` });
     res.json(result);
+  } catch (err) { next(err); }
+});
+
+// Tải "file mẫu" đúng khuôn cột file thật của trang này — điền số liệu rồi
+// nhập lại được luôn qua POST /import bên dưới, không cần đổi tên cột.
+// requireMenuAccess (không cần quyền sửa) — file mẫu không mang dữ liệu
+// nhạy cảm, ai xem được trang cũng tải được để chuẩn bị file.
+router.get('/template', requireMenuAccess(menuCode), async (req, res, next) => {
+  try {
+    const buffer = await (shape === 'hcrc-daily' ? buildHcrcDailyTemplate() : buildLdtdDailyTemplate());
+    sendXlsx(res, buffer, `mau-${menuCode}.xlsx`);
+  } catch (err) { next(err); }
+});
+
+// Xuất TOÀN BỘ chỉ tiêu đang lưu của domain này ra file Excel — đúng khuôn
+// cột file thật (mẫu HCRC dựng lại đúng dạng bảng "dài") để mở lại/sửa tiếp
+// rồi nhập lại được luôn, không cần tự đoán khuôn cột. Cùng tham số lọc
+// periodMonth như GET '/'.
+router.get('/export', requireMenuAccess(menuCode), async (req, res, next) => {
+  try {
+    const { periodMonth } = req.query;
+    const pool = await getPool('DWH_TARGET_IMPORTER');
+    const request = pool.request().input('domain', sql.VarChar(50), domain);
+    const conditions = ['Domain = @domain'];
+    if (periodMonth) { request.input('periodMonth', sql.Date, periodMonth); conditions.push('PeriodMonth = @periodMonth'); }
+    const result = await request.query(`
+      SELECT EntityCode, PeriodMonth, TargetsJson
+      FROM dwh.SalesTargets WHERE ${conditions.join(' AND ')}
+      ORDER BY PeriodMonth, EntityCode
+    `);
+    const rows = result.recordset.map(r => ({ entityCode: r.EntityCode, periodMonth: r.PeriodMonth, targets: JSON.parse(r.TargetsJson) }));
+    const buffer = await (shape === 'hcrc-daily' ? buildHcrcDailyExport(rows) : buildLdtdDailyExport(rows));
+    sendXlsx(res, buffer, `${menuCode}.xlsx`);
   } catch (err) { next(err); }
 });
 

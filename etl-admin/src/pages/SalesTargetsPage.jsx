@@ -121,6 +121,27 @@ export default function SalesTargetsPage({ menuCode, apiBase, title }) {
     }
   }
 
+  async function downloadTemplate() {
+    setError('');
+    try {
+      await api.downloadFile(`${apiBase}/template`, 'mau-chi-tieu.xlsx');
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  async function downloadExport() {
+    setError('');
+    try {
+      const params = new URLSearchParams();
+      if (filterPeriod) params.set('periodMonth', filterPeriod);
+      const qs = params.toString();
+      await api.downloadFile(`${apiBase}/export${qs ? `?${qs}` : ''}`, 'chi-tieu.xlsx');
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
   return (
     <div className="page">
       <h1>{title}</h1>
@@ -129,7 +150,10 @@ export default function SalesTargetsPage({ menuCode, apiBase, title }) {
         GHI ĐÈ số liệu cũ, không cộng dồn. Chỉ tiêu nhập ở trang này ĐỘC LẬP hoàn toàn với
         chỉ tiêu ở trang kia (2 domain khác nhau đã khoá cứng sẵn, không thể trùng) — không
         cần lo ghi đè lẫn nhau. Hệ thống tự nhận diện định dạng file theo tên cột, hỗ trợ
-        nguyên văn file mẫu thật đang dùng — không cần đổi tên cột trước khi tải lên:
+        nguyên văn file mẫu thật đang dùng — không cần đổi tên cột trước khi tải lên. Bấm{' '}
+        <strong>Tải file mẫu</strong> để lấy file .xlsx đúng khuôn cột của trang này (xoá dòng ví
+        dụ mã "VIDU" rồi điền số liệu thật), hoặc <strong>Xuất Excel</strong> ở bảng bên dưới để
+        tải về đúng dữ liệu đang lưu (mở sửa tiếp rồi nhập lại được luôn):
       </p>
       <ul>
         <li>Mẫu <strong>Lãnh đạo Tập đoàn</strong>: cột <code>Ngày/tháng</code>,{' '}
@@ -155,10 +179,15 @@ export default function SalesTargetsPage({ menuCode, apiBase, title }) {
       {error && <p className="form-error">{error}</p>}
 
       {isEditor && (
-        <form className="stacked-form" onSubmit={submitImport}>
-          <input type="file" accept=".xlsx" onChange={(e) => setFile(e.target.files?.[0] ?? null)} required />
-          <button type="submit">Nhập chỉ tiêu</button>
-        </form>
+        <>
+          <div className="inline-actions">
+            <button type="button" onClick={downloadTemplate}>Tải file mẫu</button>
+          </div>
+          <form className="stacked-form" onSubmit={submitImport}>
+            <input type="file" accept=".xlsx" onChange={(e) => setFile(e.target.files?.[0] ?? null)} required />
+            <button type="submit">Nhập chỉ tiêu</button>
+          </form>
+        </>
       )}
 
       {importResult && (
@@ -186,6 +215,7 @@ export default function SalesTargetsPage({ menuCode, apiBase, title }) {
       <h2>Chỉ tiêu đã nhập</h2>
       <div className="inline-actions">
         <input type="date" value={filterPeriod} onChange={(e) => setFilterPeriod(e.target.value)} />
+        <button type="button" onClick={downloadExport}>Xuất Excel</button>
       </div>
 
       <DataTable
