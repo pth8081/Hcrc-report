@@ -170,6 +170,22 @@ async function runJobObject(job) {
   return runWithCrossProcessLock(job, () => runJobObjectLocked(job));
 }
 
+// err.message RỖNG là có thật, không phải lỗi hiển thị/log cắt bớt — gặp
+// thực tế khi driver mssql/tedious ném AggregateError (Node tự gộp nhiều
+// lượt thử kết nối IPv4/IPv6 "Happy Eyeballs" khi TCP chập chờn):
+// AggregateError.message MẶC ĐỊNH LÀ CHUỖI RỖNG nếu không truyền tham số
+// message thứ 2 lúc tạo — lý do thật nằm trong mảng .errors[], không phải
+// .message. Không xử lý riêng thì console.error/etl.SyncLog.ErrorMessage
+// đều ghi rỗng, không ai đọc lại được lý do thật.
+function describeSyncError(err) {
+  if (err && err.message) return err.message;
+  if (err && Array.isArray(err.errors) && err.errors.length) {
+    return err.errors.map(e => (e && e.message) || String(e)).join('; ');
+  }
+  if (err && err.code) return `${err.name || 'Error'} (${err.code})`;
+  return String(err);
+}
+
 async function runJobObjectLocked(job) {
   const startedAt = new Date();
   console.log(`▶ [${job.Name}] Bắt đầu đồng bộ...`);
@@ -191,15 +207,16 @@ async function runJobObjectLocked(job) {
     await logRun({ jobId: job.Id, status: 'SUCCESS', rowCount: transformed.length, startedAt, finishedAt: new Date() });
     console.log(`✅ [${job.Name}] Xong — ${inserted} dòng mới, ${updated} dòng cập nhật.`);
   } catch (err) {
-    console.error(`⛔ [${job.Name}] Lỗi đồng bộ:`, err.message);
+    const message = describeSyncError(err);
+    console.error(`⛔ [${job.Name}] Lỗi đồng bộ:`, message);
     await logRun({
       jobId: job.Id,
       status: 'FAILED',
-      errorMessage: err.message,
+      errorMessage: message,
       startedAt,
       finishedAt: new Date()
     }).catch(() => {});
-    await alertSyncFailure({ key: job.Name, label: job.Name }, err).catch(() => {});
+    await alertSyncFailure({ key: job.Name, label: job.Name }, message).catch(() => {});
   }
 }
 

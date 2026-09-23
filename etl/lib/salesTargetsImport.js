@@ -427,21 +427,35 @@ async function upsertSalesTargets(pool, domain, rows, importedBy, { preserveTran
     await new sql.Request(tx).query(`
       IF OBJECT_ID('tempdb..#StagingTargets') IS NOT NULL DROP TABLE #StagingTargets;
       CREATE TABLE #StagingTargets (
-        Domain      VARCHAR(50)   NOT NULL,
-        EntityCode  NVARCHAR(100) NOT NULL,
-        PeriodMonth DATE          NOT NULL,
-        TargetsJson NVARCHAR(MAX) NOT NULL
+        Domain            VARCHAR(50)   NOT NULL,
+        EntityCode        NVARCHAR(100) NOT NULL,
+        PeriodMonth       DATE          NOT NULL,
+        TargetsJson       NVARCHAR(MAX) NOT NULL,
+        ImportedBy        NVARCHAR(50)  NULL,
+        PreserveTrangThai BIT           NOT NULL
       );
     `);
 
+    // ImportedBy/PreserveTrangThai NẠP CÙNG BULK INSERT (mỗi dòng lặp lại 2
+    // giá trị NHƯ NHAU) thay vì `.input()` trên câu MERGE bên dưới — ĐÃ GẶP
+    // THẬT lỗi "Invalid object name '#StagingTargets'" khi câu MERGE có
+    // `.input()` (driver mssql chuyển sang chạy qua sp_executesql, không còn
+    // thấy temp table tạo ở request TRƯỚC trong CÙNG transaction — khác
+    // hẳn lib/upsert.js, câu MERGE ở đó KHÔNG dùng `.input()` nên không dính
+    // lỗi này). Cách này giữ nguyên tham số hoá AN TOÀN (qua kiểu cột
+    // sql.Table, không phải nối chuỗi) mà không cần `.input()` trên câu
+    // truy vấn có nhắc tới temp table.
     const table = new sql.Table('#StagingTargets');
     table.create = false;
     table.columns.add('Domain', sql.VarChar(50), { nullable: false });
     table.columns.add('EntityCode', sql.NVarChar(100), { nullable: false });
     table.columns.add('PeriodMonth', sql.Date, { nullable: false });
     table.columns.add('TargetsJson', sql.NVarChar(sql.MAX), { nullable: false });
+    table.columns.add('ImportedBy', sql.NVarChar(50), { nullable: true });
+    table.columns.add('PreserveTrangThai', sql.Bit, { nullable: false });
+    const preserveTrangThaiValue = preserveTrangThaiIfUnspecified ? true : false;
     for (const r of rows) {
-      table.rows.add(domain, r.entityCode, r.periodMonth, JSON.stringify(r.targets));
+      table.rows.add(domain, r.entityCode, r.periodMonth, JSON.stringify(r.targets), importedBy || null, preserveTrangThaiValue);
     }
     await new sql.Request(tx).bulk(table);
 
@@ -456,10 +470,7 @@ async function upsertSalesTargets(pool, domain, rows, importedBy, { preserveTran
     // sai lệch composite report (xem chú thích đầu file). Upload MỚI có ghi
     // rõ TrangThai (kể cả 'HoatDong' để chủ động mở lại) vẫn LUÔN thắng —
     // chỉ giữ giá trị cũ khi upload không nói gì tới trường này.
-    const mergeResult = await new sql.Request(tx)
-      .input('importedBy', sql.NVarChar(50), importedBy || null)
-      .input('preserveTrangThai', sql.Bit, preserveTrangThaiIfUnspecified ? 1 : 0)
-      .query(`
+    const mergeResult = await new sql.Request(tx).query(`
         MERGE dwh.SalesTargets AS target
         USING #StagingTargets AS src
           ON  target.Domain = src.Domain
@@ -468,17 +479,17 @@ async function upsertSalesTargets(pool, domain, rows, importedBy, { preserveTran
         WHEN MATCHED THEN
           UPDATE SET
             TargetsJson = CASE
-              WHEN @preserveTrangThai = 1
+              WHEN src.PreserveTrangThai = 1
                    AND JSON_VALUE(src.TargetsJson, '$.TrangThai') IS NULL
                    AND JSON_VALUE(target.TargetsJson, '$.TrangThai') IS NOT NULL
               THEN JSON_MODIFY(src.TargetsJson, '$.TrangThai', JSON_VALUE(target.TargetsJson, '$.TrangThai'))
               ELSE src.TargetsJson
             END,
             ImportedAt = SYSUTCDATETIME(),
-            ImportedBy = @importedBy
+            ImportedBy = src.ImportedBy
         WHEN NOT MATCHED THEN
           INSERT (Domain, EntityCode, PeriodMonth, TargetsJson, ImportedAt, ImportedBy)
-          VALUES (src.Domain, src.EntityCode, src.PeriodMonth, src.TargetsJson, SYSUTCDATETIME(), @importedBy)
+          VALUES (src.Domain, src.EntityCode, src.PeriodMonth, src.TargetsJson, SYSUTCDATETIME(), src.ImportedBy)
         OUTPUT $action AS Action;
       `);
 

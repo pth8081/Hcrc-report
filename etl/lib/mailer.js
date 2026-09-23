@@ -14,7 +14,12 @@ function getTransport() {
   });
 }
 
-async function alertSyncFailure(source, err) {
+// errorMessage — TRUYỀN SẴN chuỗi đã diễn giải (xem
+// jobs/runSync.js:describeSyncError), KHÔNG nhận thẳng đối tượng Error:
+// err.message có thể RỖNG (vd AggregateError của Node khi TCP chập chờn),
+// diễn giải 1 chỗ duy nhất, tránh lặp lại đúng lỗi "email rỗng, không đọc
+// được lý do thật" ở một nơi khác.
+async function alertSyncFailure(source, errorMessage) {
   const to = process.env.ALERT_EMAIL_TO;
   const transport = getTransport();
   if (!transport || !to) {
@@ -25,7 +30,7 @@ async function alertSyncFailure(source, err) {
     from: process.env.SMTP_FROM || process.env.SMTP_USER,
     to,
     subject: `[ETL] Đồng bộ "${source.label}" thất bại`,
-    text: `Nguồn: ${source.label} (${source.key})\nLỗi: ${err.message}\nThời điểm: ${new Date().toISOString()}`
+    text: `Nguồn: ${source.label} (${source.key})\nLỗi: ${errorMessage}\nThời điểm: ${new Date().toISOString()}`
   });
 }
 

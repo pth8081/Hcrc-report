@@ -20,6 +20,43 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 6.63 — Sửa lỗi "Invalid object name '#StagingTargets'" khi nhập chỉ tiêu LDTD/HCRC + hiện rõ lỗi đồng bộ rỗng
+
+Người dùng báo "Chưa upload được chỉ tiêu LDTD và chỉ tiêu HCRC" kèm log lỗi
+đầy đủ: `RequestError: Invalid object name '#StagingTargets'.` — nhập chỉ
+tiêu (POST/PUT `/admin/sales-targets-*`) luôn lỗi 500, không lưu được dòng
+nào.
+
+**Nguyên nhân**: `etl/lib/salesTargetsImport.js:upsertSalesTargets()` tạo
+bảng tạm `#StagingTargets` rồi MERGE vào `dwh.SalesTargets` trong CÙNG 1
+transaction — đúng khuôn với `lib/upsert.js` (đồng bộ chính, không lỗi) —
+NHƯNG câu MERGE ở đây còn `.input('importedBy', ...)`/`.input(
+'preserveTrangThai', ...)`, khiến driver `mssql` chuyển sang chạy qua
+`sp_executesql` thay vì gửi thẳng dạng batch — SQL Server không còn thấy
+bảng tạm vừa tạo ở request TRƯỚC trong cùng transaction, báo "Invalid
+object name". `lib/upsert.js` không dính lỗi này vì câu MERGE ở đó
+KHÔNG dùng `.input()`.
+
+**Sửa**: chuyển `ImportedBy`/`PreserveTrangThai` thành 2 CỘT nạp cùng lượt
+bulk insert vào `#StagingTargets` (mỗi dòng lặp lại giá trị giống nhau —
+vẫn tham số hoá an toàn qua kiểu cột `sql.Table`, không nối chuỗi), câu
+MERGE đọc `src.ImportedBy`/`src.PreserveTrangThai` thay vì `@importedBy`/
+`@preserveTrangThai` — bỏ hẳn `.input()` khỏi câu truy vấn có nhắc tới
+bảng tạm, khớp đúng mẫu đang chạy ổn ở `lib/upsert.js`.
+
+**Tiện thể sửa luôn 1 lỗi liên quan phát hiện qua cùng log đó**:
+`jobs/runSync.js` in lỗi đồng bộ qua `console.error(..., err.message)` —
+một số lỗi driver (vd `AggregateError` khi TCP chập chờn) có `.message`
+RỖNG theo mặc định của Node, khiến dòng log/`etl.SyncLog.ErrorMessage` chỉ
+còn "Lỗi đồng bộ:" trống trơn, không đọc lại được lý do thật. Thêm
+`describeSyncError(err)` — ưu tiên `.message`, rồi tới `.errors[]` (mảng
+lỗi con của AggregateError), rồi `.code`, cuối cùng mới `String(err)` —
+dùng thống nhất cho console/SyncLog/email cảnh báo.
+
+**Triển khai**: `git pull` + `pm2 restart hcrc-etl` — KHÔNG cần chạy lại
+schema.sql (không đổi cấu trúc bảng thật, `#StagingTargets` chỉ là bảng
+tạm tự tạo/tự xoá mỗi lượt nhập).
+
 ## 6.62 — Đồng bộ lại ví dụ DefinitionJson trong "báo cáo doanh thu cuối ngày.md" với bản seed script thật
 
 Rà lại tài liệu khi trả lời câu hỏi "release lần này cần làm gì" — phát hiện
