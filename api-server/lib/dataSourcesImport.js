@@ -105,57 +105,78 @@ async function parseDataSourcesFile(buffer) {
   return { rows, rowErrors };
 }
 
-// Staging + MERGE — xem chú thích tương ứng ở etl/lib/dataSourcesImport.js.
+// Staging + MERGE — xem chú thích tương ứng ở etl/lib/dataSourcesImport.js,
+// KHÔNG dùng request.bulk()/sql.Table (đã tìm ra lỗi thật "Invalid object
+// name" tại request.bulk() trên Request gắn Transaction — xem
+// etl/lib/upsert.js) — gộp CREATE TABLE + INSERT literal + MERGE vào 1
+// batch/1 lượt .query(), chia theo ROWS_PER_TRANSACTION.
+const DATA_SOURCES_ROWS_PER_TRANSACTION = 2000;
+const DATA_SOURCES_INSERT_BATCH_SIZE = 500;
+
+function sqlNStr(value) {
+  return `N'${String(value).replace(/'/g, "''")}'`;
+}
+
+function buildDataSourcesInsertBatches(rows) {
+  const batches = [];
+  for (let i = 0; i < rows.length; i += DATA_SOURCES_INSERT_BATCH_SIZE) {
+    const chunk = rows.slice(i, i + DATA_SOURCES_INSERT_BATCH_SIZE);
+    const values = chunk.map(r => `(${sqlNStr(r.name)}, ${sqlNStr(r.server)}, ${Number(r.port)}, ${sqlNStr(r.databaseName)}, ${sqlNStr(r.username)}, ${sqlNStr(encrypt(r.password))}, ${r.encrypt ? 1 : 0}, ${r.trustServerCert ? 1 : 0})`).join(',\n');
+    batches.push(`INSERT INTO #StagingDataSources (Name, Server, Port, DatabaseName, Username, PasswordEncrypted, Encrypt, TrustServerCert) VALUES\n${values};`);
+  }
+  return batches;
+}
+
+const CREATE_STAGING_DATA_SOURCES_SQL = `
+IF OBJECT_ID('tempdb..#StagingDataSources') IS NOT NULL DROP TABLE #StagingDataSources;
+CREATE TABLE #StagingDataSources (
+  Name              NVARCHAR(200) NOT NULL,
+  Server            NVARCHAR(200) NOT NULL,
+  Port              INT           NOT NULL,
+  DatabaseName      NVARCHAR(100) NOT NULL,
+  Username          NVARCHAR(100) NOT NULL,
+  PasswordEncrypted NVARCHAR(500) NOT NULL,
+  Encrypt           BIT           NOT NULL,
+  TrustServerCert   BIT           NOT NULL
+);`;
+
+const MERGE_DATA_SOURCES_SQL = `
+MERGE api.DataSources AS target
+USING #StagingDataSources AS src
+  ON target.Name = src.Name
+WHEN MATCHED THEN
+  UPDATE SET
+    Server = src.Server, Port = src.Port, DatabaseName = src.DatabaseName,
+    Username = src.Username, PasswordEncrypted = src.PasswordEncrypted,
+    Encrypt = src.Encrypt, TrustServerCert = src.TrustServerCert, IsActive = 1
+WHEN NOT MATCHED THEN
+  INSERT (Name, Server, Port, DatabaseName, Username, PasswordEncrypted, Encrypt, TrustServerCert, IsActive)
+  VALUES (src.Name, src.Server, src.Port, src.DatabaseName, src.Username, src.PasswordEncrypted, src.Encrypt, src.TrustServerCert, 1)
+OUTPUT $action AS Action, inserted.Id AS Id;`;
+
 async function upsertDataSources(pool, rows) {
   if (!rows.length) return { inserted: 0, updated: 0, ids: [] };
+
+  let inserted = 0;
+  let updated = 0;
+  let ids = [];
+  for (let i = 0; i < rows.length; i += DATA_SOURCES_ROWS_PER_TRANSACTION) {
+    const chunk = rows.slice(i, i + DATA_SOURCES_ROWS_PER_TRANSACTION);
+    const result = await upsertDataSourcesChunk(pool, chunk);
+    inserted += result.inserted;
+    updated += result.updated;
+    ids = ids.concat(result.ids);
+  }
+  return { inserted, updated, ids };
+}
+
+async function upsertDataSourcesChunk(pool, rows) {
+  const setupSql = [CREATE_STAGING_DATA_SOURCES_SQL, ...buildDataSourcesInsertBatches(rows)].join('\n');
 
   const tx = new sql.Transaction(pool);
   await tx.begin();
   try {
-    await new sql.Request(tx).query(`
-      IF OBJECT_ID('tempdb..#StagingDataSources') IS NOT NULL DROP TABLE #StagingDataSources;
-      CREATE TABLE #StagingDataSources (
-        Name              NVARCHAR(200) NOT NULL,
-        Server            NVARCHAR(200) NOT NULL,
-        Port              INT           NOT NULL,
-        DatabaseName      NVARCHAR(100) NOT NULL,
-        Username          NVARCHAR(100) NOT NULL,
-        PasswordEncrypted NVARCHAR(500) NOT NULL,
-        Encrypt           BIT           NOT NULL,
-        TrustServerCert   BIT           NOT NULL
-      );
-    `);
-
-    const table = new sql.Table('#StagingDataSources');
-    table.create = false;
-    table.columns.add('Name', sql.NVarChar(200), { nullable: false });
-    table.columns.add('Server', sql.NVarChar(200), { nullable: false });
-    table.columns.add('Port', sql.Int, { nullable: false });
-    table.columns.add('DatabaseName', sql.NVarChar(100), { nullable: false });
-    table.columns.add('Username', sql.NVarChar(100), { nullable: false });
-    table.columns.add('PasswordEncrypted', sql.NVarChar(500), { nullable: false });
-    table.columns.add('Encrypt', sql.Bit, { nullable: false });
-    table.columns.add('TrustServerCert', sql.Bit, { nullable: false });
-    for (const r of rows) {
-      table.rows.add(r.name, r.server, r.port, r.databaseName, r.username,
-        encrypt(r.password), r.encrypt ? 1 : 0, r.trustServerCert ? 1 : 0);
-    }
-    await new sql.Request(tx).bulk(table);
-
-    const mergeResult = await new sql.Request(tx).query(`
-      MERGE api.DataSources AS target
-      USING #StagingDataSources AS src
-        ON target.Name = src.Name
-      WHEN MATCHED THEN
-        UPDATE SET
-          Server = src.Server, Port = src.Port, DatabaseName = src.DatabaseName,
-          Username = src.Username, PasswordEncrypted = src.PasswordEncrypted,
-          Encrypt = src.Encrypt, TrustServerCert = src.TrustServerCert, IsActive = 1
-      WHEN NOT MATCHED THEN
-        INSERT (Name, Server, Port, DatabaseName, Username, PasswordEncrypted, Encrypt, TrustServerCert, IsActive)
-        VALUES (src.Name, src.Server, src.Port, src.DatabaseName, src.Username, src.PasswordEncrypted, src.Encrypt, src.TrustServerCert, 1)
-      OUTPUT $action AS Action, inserted.Id AS Id;
-    `);
+    const mergeResult = await new sql.Request(tx).query([setupSql, MERGE_DATA_SOURCES_SQL].join('\n'));
 
     await tx.commit();
     const actions = mergeResult.recordset;

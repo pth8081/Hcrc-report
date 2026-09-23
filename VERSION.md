@@ -20,6 +20,25 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 6.71 — Rà soát và sửa CHỦ ĐỘNG mọi chỗ khác còn dùng request.bulk()/sql.Table trong repo
+
+Sau khi xác nhận nguyên nhân gốc (request.bulk() trên Request gắn Transaction
+gây "Invalid object name" — bản 6.68-6.70), rà soát toàn repo tìm mọi chỗ
+KHÁC còn dùng cùng pattern nguy hiểm này trước khi người dùng tự phát hiện
+qua lỗi thật — tìm thấy 3 chỗ nữa, đều sửa theo đúng cách đã chứng minh ổn
+định (gộp CREATE TABLE + INSERT literal + MERGE vào 1 batch/1 lượt `.query()`,
+chia theo `ROWS_PER_TRANSACTION`):
+
+- `etl/lib/branchCodeMapImport.js` (nhập "Ánh xạ mã chi nhánh") — thêm bỏ
+  luôn `.input()` trên câu MERGE (importedBy/preserveTrangThai chuyển vào
+  cột bulk-insert, cùng lý do đã né ở #StagingTargets).
+- `etl/lib/dataSourcesImport.js` và `api-server/lib/dataSourcesImport.js`
+  (nhập hàng loạt "Nguồn dữ liệu") — `PasswordEncrypted` (chuỗi base64 từ
+  `encrypt()`) escape an toàn bằng cùng hàm literal-string, không có ký tự
+  đặc biệt cần lo (bảng chữ base64 không chứa dấu nháy đơn).
+- Test bằng driver SQL giả lập cho cả 3 file: insert/update cơ bản, escape
+  dấu nháy đơn, và chia lô đúng số transaction khi >2000 dòng.
+
 ## 6.70 — Áp cùng bản sửa "Invalid object name" cho nhập chỉ tiêu LĐTĐ/HCRC (etl/lib/salesTargetsImport.js)
 
 Người dùng vẫn không nhập được file chỉ tiêu, chỉ thấy "Lỗi máy chủ" chung

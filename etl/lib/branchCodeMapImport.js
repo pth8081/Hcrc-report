@@ -83,6 +83,18 @@ async function parseBranchCodeMapFile(buffer) {
 
 // Staging + MERGE — cùng mẫu với lib/dataSourcesImport.js, khoá theo
 // (LoaiMaKhac, MaKhac).
+//
+// LƯU Ý QUAN TRỌNG — TẠI SAO KHÔNG DÙNG request.bulk()/sql.Table VÀ KHÔNG
+// DÙNG .input(): đã tìm ra và sửa lỗi thật "Invalid object name" xảy ra
+// NGAY TẠI request.bulk() khi dùng trên Request gắn Transaction (xem
+// lib/upsert.js — dwh.ReportFacts — và lib/salesTargetsImport.js —
+// dwh.SalesTargets — cùng gặp lỗi này); `.input()` trên câu MERGE có tham
+// chiếu temp table cũng từng gây lỗi tương tự (xem #StagingTargets trước
+// khi sửa). Áp dụng cùng cách đã chứng minh ổn định: gộp CREATE TABLE +
+// INSERT (literal, escape thủ công) + MERGE vào CÙNG 1 chuỗi SQL/1 lượt
+// .query() — importedBy/preserveTrangThai nạp cùng bulk-insert (mỗi dòng
+// lặp lại giá trị NHƯ NHAU) thay vì `.input()`.
+//
 // preserveTrangThaiIfUnspecified — CHỈ bật cho POST /import (nhập file, mirror
 // lib/salesTargetsImport.js): file re-upload có thể không đề cập TrangThai ở
 // 1 dòng nào đó (file không có cột, hoặc để trống) -> COALESCE giữ nguyên
@@ -95,55 +107,77 @@ async function parseBranchCodeMapFile(buffer) {
 // đóng ('DaDong') KHÔNG BAO GIỜ mở lại được qua form sửa đơn (frontend không
 // có cách gửi literal "HoatDong", chỉ gửi '' hoặc "DaDong" — '' bị coi là
 // "không đề cập" nên COALESCE luôn giữ nguyên "DaDong" cũ).
+const BRANCH_MAP_ROWS_PER_TRANSACTION = 2000;
+const BRANCH_MAP_INSERT_BATCH_SIZE = 500;
+
+function sqlNStr(value) {
+  return `N'${String(value).replace(/'/g, "''")}'`;
+}
+function sqlNStrOrNull(value) {
+  return value === null || value === undefined || value === '' ? 'NULL' : sqlNStr(value);
+}
+
+function buildBranchMapInsertBatches(rows, importedBy, preserveTrangThaiValue) {
+  const batches = [];
+  for (let i = 0; i < rows.length; i += BRANCH_MAP_INSERT_BATCH_SIZE) {
+    const chunk = rows.slice(i, i + BRANCH_MAP_INSERT_BATCH_SIZE);
+    const values = chunk.map(r => `(${sqlNStr(r.loaiMaKhac)}, ${sqlNStr(r.maKhac)}, ${sqlNStr(r.maChuan)}, ${sqlNStrOrNull(r.tenSieuThi)}, ${sqlNStrOrNull(r.trangThai)}, ${importedBy ? sqlNStr(importedBy) : 'NULL'}, ${preserveTrangThaiValue ? 1 : 0})`).join(',\n');
+    batches.push(`INSERT INTO #StagingBranchCodeMap (LoaiMaKhac, MaKhac, MaChuan, TenSieuThi, TrangThai, ImportedBy, PreserveTrangThai) VALUES\n${values};`);
+  }
+  return batches;
+}
+
+const CREATE_STAGING_BRANCH_MAP_SQL = `
+IF OBJECT_ID('tempdb..#StagingBranchCodeMap') IS NOT NULL DROP TABLE #StagingBranchCodeMap;
+CREATE TABLE #StagingBranchCodeMap (
+  LoaiMaKhac        VARCHAR(50)   NOT NULL,
+  MaKhac            NVARCHAR(50)  NOT NULL,
+  MaChuan           NVARCHAR(100) NOT NULL,
+  TenSieuThi        NVARCHAR(200) NULL,
+  TrangThai         VARCHAR(20)   NULL,
+  ImportedBy        NVARCHAR(50)  NULL,
+  PreserveTrangThai BIT           NOT NULL
+);`;
+
+const MERGE_BRANCH_MAP_SQL = `
+MERGE etl.BranchCodeMap AS target
+USING #StagingBranchCodeMap AS src
+  ON  target.LoaiMaKhac = src.LoaiMaKhac
+  AND target.MaKhac = src.MaKhac
+WHEN MATCHED THEN
+  UPDATE SET
+    MaChuan = src.MaChuan,
+    TenSieuThi = src.TenSieuThi,
+    TrangThai = CASE WHEN src.PreserveTrangThai = 1 THEN COALESCE(src.TrangThai, target.TrangThai) ELSE src.TrangThai END,
+    ImportedAt = SYSUTCDATETIME(),
+    ImportedBy = src.ImportedBy
+WHEN NOT MATCHED THEN
+  INSERT (LoaiMaKhac, MaKhac, MaChuan, TenSieuThi, TrangThai, ImportedAt, ImportedBy)
+  VALUES (src.LoaiMaKhac, src.MaKhac, src.MaChuan, src.TenSieuThi, src.TrangThai, SYSUTCDATETIME(), src.ImportedBy)
+OUTPUT $action AS Action;`;
+
 async function upsertBranchCodeMap(pool, rows, importedBy, { preserveTrangThaiIfUnspecified = false } = {}) {
   if (!rows.length) return { inserted: 0, updated: 0 };
+
+  let inserted = 0;
+  let updated = 0;
+  for (let i = 0; i < rows.length; i += BRANCH_MAP_ROWS_PER_TRANSACTION) {
+    const chunk = rows.slice(i, i + BRANCH_MAP_ROWS_PER_TRANSACTION);
+    const result = await upsertBranchCodeMapChunk(pool, chunk, importedBy, { preserveTrangThaiIfUnspecified });
+    inserted += result.inserted;
+    updated += result.updated;
+  }
+  return { inserted, updated };
+}
+
+async function upsertBranchCodeMapChunk(pool, rows, importedBy, { preserveTrangThaiIfUnspecified = false } = {}) {
+  const preserveTrangThaiValue = !!preserveTrangThaiIfUnspecified;
+  const setupSql = [CREATE_STAGING_BRANCH_MAP_SQL, ...buildBranchMapInsertBatches(rows, importedBy, preserveTrangThaiValue)].join('\n');
 
   const tx = new sql.Transaction(pool);
   await tx.begin();
   try {
-    await new sql.Request(tx).query(`
-      IF OBJECT_ID('tempdb..#StagingBranchCodeMap') IS NOT NULL DROP TABLE #StagingBranchCodeMap;
-      CREATE TABLE #StagingBranchCodeMap (
-        LoaiMaKhac VARCHAR(50)   NOT NULL,
-        MaKhac     NVARCHAR(50)  NOT NULL,
-        MaChuan    NVARCHAR(100) NOT NULL,
-        TenSieuThi NVARCHAR(200) NULL,
-        TrangThai  VARCHAR(20)   NULL
-      );
-    `);
-
-    const table = new sql.Table('#StagingBranchCodeMap');
-    table.create = false;
-    table.columns.add('LoaiMaKhac', sql.VarChar(50), { nullable: false });
-    table.columns.add('MaKhac', sql.NVarChar(50), { nullable: false });
-    table.columns.add('MaChuan', sql.NVarChar(100), { nullable: false });
-    table.columns.add('TenSieuThi', sql.NVarChar(200), { nullable: true });
-    table.columns.add('TrangThai', sql.VarChar(20), { nullable: true });
-    for (const r of rows) {
-      table.rows.add(r.loaiMaKhac, r.maKhac, r.maChuan, r.tenSieuThi, r.trangThai);
-    }
-    await new sql.Request(tx).bulk(table);
-
-    const mergeResult = await new sql.Request(tx)
-      .input('importedBy', sql.NVarChar(50), importedBy || null)
-      .input('preserveTrangThai', sql.Bit, preserveTrangThaiIfUnspecified ? 1 : 0)
-      .query(`
-        MERGE etl.BranchCodeMap AS target
-        USING #StagingBranchCodeMap AS src
-          ON  target.LoaiMaKhac = src.LoaiMaKhac
-          AND target.MaKhac = src.MaKhac
-        WHEN MATCHED THEN
-          UPDATE SET
-            MaChuan = src.MaChuan,
-            TenSieuThi = src.TenSieuThi,
-            TrangThai = CASE WHEN @preserveTrangThai = 1 THEN COALESCE(src.TrangThai, target.TrangThai) ELSE src.TrangThai END,
-            ImportedAt = SYSUTCDATETIME(),
-            ImportedBy = @importedBy
-        WHEN NOT MATCHED THEN
-          INSERT (LoaiMaKhac, MaKhac, MaChuan, TenSieuThi, TrangThai, ImportedAt, ImportedBy)
-          VALUES (src.LoaiMaKhac, src.MaKhac, src.MaChuan, src.TenSieuThi, src.TrangThai, SYSUTCDATETIME(), @importedBy)
-        OUTPUT $action AS Action;
-      `);
+    const mergeResult = await new sql.Request(tx).query([setupSql, MERGE_BRANCH_MAP_SQL].join('\n'));
 
     await tx.commit();
     const actions = mergeResult.recordset.map(r => r.Action);
