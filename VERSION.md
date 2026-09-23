@@ -20,6 +20,15 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 6.62 — Đồng bộ lại ví dụ DefinitionJson trong "báo cáo doanh thu cuối ngày.md" với bản seed script thật
+
+Rà lại tài liệu khi trả lời câu hỏi "release lần này cần làm gì" — phát hiện
+khối JSON mẫu dán tay (Bước 4) còn CŨ, thiếu bộ lọc `cheDoSoSanh` +
+`skipWhen`/`hideWhen` đã thêm ở bản 6.56 (`rp-server/scripts/
+seedLdtdHcrcReports.js` đã có đủ, chỉ tài liệu bị bỏ sót). Không ảnh hưởng
+ai dùng "cách làm nhanh" (chạy thẳng script), chỉ sai với ai dán tay JSON
+theo tài liệu. Đã đồng bộ lại cả 2 khối JSON (LDTD + HCRC) khớp đúng script.
+
 ## 6.61 — Nhật ký hệ thống (etl.SystemLog) — gộp log kết nối/cảnh báo vào trang "Log"
 
 Người dùng chạy thật gặp nhiều lỗi kết nối (nguồn dữ liệu, DWH...) nhưng
