@@ -20,6 +20,25 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 6.74 — Script đối chiếu mã siêu thị giữa 3 nguồn (thực đạt/chỉ tiêu/ánh xạ)
+
+Theo yêu cầu người dùng, phục vụ điều tra báo cáo LDTD trống cột "Thực đạt"
+(mã "Điểm" trong file chỉ tiêu — vd "001" — không khớp mã STK_ID thật đang
+dùng ở dwh.ReportFacts — vd "13061"): thêm
+`etl/scripts/exportEntityCodesReport.js` — script CHỈ ĐỌC (không sửa CSDL),
+xuất 1 file Excel 3 sheet để nghiệp vụ tự đối chiếu:
+
+- **"Ma thuc dat (ReportFacts)"** — mọi EntityCode đang có dữ liệu thực đạt
+  (mặc định domain doanhthu_chinhanh/giaodich_chinhanh, đổi được qua tham số
+  dòng lệnh) kèm TenSieuThi/Diện tích (nếu ETL đã ghi), ngày sớm/gần nhất.
+- **"Ma chi tieu (SalesTargets)"** — mọi EntityCode đang có chỉ tiêu (domain
+  sales-targets-ldtd/hcrc) kèm 1 mẫu giá trị Doanh thu/Giao dịch.
+- **"Anh xa ma chi nhanh"** — nguyên bảng etl.BranchCodeMap hiện có.
+
+Cách dùng: `node scripts/exportEntityCodesReport.js` (chạy trong thư mục
+`etl/`) — file xuất vào `etl/exports/` (đã thêm vào `.gitignore`), tải về
+máy cá nhân bằng scp/WinSCP để mở.
+
 ## 6.73 — Tải file mẫu + Xuất Excel cho "Chỉ tiêu LDTD/HCRC" và "Ánh xạ mã chi nhánh"
 
 Theo yêu cầu người dùng: 3 trang nhập liệu bằng Excel ("Chỉ tiêu Lãnh đạo Tập
