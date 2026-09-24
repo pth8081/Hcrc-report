@@ -498,6 +498,21 @@ vẫn chạy được, chỉ ghi cảnh báo ở Log cho những mã chưa khai 
 khuôn cột, kèm 1 dòng ví dụ mã "VIDU-00100" cần xoá trước khi nhập) và
 **"Xuất Excel"** (tải về đúng dữ liệu đang lưu để sửa tiếp rồi nhập lại).
 
+> **Đỡ phải gõ tay 2 lần cùng 1 dữ liệu**: nếu đã khai xong mục 2.3 bên dưới
+> ("Ánh xạ Điểm - STK_ID"), chạy:
+> ```
+> cd etl && node scripts/generateBranchCodeMapFromDiemStk.js
+> ```
+> Script tự đọc bảng "Ánh xạ Điểm - STK_ID" (đã khai), sinh sẵn file Excel
+> ĐÚNG khuôn cột "Ánh xạ mã chi nhánh" (`LoaiMaKhac='BU_ID'`, `MaKhac`=mã
+> Điểm, `MaChuan`=1 mã kho bất kỳ trong "Điểm mới" — hoặc "Điểm cũ" nếu mã
+> Điểm đã đóng) vào `etl/exports/`. Giao dịch (`TRANSHDR`) vốn không tách
+> được theo từng kho con nên chọn kho nào trong số các kho hiện có CŨNG
+> ĐƯỢC — báo cáo composite (`useDiemStkMapping`) sẽ tự cộng dồn lại đúng
+> theo mã Điểm ở bước sau. Script KHÔNG tự ghi CSDL — tải file ra rồi tự
+> nhập qua nút "Nhập file ánh xạ" như bình thường (vẫn có kiểm tra trùng/lỗi
+> đầy đủ).
+
 ### 2.3 — "Ánh xạ Điểm - STK_ID" (chỉ cần nếu 1 mã Điểm có NHIỀU mã kho)
 
 Mục **"Ánh xạ mã chi nhánh"** ở trên quy đổi khoá NGUỒN (`BU_ID` thô từ

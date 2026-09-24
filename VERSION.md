@@ -20,6 +20,30 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 6.79 — Script tự sinh file "Ánh xạ mã chi nhánh" từ "Ánh xạ Điểm - STK_ID"
+
+Người dùng hỏi vì sao vẫn phải khai riêng "Ánh xạ mã chi nhánh" (bản 6.72)
+sau khi đã có "Ánh xạ Điểm - STK_ID" (bản 6.77), và đề xuất dùng chung 1
+bảng cho đỡ nhầm. Giải thích: 2 bảng phục vụ 2 việc KHÁC NHAU, không gộp
+được — `etl.BranchCodeMap` quy đổi 1-1 (`BU_ID` <-> ĐÚNG 1 `STK_ID`) LÚC
+ĐỒNG BỘ, để domain `giaodich_chinhanh` (khoá gốc `BU_ID` từ `TRANSHDR`) ghép
+được với `doanhthu_chinhanh` (khoá gốc đã là `STK_ID`) trong
+`dwh.ReportFacts`; `etl.DiemStkMapping` là 1-nhiều, tách kỳ cũ/mới, áp dụng
+LÚC CHẠY BÁO CÁO. Bỏ `BranchCodeMap` sẽ làm TRỐNG cột Giao dịch ở MỌI báo
+cáo (2 domain không ghép được nữa), không thể thay bằng bảng kia.
+
+Tuy vậy, `TRANSHDR` (giao dịch) vốn không tách được theo từng kho STK_ID
+con — quy đổi về kho NÀO trong số các kho hiện có của 1 mã Điểm cũng cho ra
+cùng kết quả đúng sau khi qua bước `useDiemStkMapping` (cộng dồn lại theo
+mã Điểm). Vì vậy thêm `etl/scripts/generateBranchCodeMapFromDiemStk.js` —
+đọc dữ liệu ĐÃ khai ở "Ánh xạ Điểm - STK_ID", tự sinh sẵn file Excel đúng
+khuôn cột "Ánh xạ mã chi nhánh" (lấy 1 mã kho bất kỳ trong "Điểm mới", hoặc
+"Điểm cũ" nếu mã Điểm đã đóng, làm `MaChuan`) — người dùng không cần gõ tay
+2 lần cùng 1 dữ liệu, chỉ cần chạy script rồi nhập file sinh ra qua nút
+"Nhập file ánh xạ" như bình thường (script KHÔNG tự ghi CSDL). Đã kiểm thử
+(fakeModule): sinh đúng dòng, bỏ qua đúng mã Điểm chưa khai kho nào, tự lấy
+kho cũ làm dự phòng cho mã Điểm đã đóng.
+
 ## 6.78 — Sửa lỗi chạy lại rp-db/schema.sql báo trùng CK_ReportEmailSchedules_DeliveryMode
 
 Người dùng phát hiện thật: chạy lại `rp-db/schema.sql` (CSDL `HCRC_RP`) báo
