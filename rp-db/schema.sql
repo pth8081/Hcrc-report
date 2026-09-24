@@ -608,7 +608,7 @@ BEGIN
     ALTER TABLE app.ReportEmailSchedules ADD DeliveryMode VARCHAR(20) NOT NULL DEFAULT 'attachment';
 END
 GO
-IF OBJECT_ID('CK_ReportEmailSchedules_DeliveryMode', 'C') IS NOT NULL
+IF EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = 'CK_ReportEmailSchedules_DeliveryMode')
 BEGIN
     ALTER TABLE app.ReportEmailSchedules DROP CONSTRAINT CK_ReportEmailSchedules_DeliveryMode;
 END
