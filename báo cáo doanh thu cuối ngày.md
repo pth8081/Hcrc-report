@@ -498,6 +498,45 @@ vẫn chạy được, chỉ ghi cảnh báo ở Log cho những mã chưa khai 
 khuôn cột, kèm 1 dòng ví dụ mã "VIDU-00100" cần xoá trước khi nhập) và
 **"Xuất Excel"** (tải về đúng dữ liệu đang lưu để sửa tiếp rồi nhập lại).
 
+### 2.3 — "Ánh xạ Điểm - STK_ID" (chỉ cần nếu 1 mã Điểm có NHIỀU mã kho)
+
+Mục **"Ánh xạ mã chi nhánh"** ở trên quy đổi khoá NGUỒN (`BU_ID` thô từ
+`TRANSHDR`) → khoá LƯU trong `dwh.ReportFacts` (đã chọn thống nhất là
+`STK_ID`, để 2 domain `doanhthu_chinhanh`/`giaodich_chinhanh` ghép được với
+nhau — xem giải thích khoá `EntityCode` ở đầu file). Mục MỚI
+**"Ánh xạ Điểm - STK_ID"** giải quyết một vấn đề KHÁC, xảy ra SAU bước đó:
+file chỉ tiêu (Bước 3) dùng "mã Điểm" — đúng bằng `BU_ID`, KHÔNG đổi theo
+thời gian — nhưng 1 mã Điểm có thể ứng với NHIỀU mã kho `STK_ID` khác nhau
+trong `dwh.ReportFacts`, và bộ mã kho đó có thể ĐỔI giữa kỳ trước/kỳ này
+(kho là khái niệm ẢO trong phần mềm, không phải 1 khái niệm vật lý — 1 siêu
+thị vẫn chỉ có 1 mặt bằng thật). Không quy đổi thì báo cáo (Bước 4) không
+ghép được thực đạt (theo `STK_ID`) với chỉ tiêu (theo mã Điểm).
+
+Vào menu **"Ánh xạ Điểm - STK_ID"**. File nhập gồm ĐÚNG 5 cột:
+
+| STT | Mã Điểm (BU_ID) | Mã STK_ID (Điểm cũ) | Mã STK_ID (Điểm mới) | Tên siêu thị |
+|---|---|---|---|---|
+| 1 | 001 | 10001,10002 | 13061 | BRG Mart Cầu Giấy |
+| 2 | 002 | | 13051,13052 | BRG Mart Long Biên |
+
+- **Mã Điểm** — `BU_ID`, duy nhất mỗi dòng.
+- **Mã STK_ID (Điểm cũ)** — MỌI mã kho dùng để tính **cùng kỳ năm trước**,
+  cách nhau bằng dấu phẩy nếu nhiều kho. Để trống nếu kỳ trước không có dữ
+  liệu (báo cáo sẽ hiện "không có dữ liệu", KHÔNG phải số 0).
+- **Mã STK_ID (Điểm mới)** — tương tự, dùng để tính **thực đạt kỳ hiện
+  tại**. Để trống nếu điểm đã đóng, không còn kho nào hoạt động.
+- **Tên siêu thị** — từ nay là TÊN CHUẨN dùng để hiện cột "Siêu thị/Cửa
+  hàng" cho mọi báo cáo có bật cơ chế này (xem Bước 4) — ưu tiên hơn tên
+  gắn qua "Ánh xạ mã chi nhánh".
+
+**Ràng buộc BẮT BUỘC**: 1 mã `STK_ID` chỉ được xuất hiện ở ĐÚNG 1 mã Điểm
+trong TOÀN BỘ bảng (dù ở cột "cũ" hay "mới", ở bất kỳ dòng nào) — vì `BU_ID`
+sinh ra `STK_ID` nên về nguyên tắc không bao giờ trùng thật. Nhập file có
+`STK_ID` trùng nhau giữa 2 mã Điểm khác nhau sẽ bị **TỪ CHỐI TOÀN BỘ FILE**
+(khác mọi mục nhập khác trong hệ thống này chỉ bỏ qua đúng dòng lỗi) —
+thông báo lỗi liệt kê rõ những `STK_ID` nào trùng ở đâu để sửa lại. Trang
+này cũng có nút **"Tải file mẫu"**/**"Xuất Excel"** như các mục trên.
+
 ---
 
 ## Bước 3 — etl-admin: nhập chỉ tiêu
@@ -595,6 +634,16 @@ chiếu thì không cảnh báo gì). Cảnh báo này giúp bắt sớm lỗi g
 thị — trước đây nhập vẫn thành công nhưng dòng chỉ tiêu đó ÂM THẦM không
 bao giờ ghép được vào báo cáo (không có lỗi/cảnh báo gì khác báo hiệu).
 
+> **Lưu ý đã biết, CHƯA sửa** — cảnh báo trên so `Điểm`/`Mã đối tượng chứa`
+> (mã Điểm/`BU_ID`) TRỰC TIẾP với `EntityCode` thật trong
+> `dwh.ReportFacts` (từ nay là `STK_ID`, sau khi bật "Ánh xạ Điểm - STK_ID"
+> ở mục 2.3) — 2 khuôn mã khác nhau nên cảnh báo này có thể báo "N mã KHÔNG
+> khớp" cho HẦU HẾT mọi dòng dù mã Điểm hoàn toàn đúng và đã khai đủ trong
+> "Ánh xạ Điểm - STK_ID". Đây CHỈ là cảnh báo (không chặn nhập, xem đoạn
+> trên) nên không ảnh hưởng số liệu — coi cảnh báo này là tham khảo phụ,
+> không phải bằng chứng lỗi, cho tới khi nào cập nhật lại đối chiếu qua mã
+> Điểm trong "Ánh xạ Điểm - STK_ID" thay vì `EntityCode` thô.
+
 ---
 
 ## Bước 4 — rp-user: tạo báo cáo
@@ -607,14 +656,27 @@ bao giờ ghép được vào báo cáo (không có lỗi/cảnh báo gì khác 
 > mất" khỏi báo cáo, kiểm tra lại đã nhập đủ chỉ tiêu cho đúng entityCode đó
 > chưa (mục "Chỉ tiêu đã nhập" ở etl-admin) trước khi nghi ngờ lỗi khác.
 >
-> **Cột "Siêu thị/Cửa hàng" hiện TÊN thay vì MÃ** (mới) — đọc
-> `current.dimensions.tenSieuThi`, do ETL ghi vào lúc đồng bộ NẾU job đồng
-> bộ domain `doanhthu_chinhanh` đã bật "Ánh xạ mã chi nhánh"
-> (`etl.SyncJobs.BranchCodeMapType`) VÀ có nhập cột `TenSieuThi` cho đúng mã
-> đó (etl-admin → "Ánh xạ mã chi nhánh"). Không cần mã nguồn thực sự cần đổi
-> — có thể khai dòng ánh xạ `MaKhac = MaChuan = entityCode` chỉ để gắn tên.
-> Chưa cấu hình thì cột này tự rơi về hiện đúng mã như trước (`||` trong
-> formula), không để trống.
+> **`useDiemStkMapping: true`** (mới, đã bật sẵn trên cả 4 khối `directDb`
+> — `current`/`currentGD`/`lastYear`/`lastYearGD`) — bắt buộc phải bật vì
+> `EntityCode` thật trong `dwh.ReportFacts` là `STK_ID` (mã kho, có thể
+> nhiều mã/1 điểm, đổi theo thời gian) còn chỉ tiêu (Bước 3) dùng mã Điểm
+> (`BU_ID`, không đổi) — không bật thì 2 khối không bao giờ ghép được với
+> khối `target`. Khai đủ dữ liệu ở mục 2.3 **"Ánh xạ Điểm - STK_ID"** TRƯỚC
+> khi bật cờ này thật trên báo cáo (chưa khai/khai thiếu → mã Điểm đó hiện
+> "không có dữ liệu" ở phần thực đạt/cùng kỳ, KHÔNG lỗi/KHÔNG số 0 — xem
+> `rp-server/lib/diemStkMapping.js`). Cần cấu hình thêm biến môi trường
+> `ETL_DIEM_STK_*` cho rp-server (xem `rp-server/.env.example`) TRƯỚC khi
+> chạy lại script seed bên dưới — thiếu cấu hình không làm sập báo cáo/đăng
+> nhập, chỉ khiến 2 báo cáo này tạm "không có dữ liệu" cho tới khi cấu hình
+> xong.
+>
+> **Cột "Siêu thị/Cửa hàng" hiện TÊN thay vì MÃ** — đọc
+> `current.dimensions.tenSieuThi`. Với `useDiemStkMapping: true` (đã bật ở
+> trên), tên NÀY LẤY TỪ cột "Tên siêu thị" trong **"Ánh xạ Điểm - STK_ID"**
+> (mục 2.3) — khai cùng lúc với việc khai mã kho, không cần khai thêm ở
+> "Ánh xạ mã chi nhánh" nữa cho 2 báo cáo này. Chưa khai (mã Điểm đó chưa có
+> trong "Ánh xạ Điểm - STK_ID") thì cột này rơi về hiện đúng mã Điểm như
+> trước (`||` trong formula), không để trống.
 >
 > **Cách làm nhanh**: chạy `node rp-server/scripts/seedLdtdHcrcReports.js`
 > — script tự tạo/CẬP NHẬT đúng 2 báo cáo `bc-doanh-thu-ldtd`/
@@ -864,12 +926,33 @@ nhận riêng theo đúng nhóm HCRC.
    cáo cho ngày hôm nay (cùng 1 số liệu, chỉ khác đọc từ domain `directDb`
    bình thường hay từ khối `lastYear`/`dateOffsetYears: -1`) — xác nhận dữ
    liệu Lịch sử đúng, không bị lệch ngày.
+   > **CHỈ đúng cho mã Điểm CHƯA từng đổi mã kho** — với
+   > `useDiemStkMapping: true`, cách đối chiếu tay này chạy báo cáo cho
+   > "ngày này năm ngoái" như 1 ngày BÌNH THƯỜNG (không qua khối `lastYear`)
+   > nên vẫn tra theo danh sách kho MỚI (`MaStkMoi`), trong khi khối
+   > `lastYear` thật tra theo danh sách kho CŨ (`MaStkCu`). Nếu mã Điểm đó
+   > có khai CẢ 2 danh sách kho GIỐNG NHAU (chưa từng đổi kho) thì 2 số vẫn
+   > khớp như trước; nếu 2 danh sách KHÁC nhau thì đừng ngạc nhiên nếu 2 số
+   > lệch nhau — đó không phải lỗi, chỉ là cách đối chiếu tay này không còn
+   > áp dụng được cho đúng mã Điểm đó (không có thao tác "chọn dùng kho cũ/
+   > mới" nào từ giao diện chạy báo cáo).
 5. Sửa thử 1 dòng chỉ tiêu ở trang "Chỉ tiêu Lãnh đạo Tập đoàn", xác nhận
    báo cáo HCRC KHÔNG đổi theo (và ngược lại) — xác nhận đúng 2 domain chỉ
    tiêu độc lập.
 6. Ở trang Phân quyền, đăng nhập thử bằng 1 tài khoản chỉ có vai trò "HCRC"
    — xác nhận CHỈ thấy báo cáo `bc-doanh-thu-hcrc`, không thấy báo cáo
    LDTD.
+6b. **Riêng "Ánh xạ Điểm - STK_ID"** (mục 2.3) — kiểm tra:
+   - Mọi mã Điểm ĐANG hoạt động đã có dòng ánh xạ, cột "Mã STK_ID (Điểm
+     mới)" khai ĐỦ mọi kho hiện đang phát sinh giao dịch của điểm đó (thiếu
+     1 kho → doanh thu "Thực đạt" của mã Điểm đó bị HỤT, không có lỗi/cảnh
+     báo nào khác báo hiệu ngoài số liệu thấp bất thường).
+   - Thử nhập lại 1 file có 1 mã `STK_ID` xuất hiện ở 2 mã Điểm khác nhau —
+     xác nhận hệ thống TỪ CHỐI TOÀN BỘ FILE (không nhập được dù chỉ 1 dòng)
+     kèm thông báo rõ 2 mã Điểm nào đang tranh chấp `STK_ID` nào.
+   - Mã Điểm đã đóng (không còn kho nào trong "Mã STK_ID (Điểm mới)") vẫn
+     hiện trong báo cáo (nhờ `requireTargetMatch` + còn chỉ tiêu) nhưng cột
+     "Thực đạt" trống — KHÔNG phải số 0.
 7. **Đúng vào ngày/vài ngày quanh lúc hết tháng** (khi `DSMART16_EOM` vừa
    nhận thêm dữ liệu tháng mới đóng sổ — xem lưu ý ở Bước 2.2) — kiểm tra
    Log của etl (hoặc console rp-server) có dòng cảnh báo

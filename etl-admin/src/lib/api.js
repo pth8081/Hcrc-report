@@ -14,6 +14,7 @@ async function request(path, { method = 'GET', body, isFormData = false } = {}) 
   if (!res.ok) {
     const err = new Error(data?.error || `Lỗi ${res.status}`);
     err.status = res.status;
+    err.data = data; // giữ nguyên body lỗi đầy đủ (vd { conflicts: [...] }) cho trang nào cần đọc thêm field ngoài "error"
     throw err;
   }
   return data;

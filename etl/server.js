@@ -24,6 +24,7 @@ const adminAuditLogRoutes = require('./routes/admin/auditLog');
 const adminDashboardRoutes = require('./routes/admin/dashboard');
 const { createSalesTargetsRouter } = require('./routes/admin/salesTargets');
 const adminBranchCodeMapRoutes = require('./routes/admin/branchCodeMap');
+const adminDiemStkMappingRoutes = require('./routes/admin/diemStkMapping');
 const adminRolesRoutes = require('./routes/admin/roles');
 const { getPool, closeAll, assertConfigured } = require('./db');
 const { getSecret } = require('./lib/adminAuth');
@@ -113,6 +114,7 @@ app.use('/admin/dashboard', adminDashboardRoutes);
 app.use('/admin/sales-targets-corp', createSalesTargetsRouter('sales-targets-corp', 'sales-targets-ldtd', 'doanhthu_chinhanh', 'ldtd-daily'));
 app.use('/admin/sales-targets-hcrc', createSalesTargetsRouter('sales-targets-hcrc', 'sales-targets-hcrc', 'doanhthu_chinhanh', 'hcrc-daily'));
 app.use('/admin/branch-code-map', adminBranchCodeMapRoutes);
+app.use('/admin/diem-stk-mapping', adminDiemStkMappingRoutes);
 app.use('/admin/roles', adminRolesRoutes);
 
 app.use((err, req, res, next) => { // eslint-disable-line no-unused-vars

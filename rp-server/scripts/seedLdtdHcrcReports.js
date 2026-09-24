@@ -46,10 +46,16 @@ function buildDefinition(title, targetDomain) {
       }
     ],
     blocks: [
-      { key: 'current', sourceType: 'directDb', domain: DOMAIN },
-      { key: 'currentGD', sourceType: 'directDb', domain: 'giaodich_chinhanh' },
-      { key: 'lastYear', sourceType: 'directDb', domain: DOMAIN, dateOffsetYears: -1, skipWhen: { field: 'cheDoSoSanh', equals: 'past' } },
-      { key: 'lastYearGD', sourceType: 'directDb', domain: 'giaodich_chinhanh', dateOffsetYears: -1, skipWhen: { field: 'cheDoSoSanh', equals: 'past' } },
+      // useDiemStkMapping: true — EntityCode thật trong dwh.ReportFacts của 2
+      // domain doanh thu/giao dịch chi nhánh là mã KHO (STK_ID), nhưng file
+      // chỉ tiêu LDTD/HCRC dùng mã "Điểm" (BU_ID) — gộp nhiều STK_ID (tách
+      // kho CŨ/MỚI theo etl.DiemStkMapping) về đúng 1 dòng/mã Điểm để ghép
+      // khớp được với khối target (đã khoá theo mã Điểm sẵn) — xem
+      // lib/diemStkMapping.js + lib/compositeReportRunner.js.
+      { key: 'current', sourceType: 'directDb', domain: DOMAIN, useDiemStkMapping: true },
+      { key: 'currentGD', sourceType: 'directDb', domain: 'giaodich_chinhanh', useDiemStkMapping: true },
+      { key: 'lastYear', sourceType: 'directDb', domain: DOMAIN, dateOffsetYears: -1, useDiemStkMapping: true, skipWhen: { field: 'cheDoSoSanh', equals: 'past' } },
+      { key: 'lastYearGD', sourceType: 'directDb', domain: 'giaodich_chinhanh', dateOffsetYears: -1, useDiemStkMapping: true, skipWhen: { field: 'cheDoSoSanh', equals: 'past' } },
       // targetGranularity: 'day' — 2 mẫu file chỉ tiêu thật (LDTD/HCRC) đều
       // là chỉ tiêu THEO NGÀY (xem etl/lib/salesTargetsImport.js), không
       // phải chỉ tiêu tháng chia đều — tra đúng ngày báo cáo thay vì gộp cả

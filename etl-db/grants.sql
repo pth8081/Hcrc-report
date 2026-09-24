@@ -13,7 +13,18 @@
    từng chi nhánh/siêu thị) — những kết nối đó dùng tài khoản CHỈ ĐỌC riêng
    do admin tự khai khi tạo DataSource qua etl-admin/, không liên quan gì
    tới login etl_admin ở đây (đó là tài khoản cho CSDL QUẢN TRỊ của chính
-   ETL, không phải nguồn dữ liệu ETL đi đồng bộ). */
+   ETL, không phải nguồn dữ liệu ETL đi đồng bộ).
+
+   2 tài khoản trong file này:
+     - etl_admin           — tiến trình etl/ (đọc lẫn ghi cả 2 schema).
+     - etl_diem_stk_reader (rp-server/.env.example ETL_DIEM_STK_USER) —
+       CHỈ ĐỌC, CHỈ ĐÚNG 1 BẢNG etl.DiemStkMapping — chiều NGƯỢC với
+       dwh_target_importer (dwh/grants.sql: etl đọc/ghi CSDL dwh) — ở đây
+       rp-server đọc CSDL etl để lấy ánh xạ mã Điểm (BU_ID) <-> nhiều mã kho
+       STK_ID, xem rp-server/lib/diemStkMapping.js. Không được cấp
+       SCHEMA::etl (sẽ lộ luôn etl.DataSources — chứa mật khẩu mã hoá các
+       nguồn dữ liệu OLTP thật) — GRANT theo TỪNG BẢNG như
+       dwh_target_importer đã làm với dwh.SalesTargets. */
 
 USE HCRC_ETL;
 GO
@@ -30,4 +41,23 @@ END
 GO
 GRANT SELECT, INSERT, UPDATE, DELETE ON SCHEMA::admin TO etl_admin;
 GRANT SELECT, INSERT, UPDATE, DELETE ON SCHEMA::etl TO etl_admin;
+GO
+
+-- ===== etl_diem_stk_reader — rp-server CHỈ đọc etl.DiemStkMapping (TUỲ CHỌN,
+--       chỉ cần tạo nếu có báo cáo composite bật block.useDiemStkMapping —
+--       xem rp-server/.env.example ETL_DIEM_STK_*) =====
+IF NOT EXISTS (SELECT 1 FROM sys.server_principals WHERE name = 'etl_diem_stk_reader')
+BEGIN
+    CREATE LOGIN etl_diem_stk_reader WITH PASSWORD = 'DOI-MAT-KHAU-NAY-THANH-GIA-TRI-NGAU-NHIEN-THAT';
+END
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = 'etl_diem_stk_reader')
+BEGIN
+    CREATE USER etl_diem_stk_reader FOR LOGIN etl_diem_stk_reader;
+END
+GO
+-- CỐ Ý GRANT theo TỪNG BẢNG, KHÔNG theo SCHEMA::etl — tài khoản này KHÔNG
+-- được đọc/ghi bất kỳ bảng nào khác trong schema etl (đặc biệt
+-- etl.DataSources chứa mật khẩu mã hoá các nguồn dữ liệu OLTP thật).
+GRANT SELECT ON etl.DiemStkMapping TO etl_diem_stk_reader;
 GO

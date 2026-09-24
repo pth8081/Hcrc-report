@@ -20,6 +20,60 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 6.77 — Ánh xạ mã Điểm (BU_ID) sang nhiều mã kho STK_ID cho báo cáo LDTD/HCRC
+
+Yêu cầu người dùng: file chỉ tiêu LDTD/HCRC dùng "mã Điểm" (đúng bằng
+`BU_ID`, KHÔNG đổi theo thời gian), nhưng doanh thu thực đạt trong
+`dwh.ReportFacts` lại khoá theo `STK_ID` (mã kho) — 1 mã Điểm có thể ứng
+với NHIỀU mã kho, và bộ mã kho đó có thể ĐỔI giữa kỳ trước/kỳ này (kho là
+khái niệm ẢO trong phần mềm, không phải khái niệm vật lý — người dùng xác
+nhận 1 siêu thị vẫn chỉ có 1 mặt bằng thật). Không quy đổi thì báo cáo
+composite không ghép được thực đạt (theo `STK_ID`) với chỉ tiêu (theo mã
+Điểm) — đây là vấn đề KHÁC với `etl.BranchCodeMap` đã có (bảng đó quy đổi
+khoá NGUỒN → khoá LƯU lúc đồng bộ, không tách kỳ cũ/mới, không xử lý N-1).
+
+**Bảng mới `etl.DiemStkMapping`** (CSDL `HCRC_ETL`) — mỗi dòng: 1 mã Điểm +
+danh sách mã kho CŨ (`MaStkCu`, dùng tính cùng kỳ năm trước) + danh sách mã
+kho MỚI (`MaStkMoi`, dùng tính thực đạt hiện tại), cả 2 có thể nhiều mã
+cách nhau bằng dấu phẩy + tên siêu thị chuẩn. Ràng buộc CỐ Ý khác mọi bảng
+nhập liệu khác trong hệ thống: 1 mã kho `STK_ID` chỉ được thuộc ĐÚNG 1 mã
+Điểm trong TOÀN BỘ bảng — vi phạm thì **TỪ CHỐI TOÀN BỘ FILE NHẬP** (không
+chỉ bỏ qua dòng lỗi như các importer khác), vì `BU_ID` sinh ra `STK_ID` nên
+trùng lặp luôn là lỗi cấu hình thật, không phải tình huống hợp lệ cần bỏ
+qua âm thầm.
+
+- `etl-admin` — menu mới **"Ánh xạ Điểm - STK_ID"**: CRUD + import Excel
+  (5 cột: STT, Mã Điểm, Mã STK_ID Điểm cũ, Mã STK_ID Điểm mới, Tên siêu
+  thị) + tải file mẫu/xuất Excel, giống khuôn các trang ánh xạ khác.
+- `rp-server/lib/diemStkMapping.js` (MỚI) — đọc bảng trên qua pool CSDL
+  RIÊNG, TUỲ CHỌN `ETL_DIEM_STK_*` (rút kinh nghiệm trực tiếp từ lỗi đăng
+  nhập phụ thuộc DWH ở bản 6.75: pool này KHÔNG bắt buộc lúc khởi động, mọi
+  lỗi kết nối CHỈ làm rỗng đúng phần dữ liệu của tính năng này, không ảnh
+  hưởng đăng nhập/báo cáo khác) + hàm gộp nhiều dòng STK_ID (đã tổng theo
+  ngày) về đúng 1 dòng/mã Điểm — cộng dồn measures, lấy dimensions không
+  rỗng đầu tiên (diện tích KHÔNG cộng dồn dù gộp nhiều kho ảo), ưu tiên tên
+  siêu thị từ chính bảng ánh xạ này. Mã Điểm không khai kho cho đúng kỳ
+  (hoặc khai nhưng kho đó không có dữ liệu) → "không có dữ liệu", KHÔNG
+  phải số 0 — đúng yêu cầu nghiệp vụ đã chốt.
+- `rp-server/lib/compositeReportRunner.js` — cờ mới `block.useDiemStkMapping`
+  (tuỳ chọn, mặc định tắt) trên khối `directDb`: bật thì áp bước gộp trên
+  SAU bước tổng hợp theo ngày, dùng danh sách kho MỚI khi
+  `dateOffsetYears >= 0`, danh sách CŨ khi `< 0`.
+- `rp-server/scripts/seedLdtdHcrcReports.js` — bật `useDiemStkMapping: true`
+  trên cả 4 khối `directDb` (`current`/`currentGD`/`lastYear`/`lastYearGD`)
+  của cả 2 báo cáo LDTD/HCRC — trường hợp áp dụng thật đầu tiên.
+- `etl-db/grants.sql` — tài khoản mới `etl_diem_stk_reader`, CHỈ SELECT
+  đúng bảng `etl.DiemStkMapping` (không cấp `SCHEMA::etl` — tránh lộ
+  `etl.DataSources` chứa mật khẩu mã hoá), dùng cho pool
+  `ETL_DIEM_STK_*` của rp-server.
+
+Đã kiểm thử (fakeModule) toàn bộ chuỗi thật: import + phát hiện trùng
+`STK_ID` (cả trong file lẫn với dữ liệu đã lưu) + gộp qua đúng
+`compositeReportRunner.js`/`runCompositeReport()` thật (không phải bản
+demo riêng) — xác nhận gộp đúng nhiều kho, tách đúng kỳ cũ/mới, hiện đúng
+"không có dữ liệu" khi thiếu ánh xạ, và lỗi kết nối CSDL ánh xạ rơi về Map
+rỗng thay vì làm sập báo cáo.
+
 ## 6.76 — Thêm sheet "mẫu điền ánh xạ còn thiếu" vào script đối chiếu mã
 
 Theo câu hỏi người dùng khi mở file đối chiếu mã (bản 6.74): làm rõ ý nghĩa

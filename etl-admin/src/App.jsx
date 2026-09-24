@@ -12,6 +12,7 @@ import UsersPage from './pages/UsersPage';
 import RolesPage from './pages/RolesPage';
 import SalesTargetsPage from './pages/SalesTargetsPage';
 import BranchCodeMapPage from './pages/BranchCodeMapPage';
+import DiemStkMappingPage from './pages/DiemStkMappingPage';
 import AccountPage from './pages/AccountPage';
 
 // Vai trò hẹp (vd chỉ thấy "Nhập chỉ tiêu") không thấy "/dashboard" trong
@@ -22,7 +23,7 @@ import AccountPage from './pages/AccountPage';
 // khiến 1 tài khoản CHỈ được cấp 1 trong 4 trang này bị điều hướng về
 // '/dashboard' (trang không thấy được) ngay sau đăng nhập thay vì vào đúng
 // trang mình có quyền.
-const LANDING_ORDER = ['dashboard', 'sales-targets-corp', 'sales-targets-hcrc', 'data-sources', 'sync-jobs', 'branch-code-map', 'log', 'audit-log', 'users', 'roles'];
+const LANDING_ORDER = ['dashboard', 'sales-targets-corp', 'sales-targets-hcrc', 'data-sources', 'sync-jobs', 'branch-code-map', 'diem-stk-mapping', 'log', 'audit-log', 'users', 'roles'];
 
 function IndexRedirect() {
   const { can } = useAuth();
@@ -53,6 +54,7 @@ export default function App() {
             <SalesTargetsPage menuCode="sales-targets-hcrc" apiBase="/sales-targets-hcrc" title="Chỉ tiêu HCRC" />
           } />
           <Route path="/branch-code-map" element={<BranchCodeMapPage />} />
+          <Route path="/diem-stk-mapping" element={<DiemStkMappingPage />} />
           <Route path="/users" element={<UsersPage />} />
           <Route path="/roles" element={<RolesPage />} />
           <Route path="/account" element={<AccountPage />} />

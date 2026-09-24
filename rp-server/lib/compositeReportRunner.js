@@ -18,6 +18,23 @@
 //   domain, dataSourceId,   // directDb: domain BẮT BUỘC, dataSourceId tuỳ chọn (mặc định DWH)
 //   dateOffsetYears,        // directDb: 0 = ngày yêu cầu (mặc định), -1 = cùng kỳ năm trước
 //   filters,                // directDb: definition.filters bổ sung, giống 'directDb' thường
+//   useDiemStkMapping,      // directDb: TUỲ CHỌN, mặc định false — BẬT khi
+//                           // mã EntityCode thật trong domain này là mã kho
+//                           // STK_ID (dwh.ReportFacts) nhưng báo cáo cần
+//                           // hiện/ghép theo mã "Điểm" (BU_ID, dùng nguyên
+//                           // trong file chỉ tiêu — xem
+//                           // etl/lib/salesTargetsImport.js): tra
+//                           // etl.DiemStkMapping (CSDL etl, đọc qua
+//                           // lib/diemStkMapping.js), CỘNG DỒN measures của
+//                           // MỌI kho STK_ID khớp đúng 1 mã Điểm thành 1
+//                           // dòng — dùng MaStkMoi (kho HIỆN TẠI) khi
+//                           // dateOffsetYears>=0, MaStkCu (kho CŨ, cùng kỳ
+//                           // năm trước) khi dateOffsetYears<0 — vì mã kho
+//                           // có thể đổi theo thời gian dù mã Điểm không
+//                           // đổi. Mã Điểm không khai kho nào cho đúng kỳ
+//                           // (hoặc kho đó không có dữ liệu) -> "không có
+//                           // dữ liệu" (không phải 0) — theo đúng yêu cầu
+//                           // người dùng, xem lib/diemStkMapping.js.
 //   apiConnectionId, apiTarget, // apiReport/apiRealtime
 //   isTarget, targetDomain, // true -> đọc dwh.SalesTargets (lib/salesTargetsReader.js)
 //   targetGranularity,      // isTarget: 'day' tra ĐÚNG ngày yêu cầu (chỉ
@@ -118,6 +135,7 @@ const { runReport, describeColumns } = require('./reportEngine');
 const { runApiReport } = require('./apiReportClient');
 const { evaluateFormula } = require('./formulaEngine');
 const { runSalesTargetsBlockRange } = require('./salesTargetsReader');
+const { loadDiemStkMapping, remapRowsToDiem } = require('./diemStkMapping');
 
 function formatDateISO(d) {
   return d.toISOString().slice(0, 10);
@@ -216,7 +234,10 @@ async function runBlock(block, requestedRange, filterValues) {
     const blockDefinition = { domain: block.domain, filters: [{ field: 'eventDate', type: 'dateRange' }, ...(block.filters || [])] };
     const blockFilterValues = { ...filterValues, eventDate: eventDateRange };
     const rawRows = await runReport(pool, blockDefinition, blockFilterValues, { page: 1, pageSize: 5000 });
-    return aggregateDailyRowsByEntity(rawRows, eventDateRange.to);
+    const stkRows = aggregateDailyRowsByEntity(rawRows, eventDateRange.to);
+    if (!block.useDiemStkMapping) return stkRows;
+    const diemMapping = await loadDiemStkMapping();
+    return remapRowsToDiem(stkRows, diemMapping, years < 0);
   }
   if (block.sourceType === 'apiReport' || block.sourceType === 'apiRealtime') {
     // GIỚI HẠN ĐÃ BIẾT (xem chú thích đầu file): API ngoài chưa hiểu khoảng

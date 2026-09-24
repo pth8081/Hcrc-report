@@ -19,6 +19,7 @@ const NAV = [
   { path: '/sales-targets-corp', label: 'Chỉ tiêu Lãnh đạo Tập đoàn', icon: '🎯', menuCode: 'sales-targets-corp' },
   { path: '/sales-targets-hcrc', label: 'Chỉ tiêu HCRC', icon: '🎯', menuCode: 'sales-targets-hcrc' },
   { path: '/branch-code-map', label: 'Ánh xạ mã chi nhánh', icon: '🔗', menuCode: 'branch-code-map', editOnly: true },
+  { path: '/diem-stk-mapping', label: 'Ánh xạ Điểm - STK_ID', icon: '🧩', menuCode: 'diem-stk-mapping', editOnly: true },
   { path: '/users', label: 'Phân quyền', icon: '🔐', menuCode: 'users' },
   { path: '/roles', label: 'Vai trò', icon: '🛡️', menuCode: 'roles' }
 ];

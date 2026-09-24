@@ -190,6 +190,44 @@ BEGIN
 END
 GO
 
+-- Ánh xạ "mã Điểm" (BU_ID, dùng NGUYÊN VẸN trong file chỉ tiêu LDTD/HCRC —
+-- KHÔNG đổi gì file chỉ tiêu) sang 1 hoặc NHIỀU mã kho STK_ID thật trong
+-- dwh.ReportFacts — khác hẳn etl.BranchCodeMap ở trên (1 mã gốc <-> ĐÚNG 1
+-- mã chuẩn): 1 mã Điểm có thể gộp NHIỀU kho STK_ID (kho là khái niệm ẢO
+-- trong phần mềm, không phải vật lý — 1 siêu thị vẫn CHỈ 1 diện tích), và
+-- tập kho DÙNG ĐỂ TÍNH THAY ĐỔI THEO KỲ: "MaStkCu" cho kỳ QUÁ KHỨ/cùng kỳ
+-- năm trước, "MaStkMoi" cho kỳ HIỆN TẠI — do mã kho có thể đổi theo thời
+-- gian trong lúc mã Điểm (BU_ID) không đổi (rp-server/lib/compositeReportRunner.js
+-- dùng đúng tập nào theo dateOffsetYears của từng khối, xem
+-- lib/diemStkMapping.js phía rp-server). NHIỀU mã trong 1 ô, cách nhau dấu
+-- phẩy (KHÔNG dấu cách) — theo đúng yêu cầu người dùng để dễ khai/dễ đọc
+-- trong Excel hơn là tách nhiều dòng.
+--
+-- MaStkCu/MaStkMoi CÓ THỂ để trống (siêu thị mới mở chưa từng có kho cũ,
+-- hoặc đã đóng không còn kho mới) — rp-server coi là "không có dữ liệu" cho
+-- đúng kỳ đó, KHÔNG báo lỗi/không hiện số 0.
+--
+-- RÀNG BUỘC NGHIỆP VỤ (đã xác nhận với người dùng): 1 mã STK_ID chỉ thuộc
+-- ĐÚNG 1 mã Điểm — vì mã Điểm SINH RA mã STK_ID nên về lý thuyết KHÔNG BAO
+-- GIỜ trùng giữa 2 mã Điểm khác nhau — ràng buộc này không diễn tả được
+-- bằng UNIQUE CONSTRAINT thường (giá trị nằm trong chuỗi cách-nhau-dấu-phẩy),
+-- nên etl/lib/diemStkMappingImport.js tự kiểm tra và CHẶN HẲN (từ chối toàn
+-- bộ file, không nhập phần nào) nếu phát hiện trùng — xem chú thích ở đó.
+IF OBJECT_ID('etl.DiemStkMapping', 'U') IS NULL
+BEGIN
+    CREATE TABLE etl.DiemStkMapping (
+        Id          INT           IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        MaDiem      NVARCHAR(50)  NOT NULL,
+        MaStkCu     NVARCHAR(500) NULL,
+        MaStkMoi    NVARCHAR(500) NULL,
+        TenSieuThi  NVARCHAR(200) NULL,
+        ImportedAt  DATETIME2(3)  NOT NULL DEFAULT SYSUTCDATETIME(),
+        ImportedBy  NVARCHAR(50)  NULL,
+        CONSTRAINT UX_DiemStkMapping_MaDiem UNIQUE (MaDiem)
+    );
+END
+GO
+
 -- Chuyển từ dwh.SyncState — khoá theo SyncJobId thay vì chuỗi SourceSystem tự do.
 IF OBJECT_ID('etl.SyncState', 'U') IS NULL
 BEGIN
