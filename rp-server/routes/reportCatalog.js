@@ -1,9 +1,11 @@
 // routes/reportCatalog.js — Trang "Biểu mẫu": CRUD app.ReportCatalog (định
-// nghĩa báo cáo — bộ lọc/cột/nguồn dữ liệu) + tải lên file mẫu .xlsx/.pptx
-// vào templates/ (tham chiếu bằng tên file trong DefinitionJson.template,
-// xem rp-server/README.md). Khác routes/reports.js: route ở đây thấy
-// TOÀN BỘ báo cáo (kể cả IsActive=0) vì đây là trang cấu hình, không phải
-// trang xem báo cáo — quyền xem thật do RoleReportAccess quyết định riêng.
+// nghĩa báo cáo — bộ lọc/cột/nguồn dữ liệu) + tải lên file mẫu .xlsx vào
+// templates/ (tham chiếu bằng tên file trong DefinitionJson.template, xem
+// rp-server/README.md) — CHƯA có code nào đọc lại file này để điền dữ liệu
+// (không dùng cho báo cáo thật hiện tại). Khác routes/reports.js: route ở
+// đây thấy TOÀN BỘ báo cáo (kể cả IsActive=0) vì đây là trang cấu hình,
+// không phải trang xem báo cáo — quyền xem thật do RoleReportAccess quyết
+// định riêng.
 const path = require('path');
 const fs = require('fs');
 const express = require('express');
@@ -39,8 +41,8 @@ const upload = multer({
   }),
   limits: { fileSize: 20 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
-    const ok = /\.(xlsx|pptx)$/i.test(file.originalname);
-    cb(ok ? null : new Error('Chỉ nhận file .xlsx hoặc .pptx'), ok);
+    const ok = /\.xlsx$/i.test(file.originalname);
+    cb(ok ? null : new Error('Chỉ nhận file .xlsx'), ok);
   }
 });
 
@@ -307,9 +309,16 @@ router.delete('/:reportId', async (req, res, next) => {
 
 // Danh sách file mẫu đã tải lên templates/ — để chọn khi điền
 // DefinitionJson.template thay vì phải nhớ/gõ tay tên file.
+//
+// CHỈ còn .xlsx (bỏ .pptx) — cơ chế "mẫu" này chưa có code nào ĐỌC LẠI để
+// điền dữ liệu vào (không dùng cho báo cáo thật hiện tại, xem chú thích đầu
+// file). Định dạng/màu sắc Excel VÀ PDF của báo cáo thật từ nay khai qua
+// `definition.columnGroups` (xem lib/exportExcel.js/lib/exportPdf.js/
+// lib/compositeReportRunner.js) — KHÔNG liên quan tới file tải lên ở đây.
+// .pptx bỏ hẳn (không có ý nghĩa xuất PowerPoint nào trong hệ thống này).
 router.get('/templates', (req, res, next) => {
   try {
-    const files = fs.readdirSync(TEMPLATES_DIR).filter(f => /\.(xlsx|pptx)$/i.test(f));
+    const files = fs.readdirSync(TEMPLATES_DIR).filter(f => /\.xlsx$/i.test(f));
     res.json(files);
   } catch (err) { next(err); }
 });
@@ -317,19 +326,18 @@ router.get('/templates', (req, res, next) => {
 router.post('/templates', upload.single('file'), async (req, res, next) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'Thiếu file' });
-    // fileFilter (đuôi .xlsx/.pptx) chỉ soi được originalname, CHƯA có nội
-    // dung — diskStorage đã ghi file THẬT lên đĩa lúc này, đọc lại 4 byte
-    // đầu để kiểm tra đúng chữ ký ZIP (.xlsx/.pptx đều là Office Open XML,
-    // container ZIP) trước khi giữ lại file, chặn file đổi đuôi giả mạo
-    // (vd .html/.exe đổi thành .xlsx) được lưu và mở lại sau này bởi
-    // ExcelJS/pptx export (xem lib/fileSignature.js).
+    // fileFilter (đuôi .xlsx) chỉ soi được originalname, CHƯA có nội dung —
+    // diskStorage đã ghi file THẬT lên đĩa lúc này, đọc lại 4 byte đầu để
+    // kiểm tra đúng chữ ký ZIP (.xlsx là Office Open XML, container ZIP)
+    // trước khi giữ lại file, chặn file đổi đuôi giả mạo (vd .html/.exe đổi
+    // thành .xlsx) được lưu lại (xem lib/fileSignature.js).
     const fd = fs.openSync(req.file.path, 'r');
     const head = Buffer.alloc(4);
     fs.readSync(fd, head, 0, 4, 0);
     fs.closeSync(fd);
     if (!hasZipSignature(head)) {
       fs.unlinkSync(req.file.path);
-      return res.status(400).json({ error: 'File không đúng định dạng .xlsx/.pptx (sai chữ ký file)' });
+      return res.status(400).json({ error: 'File không đúng định dạng .xlsx (sai chữ ký file)' });
     }
     // req.file.filename = tên đã qua path.basename() ở storage.filename phía
     // trên (tên THẬT lưu trên đĩa) — trả về đúng cái này, không phải

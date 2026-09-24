@@ -89,6 +89,34 @@
 //                   tổng = SUM(thực đạt)/SUM(chỉ tiêu), KHÔNG PHẢI trung
 //                   bình cộng % từng dòng (xem sumMergedRows()).
 //
+// Tiêu đề nhóm cột + màu (Excel/PDF) — DefinitionJson.columnGroups (TUỲ
+// CHỌN, mặc định KHÔNG có = xuất Excel/PDF phẳng như trước, không đổi hành
+// vi báo cáo cũ). Chỉ ẢNH HƯỞNG lúc XUẤT (lib/exportExcel.js/
+// lib/exportPdf.js — dùng chung, kể cả file đính kèm gửi email tự động,
+// xem jobs/reportEmailScheduler.js), KHÔNG ảnh hưởng bảng xem trên web
+// (rp-user tự vẽ bảng phẳng như cũ, không đọc field này):
+//   columnGroups: [{ label, color, keys }]
+//     label — nhãn nhóm (vd "Doanh thu"), gộp 1 ô ngang phía trên nhóm cột.
+//     color — 1 trong "green"/"yellow"/"orange"/"blue"/"red"/"gray"/"purple"
+//             (xem lib/reportCellFormat.js), hoặc mã HEX 6 ký tự tự chọn.
+//     keys  — mảng key cột (trong definition.columns) thuộc nhóm này, PHẢI
+//             liền kề nhau đúng thứ tự khai ở columns (không xen cột khác
+//             nhóm ở giữa) — xem seedLdtdHcrcReports.js làm ví dụ thật.
+//   Cột KHÔNG thuộc nhóm nào (vd "Siêu thị/Cửa hàng", "Diện tích") tự vẽ 1
+//   ô tiêu đề riêng, gộp dọc 2 dòng header, không tô màu.
+// definition.columns[].format — TUỲ CHỌN "percent": công thức đã tự nhân
+//   100 sẵn (vd "ROUND(x/y*100,1)"), lúc xuất CHỈ thêm dấu "%" khi hiển thị
+//   (Excel: numFmt tự chế `0"%"`, không dùng numFmt phần trăm chuẩn — tránh
+//   nhân lại 100 lần nữa). Không khai = số thường, phân cách nghìn.
+// definition.columns[].width — TUỲ CHỌN, trọng số bề rộng cột lúc xuất PDF
+//   (mặc định 1 — cột nào cần rộng hơn, vd tên siêu thị, đặt số lớn hơn).
+// Cột đặc biệt key="stt" (label tuỳ ý, thường "TT") — lúc xuất TỰ đánh số
+//   lại từ 1 theo TỪNG NHÓM groupBy (reset ngay sau mỗi dòng "Tổng cộng"),
+//   để TRỐNG ở chính dòng "Tổng cộng" — khớp đúng cột "TT" đếm riêng theo
+//   từng nhóm MART/MINIMART trong mẫu báo cáo cũ (xem
+//   lib/reportCellFormat.js:computeSttValues()). Giá trị thật trong dữ liệu
+//   (nếu formula nào đó lỡ gán cho key "stt") bị GHI ĐÈ lúc xuất.
+//
 // Bộ lọc filterValues.eventDate là NGÀY (chuỗi "YYYY-MM-DD", tương thích
 // ngược với báo cáo cũ khai filter type="date") HOẶC KHOẢNG NGÀY ({from,to},
 // khai filter type="dateRange" — xem seedLdtdHcrcReports.js) — mặc định

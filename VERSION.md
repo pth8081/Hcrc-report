@@ -20,6 +20,48 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 6.81 — Xuất Excel/PDF theo khuôn cũ: tiêu đề gộp nhóm cột màu, STT theo nhóm
+
+Người dùng gửi file mẫu báo cáo thật đang dùng ở hệ thống cũ, yêu cầu xuất
+Excel/PDF (và file đính kèm gửi email tự động) đúng khuôn: tiêu đề gộp 2
+dòng theo 3 nhóm cột màu (Doanh thu/xanh lá, Lãi gộp/vàng, Giao dịch/cam),
+cột "TT" đếm riêng theo từng nhóm siêu thị (MART/MINIMART), số có dấu phẩy
+phân cách nghìn.
+
+Thêm `DefinitionJson.columnGroups` (TUỲ CHỌN, mặc định không có = xuất Excel/
+PDF phẳng như trước, không đổi báo cáo cũ) — khai `[{label, color, keys}]`,
+`lib/exportExcel.js`/`lib/exportPdf.js` tự gộp ô header 2 dòng + tô màu theo
+đúng nhóm, dùng CHUNG 1 nguồn (`lib/reportCellFormat.js` — mới) nên Excel và
+PDF luôn khớp nhau tuyệt đối. Cột đặc biệt `key: "stt"` tự đánh số lại từ 1
+ngay sau mỗi dòng "Tổng cộng" (groupBy), để trống ở chính dòng đó.
+`definition.columns[].format: "percent"` hiển thị thêm dấu "%" mà KHÔNG nhân
+lại 100 (công thức đã tự nhân sẵn). Số định dạng CỐ ĐỊNH dấu phẩy phân cách
+nghìn (không phụ thuộc locale máy chủ/máy mở file) — khớp đúng file mẫu.
+
+`lib/exportPdf.js` viết lại đáng kể: trang NGANG khi có columnGroups (nhiều
+cột), vẽ lưới đầy đủ (kẻ khung, tô nền), tự XUỐNG DÒNG nhãn tiêu đề dài
+(tránh tràn sang ô kế bên — lỗi phát hiện được ở vòng kiểm thử đầu, đã sửa),
+tự sang trang mới kèm lặp lại header khi dữ liệu dài nhiều trang.
+`jobs/reportEmailScheduler.js` KHÔNG cần sửa gì — đã dùng chung 2 hàm xuất
+trên từ trước, nên báo cáo bật `columnGroups` tự động có file đính kèm email
+đẹp theo, không cần nối dây thêm.
+
+Nhân dịp rà lại tính năng "Tải mẫu .xlsx/.pptx lên" (trang "Biểu mẫu",
+rp-user) theo câu hỏi người dùng: xác nhận đây là code CŨ CHƯA từng có nơi
+nào đọc lại để điền dữ liệu (không liên quan gì tới báo cáo thật) — bỏ
+`.pptx` (không có ý nghĩa xuất PowerPoint nào trong hệ thống), giữ `.xlsx`,
+và ghi rõ trong giao diện rằng định dạng Excel/PDF thật từ nay khai qua
+`columnGroups`, không qua file tải lên đó.
+
+Đã kiểm thử (fakeModule, KHÔNG phải demo tay): sinh Excel/PDF thật qua đúng
+`exportExcel()`/`exportPdf()` với definition mô phỏng đúng cấu trúc
+bc-doanh-thu-hcrc (nhóm MART/MINIMART + dòng tổng) — đọc lại file Excel xác
+nhận đúng ô gộp/màu/tô nền dòng tổng, render thử PDF ra ảnh xác nhận khớp
+khuôn mẫu gốc, và xác nhận báo cáo KHÔNG khai columnGroups vẫn xuất bình
+thường như trước (không phá vỡ báo cáo cũ). Build lại rp-user sạch. CHƯA áp
+dụng vào 2 báo cáo thật LDTD/HCRC (seedLdtdHcrcReports.js) — chờ người dùng
+xác nhận màu sắc/cấu hình cụ thể qua demo trước khi nối dây.
+
 ## 6.80 — Tự động đồng bộ "Ánh xạ Điểm - STK_ID" sang "Ánh xạ mã chi nhánh"
 
 Theo yêu cầu người dùng: bản 6.79 vẫn cần 1 bước thủ công (chạy script xuất

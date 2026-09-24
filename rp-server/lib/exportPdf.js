@@ -1,7 +1,9 @@
-// lib/exportPdf.js — Xuất PDF DẠNG BẢNG CHUNG (tiêu đề + header + dữ liệu, tự
-// sang trang khi tràn), chưa theo mẫu biểu công ty. Đủ dùng để xem/in nhanh;
-// khi cần đúng khuôn dấu/tiêu đề công ty, thay bằng cách nạp mẫu PDF/Word có
-// sẵn định dạng rồi điền dữ liệu, giống hướng làm với exportExcel.js.
+// lib/exportPdf.js — Xuất PDF. definition.columnGroups có khai (xem chú
+// thích đầu lib/compositeReportRunner.js) thì vẽ ĐÚNG khuôn báo cáo cũ:
+// trang ngang (nhiều cột), tiêu đề gộp 2 dòng theo màu từng nhóm, kẻ khung
+// từng ô, tô nền dòng "Tổng cộng" — lặp lại đúng header ở mỗi trang mới.
+// Không khai columnGroups thì rơi về bảng phẳng trang dọc như trước (không
+// đổi hành vi báo cáo cũ).
 //
 // Font: StandardFonts (Helvetica) của pdf-lib chỉ mã hoá được bảng WinAnsi —
 // KHÔNG có dấu tiếng Việt (ị/ẩ/ệ/ư/ơ...). Toàn bộ dữ liệu thật (tiêu đề báo
@@ -10,10 +12,11 @@
 // LUÔN lỗi 500, và lịch gửi email ExportFormat='pdf' (jobs/reportEmailScheduler.js)
 // thất bại vĩnh viễn mỗi lần chạy. Nhúng font Noto Sans Vietnamese (qua
 // @pdf-lib/fontkit, hỗ trợ Unicode đầy đủ) thay cho font chuẩn.
-const { PDFDocument } = require('pdf-lib');
+const { PDFDocument, rgb } = require('pdf-lib');
 const fontkit = require('@pdf-lib/fontkit');
 const fs = require('fs');
 const path = require('path');
+const { resolveGroupColor, SUBTOTAL_COLOR, computeSttValues, formatCellText } = require('./reportCellFormat');
 
 const FONT_DIR = path.join(__dirname, '..', 'node_modules', '@openfonts', 'noto-sans_vietnamese', 'files');
 
@@ -40,11 +43,22 @@ function loadFontBytes() {
   return fontBytesCache;
 }
 
-const PAGE_SIZE = [595.28, 841.89]; // A4 chiều dọc, đơn vị point
-const MARGIN = 40;
-const ROW_HEIGHT = 18;
+const MARGIN = 30;
+const ROW_HEIGHT = 16;
+const HEADER_ROW_HEIGHT = 24;
 
-// definition.columns = [{key, label}] — xem lib/reportEngine.js:describeColumns().
+function hexToRgb01(hex6) {
+  return rgb(
+    parseInt(hex6.slice(0, 2), 16) / 255,
+    parseInt(hex6.slice(2, 4), 16) / 255,
+    parseInt(hex6.slice(4, 6), 16) / 255
+  );
+}
+const BORDER_RGB = rgb(0.6, 0.6, 0.6);
+
+// definition.columns = [{key, label, format?, width?}] — xem
+// lib/reportEngine.js:describeColumns(). definition.columnGroups (TUỲ
+// CHỌN) — xem chú thích đầu file lib/compositeReportRunner.js.
 async function exportPdf(definition, rows) {
   const { regular: regularBytes, bold: boldBytes } = loadFontBytes();
   const pdfDoc = await PDFDocument.create();
@@ -52,38 +66,148 @@ async function exportPdf(definition, rows) {
   const font = await pdfDoc.embedFont(regularBytes, { subset: true });
   const boldFont = await pdfDoc.embedFont(boldBytes, { subset: true });
 
+  const columns = definition.columns;
+  const groups = definition.columnGroups || [];
+  const hasGroups = groups.length > 0;
+
+  // Nhiều cột (báo cáo có columnGroups) thì dùng trang NGANG cho đủ chỗ —
+  // báo cáo phẳng cũ (ít cột) giữ trang dọc như trước.
+  const PAGE_SIZE = hasGroups ? [841.89, 595.28] : [595.28, 841.89];
+  const usableWidth = PAGE_SIZE[0] - MARGIN * 2;
+
+  const weights = columns.map(c => c.width || 1);
+  const totalWeight = weights.reduce((a, b) => a + b, 0);
+  const colWidths = weights.map(w => (w / totalWeight) * usableWidth);
+  const colX = [];
+  let x = MARGIN;
+  for (const w of colWidths) { colX.push(x); x += w; }
+
   let page = pdfDoc.addPage(PAGE_SIZE);
   let y = PAGE_SIZE[1] - MARGIN;
 
-  page.drawText(definition.title, { x: MARGIN, y, size: 14, font: boldFont });
-  y -= ROW_HEIGHT * 1.5;
-
-  const colWidth = (PAGE_SIZE[0] - MARGIN * 2) / definition.columns.length;
-
-  function drawRow(values, useBold) {
-    definition.columns.forEach((col, i) => {
-      const text = String(values[col.key] ?? '');
-      page.drawText(text.slice(0, 40), {
-        x: MARGIN + i * colWidth,
-        y,
-        size: 9,
-        font: useBold ? boldFont : font
-      });
-    });
-    y -= ROW_HEIGHT;
+  function drawCellText(text, cx, cw, cy, opts = {}) {
+    const { bold = false, size = 8, align = 'left' } = opts;
+    const f = bold ? boldFont : font;
+    const str = String(text ?? '').slice(0, 60);
+    const textWidth = f.widthOfTextAtSize(str, size);
+    let tx = cx + 3;
+    if (align === 'right') tx = cx + cw - textWidth - 3;
+    else if (align === 'center') tx = cx + (cw - textWidth) / 2;
+    page.drawText(str, { x: tx, y: cy, size, font: f, color: rgb(0.1, 0.1, 0.1) });
   }
 
-  drawRow(Object.fromEntries(definition.columns.map(c => [c.key, c.label])), true);
-
-  for (const row of rows) {
-    if (y < MARGIN + ROW_HEIGHT) {
-      page = pdfDoc.addPage(PAGE_SIZE);
-      y = PAGE_SIZE[1] - MARGIN;
+  // Bọc dòng theo từ (word-wrap) để nhãn tiêu đề DÀI không tràn sang ô kế
+  // bên — cột hẹp (vd "Cùng kỳ năm 2025") CẦN xuống dòng thay vì lấn ô khác.
+  function wrapLines(text, f, size, maxWidth) {
+    const words = String(text ?? '').split(' ');
+    const lines = [];
+    let cur = '';
+    for (const w of words) {
+      const attempt = cur ? `${cur} ${w}` : w;
+      if (f.widthOfTextAtSize(attempt, size) <= maxWidth || !cur) {
+        cur = attempt;
+      } else {
+        lines.push(cur);
+        cur = w;
+      }
     }
-    // Dòng tổng (SourceType='composite' + groupBy, xem
-    // lib/compositeReportRunner.js) đánh dấu bằng __isSubtotal — in đậm,
-    // giống hàng "Tổng cộng" trong file mẫu.
-    drawRow(row, !!row.__isSubtotal);
+    if (cur) lines.push(cur);
+    return lines;
+  }
+
+  // Vẽ nhãn CÓ THỂ xuống nhiều dòng, canh giữa cả ngang lẫn dọc trong 1 vùng
+  // (cx, cw) x (vùng cao availableHeight, đỉnh tại topY).
+  function drawWrappedCenteredText(text, cx, cw, topY, availableHeight, opts = {}) {
+    const { bold = false, size = 7 } = opts;
+    const f = bold ? boldFont : font;
+    const lines = wrapLines(text, f, size, cw - 4);
+    const lineGap = size + 2;
+    const blockHeight = lines.length * lineGap;
+    let ly = topY - (availableHeight - blockHeight) / 2 - size;
+    for (const line of lines) {
+      const w = f.widthOfTextAtSize(line, size);
+      page.drawText(line, { x: cx + (cw - w) / 2, y: ly, size, font: f, color: rgb(0.1, 0.1, 0.1) });
+      ly -= lineGap;
+    }
+  }
+
+  function drawGridRect(cx, cy, cw, ch, fillHex) {
+    page.drawRectangle({
+      x: cx, y: cy, width: cw, height: ch,
+      color: fillHex ? hexToRgb01(fillHex) : undefined,
+      borderColor: BORDER_RGB, borderWidth: 0.5
+    });
+  }
+
+  function drawTitle() {
+    const size = 13;
+    const textWidth = boldFont.widthOfTextAtSize(definition.title, size);
+    page.drawText(definition.title, { x: (PAGE_SIZE[0] - textWidth) / 2, y, size, font: boldFont });
+    y -= ROW_HEIGHT * 1.6;
+  }
+
+  function drawHeader() {
+    if (!hasGroups) {
+      const rowTop = y;
+      columns.forEach((col, i) => {
+        drawGridRect(colX[i], rowTop - ROW_HEIGHT, colWidths[i], ROW_HEIGHT);
+        drawCellText(col.label, colX[i], colWidths[i], rowTop - ROW_HEIGHT + 4, { bold: true, align: 'center' });
+      });
+      y -= ROW_HEIGHT;
+      return;
+    }
+    const row1Top = y;
+    const row2Top = y - HEADER_ROW_HEIGHT;
+    const colIndexByKey = new Map(columns.map((c, i) => [c.key, i]));
+    const covered = new Set();
+    for (const g of groups) {
+      const idxs = (g.keys || []).map(k => colIndexByKey.get(k)).filter(v => v !== undefined);
+      if (!idxs.length) continue;
+      const start = Math.min(...idxs), end = Math.max(...idxs);
+      const argb = resolveGroupColor(g.color);
+      const startX = colX[start];
+      const spanW = colX[end] + colWidths[end] - startX;
+      drawGridRect(startX, row1Top - HEADER_ROW_HEIGHT, spanW, HEADER_ROW_HEIGHT, argb);
+      drawWrappedCenteredText(g.label, startX, spanW, row1Top, HEADER_ROW_HEIGHT, { bold: true, size: 9 });
+      for (let i = start; i <= end; i++) {
+        covered.add(i);
+        drawGridRect(colX[i], row2Top - HEADER_ROW_HEIGHT, colWidths[i], HEADER_ROW_HEIGHT, argb);
+        drawWrappedCenteredText(columns[i].label, colX[i], colWidths[i], row2Top, HEADER_ROW_HEIGHT, { bold: true, size: 6.5 });
+      }
+    }
+    columns.forEach((col, i) => {
+      if (covered.has(i)) return;
+      drawGridRect(colX[i], row2Top - HEADER_ROW_HEIGHT, colWidths[i], HEADER_ROW_HEIGHT * 2);
+      drawWrappedCenteredText(col.label, colX[i], colWidths[i], row1Top, HEADER_ROW_HEIGHT * 2, { bold: true, size: 7 });
+    });
+    y -= HEADER_ROW_HEIGHT * 2;
+  }
+
+  function newPage() {
+    page = pdfDoc.addPage(PAGE_SIZE);
+    y = PAGE_SIZE[1] - MARGIN;
+    drawHeader();
+  }
+
+  drawTitle();
+  drawHeader();
+
+  const sttValues = computeSttValues(rows);
+  const sttColIdx = columns.findIndex(c => c.key === 'stt');
+
+  for (let rIdx = 0; rIdx < rows.length; rIdx++) {
+    if (y - ROW_HEIGHT < MARGIN) newPage();
+    const row = rows[rIdx];
+    const rowTop = y;
+    const rowFill = row.__isSubtotal ? SUBTOTAL_COLOR : undefined;
+    columns.forEach((col, i) => {
+      drawGridRect(colX[i], rowTop - ROW_HEIGHT, colWidths[i], ROW_HEIGHT, rowFill);
+      const raw = i === sttColIdx ? sttValues[rIdx] : row[col.key];
+      const text = formatCellText(raw, col);
+      const align = typeof raw === 'number' ? 'right' : 'left';
+      drawCellText(text, colX[i], colWidths[i], rowTop - ROW_HEIGHT + 4, { bold: !!row.__isSubtotal, align });
+    });
+    y -= ROW_HEIGHT;
   }
 
   return Buffer.from(await pdfDoc.save());

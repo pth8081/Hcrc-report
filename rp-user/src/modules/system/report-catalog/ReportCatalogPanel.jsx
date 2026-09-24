@@ -301,9 +301,15 @@ export default function ReportCatalogPanel() {
 
       <div className="template-upload">
         <label>
-          Tải mẫu .xlsx/.pptx lên: <input type="file" accept=".xlsx,.pptx" onChange={uploadTemplate} />
+          Tải mẫu .xlsx lên: <input type="file" accept=".xlsx" onChange={uploadTemplate} />
         </label>
         <p>Đã có: {templates.join(', ') || '(chưa có file nào)'}</p>
+        <p className="hint">
+          Mục này CHƯA ảnh hưởng tới định dạng Excel/PDF thật xuất ra — màu
+          sắc/tiêu đề gộp nhóm cột của báo cáo (Excel, PDF, và file đính kèm
+          email tự động) khai qua <code>columnGroups</code> trong
+          DefinitionJson ở trên, không phải qua file tải lên ở đây.
+        </p>
       </div>
 
       <DataTable

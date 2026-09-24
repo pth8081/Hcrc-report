@@ -88,13 +88,17 @@ function projectColumns(row, columns) {
 }
 
 // Chuẩn hoá definition.columns (chuỗi HOẶC object công thức) thành
-// [{key, label}] — hình dạng DUY NHẤT mà mọi response trả về cho bên gọi
-// (rp-user, hoặc hệ ngoài qua API Server), để nơi hiển thị không cần biết
-// cột nào là field thô hay cột tính toán.
+// [{key, label, format?, width?}] — hình dạng DUY NHẤT mà mọi response trả
+// về cho bên gọi (rp-user, hoặc hệ ngoài qua API Server), để nơi hiển thị
+// không cần biết cột nào là field thô hay cột tính toán. `format`/`width`
+// (TUỲ CHỌN) giữ nguyên từ định nghĩa gốc — dùng ở lib/exportExcel.js/
+// lib/exportPdf.js để định dạng số/phần trăm và chia cột PDF (xem chú thích
+// đầu lib/compositeReportRunner.js) — KHÔNG ảnh hưởng hiển thị bảng web
+// thường (rp-user tự đọc số/chuỗi thô).
 function describeColumns(columns) {
   return columns.map(col => (
     col && typeof col === 'object'
-      ? { key: col.key, label: col.label || col.key }
+      ? { key: col.key, label: col.label || col.key, ...(col.format ? { format: col.format } : {}), ...(col.width ? { width: col.width } : {}) }
       : { key: col, label: col }
   ));
 }
