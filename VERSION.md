@@ -20,6 +20,23 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 6.76 — Thêm sheet "mẫu điền ánh xạ còn thiếu" vào script đối chiếu mã
+
+Theo câu hỏi người dùng khi mở file đối chiếu mã (bản 6.74): làm rõ ý nghĩa
+2 cột `MaKhac`/`MaChuan` trong `etl.BranchCodeMap` — `MaChuan` CHÍNH LÀ "mã
+thực đạt" dùng làm EntityCode thật trong `dwh.ReportFacts`, và CŨNG LÀ mã
+dùng để so sánh cùng kỳ năm trước (khối `lastYear` chỉ lọc lại đúng
+EntityCode này theo ngày lệch 1 năm — không có mã "so sánh quá khứ" riêng).
+Bảng này hiện CHỈ áp dụng lúc đồng bộ thực đạt, CHƯA áp dụng lúc nhập chỉ
+tiêu.
+
+`etl/scripts/exportEntityCodesReport.js` (bản 6.74) nay thêm sheet thứ 4
+**"Mau dien anh xa con thieu"** — liệt kê sẵn mọi mã đang có trong chỉ tiêu
+nhưng CHƯA có trong thực đạt (đúng nhóm mã lệch phát hiện được), điền sẵn
+`LoaiMaKhac` gợi ý theo domain + `MaKhac` = mã trong file chỉ tiêu, để
+trống `MaChuan`/`TenSieuThi` cho người dùng tự điền mã STK_ID thật rồi nộp
+thẳng qua nút "Nhập file ánh xạ" (đúng khuôn cột, nạp lại được luôn).
+
 ## 6.75 — Sửa lỗi đăng nhập rp-user phụ thuộc DWH (chỉ nên phụ thuộc CSDL RP)
 
 Người dùng phát hiện thật: đổi thử `DWH_SERVER` sang 1 IP sai để kiểm tra

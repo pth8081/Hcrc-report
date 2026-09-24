@@ -140,12 +140,47 @@ async function main() {
     r => [r.domain, r.entityCode, r.chiTieuDoanhThu, r.chiTieuGiaoDich, r.trangThai, r.ngaySomNhat, r.ngayGanNhat, r.soNgayCoChiTieu]
   );
 
+  // LƯU Ý QUAN TRỌNG (đọc trước khi dùng sheet dưới đây để đối chiếu) —
+  // etl.BranchCodeMap dùng CHUNG 1 khuôn (LoaiMaKhac/MaKhac/MaChuan) cho MỌI
+  // mục đích quy đổi mã, KHÔNG có cột cố định nào tên "mã thực đạt"/"mã chỉ
+  // tiêu" cả — ý nghĩa của MaKhac/MaChuan do CHÍNH admin quyết định khi chọn
+  // dùng LoaiMaKhac nào ở đâu:
+  //   - MaKhac  = mã GỐC ở phía nguồn cần quy đổi (vd BU_ID thô từ DSMART16,
+  //     HOẶC mã "Điểm" trong file chỉ tiêu LDTD nếu dùng để quy đổi CHỈ TIÊU).
+  //   - MaChuan = mã CHUẨN dùng làm EntityCode thật trong dwh.ReportFacts (vd
+  //     STK_ID 5 chữ số) — ĐÂY chính là "mã thực đạt" nói tới hôm qua, và
+  //     CŨNG LÀ mã dùng để so sánh cùng kỳ năm trước (khối lastYear chỉ lọc
+  //     lại CÙNG EntityCode này theo date offset -1 năm, xem
+  //     rp-server/lib/compositeReportRunner.js — không có mã "so sánh quá
+  //     khứ" riêng nào khác).
+  // HIỆN TẠI bảng này CHỈ được áp dụng lúc ĐỒNG BỘ dữ liệu thực đạt (xem
+  // etl/lib/tableSyncEngine.js) — CHƯA áp dụng lúc NHẬP CHỈ TIÊU (xem
+  // etl/lib/salesTargetsImport.js), nên khai thêm dòng ở đây chưa tự làm
+  // báo cáo LDTD/HCRC hết trống cột Thực đạt — cần code đọc thêm (hỏi lại
+  // nếu muốn làm tiếp phần này).
   addSheet(workbook, 'Anh xa ma chi nhanh',
-    [{ label: 'LoaiMaKhac', width: 16 }, { label: 'MaKhac', width: 16 }, { label: 'MaChuan', width: 16 },
+    [{ label: 'LoaiMaKhac', width: 16 }, { label: 'MaKhac (mã gốc)', width: 20 }, { label: 'MaChuan (= mã thực đạt/so sánh)', width: 26 },
      { label: 'Tên siêu thị', width: 30 }, { label: 'Trạng thái', width: 14 },
      { label: 'Người nhập', width: 16 }, { label: 'Lúc nhập', width: 20 }],
     branchMapRows,
     r => [r.LoaiMaKhac, r.MaKhac, r.MaChuan, r.TenSieuThi || '', r.TrangThai || '', r.ImportedBy || '', r.ImportedAt]
+  );
+
+  // ---- Sheet "mẫu" — CHỈ liệt kê mã đang CÓ trong chỉ tiêu nhưng CHƯA có
+  // trong thực đạt (đúng nhóm mã bị lệch phát hiện hôm qua) — LoaiMaKhac tự
+  // đặt sẵn theo domain, MaKhac = mã trong file chỉ tiêu, MaChuan để TRỐNG
+  // (điền mã STK_ID thật tương ứng) — điền xong nộp thẳng qua nút "Nhập file
+  // ánh xạ" ở trang "Ánh xạ mã chi nhánh" (đúng khuôn cột, nạp lại được luôn
+  // — dù xem nhắc lại chú thích trên: PHẢI làm thêm 1 bước code nữa thì bảng
+  // này mới có tác dụng với chỉ tiêu, không phải chỉ khai xong là xong).
+  const actualCodeSet = new Set(actualRows.map(r => r.entityCode));
+  const suggestedLoaiMaKhac = { 'sales-targets-ldtd': 'DIEM_LDTD', 'sales-targets-hcrc': 'MADOITUONG_HCRC' };
+  const missingRows = targetRows.filter(r => !actualCodeSet.has(r.entityCode));
+  addSheet(workbook, 'Mau dien anh xa con thieu',
+    [{ label: 'LoaiMaKhac', width: 18 }, { label: 'MaKhac', width: 16 }, { label: 'MaChuan (TỰ ĐIỀN mã thật)', width: 26 },
+     { label: 'TenSieuThi (tuỳ chọn)', width: 30 }, { label: 'TrangThai (để trống)', width: 18 }],
+    missingRows,
+    r => [suggestedLoaiMaKhac[r.domain] || r.domain, r.entityCode, '', '', '']
   );
 
   const exportDir = path.join(__dirname, '..', 'exports');
