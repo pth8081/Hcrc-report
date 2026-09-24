@@ -20,6 +20,24 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 6.78 — Sửa lỗi chạy lại rp-db/schema.sql báo trùng CK_ReportEmailSchedules_DeliveryMode
+
+Người dùng phát hiện thật: chạy lại `rp-db/schema.sql` (CSDL `HCRC_RP`) báo
+lỗi `Msg 2714 ... There is already an object named
+'CK_ReportEmailSchedules_DeliveryMode'`. Nguyên nhân: khối kiểm tra tồn tại
+ràng buộc này dùng `OBJECT_ID('CK_ReportEmailSchedules_DeliveryMode', 'C')`
+— tra theo SCHEMA MẶC ĐỊNH của tài khoản đang chạy script (thường `dbo`),
+trong khi ràng buộc thật nằm ở schema `app` — luôn KHÔNG TÌM THẤY nên không
+`DROP` được ràng buộc cũ trước khi `ADD` lại, dẫn tới báo trùng tên ở lần
+chạy thứ 2 trở đi. Mọi ràng buộc CHECK khác trong CÙNG file (vd
+`CK_ExternalApiConnections_AuthType`, `CK_ReportCatalog_SourceType`) đều
+dùng đúng `IF EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = ...)`
+(không phân biệt schema) — chỉ sót đúng 1 chỗ dùng sai cách.
+
+Sửa: đổi khối kiểm tra của `CK_ReportEmailSchedules_DeliveryMode` sang cùng
+cách `sys.check_constraints` như mọi ràng buộc khác — an toàn chạy lại
+nhiều lần từ nay.
+
 ## 6.77 — Ánh xạ mã Điểm (BU_ID) sang nhiều mã kho STK_ID cho báo cáo LDTD/HCRC
 
 Yêu cầu người dùng: file chỉ tiêu LDTD/HCRC dùng "mã Điểm" (đúng bằng
