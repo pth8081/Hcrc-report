@@ -20,6 +20,46 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 6.80 — Tự động đồng bộ "Ánh xạ Điểm - STK_ID" sang "Ánh xạ mã chi nhánh"
+
+Theo yêu cầu người dùng: bản 6.79 vẫn cần 1 bước thủ công (chạy script xuất
+file rồi tự nhập lại qua trang "Ánh xạ mã chi nhánh") — người dùng muốn
+KHÔNG còn bước export/import tay này, tránh nhầm lẫn.
+
+`etl/lib/diemStkMappingImport.js` thêm `buildBranchCodeMapSyncRows()` (logic
+chọn `MaChuan` giống hệt bản 6.79 — lấy 1 mã kho trong "Điểm mới", hoặc
+"Điểm cũ" nếu mã Điểm đã đóng, bỏ qua mã Điểm chưa khai kho nào).
+`etl/routes/admin/diemStkMapping.js` gọi hàm này NGAY sau khi ghi thành
+công `etl.DiemStkMapping` (cả `PUT /one` lẫn `POST /import`), rồi
+`upsertBranchCodeMap()` (hàm ĐÃ CÓ, dùng chung với route
+"Ánh xạ mã chi nhánh" — cùng 1 đường MERGE, không viết logic mới) — ghi
+thẳng `LoaiMaKhac='BU_ID'` vào `etl.BranchCodeMap` trong CÙNG 1 request,
+không qua bước xuất/nhập file nào nữa. Lỗi ở bước đồng bộ phụ này KHÔNG làm
+hỏng/rollback việc ghi "Ánh xạ Điểm - STK_ID" đã thành công (bọc try/catch
+riêng + ghi `etl.SystemLog`, cùng tinh thần "1 tính năng phụ lỗi không chặn
+tính năng chính" đã áp dụng nhiều lần trong repo) — frontend hiển thị rõ số
+dòng đã đồng bộ/bỏ qua/lỗi ngay dưới thông báo lưu chính.
+
+`etl/scripts/generateBranchCodeMapFromDiemStk.js` (bản 6.79) đổi vai trò
+thành **script backfill 1 LẦN** cho dữ liệu đã nhập TRƯỚC bản này — ghi
+THẲNG vào CSDL (dùng chung `upsertBranchCodeMap()`), không còn xuất ra
+Excel trung gian.
+
+Nhân dịp này cũng sửa "Xuất Excel" ở CẢ 2 trang "Ánh xạ Điểm - STK_ID" và
+"Ánh xạ mã chi nhánh" theo phản hồi người dùng — trang "Ánh xạ mã chi
+nhánh" TRƯỚC ĐÂY xuất file theo đúng ô lọc "Loại mã" đang gõ trên màn hình
+(lỡ gõ gì mà quên xoá trước khi bấm xuất thì chỉ ra đúng phần đã lọc, dễ
+tưởng nhầm mất dữ liệu) — nay đổi thành LUÔN xuất TOÀN BỘ dữ liệu, đổi tên
+nút thành "Xuất tất cả (Excel)" ở cả 2 trang cho rõ ràng (trang "Ánh xạ
+Điểm - STK_ID" vốn đã xuất toàn bộ từ trước, chỉ đổi tên nút cho nhất
+quán).
+
+Đã kiểm thử (fakeModule): `buildBranchCodeMapSyncRows()` chọn đúng mã kho/
+bỏ qua đúng mã Điểm chưa khai kho, và gọi THẲNG route `PUT /one` thật —
+xác nhận ghi `etl.DiemStkMapping` xong TỰ ĐỘNG gọi đúng 1 lần MERGE
+`etl.BranchCodeMap` với đúng `LoaiMaKhac`/`MaKhac`/`MaChuan` trong CÙNG 1
+request. Build lại `etl-admin` sạch, không lỗi.
+
 ## 6.79 — Script tự sinh file "Ánh xạ mã chi nhánh" từ "Ánh xạ Điểm - STK_ID"
 
 Người dùng hỏi vì sao vẫn phải khai riêng "Ánh xạ mã chi nhánh" (bản 6.72)

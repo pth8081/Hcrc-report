@@ -103,11 +103,14 @@ export default function BranchCodeMapPage() {
     }
   }
 
+  // LUÔN xuất TOÀN BỘ dữ liệu, KHÔNG theo ô "Lọc theo Loại mã" phía trên
+  // (trước đây lỡ gõ gì vào ô lọc rồi bấm "Xuất Excel" chỉ ra đúng phần đã
+  // lọc, dễ tưởng nhầm là mất dữ liệu) — ô lọc giờ CHỈ ảnh hưởng bảng hiện
+  // trên màn hình, không ảnh hưởng file xuất ra.
   async function downloadExport() {
     setError('');
     try {
-      const qs = filterLoai ? `?loaiMaKhac=${encodeURIComponent(filterLoai)}` : '';
-      await api.downloadFile(`/branch-code-map/export${qs}`, 'anh-xa-ma-chi-nhanh.xlsx');
+      await api.downloadFile('/branch-code-map/export', 'anh-xa-ma-chi-nhanh.xlsx');
     } catch (err) {
       setError(err.message);
     }
@@ -132,8 +135,8 @@ export default function BranchCodeMapPage() {
         chọn: <code>TenSieuThi</code> (dùng để hiện tên siêu thị thật trong báo cáo, xem giải
         thích bên dưới), <code>TrangThai</code> (để trống = đang dùng, <code>DaDong</code> = ngừng
         áp dụng dòng này). Bấm <strong>Tải file mẫu</strong> để lấy file đúng khuôn cột (xoá dòng
-        ví dụ mã "VIDU-00100" rồi điền dữ liệu thật), hoặc <strong>Xuất Excel</strong> ở bảng bên
-        dưới để tải về đúng dữ liệu đang lưu.
+        ví dụ mã "VIDU-00100" rồi điền dữ liệu thật), hoặc <strong>Xuất tất cả (Excel)</strong> ở
+        bảng bên dưới để tải về đúng TOÀN BỘ dữ liệu đang lưu (không theo ô lọc bên dưới).
       </p>
       <p>
         <strong>Mã ánh xạ này dùng để làm gì?</strong> Chỉ 2 việc: (1) quy đổi mã nguồn (vd{' '}
@@ -147,6 +150,12 @@ export default function BranchCodeMapPage() {
         "Chỉ tiêu Lãnh đạo Tập đoàn"/"Chỉ tiêu HCRC" sẽ bị loại khỏi báo cáo, coi là "mã rác") —
         2 cơ chế (ánh xạ mã + đối chiếu chỉ tiêu) độc lập nhau, dùng chỉ tiêu để LỌC mã hợp lệ,
         dùng ánh xạ để HIỂN THỊ tên đẹp và GHÉP đúng mã giữa các bảng nguồn khác nhau.
+      </p>
+      <p>
+        <strong>Dòng LoaiMaKhac="BU_ID" TỰ ĐỘNG đồng bộ</strong> từ trang{' '}
+        <strong>"Ánh xạ Điểm - STK_ID"</strong> mỗi khi trang đó lưu (sửa 1 dòng hoặc nhập file) —
+        không cần tự khai lại ở đây nếu đã khai đủ bên đó. Chỉ cần dùng trang này trực tiếp cho
+        loại mã KHÁC "BU_ID" (nếu có), hoặc để sửa tay 1 trường hợp đặc biệt.
       </p>
       {error && <p className="form-error">{error}</p>}
 
@@ -173,7 +182,7 @@ export default function BranchCodeMapPage() {
       <h2>Ánh xạ đã khai</h2>
       <div className="inline-actions">
         <input placeholder="Lọc theo Loại mã (vd BU_ID)" value={filterLoai} onChange={(e) => setFilterLoai(e.target.value)} />
-        <button type="button" onClick={downloadExport}>Xuất Excel</button>
+        <button type="button" onClick={downloadExport}>Xuất tất cả (Excel)</button>
       </div>
 
       <DataTable

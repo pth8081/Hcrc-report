@@ -12,6 +12,19 @@ import DataTable from '../components/DataTable';
 
 const EMPTY_EDIT_FORM = { maDiem: '', maStkCu: '', maStkMoi: '', tenSieuThi: '' };
 
+// Ghép thông báo kết quả đồng bộ TỰ ĐỘNG sang "Ánh xạ mã chi nhánh" (bản
+// 6.80) vào SAU thông báo lưu chính — sync.syncError (lỗi CSDL bất ngờ)
+// KHÔNG có nghĩa là dữ liệu "Ánh xạ Điểm - STK_ID" bị mất, chỉ phần đồng bộ
+// phụ này lỗi (xem routes/admin/diemStkMapping.js:syncToBranchCodeMap).
+function describeBranchCodeMapSync(sync, prefix) {
+  if (!sync) return prefix;
+  const parts = [prefix];
+  if (sync.synced) parts.push(`Đã tự đồng bộ ${sync.synced} mã Điểm sang "Ánh xạ mã chi nhánh".`);
+  if (sync.skipped?.length) parts.push(`⚠️ ${sync.skipped.length} mã Điểm chưa có mã kho nào (cả cũ lẫn mới) nên CHƯA đồng bộ được: ${sync.skipped.join(', ')}.`);
+  if (sync.syncError) parts.push(`⚠️ Đồng bộ sang "Ánh xạ mã chi nhánh" bị lỗi (dữ liệu "Ánh xạ Điểm - STK_ID" vẫn lưu bình thường): ${sync.syncError}`);
+  return parts.join(' ');
+}
+
 export default function DiemStkMappingPage() {
   const [file, setFile] = useState(null);
   const [importResult, setImportResult] = useState(null);
@@ -59,13 +72,13 @@ export default function DiemStkMappingPage() {
     setEditResult('');
     if (!editForm.maDiem.trim()) return setEditError('Thiếu "Mã Điểm"');
     try {
-      await api.put('/diem-stk-mapping/one', {
+      const result = await api.put('/diem-stk-mapping/one', {
         maDiem: editForm.maDiem.trim(),
         maStkCu: editForm.maStkCu.split(',').map(s => s.trim()).filter(Boolean),
         maStkMoi: editForm.maStkMoi.split(',').map(s => s.trim()).filter(Boolean),
         tenSieuThi: editForm.tenSieuThi.trim() || null
       });
-      setEditResult('✅ Đã lưu.');
+      setEditResult(describeBranchCodeMapSync(result.branchCodeMapSync, '✅ Đã lưu.'));
       setEditForm(EMPTY_EDIT_FORM);
       reload();
     } catch (err) {
@@ -139,13 +152,21 @@ export default function DiemStkMappingPage() {
         <code>MaStkMoi</code> (danh sách kho dùng tính <strong>hiện tại</strong>) — NHIỀU mã cách
         nhau bằng dấu phẩy, không dấu cách, để trống nếu kỳ đó không áp dụng (vd siêu thị mới mở
         chưa có kho cũ). <code>TenSieuThi</code> tuỳ chọn, hiện trực tiếp trên báo cáo. Bấm{' '}
-        <strong>Tải file mẫu</strong> để lấy file đúng khuôn cột, hoặc <strong>Xuất Excel</strong>{' '}
-        để tải về đúng dữ liệu đang lưu.
+        <strong>Tải file mẫu</strong> để lấy file đúng khuôn cột, hoặc <strong>Xuất tất cả (Excel)</strong>{' '}
+        để tải về đúng TOÀN BỘ dữ liệu đang lưu (không theo ô lọc bên dưới).
       </p>
       <p>
         <strong>Ràng buộc quan trọng</strong>: 1 mã STK_ID chỉ được thuộc ĐÚNG 1 mã Điểm — hệ
         thống tự kiểm tra, phát hiện trùng (kể cả trùng với dữ liệu đã lưu của mã Điểm khác) sẽ
         <strong> HUỶ TOÀN BỘ lượt nhập</strong>, không lưu dòng nào, để tránh cộng trùng doanh thu.
+      </p>
+      <p>
+        <strong>Tự động đồng bộ sang "Ánh xạ mã chi nhánh"</strong>: mỗi lần lưu ở đây (sửa 1 dòng
+        hoặc nhập file) hệ thống TỰ tạo/cập nhật luôn dòng tương ứng ở trang "Ánh xạ mã chi nhánh"
+        (LoaiMaKhac="BU_ID") — không cần khai riêng 2 nơi nữa. Lấy 1 mã kho bất kỳ trong "Điểm
+        mới" (hoặc "Điểm cũ" nếu mã Điểm đã đóng) làm mã chuẩn; báo cáo vẫn cộng dồn đúng theo mã
+        Điểm dù chọn kho nào. Mã Điểm CHƯA khai kho nào (cả cũ lẫn mới) thì CHƯA đồng bộ được — hệ
+        thống báo rõ sau khi lưu.
       </p>
       {error && (
         <div className="form-error">
@@ -164,7 +185,7 @@ export default function DiemStkMappingPage() {
 
       {importResult && (
         <div className="import-result">
-          <p>✅ Đã thêm mới {importResult.inserted}, cập nhật {importResult.updated} dòng.</p>
+          <p>{describeBranchCodeMapSync(importResult.branchCodeMapSync, `✅ Đã thêm mới ${importResult.inserted}, cập nhật ${importResult.updated} dòng.`)}</p>
           {importResult.rowErrors?.length > 0 && (
             <>
               <p>⚠️ {importResult.rowErrors.length} dòng bị bỏ qua:</p>
@@ -177,7 +198,7 @@ export default function DiemStkMappingPage() {
       <h2>Ánh xạ đã khai</h2>
       <div className="inline-actions">
         <input placeholder="Lọc theo Mã Điểm" value={filterDiem} onChange={(e) => setFilterDiem(e.target.value)} />
-        <button type="button" onClick={downloadExport}>Xuất Excel</button>
+        <button type="button" onClick={downloadExport}>Xuất tất cả (Excel)</button>
       </div>
 
       <DataTable

@@ -490,28 +490,27 @@ Sau khi tạo đủ 4 job, trang "Đồng bộ" hiện như sau — 2 job đầu
 ![Trang Đồng bộ — đủ 4 job](hinh-huong-dan-ldtd-hcrc/12-dong-bo-4-job.png)
 
 **Riêng Ánh xạ mã chi nhánh (`BU_ID`)** — job 3 VÀ job 4 đều cần bật, vì cả
-2 đều đọc từ `TRANSHDR` (khoá gốc `BU_ID`, chưa phải mã chuẩn). Khai sẵn
-bảng quy đổi ở menu **"Ánh xạ mã chi nhánh"** (mỗi dòng: `BU_ID` nào ứng
-với mã siêu thị chuẩn nào) TRƯỚC khi 2 job này chạy thật — chưa khai đủ
-vẫn chạy được, chỉ ghi cảnh báo ở Log cho những mã chưa khai (xem
+2 đều đọc từ `TRANSHDR` (khoá gốc `BU_ID`, chưa phải mã chuẩn). Bảng quy đổi
+ở menu **"Ánh xạ mã chi nhánh"** cần khai ĐỦ (mỗi dòng: `BU_ID` nào ứng với
+mã siêu thị chuẩn nào) TRƯỚC khi 2 job này chạy thật — chưa khai đủ vẫn
+chạy được, chỉ ghi cảnh báo ở Log cho những mã chưa khai (xem
 `etl/README.md`). Trang này có nút **"Tải file mẫu"** (file .xlsx đúng
 khuôn cột, kèm 1 dòng ví dụ mã "VIDU-00100" cần xoá trước khi nhập) và
-**"Xuất Excel"** (tải về đúng dữ liệu đang lưu để sửa tiếp rồi nhập lại).
+**"Xuất tất cả (Excel)"** (tải về TOÀN BỘ dữ liệu đang lưu, không phụ thuộc
+ô lọc trên màn hình, để sửa tiếp rồi nhập lại).
 
-> **Đỡ phải gõ tay 2 lần cùng 1 dữ liệu**: nếu đã khai xong mục 2.3 bên dưới
-> ("Ánh xạ Điểm - STK_ID"), chạy:
+> **KHÔNG cần khai tay dòng `BU_ID`** nếu đã khai đủ mục 2.3 bên dưới ("Ánh
+> xạ Điểm - STK_ID") — từ đó TỰ ĐỘNG đồng bộ sang đây mỗi lần lưu (không
+> cần export/import qua lại giữa 2 trang nữa). Chỉ cần dùng trực tiếp trang
+> "Ánh xạ mã chi nhánh" cho loại mã KHÁC "BU_ID" (nếu có) hoặc để sửa tay 1
+> trường hợp đặc biệt. Dữ liệu "Ánh xạ Điểm - STK_ID" đã nhập TRƯỚC khi tính
+> năng tự đồng bộ này tồn tại (trước bản 6.80) cần đồng bộ 1 LẦN DUY NHẤT:
 > ```
 > cd etl && node scripts/generateBranchCodeMapFromDiemStk.js
 > ```
-> Script tự đọc bảng "Ánh xạ Điểm - STK_ID" (đã khai), sinh sẵn file Excel
-> ĐÚNG khuôn cột "Ánh xạ mã chi nhánh" (`LoaiMaKhac='BU_ID'`, `MaKhac`=mã
-> Điểm, `MaChuan`=1 mã kho bất kỳ trong "Điểm mới" — hoặc "Điểm cũ" nếu mã
-> Điểm đã đóng) vào `etl/exports/`. Giao dịch (`TRANSHDR`) vốn không tách
-> được theo từng kho con nên chọn kho nào trong số các kho hiện có CŨNG
-> ĐƯỢC — báo cáo composite (`useDiemStkMapping`) sẽ tự cộng dồn lại đúng
-> theo mã Điểm ở bước sau. Script KHÔNG tự ghi CSDL — tải file ra rồi tự
-> nhập qua nút "Nhập file ánh xạ" như bình thường (vẫn có kiểm tra trùng/lỗi
-> đầy đủ).
+> (ghi thẳng vào CSDL, không qua bước xuất/nhập file thủ công) — sau lần
+> chạy đó, mọi thay đổi tiếp theo ở "Ánh xạ Điểm - STK_ID" đã tự động, không
+> cần chạy lại script này nữa.
 
 ### 2.3 — "Ánh xạ Điểm - STK_ID" (chỉ cần nếu 1 mã Điểm có NHIỀU mã kho)
 
@@ -550,7 +549,15 @@ sinh ra `STK_ID` nên về nguyên tắc không bao giờ trùng thật. Nhập 
 `STK_ID` trùng nhau giữa 2 mã Điểm khác nhau sẽ bị **TỪ CHỐI TOÀN BỘ FILE**
 (khác mọi mục nhập khác trong hệ thống này chỉ bỏ qua đúng dòng lỗi) —
 thông báo lỗi liệt kê rõ những `STK_ID` nào trùng ở đâu để sửa lại. Trang
-này cũng có nút **"Tải file mẫu"**/**"Xuất Excel"** như các mục trên.
+này cũng có nút **"Tải file mẫu"**/**"Xuất tất cả (Excel)"** như các mục
+trên.
+
+**Tự động đồng bộ sang "Ánh xạ mã chi nhánh"** (mục 2.2 ở trên) — mỗi lần
+lưu ở đây (sửa 1 dòng hoặc nhập file) hệ thống tự tạo/cập nhật luôn dòng
+`LoaiMaKhac="BU_ID"` tương ứng bên đó, lấy 1 mã kho bất kỳ trong "Điểm mới"
+(hoặc "Điểm cũ" nếu mã Điểm đã đóng) — không cần khai tay 2 nơi nữa. Thông
+báo sau khi lưu sẽ liệt kê rõ mã Điểm nào CHƯA đồng bộ được (do chưa khai
+kho nào ở cả 2 cột).
 
 ---
 

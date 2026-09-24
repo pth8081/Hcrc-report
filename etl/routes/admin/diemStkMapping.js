@@ -13,14 +13,34 @@ const { requireAdminAuth } = require('../../lib/adminAuth');
 const { requireMenuEdit } = require('../../lib/adminPermissions');
 const {
   parseDiemStkMappingFile, findDuplicateStkIds, upsertDiemStkMapping, parseStkList,
-  buildDiemStkMappingTemplate, buildDiemStkMappingExport
+  buildDiemStkMappingTemplate, buildDiemStkMappingExport, buildBranchCodeMapSyncRows
 } = require('../../lib/diemStkMappingImport');
+const { upsertBranchCodeMap } = require('../../lib/branchCodeMapImport');
 const { logAction } = require('../../lib/auditLog');
+const { logWarn } = require('../../lib/systemLog');
 const { hasZipSignature } = require('../../lib/fileSignature');
 const { sendXlsx } = require('../../lib/xlsxResponse');
 
 const router = express.Router();
 router.use(requireAdminAuth);
+
+// Đồng bộ TỰ ĐỘNG sang etl.BranchCodeMap ngay sau khi ghi "Ánh xạ Điểm -
+// STK_ID" (xem giải thích đầy đủ ở buildBranchCodeMapSyncRows) — LỖI ở bước
+// này KHÔNG được làm hỏng/rollback việc ghi DiemStkMapping đã thành công
+// (bọc try/catch riêng, chỉ cảnh báo qua Log hệ thống + trả về cho frontend
+// hiển thị, cùng tinh thần "1 tính năng phụ lỗi không chặn tính năng chính"
+// đã áp dụng ở rp-server/lib/diemStkMapping.js).
+async function syncToBranchCodeMap(pool, diemRows, importedBy) {
+  const { rows, skipped } = buildBranchCodeMapSyncRows(diemRows);
+  if (!rows.length) return { synced: 0, skipped };
+  try {
+    await upsertBranchCodeMap(pool, rows, importedBy);
+    return { synced: rows.length, skipped };
+  } catch (err) {
+    await logWarn(`Đồng bộ "Ánh xạ Điểm - STK_ID" -> "Ánh xạ mã chi nhánh" lỗi (dữ liệu Điểm-STK_ID đã lưu bình thường, chỉ phần đồng bộ này lỗi): ${err.message}`);
+    return { synced: 0, skipped, syncError: err.message };
+  }
+}
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -65,8 +85,9 @@ router.put('/one', requireMenuEdit('diem-stk-mapping'), async (req, res, next) =
     if (conflicts.length) return res.status(400).json({ error: 'Phát hiện mã STK_ID trùng với mã Điểm khác — không lưu', conflicts });
 
     const result = await upsertDiemStkMapping(pool, [row], req.admin.username);
-    await logAction(req, { module: 'Ánh xạ Điểm - STK_ID', actionType: 'SUA_ANH_XA_DIEM_STK', targetObject: row.maDiem, description: `Sửa ánh xạ mã Điểm "${row.maDiem}"` });
-    res.json(result);
+    const branchCodeMapSync = await syncToBranchCodeMap(pool, [row], req.admin.username);
+    await logAction(req, { module: 'Ánh xạ Điểm - STK_ID', actionType: 'SUA_ANH_XA_DIEM_STK', targetObject: row.maDiem, description: `Sửa ánh xạ mã Điểm "${row.maDiem}"${branchCodeMapSync.synced ? ' — đã tự đồng bộ sang Ánh xạ mã chi nhánh' : ''}` });
+    res.json({ ...result, branchCodeMapSync });
   } catch (err) { next(err); }
 });
 
@@ -140,8 +161,9 @@ router.post('/import', requireMenuEdit('diem-stk-mapping'), upload.single('file'
     }
 
     const result = await upsertDiemStkMapping(pool, rows, req.admin.username);
-    await logAction(req, { module: 'Ánh xạ Điểm - STK_ID', actionType: 'NHAP_ANH_XA_DIEM_STK', targetObject: 'DiemStkMapping', description: `Nhập file ánh xạ Điểm-STK_ID: thêm mới ${result.inserted}, cập nhật ${result.updated} dòng` });
-    res.json({ ...result, rowErrors });
+    const branchCodeMapSync = await syncToBranchCodeMap(pool, rows, req.admin.username);
+    await logAction(req, { module: 'Ánh xạ Điểm - STK_ID', actionType: 'NHAP_ANH_XA_DIEM_STK', targetObject: 'DiemStkMapping', description: `Nhập file ánh xạ Điểm-STK_ID: thêm mới ${result.inserted}, cập nhật ${result.updated} dòng — tự đồng bộ ${branchCodeMapSync.synced} dòng sang Ánh xạ mã chi nhánh` });
+    res.json({ ...result, rowErrors, branchCodeMapSync });
   } catch (err) { next(err); }
 });
 

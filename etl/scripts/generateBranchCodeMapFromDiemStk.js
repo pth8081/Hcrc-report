@@ -1,7 +1,10 @@
-// scripts/generateBranchCodeMapFromDiemStk.js — Tự dựng sẵn file Excel để
-// nhập vào "Ánh xạ mã chi nhánh" (etl.BranchCodeMap), LẤY DỮ LIỆU TỪ
-// "Ánh xạ Điểm - STK_ID" (etl.DiemStkMapping) đã khai — người dùng không
-// cần gõ tay lại 2 lần cùng 1 dữ liệu.
+// scripts/generateBranchCodeMapFromDiemStk.js — BACKFILL 1 LẦN cho dữ liệu
+// "Ánh xạ Điểm - STK_ID" đã nhập TRƯỚC KHI tính năng tự đồng bộ (bản 6.80)
+// tồn tại. Từ bản 6.80, mỗi lần lưu "Ánh xạ Điểm - STK_ID" (qua trang
+// etl-admin, cả sửa 1 dòng lẫn nhập file) TỰ ĐỘNG đồng bộ luôn sang
+// etl.BranchCodeMap — KHÔNG cần chạy script này nữa cho dữ liệu MỚI, chỉ
+// cần cho dữ liệu ĐÃ CÓ SẴN từ trước bản 6.80 (đồng bộ 1 lần cho xong, sau
+// đó mọi thay đổi tiếp theo đã tự động).
 //
 // 2 bảng phục vụ 2 việc KHÁC NHAU nên KHÔNG thể dùng chung 1 bảng thật
 // (etl.BranchCodeMap là quy đổi 1-1: 1 mã BU_ID <-> ĐÚNG 1 mã STK_ID chuẩn,
@@ -12,21 +15,18 @@
 // STK_ID nào trong số các kho hiện có của 1 mã Điểm CŨNG ĐƯỢC — báo cáo
 // composite (block.useDiemStkMapping) sẽ CỘNG DỒN lại đúng theo mã Điểm ở
 // bước sau, không quan trọng đã "chẻ" theo đúng kho con nào lúc đồng bộ.
-// Script này vì vậy LẤY LUÔN mã kho ĐẦU TIÊN trong "Mã STK_ID (Điểm mới)"
-// (hoặc "Điểm cũ" nếu "Điểm mới" trống — mã Điểm đã đóng) làm MaChuan.
 //
-// KHÔNG tự ghi vào etl.BranchCodeMap — chỉ xuất file .xlsx ĐÚNG khuôn cột
-// nút "Nhập file ánh xạ" ở trang "Ánh xạ mã chi nhánh" đang chấp nhận, để
-// người dùng xem lại rồi tự nhập (đúng quy trình có kiểm tra trùng/lỗi sẵn
-// của trang đó), không có gì ghi thẳng CSDL "sau lưng" người dùng.
+// Ghi TRỰC TIẾP vào etl.BranchCodeMap (dùng ĐÚNG hàm upsertBranchCodeMap()
+// mà route etl-admin đang dùng — cùng 1 đường MERGE, an toàn chạy lại nhiều
+// lần) — không còn xuất ra file Excel trung gian như phiên bản trước bản
+// 6.80 (đỡ 1 bước tải lên/nhập lại thủ công không cần thiết nữa).
 //
 // Cách dùng:
 //   node scripts/generateBranchCodeMapFromDiemStk.js
 require('dotenv').config();
-const path = require('path');
-const fs = require('fs');
-const ExcelJS = require('exceljs');
 const { getPool } = require('../db');
+const { buildBranchCodeMapSyncRows } = require('../lib/diemStkMappingImport');
+const { upsertBranchCodeMap } = require('../lib/branchCodeMapImport');
 
 function parseStkList(raw) {
   if (raw === null || raw === undefined) return [];
@@ -38,40 +38,19 @@ async function main() {
   const result = await pool.request()
     .query('SELECT MaDiem, MaStkCu, MaStkMoi, TenSieuThi FROM etl.DiemStkMapping ORDER BY MaDiem');
 
-  const rows = [];
-  const skipped = [];
-  for (const r of result.recordset) {
-    const moi = parseStkList(r.MaStkMoi);
-    const cu = parseStkList(r.MaStkCu);
-    const maChuan = moi[0] || cu[0];
-    if (!maChuan) {
-      skipped.push(r.MaDiem);
-      continue;
-    }
-    rows.push({ maDiem: r.MaDiem, maChuan, tenSieuThi: r.TenSieuThi || '', tuKho: moi[0] ? 'Điểm mới' : 'Điểm cũ' });
-  }
+  const diemRows = result.recordset.map((r) => ({
+    maDiem: r.MaDiem, maStkCu: parseStkList(r.MaStkCu), maStkMoi: parseStkList(r.MaStkMoi), tenSieuThi: r.TenSieuThi
+  }));
+  const { rows, skipped } = buildBranchCodeMapSyncRows(diemRows);
 
   if (!rows.length) {
     console.error('⛔ "Ánh xạ Điểm - STK_ID" chưa có dữ liệu (hoặc mọi dòng đều trống cả 2 cột mã kho) — khai bảng đó trước rồi chạy lại script này.');
     process.exit(1);
   }
 
-  const workbook = new ExcelJS.Workbook();
-  const sheet = workbook.addWorksheet('Anh xa ma chi nhanh');
-  const headerRow = sheet.addRow(['LoaiMaKhac', 'MaKhac', 'MaChuan', 'TenSieuThi', 'TrangThai']);
-  headerRow.font = { bold: true };
-  for (const r of rows) sheet.addRow(['BU_ID', r.maDiem, r.maChuan, r.tenSieuThi, '']);
-  sheet.columns.forEach((col) => { col.width = 22; });
+  const { inserted, updated } = await upsertBranchCodeMap(pool, rows, 'backfill-script');
 
-  const exportDir = path.join(__dirname, '..', 'exports');
-  if (!fs.existsSync(exportDir)) fs.mkdirSync(exportDir, { recursive: true });
-  const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
-  const outputPath = path.join(exportDir, `anh-xa-mac-chi-nhanh-tu-diem-stk-${stamp}.xlsx`);
-  await workbook.xlsx.writeFile(outputPath);
-
-  console.log(`✅ Đã xuất ${rows.length} dòng vào: ${outputPath}`);
-  console.log('   Cột LoaiMaKhac cố định "BU_ID" — khớp đúng "Ánh xạ mã chi nhánh" đã chọn ở job Đồng bộ Giao dịch (Live/Lịch sử).');
-  console.log('   Tải file này về, xem lại, rồi nhập qua nút "Nhập file ánh xạ" ở trang "Ánh xạ mã chi nhánh" — KHÔNG tự động ghi CSDL.');
+  console.log(`✅ Đã đồng bộ ${rows.length} mã Điểm sang "Ánh xạ mã chi nhánh" (LoaiMaKhac="BU_ID"): thêm mới ${inserted}, cập nhật ${updated}.`);
   if (skipped.length) {
     console.log(`⚠️  Bỏ qua ${skipped.length} mã Điểm CHƯA có mã kho nào (cả cũ lẫn mới) trong "Ánh xạ Điểm - STK_ID": ${skipped.join(', ')}`);
   }

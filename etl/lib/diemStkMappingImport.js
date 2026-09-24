@@ -227,7 +227,36 @@ function buildDiemStkMappingExport(rows) {
   return buildWorkbook('Anh xa Diem-STK', ['STT', 'MaDiem', 'MaStkCu', 'MaStkMoi', 'TenSieuThi'], dataRows);
 }
 
+// Đồng bộ TỰ ĐỘNG sang etl.BranchCodeMap (LoaiMaKhac='BU_ID') mỗi khi
+// "Ánh xạ Điểm - STK_ID" được ghi (PUT /one hoặc POST /import) — theo yêu
+// cầu người dùng, tránh phải khai 2 nơi cùng 1 dữ liệu (trước đây phải chạy
+// tay scripts/generateBranchCodeMapFromDiemStk.js rồi tự nhập lại qua trang
+// "Ánh xạ mã chi nhánh").
+//
+// LẤY 1 mã kho BẤT KỲ trong "Điểm mới" (MaStkMoi[0]), hoặc "Điểm cũ" nếu mã
+// Điểm đã đóng (MaStkMoi rỗng) — TRANSHDR (nguồn của domain
+// giaodich_chinhanh) vốn không tách được theo từng kho con nên quy về kho
+// nào trong số các kho hiện có CŨNG ĐƯỢC, báo cáo composite
+// (block.useDiemStkMapping, xem rp-server/lib/compositeReportRunner.js) sẽ
+// tự cộng dồn lại đúng theo mã Điểm ở bước sau, không quan trọng đã "chẻ"
+// theo đúng kho con nào lúc đồng bộ.
+//
+// Mã Điểm KHÔNG có mã kho nào (cả cũ lẫn mới đều trống) -> KHÔNG thể xác
+// định MaChuan (cột NOT NULL của etl.BranchCodeMap) -> bỏ qua, trả về trong
+// `skipped` để caller cảnh báo cho người dùng (không tự ý xoá/đóng dòng
+// BranchCodeMap cũ nếu có — người dùng tự xử lý thủ công nếu cần).
+function buildBranchCodeMapSyncRows(diemStkRows) {
+  const rows = [];
+  const skipped = [];
+  for (const r of diemStkRows) {
+    const maChuan = (r.maStkMoi && r.maStkMoi[0]) || (r.maStkCu && r.maStkCu[0]);
+    if (!maChuan) { skipped.push(r.maDiem); continue; }
+    rows.push({ loaiMaKhac: 'BU_ID', maKhac: r.maDiem, maChuan, tenSieuThi: r.tenSieuThi || null, trangThai: null });
+  }
+  return { rows, skipped };
+}
+
 module.exports = {
   parseDiemStkMappingFile, findDuplicateStkIds, upsertDiemStkMapping, parseStkList,
-  buildDiemStkMappingTemplate, buildDiemStkMappingExport
+  buildDiemStkMappingTemplate, buildDiemStkMappingExport, buildBranchCodeMapSyncRows
 };
