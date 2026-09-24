@@ -20,6 +20,29 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 6.75 — Sửa lỗi đăng nhập rp-user phụ thuộc DWH (chỉ nên phụ thuộc CSDL RP)
+
+Người dùng phát hiện thật: đổi thử `DWH_SERVER` sang 1 IP sai để kiểm tra
+khiến MỌI tài khoản admin không đăng nhập được vào rp-user ("Lỗi máy chủ"),
+dù CSDL xác thực (RP, `app.Users`) hoàn toàn không đổi và vẫn kết nối bình
+thường — đổi `DWH_SERVER` về đúng lại thì đăng nhập được ngay.
+
+Nguyên nhân: `rp-server/lib/permissions.js:loadContext()` — hàm này chạy
+NGAY trong `POST /api/auth/login` (server.js, TRƯỚC khi đặt cookie phiên) để
+dựng "user context" — với tài khoản `IsSystemRole=1` (Admin), hàm còn tiện
+thể truy vấn `dwh.ReportFacts` để liệt kê MỌI Domain đang có dữ liệu (phục
+vụ tính năng "Báo cáo tự do" chọn Domain, xem `routes/adhocReports.js`).
+DWH không kết nối được (đổi cấu hình sai/mất mạng) khiến truy vấn này NÉM
+LỖI, lan thẳng lên route đăng nhập → trả 500 "Lỗi máy chủ" — CHẶN ĐỨNG cả
+việc đăng nhập chỉ vì 1 tính năng phụ không đọc được dữ liệu, dù bản thân
+việc xác thực (CSDL RP) không hề gặp vấn đề gì.
+
+Sửa: bọc riêng đoạn truy vấn Domain trong `try/catch` — DWH lỗi thì
+`domains` rơi về Set rỗng (best-effort, không cache lỗi — TTL context 60s
+tự thử lại ở lượt sau) thay vì ném lỗi ra ngoài. Đăng nhập từ nay CHỈ còn
+phụ thuộc đúng CSDL RP như đúng thiết kế ban đầu; "Báo cáo tự do" tạm ẩn
+danh sách Domain (không crash gì) cho tới khi DWH kết nối lại được.
+
 ## 6.74 — Script đối chiếu mã siêu thị giữa 3 nguồn (thực đạt/chỉ tiêu/ánh xạ)
 
 Theo yêu cầu người dùng, phục vụ điều tra báo cáo LDTD trống cột "Thực đạt"

@@ -36,9 +36,25 @@ async function loadContext(userId) {
     // Admin hệ thống thấy TOÀN BỘ Domain đang có dữ liệu thật trong DWH —
     // cùng tinh thần "bỏ qua RoleReportAccess" ở trên, áp dụng cho
     // app.RoleDomainAccess (Báo cáo tự do, xem routes/adhocReports.js).
-    const dwhPool = await getPool('DWH');
-    const allDomains = await dwhPool.request().query('SELECT DISTINCT Domain FROM dwh.ReportFacts');
-    domains = new Set(allDomains.recordset.map(r => r.Domain));
+    //
+    // BỌC try/catch — hàm này chạy MỖI LẦN đăng nhập của tài khoản admin
+    // (loadContext gọi ngay trong POST /api/auth/login ở server.js, TRƯỚC
+    // khi đặt cookie phiên), nên DWH tạm thời không kết nối được (đổi cấu
+    // hình sai/mất mạng — xem GẶP THẬT lúc rà soát: đổi thử DWH_SERVER sang
+    // IP sai khiến MỌI admin không đăng nhập được, dù CSDL RP xác thực vẫn
+    // bình thường) sẽ làm "Lỗi máy chủ" (500) chặn đứng đăng nhập, không chỉ
+    // chặn tính năng phụ (Báo cáo tự do). Best-effort — domains rỗng khi DWH
+    // lỗi vẫn cho đăng nhập, chỉ tạm ẩn danh sách Domain ở "Báo cáo tự do"
+    // cho tới khi DWH kết nối lại (không cache thất bại — TTL 60s tự thử lại
+    // ở lượt sau).
+    try {
+      const dwhPool = await getPool('DWH');
+      const allDomains = await dwhPool.request().query('SELECT DISTINCT Domain FROM dwh.ReportFacts');
+      domains = new Set(allDomains.recordset.map(r => r.Domain));
+    } catch (err) {
+      console.warn(`⚠️  [permissions] Không đọc được Domain từ DWH (đăng nhập vẫn tiếp tục, "Báo cáo tự do" tạm ẩn danh sách Domain): ${err.message}`);
+      domains = new Set();
+    }
   } else if (roles.length) {
     const roleIds = roles.map(r => r.Id);
     const menuReq = pool.request();
