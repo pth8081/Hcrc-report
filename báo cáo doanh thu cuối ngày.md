@@ -706,6 +706,13 @@ bao giờ ghép được vào báo cáo (không có lỗi/cảnh báo gì khác 
 > nhiều lần an toàn, không tạo trùng). Script CHƯA gán quyền xem — vẫn cần
 > làm Bước 5 (giao diện) sau đó. Đọc tiếp mục dưới nếu muốn tự dán tay qua
 > giao diện hoặc muốn hiểu rõ từng ô.
+>
+> **Xuất Excel/PDF (và file đính kèm gửi email tự động) đúng khuôn báo cáo
+> cũ** (tiêu đề gộp nhóm cột màu Doanh thu/Lãi gộp/Giao dịch, cột "TT" đếm
+> riêng theo từng nhóm MART/MINIMART) — từ bản 6.82, chạy lại ĐÚNG script ở
+> trên (đã cập nhật sẵn `columnGroups`/cột `stt`/`format` cho 2 báo cáo này)
+> là có ngay, không cần làm gì thêm. Bảng xem TRÊN WEB (rp-user) KHÔNG đổi
+> gì (vẫn bảng phẳng như cũ) — chỉ file xuất Excel/PDF/email mới có màu.
 
 Vào rp-user, menu **"Hệ thống → Biểu mẫu"**, tab **"Báo cáo"** (mặc định).
 

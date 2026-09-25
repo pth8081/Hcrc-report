@@ -20,6 +20,30 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 6.82 — Áp dụng columnGroups/STT/format thật vào báo cáo LDTD/HCRC
+
+Người dùng xác nhận demo bản 6.81 (màu Doanh thu/xanh lá, Lãi gộp/vàng, Giao
+dịch/cam) — nối dây năng lực đó vào ĐÚNG 2 báo cáo thật đang dùng:
+`rp-server/scripts/seedLdtdHcrcReports.js` thêm cột `stt` (đầu bảng),
+`columnGroups` (3 nhóm khớp đúng demo), `format: "percent"` cho mọi cột tỷ
+lệ, và `width` (trọng số bề rộng cột lúc xuất PDF) cho toàn bộ 17 cột — áp
+dụng CHO CẢ 2 báo cáo `bc-doanh-thu-ldtd`/`bc-doanh-thu-hcrc` (dùng chung 1
+`buildDefinition()`). Không đổi tên field/formula nào (chỉ đổi `label` của 5
+cột Doanh thu/Giao dịch từ "Doanh thu - Chỉ tiêu" thành "Chỉ tiêu" — nhãn
+đầy đủ đã chuyển thành tên NHÓM cột phía trên theo đúng khuôn báo cáo cũ,
+không lặp lại 2 lần).
+
+Đã kiểm thử (fakeModule): chạy THẬT `seedLdtdHcrcReports.js` (không sao
+chép lại definition) qua pool giả, bắt đúng `DefinitionJson` sẽ ghi vào
+`app.ReportCatalog`, xác nhận có cột `stt` đầu tiên + đúng 3 `columnGroups`,
+rồi đưa THẲNG qua `exportExcel()`/`exportPdf()` thật với dữ liệu minh hoạ —
+render thử PDF ra ảnh, khớp đúng khuôn đã demo với bạn.
+
+**Cần làm trên server sau bản này**: chạy lại
+`node rp-server/scripts/seedLdtdHcrcReports.js` (đã deploy code mới) để ghi
+đè `DefinitionJson` 2 báo cáo hiện có sang cấu hình mới — báo cáo tồn tại
+sẵn trong CSDL không tự cập nhật nếu không chạy lại script này.
+
 ## 6.81 — Xuất Excel/PDF theo khuôn cũ: tiêu đề gộp nhóm cột màu, STT theo nhóm
 
 Người dùng gửi file mẫu báo cáo thật đang dùng ở hệ thống cũ, yêu cầu xuất

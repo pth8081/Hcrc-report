@@ -66,30 +66,45 @@ function buildDefinition(title, targetDomain) {
     // nhưng chưa từng được nhập chỉ tiêu) — xem compositeReportRunner.js.
     requireTargetMatch: true,
     columns: [
+      // "stt" — cột đặc biệt, KHÔNG có formula (giá trị thô rơi về undefined,
+      // hiện trống trên bảng web) — lúc XUẤT (Excel/PDF/email tự động)
+      // lib/exportExcel.js/lib/exportPdf.js tự đánh số lại từ 1 theo TỪNG
+      // NHÓM groupBy bên dưới, để trống ở dòng "Tổng cộng" — khớp đúng cột
+      // "TT" trong file mẫu báo cáo cũ (xem lib/reportCellFormat.js).
+      { key: 'stt', label: 'TT', width: 0.4 },
       // "current.dimensions.tenSieuThi" — tên siêu thị THẬT, do ETL ghi vào
       // lúc đồng bộ nếu job đã cấu hình "Ánh xạ mã chi nhánh" có cột
       // TenSieuThi (xem etl/jobs/runSync.js). Chưa cấu hình/chưa có tên thì
       // "||" rơi về hiện đúng entityCode như trước (không để trống).
-      { key: 'tenCuaHang', label: 'Siêu thị/Cửa hàng', formula: 'current.dimensions.tenSieuThi || entityCode' },
-      { key: 'dienTich', label: 'Diện tích', formula: 'current.dimensions.dienTich' },
+      { key: 'tenCuaHang', label: 'Siêu thị/Cửa hàng', formula: 'current.dimensions.tenSieuThi || entityCode', width: 2.4 },
+      { key: 'dienTich', label: 'Diện tích', formula: 'current.dimensions.dienTich', width: 0.9 },
 
-      { key: 'dt_chiTieu', label: 'Doanh thu - Chỉ tiêu', formula: 'target.ChiTieuDoanhThu' },
-      { key: 'dt_thucDat', label: 'Doanh thu - Thực đạt', formula: 'current.measures.doanhThu' },
-      { key: 'dt_tyLeDat', label: 'Doanh thu - Tỉ lệ đạt (%)', formula: 'ROUND(current.measures.doanhThu / target.ChiTieuDoanhThu * 100, 1)' },
-      { key: 'dt_cungKy', label: 'Doanh thu - Cùng kỳ năm 2025', formula: 'lastYear.measures.doanhThu', hideWhen: { field: 'cheDoSoSanh', equals: 'past' } },
-      { key: 'dt_lfl', label: 'Doanh thu - Tỷ lệ % LFL', formula: 'ROUND(current.measures.doanhThu / lastYear.measures.doanhThu * 100, 1)', hideWhen: { field: 'cheDoSoSanh', equals: 'past' } },
+      { key: 'dt_chiTieu', label: 'Chỉ tiêu', formula: 'target.ChiTieuDoanhThu', width: 1.1 },
+      { key: 'dt_thucDat', label: 'Thực đạt', formula: 'current.measures.doanhThu', width: 1.1 },
+      { key: 'dt_tyLeDat', label: 'Tỷ lệ đạt', formula: 'ROUND(current.measures.doanhThu / target.ChiTieuDoanhThu * 100, 1)', format: 'percent', width: 0.8 },
+      { key: 'dt_cungKy', label: 'Cùng kỳ năm 2025', formula: 'lastYear.measures.doanhThu', width: 1.1, hideWhen: { field: 'cheDoSoSanh', equals: 'past' } },
+      { key: 'dt_lfl', label: 'Tỷ lệ % LFL', formula: 'ROUND(current.measures.doanhThu / lastYear.measures.doanhThu * 100, 1)', format: 'percent', width: 0.8, hideWhen: { field: 'cheDoSoSanh', equals: 'past' } },
 
-      { key: 'lg_tyLe', label: 'Lãi gộp - Tỷ lệ (%)', formula: 'ROUND(current.measures.laiGop / current.measures.doanhThu * 100, 1)' },
-      { key: 'lg_giaTri', label: 'Lãi gộp - Giá trị', formula: 'current.measures.laiGop' },
+      { key: 'lg_tyLe', label: 'Tỷ lệ', formula: 'ROUND(current.measures.laiGop / current.measures.doanhThu * 100, 1)', format: 'percent', width: 0.7 },
+      { key: 'lg_giaTri', label: 'Giá trị', formula: 'current.measures.laiGop', width: 1.1 },
 
-      { key: 'gd_chiTieu', label: 'Giao dịch - Chỉ tiêu', formula: 'target.ChiTieuGiaoDich' },
-      { key: 'gd_thucDat', label: 'Giao dịch - Thực đạt', formula: 'currentGD.measures.SoGiaoDich' },
-      { key: 'gd_tyLeDat', label: 'Giao dịch - Tỷ lệ đạt (%)', formula: 'ROUND(currentGD.measures.SoGiaoDich / target.ChiTieuGiaoDich * 100, 1)' },
-      { key: 'gd_cungKy', label: 'Giao dịch - Cùng kỳ năm 2025', formula: 'lastYearGD.measures.SoGiaoDich', hideWhen: { field: 'cheDoSoSanh', equals: 'past' } },
-      { key: 'gd_lfl', label: 'Giao dịch - Tỷ lệ % LFL', formula: 'ROUND(currentGD.measures.SoGiaoDich / lastYearGD.measures.SoGiaoDich * 100, 1)', hideWhen: { field: 'cheDoSoSanh', equals: 'past' } },
+      { key: 'gd_chiTieu', label: 'Chỉ tiêu', formula: 'target.ChiTieuGiaoDich', width: 0.8 },
+      { key: 'gd_thucDat', label: 'Thực đạt', formula: 'currentGD.measures.SoGiaoDich', width: 0.8 },
+      { key: 'gd_tyLeDat', label: 'Tỷ lệ đạt', formula: 'ROUND(currentGD.measures.SoGiaoDich / target.ChiTieuGiaoDich * 100, 1)', format: 'percent', width: 0.8 },
+      { key: 'gd_cungKy', label: 'Cùng kỳ năm 2025', formula: 'lastYearGD.measures.SoGiaoDich', width: 0.9, hideWhen: { field: 'cheDoSoSanh', equals: 'past' } },
+      { key: 'gd_lfl', label: 'Tỷ lệ % LFL', formula: 'ROUND(currentGD.measures.SoGiaoDich / lastYearGD.measures.SoGiaoDich * 100, 1)', format: 'percent', width: 0.8, hideWhen: { field: 'cheDoSoSanh', equals: 'past' } },
 
-      { key: 'trungBinhGD', label: 'Trung bình GD', formula: 'ROUND(current.measures.doanhThu / currentGD.measures.SoGiaoDich, 0)' },
-      { key: 'doanhThuTrenM2', label: 'Doanh thu/m2', formula: 'ROUND(current.measures.doanhThu / current.dimensions.dienTich, 0)' }
+      { key: 'trungBinhGD', label: 'Trung bình GD', formula: 'ROUND(current.measures.doanhThu / currentGD.measures.SoGiaoDich, 0)', width: 1.1 },
+      { key: 'doanhThuTrenM2', label: 'Doanh thu/m2', formula: 'ROUND(current.measures.doanhThu / current.dimensions.dienTich, 0)', width: 1.1 }
+    ],
+    // Tiêu đề gộp 2 dòng theo màu từng nhóm cột lúc XUẤT Excel/PDF (+ file
+    // đính kèm gửi email tự động) — khớp đúng khuôn báo cáo cũ, xem chú
+    // thích DefinitionJson.columnGroups đầu lib/compositeReportRunner.js.
+    // KHÔNG ảnh hưởng bảng xem trên web (rp-user vẫn vẽ bảng phẳng như cũ).
+    columnGroups: [
+      { label: 'Doanh thu', color: 'green', keys: ['dt_chiTieu', 'dt_thucDat', 'dt_tyLeDat', 'dt_cungKy', 'dt_lfl'] },
+      { label: 'Lãi gộp', color: 'yellow', keys: ['lg_tyLe', 'lg_giaTri'] },
+      { label: 'Giao dịch', color: 'orange', keys: ['gd_chiTieu', 'gd_thucDat', 'gd_tyLeDat', 'gd_cungKy', 'gd_lfl'] }
     ],
     groupBy: {
       field: 'current.dimensions.chain',
