@@ -89,21 +89,18 @@ function normalizeEventDate(rawValue, engine) {
   return new Date(Date.UTC(rawValue.getFullYear(), rawValue.getMonth(), rawValue.getDate()));
 }
 
-// branchCodeMap (tuỳ chọn, Map<string,{maChuan,tenSieuThi}> MaKhac -> đích,
-// đã nạp sẵn TRƯỚC vòng lặp — xem jobs/runSync.js:loadBranchCodeMap()) — khi
-// job có BranchCodeMapType (etl.SyncJobs), quy đổi entityCode gốc của nguồn
-// (vd BU_ID) sang mã chuẩn (vd STK_ID/mã siêu thị) đã dùng ở domain khác, để
-// composite report ghép được theo entityCode (xem etl.BranchCodeMap trong
-// etl-db/schema.sql). Mã KHÔNG tìm thấy trong bảng ánh xạ vẫn GIỮ NGUYÊN mã
-// gốc (không rớt dòng, không chặn đồng bộ) — chỉ thêm vào unmappedCodes (Set,
-// tuỳ chọn) để caller cảnh báo 1 lần/lượt chạy, không phải lỗi cứng vì admin
-// có thể chưa kịp khai đủ ánh xạ cho toàn bộ chi nhánh. TenSieuThi (nếu admin
-// có gõ) ghi thêm vào dimensions.tenSieuThi — thuộc tính TĨNH của chi nhánh,
-// đi theo đúng cơ chế "lấy giá trị không rỗng đầu tiên" đã có sẵn cho
-// dimensions khi cộng dồn nhiều ngày (xem
-// rp-server/lib/compositeReportRunner.js:aggregateDailyRowsByEntity) —
-// KHÔNG cần sửa gì thêm ở tầng đó.
-function transformRow(job, meta, row, branchCodeMap, unmappedCodes) {
+// KHÔNG còn dịch entityCode qua etl.BranchCodeMap ở đây (bỏ hẳn từ bản gỡ
+// tính năng "Ánh xạ mã chi nhánh" — xem VERSION.md) — mã gốc từ nguồn (vd
+// BU_ID của domain giaodich_chinhanh) được GIỮ NGUYÊN làm entityCode. Lý do:
+// BU_ID KHÔNG đổi qua thời gian (dù mã kho STK_ID vật lý/ảo bên dưới có đổi
+// khi đóng/mở lại siêu thị) và CHÍNH LÀ mã "Điểm" dùng trong file chỉ tiêu
+// LDTD/HCRC (etl.DiemStkMapping.MaDiem) — không cần dịch qua 1 mã STK_ID cố
+// định nào cả, tránh đúng lỗi đã gặp: BranchCodeMap chỉ giữ được 1 mã STK cố
+// định/mã Điểm, dữ liệu quá khứ và hiện tại bị gán NHẦM cùng 1 mã dù mã kho
+// thật đã đổi (xem rp-server/lib/compositeReportRunner.js — domain doanh thu
+// vẫn dùng useDiemStkMapping để gộp nhiều STK, domain giao dịch thì KHÔNG
+// cần nữa vì entityCode đã đúng = mã Điểm ngay từ lúc đồng bộ).
+function transformRow(job, meta, row) {
   const dimensions = {};
   for (const c of meta.dimCols) dimensions[c] = row[`m_${c}`];
   for (const c of meta.joinCols) dimensions[c] = row[`j_${c}`];
@@ -121,16 +118,7 @@ function transformRow(job, meta, row, branchCodeMap, unmappedCodes) {
   // đổi HOA/thường — đó vẫn là trách nhiệm admin gõ đúng quy ước, đổi ngầm
   // có thể sai với nguồn cố ý phân biệt hoa/thường.
   const rawEntityCode = row[`m_${meta.keyCol}`];
-  const trimmedEntityCode = typeof rawEntityCode === 'string' ? rawEntityCode.trim() : rawEntityCode;
-  let entityCode = trimmedEntityCode;
-  if (branchCodeMap) {
-    const key = trimmedEntityCode == null ? '' : String(trimmedEntityCode);
-    const mapped = branchCodeMap.get(key);
-    if (mapped) {
-      entityCode = mapped.maChuan;
-      if (mapped.tenSieuThi) dimensions.tenSieuThi = mapped.tenSieuThi;
-    } else if (unmappedCodes) unmappedCodes.add(key);
-  }
+  const entityCode = typeof rawEntityCode === 'string' ? rawEntityCode.trim() : rawEntityCode;
   return {
     sourceSystem: `ds${job.DataSourceId}`,
     domain: job.TargetDomain,

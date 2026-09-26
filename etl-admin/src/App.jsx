@@ -11,7 +11,6 @@ import AuditLogPage from './pages/AuditLogPage';
 import UsersPage from './pages/UsersPage';
 import RolesPage from './pages/RolesPage';
 import SalesTargetsPage from './pages/SalesTargetsPage';
-import BranchCodeMapPage from './pages/BranchCodeMapPage';
 import DiemStkMappingPage from './pages/DiemStkMappingPage';
 import AccountPage from './pages/AccountPage';
 
@@ -19,11 +18,10 @@ import AccountPage from './pages/AccountPage';
 // menu (xem components/Layout.jsx) — đưa thẳng vào trang đầu tiên họ thật
 // sự vào được, tránh hạ cánh vào trang trống/không có trong nav.
 // Đầy đủ MỌI MenuCode có thể cấp quyền (mirror routes/admin/roles.js
-// MENU_CATALOG) — trước đây thiếu roles/log/audit-log/branch-code-map,
-// khiến 1 tài khoản CHỈ được cấp 1 trong 4 trang này bị điều hướng về
-// '/dashboard' (trang không thấy được) ngay sau đăng nhập thay vì vào đúng
-// trang mình có quyền.
-const LANDING_ORDER = ['dashboard', 'sales-targets-corp', 'sales-targets-hcrc', 'data-sources', 'sync-jobs', 'branch-code-map', 'diem-stk-mapping', 'log', 'audit-log', 'users', 'roles'];
+// MENU_CATALOG) — trước đây thiếu roles/log/audit-log, khiến 1 tài khoản
+// CHỈ được cấp 1 trong các trang này bị điều hướng về '/dashboard' (trang
+// không thấy được) ngay sau đăng nhập thay vì vào đúng trang mình có quyền.
+const LANDING_ORDER = ['dashboard', 'sales-targets-corp', 'sales-targets-hcrc', 'data-sources', 'sync-jobs', 'diem-stk-mapping', 'log', 'audit-log', 'users', 'roles'];
 
 function IndexRedirect() {
   const { can } = useAuth();
@@ -53,7 +51,6 @@ export default function App() {
           <Route path="/sales-targets-hcrc" element={
             <SalesTargetsPage menuCode="sales-targets-hcrc" apiBase="/sales-targets-hcrc" title="Chỉ tiêu HCRC" />
           } />
-          <Route path="/branch-code-map" element={<BranchCodeMapPage />} />
           <Route path="/diem-stk-mapping" element={<DiemStkMappingPage />} />
           <Route path="/users" element={<UsersPage />} />
           <Route path="/roles" element={<RolesPage />} />

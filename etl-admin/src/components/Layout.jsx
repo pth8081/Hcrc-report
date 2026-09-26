@@ -4,8 +4,9 @@ import { useAuth } from '../lib/AuthContext';
 import UpdateBanner from './UpdateBanner';
 
 // menuCode dùng để lọc nav theo quyền THẬT (xem etl/lib/adminPermissions.js)
-// — branch-code-map yêu cầu CanEdit ngay cả để XEM (giữ đúng hành vi cũ,
-// requireMenuEdit áp cho mọi route kể cả GET — xem etl/routes/admin/branchCodeMap.js).
+// — diem-stk-mapping yêu cầu CanEdit ngay cả để XEM (ảnh hưởng trực tiếp số
+// liệu báo cáo doanh thu/giao dịch, không có mức "chỉ xem" riêng — xem
+// etl/routes/admin/diemStkMapping.js).
 const NAV = [
   { path: '/dashboard', label: 'Dashboard', icon: '📊', menuCode: 'dashboard' },
   { path: '/data-sources', label: 'Nguồn dữ liệu', icon: '🔌', menuCode: 'data-sources' },
@@ -18,7 +19,6 @@ const NAV = [
   // tách bạch (xem etl/routes/admin/roles.js MENU_CATALOG).
   { path: '/sales-targets-corp', label: 'Chỉ tiêu Lãnh đạo Tập đoàn', icon: '🎯', menuCode: 'sales-targets-corp' },
   { path: '/sales-targets-hcrc', label: 'Chỉ tiêu HCRC', icon: '🎯', menuCode: 'sales-targets-hcrc' },
-  { path: '/branch-code-map', label: 'Ánh xạ mã chi nhánh', icon: '🔗', menuCode: 'branch-code-map', editOnly: true },
   { path: '/diem-stk-mapping', label: 'Ánh xạ Điểm - STK_ID', icon: '🧩', menuCode: 'diem-stk-mapping', editOnly: true },
   { path: '/users', label: 'Phân quyền', icon: '🔐', menuCode: 'users' },
   { path: '/roles', label: 'Vai trò', icon: '🛡️', menuCode: 'roles' }

@@ -161,8 +161,9 @@ WHERE h.STATUS <> 'D' -- 'D' = Huỷ (đã xác nhận với người quản tr�
 GROUP BY d.STK_ID, CAST(d.TRAN_DATE AS DATE);
 GO
 
--- VIEW 2: Số giao dịch, gộp theo (chi nhánh, ngày) — BU_ID chưa phải mã chuẩn,
--- sẽ quy đổi ở Bước 2 bằng "Ánh xạ mã chi nhánh"
+-- VIEW 2: Số giao dịch, gộp theo (chi nhánh, ngày) — BU_ID GIỮ NGUYÊN làm
+-- EntityCode (không dịch mã) — BU_ID chính là mã "Điểm" dùng trong file
+-- chỉ tiêu, xem Bước 2.2
 CREATE OR ALTER VIEW V_HCRC_GIAODICH_CHINHANH AS
 SELECT BU_ID, CAST(TRAN_DATE AS DATE) AS TRAN_DATE,
        COUNT(*) AS SoGiaoDich, SUM(AMOUNT) AS TongTien,
@@ -435,12 +436,12 @@ Sau khi lưu cả 2, danh sách hiện như sau:
 Vào menu **"Đồng bộ"**. Tạo lần lượt 4 job — form giống hệt nhau, chỉ khác
 **Chọn nguồn dữ liệu**/**Domain**/**Lịch chạy** theo bảng dưới:
 
-| # | Tên job (gợi ý) | Nguồn dữ liệu | Bảng/view chính | Cột khoá | Cột ngày | Domain | Ánh xạ mã chi nhánh | Lịch chạy |
-|---|---|---|---|---|---|---|---|---|
-| 1 | Doanh thu chi nhánh - Live | DSMART16 - Live | `dbo.V_HCRC_DOANHTHU_CHINHANH` | `STK_ID` | `WORK_DATE` | `doanhthu_chinhanh` | (để trống) | `*/15 * * * *` |
-| 2 | Doanh thu chi nhánh - Lịch sử | DSMART16 - Lịch sử | `dbo.V_HCRC_DOANHTHU_CHINHANH` | `STK_ID` | `WORK_DATE` | `doanhthu_chinhanh` | (để trống) | `0 3 * * *` |
-| 3 | Giao dịch chi nhánh - Live | DSMART16 - Live | `dbo.V_HCRC_GIAODICH_CHINHANH` | `BU_ID` | `TRAN_DATE` | `giaodich_chinhanh` | `BU_ID` | `*/15 * * * *` |
-| 4 | Giao dịch chi nhánh - Lịch sử | DSMART16 - Lịch sử | `dbo.V_HCRC_GIAODICH_CHINHANH` | `BU_ID` | `TRAN_DATE` | `giaodich_chinhanh` | `BU_ID` | `0 3 * * *` |
+| # | Tên job (gợi ý) | Nguồn dữ liệu | Bảng/view chính | Cột khoá | Cột ngày | Domain | Lịch chạy |
+|---|---|---|---|---|---|---|---|
+| 1 | Doanh thu chi nhánh - Live | DSMART16 - Live | `dbo.V_HCRC_DOANHTHU_CHINHANH` | `STK_ID` | `WORK_DATE` | `doanhthu_chinhanh` | `*/15 * * * *` |
+| 2 | Doanh thu chi nhánh - Lịch sử | DSMART16 - Lịch sử | `dbo.V_HCRC_DOANHTHU_CHINHANH` | `STK_ID` | `WORK_DATE` | `doanhthu_chinhanh` | `0 3 * * *` |
+| 3 | Giao dịch chi nhánh - Live | DSMART16 - Live | `dbo.V_HCRC_GIAODICH_CHINHANH` | `BU_ID` | `TRAN_DATE` | `giaodich_chinhanh` | `*/15 * * * *` |
+| 4 | Giao dịch chi nhánh - Lịch sử | DSMART16 - Lịch sử | `dbo.V_HCRC_GIAODICH_CHINHANH` | `BU_ID` | `TRAN_DATE` | `giaodich_chinhanh` | `0 3 * * *` |
 
 Cả 4 job đều: **Cột thời gian cập nhật (watermark)** = giống Cột ngày;
 job 1-2 tick Dimensions `dienTich`/`chain` + Measures `doanhThu`/`laiGop`;
@@ -489,42 +490,36 @@ Sau khi tạo đủ 4 job, trang "Đồng bộ" hiện như sau — 2 job đầu
 
 ![Trang Đồng bộ — đủ 4 job](hinh-huong-dan-ldtd-hcrc/12-dong-bo-4-job.png)
 
-**Riêng Ánh xạ mã chi nhánh (`BU_ID`)** — job 3 VÀ job 4 đều cần bật, vì cả
-2 đều đọc từ `TRANSHDR` (khoá gốc `BU_ID`, chưa phải mã chuẩn). Bảng quy đổi
-ở menu **"Ánh xạ mã chi nhánh"** cần khai ĐỦ (mỗi dòng: `BU_ID` nào ứng với
-mã siêu thị chuẩn nào) TRƯỚC khi 2 job này chạy thật — chưa khai đủ vẫn
-chạy được, chỉ ghi cảnh báo ở Log cho những mã chưa khai (xem
-`etl/README.md`). Trang này có nút **"Tải file mẫu"** (file .xlsx đúng
-khuôn cột, kèm 1 dòng ví dụ mã "VIDU-00100" cần xoá trước khi nhập) và
-**"Xuất tất cả (Excel)"** (tải về TOÀN BỘ dữ liệu đang lưu, không phụ thuộc
-ô lọc trên màn hình, để sửa tiếp rồi nhập lại).
-
-> **KHÔNG cần khai tay dòng `BU_ID`** nếu đã khai đủ mục 2.3 bên dưới ("Ánh
-> xạ Điểm - STK_ID") — từ đó TỰ ĐỘNG đồng bộ sang đây mỗi lần lưu (không
-> cần export/import qua lại giữa 2 trang nữa). Chỉ cần dùng trực tiếp trang
-> "Ánh xạ mã chi nhánh" cho loại mã KHÁC "BU_ID" (nếu có) hoặc để sửa tay 1
-> trường hợp đặc biệt. Dữ liệu "Ánh xạ Điểm - STK_ID" đã nhập TRƯỚC khi tính
-> năng tự đồng bộ này tồn tại (trước bản 6.80) cần đồng bộ 1 LẦN DUY NHẤT:
+> **CHỈ áp dụng nếu bạn đang NÂNG CẤP từ bản đã từng bật "Ánh xạ mã chi
+> nhánh"** (đã bỏ tính năng này, xem VERSION.md) — dữ liệu domain
+> `giaodich_chinhanh` đã đồng bộ TRƯỚC ĐÓ mang EntityCode đã bị dịch (không
+> phải BU_ID gốc), không tương thích với dữ liệu đồng bộ MỚI (giữ nguyên
+> BU_ID) — chạy 1 lần:
 > ```
-> cd etl && node scripts/generateBranchCodeMapFromDiemStk.js
+> cd etl
+> node scripts/resyncGiaodichChinhanh.js            # xem trước, chưa đổi gì
+> node scripts/resyncGiaodichChinhanh.js --confirm  # xoá dữ liệu cũ + cho job tự đồng bộ lại
 > ```
-> (ghi thẳng vào CSDL, không qua bước xuất/nhập file thủ công) — sau lần
-> chạy đó, mọi thay đổi tiếp theo ở "Ánh xạ Điểm - STK_ID" đã tự động, không
-> cần chạy lại script này nữa.
+> Sau lệnh `--confirm`, job "Live"/"Lịch sử" (job 3-4) tự đồng bộ lại TOÀN
+> BỘ theo lịch — không cần chạy tay, nhưng job "Lịch sử" có thể mất vài giờ
+> nếu nhiều dữ liệu, theo dõi ở etl-admin → Log. Cài đặt MỚI (chưa từng bật
+> "Ánh xạ mã chi nhánh") thì KHÔNG cần chạy script này.
 
 ### 2.3 — "Ánh xạ Điểm - STK_ID" (chỉ cần nếu 1 mã Điểm có NHIỀU mã kho)
 
-Mục **"Ánh xạ mã chi nhánh"** ở trên quy đổi khoá NGUỒN (`BU_ID` thô từ
-`TRANSHDR`) → khoá LƯU trong `dwh.ReportFacts` (đã chọn thống nhất là
-`STK_ID`, để 2 domain `doanhthu_chinhanh`/`giaodich_chinhanh` ghép được với
-nhau — xem giải thích khoá `EntityCode` ở đầu file). Mục MỚI
-**"Ánh xạ Điểm - STK_ID"** giải quyết một vấn đề KHÁC, xảy ra SAU bước đó:
-file chỉ tiêu (Bước 3) dùng "mã Điểm" — đúng bằng `BU_ID`, KHÔNG đổi theo
-thời gian — nhưng 1 mã Điểm có thể ứng với NHIỀU mã kho `STK_ID` khác nhau
-trong `dwh.ReportFacts`, và bộ mã kho đó có thể ĐỔI giữa kỳ trước/kỳ này
-(kho là khái niệm ẢO trong phần mềm, không phải 1 khái niệm vật lý — 1 siêu
-thị vẫn chỉ có 1 mặt bằng thật). Không quy đổi thì báo cáo (Bước 4) không
-ghép được thực đạt (theo `STK_ID`) với chỉ tiêu (theo mã Điểm).
+Domain `giaodich_chinhanh` (job 3-4, khoá gốc `BU_ID`) GIỮ NGUYÊN `BU_ID`
+làm EntityCode — KHÔNG dịch mã gì cả (đã bỏ tính năng "Ánh xạ mã chi nhánh",
+xem VERSION.md) — vì `BU_ID` chính là mã "Điểm" dùng trong file chỉ tiêu
+(Bước 3) và không đổi qua thời gian.
+
+Domain `doanhthu_chinhanh` (job 1-2, khoá gốc `STK_ID`) thì khác: file chỉ
+tiêu dùng "mã Điểm" (= `BU_ID`), nhưng 1 mã Điểm có thể ứng với NHIỀU mã
+kho `STK_ID` khác nhau trong `dwh.ReportFacts`, và bộ mã kho đó có thể ĐỔI
+giữa kỳ trước/kỳ này (kho là khái niệm ẢO trong phần mềm, không phải 1 khái
+niệm vật lý — 1 siêu thị vẫn chỉ có 1 mặt bằng thật). Không quy đổi thì báo
+cáo (Bước 4) không ghép được thực đạt doanh thu (theo `STK_ID`) với chỉ
+tiêu (theo mã Điểm) — mục **"Ánh xạ Điểm - STK_ID"** giải quyết đúng vấn đề
+này.
 
 Vào menu **"Ánh xạ Điểm - STK_ID"**. File nhập gồm ĐÚNG 5 cột:
 
@@ -539,9 +534,8 @@ Vào menu **"Ánh xạ Điểm - STK_ID"**. File nhập gồm ĐÚNG 5 cột:
   liệu (báo cáo sẽ hiện "không có dữ liệu", KHÔNG phải số 0).
 - **Mã STK_ID (Điểm mới)** — tương tự, dùng để tính **thực đạt kỳ hiện
   tại**. Để trống nếu điểm đã đóng, không còn kho nào hoạt động.
-- **Tên siêu thị** — từ nay là TÊN CHUẨN dùng để hiện cột "Siêu thị/Cửa
-  hàng" cho mọi báo cáo có bật cơ chế này (xem Bước 4) — ưu tiên hơn tên
-  gắn qua "Ánh xạ mã chi nhánh".
+- **Tên siêu thị** — TÊN CHUẨN dùng để hiện cột "Siêu thị/Cửa hàng" cho mọi
+  báo cáo có bật cơ chế này (xem Bước 4).
 
 **Ràng buộc BẮT BUỘC**: 1 mã `STK_ID` chỉ được xuất hiện ở ĐÚNG 1 mã Điểm
 trong TOÀN BỘ bảng (dù ở cột "cũ" hay "mới", ở bất kỳ dòng nào) — vì `BU_ID`
@@ -552,12 +546,13 @@ thông báo lỗi liệt kê rõ những `STK_ID` nào trùng ở đâu để s�
 này cũng có nút **"Tải file mẫu"**/**"Xuất tất cả (Excel)"** như các mục
 trên.
 
-**Tự động đồng bộ sang "Ánh xạ mã chi nhánh"** (mục 2.2 ở trên) — mỗi lần
-lưu ở đây (sửa 1 dòng hoặc nhập file) hệ thống tự tạo/cập nhật luôn dòng
-`LoaiMaKhac="BU_ID"` tương ứng bên đó, lấy 1 mã kho bất kỳ trong "Điểm mới"
-(hoặc "Điểm cũ" nếu mã Điểm đã đóng) — không cần khai tay 2 nơi nữa. Thông
-báo sau khi lưu sẽ liệt kê rõ mã Điểm nào CHƯA đồng bộ được (do chưa khai
-kho nào ở cả 2 cột).
+**Quan trọng**: `STK_ID` khai ở đây phải là mã STK_ID THẬT đang được ghi
+vào `dwh.ReportFacts` cho domain `doanhthu_chinhanh` (đọc trực tiếp từ
+DSMART16, không qua bước dịch mã nào) — gõ sai/nhầm mã sẽ khiến cột "Thực
+đạt" của mã Điểm đó trống dù job đồng bộ chạy đúng. Dùng
+`etl/scripts/exportEntityCodesReport.js` (chạy tay, chỉ đọc) để đối chiếu
+mã `STK_ID` thật đang có trong dữ liệu với mã đã khai ở đây nếu nghi ngờ
+lệch mã.
 
 ---
 
@@ -658,13 +653,14 @@ bao giờ ghép được vào báo cáo (không có lỗi/cảnh báo gì khác 
 
 > **Lưu ý đã biết, CHƯA sửa** — cảnh báo trên so `Điểm`/`Mã đối tượng chứa`
 > (mã Điểm/`BU_ID`) TRỰC TIẾP với `EntityCode` thật trong
-> `dwh.ReportFacts` (từ nay là `STK_ID`, sau khi bật "Ánh xạ Điểm - STK_ID"
-> ở mục 2.3) — 2 khuôn mã khác nhau nên cảnh báo này có thể báo "N mã KHÔNG
-> khớp" cho HẦU HẾT mọi dòng dù mã Điểm hoàn toàn đúng và đã khai đủ trong
-> "Ánh xạ Điểm - STK_ID". Đây CHỈ là cảnh báo (không chặn nhập, xem đoạn
-> trên) nên không ảnh hưởng số liệu — coi cảnh báo này là tham khảo phụ,
-> không phải bằng chứng lỗi, cho tới khi nào cập nhật lại đối chiếu qua mã
-> Điểm trong "Ánh xạ Điểm - STK_ID" thay vì `EntityCode` thô.
+> `dwh.ReportFacts` — domain `doanhthu_chinhanh` dùng `STK_ID` (khác mã
+> Điểm, sau khi khai "Ánh xạ Điểm - STK_ID" ở mục 2.3) nên cảnh báo này có
+> thể báo "N mã KHÔNG khớp" cho HẦU HẾT mọi dòng doanh thu dù mã Điểm hoàn
+> toàn đúng và đã khai đủ. Domain `giaodich_chinhanh` thì KHÔNG bị ảnh hưởng
+> (`EntityCode` = `BU_ID` = mã Điểm trực tiếp, luôn khớp). Đây CHỈ là cảnh
+> báo (không chặn nhập, xem đoạn trên) nên không ảnh hưởng số liệu — coi
+> cảnh báo này là tham khảo phụ cho phần doanh thu, không phải bằng chứng
+> lỗi.
 
 ---
 
@@ -678,27 +674,30 @@ bao giờ ghép được vào báo cáo (không có lỗi/cảnh báo gì khác 
 > mất" khỏi báo cáo, kiểm tra lại đã nhập đủ chỉ tiêu cho đúng entityCode đó
 > chưa (mục "Chỉ tiêu đã nhập" ở etl-admin) trước khi nghi ngờ lỗi khác.
 >
-> **`useDiemStkMapping: true`** (mới, đã bật sẵn trên cả 4 khối `directDb`
-> — `current`/`currentGD`/`lastYear`/`lastYearGD`) — bắt buộc phải bật vì
-> `EntityCode` thật trong `dwh.ReportFacts` là `STK_ID` (mã kho, có thể
-> nhiều mã/1 điểm, đổi theo thời gian) còn chỉ tiêu (Bước 3) dùng mã Điểm
-> (`BU_ID`, không đổi) — không bật thì 2 khối không bao giờ ghép được với
-> khối `target`. Khai đủ dữ liệu ở mục 2.3 **"Ánh xạ Điểm - STK_ID"** TRƯỚC
-> khi bật cờ này thật trên báo cáo (chưa khai/khai thiếu → mã Điểm đó hiện
-> "không có dữ liệu" ở phần thực đạt/cùng kỳ, KHÔNG lỗi/KHÔNG số 0 — xem
-> `rp-server/lib/diemStkMapping.js`). Cần cấu hình thêm biến môi trường
+> **`useDiemStkMapping: true`** (CHỈ 2 khối doanh thu — `current`/
+> `lastYear`) — bắt buộc phải bật vì `EntityCode` thật trong
+> `dwh.ReportFacts` cho domain `doanhthu_chinhanh` là `STK_ID` (mã kho, có
+> thể nhiều mã/1 điểm, đổi theo thời gian) còn chỉ tiêu (Bước 3) dùng mã
+> Điểm (`BU_ID`, không đổi) — không bật thì khối này không bao giờ ghép
+> được với khối `target`. Khai đủ dữ liệu ở mục 2.3 **"Ánh xạ Điểm - STK_ID"**
+> TRƯỚC khi bật cờ này thật trên báo cáo (chưa khai/khai thiếu → mã Điểm đó
+> hiện "không có dữ liệu" ở phần thực đạt/cùng kỳ, KHÔNG lỗi/KHÔNG số 0 —
+> xem `rp-server/lib/diemStkMapping.js`). Cần cấu hình thêm biến môi trường
 > `ETL_DIEM_STK_*` cho rp-server (xem `rp-server/.env.example`) TRƯỚC khi
 > chạy lại script seed bên dưới — thiếu cấu hình không làm sập báo cáo/đăng
-> nhập, chỉ khiến 2 báo cáo này tạm "không có dữ liệu" cho tới khi cấu hình
-> xong.
+> nhập, chỉ khiến phần doanh thu của 2 báo cáo này tạm "không có dữ liệu"
+> cho tới khi cấu hình xong.
+>
+> **2 khối giao dịch (`currentGD`/`lastYearGD`) KHÔNG bật `useDiemStkMapping`**
+> — domain `giaodich_chinhanh` giữ nguyên `EntityCode = BU_ID` từ lúc đồng
+> bộ (đã bỏ tính năng "Ánh xạ mã chi nhánh", xem VERSION.md), và `BU_ID`
+> CHÍNH LÀ mã Điểm nên khớp trực tiếp với khối `target`, không cần remap gì.
 >
 > **Cột "Siêu thị/Cửa hàng" hiện TÊN thay vì MÃ** — đọc
-> `current.dimensions.tenSieuThi`. Với `useDiemStkMapping: true` (đã bật ở
-> trên), tên NÀY LẤY TỪ cột "Tên siêu thị" trong **"Ánh xạ Điểm - STK_ID"**
-> (mục 2.3) — khai cùng lúc với việc khai mã kho, không cần khai thêm ở
-> "Ánh xạ mã chi nhánh" nữa cho 2 báo cáo này. Chưa khai (mã Điểm đó chưa có
-> trong "Ánh xạ Điểm - STK_ID") thì cột này rơi về hiện đúng mã Điểm như
-> trước (`||` trong formula), không để trống.
+> `current.dimensions.tenSieuThi`. Tên NÀY LẤY TỪ cột "Tên siêu thị" trong
+> **"Ánh xạ Điểm - STK_ID"** (mục 2.3) — khai cùng lúc với việc khai mã kho.
+> Chưa khai (mã Điểm đó chưa có trong "Ánh xạ Điểm - STK_ID") thì cột này
+> rơi về hiện đúng mã Điểm như trước (`||` trong formula), không để trống.
 >
 > **Cách làm nhanh**: chạy `node rp-server/scripts/seedLdtdHcrcReports.js`
 > — script tự tạo/CẬP NHẬT đúng 2 báo cáo `bc-doanh-thu-ldtd`/
@@ -930,16 +929,19 @@ nhận riêng theo đúng nhóm HCRC.
 1. **etl-admin → Đồng bộ** — đối chiếu cả **4 job** đã chạy ít nhất 1 lần
    (xem menu "Log"), không báo lỗi — kể cả 2 job "Lịch sử" (chạy lần đầu
    có thể mất thời gian hơn Live vì kéo nguyên lịch sử nhiều tháng/năm).
-2. **etl-admin → Log** — nếu job Giao dịch (Live hoặc Lịch sử) báo "còn mã
-   BU_ID chưa ánh xạ", bổ sung tiếp vào "Ánh xạ mã chi nhánh".
-3. Mở báo cáo LDTD ở rp-user, chọn "Khoảng ngày báo cáo" là **hôm nay**
+2. Mở báo cáo LDTD ở rp-user, chọn "Khoảng ngày báo cáo" là **hôm nay**
    (điền CÙNG 1 ngày ở cả 2 ô từ/đến), bấm chạy — kiểm tra:
    - Đủ số siêu thị đang hoạt động, đúng nhóm MART/MINIMART.
    - Cột "Lãi gộp - Tỷ lệ (%)" KHÔNG phải 100% ở mọi siêu thị (nếu đúng
      100% ở mọi dòng — kiểm tra lại VIEW có JOIN `COSTPRICE` nhầm theo cả
      `STK_ID` không, xem lại Bước 1).
    - Cột Giao dịch có số liệu (không trống toàn bộ — nếu trống, kiểm tra
-     lại "Ánh xạ mã chi nhánh").
+     lại job "Giao dịch chi nhánh" ở etl-admin → Đồng bộ đã chạy thành công
+     chưa, xem menu "Log").
+   - Cột Doanh thu có số liệu (nếu trống, đối chiếu mã `STK_ID` khai ở
+     "Ánh xạ Điểm - STK_ID" với mã `STK_ID` thật đang có trong dữ liệu —
+     dùng `node etl/scripts/exportEntityCodesReport.js` để xuất Excel đối
+     chiếu, xem mục 2.3).
    - **Cột "Cùng kỳ năm 2025" và "Tỷ lệ % LFL" có số liệu** (không trống)
      — đây là cột lấy từ CSDL Lịch sử (`DSMART16_EOM`), nếu trống nghĩa là
      2 job "Lịch sử" (Doanh thu + Giao dịch) chưa chạy được hoặc VIEW ở
@@ -955,16 +957,22 @@ nhận riêng theo đúng nhóm HCRC.
    cáo cho ngày hôm nay (cùng 1 số liệu, chỉ khác đọc từ domain `directDb`
    bình thường hay từ khối `lastYear`/`dateOffsetYears: -1`) — xác nhận dữ
    liệu Lịch sử đúng, không bị lệch ngày.
-   > **CHỈ đúng cho mã Điểm CHƯA từng đổi mã kho** — với
-   > `useDiemStkMapping: true`, cách đối chiếu tay này chạy báo cáo cho
-   > "ngày này năm ngoái" như 1 ngày BÌNH THƯỜNG (không qua khối `lastYear`)
-   > nên vẫn tra theo danh sách kho MỚI (`MaStkMoi`), trong khi khối
-   > `lastYear` thật tra theo danh sách kho CŨ (`MaStkCu`). Nếu mã Điểm đó
-   > có khai CẢ 2 danh sách kho GIỐNG NHAU (chưa từng đổi kho) thì 2 số vẫn
-   > khớp như trước; nếu 2 danh sách KHÁC nhau thì đừng ngạc nhiên nếu 2 số
-   > lệch nhau — đó không phải lỗi, chỉ là cách đối chiếu tay này không còn
-   > áp dụng được cho đúng mã Điểm đó (không có thao tác "chọn dùng kho cũ/
-   > mới" nào từ giao diện chạy báo cáo).
+   > **Cột Giao dịch: luôn khớp** — domain `giaodich_chinhanh` không dùng
+   > `useDiemStkMapping` (EntityCode = `BU_ID` = mã Điểm trực tiếp, không
+   > đổi qua thời gian), nên cách đối chiếu tay này luôn đúng cho cột Giao
+   > dịch, không phân biệt mã Điểm đã đổi kho hay chưa.
+   >
+   > **Cột Doanh thu: CHỈ đúng cho mã Điểm CHƯA từng đổi mã kho** — với
+   > `useDiemStkMapping: true` (chỉ áp dụng domain `doanhthu_chinhanh`),
+   > cách đối chiếu tay này chạy báo cáo cho "ngày này năm ngoái" như 1 ngày
+   > BÌNH THƯỜNG (không qua khối `lastYear`) nên vẫn tra theo danh sách kho
+   > MỚI (`MaStkMoi`), trong khi khối `lastYear` thật tra theo danh sách kho
+   > CŨ (`MaStkCu`). Nếu mã Điểm đó có khai CẢ 2 danh sách kho GIỐNG NHAU
+   > (chưa từng đổi kho) thì 2 số vẫn khớp như trước; nếu 2 danh sách KHÁC
+   > nhau thì đừng ngạc nhiên nếu 2 số lệch nhau — đó không phải lỗi, chỉ là
+   > cách đối chiếu tay này không còn áp dụng được cho đúng mã Điểm đó
+   > (không có thao tác "chọn dùng kho cũ/mới" nào từ giao diện chạy báo
+   > cáo).
 5. Sửa thử 1 dòng chỉ tiêu ở trang "Chỉ tiêu Lãnh đạo Tập đoàn", xác nhận
    báo cáo HCRC KHÔNG đổi theo (và ngược lại) — xác nhận đúng 2 domain chỉ
    tiêu độc lập.

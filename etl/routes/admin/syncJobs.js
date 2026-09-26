@@ -126,20 +126,17 @@ router.post('/', requireMenuEdit('sync-jobs'), async (req, res, next) => {
       .input('targetDomain', sql.VarChar(50), b.targetDomain)
       .input('cronExpression', sql.VarChar(50), b.cronExpression || '*/15 * * * *')
       .input('keepHistory', sql.Bit, b.keepHistory ? 1 : 0)
-      .input('branchCodeMapType', sql.VarChar(50), b.branchCodeMapType || null)
       .query(`
         INSERT INTO etl.SyncJobs (
           Name, Type, DataSourceId, SourceSchema, SourceTable, KeyColumn, DateColumn, UpdatedAtColumn,
           DimensionColumnsJson, MeasureColumnsJson, JoinSchema, JoinTable, JoinType, MainJoinColumn,
-          LookupJoinColumn, LookupDimensionColumnsJson, CustomConnectorKey, TargetDomain, CronExpression, KeepHistory,
-          BranchCodeMapType
+          LookupJoinColumn, LookupDimensionColumnsJson, CustomConnectorKey, TargetDomain, CronExpression, KeepHistory
         )
         OUTPUT INSERTED.Id
         VALUES (
           @name, @type, @dataSourceId, @sourceSchema, @sourceTable, @keyColumn, @dateColumn, @updatedAtColumn,
           @dimensionColumnsJson, @measureColumnsJson, @joinSchema, @joinTable, @joinType, @mainJoinColumn,
-          @lookupJoinColumn, @lookupDimensionColumnsJson, @customConnectorKey, @targetDomain, @cronExpression, @keepHistory,
-          @branchCodeMapType
+          @lookupJoinColumn, @lookupDimensionColumnsJson, @customConnectorKey, @targetDomain, @cronExpression, @keepHistory
         )
       `);
     const id = result.recordset[0].Id;
@@ -182,12 +179,11 @@ router.put('/:id', requireMenuEdit('sync-jobs'), async (req, res, next) => {
       .input('dimensionColumnsJson', sql.NVarChar(sql.MAX), JSON.stringify(b.dimensionColumns || []))
       .input('measureColumnsJson', sql.NVarChar(sql.MAX), JSON.stringify(b.measureColumns || []))
       .input('keepHistory', sql.Bit, b.keepHistory ? 1 : 0)
-      .input('branchCodeMapType', sql.VarChar(50), b.branchCodeMapType || null)
       .query(`
         UPDATE etl.SyncJobs
         SET Name = @name, CronExpression = @cronExpression, IsActive = @isActive, TargetDomain = @targetDomain,
             DimensionColumnsJson = @dimensionColumnsJson, MeasureColumnsJson = @measureColumnsJson,
-            KeepHistory = @keepHistory, BranchCodeMapType = @branchCodeMapType
+            KeepHistory = @keepHistory
         WHERE Id = @id
       `);
     await rescheduleJob(parseInt(req.params.id, 10));

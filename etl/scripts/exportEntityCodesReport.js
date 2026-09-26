@@ -1,15 +1,15 @@
 // scripts/exportEntityCodesReport.js — Xuất Excel ĐỐI CHIẾU 3 nguồn mã
 // entityCode đang tồn tại song song trong hệ thống, dùng để dò lệch mã giữa
 // dữ liệu THỰC ĐẠT (dwh.ReportFacts), CHỈ TIÊU (dwh.SalesTargets) và bảng
-// "Ánh xạ mã chi nhánh" (etl.BranchCodeMap) — theo yêu cầu người dùng khi
+// "Ánh xạ Điểm - STK_ID" (etl.DiemStkMapping) — theo yêu cầu người dùng khi
 // phát hiện báo cáo LDTD/HCRC bị trống cột "Thực đạt" do 2 file (chỉ tiêu
 // LDTD dùng mã "Điểm" ngắn vd "001", thực đạt DSMART16 dùng mã STK_ID 5 chữ
 // số vd "13061") không khớp nhau — xem "báo cáo doanh thu cuối ngày.md".
 //
 // KHÔNG sửa dữ liệu gì cả — chỉ đọc (SELECT) để đối chiếu thủ công, giúp
 // nghiệp vụ nhìn thấy đủ 3 tập mã cạnh nhau trong 1 file, tự xác định mã nào
-// khớp mã nào rồi quyết định sửa file chỉ tiêu hay khai "Ánh xạ mã chi
-// nhánh". Chạy lại nhiều lần an toàn (chỉ đọc, không ghi CSDL).
+// khớp mã nào rồi quyết định sửa file chỉ tiêu hay khai "Ánh xạ Điểm -
+// STK_ID". Chạy lại nhiều lần an toàn (chỉ đọc, không ghi CSDL).
 //
 // Cách dùng:
 //   node scripts/exportEntityCodesReport.js [domain1,domain2,...]
@@ -91,11 +91,11 @@ async function fetchTargetEntityCodes(pool, domains) {
   });
 }
 
-async function fetchBranchCodeMap(pool) {
+async function fetchDiemStkMapping(pool) {
   const result = await pool.request().query(`
-    SELECT LoaiMaKhac, MaKhac, MaChuan, TenSieuThi, TrangThai, ImportedAt, ImportedBy
-    FROM etl.BranchCodeMap
-    ORDER BY LoaiMaKhac, MaKhac
+    SELECT MaDiem, MaStkCu, MaStkMoi, TenSieuThi, ImportedAt, ImportedBy
+    FROM etl.DiemStkMapping
+    ORDER BY MaDiem
   `);
   return result.recordset;
 }
@@ -116,10 +116,10 @@ async function main() {
   const dwhPool = await getPool('DWH_TARGET_IMPORTER');
   const adminPool = await getPool('ADMIN');
 
-  const [actualRows, targetRows, branchMapRows] = await Promise.all([
+  const [actualRows, targetRows, diemStkRows] = await Promise.all([
     fetchActualEntityCodes(dwhPool, actualDomains),
     fetchTargetEntityCodes(dwhPool, TARGET_DOMAINS),
-    fetchBranchCodeMap(adminPool)
+    fetchDiemStkMapping(adminPool)
   ]);
 
   const workbook = new ExcelJS.Workbook();
@@ -141,46 +141,36 @@ async function main() {
   );
 
   // LƯU Ý QUAN TRỌNG (đọc trước khi dùng sheet dưới đây để đối chiếu) —
-  // etl.BranchCodeMap dùng CHUNG 1 khuôn (LoaiMaKhac/MaKhac/MaChuan) cho MỌI
-  // mục đích quy đổi mã, KHÔNG có cột cố định nào tên "mã thực đạt"/"mã chỉ
-  // tiêu" cả — ý nghĩa của MaKhac/MaChuan do CHÍNH admin quyết định khi chọn
-  // dùng LoaiMaKhac nào ở đâu:
-  //   - MaKhac  = mã GỐC ở phía nguồn cần quy đổi (vd BU_ID thô từ DSMART16,
-  //     HOẶC mã "Điểm" trong file chỉ tiêu LDTD nếu dùng để quy đổi CHỈ TIÊU).
-  //   - MaChuan = mã CHUẨN dùng làm EntityCode thật trong dwh.ReportFacts (vd
-  //     STK_ID 5 chữ số) — ĐÂY chính là "mã thực đạt" nói tới hôm qua, và
-  //     CŨNG LÀ mã dùng để so sánh cùng kỳ năm trước (khối lastYear chỉ lọc
-  //     lại CÙNG EntityCode này theo date offset -1 năm, xem
-  //     rp-server/lib/compositeReportRunner.js — không có mã "so sánh quá
-  //     khứ" riêng nào khác).
-  // HIỆN TẠI bảng này CHỈ được áp dụng lúc ĐỒNG BỘ dữ liệu thực đạt (xem
-  // etl/lib/tableSyncEngine.js) — CHƯA áp dụng lúc NHẬP CHỈ TIÊU (xem
-  // etl/lib/salesTargetsImport.js), nên khai thêm dòng ở đây chưa tự làm
-  // báo cáo LDTD/HCRC hết trống cột Thực đạt — cần code đọc thêm (hỏi lại
-  // nếu muốn làm tiếp phần này).
-  addSheet(workbook, 'Anh xa ma chi nhanh',
-    [{ label: 'LoaiMaKhac', width: 16 }, { label: 'MaKhac (mã gốc)', width: 20 }, { label: 'MaChuan (= mã thực đạt/so sánh)', width: 26 },
-     { label: 'Tên siêu thị', width: 30 }, { label: 'Trạng thái', width: 14 },
-     { label: 'Người nhập', width: 16 }, { label: 'Lúc nhập', width: 20 }],
-    branchMapRows,
-    r => [r.LoaiMaKhac, r.MaKhac, r.MaChuan, r.TenSieuThi || '', r.TrangThai || '', r.ImportedBy || '', r.ImportedAt]
+  // etl.DiemStkMapping là bảng ánh xạ DUY NHẤT còn dùng (từ khi bỏ tính năng
+  // "Ánh xạ mã chi nhánh"/etl.BranchCodeMap — xem VERSION.md):
+  //   - Domain doanhthu_chinhanh: EntityCode thật trong dwh.ReportFacts là mã
+  //     kho STK_ID (nguồn DSMART16 STOCK) — đối chiếu cột EntityCode ở sheet
+  //     "Ma thuc dat" với MaStkCu/MaStkMoi ở sheet dưới đây; STK không khớp
+  //     ĐÚNG mã thật này thì cột "Thực đạt" của mã Điểm đó sẽ trống.
+  //   - Domain giaodich_chinhanh: EntityCode thật ĐÃ LÀ mã "Điểm" (BU_ID gốc,
+  //     giữ nguyên lúc đồng bộ — xem etl/lib/tableSyncEngine.js), khớp trực
+  //     tiếp với MaDiem, KHÔNG cần đối chiếu qua STK.
+  //   - File chỉ tiêu LDTD/HCRC (sheet "Ma chi tieu") cũng dùng mã "Điểm" —
+  //     khớp trực tiếp với MaDiem.
+  addSheet(workbook, 'Anh xa Diem-STK',
+    [{ label: 'MaDiem (BU_ID)', width: 16 }, { label: 'MaStkCu (kỳ cũ)', width: 22 }, { label: 'MaStkMoi (kỳ mới)', width: 22 },
+     { label: 'Tên siêu thị', width: 30 }, { label: 'Người nhập', width: 16 }, { label: 'Lúc nhập', width: 20 }],
+    diemStkRows,
+    r => [r.MaDiem, r.MaStkCu || '', r.MaStkMoi || '', r.TenSieuThi || '', r.ImportedBy || '', r.ImportedAt]
   );
 
-  // ---- Sheet "mẫu" — CHỈ liệt kê mã đang CÓ trong chỉ tiêu nhưng CHƯA có
-  // trong thực đạt (đúng nhóm mã bị lệch phát hiện hôm qua) — LoaiMaKhac tự
-  // đặt sẵn theo domain, MaKhac = mã trong file chỉ tiêu, MaChuan để TRỐNG
-  // (điền mã STK_ID thật tương ứng) — điền xong nộp thẳng qua nút "Nhập file
-  // ánh xạ" ở trang "Ánh xạ mã chi nhánh" (đúng khuôn cột, nạp lại được luôn
-  // — dù xem nhắc lại chú thích trên: PHẢI làm thêm 1 bước code nữa thì bảng
-  // này mới có tác dụng với chỉ tiêu, không phải chỉ khai xong là xong).
-  const actualCodeSet = new Set(actualRows.map(r => r.entityCode));
-  const suggestedLoaiMaKhac = { 'sales-targets-ldtd': 'DIEM_LDTD', 'sales-targets-hcrc': 'MADOITUONG_HCRC' };
-  const missingRows = targetRows.filter(r => !actualCodeSet.has(r.entityCode));
+  // ---- Sheet "mẫu" — CHỈ liệt kê mã Điểm đang CÓ trong chỉ tiêu nhưng CHƯA
+  // khai ở "Ánh xạ Điểm - STK_ID" (đúng nhóm mã bị lệch phát hiện hôm qua) —
+  // điền cột MaStkMoi/MaStkCu (mã STK_ID THẬT lấy từ sheet "Ma thuc dat" bên
+  // trên) rồi nộp thẳng qua nút "Nhập file ánh xạ" ở trang "Ánh xạ Điểm -
+  // STK_ID" (đúng khuôn cột, nạp lại được luôn).
+  const diemMappedSet = new Set(diemStkRows.map(r => r.MaDiem));
+  const missingRows = targetRows.filter(r => !diemMappedSet.has(r.entityCode));
   addSheet(workbook, 'Mau dien anh xa con thieu',
-    [{ label: 'LoaiMaKhac', width: 18 }, { label: 'MaKhac', width: 16 }, { label: 'MaChuan (TỰ ĐIỀN mã thật)', width: 26 },
-     { label: 'TenSieuThi (tuỳ chọn)', width: 30 }, { label: 'TrangThai (để trống)', width: 18 }],
+    [{ label: 'MaDiem', width: 16 }, { label: 'MaStkCu (TỰ ĐIỀN mã thật)', width: 26 }, { label: 'MaStkMoi (TỰ ĐIỀN mã thật)', width: 26 },
+     { label: 'TenSieuThi (tuỳ chọn)', width: 30 }],
     missingRows,
-    r => [suggestedLoaiMaKhac[r.domain] || r.domain, r.entityCode, '', '', '']
+    r => [r.entityCode, '', '', '']
   );
 
   const exportDir = path.join(__dirname, '..', 'exports');
@@ -189,7 +179,7 @@ async function main() {
   const outputPath = path.join(exportDir, `doi-chieu-ma-sieu-thi-${stamp}.xlsx`);
   await workbook.xlsx.writeFile(outputPath);
 
-  console.log(`✅ Đã xuất ${actualRows.length} mã thực đạt, ${targetRows.length} mã chỉ tiêu, ${branchMapRows.length} dòng ánh xạ.`);
+  console.log(`✅ Đã xuất ${actualRows.length} mã thực đạt, ${targetRows.length} mã chỉ tiêu, ${diemStkRows.length} dòng ánh xạ.`);
   console.log(`✅ File: ${outputPath}`);
   console.log('Tải file này về máy bằng scp/WinSCP, vd (chạy từ máy CÁ NHÂN, không phải trên server):');
   console.log(`   scp <user>@<server>:${outputPath} .`);

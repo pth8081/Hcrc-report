@@ -144,36 +144,28 @@ BEGIN
 END
 GO
 
--- NULL = không áp dụng ánh xạ mã chi nhánh gì (giữ nguyên hành vi cũ, mã
--- khoá nguồn dùng thẳng làm EntityCode). Có giá trị = trước khi ghi
--- dwh.ReportFacts, etl/jobs/runSync.js tra etl.BranchCodeMap
--- WHERE LoaiMaKhac = giá trị này để quy đổi mã khoá nguồn (vd BU_ID) sang
--- đúng mã chuẩn (vd STK_ID/mã siêu thị) đã dùng ở domain khác — xem
--- etl.BranchCodeMap bên dưới + etl/lib/tableSyncEngine.js.
+-- ĐÃ NGỪNG DÙNG (từ bản gỡ tính năng "Ánh xạ mã chi nhánh" — xem VERSION.md)
+-- — etl/jobs/runSync.js/etl/lib/tableSyncEngine.js KHÔNG còn đọc cột này
+-- nữa, EntityCode luôn giữ nguyên mã gốc từ nguồn. Giữ lại cột (không ALTER
+-- DROP) chỉ để không phải đụng dữ liệu cũ trên các bản cài đã chạy trước
+-- đây — an toàn để bỏ qua/NULL hoá, không ảnh hưởng gì tới đồng bộ.
 IF COL_LENGTH('etl.SyncJobs', 'BranchCodeMapType') IS NULL
 BEGIN
     ALTER TABLE etl.SyncJobs ADD BranchCodeMapType VARCHAR(50) NULL;
 END
 GO
 
--- Ánh xạ mã chi nhánh — 1 chi nhánh vật lý đôi khi có NHIỀU mã khác nhau
--- tuỳ bảng nguồn (vd DSMART16: bảng doanh thu/tồn kho dùng STK_ID, bảng
--- giao dịch dùng BU_ID — không chắc trùng số) — bảng này cho admin tự khai
--- (và SỬA LẠI khi mã đổi, không cần đụng code) "mã X ở nguồn nào đó" tương
--- ứng "mã chuẩn Y" nào, để mọi job "Theo bảng" quy về CÙNG 1 EntityCode
--- trước khi ghi dwh.ReportFacts — nếu không, composite report (khối
--- "directDb" ghép theo entityCode, xem rp-server/lib/compositeReportRunner.js)
--- sẽ KHÔNG ghép được domain "doanh thu" (mã STK_ID) với domain "giao dịch"
--- (mã BU_ID) dù cùng 1 chi nhánh — mỗi mã bị coi là 1 thực thể riêng.
+-- ĐÃ NGỪNG DÙNG (từ bản gỡ tính năng "Ánh xạ mã chi nhánh" — xem VERSION.md)
+-- — không còn route/UI/code nào đọc hoặc ghi bảng này nữa (thay bằng
+-- etl.DiemStkMapping bên dưới, áp dụng ở TẦNG BÁO CÁO thay vì lúc đồng bộ).
+-- Giữ lại bảng (không DROP) chỉ để không mất dữ liệu lịch sử trên các bản
+-- cài đã dùng tính năng này trước đây — an toàn để trống, không cần dọn.
 --
--- LoaiMaKhac: admin tự đặt tên (vd "BU_ID"), PHẢI khớp CHÍNH XÁC giá trị
--- chọn ở etl.SyncJobs.BranchCodeMapType của job cần áp dụng. MaKhac: giá
--- trị mã gốc ở nguồn (vd giá trị BU_ID thật). MaChuan: mã chuẩn dùng làm
--- EntityCode sau cùng — PHẢI khớp đúng mã đã dùng ở domain doanh thu/tồn
--- kho (mục 11 hướng_dẫn_báo_cáo.md, thường là STK_ID/STK_CODE của bảng
--- STOCK). TenSieuThi chỉ để hiển thị cho dễ đọc lúc nhập, KHÔNG dùng để đối
--- chiếu. TrangThai để trống = đang áp dụng, "DaDong" = ngừng áp dụng dòng
--- này (không xoá, giữ lịch sử) — cùng quy ước với dwh.SalesTargets.TrangThai.
+-- (Lịch sử: từng dùng để quy đổi 1 chi nhánh có NHIỀU mã khác nhau tuỳ bảng
+-- nguồn — vd DSMART16: bảng doanh thu/tồn kho dùng STK_ID, bảng giao dịch
+-- dùng BU_ID — về cùng 1 EntityCode chuẩn trước khi ghi dwh.ReportFacts. Bị
+-- bỏ vì chỉ giữ được ĐÚNG 1 mã chuẩn/mã gốc, không phân biệt được theo thời
+-- điểm — sai khi 1 chi nhánh đổi mã kho theo thời gian.)
 IF OBJECT_ID('etl.BranchCodeMap', 'U') IS NULL
 BEGIN
     CREATE TABLE etl.BranchCodeMap (

@@ -1,29 +1,21 @@
 // pages/DiemStkMappingPage.jsx — Trang "Ánh xạ Điểm - STK_ID": gộp NHIỀU mã
 // kho STK_ID thật (dwh.ReportFacts) về 1 mã "Điểm" (BU_ID, dùng NGUYÊN VẸN
-// trong file chỉ tiêu LDTD/HCRC — không cần đổi gì file chỉ tiêu). Khác hẳn
-// "Ánh xạ mã chi nhánh" (1 mã gốc <-> ĐÚNG 1 mã chuẩn): ở đây 1 mã Điểm gộp
-// NHIỀU kho, và tách riêng theo kỳ — MaStkCu (kho DÙNG TÍNH quá khứ/cùng kỳ
-// năm trước) và MaStkMoi (kho DÙNG TÍNH hiện tại) — vì mã kho có thể đổi
+// trong file chỉ tiêu LDTD/HCRC — không cần đổi gì file chỉ tiêu). 1 mã Điểm
+// gộp NHIỀU kho, và tách riêng theo kỳ — MaStkCu (kho DÙNG TÍNH quá khứ/cùng
+// kỳ năm trước) và MaStkMoi (kho DÙNG TÍNH hiện tại) — vì mã kho có thể đổi
 // theo thời gian dù mã Điểm không đổi (xem etl-db/schema.sql).
+//
+// Đây là bảng ánh xạ DUY NHẤT cho domain doanhthu_chinhanh/giaodich_chinhanh
+// từ khi bỏ tính năng "Ánh xạ mã chi nhánh" (etl.BranchCodeMap) — domain
+// giaodich_chinhanh giờ giữ nguyên EntityCode = BU_ID gốc lúc đồng bộ, và
+// BU_ID CHÍNH LÀ mã Điểm nên không cần dịch mã trung gian nào nữa (xem
+// etl/lib/tableSyncEngine.js, rp-server/lib/compositeReportRunner.js).
 // (xem etl/routes/admin/diemStkMapping.js).
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
 import DataTable from '../components/DataTable';
 
 const EMPTY_EDIT_FORM = { maDiem: '', maStkCu: '', maStkMoi: '', tenSieuThi: '' };
-
-// Ghép thông báo kết quả đồng bộ TỰ ĐỘNG sang "Ánh xạ mã chi nhánh" (bản
-// 6.80) vào SAU thông báo lưu chính — sync.syncError (lỗi CSDL bất ngờ)
-// KHÔNG có nghĩa là dữ liệu "Ánh xạ Điểm - STK_ID" bị mất, chỉ phần đồng bộ
-// phụ này lỗi (xem routes/admin/diemStkMapping.js:syncToBranchCodeMap).
-function describeBranchCodeMapSync(sync, prefix) {
-  if (!sync) return prefix;
-  const parts = [prefix];
-  if (sync.synced) parts.push(`Đã tự đồng bộ ${sync.synced} mã Điểm sang "Ánh xạ mã chi nhánh".`);
-  if (sync.skipped?.length) parts.push(`⚠️ ${sync.skipped.length} mã Điểm chưa có mã kho nào (cả cũ lẫn mới) nên CHƯA đồng bộ được: ${sync.skipped.join(', ')}.`);
-  if (sync.syncError) parts.push(`⚠️ Đồng bộ sang "Ánh xạ mã chi nhánh" bị lỗi (dữ liệu "Ánh xạ Điểm - STK_ID" vẫn lưu bình thường): ${sync.syncError}`);
-  return parts.join(' ');
-}
 
 export default function DiemStkMappingPage() {
   const [file, setFile] = useState(null);
@@ -72,13 +64,13 @@ export default function DiemStkMappingPage() {
     setEditResult('');
     if (!editForm.maDiem.trim()) return setEditError('Thiếu "Mã Điểm"');
     try {
-      const result = await api.put('/diem-stk-mapping/one', {
+      await api.put('/diem-stk-mapping/one', {
         maDiem: editForm.maDiem.trim(),
         maStkCu: editForm.maStkCu.split(',').map(s => s.trim()).filter(Boolean),
         maStkMoi: editForm.maStkMoi.split(',').map(s => s.trim()).filter(Boolean),
         tenSieuThi: editForm.tenSieuThi.trim() || null
       });
-      setEditResult(describeBranchCodeMapSync(result.branchCodeMapSync, '✅ Đã lưu.'));
+      setEditResult('✅ Đã lưu.');
       setEditForm(EMPTY_EDIT_FORM);
       reload();
     } catch (err) {
@@ -160,14 +152,6 @@ export default function DiemStkMappingPage() {
         thống tự kiểm tra, phát hiện trùng (kể cả trùng với dữ liệu đã lưu của mã Điểm khác) sẽ
         <strong> HUỶ TOÀN BỘ lượt nhập</strong>, không lưu dòng nào, để tránh cộng trùng doanh thu.
       </p>
-      <p>
-        <strong>Tự động đồng bộ sang "Ánh xạ mã chi nhánh"</strong>: mỗi lần lưu ở đây (sửa 1 dòng
-        hoặc nhập file) hệ thống TỰ tạo/cập nhật luôn dòng tương ứng ở trang "Ánh xạ mã chi nhánh"
-        (LoaiMaKhac="BU_ID") — không cần khai riêng 2 nơi nữa. Lấy 1 mã kho bất kỳ trong "Điểm
-        mới" (hoặc "Điểm cũ" nếu mã Điểm đã đóng) làm mã chuẩn; báo cáo vẫn cộng dồn đúng theo mã
-        Điểm dù chọn kho nào. Mã Điểm CHƯA khai kho nào (cả cũ lẫn mới) thì CHƯA đồng bộ được — hệ
-        thống báo rõ sau khi lưu.
-      </p>
       {error && (
         <div className="form-error">
           <p>{error}</p>
@@ -185,7 +169,7 @@ export default function DiemStkMappingPage() {
 
       {importResult && (
         <div className="import-result">
-          <p>{describeBranchCodeMapSync(importResult.branchCodeMapSync, `✅ Đã thêm mới ${importResult.inserted}, cập nhật ${importResult.updated} dòng.`)}</p>
+          <p>✅ Đã thêm mới {importResult.inserted}, cập nhật {importResult.updated} dòng.</p>
           {importResult.rowErrors?.length > 0 && (
             <>
               <p>⚠️ {importResult.rowErrors.length} dòng bị bỏ qua:</p>

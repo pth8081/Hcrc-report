@@ -20,6 +20,75 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 6.83 — Bỏ hẳn "Ánh xạ mã chi nhánh" (etl.BranchCodeMap) — chỉ dùng "Ánh xạ Điểm - STK_ID"
+
+Người dùng phát hiện + phân tích đúng nguyên nhân: `etl.BranchCodeMap` chỉ
+giữ được ĐÚNG 1 mã chuẩn/mã gốc và KHÔNG phân biệt theo thời điểm — domain
+`giaodich_chinhanh` (khoá gốc `BU_ID`, dịch qua bảng này thành 1 mã `STK_ID`
+cố định lúc đồng bộ) ghi SAI EntityCode cho dữ liệu quá khứ mỗi khi 1 chi
+nhánh đổi mã kho theo thời gian (dữ liệu cũ vẫn mang mã STK MỚI, không phải
+mã cũ thật) — "Giao dịch - Thực đạt" của kỳ hiện tại "may" đúng (vì
+`MaChuan` được tự đồng bộ đúng bằng STK mới, bản 6.80) nhưng "Cùng kỳ năm
+trước" domain này sẽ rớt dữ liệu ở mọi mã Điểm đã đổi kho. Việc dịch qua
+BranchCodeMap cũng thừa vì `BU_ID` KHÔNG đổi qua thời gian và CHÍNH LÀ mã
+"Điểm" dùng trong file chỉ tiêu — không cần dịch mã trung gian nào cả.
+
+- `etl/lib/tableSyncEngine.js`/`etl/jobs/runSync.js` — bỏ hẳn bước dịch
+  entityCode qua `etl.BranchCodeMap` (`transformRow()` không còn nhận
+  `branchCodeMap`/`unmappedCodes`, `loadBranchCodeMap()` xoá khỏi
+  `runSync.js`) — mọi domain (kể cả `giaodich_chinhanh`) giữ NGUYÊN mã gốc
+  từ nguồn làm EntityCode.
+- `rp-server/scripts/seedLdtdHcrcReports.js` — tắt `useDiemStkMapping` ở 2
+  khối `currentGD`/`lastYearGD` (domain giao dịch) — EntityCode (`BU_ID`)
+  đã đúng = mã Điểm, không cần remap qua danh sách STK nữa. 2 khối
+  `current`/`lastYear` (domain doanh thu, khoá thật là `STK_ID`) GIỮ
+  NGUYÊN `useDiemStkMapping: true` — không đổi.
+- `etl/scripts/seedLdtdHcrcSync.js` — bỏ `branchCodeMapType: 'BU_ID'` khỏi
+  2 job "Giao dịch chi nhánh" (Live/Lịch sử); UPDATE nhánh idempotent giờ
+  ghi `BranchCodeMapType = NULL` để tự dọn dữ liệu cũ khi chạy lại script
+  trên cài đặt đã từng bật tính năng này.
+- Xoá hẳn tính năng "Ánh xạ mã chi nhánh": `etl/routes/admin/branchCodeMap.js`,
+  `etl/lib/branchCodeMapImport.js`, `etl-admin/src/pages/BranchCodeMapPage.jsx`,
+  nav entry (`Layout.jsx`/`App.jsx`), MenuCode `branch-code-map` (`routes/admin/roles.js`
+  MENU_CATALOG, `RolesPage.jsx`), route mount (`server.js`) — **giữ nguyên**
+  bảng `etl.BranchCodeMap`/cột `etl.SyncJobs.BranchCodeMapType` trong CSDL
+  (không ALTER DROP, chỉ đổi comment đánh dấu "đã ngừng dùng") để không đụng
+  dữ liệu lịch sử trên các bản cài cũ.
+- Xoá cơ chế auto-sync DiemStkMapping→BranchCodeMap (bản 6.80, chính là
+  nguồn gây lỗi "lấy 1 trong nhiều mã kho"): `buildBranchCodeMapSyncRows()`
+  (`diemStkMappingImport.js`), `syncToBranchCodeMap()` (`routes/admin/diemStkMapping.js`),
+  UI hiển thị kết quả đồng bộ (`DiemStkMappingPage.jsx`) — xoá luôn script
+  backfill 1 lần `generateBranchCodeMapFromDiemStk.js` (không còn tác dụng).
+- `etl/scripts/exportEntityCodesReport.js` — sheet đối chiếu đổi từ
+  `etl.BranchCodeMap` sang `etl.DiemStkMapping` (bảng ánh xạ duy nhất còn
+  dùng), cập nhật chú thích/gợi ý điền mẫu.
+- **MỚI** `etl/scripts/resyncGiaodichChinhanh.js` — script migrate 1 lần
+  (mặc định dry-run, cần `--confirm` mới thực sự chạy) cho các cài đặt ĐÃ
+  từng bật "Ánh xạ mã chi nhánh": xoá toàn bộ dữ liệu cũ (sai) của domain
+  `giaodich_chinhanh` trong `dwh.ReportFacts` + reset mốc đồng bộ
+  (`etl.SyncState.LastSyncedAt`) của các job liên quan về epoch để job tự
+  kéo lại toàn bộ dữ liệu với EntityCode đúng (`BU_ID` gốc).
+- Docs: `hướng_dẫn_báo_cáo.md` mục 11 (sổ tay domain), `báo cáo doanh thu
+  cuối ngày.md` (Bước 2.2/2.3, Bước 4, Bước 7 kiểm tra), `etl/README.md`,
+  `deploy/Hướng dẫn nghiệp vụ.md` — cập nhật hết mọi chỗ hướng dẫn dùng
+  "Ánh xạ mã chi nhánh", trỏ sang kiến trúc mới.
+
+Đã kiểm thử (fakeModule): `transformRow()` không dịch mã (chỉ trim), chạy
+THẬT `seedLdtdHcrcReports.js` xác nhận đúng 2/4 khối còn `useDiemStkMapping`,
+chạy THẬT `runCompositeReport()` xác nhận domain giao dịch (identity, mã
+Điểm trực tiếp) và doanh thu (remap qua DiemStkMapping) vẫn ghép đúng cùng
+1 dòng theo mã Điểm.
+
+**Cần làm trên server sau bản này**:
+1. `git pull`, rebuild `etl-admin` (`npm run build`), khởi động lại `etl`
+   và `rp-server`.
+2. Chạy lại `node etl/scripts/seedLdtdHcrcSync.js` (dọn cột `BranchCodeMapType`
+   cũ trên 2 job giao dịch) rồi `node rp-server/scripts/seedLdtdHcrcReports.js`
+   (ghi đè `DefinitionJson` sang cấu hình mới).
+3. **CHỈ nếu trước đây đã bật "Ánh xạ mã chi nhánh"** cho job giao dịch:
+   `node etl/scripts/resyncGiaodichChinhanh.js --confirm` — xem chi tiết
+   "báo cáo doanh thu cuối ngày.md" mục 2.2.
+
 ## 6.82 — Áp dụng columnGroups/STT/format thật vào báo cáo LDTD/HCRC
 
 Người dùng xác nhận demo bản 6.81 (màu Doanh thu/xanh lá, Lãi gộp/vàng, Giao

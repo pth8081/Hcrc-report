@@ -156,9 +156,9 @@ nhập lại.
 |---|---|
 | **Dashboard** | Tổng số job/nguồn, job lỗi 24h qua, các lượt chạy gần nhất |
 | **Nguồn dữ liệu** | CRUD nguồn (SQL Server hoặc MySQL/MariaDB), kiểm tra kết nối, import hàng loạt bằng file Excel |
-| **Đồng bộ** | Tạo job "theo bảng" (duyệt bảng/cột thật của nguồn, không cần gõ tay, tuỳ chọn thêm 1 bảng liên kết) hoặc "tuỳ biến" (connector viết sẵn cho trường hợp phức tạp); chạy thử/bật-tắt/xoá job; ánh xạ mã chi nhánh khi 1 chi nhánh có nhiều mã khác nhau giữa các hệ thống |
+| **Đồng bộ** | Tạo job "theo bảng" (duyệt bảng/cột thật của nguồn, không cần gõ tay, tuỳ chọn thêm 1 bảng liên kết) hoặc "tuỳ biến" (connector viết sẵn cho trường hợp phức tạp); chạy thử/bật-tắt/xoá job |
 | **Nhập chỉ tiêu** | Upload Excel chỉ tiêu (target/KPI) theo tháng — trang DUY NHẤT vai trò `target_importer` thấy được |
-| **Ánh xạ mã chi nhánh** | Quy đổi mã chi nhánh khi các nguồn đặt tên/mã khác nhau cho cùng 1 chi nhánh thật |
+| **Ánh xạ Điểm - STK_ID** | Gộp nhiều mã kho STK_ID (tách kỳ cũ/mới) về đúng 1 mã "Điểm" (BU_ID) dùng trong file chỉ tiêu — áp dụng ở tầng báo cáo, không phải lúc đồng bộ |
 | **Log** | Lịch sử chạy job đồng bộ, lọc theo trạng thái |
 | **Nhật ký thao tác (Audit Log)** | Ai làm gì, lúc nào (tạo/sửa/xoá nguồn, job, chỉ tiêu...) |
 | **Phân quyền** | CRUD tài khoản quản trị (`admin`/`viewer`/`target_importer`), đặt lại 2FA cho admin khác |

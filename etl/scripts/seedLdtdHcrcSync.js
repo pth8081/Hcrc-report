@@ -156,7 +156,6 @@ async function upsertSyncJob(pool, job) {
       .input('measureColumnsJson', sql.NVarChar(sql.MAX), measureColumnsJson)
       .input('targetDomain', sql.VarChar(50), job.targetDomain)
       .input('cronExpression', sql.VarChar(50), job.cronExpression)
-      .input('branchCodeMapType', sql.VarChar(50), job.branchCodeMapType || null)
       .query(`
         UPDATE etl.SyncJobs SET
           Type = 'table', DataSourceId = @dataSourceId, SourceSchema = @sourceSchema, SourceTable = @sourceTable,
@@ -164,7 +163,7 @@ async function upsertSyncJob(pool, job) {
           DimensionColumnsJson = @dimensionColumnsJson, MeasureColumnsJson = @measureColumnsJson,
           JoinSchema = NULL, JoinTable = NULL, JoinType = NULL, MainJoinColumn = NULL, LookupJoinColumn = NULL,
           TargetDomain = @targetDomain, CronExpression = @cronExpression, KeepHistory = 1,
-          BranchCodeMapType = @branchCodeMapType, IsActive = 1
+          BranchCodeMapType = NULL, IsActive = 1
         WHERE Id = @id
       `);
     console.log(`↻ Đã cập nhật job "${job.name}" (Id ${id}).`);
@@ -182,16 +181,15 @@ async function upsertSyncJob(pool, job) {
     .input('measureColumnsJson', sql.NVarChar(sql.MAX), measureColumnsJson)
     .input('targetDomain', sql.VarChar(50), job.targetDomain)
     .input('cronExpression', sql.VarChar(50), job.cronExpression)
-    .input('branchCodeMapType', sql.VarChar(50), job.branchCodeMapType || null)
     .query(`
       INSERT INTO etl.SyncJobs (
         Name, Type, DataSourceId, SourceSchema, SourceTable, KeyColumn, DateColumn, UpdatedAtColumn,
-        DimensionColumnsJson, MeasureColumnsJson, TargetDomain, CronExpression, KeepHistory, BranchCodeMapType
+        DimensionColumnsJson, MeasureColumnsJson, TargetDomain, CronExpression, KeepHistory
       )
       OUTPUT INSERTED.Id
       VALUES (
         @name, 'table', @dataSourceId, @sourceSchema, @sourceTable, @keyColumn, @dateColumn, @updatedAtColumn,
-        @dimensionColumnsJson, @measureColumnsJson, @targetDomain, @cronExpression, 1, @branchCodeMapType
+        @dimensionColumnsJson, @measureColumnsJson, @targetDomain, @cronExpression, 1
       )
     `);
   const id = result.recordset[0].Id;
@@ -219,17 +217,20 @@ async function main() {
       dimensionColumns: ['dienTich', 'chain'], measureColumns: ['doanhThu', 'laiGop'],
       targetDomain: 'doanhthu_chinhanh', cronExpression: '0 3 * * *'
     },
+    // keyColumn: 'BU_ID' — GIỮ NGUYÊN làm entityCode, KHÔNG dịch qua
+    // etl.BranchCodeMap nữa (bỏ hẳn tính năng đó — xem VERSION.md): BU_ID
+    // không đổi qua thời gian và CHÍNH LÀ mã "Điểm" (etl.DiemStkMapping.MaDiem).
     {
       name: 'Giao dịch chi nhánh - Live (DSMART16)', dataSourceId: liveId, sourceName: config.live.name,
       sourceTable: GIAODICH_VIEW, keyColumn: 'BU_ID', dateColumn: 'TRAN_DATE',
       dimensionColumns: [], measureColumns: ['SoGiaoDich'],
-      targetDomain: 'giaodich_chinhanh', cronExpression: '*/15 * * * *', branchCodeMapType: 'BU_ID'
+      targetDomain: 'giaodich_chinhanh', cronExpression: '*/15 * * * *'
     },
     {
       name: 'Giao dịch chi nhánh - Lịch sử (DSMART16_EOM)', dataSourceId: eomId, sourceName: config.eom.name,
       sourceTable: GIAODICH_VIEW, keyColumn: 'BU_ID', dateColumn: 'TRAN_DATE',
       dimensionColumns: [], measureColumns: ['SoGiaoDich'],
-      targetDomain: 'giaodich_chinhanh', cronExpression: '0 3 * * *', branchCodeMapType: 'BU_ID'
+      targetDomain: 'giaodich_chinhanh', cronExpression: '0 3 * * *'
     }
   ];
 

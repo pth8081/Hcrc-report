@@ -128,7 +128,7 @@ export default function RolesPage() {
                   <tr key={m.code}>
                     <td>{m.label}</td>
                     <td>
-                      {m.code === 'branch-code-map'
+                      {m.code === 'diem-stk-mapping'
                         ? <span title="Trang này yêu cầu quyền Sửa cho MỌI thao tác kể cả xem — không có mức chỉ-xem riêng">—</span>
                         : <input type="checkbox" checked={!!access[m.code]?.checked} onChange={(e) => setChecked(m.code, e.target.checked)} />}
                     </td>
@@ -138,7 +138,7 @@ export default function RolesPage() {
               </tbody>
             </table>
             <p className="form-hint">
-              Riêng "Ánh xạ mã chi nhánh" không có mức "chỉ xem" — phải tick "Sửa/Xoá" mới vào được trang này (kể cả để xem).
+              Riêng "Ánh xạ Điểm - STK_ID" không có mức "chỉ xem" — phải tick "Sửa/Xoá" mới vào được trang này (kể cả để xem).
             </p>
 
             {/* Sửa quyền menu của 1 vai trò chỉ Admin hệ thống thật mới làm được

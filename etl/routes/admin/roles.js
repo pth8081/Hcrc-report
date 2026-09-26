@@ -20,7 +20,6 @@ const MENU_CATALOG = [
   { code: 'dashboard', label: 'Bảng điều khiển' },
   { code: 'data-sources', label: 'Nguồn dữ liệu' },
   { code: 'sync-jobs', label: 'Đồng bộ dữ liệu' },
-  { code: 'branch-code-map', label: 'Ánh xạ mã chi nhánh' },
   { code: 'diem-stk-mapping', label: 'Ánh xạ Điểm - STK_ID' },
   // Trước là 1 trang "sales-targets" chung, đổi thành 2 trang ĐỘC LẬP theo
   // đúng 2 báo cáo tiêu thụ chỉ tiêu (Lãnh đạo Tập đoàn / HCRC) — 2 nhóm
