@@ -736,6 +736,11 @@ IF NOT EXISTS (SELECT 1 FROM app.MenuItems WHERE Code = 'reports-adhoc')
     INSERT INTO app.MenuItems (Code, ParentId, Label, Path, SortOrder) VALUES ('reports-adhoc', NULL, N'Báo cáo tự do', '/reports/adhoc', 6);
 IF NOT EXISTS (SELECT 1 FROM app.MenuItems WHERE Code = 'system')
     INSERT INTO app.MenuItems (Code, ParentId, Label, Path, SortOrder) VALUES ('system', NULL, N'Hệ thống', '/system', 7);
+-- Module "Hướng dẫn" — trang tĩnh (nội dung viết cứng trong code, không có
+-- CRUD), gán quyền XEM y hệt mọi menu top-level khác (app.RoleMenuAccess,
+-- không có cờ CanEdit riêng — xem rp-user/src/pages/HuongDanPage.jsx).
+IF NOT EXISTS (SELECT 1 FROM app.MenuItems WHERE Code = 'huong-dan')
+    INSERT INTO app.MenuItems (Code, ParentId, Label, Path, SortOrder) VALUES ('huong-dan', NULL, N'Hướng dẫn', '/huong-dan', 8);
 GO
 
 IF NOT EXISTS (SELECT 1 FROM app.MenuItems WHERE Code = 'system-permissions')

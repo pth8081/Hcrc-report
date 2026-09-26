@@ -281,3 +281,25 @@ button:hover { opacity: 0.9; }
   padding: 12px 16px; box-shadow: 0 4px 16px rgba(20, 30, 40, .18); font-size: 13px;
 }
 .update-banner button { flex-shrink: 0; padding: 6px 12px; font-size: 12.5px; }
+
+/* Hướng dẫn — 2 cột: danh mục chủ đề bên trái, nội dung bên phải. */
+.huong-dan-layout { display: flex; gap: 24px; align-items: flex-start; margin-top: 16px; }
+.huong-dan-nav { flex: 0 0 240px; }
+.huong-dan-section { margin-bottom: 18px; }
+.huong-dan-section-title { font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--ink-soft); margin: 0 0 6px 4px; }
+.huong-dan-nav ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.huong-dan-nav button { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; background: none; border: none; color: var(--ink); padding: 8px 10px; border-radius: 6px; font-size: 13.5px; cursor: pointer; }
+.huong-dan-nav button:hover { background: var(--bg); }
+.huong-dan-nav button.active { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.huong-dan-icon { font-size: 15px; width: 18px; text-align: center; flex: none; }
+.huong-dan-content { flex: 1; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 24px 28px; min-width: 0; }
+.huong-dan-content h2 { margin-top: 0; }
+.huong-dan-content h3 { margin: 18px 0 6px; }
+.huong-dan-content p { line-height: 1.6; }
+.huong-dan-content ul, .huong-dan-content ol { line-height: 1.6; padding-left: 22px; }
+.huong-dan-content code { background: var(--bg); padding: 1px 5px; border-radius: 3px; font-size: 12.5px; }
+.huong-dan-see-also { margin-top: 20px; padding: 10px 14px; background: var(--bg); border-radius: 6px; font-size: 13px; color: var(--ink-soft); }
+@media (max-width: 720px) {
+  .huong-dan-layout { flex-direction: column; }
+  .huong-dan-nav { flex: none; width: 100%; }
+}

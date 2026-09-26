@@ -17,7 +17,8 @@ const NAV = [
   { path: '/stats', label: 'Top truy vấn', icon: '📈', menuCode: 'stats' },
   { path: '/audit-log', label: 'Nhật ký thao tác', icon: '📜', menuCode: 'audit-log' },
   { path: '/admin-users', label: 'Tài khoản quản trị', icon: '🔐', menuCode: 'users' },
-  { path: '/roles', label: 'Vai trò', icon: '🛡️', menuCode: 'roles' }
+  { path: '/roles', label: 'Vai trò', icon: '🛡️', menuCode: 'roles' },
+  { path: '/huong-dan', label: 'Hướng dẫn', icon: '❓', menuCode: 'huong-dan' }
 ];
 
 export default function Layout() {

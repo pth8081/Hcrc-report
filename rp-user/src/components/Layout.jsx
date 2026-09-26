@@ -21,7 +21,8 @@ const ICONS = {
   'system-email-settings': '✉️',
   'system-email-schedules': '⏱️',
   'system-anomaly-alerts': '⚠️',
-  'system-hcrc-workspace': '🔗'
+  'system-hcrc-workspace': '🔗',
+  'huong-dan': '❓'
 };
 function iconFor(code) { return ICONS[code] || '📄'; }
 

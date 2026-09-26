@@ -20,6 +20,43 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 6.91 — Module "Hướng dẫn" (cấu hình báo cáo theo nghiệp vụ) cho cả 3 trang quản trị
+
+Thêm module "Hướng dẫn" cho `etl-admin`, `api-admin`, `rp-user` — tham khảo
+giao diện "HCRC Workspace" (VPĐT): 2 cột, danh mục nhóm bên trái (icon +
+nhãn, chia theo nhóm) và nội dung bên phải. Nội dung viết CỨNG trong code
+(không CMS/CRUD), mỗi trang CHỈ chứa hướng dẫn đúng nghiệp vụ của trang đó
+(không lặp lại nội dung của 2 trang kia):
+
+- `etl-admin` — hướng dẫn CHUẨN BỊ DỮ LIỆU NGUỒN: khai nguồn dữ liệu, tạo
+  job "Theo bảng", theo dõi đồng bộ, nhập chỉ tiêu, ánh xạ Điểm - STK_ID,
+  danh sách hàng Core, nhật ký thao tác, phân quyền & vai trò.
+- `api-admin` — hướng dẫn PHỤC VỤ DỮ LIỆU REALTIME: kết nối dữ liệu,
+  endpoint đọc/ghi, quản lý đối tác & bảo mật (HMAC/rate-limit), giám sát
+  (Live/Lịch sử/Thống kê), nhật ký & phân quyền.
+- `rp-user` — hướng dẫn TẠO/XEM BÁO CÁO: các loại nguồn báo cáo (directDb/
+  composite/apiReport/apiRealtime/tồn kho=0), báo cáo tự do, biểu đồ/
+  dashboard/cảnh báo bất thường, lịch gửi email, xuất Excel/PDF, phân
+  quyền & vai trò.
+
+**Phân quyền xem**: mục mới gắn `MenuCode` `huong-dan`, đi qua đúng cơ chế
+phân quyền menu đã có sẵn của từng trang (`admin.RoleMenuAccess` ở etl/api,
+`app.RoleMenuAccess` ở rp-user) — mặc định KHÔNG tự cấp cho vai trò nào
+(trừ vai trò hệ thống `admin`/`IsSystemRole`, luôn thấy mọi menu); DBA tự
+cấp quyền Xem cho vai trò cần thiết ở trang "Vai trò"/"Phân quyền".
+
+- `etl/routes/admin/roles.js`, `api-server/routes/admin/roles.js` — thêm
+  `huong-dan` vào `MENU_CATALOG`.
+- `rp-db/schema.sql` — thêm dòng `app.MenuItems` mới cho `huong-dan`.
+- `etl-admin/src/pages/HuongDanPage.jsx`, `api-admin/src/pages/HuongDanPage.jsx`,
+  `rp-user/src/modules/huong-dan/HuongDanPage.jsx` (mới) + CSS
+  `.huong-dan-*` dùng chung kiểu dáng ở cả 3 trang + wiring nav/route/
+  landing-order.
+
+Đã build sạch cả 3 frontend (vite) và render thử `HuongDanPage.jsx` (SSR +
+Chromium) để xác nhận layout đúng ý (danh mục nhóm bên trái có icon, nội
+dung bên phải, trạng thái đang chọn tô sáng).
+
 ## 6.90 — Khớp đầy đủ cột "Core stock = 0" với file mẫu Excel + tách tài liệu triển khai riêng từng báo cáo
 
 Người dùng đối chiếu báo cáo bản 6.89 với file mẫu `Stock_Core_....xlsx` thật

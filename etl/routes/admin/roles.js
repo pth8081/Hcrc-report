@@ -31,7 +31,8 @@ const MENU_CATALOG = [
   { code: 'log', label: 'Nhật ký đồng bộ' },
   { code: 'audit-log', label: 'Nhật ký thao tác' },
   { code: 'users', label: 'Phân quyền' },
-  { code: 'roles', label: 'Vai trò' }
+  { code: 'roles', label: 'Vai trò' },
+  { code: 'huong-dan', label: 'Hướng dẫn' }
 ];
 
 async function assertNotSystemRole(pool, roleId, res) {

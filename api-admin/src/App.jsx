@@ -14,6 +14,7 @@ import StatsPage from './pages/StatsPage';
 import AuditLogPage from './pages/AuditLogPage';
 import AdminUsersPage from './pages/AdminUsersPage';
 import RolesPage from './pages/RolesPage';
+import HuongDanPage from './pages/HuongDanPage';
 import AccountPage from './pages/AccountPage';
 
 // Vai trò hẹp không thấy "/consumers" trong menu (xem components/Layout.jsx)
@@ -22,7 +23,7 @@ import AccountPage from './pages/AccountPage';
 // (mirror routes/admin/roles.js MENU_CATALOG) — trước đây thiếu
 // realtime-endpoints/realtime-write-endpoints/report-catalog/roles, cùng
 // lỗi đã sửa bên etl-admin (xem chú thích tương tự trong etl-admin/src/App.jsx).
-const LANDING_ORDER = ['consumers', 'data-sources', 'realtime-endpoints', 'realtime-write-endpoints', 'report-catalog', 'live', 'history', 'stats', 'audit-log', 'users', 'roles'];
+const LANDING_ORDER = ['consumers', 'data-sources', 'realtime-endpoints', 'realtime-write-endpoints', 'report-catalog', 'live', 'history', 'stats', 'audit-log', 'users', 'roles', 'huong-dan'];
 
 function IndexRedirect() {
   const { can } = useAuth();
@@ -49,6 +50,7 @@ export default function App() {
           <Route path="/audit-log" element={<AuditLogPage />} />
           <Route path="/admin-users" element={<AdminUsersPage />} />
           <Route path="/roles" element={<RolesPage />} />
+          <Route path="/huong-dan" element={<HuongDanPage />} />
           <Route path="/account" element={<AccountPage />} />
         </Route>
       </Routes>
