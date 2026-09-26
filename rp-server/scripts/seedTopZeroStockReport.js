@@ -3,19 +3,20 @@
 // trong app.ReportCatalog — thay cho việc dán tay DefinitionJson qua rp-user
 // (Hệ thống → Biểu mẫu). Xem đầy đủ giải thích công thức + hướng dẫn tạo 2
 // VIEW/job đồng bộ bắt buộc (banhang_sku/tonkho_sku) + 4 VIEW/job tuỳ chọn
-// "Chờ nhập"/"Đã nhập" ở hướng_dẫn_báo_cáo.md mục 12. Chạy LẠI file này an
-// toàn — khớp theo ReportId để UPDATE DefinitionJson thay vì tạo trùng.
+// "Chờ nhập"/"Đã nhập" ở bc-ton-kho-0.md (hướng dẫn triển khai riêng cho
+// báo cáo này). Chạy LẠI file này an toàn — khớp theo ReportId để UPDATE
+// DefinitionJson thay vì tạo trùng.
 //
 // LƯU Ý QUAN TRỌNG — chạy script này KHÔNG đủ để báo cáo CÓ SỐ LIỆU: đây
 // chỉ là bước tạo "khung" báo cáo trong app.ReportCatalog. Báo cáo chỉ thật
 // sự chạy được sau khi:
 //   1. DBA tạo 2 VIEW bắt buộc (dbo.vw_BanHangTheoSKU, dbo.vw_TonKhoTheoSKU)
-//      trên CSDL DSMART16 — xem mục 12 Bước 1.
+//      trên CSDL DSMART16 — xem bc-ton-kho-0.md Bước 1.
 //   2. Admin etl-admin tạo 2 job "Theo bảng" trỏ đúng 2 VIEW đó, domain
-//      "banhang_sku"/"tonkho_sku", BẬT "Giữ lịch sử theo ngày" — xem mục 12
-//      Bước 2.
+//      "banhang_sku"/"tonkho_sku", BẬT "Giữ lịch sử theo ngày" — xem
+//      bc-ton-kho-0.md Bước 2.
 //   3. (Tuỳ chọn) lặp lại bước 1+2 cho 4 VIEW/job "Chờ nhập"/"Đã nhập" nếu
-//      muốn có 4 cột tham khảo đó — xem mục 12 Bước 2b.
+//      muốn có 4 cột tham khảo đó — xem bc-ton-kho-0.md Bước 2b.
 // Không có 2 job bắt buộc chạy trước, báo cáo sẽ luôn trả về rỗng (không
 // lỗi, không có dữ liệu để tính) — xem lib/topSellingZeroStockRunner.js.
 //
@@ -35,9 +36,9 @@ const { sql, getPool } = require('../db');
 const REPORT_ID = 'bc-ton-kho-0';
 const TITLE = 'Top bán chạy đang tồn kho = 0';
 
-// Khớp CHÍNH XÁC tên domain đã thống nhất ở hướng_dẫn_báo_cáo.md mục 12 —
-// admin đặt tên domain khác lúc tạo job etl-admin thì phải sửa lại đúng
-// tương ứng ở đây (hoặc sửa domain job cho khớp tên dưới đây).
+// Khớp CHÍNH XÁC tên domain đã thống nhất ở bc-ton-kho-0.md — admin đặt tên
+// domain khác lúc tạo job etl-admin thì phải sửa lại đúng tương ứng ở đây
+// (hoặc sửa domain job cho khớp tên dưới đây).
 function buildDefinition() {
   return {
     title: TITLE,
@@ -125,7 +126,7 @@ async function main() {
   console.log('   2. Báo cáo CHƯA CÓ SỐ LIỆU cho tới khi tạo xong 2 VIEW (vw_BanHangTheoSKU,');
   console.log('      vw_TonKhoTheoSKU) trên DSMART16 + 2 job "Theo bảng" domain banhang_sku/');
   console.log('      tonkho_sku (BẬT "Giữ lịch sử theo ngày") ở etl-admin — xem');
-  console.log('      hướng_dẫn_báo_cáo.md mục 12, Bước 1+2.');
+  console.log('      bc-ton-kho-0.md, Bước 1+2.');
   process.exit(0);
 }
 

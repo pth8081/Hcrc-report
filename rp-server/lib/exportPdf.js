@@ -70,9 +70,10 @@ async function exportPdf(definition, rows) {
   const groups = definition.columnGroups || [];
   const hasGroups = groups.length > 0;
 
-  // Nhiều cột (báo cáo có columnGroups) thì dùng trang NGANG cho đủ chỗ —
-  // báo cáo phẳng cũ (ít cột) giữ trang dọc như trước.
-  const PAGE_SIZE = hasGroups ? [841.89, 595.28] : [595.28, 841.89];
+  // Nhiều cột (báo cáo có columnGroups, HOẶC báo cáo phẳng nhưng khai nhiều
+  // cột tuỳ chọn — vd 'coreZeroStock' đủ domain tuỳ chọn ra tới 14 cột) thì
+  // dùng trang NGANG cho đủ chỗ — báo cáo ít cột giữ trang dọc như trước.
+  const PAGE_SIZE = (hasGroups || columns.length > 6) ? [841.89, 595.28] : [595.28, 841.89];
   const usableWidth = PAGE_SIZE[0] - MARGIN * 2;
 
   const weights = columns.map(c => c.width || 1);
@@ -85,10 +86,26 @@ async function exportPdf(definition, rows) {
   let page = pdfDoc.addPage(PAGE_SIZE);
   let y = PAGE_SIZE[1] - MARGIN;
 
+  // Cắt bớt (kèm "…") nếu chữ RỘNG HƠN cột — dữ liệu thật (tên chi nhánh/tên
+  // hàng dài) không tự xuống dòng như tiêu đề, trước đây vẽ NGUYÊN chữ bất
+  // kể độ rộng cột, tràn đè lên cột kế bên khi báo cáo nhiều cột hẹp (phát
+  // hiện lúc demo báo cáo "Core stock = 0", 13-14 cột).
+  function fitText(str, f, size, maxWidth) {
+    if (f.widthOfTextAtSize(str, size) <= maxWidth) return str;
+    const ELLIPSIS = '…';
+    let lo = 0, hi = str.length;
+    while (lo < hi) {
+      const mid = Math.ceil((lo + hi) / 2);
+      const candidate = str.slice(0, mid) + ELLIPSIS;
+      if (f.widthOfTextAtSize(candidate, size) <= maxWidth) lo = mid; else hi = mid - 1;
+    }
+    return lo > 0 ? str.slice(0, lo) + ELLIPSIS : ELLIPSIS;
+  }
+
   function drawCellText(text, cx, cw, cy, opts = {}) {
     const { bold = false, size = 8, align = 'left' } = opts;
     const f = bold ? boldFont : font;
-    const str = String(text ?? '').slice(0, 60);
+    const str = fitText(String(text ?? '').slice(0, 60), f, size, cw - 6);
     const textWidth = f.widthOfTextAtSize(str, size);
     let tx = cx + 3;
     if (align === 'right') tx = cx + cw - textWidth - 3;

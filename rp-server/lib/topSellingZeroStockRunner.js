@@ -21,14 +21,14 @@
 //      mặc định 0 — sửa được sau qua DefinitionJson mà KHÔNG cần đổi code).
 //   5. TUỲ CHỌN (định nghĩa qua DefinitionJson, KHÔNG hardcode bảng/điều
 //      kiện trạng thái trong code — DBA tự đặt trong VIEW nguồn, xem
-//      hướng_dẫn_báo_cáo.md mục 12): thêm 4 cột thông tin "Chờ nhập"/"Đã
+//      bc-ton-kho-0.md): thêm 4 cột thông tin "Chờ nhập"/"Đã
 //      nhập" (mỗi loại tách NCC/Điều chuyển) — đọc từ 4 domain riêng do
 //      người dùng CHỌN LÚC TẠO BÁO CÁO (pendingSupplierDomain/
 //      pendingTransferDomain/receivedSupplierDomain/receivedTransferDomain),
 //      KHÔNG ảnh hưởng tới việc xác định tồn=0 ở bước 3/4 — chỉ hiển thị
 //      thêm thông tin tham khảo.
 //
-// DefinitionJson bắt buộc: { salesDomain, stockDomain } — xem mục 12 cho
+// DefinitionJson bắt buộc: { salesDomain, stockDomain } — xem bc-ton-kho-0.md cho
 // mẫu VIEW + cấu hình job đầy đủ (2 job "Theo bảng", BẬT "Giữ lịch sử theo
 // ngày"). Tuỳ chọn: topN (mặc định 50), threshold (mặc định 0),
 // dataSourceId, và 4 domain "Chờ nhập"/"Đã nhập" nói trên (bỏ trống domain

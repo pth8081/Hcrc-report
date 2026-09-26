@@ -36,13 +36,13 @@ router.get('/', requireMenuEdit('core-item-list'), async (req, res, next) => {
   try {
     const pool = await getPool('ADMIN');
     const result = await pool.request().query(`
-      SELECT Id, LoaiDiem, MaHang, MH, TenHang, MaNganh, TenNganh, ImportedAt, ImportedBy
+      SELECT Id, LoaiDiem, MaHang, MH, TenHang, Dvt, MaNganh, TenNganh, ImportedAt, ImportedBy
       FROM etl.CoreItemList
       ORDER BY LoaiDiem, MaHang
     `);
     res.json(result.recordset.map(r => ({
       id: r.Id, loaiDiem: r.LoaiDiem, maHang: r.MaHang, mh: r.MH,
-      tenHang: r.TenHang, maNganh: r.MaNganh, tenNganh: r.TenNganh,
+      tenHang: r.TenHang, dvt: r.Dvt, maNganh: r.MaNganh, tenNganh: r.TenNganh,
       importedAt: r.ImportedAt, importedBy: r.ImportedBy
     })));
   } catch (err) { next(err); }
@@ -75,12 +75,12 @@ router.get('/export', requireMenuEdit('core-item-list'), async (req, res, next) 
   try {
     const pool = await getPool('ADMIN');
     const result = await pool.request().query(`
-      SELECT LoaiDiem, MaHang, MH, TenHang, MaNganh, TenNganh FROM etl.CoreItemList ORDER BY LoaiDiem, MaHang
+      SELECT LoaiDiem, MaHang, MH, TenHang, Dvt, MaNganh, TenNganh FROM etl.CoreItemList ORDER BY LoaiDiem, MaHang
     `);
     const rowsByLoaiDiem = {};
     for (const loaiDiem of Object.keys(LOAI_DIEM_TO_SHEET)) rowsByLoaiDiem[loaiDiem] = [];
     for (const r of result.recordset) {
-      rowsByLoaiDiem[r.LoaiDiem].push({ maHang: r.MaHang, mh: r.MH, tenHang: r.TenHang, maNganh: r.MaNganh, tenNganh: r.TenNganh });
+      rowsByLoaiDiem[r.LoaiDiem].push({ maHang: r.MaHang, mh: r.MH, tenHang: r.TenHang, dvt: r.Dvt, maNganh: r.MaNganh, tenNganh: r.TenNganh });
     }
     const buffer = await buildCoreItemListExport(rowsByLoaiDiem);
     sendXlsx(res, buffer, 'danh-sach-hang-core.xlsx');

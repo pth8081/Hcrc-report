@@ -94,7 +94,8 @@ export default function CoreItemListPage() {
         upload 1 lần có thể chỉ chứa 1 trong 2 sheet (sheet vắng mặt thì danh sách hiện tại của loại
         điểm đó GIỮ NGUYÊN, không bị xoá). Mỗi sheet: cột bắt buộc <code>MaHang</code> (khớp đúng mã
         hàng thật đang đồng bộ), cột tuỳ chọn <code>MH</code> (mã hàng/mã vạch nội bộ khác — chỉ để
-        đối chiếu), <code>TenHang</code>/<code>MaNganh</code>/<code>TenNganh</code> (tham khảo).
+        đối chiếu), <code>TenHang</code>/<code>Dvt</code>/<code>MaNganh</code>/<code>TenNganh</code>{' '}
+        (tham khảo) — đúng khuôn cột file "Stock_Core..." khách hàng vẫn dùng.
       </p>
       <p>
         <strong>Lưu ý quan trọng</strong>: mỗi lần nhập là <strong>THAY HẲN</strong> toàn bộ danh
@@ -148,6 +149,7 @@ export default function CoreItemListPage() {
           { key: 'maHang', label: 'Mã hàng' },
           { key: 'mh', label: 'MH (tham khảo)' },
           { key: 'tenHang', label: 'Tên hàng' },
+          { key: 'dvt', label: 'Đvt' },
           { key: 'maNganh', label: 'Mã ngành' },
           { key: 'tenNganh', label: 'Tên ngành' },
           { key: 'importedBy', label: 'Người nhập' },

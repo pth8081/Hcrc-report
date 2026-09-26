@@ -2,20 +2,21 @@
 // "Core stock = 0" (bc-core-ton-kho-0-mart / bc-core-ton-kho-0-minimart,
 // SourceType='coreZeroStock') trong app.ReportCatalog — TÁCH 2 báo cáo
 // riêng cho Mart/Minimart (xác nhận người dùng), thay vì 1 báo cáo + lọc.
-// Xem đầy đủ giải thích công thức + danh sách hàng Core ở
-// hướng_dẫn_báo_cáo.md mục 14. Chạy LẠI file này an toàn — khớp theo
-// ReportId để UPDATE DefinitionJson thay vì tạo trùng.
+// Xem đầy đủ giải thích công thức + danh sách hàng Core ở bc-core-ton-kho-0.md
+// (hướng dẫn triển khai riêng cho báo cáo này). Chạy LẠI file này an toàn —
+// khớp theo ReportId để UPDATE DefinitionJson thay vì tạo trùng.
 //
 // LƯU Ý QUAN TRỌNG — chạy script này KHÔNG đủ để báo cáo CÓ SỐ LIỆU:
-//   1. Đã có 2 VIEW/job banhang_sku/tonkho_sku (mục 12 Bước 1+2, DÙNG CHUNG
-//      với báo cáo "Top bán chạy tồn kho=0" — KHÔNG cần tạo job riêng).
-//   2. Đã có job domain "doanhthu_chinhanh" (mục 1 Bước 1) với Dimensions
-//      "chain" (MART/MINIMART) — DÙNG LẠI để xác định STK_ID nào thuộc
-//      loại điểm nào, KHÔNG cần job/VIEW mới.
+//   1. Đã có 2 VIEW/job banhang_sku/tonkho_sku (DÙNG CHUNG với báo cáo "Top
+//      bán chạy tồn kho=0" bc-ton-kho-0.md — KHÔNG cần tạo job riêng).
+//   2. Đã có job domain "doanhthu_chinhanh" với Dimensions "chain"
+//      (MART/MINIMART) — DÙNG LẠI để xác định STK_ID nào thuộc loại điểm
+//      nào, KHÔNG cần job/VIEW mới.
 //   3. Admin đã upload danh sách hàng Core (etl-admin → "Danh sách hàng
 //      Core") cho đúng LoaiĐiểm — không upload thì báo cáo luôn trả rỗng.
-//   4. (Tuỳ chọn) job/domain "Khóa All"/"Khóa theo kho"/"SL đang đặt" nếu
-//      muốn loại hàng đang khoá / hiển thị SL đang đặt — xem mục 14.
+//   4. (Tuỳ chọn) job/domain "Khóa All"/"Khóa theo kho"/"SL đang đặt"/
+//      "Ngày nhập cuối" nếu muốn loại hàng đang khoá / hiển thị thêm cột
+//      tham khảo — xem bc-core-ton-kho-0.md.
 //
 // CHƯA gán quyền xem (Hệ thống → Phân quyền) — admin tự làm sau.
 //
@@ -29,12 +30,13 @@ const REPORTS = [
   { reportId: 'bc-core-ton-kho-0-minimart', loaiDiem: 'MINIMART', title: 'Core stock = 0 (Minimart)' }
 ];
 
-// Khớp CHÍNH XÁC tên domain đã dùng ở mục 12 (banhang_sku/tonkho_sku) và
-// mục 1 (doanhthu_chinhanh) — đổi tên domain khác lúc tạo job etl-admin thì
-// phải sửa lại đúng tương ứng ở đây. 3 domain tuỳ chọn (khoaAll/khoaTheoKho/
-// choDat) CHƯA có job thật nào — để sẵn tên quy ước, DBA/admin tự tạo VIEW/
-// job khi cần (xem mục 14) — không tạo thì báo cáo vẫn chạy bình thường,
-// chỉ là không lọc khoá/không có cột "SL đang đặt".
+// Khớp CHÍNH XÁC tên domain đã dùng ở bc-ton-kho-0.md (banhang_sku/
+// tonkho_sku) và hướng_dẫn_báo_cáo.md mục 1 (doanhthu_chinhanh) — đổi tên
+// domain khác lúc tạo job etl-admin thì phải sửa lại đúng tương ứng ở đây.
+// 4 domain tuỳ chọn (khoaAll/khoaTheoKho/choDat/ngayNhapCuoi) CHƯA có job
+// thật nào — để sẵn tên quy ước, DBA/admin tự tạo VIEW/job khi cần (xem
+// bc-core-ton-kho-0.md) — không tạo thì báo cáo vẫn chạy bình thường, chỉ
+// là không lọc khoá/không có các cột tham khảo tương ứng.
 function buildDefinition({ loaiDiem, title }) {
   return {
     title,
@@ -45,6 +47,7 @@ function buildDefinition({ loaiDiem, title }) {
     lockAllDomain: 'core_khoa_all',
     lockByStoreDomain: 'core_khoa_theo_kho',
     pendingOrderDomain: 'core_dang_dat',
+    lastReceivedDomain: 'core_ngay_nhap_cuoi',
     threshold: 0,
     filters: [
       {
@@ -112,8 +115,9 @@ async function main() {
   console.log('      KHÔNG tự gán quyền).');
   console.log('   2. Vào etl-admin → "Danh sách hàng Core", upload danh sách mặt hàng Core cho');
   console.log('      MỖI loại điểm (Mart/Minimart) — không upload thì báo cáo tương ứng luôn rỗng.');
-  console.log('   3. Cần đã có job banhang_sku/tonkho_sku (mục 12) + doanh thu chi nhánh có');
-  console.log('      Dimension "chain" (mục 1) — xem hướng_dẫn_báo_cáo.md mục 14.');
+  console.log('   3. Cần đã có job banhang_sku/tonkho_sku (bc-ton-kho-0.md) + doanh thu chi');
+  console.log('      nhánh có Dimension "chain" (hướng_dẫn_báo_cáo.md mục 1) — xem đầy đủ ở');
+  console.log('      bc-core-ton-kho-0.md.');
   process.exit(0);
 }
 

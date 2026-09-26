@@ -243,6 +243,7 @@ BEGIN
         MaHang      NVARCHAR(50)  NOT NULL,
         MH          NVARCHAR(50)  NULL,
         TenHang     NVARCHAR(300) NULL,
+        Dvt         NVARCHAR(50)  NULL,
         MaNganh     NVARCHAR(50)  NULL,
         TenNganh    NVARCHAR(200) NULL,
         ImportedAt  DATETIME2(3)  NOT NULL DEFAULT SYSUTCDATETIME(),
@@ -250,6 +251,14 @@ BEGIN
         CONSTRAINT UX_CoreItemList_LoaiDiem_MaHang UNIQUE (LoaiDiem, MaHang),
         CONSTRAINT CK_CoreItemList_LoaiDiem CHECK (LoaiDiem IN ('MART', 'MINIMART'))
     );
+END
+GO
+
+-- Nâng cấp từ bản 6.89 (bảng đã tồn tại nhưng thiếu cột Dvt — thêm sau khi
+-- đối chiếu file mẫu "Stock_Core_....xlsx" của khách hàng có cột "Đvt").
+IF COL_LENGTH('etl.CoreItemList', 'Dvt') IS NULL
+BEGIN
+    ALTER TABLE etl.CoreItemList ADD Dvt NVARCHAR(50) NULL;
 END
 GO
 

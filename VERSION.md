@@ -20,6 +20,61 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 6.90 — Khớp đầy đủ cột "Core stock = 0" với file mẫu Excel + tách tài liệu triển khai riêng từng báo cáo
+
+Người dùng đối chiếu báo cáo bản 6.89 với file mẫu `Stock_Core_....xlsx` thật
+đang dùng — bổ sung đủ các cột còn thiếu để khớp hoàn toàn, và tách 2 tài
+liệu hướng dẫn triển khai riêng cho IT/DBA thay vì gộp chung
+`hướng_dẫn_báo_cáo.md`.
+
+- `etl-db/schema.sql` — thêm cột `Dvt` (NVARCHAR, tuỳ chọn) vào
+  `etl.CoreItemList` (migration `IF COL_LENGTH ... IS NULL`).
+- `etl/lib/coreItemListImport.js` + `etl/routes/admin/coreItemList.js` +
+  `etl-admin/src/pages/CoreItemListPage.jsx` — thêm cột `Dvt` xuyên suốt:
+  parse/replace/template/export/API/UI.
+- `rp-server/lib/coreItemList.js` — thêm `Dvt` vào bản ghi tham khảo; thêm
+  `loadCoreItemListMap(loaiDiem)` (bản đầy đủ kèm mh/tenHang/dvt/maNganh/
+  tenNganh) để `coreZeroStockRunner.js` làm giàu từng dòng kết quả.
+- `rp-server/lib/coreZeroStockRunner.js` — bổ sung đủ cột khớp file mẫu:
+  **Mã điểm** (tra ngược qua "Ánh xạ Điểm - STK_ID" có sẵn, dùng lại
+  `lib/diemStkMapping.js`, để trống nếu kho chưa khai ánh xạ — không lỗi),
+  **Mã kho** (STK_ID thô, tách riêng khỏi Tên kho), **Đvt**/**Mã ngành**/
+  **Tên ngành** (từ danh sách Core), **Ngày bán cuối** (ngày gần nhất CÓ
+  bán, không giới hạn hôm nay — LUÔN hiển thị, không tuỳ chọn), **Ngày nhập
+  cuối** (domain tuỳ chọn mới `lastReceivedDomain`), **Mã đang đặt** (0/1,
+  tự suy ra từ "SL đang đặt" > 0, không cần domain riêng). Cột "Khóa All"/
+  "Khóa theo kho" CHỦ ĐÍCH không hiển thị lại (mặt hàng đang khoá đã bị loại
+  hẳn khỏi kết quả, đúng hành vi "Bỏ khóa" của file mẫu).
+- `rp-server/scripts/seedCoreZeroStockReports.js` — thêm cấu hình mặc định
+  `lastReceivedDomain: 'core_ngay_nhap_cuoi'`.
+- `rp-server/lib/exportPdf.js` — sửa lỗi CÓ THẬT phát hiện lúc demo báo cáo
+  13-14 cột: dữ liệu ô (khác tiêu đề cột, đã tự xuống dòng từ bản 6.88)
+  chưa từng bị giới hạn theo bề rộng cột thật — chữ dài (tên kho/tên hàng)
+  tràn đè lên cột kế bên. Thêm `fitText()` cắt bớt kèm "…" khi chữ rộng hơn
+  cột; đồng thời báo cáo phẳng (không `columnGroups`) có > 6 cột giờ tự
+  chuyển sang trang NGANG thay vì luôn trang dọc — cải thiện luôn cả báo
+  cáo "Top bán chạy tồn kho=0" (bản 6.87/6.88, tới 9 cột) dù không đổi gì ở
+  báo cáo đó.
+- **Tách tài liệu triển khai riêng từng báo cáo** (yêu cầu người dùng, quy
+  tắc áp dụng từ nay): mỗi báo cáo độc lập có 1 file `bc-<mã báo cáo>.md`
+  riêng, viết rõ ràng từng bước cho team IT/DBA thực hiện (mục "Việc cần
+  làm" theo thứ tự + ai làm, mẫu VIEW/job, tạo báo cáo, hỏi & đáp) — không
+  gộp chung `hướng_dẫn_báo_cáo.md` nữa:
+  - `bc-ton-kho-0.md` (mới) — tách từ mục 12 cũ.
+  - `bc-core-ton-kho-0.md` (mới) — viết lại từ mục 16 cũ, kèm bảng so khớp
+    cột đầy đủ với file mẫu Excel khách hàng (mục "So khớp với file mẫu
+    Excel").
+  - `hướng_dẫn_báo_cáo.md` mục 12/16 — thay bằng pointer ngắn sang 2 file
+    trên + ghi rõ quy tắc mới ngay tại mục 12.
+  - Sửa các tham chiếu "mục 12" còn sót trong code
+    (`seedTopZeroStockReport.js`, `topSellingZeroStockRunner.js`) trỏ sang
+    `bc-ton-kho-0.md`.
+- Test (fakeModule, xem scratchpad): cập nhật
+  `test-core-zerostock-integration.js` (thêm Mã điểm qua ánh xạ giả lập,
+  Đvt/Mã ngành/Tên ngành, Ngày bán cuối/Ngày nhập cuối, Mã đang đặt) và
+  `test-coreItemListImport.js` (Dvt round-trip) — tất cả pass, không
+  regression `test-topzerostock-integration.js`.
+
 ## 6.89 — Báo cáo "Core stock = 0" — danh sách hàng Core cố định, tách riêng Mart/Minimart
 
 Tính năng MỚI theo yêu cầu người dùng (kèm file mẫu `Stock_Core_...xlsx`):

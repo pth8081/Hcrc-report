@@ -16,8 +16,9 @@
 // Mỗi sheet: dòng 1 header — MH (TUỲ CHỌN, mã hàng/mã vạch nội bộ khác theo
 // file nguồn DSMART16 — CHỈ lưu để đối chiếu, KHÔNG dùng để lọc dữ liệu),
 // MaHang (BẮT BUỘC — khớp ĐÚNG giá trị Dimensions.MaHangHienThi đã đồng bộ ở
-// domain banhang_sku/tonkho_sku, xem hướng_dẫn_báo_cáo.md mục 12/14), TenHang/
-// MaNganh/TenNganh (TUỲ CHỌN, chỉ để tham khảo/đối chiếu khi xem danh sách).
+// domain banhang_sku/tonkho_sku, xem bc-core-ton-kho-0.md), TenHang/Dvt/
+// MaNganh/TenNganh (TUỲ CHỌN, chỉ để tham khảo/đối chiếu khi xem danh sách —
+// khớp đúng tên cột trong file mẫu "Stock_Core_....xlsx" của khách hàng).
 const ExcelJS = require('exceljs');
 const { sql } = require('../db');
 const { guardZipBombSize } = require('./fileSignature');
@@ -37,7 +38,7 @@ function parseSheet(sheet, loaiDiem) {
     throw new Error(`Sheet "${sheet.name}" thiếu cột bắt buộc "MaHang"`);
   }
   const col = {};
-  for (const name of ['MH', 'MaHang', 'TenHang', 'MaNganh', 'TenNganh']) {
+  for (const name of ['MH', 'MaHang', 'TenHang', 'Dvt', 'MaNganh', 'TenNganh']) {
     col[name] = headers.indexOf(name);
   }
 
@@ -52,9 +53,10 @@ function parseSheet(sheet, loaiDiem) {
     const mh = str(cell(col.MH));
     const maHang = str(cell(col.MaHang));
     const tenHang = str(cell(col.TenHang));
+    const dvt = str(cell(col.Dvt));
     const maNganh = str(cell(col.MaNganh));
     const tenNganh = str(cell(col.TenNganh));
-    if (!mh && !maHang && !tenHang && !maNganh && !tenNganh) return; // dòng trống bỏ qua
+    if (!mh && !maHang && !tenHang && !dvt && !maNganh && !tenNganh) return; // dòng trống bỏ qua
 
     if (!maHang) { rowErrors.push(`Sheet "${sheet.name}" dòng ${rowNumber}: thiếu MaHang`); return; }
     if (seenInSheet.has(maHang)) { rowErrors.push(`Sheet "${sheet.name}" dòng ${rowNumber}: MaHang "${maHang}" đã xuất hiện ở dòng khác trong CHÍNH sheet này`); return; }
@@ -65,6 +67,7 @@ function parseSheet(sheet, loaiDiem) {
       maHang,
       mh: mh || null,
       tenHang: tenHang || null,
+      dvt: dvt || null,
       maNganh: maNganh || null,
       tenNganh: tenNganh || null
     });
@@ -132,9 +135,9 @@ async function replaceCoreItemList(pool, rowsByLoaiDiem, importedBy) {
       for (let i = 0; i < rows.length; i += CORE_ITEM_INSERT_BATCH_SIZE) {
         const chunk = rows.slice(i, i + CORE_ITEM_INSERT_BATCH_SIZE);
         if (!chunk.length) continue;
-        const values = chunk.map(r => `(${sqlNStr(r.loaiDiem)}, ${sqlNStr(r.maHang)}, ${sqlNStrOrNull(r.mh)}, ${sqlNStrOrNull(r.tenHang)}, ${sqlNStrOrNull(r.maNganh)}, ${sqlNStrOrNull(r.tenNganh)}, ${importedBy ? sqlNStr(importedBy) : 'NULL'})`).join(',\n');
+        const values = chunk.map(r => `(${sqlNStr(r.loaiDiem)}, ${sqlNStr(r.maHang)}, ${sqlNStrOrNull(r.mh)}, ${sqlNStrOrNull(r.tenHang)}, ${sqlNStrOrNull(r.dvt)}, ${sqlNStrOrNull(r.maNganh)}, ${sqlNStrOrNull(r.tenNganh)}, ${importedBy ? sqlNStr(importedBy) : 'NULL'})`).join(',\n');
         await new sql.Request(tx).query(`
-          INSERT INTO etl.CoreItemList (LoaiDiem, MaHang, MH, TenHang, MaNganh, TenNganh, ImportedBy)
+          INSERT INTO etl.CoreItemList (LoaiDiem, MaHang, MH, TenHang, Dvt, MaNganh, TenNganh, ImportedBy)
           VALUES ${values};
         `);
       }
@@ -154,7 +157,7 @@ async function buildWorkbook(sheetsData) {
   const workbook = new ExcelJS.Workbook();
   for (const { sheetName, dataRows } of sheetsData) {
     const sheet = workbook.addWorksheet(sheetName);
-    const headerRow = sheet.addRow(['MH', 'MaHang', 'TenHang', 'MaNganh', 'TenNganh']);
+    const headerRow = sheet.addRow(['MH', 'MaHang', 'TenHang', 'Dvt', 'MaNganh', 'TenNganh']);
     headerRow.font = { bold: true };
     for (const row of dataRows) sheet.addRow(row);
     sheet.columns.forEach((col) => { col.width = 24; });
@@ -165,15 +168,15 @@ async function buildWorkbook(sheetsData) {
 // Mã "VIDU" — XOÁ trước khi nhập.
 async function buildCoreItemListTemplate() {
   return buildWorkbook([
-    { sheetName: 'Core Mart', dataRows: [['293279690000', 'VIDU2005327969', 'Tên hàng ví dụ', '2005', 'Mỹ phẩm (Cosmetic) - XOÁ dòng này trước khi nhập']] },
-    { sheetName: 'Core Minimart', dataRows: [['292065170000', 'VIDU2002206517', 'Tên hàng ví dụ', '2002', 'Đồ uống, thuốc lá (Beverage and Tobacco) - XOÁ dòng này trước khi nhập']] }
+    { sheetName: 'Core Mart', dataRows: [['293279690000', 'VIDU2005327969', 'Tên hàng ví dụ', 'Cái', '2005', 'Mỹ phẩm (Cosmetic) - XOÁ dòng này trước khi nhập']] },
+    { sheetName: 'Core Minimart', dataRows: [['292065170000', 'VIDU2002206517', 'Tên hàng ví dụ', 'Chai', '2002', 'Đồ uống, thuốc lá (Beverage and Tobacco) - XOÁ dòng này trước khi nhập']] }
   ]);
 }
 
 function buildCoreItemListExport(rowsByLoaiDiem) {
   const sheetsData = Object.entries(LOAI_DIEM_TO_SHEET).map(([loaiDiem, sheetName]) => ({
     sheetName,
-    dataRows: (rowsByLoaiDiem[loaiDiem] || []).map(r => [r.mh || '', r.maHang, r.tenHang || '', r.maNganh || '', r.tenNganh || ''])
+    dataRows: (rowsByLoaiDiem[loaiDiem] || []).map(r => [r.mh || '', r.maHang, r.tenHang || '', r.dvt || '', r.maNganh || '', r.tenNganh || ''])
   }));
   return buildWorkbook(sheetsData);
 }

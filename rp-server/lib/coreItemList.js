@@ -17,20 +17,21 @@
 const { getPool } = require('../db');
 
 const CACHE_TTL_MS = 60 * 1000;
-let cache = null; // { expiresAt, byLoaiDiem: Map<loaiDiem, Map<maHang, {mh, tenHang, maNganh, tenNganh}>> }
+let cache = null; // { expiresAt, byLoaiDiem: Map<loaiDiem, Map<maHang, {mh, tenHang, dvt, maNganh, tenNganh}>> }
 
 async function loadCoreItemList() {
   if (cache && cache.expiresAt > Date.now()) return cache.byLoaiDiem;
 
   try {
     const pool = await getPool('ETL_DIEM_STK');
-    const result = await pool.request().query('SELECT LoaiDiem, MaHang, MH, TenHang, MaNganh, TenNganh FROM etl.CoreItemList');
+    const result = await pool.request().query('SELECT LoaiDiem, MaHang, MH, TenHang, Dvt, MaNganh, TenNganh FROM etl.CoreItemList');
     const byLoaiDiem = new Map();
     for (const r of result.recordset) {
       if (!byLoaiDiem.has(r.LoaiDiem)) byLoaiDiem.set(r.LoaiDiem, new Map());
       byLoaiDiem.get(r.LoaiDiem).set(r.MaHang, {
         mh: r.MH || null,
         tenHang: r.TenHang || null,
+        dvt: r.Dvt || null,
         maNganh: r.MaNganh || null,
         tenNganh: r.TenNganh || null
       });
@@ -52,4 +53,14 @@ async function loadCoreMaHangSet(loaiDiem) {
   return forLoaiDiem ? new Set(forLoaiDiem.keys()) : new Set();
 }
 
-module.exports = { loadCoreItemList, loadCoreMaHangSet };
+// Bản đầy đủ (kèm mh/tenHang/dvt/maNganh/tenNganh) của 1 LoaiDiem cụ thể —
+// dùng để LÀM GIÀU mỗi dòng kết quả trong lib/coreZeroStockRunner.js (hiển
+// thị thêm Đvt/Mã ngành/Tên ngành, khớp đúng khuôn cột file mẫu
+// "Stock_Core_....xlsx" của khách hàng) — khác loadCoreMaHangSet() chỉ trả
+// về Set để LỌC, không mang theo dữ liệu tham khảo.
+async function loadCoreItemListMap(loaiDiem) {
+  const byLoaiDiem = await loadCoreItemList();
+  return byLoaiDiem.get(loaiDiem) || new Map();
+}
+
+module.exports = { loadCoreItemList, loadCoreMaHangSet, loadCoreItemListMap };
