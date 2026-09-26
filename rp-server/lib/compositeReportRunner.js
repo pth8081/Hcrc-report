@@ -48,6 +48,24 @@
 //                           // sánh CHUỖI, an toàn với select trả string) —
 //                           // dùng cho "chế độ xem" tuỳ chọn ẩn bớt khối so
 //                           // sánh, xem seedLdtdHcrcReports.js.
+//   requireStkStability,    // directDb: TUỲ CHỌN, mặc định false — dùng cho
+//                           // domain KHÔNG bật useDiemStkMapping (entityCode
+//                           // đã đúng = mã Điểm/BU_ID ngay từ nguồn, vd
+//                           // giaodich_chinhanh — xem etl/lib/tableSyncEngine.js)
+//                           // nhưng vẫn cần áp đúng nghiệp vụ: mã Điểm nào có
+//                           // "Ánh xạ Điểm - STK_ID" khai MaStkCu KHÁC
+//                           // MaStkMoi (đã đổi kho — đóng cửa/mở lại) thì bị
+//                           // LOẠI KHỎI khối này (coi như "không có dữ liệu"),
+//                           // DÙ nguồn thô (TRANSHDR) vẫn có số liên tục theo
+//                           // BU_ID — vì nghiệp vụ coi kho CŨ (kỳ so sánh) và
+//                           // kho MỚI (kỳ hiện tại) là 2 điểm bán KHÁC NHAU,
+//                           // không được so sánh chung (người dùng xác nhận
+//                           // rõ: "nếu mã STK cũ và mới khác nhau thì siêu thị
+//                           // không có doanh thu/giao dịch cùng kỳ"). Mã Điểm
+//                           // KHÔNG có dòng khai Ánh xạ Điểm-STK cũng bị loại
+//                           // (không đủ thông tin để khẳng định ổn định) —
+//                           // dùng cho khối "cùng kỳ năm trước" của domain
+//                           // giaodich_chinhanh, xem lib/diemStkMapping.js:stkListsMatch.
 // }]
 // definition.columns[].hideWhen — TUỲ CHỌN {field, equals}, CÙNG cơ chế như
 // block.skipWhen ở trên — ẨN HẲN cột đó khỏi describeColumns()/dòng kết quả
@@ -171,7 +189,7 @@ const { runReport, describeColumns } = require('./reportEngine');
 const { runApiReport } = require('./apiReportClient');
 const { evaluateFormula } = require('./formulaEngine');
 const { runSalesTargetsBlockRange } = require('./salesTargetsReader');
-const { loadDiemStkMapping, remapRowsToDiem } = require('./diemStkMapping');
+const { loadDiemStkMapping, remapRowsToDiem, stkListsMatch } = require('./diemStkMapping');
 
 function formatDateISO(d) {
   return d.toISOString().slice(0, 10);
@@ -271,9 +289,18 @@ async function runBlock(block, requestedRange, filterValues) {
     const blockFilterValues = { ...filterValues, eventDate: eventDateRange };
     const rawRows = await runReport(pool, blockDefinition, blockFilterValues, { page: 1, pageSize: 5000 });
     const stkRows = aggregateDailyRowsByEntity(rawRows, eventDateRange.to);
-    if (!block.useDiemStkMapping) return stkRows;
-    const diemMapping = await loadDiemStkMapping();
-    return remapRowsToDiem(stkRows, diemMapping, years < 0);
+    if (block.useDiemStkMapping) {
+      const diemMapping = await loadDiemStkMapping();
+      return remapRowsToDiem(stkRows, diemMapping, years < 0);
+    }
+    if (block.requireStkStability) {
+      const diemMapping = await loadDiemStkMapping();
+      return stkRows.filter((row) => {
+        const info = diemMapping.get(row.entityCode);
+        return info && stkListsMatch(info.maStkCu, info.maStkMoi);
+      });
+    }
+    return stkRows;
   }
   if (block.sourceType === 'apiReport' || block.sourceType === 'apiRealtime') {
     // GIỚI HẠN ĐÃ BIẾT (xem chú thích đầu file): API ngoài chưa hiểu khoảng

@@ -95,4 +95,14 @@ function remapRowsToDiem(rows, diemMapping, useCu) {
   return out;
 }
 
-module.exports = { loadDiemStkMapping, remapRowsToDiem };
+// So sánh 2 danh sách mã kho (đã parseStkList) có PHẢI CÙNG 1 TẬP HỢP hay
+// không (không quan tâm thứ tự) — dùng để phát hiện mã Điểm nào ĐÃ đổi kho
+// (MaStkCu khác MaStkMoi) giữa 2 kỳ so sánh, xem
+// compositeReportRunner.js:block.requireStkStability.
+function stkListsMatch(a, b) {
+  if (a.length !== b.length) return false;
+  const setB = new Set(b);
+  return a.every(v => setB.has(v));
+}
+
+module.exports = { loadDiemStkMapping, remapRowsToDiem, stkListsMatch };

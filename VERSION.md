@@ -20,6 +20,42 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 6.85 — Ẩn "Cùng kỳ Giao dịch" cho mã Điểm đã đổi mã kho (STK cũ ≠ STK mới)
+
+Người dùng làm rõ thêm nghiệp vụ: mã kho (STK) mới thể hiện đúng nhất giao
+dịch/doanh thu của 1 điểm bán — khi 1 điểm đóng cửa/mở lại dưới mã kho MỚI
+khác mã kho CŨ, giao dịch của kỳ trước (thuộc kho CŨ) và kỳ này (thuộc kho
+MỚI) là 2 điểm bán KHÁC NHAU dù chung mã Điểm (BU_ID), không được so sánh
+"cùng kỳ năm trước" chung với nhau.
+
+Trước bản này: domain `giaodich_chinhanh` (Giao dịch) giữ nguyên BU_ID làm
+EntityCode (đúng, xem bản 6.83 — nguồn `TRANSHDR` không có cột mã kho để
+remap) NHƯNG khối "Cùng kỳ năm trước" của Giao dịch vẫn hiện số bình thường
+cho MỌI mã Điểm, kể cả mã đã đổi kho — vì `TRANSHDR` vẫn ghi liên tục theo
+BU_ID không đổi, dù về nghiệp vụ đây là 2 điểm bán khác nhau.
+
+- `rp-server/lib/diemStkMapping.js` — thêm hàm `stkListsMatch(a, b)` — so
+  sánh 2 danh sách mã kho có phải CÙNG 1 TẬP HỢP hay không (không quan tâm
+  thứ tự).
+- `rp-server/lib/compositeReportRunner.js` — thêm cờ block tuỳ chọn (mặc
+  định tắt) `requireStkStability` — dùng cho domain KHÔNG bật
+  `useDiemStkMapping` (entityCode đã đúng = mã Điểm ngay từ nguồn): loại
+  HẲN dữ liệu của khối này cho mã Điểm nào có "Ánh xạ Điểm - STK_ID" khai
+  `MaStkCu` KHÁC `MaStkMoi` (đã đổi kho), hoặc KHÔNG có dòng khai — dù
+  nguồn thô vẫn có số liên tục theo BU_ID.
+- `rp-server/scripts/seedLdtdHcrcReports.js` — bật `requireStkStability:
+  true` cho khối `lastYearGD` (Cùng kỳ Giao dịch) của cả 2 báo cáo LDTD/
+  HCRC; khối `currentGD` (Giao dịch hiện tại) giữ nguyên không đổi.
+
+Đã kiểm thử (fakeModule, chạy THẬT `runCompositeReport()`): mã Điểm có
+`MaStkCu` khác `MaStkMoi` bị loại đúng cột "Cùng kỳ năm 2025"/"Tỷ lệ % LFL"
+của Giao dịch (trống, không phải 0), mã Điểm không đổi kho vẫn hiện số như
+trước — không ảnh hưởng cột Giao dịch hiện tại hay Doanh thu.
+
+**Cần làm trên server sau bản này**: chạy lại
+`node rp-server/scripts/seedLdtdHcrcReports.js` để áp cờ mới vào 2 báo cáo
+hiện có.
+
 ## 6.84 — Loại hẳn mã Điểm chưa khai "Ánh xạ Điểm - STK_ID" khỏi báo cáo LDTD/HCRC
 
 Theo yêu cầu người dùng: mã Điểm CÓ trong file chỉ tiêu (và CÓ dữ liệu Giao

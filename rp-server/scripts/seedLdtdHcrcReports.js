@@ -55,15 +55,25 @@ function buildDefinition(title, targetDomain) {
       //
       // Domain giao dịch chi nhánh thì KHÔNG dùng useDiemStkMapping (khác
       // doanh thu) — nguồn TRANSHDR vốn đã ở granularity BU_ID (không có
-      // STK_ID), và từ khi bỏ tính năng "Ánh xạ mã chi nhánh" (etl.BranchCodeMap,
-      // xem VERSION.md), EntityCode của domain này giữ NGUYÊN BU_ID gốc lúc
-      // đồng bộ (etl/lib/tableSyncEngine.js) — BU_ID CHÍNH LÀ mã Điểm rồi,
-      // không cần remap gì thêm, và cùng kỳ năm trước tự đúng vì BU_ID không
-      // đổi qua thời gian (khác STK_ID có thể đổi khi đóng/mở lại siêu thị).
+      // STK_ID để remap), và từ khi bỏ tính năng "Ánh xạ mã chi nhánh"
+      // (etl.BranchCodeMap, xem VERSION.md), EntityCode của domain này giữ
+      // NGUYÊN BU_ID gốc lúc đồng bộ (etl/lib/tableSyncEngine.js) — BU_ID
+      // CHÍNH LÀ mã Điểm rồi, không cần remap gì thêm cho khối "hiện tại".
+      //
+      // NHƯNG khối "cùng kỳ năm trước" (lastYearGD) KHÔNG được coi TRANSHDR
+      // là tự động đúng chỉ vì BU_ID không đổi — người dùng xác nhận: mã kho
+      // (STK) mới thể hiện đúng nhất giao dịch/doanh thu của 1 điểm; khi 1
+      // điểm đóng cửa/mở lại dưới mã kho MỚI khác mã kho CŨ, giao dịch của kỳ
+      // trước (thuộc kho CŨ) và kỳ này (thuộc kho MỚI) là 2 điểm bán KHÁC
+      // NHAU dù chung BU_ID — không được hiện "Cùng kỳ" trong trường hợp đó,
+      // dù TRANSHDR vẫn có số liên tục theo BU_ID. requireStkStability: true
+      // tự loại đúng những mã Điểm này khỏi khối lastYearGD dựa vào "Ánh xạ
+      // Điểm - STK_ID" (MaStkCu khác MaStkMoi -> loại), xem
+      // lib/compositeReportRunner.js.
       { key: 'current', sourceType: 'directDb', domain: DOMAIN, useDiemStkMapping: true },
       { key: 'currentGD', sourceType: 'directDb', domain: 'giaodich_chinhanh' },
       { key: 'lastYear', sourceType: 'directDb', domain: DOMAIN, dateOffsetYears: -1, useDiemStkMapping: true, skipWhen: { field: 'cheDoSoSanh', equals: 'past' } },
-      { key: 'lastYearGD', sourceType: 'directDb', domain: 'giaodich_chinhanh', dateOffsetYears: -1, skipWhen: { field: 'cheDoSoSanh', equals: 'past' } },
+      { key: 'lastYearGD', sourceType: 'directDb', domain: 'giaodich_chinhanh', dateOffsetYears: -1, requireStkStability: true, skipWhen: { field: 'cheDoSoSanh', equals: 'past' } },
       // targetGranularity: 'day' — 2 mẫu file chỉ tiêu thật (LDTD/HCRC) đều
       // là chỉ tiêu THEO NGÀY (xem etl/lib/salesTargetsImport.js), không
       // phải chỉ tiêu tháng chia đều — tra đúng ngày báo cáo thay vì gộp cả
