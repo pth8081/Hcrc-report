@@ -44,6 +44,15 @@ const {
 } = require('./reportFactsHelpers');
 const { loadCoreMaHangSet } = require('./coreItemList');
 
+// "Ngày đặt" chỉ mang ý nghĩa NGÀY (không có giờ) — EventDate từ SQL Server
+// trả về kèm giờ 00:00:00, để nguyên object Date thì Excel/PDF in ra cả
+// "Thu Sep 24 2026 00:00:00" (xem lib/exportPdf.js — không tự định dạng lại
+// Date), ở đây format sẵn thành "YYYY-MM-DD" cho dễ đọc.
+function formatDateOnly(value) {
+  if (!(value instanceof Date) || Number.isNaN(value.getTime())) return value;
+  return value.toISOString().slice(0, 10);
+}
+
 async function resolvePool(definition) {
   if (definition.dataSourceId) return getPoolForDataSource(definition.dataSourceId);
   return getPool('DWH');
@@ -131,7 +140,7 @@ async function runCoreZeroStockReport(definition, filterValues = {}) {
       tonKho: estimatedStock,
       ...(definition.pendingOrderDomain ? {
         slDangDat: pendingOrder ? pendingOrder.value : null,
-        ngayDat: pendingOrder ? pendingOrder.eventDate : null
+        ngayDat: pendingOrder ? formatDateOnly(pendingOrder.eventDate) : null
       } : {})
     });
   }
