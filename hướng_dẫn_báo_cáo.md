@@ -2008,3 +2008,149 @@ báo cáo, 2 danh sách người xem riêng — không tự động chia sẻ ch
 4. Đối chiếu đúng báo cáo LDTD đọc chỉ tiêu domain `sales-targets-ldtd`,
    báo cáo HCRC đọc `sales-targets-hcrc` (sửa thử 1 dòng chỉ tiêu ở 1
    trang, xác nhận báo cáo BÊN KIA KHÔNG đổi).
+
+## 16. Báo cáo "Core stock = 0" — dùng danh sách mặt hàng Core cố định, tách riêng Mart/Minimart
+
+Khác hẳn báo cáo "Top bán chạy đang tồn kho = 0" (mục 12, tự XẾP HẠNG top N
+mặt hàng bán chạy nhất mỗi chi nhánh): báo cáo này dùng ĐÚNG 1 danh sách mặt
+hàng **cố định** ("hàng Core" — mặt hàng BẮT BUỘC luôn phải có hàng) do admin
+tự khai/upload qua etl-admin, áp dụng CHUNG cho MỌI kho **cùng loại hình**
+(Mart hoặc Minimart) — KHÔNG khai riêng theo từng kho (xác nhận người dùng).
+Vì mỗi loại hình có ý nghĩa kinh doanh khác nhau, đây là **2 báo cáo riêng**
+(`bc-core-ton-kho-0-mart`/`bc-core-ton-kho-0-minimart`), không phải 1 báo
+cáo + bộ lọc.
+
+Công thức tính tồn kho ước tính hôm nay **DÙNG LẠI Y HỆT** công thức đã chốt
+ở mục 12 (Bước 4): Tồn ước tính hôm nay = Tồn cuối kỳ NGÀY HÔM QUA (dòng gần
+nhất TRƯỚC hôm nay) − Số lượng bán HÔM NAY, **KHÔNG cộng lại hàng nhập trong
+ngày**. 2 job/domain `banhang_sku`/`tonkho_sku` đã tạo ở mục 12 dùng lại
+NGUYÊN VẸN — KHÔNG cần tạo job riêng cho báo cáo này.
+
+### Bước 1 — etl-admin: khai danh sách hàng Core
+
+Vào **"Danh sách hàng Core"** (menu riêng, yêu cầu quyền Sửa cho MỌI thao
+tác kể cả xem — cùng nguyên tắc "Ánh xạ Điểm - STK_ID"), upload file `.xlsx`
+đúng 2 sheet tên cố định **"Core Mart"** và **"Core Minimart"** — sheet nào
+có trong file thì **THAY HẲN (replace)** toàn bộ danh sách của ĐÚNG loại
+điểm đó, sheet nào KHÔNG có trong file thì GIỮ NGUYÊN danh sách hiện tại của
+loại điểm kia (upload 1 sheet vẫn dùng được, không bắt buộc đủ cả 2 mỗi
+lần). Đây là điểm KHÁC quan trọng so với "Ánh xạ Điểm - STK_ID" (upsert cộng
+dồn theo khoá) — xoá 1 mã khỏi file rồi nhập lại nghĩa là mã đó KHÔNG CÒN
+thuộc diện Core nữa, không phải "quên khai".
+
+Mỗi sheet: cột **`MaHang`** (BẮT BUỘC — phải khớp ĐÚNG giá trị
+`Dimensions.MaHangHienThi` đã đồng bộ ở domain `banhang_sku`/`tonkho_sku`,
+xem mục 12 Bước 1 — đây là cột SKU_CODE hiển thị thật, KHÔNG phải mã nội bộ
+"MH"), cột **`MH`** (TUỲ CHỌN — mã hàng/mã vạch nội bộ khác theo file nguồn
+DSMART16, CHỈ lưu để đối chiếu, KHÔNG dùng để lọc dữ liệu vì ý nghĩa cột này
+chưa xác nhận được với DBA), `TenHang`/`MaNganh`/`TenNganh` (TUỲ CHỌN, chỉ
+tham khảo). Có nút "Tải file mẫu" và "Xuất tất cả (Excel)" — cùng kiểu file
+2 sheet như trên, giống tính năng tương tự ở "Ánh xạ Điểm - STK_ID".
+
+### Bước 2 — xác định STK_ID nào thuộc Mart/Minimart — DÙNG LẠI dimension "chain" có sẵn
+
+KHÔNG cần tạo job/VIEW mới: dùng lại NGUYÊN dimension `chain` (giá trị
+`MART`/`MINIMART`) đã có sẵn ở domain doanh thu chi nhánh (mục 1, Bước 1 —
+"Tick vào Dimensions ít nhất: `chain`") để biết mỗi STK_ID thuộc loại hình
+nào. Domain này khai qua `chainDomain` trong `DefinitionJson` (mặc định
+`doanhthu_chinhanh`) — đổi tên domain khác thì sửa lại tương ứng.
+
+### Bước 3 (TUỲ CHỌN) — Khóa All / Khóa theo kho / SL đang đặt — cấu hình được, KHÔNG hardcode
+
+Đúng nguyên tắc "Chờ nhập"/"Đã nhập" ở mục 12 Bước 2b — tên domain admin tự
+đặt lúc tạo job rồi điền vào `DefinitionJson`, code chỉ đọc đúng domain được
+khai, KHÔNG biết trước tên bảng/điều kiện gì (DBA tự sửa VIEW bằng `ALTER
+VIEW` khi cần, không đụng code/etl-admin):
+
+```sql
+-- "Khóa All"/"Khóa theo kho" — Measures = 1 nghĩa là ĐANG khoá (loại khỏi
+-- báo cáo), 0/NULL nghĩa là KHÔNG khoá. EventDate = ngày đồng bộ (snapshot
+-- tính lại mỗi lần chạy job, giống VIEW "Chờ nhập" ở mục 12).
+CREATE VIEW dbo.vw_KhoaAllTheoSKU AS
+SELECT
+    STK_ID + '_' + CAST(SKU_ID AS VARCHAR(50)) AS MaThucThe,
+    CAST(GETDATE() AS DATE) AS EventDate,
+    CASE WHEN LOCK_ALL_FLAG = 1 THEN 1 ELSE 0 END AS KhoaAll,  -- CHỈ VÍ DỤ — đối chiếu đúng cột với DBA
+    GETDATE() AS UpdatedAt
+FROM dbo.SKU_LOCK_INFO;
+
+CREATE VIEW dbo.vw_KhoaTheoKhoTheoSKU AS
+SELECT
+    STK_ID + '_' + CAST(SKU_ID AS VARCHAR(50)) AS MaThucThe,
+    CAST(GETDATE() AS DATE) AS EventDate,
+    CASE WHEN LOCK_BY_STORE_FLAG = 1 THEN 1 ELSE 0 END AS KhoaTheoKho,  -- CHỈ VÍ DỤ
+    GETDATE() AS UpdatedAt
+FROM dbo.SKU_LOCK_INFO;
+
+-- "SL đang đặt" — THAM KHẢO, KHÔNG ảnh hưởng việc lọc tồn=0. Ngày đặt lấy
+-- từ chính EventDate của dòng gần nhất (không cần cột riêng).
+CREATE VIEW dbo.vw_DangDatTheoSKU AS
+SELECT
+    STK_ID + '_' + CAST(SKU_ID AS VARCHAR(50)) AS MaThucThe,
+    CAST(ORDER_DT AS DATE) AS EventDate,   -- ngày đặt hàng thật
+    SUM(QTY) AS SoLuongDangDat,
+    MAX(UPDATED) AS UpdatedAt
+FROM dbo.RV_ORDER
+WHERE STATUS <> 'X'
+GROUP BY STK_ID, SKU_ID, CAST(ORDER_DT AS DATE);
+```
+
+**etl-admin**: tạo job "Theo bảng" (nếu dùng) trỏ đúng VIEW trên, EntityCode
+= `MaThucThe`, Measures tick đúng `KhoaAll`/`KhoaTheoKho`/`SoLuongDangDat`
+(ĐÚNG TÊN — runner đọc cố định 3 tên Measures này), KHÔNG cần Dimensions (đã
+có sẵn từ `banhang_sku`/`tonkho_sku`). Domain đặt tên tuỳ ý, vd
+`core_khoa_all`/`core_khoa_theo_kho`/`core_dang_dat`. **CẢ 3 domain này ĐỀU
+TUỲ CHỌN** — không tạo job nào thì báo cáo vẫn chạy bình thường, chỉ là
+không lọc khoá/không có cột "SL đang đặt".
+
+### Bước 4 — tạo báo cáo `SourceType='coreZeroStock'`
+
+**Cách khuyến nghị** — chạy sẵn script idempotent, tạo LUÔN CẢ 2 báo cáo
+Mart/Minimart, không cần dán tay JSON:
+
+```
+node rp-server/scripts/seedCoreZeroStockReports.js
+```
+
+Tạo/cập nhật 2 báo cáo `bc-core-ton-kho-0-mart`/`bc-core-ton-kho-0-minimart`
+với `DefinitionJson` mẫu bên dưới, gán vào menu "Báo cáo vận hành"
+(`reports-van-hanh`, truyền tham số để đổi menu khác). Chạy lại an toàn
+nhiều lần — khớp theo `ReportId` để UPDATE, không tạo trùng. Script KHÔNG tự
+gán quyền xem — admin tự làm sau.
+
+```json
+{
+  "title": "Core stock = 0 (Mart)",
+  "loaiDiem": "MART",
+  "salesDomain": "banhang_sku",
+  "stockDomain": "tonkho_sku",
+  "chainDomain": "doanhthu_chinhanh",
+  "lockAllDomain": "core_khoa_all",
+  "lockByStoreDomain": "core_khoa_theo_kho",
+  "pendingOrderDomain": "core_dang_dat",
+  "threshold": 0,
+  "filters": [
+    {
+      "field": "branches",
+      "type": "multiSelect",
+      "label": "Chi nhánh",
+      "optionsSource": { "domain": "banhang_sku", "valueField": "MaChiNhanh", "labelField": "TenChiNhanh" }
+    }
+  ]
+}
+```
+
+(Báo cáo Minimart giống hệt, chỉ đổi `loaiDiem: "MINIMART"` và `title`.)
+
+Lưu vào `app.ReportCatalog` với `SourceType = 'coreZeroStock'` (cần
+migration đã chạy sẵn thêm giá trị này vào `CK_ReportCatalog_SourceType`,
+xem `rp-db/schema.sql`). Cột hiển thị CỐ ĐỊNH (Chi nhánh, Mã hàng, Tên hàng,
+Tồn kho hiện tại; thêm "SL đang đặt"/"Ngày đặt" nếu khai `pendingOrderDomain`)
+— KHÔNG dùng `definition.columns` như báo cáo thường, xem
+`rp-server/lib/coreZeroStockRunner.js`.
+
+**LƯU Ý QUAN TRỌNG** — chạy script/tạo báo cáo KHÔNG đủ để CÓ SỐ LIỆU: cần
+đã có 2 job `banhang_sku`/`tonkho_sku` (mục 12) + job `doanhthu_chinhanh` có
+Dimension `chain` (mục 1) CHẠY XONG, VÀ admin đã upload danh sách hàng Core
+(Bước 1) cho đúng loại điểm — thiếu 1 trong 3 thì báo cáo tương ứng luôn trả
+về RỖNG (không lỗi, không có dữ liệu để tính).

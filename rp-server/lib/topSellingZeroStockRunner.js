@@ -45,6 +45,7 @@
 // sẵn từ salesDomain/stockDomain.
 const { sql, getPool } = require('../db');
 const { getPoolForDataSource } = require('./dataSourcePool');
+const { todayUTC, loadLatestMeasureBefore, loadLatestMeasure, loadSumOnDate } = require('./reportFactsHelpers');
 
 const RANK_WINDOWS = ['1', '7', '30', 'daily'];
 
@@ -65,11 +66,6 @@ function resolveDateRange(rankWindow) {
   const from = new Date(to);
   from.setUTCDate(from.getUTCDate() - (days - 1));
   return { from, to };
-}
-
-function todayUTC() {
-  const now = new Date();
-  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
 }
 
 // width — trọng số bề rộng cột lúc XUẤT Excel/PDF (mặc định 1 nếu bỏ
@@ -94,96 +90,6 @@ function describeColumns(definition) {
 async function resolvePool(definition) {
   if (definition.dataSourceId) return getPoolForDataSource(definition.dataSourceId);
   return getPool('DWH');
-}
-
-// Whitelist ký tự cho measureKey trước khi nội suy vào JSON_VALUE(...) —
-// cùng mẫu FIELD_NAME_RE dùng ở lib/reportEngine.js/lib/adhocReportEngine.js.
-// Phòng thủ chiều sâu THUẦN TUÝ: mọi lời gọi hiện tại đều truyền literal
-// cứng ('SoLuongTon'/'SoLuongBan'/'SoLuongChoNhap'/'SoLuongDaNhap', xem cuối
-// file), KHÔNG có input người dùng nào chạm tới tham số này hôm nay — nhưng
-// nếu 1 lần sửa sau này lỡ truyền thẳng 1 giá trị lấy từ definition/
-// filterValues vào đây, assertion này chặn injection thay vì im lặng cho
-// qua (rà soát an ninh, mục 1.3 Low).
-const MEASURE_KEY_RE = /^[a-zA-Z0-9_]+$/;
-function assertSafeMeasureKey(measureKey) {
-  if (!MEASURE_KEY_RE.test(measureKey)) {
-    throw new Error(`Tên measureKey không hợp lệ: "${measureKey}"`);
-  }
-}
-
-function buildEntityCodeParams(request, entityCodes, prefix = 'code') {
-  return entityCodes.map((code, i) => {
-    const p = `${prefix}${i}`;
-    request.input(p, sql.NVarChar(200), String(code));
-    return `@${p}`;
-  });
-}
-
-// Dòng GẦN NHẤT TRƯỚC 1 ngày mốc (dùng cho tồn kho "hôm qua" — bước 3) —
-// KHÔNG lấy dòng của chính ngày mốc hay sau đó, để luôn là số liệu ĐÃ CHỐT
-// SỔ, không lẫn số liệu đang cập nhật dở trong ngày.
-async function loadLatestMeasureBefore(pool, domain, entityCodes, measureKey, beforeDate) {
-  assertSafeMeasureKey(measureKey);
-  if (!entityCodes.length) return new Map();
-  const request = pool.request();
-  request.input('domain', sql.VarChar(50), domain);
-  request.input('beforeDate', sql.Date, beforeDate);
-  const codeParams = buildEntityCodeParams(request, entityCodes);
-  const result = await request.query(`
-    SELECT EntityCode, Value FROM (
-      SELECT
-        EntityCode,
-        CAST(JSON_VALUE(Measures, '$.${measureKey}') AS DECIMAL(18,4)) AS Value,
-        ROW_NUMBER() OVER (PARTITION BY EntityCode ORDER BY EventDate DESC) AS rn
-      FROM dwh.ReportFacts
-      WHERE Domain = @domain AND EntityCode IN (${codeParams.join(', ')}) AND EventDate < @beforeDate
-    ) latest WHERE rn = 1
-  `);
-  return new Map(result.recordset.map(r => [r.EntityCode, r.Value]));
-}
-
-// Dòng GẦN NHẤT bất kỳ ngày nào (dùng cho "Chờ nhập" — số lượng đang treo
-// TẠI THỜI ĐIỂM chạy báo cáo, VIEW nguồn tự tính lại mỗi lần đồng bộ, xem
-// hướng_dẫn_báo_cáo.md mục 12) — khác loadLatestMeasureBefore ở chỗ không
-// giới hạn "trước 1 ngày mốc", lấy đúng số liệu MỚI NHẤT đã đồng bộ.
-async function loadLatestMeasure(pool, domain, entityCodes, measureKey) {
-  assertSafeMeasureKey(measureKey);
-  if (!entityCodes.length) return new Map();
-  const request = pool.request();
-  request.input('domain', sql.VarChar(50), domain);
-  const codeParams = buildEntityCodeParams(request, entityCodes);
-  const result = await request.query(`
-    SELECT EntityCode, Value FROM (
-      SELECT
-        EntityCode,
-        CAST(JSON_VALUE(Measures, '$.${measureKey}') AS DECIMAL(18,4)) AS Value,
-        ROW_NUMBER() OVER (PARTITION BY EntityCode ORDER BY EventDate DESC) AS rn
-      FROM dwh.ReportFacts
-      WHERE Domain = @domain AND EntityCode IN (${codeParams.join(', ')})
-    ) latest WHERE rn = 1
-  `);
-  return new Map(result.recordset.map(r => [r.EntityCode, r.Value]));
-}
-
-// Dòng ĐÚNG 1 ngày cụ thể (dùng cho "Số lượng bán hôm nay" ở bước 3 và "Đã
-// nhập hôm nay" — LUÔN đúng nghĩa "hôm nay", không lùi ngày nếu chưa có dữ
-// liệu, khác cách tồn kho "hôm qua" ở trên được phép lùi — xem xác nhận
-// người dùng "đã nhập ngày HN"). Domain có nhiều dòng cùng ngày (vd nhiều
-// chứng từ) thì SUM lại — measureKey đo lường TỪNG dòng, tổng theo ngày.
-async function loadSumOnDate(pool, domain, entityCodes, measureKey, onDate) {
-  assertSafeMeasureKey(measureKey);
-  if (!entityCodes.length) return new Map();
-  const request = pool.request();
-  request.input('domain', sql.VarChar(50), domain);
-  request.input('onDate', sql.Date, onDate);
-  const codeParams = buildEntityCodeParams(request, entityCodes);
-  const result = await request.query(`
-    SELECT EntityCode, SUM(CAST(JSON_VALUE(Measures, '$.${measureKey}') AS DECIMAL(18,4))) AS Value
-    FROM dwh.ReportFacts
-    WHERE Domain = @domain AND EntityCode IN (${codeParams.join(', ')}) AND EventDate = @onDate
-    GROUP BY EntityCode
-  `);
-  return new Map(result.recordset.map(r => [r.EntityCode, r.Value]));
 }
 
 async function runTopZeroStockReport(definition, filterValues = {}) {

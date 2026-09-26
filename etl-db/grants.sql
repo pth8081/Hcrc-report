@@ -18,13 +18,16 @@
    2 tài khoản trong file này:
      - etl_admin           — tiến trình etl/ (đọc lẫn ghi cả 2 schema).
      - etl_diem_stk_reader (rp-server/.env.example ETL_DIEM_STK_USER) —
-       CHỈ ĐỌC, CHỈ ĐÚNG 1 BẢNG etl.DiemStkMapping — chiều NGƯỢC với
-       dwh_target_importer (dwh/grants.sql: etl đọc/ghi CSDL dwh) — ở đây
-       rp-server đọc CSDL etl để lấy ánh xạ mã Điểm (BU_ID) <-> nhiều mã kho
-       STK_ID, xem rp-server/lib/diemStkMapping.js. Không được cấp
-       SCHEMA::etl (sẽ lộ luôn etl.DataSources — chứa mật khẩu mã hoá các
-       nguồn dữ liệu OLTP thật) — GRANT theo TỪNG BẢNG như
-       dwh_target_importer đã làm với dwh.SalesTargets. */
+       CHỈ ĐỌC, CHỈ ĐÚNG 2 BẢNG etl.DiemStkMapping + etl.CoreItemList (dùng
+       CHUNG 1 login/pool — cả 2 bảng đều là dữ liệu rp-server cần ĐỌC từ
+       CSDL etl để phục vụ báo cáo, không cần tách login riêng) — chiều
+       NGƯỢC với dwh_target_importer (dwh/grants.sql: etl đọc/ghi CSDL dwh)
+       — ở đây rp-server đọc CSDL etl để lấy ánh xạ mã Điểm (BU_ID) <-> nhiều
+       mã kho STK_ID (xem rp-server/lib/diemStkMapping.js) VÀ danh sách hàng
+       Core (xem rp-server/lib/coreItemList.js). Không được cấp SCHEMA::etl
+       (sẽ lộ luôn etl.DataSources — chứa mật khẩu mã hoá các nguồn dữ liệu
+       OLTP thật) — GRANT theo TỪNG BẢNG như dwh_target_importer đã làm với
+       dwh.SalesTargets. */
 
 USE HCRC_ETL;
 GO
@@ -60,4 +63,5 @@ GO
 -- được đọc/ghi bất kỳ bảng nào khác trong schema etl (đặc biệt
 -- etl.DataSources chứa mật khẩu mã hoá các nguồn dữ liệu OLTP thật).
 GRANT SELECT ON etl.DiemStkMapping TO etl_diem_stk_reader;
+GRANT SELECT ON etl.CoreItemList TO etl_diem_stk_reader;
 GO

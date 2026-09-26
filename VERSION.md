@@ -20,6 +20,71 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 6.89 — Báo cáo "Core stock = 0" — danh sách hàng Core cố định, tách riêng Mart/Minimart
+
+Tính năng MỚI theo yêu cầu người dùng (kèm file mẫu `Stock_Core_...xlsx`):
+báo cáo tồn kho = 0 THỨ 2, khác hẳn "Top bán chạy đang tồn kho = 0" (bản
+6.87) ở bước CHỌN thực thể — không tự xếp hạng theo doanh số, mà dùng ĐÚNG 1
+danh sách mặt hàng "Core" (mặt hàng BẮT BUỘC luôn phải có hàng) do admin tự
+khai/upload, áp dụng CHUNG cho MỌI kho cùng loại hình (Mart/Minimart), KHÔNG
+khai riêng theo từng kho — vì vậy tách thành **2 báo cáo riêng**
+(`bc-core-ton-kho-0-mart`/`bc-core-ton-kho-0-minimart`) thay vì 1 báo cáo +
+bộ lọc. Công thức tính tồn=0 DÙNG LẠI NGUYÊN VẸN công thức đã chốt ở bản
+6.87 (tồn "hôm qua" − bán "hôm nay", KHÔNG cộng lại hàng nhập trong ngày).
+
+- `etl-db/schema.sql` — bảng mới `etl.CoreItemList` (LoaiDiem/MaHang bắt
+  buộc, MH/TenHang/MaNganh/TenNganh tham khảo, UNIQUE theo LoaiDiem+MaHang).
+- `etl-db/grants.sql` — mở rộng login `etl_diem_stk_reader` (đã dùng cho
+  `etl.DiemStkMapping`) thêm SELECT bảng mới — TÁI SỬ DỤNG pool
+  `ETL_DIEM_STK` có sẵn, không cần cấu hình `.env` mới.
+- `etl/lib/coreItemListImport.js` (mới) — parse file `.xlsx` ĐÚNG 2 sheet
+  cố định "Core Mart"/"Core Minimart", **REPLACE** (xoá hết + ghi lại) theo
+  ĐÚNG LoaiDiem có sheet trong lượt nhập — KHÁC hẳn "Ánh xạ Điểm - STK_ID"
+  (upsert cộng dồn) vì danh sách Core là danh sách CỐ ĐỊNH, mã bị xoá khỏi
+  file nghĩa là KHÔNG CÒN thuộc diện Core. Kèm tải file mẫu/xuất Excel.
+- `etl/routes/admin/coreItemList.js` (mới) + `etl/server.js` — CRUD/import/
+  template/export, yêu cầu quyền Sửa cho MỌI thao tác kể cả xem (cùng
+  nguyên tắc "Ánh xạ Điểm - STK_ID").
+- `etl/routes/admin/roles.js` — thêm MenuCode `core-item-list` vào
+  `MENU_CATALOG`.
+- `etl-admin` — trang mới `CoreItemListPage.jsx` (upload/tải mẫu/xuất/xoá
+  dòng, tách tab Mart/Minimart) + nav/routes/RolesPage.jsx wiring.
+- `rp-server/lib/reportFactsHelpers.js` (mới) — tách các hàm đọc
+  `dwh.ReportFacts` dùng chung (trước đây định nghĩa riêng trong
+  `topSellingZeroStockRunner.js`) để `coreZeroStockRunner.js` dùng lại
+  NGUYÊN VẸN, không sao chép logic — thêm 2 hàm mới:
+  `loadLatestMeasureWithDate` ("SL đang đặt" kèm "Ngày đặt") và
+  `loadLatestDimensionsForDomain` (quét nguyên domain, dùng để tra dimension
+  "chain" và liệt kê (kho, mã hàng) đối chiếu với danh sách Core).
+  `topSellingZeroStockRunner.js` đã refactor để import từ file này — hành vi
+  KHÔNG đổi (test tích hợp cũ vẫn pass y hệt).
+- `rp-server/lib/coreItemList.js` (mới) — đọc `etl.CoreItemList` qua pool
+  `ETL_DIEM_STK` có sẵn (cache 60s, lỗi kết nối trả Map rỗng — cùng nguyên
+  tắc `lib/diemStkMapping.js`, không để 1 nguồn phụ chặn đứng báo cáo).
+- `rp-server/lib/coreZeroStockRunner.js` (mới) — `SourceType='coreZeroStock'`:
+  (1) nạp danh sách Core theo `loaiDiem`; (2) xác định STK_ID nào thuộc
+  đúng loại hình — TÁI SỬ DỤNG dimension "chain" đã có sẵn ở domain doanh
+  thu chi nhánh, KHÔNG cần job/VIEW mới; (3) quét (kho, mã hàng) đang có tồn
+  kho, giữ lại đúng cặp khớp Core + đúng loại hình; (4) áp công thức tồn=0;
+  (5) TUỲ CHỌN: loại mã đang bị "Khóa All"/"Khóa theo kho", hiển thị thêm
+  "SL đang đặt"/"Ngày đặt" tham khảo — cấu hình qua `DefinitionJson`, không
+  hardcode tên bảng/điều kiện (cùng nguyên tắc "Chờ nhập"/"Đã nhập" bản 6.87).
+- `rp-server/lib/reportRunner.js` — thêm dispatch `coreZeroStock`.
+- `rp-server/scripts/seedCoreZeroStockReports.js` (mới) — tạo/cập nhật
+  idempotent 2 báo cáo Mart/Minimart, mirror `seedTopZeroStockReport.js`.
+- `rp-db/schema.sql` — thêm `'coreZeroStock'` vào
+  `CK_ReportCatalog_SourceType`.
+- `hướng_dẫn_báo_cáo.md` mục 16 (mới) — hướng dẫn đầy đủ: khai danh sách
+  Core, tái sử dụng dimension "chain", 3 VIEW mẫu tuỳ chọn (Khóa All/Khóa
+  theo kho/SL đang đặt), tạo báo cáo qua script, `DefinitionJson` mẫu.
+- Test (fakeModule, xem scratchpad): `test-coreItemListImport.js` (8 test —
+  parse 2 sheet, upload 1 sheet giữ nguyên sheet kia, trùng MaHang trong
+  sheet, thiếu MaHang, sheet lạ bị bỏ qua, không sheet nào khớp → throw,
+  REPLACE chỉ đúng LoaiDiem có trong lượt nhập); `test-core-zerostock-integration.js`
+  (lấy ĐÚNG DefinitionJson từ seed script, chạy `runCoreZeroStockReport()`
+  thật, xác nhận đúng 1/6 tình huống lọt: Core + đúng chain + tồn=0 + không
+  khoá — 5 tình huống còn lại đều bị loại đúng lý do).
+
 ## 6.88 — Sửa lỗi xuất PDF đè chữ cho báo cáo nhiều cột không có columnGroups
 
 Phát hiện lúc demo báo cáo "Top bán chạy đang tồn kho = 0" (bản 6.87, đủ 9

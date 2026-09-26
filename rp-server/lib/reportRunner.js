@@ -10,6 +10,7 @@ const { runApiReport } = require('./apiReportClient');
 const { runExternalReport } = require('./externalReportClient');
 const { runCompositeReport } = require('./compositeReportRunner');
 const { runTopZeroStockReport } = require('./topSellingZeroStockRunner');
+const { runCoreZeroStockReport } = require('./coreZeroStockRunner');
 
 async function loadDefinition(reportId) {
   const rpPool = await getPool('RP');
@@ -54,7 +55,10 @@ async function resolveFactsPool(definition) {
 // (composite luôn trả toàn bộ dòng, cần đủ để tính "Tổng cộng" ở tầng gọi).
 // 'topZeroStock' tự xếp hạng top N mặt hàng bán chạy mỗi chi nhánh rồi lọc
 // tồn kho <= ngưỡng, cột hiển thị CỐ ĐỊNH (không dùng definition.columns) —
-// xem lib/topSellingZeroStockRunner.js.
+// xem lib/topSellingZeroStockRunner.js. 'coreZeroStock' KHÔNG tự xếp hạng —
+// dùng danh sách mặt hàng "Core" cố định (etl.CoreItemList) theo LoaiĐiểm
+// (MART/MINIMART), cùng công thức tồn=0, cột hiển thị CỐ ĐỊNH — xem
+// lib/coreZeroStockRunner.js.
 async function runDefinition(definition, filterValues, pagination) {
   if (definition.sourceType === 'externalApi') {
     return runExternalReport(definition, filterValues);
@@ -64,6 +68,9 @@ async function runDefinition(definition, filterValues, pagination) {
   }
   if (definition.sourceType === 'topZeroStock') {
     return runTopZeroStockReport(definition, filterValues);
+  }
+  if (definition.sourceType === 'coreZeroStock') {
+    return runCoreZeroStockReport(definition, filterValues);
   }
   if (definition.sourceType && definition.sourceType !== 'directDb') {
     return runApiReport(definition, filterValues, pagination);

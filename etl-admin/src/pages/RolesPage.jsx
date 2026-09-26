@@ -128,7 +128,7 @@ export default function RolesPage() {
                   <tr key={m.code}>
                     <td>{m.label}</td>
                     <td>
-                      {m.code === 'diem-stk-mapping'
+                      {m.code === 'diem-stk-mapping' || m.code === 'core-item-list'
                         ? <span title="Trang này yêu cầu quyền Sửa cho MỌI thao tác kể cả xem — không có mức chỉ-xem riêng">—</span>
                         : <input type="checkbox" checked={!!access[m.code]?.checked} onChange={(e) => setChecked(m.code, e.target.checked)} />}
                     </td>

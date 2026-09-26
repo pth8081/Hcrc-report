@@ -220,6 +220,39 @@ BEGIN
 END
 GO
 
+-- Danh sách "hàng Core" (mặt hàng BẮT BUỘC luôn phải có hàng) do admin tự
+-- khai/upload — dùng cho báo cáo "Core stock = 0" (SourceType='coreZeroStock',
+-- xem rp-server/lib/coreZeroStockRunner.js + hướng_dẫn_báo_cáo.md mục 14).
+-- KHÁC HẲN báo cáo "Top bán chạy đang tồn kho = 0" (bc-ton-kho-0, mục 12) ở
+-- chỗ danh sách mặt hàng ở ĐÂY LÀ CỐ ĐỊNH (do admin định nghĩa mặt hàng nào
+-- là "Core", không tự xếp hạng theo doanh số) — áp dụng CHUNG cho MỌI kho
+-- cùng loại hình (LoaiDiem='MART' hay 'MINIMART'), không khai riêng theo
+-- từng kho (xác nhận của người dùng — xem VERSION.md).
+--
+-- MaHang (BẮT BUỘC, khớp ĐÚNG cột "Mã hàng"/SKU_CODE — CHÍNH LÀ giá trị
+-- Dimensions.MaHangHienThi đã đồng bộ ở domain banhang_sku/tonkho_sku, xem
+-- mục 12) là khoá dùng để LỌC dữ liệu thật — MH (mã hàng/mã vạch nội bộ
+-- khác trong file nguồn DSMART16, nếu có) chỉ lưu để ĐỐI CHIẾU/tham khảo,
+-- KHÔNG dùng để join dữ liệu (tránh sai nếu chưa xác nhận đúng ý nghĩa cột
+-- này với DBA).
+IF OBJECT_ID('etl.CoreItemList', 'U') IS NULL
+BEGIN
+    CREATE TABLE etl.CoreItemList (
+        Id          INT           IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        LoaiDiem    VARCHAR(20)   NOT NULL,
+        MaHang      NVARCHAR(50)  NOT NULL,
+        MH          NVARCHAR(50)  NULL,
+        TenHang     NVARCHAR(300) NULL,
+        MaNganh     NVARCHAR(50)  NULL,
+        TenNganh    NVARCHAR(200) NULL,
+        ImportedAt  DATETIME2(3)  NOT NULL DEFAULT SYSUTCDATETIME(),
+        ImportedBy  NVARCHAR(50)  NULL,
+        CONSTRAINT UX_CoreItemList_LoaiDiem_MaHang UNIQUE (LoaiDiem, MaHang),
+        CONSTRAINT CK_CoreItemList_LoaiDiem CHECK (LoaiDiem IN ('MART', 'MINIMART'))
+    );
+END
+GO
+
 -- Chuyển từ dwh.SyncState — khoá theo SyncJobId thay vì chuỗi SourceSystem tự do.
 IF OBJECT_ID('etl.SyncState', 'U') IS NULL
 BEGIN
