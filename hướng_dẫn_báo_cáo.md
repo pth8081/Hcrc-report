@@ -1528,7 +1528,24 @@ lọc đúng "hôm nay"); job "Chờ nhập" bật hay tắt đều được (ch
 nhất). **4 job này ĐỀU TUỲ CHỌN** — không tạo job nào thì báo cáo vẫn chạy
 bình thường, chỉ là không có 4 cột này.
 
-### Bước 3 — rp-user (thật ra là admin): tạo báo cáo `SourceType='topZeroStock'`
+### Bước 3 — tạo báo cáo `SourceType='topZeroStock'`
+
+**Cách khuyến nghị (từ bản 6.87)** — chạy sẵn script idempotent, không cần
+dán tay JSON:
+
+```
+node rp-server/scripts/seedTopZeroStockReport.js
+```
+
+Tạo/cập nhật báo cáo `bc-ton-kho-0` với đúng `DefinitionJson` mẫu bên dưới,
+gán vào menu "Báo cáo vận hành" (`reports-van-hanh`, truyền tham số để đổi
+menu khác: `node scripts/seedTopZeroStockReport.js <menuCode>`). Chạy lại an
+toàn nhiều lần — khớp theo `ReportId` để UPDATE, không tạo trùng. Script
+KHÔNG tự gán quyền xem (Hệ thống → Phân quyền) — admin tự làm sau.
+
+Phần JSON dưới đây vẫn giữ lại để ĐỐI CHIẾU/sửa tay qua rp-user (Hệ thống →
+Biểu mẫu) nếu cần đổi cấu hình khác mặc định của script (vd đổi `topN`/
+`threshold`, hoặc tên domain "Chờ nhập"/"Đã nhập" khác):
 
 Đây là `SourceType` RIÊNG (khác `directDb`/`composite`) — có bộ máy tính
 toán chuyên biệt (`rp-server/lib/topSellingZeroStockRunner.js`), không dùng

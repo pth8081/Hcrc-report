@@ -20,6 +20,49 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 6.87 — Tạo báo cáo thật "Top bán chạy đang tồn kho = 0" (bc-ton-kho-0)
+
+Từ bản 6.11/6.13, hạ tầng backend (`rp-server/lib/topSellingZeroStockRunner.js`,
+dispatch trong `reportRunner.js`, CHECK constraint `SourceType='topZeroStock'`)
+và tài liệu (`hướng_dẫn_báo_cáo.md` mục 12) đã có đủ, nhưng CHƯA từng có báo
+cáo THẬT nào được tạo trong `app.ReportCatalog` — chỉ là "khung" chưa ai
+dùng được. Người dùng yêu cầu bắt tay tạo báo cáo thật.
+
+- **MỚI** `rp-server/scripts/seedTopZeroStockReport.js` — script idempotent
+  (mirror `seedLdtdHcrcReports.js`) tạo/cập nhật báo cáo `bc-ton-kho-0`
+  ("Top bán chạy đang tồn kho = 0") trong `app.ReportCatalog`, gán vào menu
+  "Báo cáo vận hành" (`reports-van-hanh`, khác nhóm "kinh doanh" của LDTD/
+  HCRC). `DefinitionJson` khớp đúng mẫu đã chốt ở mục 12 Bước 3: `salesDomain:
+  'banhang_sku'`, `stockDomain: 'tonkho_sku'`, 4 domain "Chờ nhập"/"Đã nhập"
+  tuỳ chọn, `topN: 50`, `threshold: 0`, bộ lọc `rankWindow` (4 lựa chọn cố
+  định) + `branches` (multiSelect, tự lấy danh sách chi nhánh thật qua
+  `optionsSource`).
+- KHÔNG sửa gì ở `topSellingZeroStockRunner.js`/`reportRunner.js` — logic
+  tính "tồn ước tính = tồn cuối kỳ hôm qua − bán hôm nay, KHÔNG cộng lại
+  hàng nhập trong ngày" đã đúng từ bản 6.13, xác nhận lại qua test tích hợp
+  bên dưới.
+
+Đã kiểm thử (fakeModule): (1) script chạy lần đầu INSERT đúng 1 dòng với
+DefinitionJson đủ mọi field, chạy lại lần 2 UPDATE (không tạo trùng); (2)
+test tích hợp lấy ĐÚNG DefinitionJson do script sinh ra, đưa qua
+`runTopZeroStockReport()` THẬT với dữ liệu giả lập 3 tình huống — mặt hàng
+đã bán hết tồn hôm qua (tồn ước tính = 0) lọt đúng, có cột "Đã nhập hôm nay"
+tham khảo (50) nhưng KHÔNG bị cộng ngược vào tồn ước tính; mặt hàng còn tồn
+bị loại; mặt hàng chưa từng có dữ liệu tồn kho bị loại (không suy diễn = 0).
+
+**Cần làm trên server sau bản này** (báo cáo CHƯA có số liệu cho tới khi
+xong đủ 3 bước, xem `hướng_dẫn_báo_cáo.md` mục 12 Bước 1+2):
+1. `git pull` + khởi động lại `rp-server`.
+2. Chạy `node rp-server/scripts/seedTopZeroStockReport.js` — tạo báo cáo
+   (mặc định gán vào menu "Báo cáo vận hành", truyền tham số để đổi menu
+   khác nếu cần: `node scripts/seedTopZeroStockReport.js <menuCode>`).
+3. DBA tạo 2 VIEW bắt buộc trên DSMART16 (`dbo.vw_BanHangTheoSKU`,
+   `dbo.vw_TonKhoTheoSKU`) + admin etl-admin tạo 2 job "Theo bảng" domain
+   `banhang_sku`/`tonkho_sku` (BẮT BUỘC bật "Giữ lịch sử theo ngày").
+4. (Tuỳ chọn) lặp lại cho 4 VIEW/job "Chờ nhập"/"Đã nhập" nếu muốn có 4
+   cột tham khảo đó.
+5. Vào Hệ thống → Phân quyền, gán quyền xem `bc-ton-kho-0` cho đúng vai trò.
+
 ## 6.86 — Ẩn CẢ "Cùng kỳ Doanh thu" khi đổi kho, dù dwh vẫn có dữ liệu thật dưới kho cũ
 
 Người dùng phát hiện lỗ hổng: bản 6.85 mới chỉ chặn tường minh cho Giao dịch
