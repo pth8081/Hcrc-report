@@ -20,6 +20,35 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 6.88 — Sửa lỗi xuất PDF đè chữ cho báo cáo nhiều cột không có columnGroups
+
+Phát hiện lúc demo báo cáo "Top bán chạy đang tồn kho = 0" (bản 6.87, đủ 9
+cột khi khai đủ 4 domain Chờ/Đã nhập tuỳ chọn): `lib/exportPdf.js` chỉ bọc
+dòng (word-wrap) cho tiêu đề cột ở nhánh có `columnGroups` — báo cáo KHÔNG
+khai `columnGroups` (đa số báo cáo, gồm cả `topZeroStock`) vẽ tiêu đề 1 dòng
+cố định, nhãn dài (vd "Đã nhập hôm nay (Điều chuyển)") tràn đè lên cột kế
+bên khi cột hẹp. Đồng thời `topSellingZeroStockRunner.js` chưa khai `width`
+cho cột nào, khiến 9 cột chia đều bằng nhau — cả tiêu đề LẪN dữ liệu
+("BRGMart Cầu Giấy" đè vào "SP002") đều bị tràn.
+
+- `rp-server/lib/exportPdf.js` — nhánh header KHÔNG có `columnGroups` giờ
+  dùng `drawWrappedCenteredText()` (bọc dòng, giống nhánh có `columnGroups`
+  đã làm) thay vì `drawCellText()` (1 dòng cố định), header cao thêm bằng
+  `HEADER_ROW_HEIGHT` (24pt) thay vì `ROW_HEIGHT` (16pt) để có chỗ xuống
+  dòng — không ảnh hưởng báo cáo có nhãn cột ngắn (vẫn vừa 1 dòng như cũ).
+- `rp-server/lib/topSellingZeroStockRunner.js` — `describeColumns()` thêm
+  `width` cho từng cột (Chi nhánh/Tên hàng rộng hơn cột số) — khớp đúng quy
+  ước `definition.columns[].width` đã dùng ở mọi báo cáo khác.
+
+Đã kiểm thử: chạy THẬT `runTopZeroStockReport()` + `exportPdf()`/`exportExcel()`
+với dữ liệu giả lập 9 cột, render PDF ra ảnh xác nhận không còn đè chữ ở cả
+tiêu đề lẫn dữ liệu. Chạy lại demo báo cáo LDTD/HCRC (có `columnGroups`) xác
+nhận không đổi hành vi, không có regression.
+
+**Cần làm trên server sau bản này**: chỉ cần `git pull` + khởi động lại
+`rp-server` — không cần chạy lại script seed nào (sửa code xử lý xuất PDF,
+không đổi `DefinitionJson`).
+
 ## 6.87 — Tạo báo cáo thật "Top bán chạy đang tồn kho = 0" (bc-ton-kho-0)
 
 Từ bản 6.11/6.13, hạ tầng backend (`rp-server/lib/topSellingZeroStockRunner.js`,

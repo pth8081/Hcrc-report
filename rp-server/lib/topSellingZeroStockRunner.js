@@ -72,18 +72,22 @@ function todayUTC() {
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
 }
 
+// width — trọng số bề rộng cột lúc XUẤT Excel/PDF (mặc định 1 nếu bỏ
+// trống, xem lib/compositeReportRunner.js đầu file cho quy ước chung) — tên
+// chi nhánh/tên hàng cần RỘNG HƠN hẳn cột số, không khai thì lib/exportPdf.js
+// chia đều 9 cột (khi khai đủ 4 domain Chờ/Đã nhập) làm chữ đè lên nhau.
 function describeColumns(definition) {
   const columns = [
-    { key: 'chiNhanh', label: 'Chi nhánh' },
-    { key: 'maHang', label: 'Mã hàng' },
-    { key: 'tenHang', label: 'Tên hàng' },
-    { key: 'soLuongBan', label: 'Số lượng bán (trong kỳ)' },
-    { key: 'tonKho', label: 'Tồn kho hiện tại' }
+    { key: 'chiNhanh', label: 'Chi nhánh', width: 1.6 },
+    { key: 'maHang', label: 'Mã hàng', width: 0.8 },
+    { key: 'tenHang', label: 'Tên hàng', width: 1.6 },
+    { key: 'soLuongBan', label: 'Số lượng bán (trong kỳ)', width: 1 },
+    { key: 'tonKho', label: 'Tồn kho hiện tại', width: 1 }
   ];
-  if (definition.pendingSupplierDomain) columns.push({ key: 'choNhapNCC', label: 'Chờ nhập (NCC)' });
-  if (definition.pendingTransferDomain) columns.push({ key: 'choNhapDieuChuyen', label: 'Chờ nhập (Điều chuyển)' });
-  if (definition.receivedSupplierDomain) columns.push({ key: 'daNhapNCC', label: 'Đã nhập hôm nay (NCC)' });
-  if (definition.receivedTransferDomain) columns.push({ key: 'daNhapDieuChuyen', label: 'Đã nhập hôm nay (Điều chuyển)' });
+  if (definition.pendingSupplierDomain) columns.push({ key: 'choNhapNCC', label: 'Chờ nhập (NCC)', width: 1 });
+  if (definition.pendingTransferDomain) columns.push({ key: 'choNhapDieuChuyen', label: 'Chờ nhập (Điều chuyển)', width: 1.1 });
+  if (definition.receivedSupplierDomain) columns.push({ key: 'daNhapNCC', label: 'Đã nhập hôm nay (NCC)', width: 1.1 });
+  if (definition.receivedTransferDomain) columns.push({ key: 'daNhapDieuChuyen', label: 'Đã nhập hôm nay (Điều chuyển)', width: 1.2 });
   return columns;
 }
 

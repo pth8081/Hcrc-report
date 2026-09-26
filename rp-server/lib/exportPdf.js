@@ -148,12 +148,17 @@ async function exportPdf(definition, rows) {
 
   function drawHeader() {
     if (!hasGroups) {
+      // Bọc dòng (giống nhánh columnGroups bên dưới) thay vì vẽ 1 dòng cố
+      // định — báo cáo càng nhiều cột (vd 'topZeroStock' có tới 9 cột, nhãn
+      // dài như "Đã nhập hôm nay (Điều chuyển)") thì mỗi cột càng hẹp, nhãn
+      // 1 dòng tràn đè lên cột kế bên (phát hiện được lúc demo báo cáo tồn
+      // kho=0, xem VERSION.md).
       const rowTop = y;
       columns.forEach((col, i) => {
-        drawGridRect(colX[i], rowTop - ROW_HEIGHT, colWidths[i], ROW_HEIGHT);
-        drawCellText(col.label, colX[i], colWidths[i], rowTop - ROW_HEIGHT + 4, { bold: true, align: 'center' });
+        drawGridRect(colX[i], rowTop - HEADER_ROW_HEIGHT, colWidths[i], HEADER_ROW_HEIGHT);
+        drawWrappedCenteredText(col.label, colX[i], colWidths[i], rowTop, HEADER_ROW_HEIGHT, { bold: true, size: 7 });
       });
-      y -= ROW_HEIGHT;
+      y -= HEADER_ROW_HEIGHT;
       return;
     }
     const row1Top = y;
