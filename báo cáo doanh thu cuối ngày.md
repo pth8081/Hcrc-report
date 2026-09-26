@@ -958,26 +958,31 @@ nhận riêng theo đúng nhóm HCRC.
    bình thường hay từ khối `lastYear`/`dateOffsetYears: -1`) — xác nhận dữ
    liệu Lịch sử đúng, không bị lệch ngày.
    > **Cả 2 cột Giao dịch VÀ Doanh thu: CHỈ đúng cho mã Điểm CHƯA từng đổi
-   > mã kho** (từ bản 6.85). Domain `giaodich_chinhanh` không dùng
+   > mã kho** (từ bản 6.85/6.86) — cả 2 domain đều CHỦ ĐỘNG chặn tường minh
+   > bằng `stkListsMatch(MaStkCu, MaStkMoi)`, KHÔNG suy luận từ việc "tìm
+   > không thấy dữ liệu" nữa. Domain `giaodich_chinhanh` không dùng
    > `useDiemStkMapping` (EntityCode = `BU_ID` = mã Điểm trực tiếp, nguồn
-   > `TRANSHDR` không có cột mã kho để phân biệt) NHƯNG khối "Cùng kỳ năm
-   > trước" của Giao dịch (`lastYearGD`) có `requireStkStability: true` —
-   > TỰ ẨN (coi như không có dữ liệu) cho mã Điểm nào có "Ánh xạ Điểm -
-   > STK_ID" khai `MaStkCu` KHÁC `MaStkMoi` (đã đổi kho — đóng cửa/mở lại),
-   > dù `TRANSHDR` vẫn ghi liên tục theo BU_ID không đổi — vì nghiệp vụ coi
-   > kho CŨ (kỳ so sánh) và kho MỚI (kỳ hiện tại) là 2 điểm bán KHÁC NHAU.
-   > Domain `doanhthu_chinhanh` (`useDiemStkMapping: true`) có cùng hiệu ứng
-   > qua cơ chế khác: khối `lastYear` tra theo danh sách kho CŨ (`MaStkCu`),
-   > không khớp được với dữ liệu thô đang nằm ở kho MỚI.
+   > `TRANSHDR` không có cột mã kho để phân biệt) nên khối "Cùng kỳ năm
+   > trước" (`lastYearGD`) có `requireStkStability: true` — TỰ ẨN (coi như
+   > không có dữ liệu) cho mã Điểm nào có "Ánh xạ Điểm - STK_ID" khai
+   > `MaStkCu` KHÁC `MaStkMoi` (đã đổi kho — đóng cửa/mở lại), DÙ `TRANSHDR`
+   > vẫn ghi liên tục theo BU_ID không đổi. Domain `doanhthu_chinhanh`
+   > (`useDiemStkMapping: true`, hàm `remapRowsToDiem()` trong
+   > `lib/diemStkMapping.js`) từ bản 6.86 CŨNG tự loại mã Điểm đã đổi kho
+   > khỏi khối `lastYear` NGAY CẢ KHI `dwh.ReportFacts` vẫn có dữ liệu doanh
+   > thu thật dưới mã kho CŨ (trước 6.86, trường hợp này vẫn lỡ hiện số —
+   > đã sửa) — vì nghiệp vụ coi kho CŨ (kỳ so sánh) và kho MỚI (kỳ hiện tại)
+   > là 2 điểm bán KHÁC NHAU, không được dùng dữ liệu bên nào để "so cùng
+   > kỳ" với bên kia dù dữ liệu đó có tồn tại hay không.
    >
    > Vì vậy, cách đối chiếu tay này (chạy báo cáo cho "ngày này năm ngoái"
    > như 1 ngày bình thường rồi so với cột "Cùng kỳ") CHỈ khớp đúng khi mã
    > Điểm đó có khai CẢ 2 danh sách kho (`MaStkCu`/`MaStkMoi`) GIỐNG NHAU
    > (chưa từng đổi kho) — mã Điểm nào có 2 danh sách KHÁC nhau thì cột
-   > "Cùng kỳ năm 2025" (cả Giao dịch lẫn Doanh thu) sẽ TRỐNG dù đối chiếu
-   > tay theo BU_ID vẫn ra số — đó không phải lỗi, chỉ là cách đối chiếu tay
-   > này không áp dụng được cho đúng mã Điểm đó (không có thao tác "chọn
-   > dùng kho cũ/mới" nào từ giao diện chạy báo cáo).
+   > "Cùng kỳ năm 2025" (cả Giao dịch lẫn Doanh thu) LUÔN TRỐNG dù đối chiếu
+   > tay theo BU_ID/mã kho cũ vẫn ra số thật — đó không phải lỗi, chỉ là
+   > cách đối chiếu tay này không áp dụng được cho đúng mã Điểm đó (không có
+   > thao tác "chọn dùng kho cũ/mới" nào từ giao diện chạy báo cáo).
 5. Sửa thử 1 dòng chỉ tiêu ở trang "Chỉ tiêu Lãnh đạo Tập đoàn", xác nhận
    báo cáo HCRC KHÔNG đổi theo (và ngược lại) — xác nhận đúng 2 domain chỉ
    tiêu độc lập.

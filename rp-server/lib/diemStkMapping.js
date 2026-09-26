@@ -56,10 +56,22 @@ async function loadDiemStkMapping() {
 // nào cho đúng kỳ này (rỗng), hoặc khai nhưng kho đó không có dòng dữ liệu
 // -> KHÔNG xuất hiện trong kết quả (rơi về "không có dữ liệu", không phải
 // số 0 — đúng yêu cầu người dùng).
+//
+// useCu=true (kỳ "cùng kỳ năm trước") CHỈ hợp lệ khi MaStkCu và MaStkMoi là
+// CÙNG 1 TẬP HỢP mã kho (siêu thị CHƯA từng đổi kho) — nếu mã Điểm đã đổi
+// kho (MaStkCu khác MaStkMoi), LOẠI HẲN mã Điểm đó khỏi kết quả CHO KỲ NÀY,
+// DÙ dwh.ReportFacts vẫn có dữ liệu doanh thu thật dưới mã kho CŨ (không
+// suy luận từ việc "tìm không thấy dòng khớp" như trước) — vì kho CŨ và kho
+// MỚI là 2 điểm bán KHÁC NHAU về bản chất (đóng cửa/mở lại dưới kho mới),
+// không được dùng doanh thu kho cũ để so sánh "cùng kỳ" với kho mới, xem
+// VERSION.md bản 6.86 và compositeReportRunner.js:block.requireStkStability
+// (cùng quy tắc áp cho domain giaodich_chinhanh, cơ chế khác vì không remap
+// được qua STK).
 function remapRowsToDiem(rows, diemMapping, useCu) {
   const byStk = new Map(rows.map(r => [r.entityCode, r]));
   const out = [];
   for (const [maDiem, info] of diemMapping) {
+    if (useCu && !stkListsMatch(info.maStkCu, info.maStkMoi)) continue;
     const stkList = useCu ? info.maStkCu : info.maStkMoi;
     if (!stkList.length) continue;
     const matchedRows = stkList.map(stk => byStk.get(stk)).filter(Boolean);

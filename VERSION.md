@@ -20,6 +20,35 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 6.86 — Ẩn CẢ "Cùng kỳ Doanh thu" khi đổi kho, dù dwh vẫn có dữ liệu thật dưới kho cũ
+
+Người dùng phát hiện lỗ hổng: bản 6.85 mới chỉ chặn tường minh cho Giao dịch
+(`requireStkStability`). Doanh thu vẫn dùng cơ chế "tình cờ" — khối
+`lastYear` tra `MaStkCu` trong `dwh.ReportFacts`, NẾU old-STK vẫn còn dữ
+liệu thật ở đó (hoàn toàn có thể xảy ra) thì báo cáo VẪN hiện số Doanh thu
+"Cùng kỳ" cho mã Điểm đã đổi kho — sai theo đúng quy tắc nghiệp vụ đã chốt ở
+6.85 (kho CŨ và kho MỚI là 2 điểm bán khác nhau, không so sánh cùng kỳ được,
+BẤT KỂ dữ liệu 2 bên có tồn tại hay không).
+
+- `rp-server/lib/diemStkMapping.js` — `remapRowsToDiem(rows, diemMapping,
+  useCu)`: thêm điều kiện `useCu && !stkListsMatch(info.maStkCu,
+  info.maStkMoi) -> continue` (loại hẳn mã Điểm đó khỏi kết quả kỳ trước)
+  TRƯỚC bước tra cứu dữ liệu — không còn suy luận từ "tìm không thấy dòng
+  khớp" nữa, mà chặn tường minh ngay từ đầu, đối xứng với cơ chế
+  `requireStkStability` đã thêm cho Giao dịch ở bản 6.85. Kỳ hiện tại
+  (`useCu=false`, dùng `MaStkMoi`) không đổi gì.
+
+Đã kiểm thử (fakeModule, chạy THẬT `runCompositeReport()` với dữ liệu doanh
+thu năm trước dưới mã kho CŨ có thật trong nguồn giả lập): mã Điểm đã đổi
+kho giờ ẩn ĐÚNG CẢ 2 cột "Cùng kỳ năm 2025" (Doanh thu lẫn Giao dịch) và
+"Tỷ lệ % LFL" tương ứng, mã Điểm chưa đổi kho không bị ảnh hưởng gì.
+
+**Cần làm trên server sau bản này**: chạy lại
+`node rp-server/scripts/seedLdtdHcrcReports.js` — thực ra bản này KHÔNG đổi
+`DefinitionJson` (chỉ sửa logic trong `diemStkMapping.js`), nên chỉ cần
+`git pull` + khởi động lại `rp-server`, không bắt buộc chạy lại script (chạy
+lại cũng vô hại, không sinh trùng).
+
 ## 6.85 — Ẩn "Cùng kỳ Giao dịch" cho mã Điểm đã đổi mã kho (STK cũ ≠ STK mới)
 
 Người dùng làm rõ thêm nghiệp vụ: mã kho (STK) mới thể hiện đúng nhất giao
