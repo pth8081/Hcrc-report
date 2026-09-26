@@ -75,6 +75,14 @@
 // thì cờ này coi như không đặt (không loại gì, tránh vô tình xoá sạch báo
 // cáo nếu ai đó bật nhầm cờ mà quên khai khối target).
 //
+// DefinitionJson.requireDiemStkMapping (TUỲ CHỌN, mặc định false) — BẬT thì
+// loại HẲN mọi mã Điểm KHÔNG có dòng khai trong etl.DiemStkMapping ("Ánh xạ
+// Điểm - STK_ID"), DÙ mã đó vẫn có dữ liệu ở khối target/giaodich_chinhanh
+// (2 khối này không cần tra bảng ánh xạ nên vẫn "có dữ liệu" dù mã Điểm
+// chưa khai ánh xạ) — dùng để tránh hiện dòng nửa vời (có Chỉ tiêu/Giao
+// dịch nhưng Doanh thu luôn trống) cho tới khi admin khai đủ ánh xạ, xem
+// seedLdtdHcrcReports.js.
+//
 // DefinitionJson.groupBy (TUỲ CHỌN) — dòng "Tổng cộng" theo nhóm + tổng
 // toàn báo cáo (vd "Tổng cộng MART"/"Tổng cộng MINIMART"/"Tổng cộng"):
 //   field         — path "tenKhoi.field" dùng để nhóm (vd "current.dimensions.chain")
@@ -432,10 +440,23 @@ async function runCompositeReport(definition, filterValues = {}) {
   // nhất 1 khối target thật sự khai trong definition, tránh lỡ bật cờ mà
   // quên khai khối target làm trống sạch báo cáo.
   const requireTargetMatch = !!definition.requireTargetMatch && targetBlockKeys.length > 0;
+  // requireDiemStkMapping (TUỲ CHỌN, mặc định false) — BẬT thì loại HẲN mọi
+  // mã Điểm KHÔNG có dòng khai trong etl.DiemStkMapping, DÙ mã đó có dữ liệu
+  // ở khối target/giaodich_chinhanh (2 khối này không cần tra DiemStkMapping
+  // — target đọc thẳng theo mã Điểm, giaodich giữ nguyên BU_ID = mã Điểm,
+  // xem VERSION.md bản bỏ "Ánh xạ mã chi nhánh") — nếu không có cờ này, 1 mã
+  // Điểm có trong file chỉ tiêu nhưng CHƯA khai "Ánh xạ Điểm - STK_ID" vẫn
+  // lọt vào báo cáo với cột Doanh thu trống (đúng, vì thực đạt STK_ID không
+  // tra được) nhưng cột Giao dịch/Chỉ tiêu vẫn có số — nhìn như báo cáo
+  // thiếu dữ liệu ngẫu nhiên. Bật cờ này để ẨN HẲN dòng đó cho tới khi admin
+  // khai đủ ánh xạ, tránh hiện dòng nửa vời — xem lib/diemStkMapping.js.
+  const requireDiemStkMapping = !!definition.requireDiemStkMapping;
+  const diemMappingForFilter = requireDiemStkMapping ? await loadDiemStkMapping() : null;
   const mergedRows = [...merged.values()].filter(
     r => !targetBlockKeys.some(key => r[key]?.TrangThai === 'DaDong')
       && !ambiguousEntityCodes.has(r.entityCode)
       && (!requireTargetMatch || targetBlockKeys.some(key => r[key] !== undefined))
+      && (!requireDiemStkMapping || diemMappingForFilter.has(r.entityCode))
   );
   // Cột khớp `hideWhen` -> LOẠI HẲN khỏi danh sách cột trả về (không chỉ để
   // trống giá trị) — dùng cho "chế độ xem" tuỳ chọn ẩn bớt nhóm cột so sánh,

@@ -73,6 +73,12 @@ function buildDefinition(title, targetDomain) {
     // Chỉ hiện thực thể CÓ chỉ tiêu (loại mã rác/mã test có dữ liệu thực đạt
     // nhưng chưa từng được nhập chỉ tiêu) — xem compositeReportRunner.js.
     requireTargetMatch: true,
+    // Chỉ hiện mã Điểm ĐÃ khai "Ánh xạ Điểm - STK_ID" — mã Điểm có chỉ tiêu
+    // (qua bộ lọc requireTargetMatch ở trên) nhưng CHƯA khai ánh xạ vẫn có
+    // dữ liệu Giao dịch/Chỉ tiêu (2 khối này không cần ánh xạ) nên sẽ lọt
+    // qua bộ lọc trên với cột Doanh thu luôn trống — ẨN HẲN dòng đó cho tới
+    // khi khai đủ ánh xạ, xem compositeReportRunner.js.
+    requireDiemStkMapping: true,
     columns: [
       // "stt" — cột đặc biệt, KHÔNG có formula (giá trị thô rơi về undefined,
       // hiện trống trên bảng web) — lúc XUẤT (Excel/PDF/email tự động)

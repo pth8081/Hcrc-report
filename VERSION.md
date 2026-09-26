@@ -20,6 +20,31 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 6.84 — Loại hẳn mã Điểm chưa khai "Ánh xạ Điểm - STK_ID" khỏi báo cáo LDTD/HCRC
+
+Theo yêu cầu người dùng: mã Điểm CÓ trong file chỉ tiêu (và CÓ dữ liệu Giao
+dịch — domain này không cần ánh xạ, xem bản 6.83) nhưng CHƯA khai "Ánh xạ
+Điểm - STK_ID" trước đây vẫn lọt vào báo cáo với cột Doanh thu luôn trống —
+hiện dòng nửa vời, dễ gây hiểu nhầm là lỗi dữ liệu.
+
+- `rp-server/lib/compositeReportRunner.js` — thêm cờ tuỳ chọn (mặc định
+  tắt, không đổi hành vi báo cáo khác) `DefinitionJson.requireDiemStkMapping:
+  true` — loại HẲN mọi mã Điểm KHÔNG có dòng trong `etl.DiemStkMapping`, DÙ
+  mã đó vẫn "có dữ liệu" ở khối target/giaodich_chinhanh (2 khối không cần
+  tra bảng ánh xạ).
+- `rp-server/scripts/seedLdtdHcrcReports.js` — bật cờ này cho cả 2 báo cáo
+  (LDTD + HCRC).
+
+Đã kiểm thử (fakeModule, chạy THẬT `runCompositeReport()`): mã Điểm có chỉ
+tiêu + có giao dịch nhưng chưa khai ánh xạ bị loại đúng khi bật cờ, giữ
+nguyên (hành vi cũ) khi tắt cờ. Demo Excel/PDF thật (qua `seedLdtdHcrcReports.js`
++ `exportExcel`/`exportPdf`) xác nhận báo cáo CHỈ còn hiện mã Điểm đã khai
+đủ ánh xạ.
+
+**Cần làm trên server sau bản này**: chạy lại
+`node rp-server/scripts/seedLdtdHcrcReports.js` để áp cờ mới vào 2 báo cáo
+hiện có.
+
 ## 6.83 — Bỏ hẳn "Ánh xạ mã chi nhánh" (etl.BranchCodeMap) — chỉ dùng "Ánh xạ Điểm - STK_ID"
 
 Người dùng phát hiện + phân tích đúng nguyên nhân: `etl.BranchCodeMap` chỉ
