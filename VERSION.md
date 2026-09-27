@@ -20,6 +20,18 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 6.94 — Tài liệu API voucher riêng để GỬI CHO ĐỐI TÁC (api-voucher-check-redeem-gui-doi-tac.md)
+
+Người dùng làm rõ: `api-voucher-check-redeem.md` (bản 6.92/6.93) là tài
+liệu TRIỂN KHAI nội bộ cho IT/DBA (có nhắc etl-admin/api-admin/DSMART16,
+mục 13 hướng_dẫn_báo_cáo.md...) — KHÔNG phù hợp gửi thẳng cho đối tác
+ngoài (team app voucher). Viết file MỚI riêng
+`api-voucher-check-redeem-gui-doi-tac.md` — chỉ có hợp đồng API thuần tuý
+(base URL, xác thực bằng `X-API-Key`, request/response, mã lỗi, ghi chú
+tích hợp/idempotent) — bỏ hết chi tiết nội bộ (DSMART16, trang cấu hình
+admin, mục 13...). Từ nay: tài liệu triển khai nội bộ và tài liệu gửi đối
+tác của CÙNG 1 API là 2 FILE RIÊNG, không gộp chung.
+
 ## 6.93 — Bổ sung ví dụ xác thực cụ thể vào api-voucher-check-redeem.md
 
 Người dùng yêu cầu gửi tài liệu API voucher cho team app đối chiếu — bổ

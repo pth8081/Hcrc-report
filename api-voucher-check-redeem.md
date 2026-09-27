@@ -193,3 +193,8 @@ duy nhất), và phần `PMCRDRCV`/`Voucher_Exelogs`/`VoucherScanLogs` (bỏ —
 dùng `api.VoucherRedemptions` + `api.RequestLog` có sẵn thay thế). Khi
 `lib/voucherRedeemService.js`/`routes/v1/vouchers.js` thay đổi, cần cập
 nhật lại tài liệu tương ứng.
+
+**Đây là tài liệu TRIỂN KHAI NỘI BỘ** (cho IT/DBA, có nhắc etl-admin/
+api-admin/DSMART16) — **KHÔNG gửi file này cho đối tác ngoài**. Tài liệu
+GỬI CHO ĐỐI TÁC (chỉ hợp đồng API thuần tuý, không có chi tiết nội bộ):
+xem `api-voucher-check-redeem-gui-doi-tac.md`.
