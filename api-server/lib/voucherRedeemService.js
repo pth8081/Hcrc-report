@@ -34,6 +34,23 @@ const USED_VALUE = 0; // đã xác nhận: 0 = đã thu hồi/đã dùng, 1 = ch
 class ConfigError extends Error {}
 class NotFoundError extends Error {}
 
+// STATUS đã đổi thật (không lùi lại được) nhưng KHÔNG ghi được dòng vào
+// api.VoucherRedemptions (mất kết nối CSDL ADMIN đúng lúc, timeout...) — xem
+// redeemVoucher() bên dưới. Đây LÀ tình huống "Core đã xác nhận thu hồi
+// THÀNH CÔNG nhưng hệ thống ghi nhận cục bộ bị lỗi" mà tài liệu app voucher
+// gốc mô tả (mục mã lỗi 500) — route (routes/v1/vouchers.js) bắt riêng lớp
+// này để trả đúng cảnh báo "KHÔNG quét lại mã này", KHÔNG để rơi vào lỗi
+// 500 chung chung.
+class RedeemAuditFailedError extends Error {
+  constructor(message, { barcode, transNum, valueAmt, redeemedAt }) {
+    super(message);
+    this.barcode = barcode;
+    this.transNum = transNum;
+    this.valueAmt = valueAmt;
+    this.redeemedAt = redeemedAt;
+  }
+}
+
 async function loadDataSourceId() {
   const adminPool = await getPool('ADMIN');
   const result = await adminPool.request().query('SELECT DataSourceId FROM api.VoucherSettings WHERE Id = 1');
@@ -107,20 +124,41 @@ async function redeemVoucher(barcode, consumerId) {
   if (updateResult.recordset.length > 0) {
     const { ValueAmt, StkId } = updateResult.recordset[0];
     const transNum = generateTransNum(now);
+    const redeemedAt = now.toISOString();
 
-    const adminPool = await getPool('ADMIN');
-    await adminPool.request()
-      .input('barcode', sql.VarChar(24), barcode)
-      .input('stkId', sql.VarChar(50), StkId != null ? String(StkId) : null)
-      .input('valueAmt', sql.Decimal(18, 2), ValueAmt)
-      .input('transNum', sql.VarChar(50), transNum)
-      .input('consumerId', sql.Int, consumerId || null)
-      .query(`
-        INSERT INTO api.VoucherRedemptions (Barcode, StkId, ValueAmt, TransNum, ConsumerId)
-        VALUES (@barcode, @stkId, @valueAmt, @transNum, @consumerId)
-      `);
+    // STATUS đã đổi thật ở trên (không lùi lại được) — bước ghi audit này là
+    // CSDL/kết nối KHÁC (pool 'ADMIN', xem chú thích đầu file). Không có
+    // giao dịch chung bao trùm được cả 2 (2 máy chủ SQL Server khác nhau).
+    // Thử lại vài lần để thu hẹp cửa sổ rủi ro (mất kết nối tạm thời) trước
+    // khi coi là thất bại thật — mất dòng audit nghĩa là mất mốc "ngày đã
+    // dùng" DUY NHẤT của voucher này (PMCRDINF không có cột này).
+    const INSERT_RETRY_ATTEMPTS = 3;
+    let lastErr;
+    for (let attempt = 1; attempt <= INSERT_RETRY_ATTEMPTS; attempt++) {
+      try {
+        const adminPool = await getPool('ADMIN');
+        await adminPool.request()
+          .input('barcode', sql.VarChar(24), barcode)
+          .input('stkId', sql.VarChar(50), StkId != null ? String(StkId) : null)
+          .input('valueAmt', sql.Decimal(18, 2), ValueAmt)
+          .input('transNum', sql.VarChar(50), transNum)
+          .input('consumerId', sql.Int, consumerId || null)
+          .query(`
+            INSERT INTO api.VoucherRedemptions (Barcode, StkId, ValueAmt, TransNum, ConsumerId)
+            VALUES (@barcode, @stkId, @valueAmt, @transNum, @consumerId)
+          `);
+        return { result: 'redeemed', transNum, valueAmt: ValueAmt, redeemedAt };
+      } catch (err) {
+        lastErr = err;
+        if (attempt < INSERT_RETRY_ATTEMPTS) await new Promise(r => setTimeout(r, 200 * attempt));
+      }
+    }
 
-    return { result: 'redeemed', transNum, valueAmt: ValueAmt, redeemedAt: now.toISOString() };
+    console.error(`🚨 [voucher] STATUS đã đổi thật cho barcode "${barcode}" (transNum ${transNum}) NHƯNG ghi api.VoucherRedemptions thất bại sau ${INSERT_RETRY_ATTEMPTS} lần thử — mất mốc thời gian đã dùng, cần đối soát tay. Lỗi gốc: ${lastErr.message}`);
+    throw new RedeemAuditFailedError(
+      'Voucher đã được xác nhận thu hồi THÀNH CÔNG nhưng hệ thống ghi nhận cục bộ bị lỗi. KHÔNG quét lại mã này — vui lòng báo quản trị viên để đối soát thủ công.',
+      { barcode, transNum, valueAmt: ValueAmt, redeemedAt }
+    );
   }
 
   // Không đổi dòng nào — phân biệt KHÔNG TỒN TẠI (404) với ĐÃ ở đúng
@@ -132,4 +170,4 @@ async function redeemVoucher(barcode, consumerId) {
   return { result: 'alreadyUsed' };
 }
 
-module.exports = { checkVoucher, redeemVoucher, ConfigError, NotFoundError };
+module.exports = { checkVoucher, redeemVoucher, ConfigError, NotFoundError, RedeemAuditFailedError };

@@ -145,6 +145,18 @@ Gọi lại nhiều lần với CÙNG 1 mã đã redeem thành công là AN TOÀ
 này; nếu redeem đã thành công thì các lần gọi lại sau đó sẽ nhận response
 "đã dùng" ở trên thay vì lỗi).
 
+**500 (trường hợp riêng) — voucher ĐÃ ĐƯỢC THU HỒI THÀNH CÔNG nhưng ghi
+nhận nội bộ phía HCRC bị lỗi:**
+```json
+{ "success": false, "message": "Voucher da duoc xac nhan thu hoi THANH CONG nhung he thong ghi nhan cuc bo bi loi. KHONG quet lai ma nay - vui long bao quan tri vien de doi soat thu cong." }
+```
+KHÁC hẳn 5xx thông thường ở trên — nhận đúng message này nghĩa là voucher
+ĐÃ bị đổi trạng thái thật (không lùi lại được), **KHÔNG được quét lại/gọi
+lại `/redeem` cho mã này** — báo nhân viên vận hành để HCRC đối soát thủ
+công. Rất hiếm gặp (chỉ khi hệ thống ghi nhận nội bộ của HCRC gặp sự cố
+đúng lúc), nhưng cần phân biệt rõ với 5xx thông thường vì hành động đúng
+là NGƯỢC LẠI (không retry).
+
 ---
 
 ## 3. Ghi chú tích hợp

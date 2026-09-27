@@ -150,6 +150,26 @@ router.get('/:reportId/filter-options/:field', async (req, res, next) => {
         HAVING JSON_VALUE(Dimensions, '$.${valueField}') IS NOT NULL
         ORDER BY MAX(JSON_VALUE(Dimensions, '$.${labelField || valueField}'))
       `);
+
+    // Danh sách rỗng ở đây có 2 NGUYÊN NHÂN hoàn toàn khác nhau, cùng ra
+    // 200 [] cho client — bình thường (domain CHƯA có dữ liệu, vd mới
+    // triển khai, ETL chưa chạy lần đầu) và CẤU HÌNH SAI (optionsSource.
+    // domain/valueField gõ sai tên, admin không hề biết vì giao diện chỉ
+    // thấy ô lọc "trống", giống hệt trường hợp bình thường) — trước đây
+    // không phân biệt được, phải soát DB tay mới biết. Chỉ truy vấn THÊM
+    // ở nhánh HIẾM (rỗng) này để phân biệt, không tốn thêm round-trip cho
+    // đường thường (có kết quả).
+    if (!result.recordset.length) {
+      const domainCheck = await pool.request().input('domain', sql.VarChar(50), domain)
+        .query('SELECT COUNT(*) AS Cnt FROM dwh.ReportFacts WHERE Domain = @domain');
+      const domainRowCount = domainCheck.recordset[0].Cnt;
+      if (domainRowCount === 0) {
+        console.warn(`⚠️  [filter-options] báo cáo "${req.params.reportId}" field "${req.params.field}" — optionsSource.domain "${domain}" KHÔNG có dòng nào trong dwh.ReportFacts (domain gõ sai trong DefinitionJson, hoặc ETL chưa từng đồng bộ domain này) — trả danh sách RỖNG cho client, DỄ NHẦM với "domain có thật nhưng chưa có dữ liệu". Kiểm tra lại optionsSource.domain.`);
+      } else {
+        console.warn(`⚠️  [filter-options] báo cáo "${req.params.reportId}" field "${req.params.field}" — domain "${domain}" CÓ dữ liệu (${domainRowCount} dòng) nhưng KHÔNG dòng nào có "${valueField}" khác NULL trong Dimensions — optionsSource.valueField có thể gõ sai tên cột. Trả danh sách RỖNG cho client.`);
+      }
+    }
+
     res.json(result.recordset);
   } catch (err) { next(err); }
 });

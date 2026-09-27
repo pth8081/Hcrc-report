@@ -12,6 +12,14 @@ function param(name) {
   return `:${name}`;
 }
 
+// Cùng mục đích với dbAdapters/mssql.js:paginate() — cú pháp MySQL/MariaDB
+// khác hẳn (không có OFFSET...FETCH NEXT), namedPlaceholders vẫn dùng được
+// ở vị trí LIMIT/OFFSET vì mysql2 thay giá trị vào chuỗi SQL trước khi gửi
+// (pool.query(), không phải prepared statement thật).
+function paginate(offsetParam, limitParam) {
+  return `LIMIT ${limitParam} OFFSET ${offsetParam}`;
+}
+
 async function createPool(config) {
   const pool = mysql.createPool({
     host: config.server,

@@ -18,6 +18,16 @@ const sourcesRegistry = require('../sources');
 const EPOCH = new Date('1970-01-01T00:00:00.000Z');
 const WATERMARK_SAFETY_LAG_MS = 5000;
 
+// Số dòng đọc/biến đổi/ghi mỗi LÔ cho job Type='table' (xem runTableJob) —
+// job "Lịch sử" chạy lần đầu đọc VIEW gộp UNION ALL ~93 bảng/bảng lưu trữ
+// hàng chục triệu dòng không lọc ngày (đã gặp thật, xem chú thích
+// DEFAULT_REQUEST_TIMEOUT_MS ở lib/dbAdapters/mssql.js) — trước đây
+// extractTable() tải TOÀN BỘ kết quả vào 1 mảng JS, rồi .map() ra 1 mảng
+// TOÀN BỘ thứ 2 trước khi ghi dòng đầu tiên — 2 bản sao đầy đủ trong bộ nhớ
+// cùng lúc, rủi ro Node hết bộ nhớ (OOM) thật với quy mô này. Từ nay đọc-
+// biến đổi-ghi TỪNG LÔ ngay khi có, không giữ quá 1 lô trong bộ nhớ.
+const EXTRACT_BATCH_SIZE = 5000;
+
 // "Watermark tie": lần chạy SAU lọc "WHERE UpdatedAt > watermark" — nếu 2
 // dòng nguồn commit gần như đồng thời cùng 1 mốc UpdatedAt (độ phân giải
 // thô, hoặc giao dịch B bắt đầu trước giao dịch A nhưng commit SAU khi câu
@@ -75,15 +85,45 @@ async function logRun({ jobId, status, rowCount = 0, errorMessage = null, starte
     `);
 }
 
-async function runTableJob(job, lastSyncedAt) {
+// Đọc-biến đổi-ghi theo LÔ (xem EXTRACT_BATCH_SIZE) — TỰ ghi luôn vào
+// dwh.ReportFacts qua upsertReportFacts() cho từng lô (khác runCustomJob:
+// connector tuỳ biến ở etl/sources/ thường trả về lượng dòng vừa phải, chưa
+// thấy rủi ro OOM tương tự nên giữ nguyên "gom hết rồi ghi 1 lần"). Watermark
+// (LastSyncedAt) CHỈ ghi 1 LẦN ở cuối lượt chạy (runJobObjectLocked, không
+// đổi) — lượt chạy bị crash giữa chừng thì lần chạy sau đọc lại TỪ ĐẦU với
+// CÙNG lastSyncedAt cũ, ghi lại đúng những lô đã ghi rồi (MERGE idempotent,
+// vô hại) — nhất quán với cách upsertReportFacts() vốn đã tự chia lô
+// ROWS_PER_TRANSACTION và commit từng lô độc lập, KHÔNG chờ ghi xong mới
+// đẩy watermark.
+async function runTableJob(job, lastSyncedAt, dwhPool) {
   const connection = await getConnection(job.DataSourceId);
-  const { rows, ...meta } = await extractTable(connection, job, lastSyncedAt);
-  const transformed = rows.map(r => transformRow(job, meta, r));
-  const rawMaxUpdatedAt = rows.reduce((max, r) => {
-    const v = r[`m_${meta.updatedCol}`];
-    return v > max ? v : max;
-  }, lastSyncedAt);
-  return { transformed, maxUpdatedAt: applyWatermarkSafetyLag(rawMaxUpdatedAt), rawCount: rows.length };
+
+  let offset = 0;
+  let rawCount = 0;
+  let rawMaxUpdatedAt = lastSyncedAt;
+  let inserted = 0;
+  let updated = 0;
+
+  for (;;) {
+    const { rows, ...meta } = await extractTable(connection, job, lastSyncedAt, { offset, limit: EXTRACT_BATCH_SIZE });
+    if (!rows.length) break;
+
+    rawCount += rows.length;
+    for (const r of rows) {
+      const v = r[`m_${meta.updatedCol}`];
+      if (v > rawMaxUpdatedAt) rawMaxUpdatedAt = v;
+    }
+
+    const transformedBatch = rows.map(r => transformRow(job, meta, r));
+    const batchResult = await upsertReportFacts(dwhPool, transformedBatch, { keepHistory: !!job.KeepHistory });
+    inserted += batchResult.inserted;
+    updated += batchResult.updated;
+
+    if (rows.length < EXTRACT_BATCH_SIZE) break;
+    offset += EXTRACT_BATCH_SIZE;
+  }
+
+  return { maxUpdatedAt: applyWatermarkSafetyLag(rawMaxUpdatedAt), rawCount, inserted, updated };
 }
 
 async function runCustomJob(job, lastSyncedAt) {
@@ -199,9 +239,19 @@ async function runJobObjectLocked(job) {
   logInfo(`▶ [${job.Name}] Bắt đầu đồng bộ...`);
   try {
     const lastSyncedAt = await getLastSyncedAt(job.Id);
-    const { transformed, maxUpdatedAt, rawCount } = job.Type === 'table'
-      ? await runTableJob(job, lastSyncedAt)
-      : await runCustomJob(job, lastSyncedAt);
+    const dwhPool = await getPool('DWH');
+
+    let maxUpdatedAt, rawCount, inserted = 0, updated = 0;
+    if (job.Type === 'table') {
+      ({ maxUpdatedAt, rawCount, inserted, updated } = await runTableJob(job, lastSyncedAt, dwhPool));
+    } else {
+      const custom = await runCustomJob(job, lastSyncedAt);
+      maxUpdatedAt = custom.maxUpdatedAt;
+      rawCount = custom.rawCount;
+      if (rawCount) {
+        ({ inserted, updated } = await upsertReportFacts(dwhPool, custom.transformed, { keepHistory: !!job.KeepHistory }));
+      }
+    }
 
     if (!rawCount) {
       logInfo(`  [${job.Name}] Không có dòng nào thay đổi kể từ ${lastSyncedAt.toISOString()}.`);
@@ -209,10 +259,8 @@ async function runJobObjectLocked(job) {
       return;
     }
 
-    const dwhPool = await getPool('DWH');
-    const { inserted, updated } = await upsertReportFacts(dwhPool, transformed, { keepHistory: !!job.KeepHistory });
     await setLastSyncedAt(job.Id, maxUpdatedAt);
-    await logRun({ jobId: job.Id, status: 'SUCCESS', rowCount: transformed.length, startedAt, finishedAt: new Date() });
+    await logRun({ jobId: job.Id, status: 'SUCCESS', rowCount: rawCount, startedAt, finishedAt: new Date() });
     logInfo(`✅ [${job.Name}] Xong — ${inserted} dòng mới, ${updated} dòng cập nhật.`);
   } catch (err) {
     const message = describeSyncError(err);

@@ -20,6 +20,68 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 6.95 — Rà soát chuyên sâu nghiệp vụ/báo cáo/ETL/API sau bản voucher — sửa 12 lỗi logic/rủi ro
+
+Người dùng yêu cầu rà soát chuyên sâu toàn hệ thống sau khi hoàn tất tính
+năng Voucher (bản 6.91-6.94), xử lý theo thứ tự rủi ro cao xuống thấp. 12
+lỗi/rủi ro được phát hiện và sửa, mỗi lỗi kèm test riêng (fakeModule):
+
+1. **etl/routes/admin/coreItemList.js** — chặn (400, cần xác nhận
+   `confirmEmpty`) khi upload sheet TRỐNG cho loại điểm ĐANG có dữ liệu, sẽ
+   XOÁ SẠCH danh sách Core im lặng (mất cảnh báo "hết hàng" của báo cáo
+   Core stock=0). Không chặn nếu loại điểm đó đang rỗng sẵn.
+2. **api-server/lib/voucherRedeemService.js** — `redeemVoucher()` đổi
+   STATUS (DSMART16) và ghi `api.VoucherRedemptions` (CSDL admin) là 2 kết
+   nối khác nhau, không giao dịch chung. Thêm thử lại 3 lần cho bước ghi
+   audit; thất bại thật thì trả `500` rõ ràng "đã thu hồi thành công nhưng
+   ghi nhận cục bộ lỗi, KHÔNG quét lại" (`RedeemAuditFailedError`) — khớp
+   đúng tài liệu app voucher gốc, tránh mất mốc "ngày đã dùng" trong im lặng.
+3. **etl/lib/tableSyncEngine.js + jobs/runSync.js** — job "Lịch sử" chạy
+   lần đầu (VIEW gộp UNION ALL hàng chục triệu dòng) trước đây tải TOÀN BỘ
+   kết quả + biến đổi vào 2 mảng JS đầy đủ trước khi ghi dòng đầu tiên, rủi
+   ro Node OOM. Đọc-biến đổi-ghi theo LÔ 5000 dòng (OFFSET...FETCH NEXT/
+   LIMIT...OFFSET, thêm `paginate()` vào 2 adapter mssql/mysql), watermark
+   vẫn chỉ ghi 1 lần cuối lượt chạy (an toàn khi crash giữa chừng).
+4. **Scope API riêng cho voucher** (`voucherCheck`/`voucherRedeem`, thay
+   dùng chung `realtime`/`realtimeWrite` với Endpoint động) — cấp
+   `realtime` cho 1 đối tác vì lý do khác trước đây vô tình mở luôn
+   `/vouchers/check`. Đối tác voucher hiện có cần được cấp lại 2 scope mới.
+5. **etl/routes/admin/syncJobs.js** — chặn lúc lưu (tạo VÀ sửa job) nếu
+   `dimensionColumns` (bảng chính) và `lookupDimensionColumns` (bảng liên
+   kết) trùng tên — `tableSyncEngine.js:transformRow()` gộp cả 2 vào CÙNG 1
+   object theo tên cột, trùng tên bị đè lẫn nhau im lặng.
+6. **rp-server/lib/compositeReportRunner.js + routes/reportCatalog.js** —
+   `dateOffsetYears` CHỈ áp dụng được cho khối `directDb`; khối
+   `apiReport`/`apiRealtime` (gọi API ngoài, không hiểu khoảng ngày) trước
+   đây BỎ QUA ÂM THẦM, báo cáo hiện SAI dữ liệu "cùng kỳ năm trước" (vẫn là
+   hiện tại). Chặn cả lúc lưu (400) và lúc chạy (throw, phòng script seed).
+7. **rp-server/lib/formulaEngine.js** (`extractFieldPaths()` mới) +
+   `compositeReportRunner.js`/`reportCatalog.js` — công thức/cột tham chiếu
+   tên khối gõ sai hoặc khối đã đổi tên luôn ra `undefined` không cảnh báo.
+   Chặn lúc lưu báo cáo composite (400), cảnh báo (console.warn, không chặn
+   cứng) lúc chạy.
+8. **api-server/lib/realtimeEngine.js** — `runList()` khi JOIN không unique
+   (LookupJoinColumn nhân dòng) trước đây chỉ `console.warn` rồi vẫn trả
+   TOÀN BỘ dòng nhân cho đối tác. Giờ LOẠI dòng nhân, chỉ giữ 1 dòng/bản ghi
+   bảng chính, vẫn cảnh báo log server.
+9. **api-server/lib/voucherGuessGuard.js** (mới) — đếm số lần
+   `/check`/`/redeem` trả `INVALID`/`notFound` LIÊN TIẾP theo `consumer.id`,
+   riêng với giới hạn tần suất chung (`RateLimitPerMinute`, không phân
+   biệt đúng/sai) — chặn `429` sau 20 lần dò sai liên tiếp/10 phút, chống
+   dò mã voucher tự động. Mã đúng (kể cả đã dùng) xoá ngay bộ đếm.
+10. **rp-server/lib/compositeReportRunner.js** (`shiftYears()`) — 29/2 dịch
+    tới 1 năm KHÔNG NHUẬN bị JS `Date.setUTCFullYear()` tự "chồm" sang 1/3,
+    lệch nguyên 1 ngày cho báo cáo "cùng kỳ năm trước" chạy đúng 29/2. Chốt
+    cứng về 28/2 khi năm đích không nhuận.
+11. **rp-server/routes/reports.js** (`GET /:reportId/filter-options/:field`)
+    — danh sách rỗng có 2 nguyên nhân khác nhau (domain gõ sai/chưa đồng bộ
+    vs domain có dữ liệu nhưng valueField sai tên) cùng ra `200 []` không
+    phân biệt được. Thêm 1 truy vấn kiểm tra CHỈ ở nhánh rỗng, console.warn
+    phân biệt rõ 2 trường hợp — client vẫn nhận `200 []` như cũ.
+12. **etl/scripts/seedLdtdHcrcSync.js** — xoá hướng dẫn lỗi thời nhắc khai
+    "Ánh xạ mã chi nhánh" (tính năng đã bỏ hẳn từ trước, BU_ID dùng thẳng
+    làm entityCode).
+
 ## 6.94 — Tài liệu API voucher riêng để GỬI CHO ĐỐI TÁC (api-voucher-check-redeem-gui-doi-tac.md)
 
 Người dùng làm rõ: `api-voucher-check-redeem.md` (bản 6.92/6.93) là tài

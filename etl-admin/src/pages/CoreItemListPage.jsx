@@ -58,6 +58,23 @@ export default function CoreItemListPage() {
       setFile(null);
       reload();
     } catch (err) {
+      // requiresConfirm: sheet có mặt nhưng 0 dòng dữ liệu, loại điểm đó ĐANG
+      // có sẵn danh sách — hỏi lại rõ ràng trước khi cho xoá sạch (xem
+      // etl/routes/admin/coreItemList.js).
+      if (err.data?.requiresConfirm && window.confirm(`${err.message}\n\nBấm OK để xác nhận xoá sạch, Huỷ để dừng lại.`)) {
+        const confirmFormData = new FormData();
+        confirmFormData.append('file', file);
+        confirmFormData.append('confirmEmpty', 'true');
+        try {
+          const result = await api.post('/core-item-list/import', confirmFormData, true);
+          setImportResult(result);
+          setFile(null);
+          reload();
+        } catch (err2) {
+          setError(err2.message);
+        }
+        return;
+      }
       setError(err.message);
     }
   }

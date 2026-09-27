@@ -253,8 +253,6 @@ async function main() {
 
   console.log('');
   console.log('✅ Xong — 2 Nguồn dữ liệu + 4 job đồng bộ đã sẵn sàng.');
-  console.log('   Nhớ khai bảng "Ánh xạ mã chi nhánh" (Loại mã "BU_ID") TRƯỚC khi 2 job Giao dịch chạy thật —');
-  console.log('   xem etl-admin → menu "Ánh xạ mã chi nhánh" — thiếu vẫn chạy được, chỉ ghi cảnh báo ở Log.');
   process.exit(0);
 }
 

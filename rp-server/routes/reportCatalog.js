@@ -13,7 +13,7 @@ const multer = require('multer');
 const { sql, getPool } = require('../db');
 const { requireAuth, requireMenuAccess } = require('../lib/auth');
 const { logAction } = require('../lib/auditLog');
-const { parseFormula } = require('../lib/formulaEngine');
+const { parseFormula, extractFieldPaths } = require('../lib/formulaEngine');
 const { runExternalReport } = require('../lib/externalReportClient');
 const { hasZipSignature } = require('../lib/fileSignature');
 
@@ -146,6 +146,43 @@ function validateCompositeDefinition(sourceType, definition) {
     }
     if ((block.sourceType === 'apiReport' || block.sourceType === 'apiRealtime') && (!block.apiConnectionId || !block.apiTarget)) {
       return `Khối "${block.key}" (${block.sourceType}) thiếu apiConnectionId/apiTarget`;
+    }
+    // lib/compositeReportRunner.js:runBlock() CHỈ áp dụng dateOffsetYears
+    // (dịch khoảng ngày lấy "cùng kỳ năm trước") cho khối directDb — khối
+    // apiReport/apiRealtim gọi API Server ngoài, KHÔNG hiểu khoảng ngày, chỉ
+    // nhận đúng 1 ngày CUỐI khoảng đang lọc (xem chú thích đầu file đó) —
+    // khai dateOffsetYears ở khối này bị BỎ QUA ÂM THẦM lúc chạy (báo cáo
+    // hiện SAI dữ liệu — vẫn là ngày hiện tại thay vì "năm trước" như admin
+    // tưởng đã cấu hình). Chặn ngay lúc lưu, không để lộ ra khi đối chiếu số
+    // liệu sau này.
+    if ((block.sourceType === 'apiReport' || block.sourceType === 'apiRealtime') && block.dateOffsetYears) {
+      return `Khối "${block.key}" (${block.sourceType}) không hỗ trợ "dateOffsetYears" — khối gọi API ngoài chỉ nhận đúng 1 ngày, không dịch được theo năm. Bỏ trường này (hoặc đặt 0) ở khối này.`;
+    }
+  }
+
+  // lib/compositeReportRunner.js:resolveCompositeField() đọc path[0] làm TÊN
+  // KHỐI (hoặc 'entityCode', field đặc biệt gắn thẳng lên dòng ghép — xem
+  // hàm đó) — path[0] gõ sai/khối đã đổi tên sau khi cột đã tạo sẽ luôn
+  // resolveField về undefined, công thức/cột đó âm thầm ra rỗng, KHÔNG có
+  // lỗi/cảnh báo gì (khác lỗi cú pháp công thức đã có validateFormulaColumns
+  // bắt riêng). Đối chiếu ngay lúc lưu — path[0] PHẢI khớp đúng 1 "key" khối
+  // đã khai ở trên, "entityCode", hoặc "stt" (cột đặc biệt TỰ đánh số lúc
+  // xuất — xem lib/compositeReportRunner.js dòng khai "Cột đặc biệt key=stt",
+  // KHÔNG đọc qua resolveCompositeField() nên không tính là field thiếu).
+  const validPathHeads = new Set([...seenKeys, 'entityCode', 'stt']);
+  for (const col of definition.columns || []) {
+    const paths = [];
+    if (col && typeof col === 'object' && col.formula) {
+      try { paths.push(...extractFieldPaths(col.formula)); } catch { /* lỗi cú pháp đã bắt riêng ở validateFormulaColumns */ }
+    } else {
+      const key = typeof col === 'string' ? col : col && col.key;
+      if (key) paths.push(key.split('.'));
+    }
+    for (const path of paths) {
+      if (!validPathHeads.has(path[0])) {
+        const colLabel = typeof col === 'string' ? col : col.key;
+        return `Cột "${colLabel}" tham chiếu khối/field không tồn tại: "${path.join('.')}" — khối đầu (${path[0]}) phải là 1 trong: ${[...validPathHeads].join(', ')}`;
+      }
     }
   }
   return null;

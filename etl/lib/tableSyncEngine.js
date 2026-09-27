@@ -23,8 +23,20 @@ function parseColumnList(json) {
   return list.map(assertSafeIdentifier);
 }
 
-// connection = { pool, adapter, engine } từ lib/dataSourcePool.js.
-async function extractTable(connection, job, lastSyncedAt) {
+// connection = { pool, adapter, engine } từ lib/dataSourcePool.js. pagination
+// (tuỳ chọn) = { offset, limit } — job "Lịch sử" đọc lần đầu (VIEW gộp UNION
+// ALL hàng chục triệu dòng không lọc ngày) không còn tải TOÀN BỘ kết quả vào
+// bộ nhớ 1 lần: jobs/runSync.js gọi extractTable() nhiều lần, mỗi lần 1 lô
+// (xem EXTRACT_BATCH_SIZE ở đó), CÙNG lastSyncedAt/WHERE cho mọi lô của 1
+// lượt chạy — chỉ offset tăng dần. Dùng OFFSET...FETCH NEXT (mssql)/LIMIT...
+// OFFSET (mysql) cố ý thay vì "khoá cursor" theo updatedCol: 2 dòng trùng
+// đúng 1 mốc updatedCol (độ phân giải thô) có thể rơi vào 2 lô liền kề — với
+// cursor sẽ có rủi ro BỎ SÓT dòng ở lô sau (dòng bị "che" bởi WHERE > cursor
+// nếu cursor lấy đúng giá trị đó), còn OFFSET đọc đúng theo VỊ TRÍ trong 1
+// ORDER BY cố định nên KHÔNG bỏ sót/lặp dòng nào bất kể trùng mốc — đánh đổi
+// tốc độ (OFFSET lớn phải quét lại từ đầu) để lấy đúng, chấp nhận được vì chỉ
+// áp dụng cho job Lịch sử chạy 1 lần, không phải job hàng ngày.
+async function extractTable(connection, job, lastSyncedAt, pagination) {
   const { pool, adapter, engine } = connection;
   const q = adapter.quoteIdent;
   const p = adapter.param;
@@ -53,15 +65,24 @@ async function extractTable(connection, job, lastSyncedAt) {
     joinClause = `${joinType} JOIN ${q(joinSchema)}.${q(joinTable)} j ON m.${q(mainJoinCol)} = j.${q(lookupJoinCol)}`;
   }
 
+  const params = { lastSyncedAt };
+  let paginationClause = '';
+  if (pagination) {
+    paginationClause = adapter.paginate(p('offset'), p('limit'));
+    params.offset = pagination.offset;
+    params.limit = pagination.limit;
+  }
+
   const sqlText = `
     SELECT ${selectParts.join(', ')}
     FROM ${q(mainSchema)}.${q(mainTable)} m
     ${joinClause}
     WHERE m.${q(updatedCol)} > ${p('lastSyncedAt')}
     ORDER BY m.${q(updatedCol)} ASC
+    ${paginationClause}
   `;
 
-  const rows = await adapter.query(pool, sqlText, { lastSyncedAt });
+  const rows = await adapter.query(pool, sqlText, params);
   return { rows, keyCol, dateCol, updatedCol, dimCols, joinCols, engine };
 }
 

@@ -187,7 +187,7 @@ const { getPool } = require('../db');
 const { getPoolForDataSource } = require('./dataSourcePool');
 const { runReport, describeColumns } = require('./reportEngine');
 const { runApiReport } = require('./apiReportClient');
-const { evaluateFormula } = require('./formulaEngine');
+const { evaluateFormula, extractFieldPaths } = require('./formulaEngine');
 const { runSalesTargetsBlockRange } = require('./salesTargetsReader');
 const { loadDiemStkMapping, remapRowsToDiem, stkListsMatch } = require('./diemStkMapping');
 
@@ -195,10 +195,25 @@ function formatDateISO(d) {
   return d.toISOString().slice(0, 10);
 }
 
+function isLeapYear(y) {
+  return (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
+}
+
+// 29/2 dịch tới 1 năm KHÔNG NHUẬN không tồn tại — Date.setUTCFullYear() của
+// JS tự "chồm" qua ngày kế tiếp có thật (29/2/2024 dịch -1 năm ra 1/3/2023,
+// KHÔNG BÁO LỖI GÌ) — âm thầm lệch nguyên 1 ngày cho MỌI báo cáo "cùng kỳ
+// năm trước" chạy đúng ngày 29/2 (4 năm mới gặp 1 lần, dễ lọt qua test tay
+// thông thường). Chốt cứng về 28/2 của năm đích khi năm đó không nhuận —
+// đúng quy ước lịch phổ biến cho "cùng ngày năm trước" khi 29/2 không tồn
+// tại ở năm đối chiếu.
 function shiftYears(dateStr, years) {
   if (!years) return dateStr;
   const d = new Date(`${dateStr}T00:00:00Z`);
-  d.setUTCFullYear(d.getUTCFullYear() + years);
+  const targetYear = d.getUTCFullYear() + years;
+  if (d.getUTCMonth() === 1 && d.getUTCDate() === 29 && !isLeapYear(targetYear)) {
+    return formatDateISO(new Date(Date.UTC(targetYear, 1, 28)));
+  }
+  d.setUTCFullYear(targetYear);
   return formatDateISO(d);
 }
 
@@ -303,6 +318,16 @@ async function runBlock(block, requestedRange, filterValues) {
     return stkRows;
   }
   if (block.sourceType === 'apiReport' || block.sourceType === 'apiRealtime') {
+    // dateOffsetYears CHỈ áp dụng được cho khối directDb (dịch cả khoảng
+    // ngày) — khối này gọi API ngoài, không hiểu khoảng ngày (xem chú thích
+    // dưới), nên KHÔNG có cách áp dụng dateOffsetYears đúng nghĩa. Chặn ở
+    // đây (không chỉ ở routes/reportCatalog.js:validateCompositeDefinition,
+    // vì định nghĩa báo cáo có thể được ghi thẳng qua script seed, bỏ qua
+    // route đó) — thà lỗi rõ ràng lúc chạy còn hơn báo cáo lặng lẽ hiện SAI
+    // dữ liệu (vẫn ngày hiện tại, không phải "năm trước" như đã khai).
+    if (block.dateOffsetYears) {
+      throw new Error(`Khối "${block.key}" (${block.sourceType}) khai dateOffsetYears nhưng khối này không hỗ trợ (chỉ khối directDb dịch được theo năm) — sửa cấu hình báo cáo, bỏ dateOffsetYears ở khối này.`);
+    }
     // GIỚI HẠN ĐÃ BIẾT (xem chú thích đầu file): API ngoài chưa hiểu khoảng
     // ngày — chỉ truyền đúng 1 ngày CUỐI khoảng, best-effort, KHÔNG cộng dồn.
     const apiFilterValues = { ...filterValues, eventDate: to };
@@ -387,10 +412,38 @@ function sumMergedRows(mergedRows, blockKeys) {
   return summed;
 }
 
+// resolveCompositeField() (dưới) đọc path[0] làm TÊN KHỐI — path[0] gõ sai/
+// khối bị đổi tên sau khi cột đã tạo luôn resolveField về undefined, cột đó
+// âm thầm ra rỗng KHÔNG có cảnh báo gì (routes/reportCatalog.js:
+// validateCompositeDefinition chặn CỨNG việc này lúc LƯU, nhưng định nghĩa
+// có thể được ghi thẳng qua script seed, bỏ qua route đó) — CẢNH BÁO (không
+// chặn cứng, khác Fix6 dateOffsetYears vì đây là lỗi hiển thị/thiếu cột chứ
+// không phải số liệu SAI) ngay khi phát hiện lúc chạy, 1 lần/field lạ/mỗi
+// lượt chạy, để lộ ra log server thay vì chỉ thấy cột trống không rõ vì sao.
+function warnUnknownFormulaFields(definition) {
+  const validHeads = new Set([...definition.blocks.map(b => b.key), 'entityCode', 'stt']);
+  for (const col of definition.columns || []) {
+    const paths = [];
+    if (col && typeof col === 'object' && col.formula) {
+      try { paths.push(...extractFieldPaths(col.formula)); } catch { continue; }
+    } else {
+      const key = typeof col === 'string' ? col : col && col.key;
+      if (key) paths.push(key.split('.'));
+    }
+    for (const path of paths) {
+      if (!validHeads.has(path[0])) {
+        const colLabel = typeof col === 'string' ? col : col.key;
+        console.warn(`⚠️  [composite] cột "${colLabel}" tham chiếu "${path.join('.')}" — "${path[0]}" không khớp tên khối nào đã khai (${[...validHeads].join(', ')}) — cột này sẽ luôn rỗng, kiểm tra lại DefinitionJson.columns`);
+      }
+    }
+  }
+}
+
 async function runCompositeReport(definition, filterValues = {}) {
   if (!Array.isArray(definition.blocks) || !definition.blocks.length) {
     throw new Error('Báo cáo composite thiếu "blocks"');
   }
+  warnUnknownFormulaFields(definition);
   const requestedRange = resolveRequestedRange(filterValues);
 
   // Chạy TẤT CẢ khối song song — Promise.all giữ nguyên đúng thứ tự kết quả

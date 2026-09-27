@@ -114,10 +114,24 @@ async function runList(endpoint, { page = 1, pageSize = 200 } = {}) {
     .query(`SELECT ${cols}${keyCol} FROM ${table} ${joinClause} ORDER BY m.${orderCol} OFFSET @offset ROWS FETCH NEXT @pageSize ROWS ONLY`);
   let rows = result.recordset;
   if (def.JoinTable) {
+    // TRƯỚC ĐÂY: chỉ console.warn() rồi vẫn trả TOÀN BỘ dòng đã bị JOIN
+    // NHÂN cho đối tác — bảng liên kết không unique khiến 1 dòng bảng chính
+    // xuất hiện lặp lại nhiều lần trong danh sách trả về (đối tác không có
+    // cách nào tự nhận ra "đây là 1 bản ghi hay nhiều bản ghi" nếu chỉ đọc
+    // JSON, không phải dev soát log server). Giữ ĐÚNG 1 dòng/khoá bảng
+    // chính (dòng gặp ĐẦU TIÊN, theo ORDER BY hiện có — cùng nguyên tắc
+    // "không đảm bảo dòng nào" đã ghi ở runLookup() phía trên) — LOẠI các
+    // dòng nhân thêm, không trả ra ngoài, vẫn cảnh báo trong log server để
+    // admin biết mà sửa cấu hình.
     const seen = new Set();
-    const duplicated = rows.some(row => (seen.has(row.__rt_key_check) ? true : (seen.add(row.__rt_key_check), false)));
+    let duplicated = false;
+    rows = rows.filter(row => {
+      if (seen.has(row.__rt_key_check)) { duplicated = true; return false; }
+      seen.add(row.__rt_key_check);
+      return true;
+    });
     if (duplicated) {
-      console.warn(`⚠️  [realtime:${endpoint}] JOIN nhân dòng trong trang kết quả (trang ${page}) — LookupJoinColumn "${def.LookupJoinColumn}" có thể không unique trên "${def.JoinSchema}.${def.JoinTable}", danh sách trả về nhiều dòng hơn số bản ghi thật của bảng chính. Kiểm tra lại cấu hình endpoint.`);
+      console.warn(`⚠️  [realtime:${endpoint}] JOIN nhân dòng trong trang kết quả (trang ${page}) — LookupJoinColumn "${def.LookupJoinColumn}" có thể không unique trên "${def.JoinSchema}.${def.JoinTable}" — đã LOẠI dòng nhân thêm, chỉ giữ 1 dòng/bản ghi bảng chính (không đảm bảo dòng nào được giữ). Kiểm tra lại cấu hình endpoint.`);
     }
     rows = rows.map(({ __rt_key_check, ...rest }) => rest);
   }

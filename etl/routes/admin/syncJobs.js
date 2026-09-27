@@ -51,6 +51,19 @@ async function validateTableJobSchema(b) {
       throw new Error('Có joinTable thì phải kèm joinSchema/mainJoinColumn/lookupJoinColumn');
     }
     mainColumns.push(b.mainJoinColumn);
+
+    // lib/tableSyncEngine.js:transformRow() gộp dimensionColumns (bảng
+    // chính) và lookupDimensionColumns (bảng liên kết) vào CÙNG 1 object
+    // `dimensions` theo TÊN CỘT (không tách namespace bảng chính/bảng liên
+    // kết) — trùng tên thì cột ghi SAU (bảng liên kết) ĐÈ LÊN cột bảng chính
+    // TRONG IM LẶNG, mất dữ liệu mà không có lỗi/cảnh báo gì lúc job chạy.
+    // Chặn ngay lúc LƯU cấu hình, không để lộ ra mãi sau này lúc soát báo
+    // cáo thấy thiếu 1 chiều dữ liệu.
+    const mainDimNames = new Set(b.dimensionColumns || []);
+    const overlap = [...new Set(b.lookupDimensionColumns || [])].filter(c => mainDimNames.has(c));
+    if (overlap.length) {
+      throw new Error(`Cột Dimension trùng tên giữa bảng chính và bảng liên kết: ${overlap.join(', ')} — 2 bên PHẢI có tên khác nhau (cột trùng tên sẽ bị đè lẫn nhau khi ghi báo cáo), đổi tên cột hiển thị ở 1 trong 2 bên`);
+    }
   }
   await assertTableConfigMatchesSchema(b.dataSourceId, b.sourceSchema, b.sourceTable, mainColumns);
   if (b.joinTable) {
@@ -155,13 +168,25 @@ router.put('/:id', requireMenuEdit('sync-jobs'), async (req, res, next) => {
     const pool = await getPool('ADMIN');
     const jobId = parseInt(req.params.id, 10);
     const existing = await pool.request().input('id', sql.Int, jobId)
-      .query('SELECT Type, DataSourceId, SourceSchema, SourceTable FROM etl.SyncJobs WHERE Id = @id');
+      .query('SELECT Type, DataSourceId, SourceSchema, SourceTable, LookupDimensionColumnsJson FROM etl.SyncJobs WHERE Id = @id');
     if (!existing.recordset.length) return res.status(404).json({ error: 'Không tìm thấy job' });
     if (b.cronExpression && !cron.validate(b.cronExpression)) {
       return res.status(400).json({ error: `Lịch chạy (cron) không hợp lệ: "${b.cronExpression}"` });
     }
     const job = existing.recordset[0];
     if (job.Type === 'table') {
+      // PUT không cho sửa bảng liên kết/LookupDimensionColumns (chỉ tạo mới
+      // job mới nếu cần đổi) — nhưng CÓ cho sửa dimensionColumns bảng chính,
+      // nên vẫn phải đối chiếu tên mới với LookupDimensionColumns CŨ đang có
+      // sẵn của job này (xem chú thích trùng tên ở validateTableJobSchema).
+      const existingLookupDims = JSON.parse(job.LookupDimensionColumnsJson || '[]');
+      if (existingLookupDims.length) {
+        const newMainDims = new Set(b.dimensionColumns || []);
+        const overlap = existingLookupDims.filter(c => newMainDims.has(c));
+        if (overlap.length) {
+          return res.status(400).json({ error: `Cột Dimension trùng tên với bảng liên kết đã có của job này: ${overlap.join(', ')} — đổi tên khác (cột trùng tên sẽ bị đè lẫn nhau khi ghi báo cáo)` });
+        }
+      }
       try {
         await assertTableConfigMatchesSchema(job.DataSourceId, job.SourceSchema, job.SourceTable, [
           ...(b.dimensionColumns || []), ...(b.measureColumns || [])

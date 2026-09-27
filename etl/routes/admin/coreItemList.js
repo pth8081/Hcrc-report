@@ -107,6 +107,29 @@ router.post('/import', requireMenuEdit('core-item-list'), upload.single('file'),
     }
 
     const pool = await getPool('ADMIN');
+
+    // Chặn XOÁ SẠCH âm thầm: 1 sheet có mặt trong file nhưng 0 dòng dữ liệu
+    // (vd tải file mẫu về rồi lỡ upload lại chưa điền, hoặc xuất file gần
+    // như trống) sẽ REPLACE thành DANH SÁCH RỖNG cho đúng loại điểm đó — nếu
+    // loại điểm đó ĐANG có dữ liệu, đây rất có thể là nhầm lẫn (báo cáo "Core
+    // stock = 0" của loại điểm đó sẽ mất hết cảnh báo hết hàng). Bắt xác
+    // nhận rõ ràng (confirmEmpty=true) trước khi cho phép — không chặn nếu
+    // loại điểm đó ĐANG rỗng sẵn (không có gì để mất).
+    const emptyLoaiDiemNeedingConfirm = [];
+    for (const [loaiDiem, rows] of Object.entries(rowsByLoaiDiem)) {
+      if (rows.length > 0) continue;
+      const existing = await pool.request().input('loaiDiem', sql.VarChar(20), loaiDiem)
+        .query('SELECT COUNT(*) AS Cnt FROM etl.CoreItemList WHERE LoaiDiem = @loaiDiem');
+      if (existing.recordset[0].Cnt > 0) emptyLoaiDiemNeedingConfirm.push(loaiDiem);
+    }
+    if (emptyLoaiDiemNeedingConfirm.length && req.body.confirmEmpty !== 'true') {
+      return res.status(400).json({
+        error: `Sheet của loại điểm ${emptyLoaiDiemNeedingConfirm.join(', ')} có mặt trong file nhưng KHÔNG có dòng dữ liệu nào — sẽ XOÁ SẠCH danh sách Core hiện có của loại điểm đó (báo cáo "Core stock = 0" tương ứng sẽ mất hết dữ liệu). Nếu chắc chắn muốn xoá sạch, tick xác nhận rồi nhập lại.`,
+        requiresConfirm: true,
+        emptyLoaiDiem: emptyLoaiDiemNeedingConfirm
+      });
+    }
+
     const counts = await replaceCoreItemList(pool, rowsByLoaiDiem, req.admin.username);
     const summary = Object.entries(counts).map(([loaiDiem, n]) => `${loaiDiem}: ${n} mã`).join(', ');
     await logAction(req, { module: 'Danh sách hàng Core', actionType: 'NHAP_DANH_SACH_HANG_CORE', targetObject: 'CoreItemList', description: `Nhập file danh sách hàng Core (THAY HẲN): ${summary}` });

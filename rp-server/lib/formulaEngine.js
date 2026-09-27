@@ -275,4 +275,36 @@ function evaluateFormula(formula, resolveField) {
   return evalNode(parseFormula(formula), resolveField);
 }
 
-module.exports = { evaluateFormula, parseFormula };
+// Duyệt AST thu thập MỌI path field (mảng chuỗi, vd ['measures','doanhThu'])
+// công thức có tham chiếu tới — dùng để kiểm tra TĨNH (không cần chạy công
+// thức/có dữ liệu thật) rằng path[0] (vd tên khối trong báo cáo composite)
+// có tồn tại trong cấu hình hay không. evalNode() ở trên KHÔNG tự phát hiện
+// được field path sai (typo tên khối, JOIN nhầm) — resolveField() trả về
+// undefined giống hệt "field tồn tại nhưng không có dữ liệu", công thức âm
+// thầm ra null/không tính được mà không có cảnh báo nào — xem
+// routes/reportCatalog.js:validateCompositeDefinition() và
+// lib/compositeReportRunner.js:runCompositeReport() dùng hàm này để chặn lúc
+// lưu VÀ lúc chạy.
+function collectFieldPaths(node, out) {
+  if (!node) return;
+  switch (node.type) {
+    case 'field': out.push(node.path); return;
+    case 'unary': collectFieldPaths(node.arg, out); return;
+    case 'binary':
+    case 'compare':
+    case 'logic':
+      collectFieldPaths(node.left, out);
+      collectFieldPaths(node.right, out);
+      return;
+    case 'call': node.args.forEach(a => collectFieldPaths(a, out)); return;
+    default: return; // number/string — không có field
+  }
+}
+
+function extractFieldPaths(formula) {
+  const out = [];
+  collectFieldPaths(parseFormula(formula), out);
+  return out;
+}
+
+module.exports = { evaluateFormula, parseFormula, extractFieldPaths };

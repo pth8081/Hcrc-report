@@ -52,8 +52,14 @@ Khác 1 chỗ so với tài liệu app: đường dẫn thật là `/api/v1/vouc
 hệ đăng nhập nhân viên riêng như tài liệu app mô tả (JWT theo từng nhân
 viên) — coi app voucher là 1 đối tác DUY NHẤT, dùng 1 API key/HMAC chung
 (app tự lo việc phân biệt nhân viên nào thao tác, nếu cần). Scope: `check`
-cần `realtime`, `redeem` cần `realtimeWrite` (2 scope có sẵn, không tạo
-scope mới).
+cần `voucherCheck`, `redeem` cần `voucherRedeem` — **2 scope RIÊNG**, KHÔNG
+dùng chung `realtime`/`realtimeWrite` (đổi từ bản đầu — rà soát chuyên sâu
+phát hiện: dùng chung scope với endpoint động nghĩa là cấp `realtime` cho
+1 đối tác vì lý do KHÁC (vd đọc báo cáo doanh thu qua Endpoint realtime)
+vô tình cũng mở luôn `/vouchers/check` cho đối tác đó — 2 tính năng không
+liên quan chia sẻ nhầm 1 cổng quyền. Đối tác ĐANG dùng `realtime`+
+`realtimeWrite` cho voucher từ trước cần tick thêm 2 scope mới này ở
+"Đối tác" TRƯỚC/CÙNG LÚC nâng cấp, không tự chuyển).
 
 `POST /api/v1/vouchers/check` — body `{"voucherCode": "...", "scanMethod": "..."}` (`scanMethod` chỉ nhận, không dùng để lọc gì — app tự ghi log riêng nếu cần). `voucherCode` tối đa 24 ký tự.
 
@@ -76,6 +82,25 @@ Response:
 `transNum` do api-server TỰ SINH (`yyMMddHHmmss` giờ UTC + 6 ký tự ngẫu
 nhiên) — KHÔNG phải số giao dịch thật của DSMART16 (không ghi `PMCRDRCV`,
 xem mục 1).
+
+**Chống mất audit khi lỗi giữa 2 bước ghi** (rà soát chuyên sâu phát
+hiện, đã sửa): `redeemVoucher()` đổi `STATUS` (DSMART16) và ghi
+`api.VoucherRedemptions` (CSDL admin) là 2 kết nối khác nhau, không có
+giao dịch chung bao trùm được. Nếu bước ghi audit lỗi (mất kết nối tạm
+thời...), hệ thống THỬ LẠI tối đa 3 lần trước khi coi là thất bại thật —
+nếu vẫn thất bại, trả về `500` với message rõ ràng "đã thu hồi thành công
+nhưng ghi nhận cục bộ lỗi, KHÔNG quét lại" (khớp đúng tài liệu app voucher
+gốc mô tả cho tình huống này) thay vì để rơi vào phản hồi "đã dùng" mập mờ
+ở lần gọi lại sau đó.
+
+**Chặn dò mã voucher (guessGuard riêng, rà soát chuyên sâu phát hiện, đã
+thêm)**: `lib/voucherGuessGuard.js` — đếm số lần `/check`/`/redeem` trả về
+`INVALID`/`notFound` LIÊN TIẾP theo `consumer.id`, RIÊNG với giới hạn tần
+suất chung (`RateLimitPerMinute` ở "Đối tác" — không phân biệt đúng/sai).
+Vượt 20 lần sai liên tiếp trong 10 phút → `429` (kèm `Retry-After`) cho
+CẢ HAI endpoint của đúng đối tác đó, đến khi hết cửa sổ. Gọi mã ĐÚNG (kể
+cả đã USED) xoá ngay bộ đếm — không phạt oan đối tác xử lý danh sách mã
+thật xen vài mã lỗi bàn phím.
 
 ## 3. Cách xác thực (ví dụ cụ thể cho team app)
 
@@ -128,7 +153,7 @@ cần thiết cho 1 thiết bị quét mã đơn giản.
 | 2 | DBA chạy lại `api-db/schema.sql` (an toàn chạy lại nhiều lần) | DBA |
 | 3 | Đã có "Nguồn dữ liệu" trỏ DSMART16 (Live) chưa? | Admin api-admin (dùng lại nếu đã có từ mục 13, KHÔNG tạo mới) |
 | 4 | Vào api-admin → "Cấu hình Voucher", chọn đúng Nguồn dữ liệu | Admin api-admin |
-| 5 | Vào "Đối tác", tạo/sửa 1 đối tác cho app voucher — scope `realtime` + `realtimeWrite` | Admin api-admin |
+| 5 | Vào "Đối tác", tạo/sửa 1 đối tác cho app voucher — scope `voucherCheck` + `voucherRedeem` | Admin api-admin |
 | 6 | Gán quyền Xem/Sửa trang "Cấu hình Voucher" ở "Vai trò" | Admin api-admin |
 | 7 | Đưa API key/HMAC cho team app voucher, xác nhận đổi base URL sang `/api/v1/vouchers/...` | IT/Dev |
 | 8 | Kiểm tra: gọi thử `/check` với 1 mã còn dùng được và 1 mã đã dùng | IT/Dev |
@@ -147,9 +172,11 @@ Chỉ có đúng 1 cấu hình cho toàn hệ thống (không phân biệt theo 
 ## Bước 5 — Cấp quyền gọi cho đối tác (app voucher)
 
 Vào "Đối tác" → tạo/sửa đối tác cho app voucher:
-1. Tick scope `realtime` (cho `/check`) và `realtimeWrite` (cho `/redeem`)
-   — cấp cả 2 nếu app cần cả 2 API, chỉ 1 scope thì chỉ gọi được API
-   tương ứng.
+1. Tick scope `voucherCheck` (cho `/check`) và `voucherRedeem` (cho
+   `/redeem`) — cấp cả 2 nếu app cần cả 2 API, chỉ 1 scope thì chỉ gọi
+   được API tương ứng. KHÔNG dùng `realtime`/`realtimeWrite` cho voucher
+   nữa (2 scope đó vẫn còn, nhưng chỉ còn tác dụng cho Endpoint realtime/
+   ghi động — mục 3/13.1).
 2. KHÔNG cần vào "Realtime được gọi"/"Ghi được gọi" tick riêng endpoint gì
    — 2 route voucher này CỐ ĐỊNH, không đi qua danh sách "Endpoint" động
    như Endpoint realtime/ghi thường, chỉ cần đúng scope là gọi được.
@@ -175,8 +202,8 @@ chế "Endpoint realtime" + báo cáo tra-1-khoá đã có (mục 3/13.1
 Chưa làm Bước 4 (Cấu hình Voucher) — vào api-admin chọn Nguồn dữ liệu.
 
 **Gọi `/redeem` trả `403`?**
-Đối tác thiếu scope `realtimeWrite` (hoặc `realtime` cho `/check`) — sửa ở
-"Đối tác" (Bước 5).
+Đối tác thiếu scope `voucherRedeem` (hoặc `voucherCheck` cho `/check`) —
+sửa ở "Đối tác" (Bước 5).
 
 **"Báo cáo voucher" (tổng hợp theo ngày/chi nhánh, tháng hiện tại + quá
 khứ) ở đâu?**

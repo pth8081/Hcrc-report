@@ -20,12 +20,19 @@
 // RIÊNG hoàn toàn, cho endpoint GHI ngược lại nguồn (xem
 // routes/v1/realtimeWrite.js, trang "Endpoint ghi") — có quyền đọc 1
 // endpoint KHÔNG mặc nhiên ghi được endpoint cùng tên, phải gán riêng.
-import { useEffect, useState } from 'react';
-import { api } from '../lib/api';
-import { useAuth } from '../lib/AuthContext';
-import DataTable from '../components/DataTable';
-
-const SCOPE_OPTIONS = ['reports', 'realtime', 'realtimeWrite'];
+//
+// "voucherCheck"/"voucherRedeem" — scope RIÊNG cho app "HCRC Voucher
+// Redemption" (routes/v1/vouchers.js), KHÔNG dùng chung "realtime"/
+// "realtimeWrite" (rà soát bảo mật phát hiện: cấp "realtime" cho MỘT MỤC
+// ĐÍCH KHÁC (vd đọc endpoint doanh thu) vô tình cấp luôn quyền gọi
+// /vouchers/check nếu dùng chung scope — 2 tính năng không liên quan lại
+// chia sẻ cùng 1 cổng quyền). Đối tác voucher cần CẢ HAI (check trước,
+// redeem sau) — đối tác dùng "realtime"/"realtimeWrite" cho mục đích khác
+// (endpoint động qua api.RealtimeEndpointDefs) KHÔNG còn tự động gọi được
+// voucher nữa kể từ bản này; đối tác voucher ĐANG hoạt động (được cấp
+// "realtime"+"realtimeWrite" từ trước) cần admin vào đây tick thêm 2 scope
+// mới TRƯỚC KHI/CÙNG LÚC nâng cấp api-server, không hệ thống tự chuyển.
+const SCOPE_OPTIONS = ['reports', 'realtime', 'realtimeWrite', 'voucherCheck', 'voucherRedeem'];
 const EMPTY_FORM = { name: '', authMethod: 'apiKey', scopes: [], rateLimitPerMinute: 120, allowedIps: '' };
 const AUTH_METHOD_LABELS = {
   apiKey: 'API key tĩnh',

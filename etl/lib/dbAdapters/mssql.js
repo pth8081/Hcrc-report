@@ -13,6 +13,14 @@ function param(name) {
   return `@${name}`;
 }
 
+// Phân trang cho job "Lịch sử" đọc lần đầu (không có mốc đồng bộ, VIEW gộp
+// UNION ALL hàng chục triệu dòng không lọc ngày — xem tableSyncEngine.js:
+// extractTable) — cú pháp chuẩn SQL:2008, cần ORDER BY đi kèm (đã có sẵn ở
+// mọi câu gọi paginate() này).
+function paginate(offsetParam, limitParam) {
+  return `OFFSET ${offsetParam} ROWS FETCH NEXT ${limitParam} ROWS ONLY`;
+}
+
 // requestTimeout MẶC ĐỊNH 30 GIÂY của thư viện `mssql` KHÔNG đủ cho job
 // "Lịch sử" chạy LẦN ĐẦU (chưa có mốc đồng bộ, đọc VIEW gộp UNION ALL ~93
 // bảng/bảng lưu trữ hàng chục triệu dòng không lọc ngày — xem "báo cáo
@@ -95,4 +103,4 @@ async function listForeignKeys(pool, schemaName, tableName) {
   `, { schemaName, tableName });
 }
 
-module.exports = { quoteIdent, param, createPool, close, query, listTables, listColumns, listForeignKeys };
+module.exports = { quoteIdent, param, paginate, createPool, close, query, listTables, listColumns, listForeignKeys };
