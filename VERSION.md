@@ -20,6 +20,14 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 6.93 — Bổ sung ví dụ xác thực cụ thể vào api-voucher-check-redeem.md
+
+Người dùng yêu cầu gửi tài liệu API voucher cho team app đối chiếu — bổ
+sung thêm mục "Cách xác thực" với ví dụ `curl` cụ thể (API key tĩnh VÀ
+HMAC ký từng request) ngay trong `api-voucher-check-redeem.md`, để tài
+liệu tự đủ khi gửi cho đối tác ngoài, không cần đọc thêm
+`api-server/README.md` mới hiểu cách gọi. Không đổi code, chỉ đổi tài liệu.
+
 ## 6.92 — API check/redeem voucher cho app "HCRC Voucher Redemption" (api-server = "Core API")
 
 Người dùng cung cấp tài liệu API của app quét mã voucher ngoài (app này

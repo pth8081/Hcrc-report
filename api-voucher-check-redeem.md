@@ -77,7 +77,50 @@ Response:
 nhiên) — KHÔNG phải số giao dịch thật của DSMART16 (không ghi `PMCRDRCV`,
 xem mục 1).
 
-## 3. Việc cần làm (theo đúng thứ tự)
+## 3. Cách xác thực (ví dụ cụ thể cho team app)
+
+Chọn 1 trong 2 cách khi tạo đối tác ở api-admin (mục "Đối tác", `authMethod`):
+
+### Cách 1 — API key tĩnh (đơn giản nhất, khuyên dùng cho thiết bị quét mã)
+
+Admin api-admin tạo đối tác, hệ thống trả về `apiKey` **CHỈ HIỆN ĐÚNG 1
+LẦN** lúc tạo — đưa cho team app lưu lại an toàn (mất thì phải "luân
+chuyển" key mới, không lấy lại được key cũ). App gửi kèm header
+`X-API-Key` ở MỌI request:
+
+```bash
+curl -X POST https://<host>/api/v1/vouchers/check \
+  -H "X-API-Key: <api-key-được-cấp>" \
+  -H "Content-Type: application/json" \
+  -d '{"voucherCode": "ABC123456789", "scanMethod": "HID_SCANNER"}'
+
+curl -X POST https://<host>/api/v1/vouchers/redeem \
+  -H "X-API-Key: <api-key-được-cấp>" \
+  -H "Content-Type: application/json" \
+  -d '{"voucherCode": "ABC123456789", "scanMethod": "HID_SCANNER"}'
+```
+
+### Cách 2 — HMAC ký từng request (an toàn hơn, không gửi bí mật qua dây)
+
+Dùng khi team app muốn không lộ bí mật dùng chung qua network (chuẩn phổ
+biến ở cổng thanh toán). Mỗi request kèm 3 header:
+
+```
+X-Key-Id:    <định danh công khai, cấp lúc tạo đối tác>
+X-Timestamp: <unix giây lúc ký>
+X-Signature: hex(HMAC-SHA256(secret, "POST\n/api/v1/vouchers/redeem\n<timestamp>\n<rawBody>"))
+```
+
+`rawBody` là chuỗi JSON thô của body (đúng byte đã gửi). `X-Timestamp`
+phải nằm trong 5 phút quanh giờ máy chủ (chống phát lại). Chi tiết đầy đủ:
+xem `api-server/README.md` mục "Cấp quyền gọi API cho một hệ thống đối
+tác" (mục 3, HMAC).
+
+**Không cần** cách 3 (OAuth2 Client Credentials, cùng tài liệu đó) cho
+tính năng này — phù hợp hơn cho tích hợp server-to-server dài hạn, không
+cần thiết cho 1 thiết bị quét mã đơn giản.
+
+## 4. Việc cần làm (theo đúng thứ tự)
 
 | # | Việc | Ai làm |
 |---|---|---|
