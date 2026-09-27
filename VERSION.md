@@ -20,6 +20,43 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 6.92 — API check/redeem voucher cho app "HCRC Voucher Redemption" (api-server = "Core API")
+
+Người dùng cung cấp tài liệu API của app quét mã voucher ngoài (app này
+trước đây gọi 1 "Core API" riêng để kiểm tra/thu hồi voucher) — yêu cầu
+api-server đóng vai trò đúng "Core API" đó, đọc/ghi TRỰC TIẾP DSMART16
+(Live), không qua Data Warehouse. Đã phân tích + chốt phương án tối giản
+với người dùng trước khi code: tái dùng model "Đối tác" (Consumer API
+key/HMAC) sẵn có thay vì xây hệ đăng nhập nhân viên riêng như tài liệu app
+gốc mô tả; redeem chỉ đổi `STATUS` (giữ nguyên quyết định cũ mục 13), không
+ghi `PMCRDRCV`, không xây hàng đợi đồng bộ lại khi mất kết nối.
+
+- `api-db/schema.sql` — `api.VoucherRedemptions` (ghi mốc thời gian mỗi
+  lượt redeem — `PMCRDINF` không có cột "ngày đã dùng") + `api.VoucherSettings`
+  (1 dòng, chọn "Nguồn dữ liệu" trỏ DSMART16).
+- `api-server/lib/voucherRedeemService.js` (mới) — `checkVoucher`/
+  `redeemVoucher`, dùng lại kỹ thuật `UPDATE...OUTPUT...WHERE` atomic đã
+  kiểm chứng ở `realtimeWriteEngine.js` (chống race 2 request cùng mã).
+- `api-server/routes/v1/vouchers.js` (mới) — `POST /api/v1/vouchers/check`,
+  `POST /api/v1/vouchers/redeem`, gate bằng scope Consumer có sẵn
+  (`realtime`/`realtimeWrite`), khớp đúng hợp đồng JSON tài liệu app (trừ
+  auth và bỏ `pendingSync`).
+- `api-server/routes/admin/voucherSettings.js` (mới) + MenuCode
+  `voucher-settings` (`routes/admin/roles.js`) — trang "Cấu hình Voucher".
+- `api-admin/src/pages/VoucherSettingsPage.jsx` (mới) + nav/route/landing +
+  module "Hướng dẫn" cập nhật mục "Endpoint".
+- Test (fakeModule) `voucherRedeemService.js` — đủ nhánh UNUSED/USED/
+  INVALID, redeemed/alreadyUsed (gọi trùng lẫn đã dùng từ trước)/notFound,
+  ConfigError khi chưa cấu hình Nguồn dữ liệu.
+- Tài liệu triển khai riêng `api-voucher-check-redeem.md` (theo đúng quy
+  ước "mỗi tính năng 1 file riêng" đã chốt).
+
+Còn lại: "Kiểm tra voucher" nội bộ (nhân viên tra thủ công) đã có sẵn cơ
+chế (mục 3/13.1 `hướng_dẫn_báo_cáo.md`), không cần code — chỉ cần cấu
+hình. "Báo cáo voucher" tổng hợp theo ngày/chi nhánh (tháng hiện tại qua
+API trực tiếp, quá khứ qua DWH) làm ở bản SAU (`bc-voucher.md`) — đang chờ
+DBA xác nhận cấu trúc bảng voucher bên `DSMART16_EOM`.
+
 ## 6.91 — Module "Hướng dẫn" (cấu hình báo cáo theo nghiệp vụ) cho cả 3 trang quản trị
 
 Thêm module "Hướng dẫn" cho `etl-admin`, `api-admin`, `rp-user` — tham khảo

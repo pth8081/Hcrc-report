@@ -18,6 +18,7 @@ const healthRoutes = require('./routes/v1/health');
 const reportsRoutes = require('./routes/v1/reports');
 const realtimeRoutes = require('./routes/v1/realtime');
 const realtimeWriteRoutes = require('./routes/v1/realtimeWrite');
+const vouchersRoutes = require('./routes/v1/vouchers');
 const oauthRoutes = require('./routes/v1/oauth');
 const adminAuthRoutes = require('./routes/admin/auth');
 const adminTwoFactorRoutes = require('./routes/admin/twoFactor');
@@ -32,6 +33,7 @@ const adminHistoryRoutes = require('./routes/admin/history');
 const adminAuditLogRoutes = require('./routes/admin/auditLog');
 const adminStatsRoutes = require('./routes/admin/stats');
 const adminRolesRoutes = require('./routes/admin/roles');
+const adminVoucherSettingsRoutes = require('./routes/admin/voucherSettings');
 const { requestLogger } = require('./lib/requestLogger');
 const { adminIpAllowlist } = require('./lib/adminIpAllowlist');
 const { corsAllowlist } = require('./lib/corsAllowlist');
@@ -121,6 +123,7 @@ app.use('/api/v1/oauth', oauthRoutes);
 app.use('/api/v1/reports', reportsRoutes);
 app.use('/api/v1/realtime', realtimeRoutes); // /api/v1/realtime/{endpoint}/list, /{endpoint}/{key}
 app.use('/api/v1/realtime-write', realtimeWriteRoutes); // POST /api/v1/realtime-write/{endpoint}/{key}
+app.use('/api/v1/vouchers', vouchersRoutes); // POST /api/v1/vouchers/check, /redeem — xem api-voucher-check-redeem.md
 
 // ===== /admin/* — api-admin/ =====
 app.use('/admin', adminIpAllowlist);
@@ -137,6 +140,7 @@ app.use('/admin/history', adminHistoryRoutes);
 app.use('/admin/audit-log', adminAuditLogRoutes);
 app.use('/admin/stats', adminStatsRoutes);
 app.use('/admin/roles', adminRolesRoutes);
+app.use('/admin/voucher-settings', adminVoucherSettingsRoutes);
 
 app.use((err, req, res, next) => { // eslint-disable-line no-unused-vars
   console.error(err);

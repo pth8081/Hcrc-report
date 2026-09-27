@@ -526,3 +526,49 @@ FROM admin.AdminUsers u
 JOIN admin.Roles r ON r.Code = u.Role
 WHERE NOT EXISTS (SELECT 1 FROM admin.AdminUserRoles aur WHERE aur.AdminUserId = u.Id AND aur.RoleId = r.Id);
 GO
+
+-- ===== Voucher check/redeem (app quét mã HCRC Voucher Redemption gọi API
+-- Server thay vì "Core API" riêng của app đó — xem
+-- api-voucher-check-redeem.md) =====
+--
+-- Ghi lại MỖI lượt redeem thành công qua POST /api/v1/vouchers/redeem —
+-- KHÔNG ghi gì thêm vào PMCRDRCV (bảng redeem gốc DSMART16, xem
+-- hướng_dẫn_báo_cáo.md mục 13 — quyết định cũ "chỉ đổi STATUS, không tạo
+-- bảng riêng" vẫn giữ nguyên PHÍA DSMART16). Bảng NÀY là của HCRC, lý do tồn
+-- tại DUY NHẤT: PMCRDINF không có cột "ngày đã dùng" (chỉ có STATUS 0/1),
+-- nên không cách nào biết 1 voucher chuyển sang "đã dùng" NGÀY NÀO nếu
+-- không tự ghi lại — đây là nguồn DUY NHẤT cho phần "đã dùng" của báo cáo
+-- voucher (bc-voucher.md khối C). Xác nhận với người dùng: hiện tại CHỈ CÓ
+-- 1 kênh redeem (app này) — nếu sau này có thêm kênh khác (vd tại quầy POS,
+-- ghi PMCRDRCV thật), báo cáo phải gộp thêm nguồn đó, xem ghi chú ở
+-- bc-voucher.md.
+IF OBJECT_ID('api.VoucherRedemptions', 'U') IS NULL
+BEGIN
+    CREATE TABLE api.VoucherRedemptions (
+        Id         BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        Barcode    VARCHAR(24)   NOT NULL,
+        StkId      VARCHAR(50)   NULL,   -- STK_ID (chi nhánh) đọc từ PMCRDINF lúc redeem, có thể NULL nếu cột trống ở nguồn
+        ValueAmt   DECIMAL(18,2) NULL,
+        TransNum   VARCHAR(50)   NOT NULL,
+        ConsumerId INT           NULL REFERENCES api.ApiConsumers(Id),
+        RedeemedAt DATETIME2(3)  NOT NULL DEFAULT SYSUTCDATETIME()
+    );
+    CREATE INDEX IX_VoucherRedemptions_RedeemedAt ON api.VoucherRedemptions (RedeemedAt);
+    CREATE INDEX IX_VoucherRedemptions_Barcode ON api.VoucherRedemptions (Barcode);
+END
+GO
+
+-- Cấu hình DUY NHẤT (1 dòng, Id=1 — cùng khuôn app.HcrcWorkspaceSettings bên
+-- rp-db) cho API check/redeem: chọn "Nguồn dữ liệu" (api.DataSources) nào
+-- trỏ DSMART16 Live để đọc/ghi PMCRDINF. Bảng/cột CỐ ĐỊNH trong code
+-- (voucherRedeemService.js), KHÔNG cấu hình linh hoạt như
+-- RealtimeEndpointDefs/RealtimeWriteEndpointDefs — hợp đồng JSON của app
+-- voucher đã cố định sẵn theo tài liệu app đó, không cần tổng quát hoá thêm.
+IF OBJECT_ID('api.VoucherSettings', 'U') IS NULL
+BEGIN
+    CREATE TABLE api.VoucherSettings (
+        Id           INT NOT NULL PRIMARY KEY CHECK (Id = 1),
+        DataSourceId INT NULL REFERENCES api.DataSources(Id)
+    );
+END
+GO

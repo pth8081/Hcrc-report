@@ -28,6 +28,7 @@ const MENU_CATALOG = [
   { code: 'audit-log', label: 'Nhật ký thao tác' },
   { code: 'users', label: 'Phân quyền' },
   { code: 'roles', label: 'Vai trò' },
+  { code: 'voucher-settings', label: 'Cấu hình Voucher' },
   { code: 'huong-dan', label: 'Hướng dẫn' }
 ];
 

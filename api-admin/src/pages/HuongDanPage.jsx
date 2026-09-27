@@ -93,6 +93,25 @@ const SECTIONS = [
             </p>
           </>
         )
+      },
+      {
+        id: 'cau-hinh-voucher',
+        icon: '🎟️',
+        label: 'Cấu hình Voucher (check/redeem)',
+        content: (
+          <>
+            <h2>Cấu hình Voucher (check/redeem)</h2>
+            <p>
+              Khác 2 mục "Endpoint" ở trên (bảng/cột admin tự chọn tuỳ ý) — <code>POST /api/v1/vouchers/check</code>/
+              <code>redeem</code> là 2 API CỐ ĐỊNH (bảng/cột đã viết sẵn trong code, đúng hợp đồng của app
+              "HCRC Voucher Redemption"). Vào trang <strong>"Cấu hình Voucher"</strong> chỉ cần chọn 1 "Nguồn dữ
+              liệu" (đã khai ở "Nguồn dữ liệu") trỏ đúng CSDL vận hành có bảng voucher — không cấu hình gì
+              thêm. Cấp quyền gọi cho app voucher ở trang "Đối tác" như bình thường (scope <code>realtime</code>
+              cho check, <code>realtimeWrite</code> cho redeem). Chi tiết đầy đủ: xem
+              <code> api-voucher-check-redeem.md</code> trong repo.
+            </p>
+          </>
+        )
       }
     ]
   },

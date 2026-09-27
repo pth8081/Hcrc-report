@@ -18,6 +18,7 @@ const NAV = [
   { path: '/audit-log', label: 'Nhật ký thao tác', icon: '📜', menuCode: 'audit-log' },
   { path: '/admin-users', label: 'Tài khoản quản trị', icon: '🔐', menuCode: 'users' },
   { path: '/roles', label: 'Vai trò', icon: '🛡️', menuCode: 'roles' },
+  { path: '/voucher-settings', label: 'Cấu hình Voucher', icon: '🎟️', menuCode: 'voucher-settings' },
   { path: '/huong-dan', label: 'Hướng dẫn', icon: '❓', menuCode: 'huong-dan' }
 ];
 
