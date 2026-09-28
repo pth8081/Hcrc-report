@@ -32,6 +32,11 @@
 // voucher nữa kể từ bản này; đối tác voucher ĐANG hoạt động (được cấp
 // "realtime"+"realtimeWrite" từ trước) cần admin vào đây tick thêm 2 scope
 // mới TRƯỚC KHI/CÙNG LÚC nâng cấp api-server, không hệ thống tự chuyển.
+import { useEffect, useState } from 'react';
+import { api } from '../lib/api';
+import { useAuth } from '../lib/AuthContext';
+import DataTable from '../components/DataTable';
+
 const SCOPE_OPTIONS = ['reports', 'realtime', 'realtimeWrite', 'voucherCheck', 'voucherRedeem'];
 const EMPTY_FORM = { name: '', authMethod: 'apiKey', scopes: [], rateLimitPerMinute: 120, allowedIps: '' };
 const AUTH_METHOD_LABELS = {

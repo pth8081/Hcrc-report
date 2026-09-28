@@ -20,6 +20,19 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 6.96 — Sửa khẩn: màn hình trắng khi đăng nhập api-admin (lỗi phát sinh từ bản 6.95)
+
+Sau khi release bản 6.95 lên máy chủ, đăng nhập `api-admin` bị màn hình
+trắng (console báo `ReferenceError: useAuth is not defined`). Nguyên nhân:
+khi sửa Audit-Fix4 (bản 6.95, tách scope voucher) ở
+`api-admin/src/pages/ConsumersPage.jsx`, thao tác sửa file đã vô tình xoá
+mất 4 dòng import đầu file (`useEffect`/`useState`, `api`, `useAuth`,
+`DataTable`) — Vite build KHÔNG báo lỗi vì tham chiếu biến tự do chỉ vỡ lúc
+CHẠY THẬT trên trình duyệt, không phải lúc build. Đã thêm lại đúng 4 dòng
+import bị mất, kiểm tra lại `npm run build` sạch. Đã rà lại các trang khác
+từng sửa trong đợt Audit-Fix (vd `etl-admin/src/pages/CoreItemListPage.jsx`)
+— không phát hiện thêm trường hợp tương tự.
+
 ## 6.95 — Rà soát chuyên sâu nghiệp vụ/báo cáo/ETL/API sau bản voucher — sửa 12 lỗi logic/rủi ro
 
 Người dùng yêu cầu rà soát chuyên sâu toàn hệ thống sau khi hoàn tất tính
