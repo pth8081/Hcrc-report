@@ -28,6 +28,28 @@ chỉ sửa code.
   (không hiển thị "cùng kỳ năm trước"), CHỈ còn doanh thu/giao dịch
   **HIỆN TẠI**.
 
+## Làm rõ 2 lớp "BU_ID" — TRÁNH NHẦM LẪN (28/9/2026)
+
+Người dùng xác nhận trực tiếp: **"Mã điểm chính là mã BU_ID"** — đúng, về Ý
+NGHĨA NGHIỆP VỤ, mã Điểm và BU_ID là MỘT khái niệm (khớp quy tắc 1 ở trên).
+KHÔNG có mâu thuẫn với phần "Dữ liệu thật đã xác nhận bằng SQL" bên dưới —
+2 lớp này khác NGỮ CẢNH, không khác NỘI DUNG:
+
+- **BU_ID nghiệp vụ** = mã Điểm bạn dùng trong file chỉ tiêu, cột `MaDiem`
+  của bảng "Ánh xạ Điểm - STK_ID" — vd `"217"`. Đây là cái người dùng gọi
+  là "BU_ID". KHÔNG đổi theo thời gian.
+- **Cột `BU_ID` vật lý trong bảng `TRANSHDR`** (CSDL DSMART16, hệ POS) —
+  do chính phần mềm POS tự sinh, LƯU THÊM hậu tố `"00"` so với mã Điểm (vd
+  `"21700"`) — đây là quy ước KỸ THUẬT riêng của DSMART16, KHÔNG phải do
+  rp-server tự đặt ra hay đoán bừa, đã xác nhận bằng SQL thật (xem dưới).
+
+Code phải DỊCH từ lớp vật lý (đọc thô từ TRANSHDR) về lớp nghiệp vụ (mã
+Điểm, khớp `MaDiem` trong bảng ánh xạ) TRƯỚC khi ghép với khối Doanh
+thu/Chỉ tiêu — đây là lý do tồn tại `buildBuIdLookup()`. Cột `BuId` (tuỳ
+chọn) trong bảng ánh xạ **hầu như KHÔNG BAO GIỜ cần điền** — chỉ dùng khi 1
+mã Điểm cụ thể có giá trị vật lý KHÔNG theo đúng quy tắc "+00" (ngoại lệ
+hiếm, do lỗi khai báo phía POS).
+
 ## Dữ liệu thật đã xác nhận bằng SQL (28/9/2026)
 
 - Bảng `TRANSHDR` (nguồn domain `giaodich_chinhanh`) **KHÔNG có cột

@@ -20,6 +20,21 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 7.0 — Làm rõ file quy tắc mã BU_ID và STK_ID.md (2 lớp BU_ID, tránh nhầm lẫn)
+
+Người dùng hỏi lại: "Mã điểm chính là mã BU_ID đó bạn" — đúng, về Ý NGHĨA
+NGHIỆP VỤ, mã Điểm và BU_ID LÀ MỘT (khớp quy tắc 1 đã ghi ở bản 6.99).
+Không có gì sai ở code/thiết kế hiện tại, chỉ cần làm rõ tài liệu để tránh
+hiểu nhầm: có 2 LỚP "BU_ID" khác NGỮ CẢNH nhưng không khác NỘI DUNG — (1)
+"BU_ID nghiệp vụ" = mã Điểm, dùng trong file chỉ tiêu và cột `MaDiem` của
+bảng "Ánh xạ Điểm - STK_ID", KHÔNG đổi theo thời gian; (2) cột `BU_ID` VẬT
+LÝ trong bảng `TRANSHDR` (CSDL DSMART16, hệ POS) — do chính phần mềm POS
+tự sinh, LƯU THÊM hậu tố `"00"` so với mã Điểm, quy ước KỸ THUẬT riêng của
+DSMART16 (đã xác nhận bằng SQL thật ở bản 6.98). Cập nhật "quy tắc mã
+BU_ID và STK_ID.md" với đoạn làm rõ 2 lớp này — không đổi code, chỉ đổi
+tài liệu tham chiếu bắt buộc theo quy tắc 5 (đối chiếu/cập nhật file này
+trước mọi thay đổi).
+
 ## 6.99 — Thêm cột BuId (tuỳ chọn) vào bảng Ánh xạ Điểm - STK_ID + file quy tắc tham chiếu
 
 Bản 6.98 dịch BU_ID -> mã Điểm bằng quy tắc CỐ ĐỊNH gán cứng trong code
