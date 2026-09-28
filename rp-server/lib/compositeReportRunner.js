@@ -247,6 +247,11 @@ function resolveRequestedRange(filterValues) {
   return { from: day, to: day };
 }
 
+function eventDateKey(eventDate) {
+  if (eventDate instanceof Date) return eventDate.toISOString().slice(0, 10);
+  return String(eventDate).slice(0, 10);
+}
+
 // Gộp NHIỀU DÒNG THEO NGÀY (kết quả thô của runReport trên 1 khoảng ngày,
 // có thể nhiều dòng/entityCode — 1 dòng/ngày) thành ĐÚNG 1 dòng/entityCode —
 // bắt buộc, vì bước ghép ở runCompositeReport() coi 1 khối trả >1 dòng cho
@@ -255,10 +260,36 @@ function resolveRequestedRange(filterValues) {
 // KHÔNG cộng dồn dimensions (thuộc tính TĨNH của chi nhánh — diện tích,
 // nhóm chuỗi — cộng theo ngày sẽ ra số vô nghĩa, vd diện tích x N ngày) mà
 // lấy giá trị không rỗng đầu tiên gặp được.
+//
+// KHỬ TRÙNG theo (entityCode, ngày) TRƯỚC KHI cộng dồn — 1 domain có thể
+// được đồng bộ bởi NHIỀU job khác nhau (khác SourceSystem, vd "Doanh thu
+// chi nhánh - Live (DSMART16)" và "- Lịch sử (DSMART16_EOM)" trong
+// seedLdtdHcrcSync.js) mà khoảng ngày nguồn CHỒNG LẤN NHAU — CSDL Lịch sử
+// (DSMART16_EOM) có "vùng đệm ~1-2 tháng gần nhất" (STRANS_EOM, xem "báo
+// cáo doanh thu cuối ngày.md" Bước 1) NÊN vẫn đồng bộ được cả những ngày
+// GẦN ĐÂY mà job Live cũng đã đồng bộ — dwh.ReportFacts cho phép 2 dòng
+// cùng entityCode+ngày MIỄN LÀ khác SourceSystem (khoá UNIQUE gồm cả
+// SourceSystem, xem dwh/schema.sql), nên runReport() trả về CẢ 2 dòng cho
+// cùng 1 ngày thật. TRƯỚC ĐÂY hàm này coi MỌI dòng trả về là "1 ngày riêng"
+// rồi cộng dồn thẳng — 1 ngày bị 2 job chồng lấn đồng bộ thì bị TÍNH GẤP
+// ĐÔI (2 nguồn cùng phản ánh 1 ngày thật, số liệu lệch nhau < 0.5% theo tài
+// liệu VIEW nguồn, KHÔNG PHẢI 2 ngày khác nhau) — đây là nguyên nhân khiến
+// "Thực đạt" của báo cáo nhanh doanh thu LDTD/HCRC ra số lớn bất thường so
+// với Chỉ tiêu, xem VERSION.md. Giờ chỉ giữ ĐÚNG 1 dòng/entityCode/ngày —
+// ưu tiên bản ghi có SyncedAt MỚI NHẤT (nguồn nào cũng cho số liệu gần như
+// nhau, chọn nguồn nào không quan trọng bằng việc KHÔNG cộng trùng).
 function aggregateDailyRowsByEntity(rows, representativeEventDate) {
-  const byEntity = new Map();
+  const byEntityDate = new Map();
   for (const row of rows) {
     if (!row.entityCode) continue;
+    const key = `${row.entityCode}|${eventDateKey(row.eventDate)}`;
+    const existing = byEntityDate.get(key);
+    if (!existing || (row.syncedAt && (!existing.syncedAt || row.syncedAt > existing.syncedAt))) {
+      byEntityDate.set(key, row);
+    }
+  }
+  const byEntity = new Map();
+  for (const row of byEntityDate.values()) {
     if (!byEntity.has(row.entityCode)) byEntity.set(row.entityCode, []);
     byEntity.get(row.entityCode).push(row);
   }

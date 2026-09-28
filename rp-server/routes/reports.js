@@ -215,15 +215,20 @@ router.post('/:reportId/export', async (req, res, next) => {
     if (format === 'excel') {
       const buffer = await exportExcel(exportDefinition, projected);
       await logAction(req, { module: 'Báo cáo', actionType: 'XUAT_BAO_CAO', targetObject: req.params.reportId, description: `Xuất Excel báo cáo "${definition.title}" (${projected.length} dòng)` });
+      // res.attachment() (Express, dùng gói content-disposition bên trong) tự
+      // mã hoá đúng chuẩn RFC 5987 (filename* + fallback ASCII) khi tên báo
+      // cáo có ký tự tiếng Việt NGOÀI Latin-1 (vd "đ", "ậ" trong "Lãnh đạo Tập
+      // đoàn") — trước đây gán thẳng chuỗi vào header khiến Node ném
+      // TypeError [ERR_INVALID_CHAR], 500 lỗi máy chủ lúc xuất (xem VERSION.md).
+      res.attachment(`${definition.title}.xlsx`);
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-      res.setHeader('Content-Disposition', `attachment; filename="${definition.title}.xlsx"`);
       return res.send(buffer);
     }
     if (format === 'pdf') {
       const buffer = await exportPdf(exportDefinition, projected);
       await logAction(req, { module: 'Báo cáo', actionType: 'XUAT_BAO_CAO', targetObject: req.params.reportId, description: `Xuất PDF báo cáo "${definition.title}" (${projected.length} dòng)` });
+      res.attachment(`${definition.title}.pdf`);
       res.setHeader('Content-Type', 'application/pdf');
-      res.setHeader('Content-Disposition', `attachment; filename="${definition.title}.pdf"`);
       return res.send(buffer);
     }
     return res.status(400).json({ error: `Định dạng xuất "${format}" chưa được hỗ trợ` });

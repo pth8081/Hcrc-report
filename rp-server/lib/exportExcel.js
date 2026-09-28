@@ -23,6 +23,22 @@ const THIN = { style: 'thin', color: { argb: 'FF999999' } };
 const BORDER_ALL = { top: THIN, left: THIN, bottom: THIN, right: THIN };
 function fillArgb(hex6) { return { type: 'pattern', pattern: 'solid', fgColor: { argb: `FF${hex6}` } }; }
 
+const MIN_COL_WIDTH = 8;
+const MAX_COL_WIDTH = 40;
+
+// Độ dài hiển thị ước lượng của 1 giá trị — CHỈ dùng để TÍNH BỀ RỘNG cột,
+// không phải giá trị ghi vào ô (numFmt thật vẫn do cell.numFmt quyết định,
+// xem bên dưới). Số có numFmt "#,##0"/"0%" hiển thị DÀI HƠN chữ số thô
+// (dấu phẩy phân cách nghìn, dấu %) — ước lượng theo ĐÚNG định dạng hiển
+// thị thay vì String(raw).length để cột không bị hẹp hơn nội dung thật.
+function estimateDisplayLength(raw, col) {
+  if (raw === null || raw === undefined || raw === '') return 0;
+  if (typeof raw === 'number') {
+    return col.format === 'percent' ? `${raw}%`.length : raw.toLocaleString('en-US').length;
+  }
+  return String(raw).length;
+}
+
 // definition.columns = [{key, label, format?, width?}] — xem
 // lib/reportEngine.js:describeColumns(). definition.columnGroups (TUỲ
 // CHỌN) = [{label, color, keys: [...]}] — xem chú thích đầu file
@@ -34,7 +50,23 @@ async function exportExcel(definition, rows) {
   const groups = definition.columnGroups || [];
   const colCount = columns.length;
 
-  sheet.columns = columns.map(c => ({ width: c.width || 16 }));
+  // TRƯỚC ĐÂY: sheet.columns = columns.map(c => ({ width: c.width || 16 }))
+  // — dùng THẲNG definition.columns[].width (đơn vị TRỌNG SỐ tương đối,
+  // dùng để CHIA TỈ LỆ bề rộng trang PDF, xem lib/exportPdf.js — vd 0.4,
+  // 0.8, 2.4) làm bề rộng CỘT EXCEL THẬT (đơn vị "số ký tự", xem ExcelJS/
+  // OOXML) — 2 đơn vị hoàn toàn khác nhau bị gán nhầm cho nhau khiến MỌI
+  // cột Excel xuất ra cực hẹp (rộng 0.4-2.4 ký tự, không đủ hiện cả tiêu đề
+  // "TT" hay 1 chữ số), người dùng phải tự kéo lại từng cột mới đọc được —
+  // đây là nguyên nhân báo cáo xuất Excel không "auto fit" như file mẫu.
+  // Giờ TỰ TÍNH bề rộng theo ĐỘ DÀI HIỂN THỊ THẬT của tiêu đề + toàn bộ dữ
+  // liệu từng cột (xem estimateDisplayLength() + vòng lặp rows bên dưới,
+  // set width sau khi đã biết hết dữ liệu) — đúng nghĩa "auto fit", không
+  // phụ thuộc phải khai đúng definition.columns[].width cho từng báo cáo.
+  // Header 1 dòng (báo cáo KHÔNG có columnGroups) không tự xuống dòng ->
+  // tính luôn độ dài nhãn vào bề rộng cột ngay từ đầu. Header 2 dòng gộp
+  // màu (CÓ columnGroups, xem bên dưới) đã bật wrapText nên nhãn dài tự
+  // xuống dòng — không cần ép cột rộng theo đúng độ dài nhãn.
+  const colMaxLen = columns.map(c => (groups.length ? 0 : (c.label || '').length));
 
   // ---- Dòng tiêu đề (chỉ khi có columnGroups — báo cáo phẳng cũ giữ
   // nguyên hành vi cũ, KHÔNG thêm dòng tiêu đề để không đổi file đã quen) ----
@@ -101,6 +133,7 @@ async function exportExcel(definition, rows) {
       const cell = excelRow.getCell(cIdx + 1);
       const raw = cIdx === sttColIdx ? sttValues[rIdx] : row[col.key];
       cell.value = sanitizeFormulaValue(raw);
+      colMaxLen[cIdx] = Math.max(colMaxLen[cIdx], estimateDisplayLength(raw, col));
       if (typeof cell.value === 'number') {
         // "[$-409]" ép định dạng số theo locale en-US (dấu phẩy phân cách
         // nghìn) — KHÔNG phụ thuộc locale Windows/Excel của máy người mở
@@ -119,6 +152,10 @@ async function exportExcel(definition, rows) {
         cell.font = { bold: true };
       }
     });
+  });
+
+  columns.forEach((col, i) => {
+    sheet.getColumn(i + 1).width = Math.min(MAX_COL_WIDTH, Math.max(MIN_COL_WIDTH, colMaxLen[i] + 2));
   });
 
   return workbook.xlsx.writeBuffer();

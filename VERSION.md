@@ -20,6 +20,50 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 6.97 — Sửa 3 lỗi báo cáo "Báo cáo nhanh doanh thu" LDTD/HCRC (xuất báo cáo + doanh thu sai)
+
+Người dùng báo lỗi sau khi dùng thật báo cáo "Báo cáo nhanh doanh thu -
+Lãnh đạo Tập đoàn/HCRC": xuất PDF báo lỗi máy chủ (500), Doanh thu "Thực
+đạt" cao bất thường so với Chỉ tiêu, và cột Excel không "auto fit" như
+file mẫu. Rà lại, tìm ra 3 lỗi độc lập:
+
+1. **rp-server/routes/reports.js + etl/lib/xlsxResponse.js** — header
+   `Content-Disposition` gán thẳng `definition.title` (có dấu tiếng Việt,
+   vd "Lãnh đạo Tập đoàn" chứa "đ"/"ậ" NGOÀI bảng Latin-1) vào chuỗi header
+   thô — Node ném `TypeError [ERR_INVALID_CHAR]`, 500 lỗi máy chủ mỗi lần
+   xuất Excel/PDF có tên chứa ký tự này (báo cáo "...- HCRC" không có ký tự
+   nào vượt Latin-1 nên trước đây xuất được, che khuất lỗi ở báo cáo
+   "...- Lãnh đạo Tập đoàn"). Đổi sang `res.attachment()` (Express, tự mã
+   hoá đúng chuẩn RFC 5987 kèm bản dự phòng ASCII).
+2. **rp-server/lib/compositeReportRunner.js** — domain `doanhthu_chinhanh`/
+   `giaodich_chinhanh` được đồng bộ bởi 2 job khác nhau ("Live" DSMART16 +
+   "Lịch sử" DSMART16_EOM, xem `etl/scripts/seedLdtdHcrcSync.js`) mà
+   khoảng ngày CHỒNG LẤN NHAU (CSDL Lịch sử có vùng đệm ~1-2 tháng gần
+   nhất, xem "báo cáo doanh thu cuối ngày.md" Bước 1) — 2 dòng
+   `dwh.ReportFacts` (khác `SourceSystem`, cùng `EntityCode`+`EventDate`)
+   hợp lệ theo khoá UNIQUE nhưng `aggregateDailyRowsByEntity()` trước đây
+   coi MỌI dòng trả về là "1 ngày riêng" rồi cộng dồn thẳng — 1 ngày bị 2
+   job chồng lấn đồng bộ thì bị TÍNH GẤP ĐÔI. Giờ khử trùng theo
+   (entityCode, ngày) TRƯỚC khi cộng dồn — ưu tiên bản ghi `SyncedAt` mới
+   nhất khi trùng.
+3. **rp-server/lib/exportExcel.js** — bề rộng cột Excel lấy THẲNG
+   `definition.columns[].width` (đơn vị TRỌNG SỐ tương đối dùng để chia tỉ
+   lệ trang PDF, vd `0.4`/`2.4` — xem `lib/exportPdf.js`) làm bề rộng cột
+   Excel THẬT (đơn vị số ký tự) — 2 đơn vị khác hẳn nhau bị gán nhầm khiến
+   mọi cột Excel cực hẹp, không "auto fit" như file mẫu. Giờ tự tính bề
+   rộng theo ĐỘ DÀI HIỂN THỊ THẬT (tiêu đề + toàn bộ dữ liệu từng cột, có
+   tính cả dấu phẩy/% khi định dạng số) sau khi đã ghi hết dữ liệu.
+
+Nhóm cột "Tổng cộng MART"/"Tổng cộng MINIMART" (`DefinitionJson.groupBy`)
+và tô màu tiêu đề nhóm cột (`columnGroups`) đã có sẵn đúng trong định
+nghĩa 2 báo cáo (`rp-server/scripts/seedLdtdHcrcReports.js`) và được cả
+`lib/exportPdf.js`/`lib/exportExcel.js` xử lý đúng — không có lỗi mới phát
+sinh ở phần này. Cột "Giao dịch" trống hoàn toàn trên web/export (không
+phải trống 1-2 ô) là dấu hiệu domain `giaodich_chinhanh` CHƯA có dữ liệu
+đồng bộ (job "Giao dịch chi nhánh - Live/Lịch sử" chưa chạy/lỗi phía
+etl-admin) — không phải lỗi code, cần kiểm tra Nhật ký đồng bộ (etl-admin
+→ Đồng bộ dữ liệu) trên máy chủ thật.
+
 ## 6.96 — Sửa khẩn: màn hình trắng khi đăng nhập api-admin (lỗi phát sinh từ bản 6.95)
 
 Sau khi release bản 6.95 lên máy chủ, đăng nhập `api-admin` bị màn hình
