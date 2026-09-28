@@ -20,6 +20,19 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 7.1 — Làm rõ chuỗi nguồn gốc BU_ID/STK_ID (DSMART cấp BU_ID → mã Điểm cố định → người dùng tự tạo STK_ID)
+
+Người dùng làm rõ thêm: "Mã BU_ID vì tôi lấy từ DSMART... Mã điểm cố định
+và tôi là người tạo ra mã STK_ID từ mã điểm (BU_ID)" — chỉnh lại cách diễn
+đạt ở mục 7.0 (dễ hiểu nhầm "BU_ID vật lý do phần mềm POS tự sinh" thành
+rp-server tự suy đoán/tính toán ra hậu tố "00"). Đúng bản chất: BU_ID là
+mã GỐC đọc thẳng từ DSMART (nguồn phát sinh đầu tiên), mã Điểm = BU_ID đó
+(cố định), còn STK_ID là mã PHÁI SINH do chính người dùng tự tạo ra gắn
+theo từng mã Điểm để quản lý theo kho/ngành hàng — không phải DSMART cấp.
+Cập nhật "quy tắc mã BU_ID và STK_ID.md" với mục "Chuỗi nguồn gốc dữ liệu"
+làm rõ chiều quan hệ này — không đổi code/logic, chỉ sửa tài liệu tham
+chiếu bắt buộc theo quy tắc 5.
+
 ## 7.0 — Làm rõ file quy tắc mã BU_ID và STK_ID.md (2 lớp BU_ID, tránh nhầm lẫn)
 
 Người dùng hỏi lại: "Mã điểm chính là mã BU_ID đó bạn" — đúng, về Ý NGHĨA

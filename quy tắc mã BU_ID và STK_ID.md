@@ -50,6 +50,30 @@ chọn) trong bảng ánh xạ **hầu như KHÔNG BAO GIỜ cần điền** —
 mã Điểm cụ thể có giá trị vật lý KHÔNG theo đúng quy tắc "+00" (ngoại lệ
 hiếm, do lỗi khai báo phía POS).
 
+## Chuỗi nguồn gốc dữ liệu — AI TẠO RA MÃ NÀO (xác nhận 28/9/2026)
+
+Người dùng làm rõ thêm chiều quan hệ, SỬA LẠI cách diễn đạt sai ở mục trên
+("BU_ID vật lý... do phần mềm POS tự sinh" dễ hiểu nhầm thành rp-server
+tự suy đoán/tính toán — KHÔNG ĐÚNG tinh thần). Chuỗi đúng:
+
+1. **BU_ID** — lấy THẲNG từ DSMART (hệ POS), là mã GỐC, nguồn phát sinh
+   ĐẦU TIÊN. Không phải rp-server suy luận ra hậu tố "00" — đó là đúng
+   nguyên văn giá trị DSMART gán, người dùng đọc được trực tiếp từ DSMART.
+2. **Mã Điểm** = BU_ID đó — CỐ ĐỊNH, không đổi theo thời gian (khớp quy
+   tắc 1). Đây là mã người dùng dùng xuyên suốt file chỉ tiêu/báo cáo.
+3. **STK_ID** — do CHÍNH NGƯỜI DÙNG tự tạo ra, gắn theo từng mã Điểm
+   (BU_ID), để chia nhỏ theo kho/ngành hàng khi cần quản lý (1 mã Điểm có
+   thể có nhiều STK_ID) — đây là mã PHÁI SINH, người dùng tự quản lý qua
+   bảng "Ánh xạ Điểm - STK_ID" (`MaStkCu`/`MaStkMoi`), KHÔNG phải DSMART
+   cấp.
+
+→ Thứ tự đúng: **DSMART cấp BU_ID → BU_ID = Mã Điểm (cố định) → người dùng
+tự tạo STK_ID gắn theo Mã Điểm**. Quy tắc "+00" (mục dưới) chỉ là HÌNH THỨC
+mã BU_ID mà DSMART thể hiện — dữ liệu GỐC đọc thẳng từ nguồn, không phải
+công thức rp-server bịa ra. Cột `BuId` trong bảng ánh xạ tồn tại để chép
+lại ĐÚNG giá trị gốc đó khi 1 mã Điểm không theo đúng hình thức "+00"
+thường thấy — không phải "ghi đè quy tắc", mà là "chép đúng dữ liệu gốc".
+
 ## Dữ liệu thật đã xác nhận bằng SQL (28/9/2026)
 
 - Bảng `TRANSHDR` (nguồn domain `giaodich_chinhanh`) **KHÔNG có cột
