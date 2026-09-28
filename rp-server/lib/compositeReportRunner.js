@@ -48,10 +48,24 @@
 //                           // sánh CHUỖI, an toàn với select trả string) —
 //                           // dùng cho "chế độ xem" tuỳ chọn ẩn bớt khối so
 //                           // sánh, xem seedLdtdHcrcReports.js.
+//   stripEntityCodeSuffix,  // directDb: TUỲ CHỌN — cắt bỏ hậu tố CỐ ĐỊNH khỏi
+//                           // entityCode SAU KHI gộp theo ngày (trước
+//                           // useDiemStkMapping/requireStkStability bên dưới)
+//                           // nếu entityCode thật sự kết thúc bằng đúng chuỗi
+//                           // này — KHÔNG cắt nếu không khớp khuôn dạng. Dùng
+//                           // cho domain giaodich_chinhanh: TRƯỚC ĐÂY tài
+//                           // liệu giả định "BU_ID giữ nguyên = mã Điểm" —
+//                           // SAI, đã xác nhận lại bằng dữ liệu thật (SELECT
+//                           // DISTINCT BU_ID/STK_ID qua STRANS JOIN TRANSHDR):
+//                           // BU_ID thật ra là mã Điểm + hậu tố "00" cố định
+//                           // (vd mã Điểm "217" -> BU_ID "21700"), khiến cột
+//                           // Giao dịch trước đây LUÔN TRỐNG (entityCode
+//                           // không khớp khối Doanh thu/Chỉ tiêu dù đồng bộ
+//                           // đúng, không lỗi gì) — xem VERSION.md.
 //   requireStkStability,    // directDb: TUỲ CHỌN, mặc định false — dùng cho
 //                           // domain KHÔNG bật useDiemStkMapping (entityCode
-//                           // đã đúng = mã Điểm/BU_ID ngay từ nguồn, vd
-//                           // giaodich_chinhanh — xem etl/lib/tableSyncEngine.js)
+//                           // đã đúng = mã Điểm SAU khi áp stripEntityCodeSuffix
+//                           // (nếu có) ở trên, vd giaodich_chinhanh)
 //                           // nhưng vẫn cần áp đúng nghiệp vụ: mã Điểm nào có
 //                           // "Ánh xạ Điểm - STK_ID" khai MaStkCu KHÁC
 //                           // MaStkMoi (đã đổi kho — đóng cửa/mở lại) thì bị
@@ -334,7 +348,26 @@ async function runBlock(block, requestedRange, filterValues) {
     const blockDefinition = { domain: block.domain, filters: [{ field: 'eventDate', type: 'dateRange' }, ...(block.filters || [])] };
     const blockFilterValues = { ...filterValues, eventDate: eventDateRange };
     const rawRows = await runReport(pool, blockDefinition, blockFilterValues, { page: 1, pageSize: 5000 });
-    const stkRows = aggregateDailyRowsByEntity(rawRows, eventDateRange.to);
+    let stkRows = aggregateDailyRowsByEntity(rawRows, eventDateRange.to);
+    // stripEntityCodeSuffix (TUỲ CHỌN) — domain 'giaodich_chinhanh' (TRANSHDR.BU_ID)
+    // ĐÃ XÁC NHẬN bằng dữ liệu thật (SELECT DISTINCT BU_ID/STK_ID qua STRANS
+    // JOIN TRANSHDR): BU_ID KHÔNG "giữ nguyên = mã Điểm" như tài liệu cũ giả
+    // định — BU_ID thật ra là mã Điểm + hậu tố "00" cố định (vd mã Điểm "217"
+    // -> BU_ID "21700", mã Điểm "002" -> BU_ID "00200", đúng cho MỌI mẫu đã
+    // kiểm — cả nơi 1 mã Điểm/1 kho lẫn nơi gộp nhiều kho). Thiếu bước cắt hậu
+    // tố này khiến entityCode của khối Giao dịch không bao giờ khớp
+    // entityCode (mã Điểm) của khối Doanh thu/Chỉ tiêu -> cột Giao dịch luôn
+    // trống dù đồng bộ đúng, không lỗi gì (xem VERSION.md). CHỈ cắt khi
+    // entityCode thật sự kết thúc bằng đúng hậu tố này — không đoán bừa nếu
+    // gặp giá trị không khớp khuôn dạng (an toàn hơn ép cắt vô điều kiện).
+    if (block.stripEntityCodeSuffix) {
+      const suffix = block.stripEntityCodeSuffix;
+      stkRows = stkRows.map((row) => (
+        row.entityCode && row.entityCode.endsWith(suffix)
+          ? { ...row, entityCode: row.entityCode.slice(0, -suffix.length) }
+          : row
+      ));
+    }
     if (block.useDiemStkMapping) {
       const diemMapping = await loadDiemStkMapping();
       return remapRowsToDiem(stkRows, diemMapping, years < 0);

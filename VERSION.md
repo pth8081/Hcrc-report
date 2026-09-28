@@ -20,6 +20,27 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 6.98 — Sửa cột "Giao dịch" luôn trống ở báo cáo nhanh doanh thu LDTD/HCRC
+
+Đối chiếu trực tiếp với dữ liệu thật trên máy chủ (SELECT DISTINCT BU_ID/
+STK_ID qua STRANS JOIN TRANSHDR, do người dùng chạy giúp) phát hiện: tài
+liệu cũ giả định "BU_ID (bảng TRANSHDR) giữ nguyên = mã Điểm" là **SAI**.
+Thực tế `BU_ID = mã Điểm + hậu tố "00"` cố định (vd mã Điểm "217" ->
+BU_ID "21700", mã Điểm "002" -> BU_ID "00200" — đã xác nhận đúng cho MỌI
+mẫu kiểm, kể cả mã Điểm gộp nhiều mã kho STK). Domain `giaodich_chinhanh`
+(nguồn cột "Giao dịch") trước đây KHÔNG cắt hậu tố này, nên entityCode của
+khối Giao dịch (vd "21700") không bao giờ khớp entityCode mã Điểm (vd
+"217") của khối Doanh thu/Chỉ tiêu — cột "Giao dịch" LUÔN TRỐNG ở mọi báo
+cáo LDTD/HCRC, dù job đồng bộ chạy đúng, không lỗi gì (khớp đúng hiện
+tượng người dùng báo).
+
+**rp-server/lib/compositeReportRunner.js** — thêm tuỳ chọn khối
+`stripEntityCodeSuffix` (áp dụng SAU khi gộp theo ngày, TRƯỚC
+useDiemStkMapping/requireStkStability): cắt đúng hậu tố nếu entityCode
+thật sự kết thúc bằng chuỗi đó, không đoán bừa nếu không khớp khuôn dạng.
+**rp-server/scripts/seedLdtdHcrcReports.js** — bật `stripEntityCodeSuffix:
+'00'` cho cả 2 khối `currentGD`/`lastYearGD` (domain `giaodich_chinhanh`).
+
 ## 6.97 — Sửa 3 lỗi báo cáo "Báo cáo nhanh doanh thu" LDTD/HCRC (xuất báo cáo + doanh thu sai)
 
 Người dùng báo lỗi sau khi dùng thật báo cáo "Báo cáo nhanh doanh thu -
