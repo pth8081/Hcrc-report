@@ -20,6 +20,17 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 7.2 — Làm rõ vì sao có STK Cũ/STK Mới (hậu tố do người dùng tự định nghĩa)
+
+Người dùng làm rõ thêm: "Hậu tố là tôi định nghĩa... khi tôi đóng cửa điểm
+cũ tôi phải tạo ra mã STK mới để phân biệt với điểm cũ, doanh thu/giao
+dịch sẽ tính theo STK mới". Xác nhận STK_ID và hậu tố dùng để tạo mã STK
+đều do CHÍNH NGƯỜI DÙNG tự định nghĩa/tạo ra khi 1 mã Điểm (BU_ID) đóng
+cửa rồi mở lại — khớp đúng thiết kế hiện tại (`MaStkMoi` = hiện tại,
+`MaStkCu` = quá khứ, chỉ dùng "cùng kỳ" khi 2 mã bằng nhau). Cập nhật
+"quy tắc mã BU_ID và STK_ID.md" với đoạn giải thích lý do — không đổi
+code, chỉ củng cố tài liệu tham chiếu bắt buộc theo quy tắc 5.
+
 ## 7.1 — Làm rõ chuỗi nguồn gốc BU_ID/STK_ID (DSMART cấp BU_ID → mã Điểm cố định → người dùng tự tạo STK_ID)
 
 Người dùng làm rõ thêm: "Mã BU_ID vì tôi lấy từ DSMART... Mã điểm cố định

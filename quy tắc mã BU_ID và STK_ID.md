@@ -28,6 +28,21 @@ chỉ sửa code.
   (không hiển thị "cùng kỳ năm trước"), CHỈ còn doanh thu/giao dịch
   **HIỆN TẠI**.
 
+### Vì sao có STK Cũ/STK Mới (xác nhận 28/9/2026, nguyên văn người dùng)
+
+"Hậu tố là tôi định nghĩa, nên mã STK cũ và STK mới là do tôi tạo ra để
+phân biệt hai điểm dùng chung một mã (BU_ID) nhưng khi tôi đóng cửa điểm
+cũ tôi phải tạo ra mã STK mới để phân biệt với điểm cũ, và doanh thu/giao
+dịch sẽ tính theo STK mới."
+
+→ STK_ID (kho) và HẬU TỐ dùng để tạo mã STK **đều do CHÍNH NGƯỜI DÙNG tự
+định nghĩa/tạo ra** (không phải DSMART, không phải rp-server suy luận) —
+đúng khi 1 mã Điểm (BU_ID) đóng cửa rồi mở lại, người dùng tạo 1 STK_ID
+MỚI (khác STK_ID CŨ) để phân biệt 2 giai đoạn của CÙNG 1 mã Điểm. Từ thời
+điểm đó, doanh thu/giao dịch HIỆN TẠI tính theo STK MỚI — khớp đúng thiết
+kế `MaStkMoi` (hiện tại) / `MaStkCu` (quá khứ, chỉ dùng khi
+`MaStkCu == MaStkMoi`, tức điểm CHƯA từng đóng-mở lại).
+
 ## Làm rõ 2 lớp "BU_ID" — TRÁNH NHẦM LẪN (28/9/2026)
 
 Người dùng xác nhận trực tiếp: **"Mã điểm chính là mã BU_ID"** — đúng, về Ý
