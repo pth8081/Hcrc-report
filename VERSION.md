@@ -20,6 +20,37 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 6.99 — Thêm cột BuId (tuỳ chọn) vào bảng Ánh xạ Điểm - STK_ID + file quy tắc tham chiếu
+
+Bản 6.98 dịch BU_ID -> mã Điểm bằng quy tắc CỐ ĐỊNH gán cứng trong code
+("+00"), KHÔNG đọc từ file "Ánh xạ Điểm - STK_ID" người dùng tự upload
+hàng tháng (khác hẳn domain Doanh thu, vốn đã đọc đúng từ bảng này qua
+`useDiemStkMapping`) — người dùng phát hiện và hỏi thẳng, đúng: quy tắc
+"+00" chỉ nên là SUY LUẬN MẶC ĐỊNH, nguồn sự thật chính phải luôn là bảng
+ánh xạ admin tự quản lý, để khi có ngoại lệ (BU_ID thật KHÔNG theo đúng
+"+00") admin sửa được mà không cần sửa code.
+
+**etl-db/schema.sql** — thêm cột `BuId NVARCHAR(20) NULL` (tuỳ chọn) vào
+`etl.DiemStkMapping` (migrate idempotent, không phá dữ liệu cũ). **etl**
+(`lib/diemStkMappingImport.js`, `routes/admin/diemStkMapping.js`) — đọc/
+ghi/import/export/template đều thêm cột này. **etl-admin**
+(`DiemStkMappingPage.jsx`) — thêm cột "BU_ID" (hiện "(tự suy)" nếu bỏ
+trống) + ô nhập trong form sửa 1 dòng. **rp-server**
+(`lib/diemStkMapping.js:buildBuIdLookup()`) — ưu tiên giá trị `BuId` admin
+khai tường minh, không có thì tự suy "+00" như trước — `compositeReportRunner.js`
+đổi từ `stripEntityCodeSuffix` (bản 6.98, cắt hậu tố mù quáng) sang
+`mapBuIdToMaDiem` (tra đúng bảng ánh xạ).
+
+Trong lúc làm, người dùng gửi thêm 1 yêu cầu khác đã được hiểu nhầm giữa
+chừng thành thiết kế tách `BuIdCu`/`BuIdMoi` theo kỳ (giống MaStkCu/
+MaStkMoi) — người dùng sửa lại ngay bằng 5 quy tắc rõ ràng: BU_ID là mã
+Điểm, KHÔNG THAY ĐỔI theo thời gian (khác STK — kho CÓ thể đổi). Đã sửa
+lại đúng: CHỈ 1 CỘT `BuId` DUY NHẤT, không tách kỳ (khớp thực tế: bảng
+TRANSHDR nguồn của domain Giao dịch không có cột STK_ID nên không có căn
+cứ nào để tách BU_ID theo kỳ cũ/mới). 5 quy tắc này đã lưu thành file
+tham chiếu bắt buộc **"quy tắc mã BU_ID và STK_ID.md"** ở gốc repo — đối
+chiếu file này TRƯỚC mọi thay đổi sau này liên quan BU_ID/STK_ID.
+
 ## 6.98 — Sửa cột "Giao dịch" luôn trống ở báo cáo nhanh doanh thu LDTD/HCRC
 
 Đối chiếu trực tiếp với dữ liệu thật trên máy chủ (SELECT DISTINCT BU_ID/

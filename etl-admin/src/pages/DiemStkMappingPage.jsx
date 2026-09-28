@@ -1,21 +1,26 @@
 // pages/DiemStkMappingPage.jsx — Trang "Ánh xạ Điểm - STK_ID": gộp NHIỀU mã
-// kho STK_ID thật (dwh.ReportFacts) về 1 mã "Điểm" (BU_ID, dùng NGUYÊN VẸN
-// trong file chỉ tiêu LDTD/HCRC — không cần đổi gì file chỉ tiêu). 1 mã Điểm
-// gộp NHIỀU kho, và tách riêng theo kỳ — MaStkCu (kho DÙNG TÍNH quá khứ/cùng
-// kỳ năm trước) và MaStkMoi (kho DÙNG TÍNH hiện tại) — vì mã kho có thể đổi
-// theo thời gian dù mã Điểm không đổi (xem etl-db/schema.sql).
+// kho STK_ID thật (dwh.ReportFacts, domain doanh thu) về 1 mã "Điểm" (dùng
+// NGUYÊN VẸN trong file chỉ tiêu LDTD/HCRC — không cần đổi gì file chỉ
+// tiêu). 1 mã Điểm gộp NHIỀU kho, và tách riêng theo kỳ — MaStkCu/MaStkMoi
+// (kho DÙNG TÍNH quá khứ/hiện tại) — vì mã kho có thể đổi theo thời gian dù
+// mã Điểm không đổi (xem etl-db/schema.sql).
+//
+// BuId — dùng cho domain giaodich_chinhanh (nguồn TRANSHDR.BU_ID) — BU_ID
+// KHÔNG PHẢI mã Điểm như hiểu nhầm trước đây (đã xác nhận bằng dữ liệu
+// thật: BU_ID = mã Điểm + hậu tố "00" cố định, xem "quy tắc mã BU_ID và
+// STK_ID.md" + VERSION.md). CHỈ 1 CỘT DUY NHẤT (KHÔNG tách cũ/mới như
+// MaStkCu/MaStkMoi — BU_ID là mã Điểm, KHÔNG THAY ĐỔI theo thời gian) — để
+// TRỐNG thì hệ thống tự suy theo quy tắc đó, chỉ điền khi có ngoại lệ.
 //
 // Đây là bảng ánh xạ DUY NHẤT cho domain doanhthu_chinhanh/giaodich_chinhanh
-// từ khi bỏ tính năng "Ánh xạ mã chi nhánh" (etl.BranchCodeMap) — domain
-// giaodich_chinhanh giờ giữ nguyên EntityCode = BU_ID gốc lúc đồng bộ, và
-// BU_ID CHÍNH LÀ mã Điểm nên không cần dịch mã trung gian nào nữa (xem
-// etl/lib/tableSyncEngine.js, rp-server/lib/compositeReportRunner.js).
-// (xem etl/routes/admin/diemStkMapping.js).
+// từ khi bỏ tính năng "Ánh xạ mã chi nhánh" (etl.BranchCodeMap) — xem
+// rp-server/lib/diemStkMapping.js, rp-server/lib/compositeReportRunner.js,
+// etl/routes/admin/diemStkMapping.js.
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
 import DataTable from '../components/DataTable';
 
-const EMPTY_EDIT_FORM = { maDiem: '', maStkCu: '', maStkMoi: '', tenSieuThi: '' };
+const EMPTY_EDIT_FORM = { maDiem: '', maStkCu: '', maStkMoi: '', tenSieuThi: '', buId: '' };
 
 export default function DiemStkMappingPage() {
   const [file, setFile] = useState(null);
@@ -43,7 +48,8 @@ export default function DiemStkMappingPage() {
       maDiem: row.maDiem,
       maStkCu: row.maStkCu.join(','),
       maStkMoi: row.maStkMoi.join(','),
-      tenSieuThi: row.tenSieuThi || ''
+      tenSieuThi: row.tenSieuThi || '',
+      buId: row.buId || ''
     });
     setEditError('');
     setEditConflicts([]);
@@ -68,7 +74,8 @@ export default function DiemStkMappingPage() {
         maDiem: editForm.maDiem.trim(),
         maStkCu: editForm.maStkCu.split(',').map(s => s.trim()).filter(Boolean),
         maStkMoi: editForm.maStkMoi.split(',').map(s => s.trim()).filter(Boolean),
-        tenSieuThi: editForm.tenSieuThi.trim() || null
+        tenSieuThi: editForm.tenSieuThi.trim() || null,
+        buId: editForm.buId.trim() || null
       });
       setEditResult('✅ Đã lưu.');
       setEditForm(EMPTY_EDIT_FORM);
@@ -143,7 +150,14 @@ export default function DiemStkMappingPage() {
         <code>MaStkCu</code> (danh sách kho dùng tính <strong>cùng kỳ năm trước</strong>),{' '}
         <code>MaStkMoi</code> (danh sách kho dùng tính <strong>hiện tại</strong>) — NHIỀU mã cách
         nhau bằng dấu phẩy, không dấu cách, để trống nếu kỳ đó không áp dụng (vd siêu thị mới mở
-        chưa có kho cũ). <code>TenSieuThi</code> tuỳ chọn, hiện trực tiếp trên báo cáo. Bấm{' '}
+        chưa có kho cũ). <code>TenSieuThi</code> tuỳ chọn, hiện trực tiếp trên báo cáo.
+      </p>
+      <p>
+        <code>BuId</code> — TUỲ CHỌN, dùng cho cột "Giao dịch" (nguồn khác hẳn cột Doanh thu). CHỈ
+        1 CỘT DUY NHẤT — BU_ID là mã Điểm, KHÔNG THAY ĐỔI theo thời gian (không tách kỳ cũ/mới như
+        MaStkCu/MaStkMoi). Để TRỐNG thì hệ thống TỰ SUY theo quy tắc đã xác nhận (mã Điểm + "00",
+        vd mã Điểm "217" → BU_ID "21700") — CHỈ điền tay khi 1 mã Điểm có BU_ID thật KHÔNG theo
+        đúng quy tắc này (nhờ DBA xác nhận qua SQL thật, giống cách khai MaStkCu/MaStkMoi). Bấm{' '}
         <strong>Tải file mẫu</strong> để lấy file đúng khuôn cột, hoặc <strong>Xuất tất cả (Excel)</strong>{' '}
         để tải về đúng TOÀN BỘ dữ liệu đang lưu (không theo ô lọc bên dưới).
       </p>
@@ -187,10 +201,11 @@ export default function DiemStkMappingPage() {
 
       <DataTable
         columns={[
-          { key: 'maDiem', label: 'Mã Điểm (BU_ID)' },
+          { key: 'maDiem', label: 'Mã Điểm' },
           { key: 'maStkCu', label: 'STK_ID (kỳ cũ)', render: (r) => r.maStkCu.join(', ') || '—' },
           { key: 'maStkMoi', label: 'STK_ID (kỳ mới)', render: (r) => r.maStkMoi.join(', ') || '—' },
           { key: 'tenSieuThi', label: 'Tên siêu thị' },
+          { key: 'buId', label: 'BU_ID', render: (r) => r.buId || '(tự suy)' },
           { key: 'importedBy', label: 'Người nhập' },
           { key: 'importedAt', label: 'Lúc nhập', render: (r) => new Date(r.importedAt).toLocaleString('vi-VN') },
           {
@@ -220,7 +235,7 @@ export default function DiemStkMappingPage() {
 
       <form className="stacked-form" onSubmit={submitEdit}>
         <input
-          placeholder="Mã Điểm (BU_ID) — đúng mã dùng trong file chỉ tiêu"
+          placeholder="Mã Điểm — đúng mã dùng trong file chỉ tiêu"
           value={editForm.maDiem}
           onChange={(e) => setEditForm({ ...editForm, maDiem: e.target.value })}
           required
@@ -239,6 +254,11 @@ export default function DiemStkMappingPage() {
           placeholder="Tên siêu thị (tuỳ chọn)"
           value={editForm.tenSieuThi}
           onChange={(e) => setEditForm({ ...editForm, tenSieuThi: e.target.value })}
+        />
+        <input
+          placeholder="BU_ID (tuỳ chọn, dùng cho cột Giao dịch) — để trống nếu hệ thống tự suy đúng"
+          value={editForm.buId}
+          onChange={(e) => setEditForm({ ...editForm, buId: e.target.value })}
         />
         <div className="inline-actions">
           <button type="submit">Lưu</button>

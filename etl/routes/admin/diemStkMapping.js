@@ -8,8 +8,11 @@
 //
 // KHÔNG còn đồng bộ sang etl.BranchCodeMap (bỏ hẳn ở đây từ bản gỡ tính
 // năng "Ánh xạ mã chi nhánh" — xem VERSION.md) — domain giaodich_chinhanh
-// giờ giữ nguyên EntityCode = BU_ID gốc lúc đồng bộ (không dịch mã), và
-// BU_ID CHÍNH LÀ mã Điểm nên không cần bước đồng bộ trung gian nào nữa.
+// giữ nguyên EntityCode = BU_ID gốc lúc đồng bộ (không dịch mã lúc đồng
+// bộ). BU_ID KHÔNG PHẢI mã Điểm (đã sửa hiểu nhầm cũ, xác nhận bằng dữ
+// liệu thật — xem VERSION.md) — rp-server tự dịch BU_ID -> mã Điểm lúc
+// CHẠY BÁO CÁO qua cột BuId bên dưới (lib/diemStkMapping.js phía
+// rp-server:buildBuIdLookup()).
 const express = require('express');
 const multer = require('multer');
 const { sql, getPool } = require('../../db');
@@ -39,13 +42,13 @@ router.get('/', requireMenuEdit('diem-stk-mapping'), async (req, res, next) => {
   try {
     const pool = await getPool('ADMIN');
     const result = await pool.request().query(`
-      SELECT Id, MaDiem, MaStkCu, MaStkMoi, TenSieuThi, ImportedAt, ImportedBy
+      SELECT Id, MaDiem, MaStkCu, MaStkMoi, TenSieuThi, BuId, ImportedAt, ImportedBy
       FROM etl.DiemStkMapping
       ORDER BY MaDiem
     `);
     res.json(result.recordset.map(r => ({
       id: r.Id, maDiem: r.MaDiem, maStkCu: parseStkList(r.MaStkCu), maStkMoi: parseStkList(r.MaStkMoi),
-      tenSieuThi: r.TenSieuThi, importedAt: r.ImportedAt, importedBy: r.ImportedBy
+      tenSieuThi: r.TenSieuThi, buId: r.BuId, importedAt: r.ImportedAt, importedBy: r.ImportedBy
     })));
   } catch (err) { next(err); }
 });
@@ -54,14 +57,15 @@ router.get('/', requireMenuEdit('diem-stk-mapping'), async (req, res, next) => {
 // bị lại cả file Excel (cùng tinh thần routes/admin/branchCodeMap.js PUT /one).
 router.put('/one', requireMenuEdit('diem-stk-mapping'), async (req, res, next) => {
   try {
-    const { maDiem, maStkCu, maStkMoi, tenSieuThi } = req.body || {};
+    const { maDiem, maStkCu, maStkMoi, tenSieuThi, buId } = req.body || {};
     if (!maDiem || !String(maDiem).trim()) return res.status(400).json({ error: 'Thiếu maDiem' });
 
     const row = {
       maDiem: String(maDiem).trim(),
       maStkCu: Array.isArray(maStkCu) ? maStkCu.map(s => String(s).trim()).filter(Boolean) : parseStkList(maStkCu),
       maStkMoi: Array.isArray(maStkMoi) ? maStkMoi.map(s => String(s).trim()).filter(Boolean) : parseStkList(maStkMoi),
-      tenSieuThi: tenSieuThi ? String(tenSieuThi).trim() : null
+      tenSieuThi: tenSieuThi ? String(tenSieuThi).trim() : null,
+      buId: buId ? String(buId).trim() : null
     };
 
     const pool = await getPool('ADMIN');
@@ -100,12 +104,13 @@ router.get('/export', requireMenuEdit('diem-stk-mapping'), async (req, res, next
   try {
     const pool = await getPool('ADMIN');
     const result = await pool.request().query(`
-      SELECT MaDiem, MaStkCu, MaStkMoi, TenSieuThi
+      SELECT MaDiem, MaStkCu, MaStkMoi, TenSieuThi, BuId
       FROM etl.DiemStkMapping
       ORDER BY MaDiem
     `);
     const rows = result.recordset.map(r => ({
-      maDiem: r.MaDiem, maStkCu: parseStkList(r.MaStkCu), maStkMoi: parseStkList(r.MaStkMoi), tenSieuThi: r.TenSieuThi
+      maDiem: r.MaDiem, maStkCu: parseStkList(r.MaStkCu), maStkMoi: parseStkList(r.MaStkMoi), tenSieuThi: r.TenSieuThi,
+      buId: r.BuId
     }));
     const buffer = await buildDiemStkMappingExport(rows);
     sendXlsx(res, buffer, 'anh-xa-diem-stk.xlsx');

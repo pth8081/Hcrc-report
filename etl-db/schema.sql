@@ -220,6 +220,25 @@ BEGIN
 END
 GO
 
+-- BuId (TUỲ CHỌN) — mã BU_ID THẬT trong TRANSHDR (DSMART16) của mã Điểm
+-- này, dùng để ghép dữ liệu domain giaodich_chinhanh (rp-server đọc trực
+-- tiếp qua lib/diemStkMapping.js:buildBuIdLookup()) — xem VERSION.md và
+-- "quy tắc mã BU_ID và STK_ID.md" (nguồn tham chiếu chính thức, đối chiếu
+-- TRƯỚC khi sửa bất kỳ gì ở đây). CHỈ 1 CỘT DUY NHẤT — KHÔNG tách theo kỳ
+-- cũ/mới như MaStkCu/MaStkMoi: đã xác nhận với người dùng "Mã BU_ID là mã
+-- điểm, KHÔNG THAY ĐỔI theo thời gian" — dùng CHUNG cho cả khối hiện tại
+-- lẫn "cùng kỳ năm trước". ĐÃ XÁC NHẬN bằng dữ liệu thật (TRANSHDR không có
+-- cột STK_ID để tách theo kỳ): BU_ID = MaDiem + hậu tố "00" cố định (vd mã
+-- Điểm "217" -> BU_ID "21700") — CỘT NÀY ĐỂ TRỐNG thì rp-server TỰ SUY theo
+-- quy tắc đó, KHÔNG bắt buộc khai cho từng dòng. CHỈ điền khi 1 mã Điểm có
+-- BU_ID thật KHÔNG theo đúng quy tắc trên (admin tự xác nhận qua DBA/SQL
+-- thật, giống cách khai MaStkCu/MaStkMoi).
+IF COL_LENGTH('etl.DiemStkMapping', 'BuId') IS NULL
+BEGIN
+    ALTER TABLE etl.DiemStkMapping ADD BuId NVARCHAR(20) NULL;
+END
+GO
+
 -- Danh sách "hàng Core" (mặt hàng BẮT BUỘC luôn phải có hàng) do admin tự
 -- khai/upload — dùng cho báo cáo "Core stock = 0" (SourceType='coreZeroStock',
 -- xem rp-server/lib/coreZeroStockRunner.js + hướng_dẫn_báo_cáo.md mục 14).

@@ -1,9 +1,16 @@
 // lib/diemStkMapping.js — Đọc etl.DiemStkMapping (CSDL HCRC_ETL, pool RIÊNG
-// "ETL_DIEM_STK", CHỈ ĐỌC) — ánh xạ mã "Điểm" (BU_ID, dùng nguyên trong file
-// chỉ tiêu LDTD/HCRC) sang NHIỀU mã kho STK_ID thật trong dwh.ReportFacts,
-// tách theo kỳ CŨ (MaStkCu — cùng kỳ năm trước) / MỚI (MaStkMoi — hiện tại)
-// — xem etl-db/schema.sql CREATE TABLE cho giải thích đầy đủ, và
-// lib/compositeReportRunner.js (block.useDiemStkMapping) cho nơi tiêu thụ.
+// "ETL_DIEM_STK", CHỈ ĐỌC) — ánh xạ mã "Điểm" (dùng nguyên trong file chỉ
+// tiêu LDTD/HCRC) sang NHIỀU mã kho STK_ID thật trong dwh.ReportFacts (domain
+// doanh thu), tách theo kỳ CŨ (MaStkCu — cùng kỳ năm trước) / MỚI (MaStkMoi
+// — hiện tại), VÀ mã BU_ID thật trong TRANSHDR (domain giao dịch) — xem "quy
+// tắc mã BU_ID và STK_ID.md" (nguồn tham chiếu chính thức, đối chiếu TRƯỚC
+// khi sửa gì ở đây): BU_ID là mã Điểm, KHÔNG THAY ĐỔI theo thời gian — CHỈ 1
+// GIÁ TRỊ DUY NHẤT dùng CHUNG cho cả 2 kỳ (KHÔNG tách cũ/mới như
+// MaStkCu/MaStkMoi — TRANSHDR không có cột STK_ID để tách theo kỳ). Đại
+// lượng THẬT SỰ có khái niệm "cũ/mới" chỉ là STK (kho, domain doanh thu) —
+// xem etl-db/schema.sql CREATE TABLE cho giải thích đầy đủ, và
+// lib/compositeReportRunner.js (block.useDiemStkMapping/block.mapBuIdToMaDiem)
+// cho nơi tiêu thụ.
 //
 // Cache TTL ngắn (60s, giống lib/permissions.js) — bảng này ít đổi, tránh
 // mỗi lượt chạy báo cáo composite đều phải round-trip CSDL riêng.
@@ -30,13 +37,14 @@ async function loadDiemStkMapping() {
 
   try {
     const pool = await getPool('ETL_DIEM_STK');
-    const result = await pool.request().query('SELECT MaDiem, MaStkCu, MaStkMoi, TenSieuThi FROM etl.DiemStkMapping');
+    const result = await pool.request().query('SELECT MaDiem, MaStkCu, MaStkMoi, TenSieuThi, BuId FROM etl.DiemStkMapping');
     const mapping = new Map();
     for (const r of result.recordset) {
       mapping.set(r.MaDiem, {
         maStkCu: parseStkList(r.MaStkCu),
         maStkMoi: parseStkList(r.MaStkMoi),
-        tenSieuThi: r.TenSieuThi || null
+        tenSieuThi: r.TenSieuThi || null,
+        buId: r.BuId || null
       });
     }
     cache = { expiresAt: Date.now() + CACHE_TTL_MS, mapping };
@@ -117,4 +125,31 @@ function stkListsMatch(a, b) {
   return a.every(v => setB.has(v));
 }
 
-module.exports = { loadDiemStkMapping, remapRowsToDiem, stkListsMatch };
+// Hậu tố mặc định khi 1 mã Điểm chưa khai BuId tường minh — ĐÃ XÁC NHẬN
+// bằng dữ liệu thật (SELECT DISTINCT BU_ID/STK_ID qua STRANS JOIN TRANSHDR):
+// BU_ID = mã Điểm + hậu tố này (vd mã Điểm "217" -> BU_ID "21700") — xem
+// "quy tắc mã BU_ID và STK_ID.md" + VERSION.md.
+const DEFAULT_BU_ID_SUFFIX = '00';
+
+// Dựng Map<BU_ID thật, mã Điểm> — ưu tiên giá trị admin khai TƯỜNG MINH
+// trong etl.DiemStkMapping.BuId, KHÔNG có thì tự suy theo quy tắc mặc định
+// (mã Điểm + "00"). CHỈ 1 GIÁ TRỊ DUY NHẤT DÙNG CHUNG CHO CẢ 2 KỲ — BU_ID là
+// mã Điểm, KHÔNG THAY ĐỔI theo thời gian (xác nhận với người dùng, xem "quy
+// tắc mã BU_ID và STK_ID.md"), KHÁC HẲN MaStkCu/MaStkMoi (kho CÓ thể đổi).
+// Dùng để dịch entityCode thô (BU_ID) của domain giaodich_chinhanh về đúng
+// mã Điểm TRƯỚC khi ghép với khối Doanh thu/Chỉ tiêu — xem
+// lib/compositeReportRunner.js:block.mapBuIdToMaDiem. Mã Điểm nào suy ra 2
+// BU_ID trùng nhau (hiếm, lỗi khai tay) thì entityCode SAU (theo thứ tự
+// Map.entries()) ghi đè — không có cách nào phân biệt đúng/sai ở tầng này,
+// admin cần tự sửa lại bảng Ánh xạ Điểm - STK_ID nếu gặp cảnh báo dữ liệu
+// sai ở báo cáo.
+function buildBuIdLookup(diemMapping) {
+  const lookup = new Map();
+  for (const [maDiem, info] of diemMapping) {
+    const buId = info.buId || `${maDiem}${DEFAULT_BU_ID_SUFFIX}`;
+    lookup.set(buId, maDiem);
+  }
+  return lookup;
+}
+
+module.exports = { loadDiemStkMapping, remapRowsToDiem, stkListsMatch, buildBuIdLookup };
