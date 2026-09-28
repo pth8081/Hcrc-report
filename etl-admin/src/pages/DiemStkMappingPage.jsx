@@ -6,11 +6,13 @@
 // mã Điểm không đổi (xem etl-db/schema.sql).
 //
 // BuId — dùng cho domain giaodich_chinhanh (nguồn TRANSHDR.BU_ID) — BU_ID
-// KHÔNG PHẢI mã Điểm như hiểu nhầm trước đây (đã xác nhận bằng dữ liệu
-// thật: BU_ID = mã Điểm + hậu tố "00" cố định, xem "quy tắc mã BU_ID và
-// STK_ID.md" + VERSION.md). CHỈ 1 CỘT DUY NHẤT (KHÔNG tách cũ/mới như
-// MaStkCu/MaStkMoi — BU_ID là mã Điểm, KHÔNG THAY ĐỔI theo thời gian) — để
-// TRỐNG thì hệ thống tự suy theo quy tắc đó, chỉ điền khi có ngoại lệ.
+// KHÔNG PHẢI mã Điểm như hiểu nhầm trước đây, xem "quy tắc mã BU_ID và
+// STK_ID.md" + VERSION.md. CHỈ 1 CỘT DUY NHẤT (KHÔNG tách cũ/mới như
+// MaStkCu/MaStkMoi — BU_ID là mã Điểm, KHÔNG THAY ĐỔI theo thời gian).
+// BẮT BUỘC điền tường minh (nhờ DBA xác nhận qua SQL thật) thì cột "Giao
+// dịch" mới có dữ liệu cho mã Điểm đó — KHÔNG còn tự suy "+00" nữa (đã bỏ:
+// hậu tố "00" chỉ đúng cho các mẫu đã kiểm tra, không phải quy tắc DSMART
+// áp dụng chung, tự suy có rủi ro gộp sai dữ liệu vào nhầm mã Điểm).
 //
 // Đây là bảng ánh xạ DUY NHẤT cho domain doanhthu_chinhanh/giaodich_chinhanh
 // từ khi bỏ tính năng "Ánh xạ mã chi nhánh" (etl.BranchCodeMap) — xem
@@ -153,11 +155,12 @@ export default function DiemStkMappingPage() {
         chưa có kho cũ). <code>TenSieuThi</code> tuỳ chọn, hiện trực tiếp trên báo cáo.
       </p>
       <p>
-        <code>BuId</code> — TUỲ CHỌN, dùng cho cột "Giao dịch" (nguồn khác hẳn cột Doanh thu). CHỈ
-        1 CỘT DUY NHẤT — BU_ID là mã Điểm, KHÔNG THAY ĐỔI theo thời gian (không tách kỳ cũ/mới như
-        MaStkCu/MaStkMoi). Để TRỐNG thì hệ thống TỰ SUY theo quy tắc đã xác nhận (mã Điểm + "00",
-        vd mã Điểm "217" → BU_ID "21700") — CHỈ điền tay khi 1 mã Điểm có BU_ID thật KHÔNG theo
-        đúng quy tắc này (nhờ DBA xác nhận qua SQL thật, giống cách khai MaStkCu/MaStkMoi). Bấm{' '}
+        <code>BuId</code> — dùng cho cột "Giao dịch" (nguồn khác hẳn cột Doanh thu). CHỈ 1 CỘT DUY
+        NHẤT — BU_ID là mã Điểm, KHÔNG THAY ĐỔI theo thời gian (không tách kỳ cũ/mới như
+        MaStkCu/MaStkMoi). <strong>BẮT BUỘC điền tường minh</strong> để mã Điểm đó có dữ liệu ở cột
+        "Giao dịch" — hệ thống KHÔNG tự suy đoán (để trống = mã Điểm đó KHÔNG hiện dữ liệu Giao
+        dịch, an toàn hơn đoán sai). Nhờ DBA chạy SQL đối chiếu <code>TRANSHDR.BU_ID</code> qua
+        <code>STRANS</code> (giống cách xác định MaStkCu/MaStkMoi) rồi điền đúng giá trị thật. Bấm{' '}
         <strong>Tải file mẫu</strong> để lấy file đúng khuôn cột, hoặc <strong>Xuất tất cả (Excel)</strong>{' '}
         để tải về đúng TOÀN BỘ dữ liệu đang lưu (không theo ô lọc bên dưới).
       </p>
@@ -205,7 +208,7 @@ export default function DiemStkMappingPage() {
           { key: 'maStkCu', label: 'STK_ID (kỳ cũ)', render: (r) => r.maStkCu.join(', ') || '—' },
           { key: 'maStkMoi', label: 'STK_ID (kỳ mới)', render: (r) => r.maStkMoi.join(', ') || '—' },
           { key: 'tenSieuThi', label: 'Tên siêu thị' },
-          { key: 'buId', label: 'BU_ID', render: (r) => r.buId || '(tự suy)' },
+          { key: 'buId', label: 'BU_ID', render: (r) => r.buId || '(chưa khai — Giao dịch trống)' },
           { key: 'importedBy', label: 'Người nhập' },
           { key: 'importedAt', label: 'Lúc nhập', render: (r) => new Date(r.importedAt).toLocaleString('vi-VN') },
           {
@@ -256,7 +259,7 @@ export default function DiemStkMappingPage() {
           onChange={(e) => setEditForm({ ...editForm, tenSieuThi: e.target.value })}
         />
         <input
-          placeholder="BU_ID (tuỳ chọn, dùng cho cột Giao dịch) — để trống nếu hệ thống tự suy đúng"
+          placeholder="BU_ID (dùng cho cột Giao dịch) — BẮT BUỘC điền để có dữ liệu, để trống = Giao dịch trống"
           value={editForm.buId}
           onChange={(e) => setEditForm({ ...editForm, buId: e.target.value })}
         />

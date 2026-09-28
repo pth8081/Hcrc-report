@@ -20,6 +20,36 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 7.3 — BỎ HẲN quy tắc tự suy "+00" cho BU_ID — bắt buộc khai tường minh
+
+Người dùng chỉ rõ: "Coi như bạn không lấy file ánh xạ STK của tôi để xử lý
+mà vẫn quy tắc 00 à? Đây không phải quy tắc mà do người tạo kho tạo mà" —
+hậu tố "00" quan sát được qua 6 mẫu SQL đã kiểm tra KHÔNG PHẢI quy tắc
+DSMART áp dụng chung cho MỌI mã Điểm, chỉ là cách người tạo kho ở NHỮNG
+điểm đó đặt ra — tự động áp dụng làm mặc định cho MỌI mã Điểm có rủi ro
+**sai âm thầm** (gộp nhầm doanh thu/giao dịch vào sai mã Điểm mà không ai
+biết để kiểm tra lại), nguy hiểm hơn hẳn hiện trống. Được hỏi lại, người
+dùng CHỌN phương án an toàn: KHÔNG suy đoán — chỉ hiện dữ liệu Giao dịch
+khi có BU_ID thật tường minh trong bảng "Ánh xạ Điểm - STK_ID".
+
+**rp-server/lib/diemStkMapping.js** — `buildBuIdLookup()` bỏ hẳn
+`DEFAULT_BU_ID_SUFFIX = '00'` và logic tự suy — CHỈ đưa vào lookup những
+mã Điểm đã khai `BuId` tường minh; mã Điểm chưa khai thì domain
+`giaodich_chinhanh` của mã đó KHÔNG khớp gì cả, rơi về "không có dữ liệu"
+(đúng hành vi mặc định của compositeReportRunner, không đoán bừa).
+**etl-admin/src/pages/DiemStkMappingPage.jsx** — cập nhật văn bản: cột
+`BuId` từ "tuỳ chọn, để trống thì tự suy" thành "BẮT BUỘC điền để có dữ
+liệu Giao dịch". Cập nhật comment tham chiếu ở
+rp-server/lib/compositeReportRunner.js, rp-server/scripts/seedLdtdHcrcReports.js,
+etl/lib/diemStkMappingImport.js (template mẫu), etl-db/schema.sql, và
+"quy tắc mã BU_ID và STK_ID.md" khớp thiết kế mới.
+
+**Lưu ý triển khai**: sau khi deploy bản này, cột "Giao dịch" sẽ TRỐNG cho
+MỌI mã Điểm cho tới khi admin điền đủ `BuId` thật (nhờ DBA xác nhận qua
+SQL, có thể chạy 1 lượt với TOÀN BỘ STK_ID trong `MaStkMoi` của mọi mã
+Điểm để lấy đủ BU_ID 1 lần, không cần kiểm tra từng mã) — đây là đánh đổi
+người dùng đã chọn (an toàn hơn đoán sai).
+
 ## 7.2 — Làm rõ vì sao có STK Cũ/STK Mới (hậu tố do người dùng tự định nghĩa)
 
 Người dùng làm rõ thêm: "Hậu tố là tôi định nghĩa... khi tôi đóng cửa điểm

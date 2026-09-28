@@ -56,21 +56,23 @@
 //                           // etl.DiemStkMapping.BuId — CHỈ 1 CỘT DUY NHẤT,
 //                           // KHÔNG tách cũ/mới như MaStkCu/MaStkMoi, vì BU_ID
 //                           // là mã Điểm KHÔNG THAY ĐỔI theo thời gian, xem
-//                           // "quy tắc mã BU_ID và STK_ID.md" — KHÔNG có khai
-//                           // tường minh thì tự suy mã Điểm + hậu tố "00" cố
-//                           // định). Dùng cho domain giaodich_chinhanh: TRƯỚC
-//                           // ĐÂY tài liệu giả định "BU_ID giữ nguyên = mã
-//                           // Điểm" — SAI, đã xác nhận lại bằng dữ liệu thật
-//                           // (SELECT DISTINCT BU_ID/STK_ID qua STRANS JOIN
-//                           // TRANSHDR): BU_ID thật ra là mã Điểm + hậu tố
-//                           // "00" cố định (vd mã Điểm "217" -> BU_ID "21700"),
-//                           // khiến cột Giao dịch trước đây LUÔN TRỐNG
-//                           // (entityCode không khớp khối Doanh thu/Chỉ tiêu
-//                           // dù đồng bộ đúng, không lỗi gì). entityCode KHÔNG
-//                           // khớp BU_ID nào trong bảng ánh xạ (mã Điểm chưa
-//                           // khai) bị LOẠI HẲN khỏi khối này (rơi về "không
-//                           // có dữ liệu", cùng triết lý useDiemStkMapping) —
-//                           // xem VERSION.md.
+//                           // "quy tắc mã BU_ID và STK_ID.md"). KHÔNG có khai
+//                           // tường minh thì mã Điểm đó KHÔNG khớp gì cả
+//                           // (KHÔNG tự suy "+00" nữa — người dùng chỉ rõ đó
+//                           // chỉ là quan sát từ mẫu ĐÃ kiểm tra qua SQL,
+//                           // không phải quy tắc DSMART áp dụng chung, tự suy
+//                           // có rủi ro sai âm thầm). Dùng cho domain
+//                           // giaodich_chinhanh: TRƯỚC ĐÂY tài liệu giả định
+//                           // "BU_ID giữ nguyên = mã Điểm" — SAI, đã xác nhận
+//                           // lại bằng dữ liệu thật (SELECT DISTINCT
+//                           // BU_ID/STK_ID qua STRANS JOIN TRANSHDR): BU_ID
+//                           // thật KHÔNG khớp mã Điểm, nên cột Giao dịch
+//                           // LUÔN TRỐNG cho tới khi admin xác nhận đúng
+//                           // BU_ID qua SQL thật rồi điền vào bảng ánh xạ.
+//                           // entityCode KHÔNG khớp BU_ID nào trong bảng ánh
+//                           // xạ (mã Điểm chưa khai) bị LOẠI HẲN khỏi khối
+//                           // này (rơi về "không có dữ liệu", cùng triết lý
+//                           // useDiemStkMapping) — xem VERSION.md.
 //   requireStkStability,    // directDb: TUỲ CHỌN, mặc định false — dùng cho
 //                           // domain KHÔNG bật useDiemStkMapping (entityCode
 //                           // đã đúng = mã Điểm SAU khi áp mapBuIdToMaDiem
@@ -366,11 +368,13 @@ async function runBlock(block, requestedRange, filterValues) {
     // - STK_ID (etl.DiemStkMapping.BuId — CHỈ 1 CỘT DUY NHẤT, KHÔNG tách
     // cũ/mới như MaStkCu/MaStkMoi, vì BU_ID là mã Điểm KHÔNG THAY ĐỔI theo
     // thời gian, xem "quy tắc mã BU_ID và STK_ID.md" — KHÔNG khai tường minh
-    // thì tự suy mã Điểm + hậu tố "00" cố định, xem lib/diemStkMapping.js:
-    // buildBuIdLookup()). entityCode KHÔNG khớp BU_ID nào trong bảng ánh xạ
-    // (mã Điểm chưa khai) bị LOẠI HẲN (rơi về "không có dữ liệu", KHÔNG hiện
-    // dòng nửa vời) — thiếu bước này khiến cột Giao dịch luôn trống dù đồng
-    // bộ đúng, không lỗi gì (xem VERSION.md).
+    // thì KHÔNG khớp gì cả (KHÔNG tự suy "+00" — bỏ hẳn sau khi người dùng
+    // chỉ rõ đó chỉ là quan sát từ mẫu ĐÃ kiểm tra, không phải quy tắc
+    // DSMART áp dụng chung, tự suy có rủi ro sai âm thầm), xem
+    // lib/diemStkMapping.js:buildBuIdLookup(). entityCode KHÔNG khớp BU_ID
+    // nào trong bảng ánh xạ (mã Điểm chưa khai) bị LOẠI HẲN (rơi về "không
+    // có dữ liệu", KHÔNG hiện dòng nửa vời, KHÔNG đoán bừa) — admin cần xác
+    // nhận đúng BU_ID qua SQL thật rồi điền vào bảng ánh xạ (xem VERSION.md).
     if (block.mapBuIdToMaDiem) {
       const diemMapping = await loadDiemStkMapping();
       const buIdLookup = buildBuIdLookup(diemMapping);

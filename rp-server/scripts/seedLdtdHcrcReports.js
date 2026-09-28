@@ -57,18 +57,21 @@ function buildDefinition(title, targetDomain) {
       // thu) — nguồn TRANSHDR vốn đã ở granularity BU_ID (không có STK_ID).
       // TRƯỚC ĐÂY tài liệu giả định "BU_ID giữ nguyên = mã Điểm" — SAI, đã
       // xác nhận lại bằng dữ liệu thật (SELECT DISTINCT BU_ID/STK_ID qua
-      // STRANS JOIN TRANSHDR, xem "quy tắc mã BU_ID và STK_ID.md" + VERSION.md):
-      // BU_ID thật ra là mã Điểm + hậu tố "00" cố định (vd mã Điểm "217" ->
-      // BU_ID "21700") NẾU chưa khai tường minh cột BuId trong "Ánh xạ Điểm -
-      // STK_ID" — mapBuIdToMaDiem: true dịch entityCode thô (BU_ID) về đúng
-      // mã Điểm qua đúng bảng đó (CHỈ 1 CỘT DUY NHẤT, KHÔNG tách cũ/mới như
-      // MaStkCu/MaStkMoi — BU_ID là mã Điểm, KHÔNG THAY ĐỔI theo thời gian,
-      // dùng chung cho cả 2 khối — xem
-      // lib/compositeReportRunner.js/lib/diemStkMapping.js:buildBuIdLookup())
-      // SAU KHI gộp theo ngày, TRƯỚC khi so khớp entityCode với khối Doanh
-      // thu/Chỉ tiêu. Thiếu bước này khiến cột Giao dịch LUÔN TRỐNG (entityCode
-      // "21700" không khớp mã Điểm "217" dùng ở mọi khối khác) dù đồng bộ
-      // đúng, không lỗi gì.
+      // STRANS JOIN TRANSHDR, xem "quy tắc mã BU_ID và STK_ID.md" + VERSION.md).
+      // mapBuIdToMaDiem: true dịch entityCode thô (BU_ID) về đúng mã Điểm
+      // qua bảng "Ánh xạ Điểm - STK_ID" (etl.DiemStkMapping.BuId — CHỈ 1
+      // CỘT DUY NHẤT, KHÔNG tách cũ/mới như MaStkCu/MaStkMoi — BU_ID là mã
+      // Điểm, KHÔNG THAY ĐỔI theo thời gian, dùng chung cho cả 2 khối — xem
+      // lib/compositeReportRunner.js/lib/diemStkMapping.js:buildBuIdLookup()).
+      // Mã Điểm CHƯA khai BuId tường minh trong bảng ánh xạ thì KHÔNG khớp
+      // gì cả (KHÔNG tự suy "+00" — bỏ hẳn quy tắc mặc định này sau khi
+      // người dùng chỉ rõ đó chỉ là quan sát từ mẫu ĐÃ kiểm tra qua SQL,
+      // không phải quy ước DSMART áp dụng chung, tự suy có rủi ro gộp sai
+      // dữ liệu vào nhầm mã Điểm mà không ai biết để kiểm tra lại) — SAU
+      // KHI gộp theo ngày, TRƯỚC khi so khớp entityCode với khối Doanh
+      // thu/Chỉ tiêu. Thiếu khai BuId khiến cột Giao dịch LUÔN TRỐNG cho
+      // đúng mã Điểm đó (an toàn — không phải sai âm thầm), tới khi admin
+      // xác nhận đúng BU_ID qua SQL thật rồi điền vào bảng ánh xạ.
       //
       // Khối "cùng kỳ năm trước" (lastYearGD) KHÔNG được coi TRANSHDR là tự
       // động đúng chỉ vì BU_ID không đổi — người dùng xác nhận: mã kho (STK)

@@ -60,10 +60,10 @@ KHÔNG có mâu thuẫn với phần "Dữ liệu thật đã xác nhận bằng
 
 Code phải DỊCH từ lớp vật lý (đọc thô từ TRANSHDR) về lớp nghiệp vụ (mã
 Điểm, khớp `MaDiem` trong bảng ánh xạ) TRƯỚC khi ghép với khối Doanh
-thu/Chỉ tiêu — đây là lý do tồn tại `buildBuIdLookup()`. Cột `BuId` (tuỳ
-chọn) trong bảng ánh xạ **hầu như KHÔNG BAO GIỜ cần điền** — chỉ dùng khi 1
-mã Điểm cụ thể có giá trị vật lý KHÔNG theo đúng quy tắc "+00" (ngoại lệ
-hiếm, do lỗi khai báo phía POS).
+thu/Chỉ tiêu — đây là lý do tồn tại `buildBuIdLookup()`. Cột `BuId` trong
+bảng ánh xạ **BẮT BUỘC điền TƯỜNG MINH để mã Điểm đó có dữ liệu Giao
+dịch** — xem mục "Bỏ hẳn quy tắc tự suy '+00'" bên dưới (28/9/2026, ghi đè
+đoạn "hầu như không bao giờ cần điền" cũ).
 
 ## Chuỗi nguồn gốc dữ liệu — AI TẠO RA MÃ NÀO (xác nhận 28/9/2026)
 
@@ -89,6 +89,29 @@ công thức rp-server bịa ra. Cột `BuId` trong bảng ánh xạ tồn tại
 lại ĐÚNG giá trị gốc đó khi 1 mã Điểm không theo đúng hình thức "+00"
 thường thấy — không phải "ghi đè quy tắc", mà là "chép đúng dữ liệu gốc".
 
+## Bỏ hẳn quy tắc tự suy "+00" (xác nhận 28/9/2026, nguyên văn người dùng)
+
+"Coi như bạn không lấy file ánh xạ STK của tôi để xử lý mà vẫn quy tắc 00
+à? Đây không phải quy tắc mà do người tạo kho tạo mà" — người dùng chỉ rõ:
+hậu tố "00" quan sát được qua các mẫu SQL đã kiểm tra (6 mã Điểm) **KHÔNG
+PHẢI quy tắc DSMART công bố áp dụng chung cho MỌI mã Điểm** — chỉ là cách
+người tạo kho ở NHỮNG điểm đó đặt ra, có thể KHÁC ở điểm khác. Tự động áp
+dụng "+00" làm mặc định cho MỌI mã Điểm (kể cả mã CHƯA kiểm tra) có rủi ro
+**SAI ÂM THẦM** (gộp nhầm doanh thu/giao dịch vào sai mã Điểm mà không ai
+biết để kiểm tra lại) — nguy hiểm hơn hẳn hiện trống.
+
+Được hỏi lại rõ ràng, người dùng CHỌN phương án an toàn: **KHÔNG suy đoán
+— chỉ hiện dữ liệu Giao dịch khi có BU_ID thật (tường minh) trong bảng ánh
+xạ.** Mã Điểm nào CHƯA khai `BuId` thì cột "Giao dịch" TRỐNG cho mã đó
+(giống hành vi trước khi có tính năng này), CHỜ admin xác nhận đúng BU_ID
+qua SQL thật (`SELECT DISTINCT h.BU_ID, d.STK_ID FROM STRANS d JOIN
+TRANSHDR h ON h.TRANS_NUM = d.TRANS_NUM WHERE d.STK_ID IN (...)`, có thể
+chạy 1 lần với TOÀN BỘ STK_ID trong `MaStkMoi` của mọi mã Điểm để lấy đủ
+BU_ID 1 lượt, không cần kiểm tra từng mã 1) rồi điền vào bảng "Ánh xạ Điểm
+- STK_ID". Đã bỏ hẳn `DEFAULT_BU_ID_SUFFIX = '00'` và logic tự suy trong
+`buildBuIdLookup()` (rp-server/lib/diemStkMapping.js) — xem "Kết luận
+thiết kế" bên dưới (đã cập nhật).
+
 ## Dữ liệu thật đã xác nhận bằng SQL (28/9/2026)
 
 - Bảng `TRANSHDR` (nguồn domain `giaodich_chinhanh`) **KHÔNG có cột
@@ -105,11 +128,13 @@ thường thấy — không phải "ghi đè quy tắc", mà là "chép đúng d
 
 ## Kết luận thiết kế (áp dụng cho code)
 
-- **BU_ID → mã Điểm**: dùng **1 quy tắc suy luận DUY NHẤT** (mã Điểm +
-  `"00"`), có thể ghi đè tường minh qua **1 cột `BuId` DUY NHẤT** trong
-  bảng "Ánh xạ Điểm - STK_ID" (KHÔNG tách `BuIdCu`/`BuIdMoi` theo kỳ —
-  điều này đã làm SAI ở 1 bản code trước đó trong phiên này, đang được sửa
-  lại đúng theo file này).
+- **BU_ID → mã Điểm**: đọc **CHỈ từ 1 cột `BuId` DUY NHẤT**, tường minh,
+  trong bảng "Ánh xạ Điểm - STK_ID" (KHÔNG tách `BuIdCu`/`BuIdMoi` theo kỳ
+  — điều này đã làm SAI ở 1 bản code trước đó trong phiên này, đã sửa lại
+  đúng theo file này). **KHÔNG còn tự suy "mã Điểm + 00"** khi để trống
+  (đã bỏ hẳn, xem mục "Bỏ hẳn quy tắc tự suy '+00'" ở trên) — mã Điểm chưa
+  khai `BuId` thì domain `giaodich_chinhanh` của mã đó KHÔNG khớp gì cả,
+  rơi về "không có dữ liệu" (an toàn, không đoán bừa).
 - **STK_ID → mã Điểm** (domain doanh thu): VẪN tách theo kỳ
   `MaStkCu`/`MaStkMoi` như thiết kế cũ — đây là chỗ THẬT SỰ có khái niệm
   "cũ/mới" (kho có thể đổi qua thời gian).

@@ -12,6 +12,12 @@
 // lib/compositeReportRunner.js (block.useDiemStkMapping/block.mapBuIdToMaDiem)
 // cho nơi tiêu thụ.
 //
+// buildBuIdLookup() KHÔNG tự suy BU_ID theo quy tắc "+00" nữa (đã bỏ sau
+// khi người dùng chỉ rõ: đó chỉ là quan sát từ các mẫu ĐÃ kiểm tra qua SQL,
+// KHÔNG phải quy tắc DSMART áp dụng chung — tự suy cho mã CHƯA kiểm tra có
+// rủi ro sai âm thầm) — CHỈ khớp mã Điểm nào đã khai BuId tường minh trong
+// bảng "Ánh xạ Điểm - STK_ID".
+//
 // Cache TTL ngắn (60s, giống lib/permissions.js) — bảng này ít đổi, tránh
 // mỗi lượt chạy báo cáo composite đều phải round-trip CSDL riêng.
 //
@@ -125,20 +131,25 @@ function stkListsMatch(a, b) {
   return a.every(v => setB.has(v));
 }
 
-// Hậu tố mặc định khi 1 mã Điểm chưa khai BuId tường minh — ĐÃ XÁC NHẬN
-// bằng dữ liệu thật (SELECT DISTINCT BU_ID/STK_ID qua STRANS JOIN TRANSHDR):
-// BU_ID = mã Điểm + hậu tố này (vd mã Điểm "217" -> BU_ID "21700") — xem
-// "quy tắc mã BU_ID và STK_ID.md" + VERSION.md.
-const DEFAULT_BU_ID_SUFFIX = '00';
-
-// Dựng Map<BU_ID thật, mã Điểm> — ưu tiên giá trị admin khai TƯỜNG MINH
-// trong etl.DiemStkMapping.BuId, KHÔNG có thì tự suy theo quy tắc mặc định
-// (mã Điểm + "00"). CHỈ 1 GIÁ TRỊ DUY NHẤT DÙNG CHUNG CHO CẢ 2 KỲ — BU_ID là
-// mã Điểm, KHÔNG THAY ĐỔI theo thời gian (xác nhận với người dùng, xem "quy
-// tắc mã BU_ID và STK_ID.md"), KHÁC HẲN MaStkCu/MaStkMoi (kho CÓ thể đổi).
-// Dùng để dịch entityCode thô (BU_ID) của domain giaodich_chinhanh về đúng
-// mã Điểm TRƯỚC khi ghép với khối Doanh thu/Chỉ tiêu — xem
-// lib/compositeReportRunner.js:block.mapBuIdToMaDiem. Mã Điểm nào suy ra 2
+// Dựng Map<BU_ID thật, mã Điểm> — CHỈ dùng giá trị admin khai TƯỜNG MINH
+// trong etl.DiemStkMapping.BuId — KHÔNG (còn) tự suy "mã Điểm + 00" như
+// trước (bản 6.98/6.99). Người dùng chỉ rõ: hậu tố "00" quan sát được qua
+// SQL chỉ đúng cho các mẫu ĐÃ kiểm tra, KHÔNG phải quy tắc DSMART công bố
+// áp dụng chung cho MỌI mã Điểm — tự suy cho mã CHƯA kiểm tra có rủi ro
+// SAI ÂM THẦM (gộp sai doanh thu/giao dịch vào nhầm mã Điểm mà không ai
+// biết để kiểm tra lại), còn nguy hiểm hơn hiện trống — xem "quy tắc mã
+// BU_ID và STK_ID.md". Mã Điểm nào CHƯA khai BuId tường minh thì domain
+// giaodich_chinhanh của mã đó KHÔNG xuất hiện trong lookup — rơi về "không
+// có dữ liệu" (đúng hành vi mặc định của compositeReportRunner khi
+// entityCode không khớp khối nào), CHỜ admin xác nhận qua SQL thật rồi
+// điền vào bảng "Ánh xạ Điểm - STK_ID".
+//
+// CHỈ 1 GIÁ TRỊ DUY NHẤT DÙNG CHUNG CHO CẢ 2 KỲ — BU_ID là mã Điểm, KHÔNG
+// THAY ĐỔI theo thời gian (xác nhận với người dùng, xem "quy tắc mã BU_ID
+// và STK_ID.md"), KHÁC HẲN MaStkCu/MaStkMoi (kho CÓ thể đổi). Dùng để dịch
+// entityCode thô (BU_ID) của domain giaodich_chinhanh về đúng mã Điểm
+// TRƯỚC khi ghép với khối Doanh thu/Chỉ tiêu — xem
+// lib/compositeReportRunner.js:block.mapBuIdToMaDiem. Mã Điểm nào khai 2
 // BU_ID trùng nhau (hiếm, lỗi khai tay) thì entityCode SAU (theo thứ tự
 // Map.entries()) ghi đè — không có cách nào phân biệt đúng/sai ở tầng này,
 // admin cần tự sửa lại bảng Ánh xạ Điểm - STK_ID nếu gặp cảnh báo dữ liệu
@@ -146,8 +157,8 @@ const DEFAULT_BU_ID_SUFFIX = '00';
 function buildBuIdLookup(diemMapping) {
   const lookup = new Map();
   for (const [maDiem, info] of diemMapping) {
-    const buId = info.buId || `${maDiem}${DEFAULT_BU_ID_SUFFIX}`;
-    lookup.set(buId, maDiem);
+    if (!info.buId) continue;
+    lookup.set(info.buId, maDiem);
   }
   return lookup;
 }

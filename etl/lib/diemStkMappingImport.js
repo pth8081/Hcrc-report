@@ -47,11 +47,15 @@ async function parseDiemStkMappingFile(buffer) {
   });
   if (!headers.includes('MaDiem')) throw new Error('File thiếu cột bắt buộc "MaDiem"');
   const col = {};
-  // BuId — TUỲ CHỌN (xem etl-db/schema.sql), CHỈ 1 CỘT DUY NHẤT (KHÔNG tách
-  // Cu/Moi như MaStkCu/MaStkMoi — BU_ID là mã điểm ỔN ĐỊNH, không đổi theo
-  // thời gian, xem "quy tắc mã BU_ID và STK_ID.md") — file CŨ (chưa có cột
-  // này) vẫn nhập bình thường, headers.indexOf trả -1 -> cell() trả null ->
-  // buId null, rp-server tự suy theo quy tắc mặc định (MaDiem + "00").
+  // BuId — TUỲ CHỌN VỀ MẶT CỘT (xem etl-db/schema.sql), CHỈ 1 CỘT DUY NHẤT
+  // (KHÔNG tách Cu/Moi như MaStkCu/MaStkMoi — BU_ID là mã điểm ỔN ĐỊNH,
+  // không đổi theo thời gian, xem "quy tắc mã BU_ID và STK_ID.md") — nhưng
+  // BẮT BUỘC khai GIÁ TRỊ để cột "Giao dịch" có dữ liệu (rp-server KHÔNG
+  // còn tự suy "MaDiem + 00" — bỏ hẳn quy tắc mặc định này, chỉ đúng cho
+  // mẫu đã kiểm tra, không phải quy ước DSMART áp dụng chung). File CŨ
+  // (chưa có cột này) vẫn nhập bình thường, headers.indexOf trả -1 ->
+  // cell() trả null -> buId null -> mã Điểm đó KHÔNG có dữ liệu Giao dịch
+  // cho tới khi admin bổ sung giá trị thật.
   for (const name of ['MaDiem', 'MaStkCu', 'MaStkMoi', 'TenSieuThi', 'BuId']) {
     col[name] = headers.indexOf(name);
   }
@@ -226,7 +230,7 @@ async function buildDiemStkMappingTemplate() {
     ['STT', 'MaDiem', 'MaStkCu', 'MaStkMoi', 'TenSieuThi', 'BuId'],
     [
       [1, 'VIDU', '10001,10002', '13061', 'Tên siêu thị ví dụ - XOÁ dòng này trước khi nhập', ''],
-      [2, 'VIDU2', '', '13051,13052', 'Nhiều mã cách nhau bằng dấu phẩy, KHÔNG dấu cách', 'BU_ID để TRỐNG nếu không rõ - hệ thống tự suy (MaDiem + "00")']
+      [2, 'VIDU2', '', '13051,13052', 'Nhiều mã cách nhau bằng dấu phẩy, KHÔNG dấu cách', 'BAT BUOC dien de co du lieu Giao dich - nho DBA xac nhan qua SQL, KHONG tu doan']
     ]
   );
 }
