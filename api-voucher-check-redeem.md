@@ -151,8 +151,8 @@ cần thiết cho 1 thiết bị quét mã đơn giản.
 |---|---|---|
 | 1 | git pull + khởi động lại api-server VÀ api-admin | IT/Dev |
 | 2 | DBA chạy lại `api-db/schema.sql` (an toàn chạy lại nhiều lần) | DBA |
-| 3 | Đã có "Nguồn dữ liệu" trỏ DSMART16 (Live) chưa? | Admin api-admin (dùng lại nếu đã có từ mục 13, KHÔNG tạo mới) |
-| 4 | Vào api-admin → "Cấu hình Voucher", chọn đúng Nguồn dữ liệu | Admin api-admin |
+| 3 | Đã có "Nguồn dữ liệu" trỏ DSMART16 (Live) chưa? Nếu chưa, chạy `npm run seed:voucher-datasource` (xem Bước 4) — TỰ tạo Nguồn dữ liệu + trỏ Cấu hình Voucher trong 1 lệnh, KHÔNG cần mở trình duyệt | IT/DBA |
+| 4 | Nếu KHÔNG dùng script ở bước 3 (vd đã có sẵn Nguồn dữ liệu từ mục 13): vào api-admin → "Cấu hình Voucher", chọn đúng Nguồn dữ liệu | Admin api-admin |
 | 5 | Vào "Đối tác", tạo/sửa 1 đối tác cho app voucher — scope `voucherCheck` + `voucherRedeem` | Admin api-admin |
 | 6 | Gán quyền Xem/Sửa trang "Cấu hình Voucher" ở "Vai trò" | Admin api-admin |
 | 7 | Đưa API key/HMAC cho team app voucher, xác nhận đổi base URL sang `/api/v1/vouchers/...` | IT/Dev |
@@ -162,9 +162,30 @@ Thiếu bước 4 (chưa chọn Nguồn dữ liệu) thì MỌI request trả l�
 ràng ("Chưa cấu hình Nguồn dữ liệu cho Voucher..."), không phải lỗi khó
 hiểu.
 
-## Bước 4 — Cấu hình Voucher (api-admin)
+## Bước 4 — Cấu hình Voucher
 
-Vào trang **"Cấu hình Voucher"** (menu mới, mặc định KHÔNG vai trò nào
+**Cách 1 (khuyến nghị — chạy 1 lệnh, không cần mở trình duyệt/đăng nhập
+api-admin, phù hợp khi api-admin CHỈ chạy trong mạng nội bộ)**: điền các
+biến `VOUCHER_DSMART16_*` vào file `.env` của api-server (xem
+`api-server/.env.example` mục "Voucher — kết nối DSMART16" để biết đầy đủ
+các biến: server/port/database/username/password), rồi chạy trên chính
+máy chủ đang host api-server:
+
+```
+cd api-server
+npm run seed:voucher-datasource
+```
+
+Script `scripts/seedVoucherDataSource.js` tự động: (1) kiểm tra kết nối
+THẬT tới DSMART16 trước — nếu sai thông tin thì DỪNG NGAY, KHÔNG ghi gì cả
+(tránh lưu cấu hình hỏng); (2) tạo mới HOẶC cập nhật tại chỗ (idempotent,
+khớp theo tên, không tạo trùng) đúng 1 dòng trong "Nguồn dữ liệu"; (3) tự
+trỏ "Cấu hình Voucher" vào dòng đó. **Mật khẩu chỉ nằm trong `.env` trên
+máy chủ — không đi qua trình duyệt, không đi qua chat/log.** Đổi mật
+khẩu/server DSMART16 sau này: sửa lại `.env` rồi chạy lại đúng lệnh trên.
+
+**Cách 2 (thủ công qua giao diện, nếu muốn tự tay kiểm tra từng bước)**:
+vào trang **"Cấu hình Voucher"** (menu mới, mặc định KHÔNG vai trò nào
 tự có quyền xem — gán ở "Vai trò" như mọi trang khác) — chọn 1 "Nguồn dữ
 liệu" đã khai ở trang "Nguồn dữ liệu" (server/database DSMART16 Live).
 Chỉ có đúng 1 cấu hình cho toàn hệ thống (không phân biệt theo đối tác).
@@ -199,7 +220,8 @@ chế "Endpoint realtime" + báo cáo tra-1-khoá đã có (mục 3/13.1
 ## Hỏi & đáp
 
 **Gọi `/check`/`/redeem` trả lỗi 503 "Chưa cấu hình Nguồn dữ liệu"?**
-Chưa làm Bước 4 (Cấu hình Voucher) — vào api-admin chọn Nguồn dữ liệu.
+Chưa làm Bước 4 (Cấu hình Voucher) — chạy `npm run seed:voucher-datasource`
+(xem `api-server/.env.example`) hoặc vào api-admin chọn Nguồn dữ liệu tay.
 
 **Gọi `/redeem` trả `403`?**
 Đối tác thiếu scope `voucherRedeem` (hoặc `voucherCheck` cho `/check`) —

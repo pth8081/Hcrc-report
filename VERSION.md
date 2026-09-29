@@ -20,6 +20,36 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 7.4 — Script tự cấu hình kết nối DSMART16 cho API Voucher (thay thao tác tay qua api-admin)
+
+Rà soát API check/redeem voucher theo yêu cầu người dùng: code đã hoàn
+thiện đầy đủ từ trước (đọc/ghi thật bảng `PMCRDINF` qua đúng cơ chế "Nguồn
+dữ liệu" `api.DataSources` dùng chung với các endpoint realtime khác,
+auth/scope/rate-limit/xử lý lỗi đều đã có) — chỉ THIẾU thao tác vận hành:
+chọn "Nguồn dữ liệu" trỏ DSMART16 trong "Cấu hình Voucher". Vì api-admin
+và app voucher của người dùng CHỈ chạy trong mạng nội bộ (không public),
+phiên làm việc không có đường kết nối để tự thao tác qua giao diện web
+giúp — thay vào đó, viết **script tự động hoá** để IT/DBA chạy 1 lệnh trên
+chính máy chủ, không cần mở trình duyệt, không cần gõ mật khẩu qua chat.
+
+**api-server/scripts/seedVoucherDataSource.js** (mới) — đọc thông tin kết
+nối DSMART16 từ biến `.env` (`VOUCHER_DSMART16_*`, xem `.env.example`),
+**kiểm tra kết nối THẬT trước** (dừng ngay, KHÔNG ghi gì nếu sai thông tin
+— tránh lưu cấu hình hỏng), rồi TẠO MỚI hoặc CẬP NHẬT TẠI CHỖ (idempotent,
+khớp theo tên, không tạo trùng khi chạy lại) đúng 1 dòng `api.DataSources`
+và tự trỏ `api.VoucherSettings.DataSourceId` vào dòng đó — dùng lại đúng
+`encrypt()`/`testConnection()`/`invalidate()` đã có (không tự chế thêm cơ
+chế mã hoá/kết nối mới). Thêm alias `npm run seed:voucher-datasource`
+(package.json). Cập nhật `api-server/.env.example` (mục "Voucher — kết
+nối DSMART16") và `api-voucher-check-redeem.md` Bước 4 (mô tả cả 2 cách:
+script mới — khuyến nghị, và thao tác tay qua UI — cách cũ vẫn còn dùng
+được).
+
+**Test (fakeModule)**: 3 kịch bản — (1) kết nối thất bại → KHÔNG ghi gì
+vào CSDL; (2) chưa có Nguồn dữ liệu → tạo mới + trỏ đúng VoucherSettings;
+(3) đã có → cập nhật tại chỗ, không tạo trùng, gọi `invalidate()` đúng Id
+cũ để pool cache nạp lại cấu hình mới ngay — cả 3 PASS.
+
 ## 7.3 — BỎ HẲN quy tắc tự suy "+00" cho BU_ID — bắt buộc khai tường minh
 
 Người dùng chỉ rõ: "Coi như bạn không lấy file ánh xạ STK của tôi để xử lý
