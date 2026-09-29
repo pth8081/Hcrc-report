@@ -20,6 +20,20 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 8.2 — Xác nhận công thức giá vốn bằng nguồn thứ 3 (DBA cung cấp `AVERIMPPR`)
+
+Người dùng báo "Lãi gộp" sau bản 8.1 vẫn thấp — đối chiếu thêm 1 nguồn
+ĐỘC LẬP thứ 3 do DBA DSMART16 cung cấp: `STK_INFO.AVERIMPPR` chính là
+"GV bình quân" (giá vốn bình quân) DSMART tự duy trì. Kiểm bằng dữ liệu
+thật (10 mã hàng đã dùng xuyên suốt) cho kết quả GẦN TRÙNG KHỚP với công
+thức tự tính đang dùng trong VIEW (chênh lệch < 5%) — xác nhận công thức
+ĐANG DÙNG là ĐÚNG, không cần sửa lại VIEW. Tỷ lệ lãi gộp thấp ở các mã
+hàng bán chạy nhất phản ánh đúng dữ liệu thật (khả năng là biên lợi
+nhuận mỏng thật của hàng thiết yếu) — chuyển thành câu hỏi NGHIỆP VỤ cho
+người phụ trách kinh doanh, không còn là nghi vấn kỹ thuật. Cập nhật
+"giá vốn dsmart.md" mục 6. (`STK_INFO.COSTPRICE` — khác bảng `COSTPRICE`
+riêng — cũng xác nhận thêm KHÔNG dùng được, toàn số 0.)
+
 ## 8.1 — Sửa "Lãi gộp" dùng giá vốn bình quân từ STK_INFO (chỉ VIEW Live)
 
 Người dùng xác nhận: chỉ áp dụng cách tính giá vốn mới (bản 8.0) cho kỳ

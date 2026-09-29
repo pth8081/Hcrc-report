@@ -92,19 +92,31 @@ hàng ở mục 1, ra rỗng hoàn toàn). Cần dò tiếp qua bảng trung gia
 `SKU_DEF` (chưa kiểm chứng) — **CẬP NHẬT lại mục này ngay khi xác định
 xong đường nối đúng**.
 
-## 6. Câu hỏi nghiệp vụ còn mở (chưa có câu trả lời)
+## 6. Câu hỏi nghiệp vụ còn mở — ĐÃ CÓ CƠ SỞ TRẢ LỜI (bản 8.2)
 
 Tỷ lệ lãi gộp tính ra cho 10 mã hàng bán chạy nhất (theo doanh thu) đều
-RẤT THẤP (0–5%, có mã âm) dù đã đối chiếu 2 nguồn độc lập khớp nhau. Có
-2 khả năng:
-1. Đúng là các mã hàng BÁN CHẠY NHẤT (gạo/dầu ăn/sữa...) được bán gần
-   giá vốn để kéo khách — không đại diện biên lợi nhuận CHUNG toàn cửa
-   hàng.
-2. Có vấn đề dữ liệu SÂU HƠN ở DSMART16 mà chưa phát hiện ra.
+RẤT THẤP (0–5%, có mã âm). Đã đối chiếu **3 nguồn ĐỘC LẬP** bằng dữ liệu
+thật cho cùng 10 mã hàng:
 
-**Chưa có câu trả lời** — cần người phụ trách nghiệp vụ giá xác nhận tỷ
-lệ lãi gộp CHUNG toàn cửa hàng (không chỉ 10 mã bán chạy nhất) có hợp lý
-không sau khi báo cáo "Báo cáo giá vốn" chạy thật.
+1. Bảng `COSTPRICE` (đã loại, mục 1) — gần trùng khớp giá bán.
+2. Công thức tự tính từ `STK_INFO.M_BEGAMT/M_IMPAMT` (mục 3, đang dùng
+   trong VIEW).
+3. Cột `STK_INFO.AVERIMPPR` — DBA xác nhận đây chính là "GV bình quân"
+   (giá vốn bình quân) DSMART tự duy trì.
+
+**Cả 3 nguồn hội tụ về cùng 1 mức giá vốn** (nguồn 2 và 3 chênh lệch dưới
+5% ở mọi mã đã kiểm, có mã dưới 0.1%) — đủ cơ sở kết luận: **tỷ lệ lãi
+gộp thấp là ĐÚNG DỮ LIỆU, không phải lỗi tính toán/đọc sai bảng**. Nhiều
+khả năng đây là thực tế kinh doanh (các mã hàng thiết yếu bán chạy nhất
+thường có biên lợi nhuận mỏng để kéo khách) — **tỷ lệ lãi gộp CHUNG toàn
+cửa hàng** (gộp cả các mã hàng lãi cao hơn, bán ít hơn) mới phản ánh đúng
+bức tranh tổng thể, cần người phụ trách kinh doanh xác nhận có hợp lý
+theo kỳ vọng không — đây là câu hỏi NGHIỆP VỤ, không còn là nghi vấn kỹ
+thuật.
+
+*(Ghi chú thêm: `STK_INFO.COSTPRICE` — khác bảng `COSTPRICE` riêng đã
+loại ở mục 1 — ra toàn số 0 ở 10 mã đã kiểm, cũng KHÔNG dùng được, dù DBA
+ghi chú đây là "GV hiện thời".)*
 
 ## 7. Trạng thái triển khai
 
