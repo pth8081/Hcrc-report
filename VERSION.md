@@ -20,6 +20,32 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 8.5 — Tìm ra nguyên nhân thật "Lãi gộp" vẫn sai sau bản 8.1 + script đồng bộ lại riêng job Live
+
+Người dùng phản ánh: sau khi đã sửa VIEW ở DSMART16 theo bản 8.1 và kiểm
+chứng lại bằng SQL trực tiếp cho ra số đúng, báo cáo xuất ra (PDF) vẫn hiện
+"Lãi gộp" (Tỷ lệ + Giá trị) y hệt số CŨ/sai. Điều tra `etl/jobs/runSync.js`
++ `etl/lib/tableSyncEngine.js` + `etl/scripts/seedLdtdHcrcSync.js`, tìm ra
+nguyên nhân: job "Doanh thu chi nhánh - Live" dùng chính cột `WORK_DATE`
+làm "Cột thời gian cập nhật" (watermark) — câu truy vấn đồng bộ tăng dần
+thực chất là `WHERE WORK_DATE > mốc_đã_đồng_bộ`. Vì `WORK_DATE` của 1 dòng
+không đổi theo thời gian, một khi mốc đã vượt qua `WORK_DATE` của 1 ngày,
+job sẽ **không bao giờ** tự kéo lại đúng ngày đó nữa dù đổi công thức tính
+trong VIEW (như bản 8.1) — đợi job chạy lại nhiều lần (như đã khuyên ở bản
+8.1) KHÔNG có tác dụng, khác hẳn tình huống bản 7.6 (ngày chưa từng đồng bộ
+vẫn tự kéo đúng khi tới lượt).
+
+- `etl/scripts/resyncDoanhThuChinhanhLive.js` (mới) — script đồng bộ lại
+  riêng job "Live" (xoá đúng các dòng `dwh.ReportFacts` có `SourceSystem`
+  của job Live, reset watermark chỉ của job đó về epoch), KHÔNG đụng tới
+  job "Lịch sử" hay tiến độ đang chạy dở của job đó — khác
+  `resyncDoanhThuChinhanh.js` (bản 7.8, xoá + reset CẢ 2 job, không phù hợp
+  cho đợt sửa công thức chỉ ảnh hưởng job Live). Mặc định dry-run, cần
+  `--confirm` mới thực sự chạy.
+- `báo cáo doanh thu cuối ngày.md` — thêm khối "ĐÍNH CHÍNH (bản 8.5)" giải
+  thích nguyên nhân + hướng dẫn chạy script mới, ngay sau khối ĐÍNH CHÍNH
+  bản 7.8.
+
 ## 8.4 — Sắp xếp siêu thị trong từng nhóm MART/MINIMART theo Diện tích giảm dần
 
 Theo yêu cầu người dùng (khớp đúng file mẫu tham chiếu ban đầu — cột

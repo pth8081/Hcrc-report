@@ -456,6 +456,33 @@ thấy cột "Cùng kỳ năm trước" thiếu dữ liệu của tháng gần �
 > bộ lại, cột "Thực đạt"/"Lãi gộp"/"Cùng kỳ năm trước" sẽ tạm trống hoặc
 > thiếu — BÌNH THƯỜNG, không phải lỗi mới.
 
+> **ĐÍNH CHÍNH (bản 8.5) — vì sao "chờ job Live chạy lại ~15 phút" KHÔNG đủ
+> để "Lãi gộp" tự cập nhật sau bản 8.1**: khác với đợt 7.6 (NODE_ID) — đợt
+> đó, những ngày CHƯA từng đồng bộ vẫn còn nằm sau watermark nên job Live tự
+> kéo đúng khi tới lượt — đợt 8.1 chỉ đổi CÔNG THỨC tính "Lãi gộp" cho những
+> ngày **ĐÃ đồng bộ rồi** (hôm nay/vài hôm gần đây), mà job "Doanh thu chi
+> nhánh - Live" lại dùng chính `WORK_DATE` làm "Cột thời gian cập nhật"
+> (xem bảng ở mục 2.2 dưới đây) — câu truy vấn đồng bộ thực chất là
+> `WHERE WORK_DATE > mốc_đã_đồng_bộ`. Vì `WORK_DATE` của 1 dòng không đổi
+> theo thời gian, một khi mốc đã vượt qua `WORK_DATE` của 1 ngày, **job sẽ
+> KHÔNG BAO GIỜ tự kéo lại đúng ngày đó nữa** — dù chạy lại bao nhiêu lần đi
+> nữa — cho tới khi mốc đồng bộ được reset về trước ngày đó. Đây là lý do
+> "Lãi gộp" vẫn hiện đúng số CŨ (trước 8.1) trong báo cáo dù VIEW ở DSMART16
+> đã sửa đúng và đã kiểm chứng lại bằng SQL trực tiếp cho ra số đúng — lỗi
+> nằm ở cơ chế watermark của job Live, không phải VIEW, không phải app chưa
+> deploy code mới. Khắc phục — CHỈ đụng tới job Live, KHÔNG đụng job Lịch sử
+> (script `resyncDoanhThuChinhanh.js` phía trên xoá + reset CẢ 2 job, không
+> dùng ở đây vì sẽ vô tình bắt job Lịch sử kéo lại từ đầu, mất tiến độ đang
+> có):
+> ```
+> cd etl
+> node scripts/resyncDoanhThuChinhanhLive.js           # xem trước, không đổi gì
+> node scripts/resyncDoanhThuChinhanhLive.js --confirm # thực sự xoá + reset đồng bộ lại (chỉ job Live)
+> ```
+> Sau `--confirm`, job Live (`*/15 * * * *`) tự kéo lại toàn bộ dữ liệu của
+> nó (chỉ vài phút vì job Live không giữ dữ liệu nhiều năm như job Lịch sử)
+> với công thức giá vốn mới từ `STK_INFO`.
+
 ---
 
 ## Bước 2 — etl-admin: khai 2 Nguồn dữ liệu + tạo 4 job đồng bộ
