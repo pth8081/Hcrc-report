@@ -22,7 +22,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
 import DataTable from '../components/DataTable';
 
-const EMPTY_EDIT_FORM = { maDiem: '', maStkCu: '', maStkMoi: '', tenSieuThi: '', buId: '' };
+const EMPTY_EDIT_FORM = { maDiem: '', maStkCu: '', maStkMoi: '', tenSieuThi: '', buId: '', loaiChuoi: '' };
 
 export default function DiemStkMappingPage() {
   const [file, setFile] = useState(null);
@@ -51,7 +51,8 @@ export default function DiemStkMappingPage() {
       maStkCu: row.maStkCu.join(','),
       maStkMoi: row.maStkMoi.join(','),
       tenSieuThi: row.tenSieuThi || '',
-      buId: row.buId || ''
+      buId: row.buId || '',
+      loaiChuoi: row.loaiChuoi || ''
     });
     setEditError('');
     setEditConflicts([]);
@@ -77,7 +78,8 @@ export default function DiemStkMappingPage() {
         maStkCu: editForm.maStkCu.split(',').map(s => s.trim()).filter(Boolean),
         maStkMoi: editForm.maStkMoi.split(',').map(s => s.trim()).filter(Boolean),
         tenSieuThi: editForm.tenSieuThi.trim() || null,
-        buId: editForm.buId.trim() || null
+        buId: editForm.buId.trim() || null,
+        loaiChuoi: editForm.loaiChuoi || null
       });
       setEditResult('✅ Đã lưu.');
       setEditForm(EMPTY_EDIT_FORM);
@@ -165,6 +167,12 @@ export default function DiemStkMappingPage() {
         để tải về đúng TOÀN BỘ dữ liệu đang lưu (không theo ô lọc bên dưới).
       </p>
       <p>
+        <code>LoaiChuoi</code> (tuỳ chọn) — khai <strong>MART</strong> hoặc <strong>MINIMART</strong> để
+        báo cáo "Báo cáo nhanh doanh thu" nhóm đúng dòng Tổng cộng MART/MINIMART riêng — GHI ĐÈ giá trị
+        tự động lấy từ <code>STOCK.TYPE</code> (DSMART16) khi đã khai. Để trống thì dùng nguyên giá trị
+        tự động như trước.
+      </p>
+      <p>
         <strong>Ràng buộc quan trọng</strong>: 1 mã STK_ID chỉ được thuộc ĐÚNG 1 mã Điểm — hệ
         thống tự kiểm tra, phát hiện trùng (kể cả trùng với dữ liệu đã lưu của mã Điểm khác) sẽ
         <strong> HUỶ TOÀN BỘ lượt nhập</strong>, không lưu dòng nào, để tránh cộng trùng doanh thu.
@@ -209,6 +217,7 @@ export default function DiemStkMappingPage() {
           { key: 'maStkMoi', label: 'STK_ID (kỳ mới)', render: (r) => r.maStkMoi.join(', ') || '—' },
           { key: 'tenSieuThi', label: 'Tên siêu thị' },
           { key: 'buId', label: 'BU_ID', render: (r) => r.buId || '(chưa khai — Giao dịch trống)' },
+          { key: 'loaiChuoi', label: 'Loại chuỗi', render: (r) => r.loaiChuoi || '(tự động theo STOCK.TYPE)' },
           { key: 'importedBy', label: 'Người nhập' },
           { key: 'importedAt', label: 'Lúc nhập', render: (r) => new Date(r.importedAt).toLocaleString('vi-VN') },
           {
@@ -263,6 +272,14 @@ export default function DiemStkMappingPage() {
           value={editForm.buId}
           onChange={(e) => setEditForm({ ...editForm, buId: e.target.value })}
         />
+        <select
+          value={editForm.loaiChuoi}
+          onChange={(e) => setEditForm({ ...editForm, loaiChuoi: e.target.value })}
+        >
+          <option value="">Loại chuỗi — để trống (tự động theo STOCK.TYPE)</option>
+          <option value="MART">MART</option>
+          <option value="MINIMART">MINIMART</option>
+        </select>
         <div className="inline-actions">
           <button type="submit">Lưu</button>
           <button type="button" onClick={startAdd}>Thêm dòng mới (form trống)</button>

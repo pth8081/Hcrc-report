@@ -552,35 +552,55 @@ Sau khi tạo đủ 4 job, trang "Đồng bộ" hiện như sau — 2 job đầu
 
 ### 2.3 — "Ánh xạ Điểm - STK_ID" (chỉ cần nếu 1 mã Điểm có NHIỀU mã kho)
 
-Domain `giaodich_chinhanh` (job 3-4, khoá gốc `BU_ID`) GIỮ NGUYÊN `BU_ID`
-làm EntityCode — KHÔNG dịch mã gì cả (đã bỏ tính năng "Ánh xạ mã chi nhánh",
-xem VERSION.md) — vì `BU_ID` chính là mã "Điểm" dùng trong file chỉ tiêu
-(Bước 3) và không đổi qua thời gian.
+**ĐÍNH CHÍNH (từ bản 6.99, xem VERSION.md)**: đoạn dưới đây TỪNG ghi nhầm
+"`BU_ID` chính là mã Điểm, GIỮ NGUYÊN không dịch mã" — SAI, đã xác nhận lại
+bằng dữ liệu thật (`SELECT DISTINCT BU_ID/STK_ID` qua `STRANS JOIN
+TRANSHDR`, xem "quy tắc mã BU_ID và STK_ID.md" — nguồn tham chiếu chính
+thức). `BU_ID` là mã DSMART RIÊNG (không tự đoán được, kể cả bằng mẫu
+"+00"), KHÔNG PHẢI mã Điểm — domain `giaodich_chinhanh` (job 3-4) vẫn GIỮ
+NGUYÊN `BU_ID` thô lúc ĐỒNG BỘ (không dịch mã ở tầng này), nhưng rp-server
+tự DỊCH `BU_ID` → mã Điểm LÚC CHẠY BÁO CÁO qua cột **BuId** khai TƯỜNG MINH
+ở mục "Ánh xạ Điểm - STK_ID" bên dưới (`buildBuIdLookup()`,
+`rp-server/lib/diemStkMapping.js`) — BẮT BUỘC khai đúng giá trị thật (qua
+DBA/SQL) thì mã Điểm đó mới có dữ liệu ở cột "Giao dịch"; để trống = cột đó
+trống (an toàn hơn đoán sai), KHÔNG phải lỗi.
 
-Domain `doanhthu_chinhanh` (job 1-2, khoá gốc `STK_ID`) thì khác: file chỉ
-tiêu dùng "mã Điểm" (= `BU_ID`), nhưng 1 mã Điểm có thể ứng với NHIỀU mã
+Domain `doanhthu_chinhanh` (job 1-2, khoá gốc `STK_ID`) cũng cần ánh xạ
+riêng: file chỉ tiêu dùng "mã Điểm", nhưng 1 mã Điểm có thể ứng với NHIỀU mã
 kho `STK_ID` khác nhau trong `dwh.ReportFacts`, và bộ mã kho đó có thể ĐỔI
 giữa kỳ trước/kỳ này (kho là khái niệm ẢO trong phần mềm, không phải 1 khái
 niệm vật lý — 1 siêu thị vẫn chỉ có 1 mặt bằng thật). Không quy đổi thì báo
 cáo (Bước 4) không ghép được thực đạt doanh thu (theo `STK_ID`) với chỉ
-tiêu (theo mã Điểm) — mục **"Ánh xạ Điểm - STK_ID"** giải quyết đúng vấn đề
-này.
+tiêu (theo mã Điểm) — mục **"Ánh xạ Điểm - STK_ID"** giải quyết CẢ 2 vấn đề
+này (STK_ID lẫn BU_ID) trong CÙNG 1 bảng.
 
-Vào menu **"Ánh xạ Điểm - STK_ID"**. File nhập gồm ĐÚNG 5 cột:
+Vào menu **"Ánh xạ Điểm - STK_ID"**. File nhập gồm 7 cột (2 cột cuối TUỲ
+CHỌN, thêm ở bản 7.9):
 
-| STT | Mã Điểm (BU_ID) | Mã STK_ID (Điểm cũ) | Mã STK_ID (Điểm mới) | Tên siêu thị |
-|---|---|---|---|---|
-| 1 | 001 | 10001,10002 | 13061 | BRG Mart Cầu Giấy |
-| 2 | 002 | | 13051,13052 | BRG Mart Long Biên |
+| STT | MaDiem | MaStkCu | MaStkMoi | TenSieuThi | BuId | LoaiChuoi |
+|---|---|---|---|---|---|---|
+| 1 | 001 | 10001,10002 | 13061 | BRG Mart Cầu Giấy | 00100 | MART |
+| 2 | 002 | | 13051,13052 | BRG Mart Long Biên | | MINIMART |
 
-- **Mã Điểm** — `BU_ID`, duy nhất mỗi dòng.
-- **Mã STK_ID (Điểm cũ)** — MỌI mã kho dùng để tính **cùng kỳ năm trước**,
-  cách nhau bằng dấu phẩy nếu nhiều kho. Để trống nếu kỳ trước không có dữ
-  liệu (báo cáo sẽ hiện "không có dữ liệu", KHÔNG phải số 0).
-- **Mã STK_ID (Điểm mới)** — tương tự, dùng để tính **thực đạt kỳ hiện
-  tại**. Để trống nếu điểm đã đóng, không còn kho nào hoạt động.
-- **Tên siêu thị** — TÊN CHUẨN dùng để hiện cột "Siêu thị/Cửa hàng" cho mọi
-  báo cáo có bật cơ chế này (xem Bước 4).
+- **MaDiem** — mã Điểm dùng trong file chỉ tiêu, duy nhất mỗi dòng.
+- **MaStkCu** — MỌI mã kho dùng để tính **cùng kỳ năm trước**, cách nhau
+  bằng dấu phẩy nếu nhiều kho. Để trống nếu kỳ trước không có dữ liệu (báo
+  cáo sẽ hiện "không có dữ liệu", KHÔNG phải số 0).
+- **MaStkMoi** — tương tự, dùng để tính **thực đạt kỳ hiện tại**. Để trống
+  nếu điểm đã đóng, không còn kho nào hoạt động.
+- **TenSieuThi** (tuỳ chọn) — TÊN CHUẨN dùng để hiện cột "Siêu thị/Cửa
+  hàng" cho mọi báo cáo có bật cơ chế này (xem Bước 4).
+- **BuId** (tuỳ chọn về cột, BẮT BUỘC về giá trị nếu muốn có dữ liệu Giao
+  dịch) — mã `BU_ID` THẬT trong `TRANSHDR` của mã Điểm này, CHỈ 1 giá trị
+  DUY NHẤT dùng chung cho cả 2 kỳ (không tách cũ/mới như MaStkCu/MaStkMoi —
+  BU_ID không đổi theo thời gian). Nhờ DBA chạy SQL đối chiếu
+  `TRANSHDR.BU_ID` qua `STRANS` (cùng cách xác định MaStkCu/MaStkMoi) rồi
+  điền đúng giá trị thật — KHÔNG tự đoán theo mẫu "+00" hay bất kỳ quy tắc
+  nào khác.
+- **LoaiChuoi** (tuỳ chọn, mới thêm bản 7.9) — khai `MART` hoặc `MINIMART`
+  để báo cáo "Báo cáo nhanh doanh thu" nhóm đúng dòng Tổng cộng MART/
+  MINIMART riêng — GHI ĐÈ giá trị tự động lấy từ `STOCK.TYPE`. Để trống thì
+  dùng nguyên giá trị tự động (không đổi hành vi cũ).
 
 **Ràng buộc BẮT BUỘC**: 1 mã `STK_ID` chỉ được xuất hiện ở ĐÚNG 1 mã Điểm
 trong TOÀN BỘ bảng (dù ở cột "cũ" hay "mới", ở bất kỳ dòng nào) — vì `BU_ID`

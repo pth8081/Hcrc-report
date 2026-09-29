@@ -240,6 +240,23 @@ BEGIN
 END
 GO
 
+-- LoaiChuoi ('MART'/'MINIMART', TUỲ CHỌN) — người dùng tự khai để phân
+-- nhóm MART/MINIMART cho báo cáo "Báo cáo nhanh doanh thu" (nhóm + dòng
+-- Tổng cộng MART/MINIMART riêng, xem VERSION.md bản thêm cột này), THAY vì
+-- chỉ dựa vào STOCK.TYPE tự động đồng bộ qua dimension "chain" (domain
+-- doanhthu_chinhanh) — đáng tin hơn vì: (1) không phụ thuộc job etl-admin
+-- có tick đúng Dimension "chain" hay không, (2) dữ liệu DSMART có thể có
+-- ngoại lệ (đã ghi nhận vài dòng TYPE='02' là "Kho hàng..." không phải
+-- MiniMart bán lẻ thật, xem "báo cáo doanh thu cuối ngày.md" Bước 1). Để
+-- TRỐNG = dùng nguyên giá trị tự động từ STOCK.TYPE như trước (KHÔNG đổi
+-- hành vi cũ) — điền giá trị ở đây LUÔN ƯU TIÊN GHI ĐÈ giá trị tự động, xem
+-- rp-server/lib/diemStkMapping.js:remapRowsToDiem().
+IF COL_LENGTH('etl.DiemStkMapping', 'LoaiChuoi') IS NULL
+BEGIN
+    ALTER TABLE etl.DiemStkMapping ADD LoaiChuoi NVARCHAR(20) NULL;
+END
+GO
+
 -- Danh sách "hàng Core" (mặt hàng BẮT BUỘC luôn phải có hàng) do admin tự
 -- khai/upload — dùng cho báo cáo "Core stock = 0" (SourceType='coreZeroStock',
 -- xem rp-server/lib/coreZeroStockRunner.js + hướng_dẫn_báo_cáo.md mục 14).

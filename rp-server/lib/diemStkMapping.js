@@ -12,6 +12,11 @@
 // lib/compositeReportRunner.js (block.useDiemStkMapping/block.mapBuIdToMaDiem)
 // cho nơi tiêu thụ.
 //
+// LoaiChuoi ('MART'/'MINIMART', TUỲ CHỌN, admin tự khai) — GHI ĐÈ "chain"
+// tự động (STOCK.TYPE qua domain doanhthu_chinhanh) khi có, dùng cho
+// groupBy nhóm MART/MINIMART ở seedLdtdHcrcReports.js — xem remapRowsToDiem()
+// bên dưới và etl-db/schema.sql.
+//
 // buildBuIdLookup() KHÔNG tự suy BU_ID theo quy tắc "+00" nữa (đã bỏ sau
 // khi người dùng chỉ rõ: đó chỉ là quan sát từ các mẫu ĐÃ kiểm tra qua SQL,
 // KHÔNG phải quy tắc DSMART áp dụng chung — tự suy cho mã CHƯA kiểm tra có
@@ -43,14 +48,15 @@ async function loadDiemStkMapping() {
 
   try {
     const pool = await getPool('ETL_DIEM_STK');
-    const result = await pool.request().query('SELECT MaDiem, MaStkCu, MaStkMoi, TenSieuThi, BuId FROM etl.DiemStkMapping');
+    const result = await pool.request().query('SELECT MaDiem, MaStkCu, MaStkMoi, TenSieuThi, BuId, LoaiChuoi FROM etl.DiemStkMapping');
     const mapping = new Map();
     for (const r of result.recordset) {
       mapping.set(r.MaDiem, {
         maStkCu: parseStkList(r.MaStkCu),
         maStkMoi: parseStkList(r.MaStkMoi),
         tenSieuThi: r.TenSieuThi || null,
-        buId: r.BuId || null
+        buId: r.BuId || null,
+        loaiChuoi: r.LoaiChuoi || null
       });
     }
     cache = { expiresAt: Date.now() + CACHE_TTL_MS, mapping };
@@ -109,6 +115,14 @@ function remapRowsToDiem(rows, diemMapping, useCu) {
     // đúng cấp "mã Điểm" hiện đang dùng trên báo cáo, thay vì tên gắn theo
     // từng kho STK_ID lẻ (etl.BranchCodeMap, phục vụ mục đích KHÁC).
     if (info.tenSieuThi) dimensions.tenSieuThi = info.tenSieuThi;
+    // LoaiChuoi do admin khai tường minh LUÔN ƯU TIÊN GHI ĐÈ "chain" tự động
+    // lấy từ STOCK.TYPE (đồng bộ qua domain doanhthu_chinhanh) — đáng tin
+    // hơn tự động vì không phụ thuộc job etl-admin có tick đúng Dimension
+    // "chain" hay không, và tránh vài ngoại lệ dữ liệu DSMART đã ghi nhận
+    // (TYPE='02' có dòng là "Kho hàng..." không phải MiniMart bán lẻ thật —
+    // xem etl-db/schema.sql). Để trống (null) -> giữ nguyên giá trị tự động
+    // như trước, KHÔNG đổi hành vi cũ.
+    if (info.loaiChuoi) dimensions.chain = info.loaiChuoi;
 
     out.push({
       entityCode: maDiem,

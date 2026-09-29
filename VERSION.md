@@ -20,6 +20,32 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 7.10 — Thêm cột `LoaiChuoi` (MART/MINIMART) khai tay ở "Ánh xạ Điểm - STK_ID"
+
+Người dùng đề xuất: thay vì chỉ trông cậy vào `STOCK.TYPE` tự động đồng bộ
+qua dimension "chain" (domain `doanhthu_chinhanh`) để nhóm MART/MINIMART ở
+"Báo cáo nhanh doanh thu" — thêm hẳn 1 cột do admin tự khai trong bảng
+"Ánh xạ Điểm - STK_ID" để tham chiếu nhanh, đáng tin hơn tự động (không
+phụ thuộc job etl-admin có tick đúng Dimension "chain" hay không, tránh
+vài ngoại lệ dữ liệu DSMART đã ghi nhận — `TYPE='02'` có dòng là "Kho
+hàng..." không phải MiniMart bán lẻ thật).
+
+Thêm cột **LoaiChuoi** (`MART`/`MINIMART`, TUỲ CHỌN — để trống vẫn dùng
+nguyên giá trị tự động như trước, không đổi hành vi cũ) xuyên suốt cùng
+1 luồng với cột `BuId` đã có: `etl-db/schema.sql` (ALTER TABLE ADD),
+`etl/lib/diemStkMappingImport.js` (cột file Excel + validate chỉ nhận
+MART/MINIMART), `etl/routes/admin/diemStkMapping.js` (API), UI
+`etl-admin/src/pages/DiemStkMappingPage.jsx` (cột bảng + dropdown ở form
+sửa/thêm 1 dòng). `rp-server/lib/diemStkMapping.js:remapRowsToDiem()` ưu
+tiên GHI ĐÈ dimension "chain" tự động bằng giá trị đã khai khi có — đã
+kiểm tra bằng script test riêng (mã Điểm có khai LoaiChuoi override đúng,
+mã Điểm để trống vẫn giữ nguyên giá trị tự động).
+
+Nhân tiện đính chính 2 đoạn ghi chú SAI còn sót trong "báo cáo doanh thu
+cuối ngày.md" (Bước 2.3) — vẫn ghi "BU_ID chính là mã Điểm, GIỮ NGUYÊN
+không dịch mã" (giả định CŨ đã bị bác bỏ từ bản 6.99) và bảng mẫu file
+"Ánh xạ Điểm - STK_ID" thiếu hẳn 2 cột `BuId`/`LoaiChuoi` đã có từ lâu.
+
 ## 7.9 — Auto-fit thật cho PDF + tiêu đề kèm ngày báo cáo (Excel/PDF)
 
 Theo yêu cầu định dạng báo cáo "Báo cáo nhanh doanh thu" (2/4 việc — việc

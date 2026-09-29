@@ -20,7 +20,7 @@ const { requireAdminAuth } = require('../../lib/adminAuth');
 const { requireMenuEdit } = require('../../lib/adminPermissions');
 const {
   parseDiemStkMappingFile, findDuplicateStkIds, upsertDiemStkMapping, parseStkList,
-  buildDiemStkMappingTemplate, buildDiemStkMappingExport
+  buildDiemStkMappingTemplate, buildDiemStkMappingExport, normalizeLoaiChuoi
 } = require('../../lib/diemStkMappingImport');
 const { logAction } = require('../../lib/auditLog');
 const { hasZipSignature } = require('../../lib/fileSignature');
@@ -42,13 +42,13 @@ router.get('/', requireMenuEdit('diem-stk-mapping'), async (req, res, next) => {
   try {
     const pool = await getPool('ADMIN');
     const result = await pool.request().query(`
-      SELECT Id, MaDiem, MaStkCu, MaStkMoi, TenSieuThi, BuId, ImportedAt, ImportedBy
+      SELECT Id, MaDiem, MaStkCu, MaStkMoi, TenSieuThi, BuId, LoaiChuoi, ImportedAt, ImportedBy
       FROM etl.DiemStkMapping
       ORDER BY MaDiem
     `);
     res.json(result.recordset.map(r => ({
       id: r.Id, maDiem: r.MaDiem, maStkCu: parseStkList(r.MaStkCu), maStkMoi: parseStkList(r.MaStkMoi),
-      tenSieuThi: r.TenSieuThi, buId: r.BuId, importedAt: r.ImportedAt, importedBy: r.ImportedBy
+      tenSieuThi: r.TenSieuThi, buId: r.BuId, loaiChuoi: r.LoaiChuoi, importedAt: r.ImportedAt, importedBy: r.ImportedBy
     })));
   } catch (err) { next(err); }
 });
@@ -57,15 +57,19 @@ router.get('/', requireMenuEdit('diem-stk-mapping'), async (req, res, next) => {
 // bị lại cả file Excel (cùng tinh thần routes/admin/branchCodeMap.js PUT /one).
 router.put('/one', requireMenuEdit('diem-stk-mapping'), async (req, res, next) => {
   try {
-    const { maDiem, maStkCu, maStkMoi, tenSieuThi, buId } = req.body || {};
+    const { maDiem, maStkCu, maStkMoi, tenSieuThi, buId, loaiChuoi } = req.body || {};
     if (!maDiem || !String(maDiem).trim()) return res.status(400).json({ error: 'Thiếu maDiem' });
+
+    const { value: loaiChuoiValue, error: loaiChuoiError } = normalizeLoaiChuoi(loaiChuoi);
+    if (loaiChuoiError) return res.status(400).json({ error: loaiChuoiError });
 
     const row = {
       maDiem: String(maDiem).trim(),
       maStkCu: Array.isArray(maStkCu) ? maStkCu.map(s => String(s).trim()).filter(Boolean) : parseStkList(maStkCu),
       maStkMoi: Array.isArray(maStkMoi) ? maStkMoi.map(s => String(s).trim()).filter(Boolean) : parseStkList(maStkMoi),
       tenSieuThi: tenSieuThi ? String(tenSieuThi).trim() : null,
-      buId: buId ? String(buId).trim() : null
+      buId: buId ? String(buId).trim() : null,
+      loaiChuoi: loaiChuoiValue
     };
 
     const pool = await getPool('ADMIN');
@@ -104,13 +108,13 @@ router.get('/export', requireMenuEdit('diem-stk-mapping'), async (req, res, next
   try {
     const pool = await getPool('ADMIN');
     const result = await pool.request().query(`
-      SELECT MaDiem, MaStkCu, MaStkMoi, TenSieuThi, BuId
+      SELECT MaDiem, MaStkCu, MaStkMoi, TenSieuThi, BuId, LoaiChuoi
       FROM etl.DiemStkMapping
       ORDER BY MaDiem
     `);
     const rows = result.recordset.map(r => ({
       maDiem: r.MaDiem, maStkCu: parseStkList(r.MaStkCu), maStkMoi: parseStkList(r.MaStkMoi), tenSieuThi: r.TenSieuThi,
-      buId: r.BuId
+      buId: r.BuId, loaiChuoi: r.LoaiChuoi
     }));
     const buffer = await buildDiemStkMappingExport(rows);
     sendXlsx(res, buffer, 'anh-xa-diem-stk.xlsx');
