@@ -139,6 +139,14 @@
 //                   RỒI chạy lại đúng công thức đó — vd "Tỷ lệ đạt" ở dòng
 //                   tổng = SUM(thực đạt)/SUM(chỉ tiêu), KHÔNG PHẢI trung
 //                   bình cộng % từng dòng (xem sumMergedRows()).
+//   sortBy        — TUỲ CHỌN {field, direction} — sắp xếp CÁC DÒNG DỮ LIỆU
+//                   BÊN TRONG từng nhóm (field cùng dạng path "tenKhoi.field"
+//                   như "field" ở trên, vd "current.dimensions.dienTich") —
+//                   direction "desc" (mặc định, diện tích lớn -> nhỏ, khớp
+//                   file mẫu báo cáo cũ) hoặc "asc". KHÔNG sắp xếp dòng
+//                   "Tổng cộng" (luôn đứng cuối mỗi nhóm, xem bên dưới) —
+//                   CHỈ áp dụng khi CÓ groupBy, không dùng cho báo cáo
+//                   không nhóm (definition.groupBy để trống).
 //
 // Tiêu đề nhóm cột + màu (Excel/PDF) — DefinitionJson.columnGroups (TUỲ
 // CHỌN, mặc định KHÔNG có = xuất Excel/PDF phẳng như trước, không đổi hành
@@ -633,15 +641,28 @@ async function runCompositeReport(definition, filterValues = {}) {
     return { columns, rows: mergedRows.map(r => projectCompositeRow(r, visibleColumns)), warnings };
   }
 
-  const { field, groups = [], grandTotalLabel, labelColumn } = definition.groupBy;
+  const { field, groups = [], grandTotalLabel, labelColumn, sortBy } = definition.groupBy;
   const groupPath = field.split('.');
+  const sortPath = sortBy ? sortBy.field.split('.') : null;
+  const sortDir = sortBy && sortBy.direction === 'asc' ? 1 : -1; // mặc định DESC
   const blockKeys = definition.blocks.map(b => b.key);
   const rows = [];
   const matchedValues = new Set();
 
+  // Sắp xếp ổn định (Array.prototype.sort của Node đã stable từ lâu) —
+  // dòng cùng giá trị sortBy giữ nguyên thứ tự tương đối ban đầu.
+  function applySortBy(list) {
+    if (!sortPath) return list;
+    return [...list].sort((a, b) => {
+      const va = Number(resolveCompositeField(a, sortPath)) || 0;
+      const vb = Number(resolveCompositeField(b, sortPath)) || 0;
+      return (va - vb) * sortDir;
+    });
+  }
+
   for (const g of groups) {
     matchedValues.add(g.value);
-    const groupRows = mergedRows.filter(r => resolveCompositeField(r, groupPath) === g.value);
+    const groupRows = applySortBy(mergedRows.filter(r => resolveCompositeField(r, groupPath) === g.value));
     if (!groupRows.length) continue;
     rows.push(...groupRows.map(r => projectCompositeRow(r, visibleColumns)));
     const subtotalRow = projectCompositeRow(sumMergedRows(groupRows, blockKeys), visibleColumns);
@@ -651,7 +672,7 @@ async function runCompositeReport(definition, filterValues = {}) {
   }
   // Dòng không khớp nhóm nào đã khai (dữ liệu ngoài dự kiến) — vẫn xuất
   // hiện ở cuối, KHÔNG âm thầm mất, để lộ ngay lỗi cấu hình "groups" thiếu.
-  const unmatched = mergedRows.filter(r => !matchedValues.has(resolveCompositeField(r, groupPath)));
+  const unmatched = applySortBy(mergedRows.filter(r => !matchedValues.has(resolveCompositeField(r, groupPath))));
   rows.push(...unmatched.map(r => projectCompositeRow(r, visibleColumns)));
 
   const grandRow = projectCompositeRow(sumMergedRows(mergedRows, blockKeys), visibleColumns);

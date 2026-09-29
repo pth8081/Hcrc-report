@@ -20,6 +20,23 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 8.4 — Sắp xếp siêu thị trong từng nhóm MART/MINIMART theo Diện tích giảm dần
+
+Theo yêu cầu người dùng (khớp đúng file mẫu tham chiếu ban đầu — cột
+`current.dimensions.dienTich` lớn lên trước). Thêm tuỳ chọn `sortBy`
+(`{field, direction}`) vào `definition.groupBy` — sắp xếp CÁC DÒNG DỮ
+LIỆU bên trong từng nhóm TRƯỚC khi chèn dòng "Tổng cộng" (dòng tổng luôn
+đứng cuối nhóm, không bị sắp xếp lẫn vào), áp dụng ở
+`rp-server/lib/compositeReportRunner.js` — cơ chế CHUNG, dùng lại được
+cho báo cáo khác có `groupBy` sau này, không riêng gì báo cáo LDTD/HCRC.
+Bật `sortBy: { field: 'current.dimensions.dienTich', direction: 'desc' }`
+cho cả 2 báo cáo LDTD/HCRC (`scripts/seedLdtdHcrcReports.js`) — áp dụng
+cho cả bảng xem trên web LẪN xuất Excel/PDF (cùng 1 chỗ sinh dữ liệu).
+Đã kiểm thử tách biệt bằng script riêng (không cần DB) + demo file
+Excel/PDF mẫu trước khi đẩy code.
+
+**Cần chạy lại `node scripts/seedLdtdHcrcReports.js`** để áp dụng.
+
 ## 8.3 — Tách riêng tên danh mục / tiêu đề file xuất / tên file tải xuống
 
 Theo yêu cầu người dùng, 3 khái niệm trước đây gộp chung vào

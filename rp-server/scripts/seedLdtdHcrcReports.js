@@ -165,7 +165,11 @@ function buildDefinition(title, targetDomain, exportFileCode) {
         { value: 'MINIMART', label: 'Tổng cộng MINIMART' }
       ],
       grandTotalLabel: 'Tổng cộng',
-      labelColumn: 'tenCuaHang'
+      labelColumn: 'tenCuaHang',
+      // Sắp xếp CÁC SIÊU THỊ trong mỗi nhóm MART/MINIMART theo Diện tích
+      // GIẢM DẦN (lớn -> nhỏ) — khớp đúng file mẫu tham chiếu (bản 8.4,
+      // xem VERSION.md), KHÔNG sắp xếp dòng "Tổng cộng".
+      sortBy: { field: 'current.dimensions.dienTich', direction: 'desc' }
     }
   };
 }
