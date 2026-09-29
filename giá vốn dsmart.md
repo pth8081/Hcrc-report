@@ -76,6 +76,14 @@ khách — xem mục 5, câu hỏi còn mở).
 cho **tháng đang chạy** — **đã chốt với người dùng: KHÔNG hỗ trợ lọc sang
 tháng cũ** (không có tồn đầu kỳ thật của tháng cũ, không giả lập).
 
+**Áp dụng cho "Lãi gộp" ở "Báo cáo nhanh doanh thu" (bản 8.1)** — đã chốt
+lại với người dùng: **CHỈ áp dụng cho VIEW "Live"** (`V_HCRC_DOANHTHU_CHINHANH`
+trên `DSMART16`, Script A trong "báo cáo doanh thu cuối ngày.md") — VIEW
+"Lịch sử" (`DSMART16_EOM`, Script B, phục vụ "Cùng kỳ năm trước") CỐ Ý
+GIỮ NGUYÊN JOIN `COSTPRICE` cũ (đã biết không đáng tin) vì không có nguồn
+giá vốn đáng tin cho tháng/năm cũ — "Lãi gộp" của dữ liệu quá khứ vẫn SAI,
+chấp nhận tạm thời cho tới khi có nguồn giá vốn lịch sử đáng tin.
+
 ## 5. Tên mặt hàng — CHƯA XONG, đang xác định
 
 `GOODS.GOODS_NAME` là ứng viên tên mặt hàng, nhưng **đã xác nhận
@@ -108,7 +116,8 @@ không sau khi báo cáo "Báo cáo giá vốn" chạy thật.
 - [ ] Tạo báo cáo "Báo cáo giá vốn" trong hệ thống (cột: STT, SKU_ID, Tên
       mặt hàng, Giá vốn bình quân, Giá vốn đầu kỳ, Tháng — có lọc theo
       tháng, chỉ hỗ trợ tháng hiện tại theo mục 4).
-- [ ] Cập nhật lại "Lãi gộp" ở "Báo cáo nhanh doanh thu" dùng đúng nguồn
-      này thay `COSTPRICE`.
+- [x] Cập nhật lại "Lãi gộp" ở "Báo cáo nhanh doanh thu" dùng đúng nguồn
+      này thay `COSTPRICE` — **CHỈ ở VIEW "Live"** (bản 8.1, xem mục 4).
+      VIEW "Lịch sử" cố ý giữ nguyên (chưa có nguồn giá vốn lịch sử).
 - [ ] Viết hướng dẫn triển khai riêng cho báo cáo mới (theo đúng quy ước
       mỗi báo cáo lớn có 1 file `.md` riêng, xem `bc-ton-kho-0.md` làm mẫu).

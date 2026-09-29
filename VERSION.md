@@ -20,6 +20,26 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 8.1 — Sửa "Lãi gộp" dùng giá vốn bình quân từ STK_INFO (chỉ VIEW Live)
+
+Người dùng xác nhận: chỉ áp dụng cách tính giá vốn mới (bản 8.0) cho kỳ
+Live, KHÔNG cần cho Lịch sử (không có nguồn giá vốn đáng tin cho tháng/
+năm cũ). Sửa Script A (`V_HCRC_DOANHTHU_CHINHANH` trên `DSMART16`, xem
+"báo cáo doanh thu cuối ngày.md"): bỏ hẳn JOIN `COSTPRICE` (đã xác nhận
+không dùng được — gần trùng khớp giá bán), thay bằng subquery tính giá
+vốn bình quân gia quyền từ `STK_INFO` theo đúng công thức đã chốt (tồn
+đầu kỳ + nhập trong kỳ, chung toàn hệ thống theo SKU_ID). Script B (Lịch
+sử, `DSMART16_EOM`) CỐ Ý giữ nguyên JOIN `COSTPRICE` cũ — "Lãi gộp" của
+dữ liệu quá khứ vẫn sai, chấp nhận tạm thời, ghi rõ trong cả 2 file tài
+liệu ("báo cáo doanh thu cuối ngày.md" + "giá vốn dsmart.md").
+
+**Cần DBA chạy lại NGUYÊN VĂN đoạn `CREATE OR ALTER VIEW` Script A đã sửa
+trên `DSMART16` (Live)** — an toàn chạy lại nhiều lần. Job "Doanh thu chi
+nhánh - Live" (chạy mỗi ~15 phút, đọc lại dữ liệu HÔM NAY) sẽ tự lấy đúng
+"Lãi gộp" mới cho các ngày trong tháng này KHÔNG cần đồng bộ lại từ đầu —
+KHÔNG khuyến khích chạy `resyncDoanhThuChinhanh.js` lần nữa lúc này (sẽ
+làm lại từ đầu tiến trình đồng bộ "Lịch sử" đang chạy dở của bản 7.6/7.8).
+
 ## 8.0 — Tài liệu tham chiếu "giá vốn dsmart.md" — điều tra giá vốn bình quân gia quyền
 
 **Đính chính đánh số**: mục ngay dưới đây từng đánh nhầm "7.10" — theo

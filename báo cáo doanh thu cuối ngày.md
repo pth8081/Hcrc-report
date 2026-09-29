@@ -134,15 +134,16 @@ có ai đó chủ động chạy `DROP VIEW <tên>`. Cần lưu ý 2 điều:
 -- TRANS_NUM CHỈ để lấy STATUS đáng tin (loại đúng giao dịch huỷ).
 -- STOCK.TYPE (KHÔNG phải STYPE_ID — cột đó luôn trống) phân loại
 -- '01'=MART, '02'=MINIMART, đã xác nhận qua tên chi nhánh thật.
--- COSTPRICE.STK_ID LUÔN TRỐNG — nhưng KHÔNG PHẢI giá vốn dùng chung toàn hệ
--- thống như từng ghi ở bản trước: COSTPRICE.NODE_ID mới là cột lưu giá vốn
--- RIÊNG theo từng mã Điểm (đã xác nhận bằng dữ liệu thật — 1 SKU/1 tháng có
--- tới ~38 dòng, mỗi dòng 1 NODE_ID khác nhau, COSTPRICE chênh lệch nhẹ giữa
--- các NODE_ID, KHÔNG phải dữ liệu trùng lặp). Thiếu điều kiện theo NODE_ID
--- khiến 1 dòng STRANS bị khớp nhầm với giá vốn của TẤT CẢ mã Điểm khác
--- (nhân dòng), làm SUM(AMOUNT) ở "doanhThu"/"laiGop" bị cộng dồn sai lệch
--- hàng chục lần — BẮT BUỘC nối thêm qua STOCK.NODE_ID (đã JOIN sẵn ở dưới)
--- để khớp đúng 1 dòng giá vốn/SKU/tháng/mã Điểm.
+-- ĐÍNH CHÍNH (bản 8.1, xem "giá vốn dsmart.md" — nguồn tham chiếu chính
+-- thức, đọc TRƯỚC khi sửa gì ở đây): JOIN COSTPRICE (kể cả bản đã sửa
+-- NODE_ID ở bản 7.6) đã bị BỎ HẲN — đối chiếu bằng dữ liệu thật xác nhận
+-- COSTPRICE.COSTPRICE KHÔNG PHẢI giá vốn nhập hàng thật (gần như trùng
+-- khớp tuyệt đối với giá bán, mọi cột giá khác trong bảng đó đều rỗng).
+-- Thay bằng giá vốn bình quân gia quyền tự tính từ STK_INFO (tồn đầu kỳ +
+-- nhập trong kỳ, CHUNG toàn hệ thống theo SKU_ID, đã chốt với người dùng)
+-- — CHỈ ĐÚNG CHO THÁNG HIỆN TẠI vì STK_INFO là bảng tồn kho TỨC THỜI,
+-- không lưu lịch sử theo tháng (KHÔNG áp dụng cách này cho Script B/
+-- DSMART16_EOM bên dưới — xem chú thích ở đó).
 CREATE OR ALTER VIEW V_HCRC_DOANHTHU_CHINHANH AS
 SELECT
     d.STK_ID, CAST(d.TRAN_DATE AS DATE) AS WORK_DATE,
@@ -151,7 +152,7 @@ SELECT
     SUM(d.VAT_AMT) AS TienVAT,
     SUM(d.DISCOUNT) AS TienGiamGia,
     SUM(d.COMM_AMT) AS HoaHong,
-    SUM(d.AMOUNT) - SUM(d.QTY * ISNULL(c.COSTPRICE, 0)) AS laiGop,
+    SUM(d.AMOUNT) - SUM(d.QTY * ISNULL(c.GiaVonBinhQuan, 0)) AS laiGop,
     MAX(s.DIMENSION) AS dienTich,
     MAX(CASE WHEN s.TYPE = '01' THEN 'MART'
              WHEN s.TYPE = '02' THEN 'MINIMART'
@@ -161,10 +162,15 @@ JOIN TRANSHDR h
     ON h.TRANS_NUM = d.TRANS_NUM
 JOIN STOCK s
     ON s.STK_ID = d.STK_ID
-LEFT JOIN COSTPRICE c
-    ON c.SKU_ID = d.SKU_ID
-   AND c.MEC_YM = LEFT(CONVERT(char(8), d.TRAN_DATE, 112), 6)
-   AND c.NODE_ID = s.NODE_ID -- BẮT BUỘC: thiếu dòng này COSTPRICE nhân dòng theo mã Điểm (xem chú thích trên)
+LEFT JOIN (
+    -- Giá vốn bình quân gia quyền cuối kỳ, THEO THÁNG, CHUNG toàn hệ
+    -- thống theo SKU_ID (gộp qua mọi STK_ID/chi nhánh) — công thức đã
+    -- chốt với người dùng, xem "giá vốn dsmart.md" mục 3.
+    SELECT SKU_ID,
+           SUM(M_BEGAMT + M_IMPAMT) / NULLIF(SUM(M_BEGIN + M_IMP), 0) AS GiaVonBinhQuan
+    FROM STK_INFO
+    GROUP BY SKU_ID
+) c ON c.SKU_ID = d.SKU_ID
 WHERE h.STATUS <> 'D' -- 'D' = Huỷ (đã xác nhận với người quản trị DSMART16); 'N'=Mới, 'M'=Sửa đều tính vào doanh thu
 GROUP BY d.STK_ID, CAST(d.TRAN_DATE AS DATE);
 GO
@@ -214,6 +220,15 @@ khỏi doanh thu/giao dịch). Trước đây bản hướng dẫn dùng nhầm 
 `STOCK`/`COSTPRICE` vẫn CHỈ có ở `DSMART16` (không có ở EOM, đúng dự đoán
 ban đầu) — tham chiếu chéo `DSMART16.dbo.STOCK`/`DSMART16.dbo.COSTPRICE`
 như cũ.
+
+> **"Lãi gộp" ở Script B CỐ Ý CHƯA sửa theo "giá vốn dsmart.md"** — đã
+> chốt với người dùng: giá vốn bình quân gia quyền tự tính từ `STK_INFO`
+> (áp dụng ở Script A) CHỈ đúng cho THÁNG HIỆN TẠI (bảng tồn kho tức thời,
+> không lưu lịch sử theo tháng) — không có nguồn giá vốn đáng tin cho các
+> tháng/năm cũ mà Script B phục vụ ("Cùng kỳ năm trước"). Script B GIỮ
+> NGUYÊN JOIN `COSTPRICE` cũ (đã biết KHÔNG đáng tin, xem "giá vốn
+> dsmart.md" mục 1) cho tới khi có nguồn giá vốn lịch sử đáng tin — "Lãi
+> gộp" của dữ liệu quá khứ (đọc qua Script B) vẫn SAI, chấp nhận tạm thời.
 
 ```sql
 -- VIEW 1: Doanh thu — GỘP (UNION ALL) toàn bộ bảng STRANS_YYYYMM + STRANS_EOM.
@@ -405,9 +420,17 @@ thấy cột "Cùng kỳ năm trước" thiếu dữ liệu của tháng gần �
    giá vốn của mọi mã Điểm khác nhau — nhân dòng, `SUM(AMOUNT)` ở "doanhThu"
    và "laiGop" bị cộng dồn sai lệch hàng chục lần (đã phát hiện qua số liệu
    báo cáo thật lệch 28–115 lần giữa "Thực đạt" và "Cùng kỳ năm trước" ở
-   HẦU HẾT các mã Điểm). **2 script ở trên đã sửa đúng**: JOIN COSTPRICE
-   theo `SKU_ID + MEC_YM + NODE_ID` (nối `NODE_ID` qua `STOCK.NODE_ID`, đã
-   JOIN sẵn theo `STK_ID`).
+   HẦU HẾT các mã Điểm). **2 script ở trên đã sửa đúng (tại thời điểm bản
+   7.6)**: JOIN COSTPRICE theo `SKU_ID + MEC_YM + NODE_ID` (nối `NODE_ID`
+   qua `STOCK.NODE_ID`, đã JOIN sẵn theo `STK_ID`).
+
+> **ĐÃ SUPERSEDE (bản 8.1)** — dù đã sửa đúng `NODE_ID`, đối chiếu tiếp
+> bằng dữ liệu thật cho thấy `COSTPRICE.COSTPRICE` KHÔNG PHẢI giá vốn
+> nhập hàng thật (gần trùng khớp tuyệt đối với giá bán) — xem "giá vốn
+> dsmart.md" mục 1. Script A (Live, phía trên trong bài) đã BỎ HẲN JOIN
+> `COSTPRICE`, thay bằng giá vốn bình quân gia quyền tự tính từ
+> `STK_INFO`. Script B (Lịch sử) CỐ Ý GIỮ NGUYÊN JOIN `COSTPRICE` cũ —
+> xem ghi chú ngay sau Script B phía trên bài này.
 
 > **Đã tạo VIEW theo bản CŨ (thiếu `NODE_ID`) trước phiên bản 7.6** — VIEW
 > đang chạy sai, "Thực đạt" doanh thu bị thổi phồng hàng chục lần. Chạy lại
