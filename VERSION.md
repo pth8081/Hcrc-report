@@ -20,6 +20,28 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 8.0 — Tài liệu tham chiếu "giá vốn dsmart.md" — điều tra giá vốn bình quân gia quyền
+
+**Đính chính đánh số**: mục ngay dưới đây từng đánh nhầm "7.10" — theo
+đúng quy tắc, sau `7.9` phải là `8.0` (Y chạm 9 thì tràn X, không có
+`7.10`). Sửa lại từ đây, không đổi lại lịch sử các bản đã đẩy.
+
+Người dùng chọn dùng giá vốn bình quân gia quyền (thay `COSTPRICE` đã xác
+nhận không dùng được, xem VERSION.md bản trước) cho "Lãi gộp" và 1 báo
+cáo "Báo cáo giá vốn" mới. Thêm file tham chiếu chính thức **"giá vốn
+dsmart.md"** (cùng quy ước với "quy tắc mã BU_ID và STK_ID.md"/"báo cáo
+doanh thu cuối ngày.md" — đọc trước khi sửa, cập nhật lại khi đổi) ghi
+lại: vì sao bỏ `COSTPRICE` (đối chiếu bằng dữ liệu thật — trùng gần như
+tuyệt đối với giá bán, các cột giá khác đều rỗng); công thức đã chốt với
+người dùng dùng `STK_INFO.M_BEGIN/M_BEGAMT/M_IMP/M_IMPAMT` (giá vốn đầu
+kỳ + giá vốn bình quân gia quyền cuối kỳ, theo tháng, chung toàn hệ
+thống theo mã hàng — CHỈ hỗ trợ tháng hiện tại vì `STK_INFO` là snapshot
+không lưu lịch sử); đã đối chiếu chéo bằng dữ liệu thật cho kết quả gần
+khớp `COSTPRICE` (2 nguồn độc lập). Còn dở: chưa xác định được đường nối
+`SKU_ID` → tên mặt hàng thật (`GOODS.GOODS_ID` không khớp trực tiếp,
+đang dò qua `SKU_DEF`) — VIEW/báo cáo thật CHƯA viết, theo dõi tiến độ ở
+mục "Trạng thái triển khai" trong file tài liệu.
+
 ## 7.10 — Thêm cột `LoaiChuoi` (MART/MINIMART) khai tay ở "Ánh xạ Điểm - STK_ID"
 
 Người dùng đề xuất: thay vì chỉ trông cậy vào `STOCK.TYPE` tự động đồng bộ
