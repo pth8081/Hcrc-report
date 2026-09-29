@@ -20,6 +20,25 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 7.5 — Mẫu script GRANT tài khoản SQL least-privilege cho DSMART16 (voucher)
+
+Người dùng nhờ tạo luôn tài khoản kết nối DSMART16 cho voucher và gửi
+script phân quyền, kèm điền sẵn thông tin tài khoản. Thêm
+**api-db/grants-dsmart16-voucher.sql** (mẫu, commit vào repo, mật khẩu
+placeholder — cùng quy ước `etl-db/grants.sql`/`dwh/grants.sql` đã có):
+tạo 1 login DUY NHẤT `hcrc_voucher_svc`, CHỈ 2 quyền SELECT + UPDATE,
+CHỈ ĐÚNG 1 BẢNG `dbo.PMCRDINF` trên chính CSDL DSMART16 (KHÔNG phải
+HCRC_API) — không GRANT theo schema, không có quyền gì khác trên
+DSMART16 (không đọc được doanh thu/tồn kho/bảng khác).
+
+Bản ĐÃ ĐIỀN SẴN mật khẩu thật (random, sinh riêng cho lần này) được gửi
+TRỰC TIẾP cho người dùng qua file tải xuống, **KHÔNG commit vào git** —
+mật khẩu thật không bao giờ được nằm trong lịch sử git dù chỉ 1 lần
+(người dùng được dặn xoá file khỏi máy sau khi DBA chạy xong, cùng quy
+ước đã có ở `DataSourcesPage.jsx` phần "Nhập hàng loạt"). Cập nhật
+`api-voucher-check-redeem.md` — thêm Bước 2b (chạy grant script trên
+DSMART16 TRƯỚC Bước 4 seed Nguồn dữ liệu).
+
 ## 7.4 — Script tự cấu hình kết nối DSMART16 cho API Voucher (thay thao tác tay qua api-admin)
 
 Rà soát API check/redeem voucher theo yêu cầu người dùng: code đã hoàn

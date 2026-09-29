@@ -151,7 +151,8 @@ cần thiết cho 1 thiết bị quét mã đơn giản.
 |---|---|---|
 | 1 | git pull + khởi động lại api-server VÀ api-admin | IT/Dev |
 | 2 | DBA chạy lại `api-db/schema.sql` (an toàn chạy lại nhiều lần) | DBA |
-| 3 | Đã có "Nguồn dữ liệu" trỏ DSMART16 (Live) chưa? Nếu chưa, chạy `npm run seed:voucher-datasource` (xem Bước 4) — TỰ tạo Nguồn dữ liệu + trỏ Cấu hình Voucher trong 1 lệnh, KHÔNG cần mở trình duyệt | IT/DBA |
+| 2b | DBA chạy `api-db/grants-dsmart16-voucher.sql` TRÊN CSDL DSMART16 (Live, không phải HCRC_API) — tạo login CHỈ ĐÚNG SELECT+UPDATE trên `dbo.PMCRDINF`, nhớ ĐỔI MẬT KHẨU mẫu trước khi chạy | DBA phía DSMART16 |
+| 3 | Đã có "Nguồn dữ liệu" trỏ DSMART16 (Live) chưa? Nếu chưa, chạy `npm run seed:voucher-datasource` (xem Bước 4, dùng đúng tài khoản vừa tạo ở bước 2b) — TỰ tạo Nguồn dữ liệu + trỏ Cấu hình Voucher trong 1 lệnh, KHÔNG cần mở trình duyệt | IT/DBA |
 | 4 | Nếu KHÔNG dùng script ở bước 3 (vd đã có sẵn Nguồn dữ liệu từ mục 13): vào api-admin → "Cấu hình Voucher", chọn đúng Nguồn dữ liệu | Admin api-admin |
 | 5 | Vào "Đối tác", tạo/sửa 1 đối tác cho app voucher — scope `voucherCheck` + `voucherRedeem` | Admin api-admin |
 | 6 | Gán quyền Xem/Sửa trang "Cấu hình Voucher" ở "Vai trò" | Admin api-admin |
@@ -163,6 +164,11 @@ ràng ("Chưa cấu hình Nguồn dữ liệu cho Voucher..."), không phải l�
 hiểu.
 
 ## Bước 4 — Cấu hình Voucher
+
+**Trước tiên (Bước 2b)**: cần 1 tài khoản SQL trên chính DSMART16 (Live)
+với quyền CHỈ ĐÚNG SELECT + UPDATE trên `dbo.PMCRDINF` (không được quyền gì
+khác) — chạy `api-db/grants-dsmart16-voucher.sql` (mẫu, nhớ đổi mật khẩu
+trước khi chạy thật) trên chính CSDL DSMART16 để tạo tài khoản này.
 
 **Cách 1 (khuyến nghị — chạy 1 lệnh, không cần mở trình duyệt/đăng nhập
 api-admin, phù hợp khi api-admin CHỈ chạy trong mạng nội bộ)**: điền các
