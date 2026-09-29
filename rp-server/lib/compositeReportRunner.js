@@ -663,4 +663,4 @@ async function runCompositeReport(definition, filterValues = {}) {
   return { columns, rows, warnings };
 }
 
-module.exports = { runCompositeReport };
+module.exports = { runCompositeReport, resolveRequestedRange };

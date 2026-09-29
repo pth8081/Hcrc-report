@@ -70,15 +70,60 @@ async function exportPdf(definition, rows) {
   const groups = definition.columnGroups || [];
   const hasGroups = groups.length > 0;
 
+  const sttValues = computeSttValues(rows);
+  const sttColIdx = columns.findIndex(c => c.key === 'stt');
+
+  // Auto-fit THẬT theo nội dung (giống lib/exportExcel.js:estimateDisplayLength)
+  // — TRƯỚC ĐÂY bề rộng cột chia theo trọng số CỐ ĐỊNH (definition.columns[].width)
+  // trên khổ trang A4 ngang CỐ ĐỊNH, chữ/số DÀI hơn phần chia bị CẮT kèm "…"
+  // (fitText bên dưới) thay vì tự giãn cột — phát hiện qua báo cáo thật có
+  // "Thực đạt" nhiều chữ số bị cắt (vd "11,647,64…"). Giờ đo ĐÚNG bề rộng cần
+  // thiết của header + TOÀN BỘ dữ liệu từng cột bằng chính font sẽ vẽ (đo
+  // trước, vẽ sau) — cột nào cần rộng hơn tự động rộng hơn, không phụ thuộc
+  // definition.columns[].width nữa (field này hết tác dụng ở PDF, giữ lại
+  // trong DefinitionJson chỉ để không phải sửa mọi báo cáo cũ).
+  const CELL_FONT_SIZE = 8;
+  const CELL_PADDING = 8; // khớp "cw - 6" trong fitText() bên dưới + đệm an toàn
+  const MIN_COL_WIDTH_PT = 26;
+  function measureCellWidth(col, i) {
+    let maxTextWidth = 0;
+    for (let r = 0; r < rows.length; r++) {
+      const raw = i === sttColIdx ? sttValues[r] : rows[r][col.key];
+      const text = String(formatCellText(raw, col) ?? '');
+      // Đo bằng boldFont (dòng Tổng cộng in đậm) để không đo THIẾU — chữ đậm
+      // luôn rộng hơn hoặc bằng chữ thường cùng size.
+      const w = boldFont.widthOfTextAtSize(text.slice(0, 60), CELL_FONT_SIZE);
+      if (w > maxTextWidth) maxTextWidth = w;
+    }
+    // Sàn theo TỪ dài nhất trong nhãn cột — header tự xuống dòng (wrapLines)
+    // nên không cần vừa NGUYÊN nhãn trên 1 dòng, nhưng vẫn cần đủ rộng để
+    // không cắt ngang GIỮA 1 từ.
+    const headerWords = String(col.label || '').split(' ');
+    const headerWordWidth = Math.max(0, ...headerWords.map(w => boldFont.widthOfTextAtSize(w, 7)));
+    return Math.max(MIN_COL_WIDTH_PT, maxTextWidth + CELL_PADDING, headerWordWidth + 6);
+  }
+  const requiredWidths = columns.map((col, i) => measureCellWidth(col, i));
+  const totalRequiredWidth = requiredWidths.reduce((a, b) => a + b, 0);
+
   // Nhiều cột (báo cáo có columnGroups, HOẶC báo cáo phẳng nhưng khai nhiều
   // cột tuỳ chọn — vd 'coreZeroStock' đủ domain tuỳ chọn ra tới 14 cột) thì
   // dùng trang NGANG cho đủ chỗ — báo cáo ít cột giữ trang dọc như trước.
-  const PAGE_SIZE = (hasGroups || columns.length > 6) ? [841.89, 595.28] : [595.28, 841.89];
-  const usableWidth = PAGE_SIZE[0] - MARGIN * 2;
+  const BASE_PAGE_SIZE = (hasGroups || columns.length > 6) ? [841.89, 595.28] : [595.28, 841.89];
+  const baseUsableWidth = BASE_PAGE_SIZE[0] - MARGIN * 2;
 
-  const weights = columns.map(c => c.width || 1);
-  const totalWeight = weights.reduce((a, b) => a + b, 0);
-  const colWidths = weights.map(w => (w / totalWeight) * usableWidth);
+  // Nội dung vừa khổ trang mặc định -> GIÃN ĐỀU cho lấp đầy trang (giữ đúng
+  // hình thức cũ, không để khoảng trắng thừa bên phải). Nội dung RỘNG HƠN
+  // khổ mặc định -> GIỮ NGUYÊN bề rộng cần thiết và MỞ RỘNG khổ trang theo
+  // đúng tổng đó, thà trang rộng hơn A4 còn hơn mất/cắt dữ liệu.
+  let PAGE_SIZE, colWidths;
+  if (totalRequiredWidth <= baseUsableWidth) {
+    const scale = baseUsableWidth / totalRequiredWidth;
+    colWidths = requiredWidths.map(w => w * scale);
+    PAGE_SIZE = BASE_PAGE_SIZE;
+  } else {
+    colWidths = requiredWidths;
+    PAGE_SIZE = [totalRequiredWidth + MARGIN * 2, BASE_PAGE_SIZE[1]];
+  }
   const colX = [];
   let x = MARGIN;
   for (const w of colWidths) { colX.push(x); x += w; }
@@ -213,9 +258,6 @@ async function exportPdf(definition, rows) {
 
   drawTitle();
   drawHeader();
-
-  const sttValues = computeSttValues(rows);
-  const sttColIdx = columns.findIndex(c => c.key === 'stt');
 
   for (let rIdx = 0; rIdx < rows.length; rIdx++) {
     if (y - ROW_HEIGHT < MARGIN) newPage();

@@ -29,6 +29,7 @@
 const cron = require('node-cron');
 const { sql, getPool } = require('../db');
 const { loadDefinition, runDefinition } = require('../lib/reportRunner');
+const { resolveTitleWithDate } = require('../lib/reportTitleDate');
 const { exportExcel } = require('../lib/exportExcel');
 const { exportPdf } = require('../lib/exportPdf');
 const { renderEmailBodyHtml } = require('../lib/emailBodyRenderer');
@@ -113,7 +114,9 @@ async function runSchedule(schedule) {
 
   const filterValues = resolveFilterValues(schedule.FilterValuesJson, definition.filters);
   const { columns, rows } = await runDefinition(definition, filterValues, { page: 1, pageSize: 5000 });
-  const exportDefinition = { ...definition, columns };
+  const displayTitle = resolveTitleWithDate(definition.title, filterValues, '/');
+  const fileTitle = resolveTitleWithDate(definition.title, filterValues, '-');
+  const exportDefinition = { ...definition, columns, title: displayTitle };
   const recipients = schedule.Recipients.split(',').map(s => s.trim()).filter(Boolean);
 
   // Subject rỗng -> dùng mẫu mặc định như trước khi có tính năng này (tương
@@ -121,7 +124,7 @@ async function runSchedule(schedule) {
   // phép chèn "{ngay}" -> ngày gửi thật (vd "Báo Cáo Nhanh Doanh Thu, Ngày:
   // {ngay}" -> "...Ngày: 30/08/2026") — khớp mẫu tiêu đề thật đang dùng.
   const today = new Date().toLocaleDateString('vi-VN');
-  const subjectTemplate = schedule.Subject || `[HCRC] ${definition.title} — {ngay}`;
+  const subjectTemplate = schedule.Subject || `[HCRC] ${displayTitle} — {ngay}`;
   const subject = subjectTemplate.replace(/\{ngay\}/g, today);
 
   if (schedule.DeliveryMode === 'body') {
@@ -132,24 +135,24 @@ async function runSchedule(schedule) {
     await sendMail({
       to: recipients.join(','),
       subject,
-      text: `Báo cáo "${definition.title}" gửi tự động theo lịch "${schedule.Name}" (${rows.length} dòng). Xem chi tiết trong nội dung email (yêu cầu client hỗ trợ HTML).`,
+      text: `Báo cáo "${displayTitle}" gửi tự động theo lịch "${schedule.Name}" (${rows.length} dòng). Xem chi tiết trong nội dung email (yêu cầu client hỗ trợ HTML).`,
       html
     });
-    return { title: definition.title, recipients, rowCount: rows.length };
+    return { title: displayTitle, recipients, rowCount: rows.length };
   }
 
   const format = schedule.ExportFormat === 'pdf' ? 'pdf' : 'excel';
   const buffer = format === 'pdf' ? await exportPdf(exportDefinition, rows) : await exportExcel(exportDefinition, rows);
-  const filename = `${definition.title}.${format === 'pdf' ? 'pdf' : 'xlsx'}`;
+  const filename = `${fileTitle}.${format === 'pdf' ? 'pdf' : 'xlsx'}`;
 
   await sendMail({
     to: recipients.join(','),
     subject,
-    text: `Báo cáo "${definition.title}" gửi tự động theo lịch "${schedule.Name}" (${rows.length} dòng).`,
+    text: `Báo cáo "${displayTitle}" gửi tự động theo lịch "${schedule.Name}" (${rows.length} dòng).`,
     attachments: [{ filename, content: buffer }]
   });
 
-  return { title: definition.title, recipients, rowCount: rows.length };
+  return { title: displayTitle, recipients, rowCount: rows.length };
 }
 
 function alreadyRunningError(name) {

@@ -20,6 +20,33 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 7.9 — Auto-fit thật cho PDF + tiêu đề kèm ngày báo cáo (Excel/PDF)
+
+Theo yêu cầu định dạng báo cáo "Báo cáo nhanh doanh thu" (2/4 việc — việc
+nhóm MART/MINIMART đang chờ người dùng xác nhận dữ liệu STOCK.TYPE, việc
+demo/hướng dẫn sẽ gửi sau khi đủ cả 4):
+- **Auto-fit PDF** (`rp-server/lib/exportPdf.js`) — TRƯỚC ĐÂY bề rộng cột
+  chia theo trọng số CỐ ĐỊNH (`definition.columns[].width`) trên khổ trang
+  A4 ngang CỐ ĐỊNH, số/chữ dài hơn phần chia bị CẮT kèm "…" (phát hiện qua
+  báo cáo thật có "Thực đạt" bị cắt "11,647,64…"). Giờ đo ĐÚNG bề rộng cần
+  thiết của từng cột bằng chính font sẽ vẽ (cùng cách tiếp cận với auto-fit
+  Excel đã có từ bản 6.97) — nội dung vừa khổ trang mặc định thì giãn đều
+  lấp đầy trang như cũ; nội dung rộng hơn thì GIỮ NGUYÊN bề rộng cần thiết
+  và tự MỞ RỘNG khổ trang, không còn cắt dữ liệu. Đã kiểm tra bằng script
+  test riêng (khổ trang tự giãn từ 841.89pt lên 1321pt khi ép nhiều cột số
+  dài, không còn ký tự "…" trong trường hợp cần đo).
+- **Tiêu đề kèm ngày** — `definition.title` giờ hỗ trợ token `{ngayBaoCao}`
+  (mới: `rp-server/lib/reportTitleDate.js`, dùng chung `resolveRequestedRange()`
+  đã có ở `compositeReportRunner.js` — export luôn hàm này). Áp dụng cho cả
+  lúc bấm "Xuất" (`routes/reports.js`), lịch gửi email tự động
+  (`jobs/reportEmailScheduler.js`), danh sách báo cáo và trang xem trước
+  (chưa chọn ngày thì mặc định "hôm nay", khớp hành vi `resolveRequestedRange()`).
+  Đổi tiêu đề 2 báo cáo LDTD/HCRC (`scripts/seedLdtdHcrcReports.js`) thành
+  `"Hệ thống siêu thị BRGMART - Báo cáo nhanh doanh thu [Lãnh đạo Tập đoàn ]ngày {ngayBaoCao}"`
+  khớp đúng mẫu báo cáo cũ — **cần chạy lại
+  `node scripts/seedLdtdHcrcReports.js` để áp dụng tiêu đề mới cho 2 báo cáo
+  đã tạo trước đó** (script idempotent, không tạo trùng).
+
 ## 7.8 — Script đồng bộ lại `dwh.ReportFacts` sau bản vá 7.6 (COSTPRICE.NODE_ID)
 
 Người dùng báo số liệu trên báo cáo VẪN sai dù đã chạy lại VIEW đã sửa ở

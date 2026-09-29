@@ -155,9 +155,16 @@ function buildDefinition(title, targetDomain) {
   };
 }
 
+// Tiêu đề khai token "{ngayBaoCao}" — routes/reports.js (danh sách báo cáo,
+// trang xem trước KHI bấm "Chạy"/"Xuất") và jobs/reportEmailScheduler.js
+// (lịch gửi tự động) đều tự thay bằng ngày báo cáo THẬT trước khi trả về
+// client/ghi vào Excel/PDF (xem lib/reportTitleDate.js), khớp đúng mẫu báo
+// cáo cũ "Hệ thống siêu thị BRGMART - Báo cáo nhanh doanh thu ngày
+// dd/mm/yyyy". CHƯA chọn bộ lọc ngày (danh sách báo cáo, trang xem trước) ->
+// mặc định "hôm nay"; lúc "Xuất" thật -> đúng ngày/khoảng ngày đã chọn.
 const REPORTS = [
-  { reportId: 'bc-doanh-thu-ldtd', title: 'Báo cáo nhanh doanh thu - Lãnh đạo Tập đoàn', targetDomain: 'sales-targets-ldtd' },
-  { reportId: 'bc-doanh-thu-hcrc', title: 'Báo cáo nhanh doanh thu - HCRC', targetDomain: 'sales-targets-hcrc' }
+  { reportId: 'bc-doanh-thu-ldtd', title: 'Hệ thống siêu thị BRGMART - Báo cáo nhanh doanh thu Lãnh đạo Tập đoàn ngày {ngayBaoCao}', targetDomain: 'sales-targets-ldtd' },
+  { reportId: 'bc-doanh-thu-hcrc', title: 'Hệ thống siêu thị BRGMART - Báo cáo nhanh doanh thu ngày {ngayBaoCao}', targetDomain: 'sales-targets-hcrc' }
 ];
 
 async function upsertReport(pool, menuItemId, { reportId, title, targetDomain }) {

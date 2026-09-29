@@ -25,6 +25,7 @@ const express = require('express');
 const { sql, getPool } = require('../db');
 const { requireAuth } = require('../lib/auth');
 const { loadDefinition, runDefinition, resolveFactsPool } = require('../lib/reportRunner');
+const { resolveTitleWithDate } = require('../lib/reportTitleDate');
 const { exportExcel } = require('../lib/exportExcel');
 const { exportPdf } = require('../lib/exportPdf');
 const { getUserContext } = require('../lib/permissions');
@@ -76,7 +77,12 @@ router.get('/', async (req, res, next) => {
     const allowed = context.isSystemRole
       ? result.recordset
       : result.recordset.filter(r => context.reportIds.has(r.ReportId));
-    res.json(allowed);
+    // Title CÓ THỂ chứa token "{ngayBaoCao}" (xem lib/reportTitleDate.js) —
+    // danh sách này chưa có bộ lọc ngày nào được chọn (người dùng mới đang
+    // xem danh sách báo cáo để bấm vào), dùng mặc định "hôm nay" (giống hành
+    // vi resolveRequestedRange() khi không truyền filterValues) để không lộ
+    // token thô ra dropdown chọn báo cáo.
+    res.json(allowed.map(r => ({ ...r, Title: resolveTitleWithDate(r.Title, {}, '/') })));
   } catch (err) { next(err); }
 });
 
@@ -103,7 +109,10 @@ router.get('/:reportId', async (req, res, next) => {
       const { optionsSource, ...rest } = f;
       return { ...rest, hasDynamicOptions: true };
     });
-    res.json({ title: definition.title, filters, visualization: definition.visualization || null });
+    // title CÓ THỂ chứa token "{ngayBaoCao}" — trang này vẽ TIÊU ĐỀ trước khi
+    // người dùng bấm "Chạy báo cáo" (chưa có filters thật), dùng mặc định
+    // "hôm nay" cùng lý do ở GET /reports phía trên.
+    res.json({ title: resolveTitleWithDate(definition.title, {}, '/'), filters, visualization: definition.visualization || null });
   } catch (err) { next(err); }
 });
 
@@ -210,24 +219,26 @@ router.post('/:reportId/export', async (req, res, next) => {
 
     const { filters = {}, format = 'excel' } = req.body || {};
     const { columns, rows: projected } = await runDefinition(definition, filters, { page: 1, pageSize: 5000 });
-    const exportDefinition = { ...definition, columns };
+    const displayTitle = resolveTitleWithDate(definition.title, filters, '/');
+    const fileTitle = resolveTitleWithDate(definition.title, filters, '-');
+    const exportDefinition = { ...definition, columns, title: displayTitle };
 
     if (format === 'excel') {
       const buffer = await exportExcel(exportDefinition, projected);
-      await logAction(req, { module: 'Báo cáo', actionType: 'XUAT_BAO_CAO', targetObject: req.params.reportId, description: `Xuất Excel báo cáo "${definition.title}" (${projected.length} dòng)` });
+      await logAction(req, { module: 'Báo cáo', actionType: 'XUAT_BAO_CAO', targetObject: req.params.reportId, description: `Xuất Excel báo cáo "${displayTitle}" (${projected.length} dòng)` });
       // res.attachment() (Express, dùng gói content-disposition bên trong) tự
       // mã hoá đúng chuẩn RFC 5987 (filename* + fallback ASCII) khi tên báo
       // cáo có ký tự tiếng Việt NGOÀI Latin-1 (vd "đ", "ậ" trong "Lãnh đạo Tập
       // đoàn") — trước đây gán thẳng chuỗi vào header khiến Node ném
       // TypeError [ERR_INVALID_CHAR], 500 lỗi máy chủ lúc xuất (xem VERSION.md).
-      res.attachment(`${definition.title}.xlsx`);
+      res.attachment(`${fileTitle}.xlsx`);
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
       return res.send(buffer);
     }
     if (format === 'pdf') {
       const buffer = await exportPdf(exportDefinition, projected);
-      await logAction(req, { module: 'Báo cáo', actionType: 'XUAT_BAO_CAO', targetObject: req.params.reportId, description: `Xuất PDF báo cáo "${definition.title}" (${projected.length} dòng)` });
-      res.attachment(`${definition.title}.pdf`);
+      await logAction(req, { module: 'Báo cáo', actionType: 'XUAT_BAO_CAO', targetObject: req.params.reportId, description: `Xuất PDF báo cáo "${displayTitle}" (${projected.length} dòng)` });
+      res.attachment(`${fileTitle}.pdf`);
       res.setHeader('Content-Type', 'application/pdf');
       return res.send(buffer);
     }
