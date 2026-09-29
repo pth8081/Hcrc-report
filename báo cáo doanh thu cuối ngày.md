@@ -413,8 +413,25 @@ thấy cột "Cùng kỳ năm trước" thiếu dữ liệu của tháng gần �
 > đang chạy sai, "Thực đạt" doanh thu bị thổi phồng hàng chục lần. Chạy lại
 > NGUYÊN VĂN đúng đoạn `CREATE OR ALTER VIEW`/stored procedure ở Script A
 > và Script B phía trên (an toàn chạy lại nhiều lần, không mất dữ liệu vì
-> đây là VIEW, không phải bảng) — không cần làm gì thêm, không cần đồng bộ
-> lại ETL, lần đồng bộ tiếp theo sẽ tự đọc đúng số liệu mới.
+> đây là VIEW, không phải bảng).
+>
+> **ĐÍNH CHÍNH (bản 7.8) — BẮT BUỘC đồng bộ lại ETL, KHÔNG tự hết sau khi
+> sửa VIEW**: `dwh.ReportFacts` (bảng CACHE báo cáo đọc trực tiếp) chỉ được
+> job đồng bộ kéo phần "MỚI từ watermark" (xem `etl/lib/tableSyncEngine.js`)
+> — sửa VIEW ở DSMART16 KHÔNG tự làm lại dữ liệu NGÀY CŨ đã đồng bộ trước
+> đó, số "Thực đạt" SAI (nhân dòng) vẫn còn nguyên trong `dwh.ReportFacts`
+> cho tới khi xoá cache + đồng bộ lại từ đầu. Chạy (an toàn, mặc định chỉ
+> xem trước, không xoá gì):
+> ```
+> cd etl
+> node scripts/resyncDoanhThuChinhanh.js           # xem trước, không đổi gì
+> node scripts/resyncDoanhThuChinhanh.js --confirm # thực sự xoá + reset đồng bộ lại
+> ```
+> Sau khi `--confirm`, job "Doanh thu chi nhánh - Live"/"- Lịch sử" tự kéo
+> lại toàn bộ dữ liệu theo đúng lịch (Live vài phút, Lịch sử có thể mất vài
+> giờ tuỳ khối lượng — theo dõi qua etl-admin → Log). Trong lúc đang đồng
+> bộ lại, cột "Thực đạt"/"Lãi gộp"/"Cùng kỳ năm trước" sẽ tạm trống hoặc
+> thiếu — BÌNH THƯỜNG, không phải lỗi mới.
 
 ---
 

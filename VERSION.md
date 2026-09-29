@@ -20,6 +20,24 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 7.8 — Script đồng bộ lại `dwh.ReportFacts` sau bản vá 7.6 (COSTPRICE.NODE_ID)
+
+Người dùng báo số liệu trên báo cáo VẪN sai dù đã chạy lại VIEW đã sửa ở
+bản 7.6 và tự kiểm tra bằng SQL trực tiếp trên VIEW thấy đúng. Nguyên
+nhân: `dwh.ReportFacts` là bảng CACHE, job đồng bộ chỉ kéo phần "MỚI từ
+watermark" (`etl/lib/tableSyncEngine.js`) — sửa VIEW nguồn KHÔNG tự làm
+lại dữ liệu NGÀY CŨ đã đồng bộ trước đó, số "Thực đạt" sai (nhân dòng)
+vẫn còn nguyên trong cache tới khi xoá + đồng bộ lại từ đầu (đúng tình
+huống "sửa số liệu hồi tố" đã ghi trong "báo cáo doanh thu cuối ngày.md").
+Thêm **etl/scripts/resyncDoanhThuChinhanh.js** (rập khuôn
+`resyncGiaodichChinhanh.js` đã có sẵn cho domain `giaodich_chinhanh`):
+mặc định chỉ xem trước (đếm dòng, không xoá gì), truyền `--confirm` mới
+thực sự xoá dòng domain `doanhthu_chinhanh` trong `dwh.ReportFacts` +
+reset mốc đồng bộ (`etl.SyncState.LastSyncedAt` về epoch) của mọi job
+liên quan, để lượt chạy kế tiếp tự kéo lại toàn bộ dữ liệu từ VIEW đã
+sửa. Đính chính lại đoạn ghi chú SAI ở bản 7.6 trong "báo cáo doanh thu
+cuối ngày.md" (từng ghi nhầm "không cần đồng bộ lại ETL").
+
 ## 7.7 — Đồng bộ sửa lỗi COSTPRICE.NODE_ID sang `hướng_dẫn_báo_cáo.md`
 
 Người dùng xác nhận đã chạy xong bản vá 7.6 trên cả `DSMART16` (Live) và
