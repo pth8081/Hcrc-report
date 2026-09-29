@@ -30,4 +30,27 @@ function resolveTitleWithDate(title, filterValues, separator) {
   return title.split(TITLE_DATE_TOKEN).join(display);
 }
 
-module.exports = { resolveTitleWithDate };
+// ddmmyyyy KHÔNG dấu phân cách — dùng riêng cho TÊN FILE tải xuống theo
+// quy tắc mã cố định (vd "BCDTRC-17092026.xlsx"), KHÁC hẳn định dạng
+// dd/mm/yyyy dùng để HIỂN THỊ trong tiêu đề tài liệu.
+function formatDateCompact(isoDate) {
+  const [y, m, d] = String(isoDate).split('-');
+  return `${d}${m}${y}`;
+}
+
+// definition.exportFileCode (TUỲ CHỌN, vd "BCDTRC"/"BCDDTLDTD" — xem
+// scripts/seedLdtdHcrcReports.js) — tên file tải xuống theo ĐÚNG quy tắc
+// mã cố định + ngày báo cáo, HOÀN TOÀN TÁCH RIÊNG khỏi tiêu đề hiển thị
+// trong tài liệu (definition.exportTitle) và tên báo cáo trong danh mục
+// (definition.title) — 3 khái niệm khác nhau, không suy ra lẫn nhau nữa.
+// Báo cáo KHÔNG khai exportFileCode (đa số báo cáo khác) thì dùng
+// fallbackBaseName (thường là tiêu đề, giữ đúng hành vi cũ).
+function resolveExportFileBaseName(exportFileCode, filterValues, fallbackBaseName) {
+  if (!exportFileCode) return fallbackBaseName;
+  const { from, to } = resolveRequestedRange(filterValues || {});
+  return from === to
+    ? `${exportFileCode}-${formatDateCompact(to)}`
+    : `${exportFileCode}-${formatDateCompact(from)}-${formatDateCompact(to)}`;
+}
+
+module.exports = { resolveTitleWithDate, resolveExportFileBaseName };

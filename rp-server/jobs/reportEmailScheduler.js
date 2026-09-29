@@ -29,7 +29,7 @@
 const cron = require('node-cron');
 const { sql, getPool } = require('../db');
 const { loadDefinition, runDefinition } = require('../lib/reportRunner');
-const { resolveTitleWithDate } = require('../lib/reportTitleDate');
+const { resolveTitleWithDate, resolveExportFileBaseName } = require('../lib/reportTitleDate');
 const { exportExcel } = require('../lib/exportExcel');
 const { exportPdf } = require('../lib/exportPdf');
 const { renderEmailBodyHtml } = require('../lib/emailBodyRenderer');
@@ -114,8 +114,11 @@ async function runSchedule(schedule) {
 
   const filterValues = resolveFilterValues(schedule.FilterValuesJson, definition.filters);
   const { columns, rows } = await runDefinition(definition, filterValues, { page: 1, pageSize: 5000 });
-  const displayTitle = resolveTitleWithDate(definition.title, filterValues, '/');
-  const fileTitle = resolveTitleWithDate(definition.title, filterValues, '-');
+  // exportTitle/exportFileCode — xem chú thích ở routes/reports.js
+  // (cùng quy ước, dùng chung lib/reportTitleDate.js).
+  const displayTitle = resolveTitleWithDate(definition.exportTitle || definition.title, filterValues, '/');
+  const fallbackFileTitle = resolveTitleWithDate(definition.exportTitle || definition.title, filterValues, '-');
+  const fileTitle = resolveExportFileBaseName(definition.exportFileCode, filterValues, fallbackFileTitle);
   const exportDefinition = { ...definition, columns, title: displayTitle };
   const recipients = schedule.Recipients.split(',').map(s => s.trim()).filter(Boolean);
 

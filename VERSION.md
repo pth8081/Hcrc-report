@@ -20,6 +20,32 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 8.3 — Tách riêng tên danh mục / tiêu đề file xuất / tên file tải xuống
+
+Theo yêu cầu người dùng, 3 khái niệm trước đây gộp chung vào
+`definition.title` giờ tách hẳn thành 3 field độc lập (không suy ra lẫn
+nhau nữa):
+- `title` — tên báo cáo trong DANH MỤC (chọn báo cáo trên rp-user), TĨNH,
+  không kèm ngày: `"Báo cáo doanh thu cuối ngày HCRC"`/`"...LDTD"`.
+- `exportTitle` (mới) — tiêu đề HIỂN THỊ TRONG TÀI LIỆU lúc xuất
+  Excel/PDF, có token `{ngayBaoCao}` — GIỐNG HỆT NHAU cho cả 2 báo cáo:
+  `"Hệ thống siêu thị BRGMART - Báo cáo nhanh doanh thu ngày dd/mm/yyyy"`.
+- `exportFileCode` (mới) — mã cố định ghép TÊN FILE tải xuống theo đúng
+  quy tắc nội bộ: HCRC = `BCDTRC-ddmmyyyy`, LDTD = `BCDDTLDTD-ddmmyyyy`
+  (`rp-server/lib/reportTitleDate.js:resolveExportFileBaseName()`, dùng
+  `ddmmyyyy` không dấu phân cách, khác định dạng `dd/mm/yyyy` dùng để
+  hiển thị).
+
+Áp dụng ở `routes/reports.js` (nút "Xuất") và `jobs/reportEmailScheduler.js`
+(lịch gửi email tự động) — báo cáo KHÔNG khai `exportTitle`/`exportFileCode`
+(mọi báo cáo khác ngoài HCRC/LDTD) vẫn giữ nguyên hành vi cũ (dùng
+`title` cho cả tiêu đề lẫn tên file). Đã demo bằng file Excel/PDF mẫu
+trước khi đẩy code, người dùng xác nhận đúng ý.
+
+**Cần chạy lại `node scripts/seedLdtdHcrcReports.js`** để áp dụng tên
+danh mục/tiêu đề/mã file mới cho 2 báo cáo đã tạo trước đó (script
+idempotent, chỉ UPDATE, không tạo trùng).
+
 ## 8.2 — Xác nhận công thức giá vốn bằng nguồn thứ 3 (DBA cung cấp `AVERIMPPR`)
 
 Người dùng báo "Lãi gộp" sau bản 8.1 vẫn thấp — đối chiếu thêm 1 nguồn

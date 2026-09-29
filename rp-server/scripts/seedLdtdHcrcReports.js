@@ -22,9 +22,24 @@ const DOMAIN = 'doanhthu_chinhanh';
 // Cột dùng chung cho cả 2 báo cáo — chỉ khác `targetDomain` của khối
 // `target` (mỗi bên đọc đúng 1 trong 2 domain chỉ tiêu đã khoá cứng ở
 // etl-admin, xem etl-db/schema.sql phần target_importer_LDTD/hcrc).
-function buildDefinition(title, targetDomain) {
+//
+// 3 khái niệm TÁCH RIÊNG (theo đúng yêu cầu người dùng, bản 8.3 — xem
+// VERSION.md):
+//   title          — tên báo cáo trong DANH MỤC (chọn báo cáo trên web),
+//                     TĨNH, không có ngày, phân biệt rõ HCRC/LDTD.
+//   exportTitle    — tiêu đề HIỂN THỊ TRONG TÀI LIỆU lúc xuất Excel/PDF,
+//                     có token {ngayBaoCao} (xem lib/reportTitleDate.js)
+//                     — GIỐNG HỆT NHAU cho cả 2 báo cáo, không phân biệt.
+//   exportFileCode — mã CỐ ĐỊNH ghép vào TÊN FILE tải xuống
+//                     ("<mã>-ddmmyyyy.xlsx/pdf", xem routes/reports.js),
+//                     theo đúng quy tắc đặt tên nội bộ, không liên quan
+//                     gì tới title/exportTitle ở trên.
+const EXPORT_TITLE = 'Hệ thống siêu thị BRGMART - Báo cáo nhanh doanh thu ngày {ngayBaoCao}';
+function buildDefinition(title, targetDomain, exportFileCode) {
   return {
     title,
+    exportTitle: EXPORT_TITLE,
+    exportFileCode,
     domain: DOMAIN,
     filters: [
       // type: 'dateRange' (trước là 'date', chỉ chọn được 1 ngày) — chọn 1
@@ -155,20 +170,19 @@ function buildDefinition(title, targetDomain) {
   };
 }
 
-// Tiêu đề khai token "{ngayBaoCao}" — routes/reports.js (danh sách báo cáo,
-// trang xem trước KHI bấm "Chạy"/"Xuất") và jobs/reportEmailScheduler.js
-// (lịch gửi tự động) đều tự thay bằng ngày báo cáo THẬT trước khi trả về
-// client/ghi vào Excel/PDF (xem lib/reportTitleDate.js), khớp đúng mẫu báo
-// cáo cũ "Hệ thống siêu thị BRGMART - Báo cáo nhanh doanh thu ngày
-// dd/mm/yyyy". CHƯA chọn bộ lọc ngày (danh sách báo cáo, trang xem trước) ->
-// mặc định "hôm nay"; lúc "Xuất" thật -> đúng ngày/khoảng ngày đã chọn.
+// title — tên trong DANH MỤC báo cáo (chọn báo cáo trên rp-user), TĨNH,
+// đúng theo yêu cầu người dùng (bản 8.3): "Báo cáo doanh thu cuối ngày
+// HCRC"/"...LDTD" — KHÔNG còn kèm ngày/thương hiệu BRGMART ở đây nữa
+// (phần đó chuyển sang exportTitle, xem buildDefinition() phía trên).
+// exportFileCode — mã cố định ghép tên file tải xuống, theo ĐÚNG quy tắc
+// người dùng cung cấp: HCRC = "BCDTRC-ddmmyyyy", LDTD = "BCDDTLDTD-ddmmyyyy".
 const REPORTS = [
-  { reportId: 'bc-doanh-thu-ldtd', title: 'Hệ thống siêu thị BRGMART - Báo cáo nhanh doanh thu Lãnh đạo Tập đoàn ngày {ngayBaoCao}', targetDomain: 'sales-targets-ldtd' },
-  { reportId: 'bc-doanh-thu-hcrc', title: 'Hệ thống siêu thị BRGMART - Báo cáo nhanh doanh thu ngày {ngayBaoCao}', targetDomain: 'sales-targets-hcrc' }
+  { reportId: 'bc-doanh-thu-ldtd', title: 'Báo cáo doanh thu cuối ngày LDTD', targetDomain: 'sales-targets-ldtd', exportFileCode: 'BCDDTLDTD' },
+  { reportId: 'bc-doanh-thu-hcrc', title: 'Báo cáo doanh thu cuối ngày HCRC', targetDomain: 'sales-targets-hcrc', exportFileCode: 'BCDTRC' }
 ];
 
-async function upsertReport(pool, menuItemId, { reportId, title, targetDomain }) {
-  const definitionJson = JSON.stringify(buildDefinition(title, targetDomain));
+async function upsertReport(pool, menuItemId, { reportId, title, targetDomain, exportFileCode }) {
+  const definitionJson = JSON.stringify(buildDefinition(title, targetDomain, exportFileCode));
   const existing = await pool.request().input('reportId', sql.VarChar(80), reportId)
     .query('SELECT ReportId FROM app.ReportCatalog WHERE ReportId = @reportId');
   if (existing.recordset.length) {

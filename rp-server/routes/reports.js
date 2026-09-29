@@ -25,7 +25,7 @@ const express = require('express');
 const { sql, getPool } = require('../db');
 const { requireAuth } = require('../lib/auth');
 const { loadDefinition, runDefinition, resolveFactsPool } = require('../lib/reportRunner');
-const { resolveTitleWithDate } = require('../lib/reportTitleDate');
+const { resolveTitleWithDate, resolveExportFileBaseName } = require('../lib/reportTitleDate');
 const { exportExcel } = require('../lib/exportExcel');
 const { exportPdf } = require('../lib/exportPdf');
 const { getUserContext } = require('../lib/permissions');
@@ -219,8 +219,14 @@ router.post('/:reportId/export', async (req, res, next) => {
 
     const { filters = {}, format = 'excel' } = req.body || {};
     const { columns, rows: projected } = await runDefinition(definition, filters, { page: 1, pageSize: 5000 });
-    const displayTitle = resolveTitleWithDate(definition.title, filters, '/');
-    const fileTitle = resolveTitleWithDate(definition.title, filters, '-');
+    // exportTitle (TUỲ CHỌN) — tiêu đề HIỂN THỊ TRONG TÀI LIỆU, tách riêng
+    // khỏi definition.title (tên trong danh mục báo cáo, tĩnh) và
+    // definition.exportFileCode (tên file, mã cố định) — báo cáo không
+    // khai exportTitle thì rơi về dùng definition.title như trước (không
+    // đổi hành vi cũ cho các báo cáo khác), xem scripts/seedLdtdHcrcReports.js.
+    const displayTitle = resolveTitleWithDate(definition.exportTitle || definition.title, filters, '/');
+    const fallbackFileTitle = resolveTitleWithDate(definition.exportTitle || definition.title, filters, '-');
+    const fileTitle = resolveExportFileBaseName(definition.exportFileCode, filters, fallbackFileTitle);
     const exportDefinition = { ...definition, columns, title: displayTitle };
 
     if (format === 'excel') {
