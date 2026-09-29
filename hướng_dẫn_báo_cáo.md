@@ -1153,58 +1153,22 @@ composite tự gộp cả 2 domain về đúng 1 dòng/mã Điểm.
 
 **b) Doanh thu theo chi nhánh (`doanhthu_chinhanh`) — mở rộng mục 1**
 
-- Nguồn: **VIEW gộp** từ `DSTK_INFO`, JOIN thêm `STOCK` (mục a — lấy diện
-  tích + nhóm chuỗi có sẵn trong CÙNG 1 dòng, khỏi phải ghép domain riêng)
-  và JOIN thêm `COSTPRICE` (giá vốn theo SKU/tháng — để tính Lãi gộp) —
-  bản MỞ RỘNG này phục vụ trực tiếp báo cáo "Báo cáo nhanh doanh thu -
-  LDTD/HCRC" (mục 15, cần đủ Doanh thu+Lãi gộp+Diện tích+Nhóm chuỗi trong
-  ĐÚNG 1 khối `current`):
-  ```sql
-  CREATE VIEW V_HCRC_DOANHTHU_CHINHANH AS
-  SELECT
-      d.STK_ID, d.WORK_DATE,
-      SUM(d.TOCUST_QTY) AS SoLuongBan,
-      SUM(d.TOCUST_AMT) AS doanhThu,
-      SUM(d.TOCUST_VAT) AS TienVAT,
-      SUM(d.TOCUST_DIS) AS TienGiamGia,
-      SUM(d.TOCUST_COM) AS HoaHong,
-      SUM(d.TOCUST_AMT) - SUM(d.TOCUST_QTY * ISNULL(c.COSTPRICE, 0)) AS laiGop,
-      MAX(s.DIMENSION) AS dienTich,
-      MAX(CASE WHEN s.STYPE_ID = '<mã MART thật>' THEN 'MART'
-               WHEN s.STYPE_ID = '<mã MINIMART thật>' THEN 'MINIMART'
-               ELSE s.STYPE_ID END) AS chain
-  FROM DSTK_INFO d
-  JOIN STOCK s
-      ON s.STK_ID = d.STK_ID
-  LEFT JOIN COSTPRICE c
-      ON c.STK_ID = d.STK_ID AND c.SKU_ID = d.SKU_ID
-     AND c.MEC_YM = LEFT(CONVERT(char(8), d.WORK_DATE, 112), 6)
-  GROUP BY d.STK_ID, d.WORK_DATE;
-  ```
-- EntityCode = `STK_ID`, EventDate = `WORK_DATE` (không đổi so với bản gốc).
-- Measures: `doanhThu`, `laiGop` (**MỚI**) + `SoLuongBan`/`TienVAT`/
-  `TienGiamGia`/`HoaHong` (giữ nguyên bản gốc, dư ra để dùng cho báo cáo
-  khác sau này). Dimensions: `dienTich`, `chain` (**MỚI**, join từ `STOCK`).
-- **CHƯA XÁC NHẬN, cần đối chiếu với DBA DSMART16 trước khi tin số liệu
-  thật** (2 điểm rủi ro riêng của bản mở rộng này, khác các domain a/c/d
-  đã dựng trước đó):
-  1. `c.MEC_YM = LEFT(CONVERT(char(8), d.WORK_DATE, 112), 6)` — giả định
-     `COSTPRICE.MEC_YM` lưu dạng chuỗi `YYYYMM` (`'202609'`) khớp tháng của
-     `WORK_DATE` — CHƯA xác nhận đúng định dạng thật (có thể khác, vd
-     `'2026-09'`/số nguyên). Sai định dạng → JOIN không khớp dòng nào →
-     `laiGop` = `doanhThu` (coi giá vốn = 0), SAI mà KHÔNG báo lỗi gì (JOIN
-     là `LEFT JOIN` nên không rớt dòng) — **kiểm tra kỹ cột "Lãi gộp - Tỷ
-     lệ (%)" sau khi chạy thử, tỷ lệ = 100% ở MỌI siêu thị là dấu hiệu JOIN
-     sai định dạng này**.
-  2. `s.STYPE_ID` — CHƯA xác nhận đây đúng là cột phân loại MART/MINIMART
-     của `STOCK` (chỉ là ứng viên hợp lý từ tên cột, không có mô tả trong
-     file schema) — cần dò 2 giá trị mã thật (vd chạy
-     `SELECT DISTINCT STYPE_ID FROM STOCK`) rồi điền đúng vào 2 chỗ
-     `'<mã MART thật>'`/`'<mã MINIMART thật>'` ở trên trước khi dùng cho
-     `groupBy` ở mục 15 — để nguyên placeholder sẽ khiến MỌI siêu thị rơi
-     vào nhánh `ELSE` (không nhóm được).
-- **Watermark**: `DSTK_INFO` là bảng tổng hợp CUỐI NGÀY, không có cột "giờ
-  cập nhật" riêng — dùng tạm `WORK_DATE` làm cột watermark (chấp nhận: số
+> **Bản dưới đây LÀ BẢN DỰNG BAN ĐẦU, đã được THAY THẾ hoàn toàn bằng bản
+> ĐÃ XÁC NHẬN bằng dữ liệu thật** trong **"báo cáo doanh thu cuối ngày.md"**
+> (Bước 1, Script A/B) — nguồn thật là `STRANS` (KHÔNG PHẢI `DSTK_INFO` —
+> bảng đó rỗng), cột thật là `AMOUNT`/`QTY`/`TRAN_DATE` (KHÔNG PHẢI
+> `TOCUST_AMT`/`TOCUST_QTY`/`WORK_DATE`), MART/MINIMART phân loại theo
+> `STOCK.TYPE` (KHÔNG PHẢI `STYPE_ID` — cột đó luôn trống), và JOIN
+> `COSTPRICE` PHẢI có thêm điều kiện `NODE_ID` (bản 7.6 — thiếu điều kiện
+> này khiến 1 giao dịch bị nhân dòng theo TẤT CẢ mã Điểm khác, "Thực đạt"
+> doanh thu lệch hàng chục lần). **Luôn lấy SQL từ "báo cáo doanh thu cuối
+> ngày.md" khi triển khai thật — nội dung dưới đây CHỈ giữ lại để hiểu bối
+> cảnh lịch sử, không dùng để chạy.**
+- EntityCode = `STK_ID`, EventDate = `WORK_DATE` (khớp `TRAN_DATE` ở bản
+  thật). Measures: `doanhThu`, `laiGop`, `SoLuongBan`, `TienVAT`,
+  `TienGiamGia`, `HoaHong`. Dimensions: `dienTich`, `chain` (join từ
+  `STOCK`).
+- Watermark: dùng `WORK_DATE`/`TRAN_DATE` làm cột watermark (chấp nhận: số
   liệu 1 ngày chỉ được đồng bộ sau khi ngày đó đã có dữ liệu, sửa số liệu
   NGÀY CŨ sau khi đã đồng bộ sẽ KHÔNG tự cập nhật lại — cần chạy lại job
   "Đồng bộ lại từ đầu" thủ công nếu có chỉnh sửa hồi tố).
@@ -1729,12 +1693,17 @@ báo cáo, 2 danh sách người xem riêng — không tự động chia sẻ ch
      kỳ năm trước (nhanh hơn, không phải chỉ ẩn cột trên giao diện). Cơ chế
      chung `block.skipWhen`/`column.hideWhen` — xem
      `rp-server/lib/compositeReportRunner.js`.
-3. **Kiểm tra riêng cột Lãi gộp** — nếu "Lãi gộp - Tỷ lệ (%)" ra ĐÚNG
-   100% ở MỌI siêu thị, kiểm tra lại VIEW `V_HCRC_DOANHTHU_CHINHANH` có
-   JOIN `COSTPRICE` nhầm theo cả `STK_ID` không — cột đó LUÔN TRỐNG (giá
-   vốn dùng chung toàn hệ thống, không theo chi nhánh), JOIN có `STK_ID`
-   không bao giờ khớp, coi giá vốn = 0 (xem "báo cáo doanh thu cuối ngày.md"
-   Bước 1, mục "Đã xác nhận đầy đủ bằng dữ liệu thật").
+3. **Kiểm tra riêng cột Lãi gộp** — 2 dấu hiệu JOIN `COSTPRICE` sai cần biết:
+   - "Lãi gộp - Tỷ lệ (%)" ra ĐÚNG 100% ở MỌI siêu thị → JOIN nhầm theo cả
+     `STK_ID` (cột đó LUÔN TRỐNG trong `COSTPRICE`), không bao giờ khớp,
+     coi giá vốn = 0.
+   - "Thực đạt" doanh thu lệch RẤT LỚN (hàng chục lần) so với "Cùng kỳ năm
+     trước" ở HẦU HẾT siêu thị, tỷ lệ lệch KHÔNG đều nhau → JOIN thiếu điều
+     kiện `c.NODE_ID = s.NODE_ID` (bản 7.6 — `COSTPRICE.NODE_ID` lưu giá
+     vốn RIÊNG theo mã Điểm, thiếu điều kiện này khiến 1 giao dịch bị nhân
+     dòng theo TẤT CẢ mã Điểm khác).
+   Xem "báo cáo doanh thu cuối ngày.md" Bước 1, mục "Đã xác nhận đầy đủ
+   bằng dữ liệu thật" để lấy đúng SQL hiện hành.
 4. Đối chiếu đúng báo cáo LDTD đọc chỉ tiêu domain `sales-targets-ldtd`,
    báo cáo HCRC đọc `sales-targets-hcrc` (sửa thử 1 dòng chỉ tiêu ở 1
    trang, xác nhận báo cáo BÊN KIA KHÔNG đổi).

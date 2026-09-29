@@ -20,6 +20,20 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 7.7 — Đồng bộ sửa lỗi COSTPRICE.NODE_ID sang `hướng_dẫn_báo_cáo.md`
+
+Người dùng xác nhận đã chạy xong bản vá 7.6 trên cả `DSMART16` (Live) và
+`DSMART16_EOM` (Lịch sử), đồng thời yêu cầu (quy ước cố định của dự án):
+mọi lần sửa VIEW/SQL xác nhận trong "báo cáo doanh thu cuối ngày.md" PHẢI
+đồng bộ sang **hướng_dẫn_báo_cáo.md`** (file hiển thị trong trang "Hướng
+dẫn" của `rp-user`/`etl-admin`) để tránh 2 tài liệu lệch nhau. Mục 11.b
+("Doanh thu theo chi nhánh") ở file này vẫn là bản DỰNG BAN ĐẦU, chưa xác
+nhận (nguồn `DSTK_INFO` sai, cột `TOCUST_*`/`WORK_DATE` sai, `STYPE_ID`
+placeholder chưa điền) — thay bằng ghi chú trỏ thẳng về bản đã xác nhận
+trong "báo cáo doanh thu cuối ngày.md", tránh duy trì 2 bản SQL dễ lệch
+nhau. Cập nhật thêm mục hướng dẫn xử lý sự cố (mục 15) với dấu hiệu nhận
+biết lỗi thiếu `NODE_ID` (Thực đạt lệch hàng chục lần, tỷ lệ không đều).
+
 ## 7.6 — Sửa lỗi VIEW `V_HCRC_DOANHTHU_CHINHANH` nhân dòng giá vốn theo mã Điểm
 
 Người dùng báo "Thực đạt" doanh thu trong "Báo cáo nhanh doanh thu" lệch
