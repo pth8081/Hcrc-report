@@ -20,6 +20,27 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 7.6 — Sửa lỗi VIEW `V_HCRC_DOANHTHU_CHINHANH` nhân dòng giá vốn theo mã Điểm
+
+Người dùng báo "Thực đạt" doanh thu trong "Báo cáo nhanh doanh thu" lệch
+bất thường so với "Cùng kỳ năm 2025" (28–115 lần, tuỳ mã Điểm). Đối chiếu
+dữ liệu thật xác định nguyên nhân: `COSTPRICE.NODE_ID` lưu giá vốn RIÊNG
+theo từng mã Điểm (KHÔNG "dùng chung toàn hệ thống" như hướng dẫn cũ ghi
+nhầm — 1 SKU/1 tháng có tới ~38 dòng, mỗi dòng 1 `NODE_ID` khác nhau).
+VIEW `V_HCRC_DOANHTHU_CHINHANH` JOIN `COSTPRICE` chỉ theo `SKU_ID +
+MEC_YM` (thiếu `NODE_ID`) khiến 1 dòng giao dịch (`STRANS`) bị khớp với
+TẤT CẢ ~38 dòng giá vốn của mọi mã Điểm — nhân dòng, `SUM(AMOUNT)` ở
+"doanhThu"/"laiGop" cộng dồn sai lệch. Sửa cả 3 nơi định nghĩa VIEW trong
+**báo cáo doanh thu cuối ngày.md** (Script A - Live, Script B ad hoc và
+stored procedure - Lịch sử): thêm điều kiện `AND c.NODE_ID = s.NODE_ID`
+(nối qua `STOCK.NODE_ID`, đã JOIN sẵn theo `STK_ID`). Đính chính luôn 2
+đoạn ghi chú sai trong tài liệu (giả định COSTPRICE dùng chung toàn hệ
+thống; giả định cũ `BU_ID chính là mã Điểm` ở VIEW "Giao dịch" — đã đổi
+thiết kế BU_ID/STK_ID từ bản 6.99). **Cần DBA chạy lại NGUYÊN VĂN đoạn
+`CREATE OR ALTER VIEW`/stored procedure đã sửa trên cả 2 CSDL `DSMART16`
+(Live) và `DSMART16_EOM` (Lịch sử)** — an toàn chạy lại nhiều lần, không
+cần đồng bộ lại ETL.
+
 ## 7.5 — Mẫu script GRANT tài khoản SQL least-privilege cho DSMART16 (voucher)
 
 Người dùng nhờ tạo luôn tài khoản kết nối DSMART16 cho voucher và gửi

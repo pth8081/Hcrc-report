@@ -134,8 +134,15 @@ có ai đó chủ động chạy `DROP VIEW <tên>`. Cần lưu ý 2 điều:
 -- TRANS_NUM CHỈ để lấy STATUS đáng tin (loại đúng giao dịch huỷ).
 -- STOCK.TYPE (KHÔNG phải STYPE_ID — cột đó luôn trống) phân loại
 -- '01'=MART, '02'=MINIMART, đã xác nhận qua tên chi nhánh thật.
--- COSTPRICE.STK_ID LUÔN TRỐNG (giá vốn dùng CHUNG toàn hệ thống, không
--- theo từng chi nhánh) — CHỈ JOIN theo SKU_ID + MEC_YM, KHÔNG có STK_ID.
+-- COSTPRICE.STK_ID LUÔN TRỐNG — nhưng KHÔNG PHẢI giá vốn dùng chung toàn hệ
+-- thống như từng ghi ở bản trước: COSTPRICE.NODE_ID mới là cột lưu giá vốn
+-- RIÊNG theo từng mã Điểm (đã xác nhận bằng dữ liệu thật — 1 SKU/1 tháng có
+-- tới ~38 dòng, mỗi dòng 1 NODE_ID khác nhau, COSTPRICE chênh lệch nhẹ giữa
+-- các NODE_ID, KHÔNG phải dữ liệu trùng lặp). Thiếu điều kiện theo NODE_ID
+-- khiến 1 dòng STRANS bị khớp nhầm với giá vốn của TẤT CẢ mã Điểm khác
+-- (nhân dòng), làm SUM(AMOUNT) ở "doanhThu"/"laiGop" bị cộng dồn sai lệch
+-- hàng chục lần — BẮT BUỘC nối thêm qua STOCK.NODE_ID (đã JOIN sẵn ở dưới)
+-- để khớp đúng 1 dòng giá vốn/SKU/tháng/mã Điểm.
 CREATE OR ALTER VIEW V_HCRC_DOANHTHU_CHINHANH AS
 SELECT
     d.STK_ID, CAST(d.TRAN_DATE AS DATE) AS WORK_DATE,
@@ -157,13 +164,16 @@ JOIN STOCK s
 LEFT JOIN COSTPRICE c
     ON c.SKU_ID = d.SKU_ID
    AND c.MEC_YM = LEFT(CONVERT(char(8), d.TRAN_DATE, 112), 6)
+   AND c.NODE_ID = s.NODE_ID -- BẮT BUỘC: thiếu dòng này COSTPRICE nhân dòng theo mã Điểm (xem chú thích trên)
 WHERE h.STATUS <> 'D' -- 'D' = Huỷ (đã xác nhận với người quản trị DSMART16); 'N'=Mới, 'M'=Sửa đều tính vào doanh thu
 GROUP BY d.STK_ID, CAST(d.TRAN_DATE AS DATE);
 GO
 
 -- VIEW 2: Số giao dịch, gộp theo (chi nhánh, ngày) — BU_ID GIỮ NGUYÊN làm
--- EntityCode (không dịch mã) — BU_ID chính là mã "Điểm" dùng trong file
--- chỉ tiêu, xem Bước 2.2
+-- EntityCode (không dịch mã). ĐÍNH CHÍNH: BU_ID KHÔNG PHẢI mã "Điểm" — BU_ID
+-- là mã DSMART nhập tay riêng cho từng mã Điểm (xem "quy tắc mã BU_ID và
+-- STK_ID.md"), etl-admin dùng bảng ánh xạ Điểm↔BU_ID để dịch ngược khi ghép
+-- vào báo cáo, không so trực tiếp BU_ID với mã Điểm.
 CREATE OR ALTER VIEW V_HCRC_GIAODICH_CHINHANH AS
 SELECT BU_ID, CAST(TRAN_DATE AS DATE) AS TRAN_DATE,
        COUNT(*) AS SoGiaoDich, SUM(AMOUNT) AS TongTien,
@@ -244,6 +254,7 @@ FROM (' + @sql + N') d
 JOIN DSMART16.dbo.STOCK s ON s.STK_ID = d.STK_ID
 LEFT JOIN DSMART16.dbo.COSTPRICE c ON c.SKU_ID = d.SKU_ID
    AND c.MEC_YM = LEFT(CONVERT(char(8), d.TRAN_DATE, 112), 6)
+   AND c.NODE_ID = s.NODE_ID -- BẮT BUỘC: xem chú thích ở Script A (COSTPRICE có giá vốn riêng theo mã Điểm, thiếu điều kiện này sẽ nhân dòng)
 GROUP BY d.STK_ID, CAST(d.TRAN_DATE AS DATE);';
 
 EXEC sp_executesql @sql;
@@ -307,6 +318,7 @@ BEGIN
     JOIN DSMART16.dbo.STOCK s ON s.STK_ID = d.STK_ID
     LEFT JOIN DSMART16.dbo.COSTPRICE c ON c.SKU_ID = d.SKU_ID
        AND c.MEC_YM = LEFT(CONVERT(char(8), d.TRAN_DATE, 112), 6)
+       AND c.NODE_ID = s.NODE_ID -- BẮT BUỘC: xem chú thích ở Script A (COSTPRICE có giá vốn riêng theo mã Điểm, thiếu điều kiện này sẽ nhân dòng)
     GROUP BY d.STK_ID, CAST(d.TRAN_DATE AS DATE);';
 
     EXEC sp_executesql @sql;
@@ -380,13 +392,29 @@ thấy cột "Cùng kỳ năm trước" thiếu dữ liệu của tháng gần �
    (STRANS).
 2. `COSTPRICE.MEC_YM` — định dạng `YYYYMM` (vd `'202609'`) đã xác nhận đúng
    qua dữ liệu thật, không cần sửa.
-3. **Phát hiện thêm (không có trong hướng dẫn gốc)**: `COSTPRICE.STK_ID`
-   LUÔN TRỐNG ở 100% dòng (đã xác nhận: số dòng trống = tổng số dòng bảng).
-   COSTPRICE là bảng giá vốn DÙNG CHUNG toàn hệ thống (1 giá/SKU/tháng,
-   KHÔNG theo từng chi nhánh) — nếu JOIN theo cả `STK_ID` (như bản gốc từng
-   giả định) thì KHÔNG BAO GIỜ khớp, khiến giá vốn luôn = 0 và "Lãi gộp"
-   luôn bằng đúng doanh thu (sai, nhưng KHÔNG báo lỗi gì). Cả 2 script trên
-   đã sửa: JOIN COSTPRICE CHỈ theo `SKU_ID + MEC_YM`, KHÔNG có `STK_ID`.
+3. **Phát hiện thêm, ĐÍNH CHÍNH bản trước**: `COSTPRICE.STK_ID` LUÔN TRỐNG
+   ở 100% dòng (đã xác nhận: số dòng trống = tổng số dòng bảng) — nếu JOIN
+   theo cả `STK_ID` (như bản gốc từng giả định) thì KHÔNG BAO GIỜ khớp.
+   NHƯNG COSTPRICE **KHÔNG PHẢI** "dùng chung toàn hệ thống" như bản trước
+   ghi nhầm — `COSTPRICE.NODE_ID` mới là cột giữ giá vốn RIÊNG theo từng mã
+   Điểm (đã xác nhận bằng dữ liệu thật: 1 SKU/1 tháng có tới ~38 dòng, mỗi
+   dòng ứng với 1 `NODE_ID` — đúng số mã Điểm đang hoạt động — khác nhau,
+   `COSTPRICE` chênh lệch nhẹ giữa các dòng, KHÔNG phải dữ liệu trùng lặp
+   copy-paste). JOIN CHỈ theo `SKU_ID + MEC_YM` như 2 script ở trên TỪNG
+   VIẾT (thiếu `NODE_ID`) khiến 1 dòng giao dịch khớp với TẤT CẢ ~38 dòng
+   giá vốn của mọi mã Điểm khác nhau — nhân dòng, `SUM(AMOUNT)` ở "doanhThu"
+   và "laiGop" bị cộng dồn sai lệch hàng chục lần (đã phát hiện qua số liệu
+   báo cáo thật lệch 28–115 lần giữa "Thực đạt" và "Cùng kỳ năm trước" ở
+   HẦU HẾT các mã Điểm). **2 script ở trên đã sửa đúng**: JOIN COSTPRICE
+   theo `SKU_ID + MEC_YM + NODE_ID` (nối `NODE_ID` qua `STOCK.NODE_ID`, đã
+   JOIN sẵn theo `STK_ID`).
+
+> **Đã tạo VIEW theo bản CŨ (thiếu `NODE_ID`) trước phiên bản 7.6** — VIEW
+> đang chạy sai, "Thực đạt" doanh thu bị thổi phồng hàng chục lần. Chạy lại
+> NGUYÊN VĂN đúng đoạn `CREATE OR ALTER VIEW`/stored procedure ở Script A
+> và Script B phía trên (an toàn chạy lại nhiều lần, không mất dữ liệu vì
+> đây là VIEW, không phải bảng) — không cần làm gì thêm, không cần đồng bộ
+> lại ETL, lần đồng bộ tiếp theo sẽ tự đọc đúng số liệu mới.
 
 ---
 
