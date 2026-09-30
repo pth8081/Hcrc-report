@@ -37,6 +37,10 @@ export default function DataSourcesPage() {
   const [importFile, setImportFile] = useState(null);
   const [importResult, setImportResult] = useState(null);
   const [importError, setImportError] = useState('');
+  const [encImportFile, setEncImportFile] = useState(null);
+  const [encImportResult, setEncImportResult] = useState(null);
+  const [encImportError, setEncImportError] = useState('');
+  const [exportError, setExportError] = useState('');
   const [editing, setEditing] = useState(null); // { ...source, password: '' } đang sửa, hoặc null
 
   function reload() {
@@ -59,6 +63,33 @@ export default function DataSourcesPage() {
       reload();
     } catch (err) {
       setImportError(err.message);
+    }
+  }
+
+  async function exportEncrypted() {
+    setExportError('');
+    try {
+      await api.downloadFile('/data-sources/export', 'nguon-du-lieu.hcrcenc');
+    } catch (err) {
+      setExportError(err.message);
+    }
+  }
+
+  async function submitImportEncrypted(e) {
+    e.preventDefault();
+    setEncImportError('');
+    setEncImportResult(null);
+    if (!encImportFile) return setEncImportError('Chọn file .hcrcenc trước');
+
+    const formData = new FormData();
+    formData.append('file', encImportFile);
+    try {
+      const result = await api.post('/data-sources/import-encrypted', formData, true);
+      setEncImportResult(result);
+      setEncImportFile(null);
+      reload();
+    } catch (err) {
+      setEncImportError(err.message);
     }
   }
 
@@ -217,6 +248,29 @@ export default function DataSourcesPage() {
                 </>
               )}
             </div>
+          )}
+
+          <h2>Xuất / Nhập file mã hoá</h2>
+          <p>
+            Khác Nhập hàng loạt ở trên (file Excel đọc được, chứa mật khẩu thật) — mục này
+            xuất/nhập TOÀN BỘ danh sách nguồn dưới dạng 1 file <strong>mã hoá</strong>{' '}
+            (<code>.hcrcenc</code>), không mở được bằng Excel hay bất kỳ công cụ nào khác —
+            chỉ chính hệ thống này giải mã lại được. Dùng để sao lưu/di chuyển cấu hình kết
+            nối nhiều chi nhánh mà không lộ mật khẩu thật ở bất kỳ bước nào — an toàn hơn
+            khi cần lưu file lại hoặc gửi qua nơi khác.
+          </p>
+          {exportError && <p className="form-error">{exportError}</p>}
+          <div className="inline-actions">
+            <button type="button" onClick={exportEncrypted}>Xuất file mã hoá</button>
+          </div>
+
+          {encImportError && <p className="form-error">{encImportError}</p>}
+          <form className="stacked-form" onSubmit={submitImportEncrypted}>
+            <input type="file" accept=".hcrcenc" onChange={(e) => setEncImportFile(e.target.files?.[0] ?? null)} required />
+            <button type="submit">Nhập file mã hoá</button>
+          </form>
+          {encImportResult && (
+            <p>✅ Đã thêm mới {encImportResult.inserted}, cập nhật {encImportResult.updated} dòng.</p>
           )}
         </>
       )}

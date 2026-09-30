@@ -1,10 +1,14 @@
-// scripts/seedLdtdHcrcReports.js — Tạo/CẬP NHẬT idempotent 2 báo cáo
-// "Báo cáo nhanh doanh thu - Lãnh đạo Tập đoàn" (bc-doanh-thu-ldtd) và
-// "- HCRC" (bc-doanh-thu-hcrc) trong app.ReportCatalog — thay cho việc dán
-// tay DefinitionJson qua rp-user (Hệ thống → Biểu mẫu). Xem đầy đủ giải
-// thích ở "báo cáo doanh thu cuối ngày.md" (Bước 4) và hướng_dẫn_báo_cáo.md
-// mục 15. Chạy LẠI file này an toàn — khớp theo ReportId để UPDATE
-// DefinitionJson thay vì tạo trùng.
+// scripts/seedLdtdHcrcReports.js — Tạo/CẬP NHẬT idempotent 4 báo cáo
+// "Báo cáo nhanh doanh thu" trong app.ReportCatalog — thay cho việc dán tay
+// DefinitionJson qua rp-user (Hệ thống → Biểu mẫu):
+//   bc-doanh-thu-ldtd / bc-doanh-thu-hcrc — bản GỐC, đọc tập trung tại
+//     trung tâm (xem "báo cáo doanh thu cuối ngày.md" Bước 4).
+//   bc-doanh-thu-ldtd-thanh-vien / bc-doanh-thu-hcrc-thanh-vien — bản
+//     "Thành viên" (bản 8.13), NỘI DUNG giống hệt bản gốc, chỉ khác domain
+//     Doanh thu/Giao dịch (đọc Live trực tiếp từng cửa hàng — xem "báo cáo
+//     doanh thu thành viên.md").
+// Xem thêm hướng_dẫn_báo_cáo.md mục 15. Chạy LẠI file này an toàn — khớp
+// theo ReportId để UPDATE DefinitionJson thay vì tạo trùng.
 //
 // CHƯA gán quyền xem (Hệ thống → Phân quyền) — đó là quyết định "ai được
 // xem" tuỳ tổ chức, cố ý ĐỂ NGUYÊN cho admin tự làm ở Bước 5 (giao diện),
@@ -12,12 +16,19 @@
 //
 // Cách dùng:
 //   node scripts/seedLdtdHcrcReports.js [menuCode]
-// menuCode (tuỳ chọn) — Code trong app.MenuItems để gán 2 báo cáo vào,
+// menuCode (tuỳ chọn) — Code trong app.MenuItems để gán 4 báo cáo vào,
 // mặc định "reports-kinh-doanh" (đã seed sẵn trong rp-db/schema.sql).
 require('dotenv').config();
 const { sql, getPool } = require('../db');
 
-const DOMAIN = 'doanhthu_chinhanh';
+// 2 cặp domain doanh thu/giao dịch — "gốc" (đọc tập trung tại trung tâm,
+// STRANS/STRANS_YYYYMM qua ETL) và "Thành viên" (bản 8.13 — phần Live đọc
+// TRỰC TIẾP từng cửa hàng, phần Lịch sử vẫn tập trung, xem "báo cáo doanh
+// thu thành viên.md"). buildDefinition() nhận domain làm THAM SỐ (KHÔNG còn
+// đóng cứng hằng số DOMAIN như trước bản 8.13) để REPORTS bên dưới tái dùng
+// ĐÚNG 1 hàm cho cả 4 báo cáo thay vì chép lại logic.
+const DOMAIN_GOC = { revenue: 'doanhthu_chinhanh', transaction: 'giaodich_chinhanh' };
+const DOMAIN_THANH_VIEN = { revenue: 'doanhthu_chinhanh_thanhvien', transaction: 'giaodich_chinhanh_thanhvien' };
 
 // Cột dùng chung cho cả 2 báo cáo — chỉ khác `targetDomain` của khối
 // `target` (mỗi bên đọc đúng 1 trong 2 domain chỉ tiêu đã khoá cứng ở
@@ -35,12 +46,13 @@ const DOMAIN = 'doanhthu_chinhanh';
 //                     theo đúng quy tắc đặt tên nội bộ, không liên quan
 //                     gì tới title/exportTitle ở trên.
 const EXPORT_TITLE = 'Hệ thống siêu thị BRGMART - Báo cáo nhanh doanh thu ngày {ngayBaoCao}';
-function buildDefinition(title, targetDomain, exportFileCode) {
+function buildDefinition(title, targetDomain, exportFileCode, domains) {
+  const { revenue: revenueDomain, transaction: transactionDomain } = domains;
   return {
     title,
     exportTitle: EXPORT_TITLE,
     exportFileCode,
-    domain: DOMAIN,
+    domain: revenueDomain,
     filters: [
       // type: 'dateRange' (trước là 'date', chỉ chọn được 1 ngày) — chọn 1
       // ngày (from=to) hoặc nhiều ngày liên tiếp để xem tổng cộng dồn, xem
@@ -98,10 +110,10 @@ function buildDefinition(title, targetDomain, exportFileCode) {
       // requireStkStability: true tự loại đúng những mã Điểm này khỏi khối
       // lastYearGD dựa vào "Ánh xạ Điểm - STK_ID" (MaStkCu khác MaStkMoi ->
       // loại), xem lib/compositeReportRunner.js.
-      { key: 'current', sourceType: 'directDb', domain: DOMAIN, useDiemStkMapping: true },
-      { key: 'currentGD', sourceType: 'directDb', domain: 'giaodich_chinhanh', mapBuIdToMaDiem: true },
-      { key: 'lastYear', sourceType: 'directDb', domain: DOMAIN, dateOffsetYears: -1, useDiemStkMapping: true, skipWhen: { field: 'cheDoSoSanh', equals: 'past' } },
-      { key: 'lastYearGD', sourceType: 'directDb', domain: 'giaodich_chinhanh', dateOffsetYears: -1, mapBuIdToMaDiem: true, requireStkStability: true, skipWhen: { field: 'cheDoSoSanh', equals: 'past' } },
+      { key: 'current', sourceType: 'directDb', domain: revenueDomain, useDiemStkMapping: true },
+      { key: 'currentGD', sourceType: 'directDb', domain: transactionDomain, mapBuIdToMaDiem: true },
+      { key: 'lastYear', sourceType: 'directDb', domain: revenueDomain, dateOffsetYears: -1, useDiemStkMapping: true, skipWhen: { field: 'cheDoSoSanh', equals: 'past' } },
+      { key: 'lastYearGD', sourceType: 'directDb', domain: transactionDomain, dateOffsetYears: -1, mapBuIdToMaDiem: true, requireStkStability: true, skipWhen: { field: 'cheDoSoSanh', equals: 'past' } },
       // targetGranularity: 'day' — 2 mẫu file chỉ tiêu thật (LDTD/HCRC) đều
       // là chỉ tiêu THEO NGÀY (xem etl/lib/salesTargetsImport.js), không
       // phải chỉ tiêu tháng chia đều — tra đúng ngày báo cáo thay vì gộp cả
@@ -181,20 +193,30 @@ function buildDefinition(title, targetDomain, exportFileCode) {
 // exportFileCode — mã cố định ghép tên file tải xuống, theo ĐÚNG quy tắc
 // người dùng cung cấp: HCRC = "BCDTHCRC-ddmmyyyy" (ĐÍNH CHÍNH bản 8.7 — mã
 // cũ "BCDTRC" sai), LDTD = "BCDDTLDTD-ddmmyyyy".
+// 2 báo cáo "(Thành viên)" (bản 8.13) — NỘI DUNG giống hệt 2 báo cáo gốc ở
+// trên (cùng cột/công thức/nhóm — dùng CHUNG buildDefinition(), CHUNG domain
+// chỉ tiêu sales-targets-*/ánh xạ điểm, KHÔNG tạo thêm luồng upload riêng
+// nào — theo đúng yêu cầu người dùng), CHỈ khác domain Doanh thu/Giao dịch
+// (DOMAIN_THANH_VIEN — phần Live đọc trực tiếp từng cửa hàng "Thành viên"
+// thay vì qua CSDL trung tâm, xem "báo cáo doanh thu thành viên.md").
+// exportFileCode thêm hậu tố "TV" — TỰ CHỌN (không phải quy tắc người dùng
+// cung cấp như 2 mã gốc), đổi lại dễ nếu người dùng muốn mã khác.
 const REPORTS = [
-  { reportId: 'bc-doanh-thu-ldtd', title: 'Báo cáo doanh thu cuối ngày LDTD', targetDomain: 'sales-targets-ldtd', exportFileCode: 'BCDDTLDTD' },
-  { reportId: 'bc-doanh-thu-hcrc', title: 'Báo cáo doanh thu cuối ngày HCRC', targetDomain: 'sales-targets-hcrc', exportFileCode: 'BCDTHCRC' }
+  { reportId: 'bc-doanh-thu-ldtd', title: 'Báo cáo doanh thu cuối ngày LDTD', targetDomain: 'sales-targets-ldtd', exportFileCode: 'BCDDTLDTD', domains: DOMAIN_GOC },
+  { reportId: 'bc-doanh-thu-hcrc', title: 'Báo cáo doanh thu cuối ngày HCRC', targetDomain: 'sales-targets-hcrc', exportFileCode: 'BCDTHCRC', domains: DOMAIN_GOC },
+  { reportId: 'bc-doanh-thu-ldtd-thanh-vien', title: 'Báo cáo doanh thu cuối ngày LDTD (Thành viên)', targetDomain: 'sales-targets-ldtd', exportFileCode: 'BCDDTLDTDTV', domains: DOMAIN_THANH_VIEN },
+  { reportId: 'bc-doanh-thu-hcrc-thanh-vien', title: 'Báo cáo doanh thu cuối ngày HCRC (Thành viên)', targetDomain: 'sales-targets-hcrc', exportFileCode: 'BCDTHCRCTV', domains: DOMAIN_THANH_VIEN }
 ];
 
-async function upsertReport(pool, menuItemId, { reportId, title, targetDomain, exportFileCode }) {
-  const definitionJson = JSON.stringify(buildDefinition(title, targetDomain, exportFileCode));
+async function upsertReport(pool, menuItemId, { reportId, title, targetDomain, exportFileCode, domains }) {
+  const definitionJson = JSON.stringify(buildDefinition(title, targetDomain, exportFileCode, domains));
   const existing = await pool.request().input('reportId', sql.VarChar(80), reportId)
     .query('SELECT ReportId FROM app.ReportCatalog WHERE ReportId = @reportId');
   if (existing.recordset.length) {
     await pool.request()
       .input('reportId', sql.VarChar(80), reportId)
       .input('title', sql.NVarChar(200), title)
-      .input('domain', sql.VarChar(50), DOMAIN)
+      .input('domain', sql.VarChar(50), domains.revenue)
       .input('menuItemId', sql.Int, menuItemId)
       .input('definitionJson', sql.NVarChar(sql.MAX), definitionJson)
       .query(`
@@ -210,7 +232,7 @@ async function upsertReport(pool, menuItemId, { reportId, title, targetDomain, e
   await pool.request()
     .input('reportId', sql.VarChar(80), reportId)
     .input('title', sql.NVarChar(200), title)
-    .input('domain', sql.VarChar(50), DOMAIN)
+    .input('domain', sql.VarChar(50), domains.revenue)
     .input('menuItemId', sql.Int, menuItemId)
     .input('definitionJson', sql.NVarChar(sql.MAX), definitionJson)
     .query(`
@@ -237,9 +259,9 @@ async function main() {
   }
 
   console.log('');
-  console.log('✅ Xong — 2 báo cáo đã sẵn sàng. NHỚ vào Hệ thống → Phân quyền gán quyền xem');
-  console.log('   cho đúng vai trò (Lãnh đạo Tập đoàn xem bc-doanh-thu-ldtd, HCRC xem bc-doanh-thu-hcrc)');
-  console.log('   — script này KHÔNG tự gán quyền.');
+  console.log('✅ Xong — 4 báo cáo đã sẵn sàng. NHỚ vào Hệ thống → Phân quyền gán quyền xem');
+  console.log('   cho đúng vai trò (Lãnh đạo Tập đoàn xem 2 báo cáo ldtd, HCRC xem 2 báo cáo hcrc,');
+  console.log('   kể cả bản gốc lẫn bản "Thành viên") — script này KHÔNG tự gán quyền.');
   process.exit(0);
 }
 

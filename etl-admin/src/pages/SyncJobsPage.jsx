@@ -44,6 +44,9 @@ export default function SyncJobsPage() {
   const [editingJob, setEditingJob] = useState(null);
   const [editForm, setEditForm] = useState(null);
   const [editColumns, setEditColumns] = useState([]);
+  const [importFile, setImportFile] = useState(null);
+  const [importResult, setImportResult] = useState(null);
+  const [importError, setImportError] = useState('');
 
   function openEdit(job) {
     setEditingJob(job);
@@ -172,6 +175,24 @@ export default function SyncJobsPage() {
       await api.del(`/sync-jobs/${job.Id}`);
       reload();
     } catch (err) { setError(err.message); }
+  }
+
+  async function submitImport(e) {
+    e.preventDefault();
+    setImportError('');
+    setImportResult(null);
+    if (!importFile) return setImportError('Chọn file .xlsx trước');
+
+    const formData = new FormData();
+    formData.append('file', importFile);
+    try {
+      const result = await api.post('/sync-jobs/import', formData, true);
+      setImportResult(result);
+      setImportFile(null);
+      reload();
+    } catch (err) {
+      setImportError(err.message);
+    }
   }
 
   return (
@@ -346,6 +367,43 @@ export default function SyncJobsPage() {
             </label>
             <button type="submit">Tạo job đồng bộ</button>
           </form>
+
+          <h3>Nhập hàng loạt</h3>
+          <p>
+            Tải lên file Excel (.xlsx) để tạo/sửa NHIỀU job cùng lúc — dùng khi nhiều nguồn
+            dữ liệu (vd nhiều chi nhánh) cần job đọc CÙNG 1 bảng/view/cấu hình cột, chỉ khác
+            nguồn. CHỈ áp dụng job Loại "Theo bảng" (job "Tuỳ biến" tạo qua form ở trên). Dòng
+            1 là header, cột bắt buộc: <code>Name</code>, <code>DataSourceName</code> (đúng
+            Tên nguồn dữ liệu đã có), <code>TargetDomain</code>, <code>SourceSchema</code>,{' '}
+            <code>SourceTable</code>, <code>KeyColumn</code>, <code>DateColumn</code>,{' '}
+            <code>UpdatedAtColumn</code>. Cột tuỳ chọn: <code>DimensionColumns</code>,{' '}
+            <code>MeasureColumns</code> (nhiều cột cách nhau bằng dấu phẩy), <code>CronExpression</code>{' '}
+            (mặc định <code>*/15 * * * *</code>), <code>KeepHistory</code>, <code>IsActive</code>{' '}
+            (để trống dùng mặc định).
+          </p>
+          <p>
+            Khoá để CẬP NHẬT thay vì tạo trùng là <code>Name</code>. Job đã có nhưng khác{' '}
+            <code>DataSourceName</code>/<code>SourceSchema</code>/<code>SourceTable</code> với
+            dòng Excel bị BÁO LỖI, KHÔNG tự đổi (đúng quy tắc Sửa job hiện có — đổi nguồn/bảng
+            nguồn phải xoá job cũ, tạo job mới). Mỗi dòng được đối chiếu với schema THẬT của
+            nguồn (gọi mạng) trước khi ghi, nên có thể mất vài giây/dòng với file nhiều dòng.
+          </p>
+          {importError && <p className="form-error">{importError}</p>}
+          <form className="stacked-form" onSubmit={submitImport}>
+            <input type="file" accept=".xlsx" onChange={(e) => setImportFile(e.target.files?.[0] ?? null)} required />
+            <button type="submit">Nhập hàng loạt</button>
+          </form>
+          {importResult && (
+            <div>
+              <p>✅ Đã thêm mới {importResult.inserted}, cập nhật {importResult.updated} dòng.</p>
+              {importResult.rowErrors?.length > 0 && (
+                <>
+                  <p>⚠️ {importResult.rowErrors.length} dòng bị bỏ qua:</p>
+                  <ul>{importResult.rowErrors.map((e, i) => <li key={i}>{e}</li>)}</ul>
+                </>
+              )}
+            </div>
+          )}
         </>
       )}
 

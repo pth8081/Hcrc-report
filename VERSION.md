@@ -20,6 +20,56 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 8.13 — Báo cáo doanh thu "Thành viên" — Live đọc trực tiếp từng cửa hàng (35 CSDL)
+
+Yêu cầu mới: 35 siêu thị/cửa hàng "Thành viên" mỗi nơi chạy CSDL DSMART16
+RIÊNG — cần 2 báo cáo mới đọc Doanh thu/Giao dịch Live TRỰC TIẾP từng cửa
+hàng (không qua bước tổng hợp về CSDL trung tâm như 2 báo cáo gốc), trong
+khi phần Lịch sử ("Cùng kỳ năm trước") vẫn giữ tập trung tại trung tâm.
+Kiến trúc đã cân nhắc và LOẠI phương án "đọc thẳng VIEW mỗi lần xem báo
+cáo" (rp-server phải mở kết nối trực tiếp 35 CSDL bán hàng thật mỗi request
+— rủi ro tải/tốc độ/bảo mật) — giữ nguyên mô hình qua `dwh.ReportFacts`
+như mọi domain khác, chỉ rút ngắn chu kỳ đồng bộ Live xuống `*/2 * * * *`
+cho riêng domain này. Xem đầy đủ ở "báo cáo doanh thu thành viên.md" (mới).
+
+- 2 domain mới `doanhthu_chinhanh_thanhvien`/`giaodich_chinhanh_thanhvien`
+  — cơ chế ETL sẵn có (N Nguồn dữ liệu → 1 Domain, gộp qua
+  `(SourceSystem, Domain, EntityCode, EventDate)`) áp dụng thẳng, không cần
+  sửa lõi `tableSyncEngine.js`/`compositeReportRunner.js`.
+- **Sync Job giờ có Nhập hàng loạt** (`etl/lib/syncJobsImport.js`, route
+  `POST /admin/sync-jobs/import`, UI ở `SyncJobsPage.jsx`) — trước bản này
+  chỉ `etl.DataSources` có tính năng này. Tạo/sửa hàng loạt job Type='table'
+  qua Excel, mỗi dòng vẫn được đối chiếu schema THẬT của nguồn (như tạo qua
+  form) trước khi ghi — job đã có nhưng khác Nguồn dữ liệu/bảng nguồn với
+  dòng Excel bị BÁO LỖI thay vì tự đổi (đúng quy tắc Sửa job đã có).
+  `assertTableConfigMatchesSchema`/`validateTableJobSchema` tách ra
+  `etl/lib/syncJobSchemaValidation.js` dùng chung giữa form và Nhập hàng
+  loạt (trước đó chỉ định nghĩa trong `routes/admin/syncJobs.js`).
+- **Xuất/Nhập file MÃ HOÁ cho Nguồn dữ liệu** (`etl/lib/dataSourcesEncryptedExport.js`,
+  route `GET /admin/data-sources/export` + `POST /admin/data-sources/import-encrypted`,
+  tách riêng khỏi `POST /import` Excel-plaintext đã có) — file `.hcrcenc`
+  KHÔNG mở được bằng công cụ nào ngoài chính hệ thống (mã hoá cả khối bằng
+  `ETL_ENCRYPTION_KEY`, tái dùng `lib/crypto.js` nên tự động thừa hưởng cơ
+  chế xoay khoá đã có). Mật khẩu giữ NGUYÊN dạng ciphertext đã có trong
+  CSDL khi xuất/nhập — không giải mã rồi mã hoá lại, không có thời điểm nào
+  mật khẩu tồn tại dạng chữ thường ngoài CSDL gốc.
+- `etl/scripts/seedThanhVienHistorySync.js` (mới) — tạo 2 Sync Job "Lịch sử
+  (Thành viên)" tái dùng NGUYÊN VẸN Nguồn dữ liệu "DSMART16 - Lịch sử" +
+  VIEW Script B đã có (không sửa gì ở CSDL trung tâm).
+- `rp-server/scripts/seedLdtdHcrcReports.js` — `buildDefinition()` viết lại
+  để nhận domain Doanh thu/Giao dịch làm THAM SỐ (trước đóng cứng hằng số),
+  thêm 2 báo cáo `bc-doanh-thu-ldtd-thanh-vien`/`bc-doanh-thu-hcrc-thanh-vien`
+  — NỘI DUNG giống hệt 2 báo cáo gốc (dùng chung domain chỉ tiêu
+  `sales-targets-*` và bảng "Ánh xạ Điểm - STK_ID" hiện có, KHÔNG tạo thêm
+  luồng upload nào — theo đúng yêu cầu người dùng), chỉ khác domain Doanh
+  thu/Giao dịch. Script giờ tạo/cập nhật CẢ 4 báo cáo trong 1 lượt chạy.
+- CÒN MỞ (ghi rõ trong "báo cáo doanh thu thành viên.md"): giả định
+  `STK_ID`/`BU_ID` tại VIEW mỗi cửa hàng trùng mã đã khai trong "Ánh xạ
+  Điểm - STK_ID" — cần DBA/IT xác nhận; watermark `UpdatedAtColumn =
+  DateColumn` cho job Live "Thành viên" (giống 2 báo cáo gốc) nghĩa là sửa
+  công thức VIEW sau này sẽ cần script resync riêng (như đợt bản 8.5), chưa
+  viết trước vì chưa cần.
+
 ## 8.12 — Script B (Lịch sử): đổi hẳn sang `SURPLUS`/`TRANS_CODE`, giải quyết "Lãi gộp lịch sử sai" từ bản 8.1
 
 Bản 8.10 mới sửa Script A (Live, CSDL `DSMART16`) sang công thức

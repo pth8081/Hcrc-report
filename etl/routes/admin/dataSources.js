@@ -26,6 +26,7 @@ const { encrypt, decrypt } = require('../../lib/crypto');
 const { invalidate, testConnection, testConnectionsBatch } = require('../../lib/dataSourcePool');
 const schemaBrowser = require('../../lib/schemaBrowser');
 const { parseDataSourcesFile, upsertDataSources } = require('../../lib/dataSourcesImport');
+const { exportDataSourcesEncrypted, importDataSourcesEncrypted, MAGIC_HEADER } = require('../../lib/dataSourcesEncryptedExport');
 const { summarizeSourceSyncStatus } = require('../../lib/syncStatus');
 const { logAction } = require('../../lib/auditLog');
 const { hasZipSignature } = require('../../lib/fileSignature');
@@ -52,6 +53,18 @@ const upload = multer({
   fileFilter: (req, file, cb) => {
     const ok = /\.xlsx$/i.test(file.originalname);
     cb(ok ? null : new Error('Chỉ nhận file .xlsx'), ok);
+  }
+});
+
+// Multer RIÊNG cho file xuất mã hoá (.hcrcenc) — KHÔNG dùng chung `upload`
+// ở trên (chỉ nhận .xlsx) vì đây không phải file Excel, không mở được bằng
+// công cụ nào ngoài chính ETL — xem lib/dataSourcesEncryptedExport.js.
+const uploadEncrypted = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const ok = /\.hcrcenc$/i.test(file.originalname);
+    cb(ok ? null : new Error('Chỉ nhận file .hcrcenc (file do chính chức năng "Xuất file" tạo ra)'), ok);
   }
 });
 
@@ -221,6 +234,46 @@ router.post('/import', requireMenuEdit('data-sources'), upload.single('file'), a
 
     await logAction(req, { module: 'Nguồn dữ liệu', actionType: 'NHAP_HANG_LOAT', description: `Nhập hàng loạt: thêm mới ${result.inserted}, cập nhật ${result.updated} nguồn` });
     res.json({ inserted: result.inserted, updated: result.updated, rowErrors, connectionResults });
+  } catch (err) { next(err); }
+});
+
+// Xuất TOÀN BỘ Nguồn dữ liệu ra 1 file MÃ HOÁ (.hcrcenc) — xem
+// lib/dataSourcesEncryptedExport.js. requireMenuEdit (không chỉ
+// requireMenuAccess như GET / phía trên) vì file này chứa PasswordEncrypted
+// (mật khẩu đã mã hoá, nhưng vẫn là bí mật thật) — GET / hiện tại KHÔNG BAO
+// GIỜ trả trường này, nên siết chặt hơn cho endpoint mới này.
+router.get('/export', requireMenuEdit('data-sources'), async (req, res, next) => {
+  try {
+    const pool = await getPool('ADMIN');
+    const buffer = await exportDataSourcesEncrypted(pool);
+    const stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\..+/, '').replace('T', '-');
+    await logAction(req, { module: 'Nguồn dữ liệu', actionType: 'XUAT_MA_HOA', description: `Xuất file mã hoá ${buffer.length} byte` });
+    res.setHeader('Content-Type', 'application/octet-stream');
+    res.setHeader('Content-Disposition', `attachment; filename="nguon-du-lieu-${stamp}.hcrcenc"`);
+    res.send(buffer);
+  } catch (err) { next(err); }
+});
+
+// Nhập lại file mã hoá — TÁCH RIÊNG với POST /import (Excel plaintext) để
+// không lẫn 2 luồng an toàn khác nhau (xem đầu lib/dataSourcesEncryptedExport.js).
+router.post('/import-encrypted', requireMenuEdit('data-sources'), uploadEncrypted.single('file'), async (req, res, next) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'Thiếu file' });
+    if (!req.file.buffer.toString('utf8', 0, MAGIC_HEADER.length + 1).startsWith(MAGIC_HEADER)) {
+      return res.status(400).json({ error: 'File không đúng định dạng xuất mã hoá của hệ thống' });
+    }
+
+    const pool = await getPool('ADMIN');
+    let result;
+    try {
+      result = await importDataSourcesEncrypted(pool, req.file.buffer);
+    } catch (err) {
+      return res.status(400).json({ error: err.message });
+    }
+    await Promise.all(result.ids.map(id => invalidate(id)));
+
+    await logAction(req, { module: 'Nguồn dữ liệu', actionType: 'NHAP_MA_HOA', description: `Nhập file mã hoá: thêm mới ${result.inserted}, cập nhật ${result.updated} nguồn` });
+    res.json({ inserted: result.inserted, updated: result.updated });
   } catch (err) { next(err); }
 });
 
