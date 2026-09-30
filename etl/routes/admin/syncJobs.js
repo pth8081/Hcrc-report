@@ -21,7 +21,8 @@ const { requireMenuAccess, requireMenuEdit } = require('../../lib/adminPermissio
 const sourcesRegistry = require('../../sources');
 const { rescheduleJob, runJobIfNotAlreadyRunning } = require('../../jobs/scheduler');
 const { assertTableConfigMatchesSchema, validateTableJobSchema } = require('../../lib/syncJobSchemaValidation');
-const { parseSyncJobsFile, upsertSyncJobs } = require('../../lib/syncJobsImport');
+const { parseSyncJobsFile, upsertSyncJobs, buildSyncJobsTemplate } = require('../../lib/syncJobsImport');
+const { sendXlsx } = require('../../lib/xlsxResponse');
 const { logAction } = require('../../lib/auditLog');
 const multer = require('multer');
 const { hasZipSignature } = require('../../lib/fileSignature');
@@ -56,6 +57,15 @@ router.get('/', requireMenuAccess('sync-jobs'), async (req, res, next) => {
 // Danh sách connector "tuỳ biến" có sẵn trong code — dùng khi tạo job Type='custom'.
 router.get('/custom-connectors', requireMenuAccess('sync-jobs'), (req, res) => {
   res.json(sourcesRegistry.map(s => ({ key: s.key, label: s.label, domain: s.domain })));
+});
+
+// Tải "file mẫu" — 2 dòng ví dụ sẵn đúng khuôn báo cáo doanh thu Thành
+// viên (xem chú thích buildSyncJobsTemplate() trong lib/syncJobsImport.js).
+router.get('/template', requireMenuAccess('sync-jobs'), async (req, res, next) => {
+  try {
+    const buffer = await buildSyncJobsTemplate();
+    sendXlsx(res, buffer, 'mau-sync-jobs.xlsx');
+  } catch (err) { next(err); }
 });
 
 // Tạo/cập nhật hàng loạt qua file Excel — xem chú thích đầu lib/syncJobsImport.js.

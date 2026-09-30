@@ -26,6 +26,21 @@ const { sql } = require('../db');
 const { encrypt } = require('./crypto');
 const { guardZipBombSize } = require('./fileSignature');
 
+// Mã "VIDU" (không khớp Nguồn dữ liệu thật nào) — XOÁ trước khi nhập, ghi
+// rõ trong dòng ghi chú để tránh nhập nhầm dòng ví dụ. KHÔNG điền cột
+// "Password" bằng mật khẩu thật ở đây — đây là file MẪU, để trống/placeholder
+// để tránh vô tình copy mật khẩu thật vào chỗ khác khi dùng làm mẫu.
+async function buildDataSourcesTemplate() {
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet('Nguon du lieu');
+  sheet.addRow(['XOÁ dòng ví dụ (mã "VIDU") trước khi nhập — "Password" điền mật khẩu THẬT dạng chữ thường (không mã hoá), chỉ mã hoá SAU khi tải lên. Xoá file khỏi máy sau khi nhập xong.']);
+  const headerRow = sheet.addRow(['Name', 'Server', 'DatabaseName', 'Username', 'Password', 'Engine', 'Port', 'Encrypt', 'TrustServerCert']);
+  headerRow.font = { bold: true };
+  sheet.addRow(['DSMART16 - VIDU', '10.20.1.99', 'DSMART16', 'etl_reader', 'mat-khau-that', 'mssql', 1433, 'TRUE', 'FALSE']);
+  sheet.columns.forEach((col) => { col.width = 22; });
+  return workbook.xlsx.writeBuffer();
+}
+
 const REQUIRED_HEADERS = ['Name', 'Server', 'DatabaseName', 'Username', 'Password'];
 const ENGINE_VALUES = ['mssql', 'mysql'];
 const BOOL_TRUE_VALUES = ['true', '1', 'yes', 'có', 'x'];
@@ -212,4 +227,4 @@ async function upsertDataSourcesChunk(pool, rows) {
   }
 }
 
-module.exports = { parseDataSourcesFile, upsertDataSources, REQUIRED_HEADERS, ENGINE_VALUES };
+module.exports = { parseDataSourcesFile, upsertDataSources, buildDataSourcesTemplate, REQUIRED_HEADERS, ENGINE_VALUES };

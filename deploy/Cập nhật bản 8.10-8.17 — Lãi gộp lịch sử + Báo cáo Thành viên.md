@@ -1,15 +1,16 @@
-# Hướng dẫn cập nhật hệ thống từ bản 8.10 lên bản 8.15
+# Hướng dẫn cập nhật hệ thống từ bản 8.10 lên bản 8.17
 
 Gửi IT/DBA thực hiện đúng theo thứ tự bên dưới. File này CHỈ nói về việc
 **đưa code đã có sẵn trong Git lên máy chủ đang chạy thật** — không giải
-thích tính năng (xem `VERSION.md` mục 8.11-8.15 trong mã nguồn nếu cần biết
+thích tính năng (xem `VERSION.md` mục 8.11-8.17 trong mã nguồn nếu cần biết
 chi tiết từng thay đổi).
 
 Đợt cập nhật này gồm: cố định tiêu đề/2 cột đầu khi cuộn bảng báo cáo web
 (8.11), sửa "Lãi gộp" dữ liệu LỊCH SỬ (Cùng kỳ năm trước) sang đúng công
 thức `SURPLUS`/`TRANS_CODE` — cùng đợt sửa đã áp dụng cho dữ liệu Live ở
-bản 8.10 (8.12), và tính năng MỚI "Báo cáo doanh thu Thành viên" — đọc Live
-trực tiếp từ 35 cửa hàng thay vì qua CSDL trung tâm (8.13-8.15).
+bản 8.10 (8.12), tính năng MỚI "Báo cáo doanh thu Thành viên" — đọc Live
+trực tiếp từ 35 cửa hàng thay vì qua CSDL trung tâm (8.13-8.15), và thêm nút
+"Tải file mẫu" cho 2 trang Nhập hàng loạt mới (8.17).
 
 **Đã XÁC NHẬN không đổi cấu trúc CSDL nào ở đợt này** (`etl-db/schema.sql`,
 `rp-db/schema.sql`, `dwh/schema.sql`, `api-db/schema.sql` — không file nào
@@ -49,9 +50,10 @@ triển khai ban đầu (xem `deploy/Hướng dẫn triển khai PM2.md` mục 7
 ## Bước 3 — Restart backend Node
 
 Chỉ **`etl` có đổi code chạy nền** ở đợt này (route mới cho Nhập hàng loạt
-Sync Job + Xuất/Nhập file mã hoá Nguồn dữ liệu). `rp-server`/`api-server`
-KHÔNG đổi code chạy nền (chỉ thêm/sửa SCRIPT chạy tay ở Bước 7/8, không
-phải route server) — restart cũng không hại gì nếu muốn làm cho đồng bộ:
+Sync Job + Xuất/Nhập file mã hoá Nguồn dữ liệu + "Tải file mẫu"). `rp-server`/
+`api-server` KHÔNG đổi code chạy nền (chỉ thêm/sửa SCRIPT chạy tay ở Bước
+7/8, không phải route server) — restart cũng không hại gì nếu muốn làm cho
+đồng bộ:
 
 ```bash
 pm2 restart etl
@@ -141,7 +143,10 @@ node scripts/seedThanhVienLiveSync.js
 ```
 An toàn chạy lại nhiều lần — cửa hàng chưa sửa xong/chưa kết nối được sẽ
 bị bỏ qua phần Sync Job (script in rõ lý do), không ảnh hưởng cửa hàng đã
-xong.
+xong. (Nếu thích thao tác qua giao diện thay vì sửa code, trang "Nguồn dữ
+liệu"/"Đồng bộ" ở etl-admin từ bản 8.17 đều có nút **"Tải file mẫu"** —
+file mẫu Sync Job đã điền sẵn đúng khuôn 2 dòng Doanh thu/Giao dịch, chỉ
+cần đổi tên/nguồn theo từng cửa hàng rồi nhập lại qua "Nhập hàng loạt".)
 
 **7.3 — Tạo 2 Sync Job Lịch sử (Thành viên) tập trung** (tái dùng nguồn +
 VIEW trung tâm đã có, KHÔNG tạo gì mới ở CSDL trung tâm):
@@ -171,6 +176,8 @@ node scripts/seedThanhVienReportPermissions.js
       file mã hoá" (bản 8.13).
 - [ ] `etl-admin → Đồng bộ`: có mục "Nhập hàng loạt" (Excel) ở cuối trang
       (bản 8.13).
+- [ ] `etl-admin → Nguồn dữ liệu`/`→ Đồng bộ`: cả 2 mục Nhập hàng loạt đều
+      có nút "Tải file mẫu" (bản 8.17).
 - [ ] (Nếu làm Bước 7) `etl-admin → Nguồn dữ liệu`: đủ 35 dòng cửa hàng
       "Thành viên"; `→ Đồng bộ`: đủ tối đa 70 job Live + 2 job Lịch sử
       (Thành viên), tất cả "Bật", "Kiểm tra schema" ra ✅.

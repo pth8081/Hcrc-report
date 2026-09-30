@@ -177,6 +177,15 @@ export default function SyncJobsPage() {
     } catch (err) { setError(err.message); }
   }
 
+  async function downloadTemplate() {
+    setImportError('');
+    try {
+      await api.downloadFile('/sync-jobs/template', 'mau-sync-jobs.xlsx');
+    } catch (err) {
+      setImportError(err.message);
+    }
+  }
+
   async function submitImport(e) {
     e.preventDefault();
     setImportError('');
@@ -389,6 +398,9 @@ export default function SyncJobsPage() {
             nguồn (gọi mạng) trước khi ghi, nên có thể mất vài giây/dòng với file nhiều dòng.
           </p>
           {importError && <p className="form-error">{importError}</p>}
+          <div className="inline-actions">
+            <button type="button" onClick={downloadTemplate}>Tải file mẫu</button>
+          </div>
           <form className="stacked-form" onSubmit={submitImport}>
             <input type="file" accept=".xlsx" onChange={(e) => setImportFile(e.target.files?.[0] ?? null)} required />
             <button type="submit">Nhập hàng loạt</button>

@@ -144,15 +144,18 @@ dịch), TargetDomain = `doanhthu_chinhanh_thanhvien`/`giaodich_chinhanh_thanhvi
    (trang "Đồng bộ"), từng cửa hàng một.
 3. **Nhập hàng loạt qua Excel** (Nguồn dữ liệu: có sẵn trước bản 8.13;
    Sync Job: mới ở bản 8.13) — dùng khi muốn chỉnh sửa hàng loạt qua bảng
-   tính thay vì sửa trong code. Nguồn dữ liệu — cột bắt buộc `Name, Server,
-   DatabaseName, Username, Password`, cột tuỳ chọn `Engine` (mặc định
-   `mssql`), `Port`, `Encrypt`, `TrustServerCert`. Sync Job — cột bắt buộc
-   `Name, DataSourceName, TargetDomain, SourceSchema, SourceTable,
-   KeyColumn, DateColumn, UpdatedAtColumn`, cột tuỳ chọn `DimensionColumns,
-   MeasureColumns` (nhiều cột cách nhau bằng dấu phẩy), `CronExpression`,
-   `KeepHistory`, `IsActive`; `DataSourceName` phải KHỚP đúng Tên nguồn.
-   File Nguồn dữ liệu chứa mật khẩu THẬT dạng chữ thường — xoá khỏi máy
-   sau khi nhập xong.
+   tính thay vì sửa trong code. Cả 2 trang đều có nút **"Tải file mẫu"**
+   (MỚI, bản 8.17) ngay cạnh ô chọn file — file mẫu Sync Job đã điền sẵn 2
+   dòng ví dụ ĐÚNG khuôn báo cáo Thành viên (chỉ cần đổi `Name`/
+   `DataSourceName` theo từng cửa hàng), khỏi tự gõ lại cột. Nguồn dữ liệu —
+   cột bắt buộc `Name, Server, DatabaseName, Username, Password`, cột tuỳ
+   chọn `Engine` (mặc định `mssql`), `Port`, `Encrypt`, `TrustServerCert`.
+   Sync Job — cột bắt buộc `Name, DataSourceName, TargetDomain,
+   SourceSchema, SourceTable, KeyColumn, DateColumn, UpdatedAtColumn`, cột
+   tuỳ chọn `DimensionColumns, MeasureColumns` (nhiều cột cách nhau bằng
+   dấu phẩy), `CronExpression`, `KeepHistory`, `IsActive`; `DataSourceName`
+   phải KHỚP đúng Tên nguồn. File Nguồn dữ liệu chứa mật khẩu THẬT dạng chữ
+   thường — xoá khỏi máy sau khi nhập xong.
 4. **Xuất/Nhập file mã hoá** (MỚI, bản 8.13, riêng cho Nguồn dữ liệu) —
    nút "Xuất file mã hoá" tải về TOÀN BỘ danh sách Nguồn dữ liệu hiện có
    dưới dạng 1 file `.hcrcenc` KHÔNG đọc được bằng bất kỳ công cụ nào (kể

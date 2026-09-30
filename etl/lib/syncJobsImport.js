@@ -25,6 +25,23 @@ const { sql } = require('../db');
 const { validateTableJobSchema } = require('./syncJobSchemaValidation');
 const { guardZipBombSize } = require('./fileSignature');
 
+// 2 dòng ví dụ đúng khuôn "báo cáo doanh thu thành viên.md" (job Doanh
+// thu + Giao dịch cho 1 cửa hàng "Thành viên") — điền sẵn ĐÚNG giá trị
+// SourceSchema/SourceTable/KeyColumn/DateColumn/.../TargetDomain thật của
+// tính năng đó, admin chỉ cần đổi Name/DataSourceName cho từng cửa hàng
+// rồi copy dòng xuống — không phải tự tra cứu lại khuôn cột.
+async function buildSyncJobsTemplate() {
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet('Sync Jobs');
+  sheet.addRow(['XOÁ/sửa lại 2 dòng ví dụ (tên "ST VIDU") trước khi nhập — DataSourceName phải khớp đúng Tên nguồn đã tạo ở trang "Nguồn dữ liệu". 2 dòng mẫu dưới đây đúng khuôn báo cáo doanh thu Thành viên (xem "báo cáo doanh thu thành viên.md") — copy dòng, chỉ đổi Name/DataSourceName cho từng cửa hàng.']);
+  const headerRow = sheet.addRow(['Name', 'DataSourceName', 'TargetDomain', 'SourceSchema', 'SourceTable', 'KeyColumn', 'DateColumn', 'UpdatedAtColumn', 'DimensionColumns', 'MeasureColumns', 'CronExpression', 'KeepHistory', 'IsActive']);
+  headerRow.font = { bold: true };
+  sheet.addRow(['Doanh thu (TV) - ST VIDU', 'DSMART16 - ST VIDU', 'doanhthu_chinhanh_thanhvien', 'dbo', 'V_HCRC_DOANHTHU_CHINHANH', 'STK_ID', 'WORK_DATE', 'WORK_DATE', 'dienTich,chain', 'doanhThu,laiGop', '*/2 * * * *', 'TRUE', 'TRUE']);
+  sheet.addRow(['Giao dịch (TV) - ST VIDU', 'DSMART16 - ST VIDU', 'giaodich_chinhanh_thanhvien', 'dbo', 'V_HCRC_GIAODICH_CHINHANH', 'BU_ID', 'TRAN_DATE', 'TRAN_DATE', '', 'SoGiaoDich', '*/2 * * * *', 'TRUE', 'TRUE']);
+  sheet.columns.forEach((col) => { col.width = 22; });
+  return workbook.xlsx.writeBuffer();
+}
+
 const REQUIRED_HEADERS = ['Name', 'DataSourceName', 'TargetDomain', 'SourceSchema', 'SourceTable', 'KeyColumn', 'DateColumn', 'UpdatedAtColumn'];
 const DEFAULT_CRON = '*/15 * * * *';
 const BOOL_TRUE_VALUES = ['true', '1', 'yes', 'có', 'x'];
@@ -214,4 +231,4 @@ async function upsertSyncJobs(pool, rows) {
   return { inserted, updated, rowErrors, ids };
 }
 
-module.exports = { parseSyncJobsFile, upsertSyncJobs, REQUIRED_HEADERS };
+module.exports = { parseSyncJobsFile, upsertSyncJobs, buildSyncJobsTemplate, REQUIRED_HEADERS };

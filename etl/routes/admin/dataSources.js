@@ -25,7 +25,8 @@ const { requireMenuAccess, requireMenuEdit } = require('../../lib/adminPermissio
 const { encrypt, decrypt } = require('../../lib/crypto');
 const { invalidate, testConnection, testConnectionsBatch } = require('../../lib/dataSourcePool');
 const schemaBrowser = require('../../lib/schemaBrowser');
-const { parseDataSourcesFile, upsertDataSources } = require('../../lib/dataSourcesImport');
+const { parseDataSourcesFile, upsertDataSources, buildDataSourcesTemplate } = require('../../lib/dataSourcesImport');
+const { sendXlsx } = require('../../lib/xlsxResponse');
 const { exportDataSourcesEncrypted, importDataSourcesEncrypted, MAGIC_HEADER } = require('../../lib/dataSourcesEncryptedExport');
 const { summarizeSourceSyncStatus } = require('../../lib/syncStatus');
 const { logAction } = require('../../lib/auditLog');
@@ -201,6 +202,15 @@ router.post('/test', requireMenuEdit('data-sources'), async (req, res) => {
   } catch (err) {
     res.status(400).json({ ok: false, error: err.message });
   }
+});
+
+// Tải "file mẫu" đúng khuôn cột Nhập hàng loạt — requireMenuAccess (không
+// cần quyền sửa, file mẫu không mang dữ liệu nhạy cảm).
+router.get('/template', requireMenuAccess('data-sources'), async (req, res, next) => {
+  try {
+    const buffer = await buildDataSourcesTemplate();
+    sendXlsx(res, buffer, 'mau-nguon-du-lieu.xlsx');
+  } catch (err) { next(err); }
 });
 
 // Tạo/cập nhật hàng loạt qua file Excel — xem chú thích đầu file.

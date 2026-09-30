@@ -48,6 +48,15 @@ export default function DataSourcesPage() {
   }
   useEffect(reload, []);
 
+  async function downloadTemplate() {
+    setImportError('');
+    try {
+      await api.downloadFile('/data-sources/template', 'mau-nguon-du-lieu.xlsx');
+    } catch (err) {
+      setImportError(err.message);
+    }
+  }
+
   async function submitImport(e) {
     e.preventDefault();
     setImportError('');
@@ -224,6 +233,9 @@ export default function DataSourcesPage() {
             chỉ được mã hoá SAU khi tải lên. Xoá file khỏi máy sau khi nhập xong.
           </p>
           {importError && <p className="form-error">{importError}</p>}
+          <div className="inline-actions">
+            <button type="button" onClick={downloadTemplate}>Tải file mẫu</button>
+          </div>
           <form className="stacked-form" onSubmit={submitImport}>
             <input type="file" accept=".xlsx" onChange={(e) => setImportFile(e.target.files?.[0] ?? null)} required />
             <button type="submit">Nhập hàng loạt</button>

@@ -20,6 +20,23 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 8.17 — Thêm "Tải file mẫu" cho Nhập hàng loạt Nguồn dữ liệu/Sync Job
+
+Người dùng nhận ra 2 trang Nhập hàng loạt mới ở bản 8.13 (Nguồn dữ liệu,
+Sync Job) thiếu nút "Tải file mẫu" — trong khi các trang Nhập hàng loạt
+khác đã có sẵn từ trước (Chỉ tiêu, Ánh xạ Điểm - STK_ID, Danh sách hàng
+Core). Bổ sung cho nhất quán, theo đúng khuôn `lib/xlsxResponse.js`/route
+`GET .../template` đã dùng ở các trang kia:
+
+- `buildDataSourcesTemplate()` (`etl/lib/dataSourcesImport.js`) — 1 dòng
+  ví dụ ("VIDU"), route `GET /admin/data-sources/template`.
+- `buildSyncJobsTemplate()` (`etl/lib/syncJobsImport.js`) — 2 dòng ví dụ
+  đã điền SẴN đúng khuôn báo cáo doanh thu Thành viên (Doanh thu + Giao
+  dịch), chỉ cần đổi `Name`/`DataSourceName` theo từng cửa hàng — route
+  `GET /admin/sync-jobs/template`.
+- Nút "Tải file mẫu" thêm vào `DataSourcesPage.jsx`/`SyncJobsPage.jsx`,
+  ngay cạnh ô chọn file, cùng vị trí/kiểu với các trang Nhập hàng loạt khác.
+
 ## 8.16 — Hướng dẫn triển khai bản 8.10 → 8.15 cho IT (deploy/)
 
 Người dùng đang chạy bản 8.10 trên máy chủ thật, cần hướng dẫn deploy
