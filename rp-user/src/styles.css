@@ -70,6 +70,42 @@ button:hover { opacity: 0.9; }
    nội tuyến, đổi sang class để không cần 'unsafe-inline' trong style-src CSP
    (xem deploy/nginx.conf). */
 .table-scroll--result { max-height: 240px; overflow: auto; }
+/* .table-scroll--report — bảng kết quả báo cáo (ReportsPage.jsx qua
+   ReportBody.jsx): trước đây KHÔNG giới hạn chiều cao, bảng nhiều dòng đẩy
+   cả TRANG cuộn dài, cuộn mất luôn thanh lọc/nút Xuất Excel/PDF phía trên —
+   giới hạn chiều cao theo viewport (trừ khoảng ước lượng cho phần trên
+   trang: tiêu đề/tab/bộ lọc/nút xuất), CHỈ khối bảng tự cuộn (dọc lẫn
+   ngang), phần trên luôn cố định nhìn thấy. Cố định luôn hàng tiêu đề
+   (sticky top) khi cuộn dọc, VÀ cột đầu tiên (STT/tên chi nhánh, sticky
+   left) khi cuộn ngang — báo cáo có rất nhiều cột (17+ ở "Báo cáo doanh
+   thu cuối ngày") nên cuộn ngang gần như luôn xảy ra, mất tên chi nhánh là
+   mất ngữ cảnh đang xem dòng nào. */
+.table-scroll--report { max-height: calc(100vh - 340px); min-height: 200px; overflow: auto; }
+.table-scroll--report .data-table thead th {
+  position: sticky; top: 0; background: var(--surface); z-index: 2;
+}
+/* Cố định cột 1 khi cuộn ngang (an toàn cho MỌI báo cáo — width tự nhiên,
+   không ép cứng, vì không biết trước nội dung cột 1 của từng báo cáo dài
+   hay ngắn). */
+.table-scroll--report .data-table th:first-child,
+.table-scroll--report .data-table td:first-child {
+  position: sticky; left: 0; background: var(--surface); z-index: 1;
+}
+.table-scroll--report .data-table thead th:first-child { z-index: 3; }
+/* Modifier CHỈ áp dụng khi ReportBody.jsx xác nhận cột 1 đúng là "TT" (key
+   "stt", quy ước ở compositeReportRunner.js) — ép width cố định 44px để
+   cố định LUÔN cột 2 (thường tên chi nhánh/thực thể, thông tin cần giữ khi
+   cuộn ngang) theo đúng offset đó. KHÔNG áp dụng chung cho mọi báo cáo vì
+   report khác có thể có cột 1 dài, ép 44px sẽ cắt mất nội dung. */
+.table-scroll--report-numbered .data-table th:nth-child(1),
+.table-scroll--report-numbered .data-table td:nth-child(1) {
+  width: 44px; min-width: 44px; max-width: 44px;
+}
+.table-scroll--report-numbered .data-table th:nth-child(2),
+.table-scroll--report-numbered .data-table td:nth-child(2) {
+  position: sticky; left: 44px; background: var(--surface); z-index: 1;
+}
+.table-scroll--report-numbered .data-table thead th:nth-child(2) { z-index: 3; }
 /* .flex-1 — ô nhập bộ lọc mẫu trong ReportCatalogPanel.jsx cần giãn hết
    phần còn lại của hàng .inline-actions (cạnh nút "Chạy thử" cố định
    chiều rộng) — cùng lý do đổi từ inline style ở trên. */

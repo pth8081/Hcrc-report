@@ -2,11 +2,11 @@
 // cáo, danh sách người dùng, log...). Không phân trang/sort ở đây — nơi gọi
 // tự quyết định (report viewer đã phân trang ở API, các trang CRUD danh sách
 // ngắn không cần).
-export default function DataTable({ columns, rows, emptyMessage = 'Không có dữ liệu.' }) {
+export default function DataTable({ columns, rows, emptyMessage = 'Không có dữ liệu.', scrollClassName = '' }) {
   if (!rows.length) return <p className="empty-message">{emptyMessage}</p>;
 
   return (
-    <div className="table-scroll">
+    <div className={`table-scroll ${scrollClassName}`.trim()}>
       <table className="data-table">
         <thead>
           <tr>

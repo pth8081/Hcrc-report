@@ -16,7 +16,13 @@ const ReportChart = lazy(() => import('./ReportChart'));
 // được dạng bảng) — bất kể visualization.type là gì.
 export default function ReportBody({ visualization, showTable, result, onPointClick }) {
   if (!visualization || showTable) {
-    return <DataTable columns={result.columns} rows={result.rows} />;
+    // Cột 1 đúng quy ước "TT" (key "stt" — xem compositeReportRunner.js) mới
+    // ép width cố định để cố định luôn cột 2 (tên chi nhánh) khi cuộn ngang;
+    // báo cáo không theo quy ước này chỉ cố định cột 1 theo width tự nhiên.
+    const scrollClassName = result.columns[0]?.key === 'stt'
+      ? 'table-scroll--report table-scroll--report-numbered'
+      : 'table-scroll--report';
+    return <DataTable columns={result.columns} rows={result.rows} scrollClassName={scrollClassName} />;
   }
   if (visualization.type === 'pivot') {
     return <PivotTable columns={result.columns} rows={result.rows} visualization={visualization} />;

@@ -20,6 +20,26 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 8.11 — Bảng báo cáo web: cố định tiêu đề + 2 cột đầu khi cuộn
+
+Bảng báo cáo dạng lưới (HCRC, LDTD...) nhiều cột phải cuộn ngang/dọc toàn
+trang, mất luôn thanh Lọc/Xuất Excel/Xuất PDF khỏi tầm nhìn — người dùng
+gửi ảnh chụp minh họa. Sửa CHỈ ở khung xem bảng báo cáo (không đổi
+`DataTable` dùng chung ở các trang khác — Người dùng, Phân quyền, Log...):
+
+- `DataTable.jsx` — thêm prop `scrollClassName` (mặc định rỗng, không phá
+  vỡ các nơi gọi khác).
+- `ReportBody.jsx` — khung bảng báo cáo giờ giới hạn chiều cao
+  (`max-height: calc(100vh - 340px)`, cuộn riêng bên trong), tiêu đề cột
+  cố định (`sticky` theo trục dọc) khi cuộn xuống, cột 1 cố định theo
+  trục ngang (width tự nhiên, an toàn cho mọi báo cáo). Báo cáo nào có cột
+  1 đúng quy ước "TT" (`key: 'stt'`, xem `compositeReportRunner.js`) thì
+  cố định LUÔN cả cột 2 (tên chi nhánh/thực thể) theo offset cố định
+  44px — quy ước dùng ở hầu hết báo cáo HCRC/LDTD hiện có.
+- Đã kiểm chứng bằng Playwright (bảng mẫu 17 cột/18 dòng): cuộn dọc giữ
+  tiêu đề, cuộn ngang giữ cột TT + tên chi nhánh, thanh Lọc/Xuất vẫn cố
+  định phía trên — không cần cuộn cả trang nữa.
+
 ## 8.10 — Đổi hẳn sang `STRANS.SURPLUS`/`TRANS_CODE` — lời giải thật cho Lãi gộp
 
 Sau khi deploy bản 8.9 (`AVERIMPPR`), người dùng gửi lại PDF ngày
