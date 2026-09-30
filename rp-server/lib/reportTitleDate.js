@@ -31,14 +31,14 @@ function resolveTitleWithDate(title, filterValues, separator) {
 }
 
 // ddmmyyyy KHÔNG dấu phân cách — dùng riêng cho TÊN FILE tải xuống theo
-// quy tắc mã cố định (vd "BCDTRC-17092026.xlsx"), KHÁC hẳn định dạng
+// quy tắc mã cố định (vd "BCDTHCRC-17092026.xlsx"), KHÁC hẳn định dạng
 // dd/mm/yyyy dùng để HIỂN THỊ trong tiêu đề tài liệu.
 function formatDateCompact(isoDate) {
   const [y, m, d] = String(isoDate).split('-');
   return `${d}${m}${y}`;
 }
 
-// definition.exportFileCode (TUỲ CHỌN, vd "BCDTRC"/"BCDDTLDTD" — xem
+// definition.exportFileCode (TUỲ CHỌN, vd "BCDTHCRC"/"BCDDTLDTD" — xem
 // scripts/seedLdtdHcrcReports.js) — tên file tải xuống theo ĐÚNG quy tắc
 // mã cố định + ngày báo cáo, HOÀN TOÀN TÁCH RIÊNG khỏi tiêu đề hiển thị
 // trong tài liệu (definition.exportTitle) và tên báo cáo trong danh mục

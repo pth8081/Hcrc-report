@@ -20,6 +20,34 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 8.7 — Đính chính mã file HCRC + rà soát lại code tính Lãi gộp
+
+Đính chính (mã đã cấp ở bản 8.3 sai theo phản hồi người dùng): file xuất
+báo cáo HCRC đổi từ `BCDTRC-ddmmyyyy` thành đúng `BCDTHCRC-ddmmyyyy` —
+`rp-server/scripts/seedLdtdHcrcReports.js` (`exportFileCode`), chỉ đổi 1
+hằng số, chạy lại `node scripts/seedLdtdHcrcReports.js` là áp dụng.
+
+Rà soát lại toàn bộ đường tính "Lãi gộp" (Tỷ lệ + Giá trị) theo yêu cầu
+người dùng sau khi thấy báo cáo ngày 09/09/2026 vẫn ra số y hệt bản TRƯỚC
+bản 8.1 dù đã tự xoá cache job Live: `Tỷ lệ = ROUND(laiGop/doanhThu*100,1)`,
+`Giá trị = laiGop` (`seedLdtdHcrcReports.js`) — 2 công thức đọc thẳng
+`current.measures.laiGop`/`doanhThu`, được gộp (SUM) hoàn toàn CHUNG một
+đường với mọi measure khác (`compositeReportRunner.js`, `diemStkMapping.js`
+dòng gộp nhiều STK_ID/Điểm) và đọc ngược lại từ `dwh.ReportFacts.Measures`
+qua `JSON.parse()` không có xử lý riêng cho `laiGop` (`reportEngine.js`) —
+KHÔNG tìm thấy khác biệt/lỗi nào giữa đường tính `laiGop` và `doanhThu`
+(vốn đang đúng). Dấu hiệu số liệu trong PDF người dùng gửi (giá trị Lãi gộp
+cực nhỏ so với doanh thu, vài dòng ÂM) khớp CHÍNH XÁC đặc điểm bug
+COSTPRICE cũ (COSTPRICE ≈ giá bán → lãi gộp ≈ 0) đã sửa ở bản 8.1 — kết
+luận: đây là vấn đề Ở TẦNG DỮ LIỆU (VIEW/cache), không phải lỗi code
+rp-server. Đã gửi người dùng bộ câu SQL cụ thể (không placeholder) để tự
+kiểm tra: (1) definition thật của VIEW trên DSMART16 Live có đúng đã đổi
+sang STK_INFO chưa, (2) trạng thái/log lần chạy gần nhất của job "Doanh thu
+chi nhánh - Live", (3) dòng `dwh.ReportFacts` đang cache cho ngày 09/09/2026
+— SourceSystem nào, Measures thật sự là gì — để xác định chính xác việc xoá
+cache của người dùng đã có tác dụng hay chưa, hay ngày đó đã không còn nằm
+trong CSDL Live nữa nên rơi về đúng Script B (Lịch sử) vẫn cố ý chưa sửa.
+
 ## 8.6 — Thống nhất trang "Log" + "Nhật ký thao tác" ở cả 3 giao diện quản trị
 
 Trước bản này, chỉ etl-admin có ĐỦ 2 trang tách biệt: "Log" (etl.SystemLog —

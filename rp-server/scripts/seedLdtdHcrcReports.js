@@ -179,10 +179,11 @@ function buildDefinition(title, targetDomain, exportFileCode) {
 // HCRC"/"...LDTD" — KHÔNG còn kèm ngày/thương hiệu BRGMART ở đây nữa
 // (phần đó chuyển sang exportTitle, xem buildDefinition() phía trên).
 // exportFileCode — mã cố định ghép tên file tải xuống, theo ĐÚNG quy tắc
-// người dùng cung cấp: HCRC = "BCDTRC-ddmmyyyy", LDTD = "BCDDTLDTD-ddmmyyyy".
+// người dùng cung cấp: HCRC = "BCDTHCRC-ddmmyyyy" (ĐÍNH CHÍNH bản 8.7 — mã
+// cũ "BCDTRC" sai), LDTD = "BCDDTLDTD-ddmmyyyy".
 const REPORTS = [
   { reportId: 'bc-doanh-thu-ldtd', title: 'Báo cáo doanh thu cuối ngày LDTD', targetDomain: 'sales-targets-ldtd', exportFileCode: 'BCDDTLDTD' },
-  { reportId: 'bc-doanh-thu-hcrc', title: 'Báo cáo doanh thu cuối ngày HCRC', targetDomain: 'sales-targets-hcrc', exportFileCode: 'BCDTRC' }
+  { reportId: 'bc-doanh-thu-hcrc', title: 'Báo cáo doanh thu cuối ngày HCRC', targetDomain: 'sales-targets-hcrc', exportFileCode: 'BCDTHCRC' }
 ];
 
 async function upsertReport(pool, menuItemId, { reportId, title, targetDomain, exportFileCode }) {
