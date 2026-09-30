@@ -6,6 +6,14 @@ riêng) — **đọc file này TRƯỚC khi sửa bất kỳ công thức giá v
 **cập nhật lại file này mỗi khi công thức/nguồn dữ liệu thay đổi**, cùng quy
 ước với "quy tắc mã BU_ID và STK_ID.md"/"báo cáo doanh thu cuối ngày.md".
 
+> **ĐÃ SUPERSEDE TOÀN BỘ (bản 8.10)** — mục 1-6 dưới đây (COSTPRICE →
+> công thức tự tính từ `STK_INFO` → `STK_INFO.AVERIMPPR`) đều dựa trên
+> cách tiếp cận "tính lại giá vốn từ nguồn tồn kho", và ĐỀU cho giá vốn ≈
+> giá bán ở diện rộng mã hàng — không nguồn nào dùng được. **Công thức
+> ĐANG DÙNG thực tế là `STRANS.SURPLUS`** (lãi gộp POS tự tính sẵn theo
+> từng dòng giao dịch) — xem mục 8, đọc mục đó TRƯỚC nếu chỉ cần biết cách
+> tính hiện hành. Giữ nguyên mục 1-6 để lưu vết quá trình điều tra.
+
 ## 1. Vì sao không dùng bảng `COSTPRICE`
 
 Bản 7.6 từng sửa VIEW `V_HCRC_DOANHTHU_CHINHANH` để tính "Lãi gộp" từ
@@ -176,24 +184,85 @@ Cả 3 nguồn hội tụ về cùng 1 mức giá vốn (nguồn 2 và 3 chênh 
 đề chỉ lộ rõ khi soi rộng hơn.
 </details>
 
+## 8. LỜI GIẢI THẬT (bản 8.10) — `STRANS.SURPLUS`, không cần tính giá vốn nữa
+
+DBA DSMART16 gửi thẳng câu lệnh báo cáo doanh thu/lãi họ đang dùng nội bộ —
+hoá ra lời giải đơn giản hơn hẳn mọi hướng đã thử (mục 1-6 ở trên): **bảng
+`STRANS` có sẵn cột `SURPLUS`** — hệ thống POS đã tự tính LÃI GỘP cho TỪNG
+DÒNG giao dịch ngay tại thời điểm bán, không cần tra/tính giá vốn từ bất kỳ
+bảng nào khác (`COSTPRICE`, `STK_INFO`...) nữa.
+
+**Phát hiện quan trọng đi kèm — `AMOUNT` không phải doanh thu đầy đủ**:
+đối chiếu `TRANS_CODE=221` (giao dịch bán lẻ thường) cho 1 chi nhánh/1
+ngày: `AMOUNT` = 129.491.580,52 nhưng doanh thu THẬT (theo công thức DBA)
+= `AMOUNT + SURPLUS` = 164.457.642,75. Vậy `AMOUNT` chỉ là 1 phần (gần
+giống giá vốn/net), `SURPLUS` là phần chênh thêm để ra đúng giá bán —
+khác hẳn giả định trước giờ (VIEW cũ coi `SUM(AMOUNT)` là doanh thu đầy đủ).
+
+**`TRANS_CODE` phân loại giao dịch** (theo công thức DBA):
+- `211`, `221`, `232` = giao dịch BÁN (cộng vào doanh thu/lãi).
+- `212`, `222` = giao dịch TRẢ HÀNG tương ứng — **ghi `AMOUNT` DƯƠNG**
+  (đã xác nhận thật: `TRANS_CODE 222` tại 1 chi nhánh, 14 dòng, `AMOUNT`
+  từ 0 đến 348.809,71, không âm) — PHẢI trừ riêng, không tự netting qua
+  `SUM` đơn giản.
+- Các mã KHÁC (vd `333` — chiếm **55,6% doanh thu** 1 ngày mẫu tại 1 chi
+  nhánh, `SURPLUS` = 0,00 tuyệt đối ở MỌI dòng) — **CHƯA XÁC ĐỊNH được
+  nghĩa chính xác** (nghi bán sỉ/chuyển kho nội bộ/ký gửi — không phải bán
+  lẻ thông thường). VIEW mới **LOẠI HẲN** các mã này khỏi "Doanh thu" —
+  người dùng ĐÃ ĐƯỢC CẢNH BÁO việc này làm "Doanh thu" báo cáo giảm mạnh
+  (~55% ở ngày mẫu) so với công thức cũ, và xác nhận dùng đúng theo công
+  thức DBA (không hỏi thêm nghĩa mã `333` nữa để tránh chặn tiến độ) — xem
+  VERSION.md bản 8.10.
+
+**Đã kiểm chứng bằng dữ liệu thật trên diện rộng** (không chỉ 10 mã như
+các lần trước) — ST HÀNG TRỐNG, STK_ID `10011`, 17 ngày đầu tháng 9/2026,
+VÀ ~35 chi nhánh khác trong cùng khoảng thời gian: tỷ lệ `Lãi/DoanhThu`
+ra **15-25%** ở GẦN NHƯ MỌI dòng — lần ĐẦU TIÊN ra con số hợp lý cho bán
+lẻ trong suốt quá trình điều tra (mục 1-6). Vài ngày cá biệt (vd STK
+`10021` 15/9, STK `12791` 15/9) ra Lãi ÂM kèm doanh thu tăng vọt bất
+thường — nghi giao dịch điều chỉnh/đặc biệt, CHƯA điều tra sâu, không
+chặn việc áp dụng công thức chung.
+
+**Công thức VIEW mới** — xem đầy đủ ở "báo cáo doanh thu cuối ngày.md"
+Script A (Bước 1). Tóm tắt: `doanhThu`/`laiGop`/`SoLuongBan`/`TienVAT`/
+`TienGiamGia`/`HoaHong` đều tính theo mẫu
+`SUM(CASE WHEN TRANS_CODE IN ('211','221','232') THEN <cột> ELSE 0 END) - SUM(CASE WHEN TRANS_CODE IN ('212','222') THEN <cột> ELSE 0 END)`,
+riêng `doanhThu`/`TongTien` dùng `<cột>` = `AMOUNT + SURPLUS` (không phải
+`AMOUNT` đơn thuần), `laiGop` dùng `<cột>` = `SURPLUS`. `STATUS` đọc THẲNG
+từ `STRANS` (không cần JOIN `TRANSHDR` nữa) — áp dụng cho CẢ VIEW Doanh
+thu lẫn VIEW Giao dịch (Giao dịch cũng chuyển hẳn từ `TRANSHDR` sang
+`STRANS`, đếm `COUNT(DISTINCT TRANS_NUM)`).
+
+**CÂU HỎI CÒN MỞ** (không chặn deploy, cần làm rõ dần):
+1. `TRANS_CODE 333` (và các mã phụ khác) là loại giao dịch gì — có nên
+   đưa vào 1 chỉ tiêu báo cáo RIÊNG (vd "Doanh thu bán sỉ"/"Doanh thu nội
+   bộ") thay vì bỏ hẳn không hiển thị ở đâu cả?
+2. Script B (Lịch sử, `STRANS_EOM`/`STRANS_YYYYMM`) có cột `SURPLUS`/
+   `TRANS_CODE` giống `STRANS` (Live) không? Nếu CÓ, đây là cơ hội sửa
+   luôn "Lãi gộp lịch sử vẫn sai" đã treo từ bản 8.1 — CHƯA kiểm tra.
+3. Vài ngày Lãi ÂM bất thường (mục trên) — cần hiểu rõ nguyên nhân trước
+   khi coi công thức này là "xong hẳn", dù không chặn việc áp dụng ngay.
+
 ## 7. Trạng thái triển khai
 
 - [x] Xác nhận `COSTPRICE` không dùng được (mục 1).
-- [x] Xác nhận công thức tự tính từ `M_BEGAMT/M_IMPAMT` KHÔNG đáng tin ở
-      quy mô rộng (mục 2, 6) — ĐÃ THAY bằng `STK_INFO.AVERIMPPR` trực
-      tiếp, DBA xác nhận (bản 8.8).
-- [x] Chốt công thức + phạm vi + giới hạn tháng hiện tại với người dùng (mục 3, 4).
-- [ ] **Kiểm tra lại số liệu thật sau khi deploy bản 8.8** (đổi VIEW +
-      chạy lại `resyncDoanhThuChinhanhLive.js --confirm`) — xác nhận
-      `AVERIMPPR` có thực sự cho tỷ lệ lãi gộp hợp lý hơn hay không, đặc
-      biệt ở đúng những mã hàng từng phát hiện giá vốn ≈ giá bán ở mục 6.
-- [ ] Xác định đường nối `SKU_ID` → tên mặt hàng thật (mục 5).
-- [ ] Viết VIEW `STK_INFO` + `GOODS`/`SKU_DEF` trên DSMART16.
-- [ ] Tạo báo cáo "Báo cáo giá vốn" trong hệ thống (cột: STT, SKU_ID, Tên
-      mặt hàng, Giá vốn bình quân, Giá vốn đầu kỳ, Tháng — có lọc theo
-      tháng, chỉ hỗ trợ tháng hiện tại theo mục 4).
-- [x] Cập nhật lại "Lãi gộp" ở "Báo cáo nhanh doanh thu" dùng đúng nguồn
-      này thay `COSTPRICE` — **CHỈ ở VIEW "Live"** (bản 8.1, xem mục 4).
-      VIEW "Lịch sử" cố ý giữ nguyên (chưa có nguồn giá vốn lịch sử).
+- [x] Xác nhận công thức tự tính từ `M_BEGAMT/M_IMPAMT` VÀ `STK_INFO.AVERIMPPR`
+      đều KHÔNG đáng tin ở quy mô rộng (mục 2, 6) — **ĐÃ THAY HẲN sang
+      `STRANS.SURPLUS`/`TRANS_CODE`** theo công thức DBA cung cấp (mục 8,
+      bản 8.10) — không cần tính/tra giá vốn từ nguồn nào khác nữa.
+- [x] Xác định đường nối `SKU_ID` → tên mặt hàng thật — `SKU_DEF.FULL_NAME_U`
+      (mục 5, bản 8.9).
+- [x] Kiểm tra số liệu thật diện rộng (35 chi nhánh × 17 ngày) — tỷ lệ lãi
+      gộp 15-25%, hợp lý (mục 8).
+- [ ] Làm rõ nghĩa `TRANS_CODE 333`/các mã phụ khác (mục 8, câu hỏi 1).
+- [ ] Kiểm tra Script B (Lịch sử) có `SURPLUS`/`TRANS_CODE` để áp dụng
+      cùng công thức không (mục 8, câu hỏi 2) — nếu có, giải quyết luôn
+      vấn đề "Lãi gộp lịch sử sai" tồn đọng từ bản 8.1.
+- [ ] Điều tra vài ngày Lãi ÂM bất thường (mục 8, câu hỏi 3).
+- [ ] Tạo báo cáo "Báo cáo giá vốn" trong hệ thống — CẦN XEM LẠI THIẾT KẾ:
+      với công thức mới (`SURPLUS` theo dòng giao dịch, không phải giá vốn
+      bình quân theo `SKU_ID`), báo cáo "giá vốn bình quân/mã hàng" theo
+      thiết kế cũ (mục 4, dựa trên `STK_INFO`) có còn cần thiết không, hay
+      đổi hướng theo đúng dữ liệu `SURPLUS` sẵn có.
 - [ ] Viết hướng dẫn triển khai riêng cho báo cáo mới (theo đúng quy ước
       mỗi báo cáo lớn có 1 file `.md` riêng, xem `bc-ton-kho-0.md` làm mẫu).

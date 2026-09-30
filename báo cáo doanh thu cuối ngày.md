@@ -129,75 +129,93 @@ có ai đó chủ động chạy `DROP VIEW <tên>`. Cần lưu ý 2 điều:
 
 ```sql
 -- VIEW 1: Doanh thu + Lãi gộp + Diện tích + Nhóm chuỗi, gộp theo (chi nhánh, ngày)
--- STRANS = bảng CHI TIẾT giao dịch thật (KHÔNG phải DSTK_INFO — bảng đó
--- rỗng, đã xác nhận bằng SELECT COUNT(*) thật). JOIN sang TRANSHDR qua
--- TRANS_NUM CHỈ để lấy STATUS đáng tin (loại đúng giao dịch huỷ).
--- STOCK.TYPE (KHÔNG phải STYPE_ID — cột đó luôn trống) phân loại
--- '01'=MART, '02'=MINIMART, đã xác nhận qua tên chi nhánh thật.
--- ĐÍNH CHÍNH (bản 8.1, xem "giá vốn dsmart.md" — nguồn tham chiếu chính
--- thức, đọc TRƯỚC khi sửa gì ở đây): JOIN COSTPRICE (kể cả bản đã sửa
--- NODE_ID ở bản 7.6) đã bị BỎ HẲN — đối chiếu bằng dữ liệu thật xác nhận
--- COSTPRICE.COSTPRICE KHÔNG PHẢI giá vốn nhập hàng thật (gần như trùng
--- khớp tuyệt đối với giá bán, mọi cột giá khác trong bảng đó đều rỗng).
--- ĐÍNH CHÍNH TIẾP (bản 8.8): bản 8.1 thay bằng công thức TỰ TÍNH
--- SUM(M_BEGAMT+M_IMPAMT)/SUM(M_BEGIN+M_IMP) — đối chiếu lại bằng dữ liệu
--- thật (soi từng mã hàng 1 chi nhánh/1 ngày) phát hiện RẤT NHIỀU mã hàng
--- vẫn cho giá vốn ≈ giá bán (có mã khớp CHÍNH XÁC tới từng đồng), cùng
--- triệu chứng như COSTPRICE cũ — nghi ngờ M_IMPAMT cũng ghi theo giá trị
--- BÁN LẺ chứ không phải giá NHẬP thật. Đã hỏi lại DBA DSMART16 — xác nhận
--- dùng THẲNG cột STK_INFO.AVERIMPPR ("GV bình quân", hệ thống tự tính sẵn)
--- thay vì tự tính lại từ 4 cột M_BEGIN/M_IMP/M_BEGAMT/M_IMPAMT. Vẫn giữ
--- nguyên tắc CHUNG TOÀN HỆ THỐNG theo SKU_ID (gộp nhiều STK_ID/chi nhánh,
--- bình quân gia quyền theo số lượng M_BEGIN+M_IMP của từng chi nhánh) —
--- CHỈ ĐÚNG CHO THÁNG HIỆN TẠI vì STK_INFO là bảng tồn kho TỨC THỜI, không
--- lưu lịch sử theo tháng (KHÔNG áp dụng cách này cho Script B/DSMART16_EOM
--- bên dưới — xem chú thích ở đó).
+-- STRANS = bảng CHI TIẾT giao dịch thật. STOCK.TYPE (KHÔNG phải STYPE_ID —
+-- cột đó luôn trống) phân loại '01'=MART, '02'=MINIMART, đã xác nhận qua
+-- tên chi nhánh thật.
+--
+-- ĐÍNH CHÍNH LỚN (bản 8.10) — thay HẲN cách tính cũ, cả DOANH THU lẫn LÃI
+-- GỘP, theo công thức DBA DSMART16 cung cấp trực tiếp:
+--   1. Bản 7.6/8.1/8.8 (đã loại bỏ): JOIN COSTPRICE, rồi STK_INFO tự tính,
+--      rồi STK_INFO.AVERIMPPR — cả 3 đều dựa trên giả định "Lãi gộp = Doanh
+--      thu - (Số lượng × Giá vốn/đơn vị)", đọc giá vốn từ NGUỒN NGOÀI
+--      STRANS. Cả 3 đều cho giá vốn ≈ giá bán ở diện rộng mã hàng — không
+--      dùng được (xem "giá vốn dsmart.md" mục 1, 6).
+--   2. Bản 8.10 — DBA chỉ ra STRANS có sẵn cột `SURPLUS`, chính là LÃI GỘP
+--      hệ thống POS đã tự tính SẴN cho TỪNG DÒNG giao dịch tại thời điểm
+--      bán — KHÔNG cần tra cứu/tính giá vốn từ đâu khác nữa. `AMOUNT` (cột
+--      trước đây coi là doanh thu đầy đủ) thực ra KHÔNG bao gồm phần
+--      `SURPLUS` — doanh thu đúng = `AMOUNT + SURPLUS`.
+--   3. `TRANS_CODE` phân loại giao dịch: `211/221/232` = giao dịch bán,
+--      `212/222` = giao dịch TRẢ HÀNG tương ứng (ghi AMOUNT DƯƠNG, phải TRỪ
+--      RIÊNG chứ không tự netting qua SUM — đã xác nhận bằng dữ liệu thật:
+--      TRANS_CODE 222 luôn có AMOUNT dương). VIEW chỉ lấy 5 mã này — các mã
+--      khác (vd `333`, chiếm hơn nửa doanh thu 1 ngày mẫu, `SURPLUS` luôn
+--      = 0) bị LOẠI HẲN khỏi "Doanh thu" — nghi là loại giao dịch khác (bán
+--      sỉ/chuyển kho nội bộ...), CHƯA XÁC ĐỊNH được nghĩa chính xác — xem
+--      "giá vốn dsmart.md" mục 8. HỆ QUẢ: "Doanh thu" báo cáo GIẢM đáng kể
+--      so với công thức cũ (vd 1 ngày mẫu: giảm từ 364 triệu còn 164 triệu,
+--      ~55%) — ĐÃ CẢNH BÁO người dùng trước khi deploy, người dùng xác nhận
+--      dùng đúng công thức này.
+--   4. `STATUS` đọc THẲNG từ `STRANS` (bảng này tự có cột `STATUS`, không
+--      cần JOIN `TRANSHDR` nữa) — cùng áp dụng cho VIEW 2 bên dưới.
 CREATE OR ALTER VIEW V_HCRC_DOANHTHU_CHINHANH AS
 SELECT
     d.STK_ID, CAST(d.TRAN_DATE AS DATE) AS WORK_DATE,
-    SUM(d.QTY) AS SoLuongBan,
-    SUM(d.AMOUNT) AS doanhThu,
-    SUM(d.VAT_AMT) AS TienVAT,
-    SUM(d.DISCOUNT) AS TienGiamGia,
-    SUM(d.COMM_AMT) AS HoaHong,
-    SUM(d.AMOUNT) - SUM(d.QTY * ISNULL(c.GiaVonBinhQuan, 0)) AS laiGop,
+    SUM(CASE WHEN d.TRANS_CODE IN ('211','221','232') THEN d.QTY ELSE 0 END)
+      - SUM(CASE WHEN d.TRANS_CODE IN ('212','222') THEN d.QTY ELSE 0 END) AS SoLuongBan,
+    SUM(CASE WHEN d.TRANS_CODE IN ('211','221','232') THEN d.AMOUNT + d.SURPLUS ELSE 0 END)
+      - SUM(CASE WHEN d.TRANS_CODE IN ('212','222') THEN d.AMOUNT + d.SURPLUS ELSE 0 END) AS doanhThu,
+    SUM(CASE WHEN d.TRANS_CODE IN ('211','221','232') THEN d.VAT_AMT ELSE 0 END)
+      - SUM(CASE WHEN d.TRANS_CODE IN ('212','222') THEN d.VAT_AMT ELSE 0 END) AS TienVAT,
+    SUM(CASE WHEN d.TRANS_CODE IN ('211','221','232') THEN d.DISCOUNT ELSE 0 END)
+      - SUM(CASE WHEN d.TRANS_CODE IN ('212','222') THEN d.DISCOUNT ELSE 0 END) AS TienGiamGia,
+    SUM(CASE WHEN d.TRANS_CODE IN ('211','221','232') THEN d.COMM_AMT ELSE 0 END)
+      - SUM(CASE WHEN d.TRANS_CODE IN ('212','222') THEN d.COMM_AMT ELSE 0 END) AS HoaHong,
+    SUM(CASE WHEN d.TRANS_CODE IN ('211','221','232') THEN d.SURPLUS ELSE 0 END)
+      - SUM(CASE WHEN d.TRANS_CODE IN ('212','222') THEN d.SURPLUS ELSE 0 END) AS laiGop,
     MAX(s.DIMENSION) AS dienTich,
     MAX(CASE WHEN s.TYPE = '01' THEN 'MART'
              WHEN s.TYPE = '02' THEN 'MINIMART'
              ELSE s.TYPE END) AS chain
 FROM STRANS d
-JOIN TRANSHDR h
-    ON h.TRANS_NUM = d.TRANS_NUM
-JOIN STOCK s
-    ON s.STK_ID = d.STK_ID
-LEFT JOIN (
-    -- Giá vốn bình quân — dùng THẲNG cột STK_INFO.AVERIMPPR (bản 8.8, xem
-    -- chú thích ở trên) — CHUNG toàn hệ thống theo SKU_ID (gộp qua mọi
-    -- STK_ID/chi nhánh), bình quân gia quyền theo số lượng M_BEGIN+M_IMP
-    -- của từng chi nhánh, xem "giá vốn dsmart.md" mục 3.
-    SELECT SKU_ID,
-           SUM(AVERIMPPR * (M_BEGIN + M_IMP)) / NULLIF(SUM(M_BEGIN + M_IMP), 0) AS GiaVonBinhQuan
-    FROM STK_INFO
-    GROUP BY SKU_ID
-) c ON c.SKU_ID = d.SKU_ID
-WHERE h.STATUS <> 'D' -- 'D' = Huỷ (đã xác nhận với người quản trị DSMART16); 'N'=Mới, 'M'=Sửa đều tính vào doanh thu
+JOIN STOCK s ON s.STK_ID = d.STK_ID
+WHERE d.STATUS <> 'D' -- 'D' = Huỷ; cột có sẵn trong STRANS, không cần JOIN TRANSHDR
+  AND d.TRANS_CODE IN ('211','221','232','212','222')
 GROUP BY d.STK_ID, CAST(d.TRAN_DATE AS DATE);
 GO
 
--- VIEW 2: Số giao dịch, gộp theo (chi nhánh, ngày) — BU_ID GIỮ NGUYÊN làm
--- EntityCode (không dịch mã). ĐÍNH CHÍNH: BU_ID KHÔNG PHẢI mã "Điểm" — BU_ID
--- là mã DSMART nhập tay riêng cho từng mã Điểm (xem "quy tắc mã BU_ID và
--- STK_ID.md"), etl-admin dùng bảng ánh xạ Điểm↔BU_ID để dịch ngược khi ghép
--- vào báo cáo, không so trực tiếp BU_ID với mã Điểm.
+-- VIEW 2: Số giao dịch, gộp theo (chi nhánh, ngày) — bản 8.10 CŨNG chuyển
+-- hẳn sang STRANS (BU_ID có sẵn TRỰC TIẾP trong STRANS, không cần TRANSHDR
+-- nữa), đếm SoGiaoDich = COUNT(DISTINCT TRANS_NUM) thay vì COUNT(*) dòng
+-- header — cùng lọc TRANS_CODE/trừ trả hàng như VIEW 1. BU_ID GIỮ NGUYÊN
+-- ĐẦY ĐỦ (KHÔNG rút gọn LEFT(BU_ID,3) dù câu mẫu DBA dùng cách này để gộp
+-- theo chi nhánh — dự án đã CHỦ ĐỘNG BỎ hẳn kiểu tự cắt/suy đoán BU_ID từ
+-- bản 7.3, từng gây lỗi thật) làm EntityCode, khớp đúng
+-- `etl.DiemStkMapping.MaDiem` như trước giờ.
 CREATE OR ALTER VIEW V_HCRC_GIAODICH_CHINHANH AS
 SELECT BU_ID, CAST(TRAN_DATE AS DATE) AS TRAN_DATE,
-       COUNT(*) AS SoGiaoDich, SUM(AMOUNT) AS TongTien,
-       SUM(DISCOUNT) AS TongGiamGia, SUM(VAT_AMT) AS TongVAT
-FROM TRANSHDR
+    COUNT(DISTINCT CASE WHEN TRANS_CODE IN ('211','221','232') THEN TRANS_NUM ELSE NULL END)
+      - COUNT(DISTINCT CASE WHEN TRANS_CODE IN ('212','222') THEN TRANS_NUM ELSE NULL END) AS SoGiaoDich,
+    SUM(CASE WHEN TRANS_CODE IN ('211','221','232') THEN AMOUNT + SURPLUS ELSE 0 END)
+      - SUM(CASE WHEN TRANS_CODE IN ('212','222') THEN AMOUNT + SURPLUS ELSE 0 END) AS TongTien,
+    SUM(CASE WHEN TRANS_CODE IN ('211','221','232') THEN DISCOUNT ELSE 0 END)
+      - SUM(CASE WHEN TRANS_CODE IN ('212','222') THEN DISCOUNT ELSE 0 END) AS TongGiamGia,
+    SUM(CASE WHEN TRANS_CODE IN ('211','221','232') THEN VAT_AMT ELSE 0 END)
+      - SUM(CASE WHEN TRANS_CODE IN ('212','222') THEN VAT_AMT ELSE 0 END) AS TongVAT
+FROM STRANS
 WHERE STATUS <> 'D' -- 'D' = Huỷ
+  AND TRANS_CODE IN ('211','221','232','212','222')
 GROUP BY BU_ID, CAST(TRAN_DATE AS DATE);
 GO
 ```
+
+> **Đã kiểm chứng bằng dữ liệu thật trước khi chốt công thức này** (ST HÀNG
+> TRỐNG, STK_ID `10011`, 17 ngày đầu tháng 9/2026): tỷ lệ `Lãi/DoanhThu`
+> theo `SURPLUS` ra **15-25%** ở gần như mọi ngày/chi nhánh đã kiểm — lần
+> ĐẦU TIÊN trong toàn bộ quá trình điều tra ra một con số hợp lý cho bán lẻ
+> (xem lịch sử đầy đủ ở "giá vốn dsmart.md" mục 6-8). Vài ngày cá biệt ra
+> Lãi ÂM kèm doanh thu tăng vọt bất thường (nghi giao dịch điều chỉnh/đặc
+> biệt) — chưa điều tra sâu, không chặn việc áp dụng công thức chung.
 
 **Mã `STATUS` đã xác nhận với người quản trị DSMART16** (bảng `TRANSHDR`,
 áp dụng chung cho cả `STRANS`/`STRANS_EOM`/`TRANSHDR_ARC`): `N` = Mới,
@@ -491,6 +509,23 @@ thấy cột "Cùng kỳ năm trước" thiếu dữ liệu của tháng gần �
 > Sau `--confirm`, job Live (`*/15 * * * *`) tự kéo lại toàn bộ dữ liệu của
 > nó (chỉ vài phút vì job Live không giữ dữ liệu nhiều năm như job Lịch sử)
 > với công thức giá vốn mới từ `STK_INFO`.
+
+> **ĐÍNH CHÍNH (bản 8.10)** — đổi hẳn công thức Doanh thu/Lãi gộp sang
+> `STRANS.SURPLUS`/`TRANS_CODE` (xem chú thích đầu Script A) — **CẢ 2
+> VIEW đều đổi** (Doanh thu lẫn Giao dịch), nên cần resync watermark job
+> Live của **CẢ 2 domain**, không chỉ `doanhthu_chinhanh` như đợt 8.5:
+> ```
+> cd etl
+> node scripts/resyncDoanhThuChinhanhLive.js --confirm
+> node scripts/resyncGiaodichChinhanhLive.js --confirm
+> ```
+> (script thứ 2 mới thêm ở bản 8.10, mirror y hệt script thứ 1, chỉ đổi
+> domain/tên job — xem chú thích đầu file đó). Cả 2 đều CHỈ đụng job Live,
+> không đụng job Lịch sử. **LƯU Ý QUAN TRỌNG**: công thức mới CHỈ tính
+> "Doanh thu" từ đúng 5 `TRANS_CODE` (`211/221/232` bán, `212/222` trả) —
+> các mã khác (vd `333`) bị LOẠI HẲN, khiến "Doanh thu" báo cáo GIẢM đáng
+> kể so với trước (~55% ở 1 ngày mẫu đã kiểm) — đã cảnh báo và người dùng
+> xác nhận trước khi deploy, xem "giá vốn dsmart.md" mục 8.
 
 ---
 

@@ -20,6 +20,46 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 8.10 — Đổi hẳn sang `STRANS.SURPLUS`/`TRANS_CODE` — lời giải thật cho Lãi gộp
+
+Sau khi deploy bản 8.9 (`AVERIMPPR`), người dùng gửi lại PDF ngày
+09/09/2026 — Giá trị Lãi gộp tăng lên (đúng như kỳ vọng khi đổi nguồn) nhưng
+Tỷ lệ vẫn quanh 0-1%, không hợp lý cho một chuỗi siêu thị vận hành. DBA
+DSMART16 gửi thẳng câu lệnh báo cáo doanh thu/lãi nội bộ họ đang dùng —
+phát hiện bảng `STRANS` có sẵn cột **`SURPLUS`**: lãi gộp POS đã tự tính
+SẴN cho từng dòng giao dịch, không cần tính/tra giá vốn từ đâu khác nữa.
+Đối chiếu diện rộng (~35 chi nhánh × 17 ngày) — tỷ lệ `Lãi/DoanhThu` theo
+`SURPLUS` ra **15-25%** ở gần như mọi dòng, lần đầu tiên hợp lý sau 5 bản
+(7.6 COSTPRICE → 8.1 công thức tự tính → 8.8 AVERIMPPR → 8.10 SURPLUS).
+
+Phát hiện đi kèm: `AMOUNT` (cột trước giờ coi là doanh thu đầy đủ) thực ra
+KHÔNG bao gồm `SURPLUS` — doanh thu đúng = `AMOUNT + SURPLUS`. `TRANS_CODE`
+phân loại giao dịch: `211/221/232` = bán, `212/222` = trả hàng (ghi `AMOUNT`
+DƯƠNG, phải trừ riêng — đã xác nhận bằng dữ liệu thật). Các mã khác (vd
+`333`, chiếm 55,6% doanh thu 1 ngày mẫu, `SURPLUS` luôn 0) bị LOẠI HẲN khỏi
+phạm vi VIEW mới — nghĩa chính xác CHƯA XÁC ĐỊNH (nghi bán sỉ/chuyển kho nội
+bộ) — **HỆ QUẢ: "Doanh thu" báo cáo GIẢM đáng kể (~55% ở ngày mẫu)** so với
+công thức cũ. Đã cảnh báo rõ với người dùng trước khi deploy; người dùng xác
+nhận dùng đúng theo công thức DBA.
+
+- Viết lại HOÀN TOÀN cả 2 VIEW (`V_HCRC_DOANHTHU_CHINHANH` VÀ
+  `V_HCRC_GIAODICH_CHINHANH`) — chuyển từ `TRANSHDR`+giá vốn ngoài sang
+  đọc thẳng `STRANS` (có sẵn `STATUS`/`BU_ID`, không cần JOIN `TRANSHDR`
+  nữa), lọc/trừ theo `TRANS_CODE`, `SoGiaoDich` đổi từ đếm dòng header
+  sang `COUNT(DISTINCT TRANS_NUM)`. GIỮ NGUYÊN `BU_ID` đầy đủ (không rút
+  gọn theo mẫu DBA gửi — dự án đã bỏ hẳn kiểu tự cắt BU_ID từ bản 7.3).
+- `etl/scripts/resyncGiaodichChinhanhLive.js` (mới) — mirror
+  `resyncDoanhThuChinhanhLive.js` cho domain `giaodich_chinhanh`, vì VIEW
+  Giao dịch cũng đổi, cần resync watermark job Live của CẢ 2 domain lần
+  này (trước chỉ cần 1 domain ở bản 8.5-8.9).
+- `báo cáo doanh thu cuối ngày.md`/`giá vốn dsmart.md` — viết lại Script A
+  hoàn toàn, thêm mục 8 (lời giải `SURPLUS`) vào "giá vốn dsmart.md", đánh
+  dấu mục 1-6 cũ là "đã supersede" (giữ lại lưu vết quá trình điều tra).
+- CÒN MỞ: nghĩa chính xác `TRANS_CODE 333`; Script B (Lịch sử) có
+  `SURPLUS`/`TRANS_CODE` để áp dụng cùng công thức không (nếu có, giải
+  quyết luôn "Lãi gộp lịch sử sai" tồn đọng từ bản 8.1); vài ngày Lãi ÂM
+  bất thường phát hiện khi đối chiếu diện rộng.
+
 ## 8.9 — DBA chốt dứt khoát dùng `AVERIMPPR` + tìm ra đường nối tên mặt hàng
 
 Trước khi deploy bản 8.8, đã soi thêm 2 cột còn lại (`PREFPR` — dò ra nằm ở
