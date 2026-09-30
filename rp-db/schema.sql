@@ -652,6 +652,23 @@ BEGIN
 END
 GO
 
+-- Nhật ký VẬN HÀNH chung (kết nối CSDL thành công/thất bại, lỗi request
+-- không bắt được ở route cụ thể, lịch gửi email báo cáo/cảnh báo bất thường
+-- bắt đầu/thành công/lỗi...) — khác app.AuditLog (AI làm gì, thao tác chủ
+-- động qua giao diện). Cùng khuôn etl.SystemLog (etl-db/schema.sql) + trang
+-- "Log" của etl-admin — xem rp-server/lib/systemLog.js.
+IF OBJECT_ID('app.SystemLog', 'U') IS NULL
+BEGIN
+    CREATE TABLE app.SystemLog (
+        Id        BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        Level     VARCHAR(10)   NOT NULL, -- INFO / WARN / ERROR
+        Message   NVARCHAR(1000) NOT NULL,
+        CreatedAt DATETIME2(3)  NOT NULL DEFAULT SYSUTCDATETIME()
+    );
+    CREATE INDEX IX_SystemLog_CreatedAt ON app.SystemLog (CreatedAt DESC);
+END
+GO
+
 -- Cảnh báo bất thường — 2 CHẾ ĐỘ (AlertMode), theo từng "thực thể" (cột
 -- EntityColumnKey, vd chi nhánh) trên MỘT cột số (MetricColumnKey, vd doanh
 -- thu/tồn kho) của MỘT báo cáo đã có (app.ReportCatalog) — gửi email CHỈ
@@ -749,9 +766,15 @@ IF NOT EXISTS (SELECT 1 FROM app.MenuItems WHERE Code = 'system-permissions')
 IF NOT EXISTS (SELECT 1 FROM app.MenuItems WHERE Code = 'system-report-catalog')
     INSERT INTO app.MenuItems (Code, ParentId, Label, Path, SortOrder)
     SELECT 'system-report-catalog', Id, N'Biểu mẫu', '/system/report-catalog', 2 FROM app.MenuItems WHERE Code = 'system';
+-- ĐÍNH CHÍNH (bản 8.6): trang này đọc app.AuditLog (AI làm gì, thao tác chủ
+-- động), tên "Log" gây nhầm với trang "Log" MỚI bên dưới (app.SystemLog,
+-- nhật ký vận hành) — đổi tên hiển thị đúng bản chất, khớp tên etl-admin/
+-- api-admin đã dùng cho đúng loại trang này ("Nhật ký thao tác"). UPDATE cho
+-- CSDL ĐÃ CÓ SẴN — an toàn chạy lại nhiều lần (chỉ đổi khi còn tên cũ).
 IF NOT EXISTS (SELECT 1 FROM app.MenuItems WHERE Code = 'system-audit-log')
     INSERT INTO app.MenuItems (Code, ParentId, Label, Path, SortOrder)
-    SELECT 'system-audit-log', Id, N'Log', '/system/audit-log', 3 FROM app.MenuItems WHERE Code = 'system';
+    SELECT 'system-audit-log', Id, N'Nhật ký thao tác', '/system/audit-log', 3 FROM app.MenuItems WHERE Code = 'system';
+UPDATE app.MenuItems SET Label = N'Nhật ký thao tác' WHERE Code = 'system-audit-log' AND Label = N'Log';
 IF NOT EXISTS (SELECT 1 FROM app.MenuItems WHERE Code = 'system-categories')
     INSERT INTO app.MenuItems (Code, ParentId, Label, Path, SortOrder)
     SELECT 'system-categories', Id, N'Danh mục', '/system/categories', 4 FROM app.MenuItems WHERE Code = 'system';
@@ -767,6 +790,12 @@ IF NOT EXISTS (SELECT 1 FROM app.MenuItems WHERE Code = 'system-anomaly-alerts')
 IF NOT EXISTS (SELECT 1 FROM app.MenuItems WHERE Code = 'system-hcrc-workspace')
     INSERT INTO app.MenuItems (Code, ParentId, Label, Path, SortOrder)
     SELECT 'system-hcrc-workspace', Id, N'Xác thực HCRC Workspace', '/system/hcrc-workspace', 8 FROM app.MenuItems WHERE Code = 'system';
+-- Trang "Log" MỚI (bản 8.6) — app.SystemLog, nhật ký vận hành (kết nối CSDL,
+-- lỗi request, lịch gửi email/cảnh báo bất thường...), KHÁC "Nhật ký thao
+-- tác" ở trên (app.AuditLog, ai làm gì) — xem rp-server/routes/systemLog.js.
+IF NOT EXISTS (SELECT 1 FROM app.MenuItems WHERE Code = 'system-log')
+    INSERT INTO app.MenuItems (Code, ParentId, Label, Path, SortOrder)
+    SELECT 'system-log', Id, N'Log', '/system/log', 9 FROM app.MenuItems WHERE Code = 'system';
 GO
 
 -- Seed vai trò Admin (IsSystemRole=1) — luôn cần tồn tại để gán cho tài khoản

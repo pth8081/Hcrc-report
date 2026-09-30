@@ -15,6 +15,7 @@ const NAV = [
   { path: '/live', label: 'Kết nối hiện tại', icon: '🌐', menuCode: 'live' },
   { path: '/history', label: 'Lịch sử', icon: '🕓', menuCode: 'history' },
   { path: '/stats', label: 'Top truy vấn', icon: '📈', menuCode: 'stats' },
+  { path: '/log', label: 'Log', icon: '🧾', menuCode: 'log' },
   { path: '/audit-log', label: 'Nhật ký thao tác', icon: '📜', menuCode: 'audit-log' },
   { path: '/admin-users', label: 'Tài khoản quản trị', icon: '🔐', menuCode: 'users' },
   { path: '/roles', label: 'Vai trò', icon: '🛡️', menuCode: 'roles' },

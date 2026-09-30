@@ -63,6 +63,23 @@ BEGIN
 END
 GO
 
+-- Nhật ký VẬN HÀNH chung (kết nối CSDL thành công/thất bại, lỗi request
+-- không bắt được ở route cụ thể...) — khác admin.AuditLog (AI làm gì, thao
+-- tác chủ động) và api.RequestLog (log GỌI API của đối tác ngoài). Cùng
+-- khuôn etl.SystemLog (etl-db/schema.sql) + trang "Log" của etl-admin — xem
+-- api-server/lib/systemLog.js.
+IF OBJECT_ID('admin.SystemLog', 'U') IS NULL
+BEGIN
+    CREATE TABLE admin.SystemLog (
+        Id        BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        Level     VARCHAR(10)   NOT NULL, -- INFO / WARN / ERROR
+        Message   NVARCHAR(1000) NOT NULL,
+        CreatedAt DATETIME2(3)  NOT NULL DEFAULT SYSUTCDATETIME()
+    );
+    CREATE INDEX IX_SystemLog_CreatedAt ON admin.SystemLog(CreatedAt DESC);
+END
+GO
+
 -- Đối tác gọi API — 3 cách xác thực chọn MỘT theo AuthMethod, cột của 2
 -- cách kia luôn NULL:
 --   'apiKey' (mặc định, hành vi cũ) — ApiKeyHash = SHA-256 (hex, 64 ký tự)

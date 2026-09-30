@@ -162,6 +162,22 @@ const SECTIONS = [
         )
       },
       {
+        id: 'system-log',
+        icon: '🧾',
+        label: 'Log',
+        content: (
+          <>
+            <h2>Log</h2>
+            <p>
+              Ghi lại nhật ký VẬN HÀNH chung — kết nối CSDL thành công/thất bại, lỗi request không bắt được
+              ở route cụ thể. Đây là nơi ĐẦU TIÊN cần kiểm tra khi api-server báo lỗi 500 hoặc không kết nối
+              được CSDL — trước đây phải SSH vào máy chủ xem qua pm2 log mới thấy đủ. Khác "Nhật ký thao tác"
+              (ai làm gì) và "Lịch sử" (log GỌI API của đối tác ngoài).
+            </p>
+          </>
+        )
+      },
+      {
         id: 'audit-log',
         icon: '📜',
         label: 'Nhật ký thao tác',

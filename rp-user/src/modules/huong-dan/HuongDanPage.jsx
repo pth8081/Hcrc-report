@@ -212,6 +212,38 @@ const SECTIONS = [
     title: 'Quản trị hệ thống',
     items: [
       {
+        id: 'system-log',
+        icon: '🧾',
+        label: 'Log',
+        content: (
+          <>
+            <h2>Log</h2>
+            <p>
+              Ghi lại nhật ký VẬN HÀNH chung — kết nối CSDL thành công/thất bại, lỗi request không bắt được
+              ở route cụ thể, lịch gửi email báo cáo/cảnh báo bất thường bắt đầu/thành công/lỗi. Đây là nơi
+              ĐẦU TIÊN cần kiểm tra khi hệ thống báo lỗi hoặc số liệu không đúng như mong đợi — trước đây phải
+              SSH vào máy chủ xem qua pm2 log mới thấy đủ. Khác trang <strong>"Nhật ký thao tác"</strong> (ai
+              làm gì, thao tác chủ động qua giao diện).
+            </p>
+          </>
+        )
+      },
+      {
+        id: 'audit-log',
+        icon: '📜',
+        label: 'Nhật ký thao tác',
+        content: (
+          <>
+            <h2>Nhật ký thao tác</h2>
+            <p>
+              Ghi lại MỌI thao tác thêm/sửa/xoá của mọi tài khoản, kèm lịch sử xuất báo cáo và gửi email tự
+              động — dùng để tra soát khi có thay đổi bất thường hoặc cần biết "ai vừa làm gì". Khác trang
+              "Log" (chỉ ghi sự kiện vận hành tự động, không phải thao tác người dùng).
+            </p>
+          </>
+        )
+      },
+      {
         id: 'phan-quyen',
         icon: '🔐',
         label: 'Phân quyền & Vai trò',

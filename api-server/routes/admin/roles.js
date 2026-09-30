@@ -25,6 +25,7 @@ const MENU_CATALOG = [
   { code: 'live', label: 'Kết nối hiện tại' },
   { code: 'history', label: 'Lịch sử' },
   { code: 'stats', label: 'Top truy vấn' },
+  { code: 'log', label: 'Log' },
   { code: 'audit-log', label: 'Nhật ký thao tác' },
   { code: 'users', label: 'Phân quyền' },
   { code: 'roles', label: 'Vai trò' },

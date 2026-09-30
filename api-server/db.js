@@ -60,15 +60,19 @@ async function getPool(prefix) {
   if (!pools.has(prefix)) {
     assertConfigured(prefix);
     const config = buildConfig(prefix);
+    // require() TRỄ (trong hàm, không phải đầu file) — lib/systemLog.js
+    // cũng require('../db'), require() ở đầu file 2 bên sẽ vòng lặp lẫn
+    // nhau lúc NẠP MODULE — xem chú thích y hệt ở etl/db.js.
+    const { logInfo, logError } = require('./lib/systemLog');
     const promise = new sql.ConnectionPool(config)
       .connect()
       .then(pool => {
-        console.log(`✅ Đã kết nối [${prefix}]: ${config.server}:${config.port} - ${config.database}`);
+        logInfo(`✅ Đã kết nối [${prefix}]: ${config.server}:${config.port} - ${config.database}`);
         return pool;
       })
       .catch(err => {
         pools.delete(prefix);
-        console.error(`⛔ Lỗi kết nối [${prefix}]:`, err.message);
+        logError(`⛔ Lỗi kết nối [${prefix}]: ${err.message}`);
         throw err;
       });
     pools.set(prefix, promise);

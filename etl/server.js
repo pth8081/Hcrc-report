@@ -119,6 +119,9 @@ app.use('/admin/roles', adminRolesRoutes);
 
 app.use((err, req, res, next) => { // eslint-disable-line no-unused-vars
   console.error(err);
+  // Ghi vào etl.SystemLog (trang "Log") — lỗi route KHÔNG bắt riêng (rơi tới
+  // đây) trước đây chỉ có ở pm2 log, không xem lại được qua giao diện.
+  require('./lib/systemLog').logError(`⛔ Lỗi request ${req.method} ${req.originalUrl}: ${err.message}`);
   res.status(500).json({ error: 'Lỗi máy chủ' });
 });
 

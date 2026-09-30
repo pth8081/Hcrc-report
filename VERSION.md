@@ -20,6 +20,45 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 8.6 — Thống nhất trang "Log" + "Nhật ký thao tác" ở cả 3 giao diện quản trị
+
+Trước bản này, chỉ etl-admin có ĐỦ 2 trang tách biệt: "Log" (etl.SystemLog —
+nhật ký vận hành: kết nối CSDL, lỗi request, bắt đầu/kết quả từng lượt đồng
+bộ) và "Nhật ký thao tác" (admin.AuditLog — ai làm gì). rp-user chỉ có 1
+trang, ĐẶT SAI TÊN "Log" nhưng thực chất là app.AuditLog (khiến người dùng
+tưởng đây là nhật ký vận hành, không tìm thấy lỗi kết nối/lỗi request ở
+đâu); api-admin có đúng "Nhật ký thao tác" (admin.AuditLog) nhưng THIẾU hẳn
+lớp nhật ký vận hành. etl-admin cũng thiếu bộ lọc theo khoảng ngày ở trang
+"Log" (chỉ rp-user/api-admin có, ở trang audit log).
+
+- Thêm bảng `app.SystemLog` (rp-db) và `admin.SystemLog` (api-db) — cùng
+  cấu trúc `etl.SystemLog` (Level/Message/CreatedAt).
+- Thêm `rp-server/lib/systemLog.js` + `api-server/lib/systemLog.js` (cùng
+  khuôn `etl/lib/systemLog.js`) — gắn vào `db.js` (log kết nối CSDL thành
+  công/thất bại) và global error handler của cả 3 server.js (log lỗi route
+  không bắt riêng) — trước đây các sự kiện này CHỈ có trong pm2 log, phải
+  SSH mới xem được.
+- Route mới: `rp-server/routes/systemLog.js` (`GET /api/system/log`),
+  `api-server/routes/admin/systemLog.js` (`GET /admin/log`) — lọc theo mức
+  độ + khoảng ngày (from/to) NGAY TỪ ĐẦU.
+- `etl/routes/admin/log.js` — bổ sung bộ lọc from/to còn thiếu, cho khớp 2
+  trang kia.
+- Trang mới "Log" ở rp-user (`/system/log`) và api-admin (`/log`) — cùng
+  giao diện tabs Tất cả/Thông tin/Cảnh báo/Lỗi + lọc ngày như etl-admin.
+- Đổi tên trang rp-user từ "Log" (sai) thành đúng **"Nhật ký thao tác"**
+  (menu `system-audit-log`, `rp-db/schema.sql` UPDATE tên hiển thị cho CSDL
+  đã có sẵn) — không đổi route/API, chỉ đổi tên hiển thị + tiêu đề trang.
+- Thêm job dọn định kỳ `cleanupSystemLog` (mặc định 90 ngày, biến môi
+  trường `SYSTEM_LOG_RETENTION_DAYS`) cho cả rp-server và api-server, chạy
+  cùng lịch với `cleanupAuditLog`/`cleanupRequestLog` hiện có.
+- Rà soát riêng: phạm vi "Nhật ký thao tác" (ai làm gì) ở cả 3 hệ thống đã
+  BAO PHỦ ĐỦ mọi route có thao tác ghi (thêm/sửa/xoá) qua giao diện quản
+  trị — không phát sinh thêm lỗ hổng nào cần vá; các route 0 lượt gọi
+  `logAction()` tìm thấy khi rà soát đều là trang chỉ đọc hoặc endpoint API
+  ngoài (`/api/v1/*`, đã có `api.RequestLog` riêng).
+- Cập nhật mục "Log"/"Nhật ký thao tác" trong "Hướng dẫn" của rp-user và
+  api-admin cho khớp thay đổi.
+
 ## 8.5 — Tìm ra nguyên nhân thật "Lãi gộp" vẫn sai sau bản 8.1 + script đồng bộ lại riêng job Live
 
 Người dùng phản ánh: sau khi đã sửa VIEW ở DSMART16 theo bản 8.1 và kiểm

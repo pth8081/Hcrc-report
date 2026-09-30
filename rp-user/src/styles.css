@@ -84,6 +84,13 @@ button:hover { opacity: 0.9; }
 .tabs button { background: none; border: none; color: var(--ink-soft); padding: 8px 14px; border-radius: 0; }
 .tabs button.active { color: var(--accent); border-bottom: 2px solid var(--accent); }
 
+/* Trang "Log" (app.SystemLog) — mức độ INFO/WARN/ERROR */
+.level-badge { font-size: 10px; text-transform: uppercase; letter-spacing: .04em; padding: 1px 6px; border-radius: 3px; font-weight: 500; }
+.level-badge.level-info { background: #e3f2fd; color: #0d47a1; }
+.level-badge.level-warn { background: #fff3e0; color: #8a4b00; }
+.level-badge.level-error { background: #fdecea; color: #b3261e; }
+.pager { display: flex; align-items: center; gap: 12px; margin-top: 12px; font-size: 13px; }
+
 /* Modal */
 .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; }
 .modal-body { background: var(--surface); padding: 24px; border-radius: 6px; width: min(420px, 92vw); max-height: 80vh; overflow-y: auto; }

@@ -1,5 +1,7 @@
-// modules/system/audit-log/AuditLogPage.jsx — Chỉ đọc, lọc theo
-// username/module/khoảng thời gian.
+// modules/system/audit-log/AuditLogPage.jsx — Trang "Nhật ký thao tác": xem
+// app.AuditLog (ai làm gì), chỉ đọc — khác trang "Log" (SystemLogPage.jsx,
+// app.SystemLog — nhật ký vận hành). Lọc theo username/module/khoảng thời
+// gian.
 import { useEffect, useState } from 'react';
 import { api } from '../../../lib/api';
 import DataTable from '../../../components/DataTable';
@@ -21,7 +23,7 @@ export default function AuditLogPage() {
 
   return (
     <div className="page">
-      <h1>Log</h1>
+      <h1>Nhật ký thao tác</h1>
       {error && <p className="form-error">{error}</p>}
 
       <form className="inline-form" onSubmit={(e) => { e.preventDefault(); load(); }}>

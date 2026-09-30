@@ -31,6 +31,7 @@ const adminReportCatalogRoutes = require('./routes/admin/reportCatalog');
 const adminLiveRoutes = require('./routes/admin/live');
 const adminHistoryRoutes = require('./routes/admin/history');
 const adminAuditLogRoutes = require('./routes/admin/auditLog');
+const adminSystemLogRoutes = require('./routes/admin/systemLog');
 const adminStatsRoutes = require('./routes/admin/stats');
 const adminRolesRoutes = require('./routes/admin/roles');
 const adminVoucherSettingsRoutes = require('./routes/admin/voucherSettings');
@@ -39,6 +40,8 @@ const { adminIpAllowlist } = require('./lib/adminIpAllowlist');
 const { corsAllowlist } = require('./lib/corsAllowlist');
 const { cleanupRequestLog } = require('./jobs/cleanupRequestLog');
 const { cleanupAuditLog } = require('./jobs/cleanupAuditLog');
+const { cleanupSystemLog } = require('./jobs/cleanupSystemLog');
+const { logError } = require('./lib/systemLog');
 const { cleanupHmacSignatures } = require('./jobs/cleanupHmacSignatures');
 const { isSchedulerLeader } = require('./lib/clusterLeader');
 const { closeAll, assertConfigured } = require('./db');
@@ -138,12 +141,16 @@ app.use('/admin/report-catalog', adminReportCatalogRoutes);
 app.use('/admin/live', adminLiveRoutes);
 app.use('/admin/history', adminHistoryRoutes);
 app.use('/admin/audit-log', adminAuditLogRoutes);
+app.use('/admin/log', adminSystemLogRoutes);
 app.use('/admin/stats', adminStatsRoutes);
 app.use('/admin/roles', adminRolesRoutes);
 app.use('/admin/voucher-settings', adminVoucherSettingsRoutes);
 
 app.use((err, req, res, next) => { // eslint-disable-line no-unused-vars
   console.error(err);
+  // Ghi vào admin.SystemLog (trang "Log") — lỗi route KHÔNG bắt riêng (rơi
+  // tới đây) trước đây chỉ có ở pm2 log, không xem lại được qua giao diện.
+  logError(`⛔ Lỗi request ${req.method} ${req.originalUrl}: ${err.message}`);
   res.status(500).json({ error: 'Lỗi máy chủ' });
 });
 
@@ -178,6 +185,7 @@ if (isSchedulerLeader()) {
   cron.schedule(process.env.CLEANUP_CRON || '0 2 * * *', () => {
     cleanupRequestLog().catch(err => console.error('⛔ Lỗi dọn RequestLog:', err.message));
     cleanupAuditLog().catch(err => console.error('⛔ Lỗi dọn AuditLog:', err.message));
+    cleanupSystemLog().catch(err => console.error('⛔ Lỗi dọn SystemLog:', err.message));
   });
 }
 

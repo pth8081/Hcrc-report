@@ -17,6 +17,7 @@ const ICONS = {
   'system-permissions': '🔐',
   'system-report-catalog': '🗂️',
   'system-audit-log': '📜',
+  'system-log': '🧾',
   'system-categories': '🏷️',
   'system-email-settings': '✉️',
   'system-email-schedules': '⏱️',

@@ -18,6 +18,7 @@ const menuItemsRoutes = require('./routes/menuItems');
 const categoriesRoutes = require('./routes/categories');
 const emailSettingsRoutes = require('./routes/emailSettings');
 const auditLogRoutes = require('./routes/auditLog');
+const systemLogRoutes = require('./routes/systemLog');
 const reportCatalogRoutes = require('./routes/reportCatalog');
 const dataSourcesRoutes = require('./routes/dataSources');
 const apiConnectionsRoutes = require('./routes/apiConnections');
@@ -38,6 +39,8 @@ const anomalyAlertScheduler = require('./jobs/anomalyAlertScheduler');
 const { isBlocked, recordFailure, recordSuccess, DEFAULT_PROFILE, ADMIN_PROFILE } = require('./lib/loginRateLimit');
 const { logAction } = require('./lib/auditLog');
 const { cleanupAuditLog } = require('./jobs/cleanupAuditLog');
+const { cleanupSystemLog } = require('./jobs/cleanupSystemLog');
+const { logError } = require('./lib/systemLog');
 const { isSchedulerLeader } = require('./lib/clusterLeader');
 const { closeAll, assertConfigured } = require('./db');
 const { getKey } = require('./lib/crypto');
@@ -181,6 +184,7 @@ app.use('/api/system/menu-items', menuItemsRoutes);
 app.use('/api/system/categories', categoriesRoutes);
 app.use('/api/system/email-settings', emailSettingsRoutes);
 app.use('/api/system/audit-log', auditLogRoutes);
+app.use('/api/system/log', systemLogRoutes);
 app.use('/api/system/report-catalog', reportCatalogRoutes);
 app.use('/api/system/data-sources', dataSourcesRoutes);
 app.use('/api/system/api-connections', apiConnectionsRoutes);
@@ -192,18 +196,23 @@ app.use('/api/system/dashboards', dashboardCatalogRoutes);
 
 app.use((err, req, res, next) => { // eslint-disable-line no-unused-vars
   console.error(err);
+  // Ghi vào app.SystemLog (trang "Log") — lỗi route KHÔNG bắt riêng (rơi tới
+  // đây) trước đây chỉ có ở pm2 log, không xem lại được qua giao diện.
+  logError(`⛔ Lỗi request ${req.method} ${req.originalUrl}: ${err.message}`);
   res.status(500).json({ error: 'Lỗi máy chủ' });
 });
 
 reportEmailScheduler.start();
 anomalyAlertScheduler.start();
 
-// Dọn app.AuditLog cũ theo lịch (mặc định 02:00 hằng ngày). CHỈ instance
-// leader (PM2 cluster mode nhiều worker — xem lib/clusterLeader.js) — N
-// worker cùng DELETE là vô hại (idempotent) nhưng lãng phí, không cần N lần.
+// Dọn app.AuditLog/app.SystemLog cũ theo lịch (mặc định 02:00 hằng ngày).
+// CHỈ instance leader (PM2 cluster mode nhiều worker — xem
+// lib/clusterLeader.js) — N worker cùng DELETE là vô hại (idempotent) nhưng
+// lãng phí, không cần N lần.
 if (isSchedulerLeader()) {
   cron.schedule(process.env.CLEANUP_CRON || '0 2 * * *', () => {
     cleanupAuditLog().catch(err => console.error('⛔ Lỗi dọn AuditLog:', err.message));
+    cleanupSystemLog().catch(err => console.error('⛔ Lỗi dọn SystemLog:', err.message));
   });
 }
 

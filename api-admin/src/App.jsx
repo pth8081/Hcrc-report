@@ -12,6 +12,7 @@ import LivePage from './pages/LivePage';
 import HistoryPage from './pages/HistoryPage';
 import StatsPage from './pages/StatsPage';
 import AuditLogPage from './pages/AuditLogPage';
+import LogPage from './pages/LogPage';
 import AdminUsersPage from './pages/AdminUsersPage';
 import RolesPage from './pages/RolesPage';
 import VoucherSettingsPage from './pages/VoucherSettingsPage';
@@ -49,6 +50,7 @@ export default function App() {
           <Route path="/history" element={<HistoryPage />} />
           <Route path="/stats" element={<StatsPage />} />
           <Route path="/audit-log" element={<AuditLogPage />} />
+          <Route path="/log" element={<LogPage />} />
           <Route path="/admin-users" element={<AdminUsersPage />} />
           <Route path="/roles" element={<RolesPage />} />
           <Route path="/voucher-settings" element={<VoucherSettingsPage />} />

@@ -70,6 +70,12 @@ button:hover { opacity: 0.9; }
 
 .pager { display: flex; align-items: center; gap: 12px; margin-top: 12px; font-size: 13px; }
 
+/* Trang "Log" (admin.SystemLog) — mức độ INFO/WARN/ERROR */
+.level-badge { font-size: 10px; text-transform: uppercase; letter-spacing: .04em; padding: 1px 6px; border-radius: 3px; font-weight: 500; }
+.level-badge.level-info { background: #e3f2fd; color: #0d47a1; }
+.level-badge.level-warn { background: #fff3e0; color: #8a4b00; }
+.level-badge.level-error { background: #fdecea; color: #b3261e; }
+
 /* .update-banner — toast cố định góc dưới-phải, xem components/UpdateBanner.jsx */
 .update-banner {
   position: fixed; right: 20px; bottom: 20px; z-index: 60; max-width: 360px;

@@ -13,6 +13,7 @@ import AdhocReportPage from './modules/reports/AdhocReportPage';
 import PermissionsPage from './modules/system/permissions/PermissionsPage';
 import ReportCatalogPage from './modules/system/report-catalog/ReportCatalogPage';
 import AuditLogPage from './modules/system/audit-log/AuditLogPage';
+import SystemLogPage from './modules/system/system-log/SystemLogPage';
 import CategoriesPage from './modules/system/categories/CategoriesPage';
 import EmailSettingsPage from './modules/system/email-settings/EmailSettingsPage';
 import EmailSchedulesPage from './modules/system/email-schedules/EmailSchedulesPage';
@@ -42,6 +43,7 @@ export default function App() {
           <Route path="/system/permissions" element={<RequireMenuAccess code="system-permissions"><PermissionsPage /></RequireMenuAccess>} />
           <Route path="/system/report-catalog" element={<RequireMenuAccess code="system-report-catalog"><ReportCatalogPage /></RequireMenuAccess>} />
           <Route path="/system/audit-log" element={<RequireMenuAccess code="system-audit-log"><AuditLogPage /></RequireMenuAccess>} />
+          <Route path="/system/log" element={<RequireMenuAccess code="system-log"><SystemLogPage /></RequireMenuAccess>} />
           <Route path="/system/categories" element={<RequireMenuAccess code="system-categories"><CategoriesPage /></RequireMenuAccess>} />
           <Route path="/system/email-settings" element={<RequireMenuAccess code="system-email-settings"><EmailSettingsPage /></RequireMenuAccess>} />
           <Route path="/system/email-schedules" element={<RequireMenuAccess code="system-email-schedules"><EmailSchedulesPage /></RequireMenuAccess>} />
