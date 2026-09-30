@@ -139,11 +139,19 @@ có ai đó chủ động chạy `DROP VIEW <tên>`. Cần lưu ý 2 điều:
 -- NODE_ID ở bản 7.6) đã bị BỎ HẲN — đối chiếu bằng dữ liệu thật xác nhận
 -- COSTPRICE.COSTPRICE KHÔNG PHẢI giá vốn nhập hàng thật (gần như trùng
 -- khớp tuyệt đối với giá bán, mọi cột giá khác trong bảng đó đều rỗng).
--- Thay bằng giá vốn bình quân gia quyền tự tính từ STK_INFO (tồn đầu kỳ +
--- nhập trong kỳ, CHUNG toàn hệ thống theo SKU_ID, đã chốt với người dùng)
--- — CHỈ ĐÚNG CHO THÁNG HIỆN TẠI vì STK_INFO là bảng tồn kho TỨC THỜI,
--- không lưu lịch sử theo tháng (KHÔNG áp dụng cách này cho Script B/
--- DSMART16_EOM bên dưới — xem chú thích ở đó).
+-- ĐÍNH CHÍNH TIẾP (bản 8.8): bản 8.1 thay bằng công thức TỰ TÍNH
+-- SUM(M_BEGAMT+M_IMPAMT)/SUM(M_BEGIN+M_IMP) — đối chiếu lại bằng dữ liệu
+-- thật (soi từng mã hàng 1 chi nhánh/1 ngày) phát hiện RẤT NHIỀU mã hàng
+-- vẫn cho giá vốn ≈ giá bán (có mã khớp CHÍNH XÁC tới từng đồng), cùng
+-- triệu chứng như COSTPRICE cũ — nghi ngờ M_IMPAMT cũng ghi theo giá trị
+-- BÁN LẺ chứ không phải giá NHẬP thật. Đã hỏi lại DBA DSMART16 — xác nhận
+-- dùng THẲNG cột STK_INFO.AVERIMPPR ("GV bình quân", hệ thống tự tính sẵn)
+-- thay vì tự tính lại từ 4 cột M_BEGIN/M_IMP/M_BEGAMT/M_IMPAMT. Vẫn giữ
+-- nguyên tắc CHUNG TOÀN HỆ THỐNG theo SKU_ID (gộp nhiều STK_ID/chi nhánh,
+-- bình quân gia quyền theo số lượng M_BEGIN+M_IMP của từng chi nhánh) —
+-- CHỈ ĐÚNG CHO THÁNG HIỆN TẠI vì STK_INFO là bảng tồn kho TỨC THỜI, không
+-- lưu lịch sử theo tháng (KHÔNG áp dụng cách này cho Script B/DSMART16_EOM
+-- bên dưới — xem chú thích ở đó).
 CREATE OR ALTER VIEW V_HCRC_DOANHTHU_CHINHANH AS
 SELECT
     d.STK_ID, CAST(d.TRAN_DATE AS DATE) AS WORK_DATE,
@@ -163,11 +171,12 @@ JOIN TRANSHDR h
 JOIN STOCK s
     ON s.STK_ID = d.STK_ID
 LEFT JOIN (
-    -- Giá vốn bình quân gia quyền cuối kỳ, THEO THÁNG, CHUNG toàn hệ
-    -- thống theo SKU_ID (gộp qua mọi STK_ID/chi nhánh) — công thức đã
-    -- chốt với người dùng, xem "giá vốn dsmart.md" mục 3.
+    -- Giá vốn bình quân — dùng THẲNG cột STK_INFO.AVERIMPPR (bản 8.8, xem
+    -- chú thích ở trên) — CHUNG toàn hệ thống theo SKU_ID (gộp qua mọi
+    -- STK_ID/chi nhánh), bình quân gia quyền theo số lượng M_BEGIN+M_IMP
+    -- của từng chi nhánh, xem "giá vốn dsmart.md" mục 3.
     SELECT SKU_ID,
-           SUM(M_BEGAMT + M_IMPAMT) / NULLIF(SUM(M_BEGIN + M_IMP), 0) AS GiaVonBinhQuan
+           SUM(AVERIMPPR * (M_BEGIN + M_IMP)) / NULLIF(SUM(M_BEGIN + M_IMP), 0) AS GiaVonBinhQuan
     FROM STK_INFO
     GROUP BY SKU_ID
 ) c ON c.SKU_ID = d.SKU_ID
@@ -222,8 +231,8 @@ ban đầu) — tham chiếu chéo `DSMART16.dbo.STOCK`/`DSMART16.dbo.COSTPRICE`
 như cũ.
 
 > **"Lãi gộp" ở Script B CỐ Ý CHƯA sửa theo "giá vốn dsmart.md"** — đã
-> chốt với người dùng: giá vốn bình quân gia quyền tự tính từ `STK_INFO`
-> (áp dụng ở Script A) CHỈ đúng cho THÁNG HIỆN TẠI (bảng tồn kho tức thời,
+> chốt với người dùng: giá vốn bình quân `STK_INFO.AVERIMPPR` (áp dụng ở
+> Script A, bản 8.8) CHỈ đúng cho THÁNG HIỆN TẠI (bảng tồn kho tức thời,
 > không lưu lịch sử theo tháng) — không có nguồn giá vốn đáng tin cho các
 > tháng/năm cũ mà Script B phục vụ ("Cùng kỳ năm trước"). Script B GIỮ
 > NGUYÊN JOIN `COSTPRICE` cũ (đã biết KHÔNG đáng tin, xem "giá vốn

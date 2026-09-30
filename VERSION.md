@@ -20,6 +20,40 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 8.8 — Đổi nguồn giá vốn sang `STK_INFO.AVERIMPPR` (công thức tự tính vẫn bị nhiễm giá bán)
+
+Sau bản 8.7, người dùng gửi lại PDF ngày 09/09/2026 — "Lãi gộp" đã tăng so
+với trước (chứng tỏ bản 8.5/8.6 sửa watermark có tác dụng) nhưng vẫn cực
+thấp (~0.3-0.6% toàn chuỗi, vài siêu thị ÂM) — không hợp lý cho một chuỗi
+siêu thị đang vận hành. Soi chi tiết TỪNG MÃ HÀNG bán tại 1 chi nhánh/1
+ngày (ST HÀNG TRỐNG, STK_ID 10011, 09/09/2026) phát hiện: rất nhiều mã
+hàng có giá vốn tự tính (`SUM(M_BEGAMT+M_IMPAMT)/SUM(M_BEGIN+M_IMP)`, công
+thức đã chốt ở bản 8.1) ra ĐÚNG BẰNG giá bán tới từng đồng — cùng triệu
+chứng với bảng `COSTPRICE` đã loại ở bản 8.1, chỉ khác là lộ ra khi soi
+rộng (toàn bộ mã hàng) thay vì chỉ 10 mã mẫu ban đầu dùng để kiểm chứng.
+Nghi ngờ cột `M_IMPAMT` (giá trị nhập trong kỳ) của `STK_INFO` cũng ghi
+nhận theo giá bán lẻ, không phải giá nhập thật — kết luận "tỷ lệ lãi gộp
+thấp là đúng dữ liệu" ở bản 8.2 vì vậy bị **đảo ngược** (phạm vi kiểm
+chứng 10 mã ban đầu quá hẹp).
+
+Người dùng hỏi lại DBA DSMART16 — xác nhận dùng THẲNG cột có sẵn
+`STK_INFO.AVERIMPPR` ("GV bình quân", hệ thống tự duy trì) thay vì tự
+tính lại từ 4 cột `M_BEGIN/M_IMP/M_BEGAMT/M_IMPAMT`:
+
+- Script A (`V_HCRC_DOANHTHU_CHINHANH`, Live) — subquery giá vốn đổi
+  thành `SUM(AVERIMPPR * (M_BEGIN + M_IMP)) / NULLIF(SUM(M_BEGIN + M_IMP), 0)
+  AS GiaVonBinhQuan` — vẫn giữ nguyên tắc CHUNG toàn hệ thống theo
+  `SKU_ID`, bình quân gia quyền theo số lượng luân chuyển của từng chi
+  nhánh (chỉ đổi NGUỒN giá trị đơn giá, không đổi cách gộp).
+- `giá vốn dsmart.md` — cập nhật mục 2/3 (công thức mới), mục 6 (đánh dấu
+  đảo ngược kết luận bản 8.2, giữ lại bản cũ trong khối gấp để tham khảo),
+  mục 7 (trạng thái, thêm việc CẦN LÀM: xác nhận số liệu thật sau deploy).
+- `báo cáo doanh thu cuối ngày.md` — đồng bộ chú thích Script A theo đúng
+  công thức mới.
+- **CHƯA XÁC NHẬN** đổi cột này có thực sự cho tỷ lệ lãi gộp hợp lý hơn ở
+  đúng những mã hàng đã phát hiện lỗi hay không — cần deploy + kiểm tra
+  lại số liệu thật (xem mục 7 "giá vốn dsmart.md").
+
 ## 8.7 — Đính chính mã file HCRC + rà soát lại code tính Lãi gộp
 
 Đính chính (mã đã cấp ở bản 8.3 sai theo phản hồi người dùng): file xuất

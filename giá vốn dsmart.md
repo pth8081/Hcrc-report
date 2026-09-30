@@ -42,29 +42,39 @@ nhánh — **đã xác nhận bằng dữ liệu thật, KHÔNG dùng được c
 | `M_IMPAMT` | Giá trị NHẬP trong kỳ |
 | `M_EXP` / `M_EXPAMT` | Số lượng/giá trị XUẤT trong kỳ (chưa dùng) |
 | `END_AMT` | Giá trị tồn CUỐI kỳ (chưa dùng) |
-| `AVERIMPPR` / `COSTPRICE` / `LASTIMPPR` | Có sẵn nhưng CHƯA kiểm chứng — không dùng trực tiếp, tự tính theo công thức mục 3 |
+| `AVERIMPPR` | Giá vốn bình quân (DBA xác nhận, **bản 8.8 — ĐANG DÙNG TRỰC TIẾP**, xem mục 3) |
+| `COSTPRICE` (cột trong `STK_INFO`, KHÁC bảng `COSTPRICE` riêng ở mục 1) | Giá vốn hiện thời — ra toàn số 0 ở mọi mã đã kiểm, KHÔNG dùng được |
+| `LASTIMPPR` | Giá nhập lần cuối — chưa dùng |
+| `PREFPR` | Giá vốn chỉ định — chưa dùng |
 
-**Đã đối chiếu chéo bằng dữ liệu thật**: tính giá vốn bình quân theo công
-thức mục 3 cho đúng 10 mã hàng ở mục 1, ra kết quả **RẤT GẦN** với số từ
-`COSTPRICE` (2 nguồn độc lập của DSMART16 cùng cho kết quả gần giống
-nhau) — đủ tin cậy để dùng, dù tỷ lệ lãi gộp của riêng 10 mã bán chạy
-nhất này vẫn thấp (có thể là hàng thiết yếu bán gần giá vốn để kéo
-khách — xem mục 5, câu hỏi còn mở).
+**ĐÍNH CHÍNH (bản 8.8)** — công thức tự tính ở mục 3 (bản gốc) từng đối
+chiếu KHỚP với `COSTPRICE`/`AVERIMPPR` trên đúng 10 mã hàng bán chạy nhất
+(dùng để kiểm chứng ban đầu) — nhưng khi soi RỘNG hơn (toàn bộ mã hàng bán
+ra tại 1 chi nhánh/1 ngày, không chỉ 10 mã), phát hiện RẤT NHIỀU mã khác
+cho giá vốn tự tính ≈ giá bán, có mã khớp CHÍNH XÁC tới từng đồng — nghi
+`M_IMPAMT` cũng nhiễm giá trị bán lẻ giống `COSTPRICE` cũ. Đã hỏi lại DBA
+DSMART16 — chốt **dùng THẲNG cột `STK_INFO.AVERIMPPR`** (giá trị hệ thống
+tự duy trì) thay vì tự tính lại từ 4 cột `M_BEGIN/M_IMP/M_BEGAMT/M_IMPAMT`
+— xem công thức mới ở mục 3.
 
-## 3. Công thức (đã chốt với người dùng)
+## 3. Công thức (đã chốt với người dùng, ĐÃ SỬA bản 8.8)
 
 - **Kỳ tính**: theo TỪNG THÁNG (không phải luỹ kế từ đầu, không phải
-  trượt 12 tháng).
-- **Phạm vi**: CHUNG toàn hệ thống theo mã hàng — gộp `SUM()` qua TẤT CẢ
-  `STK_ID` (không tách riêng theo chi nhánh).
-- **Giá vốn đầu kỳ** (gắn đúng tồn kho đầu kỳ, đúng kế toán):
+  trượt 12 tháng) — `AVERIMPPR` tự thân đã là giá trị "tính tới hiện tại"
+  của `STK_INFO` (tồn kho tức thời), không có tham số tháng riêng.
+- **Phạm vi**: CHUNG toàn hệ thống theo mã hàng — bình quân gia quyền
+  `AVERIMPPR` của TẤT CẢ `STK_ID` đang bán mã đó, quyền số theo số lượng
+  đã luân chuyển trong kỳ của từng chi nhánh (`M_BEGIN + M_IMP`) — không
+  tách riêng theo chi nhánh.
+- **Giá vốn bình quân** (bản 8.8 — dùng cột có sẵn):
+  ```sql
+  GiaVonBinhQuan = SUM(AVERIMPPR * (M_BEGIN + M_IMP)) / NULLIF(SUM(M_BEGIN + M_IMP), 0)
+  ```
+- **Giá vốn đầu kỳ** (gắn đúng tồn kho đầu kỳ, đúng kế toán — CHƯA đổi,
+  vẫn dùng giá trị tồn đầu kỳ thật vì `AVERIMPPR` không tách được phần
+  "đầu kỳ" riêng khỏi phần "nhập trong kỳ"):
   ```sql
   GiaVonDauKy = SUM(M_BEGAMT) / NULLIF(SUM(M_BEGIN), 0)
-  ```
-- **Giá vốn bình quân** (bình quân gia quyền cuối kỳ — tồn đầu kỳ CỘNG
-  nhập trong kỳ):
-  ```sql
-  GiaVonBinhQuan = SUM(M_BEGAMT + M_IMPAMT) / NULLIF(SUM(M_BEGIN + M_IMP), 0)
   ```
 - Cả 2 công thức `GROUP BY SKU_ID` (không `GROUP BY STK_ID`).
 
@@ -92,37 +102,50 @@ hàng ở mục 1, ra rỗng hoàn toàn). Cần dò tiếp qua bảng trung gia
 `SKU_DEF` (chưa kiểm chứng) — **CẬP NHẬT lại mục này ngay khi xác định
 xong đường nối đúng**.
 
-## 6. Câu hỏi nghiệp vụ còn mở — ĐÃ CÓ CƠ SỞ TRẢ LỜI (bản 8.2)
+## 6. Câu hỏi nghiệp vụ còn mở — KẾT LUẬN Ở BẢN 8.2 ĐÃ BỊ ĐẢO NGƯỢC (bản 8.8)
+
+**ĐÍNH CHÍNH QUAN TRỌNG**: kết luận "tỷ lệ lãi gộp thấp là ĐÚNG DỮ LIỆU"
+ở bản 8.2 (dưới đây, giữ nguyên để lưu vết) chỉ dựa trên đúng 10 mã hàng
+CHỌN SẴN để kiểm chứng ban đầu — khi soi RỘNG ra toàn bộ mã hàng bán tại 1
+chi nhánh/1 ngày (bản 8.8), phát hiện tỷ lệ lãi gộp thấp/0%/âm xảy ra Ở
+QUY MÔ LỚN HƠN NHIỀU, kể cả tổng toàn chuỗi (~0.5-0.6%, không phải vài mã
+lẻ) — mức này KHÔNG hợp lý về kinh doanh cho một chuỗi siêu thị đang vận
+hành. Đã xác định nguyên nhân kỹ thuật thật: công thức tự tính (nguồn 2 ở
+dưới) dùng sai cột — đã đổi sang `AVERIMPPR` trực tiếp (mục 3, bản 8.8).
+**CẦN NGƯỜI PHỤ TRÁCH KINH DOANH KIỂM TRA LẠI SỐ SAU KHI DEPLOY bản 8.8**
+— chưa có cơ sở khẳng định đã hết sai, chỉ mới sửa đúng NGUỒN CỘT theo xác
+nhận của DBA.
+
+<details>
+<summary>Kết luận CŨ ở bản 8.2 (đã đảo ngược, giữ lại để tham khảo)</summary>
 
 Tỷ lệ lãi gộp tính ra cho 10 mã hàng bán chạy nhất (theo doanh thu) đều
 RẤT THẤP (0–5%, có mã âm). Đã đối chiếu **3 nguồn ĐỘC LẬP** bằng dữ liệu
 thật cho cùng 10 mã hàng:
 
 1. Bảng `COSTPRICE` (đã loại, mục 1) — gần trùng khớp giá bán.
-2. Công thức tự tính từ `STK_INFO.M_BEGAMT/M_IMPAMT` (mục 3, đang dùng
-   trong VIEW).
+2. Công thức tự tính từ `STK_INFO.M_BEGAMT/M_IMPAMT` (mục 3 bản gốc, ĐÃ
+   THAY bằng `AVERIMPPR` trực tiếp ở bản 8.8).
 3. Cột `STK_INFO.AVERIMPPR` — DBA xác nhận đây chính là "GV bình quân"
    (giá vốn bình quân) DSMART tự duy trì.
 
-**Cả 3 nguồn hội tụ về cùng 1 mức giá vốn** (nguồn 2 và 3 chênh lệch dưới
-5% ở mọi mã đã kiểm, có mã dưới 0.1%) — đủ cơ sở kết luận: **tỷ lệ lãi
-gộp thấp là ĐÚNG DỮ LIỆU, không phải lỗi tính toán/đọc sai bảng**. Nhiều
-khả năng đây là thực tế kinh doanh (các mã hàng thiết yếu bán chạy nhất
-thường có biên lợi nhuận mỏng để kéo khách) — **tỷ lệ lãi gộp CHUNG toàn
-cửa hàng** (gộp cả các mã hàng lãi cao hơn, bán ít hơn) mới phản ánh đúng
-bức tranh tổng thể, cần người phụ trách kinh doanh xác nhận có hợp lý
-theo kỳ vọng không — đây là câu hỏi NGHIỆP VỤ, không còn là nghi vấn kỹ
-thuật.
-
-*(Ghi chú thêm: `STK_INFO.COSTPRICE` — khác bảng `COSTPRICE` riêng đã
-loại ở mục 1 — ra toàn số 0 ở 10 mã đã kiểm, cũng KHÔNG dùng được, dù DBA
-ghi chú đây là "GV hiện thời".)*
+Cả 3 nguồn hội tụ về cùng 1 mức giá vốn (nguồn 2 và 3 chênh lệch dưới 5%
+ở 10 mã đã kiểm) — kết luận khi đó: "tỷ lệ lãi gộp thấp là ĐÚNG DỮ LIỆU".
+**Kết luận này SAI** — phạm vi kiểm chứng (10 mã) quá hẹp để phát hiện vấn
+đề chỉ lộ rõ khi soi rộng hơn.
+</details>
 
 ## 7. Trạng thái triển khai
 
 - [x] Xác nhận `COSTPRICE` không dùng được (mục 1).
-- [x] Xác nhận `STK_INFO` có cột cần thiết + đối chiếu chéo hợp lý (mục 2, 3).
+- [x] Xác nhận công thức tự tính từ `M_BEGAMT/M_IMPAMT` KHÔNG đáng tin ở
+      quy mô rộng (mục 2, 6) — ĐÃ THAY bằng `STK_INFO.AVERIMPPR` trực
+      tiếp, DBA xác nhận (bản 8.8).
 - [x] Chốt công thức + phạm vi + giới hạn tháng hiện tại với người dùng (mục 3, 4).
+- [ ] **Kiểm tra lại số liệu thật sau khi deploy bản 8.8** (đổi VIEW +
+      chạy lại `resyncDoanhThuChinhanhLive.js --confirm`) — xác nhận
+      `AVERIMPPR` có thực sự cho tỷ lệ lãi gộp hợp lý hơn hay không, đặc
+      biệt ở đúng những mã hàng từng phát hiện giá vốn ≈ giá bán ở mục 6.
 - [ ] Xác định đường nối `SKU_ID` → tên mặt hàng thật (mục 5).
 - [ ] Viết VIEW `STK_INFO` + `GOODS`/`SKU_DEF` trên DSMART16.
 - [ ] Tạo báo cáo "Báo cáo giá vốn" trong hệ thống (cột: STT, SKU_ID, Tên
