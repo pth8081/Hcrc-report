@@ -20,6 +20,17 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 8.14 — Chép nguyên văn 2 VIEW (Script A) vào "báo cáo doanh thu thành viên.md"
+
+Bước 1 của tài liệu bản 8.13 chỉ THAM CHIẾU "Script A" ở "báo cáo doanh thu
+cuối ngày.md" — theo yêu cầu người dùng, chép NGUYÊN VĂN 2 câu `CREATE OR
+ALTER VIEW` (`V_HCRC_DOANHTHU_CHINHANH`/`V_HCRC_GIAODICH_CHINHANH`, công
+thức `SURPLUS`/`TRANS_CODE` bản 8.10) thẳng vào tài liệu này — IT triển
+khai tại từng cửa hàng không cần mở thêm file khác, chỉ đọc 1 tài liệu duy
+nhất từ đầu đến cuối. File "báo cáo doanh thu cuối ngày.md" vẫn giữ nguyên
+làm nguồn tham khảo đầy đủ lịch sử/lý do chọn công thức, không bắt buộc đọc
+để triển khai.
+
 ## 8.13 — Báo cáo doanh thu "Thành viên" — Live đọc trực tiếp từng cửa hàng (35 CSDL)
 
 Yêu cầu mới: 35 siêu thị/cửa hàng "Thành viên" mỗi nơi chạy CSDL DSMART16

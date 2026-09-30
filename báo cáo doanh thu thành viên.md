@@ -40,12 +40,81 @@ lịch sử trao đổi, tóm tắt ở đây để tra cứu):
 
 ## Bước 1 — Tạo VIEW tại MỖI cửa hàng (35 lần)
 
-Chạy NGUYÊN VĂN "Script A" (`CREATE OR ALTER VIEW V_HCRC_DOANHTHU_CHINHANH`
-+ `V_HCRC_GIAODICH_CHINHANH`) trong "báo cáo doanh thu cuối ngày.md" trên
-CSDL `DSMART16` tại TỪNG cửa hàng — KHÔNG sửa gì trong script đó, VIEW đã
-đúng công thức `SURPLUS`/`TRANS_CODE` (bản 8.10). Tài khoản chạy `CREATE
-VIEW` cần quyền tạo VIEW trên CSDL đó (thường là DBA/IT quản trị tại cửa
-hàng hoặc tài khoản quản trị chung nếu quản lý tập trung được).
+Chạy NGUYÊN VĂN 2 câu `CREATE OR ALTER VIEW` dưới đây trên CSDL `DSMART16`
+tại TỪNG cửa hàng — KHÔNG sửa gì (copy y hệt "Script A" ở "báo cáo doanh
+thu cuối ngày.md" sang đây để IT không phải mở thêm file khác khi triển
+khai — xem file đó nếu cần đọc lại TOÀN BỘ lịch sử/lý do chọn công thức
+này, không bắt buộc để làm theo). Tài khoản chạy `CREATE VIEW` cần quyền
+tạo VIEW trên CSDL đó (thường là DBA/IT quản trị tại cửa hàng hoặc tài
+khoản quản trị chung nếu quản lý tập trung được).
+
+```sql
+-- VIEW 1: Doanh thu + Lãi gộp + Diện tích + Nhóm chuỗi, gộp theo (chi nhánh, ngày)
+-- STRANS = bảng CHI TIẾT giao dịch thật. STOCK.TYPE (KHÔNG phải STYPE_ID —
+-- cột đó luôn trống) phân loại '01'=MART, '02'=MINIMART, đã xác nhận qua
+-- tên chi nhánh thật.
+--
+-- Công thức DBA DSMART16 cung cấp trực tiếp (bản 8.10 — xem đầy đủ lịch sử
+-- ở "giá vốn dsmart.md" mục 8 nếu cần): STRANS có sẵn cột SURPLUS, chính
+-- là LÃI GỘP hệ thống POS đã tự tính SẴN cho TỪNG DÒNG giao dịch tại thời
+-- điểm bán — KHÔNG cần tra cứu/tính giá vốn từ đâu khác. AMOUNT KHÔNG bao
+-- gồm SURPLUS — doanh thu đúng = AMOUNT + SURPLUS. TRANS_CODE phân loại
+-- giao dịch: 211/221/232 = bán, 212/222 = TRẢ HÀNG tương ứng (ghi AMOUNT
+-- DƯƠNG, phải TRỪ RIÊNG chứ không tự netting qua SUM). VIEW chỉ lấy 5 mã
+-- này — các mã khác (vd 333) bị LOẠI HẲN khỏi "Doanh thu" (nghi là loại
+-- giao dịch khác — bán sỉ/chuyển kho nội bộ..., CHƯA XÁC ĐỊNH nghĩa chính
+-- xác). STATUS đọc THẲNG từ STRANS (không cần JOIN TRANSHDR).
+CREATE OR ALTER VIEW V_HCRC_DOANHTHU_CHINHANH AS
+SELECT
+    d.STK_ID, CAST(d.TRAN_DATE AS DATE) AS WORK_DATE,
+    SUM(CASE WHEN d.TRANS_CODE IN ('211','221','232') THEN d.QTY ELSE 0 END)
+      - SUM(CASE WHEN d.TRANS_CODE IN ('212','222') THEN d.QTY ELSE 0 END) AS SoLuongBan,
+    SUM(CASE WHEN d.TRANS_CODE IN ('211','221','232') THEN d.AMOUNT + d.SURPLUS ELSE 0 END)
+      - SUM(CASE WHEN d.TRANS_CODE IN ('212','222') THEN d.AMOUNT + d.SURPLUS ELSE 0 END) AS doanhThu,
+    SUM(CASE WHEN d.TRANS_CODE IN ('211','221','232') THEN d.VAT_AMT ELSE 0 END)
+      - SUM(CASE WHEN d.TRANS_CODE IN ('212','222') THEN d.VAT_AMT ELSE 0 END) AS TienVAT,
+    SUM(CASE WHEN d.TRANS_CODE IN ('211','221','232') THEN d.DISCOUNT ELSE 0 END)
+      - SUM(CASE WHEN d.TRANS_CODE IN ('212','222') THEN d.DISCOUNT ELSE 0 END) AS TienGiamGia,
+    SUM(CASE WHEN d.TRANS_CODE IN ('211','221','232') THEN d.COMM_AMT ELSE 0 END)
+      - SUM(CASE WHEN d.TRANS_CODE IN ('212','222') THEN d.COMM_AMT ELSE 0 END) AS HoaHong,
+    SUM(CASE WHEN d.TRANS_CODE IN ('211','221','232') THEN d.SURPLUS ELSE 0 END)
+      - SUM(CASE WHEN d.TRANS_CODE IN ('212','222') THEN d.SURPLUS ELSE 0 END) AS laiGop,
+    MAX(s.DIMENSION) AS dienTich,
+    MAX(CASE WHEN s.TYPE = '01' THEN 'MART'
+             WHEN s.TYPE = '02' THEN 'MINIMART'
+             ELSE s.TYPE END) AS chain
+FROM STRANS d
+JOIN STOCK s ON s.STK_ID = d.STK_ID
+WHERE d.STATUS <> 'D' -- 'D' = Huỷ; cột có sẵn trong STRANS, không cần JOIN TRANSHDR
+  AND d.TRANS_CODE IN ('211','221','232','212','222')
+GROUP BY d.STK_ID, CAST(d.TRAN_DATE AS DATE);
+GO
+
+-- VIEW 2: Số giao dịch, gộp theo (chi nhánh, ngày) — BU_ID có sẵn TRỰC TIẾP
+-- trong STRANS (không cần TRANSHDR), đếm SoGiaoDich = COUNT(DISTINCT
+-- TRANS_NUM) thay vì COUNT(*) dòng header — cùng lọc TRANS_CODE/trừ trả
+-- hàng như VIEW 1. BU_ID GIỮ NGUYÊN ĐẦY ĐỦ (KHÔNG rút gọn LEFT(BU_ID,3))
+-- làm EntityCode, khớp đúng etl.DiemStkMapping.MaDiem như trước giờ.
+CREATE OR ALTER VIEW V_HCRC_GIAODICH_CHINHANH AS
+SELECT BU_ID, CAST(TRAN_DATE AS DATE) AS TRAN_DATE,
+    COUNT(DISTINCT CASE WHEN TRANS_CODE IN ('211','221','232') THEN TRANS_NUM ELSE NULL END)
+      - COUNT(DISTINCT CASE WHEN TRANS_CODE IN ('212','222') THEN TRANS_NUM ELSE NULL END) AS SoGiaoDich,
+    SUM(CASE WHEN TRANS_CODE IN ('211','221','232') THEN AMOUNT + SURPLUS ELSE 0 END)
+      - SUM(CASE WHEN TRANS_CODE IN ('212','222') THEN AMOUNT + SURPLUS ELSE 0 END) AS TongTien,
+    SUM(CASE WHEN TRANS_CODE IN ('211','221','232') THEN DISCOUNT ELSE 0 END)
+      - SUM(CASE WHEN TRANS_CODE IN ('212','222') THEN DISCOUNT ELSE 0 END) AS TongGiamGia,
+    SUM(CASE WHEN TRANS_CODE IN ('211','221','232') THEN VAT_AMT ELSE 0 END)
+      - SUM(CASE WHEN TRANS_CODE IN ('212','222') THEN VAT_AMT ELSE 0 END) AS TongVAT
+FROM STRANS
+WHERE STATUS <> 'D' -- 'D' = Huỷ
+  AND TRANS_CODE IN ('211','221','232','212','222')
+GROUP BY BU_ID, CAST(TRAN_DATE AS DATE);
+GO
+```
+
+Không có dòng lỗi đỏ ở khung kết quả là thành công. Kiểm tra: mở rộng CSDL
+đó → mục Views → thấy đủ `V_HCRC_DOANHTHU_CHINHANH` và
+`V_HCRC_GIAODICH_CHINHANH`.
 
 ## Bước 2 — Khai "Nguồn dữ liệu" cho từng cửa hàng (etl-admin)
 
