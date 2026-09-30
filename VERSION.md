@@ -20,6 +20,22 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 8.16 — Hướng dẫn triển khai bản 8.10 → 8.15 cho IT (deploy/)
+
+Người dùng đang chạy bản 8.10 trên máy chủ thật, cần hướng dẫn deploy
+"chuẩn xác" gộp mọi thay đổi tới bản 8.15 để đưa cho IT team — thêm
+`deploy/Cập nhật bản 8.10-8.15 — Lãi gộp lịch sử + Báo cáo Thành viên.md`
+(theo đúng khuôn các file `deploy/Cập nhật bản ...` đã có). Đã đối chiếu
+`git diff 72d13c9 HEAD` (72d13c9 = đúng commit bản 8.10) để liệt kê CHÍNH
+XÁC file nào đổi — xác nhận KHÔNG có `schema.sql` nào thay đổi (bỏ qua bước
+chạy lại schema so với các đợt trước), CHỈ `etl` có đổi code chạy nền (cần
+`pm2 restart etl`), CHỈ `etl-admin`/`rp-user` cần build lại (`api-admin`/
+`rp-server`/`api-server` không đổi code chạy nền hoặc giao diện đợt này).
+**Quy ước MỚI** (người dùng yêu cầu): từ nay, mỗi khi xuất bản hướng dẫn
+triển khai dạng file (`.docx` gửi người dùng), CẬP NHẬT LUÔN 1 bản tương
+ứng vào thư mục `deploy/` trong mã nguồn — không chỉ gửi rời trong hội
+thoại.
+
 ## 8.15 — Tự động hoá tạo Nguồn dữ liệu/Sync Job/Phân quyền cho 35 cửa hàng Thành viên
 
 Người dùng yêu cầu viết sẵn thành CODE thay vì chỉ hướng dẫn bấm tay/Excel
