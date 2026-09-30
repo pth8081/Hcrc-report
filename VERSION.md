@@ -20,6 +20,42 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 8.12 — Script B (Lịch sử): đổi hẳn sang `SURPLUS`/`TRANS_CODE`, giải quyết "Lãi gộp lịch sử sai" từ bản 8.1
+
+Bản 8.10 mới sửa Script A (Live, CSDL `DSMART16`) sang công thức
+`SURPLUS`/`TRANS_CODE`; Script B (Lịch sử, CSDL `DSMART16_EOM`, phục vụ
+"Cùng kỳ năm trước") vẫn còn dùng `COSTPRICE` (đã biết sai từ bản 8.1).
+Kiểm tra bằng dữ liệu thật: cả `STRANS_EOM` (vùng đệm) lẫn `STRANS_202608`
+(bảng lưu trữ tháng gần nhất) đều có đủ `SURPLUS`/`TRANS_CODE` — DBA gửi
+thẳng câu lệnh mẫu dùng đúng công thức này trên `STRANS_202510`. Viết lại
+CẢ 2 VIEW ở Script B (Doanh thu VÀ Giao dịch) theo ĐÚNG công thức Script A
+bản 8.10 (nguồn UNION ALL toàn bộ bảng `STRANS_YYYYMM`/`STRANS_EOM` thay vì
+1 bảng `STRANS`) — Giao dịch cũng chuyển từ `TRANSHDR_ARC` sang cùng nguồn
+`STRANS_YYYYMM`/`STRANS_EOM`, giống thay đổi đã làm ở Script A.
+
+- CỐ Ý KHÁC 2 điểm so với câu lệnh mẫu DBA gửi (đã hỏi lại, người dùng xác
+  nhận giữ nguyên logic đã chốt ở Script A): KHÔNG `LEFT(BU_ID,3)` (giữ
+  `BU_ID` đầy đủ, quyết định từ bản 7.3) và KHÔNG thêm `BU_ID<>'10000'` —
+  áp dụng NHẤT QUÁN cùng phạm vi giữa Script A và Script B.
+- Thêm `WITH (NOLOCK)` vào từng bảng con trong UNION ALL (theo đúng mẫu
+  DBA gửi) và lọc `TRANS_CODE`/`STATUS` ngay trong từng bảng con (tối ưu
+  riêng cho Script B — giảm khối lượng quét trước khi UNION ALL ~93 bảng).
+- Stored procedure `sp_HCRC_RebuildDoanhThuView` (giữ nguyên tên dù giờ
+  dựng lại cả 2 VIEW, tránh phải sửa lại SQL Server Agent Job đã tạo sẵn)
+  cập nhật theo công thức mới.
+- `etl/scripts/resyncDoanhThuChinhanhHistory.js` +
+  `resyncGiaodichChinhanhHistory.js` (mới) — mirror 2 script `...Live.js`
+  đã có, nhưng nhắm vào job "Lịch sử" (2 đợt sửa trước, 8.5/8.10, CỐ Ý
+  KHÔNG đụng job này vì Script B lúc đó chưa đổi công thức). Resync job
+  Lịch sử có thể mất VÀI GIỜ (giữ ~93 tháng dữ liệu, khác job Live chỉ vài
+  phút) — nên chạy giờ thấp điểm.
+- `báo cáo doanh thu cuối ngày.md`/`giá vốn dsmart.md` — cập nhật Script B
+  và đánh dấu câu hỏi còn mở #2 (mục 8) đã giải quyết.
+- HỆ QUẢ TÍCH CỰC: "Cùng kỳ năm trước"/"Tỷ lệ % LFL" giờ nhất quán phạm vi
+  `TRANS_CODE` với "Thực đạt" kỳ hiện tại (trước bản này, kỳ hiện tại đã
+  loại mã `333` từ bản 8.10 nhưng kỳ trước đó chưa loại — so sánh lệch
+  chuẩn).
+
 ## 8.11 — Bảng báo cáo web: cố định tiêu đề + 2 cột đầu khi cuộn
 
 Bảng báo cáo dạng lưới (HCRC, LDTD...) nhiều cột phải cuộn ngang/dọc toàn

@@ -244,80 +244,108 @@ khỏi doanh thu/giao dịch). Trước đây bản hướng dẫn dùng nhầm 
    JOIN sang `TRANSHDR_ARC`) — đã đối chiếu số liệu 1 ngày/1 chi nhánh
    trùng giữa Live và EOM, chênh lệch < 0.5%, đủ tin cậy.
 
-`STOCK`/`COSTPRICE` vẫn CHỈ có ở `DSMART16` (không có ở EOM, đúng dự đoán
-ban đầu) — tham chiếu chéo `DSMART16.dbo.STOCK`/`DSMART16.dbo.COSTPRICE`
-như cũ.
+`STOCK` vẫn CHỈ có ở `DSMART16` (không có ở EOM, đúng dự đoán ban đầu) —
+tham chiếu chéo `DSMART16.dbo.STOCK` như cũ (chỉ để lấy `DIMENSION`/`TYPE`
+cho 2 cột `dienTich`/`chain`, không còn liên quan tới giá vốn — xem ngay
+dưới).
 
-> **"Lãi gộp" ở Script B CỐ Ý CHƯA sửa theo "giá vốn dsmart.md"** — đã
-> chốt với người dùng: giá vốn bình quân `STK_INFO.AVERIMPPR` (áp dụng ở
-> Script A, bản 8.8) CHỈ đúng cho THÁNG HIỆN TẠI (bảng tồn kho tức thời,
-> không lưu lịch sử theo tháng) — không có nguồn giá vốn đáng tin cho các
-> tháng/năm cũ mà Script B phục vụ ("Cùng kỳ năm trước"). Script B GIỮ
-> NGUYÊN JOIN `COSTPRICE` cũ (đã biết KHÔNG đáng tin, xem "giá vốn
-> dsmart.md" mục 1) cho tới khi có nguồn giá vốn lịch sử đáng tin — "Lãi
-> gộp" của dữ liệu quá khứ (đọc qua Script B) vẫn SAI, chấp nhận tạm thời.
+> **ĐÍNH CHÍNH (bản 8.12) — Script B ĐÃ ĐỔI SANG `SURPLUS`/`TRANS_CODE`,
+> KHÔNG còn "cố ý giữ nguyên COSTPRICE sai" như trước nữa.** Ghi chú cũ ở
+> đây (giữ nguyên `COSTPRICE` vì không có nguồn giá vốn lịch sử đáng tin)
+> đã HẾT HIỆU LỰC — DBA xác nhận `STRANS_YYYYMM`/`STRANS_EOM` (dữ liệu quá
+> khứ) có ĐỦ 2 cột `SURPLUS`/`TRANS_CODE` giống hệt `STRANS` (Live), và gửi
+> thẳng câu lệnh mẫu họ dùng nội bộ trên `STRANS_202510` — cùng công thức
+> `SURPLUS`/`TRANS_CODE` đã áp dụng ở Script A bản 8.10, không cần chờ
+> "nguồn giá vốn lịch sử" nào khác vì `SURPLUS` vốn đã lưu SẴN theo từng
+> dòng giao dịch, không cần tra cứu giá vốn ở đâu nữa. Script B GIỜ dùng
+> ĐÚNG công thức Script A, chỉ khác nguồn (UNION ALL nhiều bảng thay vì 1
+> bảng `STRANS` duy nhất).
+>
+> **2 điểm CỐ Ý KHÁC câu lệnh mẫu DBA gửi** (đã hỏi lại người dùng, xác
+> nhận giữ nguyên logic đã chốt ở Script A thay vì theo đúng 100% mẫu DBA):
+> KHÔNG `LEFT(BU_ID,3)` (giữ `BU_ID` đầy đủ — quyết định từ bản 7.3, áp
+> dụng nhất quán Live/Lịch sử) và KHÔNG thêm `BU_ID<>'10000'` (người dùng
+> xác nhận không thêm ở cả 2 Script, giữ đúng phạm vi bản 8.10 đã deploy).
 
 ```sql
--- VIEW 1: Doanh thu — GỘP (UNION ALL) toàn bộ bảng STRANS_YYYYMM + STRANS_EOM.
--- Chạy nguyên khối này (kể cả phần DECLARE/EXEC) — KHÔNG tách riêng câu
--- CREATE VIEW, vì danh sách 93 bảng được sinh TỰ ĐỘNG từ sys.tables, không
--- gõ tay để tránh gõ sai/sót tên bảng.
+-- Cả 2 VIEW (Doanh thu + Giao dịch) dùng CHUNG 1 nguồn: UNION ALL toàn bộ
+-- bảng STRANS_YYYYMM + STRANS_EOM — sinh TỰ ĐỘNG từ sys.tables (không gõ
+-- tay ~93 tên bảng). Lọc TRANS_CODE/STATUS NGAY TRONG từng bảng con (khác
+-- Script A lọc ở ngoài) — tối ưu riêng cho Script B, giảm khối lượng quét
+-- TRƯỚC khi UNION ALL ~93 bảng (Script A chỉ có 1 bảng nên không cần).
+-- WITH (NOLOCK) theo đúng mẫu câu lệnh DBA gửi (dùng thật ở STRANS_202510)
+-- — tránh khoá bảng khi quét nhiều bảng lịch sử cùng lúc.
+-- Chạy NGUYÊN KHỐI (không chèn GO giữa các dòng) — biến @sql dùng chung
+-- cho cả 2 VIEW, GO sẽ xoá biến giữa chừng.
 DECLARE @sql NVARCHAR(MAX);
 
--- CAST(... AS NVARCHAR(MAX)) BẮT BUỘC — thiếu ép kiểu này, SQL Server tự suy
--- luận kiểu trả về của STRING_AGG theo kiểu chuỗi NGẮN NHẤT trong biểu thức
--- (ở đây là chuỗi literal, mặc định KHÔNG phải MAX), rồi báo lỗi "STRING_AGG
--- aggregation result exceeded the limit of 8000 bytes" ngay khi ghép đủ ~93
--- bảng (đã gặp thật khi chạy) — ép kiểu 1 lần ở ĐÚNG chuỗi đầu tiên là đủ để
--- cả biểu thức cộng chuỗi tính theo NVARCHAR(MAX).
+-- CAST(... AS NVARCHAR(MAX)) BẮT BUỘC — xem chú thích gốc: thiếu ép kiểu
+-- này STRING_AGG suy luận nhầm kiểu ngắn, lỗi "aggregation result exceeded
+-- the limit of 8000 bytes" khi ghép đủ ~93 bảng (đã gặp thật khi chạy).
 SELECT @sql = STRING_AGG(
-    CAST('SELECT STK_ID, SKU_ID, TRAN_DATE, QTY, AMOUNT, VAT_AMT, DISCOUNT, COMM_AMT FROM '
-    + QUOTENAME(name) + ' WHERE STATUS <> ''D''' AS NVARCHAR(MAX)),
+    CAST('SELECT STK_ID, SKU_ID, BU_ID, TRAN_DATE, TRANS_NUM, TRANS_CODE, QTY, AMOUNT, SURPLUS, VAT_AMT, DISCOUNT, COMM_AMT FROM '
+    + QUOTENAME(name) + ' WITH (NOLOCK) WHERE STATUS <> ''D'' AND TRANS_CODE IN (''211'',''221'',''232'',''212'',''222'')' AS NVARCHAR(MAX)),
     ' UNION ALL '
 )
 FROM sys.tables
 WHERE name LIKE 'STRANS[_][0-9][0-9][0-9][0-9][0-9][0-9]' OR name = 'STRANS_EOM';
 
-SET @sql = N'
+-- VIEW 1: Doanh thu — công thức GIỐNG HỆT Script A bản 8.10 (AMOUNT+SURPLUS
+-- = doanh thu đúng, SURPLUS riêng = lãi gộp, trừ theo TRANS_CODE trả hàng).
+DECLARE @sqlDoanhThu NVARCHAR(MAX) = N'
 CREATE OR ALTER VIEW V_HCRC_DOANHTHU_CHINHANH AS
 SELECT
     d.STK_ID, CAST(d.TRAN_DATE AS DATE) AS WORK_DATE,
-    SUM(d.QTY) AS SoLuongBan,
-    SUM(d.AMOUNT) AS doanhThu,
-    SUM(d.VAT_AMT) AS TienVAT,
-    SUM(d.DISCOUNT) AS TienGiamGia,
-    SUM(d.COMM_AMT) AS HoaHong,
-    SUM(d.AMOUNT) - SUM(d.QTY * ISNULL(c.COSTPRICE, 0)) AS laiGop,
+    SUM(CASE WHEN d.TRANS_CODE IN (''211'',''221'',''232'') THEN d.QTY ELSE 0 END)
+      - SUM(CASE WHEN d.TRANS_CODE IN (''212'',''222'') THEN d.QTY ELSE 0 END) AS SoLuongBan,
+    SUM(CASE WHEN d.TRANS_CODE IN (''211'',''221'',''232'') THEN d.AMOUNT + d.SURPLUS ELSE 0 END)
+      - SUM(CASE WHEN d.TRANS_CODE IN (''212'',''222'') THEN d.AMOUNT + d.SURPLUS ELSE 0 END) AS doanhThu,
+    SUM(CASE WHEN d.TRANS_CODE IN (''211'',''221'',''232'') THEN d.VAT_AMT ELSE 0 END)
+      - SUM(CASE WHEN d.TRANS_CODE IN (''212'',''222'') THEN d.VAT_AMT ELSE 0 END) AS TienVAT,
+    SUM(CASE WHEN d.TRANS_CODE IN (''211'',''221'',''232'') THEN d.DISCOUNT ELSE 0 END)
+      - SUM(CASE WHEN d.TRANS_CODE IN (''212'',''222'') THEN d.DISCOUNT ELSE 0 END) AS TienGiamGia,
+    SUM(CASE WHEN d.TRANS_CODE IN (''211'',''221'',''232'') THEN d.COMM_AMT ELSE 0 END)
+      - SUM(CASE WHEN d.TRANS_CODE IN (''212'',''222'') THEN d.COMM_AMT ELSE 0 END) AS HoaHong,
+    SUM(CASE WHEN d.TRANS_CODE IN (''211'',''221'',''232'') THEN d.SURPLUS ELSE 0 END)
+      - SUM(CASE WHEN d.TRANS_CODE IN (''212'',''222'') THEN d.SURPLUS ELSE 0 END) AS laiGop,
     MAX(s.DIMENSION) AS dienTich,
     MAX(CASE WHEN s.TYPE = ''01'' THEN ''MART''
              WHEN s.TYPE = ''02'' THEN ''MINIMART''
              ELSE s.TYPE END) AS chain
 FROM (' + @sql + N') d
 JOIN DSMART16.dbo.STOCK s ON s.STK_ID = d.STK_ID
-LEFT JOIN DSMART16.dbo.COSTPRICE c ON c.SKU_ID = d.SKU_ID
-   AND c.MEC_YM = LEFT(CONVERT(char(8), d.TRAN_DATE, 112), 6)
-   AND c.NODE_ID = s.NODE_ID -- BẮT BUỘC: xem chú thích ở Script A (COSTPRICE có giá vốn riêng theo mã Điểm, thiếu điều kiện này sẽ nhân dòng)
 GROUP BY d.STK_ID, CAST(d.TRAN_DATE AS DATE);';
 
-EXEC sp_executesql @sql;
-GO
+EXEC sp_executesql @sqlDoanhThu;
 
--- VIEW 2: Giao dịch — TRANSHDR_ARC là 1 bảng lưu trữ ĐẦY ĐỦ (đã xác nhận
--- phủ từ 2018 tới nay), KHÔNG cần UNION ALL như VIEW 1.
+-- VIEW 2: Giao dịch — trước bản 8.12 đọc bảng `TRANSHDR_ARC` riêng (không
+-- cần UNION ALL). ĐÃ ĐỔI sang đọc CHUNG nguồn STRANS_YYYYMM/STRANS_EOM như
+-- VIEW 1 (giống thay đổi đã làm ở Script A bản 8.10 — Giao dịch cũng
+-- chuyển từ TRANSHDR sang STRANS vì đã có sẵn STATUS/BU_ID, không cần JOIN
+-- bảng khác — TRANS_NUM giữa STRANS_EOM/TRANSHDR_ARC sinh khác quy tắc nên
+-- JOIN 2 bảng này KHÔNG khớp được, xem mục 2 phía trên).
+DECLARE @sqlGiaoDich NVARCHAR(MAX) = N'
 CREATE OR ALTER VIEW V_HCRC_GIAODICH_CHINHANH AS
-SELECT BU_ID, CAST(TRAN_DATE AS DATE) AS TRAN_DATE,
-       COUNT(*) AS SoGiaoDich, SUM(AMOUNT) AS TongTien,
-       SUM(DISCOUNT) AS TongGiamGia, SUM(VAT_AMT) AS TongVAT
-FROM TRANSHDR_ARC
-WHERE STATUS <> 'D'
-GROUP BY BU_ID, CAST(TRAN_DATE AS DATE);
+SELECT d.BU_ID, CAST(d.TRAN_DATE AS DATE) AS TRAN_DATE,
+    COUNT(DISTINCT CASE WHEN d.TRANS_CODE IN (''211'',''221'',''232'') THEN d.TRANS_NUM ELSE NULL END)
+      - COUNT(DISTINCT CASE WHEN d.TRANS_CODE IN (''212'',''222'') THEN d.TRANS_NUM ELSE NULL END) AS SoGiaoDich,
+    SUM(CASE WHEN d.TRANS_CODE IN (''211'',''221'',''232'') THEN d.AMOUNT + d.SURPLUS ELSE 0 END)
+      - SUM(CASE WHEN d.TRANS_CODE IN (''212'',''222'') THEN d.AMOUNT + d.SURPLUS ELSE 0 END) AS TongTien,
+    SUM(CASE WHEN d.TRANS_CODE IN (''211'',''221'',''232'') THEN d.DISCOUNT ELSE 0 END)
+      - SUM(CASE WHEN d.TRANS_CODE IN (''212'',''222'') THEN d.DISCOUNT ELSE 0 END) AS TongGiamGia,
+    SUM(CASE WHEN d.TRANS_CODE IN (''211'',''221'',''232'') THEN d.VAT_AMT ELSE 0 END)
+      - SUM(CASE WHEN d.TRANS_CODE IN (''212'',''222'') THEN d.VAT_AMT ELSE 0 END) AS TongVAT
+FROM (' + @sql + N') d
+GROUP BY d.BU_ID, CAST(d.TRAN_DATE AS DATE);';
+
+EXEC sp_executesql @sqlGiaoDich;
 GO
 ```
 
-> **Bảo trì lâu dài — QUAN TRỌNG**: đoạn tạo VIEW "Doanh thu" ở trên phải
-> **CHẠY LẠI mỗi khi có thêm bảng `STRANS_YYYYMM` mới** (hệ thống DSMART16
-> tự tạo thêm bảng tháng mới định kỳ) — vì `CREATE VIEW` chỉ chụp danh
-> sách bảng tại THỜI ĐIỂM chạy, không tự nhận bảng phát sinh sau đó. Dùng
+> **Bảo trì lâu dài — QUAN TRỌNG**: đoạn tạo CẢ 2 VIEW ở trên phải **CHẠY
+> LẠI mỗi khi có thêm bảng `STRANS_YYYYMM` mới** (hệ thống DSMART16 tự tạo
+> thêm bảng tháng mới định kỳ) — vì `CREATE VIEW` chỉ chụp danh sách bảng
+> tại THỜI ĐIỂM chạy, không tự nhận bảng phát sinh sau đó. Dùng
 > `CREATE OR ALTER` nên chạy lại bao nhiêu lần cũng an toàn (không tạo
 > trùng).
 
@@ -325,7 +353,10 @@ GO
 phải nhớ tay)**: gói đoạn sinh VIEW ở trên thành 1 stored procedure trên
 `DSMART16_EOM` (chạy 1 lần — NGUYÊN VĂN đoạn `DECLARE...EXEC sp_executesql`
 đã chạy tay ở trên, chỉ bọc thêm `CREATE OR ALTER PROCEDURE ... AS BEGIN
-... END`, không đổi logic bên trong nên không cần lồng thêm dấu nháy đơn):
+... END`, không đổi logic bên trong nên không cần lồng thêm dấu nháy đơn).
+**Giữ NGUYÊN tên procedure** `sp_HCRC_RebuildDoanhThuView` dù giờ dựng lại
+CẢ 2 VIEW (không chỉ "Doanh thu" như tên gọi) — Job SQL Server Agent đã tạo
+sẵn (xem ngay dưới) chỉ gọi ĐÚNG tên này, đổi tên sẽ phải sửa lại Job:
 
 ```sql
 CREATE OR ALTER PROCEDURE dbo.sp_HCRC_RebuildDoanhThuView AS
@@ -335,35 +366,54 @@ BEGIN
     -- CAST(... AS NVARCHAR(MAX)) BẮT BUỘC — xem chú thích ở Script B (cùng
     -- lỗi "STRING_AGG aggregation result exceeded the limit of 8000 bytes").
     SELECT @sql = STRING_AGG(
-        CAST('SELECT STK_ID, SKU_ID, TRAN_DATE, QTY, AMOUNT, VAT_AMT, DISCOUNT, COMM_AMT FROM '
-        + QUOTENAME(name) + ' WHERE STATUS <> ''D''' AS NVARCHAR(MAX)),
+        CAST('SELECT STK_ID, SKU_ID, BU_ID, TRAN_DATE, TRANS_NUM, TRANS_CODE, QTY, AMOUNT, SURPLUS, VAT_AMT, DISCOUNT, COMM_AMT FROM '
+        + QUOTENAME(name) + ' WITH (NOLOCK) WHERE STATUS <> ''D'' AND TRANS_CODE IN (''211'',''221'',''232'',''212'',''222'')' AS NVARCHAR(MAX)),
         ' UNION ALL '
     )
     FROM sys.tables
     WHERE name LIKE 'STRANS[_][0-9][0-9][0-9][0-9][0-9][0-9]' OR name = 'STRANS_EOM';
 
-    SET @sql = N'
+    DECLARE @sqlDoanhThu NVARCHAR(MAX) = N'
     CREATE OR ALTER VIEW V_HCRC_DOANHTHU_CHINHANH AS
     SELECT
         d.STK_ID, CAST(d.TRAN_DATE AS DATE) AS WORK_DATE,
-        SUM(d.QTY) AS SoLuongBan,
-        SUM(d.AMOUNT) AS doanhThu,
-        SUM(d.VAT_AMT) AS TienVAT,
-        SUM(d.DISCOUNT) AS TienGiamGia,
-        SUM(d.COMM_AMT) AS HoaHong,
-        SUM(d.AMOUNT) - SUM(d.QTY * ISNULL(c.COSTPRICE, 0)) AS laiGop,
+        SUM(CASE WHEN d.TRANS_CODE IN (''211'',''221'',''232'') THEN d.QTY ELSE 0 END)
+          - SUM(CASE WHEN d.TRANS_CODE IN (''212'',''222'') THEN d.QTY ELSE 0 END) AS SoLuongBan,
+        SUM(CASE WHEN d.TRANS_CODE IN (''211'',''221'',''232'') THEN d.AMOUNT + d.SURPLUS ELSE 0 END)
+          - SUM(CASE WHEN d.TRANS_CODE IN (''212'',''222'') THEN d.AMOUNT + d.SURPLUS ELSE 0 END) AS doanhThu,
+        SUM(CASE WHEN d.TRANS_CODE IN (''211'',''221'',''232'') THEN d.VAT_AMT ELSE 0 END)
+          - SUM(CASE WHEN d.TRANS_CODE IN (''212'',''222'') THEN d.VAT_AMT ELSE 0 END) AS TienVAT,
+        SUM(CASE WHEN d.TRANS_CODE IN (''211'',''221'',''232'') THEN d.DISCOUNT ELSE 0 END)
+          - SUM(CASE WHEN d.TRANS_CODE IN (''212'',''222'') THEN d.DISCOUNT ELSE 0 END) AS TienGiamGia,
+        SUM(CASE WHEN d.TRANS_CODE IN (''211'',''221'',''232'') THEN d.COMM_AMT ELSE 0 END)
+          - SUM(CASE WHEN d.TRANS_CODE IN (''212'',''222'') THEN d.COMM_AMT ELSE 0 END) AS HoaHong,
+        SUM(CASE WHEN d.TRANS_CODE IN (''211'',''221'',''232'') THEN d.SURPLUS ELSE 0 END)
+          - SUM(CASE WHEN d.TRANS_CODE IN (''212'',''222'') THEN d.SURPLUS ELSE 0 END) AS laiGop,
         MAX(s.DIMENSION) AS dienTich,
         MAX(CASE WHEN s.TYPE = ''01'' THEN ''MART''
                  WHEN s.TYPE = ''02'' THEN ''MINIMART''
                  ELSE s.TYPE END) AS chain
     FROM (' + @sql + N') d
     JOIN DSMART16.dbo.STOCK s ON s.STK_ID = d.STK_ID
-    LEFT JOIN DSMART16.dbo.COSTPRICE c ON c.SKU_ID = d.SKU_ID
-       AND c.MEC_YM = LEFT(CONVERT(char(8), d.TRAN_DATE, 112), 6)
-       AND c.NODE_ID = s.NODE_ID -- BẮT BUỘC: xem chú thích ở Script A (COSTPRICE có giá vốn riêng theo mã Điểm, thiếu điều kiện này sẽ nhân dòng)
     GROUP BY d.STK_ID, CAST(d.TRAN_DATE AS DATE);';
 
-    EXEC sp_executesql @sql;
+    EXEC sp_executesql @sqlDoanhThu;
+
+    DECLARE @sqlGiaoDich NVARCHAR(MAX) = N'
+    CREATE OR ALTER VIEW V_HCRC_GIAODICH_CHINHANH AS
+    SELECT d.BU_ID, CAST(d.TRAN_DATE AS DATE) AS TRAN_DATE,
+        COUNT(DISTINCT CASE WHEN d.TRANS_CODE IN (''211'',''221'',''232'') THEN d.TRANS_NUM ELSE NULL END)
+          - COUNT(DISTINCT CASE WHEN d.TRANS_CODE IN (''212'',''222'') THEN d.TRANS_NUM ELSE NULL END) AS SoGiaoDich,
+        SUM(CASE WHEN d.TRANS_CODE IN (''211'',''221'',''232'') THEN d.AMOUNT + d.SURPLUS ELSE 0 END)
+          - SUM(CASE WHEN d.TRANS_CODE IN (''212'',''222'') THEN d.AMOUNT + d.SURPLUS ELSE 0 END) AS TongTien,
+        SUM(CASE WHEN d.TRANS_CODE IN (''211'',''221'',''232'') THEN d.DISCOUNT ELSE 0 END)
+          - SUM(CASE WHEN d.TRANS_CODE IN (''212'',''222'') THEN d.DISCOUNT ELSE 0 END) AS TongGiamGia,
+        SUM(CASE WHEN d.TRANS_CODE IN (''211'',''221'',''232'') THEN d.VAT_AMT ELSE 0 END)
+          - SUM(CASE WHEN d.TRANS_CODE IN (''212'',''222'') THEN d.VAT_AMT ELSE 0 END) AS TongVAT
+    FROM (' + @sql + N') d
+    GROUP BY d.BU_ID, CAST(d.TRAN_DATE AS DATE);';
+
+    EXEC sp_executesql @sqlGiaoDich;
 END
 GO
 ```
@@ -526,6 +576,29 @@ thấy cột "Cùng kỳ năm trước" thiếu dữ liệu của tháng gần �
 > các mã khác (vd `333`) bị LOẠI HẲN, khiến "Doanh thu" báo cáo GIẢM đáng
 > kể so với trước (~55% ở 1 ngày mẫu đã kiểm) — đã cảnh báo và người dùng
 > xác nhận trước khi deploy, xem "giá vốn dsmart.md" mục 8.
+
+> **ĐÍNH CHÍNH (bản 8.12)** — Script B (Lịch sử) GIỜ CŨNG đổi sang
+> `SURPLUS`/`TRANS_CODE` giống hệt Script A (DBA xác nhận `STRANS_YYYYMM`/
+> `STRANS_EOM` có đủ 2 cột này, gửi thẳng câu lệnh mẫu dùng trên
+> `STRANS_202510` — xem chú thích đầu Script B). **LẦN NÀY cần resync CẢ
+> job Lịch sử** (khác 2 đợt trước — 8.5/8.10 CHỦ Ý chỉ đụng job Live, giữ
+> nguyên tiến độ job Lịch sử vì công thức Script B lúc đó CHƯA đổi):
+> ```
+> cd etl
+> node scripts/resyncDoanhThuChinhanhHistory.js --confirm
+> node scripts/resyncGiaodichChinhanhHistory.js --confirm
+> ```
+> (2 script mới thêm ở bản 8.12, mirror 2 script Live — chỉ khác tên job
+> nhắm tới, xem chú thích đầu mỗi file). **LƯU Ý QUAN TRỌNG VỀ THỜI GIAN**:
+> khác job Live (chỉ vài phút), job Lịch sử giữ dữ liệu ~93 tháng — sau
+> `--confirm`, job tự kéo lại TOÀN BỘ dữ liệu đó theo lịch đồng bộ (có thể
+> mất VÀI GIỜ tuỳ khối lượng, theo dõi qua etl-admin → Log) — nên chạy vào
+> giờ thấp điểm. Trong lúc đang đồng bộ lại, cột "Cùng kỳ năm trước"/"Tỷ lệ
+> % LFL" sẽ tạm trống hoặc thiếu dữ liệu các tháng cũ — BÌNH THƯỜNG, không
+> phải lỗi mới. Vì Script B GIỜ dùng ĐÚNG cùng phạm vi `TRANS_CODE` như
+> Script A, "Cùng kỳ năm trước" sẽ nhất quán trở lại với "Thực đạt" kỳ hiện
+> tại (trước bản 8.12, 2 kỳ này lệch phạm vi — kỳ hiện tại đã loại mã `333`
+> từ bản 8.10, kỳ trước đó chưa loại).
 
 ---
 

@@ -237,9 +237,14 @@ thu lẫn VIEW Giao dịch (Giao dịch cũng chuyển hẳn từ `TRANSHDR` san
 1. `TRANS_CODE 333` (và các mã phụ khác) là loại giao dịch gì — có nên
    đưa vào 1 chỉ tiêu báo cáo RIÊNG (vd "Doanh thu bán sỉ"/"Doanh thu nội
    bộ") thay vì bỏ hẳn không hiển thị ở đâu cả?
-2. Script B (Lịch sử, `STRANS_EOM`/`STRANS_YYYYMM`) có cột `SURPLUS`/
-   `TRANS_CODE` giống `STRANS` (Live) không? Nếu CÓ, đây là cơ hội sửa
-   luôn "Lãi gộp lịch sử vẫn sai" đã treo từ bản 8.1 — CHƯA kiểm tra.
+2. ~~Script B (Lịch sử, `STRANS_EOM`/`STRANS_YYYYMM`) có cột `SURPLUS`/
+   `TRANS_CODE` giống `STRANS` (Live) không?~~ **ĐÃ XÁC ĐỊNH (bản 8.12)** —
+   CÓ, đã xác nhận bằng dữ liệu thật (`STRANS_EOM` VÀ `STRANS_202608` —
+   bảng lưu trữ tháng gần nhất — đều đủ cột) và DBA gửi thẳng câu lệnh mẫu
+   dùng đúng 2 cột này trên `STRANS_202510`. Script B đã viết lại theo
+   ĐÚNG công thức Script A — xem "báo cáo doanh thu cuối ngày.md" mục
+   "Script B". Giải quyết luôn "Lãi gộp lịch sử vẫn sai" tồn đọng từ bản
+   8.1.
 3. Vài ngày Lãi ÂM bất thường (mục trên) — cần hiểu rõ nguyên nhân trước
    khi coi công thức này là "xong hẳn", dù không chặn việc áp dụng ngay.
 
@@ -255,9 +260,11 @@ thu lẫn VIEW Giao dịch (Giao dịch cũng chuyển hẳn từ `TRANSHDR` san
 - [x] Kiểm tra số liệu thật diện rộng (35 chi nhánh × 17 ngày) — tỷ lệ lãi
       gộp 15-25%, hợp lý (mục 8).
 - [ ] Làm rõ nghĩa `TRANS_CODE 333`/các mã phụ khác (mục 8, câu hỏi 1).
-- [ ] Kiểm tra Script B (Lịch sử) có `SURPLUS`/`TRANS_CODE` để áp dụng
-      cùng công thức không (mục 8, câu hỏi 2) — nếu có, giải quyết luôn
-      vấn đề "Lãi gộp lịch sử sai" tồn đọng từ bản 8.1.
+- [x] Kiểm tra Script B (Lịch sử) có `SURPLUS`/`TRANS_CODE` để áp dụng
+      cùng công thức không (mục 8, câu hỏi 2) — CÓ, đã viết lại Script B
+      theo đúng công thức Script A (bản 8.12), giải quyết "Lãi gộp lịch sử
+      sai" tồn đọng từ bản 8.1. Cần chạy resync job Lịch sử (xem "báo cáo
+      doanh thu cuối ngày.md") để dữ liệu đã đồng bộ trước đó cập nhật lại.
 - [ ] Điều tra vài ngày Lãi ÂM bất thường (mục 8, câu hỏi 3).
 - [ ] Tạo báo cáo "Báo cáo giá vốn" trong hệ thống — CẦN XEM LẠI THIẾT KẾ:
       với công thức mới (`SURPLUS` theo dòng giao dịch, không phải giá vốn
