@@ -116,55 +116,55 @@ Không có dòng lỗi đỏ ở khung kết quả là thành công. Kiểm tra:
 đó → mục Views → thấy đủ `V_HCRC_DOANHTHU_CHINHANH` và
 `V_HCRC_GIAODICH_CHINHANH`.
 
-## Bước 2 — Khai "Nguồn dữ liệu" cho từng cửa hàng (etl-admin)
+## Bước 2+3 — Khai "Nguồn dữ liệu" + tạo Sync Job Live cho từng cửa hàng
 
-Mỗi cửa hàng = 1 "Nguồn dữ liệu" (Server/Port/Database/Username/Password
-trỏ ĐÚNG CSDL DSMART16 tại cửa hàng đó — xem ảnh minh hoạ ở trang "Nguồn dữ
-liệu"). 3 cách, dùng xen kẽ tuỳ ý:
+Mỗi cửa hàng cần 1 "Nguồn dữ liệu" (Server/Port/Database/Username/Password
+trỏ ĐÚNG CSDL DSMART16 tại cửa hàng đó) + **2 Sync Job** (Doanh thu + Giao
+dịch), TargetDomain = `doanhthu_chinhanh_thanhvien`/`giaodich_chinhanh_thanhvien`.
+4 cách, dùng xen kẽ tuỳ ý:
 
-1. **Tạo tay** — form ở đầu trang "Nguồn dữ liệu", từng cửa hàng một.
-2. **Nhập hàng loạt** (Excel, đã có sẵn trước bản 8.13) — cột bắt buộc
-   `Name, Server, DatabaseName, Username, Password`, cột tuỳ chọn `Engine`
-   (mặc định `mssql`), `Port`, `Encrypt`, `TrustServerCert`. File chứa mật
-   khẩu THẬT dạng chữ thường — xoá khỏi máy sau khi nhập xong (xem cảnh báo
-   ngay trên trang).
-3. **Xuất/Nhập file mã hoá** (MỚI, bản 8.13) — nút "Xuất file mã hoá" tải
-   về TOÀN BỘ danh sách Nguồn dữ liệu hiện có dưới dạng 1 file `.hcrcenc`
-   KHÔNG đọc được bằng bất kỳ công cụ nào (kể cả Excel) — chỉ chính hệ
-   thống này (giữ khoá `ETL_ENCRYPTION_KEY`) giải mã + nhập lại được qua
-   "Nhập file mã hoá". Dùng để sao lưu/di chuyển cấu hình kết nối 35 cửa
-   hàng mà KHÔNG lộ mật khẩu thật ở bất kỳ bước nào (mật khẩu giữ nguyên
-   dạng đã mã hoá sẵn trong CSDL, không giải mã rồi mã hoá lại).
-
-**Đặt tên nguồn có quy tắc** để dễ tra cứu khi tạo Sync Job ở Bước 3, ví dụ
-`DSMART16 - <Tên cửa hàng>` (vd `DSMART16 - ST Hải Phòng`).
-
-## Bước 3 — Tạo Sync Job Live cho từng cửa hàng (etl-admin → Đồng bộ)
-
-Mỗi cửa hàng cần **2 job** (Doanh thu + Giao dịch), TargetDomain =
-`doanhthu_chinhanh_thanhvien`/`giaodich_chinhanh_thanhvien`. 2 cách:
-
-1. **Tạo tay** — form "Thêm đồng bộ mới", Loại "Theo bảng", chọn đúng Nguồn
-   dữ liệu của cửa hàng đó, chọn VIEW đã tạo ở Bước 1 từ dropdown (đọc
-   schema thật, không gõ tay).
-2. **Nhập hàng loạt** (Excel, MỚI ở bản 8.13) — cột bắt buộc `Name,
-   DataSourceName, TargetDomain, SourceSchema, SourceTable, KeyColumn,
-   DateColumn, UpdatedAtColumn`, cột tuỳ chọn `DimensionColumns,
+1. **Script tự động (MỚI, bản 8.15 — khuyên dùng, nhanh nhất cho cả 35
+   cửa hàng)**:
+   ```
+   cd etl
+   node scripts/seedThanhVienLiveSync.js
+   ```
+   Mở file `etl/scripts/seedThanhVienLiveSync.js`, sửa mảng `STORES` ở đầu
+   file (35 dòng, mỗi dòng 3 giá trị `name`/`server`/`password` — tên cửa
+   hàng thật, IP/tên máy chủ SQL Server thật, mật khẩu tài khoản
+   `etl_reader` thật; `Username` đã CỐ ĐỊNH `etl_reader` cho cả 35 dòng,
+   không cần sửa), lưu file, rồi chạy lệnh trên — script tự tạo/cập nhật
+   ĐỦ 35 Nguồn dữ liệu + tối đa 70 Sync Job trong 1 lượt chạy (idempotent,
+   an toàn chạy lại nhiều lần khi cần sửa thêm cửa hàng). Cửa hàng nào
+   chưa kết nối được (IP sai/mạng chưa mở/VIEW Bước 1 chưa tạo) vẫn được
+   tạo Nguồn dữ liệu nhưng BỊ BỎ QUA tạo Sync Job — script in rõ danh sách
+   bị bỏ qua kèm lý do, sửa lại rồi chạy lại file (không ảnh hưởng các cửa
+   hàng đã thành công).
+2. **Tạo tay** — form ở trang "Nguồn dữ liệu" rồi form "Thêm đồng bộ mới"
+   (trang "Đồng bộ"), từng cửa hàng một.
+3. **Nhập hàng loạt qua Excel** (Nguồn dữ liệu: có sẵn trước bản 8.13;
+   Sync Job: mới ở bản 8.13) — dùng khi muốn chỉnh sửa hàng loạt qua bảng
+   tính thay vì sửa trong code. Nguồn dữ liệu — cột bắt buộc `Name, Server,
+   DatabaseName, Username, Password`, cột tuỳ chọn `Engine` (mặc định
+   `mssql`), `Port`, `Encrypt`, `TrustServerCert`. Sync Job — cột bắt buộc
+   `Name, DataSourceName, TargetDomain, SourceSchema, SourceTable,
+   KeyColumn, DateColumn, UpdatedAtColumn`, cột tuỳ chọn `DimensionColumns,
    MeasureColumns` (nhiều cột cách nhau bằng dấu phẩy), `CronExpression`,
-   `KeepHistory`, `IsActive`. `DataSourceName` phải KHỚP đúng Tên nguồn đã
-   tạo ở Bước 2. Mỗi dòng được đối chiếu với schema THẬT của nguồn (gọi
-   mạng) trước khi ghi — file 70 dòng có thể mất vài chục giây tới vài
-   phút, đợi tới khi trang báo kết quả xong.
+   `KeepHistory`, `IsActive`; `DataSourceName` phải KHỚP đúng Tên nguồn.
+   File Nguồn dữ liệu chứa mật khẩu THẬT dạng chữ thường — xoá khỏi máy
+   sau khi nhập xong.
+4. **Xuất/Nhập file mã hoá** (MỚI, bản 8.13, riêng cho Nguồn dữ liệu) —
+   nút "Xuất file mã hoá" tải về TOÀN BỘ danh sách Nguồn dữ liệu hiện có
+   dưới dạng 1 file `.hcrcenc` KHÔNG đọc được bằng bất kỳ công cụ nào (kể
+   cả Excel) — chỉ chính hệ thống này (giữ khoá `ETL_ENCRYPTION_KEY`) giải
+   mã + nhập lại được. Dùng để sao lưu/di chuyển cấu hình kết nối 35 cửa
+   hàng mà KHÔNG lộ mật khẩu thật ở bất kỳ bước nào.
 
-**2 dòng mẫu** (điền `Name`/`DataSourceName` theo từng cửa hàng, các cột
-còn lại GIỐNG HỆT nhau cho cả 35 cửa hàng — copy xuống dưới rồi chỉ sửa 2
-cột đó):
+**Mẫu cấu hình mỗi cặp Sync Job** (script ở cách 1 đã tự điền sẵn, chỉ ghi
+lại đây để đối chiếu khi dùng cách 2/3):
 
 | Cột | Job Doanh thu | Job Giao dịch |
 |---|---|---|
-| Name | `Doanh thu (TV) - ST Hải Phòng` | `Giao dịch (TV) - ST Hải Phòng` |
-| DataSourceName | `DSMART16 - ST Hải Phòng` | `DSMART16 - ST Hải Phòng` |
-| TargetDomain | `doanhthu_chinhanh_thanhvien` | `giaodich_chinhanh_thanhvien` |
 | SourceSchema | `dbo` | `dbo` |
 | SourceTable | `V_HCRC_DOANHTHU_CHINHANH` | `V_HCRC_GIAODICH_CHINHANH` |
 | KeyColumn | `STK_ID` | `BU_ID` |
@@ -181,7 +181,8 @@ mặc định của 2 báo cáo gốc) — người dùng chọn giữ mô hình
 gian thực hơn — rút ngắn chu kỳ đồng bộ là cách đạt được điều đó mà KHÔNG
 đổi kiến trúc. Chỉnh lại số phút tuỳ tải thực tế (không nên dưới 1 phút —
 1 lượt đồng bộ cho 35 nguồn cần thời gian chạy thật, đặt quá ngắn có thể
-chồng lấn, dù `jobs/scheduler.js` đã tự chặn 2 lượt cùng job chạy chồng).
+chồng lấn, dù `jobs/scheduler.js` đã tự chặn 2 lượt cùng job chạy chồng —
+sửa `LIVE_CRON` ở đầu `seedThanhVienLiveSync.js` nếu dùng cách 1).
 
 > **Lưu ý `UpdatedAtColumn = DateColumn`** (cùng WORK_DATE/TRAN_DATE) —
 > giống hệt cách 2 báo cáo gốc cấu hình (xem `scripts/seedLdtdHcrcSync.js`)
@@ -229,11 +230,24 @@ viên)"/"...LDTD (Thành viên)" — đổi lại dễ ở `REPORTS` trong
 `BCDTHCRCTV` (thêm hậu tố "TV") — mã TỰ CHỌN (khác 2 mã gốc do chính người
 dùng cung cấp), đổi lại dễ nếu cần mã khác.
 
-## Bước 6 — Gán quyền xem (rp-user → Hệ thống → Phân quyền)
+## Bước 6 — Gán quyền xem
 
 Script ở Bước 5 KHÔNG tự gán quyền (đúng quy ước hiện có, xem đầu file
-`seedLdtdHcrcReports.js`) — vào rp-user gán quyền xem 2 báo cáo mới cho
-đúng nhóm người dùng, tương tự đã làm với 2 báo cáo gốc.
+`seedLdtdHcrcReports.js`). 2 cách:
+
+1. **Script tự động (MỚI, bản 8.15 — khuyên dùng)**:
+   ```
+   cd rp-server
+   node scripts/seedThanhVienReportPermissions.js
+   ```
+   Copy NGUYÊN VẸN danh sách vai trò đang được xem 2 báo cáo gốc
+   (`bc-doanh-thu-hcrc`/`bc-doanh-thu-ldtd`) sang 2 báo cáo "Thành viên"
+   tương ứng — không cần vào giao diện bấm tay lại. An toàn chạy lại nhiều
+   lần. Hiệu lực trong tối đa 60 giây (cache quyền), không cần khởi động
+   lại rp-server.
+2. **Tay** (rp-user → Hệ thống → Phân quyền) — nếu muốn gán KHÁC với 2 báo
+   cáo gốc (vd nhóm người dùng xem "Thành viên" không hoàn toàn trùng nhóm
+   xem báo cáo gốc), chỉnh trực tiếp qua giao diện như bình thường.
 
 ## Bước 7 — Kiểm tra lại
 

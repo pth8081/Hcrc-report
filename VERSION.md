@@ -20,6 +20,26 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 8.15 — Tự động hoá tạo Nguồn dữ liệu/Sync Job/Phân quyền cho 35 cửa hàng Thành viên
+
+Người dùng yêu cầu viết sẵn thành CODE thay vì chỉ hướng dẫn bấm tay/Excel
+70+ dòng — 2 script mới:
+
+- `etl/scripts/seedThanhVienLiveSync.js` — mảng cấu hình `STORES` (35 dòng,
+  `name`/`server`/`password`, `Username` cố định `etl_reader` theo đúng yêu
+  cầu) ở đầu file, người dùng tự sửa IP/mật khẩu thật rồi chạy 1 lệnh — tự
+  tạo/cập nhật ĐỦ 35 Nguồn dữ liệu + tối đa 70 Sync Job (idempotent). Cửa
+  hàng chưa kết nối được (còn giá trị mẫu `CHANGE_ME`/VIEW Bước 1 chưa tạo)
+  vẫn có Nguồn dữ liệu nhưng BỊ BỎ QUA tạo Sync Job, in rõ lý do — chạy lại
+  an toàn sau khi sửa, không ảnh hưởng cửa hàng đã thành công.
+- `rp-server/scripts/seedThanhVienReportPermissions.js` — copy NGUYÊN VẸN
+  `app.RoleReportAccess` từ 2 báo cáo gốc sang 2 báo cáo "Thành viên" tương
+  ứng (đúng yêu cầu "gán quyền giống 2 báo cáo kia"), không cần đụng
+  `app.RoleMenuAccess` (cả 4 báo cáo dùng chung 1 MenuItemId).
+- "báo cáo doanh thu thành viên.md" — gộp Bước 2+3 thành 1 bước, thêm script
+  ở cách 1 (khuyên dùng), giữ nguyên 3 cách cũ (tay/Excel/file mã hoá) làm
+  phương án thay thế; Bước 6 thêm script ở cách 1, giữ nguyên tay ở cách 2.
+
 ## 8.14 — Chép nguyên văn 2 VIEW (Script A) vào "báo cáo doanh thu thành viên.md"
 
 Bước 1 của tài liệu bản 8.13 chỉ THAM CHIẾU "Script A" ở "báo cáo doanh thu
