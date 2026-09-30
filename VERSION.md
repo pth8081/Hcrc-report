@@ -20,6 +20,38 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 8.18 — Xuất PDF 4 báo cáo doanh thu ép vừa đúng 1 trang khổ dọc
+
+Người dùng gửi file PDF mẫu tham khảo (đối chiếu MediaBox xác nhận đúng A4
+DỌC 596×842, không phải khổ ngang) — yêu cầu 4 báo cáo doanh thu (LDTD/HCRC
+gốc + Thành viên) khi xuất PDF phải "xoay dọc và chữ nhỏ để đúng 1 trang"
+giống file mẫu, thay vì khổ ngang nhiều trang như trước.
+
+- `rp-server/lib/exportPdf.js` — thêm cờ `definition.compactSinglePage`
+  (CHỈ 4 báo cáo doanh thu khai cờ này qua `seedLdtdHcrcReports.js`, KHÔNG
+  đổi cách xuất PDF của báo cáo khác trong hệ thống): khổ A4 DỌC CỐ ĐỊNH
+  (không mở rộng theo nội dung như nhánh mặc định), TỰ ĐỘNG dò cỡ chữ giảm
+  dần (8pt xuống sàn 4pt, bước 0.25) cho tới khi TOÀN BỘ bảng (mọi cột +
+  mọi dòng, kể cả 3 dòng "Tổng cộng") vừa đúng 1 trang — số chi nhánh có
+  thể tăng theo thời gian (Thành viên) nên KHÔNG dùng cỡ chữ cố định, dò
+  động mỗi lần xuất. Nếu tới sàn 4pt vẫn không đủ (quá nhiều dòng), chấp
+  nhận tràn trang 2 thay vì chữ nhỏ tới mức không đọc được.
+- Phát hiện + sửa 1 lỗi thật lúc kiểm tra bằng render thử: đệm (padding) đo
+  bề rộng cột lúc TÍNH và lúc VẼ THẬT dùng 2 công thức khác nhau, khiến ô
+  vừa đủ theo tính toán vẫn bị vẽ cắt "…" — thống nhất lại 1 công thức đệm
+  duy nhất dùng chung cho cả đo lẫn vẽ. Cũng sửa chiều cao hàng tiêu đề từ
+  công thức đoán cố định sang MÔ PHỎNG wrap chữ thật (đếm đúng số dòng cần
+  cho nhãn dài như "Cùng kỳ năm 2025" ở cỡ chữ/bề rộng cột rất nhỏ) — công
+  thức cũ đoán thiếu, chữ tiêu đề chồng lên dòng dữ liệu đầu tiên.
+- Đã kiểm chứng bằng render thử thật (không chỉ đọc code): 36 dòng/17 cột
+  (khớp đúng file mẫu) ra đúng 1 trang, cỡ chữ 6.5pt, không ô nào bị cắt;
+  trường hợp ít dòng (1 dòng) giữ cỡ chữ lớn 8pt (không co nhỏ không cần
+  thiết); trường hợp 0 dòng không lỗi; nhánh KHÔNG khai cờ (báo cáo khác)
+  render y hệt như trước bản này (khổ ngang, cỡ chữ 8pt cố định).
+- Xuất Excel KHÔNG đổi — người dùng chỉ gửi file mẫu PDF, chưa yêu cầu gì
+  cho Excel (Excel không có khái niệm "1 trang" khi xem trên máy, chỉ liên
+  quan lúc in — để nguyên, làm riêng nếu sau này có yêu cầu).
+
 ## 8.17 — Thêm "Tải file mẫu" cho Nhập hàng loạt Nguồn dữ liệu/Sync Job
 
 Người dùng nhận ra 2 trang Nhập hàng loạt mới ở bản 8.13 (Nguồn dữ liệu,

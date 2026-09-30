@@ -1,16 +1,17 @@
-# Hướng dẫn cập nhật hệ thống từ bản 8.10 lên bản 8.17
+# Hướng dẫn cập nhật hệ thống từ bản 8.10 lên bản 8.18
 
 Gửi IT/DBA thực hiện đúng theo thứ tự bên dưới. File này CHỈ nói về việc
 **đưa code đã có sẵn trong Git lên máy chủ đang chạy thật** — không giải
-thích tính năng (xem `VERSION.md` mục 8.11-8.17 trong mã nguồn nếu cần biết
+thích tính năng (xem `VERSION.md` mục 8.11-8.18 trong mã nguồn nếu cần biết
 chi tiết từng thay đổi).
 
 Đợt cập nhật này gồm: cố định tiêu đề/2 cột đầu khi cuộn bảng báo cáo web
 (8.11), sửa "Lãi gộp" dữ liệu LỊCH SỬ (Cùng kỳ năm trước) sang đúng công
 thức `SURPLUS`/`TRANS_CODE` — cùng đợt sửa đã áp dụng cho dữ liệu Live ở
 bản 8.10 (8.12), tính năng MỚI "Báo cáo doanh thu Thành viên" — đọc Live
-trực tiếp từ 35 cửa hàng thay vì qua CSDL trung tâm (8.13-8.15), và thêm nút
-"Tải file mẫu" cho 2 trang Nhập hàng loạt mới (8.17).
+trực tiếp từ 35 cửa hàng thay vì qua CSDL trung tâm (8.13-8.15), thêm nút
+"Tải file mẫu" cho 2 trang Nhập hàng loạt mới (8.17), và ép xuất PDF của 4
+báo cáo doanh thu vừa đúng 1 trang khổ dọc theo mẫu tham khảo (8.18).
 
 **Đã XÁC NHẬN không đổi cấu trúc CSDL nào ở đợt này** (`etl-db/schema.sql`,
 `rp-db/schema.sql`, `dwh/schema.sql`, `api-db/schema.sql` — không file nào
@@ -49,14 +50,15 @@ triển khai ban đầu (xem `deploy/Hướng dẫn triển khai PM2.md` mục 7
 
 ## Bước 3 — Restart backend Node
 
-Chỉ **`etl` có đổi code chạy nền** ở đợt này (route mới cho Nhập hàng loạt
-Sync Job + Xuất/Nhập file mã hoá Nguồn dữ liệu + "Tải file mẫu"). `rp-server`/
-`api-server` KHÔNG đổi code chạy nền (chỉ thêm/sửa SCRIPT chạy tay ở Bước
-7/8, không phải route server) — restart cũng không hại gì nếu muốn làm cho
-đồng bộ:
+**`etl`** có đổi code chạy nền (route mới cho Nhập hàng loạt Sync Job +
+Xuất/Nhập file mã hoá Nguồn dữ liệu + "Tải file mẫu"). **`rp-server`** GIỜ
+CŨNG có đổi (bản 8.18 — logic xuất PDF ở `lib/exportPdf.js`, dùng ngay lúc
+bấm "Xuất PDF" trên web, không phải chỉ script chạy tay). `api-server`
+KHÔNG đổi — restart cũng không hại gì nếu muốn làm cho đồng bộ:
 
 ```bash
 pm2 restart etl
+pm2 restart rp-server
 ```
 
 (Chạy `pm2 list` trước nếu không nhớ chính xác tên process đã đặt lúc
@@ -178,6 +180,10 @@ node scripts/seedThanhVienReportPermissions.js
       (bản 8.13).
 - [ ] `etl-admin → Nguồn dữ liệu`/`→ Đồng bộ`: cả 2 mục Nhập hàng loạt đều
       có nút "Tải file mẫu" (bản 8.17).
+- [ ] Bấm "Xuất PDF" ở 1 trong 4 báo cáo doanh thu (HCRC/LDTD gốc hoặc
+      Thành viên) — file PDF ra ĐÚNG khổ dọc, đúng 1 trang duy nhất, không
+      còn khổ ngang nhiều trang như trước (bản 8.18). Báo cáo khác (ngoài 4
+      báo cáo này) xuất PDF vẫn y như cũ (khổ ngang), không bị ảnh hưởng.
 - [ ] (Nếu làm Bước 7) `etl-admin → Nguồn dữ liệu`: đủ 35 dòng cửa hàng
       "Thành viên"; `→ Đồng bộ`: đủ tối đa 70 job Live + 2 job Lịch sử
       (Thành viên), tất cả "Bật", "Kiểm tra schema" ra ✅.

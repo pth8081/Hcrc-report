@@ -52,6 +52,11 @@ function buildDefinition(title, targetDomain, exportFileCode, domains) {
     title,
     exportTitle: EXPORT_TITLE,
     exportFileCode,
+    // compactSinglePage: true (bản 8.18) — xuất PDF ép khổ A4 DỌC cố định,
+    // tự dò cỡ chữ nhỏ dần cho vừa đúng 1 trang (theo file mẫu người dùng
+    // cung cấp) — xem rp-server/lib/exportPdf.js. CHỈ 4 báo cáo doanh thu
+    // này khai cờ này, không ảnh hưởng cách xuất PDF của báo cáo khác.
+    compactSinglePage: true,
     domain: revenueDomain,
     filters: [
       // type: 'dateRange' (trước là 'date', chỉ chọn được 1 ngày) — chọn 1
