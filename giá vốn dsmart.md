@@ -94,13 +94,24 @@ GIỮ NGUYÊN JOIN `COSTPRICE` cũ (đã biết không đáng tin) vì không c�
 giá vốn đáng tin cho tháng/năm cũ — "Lãi gộp" của dữ liệu quá khứ vẫn SAI,
 chấp nhận tạm thời cho tới khi có nguồn giá vốn lịch sử đáng tin.
 
-## 5. Tên mặt hàng — CHƯA XONG, đang xác định
+## 5. Tên mặt hàng — ĐÃ XÁC ĐỊNH (bản 8.9)
 
-`GOODS.GOODS_NAME` là ứng viên tên mặt hàng, nhưng **đã xác nhận
-`GOODS.GOODS_ID` KHÔNG khớp trực tiếp `SKU_ID`** (chạy thử với đúng 10 mã
-hàng ở mục 1, ra rỗng hoàn toàn). Cần dò tiếp qua bảng trung gian
-`SKU_DEF` (chưa kiểm chứng) — **CẬP NHẬT lại mục này ngay khi xác định
-xong đường nối đúng**.
+`GOODS.GOODS_NAME` KHÔNG dùng được (`GOODS.GOODS_ID` không khớp trực tiếp
+`SKU_ID`, đã xác nhận ra rỗng hoàn toàn với 10 mã hàng ở mục 1). Bảng
+trung gian `SKU_DEF` (dò ra khi tìm cột `PREFPR`, xem mục 6) có sẵn
+`SKU_ID` LÀM KHOÁ CHÍNH — nối trực tiếp, không cần qua `GOODS`:
+
+- **`FULL_NAME_U`** (nvarchar, cột cuối bảng) — tên đầy đủ, ĐÃ ĐÚNG FONT
+  (kiểm tra thực tế: hiện đúng tiếng Việt có dấu, vd "C - MAMAMY - Khăn
+  ướt có nắp ko mùi 100sx24") — **dùng cột này cho "Báo cáo giá vốn"**.
+- `FULL_NAME` (không có hậu tố `_U`) — CÙNG nội dung nhưng LỖI FONT (hiện
+  `Kh¨n ­ít` thay vì `Khăn ướt`, do khác bảng mã ký tự) — KHÔNG dùng cột
+  này để hiển thị.
+- `SHORT_NAME`, `MERC_NAME` — 2 ứng viên tên rút gọn khác nếu cần, chưa
+  kiểm tra font.
+
+**Đường nối cho VIEW/báo cáo mới**: `LEFT JOIN SKU_DEF sd ON sd.SKU_ID = <bảng giao dịch>.SKU_ID`,
+lấy `sd.FULL_NAME_U`.
 
 ## 6. Câu hỏi nghiệp vụ còn mở — KẾT LUẬN Ở BẢN 8.2 ĐÃ BỊ ĐẢO NGƯỢC (bản 8.8)
 
@@ -115,6 +126,36 @@ dưới) dùng sai cột — đã đổi sang `AVERIMPPR` trực tiếp (mục 3
 **CẦN NGƯỜI PHỤ TRÁCH KINH DOANH KIỂM TRA LẠI SỐ SAU KHI DEPLOY bản 8.8**
 — chưa có cơ sở khẳng định đã hết sai, chỉ mới sửa đúng NGUỒN CỘT theo xác
 nhận của DBA.
+
+**Điều tra thêm (trước khi deploy bản 8.8) — vì sao một số mã hàng vẫn ra
+giá vốn = giá bán dù đã đổi sang `AVERIMPPR`:**
+
+- Soi trực tiếp cả 4 cột `COSTPRICE`/`AVERIMPPR`/`LASTIMPPR`/`PREFPR` cho
+  đúng nhóm mã hàng đã phát hiện lỗi (ST HÀNG TRỐNG, 09/09/2026) — CẢ 4
+  đều cho giá vốn ≈ giá bán y hệt công thức tự tính cũ: `AVERIMPPR` lệch
+  rất nhỏ (vd mã `291515450000`: giá bán 38.400đ/cái, `AVERIMPPR` =
+  38.398,65đ), `PREFPR` (bảng `SKU_DEF`) khớp TUYỆT ĐỐI ở mọi mã đã kiểm
+  (vd `292715700000`: giá bán 364.519đ = `PREFPR` 364.519,00đ), `COSTPRICE`/
+  `LASTIMPPR` = 0 ở mọi dòng — không cột nào trong 4 cột dùng được cho
+  riêng nhóm mã hàng này.
+- Tra tiếp bảng `HISIMPPR` (nghi là lịch sử giá nhập THẬT theo từng lần,
+  gắn `SUPP_ID` nhà cung cấp) cho đúng các mã hàng này — **RỖNG HOÀN
+  TOÀN**, không có 1 dòng nào. Thử lại KHÔNG lọc theo mã hàng, chỉ lọc
+  theo CHI NHÁNH (`STK_ID = 10011`, TOP 50 mới nhất) — **VẪN RỖNG HOÀN
+  TOÀN cho cả chi nhánh**, không riêng nhóm mã nghi vấn. Kết luận: bảng
+  `HISIMPPR` KHÔNG được dùng/không có dữ liệu ở chi nhánh này — loại hẳn
+  khỏi danh sách nguồn khả dụng (không chỉ cho nhóm mã đặc biệt, mà nói
+  chung).
+- Đã báo lại DBA đúng phát hiện này — **DBA XÁC NHẬN LẦN 2, DỨT KHOÁT: vẫn
+  dùng `AVERIMPPR` làm giá vốn tính "Lãi gộp"** cho toàn bộ hệ thống (chấp
+  nhận nhóm mã hàng đặc biệt trên sẽ tiếp tục ra biên lợi nhuận ≈0, coi đây
+  là hiện tượng đúng bản chất nhóm hàng đó, không cần xử lý riêng). **CHỐT
+  — dừng điều tra thêm cột/bảng khác cho việc này.**
+- Tác dụng phụ có ích: `SKU_DEF` (bảng dò ra `PREFPR`) có cột tên mặt hàng
+  dạng chữ rõ ràng ở cuối mỗi dòng (vd "C - MAMAMY - Khăn ướt có nắp ko
+  mùi 100sx24") — rất có thể chính là lời giải cho mục 5 (`SKU_ID` → tên
+  mặt hàng) — CẦN xác nhận lại tên cột chính xác qua
+  `INFORMATION_SCHEMA.COLUMNS` trước khi dùng cho "Báo cáo giá vốn".
 
 <details>
 <summary>Kết luận CŨ ở bản 8.2 (đã đảo ngược, giữ lại để tham khảo)</summary>

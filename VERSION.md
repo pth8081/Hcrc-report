@@ -20,6 +20,27 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 8.9 — DBA chốt dứt khoát dùng `AVERIMPPR` + tìm ra đường nối tên mặt hàng
+
+Trước khi deploy bản 8.8, đã soi thêm 2 cột còn lại (`PREFPR` — dò ra nằm ở
+bảng `SKU_DEF`, không phải `STK_INFO`; và bảng `HISIMPPR` nghi là lịch sử
+giá nhập thật gắn nhà cung cấp) cho đúng nhóm mã hàng đã phát hiện lỗi:
+`PREFPR` cũng khớp tuyệt đối giá bán ở mọi mã đã kiểm; `HISIMPPR` RỖNG
+HOÀN TOÀN — không chỉ cho nhóm mã nghi vấn mà cho CẢ CHI NHÁNH đã kiểm
+(STK_ID 10011) — loại hẳn khỏi danh sách nguồn khả dụng. Đã báo lại DBA —
+**DBA xác nhận LẦN 2, dứt khoát: dùng `AVERIMPPR`**, chấp nhận nhóm mã
+hàng đặc biệt (chưa từng có lịch sử nhập kho thật) tiếp tục ra biên lợi
+nhuận ≈0 như một đặc điểm của nhóm hàng đó, không cần xử lý riêng. Công
+thức VIEW ở bản 8.8 (`AVERIMPPR`) giữ nguyên, không cần sửa thêm — dừng
+điều tra thêm nguồn giá vốn khác.
+
+Tác dụng phụ có ích: bảng `SKU_DEF` (dò ra khi tìm `PREFPR`) có `SKU_ID`
+làm khoá chính + cột `FULL_NAME_U` (tên đầy đủ, ĐÃ ĐÚNG FONT tiếng Việt) —
+giải quyết xong mục còn treo lâu nay "`SKU_ID` → tên mặt hàng" (cần cho
+"Báo cáo giá vốn" sắp tới) — `GOODS.GOODS_NAME`/`GOODS_ID` trước đó xác
+nhận không khớp trực tiếp `SKU_ID`, không dùng được. Cập nhật đầy đủ vào
+`giá vốn dsmart.md` mục 5, 6.
+
 ## 8.8 — Đổi nguồn giá vốn sang `STK_INFO.AVERIMPPR` (công thức tự tính vẫn bị nhiễm giá bán)
 
 Sau bản 8.7, người dùng gửi lại PDF ngày 09/09/2026 — "Lãi gộp" đã tăng so
