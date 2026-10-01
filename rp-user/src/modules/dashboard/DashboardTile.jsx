@@ -34,7 +34,7 @@ import { api } from '../../lib/api';
 import ReportBody from '../../components/ReportBody';
 import { computeEventDateRange, periodLabelFor } from '../../lib/dateRange';
 
-export default function DashboardTile({ tile, crossFilters, fromDate, toDate, onPointClick }) {
+export default function DashboardTile({ tile, crossFilters, fromDate, toDate, refreshTick, onPointClick }) {
   const [definition, setDefinition] = useState(null);
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
@@ -56,7 +56,7 @@ export default function DashboardTile({ tile, crossFilters, fromDate, toDate, on
     api.post(`/reports/${tile.reportId}/run`, { filters, page: 1, pageSize: 200 })
       .then(setResult)
       .catch(err => setError(err.message));
-  }, [definition, tile.reportId, tile.dateMode, crossFilters, fromDate, toDate]);
+  }, [definition, tile.reportId, tile.dateMode, crossFilters, fromDate, toDate, refreshTick]);
 
   // tile.tone (TUỲ CHỌN — "high"/"low") — viền trên màu xanh/cam, xem
   // styles.css. Tile không khai tone -> không thêm class gì, giao diện như

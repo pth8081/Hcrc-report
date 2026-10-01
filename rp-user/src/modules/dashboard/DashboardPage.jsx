@@ -19,6 +19,14 @@
 //     nhất 1 tile (không phụ thuộc dateMode/metricTab/chain) — xuất ĐÚNG các
 //     Ô đang hiện trên bảng (viewMode='table'; ở chế độ biểu đồ vẫn xuất
 //     bảng số liệu, KHÔNG xuất hình biểu đồ — xem routes/dashboards.js).
+//
+// Tự động làm mới mỗi 30 GIÂY (bản 8.24) — `refreshTick` tăng dần theo
+// setInterval, truyền xuống DashboardTile/Top5ChartTile qua dependency của
+// useEffect gọi `/run` — KHÔNG xoá `result` trước khi gọi lại (xem các
+// component đó) nên bảng/biểu đồ CŨ vẫn hiện nguyên trong lúc chờ số MỚI,
+// không nhấp nháy "Đang tải..." mỗi 30s. Dashboard khác không có tile nào
+// cũng tự refresh — vô hại (chỉ gọi lại đúng API đã có sẵn), nhưng chỉ THẬT
+// SỰ cần thiết cho dashboard có dữ liệu "Realtime"/hay đổi trong ngày.
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { api, downloadFile } from '../../lib/api';
 import DashboardTile from './DashboardTile';
@@ -89,6 +97,10 @@ export default function DashboardPage() {
   const [metricTab, setMetricTab] = useState('');
   const [viewMode, setViewMode] = useState('table');
   const [exporting, setExporting] = useState(false);
+  // refreshTick — tăng dần mỗi 30s, CHỈ dùng làm dependency ép các tile gọi
+  // lại /run (không tự mang dữ liệu gì) — xem chú thích đầu file.
+  const [refreshTick, setRefreshTick] = useState(0);
+  const [lastRefreshedAt, setLastRefreshedAt] = useState(null);
 
   useEffect(() => {
     api.get('/dashboards').then(list => {
@@ -96,6 +108,15 @@ export default function DashboardPage() {
       if (list.length) setSelectedId(list[0].DashboardId);
     }).catch(err => setError(err.message));
   }, []);
+
+  useEffect(() => {
+    setLastRefreshedAt(new Date());
+    const id = setInterval(() => {
+      setRefreshTick(t => t + 1);
+      setLastRefreshedAt(new Date());
+    }, 30000);
+    return () => clearInterval(id);
+  }, [selectedId]);
 
   useEffect(() => {
     if (!selectedId) return;
@@ -164,7 +185,7 @@ export default function DashboardPage() {
           const direction = deriveDirection(tile.reportId);
           const tone = direction === 'cao' ? 'high' : direction === 'thap' ? 'low' : undefined;
           return (
-            <DashboardTile key={tile.key} tile={{ ...tile, tone }} crossFilters={crossFilters} fromDate={fromDate} toDate={toDate} onPointClick={handlePointClick} />
+            <DashboardTile key={tile.key} tile={{ ...tile, tone }} crossFilters={crossFilters} fromDate={fromDate} toDate={toDate} refreshTick={refreshTick} onPointClick={handlePointClick} />
           );
         })}
       </div>
@@ -228,6 +249,10 @@ export default function DashboardPage() {
         <>
           <div className="dashboard-title-bar">
             <h2 className="dashboard-title">{dashboard.title}</h2>
+            <div className="dashboard-refresh-indicator">
+              <span>Tự động làm mới mỗi 30 giây{lastRefreshedAt ? ` — cập nhật lúc ${lastRefreshedAt.toLocaleTimeString('vi-VN')}` : ''}</span>
+              <button type="button" onClick={() => { setRefreshTick(t => t + 1); setLastRefreshedAt(new Date()); }}>🔄 Làm mới ngay</button>
+            </div>
             {visibleTiles.length > 0 && (
               <div className="export-actions">
                 <button type="button" disabled={exporting} onClick={() => exportAs('excel')}>Xuất Excel</button>
@@ -255,7 +280,7 @@ export default function DashboardPage() {
             <Suspense fallback={<p>Đang tải biểu đồ...</p>}>
               <div className="dashboard-grid">
                 {chartGroups.map(g => (
-                  <Top5ChartTile key={g.key} title={g.title} martTile={g.martTile} minimartTile={g.minimartTile} valueField={chartValueField} fromDate={fromDate} toDate={toDate} />
+                  <Top5ChartTile key={g.key} title={g.title} martTile={g.martTile} minimartTile={g.minimartTile} valueField={chartValueField} fromDate={fromDate} toDate={toDate} refreshTick={refreshTick} />
                 ))}
               </div>
             </Suspense>

@@ -163,6 +163,9 @@ button:hover { opacity: 0.9; }
 .dashboard-title-bar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
 .dashboard-title-bar .dashboard-title { margin: 4px 0; }
 .dashboard-title-bar .export-actions { margin: 0; }
+.dashboard-refresh-indicator { display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--ink-soft); }
+.dashboard-refresh-indicator button { font-size: 12px; padding: 4px 10px; border: 1px solid var(--line); background: var(--surface); border-radius: 999px; cursor: pointer; color: var(--ink); }
+.dashboard-refresh-indicator button:hover { border-color: var(--accent); color: var(--accent); }
 .dashboard-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 20px; }
 /* minmax(380px,...) ép mỗi ô tối thiểu 380px — trên điện thoại hẹp hơn
    380px + lề, grid không co được nữa và tràn ngang; chuyển về 1 cột thật

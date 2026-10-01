@@ -16,12 +16,16 @@ import { computeEventDateRange } from '../../lib/dateRange';
 const COLOR_MART = '#1c7566';
 const COLOR_MINIMART = '#c0622a';
 
-export default function Top5ChartTile({ title, martTile, minimartTile, valueField, fromDate, toDate }) {
+export default function Top5ChartTile({ title, martTile, minimartTile, valueField, fromDate, toDate, refreshTick }) {
   const [rows, setRows] = useState(null);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    setRows(null);
+    // KHÔNG setRows(null) trước khi gọi lại — giữ nguyên biểu đồ CŨ trong
+    // lúc chờ số MỚI (refreshTick mỗi 30s) để không nhấp nháy "Đang tải...";
+    // chỉ reset về null khi đổi SANG giai đoạn khác hẳn (martTile/minimartTile
+    // đổi — xem key={g.key} ở DashboardPage.jsx, React tự remount component
+    // mới nên state rows=null ban đầu vẫn đúng, không cần tự xoá tay ở đây).
     Promise.all([martTile, minimartTile].map(tile => {
       const filters = { eventDate: computeEventDateRange(tile.dateMode, fromDate, toDate) };
       return api.post(`/reports/${tile.reportId}/run`, { filters, page: 1, pageSize: 200 });
@@ -33,7 +37,7 @@ export default function Top5ChartTile({ title, martTile, minimartTile, valueFiel
         ]);
       })
       .catch(err => setError(err.message));
-  }, [martTile.reportId, minimartTile.reportId, fromDate, toDate]);
+  }, [martTile.reportId, minimartTile.reportId, fromDate, toDate, refreshTick]);
 
   return (
     <div className="dashboard-tile">
