@@ -54,8 +54,12 @@ export default function DashboardTile({ tile, crossFilters, reportDate, onPointC
       .catch(err => setError(err.message));
   }, [definition, tile.reportId, tile.dateMode, crossFilters, reportDate]);
 
+  // tile.tone (TUỲ CHỌN — "high"/"low") — viền trên màu xanh/cam, xem
+  // styles.css. Tile không khai tone -> không thêm class gì, giao diện như
+  // trước.
+  const toneClass = tile.tone ? ` dashboard-tile--${tile.tone}` : '';
   return (
-    <div className="dashboard-tile">
+    <div className={`dashboard-tile${toneClass}`}>
       <div className="dashboard-tile-header">
         <h3 className="dashboard-tile-title">{tile.title || definition?.title || tile.reportId}</h3>
         {/* Chỉ hiện nút chuyển đổi khi tile THẬT SỰ có biểu đồ để chuyển

@@ -43,9 +43,14 @@ function estimateDisplayLength(raw, col) {
 // lib/reportEngine.js:describeColumns(). definition.columnGroups (TUỲ
 // CHỌN) = [{label, color, keys: [...]}] — xem chú thích đầu file
 // lib/compositeReportRunner.js.
-async function exportExcel(definition, rows) {
-  const workbook = new ExcelJS.Workbook();
-  const sheet = workbook.addWorksheet(definition.title.slice(0, 31)); // Excel giới hạn tên sheet 31 ký tự
+//
+// addReportSheet() TÁCH RIÊNG khỏi exportExcel() (bản 8.21 — xuất Dashboard,
+// xem routes/dashboards.js:POST /:id/export) để GHÉP NHIỀU báo cáo vào CÙNG
+// 1 workbook (1 sheet/báo cáo) thay vì mỗi báo cáo 1 file .xlsx riêng — xem
+// exportMultiSheetExcel() bên dưới. exportExcel() (xuất 1 báo cáo, hành vi
+// CŨ không đổi) giờ chỉ là lớp mỏng tạo workbook rồi gọi hàm này.
+function addReportSheet(workbook, definition, rows, sheetName) {
+  const sheet = workbook.addWorksheet((sheetName || definition.title).slice(0, 31)); // Excel giới hạn tên sheet 31 ký tự
   const columns = definition.columns;
   const groups = definition.columnGroups || [];
   const colCount = columns.length;
@@ -157,8 +162,49 @@ async function exportExcel(definition, rows) {
   columns.forEach((col, i) => {
     sheet.getColumn(i + 1).width = Math.min(MAX_COL_WIDTH, Math.max(MIN_COL_WIDTH, colMaxLen[i] + 2));
   });
+}
 
+async function exportExcel(definition, rows) {
+  const workbook = new ExcelJS.Workbook();
+  addReportSheet(workbook, definition, rows);
   return workbook.xlsx.writeBuffer();
 }
 
-module.exports = { exportExcel };
+const SHEET_NAME_MAX = 31; // giới hạn cứng của Excel
+
+// Excel giới hạn tên sheet 31 ký tự — cắt NGẮN GIỮA (giữ đầu + "…" + ĐUÔI)
+// thay vì cắt thẳng ở cuối: tiêu đề các Ô Dashboard thường giống nhau Ở ĐẦU,
+// chỉ khác nhau ở ĐUÔI (vd "Top 5 MART — Doanh thu cao nhất (Trong ngày)" so
+// với "...(Trong tháng)") — cắt thẳng cuối sẽ xoá mất đúng phần khác nhau
+// đó, khiến nhiều sheet trông "trùng tên" rồi bị đánh số (2)/(3) vô nghĩa
+// thay vì giữ được tên phân biệt rõ ràng.
+function shortenSheetName(name) {
+  if (name.length <= SHEET_NAME_MAX) return name;
+  const headLen = 18, tailLen = SHEET_NAME_MAX - headLen - 1;
+  return `${name.slice(0, headLen)}…${name.slice(-tailLen)}`;
+}
+
+// sheets: [{ definition, rows, sheetName? }] — xuất NHIỀU báo cáo thành 1
+// file .xlsx, mỗi báo cáo 1 sheet riêng (dùng cho "Xuất Excel" ở Dashboard —
+// xem routes/dashboards.js). sheetName sau khi rút ngắn (xem
+// shortenSheetName()) vẫn trùng nhau (2 tiêu đề gốc khác nhau nhưng cùng 18
+// ký tự đầu + 12 ký tự cuối) thì đánh số hậu tố (2), (3)... để đảm bảo duy
+// nhất, tương tự cách Excel tự xử lý khi người dùng copy sheet trùng tên.
+async function exportMultiSheetExcel(sheets) {
+  const workbook = new ExcelJS.Workbook();
+  const usedNames = new Set();
+  for (const s of sheets) {
+    const shortened = shortenSheetName(s.sheetName || s.definition.title);
+    let name = shortened;
+    let suffix = 2;
+    while (usedNames.has(name)) {
+      name = `${shortened.slice(0, SHEET_NAME_MAX - String(suffix).length - 3)} (${suffix})`;
+      suffix += 1;
+    }
+    usedNames.add(name);
+    addReportSheet(workbook, s.definition, s.rows, name);
+  }
+  return workbook.xlsx.writeBuffer();
+}
+
+module.exports = { exportExcel, exportMultiSheetExcel };

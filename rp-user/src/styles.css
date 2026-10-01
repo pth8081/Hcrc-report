@@ -160,6 +160,9 @@ button:hover { opacity: 0.9; }
 .template-upload { margin-bottom: 20px; font-size: 13px; }
 /* DashboardPage.jsx/DashboardTile.jsx — dashboard nhiều ô + lọc chéo. */
 .dashboard-title { font-size: 16px; margin: 4px 0 12px; }
+.dashboard-title-bar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+.dashboard-title-bar .dashboard-title { margin: 4px 0; }
+.dashboard-title-bar .export-actions { margin: 0; }
 .dashboard-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 20px; }
 /* minmax(380px,...) ép mỗi ô tối thiểu 380px — trên điện thoại hẹp hơn
    380px + lề, grid không co được nữa và tràn ngang; chuyển về 1 cột thật
@@ -168,10 +171,21 @@ button:hover { opacity: 0.9; }
 @media (max-width: 460px) {
   .dashboard-grid { grid-template-columns: 1fr; }
 }
-.dashboard-tile { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px 20px; box-shadow: 0 1px 3px rgba(20, 30, 40, .06); overflow-x: auto; }
+.dashboard-tile { background: var(--surface); border: 1px solid var(--line); border-top: 4px solid var(--line); border-radius: 12px; padding: 16px 20px; box-shadow: 0 2px 8px rgba(20, 30, 40, .08); overflow-x: auto; }
+/* tile.tone (TUỲ CHỌN — "high"/"low", vd Dashboard "Top 5 chi nhánh") — viền
+   trên màu xanh (cao nhất)/cam (thấp nhất) để phân biệt nhanh bằng mắt,
+   không cần đọc hết tiêu đề. Tile không khai tone -> viền xám trung tính
+   như trước, không đổi giao diện dashboard khác. */
+.dashboard-tile--high { border-top-color: #2f9e44; }
+.dashboard-tile--low { border-top-color: #e8590c; }
 .dashboard-tile-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 12px; }
-.dashboard-tile-title { font-size: 14px; margin: 0; color: var(--ink); }
+.dashboard-tile-title { font-size: 14px; margin: 0; color: var(--ink); font-weight: 700; }
 .dashboard-tile-toggle { font-size: 12px; padding: 4px 10px; white-space: nowrap; }
+.dashboard-tile .data-table tbody tr:nth-child(even) { background: var(--bg); }
+.dashboard-tile .data-table td:first-child { font-weight: 700; color: var(--accent); text-align: center; }
+.dashboard-chart-legend { display: flex; gap: 16px; justify-content: center; margin-top: 8px; font-size: 12px; color: var(--ink-soft); }
+.dashboard-chart-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.dashboard-chart-legend i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
 .dashboard-crossfilter-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 8px 0 16px; font-size: 13px; color: var(--ink-soft); }
 .dashboard-crossfilter-chip { display: inline-flex; align-items: center; gap: 6px; background: var(--accent-soft); border-radius: 999px; padding: 4px 10px; font-weight: 600; color: var(--ink); }
 .dashboard-crossfilter-chip button { border: none; background: none; cursor: pointer; font-size: 12px; line-height: 1; padding: 0; color: var(--ink-soft); }
@@ -185,7 +199,7 @@ button:hover { opacity: 0.9; }
 .dashboard-metric-tabs button { font-size: 13px; font-weight: 600; padding: 8px 16px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--ink-soft); cursor: pointer; }
 .dashboard-metric-tabs button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
 .dashboard-group { margin-bottom: 28px; }
-.dashboard-group-title { font-size: 13px; font-weight: 700; letter-spacing: .05em; color: var(--accent); margin: 0 0 10px; text-transform: uppercase; }
+.dashboard-group-title { display: inline-block; font-size: 12px; font-weight: 700; letter-spacing: .05em; color: #fff; background: var(--accent); margin: 0 0 14px; padding: 5px 14px; border-radius: 999px; text-transform: uppercase; }
 
 .muted { color: var(--ink-soft); }
 

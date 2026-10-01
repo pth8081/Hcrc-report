@@ -412,4 +412,22 @@ async function exportPdf(definition, rows) {
   return Buffer.from(await pdfDoc.save());
 }
 
-module.exports = { exportPdf };
+// mergePdfBuffers() — GHÉP nhiều PDF (mỗi cái đã xuất riêng qua exportPdf()
+// ở trên, KHÔNG đụng vào logic vẽ bảng phức tạp phía trên) thành 1 file duy
+// nhất — dùng cho "Xuất PDF" ở Dashboard (bản 8.21, xem
+// routes/dashboards.js:POST /:id/export): mỗi Ô dashboard đã là 1 báo cáo
+// "doanhDb"/"composite" riêng, xuất qua đúng exportPdf() như xuất lẻ 1 báo
+// cáo rồi NỐI TRANG lại — thay vì viết lại 1 bộ máy vẽ nhiều-bảng-1-trang
+// riêng (rủi ro cao, xem các chú thích "đo/vẽ phải khớp nhau tuyệt đối" ở
+// trên — bản 8.18 từng mất công sửa 2 lỗi tinh vi đúng ở chỗ này).
+async function mergePdfBuffers(buffers) {
+  const merged = await PDFDocument.create();
+  for (const buf of buffers) {
+    const doc = await PDFDocument.load(buf);
+    const pages = await merged.copyPages(doc, doc.getPageIndices());
+    pages.forEach(p => merged.addPage(p));
+  }
+  return Buffer.from(await merged.save());
+}
+
+module.exports = { exportPdf, mergePdfBuffers };

@@ -20,6 +20,35 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 8.21 — Dashboard "Top 5 chi nhánh": đóng khung màu + biểu đồ + xuất Excel/PDF
+
+Người dùng xác nhận demo bản 8.20, yêu cầu thêm: (1) đóng khung/tô màu bảng
+cho chuyên nghiệp hơn + làm tròn/ngăn cách hàng nghìn khớp đúng file xuất,
+(2) 2 tab biểu đồ mới "Biểu đồ doanh thu"/"Biểu đồ giao dịch", (3) xuất được
+Excel/PDF ngay ở Dashboard với màu sắc giống web.
+
+- `rp-user/src/lib/formatCell.js` (mới) + `components/ReportBody.jsx` — làm
+  tròn (nửa lên) + dấu phẩy ngăn cách hàng nghìn khi hiện bảng web, MIRROR
+  đúng `lib/reportCellFormat.js:formatCellText()` đã dùng lúc xuất Excel/PDF
+  — ÁP DỤNG CHO MỌI bảng báo cáo trên web (không riêng Dashboard), sửa luôn
+  chỗ lệch giữa xem web (trước đây hiện số thập phân thô) và xuất file.
+- `DashboardTile.jsx`/`styles.css` — `tile.tone` ('high'/'low', suy từ
+  reportId "-cao"/"-thap") tô viền trên xanh lá/cam cho từng thẻ, nhãn nhóm
+  MART/MINIMART thành khung bo tròn, vân sọc xen kẽ dễ đọc hàng.
+- `Top5ChartTile.jsx` (mới, lazy-load theo đúng cách ReportChart.jsx đã làm
+  để KHÔNG kéo recharts vào chunk chính) — biểu đồ cột ngang gộp Top 5 MART
+  + MINIMART của 1 giai đoạn, tô màu theo chuỗi + nhãn số trên cột.
+  `DashboardPage.jsx` thêm 2 tab "Biểu đồ doanh thu"/"Biểu đồ giao dịch"
+  (tổng 4 tab = 2 chỉ tiêu x 2 cách xem).
+- `routes/dashboards.js` — `POST /:dashboardId/export` (mới): xuất Excel/PDF
+  cho ĐÚNG các Ô đang hiện trên web (body.tileKeys, lọc lại theo quyền báo
+  cáo — không tin thẳng key client gửi), tô màu xanh/cam theo tone bằng
+  CHÍNH cơ chế `columnGroups` đã có sẵn. `lib/exportExcel.js` thêm
+  `exportMultiSheetExcel()` (1 sheet/báo cáo, tên sheet rút ngắn giữ đầu+đuôi
+  khi >31 ký tự). `lib/exportPdf.js` thêm `mergePdfBuffers()` (ghép nhiều PDF
+  đã xuất riêng qua `exportPdf()` — KHÔNG đụng vào logic vẽ bảng phức tạp đã
+  có, tránh rủi ro lặp lại 2 lỗi tinh vi đã gặp ở bản 8.18).
+
 ## 8.20 — Dashboard "Top 5 chi nhánh"
 
 Người dùng yêu cầu 1 Dashboard mới: 8 ô "Top 5" = {MART, MINIMART} x {Cao

@@ -7,6 +7,7 @@
 import { lazy, Suspense } from 'react';
 import DataTable from './DataTable';
 import PivotTable from './PivotTable';
+import { formatCellValue } from '../lib/formatCell';
 
 // recharts tách chunk riêng — xem lý do đầy đủ ở modules/reports/ReportsPage.jsx
 // (bản gốc trước khi tách file này).
@@ -22,7 +23,12 @@ export default function ReportBody({ visualization, showTable, result, onPointCl
     const scrollClassName = result.columns[0]?.key === 'stt'
       ? 'table-scroll--report table-scroll--report-numbered'
       : 'table-scroll--report';
-    return <DataTable columns={result.columns} rows={result.rows} scrollClassName={scrollClassName} />;
+    // Làm tròn + dấu phẩy ngăn cách hàng nghìn — KHỚP đúng cách
+    // lib/reportCellFormat.js:formatCellText() đã dùng lúc xuất Excel/PDF,
+    // tránh bảng web hiện số thập phân thô (vd "61268083.26") khác hẳn số
+    // đã xuất ("61,268,083").
+    const formattedColumns = result.columns.map(col => ({ ...col, render: (row) => formatCellValue(row[col.key], col) }));
+    return <DataTable columns={formattedColumns} rows={result.rows} scrollClassName={scrollClassName} />;
   }
   if (visualization.type === 'pivot') {
     return <PivotTable columns={result.columns} rows={result.rows} visualization={visualization} />;
