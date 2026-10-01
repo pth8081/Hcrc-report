@@ -20,6 +20,40 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 8.25 — Sửa lỗi ETL: job đồng bộ đứng yên trong ngày khi UpdatedAtColumn là cột ngày không giờ
+
+Người dùng phát hiện (qua Nhật ký hệ thống thật) job "Doanh thu/Giao dịch
+chi nhánh - Live" báo SUCCESS liên tục mỗi 5 phút nhưng "Không có dòng nào
+thay đổi kể từ <đúng 00:00:00 hôm đó>" suốt NGUYÊN NGÀY, dù giao dịch vẫn
+phát sinh liên tục (đối chiếu với báo cáo nguồn khác do DBA cung cấp, số
+liệu đã thay đổi nhiều). Cùng lúc, điều tra sâu 1 vụ việc khác (Giao dịch
+chi nhánh thiếu hẳn "Cùng kỳ năm 2025" dù VIEW nguồn và dữ liệu `BU_ID` đều
+đầy đủ) hé lộ CÙNG 1 NGUYÊN NHÂN GỐC.
+
+- **Nguyên nhân**: nhiều VIEW/bảng nguồn (vd `V_HCRC_GIAODICH_CHINHANH`,
+  `V_HCRC_DOANHTHU_CHINHANH` trên `DSMART16`/`DSMART16_EOM`) không có cột
+  "cập nhật lúc" thật — lúc khai Sync Job, `UpdatedAtColumn` đành trỏ TRÙNG
+  `DateColumn` (vd `TRAN_DATE`, kiểu `DATE` KHÔNG CÓ GIỜ). Lượt đồng bộ đầu
+  tiên bắt được 1 dòng bất kỳ của 1 ngày sẽ chốt mốc (watermark) = đúng
+  00:00:00 ngày đó — `WHERE UpdatedAtColumn > mốc` từ đó về sau trong
+  NGUYÊN NGÀY đó sẽ loại HẾT các dòng MỚI phát sinh thêm (cũng mang giá trị
+  ngày y hệt, KHÔNG lớn hơn mốc) — job vẫn chạy "thành công" nhưng số liệu
+  đứng yên tới tận ngày hôm sau.
+- `etl/lib/tableSyncEngine.js` — thêm `floorToDay()` (đưa mốc về đúng
+  00:00:00 UTC của ngày đó) + đổi điều kiện lọc từ `>` thành `>=` khi build
+  câu truy vấn — buộc MỌI lượt chạy quét lại TRỌN NGÀY của mốc hiện tại
+  thay vì chỉ phần "sau mốc". An toàn tuyệt đối vì cơ chế ghi
+  (`upsertReportFacts`) là MERGE idempotent — quét lại dòng đã có không tạo
+  trùng/sai, chỉ tốn thêm tối đa 1 ngày dữ liệu mỗi lượt chạy. Áp dụng
+  chung cho MỌI Sync Job kiểu "table" (không riêng Doanh thu/Giao dịch chi
+  nhánh), vá triệt để cả lớp lỗi này về sau.
+- Đã xác nhận qua log thực tế: Doanh thu/Giao dịch chi nhánh Live đứng yên
+  nguyên ngày 01/10/2026; Giao dịch chi nhánh Lịch sử thiếu hẳn dữ liệu năm
+  2025 dù job từng chạy SUCCESS với số dòng lớn (135k-145k) — cùng 1 cơ chế
+  lỗi. **Cần chạy lại `etl/scripts/resyncGiaodichChinhanh.js --confirm`**
+  (SAU khi deploy bản vá này) để backfill lại đầy đủ lịch sử Giao dịch chi
+  nhánh — xem `deploy/Cập nhật bản 8.25 — ...md`.
+
 ## 8.24 — Dashboard tự động làm mới 30s + báo cáo "Doanh thu Realtime HCRC"
 
 Người dùng yêu cầu 2 việc độc lập trên Dashboard: (1) tự động làm mới số
