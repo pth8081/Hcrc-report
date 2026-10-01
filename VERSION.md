@@ -20,6 +20,40 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 8.24 — Dashboard tự động làm mới 30s + báo cáo "Doanh thu Realtime HCRC"
+
+Người dùng yêu cầu 2 việc độc lập trên Dashboard: (1) tự động làm mới số
+liệu mỗi 30 giây (không cần bấm lại/F5), (2) thêm báo cáo "doanh thu
+realtime" lấy TOÀN BỘ chi nhánh (không chỉ Top 5), đúng khuôn báo cáo
+"Báo cáo doanh thu cuối ngày HCRC" đã có sẵn nhưng bỏ cột Cùng kỳ/LFL, có
+cả bảng lẫn biểu đồ (chỉ Doanh thu). Đã gửi demo (ảnh chụp + đếm số lượt
+gọi `/run` qua Playwright) và được xác nhận trước khi merge.
+
+- `rp-user/src/modules/dashboard/DashboardPage.jsx` — `refreshTick` tăng
+  mỗi 30 giây qua `setInterval`, truyền xuống `DashboardTile`/
+  `Top5ChartTile`/`RealtimeReportTile` làm dependency fetch lại dữ liệu;
+  `lastRefreshedAt` hiện giờ "cập nhật lúc" + nút "Làm mới ngay" bấm tay.
+  **Không xoá state cũ trước khi fetch lại** (xem `Top5ChartTile.jsx`) nên
+  không nhấp nháy "Đang tải..." mỗi 30 giây.
+- `rp-user/src/modules/dashboard/RealtimeReportTile.jsx` (mới) — tái dùng
+  NGUYÊN báo cáo "bc-doanh-thu-hcrc" đã có (xem
+  `scripts/seedLdtdHcrcReports.js`) qua `ReportBody` đã có sẵn, KHÔNG viết
+  lại logic báo cáo: luôn ép `filters.cheDoSoSanh = 'past'` (ẩn cột Cùng
+  kỳ/LFL), `mode='table'` hiện bảng đầy đủ, `mode='chart'` hiện biểu đồ chỉ
+  1 cột "Doanh thu - Thực đạt" (`visualization` dựng tạm ở client, không
+  đụng `definition.visualization` của báo cáo gốc trên CSDL — báo cáo gốc
+  vẫn xem/xuất bình thường như cũ). 4 tab mới trong Dashboard: Realtime
+  Theo ngày/Theo tháng (cộng dồn) x Bảng/Biểu đồ — xem
+  `DashboardPage.jsx:buildRealtimeTabs()`. Xuất Excel/PDF CHƯA hỗ trợ cho
+  4 tab này (nút Xuất tự ẩn khi đang xem tab Realtime).
+- `scripts/seedTop5ChiNhanhReports.js` — thêm `REALTIME_TILES` (4 ô, tham
+  chiếu thẳng `reportId: 'bc-doanh-thu-hcrc'`, không tạo report mới) vào
+  Dashboard "Top 5 chi nhánh" đã có — **cần chạy lại script này** (SAU
+  `scripts/seedLdtdHcrcReports.js` ít nhất 1 lần) để 4 ô Realtime xuất hiện.
+- Lưu ý nghiệp vụ: báo cáo "bc-doanh-thu-hcrc" có `requireTargetMatch`
+  (chi nhánh chưa nhập Chỉ tiêu bị ẩn khỏi báo cáo) — người dùng xác nhận
+  Chỉ tiêu luôn được nhập đầu tháng nên không cần xử lý gì thêm.
+
 ## 8.23 — Dashboard "Top 5 chi nhánh": "Trong tháng" tính đủ cả tháng + bộ lọc Từ ngày-đến ngày
 
 Người dùng phát hiện "Trong tháng" (bản 8.20) thực ra là "từ đầu tháng tới

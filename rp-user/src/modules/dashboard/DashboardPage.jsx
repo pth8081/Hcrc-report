@@ -59,7 +59,7 @@ const VIEW_TABS = [
 ];
 const DIRECTION_LABEL = { cao: 'Cao nhất', thap: 'Thấp nhất' };
 
-// Tile "Realtime" (bản 8.24, DEMO — xem RealtimeReportTile.jsx) — tile.kind
+// Tile "Realtime" (bản 8.24 — xem RealtimeReportTile.jsx) — tile.kind
 // === 'realtime' hiện NGUYÊN 1 báo cáo đã có sẵn (vd "bc-doanh-thu-hcrc")
 // toàn trang, KHÔNG theo khuôn lưới 8 ô nhỏ của Top 5 — 4 tab = 2 cách xem
 // (Bảng/Biểu đồ) x 2 giai đoạn (Ngày/Tháng cộng dồn), mỗi tab chọn ĐÚNG 1

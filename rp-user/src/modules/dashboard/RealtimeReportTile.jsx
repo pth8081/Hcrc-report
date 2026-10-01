@@ -1,5 +1,5 @@
-// modules/dashboard/RealtimeReportTile.jsx — DEMO (chưa chốt, bản 8.24) — 1
-// Ô Dashboard hiện NGUYÊN báo cáo đã có sẵn (vd "bc-doanh-thu-hcrc", xem
+// modules/dashboard/RealtimeReportTile.jsx (bản 8.24) — Ô Dashboard hiện
+// NGUYÊN báo cáo đã có sẵn (vd "bc-doanh-thu-hcrc", xem
 // scripts/seedLdtdHcrcReports.js) theo đúng khuôn gốc (Diện tích/Chỉ tiêu/
 // Lãi gộp/Giao dịch/Trung bình GD/Doanh thu per m2, nhóm MART/MINIMART có
 // dòng "Tổng cộng"), KHÔNG viết lại logic báo cáo — chỉ:

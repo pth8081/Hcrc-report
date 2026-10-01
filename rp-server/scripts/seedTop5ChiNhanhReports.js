@@ -3,8 +3,12 @@
 // (SourceType='composite', dùng definition.topN — xem lib/compositeReportRunner.js)
 // + 1 app.Dashboards ghép 16 ô (8 báo cáo x 2: "Trong ngày"/"Trong tháng",
 // cùng 1 bộ lọc ngày báo cáo duy nhất — xem rp-user/src/modules/dashboard/
-// DashboardPage.jsx). Chạy LẠI file này an toàn — khớp theo ReportId/
-// DashboardId để UPDATE thay vì tạo trùng.
+// DashboardPage.jsx) + 4 ô "Realtime" (bản 8.24 — xem REALTIME_TILES bên
+// dưới, tái dùng báo cáo "bc-doanh-thu-hcrc" đã có sẵn, KHÔNG tạo report
+// mới ở file này). Chạy LẠI file này an toàn — khớp theo ReportId/
+// DashboardId để UPDATE thay vì tạo trùng. CHẠY SAU
+// scripts/seedLdtdHcrcReports.js ít nhất 1 lần (để "bc-doanh-thu-hcrc" đã
+// tồn tại trước khi 4 ô Realtime tham chiếu tới).
 //
 // 8 báo cáo = {MART, MINIMART} x {Doanh thu, Giao dịch} x {Cao nhất, Thấp
 // nhất} — KHÔNG tách riêng báo cáo cho "trong ngày"/"trong tháng" (đó chỉ là
@@ -158,6 +162,23 @@ function buildTiles(reports) {
   return tiles;
 }
 
+// Ô "Realtime" (bản 8.24) — TÁI DÙNG NGUYÊN báo cáo "bc-doanh-thu-hcrc" đã
+// seed sẵn ở scripts/seedLdtdHcrcReports.js (chạy script ĐÓ trước script
+// này ít nhất 1 lần), KHÔNG tạo report mới — xem rp-user/src/modules/
+// dashboard/RealtimeReportTile.jsx. kind:'realtime' + realtimeMode ('table'/
+// 'chart') là 2 trường RIÊNG của tile này (đi nguyên vẹn qua routes/
+// dashboards.js như mọi trường khác của tile, xem DashboardPage.jsx:
+// buildRealtimeTabs()) — không dùng chung cơ chế metricTab/dateMode suy ra
+// cột như 16 Ô Top 5 ở trên.
+const REALTIME_REPORT_ID = 'bc-doanh-thu-hcrc';
+const REALTIME_TITLE = 'Doanh thu Realtime HCRC';
+const REALTIME_TILES = [
+  { key: 'realtime-ngay', reportId: REALTIME_REPORT_ID, title: REALTIME_TITLE, kind: 'realtime', dateMode: 'day', realtimeMode: 'table' },
+  { key: 'realtime-ngay-chart', reportId: REALTIME_REPORT_ID, title: REALTIME_TITLE, kind: 'realtime', dateMode: 'day', realtimeMode: 'chart' },
+  { key: 'realtime-thang', reportId: REALTIME_REPORT_ID, title: REALTIME_TITLE, kind: 'realtime', dateMode: 'month', realtimeMode: 'table' },
+  { key: 'realtime-thang-chart', reportId: REALTIME_REPORT_ID, title: REALTIME_TITLE, kind: 'realtime', dateMode: 'month', realtimeMode: 'chart' }
+];
+
 async function upsertDashboard(pool, tiles) {
   const definitionJson = JSON.stringify({ tiles });
   const existing = await pool.request().input('dashboardId', sql.VarChar(80), DASHBOARD_ID)
@@ -201,10 +222,10 @@ async function main() {
   for (const report of reports) {
     await upsertReport(pool, menuItemId, report);
   }
-  await upsertDashboard(pool, buildTiles(reports));
+  await upsertDashboard(pool, [...buildTiles(reports), ...REALTIME_TILES]);
 
   console.log('');
-  console.log('✅ Xong — 8 báo cáo Top 5 + Dashboard "Top 5 chi nhánh" (16 ô) đã sẵn sàng.');
+  console.log('✅ Xong — 8 báo cáo Top 5 + Dashboard "Top 5 chi nhánh" (16 ô + 4 ô Realtime) đã sẵn sàng.');
   console.log('   NHỚ vào Hệ thống → Phân quyền, gán quyền xem 8 báo cáo "Top 5 ..." cho đúng');
   console.log('   vai trò — script này KHÔNG tự gán quyền (giống mọi báo cáo khác).');
   process.exit(0);
