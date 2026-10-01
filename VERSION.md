@@ -20,6 +20,29 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 8.19 — Tài liệu "phân quyền.md" — tạo tài khoản + gán quyền cả 3 hệ thống
+
+Người dùng yêu cầu 1 file hướng dẫn đầy đủ cho tạo tài khoản + phân quyền
+ở cả 3 hệ thống quản trị (ETL, API, Report) — khảo sát lại CODE THẬT (không
+dựa vào tài liệu cũ) trước khi viết, vì phát hiện mục "4. Phân quyền" ở
+`deploy/Hướng dẫn nghiệp vụ.md` mô tả mô hình CŨ (3 vai trò cố định
+`admin`/`viewer`/`target_importer`) đã bị thay thế hoàn toàn từ bản 6.28
+bằng mô hình Vai trò tuỳ ý + gán quyền theo trang.
+
+- File mới `phân quyền.md` (gốc repo) — gồm: cách tạo tài khoản + tạo vai
+  trò + gán quyền ở từng hệ thống (etl-admin/api-admin dùng chung 1 mô
+  hình 2 chiều Xem/Sửa theo trang; rp-user dùng mô hình RIÊNG, phong phú
+  hơn — 3 LỚP quyền độc lập: Menu được thấy / Báo cáo được chạy / Domain
+  được tự khám phá), bảng tra cứu đầy đủ MenuCode ↔ tên trang sidebar của
+  cả 3 hệ thống, cách nâng 1 tài khoản lên "vai trò hệ thống" (toàn quyền —
+  KHÔNG tạo mới được qua UI, chỉ gán vào đúng 1 vai trò đã seed sẵn), và
+  mục bảo mật dùng chung (băm mật khẩu bcrypt, 2FA bắt buộc cho vai trò hệ
+  thống, cách xử lý khi mất mã khôi phục 2FA).
+- `deploy/Hướng dẫn nghiệp vụ.md` mục "4. Phân quyền" (và các bảng liên
+  quan ở mục 5-6) ĐÃ LỖI THỜI — `phân quyền.md` thay thế hoàn toàn mục đó,
+  CHƯA sửa trực tiếp file cũ (nằm ngoài phạm vi yêu cầu lần này, cần dọn
+  lại sau để tránh 2 nguồn thông tin lệch nhau).
+
 ## 8.18 — Xuất PDF 4 báo cáo doanh thu ép vừa đúng 1 trang khổ dọc
 
 Người dùng gửi file PDF mẫu tham khảo (đối chiếu MediaBox xác nhận đúng A4
