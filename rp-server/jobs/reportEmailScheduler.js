@@ -126,7 +126,11 @@ async function runSchedule(schedule) {
   // thích ngược với lịch cũ chưa từng điền Subject). Subject tự điền được
   // phép chèn "{ngay}" -> ngày gửi thật (vd "Báo Cáo Nhanh Doanh Thu, Ngày:
   // {ngay}" -> "...Ngày: 30/08/2026") — khớp mẫu tiêu đề thật đang dùng.
-  const today = new Date().toLocaleDateString('vi-VN');
+  // timeZone: 'Asia/Ho_Chi_Minh' BẮT BUỘC — không truyền, toLocaleDateString()
+  // chạy theo múi giờ hệ điều hành máy chủ (production thường đặt UTC), có
+  // thể hiện SAI NGÀY GỬI thật trong khoảng 00:00-06:59 giờ Việt Nam (xem
+  // lib/compositeReportRunner.js:vietnamTodayISO() — cùng lớp lỗi, bản 8.26).
+  const today = new Date().toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
   const subjectTemplate = schedule.Subject || `[HCRC] ${displayTitle} — {ngay}`;
   const subject = subjectTemplate.replace(/\{ngay\}/g, today);
 

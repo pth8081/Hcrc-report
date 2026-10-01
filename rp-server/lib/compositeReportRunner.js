@@ -247,6 +247,19 @@ function formatDateISO(d) {
   return d.toISOString().slice(0, 10);
 }
 
+// LỖI THẬT đã gặp (bản 8.26): "hôm nay" mặc định (không truyền
+// filters.eventDate) từng tính bằng `formatDateISO(new Date())` —
+// toISOString() LUÔN quy đổi về giờ UTC, không phải giờ Việt Nam của người
+// dùng/máy chủ. Máy chủ chạy UTC (đi SAU giờ Việt Nam 7 tiếng) nên suốt
+// khoảng 00:00-06:59 giờ Việt Nam mỗi ngày, UTC vẫn còn Ở NGÀY HÔM TRƯỚC —
+// báo cáo không truyền ngày (gọi thẳng API, hoặc trang vừa tải chưa kịp chọn
+// ngày) sẽ âm thầm hiện ĐÚNG NGÀY HÔM QUA trong khoảng giờ đó. Cố định
+// 'Asia/Ho_Chi_Minh' (đúng múi giờ nghiệp vụ, không phụ thuộc múi giờ hệ
+// điều hành máy chủ) — cùng lỗi/cách sửa như rp-user/src/lib/dateRange.js:todayISO().
+function vietnamTodayISO() {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date());
+}
+
 function isLeapYear(y) {
   return (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
 }
@@ -289,7 +302,7 @@ function matchesCondition(cond, filterValues) {
 // tự hoán đổi lại cho đúng, không báo lỗi.
 function resolveRequestedRange(filterValues) {
   const raw = filterValues.eventDate;
-  const today = formatDateISO(new Date());
+  const today = vietnamTodayISO();
   if (raw && typeof raw === 'object') {
     const from = raw.from || raw.to || today;
     const to = raw.to || raw.from || today;

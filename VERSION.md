@@ -20,6 +20,38 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 8.26 — Sửa lỗi "hôm nay" tính theo giờ UTC thay vì giờ Việt Nam
+
+Người dùng test Dashboard trên điện thoại lúc 06:11 sáng, hỏi hệ thống đang
+tính "bắt đầu ngày mới" lúc mấy giờ — phát hiện ra: nhiều chỗ tính "hôm nay"
+bằng `new Date().toISOString().slice(0,10)` (hoặc `toLocaleDateString()`
+không truyền `timeZone`) — các hàm này LUÔN quy đổi theo giờ UTC (hoặc giờ
+hệ điều hành máy chủ, đang đặt UTC), không phải giờ Việt Nam (UTC+7). Vì
+Việt Nam đi TRƯỚC UTC 7 tiếng, suốt khoảng **00:00-06:59 giờ Việt Nam mỗi
+ngày**, UTC vẫn còn ở NGÀY HÔM TRƯỚC — "hôm nay"/nút "Hôm nay"/ngày mặc định
+trong khoảng giờ đó bị lùi mất đúng 1 ngày so với lịch thật ở Việt Nam.
+
+- `rp-user/src/lib/dateRange.js` — thêm `todayISO()`, dùng
+  `Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' })` — ĐÚNG
+  bất kể múi giờ máy/trình duyệt người xem đang đặt (vd quản lý xem báo cáo
+  khi đang ở nước ngoài vẫn thấy đúng "hôm nay" theo giờ Việt Nam, vì toàn bộ
+  nghiệp vụ tính theo ngày làm việc Việt Nam).
+- `rp-user/src/modules/dashboard/DashboardPage.jsx` — bỏ hàm `todayStr()` cũ
+  (dùng `toISOString()`), thay bằng `todayISO()` dùng chung — sửa mặc định
+  "Từ ngày/đến ngày", nút "Hôm nay", và `max` của 2 ô chọn ngày.
+- `rp-user/src/modules/reports/AdhocReportPage.jsx` — `defaultDateRange()`
+  sửa tương tự (tính `dateFrom` trực tiếp trên chuỗi ngày thay vì dựng lại
+  Date rồi format lại).
+- `rp-server/lib/compositeReportRunner.js` — thêm `vietnamTodayISO()`
+  (MIRROR lại `todayISO()` phía client), dùng cho "hôm nay" mặc định của MỌI
+  báo cáo composite khi không truyền `filters.eventDate` (gọi thẳng API,
+  hoặc trang chưa kịp chọn ngày).
+- `rp-server/routes/dashboards.js` — sửa tương tự cho "hôm nay" mặc định lúc
+  xuất Excel/PDF không truyền `fromDate`/`toDate`.
+- `rp-server/jobs/reportEmailScheduler.js` — thêm `timeZone: 'Asia/Ho_Chi_Minh'`
+  cho `toLocaleDateString()` dùng trong token `{ngay}` của tiêu đề email tự
+  động gửi theo lịch.
+
 ## 8.25 — Sửa lỗi ETL: job đồng bộ đứng yên trong ngày khi UpdatedAtColumn là cột ngày không giờ
 
 Người dùng phát hiện (qua Nhật ký hệ thống thật) job "Doanh thu/Giao dịch

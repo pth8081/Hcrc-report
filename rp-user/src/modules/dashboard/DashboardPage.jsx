@@ -31,7 +31,7 @@ import { lazy, Suspense, useEffect, useState } from 'react';
 import { api, downloadFile } from '../../lib/api';
 import DashboardTile from './DashboardTile';
 import RealtimeReportTile from './RealtimeReportTile';
-import { periodLabelFor } from '../../lib/dateRange';
+import { periodLabelFor, todayISO } from '../../lib/dateRange';
 
 // lazy() — Top5ChartTile.jsx import tĩnh recharts (BarChart/Cell/...), y hệt
 // lib do components/ReportChart.jsx dùng — KHÔNG lazy ở đây thì recharts bị
@@ -41,10 +41,6 @@ import { periodLabelFor } from '../../lib/dateRange';
 // recharts ngay từ đầu. Lazy giữ đúng tinh thần code-splitting đã có sẵn
 // (xem chú thích "recharts tách chunk riêng" ở ReportChart.jsx).
 const Top5ChartTile = lazy(() => import('./Top5ChartTile'));
-
-function todayStr() {
-  return new Date().toISOString().slice(0, 10);
-}
 
 // 4 tab = 2 chỉ tiêu (Doanh thu/Giao dịch) x 2 cách xem (Bảng xếp hạng/Biểu
 // đồ). "Biểu đồ..." gộp Top 5 MART + MINIMART của cùng giai đoạn vào 1 biểu
@@ -109,8 +105,8 @@ export default function DashboardPage() {
   // trong definition.columns của báo cáo nguồn) -> MỌI ô khác tự chạy lại
   // với bộ lọc này (ô nào không khai field đó thì rp-server tự bỏ qua).
   const [crossFilters, setCrossFilters] = useState({});
-  const [fromDate, setFromDate] = useState(todayStr());
-  const [toDate, setToDate] = useState(todayStr());
+  const [fromDate, setFromDate] = useState(todayISO());
+  const [toDate, setToDate] = useState(todayISO());
   const [metricTab, setMetricTab] = useState('');
   const [viewMode, setViewMode] = useState('table');
   const [exporting, setExporting] = useState(false);
@@ -142,8 +138,8 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!selectedId) return;
     setCrossFilters({});
-    setFromDate(todayStr());
-    setToDate(todayStr());
+    setFromDate(todayISO());
+    setToDate(todayISO());
     setActiveRealtimeKey(null);
     api.get(`/dashboards/${selectedId}`).then(d => {
       setDashboard(d);
@@ -165,8 +161,8 @@ export default function DashboardPage() {
   }
 
   function resetToToday() {
-    setFromDate(todayStr());
-    setToDate(todayStr());
+    setFromDate(todayISO());
+    setToDate(todayISO());
   }
 
   // "Đến ngày" không được sớm hơn "Từ ngày" — đổi "Từ ngày" vượt qua "Đến
@@ -249,9 +245,9 @@ export default function DashboardPage() {
       {needsDatePicker && (
         <div className="dashboard-daterange-bar">
           <span>Từ ngày</span>
-          <input type="date" value={fromDate} max={todayStr()} onChange={(e) => handleFromDateChange(e.target.value)} />
+          <input type="date" value={fromDate} max={todayISO()} onChange={(e) => handleFromDateChange(e.target.value)} />
           <span>đến ngày</span>
-          <input type="date" value={toDate} max={todayStr()} onChange={(e) => handleToDateChange(e.target.value)} />
+          <input type="date" value={toDate} max={todayISO()} onChange={(e) => handleToDateChange(e.target.value)} />
           <button type="button" onClick={resetToToday}>Hôm nay</button>
         </div>
       )}

@@ -62,6 +62,13 @@ function computeEventDateRange(dateMode, fromDate, toDate) {
   if (dateMode === 'month') return { from: `${toDate.slice(0, 7)}-01`, to: lastOfMonth(toDate) };
   return { from: fromDate, to: toDate };
 }
+// LỖI THẬT đã gặp (bản 8.26) — xem chú thích đầy đủ ở
+// lib/compositeReportRunner.js:vietnamTodayISO() (cùng lỗi/cách sửa, MIRROR
+// lại ở đây vì route này có "hôm nay" mặc định RIÊNG khi body không truyền
+// fromDate/toDate).
+function vietnamTodayISO() {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date());
+}
 function formatDateVN(iso) {
   const [y, m, d] = iso.split('-');
   return `${d}/${m}/${y}`;
@@ -123,7 +130,7 @@ router.post('/:dashboardId/export', async (req, res, next) => {
     // computeEventDateRange() bên dưới); dashboard không dùng dateMode (mọi
     // dashboard khác ngoài "Top 5 chi nhánh") không cần truyền gì, mặc định
     // "hôm nay" vô hại vì không tile nào đọc tới giá trị này.
-    const today = new Date().toISOString().slice(0, 10);
+    const today = vietnamTodayISO();
     const fromDate = req.body?.fromDate || today;
     const toDate = req.body?.toDate || today;
     if (!Array.isArray(tileKeys) || !tileKeys.length) return res.status(400).json({ error: 'Thiếu tileKeys' });

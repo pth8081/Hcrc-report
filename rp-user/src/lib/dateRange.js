@@ -5,6 +5,21 @@
 // tháng)" trước đây. MIRROR đúng lastOfMonth()/computeEventDateRange() ở
 // rp-server/routes/dashboards.js (2 runtime khác nhau — Node/trình duyệt —
 // không dùng chung 1 file được, sửa đồng thời cả 2 nơi nếu đổi công thức).
+// LỖI THẬT đã gặp (bản 8.26): "hôm nay" trước đây tính bằng
+// `new Date().toISOString().slice(0,10)` — `.toISOString()` LUÔN quy đổi về
+// giờ UTC, không phải giờ Việt Nam của người xem. Múi giờ Việt Nam
+// (UTC+7) đi TRƯỚC UTC 7 tiếng, nên suốt khoảng 00:00-06:59 giờ Việt Nam mỗi
+// ngày, UTC vẫn còn ở NGÀY HÔM TRƯỚC — "hôm nay"/nút "Hôm nay"/max ngày được
+// chọn trong khoảng giờ đó bị lùi mất 1 ngày so với lịch thật ở Việt Nam
+// (phát hiện lúc người dùng test đúng 06:11 sáng). Dùng Intl.DateTimeFormat
+// với timeZone cố định 'Asia/Ho_Chi_Minh' — ĐÚNG bất kể múi giờ máy/trình
+// duyệt người xem đang đặt (vd quản lý xem báo cáo lúc đang ở nước ngoài vẫn
+// phải thấy "hôm nay" theo giờ Việt Nam, vì toàn bộ nghiệp vụ/dữ liệu đều
+// tính theo ngày làm việc Việt Nam) — 'en-CA' cho sẵn định dạng "YYYY-MM-DD".
+export function todayISO() {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date());
+}
+
 export function lastOfMonth(dateStr) {
   const [y, m] = dateStr.split('-').map(Number);
   return new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10);

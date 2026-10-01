@@ -12,6 +12,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../lib/api';
 import ReportBody from '../../components/ReportBody';
+import { todayISO, firstOfMonth } from '../../lib/dateRange';
 
 const AGG_LABELS = { sum: 'Tổng', avg: 'Trung bình', count: 'Đếm', min: 'Nhỏ nhất', max: 'Lớn nhất' };
 const VIZ_TYPES = [
@@ -23,11 +24,14 @@ const VIZ_TYPES = [
   { value: 'kpi', label: 'Thẻ KPI' }
 ];
 
+// LỖI THẬT đã gặp (bản 8.26, xem lib/dateRange.js:todayISO()) — tính "hôm
+// nay" qua `new Date().toISOString()` lùi mất 1 ngày trong khoảng 00:00-06:59
+// giờ Việt Nam mỗi ngày (UTC đi sau 7 tiếng). dateFrom tính TRỰC TIẾP trên
+// chuỗi "hôm nay" (firstOfMonth, thao tác chuỗi thuần tuý) thay vì dựng lại
+// 1 Date rồi format lại — tránh lặp lại đúng lớp lỗi múi giờ này.
 function defaultDateRange() {
-  const today = new Date();
-  const from = new Date(today.getFullYear(), today.getMonth(), 1);
-  const iso = (d) => d.toISOString().slice(0, 10);
-  return { dateFrom: iso(from), dateTo: iso(today) };
+  const today = todayISO();
+  return { dateFrom: firstOfMonth(today), dateTo: today };
 }
 
 export default function AdhocReportPage() {
