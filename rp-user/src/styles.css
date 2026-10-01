@@ -181,6 +181,12 @@ button:hover { opacity: 0.9; }
    như trước, không đổi giao diện dashboard khác. */
 .dashboard-tile--high { border-top-color: #2f9e44; }
 .dashboard-tile--low { border-top-color: #e8590c; }
+/* RealtimeReportTile.jsx (bản 8.24) — 1 Ô toàn trang (không nằm trong
+   .dashboard-grid nhiều cột như Top 5) nên cần tràn hết bề ngang, bảng gốc
+   (Diện tích/Chỉ tiêu/Lãi gộp/Giao dịch...) nhiều cột, cho cuộn ngang riêng
+   thay vì ép co lại làm vỡ layout. */
+.dashboard-tile--wide { width: 100%; }
+.dashboard-tile--wide .table-scroll { overflow-x: auto; }
 .dashboard-tile-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 12px; }
 .dashboard-tile-title { font-size: 14px; margin: 0; color: var(--ink); font-weight: 700; }
 .dashboard-tile-toggle { font-size: 12px; padding: 4px 10px; white-space: nowrap; }

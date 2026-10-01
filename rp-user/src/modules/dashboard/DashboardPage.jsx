@@ -30,6 +30,7 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { api, downloadFile } from '../../lib/api';
 import DashboardTile from './DashboardTile';
+import RealtimeReportTile from './RealtimeReportTile';
 import { periodLabelFor } from '../../lib/dateRange';
 
 // lazy() — Top5ChartTile.jsx import tĩnh recharts (BarChart/Cell/...), y hệt
@@ -57,6 +58,22 @@ const VIEW_TABS = [
   { metricTab: 'transactions', mode: 'chart', label: 'Biểu đồ giao dịch' }
 ];
 const DIRECTION_LABEL = { cao: 'Cao nhất', thap: 'Thấp nhất' };
+
+// Tile "Realtime" (bản 8.24, DEMO — xem RealtimeReportTile.jsx) — tile.kind
+// === 'realtime' hiện NGUYÊN 1 báo cáo đã có sẵn (vd "bc-doanh-thu-hcrc")
+// toàn trang, KHÔNG theo khuôn lưới 8 ô nhỏ của Top 5 — 4 tab = 2 cách xem
+// (Bảng/Biểu đồ) x 2 giai đoạn (Ngày/Tháng cộng dồn), mỗi tab chọn ĐÚNG 1
+// trong các tile.kind==='realtime' đã khai theo tile.dateMode/tile.realtimeMode.
+const REALTIME_PERIOD_LABEL = { day: 'Theo ngày', month: 'Theo tháng (cộng dồn)' };
+function buildRealtimeTabs(tiles) {
+  return tiles
+    .filter(t => t.kind === 'realtime')
+    .map(t => ({
+      key: t.key,
+      label: `${t.realtimeMode === 'chart' ? 'Biểu đồ Realtime' : 'Realtime'} ${REALTIME_PERIOD_LABEL[t.dateMode] || ''}`.trim(),
+      tile: t
+    }));
+}
 
 // reportId chứa "-cao"/"-thap" (quy ước đặt tên của
 // scripts/seedTop5ChiNhanhReports.js) — suy ra hướng xếp hạng để tô viền
@@ -97,6 +114,10 @@ export default function DashboardPage() {
   const [metricTab, setMetricTab] = useState('');
   const [viewMode, setViewMode] = useState('table');
   const [exporting, setExporting] = useState(false);
+  // activeRealtimeKey — key của tile.kind==='realtime' đang chọn (xem
+  // buildRealtimeTabs() ở trên); null = đang xem Top 5 (bảng/biểu đồ) như
+  // trước, khác hẳn khối viewMode/metricTab (Top 5) để không trộn lẫn logic.
+  const [activeRealtimeKey, setActiveRealtimeKey] = useState(null);
   // refreshTick — tăng dần mỗi 30s, CHỈ dùng làm dependency ép các tile gọi
   // lại /run (không tự mang dữ liệu gì) — xem chú thích đầu file.
   const [refreshTick, setRefreshTick] = useState(0);
@@ -123,6 +144,7 @@ export default function DashboardPage() {
     setCrossFilters({});
     setFromDate(todayStr());
     setToDate(todayStr());
+    setActiveRealtimeKey(null);
     api.get(`/dashboards/${selectedId}`).then(d => {
       setDashboard(d);
       const tabs = [...new Set((d.tiles || []).map(t => t.metricTab).filter(Boolean))];
@@ -177,6 +199,8 @@ export default function DashboardPage() {
   const chainGroups = [...new Set(visibleTiles.map(t => t.chain).filter(Boolean))];
   const chartGroups = viewMode === 'chart' ? buildChartGroups(visibleTiles, fromDate, toDate) : [];
   const chartValueField = metricTab === 'transactions' ? 'soGiaoDich' : 'doanhThu';
+  const realtimeTabs = buildRealtimeTabs(allTiles);
+  const activeRealtimeTab = realtimeTabs.find(t => t.key === activeRealtimeKey);
 
   function renderTiles(tiles) {
     return (
@@ -253,7 +277,12 @@ export default function DashboardPage() {
               <span>Tự động làm mới mỗi 30 giây{lastRefreshedAt ? ` — cập nhật lúc ${lastRefreshedAt.toLocaleTimeString('vi-VN')}` : ''}</span>
               <button type="button" onClick={() => { setRefreshTick(t => t + 1); setLastRefreshedAt(new Date()); }}>🔄 Làm mới ngay</button>
             </div>
-            {visibleTiles.length > 0 && (
+            {/* activeRealtimeTab: ô "Realtime" chạy thẳng 1 báo cáo đã có
+                sẵn, không nằm trong tileKeys mà routes/dashboards.js hiểu —
+                ẩn 2 nút này ở tab Realtime, tự xuất qua trang Báo cáo bình
+                thường (đã có sẵn, không cần làm lại) thay vì xuất nhầm dữ
+                liệu Top 5 đang KHÔNG hiện trên màn hình. */}
+            {!activeRealtimeTab && visibleTiles.length > 0 && (
               <div className="export-actions">
                 <button type="button" disabled={exporting} onClick={() => exportAs('excel')}>Xuất Excel</button>
                 <button type="button" disabled={exporting} onClick={() => exportAs('pdf')}>Xuất PDF</button>
@@ -261,14 +290,24 @@ export default function DashboardPage() {
             )}
           </div>
 
-          {metricTabs.length > 1 && (
+          {(metricTabs.length > 1 || realtimeTabs.length > 0) && (
             <div className="dashboard-metric-tabs">
               {VIEW_TABS.filter(t => metricTabs.includes(t.metricTab)).map(t => (
                 <button
                   key={`${t.metricTab}-${t.mode}`}
                   type="button"
-                  className={t.metricTab === metricTab && t.mode === viewMode ? 'active' : ''}
-                  onClick={() => { setMetricTab(t.metricTab); setViewMode(t.mode); }}
+                  className={!activeRealtimeTab && t.metricTab === metricTab && t.mode === viewMode ? 'active' : ''}
+                  onClick={() => { setMetricTab(t.metricTab); setViewMode(t.mode); setActiveRealtimeKey(null); }}
+                >
+                  {t.label}
+                </button>
+              ))}
+              {realtimeTabs.map(t => (
+                <button
+                  key={t.key}
+                  type="button"
+                  className={activeRealtimeKey === t.key ? 'active' : ''}
+                  onClick={() => setActiveRealtimeKey(t.key)}
                 >
                   {t.label}
                 </button>
@@ -276,7 +315,18 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {viewMode === 'chart' ? (
+          {activeRealtimeTab ? (
+            <RealtimeReportTile
+              key={activeRealtimeTab.key}
+              reportId={activeRealtimeTab.tile.reportId}
+              title={activeRealtimeTab.tile.title}
+              dateMode={activeRealtimeTab.tile.dateMode}
+              mode={activeRealtimeTab.tile.realtimeMode}
+              fromDate={fromDate}
+              toDate={toDate}
+              refreshTick={refreshTick}
+            />
+          ) : viewMode === 'chart' ? (
             <Suspense fallback={<p>Đang tải biểu đồ...</p>}>
               <div className="dashboard-grid">
                 {chartGroups.map(g => (
