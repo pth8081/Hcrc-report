@@ -129,20 +129,26 @@ async function upsertReport(pool, menuItemId, { reportId, title, definition }) {
 const DASHBOARD_ID = 'top5-chi-nhanh';
 const DASHBOARD_TITLE = 'Top 5 chi nhánh';
 
-// dateMode (tiêu thụ ở DashboardTile.jsx, KHÔNG phải trường chuẩn của
-// app.Dashboards.tiles — xem routes/dashboards.js, tile object đi nguyên vẹn
-// qua route đó) — 'day': eventDate = {from: ngày đã chọn, to: ngày đã chọn};
-// 'month': eventDate = {from: đầu tháng chứa ngày đã chọn, to: ngày đã
-// chọn}. metricTab dùng để DashboardPage lọc hiện đúng 8/16 ô theo tab đang
-// chọn ("Xếp theo Doanh thu"/"Xếp theo Giao dịch") — xem DashboardPage.jsx.
+// dateMode (tiêu thụ ở DashboardTile.jsx/Top5ChartTile.jsx, KHÔNG phải
+// trường chuẩn của app.Dashboards.tiles — xem routes/dashboards.js, tile
+// object đi nguyên vẹn qua route đó) — 'day': eventDate = {from: fromDate,
+// to: toDate} (ĐÚNG khoảng "Từ ngày — đến ngày" người dùng chọn); 'month':
+// eventDate = NGUYÊN THÁNG chứa toDate (xem rp-user/src/lib/dateRange.js).
+// metricTab dùng để DashboardPage lọc hiện đúng 8/16 ô theo tab đang chọn
+// ("Xếp theo Doanh thu"/"Xếp theo Giao dịch") — xem DashboardPage.jsx.
+//
+// tile.title (bản 8.22) KHÔNG còn kèm "(Trong ngày)"/"(Trong tháng)" tĩnh —
+// DashboardTile.jsx/routes/dashboards.js tự ghép thêm nhãn ngày/tháng ĐỘNG
+// vào cuối theo đúng bộ lọc đang chọn (vd "(15/09/2026)"/"(Tháng 9/2026)"),
+// đổi ngày là tiêu đề tự cập nhật theo, không lưu cứng ngày lúc seed.
 function buildTiles(reports) {
   const tiles = [];
   for (const r of reports) {
-    for (const period of [{ key: 'ngay', label: 'Trong ngày', dateMode: 'day' }, { key: 'thang', label: 'Trong tháng', dateMode: 'month' }]) {
+    for (const period of [{ key: 'ngay', dateMode: 'day' }, { key: 'thang', dateMode: 'month' }]) {
       tiles.push({
         key: `${r.reportId}-${period.key}`,
         reportId: r.reportId,
-        title: `Top 5 ${r.chain.label} — ${r.metric.label} ${r.direction.label} (${period.label})`,
+        title: `Top 5 ${r.chain.label} — ${r.metric.label} ${r.direction.label}`,
         dateMode: period.dateMode,
         metricTab: r.metric.metricTab,
         chain: r.chain.key

@@ -11,26 +11,30 @@
 // qua (xem reportEngine.js:runReport()) — không lỗi, không cần khai gì thêm
 // ở phía tile.
 //
-// tile.dateMode (TUỲ CHỌN — Dashboard "Top 5 chi nhánh", bản 8.20, xem
+// tile.dateMode (TUỲ CHỌN — Dashboard "Top 5 chi nhánh", bản 8.20-8.22, xem
 // scripts/seedTop5ChiNhanhReports.js) — field RIÊNG của tile (không phải
 // trường chuẩn của definition.tiles, đi xuyên qua routes/dashboards.js
-// nguyên vẹn): 'day' -> eventDate = {from: reportDate, to: reportDate},
-// 'month' -> eventDate = {from: đầu tháng chứa reportDate, to: reportDate}.
+// nguyên vẹn): 'day' -> eventDate = {from: fromDate, to: toDate} (ĐÚNG
+// khoảng đã chọn ở bộ lọc "Từ ngày — đến ngày"), 'month' -> eventDate =
+// NGUYÊN THÁNG chứa toDate (xem lib/dateRange.js:computeEventDateRange()).
 // Cho phép 2 Ô CÙNG 1 reportId (vd "Top 5 MART Doanh thu cao nhất") hiện
-// "Trong ngày" và "Trong tháng" song song từ ĐÚNG 1 bộ lọc ngày báo cáo duy
-// nhất ở DashboardPage.jsx, không cần tạo 2 báo cáo riêng chỉ khác khoảng
-// ngày cứng. Tile không khai dateMode (mọi dashboard khác) -> hành vi CŨ,
-// không đổi gì (không tự thêm eventDate vào filters).
+// "Trong ngày"/"Trong tháng" song song từ ĐÚNG 1 bộ lọc ngày ở
+// DashboardPage.jsx, không cần tạo 2 báo cáo riêng chỉ khác khoảng ngày
+// cứng. Tile không khai dateMode (mọi dashboard khác) -> hành vi CŨ, không
+// đổi gì (không tự thêm eventDate vào filters, tiêu đề không có nhãn ngày
+// động).
+//
+// tile.title (seedTop5ChiNhanhReports.js, bản 8.22) giờ là TÊN GỐC KHÔNG
+// kèm "(Trong ngày)"/"(Trong tháng)" tĩnh nữa — component này tự GHÉP THÊM
+// nhãn ngày/tháng ĐỘNG vào cuối theo đúng fromDate/toDate đang chọn (xem
+// periodLabelFor()), để đổi ngày là tiêu đề tự cập nhật theo, không lưu
+// cứng ngày lúc tạo báo cáo.
 import { useEffect, useState } from 'react';
 import { api } from '../../lib/api';
 import ReportBody from '../../components/ReportBody';
+import { computeEventDateRange, periodLabelFor } from '../../lib/dateRange';
 
-function computeEventDateRange(dateMode, reportDate) {
-  if (dateMode === 'month') return { from: `${reportDate.slice(0, 7)}-01`, to: reportDate };
-  return { from: reportDate, to: reportDate };
-}
-
-export default function DashboardTile({ tile, crossFilters, reportDate, onPointClick }) {
+export default function DashboardTile({ tile, crossFilters, fromDate, toDate, onPointClick }) {
   const [definition, setDefinition] = useState(null);
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
@@ -47,21 +51,24 @@ export default function DashboardTile({ tile, crossFilters, reportDate, onPointC
   useEffect(() => {
     if (!definition) return;
     const filters = tile.dateMode
-      ? { ...crossFilters, eventDate: computeEventDateRange(tile.dateMode, reportDate) }
+      ? { ...crossFilters, eventDate: computeEventDateRange(tile.dateMode, fromDate, toDate) }
       : crossFilters;
     api.post(`/reports/${tile.reportId}/run`, { filters, page: 1, pageSize: 200 })
       .then(setResult)
       .catch(err => setError(err.message));
-  }, [definition, tile.reportId, tile.dateMode, crossFilters, reportDate]);
+  }, [definition, tile.reportId, tile.dateMode, crossFilters, fromDate, toDate]);
 
   // tile.tone (TUỲ CHỌN — "high"/"low") — viền trên màu xanh/cam, xem
   // styles.css. Tile không khai tone -> không thêm class gì, giao diện như
   // trước.
   const toneClass = tile.tone ? ` dashboard-tile--${tile.tone}` : '';
+  const baseTitle = tile.title || definition?.title || tile.reportId;
+  const periodLabel = tile.dateMode ? periodLabelFor(tile.dateMode, fromDate, toDate) : null;
+  const displayTitle = periodLabel ? `${baseTitle} (${periodLabel})` : baseTitle;
   return (
     <div className={`dashboard-tile${toneClass}`}>
       <div className="dashboard-tile-header">
-        <h3 className="dashboard-tile-title">{tile.title || definition?.title || tile.reportId}</h3>
+        <h3 className="dashboard-tile-title">{displayTitle}</h3>
         {/* Chỉ hiện nút chuyển đổi khi tile THẬT SỰ có biểu đồ để chuyển
             sang/về — tile không khai visualization luôn là bảng sẵn (xem
             ReportBody.jsx), không có gì để bấm. */}

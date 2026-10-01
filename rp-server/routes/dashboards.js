@@ -47,15 +47,36 @@ router.get('/:dashboardId', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// tile.dateMode — MIRROR đúng rp-user/src/modules/dashboard/DashboardTile.jsx:
-// computeEventDateRange() (dashboard "Top 5 chi nhánh", bản 8.20/8.21) —
-// 'day' -> đúng reportDate, 'month' -> từ đầu tháng chứa reportDate tới
-// reportDate. Tile không khai dateMode -> không tự thêm eventDate (báo cáo
-// tự dùng mặc định "hôm nay" của compositeReportRunner.js, giống hành vi
-// POST /reports/:reportId/run không truyền filters.eventDate).
-function computeEventDateRange(dateMode, reportDate) {
-  if (dateMode === 'month') return { from: `${reportDate.slice(0, 7)}-01`, to: reportDate };
-  return { from: reportDate, to: reportDate };
+// tile.dateMode — MIRROR đúng rp-user/src/lib/dateRange.js (dashboard "Top 5
+// chi nhánh", bản 8.20-8.22) — 'day' -> đúng {fromDate,toDate} đã chọn,
+// 'month' -> NGUYÊN THÁNG chứa toDate (từ ngày 1 tới ngày CUỐI CÙNG của
+// tháng, KHÔNG dừng ở toDate). Tile không khai dateMode -> không tự thêm
+// eventDate (báo cáo tự dùng mặc định "hôm nay" của
+// compositeReportRunner.js, giống hành vi POST /reports/:reportId/run
+// không truyền filters.eventDate).
+function lastOfMonth(dateStr) {
+  const [y, m] = dateStr.split('-').map(Number);
+  return new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10);
+}
+function computeEventDateRange(dateMode, fromDate, toDate) {
+  if (dateMode === 'month') return { from: `${toDate.slice(0, 7)}-01`, to: lastOfMonth(toDate) };
+  return { from: fromDate, to: toDate };
+}
+function formatDateVN(iso) {
+  const [y, m, d] = iso.split('-');
+  return `${d}/${m}/${y}`;
+}
+// Nhãn động "(15/09/2026)"/"(Tháng 9/2026)" ghép vào tiêu đề báo cáo lúc
+// xuất — MIRROR đúng rp-user/src/lib/dateRange.js:periodLabelFor().
+function periodLabelFor(dateMode, fromDate, toDate) {
+  if (dateMode === 'month') {
+    const [y, m] = toDate.split('-');
+    return `Tháng ${Number(m)}/${y}`;
+  }
+  if (dateMode === 'day') {
+    return fromDate === toDate ? formatDateVN(fromDate) : `${formatDateVN(fromDate)} - ${formatDateVN(toDate)}`;
+  }
+  return null;
 }
 
 // tile.reportId chứa "-cao"/"-thap" (quy ước đặt tên của
@@ -98,11 +119,13 @@ function buildSheetName(tile) {
 router.post('/:dashboardId/export', async (req, res, next) => {
   try {
     const { tileKeys, format = 'excel' } = req.body || {};
-    // reportDate (TUỲ CHỌN) — CHỈ áp dụng cho tile có khai dateMode (xem
+    // fromDate/toDate (TUỲ CHỌN) — CHỈ áp dụng cho tile có khai dateMode (xem
     // computeEventDateRange() bên dưới); dashboard không dùng dateMode (mọi
     // dashboard khác ngoài "Top 5 chi nhánh") không cần truyền gì, mặc định
     // "hôm nay" vô hại vì không tile nào đọc tới giá trị này.
-    const reportDate = req.body?.reportDate || new Date().toISOString().slice(0, 10);
+    const today = new Date().toISOString().slice(0, 10);
+    const fromDate = req.body?.fromDate || today;
+    const toDate = req.body?.toDate || today;
     if (!Array.isArray(tileKeys) || !tileKeys.length) return res.status(400).json({ error: 'Thiếu tileKeys' });
     if (!['excel', 'pdf'].includes(format)) return res.status(400).json({ error: `Định dạng xuất "${format}" chưa được hỗ trợ` });
 
@@ -122,9 +145,11 @@ router.post('/:dashboardId/export', async (req, res, next) => {
     for (const tile of tiles) {
       const reportDefinition = await loadDefinition(tile.reportId);
       if (!reportDefinition || !reportDefinition.isActive) continue;
-      const filters = tile.dateMode ? { eventDate: computeEventDateRange(tile.dateMode, reportDate) } : {};
+      const filters = tile.dateMode ? { eventDate: computeEventDateRange(tile.dateMode, fromDate, toDate) } : {};
       const { columns, rows } = await runDefinition(reportDefinition, filters, { page: 1, pageSize: 5000 });
-      const title = tile.title || reportDefinition.title;
+      const baseTitle = tile.title || reportDefinition.title;
+      const periodLabel = tile.dateMode ? periodLabelFor(tile.dateMode, fromDate, toDate) : null;
+      const title = periodLabel ? `${baseTitle} (${periodLabel})` : baseTitle;
       const toneColor = resolveToneColor(tile.reportId);
       const exportDefinition = {
         ...reportDefinition,
@@ -142,7 +167,7 @@ router.post('/:dashboardId/export', async (req, res, next) => {
     // content-disposition bên trong) tự mã hoá đúng chuẩn RFC 5987 (xem
     // routes/reports.js:/:reportId/export, cùng cơ chế), không cần tự lược
     // bỏ dấu/ký tự đặc biệt ở đây.
-    const fileBase = `${dashboardTitle} - ${reportDate.split('-').reverse().join('')}`;
+    const fileBase = `${dashboardTitle} - ${toDate.split('-').reverse().join('')}`;
 
     if (format === 'excel') {
       const buffer = await exportMultiSheetExcel(sections.map(s => ({ definition: s.exportDefinition, rows: s.rows, sheetName: buildSheetName(s.tile) })));

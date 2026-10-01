@@ -3,12 +3,13 @@
 // sẵn từ trước (xem App.jsx/Layout.jsx/schema.sql) — trang này chỉ thay nội
 // dung khung trống trước đây.
 //
-// Các khối TUỲ CHỌN thêm ở bản 8.20/8.21 (Dashboard "Top 5 chi nhánh" — xem
+// Các khối TUỲ CHỌN thêm ở bản 8.20-8.22 (Dashboard "Top 5 chi nhánh" — xem
 // scripts/seedTop5ChiNhanhReports.js) — mỗi khối chỉ BẬT khi dashboard đang
 // chọn CÓ tile khai đúng field tương ứng, dashboard khác (không khai gì)
 // chạy ĐÚNG như trước, không đổi hành vi cũ:
-//   - Bộ lọc "Ngày báo cáo" (1 ngày, không phải khoảng) — hiện khi có ÍT
-//     NHẤT 1 tile khai `dateMode` ('day'/'month', xem DashboardTile.jsx).
+//   - Bộ lọc "Từ ngày — đến ngày" (bản 8.22, thay cho "Ngày báo cáo" 1 ngày
+//     trước đó) — hiện khi có ÍT NHẤT 1 tile khai `dateMode` ('day'/'month',
+//     xem DashboardTile.jsx), mặc định CẢ HAI = hôm nay.
 //   - Tab theo `metricTab` (vd 'revenue'/'transactions') x chế độ xem
 //     (bảng/biểu đồ) — hiện khi dashboard có TỪ 2 giá trị metricTab khác
 //     nhau trở lên.
@@ -21,6 +22,7 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { api, downloadFile } from '../../lib/api';
 import DashboardTile from './DashboardTile';
+import { periodLabelFor } from '../../lib/dateRange';
 
 // lazy() — Top5ChartTile.jsx import tĩnh recharts (BarChart/Cell/...), y hệt
 // lib do components/ReportChart.jsx dùng — KHÔNG lazy ở đây thì recharts bị
@@ -47,7 +49,6 @@ const VIEW_TABS = [
   { metricTab: 'transactions', mode: 'chart', label: 'Biểu đồ giao dịch' }
 ];
 const DIRECTION_LABEL = { cao: 'Cao nhất', thap: 'Thấp nhất' };
-const PERIOD_LABEL = { day: 'Trong ngày', month: 'Trong tháng' };
 
 // reportId chứa "-cao"/"-thap" (quy ước đặt tên của
 // scripts/seedTop5ChiNhanhReports.js) — suy ra hướng xếp hạng để tô viền
@@ -58,14 +59,15 @@ function deriveDirection(reportId) {
   return null;
 }
 
-function buildChartGroups(tiles) {
+function buildChartGroups(tiles, fromDate, toDate) {
   const groups = [];
   for (const direction of ['cao', 'thap']) {
     for (const dateMode of ['day', 'month']) {
       const martTile = tiles.find(t => t.chain === 'mart' && t.dateMode === dateMode && deriveDirection(t.reportId) === direction);
       const minimartTile = tiles.find(t => t.chain === 'minimart' && t.dateMode === dateMode && deriveDirection(t.reportId) === direction);
       if (martTile && minimartTile) {
-        groups.push({ key: `${direction}-${dateMode}`, title: `${DIRECTION_LABEL[direction]} (${PERIOD_LABEL[dateMode]})`, martTile, minimartTile });
+        const periodLabel = periodLabelFor(dateMode, fromDate, toDate);
+        groups.push({ key: `${direction}-${dateMode}`, title: `${DIRECTION_LABEL[direction]} (${periodLabel})`, martTile, minimartTile });
       }
     }
   }
@@ -82,7 +84,8 @@ export default function DashboardPage() {
   // trong definition.columns của báo cáo nguồn) -> MỌI ô khác tự chạy lại
   // với bộ lọc này (ô nào không khai field đó thì rp-server tự bỏ qua).
   const [crossFilters, setCrossFilters] = useState({});
-  const [reportDate, setReportDate] = useState(todayStr());
+  const [fromDate, setFromDate] = useState(todayStr());
+  const [toDate, setToDate] = useState(todayStr());
   const [metricTab, setMetricTab] = useState('');
   const [viewMode, setViewMode] = useState('table');
   const [exporting, setExporting] = useState(false);
@@ -97,7 +100,8 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!selectedId) return;
     setCrossFilters({});
-    setReportDate(todayStr());
+    setFromDate(todayStr());
+    setToDate(todayStr());
     api.get(`/dashboards/${selectedId}`).then(d => {
       setDashboard(d);
       const tabs = [...new Set((d.tiles || []).map(t => t.metricTab).filter(Boolean))];
@@ -117,6 +121,24 @@ export default function DashboardPage() {
     });
   }
 
+  function resetToToday() {
+    setFromDate(todayStr());
+    setToDate(todayStr());
+  }
+
+  // "Đến ngày" không được sớm hơn "Từ ngày" — đổi "Từ ngày" vượt qua "Đến
+  // ngày" thì đẩy luôn "Đến ngày" theo, tránh khoảng ngược (from > to) âm
+  // thầm gây lệch dữ liệu (xem compositeReportRunner.js:resolveRequestedRange
+  // — nó tự hoán đổi lại nếu lỡ lọt qua, nhưng tốt hơn chặn ngay ở UI).
+  function handleFromDateChange(value) {
+    setFromDate(value);
+    if (value > toDate) setToDate(value);
+  }
+  function handleToDateChange(value) {
+    setToDate(value);
+    if (value < fromDate) setFromDate(value);
+  }
+
   if (!dashboards.length && !error) {
     return (
       <div className="page">
@@ -132,7 +154,7 @@ export default function DashboardPage() {
   const metricTabs = [...new Set(allTiles.map(t => t.metricTab).filter(Boolean))];
   const visibleTiles = metricTabs.length > 1 ? allTiles.filter(t => !t.metricTab || t.metricTab === metricTab) : allTiles;
   const chainGroups = [...new Set(visibleTiles.map(t => t.chain).filter(Boolean))];
-  const chartGroups = viewMode === 'chart' ? buildChartGroups(visibleTiles) : [];
+  const chartGroups = viewMode === 'chart' ? buildChartGroups(visibleTiles, fromDate, toDate) : [];
   const chartValueField = metricTab === 'transactions' ? 'soGiaoDich' : 'doanhThu';
 
   function renderTiles(tiles) {
@@ -142,7 +164,7 @@ export default function DashboardPage() {
           const direction = deriveDirection(tile.reportId);
           const tone = direction === 'cao' ? 'high' : direction === 'thap' ? 'low' : undefined;
           return (
-            <DashboardTile key={tile.key} tile={{ ...tile, tone }} crossFilters={crossFilters} reportDate={reportDate} onPointClick={handlePointClick} />
+            <DashboardTile key={tile.key} tile={{ ...tile, tone }} crossFilters={crossFilters} fromDate={fromDate} toDate={toDate} onPointClick={handlePointClick} />
           );
         })}
       </div>
@@ -155,7 +177,7 @@ export default function DashboardPage() {
     try {
       await downloadFile(
         `/dashboards/${selectedId}/export`,
-        { tileKeys: visibleTiles.map(t => t.key), reportDate, format },
+        { tileKeys: visibleTiles.map(t => t.key), fromDate, toDate, format },
         `${dashboard?.title || 'dashboard'}.${format === 'excel' ? 'xlsx' : 'pdf'}`
       );
     } catch (err) {
@@ -181,9 +203,11 @@ export default function DashboardPage() {
 
       {needsDatePicker && (
         <div className="dashboard-daterange-bar">
-          <span>Ngày báo cáo</span>
-          <input type="date" value={reportDate} max={todayStr()} onChange={(e) => setReportDate(e.target.value)} />
-          <button type="button" onClick={() => setReportDate(todayStr())}>Hôm nay</button>
+          <span>Từ ngày</span>
+          <input type="date" value={fromDate} max={todayStr()} onChange={(e) => handleFromDateChange(e.target.value)} />
+          <span>đến ngày</span>
+          <input type="date" value={toDate} max={todayStr()} onChange={(e) => handleToDateChange(e.target.value)} />
+          <button type="button" onClick={resetToToday}>Hôm nay</button>
         </div>
       )}
 
@@ -231,7 +255,7 @@ export default function DashboardPage() {
             <Suspense fallback={<p>Đang tải biểu đồ...</p>}>
               <div className="dashboard-grid">
                 {chartGroups.map(g => (
-                  <Top5ChartTile key={g.key} title={g.title} martTile={g.martTile} minimartTile={g.minimartTile} valueField={chartValueField} reportDate={reportDate} />
+                  <Top5ChartTile key={g.key} title={g.title} martTile={g.martTile} minimartTile={g.minimartTile} valueField={chartValueField} fromDate={fromDate} toDate={toDate} />
                 ))}
               </div>
             </Suspense>

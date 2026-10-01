@@ -11,23 +11,19 @@ import { useEffect, useState } from 'react';
 import { BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, LabelList, ResponsiveContainer } from 'recharts';
 import { api } from '../../lib/api';
 import { formatCellValue } from '../../lib/formatCell';
+import { computeEventDateRange } from '../../lib/dateRange';
 
 const COLOR_MART = '#1c7566';
 const COLOR_MINIMART = '#c0622a';
 
-function computeEventDateRange(dateMode, reportDate) {
-  if (dateMode === 'month') return { from: `${reportDate.slice(0, 7)}-01`, to: reportDate };
-  return { from: reportDate, to: reportDate };
-}
-
-export default function Top5ChartTile({ title, martTile, minimartTile, valueField, reportDate }) {
+export default function Top5ChartTile({ title, martTile, minimartTile, valueField, fromDate, toDate }) {
   const [rows, setRows] = useState(null);
   const [error, setError] = useState('');
 
   useEffect(() => {
     setRows(null);
     Promise.all([martTile, minimartTile].map(tile => {
-      const filters = { eventDate: computeEventDateRange(tile.dateMode, reportDate) };
+      const filters = { eventDate: computeEventDateRange(tile.dateMode, fromDate, toDate) };
       return api.post(`/reports/${tile.reportId}/run`, { filters, page: 1, pageSize: 200 });
     }))
       .then(([martResult, minimartResult]) => {
@@ -37,7 +33,7 @@ export default function Top5ChartTile({ title, martTile, minimartTile, valueFiel
         ]);
       })
       .catch(err => setError(err.message));
-  }, [martTile.reportId, minimartTile.reportId, reportDate]);
+  }, [martTile.reportId, minimartTile.reportId, fromDate, toDate]);
 
   return (
     <div className="dashboard-tile">
