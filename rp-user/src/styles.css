@@ -175,6 +175,17 @@ button:hover { opacity: 0.9; }
 .dashboard-crossfilter-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 8px 0 16px; font-size: 13px; color: var(--ink-soft); }
 .dashboard-crossfilter-chip { display: inline-flex; align-items: center; gap: 6px; background: var(--accent-soft); border-radius: 999px; padding: 4px 10px; font-weight: 600; color: var(--ink); }
 .dashboard-crossfilter-chip button { border: none; background: none; cursor: pointer; font-size: 12px; line-height: 1; padding: 0; color: var(--ink-soft); }
+/* Bộ lọc "Ngày báo cáo"/tab chỉ tiêu/nhóm chuỗi — bản 8.20, Dashboard
+   "Top 5 chi nhánh" (xem DashboardPage.jsx, chỉ hiện khi tile khai field
+   tương ứng — dashboard khác không đổi giao diện). */
+.dashboard-daterange-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 0 0 16px; font-size: 13px; color: var(--ink-soft); background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; }
+.dashboard-daterange-bar input[type="date"] { border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px; font-size: 13px; }
+.dashboard-daterange-bar button { font-size: 12px; padding: 4px 10px; border: 1px solid var(--accent); background: var(--accent-soft); color: var(--accent); border-radius: 999px; cursor: pointer; }
+.dashboard-metric-tabs { display: flex; gap: 8px; margin: 0 0 18px; }
+.dashboard-metric-tabs button { font-size: 13px; font-weight: 600; padding: 8px 16px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--ink-soft); cursor: pointer; }
+.dashboard-metric-tabs button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.dashboard-group { margin-bottom: 28px; }
+.dashboard-group-title { font-size: 13px; font-weight: 700; letter-spacing: .05em; color: var(--accent); margin: 0 0 10px; text-transform: uppercase; }
 
 .muted { color: var(--ink-soft); }
 

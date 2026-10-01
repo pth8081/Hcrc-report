@@ -20,6 +20,43 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 8.20 — Dashboard "Top 5 chi nhánh"
+
+Người dùng yêu cầu 1 Dashboard mới: 8 ô "Top 5" = {MART, MINIMART} x {Cao
+nhất, Thấp nhất doanh thu} x {Trong ngày, Trong tháng}, mỗi ô xếp hạng theo
+Doanh thu kèm cột Giao dịch tham khảo — đã demo ảnh phác thảo trước, người
+dùng phát hiện ca lệch pha (chi nhánh nhiều giao dịch giá trị nhỏ có thể
+KHÔNG lọt top Doanh thu dù đứng đầu Giao dịch) nên chốt phương án cuối:
+tách 2 tab độc lập "Xếp theo Doanh thu"/"Xếp theo Giao dịch" (16 ô, chỉ
+hiện 8 ô đúng tab đang chọn).
+
+- `lib/compositeReportRunner.js` — thêm `DefinitionJson.topN` (field, direction,
+  limit, filterField/filterValue tuỳ chọn) — xếp hạng TOÀN BỘ thực thể đã
+  ghép theo 1 field, cắt lấy N dòng đầu, tự đánh số "stt" 1..N ngay lúc chạy
+  (khác cột "stt" thường — chỉ đánh số lúc xuất Excel/PDF) — KHÔNG có dòng
+  "Tổng cộng" như `groupBy`, kiểm tra TRƯỚC `groupBy` nếu lỡ khai cả 2.
+- `scripts/seedTop5ChiNhanhReports.js` (mới) — tạo/cập nhật 8 báo cáo
+  `top5-{mart,minimart}-{doanhthu,giaodich}-{cao,thap}` (đọc domain
+  `doanhthu_chinhanh`/`giaodich_chinhanh` đã có sẵn, dùng lại
+  `useDiemStkMapping`/`mapBuIdToMaDiem`/`requireDiemStkMapping` y hệt 4 báo
+  cáo doanh thu cuối ngày) + 1 Dashboard `top5-chi-nhanh` ghép 16 Ô (8 báo
+  cáo x 2 "Trong ngày"/"Trong tháng" — CHỈ khác khoảng `eventDate` truyền
+  lúc chạy, không phải 2 định nghĩa báo cáo riêng).
+- `DashboardTile.jsx` — thêm `tile.dateMode` ('day'/'month', TUỲ CHỌN) — tự
+  tính `eventDate` từ 1 "ngày báo cáo" dùng chung (prop `reportDate`) thay
+  vì nhận filters cố định, cho phép 2 Ô CÙNG 1 báo cáo hiện song song
+  "Trong ngày"/"Trong tháng".
+- `DashboardPage.jsx` — thêm (đều TUỲ CHỌN, CHỈ hiện khi tile khai field
+  tương ứng — dashboard khác không đổi giao diện): bộ lọc "Ngày báo cáo" (1
+  ngày, mặc định hôm nay — "Trong ngày"/"Trong tháng" tự suy ra từ đây,
+  đúng yêu cầu "mặc định ngày hiện tại và tháng hiện tại"), tab theo
+  `tile.metricTab` (Doanh thu/Giao dịch), nhóm Ô theo `tile.chain`
+  (MART/MINIMART).
+
+Admin cần: chạy `node scripts/seedTop5ChiNhanhReports.js` + gán quyền xem 8
+báo cáo "Top 5 ..." (Hệ thống → Phân quyền) — xem
+`deploy/Cập nhật bản 8.19-8.20 — ...md`.
+
 ## 8.19 — Tài liệu "phân quyền.md" — tạo tài khoản + gán quyền cả 3 hệ thống
 
 Người dùng yêu cầu 1 file hướng dẫn đầy đủ cho tạo tài khoản + phân quyền

@@ -10,11 +10,27 @@
 // nào report này không khai trong definition.filters thì rp-server tự bỏ
 // qua (xem reportEngine.js:runReport()) — không lỗi, không cần khai gì thêm
 // ở phía tile.
+//
+// tile.dateMode (TUỲ CHỌN — Dashboard "Top 5 chi nhánh", bản 8.20, xem
+// scripts/seedTop5ChiNhanhReports.js) — field RIÊNG của tile (không phải
+// trường chuẩn của definition.tiles, đi xuyên qua routes/dashboards.js
+// nguyên vẹn): 'day' -> eventDate = {from: reportDate, to: reportDate},
+// 'month' -> eventDate = {from: đầu tháng chứa reportDate, to: reportDate}.
+// Cho phép 2 Ô CÙNG 1 reportId (vd "Top 5 MART Doanh thu cao nhất") hiện
+// "Trong ngày" và "Trong tháng" song song từ ĐÚNG 1 bộ lọc ngày báo cáo duy
+// nhất ở DashboardPage.jsx, không cần tạo 2 báo cáo riêng chỉ khác khoảng
+// ngày cứng. Tile không khai dateMode (mọi dashboard khác) -> hành vi CŨ,
+// không đổi gì (không tự thêm eventDate vào filters).
 import { useEffect, useState } from 'react';
 import { api } from '../../lib/api';
 import ReportBody from '../../components/ReportBody';
 
-export default function DashboardTile({ tile, crossFilters, onPointClick }) {
+function computeEventDateRange(dateMode, reportDate) {
+  if (dateMode === 'month') return { from: `${reportDate.slice(0, 7)}-01`, to: reportDate };
+  return { from: reportDate, to: reportDate };
+}
+
+export default function DashboardTile({ tile, crossFilters, reportDate, onPointClick }) {
   const [definition, setDefinition] = useState(null);
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
@@ -30,10 +46,13 @@ export default function DashboardTile({ tile, crossFilters, onPointClick }) {
 
   useEffect(() => {
     if (!definition) return;
-    api.post(`/reports/${tile.reportId}/run`, { filters: crossFilters, page: 1, pageSize: 200 })
+    const filters = tile.dateMode
+      ? { ...crossFilters, eventDate: computeEventDateRange(tile.dateMode, reportDate) }
+      : crossFilters;
+    api.post(`/reports/${tile.reportId}/run`, { filters, page: 1, pageSize: 200 })
       .then(setResult)
       .catch(err => setError(err.message));
-  }, [definition, tile.reportId, crossFilters]);
+  }, [definition, tile.reportId, tile.dateMode, crossFilters, reportDate]);
 
   return (
     <div className="dashboard-tile">

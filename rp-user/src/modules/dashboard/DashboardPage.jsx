@@ -2,9 +2,27 @@
 // đoạn C, hướng Power BI — xem VERSION.md). Route/mục menu 'dashboard' đã có
 // sẵn từ trước (xem App.jsx/Layout.jsx/schema.sql) — trang này chỉ thay nội
 // dung khung trống trước đây.
+//
+// 3 khối TUỲ CHỌN thêm ở bản 8.20 (Dashboard "Top 5 chi nhánh" — xem
+// scripts/seedTop5ChiNhanhReports.js) — mỗi khối chỉ BẬT khi dashboard đang
+// chọn CÓ tile khai đúng field tương ứng, dashboard khác (không khai gì)
+// chạy ĐÚNG như trước, không đổi hành vi cũ:
+//   - Bộ lọc "Ngày báo cáo" (1 ngày, không phải khoảng) — hiện khi có ÍT
+//     NHẤT 1 tile khai `dateMode` ('day'/'month', xem DashboardTile.jsx).
+//   - Tab theo `metricTab` (vd 'revenue'/'transactions') — hiện khi dashboard
+//     có TỪ 2 giá trị metricTab khác nhau trở lên, lọc bớt tile không khớp
+//     tab đang chọn.
+//   - Nhóm tile theo `chain` (vd 'mart'/'minimart') — hiện tiêu đề nhóm +
+//     tách lưới riêng từng nhóm khi CÓ tile khai field này.
 import { useEffect, useState } from 'react';
 import { api } from '../../lib/api';
 import DashboardTile from './DashboardTile';
+
+function todayStr() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+const METRIC_TAB_LABELS = { revenue: 'Xếp theo Doanh thu', transactions: 'Xếp theo Giao dịch' };
 
 export default function DashboardPage() {
   const [dashboards, setDashboards] = useState([]);
@@ -16,6 +34,8 @@ export default function DashboardPage() {
   // trong definition.columns của báo cáo nguồn) -> MỌI ô khác tự chạy lại
   // với bộ lọc này (ô nào không khai field đó thì rp-server tự bỏ qua).
   const [crossFilters, setCrossFilters] = useState({});
+  const [reportDate, setReportDate] = useState(todayStr());
+  const [metricTab, setMetricTab] = useState('');
 
   useEffect(() => {
     api.get('/dashboards').then(list => {
@@ -27,7 +47,12 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!selectedId) return;
     setCrossFilters({});
-    api.get(`/dashboards/${selectedId}`).then(setDashboard).catch(err => setError(err.message));
+    setReportDate(todayStr());
+    api.get(`/dashboards/${selectedId}`).then(d => {
+      setDashboard(d);
+      const tabs = [...new Set((d.tiles || []).map(t => t.metricTab).filter(Boolean))];
+      setMetricTab(tabs[0] || '');
+    }).catch(err => setError(err.message));
   }, [selectedId]);
 
   function handlePointClick(field, value) {
@@ -52,6 +77,21 @@ export default function DashboardPage() {
   }
 
   const filterEntries = Object.entries(crossFilters);
+  const allTiles = dashboard?.tiles || [];
+  const needsDatePicker = allTiles.some(t => t.dateMode);
+  const metricTabs = [...new Set(allTiles.map(t => t.metricTab).filter(Boolean))];
+  const visibleTiles = metricTabs.length > 1 ? allTiles.filter(t => !t.metricTab || t.metricTab === metricTab) : allTiles;
+  const chainGroups = [...new Set(visibleTiles.map(t => t.chain).filter(Boolean))];
+
+  function renderTiles(tiles) {
+    return (
+      <div className="dashboard-grid">
+        {tiles.map(tile => (
+          <DashboardTile key={tile.key} tile={tile} crossFilters={crossFilters} reportDate={reportDate} onPointClick={handlePointClick} />
+        ))}
+      </div>
+    );
+  }
 
   return (
     <div className="page">
@@ -65,6 +105,14 @@ export default function DashboardPage() {
             {dashboards.map(d => <option key={d.DashboardId} value={d.DashboardId}>{d.Title}</option>)}
           </select>
         </label>
+      )}
+
+      {needsDatePicker && (
+        <div className="dashboard-daterange-bar">
+          <span>Ngày báo cáo</span>
+          <input type="date" value={reportDate} max={todayStr()} onChange={(e) => setReportDate(e.target.value)} />
+          <button type="button" onClick={() => setReportDate(todayStr())}>Hôm nay</button>
+        </div>
       )}
 
       {filterEntries.length > 0 && (
@@ -83,11 +131,25 @@ export default function DashboardPage() {
       {dashboard && (
         <>
           <h2 className="dashboard-title">{dashboard.title}</h2>
-          <div className="dashboard-grid">
-            {dashboard.tiles.map(tile => (
-              <DashboardTile key={tile.key} tile={tile} crossFilters={crossFilters} onPointClick={handlePointClick} />
-            ))}
-          </div>
+
+          {metricTabs.length > 1 && (
+            <div className="dashboard-metric-tabs">
+              {metricTabs.map(m => (
+                <button key={m} type="button" className={m === metricTab ? 'active' : ''} onClick={() => setMetricTab(m)}>
+                  {METRIC_TAB_LABELS[m] || m}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {chainGroups.length > 0
+            ? chainGroups.map(chain => (
+              <div key={chain} className="dashboard-group">
+                <h3 className="dashboard-group-title">{chain.toUpperCase()}</h3>
+                {renderTiles(visibleTiles.filter(t => t.chain === chain))}
+              </div>
+            ))
+            : renderTiles(visibleTiles)}
         </>
       )}
     </div>

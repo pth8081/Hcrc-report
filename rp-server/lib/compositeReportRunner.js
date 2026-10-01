@@ -148,6 +148,25 @@
 //                   CHỈ áp dụng khi CÓ groupBy, không dùng cho báo cáo
 //                   không nhóm (definition.groupBy để trống).
 //
+// DefinitionJson.topN (TUỲ CHỌN, KHÔNG dùng cùng lúc với groupBy — có topN
+// thì bỏ qua hẳn groupBy nếu lỡ khai cả 2) — "Top N" 1 chỉ số, dùng cho
+// Dashboard "Top 5 chi nhánh" (xem scripts/seedTop5ChiNhanhReports.js):
+//   field      — path "tenKhoi.field" lấy giá trị để XẾP HẠNG (vd
+//                "current.measures.doanhThu").
+//   direction  — "desc" (mặc định, cao nhất trước) hoặc "asc" (thấp nhất
+//                trước).
+//   limit      — số dòng giữ lại SAU KHI xếp hạng (mặc định 5).
+//   filterField, filterValue — TUỲ CHỌN, LỌC thực thể trước khi xếp hạng (vd
+//                filterField="current.dimensions.chain", filterValue="MART"
+//                — chỉ xếp hạng trong đúng 1 chuỗi MART/MINIMART). Không
+//                khai filterField -> xếp hạng trên TOÀN BỘ thực thể đã ghép.
+// KHÔNG có dòng "Tổng cộng" (khác groupBy) — topN luôn trả đúng ĐÚNG `limit`
+// dòng (hoặc ít hơn nếu không đủ thực thể), đã tự đánh số "stt" 1..N theo
+// ĐÚNG thứ tự xếp hạng (khác cột "stt" thường — xem chú thích cột "stt" bên
+// dưới — chỉ đánh số lúc XUẤT; topN đánh số ngay ở bước chạy báo cáo vì bản
+// chất là 1 danh sách ĐÃ xếp hạng, không phải danh sách cố định các chi
+// nhánh như báo cáo thường).
+//
 // Tiêu đề nhóm cột + màu (Excel/PDF) — DefinitionJson.columnGroups (TUỲ
 // CHỌN, mặc định KHÔNG có = xuất Excel/PDF phẳng như trước, không đổi hành
 // vi báo cáo cũ). Chỉ ẢNH HƯỞNG lúc XUẤT (lib/exportExcel.js/
@@ -636,6 +655,24 @@ async function runCompositeReport(definition, filterValues = {}) {
   const warnings = ambiguousEntityCodes.size
     ? [`Đã loại ${ambiguousEntityCodes.size} thực thể khỏi báo cáo do dữ liệu nguồn không nhất quán (1 khối trả nhiều hơn 1 dòng cho cùng thực thể) — liên hệ quản trị viên để kiểm tra lại cấu hình.`]
     : [];
+
+  // topN (xem chú thích DefinitionJson.topN ở đầu file) — kiểm tra TRƯỚC
+  // groupBy, bỏ qua hẳn groupBy nếu lỡ khai cả 2 trong cùng 1 definition.
+  if (definition.topN) {
+    const { field: rankField, direction = 'desc', limit = 5, filterField, filterValue } = definition.topN;
+    const rankPath = rankField.split('.');
+    const rankDir = direction === 'asc' ? 1 : -1;
+    const candidateRows = filterField
+      ? mergedRows.filter(r => String(resolveCompositeField(r, filterField.split('.'))) === String(filterValue))
+      : mergedRows;
+    const ranked = [...candidateRows].sort((a, b) => {
+      const va = Number(resolveCompositeField(a, rankPath)) || 0;
+      const vb = Number(resolveCompositeField(b, rankPath)) || 0;
+      return (va - vb) * rankDir;
+    }).slice(0, limit);
+    const rows = ranked.map((r, i) => ({ ...projectCompositeRow(r, visibleColumns), stt: i + 1 }));
+    return { columns, rows, warnings };
+  }
 
   if (!definition.groupBy) {
     return { columns, rows: mergedRows.map(r => projectCompositeRow(r, visibleColumns)), warnings };
