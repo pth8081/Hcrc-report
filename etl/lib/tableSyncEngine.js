@@ -23,6 +23,26 @@ function parseColumnList(json) {
   return list.map(assertSafeIdentifier);
 }
 
+// LỖI THẬT đã gặp (bản 8.24): nhiều VIEW/bảng nguồn (vd V_HCRC_GIAODICH_CHINHANH)
+// không có cột "cập nhật lúc" thật — admin đành khai UpdatedAtColumn TRÙNG
+// luôn DateColumn (vd TRAN_DATE, kiểu DATE KHÔNG CÓ GIỜ). Lượt chạy ĐẦU TIÊN
+// bắt được 1 dòng bất kỳ của HÔM NAY sẽ chốt watermark = đúng 00:00:00 hôm
+// đó — "WHERE updatedCol > watermark" từ đó về sau trong NGUYÊN NGÀY sẽ loại
+// HẾT mọi giao dịch MỚI phát sinh thêm (cũng mang giá trị 00:00:00 y hệt,
+// KHÔNG lớn hơn) — job vẫn báo SUCCESS, "không có gì thay đổi", trong khi dữ
+// liệu thật đang đổi liên tục (đã xác nhận qua log thật: Doanh thu/Giao dịch
+// Live đứng yên nguyên ngày). floorToDay() + dùng ">=" thay vì ">" khi build
+// câu lệnh (KHÔNG đổi watermark LƯU LẠI, vẫn chính xác theo
+// applyWatermarkSafetyLag ở jobs/runSync.js) buộc MỖI LƯỢT CHẠY quét lại
+// TRỌN NGÀY của watermark hiện tại — an toàn tuyệt đối vì upsertReportFacts()
+// là MERGE idempotent (quét lại dòng đã có không tạo trùng/sai), cái giá
+// phải trả chỉ là quét thêm nhiều nhất 1 ngày dữ liệu mỗi lượt (không phải
+// quét lại TOÀN BỘ lịch sử) — áp dụng chung cho MỌI job (kể cả cột có giờ
+// thật), không cần biết trước cột nào "thô"/"mịn".
+function floorToDay(date) {
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+}
+
 // connection = { pool, adapter, engine } từ lib/dataSourcePool.js. pagination
 // (tuỳ chọn) = { offset, limit } — job "Lịch sử" đọc lần đầu (VIEW gộp UNION
 // ALL hàng chục triệu dòng không lọc ngày) không còn tải TOÀN BỘ kết quả vào
@@ -65,7 +85,7 @@ async function extractTable(connection, job, lastSyncedAt, pagination) {
     joinClause = `${joinType} JOIN ${q(joinSchema)}.${q(joinTable)} j ON m.${q(mainJoinCol)} = j.${q(lookupJoinCol)}`;
   }
 
-  const params = { lastSyncedAt };
+  const params = { lastSyncedAt: floorToDay(lastSyncedAt) };
   let paginationClause = '';
   if (pagination) {
     paginationClause = adapter.paginate(p('offset'), p('limit'));
@@ -77,7 +97,7 @@ async function extractTable(connection, job, lastSyncedAt, pagination) {
     SELECT ${selectParts.join(', ')}
     FROM ${q(mainSchema)}.${q(mainTable)} m
     ${joinClause}
-    WHERE m.${q(updatedCol)} > ${p('lastSyncedAt')}
+    WHERE m.${q(updatedCol)} >= ${p('lastSyncedAt')}
     ORDER BY m.${q(updatedCol)} ASC
     ${paginationClause}
   `;
