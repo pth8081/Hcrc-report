@@ -20,6 +20,26 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 8.22 — Tài liệu "Hướng dẫn cấp quyền SQL Server cho 4 CSDL"
+
+Người dùng yêu cầu 1 hướng dẫn gộp các câu lệnh SQL cấp quyền cho tài khoản
+CSDL đang dùng ở cả 4 CSDL nội bộ (dwh/etl/api/rp) — liên quan trực tiếp tới
+lỗi *"The UPDATE permission was denied on the object 'SalesTargets'..."*
+gặp phải sau khi đổi/khôi phục máy chủ SQL Server mới.
+
+- File mới `deploy/Hướng dẫn cấp quyền SQL Server cho 4 CSDL (dwh, etl,
+  api, rp).md` — TỔNG HỢP lại 4 file `grants.sql` ĐÃ CÓ SẴN trong mã nguồn
+  (`dwh/grants.sql`, `etl-db/grants.sql`, `api-db/grants.sql`,
+  `rp-db/grants.sql` — không phải SQL mới viết), gồm: bảng tổng quan 7 tài
+  khoản CSDL (`etl_writer`/`rpt_reader`/`dwh_target_importer`/`etl_admin`/
+  `etl_diem_stk_reader`/`api_admin`/`rp_app`) × CSDL × phạm vi quyền, thứ tự
+  chạy khi dựng CSDL mới, SQL đầy đủ từng CSDL, bảng đối chiếu biến `.env`
+  cần khớp, câu SQL chẩn đoán quyền thật sự đang có (`fn_my_permissions`), và
+  lưu ý riêng cho tình huống đổi/khôi phục server mới (login KHÔNG đi theo
+  backup CSDL, luôn phải chạy lại `grants.sql`). Làm rõ `etl_reader` (tài
+  khoản đọc 35 CSDL DSMART16 "Thành viên") KHÔNG liên quan tới 7 tài khoản
+  nội bộ này.
+
 ## 8.21 — Dashboard "Top 5 chi nhánh": đóng khung màu + biểu đồ + xuất Excel/PDF
 
 Người dùng xác nhận demo bản 8.20, yêu cầu thêm: (1) đóng khung/tô màu bảng
