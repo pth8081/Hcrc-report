@@ -20,6 +20,28 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 8.23 — Dashboard "Top 5 chi nhánh": "Trong tháng" tính đủ cả tháng + bộ lọc Từ ngày-đến ngày
+
+Người dùng phát hiện "Trong tháng" (bản 8.20) thực ra là "từ đầu tháng tới
+đúng ngày đã chọn" (month-to-date) — không phải "CẢ tháng" như yêu cầu, dễ
+nhầm khi 2 cột ra cùng 1 số (đúng vào ngày 1 đầu tháng). Cũng yêu cầu thêm
+bộ lọc "Từ ngày — đến ngày" (đúng tinh thần yêu cầu gốc) thay vì 1 ô ngày
+duy nhất, và tiêu đề mỗi ô phải hiện rõ ngày/tháng đang xem thay vì nhãn
+tĩnh "(Trong ngày)"/"(Trong tháng)".
+
+- `rp-user/src/lib/dateRange.js` (mới) — `computeEventDateRange(dateMode,
+  fromDate, toDate)`: `'month'` giờ LUÔN lấy trọn tháng chứa `toDate` (ngày 1
+  tới ngày cuối cùng, không dừng ở `toDate` nữa); `periodLabelFor()` sinh
+  nhãn động ("15/09/2026", "05/09/2026 - 15/09/2026", "Tháng 9/2026") thay
+  nhãn tĩnh. MIRROR lại ở `routes/dashboards.js` (dùng khi xuất Excel/PDF).
+- `DashboardPage.jsx` — bộ lọc 1 ô "Ngày báo cáo" đổi thành 2 ô "Từ ngày —
+  đến ngày" (mặc định cả 2 = hôm nay, tự đẩy ngày kia nếu chọn ngược).
+  `DashboardTile.jsx`/`Top5ChartTile.jsx` nhận `fromDate`/`toDate` thay
+  `reportDate`, tự ghép nhãn động vào cuối `tile.title`.
+- `scripts/seedTop5ChiNhanhReports.js` — bỏ hậu tố tĩnh
+  "(Trong ngày)"/"(Trong tháng)" khỏi `tile.title` (giờ tính động ở trên) —
+  **cần chạy lại script này** để cập nhật tiêu đề 16 Ô trong CSDL.
+
 ## 8.22 — Tài liệu "Hướng dẫn cấp quyền SQL Server cho 4 CSDL"
 
 Người dùng yêu cầu 1 hướng dẫn gộp các câu lệnh SQL cấp quyền cho tài khoản
