@@ -30,10 +30,15 @@ const { guardZipBombSize } = require('./fileSignature');
 // SourceSchema/SourceTable/KeyColumn/DateColumn/.../TargetDomain thật của
 // tính năng đó, admin chỉ cần đổi Name/DataSourceName cho từng cửa hàng
 // rồi copy dòng xuống — không phải tự tra cứu lại khuôn cột.
+//
+// Header PHẢI nằm đúng DÒNG 1 — parseSyncJobsFile() ở dưới đọc cứng
+// sheet.getRow(1) làm header (giống lib/dataSourcesImport.js), KHÔNG thêm
+// dòng ghi chú/hướng dẫn phía trên header (từng có bug y hệt ở
+// buildDataSourcesTemplate() — xem VERSION.md bản 8.31/8.32 — đẩy header
+// xuống dòng 2 khiến Nhập hàng loạt luôn báo thiếu cột).
 async function buildSyncJobsTemplate() {
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet('Sync Jobs');
-  sheet.addRow(['XOÁ/sửa lại 2 dòng ví dụ (tên "ST VIDU") trước khi nhập — DataSourceName phải khớp đúng Tên nguồn đã tạo ở trang "Nguồn dữ liệu". 2 dòng mẫu dưới đây đúng khuôn báo cáo doanh thu Thành viên (xem "báo cáo doanh thu thành viên.md") — copy dòng, chỉ đổi Name/DataSourceName cho từng cửa hàng.']);
   const headerRow = sheet.addRow(['Name', 'DataSourceName', 'TargetDomain', 'SourceSchema', 'SourceTable', 'KeyColumn', 'DateColumn', 'UpdatedAtColumn', 'DimensionColumns', 'MeasureColumns', 'CronExpression', 'KeepHistory', 'IsActive']);
   headerRow.font = { bold: true };
   sheet.addRow(['Doanh thu (TV) - ST VIDU', 'DSMART16 - ST VIDU', 'doanhthu_chinhanh_thanhvien', 'dbo', 'V_HCRC_DOANHTHU_CHINHANH', 'STK_ID', 'WORK_DATE', 'WORK_DATE', 'dienTich,chain', 'doanhThu,laiGop', '*/2 * * * *', 'TRUE', 'TRUE']);

@@ -20,6 +20,24 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 8.32 — Sửa lỗi tương tự ở "File mẫu" Sync Job
+
+Rà lại toàn bộ sau bug 8.31, phát hiện `buildSyncJobsTemplate()`
+(`etl/lib/syncJobsImport.js`) bị ĐÚNG lỗi tương tự (đã bỏ sót khi sửa
+8.31 — lần đó chỉ soát `dataSourcesImport.js`): cũng thêm 1 dòng hướng
+dẫn ("XOÁ/sửa lại 2 dòng ví dụ...") TRƯỚC header, trong khi
+`parseSyncJobsFile()` đọc header cứng ở dòng 1. Tải file mẫu Sync Job rồi
+xoá chữ dòng 1 (không xoá nguyên dòng) sẽ gặp lỗi "File thiếu cột bắt
+buộc" y như bug 8.31.
+
+- Bỏ dòng hướng dẫn, header về đúng dòng 1 (2 dòng ví dụ "ST VIDU" liền
+  sau, không đổi nội dung mẫu).
+- Đã kiểm tra lại bằng đúng `parseSyncJobsFile()` thật + đối chiếu tên:
+  file "Nguồn dữ liệu" (34 dòng) và file "Sync Job" (68 dòng) của 34 siêu
+  thị Thành viên (bản 8.30/8.31, gửi riêng người dùng, không lưu Git) đều
+  đọc đúng, và toàn bộ `DataSourceName` ở file Sync Job khớp CHÍNH XÁC
+  với `Name` ở file Nguồn dữ liệu (không thiếu/thừa tên nào).
+
 ## 8.31 — Sửa lỗi "File mẫu" Nguồn dữ liệu (header lệch dòng 2)
 
 Phát hiện khi triển khai thật 34 siêu thị Thành viên (bản 8.30): file do
