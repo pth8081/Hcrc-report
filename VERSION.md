@@ -20,6 +20,23 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 8.28 — Dashboard "Realtime" chuyển sang đọc Live trực tiếp từng siêu thị (Thành viên)
+
+Theo yêu cầu người dùng: 4 Ô "Realtime" ở Dashboard "Top 5 chi nhánh" (bản
+8.24) trước đây tái dùng báo cáo gốc (đồng bộ tập trung mỗi 15 phút) — đổi
+sang tái dùng báo cáo "(Thành viên)" (đọc Doanh thu/Giao dịch LIVE TRỰC
+TIẾP từng siêu thị mỗi 2 phút, xem "báo cáo doanh thu thành viên.md") — sát
+nghĩa "Realtime" hơn hẳn.
+
+- `rp-server/scripts/seedTop5ChiNhanhReports.js` — `REALTIME_REPORT_ID`
+  đổi từ `'bc-doanh-thu-hcrc'` sang `'bc-doanh-thu-hcrc-thanh-vien'`. CHỈ
+  đổi đúng 1 dòng này, không đụng gì khác ở `RealtimeReportTile.jsx`/
+  `DashboardPage.jsx` (đọc `reportId` từ tile một cách chung chung).
+- **Phụ thuộc BẮT BUỘC**: 4 Ô Realtime chỉ có số liệu thật khi 70 Sync Job
+  "Live (Thành viên)" (35 siêu thị × Doanh thu + Giao dịch, xem
+  `etl/scripts/seedThanhVienLiveSync.js`) đã thiết lập + chạy thành công —
+  xem mục "Thứ tự triển khai" trong `deploy/Cập nhật bản 8.28 — ...md`.
+
 ## 8.27 — Bỏ đồng bộ lặp lại "Cùng kỳ năm trước" cho 2 báo cáo "(Thành viên)"
 
 Người dùng góp ý: 2 báo cáo "(Thành viên)" (HCRC/LDTD) đang đồng bộ RIÊNG

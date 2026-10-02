@@ -162,16 +162,24 @@ function buildTiles(reports) {
   return tiles;
 }
 
-// Ô "Realtime" (bản 8.24) — TÁI DÙNG NGUYÊN báo cáo "bc-doanh-thu-hcrc" đã
-// seed sẵn ở scripts/seedLdtdHcrcReports.js (chạy script ĐÓ trước script
-// này ít nhất 1 lần), KHÔNG tạo report mới — xem rp-user/src/modules/
-// dashboard/RealtimeReportTile.jsx. kind:'realtime' + realtimeMode ('table'/
-// 'chart') là 2 trường RIÊNG của tile này (đi nguyên vẹn qua routes/
-// dashboards.js như mọi trường khác của tile, xem DashboardPage.jsx:
-// buildRealtimeTabs()) — không dùng chung cơ chế metricTab/dateMode suy ra
-// cột như 16 Ô Top 5 ở trên.
-const REALTIME_REPORT_ID = 'bc-doanh-thu-hcrc';
-const REALTIME_TITLE = 'Doanh thu Realtime HCRC';
+// Ô "Realtime" (bản 8.24) — TÁI DÙNG NGUYÊN 1 báo cáo đã seed sẵn ở
+// scripts/seedLdtdHcrcReports.js (chạy script ĐÓ trước script này ít nhất 1
+// lần), KHÔNG tạo report mới — xem rp-user/src/modules/dashboard/
+// RealtimeReportTile.jsx. kind:'realtime' + realtimeMode ('table'/'chart')
+// là 2 trường RIÊNG của tile này (đi nguyên vẹn qua routes/dashboards.js
+// như mọi trường khác của tile, xem DashboardPage.jsx:buildRealtimeTabs())
+// — không dùng chung cơ chế metricTab/dateMode suy ra cột như 16 Ô Top 5
+// ở trên.
+//
+// ĐỔI sang 'bc-doanh-thu-hcrc-thanh-vien' (bản 8.28, theo yêu cầu người
+// dùng) — khối current/currentGD của báo cáo này đọc Doanh thu/Giao dịch
+// LIVE TRỰC TIẾP từng siêu thị (70 Sync Job, xem etl/scripts/
+// seedThanhVienLiveSync.js) thay vì qua đồng bộ tập trung mỗi 15 phút như
+// bản gốc — đúng tinh thần "Realtime". "Cùng kỳ năm trước" vẫn đọc domain
+// gốc (bản 8.27), không đổi gì ở đó. CHỈ ĐỔI ĐÚNG 1 DÒNG NÀY để quay lại
+// báo cáo gốc nếu cần (vd 70 job Live Thành viên chưa thiết lập xong).
+const REALTIME_REPORT_ID = 'bc-doanh-thu-hcrc-thanh-vien';
+const REALTIME_TITLE = 'Doanh thu Realtime HCRC (Thành viên)';
 const REALTIME_TILES = [
   { key: 'realtime-ngay', reportId: REALTIME_REPORT_ID, title: REALTIME_TITLE, kind: 'realtime', dateMode: 'day', realtimeMode: 'table' },
   { key: 'realtime-ngay-chart', reportId: REALTIME_REPORT_ID, title: REALTIME_TITLE, kind: 'realtime', dateMode: 'day', realtimeMode: 'chart' },
