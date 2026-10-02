@@ -20,6 +20,29 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 8.31 — Sửa lỗi "File mẫu" Nguồn dữ liệu (header lệch dòng 2)
+
+Phát hiện khi triển khai thật 34 siêu thị Thành viên (bản 8.30): file do
+người dùng gửi (đã điền từ nút "Tải file mẫu" ở trang Nguồn dữ liệu) bị
+etl-admin báo "File thiếu cột bắt buộc 'Name'" khi Nhập hàng loạt dù đủ
+cột. Nguyên nhân là BUG THẬT trong code, không phải do người dùng điền
+sai: `buildDataSourcesTemplate()` (`etl/lib/dataSourcesImport.js`) tạo
+file mẫu với **dòng 1 là câu hướng dẫn** ("XOÁ dòng ví dụ (mã VIDU) trước
+khi nhập...") rồi mới đến dòng 2 là header thật — nhưng `parseDataSourcesFile()`
+đọc header CỨNG ở `sheet.getRow(1)`, không dò dòng nào có "Name". Ai tải
+file mẫu, xoá CHỮ ở dòng 1 (chứ không xoá nguyên dòng, dễ hiểu nhầm là chỉ
+cần xoá nội dung) rồi điền dữ liệu từ dòng 3, nộp lên luôn lỗi — đúng y
+hệt file người dùng gửi ở bản 8.30.
+
+- `buildDataSourcesTemplate()` — bỏ hẳn dòng câu hướng dẫn, header giờ
+  nằm đúng dòng 1 (ví dụ nằm dòng 2) — cùng khuôn với
+  `buildSyncJobsTemplate()` (`etl/lib/syncJobsImport.js`, không có bug
+  này) từ đầu. Nội dung hướng dẫn đã có sẵn đủ ở phần chữ trên trang "Nhập
+  hàng loạt" (`DataSourcesPage.jsx`), không mất thông tin gì.
+- Đã kiểm tra lại bằng đúng `parseDataSourcesFile()` thật: file mẫu mới +
+  file 34 siêu thị Thành viên (bản 8.30, đã gửi riêng người dùng qua kênh
+  an toàn, không lưu Git) đều đọc đúng, không còn lỗi.
+
 ## 8.30 — Cập nhật tài liệu: danh sách thật 34 siêu thị Thành viên
 
 Người dùng gửi file Excel "Nguồn dữ liệu" đã điền sẵn thông tin kết nối

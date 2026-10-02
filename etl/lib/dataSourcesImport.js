@@ -26,14 +26,23 @@ const { sql } = require('../db');
 const { encrypt } = require('./crypto');
 const { guardZipBombSize } = require('./fileSignature');
 
-// Mã "VIDU" (không khớp Nguồn dữ liệu thật nào) — XOÁ trước khi nhập, ghi
-// rõ trong dòng ghi chú để tránh nhập nhầm dòng ví dụ. KHÔNG điền cột
-// "Password" bằng mật khẩu thật ở đây — đây là file MẪU, để trống/placeholder
-// để tránh vô tình copy mật khẩu thật vào chỗ khác khi dùng làm mẫu.
+// Mã "VIDU" (không khớp Nguồn dữ liệu thật nào) — XOÁ trước khi nhập. KHÔNG
+// điền cột "Password" bằng mật khẩu thật ở đây — đây là file MẪU, để
+// placeholder để tránh vô tình copy mật khẩu thật vào chỗ khác khi dùng làm
+// mẫu.
+//
+// Header PHẢI nằm đúng DÒNG 1 (không thêm dòng ghi chú/hướng dẫn phía
+// trên) — parseDataSourcesFile() ở dưới đọc cứng sheet.getRow(1) làm
+// header, giống buildSyncJobsTemplate() ở lib/syncJobsImport.js. Từng có
+// bug: bản gốc (8.17) thêm 1 dòng hướng dẫn TRƯỚC header (đẩy header xuống
+// dòng 2) — admin tải file mẫu, xoá CHỮ ở dòng 1 (chứ không xoá nguyên
+// dòng) rồi điền dữ liệu, nộp lên luôn báo "File thiếu cột bắt buộc Name"
+// vì parser không đọc header ở dòng 2. Mọi ghi chú hướng dẫn đã có sẵn ở
+// phần chữ trên trang "Nhập hàng loạt" (DataSourcesPage.jsx), không cần
+// lặp lại trong file.
 async function buildDataSourcesTemplate() {
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet('Nguon du lieu');
-  sheet.addRow(['XOÁ dòng ví dụ (mã "VIDU") trước khi nhập — "Password" điền mật khẩu THẬT dạng chữ thường (không mã hoá), chỉ mã hoá SAU khi tải lên. Xoá file khỏi máy sau khi nhập xong.']);
   const headerRow = sheet.addRow(['Name', 'Server', 'DatabaseName', 'Username', 'Password', 'Engine', 'Port', 'Encrypt', 'TrustServerCert']);
   headerRow.font = { bold: true };
   sheet.addRow(['DSMART16 - VIDU', '10.20.1.99', 'DSMART16', 'etl_reader', 'mat-khau-that', 'mssql', 1433, 'TRUE', 'FALSE']);
