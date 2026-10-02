@@ -38,6 +38,35 @@ lịch sử trao đổi, tóm tắt ở đây để tra cứu):
 > ánh xạ (an toàn — không sai âm thầm, xem `requireDiemStkMapping` ở
 > `rp-server/lib/compositeReportRunner.js`).
 
+## Trạng thái triển khai thực tế
+
+**Đã có đủ danh sách THẬT (34 siêu thị, không phải 35 như số tượng trưng ở
+trên)** — người dùng gửi file Excel "Nguồn dữ liệu" đã điền sẵn
+Name/Server/DatabaseName/Username/Password/Port thật cho cả 34 siêu thị,
+đúng khuôn `etl/lib/dataSourcesImport.js` (Nhập hàng loạt, Bước 2+3 bên
+dưới) — KHÔNG dùng script `scripts/seedThanhVienLiveSync.js` (file đó vẫn
+giữ nguyên placeholder `CHANGE_ME`, không chỉnh sửa, để làm phương án dự
+phòng nếu sau này cần đồng bộ bằng code). File Excel "Sync Job" tương ứng
+(68 dòng = 34 siêu thị × 2 job, đúng khuôn `etl/lib/syncJobsImport.js`,
+`DataSourceName` khớp đúng cột `Name` của file Nguồn dữ liệu) đã được DỰNG
+SẴN từ danh sách tên 34 siêu thị đó.
+
+**2 file Excel này KHÔNG lưu trong Git** (file Nguồn dữ liệu chứa mật khẩu
+thật dạng chữ thường) — admin tự lưu trữ/xoá theo đúng khuyến cáo ở Bước
+2+3 bên dưới. Việc còn lại để CÓ dữ liệu thật chảy vào báo cáo, làm đúng
+thứ tự:
+
+1. Chạy file `deploy/Thiết lập VIEW + tài khoản etl_reader tại mỗi siêu thị
+   Thành viên.sql` tại CẢ 34 siêu thị (xem Bước 1 ngay dưới đây) — BẮT BUỘC
+   làm TRƯỚC, vì Nhập Sync Job (bước 3) tự đối chiếu VIEW thật qua mạng,
+   chưa có VIEW thì nhập sẽ báo lỗi dòng tương ứng.
+2. etl-admin → **Nguồn dữ liệu** → **Nhập Excel** → chọn file Nguồn dữ liệu
+   34 dòng đó.
+3. etl-admin → **Đồng bộ** → **Nhập Excel** → chọn file Sync Job 68 dòng đó
+   (PHẢI làm SAU bước 2 — Nhập Sync Job tra `DataSourceName` theo đúng tên
+   đã có ở bước 2, chưa có nguồn sẽ báo lỗi "không tìm thấy Nguồn dữ liệu").
+4. Kiểm tra lại theo đúng Bước 7 ở cuối file này.
+
 ## Bước 1 — Tạo VIEW tại MỖI cửa hàng (35 lần)
 
 Chạy NGUYÊN VĂN 2 câu `CREATE OR ALTER VIEW` dưới đây trên CSDL `DSMART16`

@@ -20,6 +20,19 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 8.30 — Cập nhật tài liệu: danh sách thật 34 siêu thị Thành viên
+
+Người dùng gửi file Excel "Nguồn dữ liệu" đã điền sẵn thông tin kết nối
+thật cho 34 siêu thị "Thành viên" (đúng khuôn Nhập hàng loạt có sẵn từ bản
+8.13, xem `etl/lib/dataSourcesImport.js`) — dựng sẵn file Excel "Sync Job"
+tương ứng (68 dòng, đúng khuôn `etl/lib/syncJobsImport.js`) từ đúng 34 tên
+siêu thị đó để nhập theo cặp. **KHÔNG có thay đổi code nào** — chỉ chuẩn bị
+dữ liệu triển khai thật + cập nhật "báo cáo doanh thu thành viên.md" (mục
+"Trạng thái triển khai thực tế", thêm ngay sau bảng quyết định kiến trúc)
+ghi rõ thứ tự 4 bước còn lại (chạy VIEW+etl_reader tại 34 nơi → Nhập Excel
+Nguồn dữ liệu → Nhập Excel Sync Job → kiểm tra) để người dùng/IT tự hoàn
+tất — 2 file Excel (có mật khẩu thật) KHÔNG lưu vào Git.
+
 ## 8.29 — Realtime xuất được Excel/PDF + biểu đồ hiện số theo đơn vị triệu
 
 Theo yêu cầu người dùng: 4 Ô "Realtime" (bảng + biểu đồ, theo ngày/tháng)
