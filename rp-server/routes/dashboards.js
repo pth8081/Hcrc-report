@@ -12,6 +12,7 @@ const { loadDefinition, runDefinition } = require('../lib/reportRunner');
 const { exportMultiSheetExcel } = require('../lib/exportExcel');
 const { exportPdf, mergePdfBuffers } = require('../lib/exportPdf');
 const { logAction } = require('../lib/auditLog');
+const { resolveTitleWithDate } = require('../lib/reportTitleDate');
 
 const router = express.Router();
 // requireMenuAccess('dashboard') — PHÒNG THỦ CHIỀU SÂU: sidebar (me.menu) đã
@@ -108,8 +109,13 @@ function resolveToneColor(reportId) {
 // lý nhầm. Tile không khớp quy ước (dashboard khác) -> rơi về tile.title
 // như cũ, cơ chế cắt chung ở exportExcel.js tự lo phần còn lại.
 function buildSheetName(tile) {
-  const direction = tile.reportId?.includes('-cao') ? 'Cao' : tile.reportId?.includes('-thap') ? 'Thấp' : '';
   const period = tile.dateMode === 'month' ? 'Tháng' : tile.dateMode === 'day' ? 'Ngày' : '';
+  // tile.kind==='realtime' (bản 8.29) — tách riêng KHỎI quy ước "-cao"/"-thap"
+  // bên dưới (reportId của báo cáo Realtime, vd 'bc-doanh-thu-hcrc-thanh-vien',
+  // không khớp quy ước đó) — tên ngắn "Realtime Ngày"/"Realtime Tháng" đủ
+  // phân biệt 2 Ô bảng Realtime hiện có.
+  if (tile.kind === 'realtime') return ['Realtime', period].filter(Boolean).join(' ');
+  const direction = tile.reportId?.includes('-cao') ? 'Cao' : tile.reportId?.includes('-thap') ? 'Thấp' : '';
   const chain = (tile.chain || '').toUpperCase();
   const parts = [chain, direction, period].filter(Boolean);
   return parts.length ? parts.join(' ') : (tile.title || tile.reportId);
@@ -152,11 +158,26 @@ router.post('/:dashboardId/export', async (req, res, next) => {
     for (const tile of tiles) {
       const reportDefinition = await loadDefinition(tile.reportId);
       if (!reportDefinition || !reportDefinition.isActive) continue;
-      const filters = tile.dateMode ? { eventDate: computeEventDateRange(tile.dateMode, fromDate, toDate) } : {};
+      // tile.kind==='realtime' (bản 8.29) — ÉP cheDoSoSanh='past', GIỐNG HỆT
+      // RealtimeReportTile.jsx (ẩn cột Cùng kỳ/LFL) để file xuất ra KHỚP ĐÚNG
+      // những gì đang hiện trên tab Realtime, không lặng lẽ xuất thêm cột
+      // không ai thấy trên web.
+      const isRealtime = tile.kind === 'realtime';
+      const filters = tile.dateMode
+        ? { eventDate: computeEventDateRange(tile.dateMode, fromDate, toDate), ...(isRealtime ? { cheDoSoSanh: 'past' } : {}) }
+        : {};
       const { columns, rows } = await runDefinition(reportDefinition, filters, { page: 1, pageSize: 5000 });
       const baseTitle = tile.title || reportDefinition.title;
       const periodLabel = tile.dateMode ? periodLabelFor(tile.dateMode, fromDate, toDate) : null;
-      const title = periodLabel ? `${baseTitle} (${periodLabel})` : baseTitle;
+      // Realtime TÁI DÙNG nguyên báo cáo gốc (vd "Báo cáo doanh thu cuối
+      // ngày HCRC (Thành viên)") — dùng ĐÚNG exportTitle đã khai sẵn trên
+      // report đó (token "{ngayBaoCao}" tự thay ngày thật, xem
+      // lib/reportTitleDate.js) thay vì ghép "tên Ô (ngày)" kiểu Top 5, để
+      // tài liệu xuất ra giống hệt báo cáo cuối ngày thật (có tiêu đề
+      // "Hệ thống siêu thị BRGMART - Báo cáo nhanh doanh thu ngày ...").
+      const title = isRealtime
+        ? resolveTitleWithDate(reportDefinition.exportTitle || reportDefinition.title, filters, '/')
+        : (periodLabel ? `${baseTitle} (${periodLabel})` : baseTitle);
       const toneColor = resolveToneColor(tile.reportId);
       const exportDefinition = {
         ...reportDefinition,

@@ -15,10 +15,15 @@
 //     nhau trở lên.
 //   - Nhóm tile theo `chain` (vd 'mart'/'minimart') — hiện tiêu đề nhóm +
 //     tách lưới riêng từng nhóm khi CÓ tile khai field này.
-//   - Nút "Xuất Excel"/"Xuất PDF" (bản 8.21) — LUÔN hiện khi dashboard có ít
-//     nhất 1 tile (không phụ thuộc dateMode/metricTab/chain) — xuất ĐÚNG các
-//     Ô đang hiện trên bảng (viewMode='table'; ở chế độ biểu đồ vẫn xuất
-//     bảng số liệu, KHÔNG xuất hình biểu đồ — xem routes/dashboards.js).
+//   - Nút "Xuất Excel"/"Xuất PDF" (bản 8.21, mở rộng sang tab Realtime bản
+//     8.29) — LUÔN hiện khi dashboard có ít nhất 1 tile/1 tab Realtime
+//     (không phụ thuộc dateMode/metricTab/chain/kind) — xuất ĐÚNG bảng số
+//     liệu đang xem (ở chế độ biểu đồ/tab Realtime-biểu đồ vẫn xuất BẢNG,
+//     KHÔNG xuất hình biểu đồ — xem routes/dashboards.js). QUY ƯỚC CHUNG từ
+//     bản 8.29 (người dùng yêu cầu): MỌI loại Ô/tab dashboard thêm SAU NÀY
+//     mặc định PHẢI xuất được Excel/PDF — khi thêm `tile.kind` mới, nhớ mở
+//     rộng cả điều kiện hiện nút này lẫn vòng lặp xử lý tile ở
+//     routes/dashboards.js, đừng để tab mới âm thầm thiếu nút Xuất.
 //
 // Tự động làm mới mỗi 30 GIÂY (bản 8.24) — `refreshTick` tăng dần theo
 // setInterval, truyền xuống DashboardTile/Top5ChartTile qua dependency của
@@ -197,6 +202,14 @@ export default function DashboardPage() {
   const chartValueField = metricTab === 'transactions' ? 'soGiaoDich' : 'doanhThu';
   const realtimeTabs = buildRealtimeTabs(allTiles);
   const activeRealtimeTab = realtimeTabs.find(t => t.key === activeRealtimeKey);
+  // Xuất Excel/PDF ở tab Realtime (bản 8.29) — LUÔN xuất đúng Ô "bảng" (không
+  // phải "biểu đồ") của CÙNG giai đoạn (ngày/tháng) đang xem, kể cả khi đang
+  // đứng ở tab biểu đồ — xuất file luôn là bảng số đầy đủ (giống hệt báo cáo
+  // cuối ngày), không xuất ảnh biểu đồ (đúng quy ước mọi nút "Xuất" khác
+  // trong hệ thống — xem routes/dashboards.js/export route).
+  const realtimeExportTile = activeRealtimeTab
+    ? realtimeTabs.find(t => t.tile.dateMode === activeRealtimeTab.tile.dateMode && t.tile.realtimeMode === 'table')?.tile
+    : null;
 
   function renderTiles(tiles) {
     return (
@@ -216,9 +229,10 @@ export default function DashboardPage() {
     setExporting(true);
     setError('');
     try {
+      const tileKeys = realtimeExportTile ? [realtimeExportTile.key] : visibleTiles.map(t => t.key);
       await downloadFile(
         `/dashboards/${selectedId}/export`,
-        { tileKeys: visibleTiles.map(t => t.key), fromDate, toDate, format },
+        { tileKeys, fromDate, toDate, format },
         `${dashboard?.title || 'dashboard'}.${format === 'excel' ? 'xlsx' : 'pdf'}`
       );
     } catch (err) {
@@ -273,12 +287,12 @@ export default function DashboardPage() {
               <span>Tự động làm mới mỗi 30 giây{lastRefreshedAt ? ` — cập nhật lúc ${lastRefreshedAt.toLocaleTimeString('vi-VN')}` : ''}</span>
               <button type="button" onClick={() => { setRefreshTick(t => t + 1); setLastRefreshedAt(new Date()); }}>🔄 Làm mới ngay</button>
             </div>
-            {/* activeRealtimeTab: ô "Realtime" chạy thẳng 1 báo cáo đã có
-                sẵn, không nằm trong tileKeys mà routes/dashboards.js hiểu —
-                ẩn 2 nút này ở tab Realtime, tự xuất qua trang Báo cáo bình
-                thường (đã có sẵn, không cần làm lại) thay vì xuất nhầm dữ
-                liệu Top 5 đang KHÔNG hiện trên màn hình. */}
-            {!activeRealtimeTab && visibleTiles.length > 0 && (
+            {/* activeRealtimeTab (bản 8.29): routes/dashboards.js/export giờ
+                hiểu tile.kind==='realtime' (ép cheDoSoSanh='past' + dùng
+                đúng exportTitle/columnGroups màu của báo cáo gốc) — hiện 2
+                nút này cả ở tab Realtime, xuất đúng Ô "bảng" của giai đoạn
+                đang xem (xem realtimeExportTile ở trên). */}
+            {(realtimeExportTile || (!activeRealtimeTab && visibleTiles.length > 0)) && (
               <div className="export-actions">
                 <button type="button" disabled={exporting} onClick={() => exportAs('excel')}>Xuất Excel</button>
                 <button type="button" disabled={exporting} onClick={() => exportAs('pdf')}>Xuất PDF</button>

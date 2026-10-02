@@ -33,7 +33,7 @@
 // thái cuối cùng ngay khi vẽ, không phụ thuộc thời điểm/tốc độ máy.
 import {
   ResponsiveContainer, BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
-  XAxis, YAxis, CartesianGrid, Tooltip, Legend
+  XAxis, YAxis, CartesianGrid, Tooltip, Legend, LabelList
 } from 'recharts';
 
 const PALETTE = ['#1c7566', '#c0622a', '#3a6ea5', '#a54e6e', '#7a8c3f', '#8a5a00'];
@@ -44,6 +44,17 @@ const numberFmt = (v) => (typeof v === 'number' ? v.toLocaleString('vi-VN') : v)
 // chồng lên nhau. Tooltip (numberFmt ở trên) vẫn hiện ĐẦY ĐỦ số khi rê chuột
 // vào — rút gọn chỉ áp dụng cho nhãn trục.
 const compactNumberFmt = new Intl.NumberFormat('vi-VN', { notation: 'compact', maximumFractionDigits: 1 }).format;
+
+// visualization.unitDivisor (TUỲ CHỌN, bản 8.29 — vd RealtimeReportTile.jsx
+// dùng 1_000_000 cho biểu đồ Doanh thu) — CHIA giá trị cho đúng số này lúc
+// HIỂN THỊ (trục Y/Tooltip/nhãn trên cột), KHÔNG đổi dữ liệu gốc (chiều cao
+// cột vẫn tỷ lệ đúng, Recharts tự co giãn trục theo domain thật) — dùng
+// chung đi kèm visualization.unitNote (vd "ĐVT: 1.000.000") để người xem
+// hiểu đơn vị. KHÔNG truyền 2 field này -> hành vi CŨ giữ nguyên y hệt
+// (mọi báo cáo khác đang dùng ReportChart không đổi gì).
+function scaledNumberFmt(divisor) {
+  return (v) => (typeof v === 'number' ? (v / divisor).toLocaleString('vi-VN', { maximumFractionDigits: 1 }) : v);
+}
 
 function labelFor(columns, key) {
   return columns.find(c => c.key === key)?.label || key;
@@ -69,7 +80,7 @@ function KpiTiles({ columns, rows, visualization }) {
 }
 
 export default function ReportChart({ columns, rows, visualization, onPointClick }) {
-  const { type, xField, valueFields = [] } = visualization;
+  const { type, xField, valueFields = [], unitDivisor, showValueLabels, unitNote } = visualization;
   if (type === 'kpi') return <KpiTiles columns={columns} rows={rows} visualization={visualization} />;
 
   // Dòng "Tổng cộng"/"Tổng nhóm" (__isSubtotal) chỉ có ý nghĩa trong bảng số
@@ -104,6 +115,11 @@ export default function ReportChart({ columns, rows, visualization, onPointClick
 
   const ChartComponent = type === 'line' ? LineChart : BarChart;
   const SeriesComponent = type === 'line' ? Line : Bar;
+  // unitDivisor có khai -> dùng CÙNG 1 công thức quy đổi cho trục Y/Tooltip/
+  // nhãn trên cột (nhất quán 3 chỗ), thay cho compactNumberFmt/numberFmt mặc
+  // định — xem chú thích scaledNumberFmt() ở trên.
+  const yTickFmt = unitDivisor ? scaledNumberFmt(unitDivisor) : compactNumberFmt;
+  const tooltipFmt = unitDivisor ? scaledNumberFmt(unitDivisor) : numberFmt;
 
   // onClick đặt TRỰC TIẾP trên từng Bar/Line (nhận thẳng payload của điểm đã
   // bấm) thay vì onClick ở cấp ChartComponent đọc activePayload — cách cũ
@@ -111,26 +127,31 @@ export default function ReportChart({ columns, rows, visualization, onPointClick
   // qua mousemove trước đó), click lập trình (Playwright, hoặc chuột thật đi
   // rất nhanh) không luôn kích hoạt được, khiến bấm cột không lọc chéo được.
   return (
-    <ResponsiveContainer width="100%" height={360}>
-      <ChartComponent data={chartRows} margin={{ left: 12, right: 12, top: 8, bottom: 8 }}>
-        <CartesianGrid strokeDasharray="3 3" />
-        <XAxis dataKey={xField} />
-        <YAxis tickFormatter={compactNumberFmt} width={56} />
-        <Tooltip formatter={numberFmt} />
-        <Legend />
-        {valueFields.map((field, i) => (
-          <SeriesComponent
-            key={field}
-            dataKey={field}
-            name={labelFor(columns, field)}
-            fill={PALETTE[i % PALETTE.length]}
-            stroke={PALETTE[i % PALETTE.length]}
-            isAnimationActive={false}
-            cursor={onPointClick ? 'pointer' : undefined}
-            onClick={handleClick}
-          />
-        ))}
-      </ChartComponent>
-    </ResponsiveContainer>
+    <>
+      {unitNote && <p className="report-chart-unit-note">{unitNote}</p>}
+      <ResponsiveContainer width="100%" height={360}>
+        <ChartComponent data={chartRows} margin={{ left: 12, right: 12, top: showValueLabels ? 24 : 8, bottom: 8 }}>
+          <CartesianGrid strokeDasharray="3 3" />
+          <XAxis dataKey={xField} />
+          <YAxis tickFormatter={yTickFmt} width={56} />
+          <Tooltip formatter={tooltipFmt} />
+          <Legend />
+          {valueFields.map((field, i) => (
+            <SeriesComponent
+              key={field}
+              dataKey={field}
+              name={labelFor(columns, field)}
+              fill={PALETTE[i % PALETTE.length]}
+              stroke={PALETTE[i % PALETTE.length]}
+              isAnimationActive={false}
+              cursor={onPointClick ? 'pointer' : undefined}
+              onClick={handleClick}
+            >
+              {showValueLabels && <LabelList dataKey={field} position="top" formatter={tooltipFmt} style={{ fontSize: 11, fontWeight: 600 }} />}
+            </SeriesComponent>
+          ))}
+        </ChartComponent>
+      </ResponsiveContainer>
+    </>
   );
 }

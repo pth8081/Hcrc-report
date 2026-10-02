@@ -9,13 +9,20 @@
 //   - mode='chart': hiện biểu đồ CHỈ ĐÚNG 1 cột "Doanh thu - Thực đạt"
 //     (dt_thucDat) — visualization dựng TẠM Ở ĐÂY (client), KHÔNG đụng vào
 //     definition.visualization của báo cáo gốc trên CSDL (báo cáo gốc vẫn
-//     xem/xuất bình thường như cũ, không ảnh hưởng gì).
+//     xem/xuất bình thường như cũ, không ảnh hưởng gì). Tên siêu thị nằm
+//     NGANG theo trục X (mặc định của Recharts BarChart, xem
+//     ReportChart.jsx), mỗi cột hiện số ngay phía trên quy đổi theo đơn vị
+//     1 triệu (unitDivisor + showValueLabels, bản 8.29) kèm ghi chú
+//     "ĐVT: 1.000.000" phía trên biểu đồ để không nhầm đơn vị.
 import { useEffect, useState } from 'react';
 import { api } from '../../lib/api';
 import ReportBody from '../../components/ReportBody';
 import { computeEventDateRange } from '../../lib/dateRange';
 
-const CHART_VISUALIZATION = { type: 'bar', xField: 'tenCuaHang', valueFields: ['dt_thucDat'] };
+const CHART_VISUALIZATION = {
+  type: 'bar', xField: 'tenCuaHang', valueFields: ['dt_thucDat'],
+  unitDivisor: 1_000_000, showValueLabels: true, unitNote: 'ĐVT: 1.000.000'
+};
 
 export default function RealtimeReportTile({ reportId, title, dateMode, mode, fromDate, toDate, refreshTick }) {
   const [definition, setDefinition] = useState(null);

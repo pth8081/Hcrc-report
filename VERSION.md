@@ -20,6 +20,38 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 8.29 — Realtime xuất được Excel/PDF + biểu đồ hiện số theo đơn vị triệu
+
+Theo yêu cầu người dùng: 4 Ô "Realtime" (bảng + biểu đồ, theo ngày/tháng)
+giờ xuất được Excel/PDF giống hệt mẫu "Báo cáo doanh thu cuối ngày" (đúng
+tiêu đề "Hệ thống siêu thị BRGMART...", đủ cột/nhóm màu, không có Cùng kỳ/
+LFL — khớp đúng những gì đang hiện trên tab Realtime). Biểu đồ Realtime
+cũng hiện số ngay trên đầu mỗi cột theo đơn vị 1 triệu kèm ghi chú "ĐVT:
+1.000.000". **Quy ước mới (người dùng yêu cầu)**: mọi loại Ô/tab dashboard
+thêm SAU NÀY mặc định phải xuất được Excel/PDF.
+
+- `rp-server/routes/dashboards.js` — route export: nhận diện
+  `tile.kind==='realtime'`, ép `cheDoSoSanh:'past'` khi chạy báo cáo (khớp
+  đúng `RealtimeReportTile.jsx`), dùng `resolveTitleWithDate(definition.exportTitle
+  || definition.title, ...)` làm tiêu đề tài liệu (thay vì ghép "tên Ô
+  (ngày)" kiểu Top 5) để ra đúng tiêu đề BRGMART gốc. `buildSheetName()`
+  thêm nhánh riêng cho tile Realtime ("Realtime Ngày"/"Realtime Tháng").
+- `rp-user/src/modules/dashboard/DashboardPage.jsx` — nút "Xuất Excel"/
+  "Xuất PDF" giờ cũng hiện ở tab Realtime (kể cả đang xem biểu đồ) — LUÔN
+  xuất đúng Ô "bảng" của CÙNG giai đoạn (ngày/tháng) đang xem, không xuất
+  ảnh biểu đồ (đúng quy ước xuất file hiện có).
+- `rp-user/src/components/ReportChart.jsx` — thêm 3 field TUỲ CHỌN vào
+  `visualization`: `unitDivisor` (quy đổi trục Y/Tooltip/nhãn cột),
+  `showValueLabels` (hiện số trên đầu mỗi cột, dùng `<LabelList>`),
+  `unitNote` (ghi chú đơn vị phía trên biểu đồ) — KHÔNG đổi hành vi báo cáo
+  nào khác đang dùng `ReportChart` (3 field đều `undefined` mặc định).
+- `rp-user/src/modules/dashboard/RealtimeReportTile.jsx` — bật cả 3 field
+  trên cho biểu đồ Doanh thu (`unitDivisor: 1_000_000`, `unitNote: 'ĐVT:
+  1.000.000'`).
+- Đã kiểm tra end-to-end qua mock harness: tiêu đề/cột/nhóm màu file xuất
+  khớp đúng mẫu HCRC, biểu đồ hiện đúng số quy đổi + ghi chú đơn vị, nút
+  Xuất hoạt động đúng ở cả 2 tab con (bảng/biểu đồ).
+
 ## 8.28 — Dashboard "Realtime" chuyển sang đọc Live trực tiếp từng siêu thị (Thành viên)
 
 Theo yêu cầu người dùng: 4 Ô "Realtime" ở Dashboard "Top 5 chi nhánh" (bản

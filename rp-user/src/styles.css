@@ -114,6 +114,9 @@ button:hover { opacity: 0.9; }
 .data-table th { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); color: var(--ink-soft); font-weight: 600; }
 .data-table td { padding: 8px 10px; border-bottom: 1px solid var(--line); }
 .empty-message { color: var(--ink-soft); font-size: 13px; }
+/* ReportChart.jsx:unitNote (bản 8.29) — ghi chú "ĐVT: 1.000.000" khi biểu đồ
+   quy đổi đơn vị (visualization.unitDivisor), căn phải ngay trên biểu đồ. */
+.report-chart-unit-note { text-align: right; font-size: 12px; color: var(--ink-soft); margin: 0 0 4px; }
 
 /* Tabs */
 .tabs { display: flex; gap: 4px; margin-bottom: 16px; border-bottom: 1px solid var(--line); }
