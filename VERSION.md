@@ -20,6 +20,30 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 8.27 — Bỏ đồng bộ lặp lại "Cùng kỳ năm trước" cho 2 báo cáo "(Thành viên)"
+
+Người dùng góp ý: 2 báo cáo "(Thành viên)" (HCRC/LDTD) đang đồng bộ RIÊNG
+"Cùng kỳ năm trước" (lastYear/lastYearGD) qua 2 Sync Job domain
+`_thanhvien` — trong khi dữ liệu THÁNG ĐÃ ĐÓNG SỔ này giống hệt bản gốc (cả
+2 domain Lịch sử đều đồng bộ CHUNG 1 VIEW trên `DSMART16_EOM`) — đồng bộ 2
+lần là lãng phí, nên cho đọc thẳng domain gốc thay vì tạo thêm job riêng.
+
+- `rp-server/scripts/seedLdtdHcrcReports.js` — `buildDefinition()`: 2 khối
+  `lastYear`/`lastYearGD` giờ LUÔN đọc domain GỐC (`DOMAIN_GOC`), bất kể
+  đang dựng báo cáo gốc hay "(Thành viên)" — 2 khối `current`/`currentGD`
+  (Live) không đổi, vẫn đọc đúng domain của từng bản. **Cần chạy lại
+  `node scripts/seedLdtdHcrcReports.js`** để cập nhật DefinitionJson của 2
+  báo cáo "(Thành viên)" đã có trong CSDL.
+- `etl/scripts/disableThanhVienHistorySync.js` (mới) — tắt (không xoá)
+  2 Sync Job "Doanh thu/Giao dịch chi nhánh (Thành viên) - Lịch sử
+  (DSMART16_EOM)" nay không còn ai đọc tới (dry-run mặc định, `--confirm`
+  mới thực sự tắt) — **chạy SAU KHI** đã chạy lại seed script ở trên.
+  `etl/scripts/seedThanhVienHistorySync.js` đánh dấu KHÔNG CÒN CẦN THIẾT,
+  giữ lại chỉ để tham khảo lịch sử.
+- KHÔNG đụng tới 70 Sync Job "Live" của Thành viên (`seedThanhVienLiveSync.js`,
+  đọc trực tiếp từng cửa hàng) — đây mới là phần "Thành viên" thật của kiến
+  trúc, vẫn hoạt động như cũ.
+
 ## 8.26 — Sửa lỗi "hôm nay" tính theo giờ UTC thay vì giờ Việt Nam
 
 Người dùng test Dashboard trên điện thoại lúc 06:11 sáng, hỏi hệ thống đang

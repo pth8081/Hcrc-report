@@ -1,4 +1,16 @@
-// scripts/seedThanhVienHistorySync.js — Tạo/CẬP NHẬT idempotent 2 job đồng
+// scripts/seedThanhVienHistorySync.js
+//
+// ⚠️ KHÔNG CÒN CẦN THIẾT TỪ BẢN 8.27 — xem scripts/disableThanhVienHistorySync.js.
+// 2 báo cáo "(Thành viên)" giờ đọc "Cùng kỳ năm trước" THẲNG từ domain gốc
+// (rp-server/scripts/seedLdtdHcrcReports.js:buildDefinition()) thay vì domain
+// "_thanhvien" riêng mà 2 job dưới đây tạo ra — vì cả 2 domain Lịch sử đồng
+// bộ CHUNG 1 VIEW trên DSMART16_EOM, dữ liệu giống hệt nhau, không cần đồng
+// bộ lặp lại 2 lần. Giữ file này lại CHỈ để tham khảo lịch sử/phòng khi cần
+// dựng lại môi trường cũ — đừng chạy lại trên môi trường ĐANG CHẠY THẬT, mà
+// dùng scripts/disableThanhVienHistorySync.js để tắt 2 job đã tạo trước đó.
+//
+// --- Nội dung gốc (bản 8.13) bên dưới, giữ nguyên không sửa ---
+// Tạo/CẬP NHẬT idempotent 2 job đồng
 // bộ "Lịch sử" cho domain "Thành viên" (bản 8.13 — xem "báo cáo doanh thu
 // thành viên.md"): 2 báo cáo mới "Báo cáo doanh thu hcrc/LDTD (Thành viên)"
 // lấy phần Live TRỰC TIẾP từ từng cửa hàng (Nguồn dữ liệu + Sync Job của

@@ -5,8 +5,11 @@
 //     trung tâm (xem "báo cáo doanh thu cuối ngày.md" Bước 4).
 //   bc-doanh-thu-ldtd-thanh-vien / bc-doanh-thu-hcrc-thanh-vien — bản
 //     "Thành viên" (bản 8.13), NỘI DUNG giống hệt bản gốc, chỉ khác domain
-//     Doanh thu/Giao dịch (đọc Live trực tiếp từng cửa hàng — xem "báo cáo
-//     doanh thu thành viên.md").
+//     Doanh thu/Giao dịch của 2 khối current/currentGD (đọc Live trực tiếp
+//     từng cửa hàng — xem "báo cáo doanh thu thành viên.md"). 2 khối
+//     lastYear/lastYearGD ("Cùng kỳ năm trước") LUÔN đọc domain GỐC (bản
+//     8.27 — xem buildDefinition() bên dưới), vì dữ liệu tháng đã đóng sổ
+//     giống hệt nhau dù qua domain nào, không cần đồng bộ lặp lại.
 // Xem thêm hướng_dẫn_báo_cáo.md mục 15. Chạy LẠI file này an toàn — khớp
 // theo ReportId để UPDATE DefinitionJson thay vì tạo trùng.
 //
@@ -117,8 +120,21 @@ function buildDefinition(title, targetDomain, exportFileCode, domains) {
       // loại), xem lib/compositeReportRunner.js.
       { key: 'current', sourceType: 'directDb', domain: revenueDomain, useDiemStkMapping: true },
       { key: 'currentGD', sourceType: 'directDb', domain: transactionDomain, mapBuIdToMaDiem: true },
-      { key: 'lastYear', sourceType: 'directDb', domain: revenueDomain, dateOffsetYears: -1, useDiemStkMapping: true, skipWhen: { field: 'cheDoSoSanh', equals: 'past' } },
-      { key: 'lastYearGD', sourceType: 'directDb', domain: transactionDomain, dateOffsetYears: -1, mapBuIdToMaDiem: true, requireStkStability: true, skipWhen: { field: 'cheDoSoSanh', equals: 'past' } },
+      // lastYear/lastYearGD LUÔN đọc domain GỐC (DOMAIN_GOC), KỂ CẢ ở 2 báo
+      // cáo "(Thành viên)" — bản 8.27, theo đúng góp ý người dùng: "Cùng kỳ
+      // năm trước" là dữ liệu THÁNG ĐÃ ĐÓNG SỔ, giống hệt nhau dù đọc qua
+      // domain nào (cả 2 domain Lịch sử đều đồng bộ CHUNG 1 VIEW
+      // V_HCRC_DOANHTHU_CHINHANH/V_HCRC_GIAODICH_CHINHANH trên
+      // DSMART16_EOM, xem etl/scripts/seedThanhVienHistorySync.js — vốn chỉ
+      // tạo thêm domain "_thanhvien" TRÙNG Y HỆT nguồn, không phải dữ liệu
+      // khác). Trước đây 2 báo cáo "(Thành viên)" dùng domain
+      // "_thanhvien" cho CẢ 4 khối, bắt buộc phải có 2 Sync Job riêng
+      // ("Doanh thu/Giao dịch chi nhánh (Thành viên) - Lịch sử") đồng bộ
+      // LẶP LẠI ĐÚNG dữ liệu đã có ở domain gốc — tốn thời gian/tài nguyên
+      // vô ích. Đổi lastYear/lastYearGD về domain gốc CỐ ĐỊNH -> 2 Sync Job
+      // đó không còn cần thiết nữa (xem etl/scripts/disableThanhVienHistorySync.js).
+      { key: 'lastYear', sourceType: 'directDb', domain: DOMAIN_GOC.revenue, dateOffsetYears: -1, useDiemStkMapping: true, skipWhen: { field: 'cheDoSoSanh', equals: 'past' } },
+      { key: 'lastYearGD', sourceType: 'directDb', domain: DOMAIN_GOC.transaction, dateOffsetYears: -1, mapBuIdToMaDiem: true, requireStkStability: true, skipWhen: { field: 'cheDoSoSanh', equals: 'past' } },
       // targetGranularity: 'day' — 2 mẫu file chỉ tiêu thật (LDTD/HCRC) đều
       // là chỉ tiêu THEO NGÀY (xem etl/lib/salesTargetsImport.js), không
       // phải chỉ tiêu tháng chia đều — tra đúng ngày báo cáo thay vì gộp cả
