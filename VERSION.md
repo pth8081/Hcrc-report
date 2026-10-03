@@ -20,6 +20,24 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+**TỰ ĐỘNG, không cần nhắc (từ bản 8.34, theo yêu cầu người dùng 03/10/2026,
+tới khi người dùng bảo dừng)**: mọi lần merge PHẢI kèm thêm 1 mục mới ở
+ĐẦU file `deploy/Nhật ký triển khai (từ bản 8.34).md` — tóm tắt CÁC BƯỚC
+triển khai thật trên server (lệnh chạy, file cần sửa tay, thứ tự làm),
+không chỉ mô tả tính năng như mục ở trên. KHÔNG thay thế việc vẫn tạo file
+riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước giờ.
+
+## 8.36 — Thêm nhật ký triển khai gộp (từ bản 8.34)
+
+Theo yêu cầu người dùng: tạo `deploy/Nhật ký triển khai (từ bản 8.34).md`
+— gộp CÁC BƯỚC triển khai thật trên server (không phải mô tả tính năng)
+của mọi bản từ 8.34 trở đi vào MỘT file duy nhất (mới nhất lên đầu, đã
+điền sẵn 8.34/8.35), dễ xem lại liên tục thay vì mở nhiều file riêng từng
+bản. Thêm quy tắc TỰ ĐỘNG tương ứng ở đầu file này — áp dụng cho tới khi
+người dùng yêu cầu dừng. KHÔNG thay thế file riêng từng bản (`deploy/Cập
+nhật bản X.Y — ....md`), vẫn tạo song song như trước giờ. **KHÔNG có thay
+đổi code nào.**
+
 ## 8.35 — Sửa nguyên nhân THẬT của "Failed to fetch"/"Không kết nối được backend"
 
 Sau khi áp dụng bản 8.33 (tăng timeout Nginx), người dùng vẫn gặp lỗi
