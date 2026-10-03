@@ -12,6 +12,31 @@ cập nhật file này ở mọi bản sau, cho tới khi người dùng bảo d
 
 ---
 
+## 8.47 — Mật khẩu dự phòng cục bộ khi HCRC Workspace lỗi
+
+**Thay đổi**: tài khoản xác thực qua HCRC Workspace giờ tự cache mật khẩu
+(băm bcrypt) mỗi lần đăng nhập ONLINE thành công — dùng làm dự phòng khi
+dịch vụ đó báo lỗi (mạng/timeout/5xx), trong hạn `FallbackMaxAgeDays`
+(mặc định 14 ngày). Trang "Người dùng" có cột "Mật khẩu dự phòng" + nút
+xoá tay.
+
+**Các bước triển khai (KHÁC các bản trước — đổi logic đăng nhập):**
+1. `git pull origin main`
+2. Chạy lại `rp-db/schema.sql` (cột mới `CachedPasswordHash`/
+   `CachedPasswordHashAt` ở `app.Users`, `FallbackMaxAgeDays` ở
+   `app.HcrcWorkspaceSettings`).
+3. `cd rp-user && npm run build`, copy `dist/` mới.
+4. `pm2 restart hcrc-rp-server` (BẮT BUỘC — đổi `lib/auth.js`).
+5. Kiểm tra: đăng nhập 1 tài khoản HCRC Workspace bình thường → tắt thử
+   "Bật xác thực HCRC Workspace" → đăng nhập lại ĐÚNG mật khẩu cũ vẫn vào
+   được (Audit Log ghi "dùng mật khẩu dự phòng"); bật lại cấu hình sau khi
+   kiểm tra.
+
+Chi tiết đầy đủ: `deploy/Cập nhật bản 8.47 — Mật khẩu dự phòng HCRC
+Workspace.md`.
+
+---
+
 ## 8.46 — Sửa nút "Lên"/"Xuống" trắng trơn trong khung Tuỳ chỉnh Dashboard
 
 **Thay đổi**: phát hiện lúc demo bản 8.45 bằng ảnh chụp trình duyệt thật —

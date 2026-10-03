@@ -27,6 +27,45 @@ triển khai thật trên server (lệnh chạy, file cần sửa tay, thứ t�
 không chỉ mô tả tính năng như mục ở trên. KHÔNG thay thế việc vẫn tạo file
 riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước giờ.
 
+## 8.47 — Mật khẩu dự phòng cục bộ khi HCRC Workspace lỗi
+
+**Bối cảnh**: tài khoản xác thực qua "HCRC Workspace" (gọi `POST
+/verify-credentials` MỖI LẦN đăng nhập, không lưu gì local) không đăng nhập
+được gì nếu dịch vụ đó sập/mất mạng — người dùng đã yêu cầu phân tích
+phương án dự phòng.
+
+**Thay đổi**: mỗi lần xác thực ONLINE thành công, hệ thống tự băm (bcrypt)
+lại đúng mật khẩu vừa gõ đúng, lưu vào `CachedPasswordHash`/
+`CachedPasswordHashAt` — CHỈ dùng tới khi HCRC Workspace báo lỗi dịch vụ
+(mạng/timeout/5xx, không phải sai mật khẩu) VÀ còn trong hạn
+`FallbackMaxAgeDays` (mặc định 14 ngày, chỉnh được ở trang "Xác thực HCRC
+Workspace") kể từ lần cache gần nhất. KHÔNG đồng bộ mật khẩu từ API HCRC
+Workspace (API không cung cấp, và chủ động giữ mật khẩu ngoài tầm kiểm
+soát của hệ thống nguồn là rủi ro không cần thiết).
+
+An toàn bổ sung: mỗi lần đăng nhập bằng dự phòng được ghi riêng vào Audit
+Log; trang "Người dùng" hiện cột "Mật khẩu dự phòng" (có/không, ngày cập
+nhật gần nhất) + nút "Xoá mật khẩu dự phòng" để Admin thu hồi NGAY (vd
+nhân viên nghỉ việc đột xuất đúng lúc HCRC Workspace đang sập, không đợi
+hết hạn 14 ngày).
+
+**Các bước triển khai:**
+1. `git pull origin main`
+2. Chạy lại `rp-db/schema.sql` (thêm cột `CachedPasswordHash`/
+   `CachedPasswordHashAt` ở `app.Users`, cột `FallbackMaxAgeDays` ở
+   `app.HcrcWorkspaceSettings`).
+3. `cd rp-user && npm run build`, copy `dist/` mới.
+4. `pm2 restart hcrc-rp-server`.
+5. Kiểm tra: đăng nhập bình thường 1 tài khoản HCRC Workspace (để tạo cache
+   dự phòng) → trang "Người dùng" hiện cột "Mật khẩu dự phòng" đã có giá
+   trị; tạm tắt "Bật xác thực HCRC Workspace" ở trang cấu hình (mô phỏng
+   dịch vụ sập) → đăng nhập lại ĐÚNG mật khẩu cũ vẫn vào được (dùng dự
+   phòng), Audit Log ghi rõ "dùng mật khẩu dự phòng"; bật lại cấu hình xong
+   kiểm tra tiếp.
+
+Chi tiết đầy đủ: `deploy/Cập nhật bản 8.47 — Mật khẩu dự phòng HCRC
+Workspace.md`.
+
 ## 8.46 — Sửa nút "Lên"/"Xuống" trắng trơn trong khung Tuỳ chỉnh Dashboard
 
 **Lỗi phát hiện lúc demo bản 8.45** (chụp ảnh thật bằng trình duyệt trước

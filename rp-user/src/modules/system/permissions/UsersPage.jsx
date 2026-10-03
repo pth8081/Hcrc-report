@@ -127,6 +127,16 @@ export default function UsersPage() {
     } catch (err) { setError(err.message); }
   }
 
+  // Xoá mật khẩu dự phòng cục bộ (bản 8.47) — xem rp-server/routes/users.js.
+  // Chỉ hiện khi tài khoản ĐANG có dự phòng (CachedPasswordHashAt khác null).
+  async function clearFallbackPassword(user) {
+    if (!confirm(`Xoá mật khẩu dự phòng cục bộ của "${user.Username}"? Nếu HCRC Workspace đang sập, người này sẽ KHÔNG đăng nhập được nữa cho tới khi HCRC Workspace sống lại.`)) return;
+    try {
+      await api.post(`/system/users/${user.Id}/clear-fallback-password`, {});
+      reload();
+    } catch (err) { setError(err.message); }
+  }
+
   return (
     <div className="page">
       <h2>Người dùng</h2>
@@ -156,6 +166,13 @@ export default function UsersPage() {
           { key: 'Phone', label: 'Điện thoại', render: (u) => u.Phone || '—' },
           { key: 'Email', label: 'Email', render: (u) => u.Email || '—' },
           { key: 'AuthSource', label: 'Nguồn xác thực', render: (u) => (u.AuthSource === 'local' ? 'Local' : 'HCRC Workspace') },
+          {
+            key: 'CachedPasswordHashAt', label: 'Mật khẩu dự phòng', render: (u) => (
+              u.AuthSource === 'hcrcWorkspace' && u.CachedPasswordHashAt
+                ? `Có (cập nhật ${new Date(u.CachedPasswordHashAt).toLocaleDateString('vi-VN')})`
+                : '—'
+            )
+          },
           { key: 'roles', label: 'Vai trò', render: (u) => u.roles.map(r => r.name).join(', ') || '—' },
           { key: 'IsActive', label: 'Trạng thái', render: (u) => (u.IsActive ? 'Hoạt động' : 'Chưa cho phép kết nối / đã khoá') },
           { key: 'TwoFactorEnabled', label: '2FA', render: (u) => (!u.roles.some(r => r.isSystemRole) ? '—' : (u.TwoFactorEnabled ? 'Đã bật' : 'Chưa bật')) },
@@ -166,7 +183,8 @@ export default function UsersPage() {
                 <button type="button" onClick={() => openRoleEditor(u)}>Gán vai trò</button>{' '}
                 {me?.isSystemRole && !u.roles.some(r => r.isSystemRole) && <button type="button" onClick={() => openAuthEditor(u)}>Nguồn xác thực</button>}{' '}
                 {me?.isSystemRole && u.AuthSource === 'local' && <button type="button" onClick={() => openResetPassword(u)}>Đặt lại mật khẩu</button>}{' '}
-                {me?.isSystemRole && u.roles.some(r => r.isSystemRole) && <button type="button" onClick={() => reset2fa(u)}>Đặt lại 2FA</button>}
+                {me?.isSystemRole && u.roles.some(r => r.isSystemRole) && <button type="button" onClick={() => reset2fa(u)}>Đặt lại 2FA</button>}{' '}
+                {me?.isSystemRole && u.AuthSource === 'hcrcWorkspace' && u.CachedPasswordHashAt && <button type="button" onClick={() => clearFallbackPassword(u)}>Xoá mật khẩu dự phòng</button>}
               </>
             )
           }

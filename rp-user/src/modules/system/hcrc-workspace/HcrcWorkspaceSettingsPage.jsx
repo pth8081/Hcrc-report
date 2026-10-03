@@ -8,7 +8,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../../../lib/api';
 import { useAuth } from '../../../lib/AuthContext';
 
-const EMPTY = { baseUrl: '', apiKey: '', verifyPath: '/api/external/verify-credentials', directoryPath: '/api/external/users', isEnabled: false };
+const EMPTY = { baseUrl: '', apiKey: '', verifyPath: '/api/external/verify-credentials', directoryPath: '/api/external/users', isEnabled: false, fallbackMaxAgeDays: 14 };
 
 export default function HcrcWorkspaceSettingsPage() {
   // PUT /system/hcrc-workspace và POST /test-connection đều yêu cầu
@@ -107,6 +107,10 @@ export default function HcrcWorkspaceSettingsPage() {
             <input placeholder="Đường dẫn xác thực" value={form.verifyPath} onChange={(e) => setForm({ ...form, verifyPath: e.target.value })} />
             <input placeholder="Đường dẫn danh bạ" value={form.directoryPath} onChange={(e) => setForm({ ...form, directoryPath: e.target.value })} />
             <label className="checkbox-row"><input type="checkbox" checked={form.isEnabled} onChange={(e) => setForm({ ...form, isEnabled: e.target.checked })} /> Bật xác thực HCRC Workspace</label>
+            <label>
+              Số ngày tối đa dùng mật khẩu dự phòng cục bộ khi HCRC Workspace không gọi được (0 = tắt hẳn dự phòng)
+              <input type="number" min="0" value={form.fallbackMaxAgeDays} onChange={(e) => setForm({ ...form, fallbackMaxAgeDays: e.target.value })} />
+            </label>
             <button type="submit">Lưu cấu hình</button>
           </form>
 

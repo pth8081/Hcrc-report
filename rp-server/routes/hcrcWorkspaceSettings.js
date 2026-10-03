@@ -29,7 +29,7 @@ router.get('/', async (req, res, next) => {
   try {
     const pool = await getPool('RP');
     const result = await pool.request().query(`
-      SELECT BaseUrl, ApiKeyEncrypted, VerifyPath, DirectoryPath, IsEnabled, LastSyncAt, LastSyncStatus, LastSyncError
+      SELECT BaseUrl, ApiKeyEncrypted, VerifyPath, DirectoryPath, IsEnabled, LastSyncAt, LastSyncStatus, LastSyncError, FallbackMaxAgeDays
       FROM app.HcrcWorkspaceSettings WHERE Id = 1
     `);
     if (!result.recordset.length) return res.json(null);
@@ -42,7 +42,8 @@ router.get('/', async (req, res, next) => {
       isEnabled: !!row.IsEnabled,
       lastSyncAt: row.LastSyncAt,
       lastSyncStatus: row.LastSyncStatus,
-      lastSyncError: row.LastSyncError
+      lastSyncError: row.LastSyncError,
+      fallbackMaxAgeDays: row.FallbackMaxAgeDays
     });
   } catch (err) { next(err); }
 });
@@ -74,8 +75,17 @@ function isSafeApiPath(p) {
 
 router.put('/', requireSystemRoleActor, async (req, res, next) => {
   try {
-    const { baseUrl, apiKey, verifyPath, directoryPath, isEnabled } = req.body || {};
+    const { baseUrl, apiKey, verifyPath, directoryPath, isEnabled, fallbackMaxAgeDays } = req.body || {};
     if (!baseUrl) return res.status(400).json({ error: 'Thiếu baseUrl' });
+    // fallbackMaxAgeDays (bản 8.47) — số ngày tối đa mật khẩu dự phòng cục bộ
+    // còn dùng được (xem lib/auth.js:verifyCredentials()) — 0 hợp lệ (tắt hẳn
+    // dự phòng, không bao giờ dùng cache dù mới cache ngay trước đó), số âm/
+    // không phải số thì KHÔNG hợp lệ.
+    const parsedFallbackMaxAgeDays = fallbackMaxAgeDays === undefined || fallbackMaxAgeDays === null || fallbackMaxAgeDays === ''
+      ? 14 : Number(fallbackMaxAgeDays);
+    if (!Number.isInteger(parsedFallbackMaxAgeDays) || parsedFallbackMaxAgeDays < 0) {
+      return res.status(400).json({ error: 'fallbackMaxAgeDays phải là số nguyên >= 0' });
+    }
     // BẮT BUỘC https — POST /verify-credentials gửi MẬT KHẨU THẬT của
     // người dùng trong body, http:// sẽ truyền plaintext qua mạng.
     if (!/^https:\/\//i.test(baseUrl)) {
@@ -105,14 +115,16 @@ router.put('/', requireSystemRoleActor, async (req, res, next) => {
       .input('verifyPath', sql.NVarChar(200), verifyPath || '/api/external/verify-credentials')
       .input('directoryPath', sql.NVarChar(200), directoryPath || '/api/external/users')
       .input('isEnabled', sql.Bit, isEnabled ? 1 : 0)
+      .input('fallbackMaxAgeDays', sql.Int, parsedFallbackMaxAgeDays)
       .query(`
         MERGE app.HcrcWorkspaceSettings AS target
         USING (SELECT 1 AS Id) AS src ON target.Id = src.Id
         WHEN MATCHED THEN UPDATE SET
           BaseUrl = @baseUrl, ApiKeyEncrypted = @apiKeyEncrypted, VerifyPath = @verifyPath,
-          DirectoryPath = @directoryPath, IsEnabled = @isEnabled, UpdatedAt = SYSUTCDATETIME()
-        WHEN NOT MATCHED THEN INSERT (Id, BaseUrl, ApiKeyEncrypted, VerifyPath, DirectoryPath, IsEnabled)
-          VALUES (1, @baseUrl, @apiKeyEncrypted, @verifyPath, @directoryPath, @isEnabled);
+          DirectoryPath = @directoryPath, IsEnabled = @isEnabled, FallbackMaxAgeDays = @fallbackMaxAgeDays,
+          UpdatedAt = SYSUTCDATETIME()
+        WHEN NOT MATCHED THEN INSERT (Id, BaseUrl, ApiKeyEncrypted, VerifyPath, DirectoryPath, IsEnabled, FallbackMaxAgeDays)
+          VALUES (1, @baseUrl, @apiKeyEncrypted, @verifyPath, @directoryPath, @isEnabled, @fallbackMaxAgeDays);
       `);
 
     await logAction(req, { module: 'Xác thực HCRC Workspace', actionType: 'CAP_NHAT', description: `Cập nhật cấu hình HCRC Workspace (${isEnabled ? 'đang bật' : 'đang tắt'})` });

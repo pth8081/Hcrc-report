@@ -152,11 +152,17 @@ app.post('/api/auth/login', async (req, res, next) => {
     // lib/permissions.js) — user thường KHÔNG áp dụng, đăng nhập xong ngay
     // như trước đây. Đúng mật khẩu nhưng CHƯA qua đủ 2 yếu tố -> KHÔNG đặt
     // cookie phiên đầy đủ, chỉ trả token trung gian.
+    // viaFallback (bản 8.47) — đăng nhập qua mật khẩu DỰ PHÒNG cục bộ vì HCRC
+    // Workspace không gọi được (xem lib/auth.js:verifyCredentials()) — ghi rõ
+    // vào mô tả Audit Log để Admin biết đang có sự cố, không lẫn với đăng
+    // nhập bình thường.
+    const fallbackNote = user.viaFallback ? ' (dùng mật khẩu dự phòng — HCRC Workspace tạm không gọi được)' : '';
+
     const context = await getUserContext(user.id);
     if (context?.isSystemRole) {
       await logAction({ ip: req.ip, user: { sub: user.id, username: user.username } }, {
         module: 'Đăng nhập', actionType: 'DANG_NHAP_CHO_2FA',
-        description: user.twoFactorEnabled ? 'Đúng mật khẩu, chờ xác thực hai yếu tố' : 'Đúng mật khẩu, chưa bật 2FA — bắt buộc đăng ký trước khi vào hệ thống'
+        description: (user.twoFactorEnabled ? 'Đúng mật khẩu, chờ xác thực hai yếu tố' : 'Đúng mật khẩu, chưa bật 2FA — bắt buộc đăng ký trước khi vào hệ thống') + fallbackNote
       });
       if (user.twoFactorEnabled) {
         return res.json({ twofa: 'pending', token: issuePending2FAToken(user) });
@@ -165,7 +171,7 @@ app.post('/api/auth/login', async (req, res, next) => {
     }
 
     await logAction({ ip: req.ip, user: { sub: user.id, username: user.username } }, {
-      module: 'Đăng nhập', actionType: 'DANG_NHAP', description: 'Đăng nhập thành công'
+      module: 'Đăng nhập', actionType: 'DANG_NHAP', description: 'Đăng nhập thành công' + fallbackNote
     });
     setSessionCookie(res, issueToken(user));
     res.json({ ok: true });

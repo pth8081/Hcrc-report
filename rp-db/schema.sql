@@ -98,6 +98,29 @@ BEGIN
 END
 GO
 
+-- Mật khẩu DỰ PHÒNG cho account AuthSource='hcrcWorkspace' (bản 8.47, theo
+-- yêu cầu người dùng) — KHÔNG đồng bộ mật khẩu từ HCRC Workspace (API không
+-- cung cấp, và chủ động giữ mật khẩu thật ngoài tầm kiểm soát của hệ thống
+-- nguồn là rủi ro không cần thiết). Thay vào đó: mỗi lần xác thực ONLINE
+-- thành công, lib/auth.js tự băm (bcrypt) lại đúng mật khẩu vừa gõ đúng vào
+-- CachedPasswordHash — CHỈ dùng tới khi HCRC Workspace báo lỗi dịch vụ
+-- (mạng/timeout/5xx, KHÔNG phải sai mật khẩu — xem lib/hcrcWorkspaceClient.js
+-- isServiceUnavailable) VÀ còn trong hạn FallbackMaxAgeDays kể từ
+-- CachedPasswordHashAt (xem app.HcrcWorkspaceSettings bên dưới) — quá hạn
+-- hoặc chưa từng có lần đăng nhập online nào thành công thì KHÔNG dùng được
+-- dự phòng, vẫn báo lỗi dịch vụ như trước bản này. Giới hạn hạn dùng để
+-- tránh 1 tài khoản đã nghỉ việc/đổi mật khẩu vẫn đăng nhập được vô thời
+-- hạn chỉ vì HCRC Workspace đang sập (xem routes/users.js POST
+-- /:id/clear-fallback-password — Admin xoá tay ngay khi cần, không đợi hết
+-- hạn).
+IF COL_LENGTH('app.Users', 'CachedPasswordHash') IS NULL
+BEGIN
+    ALTER TABLE app.Users ADD
+        CachedPasswordHash   NVARCHAR(200) NULL,
+        CachedPasswordHashAt DATETIME2(3)  NULL;
+END
+GO
+
 -- Thu hồi phiên đăng nhập (JWT) — JWT tự chứa (self-contained), verify chữ
 -- ký xong là qua, KHÔNG tự phát hiện được đổi mật khẩu/gỡ 2FA/đổi vai
 -- trò/khoá tài khoản cho tới khi token tự hết hạn (TTL 2h, có thể "trượt"
@@ -139,6 +162,16 @@ BEGIN
         LastSyncError   NVARCHAR(1000) NULL,
         UpdatedAt       DATETIME2(3)  NOT NULL DEFAULT SYSUTCDATETIME()
     );
+END
+GO
+
+-- Số ngày tối đa mật khẩu dự phòng (app.Users.CachedPasswordHash, bản 8.47)
+-- còn dùng được kể từ lần cache gần nhất — xem
+-- lib/hcrcWorkspaceClient.js:getFallbackMaxAgeDays(). Mặc định 14 ngày,
+-- Admin chỉnh được ở trang "Xác thực HCRC Workspace".
+IF COL_LENGTH('app.HcrcWorkspaceSettings', 'FallbackMaxAgeDays') IS NULL
+BEGIN
+    ALTER TABLE app.HcrcWorkspaceSettings ADD FallbackMaxAgeDays INT NOT NULL DEFAULT 14;
 END
 GO
 

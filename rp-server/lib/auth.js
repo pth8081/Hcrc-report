@@ -7,7 +7,7 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const { sql, getPool } = require('../db');
 const { getUserContext } = require('./permissions');
-const { verifyPassword: verifyHcrcWorkspacePassword } = require('./hcrcWorkspaceClient');
+const { verifyPassword: verifyHcrcWorkspacePassword, getFallbackMaxAgeDays } = require('./hcrcWorkspaceClient');
 const { isSessionRevoked } = require('./sessionRevocation');
 
 const COOKIE_NAME = 'hcrc_rp_token';
@@ -68,18 +68,30 @@ function getSecret() {
 // AuthSource='local' (mặc định, hành vi cũ) -> so PasswordHash tại đây.
 // AuthSource='hcrcWorkspace' -> KHÔNG có PasswordHash local, gọi
 // lib/hcrcWorkspaceClient.js MỖI LẦN đăng nhập — lỗi mạng/timeout/HTTP lỗi
-// từ đó ném err.isServiceUnavailable=true, NÉM TIẾP ra ngoài (khác "sai mật
-// khẩu" — trả null) để server.js trả 503 riêng, không lẫn với "sai mật
-// khẩu" (tránh gây hiểu lầm đổi mật khẩu vô ích khi lỗi thật ở dịch vụ
-// ngoài). Vai trò Admin (IsSystemRole) LUÔN bị ép AuthSource='local' lúc gán
-// vai trò (xem routes/users.js) — không phụ thuộc uptime HCRC Workspace để
-// đăng nhập được admin.
+// từ đó ném err.isServiceUnavailable=true. Vai trò Admin (IsSystemRole)
+// LUÔN bị ép AuthSource='local' lúc gán vai trò (xem routes/users.js) —
+// không phụ thuộc uptime HCRC Workspace để đăng nhập được admin.
+//
+// Mật khẩu DỰ PHÒNG (bản 8.47, theo yêu cầu người dùng) — khi dịch vụ KHÔNG
+// GỌI ĐƯỢC (isServiceUnavailable, KHÁC "sai mật khẩu" — trường hợp đó HCRC
+// Workspace vẫn trả 200 kèm success:false, không rơi vào nhánh catch này),
+// thử so với CachedPasswordHash đã băm sẵn từ LẦN XÁC THỰC ONLINE THÀNH
+// CÔNG GẦN NHẤT — chỉ dùng được trong hạn FallbackMaxAgeDays kể từ
+// CachedPasswordHashAt (xem lib/hcrcWorkspaceClient.js:getFallbackMaxAgeDays()
+// — null/chưa cấu hình gì = không cho dùng dự phòng). Không có/hết hạn cache
+// -> NÉM TIẾP lỗi isServiceUnavailable như hành vi gốc (server.js trả 503
+// riêng, không lẫn với "sai mật khẩu" — tránh gây hiểu lầm đổi mật khẩu vô
+// ích khi lỗi thật ở dịch vụ ngoài).
 async function verifyCredentials(username, password) {
   if (!username || !password) return null;
   const pool = await getPool('RP');
   const result = await pool.request()
     .input('username', sql.NVarChar(50), username)
-    .query('SELECT Id, Username, PasswordHash, AuthSource, IsActive, TwoFactorEnabled FROM app.Users WHERE Username = @username');
+    .query(`
+      SELECT Id, Username, PasswordHash, AuthSource, IsActive, TwoFactorEnabled,
+             CachedPasswordHash, CachedPasswordHashAt
+      FROM app.Users WHERE Username = @username
+    `);
   const user = result.recordset[0];
   if (!user || !user.IsActive) {
     await bcrypt.compare(password, DUMMY_HASH);
@@ -87,8 +99,31 @@ async function verifyCredentials(username, password) {
   }
 
   let ok;
+  let viaFallback = false;
   if (user.AuthSource === 'hcrcWorkspace') {
-    ok = await verifyHcrcWorkspacePassword(user.Username, password);
+    try {
+      ok = await verifyHcrcWorkspacePassword(user.Username, password);
+      if (ok) {
+        // Cache lại NGAY mật khẩu vừa xác thực đúng qua mạng, dùng dần cho
+        // lần dịch vụ sập sau này — không chờ ghi xong mới trả kết quả đăng
+        // nhập (fire-and-forget), lỗi ghi cache ở đây (hiếm, CSDL RP đang
+        // trục trặc) không được làm hỏng 1 lượt đăng nhập vốn đã đúng.
+        bcrypt.hash(password, 10)
+          .then(hash => pool.request().input('id', sql.Int, user.Id).input('hash', sql.NVarChar(200), hash)
+            .query('UPDATE app.Users SET CachedPasswordHash = @hash, CachedPasswordHashAt = SYSUTCDATETIME() WHERE Id = @id'))
+          .catch(() => {});
+      }
+    } catch (err) {
+      if (!err.isServiceUnavailable) throw err;
+      const maxAgeDays = await getFallbackMaxAgeDays();
+      const cacheAgeDays = user.CachedPasswordHashAt ? (Date.now() - new Date(user.CachedPasswordHashAt).getTime()) / 86400000 : Infinity;
+      if (user.CachedPasswordHash && maxAgeDays != null && cacheAgeDays <= maxAgeDays) {
+        ok = await bcrypt.compare(password, user.CachedPasswordHash);
+        viaFallback = ok;
+      } else {
+        throw err;
+      }
+    }
   } else {
     ok = await bcrypt.compare(password, user.PasswordHash || DUMMY_HASH);
   }
@@ -98,7 +133,7 @@ async function verifyCredentials(username, password) {
     .input('id', sql.Int, user.Id)
     .query('UPDATE app.Users SET LastLoginAt = SYSUTCDATETIME() WHERE Id = @id');
 
-  return { id: user.Id, username: user.Username, twoFactorEnabled: !!user.TwoFactorEnabled };
+  return { id: user.Id, username: user.Username, twoFactorEnabled: !!user.TwoFactorEnabled, viaFallback };
 }
 
 // Tra xem 1 username có vai trò IsSystemRole=1 hay không, TRƯỚC khi kiểm

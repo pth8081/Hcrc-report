@@ -138,4 +138,18 @@ async function fetchDirectory() {
   }));
 }
 
-module.exports = { verifyPassword, fetchDirectory, serviceUnavailableError };
+// Số ngày tối đa mật khẩu dự phòng (app.Users.CachedPasswordHash, bản 8.47 —
+// xem lib/auth.js:verifyCredentials()) còn dùng được. Đọc THẲNG cột
+// FallbackMaxAgeDays, KHÔNG qua loadSettings() ở trên (hàm đó ném lỗi ngay
+// nếu IsEnabled=0/chưa cấu hình gì — ở đây cần đọc được NGAY CẢ khi dịch vụ
+// đang coi như tắt, vì đây chính là nhánh xử lý lúc dịch vụ không gọi được).
+// Chưa từng có dòng cấu hình nào (Id=1 chưa tồn tại) -> trả null, nghĩa là
+// KHÔNG cho dùng dự phòng (an toàn hơn là tự ý suy ra 1 giá trị mặc định khi
+// admin chưa từng mở trang cấu hình này).
+async function getFallbackMaxAgeDays() {
+  const pool = await getPool('RP');
+  const result = await pool.request().query('SELECT FallbackMaxAgeDays FROM app.HcrcWorkspaceSettings WHERE Id = 1');
+  return result.recordset[0]?.FallbackMaxAgeDays ?? null;
+}
+
+module.exports = { verifyPassword, fetchDirectory, serviceUnavailableError, getFallbackMaxAgeDays };

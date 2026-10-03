@@ -27,7 +27,7 @@ router.get('/', async (req, res, next) => {
     const pool = await getPool('RP');
     const users = await pool.request().query(`
       SELECT Id, Username, FullName, Email, Phone, Department, Position, WorkLocation, AuthSource, LastSyncedAt,
-             IsActive, TwoFactorEnabled, CreatedAt, LastLoginAt
+             IsActive, TwoFactorEnabled, CreatedAt, LastLoginAt, CachedPasswordHashAt
       FROM app.Users ORDER BY Username
     `);
     const roles = await pool.request().query(`
@@ -246,6 +246,23 @@ router.put('/:id/auth-source', requireSystemRoleActor, async (req, res, next) =>
     // (xem lib/sessionRevocation.js).
     await revokeSessions(targetId);
     await logAction(req, { module: 'Phân quyền', actionType: 'DOI_NGUON_XAC_THUC', targetObject: req.params.id, description: `Đổi nguồn xác thực người dùng #${targetId} sang "${authSource}"` });
+    res.json({ ok: true });
+  } catch (err) { next(err); }
+});
+
+// Xoá mật khẩu dự phòng cục bộ (bản 8.47) — thu hồi NGAY khả năng đăng nhập
+// qua fallback (xem lib/auth.js:verifyCredentials()) mà KHÔNG cần đợi hết
+// hạn FallbackMaxAgeDays — dùng khi 1 nhân viên nghỉ việc/bị thu hồi quyền
+// ĐỘT XUẤT đúng lúc HCRC Workspace đang sập, không tin tưởng được đồng bộ
+// tài khoản (POST /sync bên dưới) sẽ tự khoá kịp vì nó cũng gọi HCRC
+// Workspace. requireSystemRoleActor — cùng mức nhạy cảm với reset-password.
+router.post('/:id/clear-fallback-password', requireSystemRoleActor, async (req, res, next) => {
+  try {
+    const targetId = parseInt(req.params.id, 10);
+    const pool = await getPool('RP');
+    await pool.request().input('id', sql.Int, targetId)
+      .query('UPDATE app.Users SET CachedPasswordHash = NULL, CachedPasswordHashAt = NULL WHERE Id = @id');
+    await logAction(req, { module: 'Phân quyền', actionType: 'XOA_MK_DU_PHONG', targetObject: req.params.id, description: `Xoá mật khẩu dự phòng cục bộ của người dùng #${targetId}` });
     res.json({ ok: true });
   } catch (err) { next(err); }
 });
