@@ -27,6 +27,27 @@ triển khai thật trên server (lệnh chạy, file cần sửa tay, thứ t�
 không chỉ mô tả tính năng như mục ở trên. KHÔNG thay thế việc vẫn tạo file
 riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước giờ.
 
+## 8.40 — Tự đặt lại mã 2FA (đổi thiết bị) ở "Tài khoản của tôi" — rp-user
+
+Theo yêu cầu người dùng: admin (vai trò hệ thống) tự đặt lại mã 2FA của
+CHÍNH MÌNH để quét QR mới trên thiết bị/app Authenticator KHÁC (vd đổi
+điện thoại), không cần nhờ admin khác vào trang "Phân quyền" bấm "Đặt lại
+2FA" giúp (mục đó CHỈ còn cần khi MẤT HẲN thiết bị, không tự xác thực lại
+được). Phát hiện khi rà code: **backend ĐÃ CÓ SẴN 100% luồng này** từ
+trước (nhánh "Đổi thiết bị" trong `POST /api/2fa/setup` — không kèm
+`token`, chỉ kèm `currentCode`, xem `routes/twoFactor.js`) — chỉ THIẾU
+giao diện gọi tới, bản này CHỈ thêm đúng phần đó, không đổi gì ở backend.
+
+- `modules/system/account/AccountPage.jsx` — thêm `TwoFactorResetFlow`
+  (3 bước: nhập mã 6 số hiện tại → quét QR mới + nhập mã mới xác nhận →
+  lưu lại 10 mã khôi phục mới) + mục "Bảo mật — Xác thực hai yếu tố", CHỈ
+  hiện cho tài khoản `isSystemRole` (2FA không áp dụng cho vai trò khác).
+- `styles.css` — thêm `.security-card` (tái dùng `.twofa-qr`/`.twofa-secret`/
+  `.recovery-codes` đã có sẵn từ màn hình đăng nhập).
+- Đã `npm run build` xác nhận không lỗi. Chỉ sửa `rp-user` — CHƯA áp dụng
+  cho `etl-admin`/`api-admin` (để đợt sau, theo đúng thứ tự người dùng đã
+  chốt).
+
 ## 8.39 — Mã xác nhận (captcha 4 chữ số) khi đăng nhập, cả 3 app
 
 Theo yêu cầu người dùng: thêm bước "Mã xác nhận" (captcha dạng ảnh, đúng 4

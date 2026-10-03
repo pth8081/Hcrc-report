@@ -12,6 +12,23 @@ cập nhật file này ở mọi bản sau, cho tới khi người dùng bảo d
 
 ---
 
+## 8.40 — Tự đặt lại mã 2FA (đổi thiết bị) — rp-user
+
+**Thay đổi**: trang "Tài khoản của tôi" (rp-user) có thêm nút "Đặt lại mã
+2FA" cho tài khoản Admin hệ thống — tự quét QR mới trên thiết bị khác,
+không cần nhờ admin khác. Backend đã có sẵn từ trước, chỉ thêm giao diện.
+
+**Các bước triển khai:**
+1. `git pull origin main`
+2. `cd rp-user && npm run build`, copy `dist/` mới.
+3. Kiểm tra: "Tài khoản của tôi" (tài khoản Admin hệ thống) có mục "Bảo
+   mật — Xác thực hai yếu tố"; đặt lại thử 1 lần, 2FA cũ ngừng dùng được.
+
+Không đổi CSDL, không đổi backend. Chi tiết đầy đủ: `deploy/Cập nhật bản
+8.40 — Tự đặt lại 2FA Report.md`.
+
+---
+
 ## 8.39 — Captcha đăng nhập (4 chữ số, cả 3 app)
 
 **Thay đổi**: thêm ô "Mã xác nhận" (captcha 4 chữ số, tự sinh trên server

@@ -12,6 +12,111 @@ import { api } from '../../../lib/api';
 import { useAuth } from '../../../lib/AuthContext';
 import PasswordInput from '../../../components/PasswordInput';
 
+// "Đặt lại mã 2FA" (bản 8.40, theo yêu cầu người dùng: tự đăng ký lại 2FA
+// trên thiết bị/app Authenticator KHÁC, vd đổi điện thoại, mà không cần
+// nhờ Admin khác "Đặt lại 2FA" giúp — xem routes/users.js, mục đó vẫn giữ
+// nguyên cho trường hợp MẤT hẳn thiết bị). Backend route NÀY (POST /2fa/setup
+// KHÔNG kèm "token", chỉ kèm "currentCode") đã có sẵn từ trước (nhánh "Đổi
+// thiết bị" trong routes/twoFactor.js) — CHỈ thiếu giao diện gọi tới, bản
+// này thêm đúng phần đó, không đổi gì ở backend.
+function TwoFactorResetFlow({ onClose }) {
+  const { setupTwoFactor, confirmTwoFactor } = useAuth();
+  const [step, setStep] = useState('currentCode'); // 'currentCode' | 'scan' | 'done'
+  const [currentCode, setCurrentCode] = useState('');
+  const [newCode, setNewCode] = useState('');
+  const [qrDataUrl, setQrDataUrl] = useState('');
+  const [secret, setSecret] = useState('');
+  const [enrollToken, setEnrollToken] = useState('');
+  const [recoveryCodes, setRecoveryCodes] = useState(null);
+  const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  async function submitCurrentCode(e) {
+    e.preventDefault();
+    setError('');
+    setSubmitting(true);
+    try {
+      const r = await setupTwoFactor({ currentCode });
+      setQrDataUrl(r.qrDataUrl);
+      setSecret(r.secret);
+      setEnrollToken(r.token);
+      setStep('scan');
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function submitNewCode(e) {
+    e.preventDefault();
+    setError('');
+    setSubmitting(true);
+    try {
+      const r = await confirmTwoFactor(enrollToken, newCode);
+      setRecoveryCodes(r.recoveryCodes);
+      setStep('done');
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  if (step === 'done') {
+    return (
+      <div className="security-card">
+        <h4>Lưu lại 10 mã khôi phục mới</h4>
+        <p className="twofa-hint">
+          Mã QR/secret CŨ đã ngừng dùng được ngay từ bây giờ. Chép lại/in 10 mã bên dưới và cất nơi
+          an toàn — trang này CHỈ hiện đúng 1 lần, không xem lại được.
+        </p>
+        <div className="recovery-codes">{recoveryCodes.map((c) => <div key={c}>{c}</div>)}</div>
+        <div className="modal-actions"><button type="button" onClick={onClose}>Xong</button></div>
+      </div>
+    );
+  }
+
+  if (step === 'scan') {
+    return (
+      <form className="security-card" onSubmit={submitNewCode}>
+        <h4>Quét mã QR mới</h4>
+        <p className="twofa-hint">
+          Mở app Authenticator trên thiết bị/máy MỚI và quét mã QR bên dưới — quét được trên NHIỀU
+          thiết bị cùng lúc ngay bây giờ nếu muốn dùng chung 1 mã cho vài máy.
+        </p>
+        {error && <p className="form-error">{error}</p>}
+        <img className="twofa-qr" src={qrDataUrl} alt="Mã QR 2FA mới" />
+        <p className="twofa-secret">{secret}</p>
+        <label>
+          <span className="field-label">Nhập mã 6 số vừa hiện trong app để xác nhận</span>
+          <input value={newCode} onChange={(e) => setNewCode(e.target.value)} autoFocus autoComplete="one-time-code" />
+        </label>
+        <div className="modal-actions">
+          <button type="submit" disabled={submitting}>{submitting ? 'Đang xác nhận...' : 'Xác nhận & đổi mã 2FA'}</button>
+          <button type="button" onClick={onClose}>Huỷ</button>
+        </div>
+      </form>
+    );
+  }
+
+  return (
+    <form className="security-card" onSubmit={submitCurrentCode}>
+      <h4>Xác nhận bạn vẫn kiểm soát thiết bị hiện tại</h4>
+      <p className="twofa-hint">Nhập đúng mã 6 số HIỆN TẠI (chứng minh vẫn còn thiết bị cũ) để được cấp mã QR mới.</p>
+      {error && <p className="form-error">{error}</p>}
+      <label>
+        <span className="field-label">Mã 6 số hiện tại từ app Authenticator</span>
+        <input value={currentCode} onChange={(e) => setCurrentCode(e.target.value)} autoFocus autoComplete="one-time-code" />
+      </label>
+      <div className="modal-actions">
+        <button type="submit" disabled={submitting}>{submitting ? 'Đang kiểm tra...' : 'Tiếp tục'}</button>
+        <button type="button" onClick={onClose}>Huỷ</button>
+      </div>
+    </form>
+  );
+}
+
 export default function AccountPage() {
   const { me, logout } = useAuth();
   const [currentPassword, setCurrentPassword] = useState('');
@@ -20,6 +125,7 @@ export default function AccountPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [saving, setSaving] = useState(false);
+  const [showTwoFactorReset, setShowTwoFactorReset] = useState(false);
 
   const tooShort = newPassword.length > 0 && newPassword.length < 8;
   const mismatch = confirmPassword.length > 0 && newPassword !== confirmPassword;
@@ -71,6 +177,26 @@ export default function AccountPage() {
             <button type="submit" disabled={saving || tooShort || mismatch}>{saving ? 'Đang lưu...' : 'Đổi mật khẩu'}</button>
           </div>
         </form>
+      )}
+
+      {/* 2FA chỉ bắt buộc/áp dụng cho vai trò hệ thống (IsSystemRole, xem
+          rp-server/lib/permissions.js) — tài khoản khác không có gì để
+          đặt lại ở đây, ẩn hẳn mục này cho đỡ rối. */}
+      {me?.isSystemRole && (
+        <>
+          <h3>Bảo mật — Xác thực hai yếu tố</h3>
+          <p className="form-hint">
+            Đặt lại mã 2FA để quét mã QR mới trên thiết bị/app Authenticator KHÁC (vd đổi điện
+            thoại) — không cần nhờ Admin khác "Đặt lại 2FA" giúp (chỉ dùng khi MẤT hẳn thiết bị cũ).
+          </p>
+          {!showTwoFactorReset ? (
+            <div className="modal-actions">
+              <button type="button" onClick={() => setShowTwoFactorReset(true)}>Đặt lại mã 2FA</button>
+            </div>
+          ) : (
+            <TwoFactorResetFlow onClose={() => setShowTwoFactorReset(false)} />
+          )}
+        </>
       )}
     </div>
   );
