@@ -20,12 +20,14 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
-**TỰ ĐỘNG, không cần nhắc (từ bản 8.34, theo yêu cầu người dùng 03/10/2026,
+**TỰ ĐỘNG, không cần nhắc (từ bản 8.31, theo yêu cầu người dùng 03/10/2026,
 tới khi người dùng bảo dừng)**: mọi lần merge PHẢI kèm thêm 1 mục mới ở
-ĐẦU file `deploy/Nhật ký triển khai (từ bản 8.34).md` — tóm tắt CÁC BƯỚC
+ĐẦU file `deploy/Nhật ký triển khai (từ bản 8.31).md` — tóm tắt CÁC BƯỚC
 triển khai thật trên server (lệnh chạy, file cần sửa tay, thứ tự làm),
 không chỉ mô tả tính năng như mục ở trên. KHÔNG thay thế việc vẫn tạo file
-riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước giờ.
+riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước giờ. (File
+gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
+8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
 ## 8.55 — Script tạo tự động 2 job đồng bộ cho 3 báo cáo "hết hàng"
 

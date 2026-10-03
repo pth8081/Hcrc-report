@@ -1,14 +1,16 @@
-# Nhật ký triển khai — từ bản 8.34 trở đi
+# Nhật ký triển khai — từ bản 8.31 trở đi
 
 **TỰ ĐỘNG, không cần nhắc**: kể từ khi người dùng yêu cầu (03/10/2026),
-MỌI lần merge vào `main` từ bản 8.34 trở đi PHẢI kèm thêm 1 mục MỚI ở
+MỌI lần merge vào `main` từ bản 8.31 trở đi PHẢI kèm thêm 1 mục MỚI ở
 đầu file này (mới nhất lên trên, giống quy ước `VERSION.md`), tóm tắt
 đúng CÁC BƯỚC triển khai thật trên server (lệnh chạy, file cần sửa tay,
 thứ tự làm) — không chỉ mô tả tính năng. Việc này KHÔNG thay thế từng file
 riêng `deploy/Cập nhật bản X.Y — ....md` (vẫn tạo như cũ, tiện khi chỉ cần
 đưa đúng 1 bản cho IT) — file NÀY là bản gộp MỘT NƠI DUY NHẤT để xem lại
 toàn bộ lịch sử triển khai liên tục, không phải mở nhiều file. TIẾP TỤC
-cập nhật file này ở mọi bản sau, cho tới khi người dùng bảo dừng.
+cập nhật file này ở mọi bản sau, cho tới khi người dùng bảo dừng. (File
+tạo lần đầu ở bản 8.36 — ghi sẵn 8.34/8.35; sau đó lùi mốc bắt đầu về đúng
+bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.33.)
 
 ---
 
@@ -434,3 +436,77 @@ khai Live hết toàn bộ siêu thị còn lại.
 
 Không đổi cấu trúc CSDL. Chi tiết đầy đủ: `deploy/Cập nhật bản 8.34 — Top
 5 đọc domain Thành viên.md`.
+
+---
+
+## 8.33 — Sửa "Failed to fetch" khi Nhập hàng loạt Sync Job nhiều dòng
+
+**Thay đổi**: Nhập hàng loạt 68 dòng Sync Job (34 siêu thị Thành viên) báo
+lỗi trình duyệt "Failed to fetch" — nguyên nhân là Nginx, không phải code
+Node: `proxy_read_timeout 65s` chung cho `/admin/` quá ngắn so với thời
+gian đối chiếu schema THẬT từng dòng qua mạng (chạy tuần tự).
+
+**QUAN TRỌNG — sửa `deploy/nginx.conf`, KHÔNG phải code Node** — `git
+pull` + `pm2 restart` KHÔNG đủ, phải tự tay áp dụng cấu hình Nginx mới.
+
+**Các bước triển khai:**
+1. `git pull origin main`
+2. Mở file Nginx thật đang dùng cho domain etl-admin, thêm 1 `location`
+   RIÊNG khớp đúng 2 route Nhập hàng loạt (`/admin/sync-jobs/import`,
+   `/admin/data-sources/import`), nâng `proxy_read_timeout`/
+   `proxy_send_timeout` lên 600s — xem nguyên văn khối cấu hình ở
+   `deploy/nginx.conf` bản mới nhất. Khối `/admin/` cũ giữ nguyên 65s.
+3. `nginx -t` (phải báo "syntax is ok") rồi `systemctl reload nginx`.
+4. Kiểm tra: Nhập hàng loạt file nhiều dòng (vd 68 dòng) chạy xong, không
+   còn "Failed to fetch"; các route `/admin/` khác không bị ảnh hưởng.
+
+Không đổi CSDL, không đổi code Node. Chi tiết đầy đủ: `deploy/Cập nhật bản
+8.33 — Sửa Failed to fetch Nhập hàng loạt.md`.
+
+---
+
+## 8.32 — Sửa lỗi tương tự ở "File mẫu" Sync Job
+
+**Thay đổi**: rà lại toàn bộ sau bug 8.31, phát hiện `buildSyncJobsTemplate()`
+(`etl/lib/syncJobsImport.js`) bị ĐÚNG lỗi tương tự (bỏ sót khi sửa 8.31 —
+lần đó chỉ soát `dataSourcesImport.js`) — file mẫu Sync Job cũng có 1 dòng
+câu hướng dẫn trước header, trong khi `parseSyncJobsFile()` đọc header
+cứng ở dòng 1.
+
+**Các bước triển khai:**
+1. `git pull origin main`
+2. `pm2 restart hcrc-etl`
+3. Kiểm tra: etl-admin → Đồng bộ → "Tải file mẫu" → dòng 1 phải là header,
+   dòng 2-3 là 2 dòng ví dụ, không còn câu hướng dẫn phía trên header;
+   nhập thử lại file Sync Job 68 dòng (34 siêu thị Thành viên) phải nhập
+   đủ, không báo "không tìm thấy Nguồn dữ liệu".
+
+Không đổi CSDL. Chi tiết đầy đủ: `deploy/Cập nhật bản 8.31-8.32 — Sửa lỗi
+file mẫu Nguồn dữ liệu + Sync Job.md`.
+
+---
+
+## 8.31 — Sửa lỗi "File mẫu" Nguồn dữ liệu (header lệch dòng 2)
+
+**Thay đổi**: phát hiện khi triển khai thật 34 siêu thị Thành viên (bản
+8.30) — file mẫu "Nguồn dữ liệu" (`buildDataSourcesTemplate()`,
+`etl/lib/dataSourcesImport.js`) tạo ra với dòng 1 là câu hướng dẫn, dòng 2
+mới là header thật, nhưng `parseDataSourcesFile()` đọc header CỨNG ở dòng
+1 — ai tải file mẫu, xoá CHỮ ở dòng 1 (không xoá nguyên dòng) rồi điền dữ
+liệu sẽ bị báo "File thiếu cột bắt buộc 'Name'" dù đã điền đủ cột.
+
+**Đã XÁC NHẬN không đổi cấu trúc CSDL** — chỉ sửa 2 file backend
+(`etl/lib/dataSourcesImport.js`, `etl/lib/syncJobsImport.js` — xem bản
+8.32 ngay trên), KHÔNG cần build lại giao diện nào.
+
+**Các bước triển khai:**
+1. `git pull origin main`
+2. `pm2 restart hcrc-etl`
+3. Kiểm tra: etl-admin → Nguồn dữ liệu → "Tải file mẫu" → dòng 1 phải là
+   header (`Name, Server, DatabaseName, Username, Password, Engine, Port,
+   Encrypt, TrustServerCert`), dòng 2 là dòng ví dụ; nhập thử lại file
+   "Nguồn dữ liệu" 34 siêu thị Thành viên phải nhập được, không còn báo
+   "File thiếu cột bắt buộc 'Name'".
+
+Chi tiết đầy đủ (gộp chung 8.31+8.32): `deploy/Cập nhật bản 8.31-8.32 —
+Sửa lỗi file mẫu Nguồn dữ liệu + Sync Job.md`.
