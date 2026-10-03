@@ -9,6 +9,8 @@ const { invalidateUser, getUserContext } = require('../lib/permissions');
 const { revokeSessions } = require('../lib/sessionRevocation');
 const { logAction } = require('../lib/auditLog');
 const { fetchDirectory } = require('../lib/hcrcWorkspaceClient');
+const { loadDiemStkMapping } = require('../lib/diemStkMapping');
+const { resolveMaDiemForDepartment } = require('../lib/departmentStoreMapping');
 
 const router = express.Router();
 router.use(requireAuth, requireMenuAccess('system-permissions'));
@@ -39,7 +41,83 @@ router.get('/', async (req, res, next) => {
       if (!rolesByUser.has(r.UserId)) rolesByUser.set(r.UserId, []);
       rolesByUser.get(r.UserId).push({ id: r.RoleId, code: r.Code, name: r.Name, isSystemRole: !!r.IsSystemRole });
     }
-    res.json(users.recordset.map(u => ({ ...u, roles: rolesByUser.get(u.Id) || [] })));
+    // storeAccess (bản 8.50) — CHỈ để hiện cột "Phạm vi dữ liệu" (bao nhiêu
+    // siêu thị đã gán, [] = "Toàn bộ") — CHƯA có tầng nào đọc để lọc dữ liệu
+    // thật (dự kiến bản sau), xem app.UserStoreAccess.
+    const storeAccess = await pool.request().query('SELECT UserId, MaDiem FROM app.UserStoreAccess');
+    const storeAccessByUser = new Map();
+    for (const r of storeAccess.recordset) {
+      if (!storeAccessByUser.has(r.UserId)) storeAccessByUser.set(r.UserId, []);
+      storeAccessByUser.get(r.UserId).push(r.MaDiem);
+    }
+    res.json(users.recordset.map(u => ({ ...u, roles: rolesByUser.get(u.Id) || [], storeAccess: storeAccessByUser.get(u.Id) || [] })));
+  } catch (err) { next(err); }
+});
+
+// Danh mục Mã Điểm + tên hiển thị (Ánh xạ Điểm - STK_ID, CSDL ETL) — dùng
+// để tick chọn ở khung "Phạm vi dữ liệu" bên dưới, KHÔNG lặp lại dữ liệu
+// (đọc thẳng qua lib/diemStkMapping.js đã có cache sẵn).
+router.get('/store-catalog', async (req, res, next) => {
+  try {
+    const diemMapping = await loadDiemStkMapping();
+    const list = [...diemMapping.entries()].map(([maDiem, info]) => ({ maDiem, tenSieuThi: info.tenSieuThi || maDiem }));
+    list.sort((a, b) => a.tenSieuThi.localeCompare(b.tenSieuThi, 'vi'));
+    res.json(list);
+  } catch (err) { next(err); }
+});
+
+// Phạm vi dữ liệu hiện có CỦA 1 người + gợi ý tự động (bản 8.50) — gợi ý
+// CHỈ hiện khi WorkLocation="Siêu Thị" VÀ hiện CHƯA gán siêu thị nào (đã
+// gán rồi thì giữ nguyên lựa chọn admin, không gợi ý đè lên).
+router.get('/:id/store-access', async (req, res, next) => {
+  try {
+    const targetId = parseInt(req.params.id, 10);
+    const pool = await getPool('RP');
+    const userResult = await pool.request().input('id', sql.Int, targetId)
+      .query('SELECT Department, WorkLocation FROM app.Users WHERE Id = @id');
+    if (!userResult.recordset.length) return res.status(404).json({ error: 'Không tìm thấy người dùng' });
+    const { Department, WorkLocation } = userResult.recordset[0];
+
+    const accessResult = await pool.request().input('id', sql.Int, targetId)
+      .query('SELECT MaDiem FROM app.UserStoreAccess WHERE UserId = @id');
+    const maDiems = accessResult.recordset.map(r => r.MaDiem);
+
+    let suggestedMaDiem = null;
+    if (!maDiems.length && WorkLocation === 'Siêu Thị') {
+      suggestedMaDiem = await resolveMaDiemForDepartment(Department);
+    }
+    res.json({ maDiems, suggestedMaDiem });
+  } catch (err) { next(err); }
+});
+
+// Gán phạm vi dữ liệu — THAO TÁC NHẠY CẢM (quyết định người này thấy đúng
+// dữ liệu siêu thị nào), chỉ Admin hệ thống thật, cùng mức requireSystemRoleActor
+// với /:id/roles. maDiems=[] = "Toàn bộ" (xoá hết giới hạn).
+router.put('/:id/store-access', requireSystemRoleActor, async (req, res, next) => {
+  try {
+    const { maDiems = [] } = req.body || {};
+    const pool = await getPool('RP');
+    const tx = new sql.Transaction(pool);
+    await tx.begin();
+    try {
+      await new sql.Request(tx).input('id', sql.Int, req.params.id).query('DELETE FROM app.UserStoreAccess WHERE UserId = @id');
+      for (const maDiem of maDiems) {
+        await new sql.Request(tx)
+          .input('id', sql.Int, req.params.id)
+          .input('maDiem', sql.NVarChar(50), maDiem)
+          .query('INSERT INTO app.UserStoreAccess (UserId, MaDiem) VALUES (@id, @maDiem)');
+      }
+      await tx.commit();
+    } catch (err) {
+      await tx.rollback().catch(() => {});
+      throw err;
+    }
+    invalidateUser(parseInt(req.params.id, 10));
+    await logAction(req, {
+      module: 'Phân quyền', actionType: 'GAN_PHAM_VI_DU_LIEU', targetObject: req.params.id,
+      description: maDiems.length ? `Giới hạn phạm vi dữ liệu người dùng #${req.params.id}: [${maDiems.join(', ')}]` : `Bỏ giới hạn phạm vi dữ liệu người dùng #${req.params.id} (Toàn bộ)`
+    });
+    res.json({ ok: true });
   } catch (err) { next(err); }
 });
 

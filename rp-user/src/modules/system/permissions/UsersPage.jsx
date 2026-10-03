@@ -29,10 +29,19 @@ export default function UsersPage() {
   const [dashboardGroupCatalog, setDashboardGroupCatalog] = useState([]);
   const [selectedReportIds, setSelectedReportIds] = useState([]);
   const [dashboardGroupAccess, setDashboardGroupAccess] = useState({});
+  // Phạm vi dữ liệu theo siêu thị (bản 8.50) — CHƯA lọc dữ liệu thật (chỉ
+  // lưu gán, xem rp-server/routes/users.js). storeCatalog tải sẵn ở reload()
+  // (không lazy như reportCatalog) để cột "Phạm vi dữ liệu" hiện được TÊN
+  // siêu thị ngay trong bảng, không chỉ mã.
+  const [storeCatalog, setStoreCatalog] = useState([]);
+  const [editingStoreAccessFor, setEditingStoreAccessFor] = useState(null);
+  const [selectedMaDiems, setSelectedMaDiems] = useState([]);
+  const [suggestedMaDiem, setSuggestedMaDiem] = useState(null);
 
   function reload() {
     api.get('/system/users').then(setUsers).catch(err => setError(err.message));
     api.get('/system/roles').then(setRoles).catch(err => setError(err.message));
+    api.get('/system/users/store-catalog').then(setStoreCatalog).catch(err => setError(err.message));
   }
   useEffect(reload, []);
 
@@ -139,6 +148,37 @@ export default function UsersPage() {
     } catch (err) { setError(err.message); }
   }
 
+  function storeName(maDiem) {
+    return storeCatalog.find(s => s.maDiem === maDiem)?.tenSieuThi || maDiem;
+  }
+
+  async function openStoreAccessEditor(user) {
+    setEditingStoreAccessFor(user);
+    try {
+      const { maDiems, suggestedMaDiem: suggestion } = await api.get(`/system/users/${user.Id}/store-access`);
+      setSelectedMaDiems(maDiems);
+      setSuggestedMaDiem(suggestion);
+    } catch (err) { setError(err.message); }
+  }
+
+  function toggleMaDiem(maDiem) {
+    setSelectedMaDiems(prev => prev.includes(maDiem) ? prev.filter(m => m !== maDiem) : [...prev, maDiem]);
+  }
+
+  function applySuggestion() {
+    if (suggestedMaDiem && !selectedMaDiems.includes(suggestedMaDiem)) {
+      setSelectedMaDiems(prev => [...prev, suggestedMaDiem]);
+    }
+  }
+
+  async function saveStoreAccess() {
+    try {
+      await api.put(`/system/users/${editingStoreAccessFor.Id}/store-access`, { maDiems: selectedMaDiems });
+      setEditingStoreAccessFor(null);
+      reload();
+    } catch (err) { setError(err.message); }
+  }
+
   // Đặt lại mật khẩu cho tài khoản local quên mật khẩu — trước đây KHÔNG có
   // nút nào trên giao diện gọi tới route này dù backend đã sẵn sàng, admin
   // phải đi vòng qua "Nguồn xác thực" (đổi sang rồi lại về 'local' kèm mật
@@ -221,6 +261,11 @@ export default function UsersPage() {
             )
           },
           { key: 'roles', label: 'Vai trò', render: (u) => u.roles.map(r => r.name).join(', ') || '—' },
+          {
+            key: 'storeAccess', label: 'Phạm vi dữ liệu', render: (u) => (
+              u.storeAccess.length ? `Giới hạn: ${u.storeAccess.map(storeName).join(', ')}` : 'Toàn bộ'
+            )
+          },
           { key: 'IsActive', label: 'Trạng thái', render: (u) => (u.IsActive ? 'Hoạt động' : 'Chưa cho phép kết nối / đã khoá') },
           { key: 'TwoFactorEnabled', label: '2FA', render: (u) => (!u.roles.some(r => r.isSystemRole) ? '—' : (u.TwoFactorEnabled ? 'Đã bật' : 'Chưa bật')) },
           {
@@ -229,6 +274,7 @@ export default function UsersPage() {
                 {me?.isSystemRole && <button type="button" onClick={() => toggleActive(u)}>{u.IsActive ? 'Khoá' : 'Cho phép kết nối'}</button>}{' '}
                 <button type="button" onClick={() => openRoleEditor(u)}>Gán vai trò</button>{' '}
                 <button type="button" onClick={() => openAccessEditor(u)}>Gán quyền riêng</button>{' '}
+                <button type="button" onClick={() => openStoreAccessEditor(u)}>Phạm vi dữ liệu</button>{' '}
                 {me?.isSystemRole && !u.roles.some(r => r.isSystemRole) && <button type="button" onClick={() => openAuthEditor(u)}>Nguồn xác thực</button>}{' '}
                 {me?.isSystemRole && u.AuthSource === 'local' && <button type="button" onClick={() => openResetPassword(u)}>Đặt lại mật khẩu</button>}{' '}
                 {me?.isSystemRole && u.roles.some(r => r.isSystemRole) && <button type="button" onClick={() => reset2fa(u)}>Đặt lại 2FA</button>}{' '}
@@ -323,6 +369,37 @@ export default function UsersPage() {
                 ? <button type="button" onClick={saveAccess}>Lưu</button>
                 : <span className="form-hint">Chỉ Admin hệ thống mới sửa được quyền này.</span>}
               <button type="button" onClick={() => setEditingAccessFor(null)}>Đóng</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editingStoreAccessFor && (
+        <div className="modal">
+          <div className="modal-body">
+            <h3>Phạm vi dữ liệu — {editingStoreAccessFor.Username}</h3>
+            <p className="form-hint">
+              KHÔNG tick siêu thị nào = "Toàn bộ" (xem được mọi siêu thị, như hiện tại). Tick 1
+              hoặc nhiều siêu thị = CHỈ còn thấy đúng (các) siêu thị đó. Lưu ý: bản này CHỈ LƯU
+              lựa chọn — việc tự lọc dữ liệu báo cáo theo đúng lựa chọn này sẽ áp dụng ở bản sau.
+            </p>
+            {suggestedMaDiem && !selectedMaDiems.includes(suggestedMaDiem) && (
+              <p className="form-hint">
+                Gợi ý theo Phòng ban đã đồng bộ: <strong>{storeName(suggestedMaDiem)}</strong>{' '}
+                <button type="button" onClick={applySuggestion}>Dùng gợi ý này</button>
+              </p>
+            )}
+            {storeCatalog.map(s => (
+              <label key={s.maDiem} className="checkbox-row">
+                <input type="checkbox" checked={selectedMaDiems.includes(s.maDiem)} onChange={() => toggleMaDiem(s.maDiem)} />
+                {s.tenSieuThi}
+              </label>
+            ))}
+            <div className="modal-actions">
+              {me?.isSystemRole
+                ? <button type="button" onClick={saveStoreAccess}>Lưu</button>
+                : <span className="form-hint">Chỉ Admin hệ thống mới sửa được phạm vi dữ liệu.</span>}
+              <button type="button" onClick={() => setEditingStoreAccessFor(null)}>Đóng</button>
             </div>
           </div>
         </div>

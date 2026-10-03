@@ -12,6 +12,26 @@ cập nhật file này ở mọi bản sau, cho tới khi người dùng bảo d
 
 ---
 
+## 8.50 — Gán phạm vi dữ liệu theo siêu thị cho từng người dùng
+
+**Thay đổi**: trang "Người dùng" có nút "Phạm vi dữ liệu" — gán (các) siêu
+thị 1 người CHỈ ĐƯỢC THẤY (trống = "Toàn bộ", mặc định an toàn), có gợi ý
+tự động theo Department+WorkLocation. **CHƯA lọc dữ liệu báo cáo thật** —
+chỉ lưu lựa chọn, chờ bản sau áp dụng vào tầng chạy báo cáo.
+
+**Các bước triển khai:**
+1. `git pull origin main`
+2. Chạy lại `rp-db/schema.sql` (bảng mới `app.UserStoreAccess`).
+3. `cd rp-user && npm run build`, copy `dist/` mới.
+4. `pm2 restart hcrc-rp-server` (BẮT BUỘC — route API mới).
+5. Kiểm tra: "Người dùng" → "Phạm vi dữ liệu" → gợi ý/tick chọn → Lưu →
+   cột cập nhật đúng; chưa ảnh hưởng gì tới trang Báo cáo/Dashboard.
+
+Chi tiết đầy đủ: `deploy/Cập nhật bản 8.50 — Gán phạm vi dữ liệu theo siêu
+thị.md`.
+
+---
+
 ## 8.49 — Ánh xạ Phòng ban (vpdt) → Siêu thị
 
 **Thay đổi**: trang mới "Ánh xạ Phòng ban → Siêu thị" — ánh xạ Department

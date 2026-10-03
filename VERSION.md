@@ -27,6 +27,35 @@ triển khai thật trên server (lệnh chạy, file cần sửa tay, thứ t�
 không chỉ mô tả tính năng như mục ở trên. KHÔNG thay thế việc vẫn tạo file
 riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước giờ.
 
+## 8.50 — Gán phạm vi dữ liệu theo siêu thị cho từng người dùng
+
+**Bối cảnh**: bước 2 trong lộ trình phân quyền dữ liệu theo đúng siêu thị
+(xem bản 8.49). Trang "Người dùng" có thêm nút **"Phạm vi dữ liệu"** —
+chọn (các) siêu thị 1 người CHỈ ĐƯỢC THẤY, hoặc để trống = "Toàn bộ" (mặc
+định AN TOÀN — không ai bị thu hẹp quyền xem cho tới khi Admin CHỦ ĐỘNG
+gán). Có gợi ý tự động (dựa theo `Department` + `WorkLocation="Siêu Thị"`,
+qua `resolveMaDiemForDepartment()` của bản 8.49) — Admin bấm "Dùng gợi ý
+này" hoặc tự chọn tay. Cột mới "Phạm vi dữ liệu" trong bảng Người dùng
+hiện "Toàn bộ" hoặc danh sách tên siêu thị đã giới hạn.
+
+**QUAN TRỌNG — bản này CHƯA lọc dữ liệu báo cáo thật.** Chỉ lưu lựa chọn
+vào `app.UserStoreAccess`, CHƯA có route/tầng chạy báo cáo nào đọc bảng
+này để giới hạn số liệu hiển thị — việc đó để bản sau (8.51+, áp dụng vào
+báo cáo composite trước, Top5/Realtime "Thành viên").
+
+**Các bước triển khai:**
+1. `git pull origin main`
+2. Chạy lại `rp-db/schema.sql` (bảng mới `app.UserStoreAccess`).
+3. `cd rp-user && npm run build`, copy `dist/` mới.
+4. `pm2 restart hcrc-rp-server` (route API mới).
+5. Kiểm tra: trang "Người dùng" → "Phạm vi dữ liệu" cho 1 người
+   `WorkLocation="Siêu Thị"` → thấy gợi ý (nếu `Department` khớp được) →
+   "Dùng gợi ý này" hoặc tự tick → Lưu → cột "Phạm vi dữ liệu" cập nhật
+   đúng.
+
+Chi tiết đầy đủ: `deploy/Cập nhật bản 8.50 — Gán phạm vi dữ liệu theo siêu
+thị.md`.
+
 ## 8.49 — Ánh xạ Phòng ban (vpdt) → Siêu thị
 
 **Bối cảnh**: bước 1 trong lộ trình "phân quyền DỮ LIỆU theo đúng siêu thị"

@@ -615,6 +615,26 @@ BEGIN
 END
 GO
 
+-- Phạm vi DỮ LIỆU theo siêu thị của TỪNG NGƯỜI (bản 8.50, bước 2 trong lộ
+-- trình phân quyền dữ liệu theo đúng siêu thị — xem app.DepartmentStoreMapping
+-- ở trên) — KHÔNG CÓ dòng nào = "Toàn bộ" (mặc định AN TOÀN cho rollout:
+-- không tự ý khoá bớt quyền xem của ai cho tới khi Admin CHỦ ĐỘNG gán, xem
+-- routes/users.js). CÓ ít nhất 1 dòng = CHỈ được xem đúng (các) MaDiem liệt
+-- kê ở đây — 1 người có thể gán NHIỀU siêu thị (vd quản lý vùng). MaDiem
+-- dùng ĐÚNG khoá chuẩn của "Ánh xạ Điểm - STK_ID" (etl.DiemStkMapping, CSDL
+-- khác — không FK được qua CSDL, chỉ validate ở tầng ứng dụng).
+-- BẢN 8.50 CHỈ LƯU gán — CHƯA có route/tầng chạy báo cáo nào đọc bảng này
+-- để lọc dữ liệu thật (dự kiến bản sau).
+IF OBJECT_ID('app.UserStoreAccess', 'U') IS NULL
+BEGIN
+    CREATE TABLE app.UserStoreAccess (
+        UserId INT          NOT NULL REFERENCES app.Users(Id) ON DELETE CASCADE,
+        MaDiem NVARCHAR(50) NOT NULL,
+        CONSTRAINT PK_UserStoreAccess PRIMARY KEY (UserId, MaDiem)
+    );
+END
+GO
+
 -- Cá nhân hoá Dashboard (bản 8.45, theo yêu cầu người dùng) — MỖI NGƯỜI tự
 -- lưu riêng cho mình: Ô nào ẩn/hiện, thứ tự Ô, nhóm/tab đã xem lần trước,
 -- số ngày mặc định khi mở lại Dashboard — KHÔNG ảnh hưởng người khác, KHÔNG
