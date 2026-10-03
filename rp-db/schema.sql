@@ -552,6 +552,44 @@ BEGIN
 END
 GO
 
+-- Quyền xem CỘNG DỒN theo TỪNG NGƯỜI DÙNG (bản 8.48, theo yêu cầu người
+-- dùng) — CỘNG THÊM vào quyền theo Vai trò ở trên (RoleReportAccess/
+-- RoleDashboardGroupAccess), KHÔNG THAY THẾ: 1 người chỉ cần Ở ĐÂY HOẶC qua
+-- 1 trong các Vai trò đang giữ là đủ, xem lib/permissions.js (UNION cả 2
+-- nguồn). Dùng cho đúng 1 trường hợp: cấp lẻ 1-2 báo cáo cho 1 người cụ
+-- thể mà KHÔNG muốn tạo hẳn 1 Vai trò riêng chỉ để gán đúng người đó. Muốn
+-- cấp quyền cho CẢ MỘT NHÓM người (vd "nhân viên siêu thị Phố Nối") thì vẫn
+-- nên tạo 1 Vai trò (app.Roles — không cần đúng nghĩa "chức danh", chỉ cần
+-- là 1 nhãn nhóm) rồi gán nhiều người vào (app.UserRoles đã hỗ trợ 1 người
+-- giữ nhiều vai trò) — KHÔNG cần/không nên lặp lại việc gán ở đây cho từng
+-- người trong nhóm đó.
+IF OBJECT_ID('app.UserReportAccess', 'U') IS NULL
+BEGIN
+    CREATE TABLE app.UserReportAccess (
+        UserId   INT         NOT NULL REFERENCES app.Users(Id) ON DELETE CASCADE,
+        ReportId VARCHAR(80) NOT NULL REFERENCES app.ReportCatalog(ReportId) ON DELETE CASCADE,
+        CONSTRAINT PK_UserReportAccess PRIMARY KEY (UserId, ReportId)
+    );
+END
+GO
+
+-- Cùng tinh thần UserReportAccess ở trên, áp dụng cho Dashboard THEO NHÓM
+-- (cùng khuôn RoleDashboardGroupAccess — "Xem dashboard"/"Xem chi tiết"
+-- tách riêng, hợp theo kiểu CỘNG DỒN OR với quyền theo Vai trò, xem
+-- lib/permissions.js).
+IF OBJECT_ID('app.UserDashboardGroupAccess', 'U') IS NULL
+BEGIN
+    CREATE TABLE app.UserDashboardGroupAccess (
+        UserId      INT          NOT NULL REFERENCES app.Users(Id) ON DELETE CASCADE,
+        DashboardId VARCHAR(80)  NOT NULL REFERENCES app.Dashboards(DashboardId) ON DELETE CASCADE,
+        GroupKey    VARCHAR(80)  NOT NULL,
+        CanView     BIT          NOT NULL DEFAULT 1,
+        CanExport   BIT          NOT NULL DEFAULT 0,
+        CONSTRAINT PK_UserDashboardGroupAccess PRIMARY KEY (UserId, DashboardId, GroupKey)
+    );
+END
+GO
+
 -- Cá nhân hoá Dashboard (bản 8.45, theo yêu cầu người dùng) — MỖI NGƯỜI tự
 -- lưu riêng cho mình: Ô nào ẩn/hiện, thứ tự Ô, nhóm/tab đã xem lần trước,
 -- số ngày mặc định khi mở lại Dashboard — KHÔNG ảnh hưởng người khác, KHÔNG

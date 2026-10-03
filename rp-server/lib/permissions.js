@@ -107,6 +107,28 @@ async function loadContext(userId) {
     dashboardGroupAccess = new Map();
   }
 
+  // Quyền CỘNG DỒN theo từng người (bản 8.48, theo yêu cầu người dùng) — UNION
+  // thêm vào quyền theo Vai trò ở trên, KHÔNG áp dụng cho IsSystemRole (đã
+  // thấy hết mọi thứ, union vào đây vô nghĩa, tốn 2 lượt truy vấn không cần
+  // thiết mỗi lần đăng nhập admin). Xem app.UserReportAccess/
+  // app.UserDashboardGroupAccess ở rp-db/schema.sql.
+  if (!isSystemRole) {
+    const userReportResult = await pool.request().input('id', sql.Int, userId)
+      .query('SELECT ReportId FROM app.UserReportAccess WHERE UserId = @id');
+    for (const r of userReportResult.recordset) reportIds.add(r.ReportId);
+
+    const userDgaResult = await pool.request().input('id', sql.Int, userId)
+      .query('SELECT DashboardId, GroupKey, CanView, CanExport FROM app.UserDashboardGroupAccess WHERE UserId = @id');
+    for (const r of userDgaResult.recordset) {
+      const key = `${r.DashboardId}::${r.GroupKey}`;
+      const existing = dashboardGroupAccess.get(key) || { canView: false, canExport: false };
+      dashboardGroupAccess.set(key, {
+        canView: existing.canView || !!r.CanView,
+        canExport: existing.canExport || !!r.CanExport
+      });
+    }
+  }
+
   return {
     userId: user.Id,
     username: user.Username,

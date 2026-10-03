@@ -174,6 +174,88 @@ router.put('/:id/roles', requireSystemRoleActor, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// Quyền báo cáo/Dashboard CỘNG DỒN riêng của 1 người (bản 8.48, theo yêu
+// cầu người dùng — xem rp-db/schema.sql app.UserReportAccess/
+// app.UserDashboardGroupAccess) — CỘNG THÊM vào quyền theo Vai trò, KHÔNG
+// thay thế (xem lib/permissions.js). Danh mục báo cáo/nhóm Dashboard để
+// tick chọn DÙNG CHUNG với trang "Vai trò" (GET /system/roles/report-catalog,
+// /system/roles/dashboard-groups-catalog — không lặp lại ở đây).
+router.get('/:id/access', async (req, res, next) => {
+  try {
+    const pool = await getPool('RP');
+    const reports = await pool.request().input('id', sql.Int, req.params.id)
+      .query('SELECT ReportId FROM app.UserReportAccess WHERE UserId = @id');
+    const dashboardGroups = await pool.request().input('id', sql.Int, req.params.id)
+      .query('SELECT DashboardId, GroupKey, CanView, CanExport FROM app.UserDashboardGroupAccess WHERE UserId = @id');
+    res.json({
+      reportIds: reports.recordset.map(r => r.ReportId),
+      dashboardGroupAccess: dashboardGroups.recordset.map(r => ({
+        dashboardId: r.DashboardId, groupKey: r.GroupKey, canView: !!r.CanView, canExport: !!r.CanExport
+      }))
+    });
+  } catch (err) { next(err); }
+});
+
+// Cấp quyền riêng NHẠY CẢM (vượt qua giới hạn vai trò của chính người đó) —
+// chỉ Admin hệ thống thật mới làm được, cùng mức requireSystemRoleActor với
+// /:id/roles ở trên.
+router.put('/:id/report-access', requireSystemRoleActor, async (req, res, next) => {
+  try {
+    const { reportIds = [] } = req.body || {};
+    const pool = await getPool('RP');
+    const tx = new sql.Transaction(pool);
+    await tx.begin();
+    try {
+      await new sql.Request(tx).input('id', sql.Int, req.params.id).query('DELETE FROM app.UserReportAccess WHERE UserId = @id');
+      for (const reportId of reportIds) {
+        await new sql.Request(tx)
+          .input('id', sql.Int, req.params.id)
+          .input('reportId', sql.VarChar(80), reportId)
+          .query('INSERT INTO app.UserReportAccess (UserId, ReportId) VALUES (@id, @reportId)');
+      }
+      await tx.commit();
+    } catch (err) {
+      await tx.rollback().catch(() => {});
+      throw err;
+    }
+    invalidateUser(parseInt(req.params.id, 10));
+    await logAction(req, { module: 'Phân quyền', actionType: 'GAN_QUYEN_BAO_CAO_CA_NHAN', targetObject: req.params.id, description: `Cập nhật quyền báo cáo riêng của người dùng #${req.params.id}` });
+    res.json({ ok: true });
+  } catch (err) { next(err); }
+});
+
+router.put('/:id/dashboard-group-access', requireSystemRoleActor, async (req, res, next) => {
+  try {
+    const { entries = [] } = req.body || {};
+    const pool = await getPool('RP');
+    const tx = new sql.Transaction(pool);
+    await tx.begin();
+    try {
+      await new sql.Request(tx).input('id', sql.Int, req.params.id).query('DELETE FROM app.UserDashboardGroupAccess WHERE UserId = @id');
+      for (const entry of entries) {
+        if (!entry?.dashboardId || !entry?.groupKey || (!entry.canView && !entry.canExport)) continue;
+        await new sql.Request(tx)
+          .input('id', sql.Int, req.params.id)
+          .input('dashboardId', sql.VarChar(80), entry.dashboardId)
+          .input('groupKey', sql.VarChar(80), entry.groupKey)
+          .input('canView', sql.Bit, entry.canView ? 1 : 0)
+          .input('canExport', sql.Bit, entry.canExport ? 1 : 0)
+          .query(`
+            INSERT INTO app.UserDashboardGroupAccess (UserId, DashboardId, GroupKey, CanView, CanExport)
+            VALUES (@id, @dashboardId, @groupKey, @canView, @canExport)
+          `);
+      }
+      await tx.commit();
+    } catch (err) {
+      await tx.rollback().catch(() => {});
+      throw err;
+    }
+    invalidateUser(parseInt(req.params.id, 10));
+    await logAction(req, { module: 'Phân quyền', actionType: 'GAN_QUYEN_DASHBOARD_CA_NHAN', targetObject: req.params.id, description: `Cập nhật quyền Dashboard riêng của người dùng #${req.params.id}` });
+    res.json({ ok: true });
+  } catch (err) { next(err); }
+});
+
 // "Đặt lại 2FA" — 1 Admin gỡ 2FA giúp Admin KHÁC bị mất thiết bị/cần khôi
 // phục (xem lib/twoFactor.js). Xoá sạch secret + mã khôi phục cũ — lần đăng
 // nhập kế tiếp của tài khoản đó bị bắt đăng ký 2FA lại từ đầu trước khi vào

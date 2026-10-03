@@ -21,6 +21,14 @@ export default function UsersPage() {
   const [resettingPasswordFor, setResettingPasswordFor] = useState(null);
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  // Gán quyền riêng (bản 8.48) — CỘNG DỒN vào quyền theo vai trò, xem
+  // rp-server/lib/permissions.js. reportCatalog/dashboardGroupCatalog dùng
+  // CHUNG với trang "Vai trò" (đã có sẵn 2 route catalog đó).
+  const [editingAccessFor, setEditingAccessFor] = useState(null);
+  const [reportCatalog, setReportCatalog] = useState([]);
+  const [dashboardGroupCatalog, setDashboardGroupCatalog] = useState([]);
+  const [selectedReportIds, setSelectedReportIds] = useState([]);
+  const [dashboardGroupAccess, setDashboardGroupAccess] = useState({});
 
   function reload() {
     api.get('/system/users').then(setUsers).catch(err => setError(err.message));
@@ -89,6 +97,45 @@ export default function UsersPage() {
       await api.put(`/system/users/${editingRolesFor.Id}/roles`, { roleIds: selectedRoleIds });
       setEditingRolesFor(null);
       reload();
+    } catch (err) { setError(err.message); }
+  }
+
+  function dashboardGroupKey(dashboardId, groupKey) {
+    return `${dashboardId}::${groupKey}`;
+  }
+
+  function toggleDashboardGroupAccess(dashboardId, groupKey, field) {
+    const mapKey = dashboardGroupKey(dashboardId, groupKey);
+    setDashboardGroupAccess(prev => {
+      const current = prev[mapKey] || { canView: false, canExport: false };
+      const next = { ...current, [field]: !current[field] };
+      if (field === 'canView' && !next.canView) next.canExport = false;
+      return { ...prev, [mapKey]: next };
+    });
+  }
+
+  async function openAccessEditor(user) {
+    setEditingAccessFor(user);
+    if (!reportCatalog.length) api.get('/system/roles/report-catalog').then(setReportCatalog).catch(err => setError(err.message));
+    if (!dashboardGroupCatalog.length) api.get('/system/roles/dashboard-groups-catalog').then(setDashboardGroupCatalog).catch(err => setError(err.message));
+    const access = await api.get(`/system/users/${user.Id}/access`);
+    setSelectedReportIds(access.reportIds);
+    const accessMap = {};
+    for (const entry of access.dashboardGroupAccess || []) {
+      accessMap[dashboardGroupKey(entry.dashboardId, entry.groupKey)] = { canView: entry.canView, canExport: entry.canExport };
+    }
+    setDashboardGroupAccess(accessMap);
+  }
+
+  async function saveAccess() {
+    try {
+      await api.put(`/system/users/${editingAccessFor.Id}/report-access`, { reportIds: selectedReportIds });
+      const entries = dashboardGroupCatalog.map(g => ({
+        dashboardId: g.dashboardId, groupKey: g.groupKey,
+        ...(dashboardGroupAccess[dashboardGroupKey(g.dashboardId, g.groupKey)] || { canView: false, canExport: false })
+      }));
+      await api.put(`/system/users/${editingAccessFor.Id}/dashboard-group-access`, { entries });
+      setEditingAccessFor(null);
     } catch (err) { setError(err.message); }
   }
 
@@ -181,6 +228,7 @@ export default function UsersPage() {
               <>
                 {me?.isSystemRole && <button type="button" onClick={() => toggleActive(u)}>{u.IsActive ? 'Khoá' : 'Cho phép kết nối'}</button>}{' '}
                 <button type="button" onClick={() => openRoleEditor(u)}>Gán vai trò</button>{' '}
+                <button type="button" onClick={() => openAccessEditor(u)}>Gán quyền riêng</button>{' '}
                 {me?.isSystemRole && !u.roles.some(r => r.isSystemRole) && <button type="button" onClick={() => openAuthEditor(u)}>Nguồn xác thực</button>}{' '}
                 {me?.isSystemRole && u.AuthSource === 'local' && <button type="button" onClick={() => openResetPassword(u)}>Đặt lại mật khẩu</button>}{' '}
                 {me?.isSystemRole && u.roles.some(r => r.isSystemRole) && <button type="button" onClick={() => reset2fa(u)}>Đặt lại 2FA</button>}{' '}
@@ -217,6 +265,64 @@ export default function UsersPage() {
                 ? <button type="button" onClick={saveRoles}>Lưu</button>
                 : <span className="form-hint">Chỉ Admin hệ thống mới gán vai trò được.</span>}
               <button type="button" onClick={() => setEditingRolesFor(null)}>Đóng</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editingAccessFor && (
+        <div className="modal">
+          <div className="modal-body">
+            <h3>Gán quyền riêng — {editingAccessFor.Username}</h3>
+            <p className="form-hint">
+              Quyền ở đây CỘNG THÊM vào quyền theo vai trò đang giữ, không thay thế — dùng cho
+              trường hợp cấp lẻ 1-2 báo cáo cho đúng người này mà không muốn tạo hẳn 1 vai trò
+              riêng. Muốn cấp cho CẢ MỘT NHÓM người, hãy tạo 1 vai trò rồi gán nhiều người vào
+              thay vì lặp lại ở đây cho từng người.
+            </p>
+
+            {dashboardGroupCatalog.length > 0 && (
+              <>
+                <h4>Dashboard được xem thêm (theo nhóm)</h4>
+                {dashboardGroupCatalog.map(g => {
+                  const mapKey = dashboardGroupKey(g.dashboardId, g.groupKey);
+                  const access = dashboardGroupAccess[mapKey] || { canView: false, canExport: false };
+                  return (
+                    <div key={mapKey} className="dashboard-group-access-row">
+                      <span className="dashboard-group-access-label">{g.groupIcon} {g.groupLabel}</span>
+                      <label className="checkbox-row">
+                        <input type="checkbox" checked={access.canView} onChange={() => toggleDashboardGroupAccess(g.dashboardId, g.groupKey, 'canView')} />
+                        Xem dashboard
+                      </label>
+                      <label className="checkbox-row">
+                        <input type="checkbox" checked={access.canExport} disabled={!access.canView} onChange={() => toggleDashboardGroupAccess(g.dashboardId, g.groupKey, 'canExport')} />
+                        Xem chi tiết (xuất Excel/PDF)
+                      </label>
+                    </div>
+                  );
+                })}
+              </>
+            )}
+
+            <h4>Báo cáo được chạy thêm</h4>
+            {reportCatalog.map(r => (
+              <label key={r.ReportId} className="checkbox-row">
+                <input
+                  type="checkbox"
+                  checked={selectedReportIds.includes(r.ReportId)}
+                  onChange={(e) => setSelectedReportIds(e.target.checked
+                    ? [...selectedReportIds, r.ReportId]
+                    : selectedReportIds.filter(id => id !== r.ReportId))}
+                />
+                {r.Title}
+              </label>
+            ))}
+
+            <div className="modal-actions">
+              {me?.isSystemRole
+                ? <button type="button" onClick={saveAccess}>Lưu</button>
+                : <span className="form-hint">Chỉ Admin hệ thống mới sửa được quyền này.</span>}
+              <button type="button" onClick={() => setEditingAccessFor(null)}>Đóng</button>
             </div>
           </div>
         </div>

@@ -27,6 +27,42 @@ triển khai thật trên server (lệnh chạy, file cần sửa tay, thứ t�
 không chỉ mô tả tính năng như mục ở trên. KHÔNG thay thế việc vẫn tạo file
 riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước giờ.
 
+## 8.48 — Phân quyền báo cáo/Dashboard riêng theo từng người dùng
+
+**Bối cảnh**: tiếp nối yêu cầu "phân quyền theo siêu thị/phòng ban, đến
+từng người dùng hoặc nhóm người dùng" — phần phân tích đã chỉ ra hệ thống
+đã có sẵn cơ chế "nhóm người dùng" (1 Vai trò gán cho nhiều người qua
+`app.UserRoles`, vốn đã hỗ trợ nhiều vai trò/người), chỉ thiếu lớp cấp lẻ
+CHO TỪNG CÁ NHÂN mà không cần tạo hẳn 1 vai trò riêng. Phần giới hạn DỮ
+LIỆU theo đúng siêu thị (row-level) phức tạp hơn nhiều, để làm riêng 1 đợt
+sau.
+
+**Thay đổi**: trang "Người dùng" có thêm nút **"Gán quyền riêng"** — cấp
+thêm báo cáo/nhóm Dashboard cho ĐÚNG 1 người, **CỘNG DỒN** vào quyền theo
+vai trò đang giữ (không thay thế — đủ 1 trong 2 nguồn là xem được). Bảng
+mới `app.UserReportAccess`/`app.UserDashboardGroupAccess`, cùng khuôn
+`RoleReportAccess`/`RoleDashboardGroupAccess` đã có.
+
+**Khi nào dùng "Gán quyền riêng" thay vì tạo Vai trò mới**: chỉ nên dùng
+cho đúng 1-2 người cần quyền đặc biệt không ai khác có — cần cấp cho CẢ
+MỘT NHÓM người (vd "nhân viên siêu thị Phố Nối"), vẫn nên tạo 1 Vai trò
+(không cần đúng nghĩa chức danh, chỉ cần là 1 nhãn nhóm) rồi gán nhiều
+người vào, như cách làm từ trước tới giờ.
+
+**Các bước triển khai:**
+1. `git pull origin main`
+2. Chạy lại `rp-db/schema.sql` (thêm bảng `app.UserReportAccess`/
+   `app.UserDashboardGroupAccess`).
+3. `cd rp-user && npm run build`, copy `dist/` mới.
+4. `pm2 restart hcrc-rp-server`.
+5. Kiểm tra: trang "Người dùng" → "Gán quyền riêng" → tick thêm 1 báo cáo
+   cho 1 người KHÔNG có qua vai trò nào → Lưu → người đó thấy thêm đúng
+   báo cáo vừa cấp (gần như ngay lập tức, cache quyền tối đa 60 giây).
+
+Không đổi `app.RoleReportAccess`/`app.RoleDashboardGroupAccess` hiện có.
+Chi tiết đầy đủ: `deploy/Cập nhật bản 8.48 — Phân quyền theo từng người
+dùng.md`.
+
 ## 8.47 — Mật khẩu dự phòng cục bộ khi HCRC Workspace lỗi
 
 **Bối cảnh**: tài khoản xác thực qua "HCRC Workspace" (gọi `POST

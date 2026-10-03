@@ -12,6 +12,27 @@ cập nhật file này ở mọi bản sau, cho tới khi người dùng bảo d
 
 ---
 
+## 8.48 — Phân quyền báo cáo/Dashboard riêng theo từng người dùng
+
+**Thay đổi**: trang "Người dùng" có thêm nút "Gán quyền riêng" — cấp thêm
+báo cáo/nhóm Dashboard cho ĐÚNG 1 người, CỘNG DỒN vào quyền theo vai trò
+(không thay thế). Dùng cho trường hợp cấp lẻ, không đáng tạo hẳn 1 vai trò
+riêng; cấp cho cả 1 nhóm người vẫn nên tạo Vai trò như trước giờ.
+
+**Các bước triển khai:**
+1. `git pull origin main`
+2. Chạy lại `rp-db/schema.sql` (bảng mới `app.UserReportAccess`/
+   `app.UserDashboardGroupAccess`).
+3. `cd rp-user && npm run build`, copy `dist/` mới.
+4. `pm2 restart hcrc-rp-server` (BẮT BUỘC — route API mới).
+5. Kiểm tra: "Người dùng" → "Gán quyền riêng" → tick thêm 1 báo cáo cho 1
+   người không có qua vai trò nào → người đó thấy thêm đúng báo cáo đó.
+
+Chi tiết đầy đủ: `deploy/Cập nhật bản 8.48 — Phân quyền theo từng người
+dùng.md`.
+
+---
+
 ## 8.47 — Mật khẩu dự phòng cục bộ khi HCRC Workspace lỗi
 
 **Thay đổi**: tài khoản xác thực qua HCRC Workspace giờ tự cache mật khẩu
