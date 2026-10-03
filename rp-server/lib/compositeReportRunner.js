@@ -664,7 +664,16 @@ async function runCompositeReport(definition, filterValues = {}) {
   // theo đúng nghĩa chuẩn, không phải lỗ hổng — giống báo cáo khác không bị
   // tính năng này đụng tới).
   const storeScope = Array.isArray(filterValues.__storeScope) ? new Set(filterValues.__storeScope) : null;
-  const entityIsMaDiem = definition.blocks.filter(b => !b.isTarget).every(b => b.useDiemStkMapping || b.mapBuIdToMaDiem);
+  // .length > 0 BẮT BUỘC trước .every() — mảng rỗng (báo cáo composite mà
+  // MỌI khối đều isTarget:true, không có khối dữ liệu nào) khiến .every()
+  // tự nhiên trả true (vacuous truth), ngỡ là "mọi khối đã quy về mã Điểm
+  // chuẩn" dù thật ra KHÔNG CÓ khối nào để kiểm tra — sẽ lọc theo
+  // storeScope.has(r.entityCode) trên entityCode CHƯA chắc là mã Điểm,
+  // rủi ro lọc sai (thiếu hoặc thừa dữ liệu). Chưa có definition thật nào
+  // rơi vào trường hợp này, nhưng giữ đúng nguyên tắc "không chắc chắn thì
+  // KHÔNG lọc" (xem chú thích phía trên) thay vì mặc định lọc nhầm.
+  const nonTargetBlocks = definition.blocks.filter(b => !b.isTarget);
+  const entityIsMaDiem = nonTargetBlocks.length > 0 && nonTargetBlocks.every(b => b.useDiemStkMapping || b.mapBuIdToMaDiem);
   const applyStoreScope = !!(storeScope && entityIsMaDiem);
   const mergedRows = [...merged.values()].filter(
     r => !targetBlockKeys.some(key => r[key]?.TrangThai === 'DaDong')
