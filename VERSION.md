@@ -20,6 +20,28 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 8.35 — Sửa nguyên nhân THẬT của "Failed to fetch"/"Không kết nối được backend"
+
+Sau khi áp dụng bản 8.33 (tăng timeout Nginx), người dùng vẫn gặp lỗi
+tương tự khi Nhập hàng loạt Sync Job 68 dòng — lần này báo "Không kết nối
+được backend" (deploy/serve-static.js, dùng khi triển khai KHÔNG qua Nginx
+mà qua PM2-only). Tìm ra nguyên nhân THẬT SỰ nằm sâu hơn cả Nginx: chính
+`etl/server.js` tự đặt **`server.timeout = 120 * 1000`** (giới hạn không
+hoạt động của socket, chống "chờ mãi") ở tầng HTTP server Node — áp dụng
+cho MỌI route, kể cả Nhập hàng loạt Sync Job (chạy tuần tự, đối chiếu
+schema thật từng dòng qua mạng, dễ vượt 120 giây với vài chục site). Node
+tự đóng socket ở ĐÚNG 120 giây bất kể Nginx/serve-static.js có cho phép
+chờ lâu hơn hay không — bản 8.33 (tăng timeout Nginx) vì vậy KHÔNG đủ,
+phải sửa tận gốc ở đây.
+
+- `etl/routes/admin/syncJobs.js` (`POST /import`), `etl/routes/admin/data-sources.js`
+  (`POST /import`) — gọi `req.socket.setTimeout(0)` ngay đầu handler, tắt
+  hẳn giới hạn này CHỈ cho 2 route Nhập hàng loạt (route khác vẫn giữ
+  120s như cũ, không đổi hành vi chống "chờ mãi" ở nơi khác).
+- Bản 8.33 (timeout Nginx) VẪN CẦN GIỮ — đây là lớp chặn thứ 2 (phòng khi
+  deploy qua Nginx), 2 lớp cùng phải đủ dài thì Nhập hàng loạt nhiều dòng
+  mới chạy hết được.
+
 ## 8.34 — Dashboard Top 5 đọc Doanh thu/Giao dịch từ domain "Thành viên"
 
 Theo yêu cầu người dùng: 8 báo cáo "Top 5 chi nhánh" (MART/MINIMART x

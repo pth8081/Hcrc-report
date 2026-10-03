@@ -72,6 +72,17 @@ router.get('/template', requireMenuAccess('sync-jobs'), async (req, res, next) =
 // CHỈ Type='table', đối chiếu schema thật TỪNG DÒNG (gọi mạng) nên chạy tuần
 // tự, phù hợp quy mô thật (vài chục/vài trăm job, không phải hàng nghìn).
 router.post('/import', requireMenuEdit('sync-jobs'), upload.single('file'), async (req, res, next) => {
+  // Tắt timeout socket riêng cho route này — server.js đặt server.timeout =
+  // 120s (chống socket "chờ mãi" cho các route BÌNH THƯỜNG) nhưng route này
+  // đối chiếu schema THẬT của TỪNG DÒNG qua mạng, CHẠY TUẦN TỰ (không song
+  // song) — vài chục site "Thành viên" (vd 68 dòng) dễ vượt 120s, Node tự
+  // đóng socket giữa chừng dù backend vẫn đang xử lý bình thường, client
+  // thấy mất kết nối đột ngột ("Failed to fetch"/"Không kết nối được
+  // backend" tuỳ qua Nginx hay serve-static.js — lỗi thật đã gặp, xem
+  // VERSION.md bản 8.33/8.35). Đã nâng timeout Nginx (deploy/nginx.conf)
+  // nhưng KHÔNG đủ — đây mới là nơi thật sự đóng socket trước khi tới được
+  // Nginx/serve-static.js.
+  req.socket.setTimeout(0);
   try {
     if (!req.file) return res.status(400).json({ error: 'Thiếu file' });
     if (!hasZipSignature(req.file.buffer)) {

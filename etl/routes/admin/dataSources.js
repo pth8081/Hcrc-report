@@ -215,6 +215,12 @@ router.get('/template', requireMenuAccess('data-sources'), async (req, res, next
 
 // Tạo/cập nhật hàng loạt qua file Excel — xem chú thích đầu file.
 router.post('/import', requireMenuEdit('data-sources'), upload.single('file'), async (req, res, next) => {
+  // Tắt timeout socket riêng cho route này — cùng lý do route tương ứng ở
+  // routes/admin/syncJobs.js (xem chú thích ở đó): testConnectionsBatch
+  // test kết nối THẬT từng dòng qua mạng, với vài chục site có thể vượt
+  // server.timeout mặc định (120s, xem server.js) dù chạy có song song giới
+  // hạn (nhanh hơn Sync Job nhưng vẫn phụ thuộc độ trễ mạng thật).
+  req.socket.setTimeout(0);
   try {
     if (!req.file) return res.status(400).json({ error: 'Thiếu file' });
     // fileFilter (đuôi .xlsx) chỉ soi được originalname, CHƯA có nội dung —
