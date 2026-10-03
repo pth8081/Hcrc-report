@@ -28,7 +28,7 @@ export default function ReportBody({ visualization, showTable, result, onPointCl
     // tránh bảng web hiện số thập phân thô (vd "61268083.26") khác hẳn số
     // đã xuất ("61,268,083").
     const formattedColumns = result.columns.map(col => ({ ...col, render: (row) => formatCellValue(row[col.key], col) }));
-    return <DataTable columns={formattedColumns} rows={result.rows} scrollClassName={scrollClassName} />;
+    return <DataTable columns={formattedColumns} rows={result.rows} scrollClassName={scrollClassName} columnGroups={result.columnGroups} />;
   }
   if (visualization.type === 'pivot') {
     return <PivotTable columns={result.columns} rows={result.rows} visualization={visualization} />;

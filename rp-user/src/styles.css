@@ -96,12 +96,23 @@ button:hover { opacity: 0.9; }
 }
 /* Cố định cột 1 khi cuộn ngang (an toàn cho MỌI báo cáo — width tự nhiên,
    không ép cứng, vì không biết trước nội dung cột 1 của từng báo cáo dài
-   hay ngắn). */
-.table-scroll--report .data-table th:first-child,
+   hay ngắn). data-table--grouped (bản 8.53) có 2 dòng tiêu đề
+   (.group-header-row/.group-subheader-row — xem components/DataTable.jsx)
+   — dòng phụ (.group-subheader-row) KHÔNG áp dụng luật cố định cột 1 này
+   (ô đầu dòng đó là cột con ĐẦU TIÊN của 1 nhóm, không phải cột 1 thật của
+   bảng, do các cột 1/2/3 không thuộc nhóm nào đã gộp dọc rowSpan=2 chỉ
+   xuất hiện ở .group-header-row). */
+.table-scroll--report .data-table thead tr:not(.group-subheader-row) th:first-child,
 .table-scroll--report .data-table td:first-child {
   position: sticky; left: 0; background: var(--surface); z-index: 1;
 }
-.table-scroll--report .data-table thead th:first-child { z-index: 3; }
+.table-scroll--report .data-table thead tr:not(.group-subheader-row) th:first-child { z-index: 3; }
+/* Tiêu đề 2 dòng có màu (definition.columnGroups — bản 8.53): dòng 1 cố
+   định chiều cao để dòng 2 biết CHÍNH XÁC offset "top" cần dính xuống dưới
+   dòng 1 khi cuộn dọc (position: sticky không tự xếp chồng 2 hàng sticky
+   liên tiếp — phải khai top khác nhau cho từng dòng). */
+.data-table--grouped thead tr.group-header-row th { height: 34px; top: 0; }
+.data-table--grouped thead tr.group-subheader-row th { top: 34px; }
 /* Modifier CHỈ áp dụng khi ReportBody.jsx xác nhận cột 1 đúng là "TT" (key
    "stt", quy ước ở compositeReportRunner.js) — ép width cố định 44px để
    cố định LUÔN cột 2 (thường tên chi nhánh/thực thể, thông tin cần giữ khi

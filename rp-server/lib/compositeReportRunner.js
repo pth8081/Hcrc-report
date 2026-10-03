@@ -701,11 +701,11 @@ async function runCompositeReport(definition, filterValues = {}) {
       return (va - vb) * rankDir;
     }).slice(0, limit);
     const rows = ranked.map((r, i) => ({ ...projectCompositeRow(r, visibleColumns), stt: i + 1 }));
-    return { columns, rows, warnings };
+    return { columns, rows, warnings, columnGroups: definition.columnGroups || null };
   }
 
   if (!definition.groupBy) {
-    return { columns, rows: mergedRows.map(r => projectCompositeRow(r, visibleColumns)), warnings };
+    return { columns, rows: mergedRows.map(r => projectCompositeRow(r, visibleColumns)), warnings, columnGroups: definition.columnGroups || null };
   }
 
   const { field, groups = [], grandTotalLabel, labelColumn, sortBy } = definition.groupBy;
@@ -748,7 +748,9 @@ async function runCompositeReport(definition, filterValues = {}) {
   grandRow.__isGrandTotal = true;
   rows.push(grandRow);
 
-  return { columns, rows, warnings };
+  // columnGroups (bản 8.53) — xem chú thích ở lib/reportRunner.js, cùng lý
+  // do an toàn để lộ.
+  return { columns, rows, warnings, columnGroups: definition.columnGroups || null };
 }
 
 module.exports = { runCompositeReport, resolveRequestedRange };

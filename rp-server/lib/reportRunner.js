@@ -77,7 +77,11 @@ async function runDefinition(definition, filterValues, pagination) {
   }
   const pool = await resolveFactsPool(definition);
   const rows = await runReport(pool, definition, filterValues, pagination);
-  return { columns: describeColumns(definition.columns), rows: rows.map(r => projectColumns(r, definition.columns)) };
+  // columnGroups (bản 8.53) — trả kèm để rp-user vẽ tiêu đề nhóm có màu
+  // khớp hệt Excel/PDF (xem components/DataTable.jsx) — an toàn để lộ, chỉ
+  // là nhãn/màu nhóm + danh sách key đã CÓ SẴN trong `columns` trả ở trên,
+  // không thêm chi tiết kiến trúc nguồn dữ liệu nào mới.
+  return { columns: describeColumns(definition.columns), rows: rows.map(r => projectColumns(r, definition.columns)), columnGroups: definition.columnGroups || null };
 }
 
 module.exports = { loadDefinition, runDefinition, resolveFactsPool };
