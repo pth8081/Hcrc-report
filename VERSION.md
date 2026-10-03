@@ -27,6 +27,54 @@ triển khai thật trên server (lệnh chạy, file cần sửa tay, thứ t�
 không chỉ mô tả tính năng như mục ở trên. KHÔNG thay thế việc vẫn tạo file
 riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước giờ.
 
+## 8.41 — Đăng nhập vân tay/Face ID (WebAuthn) — rp-user, thay bước 2FA
+
+Theo yêu cầu người dùng: admin (vai trò hệ thống) đăng ký vân tay/Face ID
+ở "Tài khoản của tôi" — lúc đăng nhập, bước xác thực hai yếu tố có thêm
+nút "Dùng vân tay/Face ID", xác thực xong đăng nhập LUÔN, **KHÔNG cần gõ
+thêm mã 6 số nữa** (WebAuthn tự nó đã đủ thay cho bước yếu tố thứ 2, không
+chồng thêm 1 lớp). KHÔNG thay thế mật khẩu — vẫn phải gõ mật khẩu trước
+như cũ. Đăng ký được NHIỀU thiết bị/tài khoản; gỡ thiết bị bất kỳ lúc nào.
+
+**Công nghệ**: chuẩn WebAuthn/FIDO2 qua `@simplewebauthn/server` (backend)
++ `@simplewebauthn/browser` (frontend) — trình duyệt tự gọi cảm biến sinh
+trắc học của máy (Touch ID/Face ID/vân tay Windows Hello...), server chỉ
+lưu khoá công khai + xác minh chữ ký, KHÔNG BAO GIỜ thấy dữ liệu sinh trắc
+học thật. **Giới hạn cố hữu của WebAuthn (không phải lỗi)**: khoá gắn chặt
+1 thiết bị/trình duyệt cụ thể — đăng nhập máy khác vẫn phải dùng mã 2FA
+như cũ.
+
+**QUAN TRỌNG — cần cấu hình domain thật trước khi dùng được**: WebAuthn
+gắn chặt vào origin (domain) trình duyệt thấy — thêm 2 biến môi trường BẮT
+BUỘC `WEBAUTHN_RP_ID`/`WEBAUTHN_RP_ORIGIN` (xem `.env.example`), để trống
+= tính năng tắt hẳn (API trả lỗi rõ ràng, không crash server, không ảnh
+hưởng đăng nhập bằng mật khẩu/mã 2FA thường).
+
+- `rp-db/schema.sql` — bảng mới `app.UserWebAuthnCredentials` (CredentialId,
+  PublicKeyBase64, Counter, DeviceLabel...).
+- `rp-server/routes/webauthn.js` (mới) — 6 route: `GET/DELETE /devices`
+  (quản lý, cần phiên đầy đủ), `POST /register/options`+`/register/verify`
+  (đăng ký, cần phiên đầy đủ), `POST /login/options`+`/login/verify` (đăng
+  nhập — nhận token "pending" y hệt `/2fa/verify`, KHÔNG cần phiên trước).
+  Challenge tạm lưu trong bộ nhớ (giống `lib/captcha.js`), hết hạn 5 phút.
+- `rp-server/.env.example` — thêm `WEBAUTHN_RP_NAME`/`WEBAUTHN_RP_ID`/
+  `WEBAUTHN_RP_ORIGIN`.
+- `rp-user/src/modules/system/account/AccountPage.jsx` — mục "Bảo mật —
+  Vân tay/Face ID": danh sách thiết bị + đăng ký thiết bị mới (ẩn hẳn nếu
+  trình duyệt/máy không hỗ trợ WebAuthn).
+- `rp-user/src/pages/LoginPage.jsx` (`TwoFactorVerifyStep`) — thêm nút
+  "Dùng vân tay/Face ID" bên cạnh ô nhập mã 6 số.
+- Thêm `@simplewebauthn/server` (rp-server), `@simplewebauthn/browser`
+  (rp-user) vào `package.json` — **PHẢI `npm install` lại trên server**.
+- **Chỉ áp dụng `rp-user` đợt này** — CHƯA làm cho `etl-admin`/`api-admin`
+  (để đợt sau, theo đúng thứ tự người dùng đã chốt).
+- Đã `npm run build` xác nhận không lỗi; đã kiểm chứng
+  `generateRegistrationOptions()`/`generateAuthenticationOptions()` chạy
+  đúng với tham số thật. **Chưa (và không thể) mô phỏng được toàn bộ nghi
+  thức mật mã WebAuthn thật trong môi trường này (cần trình duyệt +
+  cảm biến sinh trắc học thật)** — BẮT BUỘC kiểm tra tay bằng thiết bị
+  thật trước khi coi là xong, xem checklist trong file hướng dẫn deploy.
+
 ## 8.40 — Tự đặt lại mã 2FA (đổi thiết bị) ở "Tài khoản của tôi" — rp-user
 
 Theo yêu cầu người dùng: admin (vai trò hệ thống) tự đặt lại mã 2FA của

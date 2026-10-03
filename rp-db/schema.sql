@@ -158,6 +158,32 @@ BEGIN
 END
 GO
 
+-- Thiết bị vân tay/Face ID đã đăng ký qua WebAuthn (bản 8.41, theo yêu cầu
+-- người dùng) — dùng để ĐĂNG NHẬP NHANH thay mật khẩu (tài khoản thường)
+-- HOẶC thay bước nhập mã 2FA (tài khoản IsSystemRole, xem routes/webauthn.js)
+-- — KHÔNG thay thế mật khẩu/2FA hẳn, chỉ thêm đường tắt cho ĐÚNG thiết bị
+-- đã đăng ký (WebAuthn gắn chặt 1 khoá riêng/1 thiết bị, không dùng lại
+-- được ở máy khác). CredentialId là khoá công khai định danh thiết bị,
+-- PublicKeyBase64/Counter dùng để XÁC THỰC chữ ký lúc đăng nhập (Counter
+-- tăng dần mỗi lần dùng — phát hiện khoá bị nhân bản nếu counter không
+-- tăng, xem verifyAuthenticationResponse() của @simplewebauthn/server).
+IF OBJECT_ID('app.UserWebAuthnCredentials', 'U') IS NULL
+BEGIN
+    CREATE TABLE app.UserWebAuthnCredentials (
+        Id               INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        UserId           INT           NOT NULL REFERENCES app.Users(Id) ON DELETE CASCADE,
+        CredentialId     VARCHAR(400)  NOT NULL, -- base64url, do authenticator cấp
+        PublicKeyBase64  NVARCHAR(800) NOT NULL,
+        Counter          BIGINT        NOT NULL DEFAULT 0,
+        DeviceLabel      NVARCHAR(200) NOT NULL, -- tên người dùng tự đặt lúc đăng ký (vd "iPhone của Đào Phan Anh")
+        CreatedAt        DATETIME2(3)  NOT NULL DEFAULT SYSUTCDATETIME(),
+        LastUsedAt       DATETIME2(3)  NULL
+    );
+    CREATE UNIQUE INDEX UX_UserWebAuthnCredentials_CredentialId ON app.UserWebAuthnCredentials (CredentialId);
+    CREATE INDEX IX_UserWebAuthnCredentials_UserId ON app.UserWebAuthnCredentials (UserId);
+END
+GO
+
 -- IsSystemRole = 1 -> vai trò Admin: bỏ qua mọi kiểm tra RoleMenuAccess/
 -- RoleReportAccess, luôn đủ quyền (xem lib/permissions.js) — không xoá được.
 IF OBJECT_ID('app.Roles', 'U') IS NULL

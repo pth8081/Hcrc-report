@@ -7,7 +7,8 @@
 // "Tài khoản của tôi" ở sidebar-footer, luôn hiện, không lọc theo quyền).
 // CHỈ áp dụng tài khoản AuthSource='local' — tài khoản 'hcrcWorkspace' không
 // có mật khẩu local nào ở đây để đổi (server tự trả lỗi rõ ràng nếu vẫn cố).
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { startRegistration, browserSupportsWebAuthn } from '@simplewebauthn/browser';
 import { api } from '../../../lib/api';
 import { useAuth } from '../../../lib/AuthContext';
 import PasswordInput from '../../../components/PasswordInput';
@@ -117,6 +118,73 @@ function TwoFactorResetFlow({ onClose }) {
   );
 }
 
+// "Vân tay/Face ID" (WebAuthn, bản 8.41, theo yêu cầu người dùng) — đăng
+// ký thiết bị để lúc đăng nhập có thêm nút "Dùng vân tay/Face ID" THAY
+// HẲN bước nhập mã 2FA (xem LoginPage.jsx + rp-server/routes/webauthn.js).
+// Đăng ký được NHIỀU thiết bị (vd điện thoại + máy tính riêng).
+function WebauthnDevicesSection() {
+  const { webauthnListDevices, webauthnDeleteDevice, webauthnRegisterOptions, webauthnRegisterVerify } = useAuth();
+  const [devices, setDevices] = useState(null);
+  const [error, setError] = useState('');
+  const [registering, setRegistering] = useState(false);
+  const [newLabel, setNewLabel] = useState('');
+
+  function reload() {
+    webauthnListDevices().then(setDevices).catch((err) => setError(err.message));
+  }
+  useEffect(reload, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function handleRegister(e) {
+    e.preventDefault();
+    setError('');
+    setRegistering(true);
+    try {
+      const options = await webauthnRegisterOptions();
+      const response = await startRegistration({ optionsJSON: options });
+      await webauthnRegisterVerify(response, newLabel.trim() || 'Thiết bị không tên');
+      setNewLabel('');
+      reload();
+    } catch (err) {
+      if (err?.name !== 'NotAllowedError') setError(err.message);
+    } finally {
+      setRegistering(false);
+    }
+  }
+
+  async function handleDelete(device) {
+    if (!confirm(`Gỡ thiết bị "${device.label}"? Thiết bị này sẽ KHÔNG còn đăng nhập nhanh được nữa.`)) return;
+    try {
+      await webauthnDeleteDevice(device.id);
+      reload();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  if (!browserSupportsWebAuthn()) return null; // trình duyệt/máy không hỗ trợ — ẩn hẳn, không có gì để đăng ký
+
+  return (
+    <>
+      <h3>Bảo mật — Vân tay / Face ID</h3>
+      <p className="form-hint">
+        Đăng ký thiết bị để đăng nhập nhanh — bấm "Dùng vân tay/Face ID" lúc xác thực hai yếu tố
+        THAY VÌ gõ mã 6 số, trên ĐÚNG thiết bị đã đăng ký (không dùng được ở máy khác).
+      </p>
+      {error && <p className="form-error">{error}</p>}
+      {devices?.map((d) => (
+        <div key={d.id} className="security-card" style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+          <strong>{d.label}</strong>
+          <button type="button" onClick={() => handleDelete(d)}>Gỡ thiết bị</button>
+        </div>
+      ))}
+      <form className="inline-form" onSubmit={handleRegister}>
+        <input value={newLabel} onChange={(e) => setNewLabel(e.target.value)} placeholder="Tên thiết bị (vd: iPhone của tôi)" />
+        <button type="submit" disabled={registering}>{registering ? 'Đang đăng ký...' : '➕ Đăng ký thiết bị mới'}</button>
+      </form>
+    </>
+  );
+}
+
 export default function AccountPage() {
   const { me, logout } = useAuth();
   const [currentPassword, setCurrentPassword] = useState('');
@@ -196,6 +264,7 @@ export default function AccountPage() {
           ) : (
             <TwoFactorResetFlow onClose={() => setShowTwoFactorReset(false)} />
           )}
+          <WebauthnDevicesSection />
         </>
       )}
     </div>

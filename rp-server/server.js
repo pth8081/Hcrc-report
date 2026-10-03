@@ -29,6 +29,7 @@ const hcrcWorkspaceSettingsRoutes = require('./routes/hcrcWorkspaceSettings');
 const dashboardCatalogRoutes = require('./routes/dashboardCatalog');
 const dashboardsRoutes = require('./routes/dashboards');
 const adhocReportsRoutes = require('./routes/adhocReports');
+const webauthnRoutes = require('./routes/webauthn');
 const {
   verifyCredentials, isSystemRoleForRateLimit, issueToken, COOKIE_NAME, getSecret, setSessionCookie,
   issuePending2FAToken, issueSetupRequiredToken
@@ -187,6 +188,7 @@ app.post('/api/auth/logout', (req, res) => {
 
 app.use('/api/health', healthRoutes);
 app.use('/api/2fa', twoFactorRoutes);
+app.use('/api/webauthn', webauthnRoutes);
 app.use('/api/me', meRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/dashboards', dashboardsRoutes);

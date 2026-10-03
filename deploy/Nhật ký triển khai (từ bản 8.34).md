@@ -12,6 +12,32 @@ cập nhật file này ở mọi bản sau, cho tới khi người dùng bảo d
 
 ---
 
+## 8.41 — WebAuthn vân tay/Face ID — rp-user, thay bước 2FA
+
+**Thay đổi**: đăng ký vân tay/Face ID ở "Tài khoản của tôi" (Admin hệ
+thống) → lúc đăng nhập có thêm nút "Dùng vân tay/Face ID" thay HẲN bước
+nhập mã 2FA. Chỉ áp dụng `rp-user` đợt này.
+
+**Các bước triển khai (KHÁC các bản trước — có bảng CSDL mới + BẮT BUỘC
+khai domain thật):**
+1. `git pull origin main`
+2. Chạy lại `rp-db/schema.sql` (thêm bảng `app.UserWebAuthnCredentials`,
+   an toàn chạy lại nhiều lần).
+3. **Thêm vào `rp-server/.env`**: `WEBAUTHN_RP_ID=<domain thật, không có
+   https://>` và `WEBAUTHN_RP_ORIGIN=https://<domain thật>` — THIẾU bước
+   này tính năng tự tắt (không crash, nhưng không dùng được).
+4. `cd rp-server && npm install` (gói mới `@simplewebauthn/server`).
+5. `cd rp-user && npm run build`, copy `dist/` mới (gói mới
+   `@simplewebauthn/browser`).
+6. `pm2 restart hcrc-rp-server`.
+7. Kiểm tra bằng THIẾT BỊ THẬT (điện thoại/laptop có vân tay/Face ID,
+   không mô phỏng được) — đăng ký 1 thiết bị, đăng xuất/đăng nhập lại,
+   xác nhận bấm "Dùng vân tay/Face ID" vào thẳng hệ thống không cần gõ mã.
+
+Chi tiết đầy đủ: `deploy/Cập nhật bản 8.41 — WebAuthn vân tay Face ID.md`.
+
+---
+
 ## 8.40 — Tự đặt lại mã 2FA (đổi thiết bị) — rp-user
 
 **Thay đổi**: trang "Tài khoản của tôi" (rp-user) có thêm nút "Đặt lại mã
