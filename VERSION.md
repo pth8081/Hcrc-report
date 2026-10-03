@@ -20,6 +20,27 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 8.33 — Sửa "Failed to fetch" khi Nhập hàng loạt Sync Job nhiều dòng
+
+Triển khai thật 34 siêu thị Thành viên (68 dòng Sync Job): bấm "Nhập hàng
+loạt" báo lỗi trình duyệt **"Failed to fetch"** (không phải lỗi dữ liệu/
+JSON nào) — tìm ra nguyên nhân thật là **Nginx**, không phải code Node:
+`deploy/nginx.conf` giới hạn chung `proxy_read_timeout 65s` cho toàn bộ
+`/admin/`, trong khi Nhập hàng loạt Sync Job đối chiếu schema THẬT của
+TỪNG DÒNG qua mạng, CHẠY TUẦN TỰ (không song song, xem
+`etl/lib/syncJobsImport.js`) — 68 dòng × 2 lượt gọi mạng/dòng tới từng SQL
+Server siêu thị dễ dàng vượt 65 giây. Nginx tự ngắt kết nối giữa chừng dù
+backend vẫn đang xử lý bình thường, trình duyệt thấy mất kết nối đột ngột
+("Failed to fetch") thay vì 1 lỗi rõ ràng.
+
+- `deploy/nginx.conf` — thêm 1 `location` RIÊNG khớp đúng 2 route Nhập
+  hàng loạt (`/admin/sync-jobs/import`, `/admin/data-sources/import`),
+  nâng `proxy_read_timeout`/`proxy_send_timeout` lên 600s (10 phút, dư
+  nhiều so với quy mô thật) — các route `/admin/` khác vẫn giữ 65s như cũ.
+- **Cần áp dụng thủ công trên server đang chạy** (không tự động qua `git
+  pull`/`pm2 restart`) — xem `deploy/Cập nhật bản 8.33 — Sửa Failed to
+  fetch Nhập hàng loạt.md`.
+
 ## 8.32 — Sửa lỗi tương tự ở "File mẫu" Sync Job
 
 Rà lại toàn bộ sau bug 8.31, phát hiện `buildSyncJobsTemplate()`
