@@ -29,6 +29,22 @@ router.get('/', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// Lọc tile theo 2 lớp quyền CỘNG DỒN (bản 8.43, xem rp-db/schema.sql:
+// app.RoleDashboardGroupAccess): (1) app.RoleReportAccess — như trước bản
+// 8.43, ÁP DỤNG MỌI tile; (2) app.RoleDashboardGroupAccess.CanView — CHỈ
+// áp dụng tile có khai "group" (tile không khai group giữ nguyên hành vi
+// cũ, không bị lọc thêm). `requireExport=true` dùng CanExport thay CanView
+// (xuất file đòi quyền CHẶT HƠN xem).
+function filterTilesForUser(tiles, dashboardId, userContext, requireExport = false) {
+  const { isSystemRole, reportIds, dashboardGroupAccess } = userContext;
+  return tiles.filter((t) => {
+    if (!isSystemRole && !reportIds.has(t.reportId)) return false;
+    if (isSystemRole || !t.group) return true;
+    const access = dashboardGroupAccess.get(`${dashboardId}::${t.group}`);
+    return !!(requireExport ? access?.canExport : access?.canView);
+  });
+}
+
 router.get('/:dashboardId', async (req, res, next) => {
   try {
     const pool = await getPool('RP');
@@ -39,11 +55,10 @@ router.get('/:dashboardId', async (req, res, next) => {
     const { Title, DefinitionJson } = result.recordset[0];
     const definition = JSON.parse(DefinitionJson);
     // req.userContext do requireMenuAccess() gán sẵn (xem lib/auth.js) —
-    // LOẠI HẲN ô nào role không có quyền xem báo cáo tương ứng (thay vì để
-    // rp-user tự gọi /run rồi nhận 403 mới biết) — người dùng chỉ thấy đúng
-    // các ô mình được xem, không có "ô lỗi" gây khó hiểu trên giao diện.
-    const { isSystemRole, reportIds } = req.userContext;
-    const visibleTiles = (definition.tiles || []).filter(t => isSystemRole || reportIds.has(t.reportId));
+    // LOẠI HẲN ô nào role không có quyền xem (thay vì để rp-user tự gọi
+    // /run rồi nhận 403 mới biết) — người dùng chỉ thấy đúng các ô mình
+    // được xem, không có "ô lỗi" gây khó hiểu trên giao diện.
+    const visibleTiles = filterTilesForUser(definition.tiles || [], req.params.dashboardId, req.userContext);
     res.json({ title: Title, tiles: visibleTiles });
   } catch (err) { next(err); }
 });
@@ -149,9 +164,12 @@ router.post('/:dashboardId/export', async (req, res, next) => {
     const { Title: dashboardTitle, DefinitionJson } = result.recordset[0];
     const definition = JSON.parse(DefinitionJson);
 
-    const { isSystemRole, reportIds } = req.userContext;
-    const visibleTiles = (definition.tiles || []).filter(t => isSystemRole || reportIds.has(t.reportId));
-    const tiles = tileKeys.map(k => visibleTiles.find(t => t.key === k)).filter(Boolean);
+    // requireExport=true (bản 8.43) — xuất file đòi CanExport, CHẶT HƠN
+    // CanView dùng ở GET /:dashboardId (xem filterTilesForUser ở trên) —
+    // vai trò chỉ có "Xem dashboard" (không có "Xem chi tiết") THẤY được ô
+    // trên web nhưng bấm Xuất Excel/PDF cho đúng ô đó sẽ bị loại ở đây.
+    const exportableTiles = filterTilesForUser(definition.tiles || [], req.params.dashboardId, req.userContext, true);
+    const tiles = tileKeys.map(k => exportableTiles.find(t => t.key === k)).filter(Boolean);
     if (!tiles.length) return res.status(403).json({ error: 'Không có ô nào hợp lệ/được phép xuất' });
 
     const sections = [];

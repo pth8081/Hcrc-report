@@ -12,12 +12,17 @@ export default function RolesPage() {
   const [menuItems, setMenuItems] = useState([]);
   const [reportCatalog, setReportCatalog] = useState([]);
   const [domainCatalog, setDomainCatalog] = useState([]);
+  // dashboardGroupCatalog (bản 8.43) — TOÀN BỘ nhóm đang có trên mọi
+  // dashboard, xem routes/roles.js:/dashboard-groups-catalog.
+  const [dashboardGroupCatalog, setDashboardGroupCatalog] = useState([]);
   const [error, setError] = useState('');
   const [form, setForm] = useState({ code: '', name: '' });
   const [editingAccessFor, setEditingAccessFor] = useState(null);
   const [selectedMenuIds, setSelectedMenuIds] = useState([]);
   const [selectedReportIds, setSelectedReportIds] = useState([]);
   const [selectedDomains, setSelectedDomains] = useState([]);
+  // dashboardGroupAccess: { "dashboardId::groupKey": { canView, canExport } }
+  const [dashboardGroupAccess, setDashboardGroupAccess] = useState({});
   const [editingNameFor, setEditingNameFor] = useState(null);
   const [nameForm, setNameForm] = useState('');
 
@@ -26,8 +31,25 @@ export default function RolesPage() {
     api.get('/system/menu-items').then(setMenuItems).catch(err => setError(err.message));
     api.get('/system/roles/report-catalog').then(setReportCatalog).catch(err => setError(err.message));
     api.get('/system/roles/domains-catalog').then(setDomainCatalog).catch(err => setError(err.message));
+    api.get('/system/roles/dashboard-groups-catalog').then(setDashboardGroupCatalog).catch(err => setError(err.message));
   }
   useEffect(reload, []);
+
+  function dashboardGroupKey(dashboardId, groupKey) {
+    return `${dashboardId}::${groupKey}`;
+  }
+
+  function toggleDashboardGroupAccess(dashboardId, groupKey, field) {
+    const mapKey = dashboardGroupKey(dashboardId, groupKey);
+    setDashboardGroupAccess(prev => {
+      const current = prev[mapKey] || { canView: false, canExport: false };
+      const next = { ...current, [field]: !current[field] };
+      // Bỏ "Xem chi tiết" tự động nếu bỏ luôn "Xem dashboard" (xuất file mà
+      // không xem được thì vô nghĩa, tránh cấu hình rối không ai hiểu).
+      if (field === 'canView' && !next.canView) next.canExport = false;
+      return { ...prev, [mapKey]: next };
+    });
+  }
 
   async function createRole(e) {
     e.preventDefault();
@@ -72,6 +94,11 @@ export default function RolesPage() {
     setSelectedMenuIds(access.menuItemIds);
     setSelectedReportIds(access.reportIds);
     setSelectedDomains(access.domains);
+    const accessMap = {};
+    for (const entry of access.dashboardGroupAccess || []) {
+      accessMap[dashboardGroupKey(entry.dashboardId, entry.groupKey)] = { canView: entry.canView, canExport: entry.canExport };
+    }
+    setDashboardGroupAccess(accessMap);
   }
 
   async function saveAccess() {
@@ -79,6 +106,11 @@ export default function RolesPage() {
       await api.put(`/system/roles/${editingAccessFor.Id}/menu-access`, { menuItemIds: selectedMenuIds });
       await api.put(`/system/roles/${editingAccessFor.Id}/report-access`, { reportIds: selectedReportIds });
       await api.put(`/system/roles/${editingAccessFor.Id}/domain-access`, { domains: selectedDomains });
+      const entries = dashboardGroupCatalog.map(g => ({
+        dashboardId: g.dashboardId, groupKey: g.groupKey,
+        ...(dashboardGroupAccess[dashboardGroupKey(g.dashboardId, g.groupKey)] || { canView: false, canExport: false })
+      }));
+      await api.put(`/system/roles/${editingAccessFor.Id}/dashboard-group-access`, { entries });
       setEditingAccessFor(null);
     } catch (err) { setError(err.message); }
   }
@@ -130,6 +162,33 @@ export default function RolesPage() {
                 {m.Label}
               </label>
             ))}
+
+            {dashboardGroupCatalog.length > 0 && (
+              <>
+                <h4>Dashboard được xem (theo nhóm)</h4>
+                <p className="form-hint">
+                  Chỉ hiện khi đã tick "Dashboard" ở trên — chọn đúng nhóm vai trò này được phép
+                  xem, không phải tất cả. "Xem chi tiết" = được bấm Xuất Excel/PDF cho nhóm đó.
+                </p>
+                {dashboardGroupCatalog.map(g => {
+                  const mapKey = dashboardGroupKey(g.dashboardId, g.groupKey);
+                  const access = dashboardGroupAccess[mapKey] || { canView: false, canExport: false };
+                  return (
+                    <div key={mapKey} className="dashboard-group-access-row">
+                      <span className="dashboard-group-access-label">{g.groupIcon} {g.groupLabel}</span>
+                      <label className="checkbox-row">
+                        <input type="checkbox" checked={access.canView} onChange={() => toggleDashboardGroupAccess(g.dashboardId, g.groupKey, 'canView')} />
+                        Xem dashboard
+                      </label>
+                      <label className="checkbox-row">
+                        <input type="checkbox" checked={access.canExport} disabled={!access.canView} onChange={() => toggleDashboardGroupAccess(g.dashboardId, g.groupKey, 'canExport')} />
+                        Xem chi tiết (xuất Excel/PDF)
+                      </label>
+                    </div>
+                  );
+                })}
+              </>
+            )}
 
             <h4>Báo cáo được chạy</h4>
             {reportCatalog.map(r => (

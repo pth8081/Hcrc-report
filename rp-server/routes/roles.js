@@ -85,11 +85,45 @@ router.get('/:id/access', async (req, res, next) => {
       .query('SELECT ReportId FROM app.RoleReportAccess WHERE RoleId = @id');
     const domains = await pool.request().input('id', sql.Int, req.params.id)
       .query('SELECT Domain FROM app.RoleDomainAccess WHERE RoleId = @id');
+    const dashboardGroups = await pool.request().input('id', sql.Int, req.params.id)
+      .query('SELECT DashboardId, GroupKey, CanView, CanExport FROM app.RoleDashboardGroupAccess WHERE RoleId = @id');
     res.json({
       menuItemIds: menu.recordset.map(r => r.MenuItemId),
       reportIds: reports.recordset.map(r => r.ReportId),
-      domains: domains.recordset.map(r => r.Domain)
+      domains: domains.recordset.map(r => r.Domain),
+      dashboardGroupAccess: dashboardGroups.recordset.map(r => ({
+        dashboardId: r.DashboardId, groupKey: r.GroupKey, canView: !!r.CanView, canExport: !!r.CanExport
+      }))
     });
+  } catch (err) { next(err); }
+});
+
+// Toàn bộ "nhóm" (tile.group/groupLabel/groupIcon, bản 8.42) đang có trên
+// MỌI dashboard — nguồn liệt kê cho checkbox "Dashboard được xem (theo
+// nhóm)" bên dưới. Nhóm sống trong DefinitionJson.tiles (không phải bảng
+// danh mục riêng) nên phải ĐỌC + QUÉT JSON của từng dashboard ở đây, không
+// SELECT thẳng được như report-catalog/domains-catalog bên dưới.
+router.get('/dashboard-groups-catalog', async (req, res, next) => {
+  try {
+    const pool = await getPool('RP');
+    const result = await pool.request().query('SELECT DashboardId, Title, DefinitionJson FROM app.Dashboards WHERE IsActive = 1');
+    const groups = [];
+    const seen = new Set();
+    for (const row of result.recordset) {
+      let definition;
+      try { definition = JSON.parse(row.DefinitionJson); } catch { continue; }
+      for (const tile of definition.tiles || []) {
+        if (!tile.group) continue;
+        const dedupeKey = `${row.DashboardId}::${tile.group}`;
+        if (seen.has(dedupeKey)) continue;
+        seen.add(dedupeKey);
+        groups.push({
+          dashboardId: row.DashboardId, dashboardTitle: row.Title,
+          groupKey: tile.group, groupLabel: tile.groupLabel || tile.group, groupIcon: tile.groupIcon || ''
+        });
+      }
+    }
+    res.json(groups);
   } catch (err) { next(err); }
 });
 
@@ -198,6 +232,43 @@ router.put('/:id/domain-access', requireSystemRoleActor, async (req, res, next) 
     }
     invalidateAll();
     await logAction(req, { module: 'Phân quyền', actionType: 'GAN_QUYEN_DOMAIN', targetObject: req.params.id, description: `Cập nhật quyền Domain (Báo cáo tự do) vai trò #${req.params.id}` });
+    res.json({ ok: true });
+  } catch (err) { next(err); }
+});
+
+// Cùng lý do — chỉ Admin hệ thống thật mới cấp quyền Dashboard THEO NHÓM
+// cho 1 vai trò (bản 8.43). entries: [{dashboardId, groupKey, canView, canExport}].
+// Xoá-ghi-lại TOÀN BỘ (giống 3 route quyền khác ở trên) — chỉ ghi dòng có
+// canView HOẶC canExport (bỏ dòng cả 2 đều false, tương đương "không cấp",
+// tránh rác vô nghĩa trong bảng).
+router.put('/:id/dashboard-group-access', requireSystemRoleActor, async (req, res, next) => {
+  try {
+    const { entries = [] } = req.body || {};
+    const pool = await getPool('RP');
+    const tx = new sql.Transaction(pool);
+    await tx.begin();
+    try {
+      await new sql.Request(tx).input('id', sql.Int, req.params.id).query('DELETE FROM app.RoleDashboardGroupAccess WHERE RoleId = @id');
+      for (const entry of entries) {
+        if (!entry?.dashboardId || !entry?.groupKey || (!entry.canView && !entry.canExport)) continue;
+        await new sql.Request(tx)
+          .input('id', sql.Int, req.params.id)
+          .input('dashboardId', sql.VarChar(80), entry.dashboardId)
+          .input('groupKey', sql.VarChar(80), entry.groupKey)
+          .input('canView', sql.Bit, entry.canView ? 1 : 0)
+          .input('canExport', sql.Bit, entry.canExport ? 1 : 0)
+          .query(`
+            INSERT INTO app.RoleDashboardGroupAccess (RoleId, DashboardId, GroupKey, CanView, CanExport)
+            VALUES (@id, @dashboardId, @groupKey, @canView, @canExport)
+          `);
+      }
+      await tx.commit();
+    } catch (err) {
+      await tx.rollback().catch(() => {});
+      throw err;
+    }
+    invalidateAll();
+    await logAction(req, { module: 'Phân quyền', actionType: 'GAN_QUYEN_DASHBOARD', targetObject: req.params.id, description: `Cập nhật quyền Dashboard theo nhóm vai trò #${req.params.id}` });
     res.json({ ok: true });
   } catch (err) { next(err); }
 });

@@ -42,6 +42,10 @@ button:hover { opacity: 0.9; }
 .inline-form, .filter-form { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 16px; }
 .stacked-form { display: flex; flex-direction: column; gap: 10px; max-width: 420px; margin-bottom: 20px; }
 .checkbox-row { flex-direction: row; align-items: center; gap: 6px; font-size: 14px; color: var(--ink); }
+/* .dashboard-group-access-row (bản 8.43) — 1 dòng "Gán quyền" cho 1 nhóm
+   Dashboard (nhãn nhóm + 2 checkbox Xem dashboard/Xem chi tiết). */
+.dashboard-group-access-row { display: flex; align-items: center; gap: 16px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px; margin-bottom: 6px; }
+.dashboard-group-access-label { font-size: 13.5px; font-weight: 600; flex: 1; }
 .date-range { display: flex; align-items: center; gap: 6px; }
 
 /* SearchableSelect (components/SearchableSelect.jsx) — dropdown searchable +

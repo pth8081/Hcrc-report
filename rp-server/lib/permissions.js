@@ -27,12 +27,17 @@ async function loadContext(userId) {
   const roles = roleResult.recordset;
   const isSystemRole = roles.some(r => r.IsSystemRole);
 
-  let menuCodes, reportIds, domains;
+  let menuCodes, reportIds, domains, dashboardGroupAccess;
   if (isSystemRole) {
     const allMenu = await pool.request().query('SELECT Code FROM app.MenuItems');
     const allReports = await pool.request().query('SELECT ReportId FROM app.ReportCatalog WHERE IsActive = 1');
     menuCodes = new Set(allMenu.recordset.map(r => r.Code));
     reportIds = new Set(allReports.recordset.map(r => r.ReportId));
+    // null = bỏ qua hẳn lớp RoleDashboardGroupAccess (xem routes/dashboards.js) —
+    // KHÁC reportIds/menuCodes ở trên (liệt kê sẵn TOÀN BỘ), vì nhóm sống
+    // trong DefinitionJson.tiles (không có bảng danh mục để liệt kê "toàn bộ
+    // nhóm hiện có" ở đây mà không quét lại JSON của mọi dashboard).
+    dashboardGroupAccess = null;
     // Admin hệ thống thấy TOÀN BỘ Domain đang có dữ liệu thật trong DWH —
     // cùng tinh thần "bỏ qua RoleReportAccess" ở trên, áp dụng cho
     // app.RoleDomainAccess (Báo cáo tự do, xem routes/adhocReports.js).
@@ -78,13 +83,28 @@ async function loadContext(userId) {
     const domainResult = await domainReq.query(`
       SELECT DISTINCT Domain FROM app.RoleDomainAccess WHERE RoleId IN (${inClause})
     `);
+    // MAX(CAST(bit AS INT)) theo (DashboardId, GroupKey) — user có THỂ có
+    // nhiều vai trò, hợp theo kiểu "CHỈ CẦN 1 vai trò cho phép" (giống tinh
+    // thần UNION của menuCodes/reportIds/domains ở trên, nhưng đây có 2 cờ
+    // bit/nhóm nên phải GROUP BY + MAX thay vì DISTINCT đơn thuần).
+    const dgaReq = pool.request();
+    const dgaInClause = roleIds.map((id, i) => { dgaReq.input(`r${i}`, sql.Int, id); return `@r${i}`; }).join(', ');
+    const dgaResult = await dgaReq.query(`
+      SELECT DashboardId, GroupKey, MAX(CAST(CanView AS INT)) AS CanView, MAX(CAST(CanExport AS INT)) AS CanExport
+      FROM app.RoleDashboardGroupAccess WHERE RoleId IN (${dgaInClause})
+      GROUP BY DashboardId, GroupKey
+    `);
     menuCodes = new Set(menuResult.recordset.map(r => r.Code));
     reportIds = new Set(reportResult.recordset.map(r => r.ReportId));
     domains = new Set(domainResult.recordset.map(r => r.Domain));
+    dashboardGroupAccess = new Map(dgaResult.recordset.map(r => [
+      `${r.DashboardId}::${r.GroupKey}`, { canView: !!r.CanView, canExport: !!r.CanExport }
+    ]));
   } else {
     menuCodes = new Set();
     reportIds = new Set();
     domains = new Set();
+    dashboardGroupAccess = new Map();
   }
 
   return {
@@ -95,7 +115,8 @@ async function loadContext(userId) {
     isSystemRole,
     menuCodes,
     reportIds,
-    domains
+    domains,
+    dashboardGroupAccess
   };
 }
 

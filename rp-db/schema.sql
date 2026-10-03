@@ -475,14 +475,17 @@ GO
 
 -- Dashboard (hướng Power BI, Giai đoạn C) — 1 trang gộp NHIỀU báo cáo có sẵn
 -- (app.ReportCatalog) thành các "ô" (tiles), xem DefinitionJson.tiles =
--- [{key, reportId, title?}]. KHÔNG có MenuItemId/bảng quyền riêng — toàn bộ
--- Dashboard chỉ nằm sau ĐÚNG 1 mục menu tĩnh "dashboard" (xem seed
--- app.MenuItems bên dưới, RoleMenuAccess đã đủ để bật/tắt CẢ TRANG), còn
--- QUYỀN XEM TỪNG Ô vẫn do CHÍNH app.RoleReportAccess của report đó quyết
--- định (routes/dashboards.js lọc bớt tile nào role không có quyền trước khi
--- trả về, và mỗi tile khi CHẠY vẫn gọi qua đúng route /api/reports/:id/run
--- đã có sẵn requireReportAccess — không có đường tắt nào bỏ qua kiểm tra đó
--- chỉ vì đi qua dashboard) — không cần thêm 1 bảng ACL mới trùng lặp.
+-- [{key, reportId, title?, group?, groupLabel?, groupIcon?}]. KHÔNG có
+-- MenuItemId riêng — toàn bộ Dashboard chỉ nằm sau ĐÚNG 1 mục menu tĩnh
+-- "dashboard" (xem seed app.MenuItems bên dưới, RoleMenuAccess đã đủ để
+-- bật/tắt CẢ TRANG). QUYỀN XEM TỪNG Ô vẫn do CHÍNH app.RoleReportAccess của
+-- report đó quyết định trước tiên (routes/dashboards.js lọc bớt tile nào
+-- role không có quyền trước khi trả về, và mỗi tile khi CHẠY vẫn gọi qua
+-- đúng route /api/reports/:id/run đã có sẵn requireReportAccess — không có
+-- đường tắt nào bỏ qua kiểm tra đó chỉ vì đi qua dashboard). Tile có khai
+-- "group" (bản 8.42) còn bị lọc THÊM theo app.RoleDashboardGroupAccess bên
+-- dưới (bản 8.43) — 2 lớp CỘNG DỒN, không thay thế nhau (đủ RoleReportAccess
+-- NHƯNG thiếu RoleDashboardGroupAccess.CanView vẫn KHÔNG thấy tile).
 IF OBJECT_ID('app.Dashboards', 'U') IS NULL
 BEGIN
     CREATE TABLE app.Dashboards (
@@ -491,6 +494,27 @@ BEGIN
         DefinitionJson NVARCHAR(MAX) NOT NULL,
         IsActive       BIT           NOT NULL DEFAULT 1,
         CreatedAt      DATETIME2(3)  NOT NULL DEFAULT SYSUTCDATETIME()
+    );
+END
+GO
+
+-- Phân quyền Dashboard THEO NHÓM (bản 8.43, theo yêu cầu người dùng: tách
+-- riêng "Xem dashboard" và "Xem chi tiết/xuất file") — CHỈ áp dụng cho tile
+-- có khai "group" (xem app.Dashboards ở trên); tile KHÔNG khai group không
+-- bị lọc thêm ở đây (giữ nguyên hành vi trước bản 8.42, chỉ cần
+-- RoleReportAccess). Không có dòng nào cho (RoleId, DashboardId, GroupKey)
+-- = KHÔNG thấy nhóm đó (trừ IsSystemRole=1, luôn thấy hết, xem
+-- lib/permissions.js) — ĐÚNG quy ước "mặc định từ chối" của RoleReportAccess/
+-- RoleDomainAccess ở trên, không phải lỗi thiếu seed.
+IF OBJECT_ID('app.RoleDashboardGroupAccess', 'U') IS NULL
+BEGIN
+    CREATE TABLE app.RoleDashboardGroupAccess (
+        RoleId      INT          NOT NULL REFERENCES app.Roles(Id) ON DELETE CASCADE,
+        DashboardId VARCHAR(80)  NOT NULL REFERENCES app.Dashboards(DashboardId) ON DELETE CASCADE,
+        GroupKey     VARCHAR(80) NOT NULL,
+        CanView     BIT          NOT NULL DEFAULT 1,
+        CanExport   BIT          NOT NULL DEFAULT 0,
+        CONSTRAINT PK_RoleDashboardGroupAccess PRIMARY KEY (RoleId, DashboardId, GroupKey)
     );
 END
 GO

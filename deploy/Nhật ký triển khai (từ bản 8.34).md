@@ -12,6 +12,30 @@ cập nhật file này ở mọi bản sau, cho tới khi người dùng bảo d
 
 ---
 
+## 8.43 — Phân quyền Dashboard theo nhóm
+
+**Thay đổi**: tách 2 quyền riêng cho mỗi nhóm Dashboard — "Xem dashboard"
+và "Xem chi tiết" (xuất Excel/PDF). **CẢNH BÁO**: sau khi deploy, MỌI vai
+trò (trừ Admin hệ thống) mất quyền xem 2 nhóm hiện có cho tới khi được cấp
+lại thủ công (mặc định từ chối, giống RoleReportAccess).
+
+**Các bước triển khai:**
+1. `git pull origin main`
+2. Chạy lại `rp-db/schema.sql` (thêm bảng `app.RoleDashboardGroupAccess`).
+3. `cd rp-user && npm run build`, copy `dist/` mới.
+4. `pm2 restart hcrc-rp-server`.
+5. **BẮT BUỘC**: "Hệ thống → Phân quyền" → cấp lại quyền nhóm Dashboard
+   cho TỪNG vai trò đang dùng Dashboard (trước đây không cần làm gì, giờ
+   phải tick lại).
+6. Kiểm tra: vai trò chưa cấp quyền → không thấy nhóm; cấp "Xem dashboard"
+   không cấp "Xem chi tiết" → thấy nhưng không xuất được; cấp đủ 2 → xuất
+   được.
+
+Chi tiết đầy đủ: `deploy/Cập nhật bản 8.43 — Phân quyền Dashboard theo
+nhóm.md`.
+
+---
+
 ## 8.42 — Nhóm Dashboard
 
 **Thay đổi**: trang Dashboard có thêm bộ chọn nhóm (🏆 Top 5 chi nhánh /

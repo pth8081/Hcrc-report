@@ -27,6 +27,43 @@ triển khai thật trên server (lệnh chạy, file cần sửa tay, thứ t�
 không chỉ mô tả tính năng như mục ở trên. KHÔNG thay thế việc vẫn tạo file
 riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước giờ.
 
+## 8.43 — Phân quyền Dashboard theo nhóm (Xem dashboard / Xem chi tiết)
+
+Theo yêu cầu người dùng: tách riêng 2 quyền cho MỖI nhóm Dashboard (xem bản
+8.42) — **"Xem dashboard"** (thấy nhóm đó trên trang Dashboard) và **"Xem
+chi tiết"** (được bấm Xuất Excel/PDF cho nhóm đó) — trước đây chỉ có 1 cấp
+chung (menu "dashboard" bật/tắt CẢ TRANG + quyền xem từng Ô suy từ
+`app.RoleReportAccess`, không tách được theo nhóm/không có khái niệm
+"xem nhưng không xuất"). 2 lớp CỘNG DỒN, không thay nhau: thiếu
+`RoleReportAccess` của report vẫn bị chặn như cũ; đủ `RoleReportAccess`
+NHƯNG thiếu quyền nhóm mới (CanView) vẫn không thấy tile đó.
+
+- `rp-db/schema.sql` — bảng mới `app.RoleDashboardGroupAccess`
+  (RoleId, DashboardId, GroupKey, CanView, CanExport) — CHỈ áp dụng tile có
+  khai `group` (bản 8.42); tile không khai `group` (dashboard khác) không
+  bị ảnh hưởng, không cần seed gì cho chúng.
+- `rp-server/lib/permissions.js` — `getUserContext()` thêm
+  `dashboardGroupAccess` (Map, hợp NHIỀU vai trò kiểu "chỉ cần 1 vai trò
+  cho phép", `null` cho IsSystemRole = bỏ qua hẳn lớp này).
+- `rp-server/routes/dashboards.js` — `filterTilesForUser()` dùng chung cho
+  `GET /:dashboardId` (lọc theo CanView) và `POST /:dashboardId/export`
+  (lọc theo CanExport — CHẶT HƠN, vai trò chỉ có CanView thấy Ô trên web
+  nhưng không xuất được).
+- `rp-server/routes/roles.js` — `GET /dashboard-groups-catalog` (quét
+  `DefinitionJson` của MỌI dashboard, liệt kê nhóm cho UI tick chọn),
+  `GET /:id/access` trả thêm `dashboardGroupAccess`, `PUT
+  /:id/dashboard-group-access` (chỉ Admin hệ thống thật, giống 3 route
+  quyền khác).
+- `rp-user/src/modules/system/permissions/RolesPage.jsx` — mục "Dashboard
+  được xem (theo nhóm)" trong màn "Gán quyền", giữa "Menu được thấy" và
+  "Báo cáo được chạy" — mỗi nhóm 2 checkbox (Xem dashboard/Xem chi tiết,
+  tự bỏ tick "Xem chi tiết" nếu bỏ "Xem dashboard").
+- Đã `npm run build` xác nhận không lỗi; đã viết test tay mô phỏng 5 tình
+  huống (admin thấy hết, vai trò thường chỉ thấy đúng nhóm được cấp, xuất
+  file đòi quyền chặt hơn xem, cấp thêm quyền xuất thì xuất được, report
+  không đủ quyền luôn bị chặn bất kể quyền nhóm) — tất cả đúng như thiết
+  kế.
+
 ## 8.42 — Nhóm Dashboard (chọn nhóm trước khi xem Ô)
 
 Theo yêu cầu người dùng: trang Dashboard có thêm bộ chọn "nhóm" ở đầu
