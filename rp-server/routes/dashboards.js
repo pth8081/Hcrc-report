@@ -63,6 +63,50 @@ router.get('/:dashboardId', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// Cá nhân hoá Dashboard (bản 8.45, theo yêu cầu người dùng) — MỖI NGƯỜI tự
+// lưu riêng cho mình (xem rp-db/schema.sql: app.UserDashboardPreferences):
+// Ô nào ẩn/hiện, thứ tự Ô, nhóm/tab đã xem lần trước, số ngày mặc định khi
+// mở lại Dashboard. KHÁC HẲN app.RoleDashboardGroupAccess (quyền XEM, áp
+// dụng CHUNG cho cả vai trò) — đây là tuỳ chọn HIỂN THỊ riêng của từng
+// người, không cần quyền Admin, không ảnh hưởng người khác. PreferencesJson
+// lưu nguyên object client gửi lên (không khai cột riêng từng trường) —
+// giữ route đơn giản, đổi/thêm trường cá nhân hoá mới sau này không cần đổi
+// schema.
+router.get('/:dashboardId/preferences', async (req, res, next) => {
+  try {
+    const pool = await getPool('RP');
+    const result = await pool.request()
+      .input('userId', sql.Int, req.user.sub)
+      .input('dashboardId', sql.VarChar(80), req.params.dashboardId)
+      .query('SELECT PreferencesJson FROM app.UserDashboardPreferences WHERE UserId = @userId AND DashboardId = @dashboardId');
+    res.json(result.recordset.length ? JSON.parse(result.recordset[0].PreferencesJson) : {});
+  } catch (err) { next(err); }
+});
+
+router.put('/:dashboardId/preferences', async (req, res, next) => {
+  try {
+    const preferencesJson = JSON.stringify(req.body || {});
+    const pool = await getPool('RP');
+    const existing = await pool.request()
+      .input('userId', sql.Int, req.user.sub)
+      .input('dashboardId', sql.VarChar(80), req.params.dashboardId)
+      .query('SELECT Id FROM app.UserDashboardPreferences WHERE UserId = @userId AND DashboardId = @dashboardId');
+    if (existing.recordset.length) {
+      await pool.request()
+        .input('id', sql.Int, existing.recordset[0].Id)
+        .input('preferencesJson', sql.NVarChar(sql.MAX), preferencesJson)
+        .query('UPDATE app.UserDashboardPreferences SET PreferencesJson = @preferencesJson, UpdatedAt = SYSUTCDATETIME() WHERE Id = @id');
+    } else {
+      await pool.request()
+        .input('userId', sql.Int, req.user.sub)
+        .input('dashboardId', sql.VarChar(80), req.params.dashboardId)
+        .input('preferencesJson', sql.NVarChar(sql.MAX), preferencesJson)
+        .query('INSERT INTO app.UserDashboardPreferences (UserId, DashboardId, PreferencesJson) VALUES (@userId, @dashboardId, @preferencesJson)');
+    }
+    res.json({ ok: true });
+  } catch (err) { next(err); }
+});
+
 // tile.dateMode — MIRROR đúng rp-user/src/lib/dateRange.js (dashboard "Top 5
 // chi nhánh", bản 8.20-8.22) — 'day' -> đúng {fromDate,toDate} đã chọn,
 // 'month' -> NGUYÊN THÁNG chứa toDate (từ ngày 1 tới ngày CUỐI CÙNG của

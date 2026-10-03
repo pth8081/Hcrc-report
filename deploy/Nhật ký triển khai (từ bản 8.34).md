@@ -12,6 +12,30 @@ cập nhật file này ở mọi bản sau, cho tới khi người dùng bảo d
 
 ---
 
+## 8.45 — Cá nhân hoá báo cáo Dashboard
+
+**Thay đổi**: trang Dashboard có nút "⚙️ Tuỳ chỉnh" — mỗi người tự ẩn/hiện
+Ô, sắp xếp lại thứ tự Ô, nhớ nhóm/tab đã xem lần trước, đặt số ngày mặc
+định khi mở lại (Hôm nay/7 ngày/30 ngày gần nhất). Lưu trên server theo
+tài khoản (bảng mới `app.UserDashboardPreferences`), không ảnh hưởng
+người khác, không đổi quyền xem (`app.RoleDashboardGroupAccess`).
+
+**Các bước triển khai (KHÁC các bản trước — có bảng CSDL mới + route API
+mới):**
+1. `git pull origin main`
+2. Chạy lại `rp-db/schema.sql` (thêm bảng `app.UserDashboardPreferences`,
+   an toàn chạy lại nhiều lần).
+3. `cd rp-user && npm run build`, copy `dist/` mới.
+4. `pm2 restart hcrc-rp-server` (BẮT BUỘC — có route API mới `GET`/`PUT
+   /dashboards/:id/preferences`).
+5. Kiểm tra: bấm "⚙️ Tuỳ chỉnh" → ẩn 1 Ô, đổi thứ tự, đổi số ngày mặc
+   định → tải lại trang (hoặc đăng nhập máy khác) vẫn giữ đúng; "Khôi
+   phục mặc định" → về lại như trước bản 8.45.
+
+Chi tiết đầy đủ: `deploy/Cập nhật bản 8.45 — Cá nhân hoá Dashboard.md`.
+
+---
+
 ## 8.44 — Bộ lọc/nhóm theo siêu thị trong danh sách Đồng bộ
 
 **Thay đổi**: trang "Đồng bộ" (ETL) thêm ô tìm kiếm (theo tên job/tên

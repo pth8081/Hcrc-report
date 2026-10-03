@@ -20,6 +20,15 @@ export function todayISO() {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date());
 }
 
+// Cộng/trừ N ngày vào 1 ngày ISO — dùng Date.UTC (như lastOfMonth() dưới
+// đây) để tránh lệch ngày do giờ mùa hè/timezone trình duyệt, KHÔNG liên
+// quan gì tới giờ Việt Nam thật (todayISO() ở trên đã lo phần đó) — chỉ
+// cộng/trừ số ngày nguyên trên 1 chuỗi ngày đã có sẵn.
+export function addDaysISO(dateStr, days) {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
+}
+
 export function lastOfMonth(dateStr) {
   const [y, m] = dateStr.split('-').map(Number);
   return new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10);

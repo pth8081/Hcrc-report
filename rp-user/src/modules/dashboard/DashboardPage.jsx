@@ -36,7 +36,7 @@ import { lazy, Suspense, useEffect, useState } from 'react';
 import { api, downloadFile } from '../../lib/api';
 import DashboardTile from './DashboardTile';
 import RealtimeReportTile from './RealtimeReportTile';
-import { periodLabelFor, todayISO } from '../../lib/dateRange';
+import { addDaysISO, periodLabelFor, todayISO } from '../../lib/dateRange';
 
 // lazy() — Top5ChartTile.jsx import tĩnh recharts (BarChart/Cell/...), y hệt
 // lib do components/ReportChart.jsx dùng — KHÔNG lazy ở đây thì recharts bị
@@ -79,6 +79,21 @@ function buildRealtimeTabs(tiles) {
 // reportId chứa "-cao"/"-thap" (quy ước đặt tên của
 // scripts/seedTop5ChiNhanhReports.js) — suy ra hướng xếp hạng để tô viền
 // xanh/cam (xem renderTiles() -> tile.tone) và gộp biểu đồ (buildChartGroups).
+// applyTileOrder/PREFERENCES (bản 8.45, theo yêu cầu người dùng) — cá nhân
+// hoá Dashboard, lưu trên server theo UserId (xem app.UserDashboardPreferences
+// + routes/dashboards.js:/:dashboardId/preferences), KHÔNG lưu localStorage
+// (để dùng được trên nhiều máy/điện thoại cùng tài khoản). Không ảnh hưởng
+// người khác, không liên quan app.RoleDashboardGroupAccess (quyền XEM, áp
+// dụng chung cho cả vai trò) — đây chỉ là tuỳ chọn HIỂN THỊ riêng của từng
+// người trên các Ô mình ĐÃ có quyền xem.
+function applyTileOrder(tiles, order) {
+  if (!order || !order.length) return tiles;
+  const byKey = new Map(tiles.map(t => [t.key, t]));
+  const ordered = order.map(k => byKey.get(k)).filter(Boolean);
+  const remaining = tiles.filter(t => !order.includes(t.key));
+  return [...ordered, ...remaining];
+}
+
 function deriveDirection(reportId) {
   if (reportId.includes('-cao')) return 'cao';
   if (reportId.includes('-thap')) return 'thap';
@@ -128,6 +143,11 @@ export default function DashboardPage() {
   // lại /run (không tự mang dữ liệu gì) — xem chú thích đầu file.
   const [refreshTick, setRefreshTick] = useState(0);
   const [lastRefreshedAt, setLastRefreshedAt] = useState(null);
+  // preferences (bản 8.45) — tuỳ chỉnh cá nhân đã lưu CỦA DASHBOARD ĐANG XEM
+  // (nạp lại mỗi khi đổi selectedId, xem effect dưới); customizing — đóng/mở
+  // khung "Tuỳ chỉnh Dashboard".
+  const [preferences, setPreferences] = useState({});
+  const [customizing, setCustomizing] = useState(false);
 
   useEffect(() => {
     api.get('/dashboards').then(list => {
@@ -148,19 +168,51 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!selectedId) return;
     setCrossFilters({});
-    setFromDate(todayISO());
-    setToDate(todayISO());
     setActiveRealtimeKey(null);
-    api.get(`/dashboards/${selectedId}`).then(d => {
+    setCustomizing(false);
+    Promise.all([
+      api.get(`/dashboards/${selectedId}`),
+      api.get(`/dashboards/${selectedId}/preferences`).catch(() => ({}))
+    ]).then(([d, prefs]) => {
       setDashboard(d);
-      const tiles = d.tiles || [];
+      setPreferences(prefs || {});
+
+      const to = todayISO();
+      const rangeDays = prefs?.defaultRangeDays || 0;
+      setFromDate(rangeDays > 0 ? addDaysISO(to, -rangeDays) : to);
+      setToDate(to);
+
+      // Ô đã ẩn/đổi thứ tự theo tuỳ chỉnh cá nhân (xem applyTileOrder() ở
+      // trên) — tính TRƯỚC khi suy ra nhóm/tab mặc định để nhóm/tab khôi
+      // phục lại đúng những gì người này còn thấy (vd ẩn hết Ô của 1 nhóm
+      // thì không khôi phục lại đúng nhóm đó).
+      const tiles = applyTileOrder(d.tiles || [], prefs?.tileOrder).filter(t => !(prefs?.hiddenTileKeys || []).includes(t.key));
+      const groupsPresent = [...new Set(tiles.map(t => t.group).filter(Boolean))];
       const firstGroup = tiles.find(t => t.group)?.group || '';
-      setActiveGroup(firstGroup);
-      const groupTiles = firstGroup ? tiles.filter(t => t.group === firstGroup) : tiles;
+      const initialGroup = prefs?.lastGroup && groupsPresent.includes(prefs.lastGroup) ? prefs.lastGroup : firstGroup;
+      setActiveGroup(initialGroup);
+
+      const groupTiles = initialGroup ? tiles.filter(t => t.group === initialGroup) : tiles;
       const tabs = [...new Set(groupTiles.map(t => t.metricTab).filter(Boolean))];
-      setMetricTab(tabs[0] || '');
+      setMetricTab(prefs?.lastMetricTab && tabs.includes(prefs.lastMetricTab) ? prefs.lastMetricTab : (tabs[0] || ''));
+      if (prefs?.lastViewMode === 'chart' || prefs?.lastViewMode === 'table') setViewMode(prefs.lastViewMode);
+
+      const realtimeKeysPresent = groupTiles.filter(t => t.kind === 'realtime').map(t => t.key);
+      if (prefs?.lastRealtimeKey && realtimeKeysPresent.includes(prefs.lastRealtimeKey)) setActiveRealtimeKey(prefs.lastRealtimeKey);
     }).catch(err => setError(err.message));
   }, [selectedId]);
+
+  // Lưu 1 phần tuỳ chỉnh lên server — GỘP với preferences hiện có (không gửi
+  // nguyên state cũ của người khác, vì route PUT luôn ghi đè nguyên object
+  // theo UserId+DashboardId của CHÍNH người gọi, xem routes/dashboards.js).
+  // Không chờ kết quả (không ai cần biết đã lưu xong hay chưa, lỗi mạng ở
+  // đây tối đa là lần sau mở lại không khôi phục đúng, không mất dữ liệu
+  // nghiệp vụ gì) — lỗi âm thầm bỏ qua, không làm phiền người dùng.
+  function savePreferences(patch) {
+    const next = { ...preferences, ...patch };
+    setPreferences(next);
+    api.put(`/dashboards/${selectedId}/preferences`, next).catch(() => {});
+  }
 
   // Đổi nhóm (bấm thẻ nhóm khác) — reset sub-tab giống lúc đổi dashboard ở
   // trên, tránh giữ lại metricTab/activeRealtimeKey của nhóm CŨ (vd đang ở
@@ -169,9 +221,14 @@ export default function DashboardPage() {
   function selectGroup(groupKey) {
     setActiveGroup(groupKey);
     setActiveRealtimeKey(null);
-    const groupTiles = (dashboard?.tiles || []).filter(t => t.group === groupKey);
+    // Tính lại ĐÚNG như allTiles ở dưới (đã bỏ Ô ẩn) — không lấy thẳng
+    // dashboard.tiles, tránh gợi ý sai tab cho 1 Ô người dùng đã tự ẩn.
+    const tiles = applyTileOrder(dashboard?.tiles || [], preferences.tileOrder).filter(t => !(preferences.hiddenTileKeys || []).includes(t.key));
+    const groupTiles = tiles.filter(t => t.group === groupKey);
     const tabs = [...new Set(groupTiles.map(t => t.metricTab).filter(Boolean))];
-    setMetricTab(tabs[0] || '');
+    const nextTab = tabs[0] || '';
+    setMetricTab(nextTab);
+    savePreferences({ lastGroup: groupKey, lastMetricTab: nextTab, lastRealtimeKey: null });
   }
 
   function handlePointClick(field, value) {
@@ -204,6 +261,35 @@ export default function DashboardPage() {
     if (value < fromDate) setFromDate(value);
   }
 
+  // Khung "Tuỳ chỉnh Dashboard" (bản 8.45) — 3 thao tác, lưu NGAY mỗi lần
+  // bấm (không có nút "Lưu" riêng, giống cách bật/tắt khác trong hệ thống —
+  // vd toggleActive ở trang Sync Jobs): ẩn/hiện 1 Ô, đổi vị trí 1 Ô (lên/
+  // xuống trong CHÍNH danh sách đầy đủ, không phải danh sách đã lọc theo
+  // nhóm/tab đang xem, để thứ tự nhất quán ở mọi nhóm/tab), đổi số ngày mặc
+  // định khi mở lại Dashboard.
+  function toggleHiddenTile(key) {
+    const hidden = preferences.hiddenTileKeys || [];
+    savePreferences({ hiddenTileKeys: hidden.includes(key) ? hidden.filter(k => k !== key) : [...hidden, key] });
+  }
+
+  function moveTile(key, direction) {
+    const order = rawTiles.map(t => t.key);
+    const index = order.indexOf(key);
+    const swapWith = index + direction;
+    if (swapWith < 0 || swapWith >= order.length) return;
+    [order[index], order[swapWith]] = [order[swapWith], order[index]];
+    savePreferences({ tileOrder: order });
+  }
+
+  function setDefaultRangeDays(days) {
+    savePreferences({ defaultRangeDays: days });
+  }
+
+  function resetPersonalization() {
+    if (!confirm('Khôi phục Dashboard về mặc định ban đầu (bỏ hết ẩn/hiện, thứ tự, nhóm/tab/số ngày đã nhớ)?')) return;
+    savePreferences({ hiddenTileKeys: [], tileOrder: [], lastGroup: undefined, lastMetricTab: undefined, lastViewMode: undefined, lastRealtimeKey: undefined, defaultRangeDays: 0 });
+  }
+
   if (!dashboards.length && !error) {
     return (
       <div className="page">
@@ -214,7 +300,12 @@ export default function DashboardPage() {
   }
 
   const filterEntries = Object.entries(crossFilters);
-  const allTiles = dashboard?.tiles || [];
+  // rawTiles — ĐÚNG thứ tự tuỳ chỉnh, nhưng CHƯA lọc Ô đã ẩn (dùng cho khung
+  // "Tuỳ chỉnh Dashboard" — phải thấy cả Ô đang ẩn mới bật lại được); allTiles
+  // — bản hiện trên Dashboard (đã bỏ Ô ẩn), mọi tính toán nhóm/tab/lưới dưới
+  // đây giữ nguyên như trước bản 8.45, chỉ đổi NGUỒN đầu vào.
+  const rawTiles = applyTileOrder(dashboard?.tiles || [], preferences.tileOrder);
+  const allTiles = rawTiles.filter(t => !(preferences.hiddenTileKeys || []).includes(t.key));
   // groups (bản 8.42) — chỉ hiện bộ chọn khi CÓ TỪ 2 nhóm trở lên (giống
   // đúng quy ước metricTabs.length > 1 đã có) — dashboard chỉ 1 nhóm hoặc
   // không khai nhóm nào thì groupFilteredTiles = allTiles, chạy y hệt
@@ -338,6 +429,9 @@ export default function DashboardPage() {
               <span>Tự động làm mới mỗi 30 giây{lastRefreshedAt ? ` — cập nhật lúc ${lastRefreshedAt.toLocaleTimeString('vi-VN')}` : ''}</span>
               <button type="button" onClick={() => { setRefreshTick(t => t + 1); setLastRefreshedAt(new Date()); }}>🔄 Làm mới ngay</button>
             </div>
+            <button type="button" className="dashboard-customize-toggle" onClick={() => setCustomizing(v => !v)}>
+              ⚙️ Tuỳ chỉnh
+            </button>
             {/* activeRealtimeTab (bản 8.29): routes/dashboards.js/export giờ
                 hiểu tile.kind==='realtime' (ép cheDoSoSanh='past' + dùng
                 đúng exportTitle/columnGroups màu của báo cáo gốc) — hiện 2
@@ -351,6 +445,44 @@ export default function DashboardPage() {
             )}
           </div>
 
+          {customizing && (
+            <div className="dashboard-customize-panel">
+              <p className="form-hint">
+                Tuỳ chỉnh CHỈ áp dụng cho riêng bạn, không ảnh hưởng người khác — lưu lại
+                ngay khi bấm, dùng được trên mọi máy/điện thoại đã đăng nhập tài khoản này.
+              </p>
+              <label className="dashboard-customize-rangedays">
+                Số ngày mặc định khi mở lại Dashboard
+                <select value={preferences.defaultRangeDays || 0} onChange={(e) => setDefaultRangeDays(Number(e.target.value))}>
+                  <option value={0}>Hôm nay</option>
+                  <option value={7}>7 ngày gần nhất</option>
+                  <option value={30}>30 ngày gần nhất</option>
+                </select>
+              </label>
+              <ul className="dashboard-customize-tile-list">
+                {rawTiles.map((t, i) => {
+                  const hidden = (preferences.hiddenTileKeys || []).includes(t.key);
+                  return (
+                    <li key={t.key} className={hidden ? 'hidden' : ''}>
+                      <label className="checkbox-row">
+                        <input type="checkbox" checked={!hidden} onChange={() => toggleHiddenTile(t.key)} />
+                        {t.title || t.reportId}
+                      </label>
+                      <span className="dashboard-customize-tile-move">
+                        <button type="button" disabled={i === 0} onClick={() => moveTile(t.key, -1)}>▲</button>
+                        <button type="button" disabled={i === rawTiles.length - 1} onClick={() => moveTile(t.key, 1)}>▼</button>
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+              <div className="dashboard-customize-actions">
+                <button type="button" onClick={resetPersonalization}>Khôi phục mặc định</button>
+                <button type="button" onClick={() => setCustomizing(false)}>Đóng</button>
+              </div>
+            </div>
+          )}
+
           {(metricTabs.length > 1 || realtimeTabs.length > 0) && (
             <div className="dashboard-metric-tabs">
               {VIEW_TABS.filter(t => metricTabs.includes(t.metricTab)).map(t => (
@@ -358,7 +490,10 @@ export default function DashboardPage() {
                   key={`${t.metricTab}-${t.mode}`}
                   type="button"
                   className={!activeRealtimeTab && t.metricTab === metricTab && t.mode === viewMode ? 'active' : ''}
-                  onClick={() => { setMetricTab(t.metricTab); setViewMode(t.mode); setActiveRealtimeKey(null); }}
+                  onClick={() => {
+                    setMetricTab(t.metricTab); setViewMode(t.mode); setActiveRealtimeKey(null);
+                    savePreferences({ lastMetricTab: t.metricTab, lastViewMode: t.mode, lastRealtimeKey: null });
+                  }}
                 >
                   {t.label}
                 </button>
@@ -368,7 +503,7 @@ export default function DashboardPage() {
                   key={t.key}
                   type="button"
                   className={activeRealtimeKey === t.key ? 'active' : ''}
-                  onClick={() => setActiveRealtimeKey(t.key)}
+                  onClick={() => { setActiveRealtimeKey(t.key); savePreferences({ lastRealtimeKey: t.key }); }}
                 >
                   {t.label}
                 </button>

@@ -519,6 +519,27 @@ BEGIN
 END
 GO
 
+-- Cá nhân hoá Dashboard (bản 8.45, theo yêu cầu người dùng) — MỖI NGƯỜI tự
+-- lưu riêng cho mình: Ô nào ẩn/hiện, thứ tự Ô, nhóm/tab đã xem lần trước,
+-- số ngày mặc định khi mở lại Dashboard — KHÔNG ảnh hưởng người khác, KHÔNG
+-- liên quan RoleDashboardGroupAccess (quyền XEM, ở trên) — 1 người có quyền
+-- xem 1 Ô vẫn có thể tự ẩn Ô đó khỏi màn hình CỦA MÌNH. Cùng khuôn
+-- app.UserSavedReports (Id identity riêng + UNIQUE theo UserId, không PK kép)
+-- để UPSERT đơn giản (SELECT theo UserId+DashboardId rồi UPDATE/INSERT, xem
+-- routes/dashboards.js).
+IF OBJECT_ID('app.UserDashboardPreferences', 'U') IS NULL
+BEGIN
+    CREATE TABLE app.UserDashboardPreferences (
+        Id              INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        UserId          INT           NOT NULL REFERENCES app.Users(Id) ON DELETE CASCADE,
+        DashboardId     VARCHAR(80)   NOT NULL REFERENCES app.Dashboards(DashboardId) ON DELETE CASCADE,
+        PreferencesJson NVARCHAR(MAX) NOT NULL,
+        UpdatedAt       DATETIME2(3)  NOT NULL DEFAULT SYSUTCDATETIME(),
+        CONSTRAINT UX_UserDashboardPreferences_User_Dashboard UNIQUE (UserId, DashboardId)
+    );
+END
+GO
+
 -- Cấu hình "Báo cáo tự do" người dùng TỰ LƯU cho CHÍNH MÌNH (domain + field
 -- đã chọn + bộ lọc + kiểu hiển thị, xem rp-server/lib/adhocReportEngine.js) —
 -- KHÁC MỌI bảng cấu hình khác trong file này (ReportCatalog/Dashboards...,

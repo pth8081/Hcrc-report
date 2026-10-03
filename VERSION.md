@@ -27,6 +27,44 @@ triển khai thật trên server (lệnh chạy, file cần sửa tay, thứ t�
 không chỉ mô tả tính năng như mục ở trên. KHÔNG thay thế việc vẫn tạo file
 riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước giờ.
 
+## 8.45 — Cá nhân hoá báo cáo Dashboard
+
+Trang Dashboard (rp-user) có thêm nút "⚙️ Tuỳ chỉnh" mở khung cho PHÉP MỖI
+NGƯỜI tự tuỳ chỉnh CÁCH XEM dashboard của chính mình, lưu trên server theo
+tài khoản (bảng mới `app.UserDashboardPreferences`, không dùng localStorage
+— đăng nhập máy/điện thoại nào cũng thấy đúng tuỳ chỉnh của mình):
+
+1. **Ẩn/hiện Ô** — bỏ tick 1 Ô là Ô đó biến mất khỏi Dashboard CỦA MÌNH
+   (không ảnh hưởng người khác, không cần Admin cấp lại quyền — khác hẳn
+   `app.RoleDashboardGroupAccess` bản 8.43 vốn là quyền XEM chung theo vai
+   trò, đây chỉ là tuỳ chọn hiển thị của riêng người đó trên các Ô họ ĐÃ có
+   quyền xem).
+2. **Sắp xếp lại thứ tự Ô** — nút ▲▼ trong khung Tuỳ chỉnh, đổi vị trí ngay,
+   áp dụng ở mọi nhóm/tab.
+3. **Nhớ nhóm/tab đã chọn lần trước** — lần sau mở Dashboard tự quay lại
+   đúng nhóm (Top 5/Realtime), tab (Doanh thu/Giao dịch, Bảng/Biểu đồ) đã
+   xem gần nhất, không phải chọn lại từ đầu.
+4. **Số ngày mặc định khi mở lại Dashboard** — chọn "Hôm nay"/"7 ngày gần
+   nhất"/"30 ngày gần nhất", áp dụng cho bộ lọc "Từ ngày — đến ngày" ngay
+   lúc mở trang (không ảnh hưởng gì nếu tự đổi lại ngày khi đang xem).
+
+Có nút "Khôi phục mặc định" trong khung Tuỳ chỉnh để xoá hết tuỳ chỉnh đã
+lưu, về lại đúng hành vi gốc (giống trước khi có bản 8.45).
+
+**Các bước triển khai:**
+1. `git pull origin main`
+2. Chạy lại `rp-db/schema.sql` (thêm bảng `app.UserDashboardPreferences`,
+   an toàn chạy lại nhiều lần).
+3. `cd rp-user && npm run build`, copy `dist/` mới.
+4. `pm2 restart hcrc-rp-server` (có route API mới `GET`/`PUT
+   /dashboards/:id/preferences`).
+5. Kiểm tra: trang Dashboard hiện nút "⚙️ Tuỳ chỉnh"; ẩn 1 Ô, đổi thứ tự,
+   đổi số ngày mặc định → đăng xuất/đăng nhập lại (hoặc mở máy khác) vẫn
+   giữ đúng tuỳ chỉnh; bấm "Khôi phục mặc định" → về lại như trước bản
+   8.45.
+
+Chi tiết đầy đủ: `deploy/Cập nhật bản 8.45 — Cá nhân hoá Dashboard.md`.
+
 ## 8.44 — Bộ lọc/nhóm theo siêu thị trong danh sách Đồng bộ
 
 Trang "Đồng bộ" (ETL) có thêm 1 ô tìm kiếm (theo tên job HOẶC tên siêu
