@@ -19,6 +19,7 @@ import EmailSettingsPage from './modules/system/email-settings/EmailSettingsPage
 import EmailSchedulesPage from './modules/system/email-schedules/EmailSchedulesPage';
 import AnomalyAlertsPage from './modules/system/anomaly-alerts/AnomalyAlertsPage';
 import HcrcWorkspaceSettingsPage from './modules/system/hcrc-workspace/HcrcWorkspaceSettingsPage';
+import DepartmentStoreMappingPage from './modules/system/department-mapping/DepartmentStoreMappingPage';
 import HuongDanPage from './modules/huong-dan/HuongDanPage';
 import AccountPage from './modules/system/account/AccountPage';
 
@@ -49,6 +50,7 @@ export default function App() {
           <Route path="/system/email-schedules" element={<RequireMenuAccess code="system-email-schedules"><EmailSchedulesPage /></RequireMenuAccess>} />
           <Route path="/system/anomaly-alerts" element={<RequireMenuAccess code="system-anomaly-alerts"><AnomalyAlertsPage /></RequireMenuAccess>} />
           <Route path="/system/hcrc-workspace" element={<RequireMenuAccess code="system-hcrc-workspace"><HcrcWorkspaceSettingsPage /></RequireMenuAccess>} />
+          <Route path="/system/department-mapping" element={<RequireMenuAccess code="system-department-mapping"><DepartmentStoreMappingPage /></RequireMenuAccess>} />
           <Route path="/huong-dan" element={<RequireMenuAccess code="huong-dan"><HuongDanPage /></RequireMenuAccess>} />
 
           {/* Không gắn menuCode nào — mọi tài khoản đã đăng nhập đều vào được

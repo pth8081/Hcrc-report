@@ -26,6 +26,7 @@ const externalConnectionsRoutes = require('./routes/externalConnections');
 const reportEmailSchedulesRoutes = require('./routes/reportEmailSchedules');
 const anomalyAlertsRoutes = require('./routes/anomalyAlerts');
 const hcrcWorkspaceSettingsRoutes = require('./routes/hcrcWorkspaceSettings');
+const departmentStoreMappingRoutes = require('./routes/departmentStoreMapping');
 const dashboardCatalogRoutes = require('./routes/dashboardCatalog');
 const dashboardsRoutes = require('./routes/dashboards');
 const adhocReportsRoutes = require('./routes/adhocReports');
@@ -216,6 +217,7 @@ app.use('/api/system/external-connections', externalConnectionsRoutes);
 app.use('/api/system/report-email-schedules', reportEmailSchedulesRoutes);
 app.use('/api/system/anomaly-alerts', anomalyAlertsRoutes);
 app.use('/api/system/hcrc-workspace', hcrcWorkspaceSettingsRoutes);
+app.use('/api/system/department-mapping', departmentStoreMappingRoutes);
 app.use('/api/system/dashboards', dashboardCatalogRoutes);
 
 app.use((err, req, res, next) => { // eslint-disable-line no-unused-vars

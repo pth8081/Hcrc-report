@@ -27,6 +27,46 @@ triển khai thật trên server (lệnh chạy, file cần sửa tay, thứ t�
 không chỉ mô tả tính năng như mục ở trên. KHÔNG thay thế việc vẫn tạo file
 riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước giờ.
 
+## 8.49 — Ánh xạ Phòng ban (vpdt) → Siêu thị
+
+**Bối cảnh**: bước 1 trong lộ trình "phân quyền DỮ LIỆU theo đúng siêu thị"
+(ST chỉ thấy số liệu ST đó, HO thấy toàn bộ — phân tích đầy đủ đã trình bày
+trực tiếp với người dùng, xem bản 8.47/8.48 cho 2 bước trước đó về phân
+quyền XEM báo cáo nói chung). Cần 1 khoá chuẩn duy nhất để biết "người này
+thuộc đúng siêu thị nào" khớp được với dữ liệu thật trong Data Warehouse —
+tái dùng NGUYÊN `MaDiem` đã có sẵn ở "Ánh xạ Điểm - STK_ID" (etl-admin),
+không tạo khái niệm "mã siêu thị" mới song song.
+
+**Thay đổi**: trang mới **"Ánh xạ Phòng ban → Siêu thị"** (Hệ thống) — ánh
+xạ cột "Phòng ban" (Department, đồng bộ từ vpdt/HCRC Workspace, xem trang
+Người dùng) sang `MaDiem` chuẩn, CHỈ cần khai khi tên không khớp thẳng
+(lệch chính tả/viết tắt). Thứ tự tự động: (1) khớp theo bảng ánh xạ ở đây
+nếu có, (2) khớp thẳng theo tên với `TenSieuThi` đã khai ở "Ánh xạ Điểm -
+STK_ID", (3) không khớp gì → chưa gợi ý được, cần Admin bổ sung 1 dòng ở
+đây hoặc gán tay (bản sau). Mirror ĐÚNG khuôn upload Excel + sửa tay của
+"Ánh xạ Điểm - STK_ID" theo đúng ý người dùng muốn ("linh hoạt hơn là
+fix"), đơn giản hoá vì đây chỉ map 1-1.
+
+**Lưu ý**: bản này CHƯA áp dụng bất kỳ giới hạn xem dữ liệu nào — chỉ là hạ
+tầng ánh xạ, chưa gắn vào Người dùng/báo cáo. 2 bản tiếp theo sẽ: (8.50)
+gán phạm vi dữ liệu cho từng người ở trang Người dùng (tự gợi ý theo
+ánh xạ này + WorkLocation, Admin xác nhận/sửa), (8.51+) mới thật sự áp lọc
+vào báo cáo.
+
+**Các bước triển khai:**
+1. `git pull origin main`
+2. Chạy lại `rp-db/schema.sql` (bảng mới `app.DepartmentStoreMapping`, menu
+   mới "Ánh xạ Phòng ban → Siêu thị").
+3. `cd rp-user && npm run build`, copy `dist/` mới.
+4. `pm2 restart hcrc-rp-server`.
+5. Vào "Hệ thống → Phân quyền" cấp quyền menu "Ánh xạ Phòng ban → Siêu thị"
+   cho vai trò cần dùng (Admin hệ thống tự thấy sẵn).
+6. Kiểm tra: tải file mẫu → điền 1 dòng Department/MaDiem thật → nhập lại
+   → hiện đúng trong danh sách; sửa/xoá 1 dòng bằng form bên dưới.
+
+Chi tiết đầy đủ: `deploy/Cập nhật bản 8.49 — Ánh xạ Phòng ban sang Siêu
+thị.md`.
+
 ## 8.48 — Phân quyền báo cáo/Dashboard riêng theo từng người dùng
 
 **Bối cảnh**: tiếp nối yêu cầu "phân quyền theo siêu thị/phòng ban, đến

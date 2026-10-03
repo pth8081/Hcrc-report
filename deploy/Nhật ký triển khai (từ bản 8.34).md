@@ -12,6 +12,28 @@ cập nhật file này ở mọi bản sau, cho tới khi người dùng bảo d
 
 ---
 
+## 8.49 — Ánh xạ Phòng ban (vpdt) → Siêu thị
+
+**Thay đổi**: trang mới "Ánh xạ Phòng ban → Siêu thị" — ánh xạ Department
+(vpdt) sang MaDiem chuẩn (tái dùng khoá của "Ánh xạ Điểm - STK_ID"), CHỈ
+cần khai khi tên không khớp thẳng. Bước 1/nhiều bước hướng tới phân quyền
+dữ liệu theo đúng siêu thị — CHƯA áp dụng giới hạn xem dữ liệu nào ở bản
+này.
+
+**Các bước triển khai:**
+1. `git pull origin main`
+2. Chạy lại `rp-db/schema.sql` (bảng mới `app.DepartmentStoreMapping` +
+   menu mới).
+3. `cd rp-user && npm run build`, copy `dist/` mới.
+4. `pm2 restart hcrc-rp-server` (BẮT BUỘC — route API mới).
+5. Cấp quyền menu "Ánh xạ Phòng ban → Siêu thị" cho vai trò cần dùng.
+6. Kiểm tra: tải file mẫu → nhập 1 dòng thật → hiện đúng danh sách.
+
+Chi tiết đầy đủ: `deploy/Cập nhật bản 8.49 — Ánh xạ Phòng ban sang Siêu
+thị.md`.
+
+---
+
 ## 8.48 — Phân quyền báo cáo/Dashboard riêng theo từng người dùng
 
 **Thay đổi**: trang "Người dùng" có thêm nút "Gán quyền riêng" — cấp thêm

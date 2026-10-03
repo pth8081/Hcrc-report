@@ -590,6 +590,31 @@ BEGIN
 END
 GO
 
+-- Ánh xạ "Department" (tên phòng ban/siêu thị lấy từ vpdt/HCRC Workspace,
+-- xem app.Users.Department) sang "Mã Điểm" chuẩn (etl.DiemStkMapping.MaDiem,
+-- CSDL HCRC_ETL) — bản 8.49, theo yêu cầu người dùng (phân quyền DỮ LIỆU
+-- theo đúng siêu thị, xem app.UserStoreAccess dự kiến thêm ở bản sau). CHỈ
+-- dùng khi Department KHÔNG khớp đúng TenSieuThi đã khai sẵn trong "Ánh xạ
+-- Điểm - STK_ID" (rp-server/lib/departmentStoreMapping.js tự thử khớp tên
+-- THẲNG trước, bảng này là lớp GHI ĐÈ cho trường hợp lệch chính tả/viết tắt
+-- — mirror ĐÚNG tinh thần "cho upload mapping linh hoạt" của Ánh xạ Điểm -
+-- STK_ID, không fix cứng so khớp tên). Khác hẳn DiemStkMapping (1 mã Điểm
+-- gộp NHIỀU mã kho, tách kỳ cũ/mới) — ở đây CHỈ map 1-1 đơn giản (1 tên
+-- Department <-> ĐÚNG 1 mã Điểm) nên không cần kiểm tra trùng STK phức tạp,
+-- UNIQUE (DepartmentRaw) là đủ.
+IF OBJECT_ID('app.DepartmentStoreMapping', 'U') IS NULL
+BEGIN
+    CREATE TABLE app.DepartmentStoreMapping (
+        Id            INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        DepartmentRaw NVARCHAR(200) NOT NULL,
+        MaDiem        NVARCHAR(50)  NOT NULL,
+        ImportedAt    DATETIME2(3)  NOT NULL DEFAULT SYSUTCDATETIME(),
+        ImportedBy    NVARCHAR(50)  NULL,
+        CONSTRAINT UX_DepartmentStoreMapping_DepartmentRaw UNIQUE (DepartmentRaw)
+    );
+END
+GO
+
 -- Cá nhân hoá Dashboard (bản 8.45, theo yêu cầu người dùng) — MỖI NGƯỜI tự
 -- lưu riêng cho mình: Ô nào ẩn/hiện, thứ tự Ô, nhóm/tab đã xem lần trước,
 -- số ngày mặc định khi mở lại Dashboard — KHÔNG ảnh hưởng người khác, KHÔNG
@@ -938,6 +963,11 @@ IF NOT EXISTS (SELECT 1 FROM app.MenuItems WHERE Code = 'system-hcrc-workspace')
 IF NOT EXISTS (SELECT 1 FROM app.MenuItems WHERE Code = 'system-log')
     INSERT INTO app.MenuItems (Code, ParentId, Label, Path, SortOrder)
     SELECT 'system-log', Id, N'Log', '/system/log', 9 FROM app.MenuItems WHERE Code = 'system';
+-- Ánh xạ "Department" (vpdt/HCRC Workspace) -> "Mã Điểm" chuẩn (bản 8.49) —
+-- xem app.DepartmentStoreMapping bên dưới.
+IF NOT EXISTS (SELECT 1 FROM app.MenuItems WHERE Code = 'system-department-mapping')
+    INSERT INTO app.MenuItems (Code, ParentId, Label, Path, SortOrder)
+    SELECT 'system-department-mapping', Id, N'Ánh xạ Phòng ban → Siêu thị', '/system/department-mapping', 10 FROM app.MenuItems WHERE Code = 'system';
 GO
 
 -- Seed vai trò Admin (IsSystemRole=1) — luôn cần tồn tại để gán cho tài khoản
