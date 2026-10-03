@@ -16,12 +16,12 @@
 // rp-user/src/modules/dashboard/DashboardTile.jsx:computeEventDateRange()),
 // nên Dashboard có 16 Ô nhưng chỉ cần 8 ĐỊNH NGHĨA báo cáo.
 //
-// Dữ liệu đọc từ domain "doanhthu_chinhanh"/"giaodich_chinhanh" ĐÃ CÓ sẵn
-// (dùng chung với 4 báo cáo "Báo cáo doanh thu cuối ngày", xem
-// scripts/seedLdtdHcrcReports.js) — KHÔNG cần job/VIEW mới, chỉ cần job
-// "doanhthu_chinhanh" đã bật Dimension "chain" (MART/MINIMART, xem
-// hướng_dẫn_báo_cáo.md mục 1) và "Ánh xạ Điểm - STK_ID" đã khai cho các mã
-// Điểm liên quan (requireDiemStkMapping bên dưới).
+// Dữ liệu đọc từ domain "Thành viên" (bản 8.34 — xem ACTIVE_DOMAIN bên
+// dưới, đổi từ domain gốc "doanhthu_chinhanh"/"giaodich_chinhanh" trước
+// đó) — job Live "doanhthu_chinhanh_thanhvien" phải đã bật Dimension
+// "chain" (MART/MINIMART, xem hướng_dẫn_báo_cáo.md mục 1) và "Ánh xạ Điểm
+// - STK_ID" đã khai cho các mã Điểm liên quan (requireDiemStkMapping bên
+// dưới) — CHỈ các siêu thị đã khai Live "Thành viên" mới vào được Top 5.
 //
 // Cách dùng:
 //   node scripts/seedTop5ChiNhanhReports.js [menuCode]
@@ -47,21 +47,33 @@ const TOP_N_LIMIT = 5;
 
 // Khối current/currentGD GIỐNG HỆT 2 khối cùng tên trong
 // scripts/seedLdtdHcrcReports.js (useDiemStkMapping/mapBuIdToMaDiem — xem
-// chú thích đầy đủ ở đó) — dùng chung domain gốc "doanhthu_chinhanh"/
-// "giaodich_chinhanh" (TOÀN BỘ chi nhánh trung tâm, KHÔNG phải domain
-// "Thành viên" riêng — Top 5 toàn hệ thống nên cần tập hợp chi nhánh rộng
-// nhất đang có dữ liệu đầy đủ). requireDiemStkMapping: true để loại mã rác/
-// mã chưa khai ánh xạ (tên trống + không có "chain" để lọc Mart/Minimart).
+// chú thích đầy đủ ở đó).
+//
+// ĐỔI sang domain "Thành viên" (bản 8.34, theo yêu cầu người dùng — đọc
+// Doanh thu/Giao dịch TRỰC TIẾP từ 34 siêu thị Live mỗi 2 phút, chính xác/
+// mới hơn đồng bộ tập trung mỗi 15 phút của domain gốc) — CHẤP NHẬN ĐÁNH
+// ĐỔI: Top 5 giờ CHỈ xếp hạng trong đúng các siêu thị đã khai Live "Thành
+// viên" (34 site tại thời điểm đổi, xem "báo cáo doanh thu thành viên.md"),
+// KHÔNG còn phủ toàn bộ hệ thống như domain gốc trước đây — chi nhánh nào
+// chưa khai Live sẽ KHÔNG xuất hiện trong Top 5 cho tới khi khai báo xong.
+// Đổi lại DOMAIN_GOC (xem hằng số bên dưới) nếu cần quay về phủ toàn hệ
+// thống trước khi toàn bộ siêu thị lên Live. requireDiemStkMapping: true
+// để loại mã rác/mã chưa khai ánh xạ (tên trống + không có "chain" để lọc
+// Mart/Minimart).
+const DOMAIN_GOC = { revenue: 'doanhthu_chinhanh', transaction: 'giaodich_chinhanh' };
+const DOMAIN_THANH_VIEN = { revenue: 'doanhthu_chinhanh_thanhvien', transaction: 'giaodich_chinhanh_thanhvien' };
+const ACTIVE_DOMAIN = DOMAIN_THANH_VIEN;
+
 function buildDefinition(chain, metric, direction) {
   return {
     title: `Top 5 ${chain.label} — ${metric.label} ${direction.label}`,
-    domain: 'doanhthu_chinhanh',
+    domain: ACTIVE_DOMAIN.revenue,
     filters: [
       { field: 'eventDate', type: 'dateRange', label: 'Khoảng ngày báo cáo' }
     ],
     blocks: [
-      { key: 'current', sourceType: 'directDb', domain: 'doanhthu_chinhanh', useDiemStkMapping: true },
-      { key: 'currentGD', sourceType: 'directDb', domain: 'giaodich_chinhanh', mapBuIdToMaDiem: true }
+      { key: 'current', sourceType: 'directDb', domain: ACTIVE_DOMAIN.revenue, useDiemStkMapping: true },
+      { key: 'currentGD', sourceType: 'directDb', domain: ACTIVE_DOMAIN.transaction, mapBuIdToMaDiem: true }
     ],
     requireDiemStkMapping: true,
     columns: [
@@ -106,11 +118,12 @@ async function upsertReport(pool, menuItemId, { reportId, title, definition }) {
     await pool.request()
       .input('reportId', sql.VarChar(80), reportId)
       .input('title', sql.NVarChar(200), title)
+      .input('domain', sql.VarChar(50), definition.domain)
       .input('menuItemId', sql.Int, menuItemId)
       .input('definitionJson', sql.NVarChar(sql.MAX), definitionJson)
       .query(`
         UPDATE app.ReportCatalog SET
-          Title = @title, Domain = 'doanhthu_chinhanh', MenuItemId = @menuItemId, DataSourceId = NULL,
+          Title = @title, Domain = @domain, MenuItemId = @menuItemId, DataSourceId = NULL,
           SourceType = 'composite', ApiConnectionId = NULL, ApiTarget = NULL, ExternalConnectionId = NULL,
           DefinitionJson = @definitionJson, IsActive = 1
         WHERE ReportId = @reportId
@@ -121,11 +134,12 @@ async function upsertReport(pool, menuItemId, { reportId, title, definition }) {
   await pool.request()
     .input('reportId', sql.VarChar(80), reportId)
     .input('title', sql.NVarChar(200), title)
+    .input('domain', sql.VarChar(50), definition.domain)
     .input('menuItemId', sql.Int, menuItemId)
     .input('definitionJson', sql.NVarChar(sql.MAX), definitionJson)
     .query(`
       INSERT INTO app.ReportCatalog (ReportId, Title, Domain, MenuItemId, SourceType, DefinitionJson)
-      VALUES (@reportId, @title, 'doanhthu_chinhanh', @menuItemId, 'composite', @definitionJson)
+      VALUES (@reportId, @title, @domain, @menuItemId, 'composite', @definitionJson)
     `);
   console.log(`✅ Đã tạo báo cáo "${title}" (${reportId}).`);
 }

@@ -20,6 +20,32 @@ bắt đầu đếm tiếp từ đây.
 trên, tự viết tóm tắt thay đổi) — không đợi người dùng yêu cầu riêng, không
 hỏi lại số tiếp theo là gì.
 
+## 8.34 — Dashboard Top 5 đọc Doanh thu/Giao dịch từ domain "Thành viên"
+
+Theo yêu cầu người dùng: 8 báo cáo "Top 5 chi nhánh" (MART/MINIMART x
+Doanh thu/Giao dịch x Cao nhất/Thấp nhất) đổi từ đọc domain gốc
+(`doanhthu_chinhanh`/`giaodich_chinhanh`, đồng bộ tập trung mỗi 15 phút,
+phủ TOÀN BỘ hệ thống) sang domain "Thành viên"
+(`doanhthu_chinhanh_thanhvien`/`giaodich_chinhanh_thanhvien`, Live mỗi 2
+phút từng siêu thị — cùng domain Ô "Realtime" đã dùng từ bản 8.28).
+
+**ĐÁNH ĐỔI đã xác nhận với người dùng**: domain "Thành viên" hiện CHỈ có
+34 siêu thị (xem "báo cáo doanh thu thành viên.md") — Top 5 giờ CHỈ xếp
+hạng trong 34 site đó, các chi nhánh khác tạm thời KHÔNG xuất hiện trong
+Top 5 cho tới khi khai báo Live xong toàn bộ. Người dùng đã chọn đổi ngay,
+chấp nhận đánh đổi này.
+
+- `rp-server/scripts/seedTop5ChiNhanhReports.js` — thêm hằng số
+  `DOMAIN_GOC`/`DOMAIN_THANH_VIEN`/`ACTIVE_DOMAIN` (đổi `ACTIVE_DOMAIN`
+  về `DOMAIN_GOC` nếu cần quay lại phủ toàn hệ thống trước khi tất cả siêu
+  thị lên Live) — `buildDefinition()` và `upsertReport()` dùng
+  `ACTIVE_DOMAIN`/`definition.domain` thay vì hardcode domain gốc.
+- **PHẢI chạy lại script sau khi deploy** (script `seed`, không tự áp dụng
+  qua merge code — xem `deploy/Cập nhật bản 8.34 — Top 5 đọc domain Thành
+  viên.md`): `node scripts/seedTop5ChiNhanhReports.js` để ghi đè 8
+  `app.ReportCatalog` hiện có sang domain mới (idempotent, không tạo
+  trùng).
+
 ## 8.33 — Sửa "Failed to fetch" khi Nhập hàng loạt Sync Job nhiều dòng
 
 Triển khai thật 34 siêu thị Thành viên (68 dòng Sync Job): bấm "Nhập hàng
