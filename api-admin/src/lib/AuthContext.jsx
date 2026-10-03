@@ -30,8 +30,8 @@ export function AuthProvider({ children }) {
   // { ok: true } -> xong ngay (không phải vai trò hệ thống, không cần 2FA)
   // { twofa: 'pending', token } -> đã bật 2FA, cần nhập mã (xem 2fa/verify)
   // { twofa: 'setupRequired', token } -> CHƯA bật 2FA, bắt buộc đăng ký ngay
-  const login = useCallback(async (username, password) => {
-    const result = await api.post('/auth/login', { username, password });
+  const login = useCallback(async (username, password, captchaToken, captchaAnswer) => {
+    const result = await api.post('/auth/login', { username, password, captchaToken, captchaAnswer });
     if (result?.ok) await refresh();
     return result;
   }, [refresh]);

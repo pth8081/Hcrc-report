@@ -12,6 +12,28 @@ cập nhật file này ở mọi bản sau, cho tới khi người dùng bảo d
 
 ---
 
+## 8.39 — Captcha đăng nhập (4 chữ số, cả 3 app)
+
+**Thay đổi**: thêm ô "Mã xác nhận" (captcha 4 chữ số, tự sinh trên server
+bằng `svg-captcha`, không cần Internet lúc chạy) vào form đăng nhập
+ETL/API/Report, kiểm tra TRƯỚC khi tra mật khẩu.
+
+**Các bước triển khai (KHÁC các bản trước — có gói npm MỚI):**
+1. `git pull origin main`
+2. Cài gói mới cho CẢ 3 backend: `cd rp-server && npm install`, tương tự
+   `etl`, `api-server`.
+3. Build lại CẢ 3 giao diện (`npm run build` ở `rp-user`/`etl-admin`/
+   `api-admin`), copy `dist/` mới.
+4. Restart CẢ 3 backend: `pm2 restart hcrc-rp-server`, `hcrc-etl`,
+   `hcrc-api-server`.
+5. Kiểm tra: ô "Mã xác nhận" hiện ở cả 3 màn hình đăng nhập; nhập sai →
+   báo lỗi + tự đổi ảnh mới; nhập đúng → đăng nhập bình thường.
+
+Không đổi CSDL. Chi tiết đầy đủ: `deploy/Cập nhật bản 8.39 — Captcha đăng
+nhập.md`.
+
+---
+
 ## 8.37-8.38 — Báo cáo tràn màn hình + giao diện đăng nhập mới
 
 **Thay đổi**: bảng báo cáo (rp-user) dùng hết chiều rộng màn hình desktop

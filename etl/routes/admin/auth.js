@@ -9,12 +9,25 @@ const { getAdminContext, isSystemRoleForRateLimit } = require('../../lib/adminPe
 const { isBlocked, recordFailure, recordSuccess, DEFAULT_PROFILE, ADMIN_PROFILE } = require('../../lib/loginRateLimit');
 const { revokeSessions } = require('../../lib/sessionRevocation');
 const { logAction } = require('../../lib/auditLog');
+const { createCaptcha, verifyCaptcha } = require('../../lib/captcha');
 
 const router = express.Router();
 
+// GET /admin/auth/captcha — ảnh mã xác nhận (4 chữ số, bản 8.39) cho form
+// đăng nhập, xem lib/captcha.js. KHÔNG cần đăng nhập.
+router.get('/captcha', (req, res) => {
+  res.json(createCaptcha());
+});
+
 router.post('/login', async (req, res, next) => {
   try {
-    const { username, password } = req.body || {};
+    const { username, password, captchaToken, captchaAnswer } = req.body || {};
+
+    // Kiểm tra CAPTCHA TRƯỚC TIÊN (bản 8.39) — rẻ (không đụng CSDL), chặn
+    // sớm trước khi tốn 1 lượt tra vai trò/kiểm tra rate-limit bên dưới.
+    if (!verifyCaptcha(captchaToken, captchaAnswer)) {
+      return res.status(400).json({ error: 'Mã xác nhận không đúng hoặc đã hết hạn' });
+    }
 
     // Tra "có vai trò hệ thống không" TRƯỚC (không so mật khẩu) để chọn đúng
     // ngưỡng — vai trò hệ thống dùng ADMIN_PROFILE (nới lỏng hơn, xem chú

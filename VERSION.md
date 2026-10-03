@@ -27,18 +27,39 @@ triển khai thật trên server (lệnh chạy, file cần sửa tay, thứ t�
 không chỉ mô tả tính năng như mục ở trên. KHÔNG thay thế việc vẫn tạo file
 riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước giờ.
 
-## 8.37 — Báo cáo tràn hết màn hình, bỏ khung hẹp 1040px
+## 8.39 — Mã xác nhận (captcha 4 chữ số) khi đăng nhập, cả 3 app
 
-Theo yêu cầu người dùng: trang "Báo cáo"/"Báo cáo tự do" (rp-user) dùng
-chung class `.page` (max-width 1040px, áp dụng cho MỌI trang) khiến bảng
-báo cáo nhiều cột (15-20 cột) luôn phải cuộn ngang dù màn hình desktop còn
-thừa rất nhiều khoảng trống bên phải.
+Theo yêu cầu người dùng: thêm bước "Mã xác nhận" (captcha dạng ảnh, đúng 4
+chữ số) vào form đăng nhập ETL/API/Report — **tự sinh ảnh trên server**
+bằng thư viện `svg-captcha` (vẽ SVG bằng mã, font nhúng sẵn trong gói,
+KHÔNG gọi dịch vụ/API ngoài nào, KHÔNG cần Internet lúc chạy — chỉ cần
+Internet 1 lần lúc `npm install` như mọi gói khác). Captcha dùng ĐÚNG 1
+LẦN (xoá khỏi bộ nhớ ngay khi server kiểm tra, dù đúng hay sai) và hết hạn
+sau 5 phút — kiểm tra captcha TRƯỚC khi tra mật khẩu, chặn sớm script dò
+mật khẩu tự động không giải được captcha.
 
-- `rp-user/src/styles.css` — thêm `.page--wide { max-width: none; }`,
-  KHÔNG đổi `.page` gốc (các trang khác vẫn giữ 1040px, dễ đọc hơn khi để
-  hẹp).
-- `ReportsPage.jsx`, `AdhocReportPage.jsx` — thêm class `page--wide` cạnh
-  `page`. Chỉ 2 trang này đổi, không ảnh hưởng Dashboard/Hệ thống/...
+- `lib/captcha.js` (mới, cả 3 service: `rp-server`, `etl`, `api-server`)
+  — `createCaptcha()` sinh `{ token, svg }`, lưu đáp án trong `Map` ở bộ
+  nhớ (giống `lib/loginRateLimit.js`, đủ cho quy mô thật) kèm hết hạn 5
+  phút; `verifyCaptcha(token, answer)` xoá NGAY khỏi `Map` trước khi so
+  sánh (dùng 1 lần, kể cả khi sai).
+- `GET /api/auth/captcha` (rp-server), `GET /admin/auth/captcha` (etl,
+  api-server) — trả `{ token, svg }`, không cần đăng nhập.
+- `POST .../auth/login` (cả 3 service) — nhận thêm `captchaToken`/
+  `captchaAnswer`, kiểm tra TRƯỚC TIÊN (rẻ, không đụng CSDL) — sai thì trả
+  400 "Mã xác nhận không đúng hoặc đã hết hạn" NGAY, chưa tốn 1 lượt tra
+  vai trò/rate-limit.
+- `components/CaptchaField.jsx` (mới, cả 3 app) — tự tải ảnh lúc mount,
+  nút ⟲ lấy ảnh khác, lộ `refresh()` qua ref để `LoginPage.jsx` gọi lại
+  SAU MỖI lần submit (đúng hay sai đều phải lấy ảnh mới — token cũ đã
+  chết). `AuthContext.jsx:login()` (cả 3 app) nhận thêm 2 tham số
+  `captchaToken`/`captchaAnswer`, truyền thẳng vào body `POST .../login`.
+- Thêm `svg-captcha` vào `package.json` của `rp-server`/`etl`/`api-server`
+  — **PHẢI `npm install` lại trên server lúc deploy** (gói mới, chưa có
+  trong `node_modules` hiện tại).
+- Đã `npm run build` cả 3 giao diện xác nhận không lỗi; đã viết test tay
+  kiểm tra `lib/captcha.js` (đúng/sai/dùng lại token cũ/thiếu tham số/có
+  khoảng trắng thừa) — tất cả đúng như thiết kế.
 
 ## 8.38 — Giao diện đăng nhập mới: bớt chữ, thêm hình đại diện (3 app)
 
@@ -63,6 +84,19 @@ trang) KHÔNG đổi gì.
   `.login-hero-bottom-label`, KHÔNG xoá CSS cũ (`.login-hero h1`/`p`/
   `-note`, phòng khi còn chỗ khác tham chiếu).
 - Đã `npm run build` cả 3 app xác nhận không lỗi.
+
+## 8.37 — Báo cáo tràn hết màn hình, bỏ khung hẹp 1040px
+
+Theo yêu cầu người dùng: trang "Báo cáo"/"Báo cáo tự do" (rp-user) dùng
+chung class `.page` (max-width 1040px, áp dụng cho MỌI trang) khiến bảng
+báo cáo nhiều cột (15-20 cột) luôn phải cuộn ngang dù màn hình desktop còn
+thừa rất nhiều khoảng trống bên phải.
+
+- `rp-user/src/styles.css` — thêm `.page--wide { max-width: none; }`,
+  KHÔNG đổi `.page` gốc (các trang khác vẫn giữ 1040px, dễ đọc hơn khi để
+  hẹp).
+- `ReportsPage.jsx`, `AdhocReportPage.jsx` — thêm class `page--wide` cạnh
+  `page`. Chỉ 2 trang này đổi, không ảnh hưởng Dashboard/Hệ thống/...
 
 ## 8.36 — Thêm nhật ký triển khai gộp (từ bản 8.34)
 

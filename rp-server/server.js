@@ -37,6 +37,7 @@ const { getUserContext } = require('./lib/permissions');
 const reportEmailScheduler = require('./jobs/reportEmailScheduler');
 const anomalyAlertScheduler = require('./jobs/anomalyAlertScheduler');
 const { isBlocked, recordFailure, recordSuccess, DEFAULT_PROFILE, ADMIN_PROFILE } = require('./lib/loginRateLimit');
+const { createCaptcha, verifyCaptcha } = require('./lib/captcha');
 const { logAction } = require('./lib/auditLog');
 const { cleanupAuditLog } = require('./jobs/cleanupAuditLog');
 const { cleanupSystemLog } = require('./jobs/cleanupSystemLog');
@@ -100,9 +101,24 @@ app.use(rateLimit({
   legacyHeaders: false
 }));
 
+// GET /api/auth/captcha — ảnh mã xác nhận (4 chữ số, bản 8.39) cho form
+// đăng nhập, xem lib/captcha.js. KHÔNG cần đăng nhập (chạy TRƯỚC khi có
+// phiên nào) — không có gì nhạy cảm (chỉ 1 token ngẫu nhiên + ảnh SVG).
+app.get('/api/auth/captcha', (req, res) => {
+  res.json(createCaptcha());
+});
+
 app.post('/api/auth/login', async (req, res, next) => {
   try {
-    const { username, password } = req.body || {};
+    const { username, password, captchaToken, captchaAnswer } = req.body || {};
+
+    // Kiểm tra CAPTCHA TRƯỚC TIÊN (bản 8.39) — rẻ (không đụng CSDL), chặn
+    // sớm trước khi tốn 1 lượt tra vai trò/kiểm tra rate-limit bên dưới.
+    // KHÔNG dùng chung bộ đếm sai với mật khẩu (recordFailure ở dưới) —
+    // đây là lớp chống tự động hoá RIÊNG, không phải chống đoán mật khẩu.
+    if (!verifyCaptcha(captchaToken, captchaAnswer)) {
+      return res.status(400).json({ error: 'Mã xác nhận không đúng hoặc đã hết hạn' });
+    }
 
     // Tra vai trò TRƯỚC (chỉ đọc app.UserRoles/app.Roles, không so mật khẩu)
     // để chọn đúng ngưỡng — tài khoản hệ thống (IsSystemRole) dùng

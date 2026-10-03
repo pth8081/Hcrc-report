@@ -4,10 +4,11 @@
 //            -> (Admin, đã bật 2FA) 'verify': nhập mã 6 số hoặc mã khôi phục
 //            -> (Admin, CHƯA bật 2FA) 'setup': quét QR, nhập mã xác nhận,
 //               xem 10 mã khôi phục ĐÚNG 1 LẦN trước khi vào hệ thống.
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../lib/AuthContext';
 import LoginHeroIllustration from '../components/LoginHeroIllustration';
+import CaptchaField from '../components/CaptchaField';
 
 function TwoFactorVerifyStep({ token, onDone }) {
   const { verifyTwoFactor } = useAuth();
@@ -119,6 +120,9 @@ export default function LoginPage() {
   const location = useLocation();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [captchaAnswer, setCaptchaAnswer] = useState('');
+  const [captchaToken, setCaptchaToken] = useState('');
+  const captchaRef = useRef(null);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [twofa, setTwofa] = useState(null); // { twofa: 'pending'|'setupRequired', token }
@@ -131,11 +135,16 @@ export default function LoginPage() {
     setError('');
     setSubmitting(true);
     try {
-      const result = await login(username, password);
+      const result = await login(username, password, captchaToken, captchaAnswer);
       if (result?.twofa) setTwofa(result);
     } catch (err) {
       setError(err.message);
     } finally {
+      // Token captcha vừa dùng LUÔN hết hạn ở server (dùng 1 lần, xem
+      // lib/captcha.js) dù đăng nhập thành công hay thất bại — tải ảnh mới
+      // ngay, không đợi người dùng tự bấm ⟲.
+      setCaptchaAnswer('');
+      captchaRef.current?.refresh();
       setSubmitting(false);
     }
   }
@@ -183,6 +192,7 @@ export default function LoginPage() {
               <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
             </span>
           </label>
+          <CaptchaField ref={captchaRef} value={captchaAnswer} onChange={setCaptchaAnswer} onTokenChange={setCaptchaToken} />
           <button type="submit" disabled={submitting}>{submitting ? 'Đang đăng nhập...' : 'Đăng nhập'}</button>
         </form>
       </div>
