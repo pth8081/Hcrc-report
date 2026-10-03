@@ -185,11 +185,16 @@ router.get('/:reportId/filter-options/:field', async (req, res, next) => {
 
 router.post('/:reportId/run', async (req, res, next) => {
   try {
-    if (!(await requireReportAccess(req, res, req.params.reportId))) return;
+    const context = await requireReportAccess(req, res, req.params.reportId);
+    if (!context) return;
     const definition = await loadDefinition(req.params.reportId);
     if (!definition || !definition.isActive) return res.status(404).json({ error: 'Không tìm thấy báo cáo' });
 
-    const { filters = {} } = req.body || {};
+    // __storeScope (bản 8.51) — SERVER tự gắn theo app.UserStoreAccess của
+    // người đang gọi, GHI ĐÈ bất kỳ giá trị nào client lỡ gửi lên ở đúng
+    // field này (spread TRƯỚC, gán SAU — không tin client tự khai phạm vi
+    // dữ liệu của chính họ) — xem lib/compositeReportRunner.js.
+    const filters = { ...(req.body?.filters || {}), __storeScope: context.storeScope };
     // Chặn trên (khớp đúng api-server/routes/v1/reports.js) — trước đây
     // pageSize lấy nguyên từ req.body không giới hạn, gọi {"pageSize":5000000}
     // là SQL Server cố trả cả triệu dòng vào 1 response JSON, vượt xa mức
@@ -213,11 +218,14 @@ router.post('/:reportId/run', async (req, res, next) => {
 
 router.post('/:reportId/export', async (req, res, next) => {
   try {
-    if (!(await requireReportAccess(req, res, req.params.reportId))) return;
+    const context = await requireReportAccess(req, res, req.params.reportId);
+    if (!context) return;
     const definition = await loadDefinition(req.params.reportId);
     if (!definition || !definition.isActive) return res.status(404).json({ error: 'Không tìm thấy báo cáo' });
 
-    const { filters = {}, format = 'excel' } = req.body || {};
+    // __storeScope (bản 8.51) — xem chú thích ở POST /:reportId/run phía trên.
+    const { format = 'excel' } = req.body || {};
+    const filters = { ...(req.body?.filters || {}), __storeScope: context.storeScope };
     const { columns, rows: projected } = await runDefinition(definition, filters, { page: 1, pageSize: 5000 });
     // exportTitle (TUỲ CHỌN) — tiêu đề HIỂN THỊ TRONG TÀI LIỆU, tách riêng
     // khỏi definition.title (tên trong danh mục báo cáo, tĩnh) và

@@ -650,11 +650,28 @@ async function runCompositeReport(definition, filterValues = {}) {
   // khai đủ ánh xạ, tránh hiện dòng nửa vời — xem lib/diemStkMapping.js.
   const requireDiemStkMapping = !!definition.requireDiemStkMapping;
   const diemMappingForFilter = requireDiemStkMapping ? await loadDiemStkMapping() : null;
+  // Phạm vi dữ liệu theo siêu thị (bản 8.51, theo yêu cầu người dùng — xem
+  // app.UserStoreAccess) — filterValues.__storeScope do SERVER tự gắn ở
+  // routes/reports.js/routes/dashboards.js theo app.UserStoreAccess của
+  // người đang gọi (KHÔNG đọc trực tiếp từ client, xem 2 route đó) — mảng
+  // MaDiem người đó CHỈ ĐƯỢC xem, null/undefined = "Toàn bộ" (không lọc gì,
+  // đúng hành vi gốc). CHỈ lọc được khi entityCode của MỌI khối không phải
+  // target đã quy về mã Điểm chuẩn (useDiemStkMapping/mapBuIdToMaDiem BẬT ở
+  // TẤT CẢ các khối đó — xem lib/diemStkMapping.js:remapRowsToDiem()/
+  // buildBuIdLookup()) — báo cáo composite KHÔNG dùng 1 trong 2 cờ này thì
+  // entityCode vẫn là mã kho/mã thô, KHÔNG lọc được đáng tin cậy theo mã
+  // Điểm -> GIỮ NGUYÊN không lọc (coi như báo cáo không có cột "siêu thị"
+  // theo đúng nghĩa chuẩn, không phải lỗ hổng — giống báo cáo khác không bị
+  // tính năng này đụng tới).
+  const storeScope = Array.isArray(filterValues.__storeScope) ? new Set(filterValues.__storeScope) : null;
+  const entityIsMaDiem = definition.blocks.filter(b => !b.isTarget).every(b => b.useDiemStkMapping || b.mapBuIdToMaDiem);
+  const applyStoreScope = !!(storeScope && entityIsMaDiem);
   const mergedRows = [...merged.values()].filter(
     r => !targetBlockKeys.some(key => r[key]?.TrangThai === 'DaDong')
       && !ambiguousEntityCodes.has(r.entityCode)
       && (!requireTargetMatch || targetBlockKeys.some(key => r[key] !== undefined))
       && (!requireDiemStkMapping || diemMappingForFilter.has(r.entityCode))
+      && (!applyStoreScope || storeScope.has(r.entityCode))
   );
   // Cột khớp `hideWhen` -> LOẠI HẲN khỏi danh sách cột trả về (không chỉ để
   // trống giá trị) — dùng cho "chế độ xem" tuỳ chọn ẩn bớt nhóm cột so sánh,

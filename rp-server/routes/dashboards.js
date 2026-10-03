@@ -225,9 +225,16 @@ router.post('/:dashboardId/export', async (req, res, next) => {
       // những gì đang hiện trên tab Realtime, không lặng lẽ xuất thêm cột
       // không ai thấy trên web.
       const isRealtime = tile.kind === 'realtime';
-      const filters = tile.dateMode
-        ? { eventDate: computeEventDateRange(tile.dateMode, fromDate, toDate), ...(isRealtime ? { cheDoSoSanh: 'past' } : {}) }
-        : {};
+      // __storeScope (bản 8.51) — xem chú thích ở routes/reports.js:/:reportId/run
+      // (SERVER tự gắn, không tin client) — tile này KHÔNG đi qua
+      // routes/reports.js (gọi runDefinition() thẳng ở đây) nên phải tự gắn
+      // lại, không thì xuất Dashboard sẽ lộ dữ liệu ngoài phạm vi.
+      const filters = {
+        ...(tile.dateMode
+          ? { eventDate: computeEventDateRange(tile.dateMode, fromDate, toDate), ...(isRealtime ? { cheDoSoSanh: 'past' } : {}) }
+          : {}),
+        __storeScope: req.userContext.storeScope
+      };
       const { columns, rows } = await runDefinition(reportDefinition, filters, { page: 1, pageSize: 5000 });
       const baseTitle = tile.title || reportDefinition.title;
       const periodLabel = tile.dateMode ? periodLabelFor(tile.dateMode, fromDate, toDate) : null;

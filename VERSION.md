@@ -27,6 +27,42 @@ triển khai thật trên server (lệnh chạy, file cần sửa tay, thứ t�
 không chỉ mô tả tính năng như mục ở trên. KHÔNG thay thế việc vẫn tạo file
 riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước giờ.
 
+## 8.51 — Áp lọc dữ liệu THẬT theo siêu thị (báo cáo composite)
+
+**Bước 3 — LẦN ĐẦU TIÊN thật sự giới hạn số liệu hiển thị**, tiếp nối bản
+8.49 (ánh xạ Department → MaDiem) và 8.50 (gán "Phạm vi dữ liệu" cho từng
+người). Từ bản này, người đã được gán "Giới hạn: <siêu thị>" ở trang
+Người dùng sẽ **CHỈ còn thấy đúng dòng dữ liệu của (các) siêu thị đó**
+trong các báo cáo áp dụng được — không tick gì (mặc định "Toàn bộ", kể cả
+HO) vẫn thấy như cũ, không ảnh hưởng gì.
+
+**Cơ chế**: mỗi lần chạy/xuất báo cáo, server tự gắn (KHÔNG tin client gửi
+lên) `MaDiem` người đó được gán vào bộ lọc, áp dụng NGAY TRƯỚC bước xếp
+hạng/nhóm của báo cáo composite (dùng lại đúng cơ chế lọc hàng đã có sẵn
+cho `topN`). **CHỈ áp dụng được cho báo cáo mà MỌI khối dữ liệu (trừ khối
+chỉ tiêu) đã quy entityCode về đúng Mã Điểm chuẩn** (cờ `useDiemStkMapping`/
+`mapBuIdToMaDiem` đã khai ở "Ánh xạ Điểm - STK_ID") — đúng nhóm báo cáo
+Top 5 chi nhánh + "Báo cáo doanh thu cuối ngày HCRC (Thành viên)" (tab
+Realtime trên Dashboard). Báo cáo khác KHÔNG quy về Mã Điểm thì **GIỮ
+NGUYÊN không lọc** (an toàn — không phải lỗ hổng, chỉ là chưa tới lượt;
+xem 8.52 dự kiến cho phần còn lại: Top bán chạy tồn kho=0, Báo cáo tự do).
+
+Đã viết test riêng xác nhận đúng 7 tình huống trước khi gộp (thấy đủ khi
+không giới hạn, chỉ đúng 1/nhiều siêu thị khi giới hạn, rỗng khi gán nhầm
+mã không tồn tại, và báo cáo không đủ điều kiện thì KHÔNG bị lọc nhầm).
+
+**Các bước triển khai:**
+1. `git pull origin main`
+2. `pm2 restart hcrc-rp-server` (BẮT BUỘC — đổi logic chạy báo cáo, không
+   đổi CSDL/giao diện).
+3. Kiểm tra: gán "Phạm vi dữ liệu" = 1 siêu thị cho 1 tài khoản test (xem
+   bản 8.50) → đăng nhập tài khoản đó → mở Dashboard "Top 5 chi nhánh" hoặc
+   tab Realtime → CHỈ thấy đúng siêu thị đã gán; xuất Excel/PDF cũng chỉ ra
+   đúng siêu thị đó. Tài khoản "Toàn bộ" (mặc định) vẫn thấy như cũ.
+
+Không đổi CSDL, không đổi giao diện. Chi tiết đầy đủ: `deploy/Cập nhật bản
+8.51 — Áp lọc dữ liệu theo siêu thị.md`.
+
 ## 8.50 — Gán phạm vi dữ liệu theo siêu thị cho từng người dùng
 
 **Bối cảnh**: bước 2 trong lộ trình phân quyền dữ liệu theo đúng siêu thị

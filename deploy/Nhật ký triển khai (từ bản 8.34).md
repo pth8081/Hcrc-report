@@ -12,6 +12,27 @@ cập nhật file này ở mọi bản sau, cho tới khi người dùng bảo d
 
 ---
 
+## 8.51 — Áp lọc dữ liệu THẬT theo siêu thị (báo cáo composite)
+
+**Thay đổi**: LẦN ĐẦU áp dụng lọc thật — người được gán "Phạm vi dữ liệu"
+ở bản 8.50 giờ CHỈ thấy đúng dữ liệu siêu thị đã gán, trong báo cáo Top 5
+chi nhánh + Realtime "Thành viên" (báo cáo khác chưa áp dụng được, KHÔNG
+phải lỗ hổng — chưa quy entityCode về Mã Điểm chuẩn). Server tự gắn phạm
+vi, không tin client. Đã viết test riêng xác nhận đúng trước khi gộp.
+
+**Các bước triển khai (KHÁC các bản trước — chỉ đổi backend, không đổi
+CSDL/giao diện):**
+1. `git pull origin main`
+2. `pm2 restart hcrc-rp-server` (BẮT BUỘC).
+3. Kiểm tra: tài khoản đã gán 1 siêu thị (bản 8.50) → Dashboard Top 5/
+   Realtime → chỉ thấy đúng siêu thị đó, kể cả lúc xuất Excel/PDF; tài
+   khoản "Toàn bộ" không bị ảnh hưởng.
+
+Chi tiết đầy đủ: `deploy/Cập nhật bản 8.51 — Áp lọc dữ liệu theo siêu
+thị.md`.
+
+---
+
 ## 8.50 — Gán phạm vi dữ liệu theo siêu thị cho từng người dùng
 
 **Thay đổi**: trang "Người dùng" có nút "Phạm vi dữ liệu" — gán (các) siêu

@@ -129,6 +129,19 @@ async function loadContext(userId) {
     }
   }
 
+  // Phạm vi dữ liệu theo siêu thị (bản 8.51, theo yêu cầu người dùng — xem
+  // app.UserStoreAccess) — null = "Toàn bộ" (không giới hạn, mặc định AN
+  // TOÀN — xem rp-db/schema.sql), mảng MaDiem = CHỈ được xem đúng (các) siêu
+  // thị đó. KHÔNG áp dụng cho IsSystemRole (Admin LUÔN thấy hết, bất kể lỡ
+  // có dòng app.UserStoreAccess nào gán nhầm — phòng thủ chiều sâu, giống
+  // cách reportIds/domains bỏ qua hẳn bảng Role* ở trên cho vai trò này).
+  let storeScope = null;
+  if (!isSystemRole) {
+    const storeResult = await pool.request().input('id', sql.Int, userId)
+      .query('SELECT MaDiem FROM app.UserStoreAccess WHERE UserId = @id');
+    if (storeResult.recordset.length) storeScope = storeResult.recordset.map(r => r.MaDiem);
+  }
+
   return {
     userId: user.Id,
     username: user.Username,
@@ -138,7 +151,8 @@ async function loadContext(userId) {
     menuCodes,
     reportIds,
     domains,
-    dashboardGroupAccess
+    dashboardGroupAccess,
+    storeScope
   };
 }
 
