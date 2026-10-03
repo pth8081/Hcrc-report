@@ -7,6 +7,7 @@
 import { useEffect, useState } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../lib/AuthContext';
+import LoginHeroIllustration from '../components/LoginHeroIllustration';
 
 function TwoFactorVerifyStep({ token, onDone }) {
   const { verifyTwoFactor } = useAuth();
@@ -161,10 +162,12 @@ export default function LoginPage() {
             <span className="sidebar-brand-sub">Cổng quản trị đối tác</span>
           </div>
         </div>
-        <div className="login-hero-eyebrow">Hệ thống nội bộ</div>
-        <h1>Quản trị đối tác &amp;<br />API tập trung.</h1>
-        <p>Đối tác, nguồn dữ liệu, endpoint realtime, nhật ký truy vấn — vận hành và giám sát trên một nền tảng duy nhất.</p>
-        <div className="login-hero-note">Hệ thống nội bộ — chỉ dành cho cán bộ vận hành API của HCRC.</div>
+        <div className="login-hero-illust-wrap">
+          <div className="login-hero-illust-card">
+            <LoginHeroIllustration />
+          </div>
+        </div>
+        <div className="login-hero-bottom-label">HCRC · API Admin</div>
       </div>
       <div className="login-card-wrap">
         <form className="login-card" onSubmit={handleSubmit}>

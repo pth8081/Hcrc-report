@@ -128,7 +128,7 @@ export default function ReportsPage() {
 
   if (!groups.length) {
     return (
-      <div className="page">
+      <div className="page page--wide">
         <h1>Báo cáo</h1>
         <p className="empty-message">Bạn chưa được cấp quyền xem nhóm báo cáo nào.</p>
       </div>
@@ -136,7 +136,7 @@ export default function ReportsPage() {
   }
 
   return (
-    <div className="page">
+    <div className="page page--wide">
       <h1>Báo cáo</h1>
       {error && <p className="form-error">{error}</p>}
 

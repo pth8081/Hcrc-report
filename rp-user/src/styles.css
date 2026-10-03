@@ -22,6 +22,12 @@ h4 { font-size: 13px; margin: 12px 0 6px; color: var(--ink-soft); }
 .app-shell { display: flex; min-height: 100vh; }
 .content { flex: 1; padding: 28px 36px; }
 .page { max-width: 1040px; }
+/* .page--wide — BỎ giới hạn 1040px CHỈ cho trang cần hiện bảng nhiều cột
+   (ReportsPage.jsx/AdhocReportPage.jsx) — bảng báo cáo thật có thể tới
+   15-20 cột, 1040px luôn không đủ nên LUÔN phải cuộn ngang dù màn hình còn
+   thừa rất nhiều chỗ trống bên phải (lỗi thật người dùng báo). Các trang
+   khác (form/cài đặt...) vẫn giữ nguyên 1040px — đọc dễ hơn khi để hẹp. */
+.page--wide { max-width: none; }
 .page-loading, .page-forbidden { padding: 40px; text-align: center; color: var(--ink-soft); }
 .page-header { margin-bottom: 22px; display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
 .page-header h1 { display: flex; align-items: center; gap: 10px; margin: 0 0 4px; }
@@ -322,6 +328,17 @@ button:hover { opacity: 0.9; }
 .login-hero h1 { font-size: 30px; line-height: 1.28; margin: 0 0 16px; position: relative; font-weight: 700; color: #fff; }
 .login-hero p { font-size: 14px; color: #b7c6dd; line-height: 1.65; max-width: 380px; position: relative; margin: 0 0 28px; }
 .login-hero-note { font-size: 12px; color: #7f93b3; position: relative; border-top: 1px solid rgba(255, 255, 255, .1); padding-top: 18px; max-width: 380px; }
+
+/* .login-hero-illust-* (bản 8.38) — THAY cho đoạn văn bản dài + ghi chú
+   (.login-hero h1/p/.login-hero-note ở trên, KHÔNG xoá CSS cũ — chỉ không
+   dùng nữa, tránh phá nếu có chỗ khác lỡ còn tham chiếu) — người dùng yêu
+   cầu bớt chữ, thêm hình đại diện cho từng ứng dụng, "hiện đại" hơn. Card
+   mờ (nền trắng rất nhạt + viền mờ) nổi trên nền gradient + hoạ tiết chấm
+   có sẵn (.login-hero::before) — không cần ảnh ngoài, chỉ SVG nội tuyến
+   (nhẹ, không thêm request mạng, đổi màu theo currentColor/biến CSS dễ). */
+.login-hero-illust-wrap { position: relative; z-index: 1; display: flex; justify-content: center; margin-top: 28px; }
+.login-hero-illust-card { background: rgba(255, 255, 255, .08); border: 1px solid rgba(255, 255, 255, .14); border-radius: 24px; padding: 32px; backdrop-filter: blur(2px); }
+.login-hero-bottom-label { position: absolute; bottom: 24px; left: 52px; font-size: 11px; color: #7f93b3; letter-spacing: .04em; }
 
 .login-card-wrap { flex: 1 1 54%; display: flex; align-items: center; justify-content: center; padding: 32px; }
 .login-card { width: 100%; max-width: 380px; background: var(--surface); border-radius: 16px; padding: 38px 34px; box-shadow: 0 12px 32px rgba(10, 22, 40, .1); display: flex; flex-direction: column; gap: 14px; }

@@ -27,6 +27,43 @@ triển khai thật trên server (lệnh chạy, file cần sửa tay, thứ t�
 không chỉ mô tả tính năng như mục ở trên. KHÔNG thay thế việc vẫn tạo file
 riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước giờ.
 
+## 8.37 — Báo cáo tràn hết màn hình, bỏ khung hẹp 1040px
+
+Theo yêu cầu người dùng: trang "Báo cáo"/"Báo cáo tự do" (rp-user) dùng
+chung class `.page` (max-width 1040px, áp dụng cho MỌI trang) khiến bảng
+báo cáo nhiều cột (15-20 cột) luôn phải cuộn ngang dù màn hình desktop còn
+thừa rất nhiều khoảng trống bên phải.
+
+- `rp-user/src/styles.css` — thêm `.page--wide { max-width: none; }`,
+  KHÔNG đổi `.page` gốc (các trang khác vẫn giữ 1040px, dễ đọc hơn khi để
+  hẹp).
+- `ReportsPage.jsx`, `AdhocReportPage.jsx` — thêm class `page--wide` cạnh
+  `page`. Chỉ 2 trang này đổi, không ảnh hưởng Dashboard/Hệ thống/...
+
+## 8.38 — Giao diện đăng nhập mới: bớt chữ, thêm hình đại diện (3 app)
+
+Theo yêu cầu người dùng: khung "hero" bên trái màn hình Đăng nhập (cả 3
+app ETL/API/Report) trước đây có tiêu đề + đoạn văn dài + ghi chú — đổi
+sang bớt chữ, thêm 1 hình minh hoạ SVG đại diện riêng cho từng ứng dụng
+("hiện đại" hơn, theo đúng demo ảnh đã gửi người dùng xác nhận): ETL = 2
+kho dữ liệu trao đổi 2 chiều (đại diện "đồng bộ"), API = 1 node trung tâm
+nối 4 node vệ tinh (đại diện "kết nối hệ thống"), Report = khung trình
+duyệt với biểu đồ cột tăng dần (đại diện "xem báo cáo"). Chỉ đổi phần
+"hero" bên trái — giao diện SAU KHI đăng nhập (sidebar, nội dung từng
+trang) KHÔNG đổi gì.
+
+- Thêm `components/LoginHeroIllustration.jsx` (SVG nội tuyến, không tải
+  ảnh ngoài) ở cả 3 app — mỗi app 1 bản riêng, màu khớp đúng `--accent`
+  sẵn có của app đó (ETL tím, API xanh lá, Report cam).
+- `LoginPage.jsx` (cả 3 app) — bỏ `.login-hero-eyebrow`/`<h1>`/`<p>`/
+  `.login-hero-note`, thay bằng `<LoginHeroIllustration />` trong khung mờ
+  `.login-hero-illust-card` + 1 dòng nhãn nhỏ `.login-hero-bottom-label`
+  ở góc dưới.
+- `styles.css` (cả 3 app) — thêm `.login-hero-illust-wrap`/`.login-hero-illust-card`/
+  `.login-hero-bottom-label`, KHÔNG xoá CSS cũ (`.login-hero h1`/`p`/
+  `-note`, phòng khi còn chỗ khác tham chiếu).
+- Đã `npm run build` cả 3 app xác nhận không lỗi.
+
 ## 8.36 — Thêm nhật ký triển khai gộp (từ bản 8.34)
 
 Theo yêu cầu người dùng: tạo `deploy/Nhật ký triển khai (từ bản 8.34).md`

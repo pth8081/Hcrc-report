@@ -12,6 +12,26 @@ cập nhật file này ở mọi bản sau, cho tới khi người dùng bảo d
 
 ---
 
+## 8.37-8.38 — Báo cáo tràn màn hình + giao diện đăng nhập mới
+
+**Thay đổi**: bảng báo cáo (rp-user) dùng hết chiều rộng màn hình desktop
+(bỏ khung hẹp 1040px cho riêng 2 trang Báo cáo); màn hình Đăng nhập cả 3
+app (ETL/API/Report) bớt chữ, thêm hình minh hoạ riêng từng app.
+
+**Các bước triển khai:**
+1. `git pull origin main`
+2. Build lại CẢ 3 giao diện: `cd rp-user && npm run build`, tương tự
+   `etl-admin`, `api-admin`.
+3. Copy `dist/` mới của từng app vào đúng chỗ Nginx/`serve-static.js`
+   đang trỏ tới.
+4. Kiểm tra: trang Báo cáo hiện đủ cột không cần kéo ngang; màn hình Đăng
+   nhập 3 app hiện hình minh hoạ thay vì đoạn văn dài.
+
+Không đổi CSDL, không đổi backend. Chi tiết đầy đủ: `deploy/Cập nhật bản
+8.37-8.38 — Báo cáo tràn màn hình + giao diện đăng nhập mới.md`.
+
+---
+
 ## 8.35 — Sửa nguyên nhân THẬT của "Failed to fetch"/"Không kết nối được backend"
 
 **Vấn đề**: Nhập hàng loạt Sync Job (68 dòng/34 siêu thị Thành viên) báo

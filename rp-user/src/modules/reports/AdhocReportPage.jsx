@@ -175,7 +175,7 @@ export default function AdhocReportPage() {
     && (vizType !== 'pivot' || (pivotRowField && pivotColField && selectedMeasures.length));
 
   return (
-    <div className="page">
+    <div className="page page--wide">
       <h1>Báo cáo tự do</h1>
       <p className="login-card-hint">Tự chọn dữ liệu, tự dựng bảng/biểu đồ — không cần admin tạo sẵn báo cáo.</p>
       {error && <p className="form-error">{error}</p>}
