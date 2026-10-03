@@ -159,6 +159,17 @@ const DASHBOARD_TITLE = 'Top 5 chi nhánh';
 // DashboardTile.jsx/routes/dashboards.js tự ghép thêm nhãn ngày/tháng ĐỘNG
 // vào cuối theo đúng bộ lọc đang chọn (vd "(15/09/2026)"/"(Tháng 9/2026)"),
 // đổi ngày là tiêu đề tự cập nhật theo, không lưu cứng ngày lúc seed.
+// group/groupLabel/groupIcon (bản 8.42, theo yêu cầu người dùng) — gộp các
+// Ô vào 1 "nhóm" chọn được ở đầu trang Dashboard (xem DashboardPage.jsx:
+// groups/activeGroup) trước khi hiện danh sách Ô bên dưới. KHÔNG cần đổi
+// schema/route gì — chỉ 3 field THÊM trên mỗi tile trong DefinitionJson,
+// đúng tinh thần "mọi field tuỳ chọn đọc trực tiếp từ tile" đã có sẵn.
+// Dashboard/tile KHÁC không khai field này vẫn chạy y hệt trước (không có
+// nhóm nào -> không hiện bộ chọn nhóm). Thêm Ô/nhóm mới SAU NÀY chỉ cần
+// gắn đúng 3 field này lúc seed, không phải sửa gì ở DashboardPage.jsx.
+const TOP5_GROUP = { group: 'top5', groupLabel: 'Top 5 chi nhánh', groupIcon: '🏆' };
+const REALTIME_GROUP = { group: 'realtime', groupLabel: 'Realtime', groupIcon: '⚡' };
+
 function buildTiles(reports) {
   const tiles = [];
   for (const r of reports) {
@@ -169,7 +180,8 @@ function buildTiles(reports) {
         title: `Top 5 ${r.chain.label} — ${r.metric.label} ${r.direction.label}`,
         dateMode: period.dateMode,
         metricTab: r.metric.metricTab,
-        chain: r.chain.key
+        chain: r.chain.key,
+        ...TOP5_GROUP
       });
     }
   }
@@ -195,10 +207,10 @@ function buildTiles(reports) {
 const REALTIME_REPORT_ID = 'bc-doanh-thu-hcrc-thanh-vien';
 const REALTIME_TITLE = 'Doanh thu Realtime HCRC (Thành viên)';
 const REALTIME_TILES = [
-  { key: 'realtime-ngay', reportId: REALTIME_REPORT_ID, title: REALTIME_TITLE, kind: 'realtime', dateMode: 'day', realtimeMode: 'table' },
-  { key: 'realtime-ngay-chart', reportId: REALTIME_REPORT_ID, title: REALTIME_TITLE, kind: 'realtime', dateMode: 'day', realtimeMode: 'chart' },
-  { key: 'realtime-thang', reportId: REALTIME_REPORT_ID, title: REALTIME_TITLE, kind: 'realtime', dateMode: 'month', realtimeMode: 'table' },
-  { key: 'realtime-thang-chart', reportId: REALTIME_REPORT_ID, title: REALTIME_TITLE, kind: 'realtime', dateMode: 'month', realtimeMode: 'chart' }
+  { key: 'realtime-ngay', reportId: REALTIME_REPORT_ID, title: REALTIME_TITLE, kind: 'realtime', dateMode: 'day', realtimeMode: 'table', ...REALTIME_GROUP },
+  { key: 'realtime-ngay-chart', reportId: REALTIME_REPORT_ID, title: REALTIME_TITLE, kind: 'realtime', dateMode: 'day', realtimeMode: 'chart', ...REALTIME_GROUP },
+  { key: 'realtime-thang', reportId: REALTIME_REPORT_ID, title: REALTIME_TITLE, kind: 'realtime', dateMode: 'month', realtimeMode: 'table', ...REALTIME_GROUP },
+  { key: 'realtime-thang-chart', reportId: REALTIME_REPORT_ID, title: REALTIME_TITLE, kind: 'realtime', dateMode: 'month', realtimeMode: 'chart', ...REALTIME_GROUP }
 ];
 
 async function upsertDashboard(pool, tiles) {

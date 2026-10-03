@@ -12,6 +12,25 @@ cập nhật file này ở mọi bản sau, cho tới khi người dùng bảo d
 
 ---
 
+## 8.42 — Nhóm Dashboard
+
+**Thay đổi**: trang Dashboard có thêm bộ chọn nhóm (🏆 Top 5 chi nhánh /
+⚡ Realtime) ở đầu trang — chọn nhóm mới hiện Ô bên dưới.
+
+**Các bước triển khai:**
+1. `git pull origin main`
+2. `cd rp-server && node scripts/seedTop5ChiNhanhReports.js` (BẮT BUỘC —
+   ghi đè DefinitionJson, giống bản 8.34).
+3. `cd rp-user && npm run build`, copy `dist/` mới.
+4. `pm2 restart hcrc-rp-server`.
+5. Kiểm tra: Dashboard hiện 2 thẻ nhóm, chọn đúng nhóm hiện đúng Ô/tab
+   tương ứng, xuất Excel/PDF vẫn hoạt động.
+
+Không đổi CSDL. Chi tiết đầy đủ: `deploy/Cập nhật bản 8.42 — Nhóm
+Dashboard.md`.
+
+---
+
 ## 8.41 — WebAuthn vân tay/Face ID — rp-user, thay bước 2FA
 
 **Thay đổi**: đăng ký vân tay/Face ID ở "Tài khoản của tôi" (Admin hệ

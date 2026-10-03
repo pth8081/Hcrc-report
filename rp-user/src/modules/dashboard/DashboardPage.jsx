@@ -114,6 +114,11 @@ export default function DashboardPage() {
   const [toDate, setToDate] = useState(todayISO());
   const [metricTab, setMetricTab] = useState('');
   const [viewMode, setViewMode] = useState('table');
+  // activeGroup (bản 8.42, theo yêu cầu người dùng) — Ô có khai tile.group
+  // được gộp theo nhóm, chọn 1 nhóm ở đầu trang mới hiện Ô bên dưới (xem
+  // groups/groupFilteredTiles bên dưới). Dashboard không khai tile.group
+  // nào (groups rỗng) chạy y hệt trước — không có gì để chọn.
+  const [activeGroup, setActiveGroup] = useState('');
   const [exporting, setExporting] = useState(false);
   // activeRealtimeKey — key của tile.kind==='realtime' đang chọn (xem
   // buildRealtimeTabs() ở trên); null = đang xem Top 5 (bảng/biểu đồ) như
@@ -148,10 +153,26 @@ export default function DashboardPage() {
     setActiveRealtimeKey(null);
     api.get(`/dashboards/${selectedId}`).then(d => {
       setDashboard(d);
-      const tabs = [...new Set((d.tiles || []).map(t => t.metricTab).filter(Boolean))];
+      const tiles = d.tiles || [];
+      const firstGroup = tiles.find(t => t.group)?.group || '';
+      setActiveGroup(firstGroup);
+      const groupTiles = firstGroup ? tiles.filter(t => t.group === firstGroup) : tiles;
+      const tabs = [...new Set(groupTiles.map(t => t.metricTab).filter(Boolean))];
       setMetricTab(tabs[0] || '');
     }).catch(err => setError(err.message));
   }, [selectedId]);
+
+  // Đổi nhóm (bấm thẻ nhóm khác) — reset sub-tab giống lúc đổi dashboard ở
+  // trên, tránh giữ lại metricTab/activeRealtimeKey của nhóm CŨ (vd đang ở
+  // tab "Realtime" của nhóm A, chọn sang nhóm B không có tile Realtime nào
+  // sẽ hiện trống trơn nếu không reset).
+  function selectGroup(groupKey) {
+    setActiveGroup(groupKey);
+    setActiveRealtimeKey(null);
+    const groupTiles = (dashboard?.tiles || []).filter(t => t.group === groupKey);
+    const tabs = [...new Set(groupTiles.map(t => t.metricTab).filter(Boolean))];
+    setMetricTab(tabs[0] || '');
+  }
 
   function handlePointClick(field, value) {
     setCrossFilters(prev => ({ ...prev, [field]: value }));
@@ -194,13 +215,26 @@ export default function DashboardPage() {
 
   const filterEntries = Object.entries(crossFilters);
   const allTiles = dashboard?.tiles || [];
-  const needsDatePicker = allTiles.some(t => t.dateMode);
-  const metricTabs = [...new Set(allTiles.map(t => t.metricTab).filter(Boolean))];
-  const visibleTiles = metricTabs.length > 1 ? allTiles.filter(t => !t.metricTab || t.metricTab === metricTab) : allTiles;
+  // groups (bản 8.42) — chỉ hiện bộ chọn khi CÓ TỪ 2 nhóm trở lên (giống
+  // đúng quy ước metricTabs.length > 1 đã có) — dashboard chỉ 1 nhóm hoặc
+  // không khai nhóm nào thì groupFilteredTiles = allTiles, chạy y hệt
+  // trước khi có tính năng này.
+  const groupsMap = new Map();
+  for (const t of allTiles) {
+    if (t.group && !groupsMap.has(t.group)) {
+      groupsMap.set(t.group, { key: t.group, label: t.groupLabel || t.group, icon: t.groupIcon || '', count: 0 });
+    }
+    if (t.group) groupsMap.get(t.group).count++;
+  }
+  const groups = [...groupsMap.values()];
+  const groupFilteredTiles = groups.length > 1 && activeGroup ? allTiles.filter(t => t.group === activeGroup) : allTiles;
+  const needsDatePicker = groupFilteredTiles.some(t => t.dateMode);
+  const metricTabs = [...new Set(groupFilteredTiles.map(t => t.metricTab).filter(Boolean))];
+  const visibleTiles = metricTabs.length > 1 ? groupFilteredTiles.filter(t => !t.metricTab || t.metricTab === metricTab) : groupFilteredTiles;
   const chainGroups = [...new Set(visibleTiles.map(t => t.chain).filter(Boolean))];
   const chartGroups = viewMode === 'chart' ? buildChartGroups(visibleTiles, fromDate, toDate) : [];
   const chartValueField = metricTab === 'transactions' ? 'soGiaoDich' : 'doanhThu';
-  const realtimeTabs = buildRealtimeTabs(allTiles);
+  const realtimeTabs = buildRealtimeTabs(groupFilteredTiles);
   const activeRealtimeTab = realtimeTabs.find(t => t.key === activeRealtimeKey);
   // Xuất Excel/PDF ở tab Realtime (bản 8.29) — LUÔN xuất đúng Ô "bảng" (không
   // phải "biểu đồ") của CÙNG giai đoạn (ngày/tháng) đang xem, kể cả khi đang
@@ -254,6 +288,23 @@ export default function DashboardPage() {
             {dashboards.map(d => <option key={d.DashboardId} value={d.DashboardId}>{d.Title}</option>)}
           </select>
         </label>
+      )}
+
+      {groups.length > 1 && (
+        <div className="dashboard-group-grid">
+          {groups.map(g => (
+            <button
+              key={g.key}
+              type="button"
+              className={`dashboard-group-card${g.key === activeGroup ? ' active' : ''}`}
+              onClick={() => selectGroup(g.key)}
+            >
+              {g.icon && <span className="dashboard-group-card-icon">{g.icon}</span>}
+              <span className="dashboard-group-card-label">{g.label}</span>
+              <span className="dashboard-group-card-count">{g.count} ô</span>
+            </button>
+          ))}
+        </div>
       )}
 
       {needsDatePicker && (

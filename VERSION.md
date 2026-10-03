@@ -27,6 +27,34 @@ triển khai thật trên server (lệnh chạy, file cần sửa tay, thứ t�
 không chỉ mô tả tính năng như mục ở trên. KHÔNG thay thế việc vẫn tạo file
 riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước giờ.
 
+## 8.42 — Nhóm Dashboard (chọn nhóm trước khi xem Ô)
+
+Theo yêu cầu người dùng: trang Dashboard có thêm bộ chọn "nhóm" ở đầu
+trang (thẻ bấm được, kiểu tương tự tab Top 5/Realtime đã có) — chọn 1
+nhóm mới hiện các Ô thuộc nhóm đó bên dưới, giống hệt cách báo cáo Top 5
+hiện đang tách Mart/Minimart. Dashboard "Top 5 chi nhánh" hiện có 2 nhóm:
+🏆 "Top 5 chi nhánh" (16 Ô) và ⚡ "Realtime" (4 Ô). **Báo cáo/Ô thêm SAU
+NÀY chỉ cần gắn đúng 3 field mới lúc seed là tự vào đúng nhóm, không phải
+sửa gì ở `DashboardPage.jsx`.**
+
+- `rp-server/scripts/seedTop5ChiNhanhReports.js` — thêm 3 field TUỲ CHỌN
+  trên mỗi tile: `group`/`groupLabel`/`groupIcon` (hằng số `TOP5_GROUP`/
+  `REALTIME_GROUP`) — KHÔNG đổi schema/route, chỉ thêm field trong
+  `DefinitionJson.tiles` (đúng tinh thần "mọi field tuỳ chọn đọc trực
+  tiếp từ tile" đã ghi ở đầu `DashboardPage.jsx`).
+- `rp-user/src/modules/dashboard/DashboardPage.jsx` — tính `groups` từ
+  tile đang có (chỉ hiện bộ chọn khi ≥2 nhóm, giống đúng quy ước
+  `metricTabs.length > 1`), lọc `groupFilteredTiles` theo nhóm đang chọn
+  TRƯỚC khi đưa vào mọi logic cũ (tab Doanh thu/Giao dịch, tab Realtime,
+  nhóm Mart/Minimart, xuất Excel/PDF...) — dashboard KHÔNG khai `tile.group`
+  nào chạy Y HỆT trước, không bị ảnh hưởng.
+- `styles.css` — thêm `.dashboard-group-grid`/`.dashboard-group-card`.
+- **PHẢI chạy lại script seed sau khi deploy** (ghi đè `DefinitionJson` đã
+  lưu trong CSDL — code mới không tự áp dụng nếu không chạy lại):
+  `node scripts/seedTop5ChiNhanhReports.js`.
+- Đã `npm run build` xác nhận không lỗi; đã viết test tay mô phỏng đúng 20
+  tile thật (16 Top5 + 4 Realtime) xác nhận gom nhóm/lọc đúng số lượng.
+
 ## 8.41 — Đăng nhập vân tay/Face ID (WebAuthn) — rp-user, thay bước 2FA
 
 Theo yêu cầu người dùng: admin (vai trò hệ thống) đăng ký vân tay/Face ID
