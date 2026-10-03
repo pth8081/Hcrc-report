@@ -12,6 +12,28 @@ cập nhật file này ở mọi bản sau, cho tới khi người dùng bảo d
 
 ---
 
+## 8.44 — Bộ lọc/nhóm theo siêu thị trong danh sách Đồng bộ
+
+**Thay đổi**: trang "Đồng bộ" (ETL) thêm ô tìm kiếm (theo tên job/tên
+siêu thị) + tuỳ chọn "Nhóm theo siêu thị" (gộp job cùng nguồn dữ liệu
+vào 1 khối thu/mở được). Trả lời câu hỏi "gộp hết VIEW vào 1 job có được
+không" — **KHÔNG làm theo hướng gộp** (mất lịch chạy/mốc đồng bộ/log lỗi
+riêng từng loại dữ liệu), giữ nguyên 1 job/1 loại dữ liệu, chỉ gọn cách
+XEM.
+
+**Các bước triển khai:**
+1. `git pull origin main`
+2. `cd etl-admin && npm run build`, copy `dist/` mới.
+3. Không cần restart backend, không cần chạy lại CSDL.
+4. Kiểm tra: trang Đồng bộ hiện ô tìm kiếm + nhóm theo siêu thị; gõ tên
+   siêu thị → đúng khối đó tự mở; tắt "Nhóm theo siêu thị" → bảng phẳng
+   có thêm cột "Nguồn dữ liệu".
+
+Không đổi CSDL, không đổi backend. Chi tiết đầy đủ: `deploy/Cập nhật bản
+8.44 — Bộ lọc nhóm theo siêu thị Sync Jobs.md`.
+
+---
+
 ## 8.43 — Phân quyền Dashboard theo nhóm
 
 **Thay đổi**: tách 2 quyền riêng cho mỗi nhóm Dashboard — "Xem dashboard"

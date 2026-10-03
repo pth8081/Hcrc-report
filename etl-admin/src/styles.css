@@ -56,6 +56,16 @@ legend { font-size: 12px; color: var(--ink-soft); padding: 0 6px; }
 .data-table td { padding: 8px 10px; border-bottom: 1px solid var(--line); }
 .empty-message { color: var(--ink-soft); font-size: 13px; }
 
+/* Bộ lọc/nhóm theo siêu thị — trang Đồng bộ (bản 8.44). */
+.sync-jobs-filter-row { display: flex; gap: 16px; align-items: center; margin-bottom: 14px; flex-wrap: wrap; }
+.sync-jobs-filter-row input[type="search"] { flex: 1; min-width: 220px; }
+.sync-jobs-store-group { border: 1px solid var(--line); border-radius: 6px; margin-bottom: 10px; overflow: hidden; }
+.sync-jobs-store-header { display: flex; width: 100%; justify-content: space-between; align-items: center; background: var(--surface); color: var(--ink); border: none; border-radius: 0; padding: 10px 14px; font-weight: 600; font-size: 13.5px; }
+.sync-jobs-store-header:hover { background: var(--accent-soft); }
+.sync-jobs-store-count { color: var(--ink-soft); font-weight: 400; font-size: 12.5px; }
+.sync-jobs-store-group .data-table { margin: 0; }
+.sync-jobs-store-group .table-scroll { border-top: 1px solid var(--line); }
+
 .tabs { display: flex; gap: 4px; margin-bottom: 16px; border-bottom: 1px solid var(--line); }
 .tabs button { background: none; border: none; color: var(--ink-soft); padding: 8px 14px; border-radius: 0; }
 .tabs button.active { color: var(--accent); border-bottom: 2px solid var(--accent); }

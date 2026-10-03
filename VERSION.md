@@ -27,6 +27,29 @@ triển khai thật trên server (lệnh chạy, file cần sửa tay, thứ t�
 không chỉ mô tả tính năng như mục ở trên. KHÔNG thay thế việc vẫn tạo file
 riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước giờ.
 
+## 8.44 — Bộ lọc/nhóm theo siêu thị trong danh sách Đồng bộ
+
+Trang "Đồng bộ" (ETL) có thêm 1 ô tìm kiếm (theo tên job HOẶC tên siêu
+thị/nguồn dữ liệu) và 1 tuỳ chọn "Nhóm theo siêu thị" — khi bật, danh
+sách job được gộp thành từng khối thu/mở theo đúng siêu thị (DataSourceId),
+mỗi khối hiện số job bên trong, bấm vào tiêu đề để mở/đóng; gõ vào ô tìm
+kiếm thì các khối khớp tự mở luôn. Đây là trả lời cho câu hỏi của người
+dùng về việc tương lai đồng bộ thêm dữ liệu khác từ siêu thị có phải tạo
+thêm VIEW + job mới không (CÓ — vẫn giữ 1 job/1 loại dữ liệu như từ
+trước), và việc gộp hết các VIEW vào 1 job/siêu thị có vấn đề gì không
+(CÓ 3 vấn đề cụ thể: mất lịch chạy (CronExpression) riêng từng loại dữ
+liệu, mất watermark (LastSyncedAt) riêng từng loại do `etl.SyncState` chỉ
+có PK theo SyncJobId, mất log lỗi riêng từng loại do `etl.SyncLog` ghi 1
+dòng/1 lần CHẠY JOB không phải 1 dòng/1 loại dữ liệu — gộp cũng KHÔNG giảm
+số kết nối CSDL vì đã dùng pool theo từng DataSourceId từ trước). Người
+dùng đã chọn hướng an toàn hơn: GIỮ NGUYÊN kiến trúc 1 job/1 loại dữ liệu,
+chỉ gọn cách XEM trong danh sách — không đổi `etl.SyncJobs`/`etl.SyncState`/
+`etl.SyncLog`/`etl/jobs/scheduler.js`.
+
+Chỉ sửa UI (`etl-admin/src/pages/SyncJobsPage.jsx`, `styles.css`). Không
+đổi CSDL, không đổi backend. Chi tiết đầy đủ: `deploy/Cập nhật bản 8.44 —
+Bộ lọc nhóm theo siêu thị Sync Jobs.md`.
+
 ## 8.43 — Phân quyền Dashboard theo nhóm (Xem dashboard / Xem chi tiết)
 
 Theo yêu cầu người dùng: tách riêng 2 quyền cho MỖI nhóm Dashboard (xem bản

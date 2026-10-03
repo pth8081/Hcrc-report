@@ -47,6 +47,14 @@ export default function SyncJobsPage() {
   const [importFile, setImportFile] = useState(null);
   const [importResult, setImportResult] = useState(null);
   const [importError, setImportError] = useState('');
+  // Bộ lọc/nhóm theo siêu thị (bản 8.44) — CHỈ gọn cách XEM danh sách, KHÔNG
+  // đổi kiến trúc 1 job/1 loại dữ liệu (xem phân tích đã trao đổi với người
+  // dùng: gộp nhiều domain vào 1 job sẽ mất lịch chạy/watermark/log riêng
+  // từng domain). storeSearch lọc theo tên job hoặc tên nguồn dữ liệu;
+  // groupByStore gộp các job cùng DataSourceId vào 1 khối thu/mở được.
+  const [storeSearch, setStoreSearch] = useState('');
+  const [groupByStore, setGroupByStore] = useState(true);
+  const [openStores, setOpenStores] = useState(() => new Set());
 
   function openEdit(job) {
     setEditingJob(job);
@@ -186,6 +194,64 @@ export default function SyncJobsPage() {
     }
   }
 
+  function dataSourceName(id) {
+    const ds = dataSources.find(s => s.Id === id);
+    return ds ? ds.Name : '— (không rõ nguồn) —';
+  }
+
+  function toggleStoreOpen(key) {
+    setOpenStores(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  }
+
+  function jobColumns(showStore) {
+    return [
+      { key: 'Name', label: 'Tên' },
+      showStore && { key: 'store', label: 'Nguồn dữ liệu', render: (j) => dataSourceName(j.DataSourceId) },
+      { key: 'Type', label: 'Loại', render: (j) => (j.Type === 'table' ? 'Theo bảng' : 'Tuỳ biến') },
+      { key: 'TargetDomain', label: 'Domain' },
+      { key: 'CronExpression', label: 'Lịch chạy' },
+      { key: 'KeepHistory', label: 'Giữ lịch sử', render: (j) => (j.KeepHistory ? 'Có' : 'Không') },
+      { key: 'IsActive', label: 'Trạng thái', render: (j) => (j.IsActive ? 'Bật' : 'Tắt') },
+      {
+        key: 'checkSchema', label: '', render: (j) => (
+          <button type="button" onClick={() => checkSchema(j)}>Kiểm tra schema</button>
+        )
+      },
+      isAdmin && {
+        key: 'actions', label: '', render: (j) => (
+          <>
+            <button type="button" onClick={() => openEdit(j)}>Sửa</button>{' '}
+            <button type="button" onClick={() => runNow(j)}>Chạy thử</button>{' '}
+            <button type="button" onClick={() => toggleActive(j)}>{j.IsActive ? 'Tắt' : 'Bật'}</button>{' '}
+            <button type="button" onClick={() => deleteJob(j)}>Xoá</button>
+          </>
+        )
+      }
+    ].filter(Boolean);
+  }
+
+  // storeSearch khớp theo tên job HOẶC tên nguồn dữ liệu (không phân biệt
+  // hoa/thường) — gõ đúng tên siêu thị là lọc được ngay cả khi tên job
+  // không chứa tên siêu thị.
+  const storeQuery = storeSearch.trim().toLowerCase();
+  const filteredJobs = !storeQuery ? jobs : jobs.filter(j =>
+    j.Name.toLowerCase().includes(storeQuery) || dataSourceName(j.DataSourceId).toLowerCase().includes(storeQuery)
+  );
+
+  const storeGroups = (() => {
+    const map = new Map();
+    for (const j of filteredJobs) {
+      const key = j.DataSourceId || 0;
+      if (!map.has(key)) map.set(key, { key, name: dataSourceName(j.DataSourceId), jobs: [] });
+      map.get(key).jobs.push(j);
+    }
+    return [...map.values()].sort((a, b) => a.name.localeCompare(b.name, 'vi'));
+  })();
+
   async function submitImport(e) {
     e.preventDefault();
     setImportError('');
@@ -209,33 +275,37 @@ export default function SyncJobsPage() {
       <h1>Đồng bộ</h1>
       {error && <p className="form-error">{error}</p>}
 
-      <DataTable
-        columns={[
-          { key: 'Name', label: 'Tên' },
-          { key: 'Type', label: 'Loại', render: (j) => (j.Type === 'table' ? 'Theo bảng' : 'Tuỳ biến') },
-          { key: 'TargetDomain', label: 'Domain' },
-          { key: 'CronExpression', label: 'Lịch chạy' },
-          { key: 'KeepHistory', label: 'Giữ lịch sử', render: (j) => (j.KeepHistory ? 'Có' : 'Không') },
-          { key: 'IsActive', label: 'Trạng thái', render: (j) => (j.IsActive ? 'Bật' : 'Tắt') },
-          {
-            key: 'checkSchema', label: '', render: (j) => (
-              <button type="button" onClick={() => checkSchema(j)}>Kiểm tra schema</button>
-            )
-          },
-          isAdmin && {
-            key: 'actions', label: '', render: (j) => (
-              <>
-                <button type="button" onClick={() => openEdit(j)}>Sửa</button>{' '}
-                <button type="button" onClick={() => runNow(j)}>Chạy thử</button>{' '}
-                <button type="button" onClick={() => toggleActive(j)}>{j.IsActive ? 'Tắt' : 'Bật'}</button>{' '}
-                <button type="button" onClick={() => deleteJob(j)}>Xoá</button>
-              </>
-            )
-          }
-        ].filter(Boolean)}
-        rows={jobs}
-        emptyMessage="Chưa có job đồng bộ nào."
-      />
+      <div className="sync-jobs-filter-row">
+        <input
+          type="search"
+          placeholder="Tìm theo tên siêu thị hoặc tên job…"
+          value={storeSearch}
+          onChange={(e) => setStoreSearch(e.target.value)}
+        />
+        <label className="checkbox-row">
+          <input type="checkbox" checked={groupByStore} onChange={(e) => setGroupByStore(e.target.checked)} />
+          Nhóm theo siêu thị
+        </label>
+      </div>
+
+      {groupByStore ? (
+        storeGroups.length === 0
+          ? <p className="form-hint">Không có job khớp với tìm kiếm.</p>
+          : storeGroups.map(g => {
+              const isOpen = storeQuery ? true : openStores.has(g.key);
+              return (
+                <div className="sync-jobs-store-group" key={g.key}>
+                  <button type="button" className="sync-jobs-store-header" onClick={() => toggleStoreOpen(g.key)}>
+                    <span>{isOpen ? '▾' : '▸'} {g.name}</span>
+                    <span className="sync-jobs-store-count">{g.jobs.length} job</span>
+                  </button>
+                  {isOpen && <DataTable columns={jobColumns(false)} rows={g.jobs} emptyMessage="" />}
+                </div>
+              );
+            })
+      ) : (
+        <DataTable columns={jobColumns(true)} rows={filteredJobs} emptyMessage="Chưa có job đồng bộ nào." />
+      )}
 
       {isAdmin && (
         <>
