@@ -12,6 +12,28 @@ cập nhật file này ở mọi bản sau, cho tới khi người dùng bảo d
 
 ---
 
+## 8.53 — Tiêu đề nhóm cột có màu + tô đậm dòng Tổng cộng trên bảng web báo cáo
+
+**Thay đổi**: bảng báo cáo xem trên web trước đây chỉ vẽ phẳng, không
+màu — khác hẳn file Excel/PDF xuất ra (đã có tiêu đề gộp 2 dòng tô màu
+theo nhóm cột + tô đậm dòng Tổng cộng từ lâu). Giờ web dùng ĐÚNG dữ liệu
+`columnGroups` sẵn có (API `/run` trả thêm, trước đây chưa gửi) để vẽ
+khớp hệt Excel/PDF, áp dụng tự động cho mọi báo cáo đã khai nhóm cột, ở
+cả trang Báo cáo lẫn Dashboard. Đã demo (mock server + Playwright) trước
+khi gộp vào `main`.
+
+**Các bước triển khai:**
+1. `git pull origin main`
+2. `cd rp-user && npm run build`, copy `dist/` mới.
+3. `pm2 restart hcrc-rp-server` (đổi cấu trúc JSON trả về của `/run`).
+4. Kiểm tra: báo cáo có `columnGroups` → tiêu đề 2 dòng tô màu, dòng Tổng
+   cộng tô tím đậm; trang không liên quan → không đổi gì.
+
+Chi tiết đầy đủ: `deploy/Cập nhật bản 8.53 — Tiêu đề nhóm cột có màu trên
+bảng web báo cáo.md`.
+
+---
+
 ## 8.52 — Rà soát bản 8.31→8.51 + vá 3 lỗi phát hiện được
 
 **Thay đổi**: theo yêu cầu rà soát của người dùng — phát hiện và vá 3 lỗi.

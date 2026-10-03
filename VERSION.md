@@ -27,6 +27,36 @@ triển khai thật trên server (lệnh chạy, file cần sửa tay, thứ t�
 không chỉ mô tả tính năng như mục ở trên. KHÔNG thay thế việc vẫn tạo file
 riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước giờ.
 
+## 8.53 — Tiêu đề nhóm cột có màu + tô đậm dòng Tổng cộng trên bảng web báo cáo
+
+**Theo yêu cầu người dùng**: bảng báo cáo xem trên web chỉ vẽ 1 dòng tiêu
+đề phẳng, không màu, không tô khác biệt dòng "Tổng cộng" — trong khi file
+Excel/PDF xuất ra từ CHÍNH báo cáo đó đã có tiêu đề gộp 2 dòng tô màu
+theo nhóm cột ("Doanh thu"/"Lãi gộp"/"Giao dịch"...) + tô tím đậm dòng
+Tổng cộng từ lâu. `definition.columnGroups` vốn chỉ `exportExcel.js`/
+`exportPdf.js` đọc tới, API `/run` chưa từng trả về cho web.
+
+Đã sửa: `/reports/:id/run` trả thêm `columnGroups` (dữ liệu có sẵn,
+trước đây chưa gửi); `DataTable.jsx` dùng dữ liệu đó vẽ tiêu đề 2 dòng
+tô màu KHỚP HỆT Excel/PDF (dùng chung bảng màu `GROUP_COLORS`/
+`SUBTOTAL_COLOR`), tô đậm dòng `__isSubtotal`/`__isGrandTotal`. Áp dụng
+TỰ ĐỘNG cho mọi báo cáo đã khai `columnGroups`, ở cả trang Báo cáo lẫn
+mỗi ô Dashboard — không cần sửa từng báo cáo. Nơi không liên quan (trang
+Người dùng, Vai trò...) không đổi gì. Đã demo bằng mock server +
+Playwright (đúng cấu trúc 17 cột + 3 nhóm màu báo cáo thật) trước khi
+gộp vào `main`, xác nhận tiêu đề dính đúng khi cuộn dọc/ngang.
+
+**Các bước triển khai:**
+1. `git pull origin main`
+2. `cd rp-user && npm run build`, copy `dist/` mới.
+3. `pm2 restart hcrc-rp-server` (đổi cấu trúc JSON trả về của `/run`).
+4. Kiểm tra: mở báo cáo có `columnGroups` (vd "Báo cáo doanh thu cuối
+   ngày LDTD") → tiêu đề 2 dòng tô màu, dòng Tổng cộng tô tím đậm; trang
+   không liên quan (vd "Người dùng") → không đổi gì.
+
+Không đổi dữ liệu/công thức/Excel/PDF/CSDL. Chi tiết đầy đủ: `deploy/Cập
+nhật bản 8.53 — Tiêu đề nhóm cột có màu trên bảng web báo cáo.md`.
+
 ## 8.52 — Rà soát bản 8.31→8.51 + vá 3 lỗi phát hiện được
 
 **Theo yêu cầu người dùng**: rà soát lại toàn bộ thay đổi từ bản 8.31 đến
