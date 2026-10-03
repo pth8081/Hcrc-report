@@ -12,6 +12,23 @@ cập nhật file này ở mọi bản sau, cho tới khi người dùng bảo d
 
 ---
 
+## 8.54 — Rà soát bản 8.31→8.53 + vá 1 lỗ hổng lý thuyết
+
+**Thay đổi**: theo yêu cầu rà soát lại của người dùng sau bản 8.53 — phát
+hiện `entityIsMaDiem` (kiểm tra "báo cáo composite có an toàn để lọc theo
+siêu thị không", bản 8.51) dùng `.every()` trên mảng có thể RỖNG (báo cáo
+composite không có khối dữ liệu nào, chỉ toàn `isTarget`), vacuous truth
+khiến BẬT lọc nhầm. Chưa có báo cáo thật nào rơi vào trường hợp này — vá
+phòng ngừa, giữ đúng nguyên tắc "không chắc chắn thì KHÔNG lọc".
+
+**Các bước triển khai:**
+1. `git pull origin main`
+2. `pm2 restart hcrc-rp-server` (BẮT BUỘC).
+
+Không đổi CSDL/giao diện/hành vi báo cáo đang chạy.
+
+---
+
 ## 8.53 — Tiêu đề nhóm cột có màu + tô đậm dòng Tổng cộng trên bảng web báo cáo
 
 **Thay đổi**: bảng báo cáo xem trên web trước đây chỉ vẽ phẳng, không

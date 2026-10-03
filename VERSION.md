@@ -27,6 +27,34 @@ triển khai thật trên server (lệnh chạy, file cần sửa tay, thứ t�
 không chỉ mô tả tính năng như mục ở trên. KHÔNG thay thế việc vẫn tạo file
 riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước giờ.
 
+## 8.54 — Rà soát bản 8.31→8.53 + vá 1 lỗ hổng lý thuyết
+
+**Theo yêu cầu người dùng**: rà soát lại (code-review `--level max`) toàn
+bộ thay đổi từ bản 8.31 đến 8.53 (bao gồm cả bản 8.53 vừa gộp), xem còn
+lỗi nào phát sinh trong quá trình sửa không. Phát hiện **1 lỗ hổng lý
+thuyết** (chưa có definition thật nào rơi vào, nhưng vá cho chắc theo
+đúng nguyên tắc "không chắc chắn thì KHÔNG lọc" của tính năng Phạm vi dữ
+liệu):
+
+- `compositeReportRunner.js` — `entityIsMaDiem` (xác định báo cáo composite
+  có "an toàn để lọc theo siêu thị" hay không, bản 8.51) dùng
+  `Array.prototype.every()` trên danh sách khối KHÔNG phải `isTarget`.
+  Nếu 1 báo cáo composite có MỌI khối đều `isTarget:true` (không có khối
+  dữ liệu nào) thì mảng rỗng, `.every()` tự nhiên trả `true` (vacuous
+  truth) — hiểu nhầm thành "mọi khối đã quy về mã Điểm chuẩn" dù không có
+  khối nào để kiểm tra thật, có thể BẬT lọc theo `storeScope` trên
+  `entityCode` chưa chắc là mã Điểm (lọc sai — thiếu hoặc thừa dữ liệu).
+  Đã vá: thêm điều kiện phải có ÍT NHẤT 1 khối không phải target trước khi
+  `.every()`.
+
+**Các bước triển khai:**
+1. `git pull origin main`
+2. `pm2 restart hcrc-rp-server` (BẮT BUỘC — đổi file backend).
+
+Không đổi CSDL/giao diện, không đổi hành vi của MỌI báo cáo đang hoạt
+động hiện tại (2 file định nghĩa báo cáo composite hiện có đều đã có khối
+dữ liệu thật, không rơi vào trường hợp này).
+
 ## 8.53 — Tiêu đề nhóm cột có màu + tô đậm dòng Tổng cộng trên bảng web báo cáo
 
 **Theo yêu cầu người dùng**: bảng báo cáo xem trên web chỉ vẽ 1 dòng tiêu
