@@ -12,6 +12,23 @@ cập nhật file này ở mọi bản sau, cho tới khi người dùng bảo d
 
 ---
 
+## 8.46 — Sửa nút "Lên"/"Xuống" trắng trơn trong khung Tuỳ chỉnh Dashboard
+
+**Thay đổi**: phát hiện lúc demo bản 8.45 bằng ảnh chụp trình duyệt thật —
+2 nút đổi thứ tự Ô trong khung "Tuỳ chỉnh" hiện trắng trơn không thấy chữ
+(chữ trắng trên nền trắng, do CSS quên đổi màu chữ). Đã sửa + đổi ký hiệu
+▲▼ thành chữ "Lên"/"Xuống" rõ nghĩa hơn.
+
+**Các bước triển khai:**
+1. `git pull origin main`
+2. `cd rp-user && npm run build`, copy `dist/` mới.
+3. Kiểm tra: Dashboard → "⚙️ Tuỳ chỉnh" → thấy rõ chữ "Lên"/"Xuống" ở mỗi Ô.
+
+Không đổi CSDL, không đổi backend. Chi tiết đầy đủ: `deploy/Cập nhật bản
+8.46 — Sửa nút Lên Xuống trắng trong khung Tuỳ chỉnh.md`.
+
+---
+
 ## 8.45 — Cá nhân hoá báo cáo Dashboard
 
 **Thay đổi**: trang Dashboard có nút "⚙️ Tuỳ chỉnh" — mỗi người tự ẩn/hiện

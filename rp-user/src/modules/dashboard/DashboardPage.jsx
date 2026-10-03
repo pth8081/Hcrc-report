@@ -468,9 +468,10 @@ export default function DashboardPage() {
                         <input type="checkbox" checked={!hidden} onChange={() => toggleHiddenTile(t.key)} />
                         {t.title || t.reportId}
                       </label>
+                      {/* Chữ "Lên"/"Xuống" rõ nghĩa hơn ký tự mũi tên ▲▼. */}
                       <span className="dashboard-customize-tile-move">
-                        <button type="button" disabled={i === 0} onClick={() => moveTile(t.key, -1)}>▲</button>
-                        <button type="button" disabled={i === rawTiles.length - 1} onClick={() => moveTile(t.key, 1)}>▼</button>
+                        <button type="button" disabled={i === 0} onClick={() => moveTile(t.key, -1)}>Lên</button>
+                        <button type="button" disabled={i === rawTiles.length - 1} onClick={() => moveTile(t.key, 1)}>Xuống</button>
                       </span>
                     </li>
                   );

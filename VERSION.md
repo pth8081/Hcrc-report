@@ -27,6 +27,26 @@ triển khai thật trên server (lệnh chạy, file cần sửa tay, thứ t�
 không chỉ mô tả tính năng như mục ở trên. KHÔNG thay thế việc vẫn tạo file
 riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước giờ.
 
+## 8.46 — Sửa nút "Lên"/"Xuống" trắng trơn trong khung Tuỳ chỉnh Dashboard
+
+**Lỗi phát hiện lúc demo bản 8.45** (chụp ảnh thật bằng trình duyệt trước
+khi gửi demo cho người dùng — không chỉ build/grep chuỗi như trước): 2 nút
+đổi thứ tự Ô (trước đây ký hiệu ▲▼) hiện ra TRẮNG TRƠN không thấy chữ —
+nguyên nhân là `.dashboard-customize-tile-move button` chỉ đổi `background`
+sang màu trắng nhưng QUÊN đổi `color` (chữ vẫn kế thừa `color: #fff` từ
+luật `button` dùng chung toàn hệ thống) → chữ trắng trên nền trắng, bấm
+được nhưng không ai nhìn thấy để bấm. Nhân tiện đổi luôn ký hiệu ▲▼ thành
+chữ "Lên"/"Xuống" cho rõ nghĩa hơn.
+
+Chỉ sửa CSS (`rp-user/src/styles.css`) + nhãn nút
+(`DashboardPage.jsx`) — không đổi logic, không đổi API, không đổi CSDL.
+
+**Các bước triển khai:**
+1. `git pull origin main`
+2. `cd rp-user && npm run build`, copy `dist/` mới.
+3. Kiểm tra: Dashboard → "⚙️ Tuỳ chỉnh" → mỗi Ô hiện rõ 2 nút chữ "Lên"/
+   "Xuống" (trước đây trắng trơn không thấy chữ).
+
 ## 8.45 — Cá nhân hoá báo cáo Dashboard
 
 Trang Dashboard (rp-user) có thêm nút "⚙️ Tuỳ chỉnh" mở khung cho PHÉP MỖI
