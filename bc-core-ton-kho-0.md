@@ -70,7 +70,7 @@ trong yêu cầu ban đầu).
 
 | # | Việc | Ai làm |
 |---|---|---|
-| 1 | Đã có 2 job `banhang_sku`/`tonkho_sku` chưa? | Admin etl-admin (dùng lại từ `bc-ton-kho-0.md`, KHÔNG tạo job mới) |
+| 1 | Đã có 2 job `banhang_sku`/`tonkho_sku` chưa? — chạy `node scripts/seedZeroStockSkuSync.js` (thư mục `etl`) nếu chưa có | Admin etl-admin / IT-Dev (dùng lại từ `bc-ton-kho-0.md`, KHÔNG tạo job mới) |
 | 2 | Đã có job doanh thu chi nhánh với Dimension `chain` chưa? | Admin etl-admin (dùng lại, KHÔNG tạo job mới) |
 | 3 | Khai danh sách hàng Core (Mart + Minimart) | Admin etl-admin |
 | 4 | (Tuỳ chọn) Khóa All/Khóa theo kho/SL đang đặt/Ngày nhập cuối | DBA + Admin etl-admin |
@@ -85,7 +85,8 @@ Thiếu BẤT KỲ mục nào trong 1-3 thì báo cáo tương ứng **luôn tr�
 
 Báo cáo này **KHÔNG cần VIEW/job riêng cho phần bắt buộc**:
 - 2 job `banhang_sku`/`tonkho_sku` — dùng lại NGUYÊN VẸN từ báo cáo "Top
-  bán chạy tồn kho=0" (xem `bc-ton-kho-0.md` Bước 1+2). Nếu server chưa
+  bán chạy tồn kho=0" (xem `bc-ton-kho-0.md` Bước 1+2 — có sẵn script
+  `etl/scripts/seedZeroStockSkuSync.js` tạo tự động). Nếu server chưa
   từng làm báo cáo đó, làm theo đúng 2 bước đó TRƯỚC.
 - Dimension `chain` (giá trị `MART`/`MINIMART`) — dùng lại từ job doanh thu
   chi nhánh (`doanhthu_chinhanh`) đã tạo cho báo cáo LDTD/HCRC (xem

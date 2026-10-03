@@ -12,6 +12,30 @@ cập nhật file này ở mọi bản sau, cho tới khi người dùng bảo d
 
 ---
 
+## 8.55 — Script tạo tự động 2 job đồng bộ cho 3 báo cáo "hết hàng"
+
+**Thay đổi**: theo yêu cầu người dùng — DBA đã tạo xong 2 VIEW
+`vw_BanHangTheoSKU`/`vw_TonKhoTheoSKU` (đúng `bc-ton-kho-0.md`), nay thêm
+`etl/scripts/seedZeroStockSkuSync.js` để tạo 2 job đồng bộ bắt buộc bằng
+1 lệnh thay vì bấm tay qua etl-admin — dùng chung cho cả 3 báo cáo "hết
+hàng" (Top bán chạy tồn kho=0, Core=0 Mart/Minimart). Phần còn lại (đăng
+ký báo cáo, upload danh sách Core, gán quyền) vẫn làm theo đúng 2 file
+hướng dẫn đã có từ trước, không đổi.
+
+**Các bước triển khai:**
+1. `git pull origin main`
+2. Khai `DSMART16_SERVER`/`DSMART16_USER`/`DSMART16_PASSWORD` vào `.env`
+   của `etl`.
+3. `cd etl && node scripts/seedZeroStockSkuSync.js`.
+4. Theo dõi etl-admin → Log tới khi 2 job chạy thành công.
+5. `cd rp-server && node scripts/seedTopZeroStockReport.js && node scripts/seedCoreZeroStockReports.js`.
+6. Upload danh sách hàng Core, gán quyền xem 3 báo cáo — xem chi tiết ở
+   `bc-ton-kho-0.md`/`bc-core-ton-kho-0.md`.
+
+Không đổi CSDL `rp`/`rp-server`/`rp-user`.
+
+---
+
 ## 8.54 — Rà soát bản 8.31→8.53 + vá 1 lỗ hổng lý thuyết
 
 **Thay đổi**: theo yêu cầu rà soát lại của người dùng sau bản 8.53 — phát

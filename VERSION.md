@@ -27,6 +27,49 @@ triển khai thật trên server (lệnh chạy, file cần sửa tay, thứ t�
 không chỉ mô tả tính năng như mục ở trên. KHÔNG thay thế việc vẫn tạo file
 riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước giờ.
 
+## 8.55 — Script tạo tự động 2 job đồng bộ cho 3 báo cáo "hết hàng"
+
+**Theo yêu cầu người dùng**: 3 báo cáo "hết hàng" (Top bán chạy tồn kho=0,
+Core stock=0 Mart/Minimart) vốn đã có đủ code + tài liệu hướng dẫn triển
+khai (`bc-ton-kho-0.md`, `bc-core-ton-kho-0.md`) từ trước, nhưng 2 job
+đồng bộ BẮT BUỘC (`banhang_sku`/`tonkho_sku`) chỉ có cách tạo THỦ CÔNG qua
+etl-admin. Người dùng xác nhận DBA đã tạo xong 2 VIEW `vw_BanHangTheoSKU`/
+`vw_TonKhoTheoSKU` đúng tài liệu — yêu cầu dựng sẵn luôn phần "nguồn dữ
+liệu đồng bộ + lịch đồng bộ" bằng code thay vì bấm tay.
+
+Thêm `etl/scripts/seedZeroStockSkuSync.js` (mẫu theo đúng
+`seedLdtdHcrcSync.js` đã có) — chạy 1 lệnh là tạo/cập nhật xong: Nguồn dữ
+liệu "DSMART16 - Live" (dùng lại đúng 1 nguồn với báo cáo LDTD/HCRC nếu đã
+có, không tạo kết nối trùng) + 2 job "Theo bảng" (`banhang_sku` trỏ
+`vw_BanHangTheoSKU`, `tonkho_sku` trỏ `vw_TonKhoTheoSKU`), đúng cột/
+Dimensions/Measures/`KeepHistory=1` theo tài liệu. Script TỰ KIỂM TRA
+schema thật của nguồn trước khi tạo job, dừng lại báo lỗi rõ nếu thiếu
+VIEW/cột — không tạo job nửa vời. Đã cập nhật 2 file hướng dẫn, ghi rõ
+đây là cách làm khuyến nghị, giữ nguyên hướng dẫn thao tác tay làm
+phương án dự phòng.
+
+**KHÔNG tự động hoá** (đúng phạm vi người dùng yêu cầu, phần còn lại vẫn
+cần làm tay theo tài liệu): 4 VIEW/job "Chờ nhập"/"Đã nhập" + 4 domain Core
+"Khoá All"/"SL đang đặt"... (TUỲ CHỌN, VIEW mẫu trong tài liệu còn ghi "CHỈ
+VÍ DỤ" — cần DBA xác nhận lại tên bảng/cột thật trước khi tạo); upload
+danh sách hàng Core; chạy script đăng ký 2 báo cáo vào danh mục
+(`rp-server/scripts/seedTopZeroStockReport.js`/`seedCoreZeroStockReports.js`
+— ĐÃ CÓ SẴN từ trước, không đổi gì); gán quyền xem.
+
+**Các bước triển khai:**
+1. `git pull origin main`
+2. Khai `DSMART16_SERVER`/`DSMART16_USER`/`DSMART16_PASSWORD` vào `.env`
+   của `etl` (dùng chung với `seedLdtdHcrcSync.js` nếu đã khai sẵn).
+3. `cd etl && node scripts/seedZeroStockSkuSync.js` — tạo 2 job đồng bộ.
+4. Theo dõi etl-admin → Log tới khi 2 job chạy thành công.
+5. `cd rp-server && node scripts/seedTopZeroStockReport.js && node scripts/seedCoreZeroStockReports.js` — đăng ký 3 báo cáo vào danh mục.
+6. Upload danh sách hàng Core (etl-admin → "Danh sách hàng Core") cho đúng
+   Mart/Minimart.
+7. Gán quyền xem 3 báo cáo (rp-user → Hệ thống → Phân quyền).
+8. Kiểm tra theo đúng Bước 5/7 trong 2 file hướng dẫn.
+
+Không đổi CSDL `rp`/`rp-server`/`rp-user` — chỉ thêm 1 script phía `etl`.
+
 ## 8.54 — Rà soát bản 8.31→8.53 + vá 1 lỗ hổng lý thuyết
 
 **Theo yêu cầu người dùng**: rà soát lại (code-review `--level max`) toàn

@@ -39,7 +39,7 @@ Tồn ước tính hôm nay = Tồn cuối kỳ NGÀY HÔM QUA (dòng gần nh�
 | # | Việc | Ai làm |
 |---|---|---|
 | 1 | Tạo 2 VIEW bắt buộc trên CSDL nguồn (DSMART16) | DBA |
-| 2 | Tạo 2 job "Theo bảng" trên etl-admin, trỏ đúng 2 VIEW | Admin etl-admin |
+| 2 | Tạo 2 job "Theo bảng", trỏ đúng 2 VIEW — chạy `node scripts/seedZeroStockSkuSync.js` (xem Bước 2), hoặc thao tác tay trên etl-admin | Admin etl-admin / IT-Dev |
 | 3 | (Tuỳ chọn) Tạo 4 VIEW + 4 job "Chờ nhập"/"Đã nhập" | DBA + Admin etl-admin |
 | 4 | Chạy script tạo báo cáo | IT/Dev |
 | 5 | Gán quyền xem báo cáo | Admin rp-user |
@@ -98,6 +98,23 @@ JOIN dbo.STOCK st ON st.STK_ID = d.STK_ID;
 (Đổi tên bảng/cột đúng CSDL thật nếu khác cấu trúc DSMART16 chuẩn.)
 
 ## Bước 2 — Admin etl-admin tạo 2 job "Theo bảng"
+
+**Cách nhanh (khuyến nghị)** — đã có script tự tạo/cập nhật CẢ 2 job này
+bằng 1 lệnh, thay vì bấm tay từng ô trên etl-admin (script tự đối chiếu
+đúng 2 VIEW ở Bước 1 trước khi tạo, báo lỗi rõ nếu thiếu VIEW/cột):
+
+```bash
+cd etl
+node scripts/seedZeroStockSkuSync.js
+```
+
+Cần khai `DSMART16_SERVER`/`DSMART16_USER`/`DSMART16_PASSWORD` trong `.env`
+trước (xem chú thích đầu file script) — dùng CHUNG với `scripts/seedLdtdHcrcSync.js`
+nếu báo cáo LDTD/HCRC đã chạy script đó rồi (tự dùng lại đúng Nguồn dữ liệu
+"DSMART16 - Live", không tạo kết nối trùng). Chạy xong thì BỎ QUA phần thao
+tác tay bên dưới, sang thẳng Bước 2b/Bước 3.
+
+**Cách thủ công (thao tác tay trên etl-admin, nếu không dùng script trên):**
 
 **Job doanh số:**
 - Bảng nguồn: `dbo.vw_BanHangTheoSKU`.
@@ -295,3 +312,4 @@ không cần sửa code/deploy lại.
 - Các hàm đọc `dwh.ReportFacts` dùng chung với báo cáo "Core stock = 0":
   `rp-server/lib/reportFactsHelpers.js`.
 - Script tạo báo cáo: `rp-server/scripts/seedTopZeroStockReport.js`.
+- Script tạo 2 job đồng bộ bắt buộc (Bước 2): `etl/scripts/seedZeroStockSkuSync.js`.
