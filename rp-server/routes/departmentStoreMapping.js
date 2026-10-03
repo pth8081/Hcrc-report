@@ -43,16 +43,42 @@ router.get('/', async (req, res, next) => {
 
 // Sửa/thêm ĐÚNG 1 dòng — dùng khi 1 siêu thị đổi tên/thêm mới, không cần
 // chuẩn bị lại cả file Excel.
+//
+// id (TUỲ CHỌN, có khi SỬA 1 dòng đã có) — BẮT BUỘC phải UPDATE đúng dòng
+// đó THEO Id, KHÔNG được upsert theo departmentRaw mới gõ: departmentRaw
+// chính là trường admin cần sửa NHIỀU NHẤT (lệch chính tả/viết tắt — đúng
+// lý do có trang này), nếu upsert theo tên mới sẽ KHÔNG khớp dòng cũ nào
+// (tên mới chưa tồn tại) → tạo DÒNG RÁC mới, để lại dòng cũ (tên sai) vẫn
+// còn nguyên, âm thầm gán sai cho ai tra theo tên cũ (lỗi ĐÃ GẶP, sửa ở
+// đây). Không có id (thêm dòng mới/nhập Excel) vẫn upsert theo
+// departmentRaw như cũ — đúng ý nghĩa "nhập lại thì ghi đè đúng dòng cùng
+// tên".
 router.put('/one', requireSystemRoleActor, async (req, res, next) => {
   try {
-    const { departmentRaw, maDiem } = req.body || {};
+    const { id, departmentRaw, maDiem } = req.body || {};
     if (!departmentRaw || !String(departmentRaw).trim()) return res.status(400).json({ error: 'Thiếu departmentRaw' });
     if (!maDiem || !String(maDiem).trim()) return res.status(400).json({ error: 'Thiếu maDiem' });
+    const trimmedDepartmentRaw = String(departmentRaw).trim();
+    const trimmedMaDiem = String(maDiem).trim();
     const pool = await getPool('RP');
-    const result = await upsertDepartmentStoreMapping(pool, [{ departmentRaw: String(departmentRaw).trim(), maDiem: String(maDiem).trim() }], req.user.username);
+
+    if (id) {
+      const dup = await pool.request().input('departmentRaw', sql.NVarChar(200), trimmedDepartmentRaw).input('id', sql.Int, id)
+        .query('SELECT Id FROM app.DepartmentStoreMapping WHERE DepartmentRaw = @departmentRaw AND Id <> @id');
+      if (dup.recordset.length) return res.status(409).json({ error: `"${trimmedDepartmentRaw}" đã được dùng cho 1 dòng khác` });
+      const updateResult = await pool.request()
+        .input('id', sql.Int, id)
+        .input('departmentRaw', sql.NVarChar(200), trimmedDepartmentRaw)
+        .input('maDiem', sql.NVarChar(50), trimmedMaDiem)
+        .input('importedBy', sql.NVarChar(50), req.user.username)
+        .query('UPDATE app.DepartmentStoreMapping SET DepartmentRaw = @departmentRaw, MaDiem = @maDiem, ImportedAt = SYSUTCDATETIME(), ImportedBy = @importedBy WHERE Id = @id');
+      if (!updateResult.rowsAffected[0]) return res.status(404).json({ error: 'Không tìm thấy dòng ánh xạ' });
+    } else {
+      await upsertDepartmentStoreMapping(pool, [{ departmentRaw: trimmedDepartmentRaw, maDiem: trimmedMaDiem }], req.user.username);
+    }
     invalidateDepartmentStoreMappingCache();
-    await logAction(req, { module: 'Ánh xạ Phòng ban - Siêu thị', actionType: 'SUA_ANH_XA_PHONG_BAN', targetObject: departmentRaw, description: `Sửa ánh xạ "${departmentRaw}" -> "${maDiem}"` });
-    res.json(result);
+    await logAction(req, { module: 'Ánh xạ Phòng ban - Siêu thị', actionType: 'SUA_ANH_XA_PHONG_BAN', targetObject: trimmedDepartmentRaw, description: `Sửa ánh xạ "${trimmedDepartmentRaw}" -> "${trimmedMaDiem}"` });
+    res.json({ ok: true });
   } catch (err) { next(err); }
 });
 

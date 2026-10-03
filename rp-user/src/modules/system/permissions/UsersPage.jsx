@@ -380,8 +380,9 @@ export default function UsersPage() {
             <h3>Phạm vi dữ liệu — {editingStoreAccessFor.Username}</h3>
             <p className="form-hint">
               KHÔNG tick siêu thị nào = "Toàn bộ" (xem được mọi siêu thị, như hiện tại). Tick 1
-              hoặc nhiều siêu thị = CHỈ còn thấy đúng (các) siêu thị đó. Lưu ý: bản này CHỈ LƯU
-              lựa chọn — việc tự lọc dữ liệu báo cáo theo đúng lựa chọn này sẽ áp dụng ở bản sau.
+              hoặc nhiều siêu thị = CHỈ còn thấy đúng (các) siêu thị đó trong Dashboard "Top 5 chi
+              nhánh"/Realtime "Thành viên" — áp dụng NGAY sau khi Lưu (các báo cáo khác chưa áp
+              dụng được, xem VERSION.md bản 8.51).
             </p>
             {suggestedMaDiem && !selectedMaDiems.includes(suggestedMaDiem) && (
               <p className="form-hint">

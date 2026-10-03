@@ -14,6 +14,7 @@
 //     resolveFilterValues() cho MỌI field lọc, kể cả không có field nào).
 const { loadDefinition, runDefinition } = require('./reportRunner');
 const { resolvePreset, resolveFilterValues } = require('./reportEmailFilters');
+const { getUserContext } = require('./permissions');
 
 function pad(n) { return String(n).padStart(2, '0'); }
 function toDateStr(d) { return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; }
@@ -74,8 +75,9 @@ function numberOf(value) {
 // 'below' giữ GiaTri < ThresholdValue (vd sắp hết hàng), 'above' giữ
 // GiaTri > ThresholdValue (vd tồn kho ứ đọng) — sắp xếp CÀNG LỆCH XA
 // ngưỡng lên đầu.
-async function runAbsoluteThresholdCheck(alert, definition) {
+async function runAbsoluteThresholdCheck(alert, definition, storeScope) {
   const filterValues = resolveFilterValues(alert.FilterValuesJson, definition.filters || []);
+  filterValues.__storeScope = storeScope;
   const { rows } = await runDefinition(definition, filterValues, { page: 1, pageSize: 5000 });
 
   const compared = rows
@@ -102,12 +104,12 @@ async function runAbsoluteThresholdCheck(alert, definition) {
 // lệch nhiều nhất lên đầu. Dòng "Tổng cộng" (composite report,
 // row.__isSubtotal) bị loại — không phải 1 thực thể thật, so sánh sẽ sai
 // nghĩa.
-async function runPeriodComparisonCheck(alert, definition) {
+async function runPeriodComparisonCheck(alert, definition, storeScope) {
   const { dateField, currentRange, fixedValues } = resolvePeriods(alert.FilterValuesJson, definition.filters || []);
   const baselineRange = resolveComparisonRange(currentRange, alert.CompareMode);
 
-  const currentValues = { ...fixedValues, [dateField]: currentRange };
-  const baselineValues = { ...fixedValues, [dateField]: baselineRange };
+  const currentValues = { ...fixedValues, [dateField]: currentRange, __storeScope: storeScope };
+  const baselineValues = { ...fixedValues, [dateField]: baselineRange, __storeScope: storeScope };
 
   const [current, baseline] = await Promise.all([
     runDefinition(definition, currentValues, { page: 1, pageSize: 5000 }),
@@ -154,14 +156,25 @@ async function runPeriodComparisonCheck(alert, definition) {
   return { definitionTitle: definition.title, mode: 'periodComparison', currentRange, baselineRange, compared, anomalies };
 }
 
+// __storeScope (bản 8.51, sửa lỗi rà soát bản 8.31-8.51) — ép theo phạm vi
+// dữ liệu của NGƯỜI TẠO cảnh báo (CreatedBy), KHÔNG chạy báo cáo "trần" theo
+// FilterValuesJson đã lưu: menu 'system-anomaly-alerts' coi là đủ quyền
+// chọn BẤT KỲ báo cáo nào (xem routes/anomalyAlerts.js) — thiếu bước này, 1
+// người bị giới hạn 1 siêu thị nhưng được giao menu này vẫn tạo được cảnh
+// báo trên 1 báo cáo composite đang bị giới hạn và nhận email so sánh TOÀN
+// BỘ siêu thị, không lọc gì. CreatedBy=NULL (cảnh báo tạo trước khi có cột
+// này, hoặc tài khoản tạo đã bị xoá/khoá) -> không ép gì, giữ hành vi cũ
+// (không tự ý chặn đứng cảnh báo đang chạy tốt).
 async function runAnomalyCheck(alert) {
   const definition = await loadDefinition(alert.ReportId);
   if (!definition || !definition.isActive) {
     throw new Error(`Báo cáo "${alert.ReportId}" không còn tồn tại hoặc đã tắt`);
   }
+  const ownerContext = alert.CreatedBy ? await getUserContext(alert.CreatedBy) : null;
+  const storeScope = ownerContext ? ownerContext.storeScope : null;
   return alert.AlertMode === 'absoluteThreshold'
-    ? runAbsoluteThresholdCheck(alert, definition)
-    : runPeriodComparisonCheck(alert, definition);
+    ? runAbsoluteThresholdCheck(alert, definition, storeScope)
+    : runPeriodComparisonCheck(alert, definition, storeScope);
 }
 
 module.exports = { resolveComparisonRange, resolvePeriods, runAnomalyCheck };

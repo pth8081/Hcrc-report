@@ -27,6 +27,49 @@ triển khai thật trên server (lệnh chạy, file cần sửa tay, thứ t�
 không chỉ mô tả tính năng như mục ở trên. KHÔNG thay thế việc vẫn tạo file
 riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước giờ.
 
+## 8.52 — Rà soát bản 8.31→8.51 + vá 3 lỗi phát hiện được
+
+**Theo yêu cầu người dùng**: rà soát lại toàn bộ thay đổi từ bản 8.31 đến
+8.51 (79 file, ~5500 dòng) xem còn lỗi/rủi ro nào sau khi sửa không — chạy
+review tự động (toàn bộ diff) + 1 lượt rà soát sâu riêng cho đúng phần
+nhạy cảm nhất (xác thực/phân quyền/lọc dữ liệu). Phát hiện 3 lỗi, **ĐÃ VÁ
+CẢ 3**:
+
+1. **[RÒ RỈ DỮ LIỆU — nghiêm trọng nhất]** "Lịch gửi email báo cáo" VÀ
+   "Cảnh báo bất thường" **KHÔNG áp dụng** giới hạn "Phạm vi dữ liệu" (bản
+   8.51) — 1 người bị giới hạn chỉ xem 1 siêu thị nhưng được giao menu
+   "Lịch gửi email báo cáo"/"Cảnh báo bất thường" (2 menu này vốn coi như
+   đủ quyền chọn BẤT KỲ báo cáo nào) vẫn có thể tạo lịch/cảnh báo trên 1
+   báo cáo đang bị giới hạn và NHẬN ĐƯỢC EMAIL VỚI TOÀN BỘ DỮ LIỆU, không
+   lọc gì — bỏ sót đúng 2 "đường vòng" không đi qua `routes/reports.js`/
+   `routes/dashboards.js` (nơi bản 8.51 đã chặn). Đã vá: cả 2 nơi giờ tự
+   tra phạm vi dữ liệu của NGƯỜI TẠO lịch/cảnh báo rồi ép vào trước khi
+   chạy báo cáo, giống hệt cách `routes/reports.js` đã làm.
+2. Trang "Ánh xạ Phòng ban → Siêu thị" (bản 8.49) — nút "Sửa" đổi tên
+   Department bị LƯU THÀNH DÒNG MỚI thay vì đổi tên dòng cũ (do lưu theo
+   đúng tên mới gõ thay vì theo Id dòng đang sửa) — dòng cũ (tên sai) vẫn
+   còn nguyên, có thể gây ánh xạ sai cho ai tra theo tên cũ. Đã vá: sửa
+   dòng có sẵn giờ cập nhật ĐÚNG dòng đó theo Id, báo lỗi rõ nếu đổi tên
+   trùng 1 dòng khác.
+3. Khung "Phạm vi dữ liệu" (trang Người dùng, bản 8.50) còn ghi chú cũ
+   "bản này chỉ lưu, chưa lọc gì" — ĐÃ LỖI THỜI từ khi bản 8.51 áp dụng lọc
+   thật. Đã sửa lại đúng thực tế.
+
+**Các bước triển khai:**
+1. `git pull origin main`
+2. `cd rp-user && npm run build`, copy `dist/` mới.
+3. `pm2 restart hcrc-rp-server` (BẮT BUỘC — vá lỗ rò rỉ dữ liệu ở lịch gửi
+   email/cảnh báo bất thường).
+4. Kiểm tra: tài khoản đã bị giới hạn 1 siêu thị (bản 8.50) + được giao
+   menu "Lịch gửi email báo cáo" → tạo thử 1 lịch trên báo cáo Top 5/
+   Realtime "Thành viên" → bấm "Gửi ngay" → email nhận được CHỈ có đúng
+   siêu thị đã giới hạn (trước bản này sẽ nhận ĐỦ mọi siêu thị — đúng lỗi
+   vừa vá). Tương tự với "Cảnh báo bất thường".
+
+Không đổi CSDL, không đổi hành vi của lịch/cảnh báo do tài khoản KHÔNG bị
+giới hạn tạo (vẫn chạy như cũ — đủ dữ liệu). Chi tiết đầy đủ: `deploy/Cập
+nhật bản 8.52 — Rà soát và vá lỗi 8.31-8.51.md`.
+
 ## 8.51 — Áp lọc dữ liệu THẬT theo siêu thị (báo cáo composite)
 
 **Bước 3 — LẦN ĐẦU TIÊN thật sự giới hạn số liệu hiển thị**, tiếp nối bản

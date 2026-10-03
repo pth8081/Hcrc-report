@@ -29,6 +29,7 @@
 const cron = require('node-cron');
 const { sql, getPool } = require('../db');
 const { loadDefinition, runDefinition } = require('../lib/reportRunner');
+const { getUserContext } = require('../lib/permissions');
 const { resolveTitleWithDate, resolveExportFileBaseName } = require('../lib/reportTitleDate');
 const { exportExcel } = require('../lib/exportExcel');
 const { exportPdf } = require('../lib/exportPdf');
@@ -46,7 +47,7 @@ async function loadActiveOccurrences() {
   const pool = await getPool('RP');
   const result = await pool.request().query(`
     SELECT t.Id AS TimeId, t.CronExpression, s.Id AS ScheduleId, s.Name, s.ReportId, s.Recipients,
-           s.FilterValuesJson, s.ExportFormat, s.Subject, s.DeliveryMode, s.HighlightColumnKey, s.HighlightThreshold
+           s.FilterValuesJson, s.ExportFormat, s.Subject, s.DeliveryMode, s.HighlightColumnKey, s.HighlightThreshold, s.CreatedBy
     FROM app.ReportEmailScheduleTimes t
     JOIN app.ReportEmailSchedules s ON s.Id = t.ScheduleId
     WHERE s.IsActive = 1
@@ -58,7 +59,7 @@ async function loadOccurrencesForSchedule(scheduleId) {
   const pool = await getPool('RP');
   const result = await pool.request().input('scheduleId', sql.Int, scheduleId).query(`
     SELECT t.Id AS TimeId, t.CronExpression, s.Id AS ScheduleId, s.Name, s.ReportId, s.Recipients,
-           s.FilterValuesJson, s.ExportFormat, s.Subject, s.DeliveryMode, s.HighlightColumnKey, s.HighlightThreshold
+           s.FilterValuesJson, s.ExportFormat, s.Subject, s.DeliveryMode, s.HighlightColumnKey, s.HighlightThreshold, s.CreatedBy
     FROM app.ReportEmailScheduleTimes t
     JOIN app.ReportEmailSchedules s ON s.Id = t.ScheduleId
     WHERE s.Id = @scheduleId
@@ -112,7 +113,18 @@ async function runSchedule(schedule) {
     throw new Error(`Báo cáo "${schedule.ReportId}" không còn tồn tại hoặc đã tắt`);
   }
 
+  // __storeScope (bản 8.51, sửa lỗi rà soát bản 8.31-8.51) — ép theo phạm vi
+  // dữ liệu của NGƯỜI TẠO lịch (CreatedBy), KHÔNG chạy báo cáo "trần" theo
+  // FilterValuesJson đã lưu: menu 'system-email-schedules' coi là đủ quyền
+  // chọn BẤT KỲ báo cáo nào (xem routes/reportEmailSchedules.js) — thiếu
+  // bước này, 1 người bị giới hạn 1 siêu thị nhưng được giao menu này vẫn
+  // tạo được lịch gửi/bấm "Gửi ngay" cho 1 báo cáo composite đang bị giới
+  // hạn và nhận email TOÀN BỘ dữ liệu, không lọc gì. CreatedBy=NULL (lịch
+  // tạo trước khi có cột này, hoặc tài khoản tạo đã bị xoá/khoá) -> không
+  // ép gì, giữ hành vi cũ (không tự ý chặn đứng lịch đang chạy tốt).
   const filterValues = resolveFilterValues(schedule.FilterValuesJson, definition.filters);
+  const ownerContext = schedule.CreatedBy ? await getUserContext(schedule.CreatedBy) : null;
+  filterValues.__storeScope = ownerContext ? ownerContext.storeScope : null;
   const { columns, rows } = await runDefinition(definition, filterValues, { page: 1, pageSize: 5000 });
   // exportTitle/exportFileCode — xem chú thích ở routes/reports.js
   // (cùng quy ước, dùng chung lib/reportTitleDate.js).

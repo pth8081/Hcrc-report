@@ -12,6 +12,28 @@ cập nhật file này ở mọi bản sau, cho tới khi người dùng bảo d
 
 ---
 
+## 8.52 — Rà soát bản 8.31→8.51 + vá 3 lỗi phát hiện được
+
+**Thay đổi**: theo yêu cầu rà soát của người dùng — phát hiện và vá 3 lỗi.
+QUAN TRỌNG NHẤT: "Lịch gửi email báo cáo" và "Cảnh báo bất thường" KHÔNG
+áp dụng giới hạn "Phạm vi dữ liệu" (bản 8.51) — người bị giới hạn 1 siêu
+thị nhưng có menu 2 trang đó vẫn nhận được email ĐỦ mọi siêu thị. Đã vá cả
+2 + 1 lỗi "Sửa" tạo dòng rác ở Ánh xạ Phòng ban (bản 8.49) + 1 ghi chú lỗi
+thời ở trang Người dùng.
+
+**Các bước triển khai (ƯU TIÊN CAO — vá lỗ rò rỉ dữ liệu):**
+1. `git pull origin main`
+2. `cd rp-user && npm run build`, copy `dist/` mới.
+3. `pm2 restart hcrc-rp-server` (BẮT BUỘC).
+4. Kiểm tra: tài khoản bị giới hạn 1 siêu thị + có menu "Lịch gửi email
+   báo cáo" → tạo lịch trên báo cáo Top 5/Realtime Thành viên → "Gửi ngay"
+   → email CHỈ có đúng siêu thị đã giới hạn.
+
+Chi tiết đầy đủ: `deploy/Cập nhật bản 8.52 — Rà soát và vá lỗi
+8.31-8.51.md`.
+
+---
+
 ## 8.51 — Áp lọc dữ liệu THẬT theo siêu thị (báo cáo composite)
 
 **Thay đổi**: LẦN ĐẦU áp dụng lọc thật — người được gán "Phạm vi dữ liệu"

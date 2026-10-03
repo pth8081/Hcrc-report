@@ -10,7 +10,7 @@ import { api, downloadFile } from '../../../lib/api';
 import { useAuth } from '../../../lib/AuthContext';
 import DataTable from '../../../components/DataTable';
 
-const EMPTY_EDIT_FORM = { departmentRaw: '', maDiem: '' };
+const EMPTY_EDIT_FORM = { id: null, departmentRaw: '', maDiem: '' };
 
 export default function DepartmentStoreMappingPage() {
   const { me } = useAuth();
@@ -33,7 +33,7 @@ export default function DepartmentStoreMappingPage() {
     : rows;
 
   function startEdit(row) {
-    setEditForm({ departmentRaw: row.departmentRaw, maDiem: row.maDiem });
+    setEditForm({ id: row.id, departmentRaw: row.departmentRaw, maDiem: row.maDiem });
     setEditError('');
     setEditResult('');
   }
@@ -51,6 +51,7 @@ export default function DepartmentStoreMappingPage() {
     if (!editForm.departmentRaw.trim() || !editForm.maDiem.trim()) return setEditError('Thiếu "Department" hoặc "Mã Điểm"');
     try {
       await api.put('/system/department-mapping/one', {
+        id: editForm.id,
         departmentRaw: editForm.departmentRaw.trim(),
         maDiem: editForm.maDiem.trim()
       });
