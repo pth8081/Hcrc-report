@@ -197,23 +197,26 @@ export default function ConsumersPage() {
   async function createConsumer(e) {
     e.preventDefault();
     setError('');
+    setCreating(true);
     try {
       const result = await api.post('/consumers', form);
       setRevealedCreds(result);
       setForm(EMPTY_FORM);
       reload();
-    } catch (err) { setError(err.message); }
+    } catch (err) { setError(err.message); } finally { setCreating(false); }
   }
 
   async function rotateSecret(consumer) {
     if (!confirm(`Luân chuyển bí mật mới cho "${consumer.Name}"? Bí mật cũ sẽ ngừng hoạt động ngay.`)) return;
+    setRotatingId(consumer.Id);
     try {
       const result = await api.post(`/consumers/${consumer.Id}/rotate`);
       setRevealedCreds(result);
-    } catch (err) { setError(err.message); }
+    } catch (err) { setError(err.message); } finally { setRotatingId(null); }
   }
 
   async function saveEdit() {
+    setSavingEdit(true);
     try {
       await api.put(`/consumers/${editing.Id}`, {
         name: editing.Name,
@@ -224,11 +227,12 @@ export default function ConsumersPage() {
       });
       setEditing(null);
       reload();
-    } catch (err) { setError(err.message); }
+    } catch (err) { setError(err.message); } finally { setSavingEdit(false); }
   }
 
   // Bật/Tắt nhanh 1 cú bấm — không cần mở modal Sửa chỉ để đổi mỗi cờ này.
   async function toggleActive(consumer) {
+    setTogglingId(consumer.Id);
     try {
       await api.put(`/consumers/${consumer.Id}`, {
         name: consumer.Name,
@@ -238,15 +242,16 @@ export default function ConsumersPage() {
         isActive: !consumer.IsActive
       });
       reload();
-    } catch (err) { setError(err.message); }
+    } catch (err) { setError(err.message); } finally { setTogglingId(null); }
   }
 
   async function deleteConsumer(consumer) {
     if (!confirm(`Xoá đối tác "${consumer.Name}"? Không hoàn tác được.`)) return;
+    setDeletingId(consumer.Id);
     try {
       await api.del(`/consumers/${consumer.Id}`);
       reload();
-    } catch (err) { setError(err.message); }
+    } catch (err) { setError(err.message); } finally { setDeletingId(null); }
   }
 
   return (
@@ -287,7 +292,7 @@ export default function ConsumersPage() {
             value={form.allowedIps}
             onChange={(e) => setForm({ ...form, allowedIps: e.target.value })}
           />
-          <button type="submit">Tạo đối tác</button>
+          <button type="submit" disabled={creating}>{creating ? 'Đang tạo...' : 'Tạo đối tác'}</button>
         </form>
       )}
 
@@ -304,12 +309,12 @@ export default function ConsumersPage() {
             key: 'actions', label: '', render: (c) => (
               <>
                 <button type="button" onClick={() => setEditing({ ...c })}>Sửa</button>{' '}
-                <button type="button" onClick={() => toggleActive(c)}>{c.IsActive ? 'Tắt' : 'Bật'}</button>{' '}
+                <button type="button" onClick={() => toggleActive(c)} disabled={togglingId === c.Id}>{togglingId === c.Id ? 'Đang lưu...' : (c.IsActive ? 'Tắt' : 'Bật')}</button>{' '}
                 <button type="button" onClick={() => openReportAccess(c)}>Báo cáo được gọi</button>{' '}
                 <button type="button" onClick={() => openRealtimeAccess(c)}>Realtime được gọi</button>{' '}
                 <button type="button" onClick={() => openWriteAccess(c)}>Ghi được gọi</button>{' '}
-                <button type="button" onClick={() => rotateSecret(c)}>Luân chuyển bí mật</button>{' '}
-                <button type="button" onClick={() => deleteConsumer(c)}>Xoá</button>
+                <button type="button" onClick={() => rotateSecret(c)} disabled={rotatingId === c.Id}>{rotatingId === c.Id ? 'Đang luân chuyển...' : 'Luân chuyển bí mật'}</button>{' '}
+                <button type="button" onClick={() => deleteConsumer(c)} disabled={deletingId === c.Id}>{deletingId === c.Id ? 'Đang xoá...' : 'Xoá'}</button>
               </>
             )
           }
@@ -341,7 +346,7 @@ export default function ConsumersPage() {
               <input type="checkbox" checked={editing.IsActive} onChange={(e) => setEditing({ ...editing, IsActive: e.target.checked })} /> Hoạt động
             </label>
             <div className="modal-actions">
-              <button type="button" onClick={saveEdit}>Lưu</button>
+              <button type="button" onClick={saveEdit} disabled={savingEdit}>{savingEdit ? 'Đang lưu...' : 'Lưu'}</button>
               <button type="button" onClick={() => setEditing(null)}>Huỷ</button>
             </div>
           </div>
@@ -366,7 +371,7 @@ export default function ConsumersPage() {
               ))}
             </div>
             <div className="modal-actions">
-              <button type="button" onClick={saveReportAccess}>Lưu</button>
+              <button type="button" onClick={saveReportAccess} disabled={savingReportAccess}>{savingReportAccess ? 'Đang lưu...' : 'Lưu'}</button>
               <button type="button" onClick={() => setAccessFor(null)}>Huỷ</button>
             </div>
           </div>
@@ -391,7 +396,7 @@ export default function ConsumersPage() {
               ))}
             </div>
             <div className="modal-actions">
-              <button type="button" onClick={saveRealtimeAccess}>Lưu</button>
+              <button type="button" onClick={saveRealtimeAccess} disabled={savingRealtimeAccess}>{savingRealtimeAccess ? 'Đang lưu...' : 'Lưu'}</button>
               <button type="button" onClick={() => setRealtimeAccessFor(null)}>Huỷ</button>
             </div>
           </div>
@@ -417,7 +422,7 @@ export default function ConsumersPage() {
               ))}
             </div>
             <div className="modal-actions">
-              <button type="button" onClick={saveWriteAccess}>Lưu</button>
+              <button type="button" onClick={saveWriteAccess} disabled={savingWriteAccess}>{savingWriteAccess ? 'Đang lưu...' : 'Lưu'}</button>
               <button type="button" onClick={() => setWriteAccessFor(null)}>Huỷ</button>
             </div>
           </div>

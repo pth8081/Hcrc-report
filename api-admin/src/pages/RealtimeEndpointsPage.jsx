@@ -36,6 +36,9 @@ export default function RealtimeEndpointsPage() {
   const [joinColumnsList, setJoinColumnsList] = useState([]);
   const [form, setForm] = useState(EMPTY_FORM);
   const [error, setError] = useState('');
+  const [creating, setCreating] = useState(false);
+  const [checkingId, setCheckingId] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
 
   function reload() {
     api.get('/realtime-endpoints').then(setEndpoints).catch(err => setError(err.message));
@@ -76,6 +79,7 @@ export default function RealtimeEndpointsPage() {
   async function createEndpoint(e) {
     e.preventDefault();
     setError('');
+    setCreating(true);
     try {
       const body = { ...form, dataSourceId: Number(form.dataSourceId) };
       if (!body.useJoin) {
@@ -92,7 +96,7 @@ export default function RealtimeEndpointsPage() {
       // dòng (xem lib/schemaBrowser.js isUniqueSingleColumn) — vẫn lưu bình
       // thường (không chặn), chỉ cảnh báo để admin tự quyết định.
       if (result.warning) alert(`⚠️ ${result.warning}`);
-    } catch (err) { setError(err.message); }
+    } catch (err) { setError(err.message); } finally { setCreating(false); }
   }
 
   // Đối chiếu LẠI endpoint đã lưu với schema THẬT hiện tại của nguồn — bắt
@@ -100,19 +104,21 @@ export default function RealtimeEndpointsPage() {
   // không đợi tới lúc đối tác ngoài gọi thật mới báo lỗi. Đọc-only nên
   // KHÔNG gói trong isAdmin.
   async function checkSchema(ep) {
+    setCheckingId(ep.Endpoint);
     try {
       const result = await api.post(`/realtime-endpoints/${ep.Endpoint}/check-schema`);
       if (result.ok) alert(`✅ "${ep.Endpoint}": schema khớp với nguồn hiện tại.`);
       else alert(`⛔ "${ep.Endpoint}": ${result.error}`);
-    } catch (err) { setError(err.message); }
+    } catch (err) { setError(err.message); } finally { setCheckingId(null); }
   }
 
   async function deleteEndpoint(ep) {
     if (!confirm(`Xoá endpoint "${ep.Endpoint}"? Mọi lời gọi /api/v1/realtime/${ep.Endpoint}/... sẽ lỗi 404 ngay sau đó.`)) return;
+    setDeletingId(ep.Endpoint);
     try {
       await api.del(`/realtime-endpoints/${ep.Endpoint}`);
       reload();
-    } catch (err) { setError(err.message); }
+    } catch (err) { setError(err.message); } finally { setDeletingId(null); }
   }
 
   return (
@@ -211,7 +217,7 @@ export default function RealtimeEndpointsPage() {
             </fieldset>
           )}
 
-          <button type="submit">Tạo endpoint</button>
+          <button type="submit" disabled={creating}>{creating ? 'Đang tạo...' : 'Tạo endpoint'}</button>
         </form>
       )}
 
@@ -224,8 +230,8 @@ export default function RealtimeEndpointsPage() {
           { key: 'join', label: 'Bảng liên kết', render: (r) => (r.JoinTable ? `${r.JoinSchema}.${r.JoinTable}` : '—') },
           { key: 'KeyColumn', label: 'Cột khoá' },
           { key: 'IsActive', label: 'Trạng thái', render: (r) => (r.IsActive ? 'Hoạt động' : 'Tắt') },
-          { key: 'checkSchema', label: '', render: (r) => <button type="button" onClick={() => checkSchema(r)}>Kiểm tra schema</button> },
-          isAdmin && { key: 'actions', label: '', render: (r) => <button type="button" onClick={() => deleteEndpoint(r)}>Xoá</button> }
+          { key: 'checkSchema', label: '', render: (r) => <button type="button" onClick={() => checkSchema(r)} disabled={checkingId === r.Endpoint}>{checkingId === r.Endpoint ? 'Đang kiểm tra...' : 'Kiểm tra schema'}</button> },
+          isAdmin && { key: 'actions', label: '', render: (r) => <button type="button" onClick={() => deleteEndpoint(r)} disabled={deletingId === r.Endpoint}>{deletingId === r.Endpoint ? 'Đang xoá...' : 'Xoá'}</button> }
         ].filter(Boolean)}
         rows={endpoints}
       />

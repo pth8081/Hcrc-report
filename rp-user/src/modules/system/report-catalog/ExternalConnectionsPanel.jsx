@@ -29,6 +29,9 @@ export default function ExternalConnectionsPanel() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [testResult, setTestResult] = useState('');
   const [error, setError] = useState('');
+  const [testingId, setTestingId] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
 
   function reload() {
     api.get('/system/external-connections').then(setConnections).catch(err => setError(err.message));
@@ -37,31 +40,36 @@ export default function ExternalConnectionsPanel() {
 
   async function testConnection(conn) {
     setTestResult('Đang kiểm tra...');
+    setTestingId(conn.Id);
     try {
       const { status } = await api.post(`/system/external-connections/${conn.Id}/test`);
       setTestResult(`✅ Máy chủ phản hồi (HTTP ${status}) — chỉ xác nhận địa chỉ đúng, KHÔNG đảm bảo đường dẫn/khoá bạn khai trong báo cáo là đúng.`);
     } catch (err) {
       setTestResult(`⛔ ${err.message}`);
+    } finally {
+      setTestingId(null);
     }
   }
 
   async function createConnection(e) {
     e.preventDefault();
     setError('');
+    setSaving(true);
     try {
       await api.post('/system/external-connections', form);
       setForm(EMPTY_FORM);
       setTestResult('');
       reload();
-    } catch (err) { setError(err.message); }
+    } catch (err) { setError(err.message); } finally { setSaving(false); }
   }
 
   async function deleteConnection(c) {
     if (!confirm(`Xoá kết nối "${c.Name}"?`)) return;
+    setDeletingId(c.Id);
     try {
       await api.del(`/system/external-connections/${c.Id}`);
       reload();
-    } catch (err) { setError(err.message); }
+    } catch (err) { setError(err.message); } finally { setDeletingId(null); }
   }
 
   const keyValueLabels = KEY_VALUE_LABELS[form.authType];
@@ -119,7 +127,7 @@ export default function ExternalConnectionsPanel() {
           </>
         )}
 
-        <button type="submit">Lưu kết nối</button>
+        <button type="submit" disabled={saving}>{saving ? 'Đang lưu...' : 'Lưu kết nối'}</button>
       </form>
 
       <DataTable
@@ -130,8 +138,8 @@ export default function ExternalConnectionsPanel() {
           {
             key: 'actions', label: '', render: (c) => (
               <>
-                <button type="button" onClick={() => testConnection(c)}>Kiểm tra kết nối</button>{' '}
-                <button type="button" onClick={() => deleteConnection(c)}>Xoá</button>
+                <button type="button" onClick={() => testConnection(c)} disabled={testingId === c.Id}>{testingId === c.Id ? 'Đang kiểm tra...' : 'Kiểm tra kết nối'}</button>{' '}
+                <button type="button" onClick={() => deleteConnection(c)} disabled={deletingId === c.Id}>{deletingId === c.Id ? 'Đang xoá...' : 'Xoá'}</button>
               </>
             )
           }

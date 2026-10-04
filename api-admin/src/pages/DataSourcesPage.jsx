@@ -20,6 +20,10 @@ export default function DataSourcesPage() {
   const [importFile, setImportFile] = useState(null);
   const [importResult, setImportResult] = useState(null);
   const [importError, setImportError] = useState('');
+  const [importing, setImporting] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
 
   function reload() {
     api.get('/data-sources').then(setSources).catch(err => setError(err.message));
@@ -34,6 +38,7 @@ export default function DataSourcesPage() {
 
     const formData = new FormData();
     formData.append('file', importFile);
+    setImporting(true);
     try {
       const result = await api.post('/data-sources/import', formData, true);
       setImportResult(result);
@@ -41,16 +46,21 @@ export default function DataSourcesPage() {
       reload();
     } catch (err) {
       setImportError(err.message);
+    } finally {
+      setImporting(false);
     }
   }
 
   async function testConnection() {
+    setTesting(true);
     setTestResult('Đang kiểm tra...');
     try {
       await api.post('/data-sources/test', form);
       setTestResult('✅ Kết nối thành công');
     } catch (err) {
       setTestResult(`⛔ ${err.message}`);
+    } finally {
+      setTesting(false);
     }
   }
 
@@ -60,20 +70,22 @@ export default function DataSourcesPage() {
   async function createSource(e) {
     e.preventDefault();
     setError('');
+    setCreating(true);
     try {
       const result = await api.post('/data-sources', form);
       setForm(EMPTY_FORM);
       setTestResult(result.connectionTest?.ok ? '✅ Đã lưu, kết nối thành công' : `⚠️ Đã lưu, nhưng kết nối lỗi: ${result.connectionTest?.error}`);
       reload();
-    } catch (err) { setError(err.message); }
+    } catch (err) { setError(err.message); } finally { setCreating(false); }
   }
 
   async function deleteSource(source) {
     if (!confirm(`Xoá nguồn "${source.Name}"? Endpoint realtime đang dùng nguồn này sẽ lỗi cho tới khi đổi sang nguồn khác.`)) return;
+    setDeletingId(source.Id);
     try {
       await api.del(`/data-sources/${source.Id}`);
       reload();
-    } catch (err) { setError(err.message); }
+    } catch (err) { setError(err.message); } finally { setDeletingId(null); }
   }
 
   return (
@@ -95,8 +107,8 @@ export default function DataSourcesPage() {
             <label className="checkbox-row"><input type="checkbox" checked={form.encrypt} onChange={(e) => setForm({ ...form, encrypt: e.target.checked })} /> Encrypt</label>
             <label className="checkbox-row"><input type="checkbox" checked={form.trustServerCert} onChange={(e) => setForm({ ...form, trustServerCert: e.target.checked })} /> Trust server certificate</label>
             <div className="inline-actions">
-              <button type="button" onClick={testConnection}>Kiểm tra kết nối</button>
-              <button type="submit">Lưu nguồn dữ liệu</button>
+              <button type="button" onClick={testConnection} disabled={testing}>{testing ? 'Đang kiểm tra...' : 'Kiểm tra kết nối'}</button>
+              <button type="submit" disabled={creating}>{creating ? 'Đang lưu...' : 'Lưu nguồn dữ liệu'}</button>
             </div>
             {testResult && <p>{testResult}</p>}
           </form>
@@ -121,7 +133,7 @@ export default function DataSourcesPage() {
           {importError && <p className="form-error">{importError}</p>}
           <form className="stacked-form" onSubmit={submitImport}>
             <input type="file" accept=".xlsx" onChange={(e) => setImportFile(e.target.files?.[0] ?? null)} required />
-            <button type="submit">Nhập hàng loạt</button>
+            <button type="submit" disabled={importing}>{importing ? 'Đang nhập...' : 'Nhập hàng loạt'}</button>
           </form>
           {importResult && (
             <div>
@@ -153,7 +165,7 @@ export default function DataSourcesPage() {
           { key: 'Server', label: 'Server' },
           { key: 'DatabaseName', label: 'Database' },
           { key: 'IsActive', label: 'Trạng thái', render: (s) => (s.IsActive ? 'Hoạt động' : 'Tắt') },
-          isAdmin && { key: 'actions', label: '', render: (s) => <button type="button" onClick={() => deleteSource(s)}>Xoá</button> }
+          isAdmin && { key: 'actions', label: '', render: (s) => <button type="button" onClick={() => deleteSource(s)} disabled={deletingId === s.Id}>{deletingId === s.Id ? 'Đang xoá...' : 'Xoá'}</button> }
         ].filter(Boolean)}
         rows={sources}
       />

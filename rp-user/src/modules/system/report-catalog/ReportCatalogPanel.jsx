@@ -89,6 +89,7 @@ export default function ReportCatalogPanel() {
       apiTarget: form.sourceType === 'apiReport' || form.sourceType === 'apiRealtime' ? form.apiTarget : null,
       externalConnectionId: form.sourceType === 'externalApi' && form.externalConnectionId ? Number(form.externalConnectionId) : null
     };
+    setSaving(true);
     try {
       if (editingReportId) {
         await api.put(`/system/report-catalog/${editingReportId}`, { ...payload, isActive: true });
@@ -100,7 +101,7 @@ export default function ReportCatalogPanel() {
       setTestResult(null);
       setTestError('');
       reload();
-    } catch (err) { setError(err.message); }
+    } catch (err) { setError(err.message); } finally { setSaving(false); }
   }
 
   // Nạp sẵn dữ liệu report đã có vào ĐÚNG form Tạo báo cáo bên trên (dùng lại
@@ -139,10 +140,11 @@ export default function ReportCatalogPanel() {
 
   async function deleteReport(r) {
     if (!confirm(`Xoá báo cáo "${r.Title}"?`)) return;
+    setDeletingReportId(r.ReportId);
     try {
       await api.del(`/system/report-catalog/${r.ReportId}`);
       reload();
-    } catch (err) { setError(err.message); }
+    } catch (err) { setError(err.message); } finally { setDeletingReportId(null); }
   }
 
   async function uploadTemplate(e) {
@@ -296,7 +298,7 @@ export default function ReportCatalogPanel() {
           required
         />
         <div className="inline-actions">
-          <button type="submit">{editingReportId ? 'Cập nhật báo cáo' : 'Tạo báo cáo'}</button>
+          <button type="submit" disabled={saving}>{saving ? 'Đang lưu...' : (editingReportId ? 'Cập nhật báo cáo' : 'Tạo báo cáo')}</button>
           {editingReportId && <button type="button" onClick={cancelEdit}>Huỷ</button>}
         </div>
       </form>
@@ -335,7 +337,9 @@ export default function ReportCatalogPanel() {
             key: 'actions', label: '', render: (r) => (
               <div className="inline-actions">
                 <button type="button" onClick={() => startEdit(r)}>Sửa</button>
-                <button type="button" onClick={() => deleteReport(r)}>Xoá</button>
+                <button type="button" onClick={() => deleteReport(r)} disabled={deletingReportId === r.ReportId}>
+                  {deletingReportId === r.ReportId ? 'Đang xoá...' : 'Xoá'}
+                </button>
               </div>
             )
           }

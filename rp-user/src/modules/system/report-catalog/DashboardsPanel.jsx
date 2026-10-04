@@ -22,6 +22,9 @@ export default function DashboardsPanel() {
   const [form, setForm] = useState(emptyForm());
   const [editing, setEditing] = useState(null);
   const [error, setError] = useState('');
+  const [creating, setCreating] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
 
   function reload() {
     api.get('/system/dashboards').then(setDashboards).catch(err => setError(err.message));
@@ -31,29 +34,32 @@ export default function DashboardsPanel() {
   async function createDashboard(e) {
     e.preventDefault();
     setError('');
+    setCreating(true);
     try {
       await api.post('/system/dashboards', form);
       setForm(emptyForm());
       reload();
-    } catch (err) { setError(err.message); }
+    } catch (err) { setError(err.message); } finally { setCreating(false); }
   }
 
   async function saveEdit() {
     setError('');
+    setSavingEdit(true);
     try {
       await api.put(`/system/dashboards/${editing.id}`, editing.form);
       setEditing(null);
       reload();
-    } catch (err) { setError(err.message); }
+    } catch (err) { setError(err.message); } finally { setSavingEdit(false); }
   }
 
   async function deleteDashboard(d) {
     if (!confirm(`Xoá dashboard "${d.Title}"?`)) return;
     setError('');
+    setDeletingId(d.DashboardId);
     try {
       await api.del(`/system/dashboards/${d.DashboardId}`);
       reload();
-    } catch (err) { setError(err.message); }
+    } catch (err) { setError(err.message); } finally { setDeletingId(null); }
   }
 
   return (
@@ -70,7 +76,7 @@ export default function DashboardsPanel() {
           onChange={(e) => setForm({ ...form, definitionJson: e.target.value })}
           required
         />
-        <button type="submit">Tạo dashboard</button>
+        <button type="submit" disabled={creating}>{creating ? 'Đang tạo...' : 'Tạo dashboard'}</button>
       </form>
 
       <DataTable
@@ -82,7 +88,9 @@ export default function DashboardsPanel() {
             key: 'actions', label: '', render: (r) => (
               <>
                 <button type="button" onClick={() => setEditing({ id: r.DashboardId, form: { title: r.Title, definitionJson: r.DefinitionJson, isActive: !!r.IsActive } })}>Sửa</button>{' '}
-                <button type="button" onClick={() => deleteDashboard(r)}>Xoá</button>
+                <button type="button" onClick={() => deleteDashboard(r)} disabled={deletingId === r.DashboardId}>
+                  {deletingId === r.DashboardId ? 'Đang xoá...' : 'Xoá'}
+                </button>
               </>
             )
           }
@@ -105,7 +113,7 @@ export default function DashboardsPanel() {
               <input type="checkbox" checked={editing.form.isActive} onChange={(e) => setEditing({ ...editing, form: { ...editing.form, isActive: e.target.checked } })} /> Hoạt động
             </label>
             <div className="modal-actions">
-              <button type="button" onClick={saveEdit}>Lưu</button>
+              <button type="button" onClick={saveEdit} disabled={savingEdit}>{savingEdit ? 'Đang lưu...' : 'Lưu'}</button>
               <button type="button" onClick={() => setEditing(null)}>Huỷ</button>
             </div>
           </div>

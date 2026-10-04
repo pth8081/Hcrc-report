@@ -12,6 +12,9 @@ export default function DataSourcesPanel() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [testResult, setTestResult] = useState('');
   const [error, setError] = useState('');
+  const [testing, setTesting] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
 
   function reload() {
     api.get('/system/data-sources').then(setSources).catch(err => setError(err.message));
@@ -20,31 +23,36 @@ export default function DataSourcesPanel() {
 
   async function testConnection() {
     setTestResult('Đang kiểm tra...');
+    setTesting(true);
     try {
       await api.post('/system/data-sources/test', form);
       setTestResult('✅ Kết nối thành công');
     } catch (err) {
       setTestResult(`⛔ ${err.message}`);
+    } finally {
+      setTesting(false);
     }
   }
 
   async function createSource(e) {
     e.preventDefault();
     setError('');
+    setSaving(true);
     try {
       await api.post('/system/data-sources', form);
       setForm(EMPTY_FORM);
       setTestResult('');
       reload();
-    } catch (err) { setError(err.message); }
+    } catch (err) { setError(err.message); } finally { setSaving(false); }
   }
 
   async function deleteSource(source) {
     if (!confirm(`Xoá nguồn "${source.Name}"?`)) return;
+    setDeletingId(source.Id);
     try {
       await api.del(`/system/data-sources/${source.Id}`);
       reload();
-    } catch (err) { setError(err.message); }
+    } catch (err) { setError(err.message); } finally { setDeletingId(null); }
   }
 
   return (
@@ -61,8 +69,8 @@ export default function DataSourcesPanel() {
         <label className="checkbox-row"><input type="checkbox" checked={form.encrypt} onChange={(e) => setForm({ ...form, encrypt: e.target.checked })} /> Encrypt</label>
         <label className="checkbox-row"><input type="checkbox" checked={form.trustServerCert} onChange={(e) => setForm({ ...form, trustServerCert: e.target.checked })} /> Trust server certificate</label>
         <div className="inline-actions">
-          <button type="button" onClick={testConnection}>Kiểm tra kết nối</button>
-          <button type="submit">Lưu nguồn dữ liệu</button>
+          <button type="button" onClick={testConnection} disabled={testing}>{testing ? 'Đang kiểm tra...' : 'Kiểm tra kết nối'}</button>
+          <button type="submit" disabled={saving}>{saving ? 'Đang lưu...' : 'Lưu nguồn dữ liệu'}</button>
         </div>
         {testResult && <p>{testResult}</p>}
       </form>
@@ -73,7 +81,7 @@ export default function DataSourcesPanel() {
           { key: 'Name', label: 'Tên' },
           { key: 'Server', label: 'Server' },
           { key: 'DatabaseName', label: 'Database' },
-          { key: 'actions', label: '', render: (s) => <button type="button" onClick={() => deleteSource(s)}>Xoá</button> }
+          { key: 'actions', label: '', render: (s) => <button type="button" onClick={() => deleteSource(s)} disabled={deletingId === s.Id}>{deletingId === s.Id ? 'Đang xoá...' : 'Xoá'}</button> }
         ]}
         rows={sources}
       />

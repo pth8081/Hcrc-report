@@ -14,6 +14,9 @@ export default function ApiConnectionsPanel() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [testResult, setTestResult] = useState('');
   const [error, setError] = useState('');
+  const [testing, setTesting] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
 
   function reload() {
     api.get('/system/api-connections').then(setConnections).catch(err => setError(err.message));

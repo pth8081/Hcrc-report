@@ -35,6 +35,11 @@ export default function DiemStkMappingPage() {
   const [editError, setEditError] = useState('');
   const [editConflicts, setEditConflicts] = useState([]);
   const [editResult, setEditResult] = useState('');
+  const [importing, setImporting] = useState(false);
+  const [downloadingTemplate, setDownloadingTemplate] = useState(false);
+  const [downloadingExport, setDownloadingExport] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
 
   function reload() {
     api.get('/diem-stk-mapping').then(setRows).catch(err => setError(err.message));
@@ -72,6 +77,7 @@ export default function DiemStkMappingPage() {
     setEditConflicts([]);
     setEditResult('');
     if (!editForm.maDiem.trim()) return setEditError('Thiếu "Mã Điểm"');
+    setSavingEdit(true);
     try {
       await api.put('/diem-stk-mapping/one', {
         maDiem: editForm.maDiem.trim(),
@@ -87,16 +93,21 @@ export default function DiemStkMappingPage() {
     } catch (err) {
       setEditError(err.message);
       setEditConflicts(err.data?.conflicts || []);
+    } finally {
+      setSavingEdit(false);
     }
   }
 
   async function removeRow(row) {
     if (!window.confirm(`Xoá ánh xạ mã Điểm "${row.maDiem}"?`)) return;
+    setDeletingId(row.id);
     try {
       await api.del(`/diem-stk-mapping/${row.id}`);
       reload();
     } catch (err) {
       setError(err.message);
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -109,6 +120,7 @@ export default function DiemStkMappingPage() {
 
     const formData = new FormData();
     formData.append('file', file);
+    setImporting(true);
     try {
       const result = await api.post('/diem-stk-mapping/import', formData, true);
       setImportResult(result);
@@ -117,24 +129,32 @@ export default function DiemStkMappingPage() {
     } catch (err) {
       setError(err.message);
       setConflicts(err.data?.conflicts || []);
+    } finally {
+      setImporting(false);
     }
   }
 
   async function downloadTemplate() {
     setError('');
+    setDownloadingTemplate(true);
     try {
       await api.downloadFile('/diem-stk-mapping/template', 'mau-anh-xa-diem-stk.xlsx');
     } catch (err) {
       setError(err.message);
+    } finally {
+      setDownloadingTemplate(false);
     }
   }
 
   async function downloadExport() {
     setError('');
+    setDownloadingExport(true);
     try {
       await api.downloadFile('/diem-stk-mapping/export', 'anh-xa-diem-stk.xlsx');
     } catch (err) {
       setError(err.message);
+    } finally {
+      setDownloadingExport(false);
     }
   }
 
@@ -185,11 +205,13 @@ export default function DiemStkMappingPage() {
       )}
 
       <div className="inline-actions">
-        <button type="button" onClick={downloadTemplate}>Tải file mẫu</button>
+        <button type="button" onClick={downloadTemplate} disabled={downloadingTemplate}>
+          {downloadingTemplate ? 'Đang tải...' : 'Tải file mẫu'}
+        </button>
       </div>
       <form className="stacked-form" onSubmit={submitImport}>
         <input type="file" accept=".xlsx" onChange={(e) => setFile(e.target.files?.[0] ?? null)} required />
-        <button type="submit">Nhập file ánh xạ</button>
+        <button type="submit" disabled={importing}>{importing ? 'Đang nhập...' : 'Nhập file ánh xạ'}</button>
       </form>
 
       {importResult && (
@@ -207,7 +229,9 @@ export default function DiemStkMappingPage() {
       <h2>Ánh xạ đã khai</h2>
       <div className="inline-actions">
         <input placeholder="Lọc theo Mã Điểm" value={filterDiem} onChange={(e) => setFilterDiem(e.target.value)} />
-        <button type="button" onClick={downloadExport}>Xuất tất cả (Excel)</button>
+        <button type="button" onClick={downloadExport} disabled={downloadingExport}>
+          {downloadingExport ? 'Đang xuất...' : 'Xuất tất cả (Excel)'}
+        </button>
       </div>
 
       <DataTable
@@ -224,7 +248,9 @@ export default function DiemStkMappingPage() {
             key: 'actions', label: '', render: (r) => (
               <>
                 <button type="button" onClick={() => startEdit(r)}>Sửa</button>{' '}
-                <button type="button" onClick={() => removeRow(r)}>Xoá</button>
+                <button type="button" onClick={() => removeRow(r)} disabled={deletingId === r.id}>
+                  {deletingId === r.id ? 'Đang xoá...' : 'Xoá'}
+                </button>
               </>
             )
           }
@@ -281,7 +307,7 @@ export default function DiemStkMappingPage() {
           <option value="MINIMART">MINIMART</option>
         </select>
         <div className="inline-actions">
-          <button type="submit">Lưu</button>
+          <button type="submit" disabled={savingEdit}>{savingEdit ? 'Đang lưu...' : 'Lưu'}</button>
           <button type="button" onClick={startAdd}>Thêm dòng mới (form trống)</button>
         </div>
       </form>

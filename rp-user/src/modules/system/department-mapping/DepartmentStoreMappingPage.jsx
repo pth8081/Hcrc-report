@@ -22,6 +22,11 @@ export default function DepartmentStoreMappingPage() {
   const [editForm, setEditForm] = useState(EMPTY_EDIT_FORM);
   const [editError, setEditError] = useState('');
   const [editResult, setEditResult] = useState('');
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
+  const [importing, setImporting] = useState(false);
+  const [loadingTemplate, setLoadingTemplate] = useState(false);
+  const [exportingAll, setExportingAll] = useState(false);
 
   function reload() {
     api.get('/system/department-mapping').then(setRows).catch(err => setError(err.message));
@@ -49,6 +54,7 @@ export default function DepartmentStoreMappingPage() {
     setEditError('');
     setEditResult('');
     if (!editForm.departmentRaw.trim() || !editForm.maDiem.trim()) return setEditError('Thiếu "Department" hoặc "Mã Điểm"');
+    setSavingEdit(true);
     try {
       await api.put('/system/department-mapping/one', {
         id: editForm.id,
@@ -58,15 +64,16 @@ export default function DepartmentStoreMappingPage() {
       setEditResult('✅ Đã lưu.');
       setEditForm(EMPTY_EDIT_FORM);
       reload();
-    } catch (err) { setEditError(err.message); }
+    } catch (err) { setEditError(err.message); } finally { setSavingEdit(false); }
   }
 
   async function removeRow(row) {
     if (!confirm(`Xoá ánh xạ "${row.departmentRaw}"?`)) return;
+    setDeletingId(row.id);
     try {
       await api.del(`/system/department-mapping/${row.id}`);
       reload();
-    } catch (err) { setError(err.message); }
+    } catch (err) { setError(err.message); } finally { setDeletingId(null); }
   }
 
   async function submitImport(e) {
@@ -76,26 +83,29 @@ export default function DepartmentStoreMappingPage() {
     if (!file) return setError('Chọn file .xlsx trước');
     const formData = new FormData();
     formData.append('file', file);
+    setImporting(true);
     try {
       const result = await api.upload('/system/department-mapping/import', formData);
       setImportResult(result);
       setFile(null);
       reload();
-    } catch (err) { setError(err.message); }
+    } catch (err) { setError(err.message); } finally { setImporting(false); }
   }
 
   async function templateFile() {
     setError('');
+    setLoadingTemplate(true);
     try {
       await downloadFile('/system/department-mapping/template', {}, 'mau-anh-xa-phong-ban-sieu-thi.xlsx');
-    } catch (err) { setError(err.message); }
+    } catch (err) { setError(err.message); } finally { setLoadingTemplate(false); }
   }
 
   async function exportFile() {
     setError('');
+    setExportingAll(true);
     try {
       await downloadFile('/system/department-mapping/export', {}, 'anh-xa-phong-ban-sieu-thi.xlsx');
-    } catch (err) { setError(err.message); }
+    } catch (err) { setError(err.message); } finally { setExportingAll(false); }
   }
 
   return (
@@ -112,11 +122,11 @@ export default function DepartmentStoreMappingPage() {
       {me?.isSystemRole && (
         <>
           <div className="inline-actions">
-            <button type="button" onClick={templateFile}>Tải file mẫu</button>
+            <button type="button" onClick={templateFile} disabled={loadingTemplate}>{loadingTemplate ? 'Đang tải...' : 'Tải file mẫu'}</button>
           </div>
           <form className="stacked-form" onSubmit={submitImport}>
             <input type="file" accept=".xlsx" onChange={(e) => setFile(e.target.files?.[0] ?? null)} required />
-            <button type="submit">Nhập file ánh xạ</button>
+            <button type="submit" disabled={importing}>{importing ? 'Đang nhập...' : 'Nhập file ánh xạ'}</button>
           </form>
 
           {importResult && (
@@ -136,7 +146,7 @@ export default function DepartmentStoreMappingPage() {
       <h3>Ánh xạ đã khai</h3>
       <div className="inline-actions">
         <input placeholder="Lọc theo Phòng ban/Mã Điểm" value={filterText} onChange={(e) => setFilterText(e.target.value)} />
-        <button type="button" onClick={exportFile}>Xuất tất cả (Excel)</button>
+        <button type="button" onClick={exportFile} disabled={exportingAll}>{exportingAll ? 'Đang xuất...' : 'Xuất tất cả (Excel)'}</button>
       </div>
 
       <DataTable
@@ -149,7 +159,7 @@ export default function DepartmentStoreMappingPage() {
             key: 'actions', label: '', render: (r) => (
               <>
                 <button type="button" onClick={() => startEdit(r)}>Sửa</button>{' '}
-                <button type="button" onClick={() => removeRow(r)}>Xoá</button>
+                <button type="button" onClick={() => removeRow(r)} disabled={deletingId === r.id}>{deletingId === r.id ? 'Đang xoá...' : 'Xoá'}</button>
               </>
             )
           }
@@ -177,7 +187,7 @@ export default function DepartmentStoreMappingPage() {
               required
             />
             <div className="inline-actions">
-              <button type="submit">Lưu</button>
+              <button type="submit" disabled={savingEdit}>{savingEdit ? 'Đang lưu...' : 'Lưu'}</button>
               <button type="button" onClick={startAdd}>Thêm dòng mới (form trống)</button>
             </div>
           </form>

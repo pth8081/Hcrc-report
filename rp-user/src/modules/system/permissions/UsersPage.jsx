@@ -21,6 +21,15 @@ export default function UsersPage() {
   const [resettingPasswordFor, setResettingPasswordFor] = useState(null);
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [creatingUser, setCreatingUser] = useState(false);
+  const [togglingActiveId, setTogglingActiveId] = useState(null);
+  const [savingAuthSource, setSavingAuthSource] = useState(false);
+  const [savingRoles, setSavingRoles] = useState(false);
+  const [savingAccess, setSavingAccess] = useState(false);
+  const [savingStoreAccess, setSavingStoreAccess] = useState(false);
+  const [savingResetPassword, setSavingResetPassword] = useState(false);
+  const [resettingTwoFaId, setResettingTwoFaId] = useState(null);
+  const [clearingFallbackId, setClearingFallbackId] = useState(null);
   // Gán quyền riêng (bản 8.48) — CỘNG DỒN vào quyền theo vai trò, xem
   // rp-server/lib/permissions.js. reportCatalog/dashboardGroupCatalog dùng
   // CHUNG với trang "Vai trò" (đã có sẵn 2 route catalog đó).
@@ -48,21 +57,23 @@ export default function UsersPage() {
   async function createUser(e) {
     e.preventDefault();
     setError('');
+    setCreatingUser(true);
     try {
       await api.post('/system/users', form);
       setForm({ username: '', password: '', fullName: '', email: '' });
       reload();
-    } catch (err) { setError(err.message); }
+    } catch (err) { setError(err.message); } finally { setCreatingUser(false); }
   }
 
   async function toggleActive(user) {
+    setTogglingActiveId(user.Id);
     try {
       await api.put(`/system/users/${user.Id}`, {
         fullName: user.FullName, email: user.Email, phone: user.Phone, department: user.Department, position: user.Position,
         workLocation: user.WorkLocation, isActive: !user.IsActive
       });
       reload();
-    } catch (err) { setError(err.message); }
+    } catch (err) { setError(err.message); } finally { setTogglingActiveId(null); }
   }
 
   // account tạo qua "Đồng bộ tài khoản" mặc định IsActive=0 (chưa cho phép
@@ -74,11 +85,12 @@ export default function UsersPage() {
   }
 
   async function saveAuthSource() {
+    setSavingAuthSource(true);
     try {
       await api.put(`/system/users/${editingAuthFor.Id}/auth-source`, authForm);
       setEditingAuthFor(null);
       reload();
-    } catch (err) { setError(err.message); }
+    } catch (err) { setError(err.message); } finally { setSavingAuthSource(false); }
   }
 
   // "Đồng bộ tài khoản" — bấm tay, gọi API HCRC Workspace lấy danh bạ (xem
@@ -102,11 +114,12 @@ export default function UsersPage() {
   }
 
   async function saveRoles() {
+    setSavingRoles(true);
     try {
       await api.put(`/system/users/${editingRolesFor.Id}/roles`, { roleIds: selectedRoleIds });
       setEditingRolesFor(null);
       reload();
-    } catch (err) { setError(err.message); }
+    } catch (err) { setError(err.message); } finally { setSavingRoles(false); }
   }
 
   function dashboardGroupKey(dashboardId, groupKey) {
@@ -137,6 +150,7 @@ export default function UsersPage() {
   }
 
   async function saveAccess() {
+    setSavingAccess(true);
     try {
       await api.put(`/system/users/${editingAccessFor.Id}/report-access`, { reportIds: selectedReportIds });
       const entries = dashboardGroupCatalog.map(g => ({
@@ -145,7 +159,7 @@ export default function UsersPage() {
       }));
       await api.put(`/system/users/${editingAccessFor.Id}/dashboard-group-access`, { entries });
       setEditingAccessFor(null);
-    } catch (err) { setError(err.message); }
+    } catch (err) { setError(err.message); } finally { setSavingAccess(false); }
   }
 
   function storeName(maDiem) {
@@ -172,11 +186,12 @@ export default function UsersPage() {
   }
 
   async function saveStoreAccess() {
+    setSavingStoreAccess(true);
     try {
       await api.put(`/system/users/${editingStoreAccessFor.Id}/store-access`, { maDiems: selectedMaDiems });
       setEditingStoreAccessFor(null);
       reload();
-    } catch (err) { setError(err.message); }
+    } catch (err) { setError(err.message); } finally { setSavingStoreAccess(false); }
   }
 
   // Đặt lại mật khẩu cho tài khoản local quên mật khẩu — trước đây KHÔNG có
@@ -195,10 +210,11 @@ export default function UsersPage() {
     setError('');
     if (!newPassword || newPassword.length < 8) return setError('Mật khẩu phải có ít nhất 8 ký tự');
     if (newPassword !== confirmPassword) return setError('Xác nhận mật khẩu không khớp');
+    setSavingResetPassword(true);
     try {
       await api.post(`/system/users/${resettingPasswordFor.Id}/reset-password`, { password: newPassword });
       setResettingPasswordFor(null);
-    } catch (err) { setError(err.message); }
+    } catch (err) { setError(err.message); } finally { setSavingResetPassword(false); }
   }
 
   // Giúp Admin khác bị mất thiết bị/cần khôi phục — 2FA vẫn BẮT BUỘC, chỉ
@@ -207,21 +223,23 @@ export default function UsersPage() {
   // đã chặn, ẩn nút ở đây cho gọn nếu người xem không phải Admin.
   async function reset2fa(user) {
     if (!confirm(`Đặt lại 2FA cho "${user.Username}"? Lần đăng nhập kế tiếp của họ sẽ phải đăng ký 2FA lại từ đầu.`)) return;
+    setResettingTwoFaId(user.Id);
     try {
       await api.post(`/system/users/${user.Id}/reset-2fa`, {});
       alert('Đã đặt lại 2FA.');
       reload();
-    } catch (err) { setError(err.message); }
+    } catch (err) { setError(err.message); } finally { setResettingTwoFaId(null); }
   }
 
   // Xoá mật khẩu dự phòng cục bộ (bản 8.47) — xem rp-server/routes/users.js.
   // Chỉ hiện khi tài khoản ĐANG có dự phòng (CachedPasswordHashAt khác null).
   async function clearFallbackPassword(user) {
     if (!confirm(`Xoá mật khẩu dự phòng cục bộ của "${user.Username}"? Nếu HCRC Workspace đang sập, người này sẽ KHÔNG đăng nhập được nữa cho tới khi HCRC Workspace sống lại.`)) return;
+    setClearingFallbackId(user.Id);
     try {
       await api.post(`/system/users/${user.Id}/clear-fallback-password`, {});
       reload();
-    } catch (err) { setError(err.message); }
+    } catch (err) { setError(err.message); } finally { setClearingFallbackId(null); }
   }
 
   return (
@@ -240,7 +258,7 @@ export default function UsersPage() {
         <PasswordInput placeholder="Mật khẩu" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required autoComplete="new-password" />
         <input placeholder="Họ tên" value={form.fullName} onChange={(e) => setForm({ ...form, fullName: e.target.value })} required />
         <input placeholder="Email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
-        <button type="submit">Thêm người dùng</button>
+        <button type="submit" disabled={creatingUser}>{creatingUser ? 'Đang thêm...' : 'Thêm người dùng'}</button>
       </form>
 
       <DataTable
@@ -271,14 +289,14 @@ export default function UsersPage() {
           {
             key: 'actions', label: '', render: (u) => (
               <>
-                {me?.isSystemRole && <button type="button" onClick={() => toggleActive(u)}>{u.IsActive ? 'Khoá' : 'Cho phép kết nối'}</button>}{' '}
+                {me?.isSystemRole && <button type="button" onClick={() => toggleActive(u)} disabled={togglingActiveId === u.Id}>{togglingActiveId === u.Id ? 'Đang xử lý...' : (u.IsActive ? 'Khoá' : 'Cho phép kết nối')}</button>}{' '}
                 <button type="button" onClick={() => openRoleEditor(u)}>Gán vai trò</button>{' '}
                 <button type="button" onClick={() => openAccessEditor(u)}>Gán quyền riêng</button>{' '}
                 <button type="button" onClick={() => openStoreAccessEditor(u)}>Phạm vi dữ liệu</button>{' '}
                 {me?.isSystemRole && !u.roles.some(r => r.isSystemRole) && <button type="button" onClick={() => openAuthEditor(u)}>Nguồn xác thực</button>}{' '}
                 {me?.isSystemRole && u.AuthSource === 'local' && <button type="button" onClick={() => openResetPassword(u)}>Đặt lại mật khẩu</button>}{' '}
-                {me?.isSystemRole && u.roles.some(r => r.isSystemRole) && <button type="button" onClick={() => reset2fa(u)}>Đặt lại 2FA</button>}{' '}
-                {me?.isSystemRole && u.AuthSource === 'hcrcWorkspace' && u.CachedPasswordHashAt && <button type="button" onClick={() => clearFallbackPassword(u)}>Xoá mật khẩu dự phòng</button>}
+                {me?.isSystemRole && u.roles.some(r => r.isSystemRole) && <button type="button" onClick={() => reset2fa(u)} disabled={resettingTwoFaId === u.Id}>{resettingTwoFaId === u.Id ? 'Đang đặt lại...' : 'Đặt lại 2FA'}</button>}{' '}
+                {me?.isSystemRole && u.AuthSource === 'hcrcWorkspace' && u.CachedPasswordHashAt && <button type="button" onClick={() => clearFallbackPassword(u)} disabled={clearingFallbackId === u.Id}>{clearingFallbackId === u.Id ? 'Đang xoá...' : 'Xoá mật khẩu dự phòng'}</button>}
               </>
             )
           }
@@ -308,7 +326,7 @@ export default function UsersPage() {
                 xem thường vẫn xem được vai trò hiện có, chỉ ẩn nút Lưu. */}
             <div className="modal-actions">
               {me?.isSystemRole
-                ? <button type="button" onClick={saveRoles}>Lưu</button>
+                ? <button type="button" onClick={saveRoles} disabled={savingRoles}>{savingRoles ? 'Đang lưu...' : 'Lưu'}</button>
                 : <span className="form-hint">Chỉ Admin hệ thống mới gán vai trò được.</span>}
               <button type="button" onClick={() => setEditingRolesFor(null)}>Đóng</button>
             </div>
@@ -366,7 +384,7 @@ export default function UsersPage() {
 
             <div className="modal-actions">
               {me?.isSystemRole
-                ? <button type="button" onClick={saveAccess}>Lưu</button>
+                ? <button type="button" onClick={saveAccess} disabled={savingAccess}>{savingAccess ? 'Đang lưu...' : 'Lưu'}</button>
                 : <span className="form-hint">Chỉ Admin hệ thống mới sửa được quyền này.</span>}
               <button type="button" onClick={() => setEditingAccessFor(null)}>Đóng</button>
             </div>
@@ -398,7 +416,7 @@ export default function UsersPage() {
             ))}
             <div className="modal-actions">
               {me?.isSystemRole
-                ? <button type="button" onClick={saveStoreAccess}>Lưu</button>
+                ? <button type="button" onClick={saveStoreAccess} disabled={savingStoreAccess}>{savingStoreAccess ? 'Đang lưu...' : 'Lưu'}</button>
                 : <span className="form-hint">Chỉ Admin hệ thống mới sửa được phạm vi dữ liệu.</span>}
               <button type="button" onClick={() => setEditingStoreAccessFor(null)}>Đóng</button>
             </div>
@@ -425,7 +443,7 @@ export default function UsersPage() {
                 value={authForm.password} onChange={(e) => setAuthForm({ ...authForm, password: e.target.value })} autoComplete="new-password" />
             )}
             <div className="modal-actions">
-              <button type="button" onClick={saveAuthSource}>Lưu</button>
+              <button type="button" onClick={saveAuthSource} disabled={savingAuthSource}>{savingAuthSource ? 'Đang lưu...' : 'Lưu'}</button>
               <button type="button" onClick={() => setEditingAuthFor(null)}>Huỷ</button>
             </div>
           </div>
@@ -455,7 +473,7 @@ export default function UsersPage() {
                 required
               />
               <div className="modal-actions">
-                <button type="submit">Lưu</button>
+                <button type="submit" disabled={savingResetPassword}>{savingResetPassword ? 'Đang lưu...' : 'Lưu'}</button>
                 <button type="button" onClick={() => setResettingPasswordFor(null)}>Huỷ</button>
               </div>
             </form>

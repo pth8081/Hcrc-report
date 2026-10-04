@@ -59,10 +59,13 @@ export default function DataSourcesPage() {
 
   async function downloadTemplate() {
     setImportError('');
+    setDownloadingTemplate(true);
     try {
       await api.downloadFile('/data-sources/template', 'mau-nguon-du-lieu.xlsx');
     } catch (err) {
       setImportError(err.message);
+    } finally {
+      setDownloadingTemplate(false);
     }
   }
 
@@ -74,6 +77,7 @@ export default function DataSourcesPage() {
 
     const formData = new FormData();
     formData.append('file', importFile);
+    setImporting(true);
     try {
       const result = await api.post('/data-sources/import', formData, true);
       setImportResult(result);
@@ -81,15 +85,20 @@ export default function DataSourcesPage() {
       reload();
     } catch (err) {
       setImportError(err.message);
+    } finally {
+      setImporting(false);
     }
   }
 
   async function exportEncrypted() {
     setExportError('');
+    setExporting(true);
     try {
       await api.downloadFile('/data-sources/export', 'nguon-du-lieu.hcrcenc');
     } catch (err) {
       setExportError(err.message);
+    } finally {
+      setExporting(false);
     }
   }
 
@@ -101,6 +110,7 @@ export default function DataSourcesPage() {
 
     const formData = new FormData();
     formData.append('file', encImportFile);
+    setImportingEncrypted(true);
     try {
       const result = await api.post('/data-sources/import-encrypted', formData, true);
       setEncImportResult(result);
@@ -108,6 +118,8 @@ export default function DataSourcesPage() {
       reload();
     } catch (err) {
       setEncImportError(err.message);
+    } finally {
+      setImportingEncrypted(false);
     }
   }
 
@@ -117,11 +129,14 @@ export default function DataSourcesPage() {
 
   async function testConnection() {
     setTestResult('Đang kiểm tra...');
+    setTesting(true);
     try {
       await api.post('/data-sources/test', form);
       setTestResult('✅ Kết nối thành công');
     } catch (err) {
       setTestResult(`⛔ ${err.message}`);
+    } finally {
+      setTesting(false);
     }
   }
 
@@ -136,15 +151,17 @@ export default function DataSourcesPage() {
   async function createSource(e) {
     e.preventDefault();
     setError('');
+    setSavingSource(true);
     try {
       const result = await api.post('/data-sources', form);
       setForm(EMPTY_FORM);
       setTestResult(renderConnectionTest(result.connectionTest));
       reload();
-    } catch (err) { setError(err.message); }
+    } catch (err) { setError(err.message); } finally { setSavingSource(false); }
   }
 
   async function toggleActive(source) {
+    setTogglingId(source.Id);
     try {
       const result = await api.put(`/data-sources/${source.Id}`, {
         name: source.Name,
@@ -159,7 +176,7 @@ export default function DataSourcesPage() {
       });
       setTestResult(renderConnectionTest(result.connectionTest));
       reload();
-    } catch (err) { setError(err.message); }
+    } catch (err) { setError(err.message); } finally { setTogglingId(null); }
   }
 
   // Mật khẩu để trống -> route giữ nguyên mật khẩu đã lưu (không bắt gõ lại
@@ -171,6 +188,7 @@ export default function DataSourcesPage() {
   async function saveEdit(e) {
     e.preventDefault();
     setError('');
+    setSavingEdit(true);
     try {
       const body = {
         name: editing.Name, server: editing.Server, port: editing.Port,
@@ -183,15 +201,16 @@ export default function DataSourcesPage() {
       setTestResult(renderConnectionTest(result.connectionTest));
       setEditing(null);
       reload();
-    } catch (err) { setError(err.message); }
+    } catch (err) { setError(err.message); } finally { setSavingEdit(false); }
   }
 
   async function deleteSource(source) {
     if (!confirm(`Xoá nguồn "${source.Name}"? Các job đồng bộ dùng nguồn này sẽ lỗi.`)) return;
+    setDeletingId(source.Id);
     try {
       await api.del(`/data-sources/${source.Id}`);
       reload();
-    } catch (err) { setError(err.message); }
+    } catch (err) { setError(err.message); } finally { setDeletingId(null); }
   }
 
   return (
@@ -215,8 +234,8 @@ export default function DataSourcesPage() {
           <label className="checkbox-row"><input type="checkbox" checked={form.encrypt} onChange={(e) => setForm({ ...form, encrypt: e.target.checked })} /> Mã hoá kết nối</label>
           <label className="checkbox-row"><input type="checkbox" checked={form.trustServerCert} onChange={(e) => setForm({ ...form, trustServerCert: e.target.checked })} /> Tin chứng chỉ tự ký</label>
           <div className="inline-actions">
-            <button type="button" onClick={testConnection}>Kiểm tra kết nối</button>
-            <button type="submit">Lưu nguồn dữ liệu</button>
+            <button type="button" onClick={testConnection} disabled={testing}>{testing ? 'Đang kiểm tra...' : 'Kiểm tra kết nối'}</button>
+            <button type="submit" disabled={savingSource}>{savingSource ? 'Đang lưu...' : 'Lưu nguồn dữ liệu'}</button>
           </div>
         </form>
       )}
@@ -243,11 +262,13 @@ export default function DataSourcesPage() {
           </p>
           {importError && <p className="form-error">{importError}</p>}
           <div className="inline-actions">
-            <button type="button" onClick={downloadTemplate}>Tải file mẫu</button>
+            <button type="button" onClick={downloadTemplate} disabled={downloadingTemplate}>
+              {downloadingTemplate ? 'Đang tải...' : 'Tải file mẫu'}
+            </button>
           </div>
           <form className="stacked-form" onSubmit={submitImport}>
             <input type="file" accept=".xlsx" onChange={(e) => setImportFile(e.target.files?.[0] ?? null)} required />
-            <button type="submit">Nhập hàng loạt</button>
+            <button type="submit" disabled={importing}>{importing ? 'Đang nhập...' : 'Nhập hàng loạt'}</button>
           </form>
           {importResult && (
             <div>
@@ -282,13 +303,13 @@ export default function DataSourcesPage() {
           </p>
           {exportError && <p className="form-error">{exportError}</p>}
           <div className="inline-actions">
-            <button type="button" onClick={exportEncrypted}>Xuất file mã hoá</button>
+            <button type="button" onClick={exportEncrypted} disabled={exporting}>{exporting ? 'Đang xuất...' : 'Xuất file mã hoá'}</button>
           </div>
 
           {encImportError && <p className="form-error">{encImportError}</p>}
           <form className="stacked-form" onSubmit={submitImportEncrypted}>
             <input type="file" accept=".hcrcenc" onChange={(e) => setEncImportFile(e.target.files?.[0] ?? null)} required />
-            <button type="submit">Nhập file mã hoá</button>
+            <button type="submit" disabled={importingEncrypted}>{importingEncrypted ? 'Đang nhập...' : 'Nhập file mã hoá'}</button>
           </form>
           {encImportResult && (
             <p>✅ Đã thêm mới {encImportResult.inserted}, cập nhật {encImportResult.updated} dòng.</p>
@@ -308,8 +329,12 @@ export default function DataSourcesPage() {
             key: 'actions', label: '', render: (s) => (
               <>
                 <button type="button" onClick={() => openEdit(s)}>Sửa</button>{' '}
-                <button type="button" onClick={() => toggleActive(s)}>{s.IsActive ? 'Tắt' : 'Bật'}</button>{' '}
-                <button type="button" onClick={() => deleteSource(s)}>Xoá</button>
+                <button type="button" onClick={() => toggleActive(s)} disabled={togglingId === s.Id}>
+                  {togglingId === s.Id ? 'Đang xử lý...' : (s.IsActive ? 'Tắt' : 'Bật')}
+                </button>{' '}
+                <button type="button" onClick={() => deleteSource(s)} disabled={deletingId === s.Id}>
+                  {deletingId === s.Id ? 'Đang xoá...' : 'Xoá'}
+                </button>
               </>
             )
           }
@@ -338,7 +363,7 @@ export default function DataSourcesPage() {
               <label className="checkbox-row"><input type="checkbox" checked={editing.TrustServerCert} onChange={(e) => setEditing({ ...editing, TrustServerCert: e.target.checked })} /> Tin chứng chỉ tự ký</label>
               <label className="checkbox-row"><input type="checkbox" checked={editing.IsActive} onChange={(e) => setEditing({ ...editing, IsActive: e.target.checked })} /> Hoạt động</label>
               <div className="inline-actions">
-                <button type="submit">Cập nhật nguồn dữ liệu</button>
+                <button type="submit" disabled={savingEdit}>{savingEdit ? 'Đang lưu...' : 'Cập nhật nguồn dữ liệu'}</button>
                 <button type="button" onClick={() => setEditing(null)}>Huỷ</button>
               </div>
             </form>
