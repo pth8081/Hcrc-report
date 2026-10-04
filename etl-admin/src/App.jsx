@@ -15,6 +15,7 @@ import RolesPage from './pages/RolesPage';
 import SalesTargetsPage from './pages/SalesTargetsPage';
 import DiemStkMappingPage from './pages/DiemStkMappingPage';
 import CoreItemListPage from './pages/CoreItemListPage';
+import StockAlertThresholdsPage from './pages/StockAlertThresholdsPage';
 import HuongDanPage from './pages/HuongDanPage';
 import AccountPage from './pages/AccountPage';
 
@@ -25,7 +26,7 @@ import AccountPage from './pages/AccountPage';
 // MENU_CATALOG) — trước đây thiếu roles/log/audit-log, khiến 1 tài khoản
 // CHỈ được cấp 1 trong các trang này bị điều hướng về '/dashboard' (trang
 // không thấy được) ngay sau đăng nhập thay vì vào đúng trang mình có quyền.
-const LANDING_ORDER = ['dashboard', 'sales-targets-corp', 'sales-targets-hcrc', 'data-sources', 'sync-jobs', 'diem-stk-mapping', 'core-item-list', 'log', 'audit-log', 'users', 'roles', 'huong-dan'];
+const LANDING_ORDER = ['dashboard', 'sales-targets-corp', 'sales-targets-hcrc', 'data-sources', 'sync-jobs', 'diem-stk-mapping', 'core-item-list', 'stock-alert-thresholds', 'log', 'audit-log', 'users', 'roles', 'huong-dan'];
 
 function IndexRedirect() {
   const { can } = useAuth();
@@ -59,6 +60,7 @@ export default function App() {
           } />
           <Route path="/diem-stk-mapping" element={<DiemStkMappingPage />} />
           <Route path="/core-item-list" element={<CoreItemListPage />} />
+          <Route path="/stock-alert-thresholds" element={<StockAlertThresholdsPage />} />
           <Route path="/users" element={<UsersPage />} />
           <Route path="/roles" element={<RolesPage />} />
           <Route path="/huong-dan" element={<HuongDanPage />} />

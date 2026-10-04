@@ -24,6 +24,7 @@ const MENU_CATALOG = [
   { code: 'schema-monitor', label: 'Giám sát cấu trúc CSDL' },
   { code: 'diem-stk-mapping', label: 'Ánh xạ Điểm - STK_ID' },
   { code: 'core-item-list', label: 'Danh sách hàng Core' },
+  { code: 'stock-alert-thresholds', label: 'Cảnh báo hàng tồn' },
   // Trước là 1 trang "sales-targets" chung, đổi thành 2 trang ĐỘC LẬP theo
   // đúng 2 báo cáo tiêu thụ chỉ tiêu (Lãnh đạo Tập đoàn / HCRC) — 2 nhóm
   // khác nhau quản lý/nhập liệu, cần 2 MenuCode riêng để giao quyền tách

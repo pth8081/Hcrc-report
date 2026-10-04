@@ -23,6 +23,7 @@ const NAV = [
   { path: '/sales-targets-hcrc', label: 'Chỉ tiêu HCRC', icon: '🎯', menuCode: 'sales-targets-hcrc' },
   { path: '/diem-stk-mapping', label: 'Ánh xạ Điểm - STK_ID', icon: '🧩', menuCode: 'diem-stk-mapping', editOnly: true },
   { path: '/core-item-list', label: 'Danh sách hàng Core', icon: '📦', menuCode: 'core-item-list', editOnly: true },
+  { path: '/stock-alert-thresholds', label: 'Cảnh báo hàng tồn', icon: '⚠️', menuCode: 'stock-alert-thresholds', editOnly: true },
   { path: '/users', label: 'Phân quyền', icon: '🔐', menuCode: 'users' },
   { path: '/roles', label: 'Vai trò', icon: '🛡️', menuCode: 'roles' },
   { path: '/huong-dan', label: 'Hướng dẫn', icon: '❓', menuCode: 'huong-dan' }

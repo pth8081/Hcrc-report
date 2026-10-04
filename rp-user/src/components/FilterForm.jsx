@@ -74,6 +74,25 @@ export default function FilterForm({ reportId, filters, values, onChange, onSubm
               loading={!!loadingFields[f.field]}
               placeholder="Tất cả"
             />
+          ) : f.type === 'thresholdNumber' ? (
+            // Lọc "Tồn dưới"/"Tồn trên" X (bản 8.68, báo cáo hàng tồn) —
+            // mặc định "Tồn dưới" + 1 (tức tồn < 1, tương đương "không còn
+            // hàng" — khớp hành vi ngưỡng=0 của các báo cáo tồn kho cũ),
+            // người dùng đổi được cả chiều lẫn số.
+            <span className="date-range">
+              <select
+                value={values[f.field]?.mode || f.default?.mode || 'below'}
+                onChange={(e) => setValue(f.field, { ...(values[f.field] || f.default), mode: e.target.value })}
+              >
+                <option value="below">Tồn dưới</option>
+                <option value="above">Tồn trên</option>
+              </select>
+              <input
+                type="number"
+                value={values[f.field]?.value ?? f.default?.value ?? 1}
+                onChange={(e) => setValue(f.field, { ...(values[f.field] || f.default), value: Number(e.target.value) })}
+              />
+            </span>
           ) : f.type === 'select' ? (
             <SearchableSelect
               options={f.hasDynamicOptions ? (dynamicOptions[f.field] || []) : (f.options || [])}
