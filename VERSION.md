@@ -29,6 +29,38 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 8.64 — Gợi ý cấu hình theo loại email gateway (Postfix/Exchange) + tương thích Exchange
+
+**Theo yêu cầu người dùng**: ngoài Postfix (bản 8.63), người dùng còn có 1
+hệ thống gửi email qua Exchange, xác thực bằng username/mật khẩu — yêu cầu
+rà soát tương thích + cho phép dễ dàng chọn/đổi qua lại giữa các loại
+gateway lúc cấu hình.
+
+- `rp-user/src/modules/system/email-settings/EmailSettingsPage.jsx`: thêm
+  dropdown "Loại email gateway" — chọn 1 trong 4: Tuỳ chỉnh / Postfix
+  (SMTPS, cổng 465) / Exchange Online-Office 365 (STARTTLS, cổng 587, tự
+  điền `smtp.office365.com`, ghi chú dùng "Mật khẩu ứng dụng" nếu tài
+  khoản bật MFA) / Exchange tại chỗ (STARTTLS, cổng 587). Chọn 1 loại CHỈ
+  điền sẵn gợi ý host/port/Secure — mọi ô vẫn sửa tay được bình thường,
+  không khoá field nào, không thêm cột CSDL mới (preset chỉ là gợi ý phía
+  giao diện).
+- `rp-server/lib/mailer.js` và `etl/lib/mailer.js`: thêm `requireTLS` khi
+  gateway dùng cổng không mã hoá ngay từ đầu (vd 587/25) NHƯNG có khai
+  Username/mật khẩu thật — bắt buộc STARTTLS nâng cấp mã hoá TRƯỚC khi gửi
+  thông tin đăng nhập, tránh âm thầm gửi mật khẩu dạng chữ thường nếu
+  gateway lỡ không chào STARTTLS. Exchange Online/Office 365 vốn luôn từ
+  chối xác thực không mã hoá nên không đổi hành vi gateway đó, chỉ thêm 1
+  lớp an toàn rõ ràng, đúng cho cả Postfix THƯỜNG (không phải SMTPS 465)
+  lẫn Exchange — xác nhận tương thích cơ chế xác thực
+  username/mật khẩu chuẩn (`nodemailer` tự thương lượng đúng cơ chế AUTH
+  server hỗ trợ, không cần cấu hình thêm).
+
+Đã demo xác nhận: chọn "Postfix" → tự điền 465 + tick Secure; chọn
+"Exchange Online / Office 365" → tự điền `smtp.office365.com`, 587, bỏ
+Secure, hiện ghi chú MFA. Không đổi CSDL, không ảnh hưởng cấu hình đang
+chạy ổn (preset không tự ý ghi đè ô đã có giá trị, trừ ô port/Secure theo
+đúng loại gateway vừa chọn).
+
 ## 8.63 — Sửa gửi email tương thích cổng 465 (Postfix)
 
 **Theo yêu cầu người dùng**: email gateway thật dùng Postfix, cổng 465 —

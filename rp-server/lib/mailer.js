@@ -38,6 +38,13 @@ async function sendMail({ to, subject, text, html, attachments }) {
     host: row.SmtpHost,
     port: row.SmtpPort,
     secure,
+    // requireTLS (bản 8.64 — tương thích Exchange/Office 365, cổng 587):
+    // KHÔNG dùng TLS ngay từ đầu (secure=false) nhưng VẪN có mật khẩu thật
+    // (row.Username) -> bắt buộc STARTTLS nâng cấp lên mã hoá TRƯỚC khi gửi
+    // mật khẩu, không âm thầm gửi mật khẩu dạng chữ thường nếu gateway lỡ
+    // không chào STARTTLS (Exchange/Office 365 LUÔN từ chối AUTH không mã
+    // hoá nên không ảnh hưởng gateway đó, chỉ thêm 1 lớp an toàn rõ ràng).
+    requireTLS: !secure && !!row.Username,
     auth: row.Username ? { user: row.Username, pass: row.PasswordEncrypted ? decrypt(row.PasswordEncrypted) : undefined } : undefined
   });
 

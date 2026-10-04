@@ -6,6 +6,29 @@ import { api } from '../../../lib/api';
 
 const EMPTY = { smtpHost: '', smtpPort: 587, secure: false, username: '', password: '', fromAddress: '', fromName: '' };
 
+// Gợi ý điền sẵn host/port/secure theo loại gateway phổ biến (bản 8.64,
+// theo yêu cầu người dùng — có cả Postfix lẫn Exchange/Office 365, muốn
+// đổi qua lại dễ dàng) — CHỈ điền sẵn, người dùng sửa lại thoải mái, không
+// khoá field nào. "custom" không đổi gì (giữ nguyên giá trị đang gõ).
+const GATEWAY_PRESETS = {
+  custom: { label: 'Tuỳ chỉnh' },
+  postfix: {
+    label: 'Postfix (SMTPS — cổng 465)',
+    apply: (form) => ({ ...form, smtpPort: 465, secure: true }),
+    hint: 'Cổng 465 dùng TLS ngay từ đầu — điền đúng tên máy chủ Postfix nội bộ vào ô "SMTP host".'
+  },
+  exchange: {
+    label: 'Exchange Online / Office 365 (STARTTLS — cổng 587)',
+    apply: (form) => ({ ...form, smtpHost: form.smtpHost || 'smtp.office365.com', smtpPort: 587, secure: false }),
+    hint: 'Username = địa chỉ email đăng nhập đầy đủ. Nếu tài khoản bật xác thực 2 lớp (MFA), dùng "Mật khẩu ứng dụng" (App password) thay vì mật khẩu đăng nhập thường.'
+  },
+  'exchange-onprem': {
+    label: 'Exchange tại chỗ (on-premise, STARTTLS — cổng 587)',
+    apply: (form) => ({ ...form, smtpPort: 587, secure: false }),
+    hint: 'Điền tên máy chủ Exchange nội bộ vào ô "SMTP host". Username thường là dạng DOMAIN\\tên-đăng-nhập hoặc email đầy đủ, tuỳ cấu hình Exchange — hỏi IT quản trị Exchange nếu không chắc.'
+  }
+};
+
 export default function EmailSettingsPage() {
   const [form, setForm] = useState(EMPTY);
   const [hasPassword, setHasPassword] = useState(false);
@@ -14,6 +37,13 @@ export default function EmailSettingsPage() {
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [sendingTest, setSendingTest] = useState(false);
+  const [gatewayPreset, setGatewayPreset] = useState('custom');
+
+  function applyPreset(key) {
+    setGatewayPreset(key);
+    const preset = GATEWAY_PRESETS[key];
+    if (preset?.apply) setForm(preset.apply(form));
+  }
 
   useEffect(() => {
     api.get('/system/email-settings').then(data => {
@@ -53,6 +83,13 @@ export default function EmailSettingsPage() {
       {message && <p className="form-success">{message}</p>}
 
       <form className="stacked-form" onSubmit={save}>
+        <label>Loại email gateway (gợi ý điền sẵn — vẫn sửa lại được mọi ô bên dưới)
+          <select value={gatewayPreset} onChange={(e) => applyPreset(e.target.value)}>
+            {Object.entries(GATEWAY_PRESETS).map(([key, p]) => <option key={key} value={key}>{p.label}</option>)}
+          </select>
+        </label>
+        {GATEWAY_PRESETS[gatewayPreset]?.hint && <p className="form-hint">{GATEWAY_PRESETS[gatewayPreset].hint}</p>}
+
         <input placeholder="SMTP host" value={form.smtpHost} onChange={(e) => setForm({ ...form, smtpHost: e.target.value })} required />
         <input
           placeholder="SMTP port"

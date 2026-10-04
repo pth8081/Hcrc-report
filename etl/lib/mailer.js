@@ -20,10 +20,16 @@ function resolveSecure(port) {
 function getTransport() {
   if (!process.env.SMTP_HOST) return null;
   const port = parseInt(process.env.SMTP_PORT || '587', 10);
+  const secure = resolveSecure(port);
   return nodemailer.createTransport({
     host: process.env.SMTP_HOST,
     port,
-    secure: resolveSecure(port),
+    secure,
+    // requireTLS (bản 8.64 — tương thích Exchange/Office 365, cổng 587):
+    // xem giải thích đầy đủ ở rp-server/lib/mailer.js (cùng lý do, khác nơi
+    // cấu hình) — bắt buộc STARTTLS trước khi gửi SMTP_USER/SMTP_PASSWORD
+    // thật khi KHÔNG dùng TLS ngay từ đầu.
+    requireTLS: !secure && !!process.env.SMTP_USER,
     auth: process.env.SMTP_USER ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASSWORD } : undefined
   });
 }

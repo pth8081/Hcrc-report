@@ -14,6 +14,30 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 8.64 — Gợi ý cấu hình theo loại email gateway (Postfix/Exchange) + tương thích Exchange
+
+**Thay đổi**: thêm dropdown "Loại email gateway" ở "Thiết lập email"
+(rp-user) — chọn Postfix/Exchange Online/Exchange tại chỗ tự điền sẵn
+host/port/Secure, vẫn sửa tay được. `rp-server/lib/mailer.js` và
+`etl/lib/mailer.js` thêm `requireTLS` khi dùng cổng không mã hoá ngay từ
+đầu (587/25) + có xác thực username/mật khẩu — bắt buộc STARTTLS trước
+khi gửi thông tin đăng nhập.
+
+**Các bước triển khai:**
+1. `git pull origin main`.
+2. `pm2 restart hcrc-etl` và `pm2 restart hcrc-rp-server` (BẮT BUỘC — đổi
+   `lib/mailer.js` của cả 2).
+3. `cd rp-user && npm run build`, copy `dist/` mới (dropdown mới ở "Thiết
+   lập email").
+4. Kiểm tra: rp-user → "Thiết lập email" → chọn "Exchange Online / Office
+   365" → tự điền `smtp.office365.com`/587/bỏ Secure → điền Username =
+   email đăng nhập đầy đủ + mật khẩu (mật khẩu ứng dụng nếu tài khoản bật
+   MFA) → "Gửi thử" nhận được email.
+
+Không đổi CSDL, không ảnh hưởng cấu hình Postfix/SMTP khác đang chạy ổn.
+
+---
+
 ## 8.63 — Sửa gửi email tương thích cổng 465 (Postfix)
 
 **Thay đổi**: cổng 465 (SMTPS, vd Postfix của người dùng) bắt buộc TLS
