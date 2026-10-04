@@ -5,6 +5,8 @@ import RequireAuth from './components/RequireAuth';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import DataSourcesPage from './pages/DataSourcesPage';
+import ConnectionStatusPage from './pages/ConnectionStatusPage';
+import SchemaMonitorPage from './pages/SchemaMonitorPage';
 import SyncJobsPage from './pages/SyncJobsPage';
 import LogPage from './pages/LogPage';
 import AuditLogPage from './pages/AuditLogPage';
@@ -41,7 +43,9 @@ export default function App() {
           <Route path="/" element={<IndexRedirect />} />
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/data-sources" element={<DataSourcesPage />} />
+          <Route path="/connection-status" element={<ConnectionStatusPage />} />
           <Route path="/sync-jobs" element={<SyncJobsPage />} />
+          <Route path="/schema-monitor" element={<SchemaMonitorPage />} />
           <Route path="/log" element={<LogPage />} />
           <Route path="/audit-log" element={<AuditLogPage />} />
           {/* Trước là 1 route "/sales-targets" chung — tách 2 instance ĐỘC

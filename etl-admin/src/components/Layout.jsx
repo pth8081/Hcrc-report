@@ -10,7 +10,9 @@ import UpdateBanner from './UpdateBanner';
 const NAV = [
   { path: '/dashboard', label: 'Dashboard', icon: '📊', menuCode: 'dashboard' },
   { path: '/data-sources', label: 'Nguồn dữ liệu', icon: '🔌', menuCode: 'data-sources' },
+  { path: '/connection-status', label: 'Trạng thái kết nối', icon: '📶', menuCode: 'connection-status' },
   { path: '/sync-jobs', label: 'Đồng bộ', icon: '🔄', menuCode: 'sync-jobs' },
+  { path: '/schema-monitor', label: 'Giám sát cấu trúc CSDL', icon: '🧬', menuCode: 'schema-monitor' },
   { path: '/log', label: 'Log', icon: '🧾', menuCode: 'log' },
   { path: '/audit-log', label: 'Nhật ký thao tác', icon: '📜', menuCode: 'audit-log' },
   // Trước là 1 mục "Nhập chỉ tiêu" chung — tách 2 mục ĐỘC LẬP theo đúng 2

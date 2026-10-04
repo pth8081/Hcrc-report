@@ -152,6 +152,18 @@ legend { font-size: 12px; color: var(--ink-soft); padding: 0 6px; }
 .level-badge.level-warn { background: #fff3e0; color: #8a4b00; }
 .level-badge.level-error { background: #fdecea; color: #b3261e; }
 .app-version { margin-top: 6px; font-size: 11px; color: rgba(255,255,255,0.5); }
+/* Trang "Trạng thái kết nối"/"Giám sát cấu trúc CSDL" (nháp — demo) */
+.conn-summary { display: flex; align-items: center; gap: 14px; margin-bottom: 12px; font-size: 14px; }
+.conn-summary-total { color: var(--ink-soft); }
+.conn-summary-ok { color: #1a7a3c; font-weight: 600; }
+.conn-summary-down { color: #b3261e; font-weight: 600; }
+.conn-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 12.5px; font-weight: 500; padding: 2px 8px; border-radius: 999px; }
+.conn-badge--ok { background: #e6f4ea; color: #1a7a3c; }
+.conn-badge--down { background: #fdecea; color: #b3261e; }
+.schema-change-detail { margin-top: 10px; padding: 12px 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; display: flex; flex-direction: column; gap: 8px; }
+.schema-change-row { display: flex; align-items: center; gap: 12px; font-size: 13px; flex-wrap: wrap; }
+.schema-change-col { font-family: monospace; background: var(--bg); padding: 1px 6px; border-radius: 4px; }
+.schema-change-diff { font-family: monospace; color: #8a4b00; }
 .logout-link { color: #ff8a8a; background: none; border: none; padding: 0; margin-top: 4px; font-size: 12.5px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
 .logout-link:hover { text-decoration: underline; opacity: 1; }
 .account-link { color: var(--nav-text); background: none; border: none; padding: 0; margin-bottom: 8px; font-size: 12.5px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; text-decoration: none; }
