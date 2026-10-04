@@ -29,6 +29,44 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 8.61 — Điền đủ 34 siêu thị thật vào script tạo Nguồn dữ liệu + Sync Job (Thành viên)
+
+**Theo yêu cầu người dùng**: thay vì nhập 2 file Excel (Nguồn dữ liệu +
+Sync Job) qua giao diện etl-admin như cách đã làm trước đó, người dùng gửi
+file Excel "Nguồn dữ liệu" thật (34 siêu thị, mỗi dòng Name/Server/
+DatabaseName/Username/Password/Engine/Port/Encrypt/TrustServerCert) và yêu
+cầu điền thẳng vào `etl/scripts/seedThanhVienLiveSync.js` (script đã có
+sẵn từ bản 8.15, trước đây chỉ là bản mẫu với giá trị `CHANGE_ME`) để chạy
+1 lệnh là tạo xong cả 34 Nguồn dữ liệu + 68 Sync Job Live (Doanh thu +
+Giao dịch).
+
+- `STORES` điền đủ 34 dòng thật (tên + Server/IP đúng theo file Excel).
+- **Port dùng CHUNG 1 giá trị cố định `1433`** cho mọi siêu thị (theo yêu
+  cầu riêng của người dùng) — KHÔNG dùng cột Port riêng từng dòng trong
+  file Excel gốc (file Excel có port khác nhau từng dòng, nhưng hạ tầng
+  thật của người dùng chỉ dùng 1 port cố định).
+- Username/Password/DatabaseName/Encrypt/TrustServerCert dùng chung 1 giá
+  trị (khớp đúng mọi dòng trong file Excel).
+- Bỏ đoạn kiểm tra "còn CHANGE_ME thì dừng lại" (không cần nữa vì danh
+  sách đã là dữ liệu thật).
+
+**CẢNH BÁO BẢO MẬT (người dùng đã được thông báo và xác nhận chấp nhận)**:
+khác với quy ước đã áp dụng cho 2 file Excel tương tự trước đó (không lưu
+Git vì chứa mật khẩu thật) — người dùng YÊU CẦU RÕ RÀNG commit file này
+nguyên văn (kèm mật khẩu CSDL thật dạng chữ thường) vào Git. Đã hỏi lại
+xác nhận trước khi làm, người dùng xác nhận "Có — commit nguyên văn kể cả
+mật khẩu thật". **Khuyến nghị: đổi lại mật khẩu CSDL thật ở cả 34 máy chủ
+sau khi đã chạy script này**, vì mật khẩu hiện đã nằm vĩnh viễn trong lịch
+sử Git của repo.
+
+**Các bước triển khai:** `cd etl && node scripts/seedThanhVienLiveSync.js`
+— BẮT BUỘC đã hoàn tất Bước 1 ("báo cáo doanh thu thành viên.md" — tạo
+VIEW tại cả 34 máy chủ) trước đó, thiếu VIEW ở siêu thị nào thì Sync Job
+của đúng siêu thị đó bị bỏ qua (có log rõ ràng, an toàn chạy lại nhiều
+lần). Sau đó chạy tiếp (nếu chưa chạy lần nào)
+`node rp-server/scripts/seedLdtdHcrcReports.js` và
+`node rp-server/scripts/seedThanhVienReportPermissions.js`.
+
 ## 8.60 — Khoá nút + đổi màu lúc đang gửi dữ liệu lên server (toàn hệ thống)
 
 **Theo yêu cầu người dùng**: trong lúc thử nút "Chạy thử" (trang Đồng bộ),

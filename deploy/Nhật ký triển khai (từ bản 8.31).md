@@ -14,6 +14,32 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 8.61 — Điền đủ 34 siêu thị thật vào script tạo Nguồn dữ liệu + Sync Job (Thành viên)
+
+**Thay đổi**: theo yêu cầu người dùng — điền đủ 34 siêu thị thật (tên +
+Server/IP, từ file Excel người dùng gửi) vào `etl/scripts/seedThanhVienLiveSync.js`,
+dùng chung 1 port cố định 1433 cho mọi siêu thị (theo yêu cầu riêng, khác
+port từng dòng trong file Excel gốc). **File này CHỨA MẬT KHẨU CSDL THẬT
+— người dùng đã được cảnh báo và xác nhận rõ ràng muốn commit nguyên văn
+vào Git** (khác quy ước thông thường không lưu file có mật khẩu thật).
+Khuyến nghị đổi lại mật khẩu thật sau khi triển khai xong.
+
+**Các bước triển khai:**
+1. `git pull origin main`.
+2. **Bắt buộc làm trước** (nếu chưa làm): chạy file
+   `deploy/Thiết lập VIEW + tài khoản etl_reader tại mỗi siêu thị Thành
+   viên.sql` tại CẢ 34 máy chủ SQL Server của từng siêu thị.
+3. `cd etl && node scripts/seedThanhVienLiveSync.js` — tạo/cập nhật 34
+   Nguồn dữ liệu + 68 Sync Job Live (an toàn chạy lại nhiều lần).
+4. Nếu chưa chạy lần nào: `cd rp-server && node scripts/seedLdtdHcrcReports.js`
+   và `node scripts/seedThanhVienReportPermissions.js`.
+5. Kiểm tra: etl-admin → Nguồn dữ liệu (đủ 34 dòng) → Đồng bộ (đủ 68 job
+   Live, "Bật") → Log (job đã chạy thành công sau vài phút).
+6. **Đổi lại mật khẩu CSDL thật ở cả 34 máy chủ** sau khi hoàn tất (mật
+   khẩu hiện đã nằm trong lịch sử Git).
+
+---
+
 ## 8.60 — Khoá nút + đổi màu lúc đang gửi dữ liệu lên server (toàn hệ thống)
 
 **Thay đổi**: theo yêu cầu người dùng — mọi nút bấm gửi dữ liệu lên server

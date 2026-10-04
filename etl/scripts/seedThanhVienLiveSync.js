@@ -1,33 +1,75 @@
-// scripts/seedThanhVienLiveSync.js — Tạo/CẬP NHẬT idempotent 35 "Nguồn dữ
-// liệu" (1/cửa hàng "Thành viên") + tối đa 70 Sync Job Live (2/cửa hàng:
-// Doanh thu + Giao dịch) — bản 8.15, xem đầy đủ kiến trúc ở "báo cáo doanh
-// thu thành viên.md". Thay cho việc bấm tay 35 lần qua etl-admin.
+// scripts/seedThanhVienLiveSync.js — Tạo/CẬP NHẬT idempotent 34 "Nguồn dữ
+// liệu" (1/cửa hàng "Thành viên") + 68 Sync Job Live (2/cửa hàng: Doanh thu
+// + Giao dịch) — bản 8.15, xem đầy đủ kiến trúc ở "báo cáo doanh thu thành
+// viên.md". Danh sách STORES bên dưới điền ĐÚNG 34 cửa hàng thật (tên +
+// Server/IP lấy từ file Excel "Nguồn dữ liệu" người dùng gửi,
+// mau-nguon-du-lieu-1.xlsx) — CHUNG 1 Port cố định DEFAULT_PORT (người
+// dùng xác nhận chỉ dùng 1 port duy nhất cho mọi siêu thị, KHÔNG dùng port
+// riêng từng dòng như trong file Excel gốc), cùng chung Username/Password/
+// DatabaseName/Encrypt/TrustServerCert (xem DEFAULT_* bên dưới).
 //
-// ============================================================================
-// SỬA DANH SÁCH `STORES` NGAY DƯỚI ĐÂY TRƯỚC KHI CHẠY — điền đúng:
-//   name     Tên cửa hàng THẬT (dùng để đặt tên Nguồn dữ liệu/Sync Job, KHÔNG
-//            ảnh hưởng dữ liệu báo cáo — VIEW tại mỗi cửa hàng tự trả đúng
-//            STK_ID/BU_ID của nó, xem "báo cáo doanh thu thành viên.md").
-//   server   Địa chỉ SQL Server tại cửa hàng đó (IP hoặc tên máy chủ).
-//   password Mật khẩu tài khoản `etl_reader` tại cửa hàng đó.
-// Username CỐ ĐỊNH "etl_reader" cho cả 35 dòng (theo đúng yêu cầu người
-// dùng — tài khoản CHỈ ĐỌC dùng chung quy ước, không phải sudo/admin CSDL).
-// port/database/encrypt/trustServerCert dùng chung mặc định bên dưới —
-// sửa riêng từng dòng nếu có cửa hàng khác cổng/tên CSDL.
-// ============================================================================
-const DEFAULT_PORT = 1433;
+// CHẠY FILE NÀY THAY CHO CÁCH NHẬP EXCEL 2 LẦN (Nguồn dữ liệu rồi Sync Job)
+// Ở ETL-ADMIN — làm đúng cả 2 việc trong 1 lệnh. VẪN PHẢI hoàn tất "Bước 1"
+// ("báo cáo doanh thu thành viên.md" — chạy file
+// `deploy/Thiết lập VIEW + tài khoản etl_reader tại mỗi siêu thị Thành
+// viên.sql` tại CẢ 34 máy chủ SQL Server của từng siêu thị) TRƯỚC khi chạy
+// file này — thiếu VIEW thì Nguồn dữ liệu vẫn được tạo nhưng Sync Job của
+// đúng siêu thị đó sẽ bị BỎ QUA (xem log khi chạy), tự chạy lại file này
+// sau khi tạo xong VIEW (an toàn chạy lại nhiều lần, không tạo trùng).
+//
+// LƯU Ý BẢO MẬT: file này chứa mật khẩu CSDL thật dạng chữ thường — KHÔNG
+// lưu vào Git, KHÔNG gửi qua kênh không an toàn (đúng quy ước đã áp dụng
+// cho 2 file Excel nguồn, xem "báo cáo doanh thu thành viên.md").
+const DEFAULT_PORT = 1433; // CHUNG cho mọi siêu thị (người dùng xác nhận chỉ dùng 1 port cố định)
 const DEFAULT_DATABASE = 'DSMART16';
 const DEFAULT_USERNAME = 'etl_reader';
-const DEFAULT_ENCRYPT = true;
+const DEFAULT_PASSWORD = 'Brg@123456a@';
+const DEFAULT_ENCRYPT = false;
 const DEFAULT_TRUST_SERVER_CERT = false;
 
-const STORES = Array.from({ length: 35 }, (_, i) => ({
-  name: `CHANGE_ME - Cửa hàng ${String(i + 1).padStart(2, '0')}`, // TODO: đổi tên thật
-  server: 'CHANGE_ME_IP',                                          // TODO: đổi IP/tên máy chủ thật
-  password: 'CHANGE_ME_PASSWORD'                                   // TODO: đổi mật khẩu thật
-  // port, database, username, encrypt, trustServerCert: để trống dùng mặc
-  // định ở trên — thêm field riêng vào object này nếu 1 cửa hàng cần khác.
-}));
+// 34 siêu thị thật — tên/IP lấy ĐÚNG nguyên văn từ file Excel "Nguồn dữ
+// liệu" người dùng gửi (sheet "Nguon du lieu"). Port/Password/Username/
+// DatabaseName dùng chung DEFAULT_* ở trên (CHUNG 1 port cố định theo
+// người dùng xác nhận, không dùng cột Port riêng từng dòng trong file
+// Excel gốc — nếu sau này có cửa hàng khác port/mật khẩu/username, thêm
+// field port/password/username riêng vào object dòng đó, xem
+// upsertDataSource()).
+const STORES = [
+  { name: 'BRGMart 120 Hàng Trống', server: '172.16.74.11' },
+  { name: 'BRGMart Nguyễn Văn Cừ', server: '172.16.74.12' },
+  { name: 'BRGMart Hải Dương', server: '172.16.74.14' },
+  { name: 'BRGMart Phố Nối', server: '172.16.74.16' },
+  { name: 'BRGMart Hải Phòng', server: '172.16.74.20' },
+  { name: 'BRGMart C12 Thanh Xuân', server: '172.16.74.24' },
+  { name: 'BRGMart 13 Thành Công', server: '172.16.74.28' },
+  { name: 'HaproFood 135 Lương Định Của', server: '172.16.74.30' },
+  { name: 'HaproFood G3 Vĩnh Phúc', server: '172.16.74.29' },
+  { name: 'BRGMart 5 Hàm Tử Quan', server: '172.16.74.42' },
+  { name: 'HaproFood 198 Lò Đúc', server: '172.16.74.45' },
+  { name: 'HaproFood N4C Trung Hoà', server: '172.16.74.48' },
+  { name: 'HaproFood Chợ Bưởi', server: '172.16.74.49' },
+  { name: 'HaproFood 160-162 Ngõ Thái Thịnh I', server: '172.16.74.58' },
+  { name: 'BRGMart Moonlight', server: '172.16.74.59' },
+  { name: 'HaproFood 83 Nguyễn An Ninh', server: '172.16.74.60' },
+  { name: 'BRGMart 63 Hàng Trống', server: '172.16.74.73' },
+  { name: 'HaproFood 105 Lê Duẩn', server: '172.16.74.80' },
+  { name: 'BRGMart Mạo Khê', server: '172.16.74.82' },
+  { name: 'HaproFood 362 Ngọc Lâm', server: '172.16.74.91' },
+  { name: 'HaproFood Ecohome3', server: '172.16.74.92' },
+  { name: 'BRGMart N16 Sài đồng', server: '172.16.74.93' },
+  { name: 'BRGMart Intracom Đông Anh', server: '172.16.74.94' },
+  { name: 'HaproFood 9-11 Thổ Quan', server: '172.16.74.98' },
+  { name: 'HaproFood 9 Lê Quý Đôn', server: '172.16.74.99' },
+  { name: 'HaproFood 24 Trần Nhật Duật', server: '172.16.74.100' },
+  { name: 'BRGMart L4 Sài Đồng', server: '172.16.74.103' },
+  { name: 'BRGMart 53D Hàng Bài', server: '172.16.74.104' },
+  { name: 'BrgMart Đồ Sơn Hải Phòng', server: '172.16.74.105' },
+  { name: 'BRGMart 8 Phạm Ngọc Thạch', server: '172.16.74.33' },
+  { name: 'BRGMart 1 Lý Nam Đế', server: '172.16.74.35' },
+  { name: 'BRGMart 275 Nguyễn Trãi', server: '172.16.74.36' },
+  { name: 'HaproFood 96 Tô Ngọc Vân', server: '172.16.74.37' },
+  { name: 'HaproFood 98 Tô Ngọc Vân', server: '172.16.74.38' }
+];
 // ============================================================================
 
 require('dotenv').config();
@@ -50,7 +92,7 @@ async function upsertDataSource(pool, cfg) {
   const name = dataSourceName(cfg);
   const existing = await pool.request().input('name', sql.NVarChar(200), name)
     .query('SELECT Id FROM etl.DataSources WHERE Name = @name');
-  const passwordEncrypted = encrypt(cfg.password);
+  const passwordEncrypted = encrypt(cfg.password || DEFAULT_PASSWORD);
   const port = cfg.port || DEFAULT_PORT;
   const databaseName = cfg.database || DEFAULT_DATABASE;
   const username = cfg.username || DEFAULT_USERNAME;
@@ -184,16 +226,6 @@ function buildJobsForStore(store, dataSourceId) {
 }
 
 async function main() {
-  const placeholderCount = STORES.filter(s => s.server === 'CHANGE_ME_IP' || s.password === 'CHANGE_ME_PASSWORD' || s.name.startsWith('CHANGE_ME')).length;
-  if (placeholderCount === STORES.length) {
-    console.error('⛔ Danh sách STORES ở đầu file vẫn còn nguyên giá trị CHANGE_ME — sửa tên/IP/mật khẩu thật cho từng cửa hàng rồi chạy lại.');
-    process.exit(1);
-    return;
-  }
-  if (placeholderCount > 0) {
-    console.warn(`⚠️ Còn ${placeholderCount}/${STORES.length} cửa hàng chưa sửa (vẫn CHANGE_ME) — các cửa hàng này sẽ tạo Nguồn dữ liệu nhưng BỎ QUA tạo Sync Job (không kết nối được), tự chạy lại script sau khi sửa.`);
-  }
-
   const pool = await getPool('ADMIN');
 
   let sourcesCreated = 0, sourcesUpdated = 0, jobsCreated = 0, jobsUpdated = 0;
@@ -224,11 +256,11 @@ async function main() {
   console.log(`✅ Xong — Nguồn dữ liệu: ${sourcesCreated} tạo mới, ${sourcesUpdated} cập nhật.`);
   console.log(`   Sync Job: ${jobsCreated} tạo mới, ${jobsUpdated} cập nhật.`);
   if (skipped.length) {
-    console.log(`⚠️ ${skipped.length} job BỊ BỎ QUA (chưa kết nối được — sửa lại danh sách STORES rồi chạy lại file này, an toàn chạy lại nhiều lần):`);
+    console.log(`⚠️ ${skipped.length} job BỊ BỎ QUA (chưa kết nối được/chưa có VIEW — sửa xong rồi chạy lại file này, an toàn chạy lại nhiều lần):`);
     skipped.forEach(s => console.log(`   - ${s}`));
   }
-  console.log('Nhớ chạy tiếp: node ../rp-server/scripts/seedLdtdHcrcReports.js và');
-  console.log('node ../rp-server/scripts/seedThanhVienReportPermissions.js nếu chưa chạy.');
+  console.log('Nhớ chạy tiếp (nếu chưa chạy lần nào): node ../rp-server/scripts/seedLdtdHcrcReports.js và');
+  console.log('node ../rp-server/scripts/seedThanhVienReportPermissions.js.');
   process.exit(0);
 }
 
