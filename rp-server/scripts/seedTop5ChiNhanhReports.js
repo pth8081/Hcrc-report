@@ -80,7 +80,12 @@ function buildDefinition(chain, metric, direction) {
       { key: 'stt', label: 'TT', width: 0.4 },
       { key: 'tenCuaHang', label: 'Siêu thị/Cửa hàng', formula: 'current.dimensions.tenSieuThi || entityCode', width: 2.4 },
       { key: 'doanhThu', label: 'Doanh thu', formula: 'current.measures.doanhThu', width: 1.2 },
-      { key: 'soGiaoDich', label: 'Giao dịch', formula: 'currentGD.measures.SoGiaoDich', width: 1 }
+      { key: 'soGiaoDich', label: 'Giao dịch', formula: 'currentGD.measures.SoGiaoDich', width: 1 },
+      // Trung bình giá trị 1 giao dịch (bill) — doanh thu / số giao dịch,
+      // CÙNG công thức "Trung bình GD" đã dùng ở báo cáo LDTD/HCRC (xem
+      // scripts/seedLdtdHcrcReports.js). Chia cho 0 (chi nhánh chưa có giao
+      // dịch nào trong kỳ) -> formulaEngine.js tự trả về rỗng, không lỗi.
+      { key: 'trungBinhGD', label: 'Trung bình giao dịch', formula: 'ROUND(current.measures.doanhThu / currentGD.measures.SoGiaoDich, 0)', width: 1.2 }
     ],
     topN: {
       field: metric.field,

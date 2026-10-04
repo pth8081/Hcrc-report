@@ -14,6 +14,25 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 8.56 — Thêm cột "Trung bình giao dịch" vào 8 báo cáo Top 5 chi nhánh
+
+**Thay đổi**: theo yêu cầu người dùng, thêm cột "Trung bình giao dịch"
+(Doanh thu / Số giao dịch) vào cả 8 báo cáo "Top 5 chi nhánh" — cùng
+công thức đã dùng ở báo cáo LDTD/HCRC, tự hiện rỗng khi chia cho 0 (đã
+test bằng `formulaEngine.js` thật).
+
+**Các bước triển khai:**
+1. `git pull origin main`
+2. `cd rp-server && node scripts/seedTop5ChiNhanhReports.js` (BẮT BUỘC —
+   ghi đè DefinitionJson trong CSDL).
+3. `pm2 restart hcrc-rp-server`.
+4. Kiểm tra: báo cáo/Dashboard "Top 5 chi nhánh" hiện thêm cột "Trung
+   bình giao dịch".
+
+Không đổi CSDL/biểu đồ.
+
+---
+
 ## 8.55 — Script tạo tự động 2 job đồng bộ cho 3 báo cáo "hết hàng"
 
 **Thay đổi**: theo yêu cầu người dùng — DBA đã tạo xong 2 VIEW

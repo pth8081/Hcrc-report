@@ -29,6 +29,35 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 8.56 — Thêm cột "Trung bình giao dịch" vào 8 báo cáo Top 5 chi nhánh
+
+**Theo yêu cầu người dùng**: 8 báo cáo "Top 5 chi nhánh" (MART/MINIMART ×
+Doanh thu/Giao dịch × Cao nhất/Thấp nhất, `scripts/seedTop5ChiNhanhReports.js`)
+chỉ có cột Doanh thu/Giao dịch, chưa có "Trung bình giao dịch" (giá trị
+trung bình 1 bill = Doanh thu / Số giao dịch).
+
+Thêm cột `trungBinhGD` — CÙNG công thức "Trung bình GD" đã dùng ở báo cáo
+"Doanh thu cuối ngày LDTD/HCRC" (`ROUND(current.measures.doanhThu /
+currentGD.measures.SoGiaoDich, 0)`). Chi nhánh chưa có giao dịch nào
+trong kỳ (chia cho 0) tự động hiện rỗng, không lỗi — đã kiểm tra lại bằng
+`lib/formulaEngine.js` thật trước khi gộp. Áp dụng cho CẢ 8 báo cáo (dùng
+chung 1 hàm `buildDefinition()`), hiện ở cả trang Báo cáo lẫn khi xuất
+Excel/PDF — không cần sửa gì ở biểu đồ Top 5 (đọc thẳng `doanhThu`/
+`soGiaoDich` theo tên field, không phụ thuộc số lượng cột).
+
+**Các bước triển khai:**
+1. `git pull origin main`
+2. `cd rp-server && node scripts/seedTop5ChiNhanhReports.js` (BẮT BUỘC —
+   ghi đè `DefinitionJson` đã lưu trong CSDL, code mới không tự áp dụng
+   nếu không chạy lại; dùng đúng `menuCode` đã seed lần đầu nếu khác mặc
+   định `reports-kinh-doanh`).
+3. `pm2 restart hcrc-rp-server`.
+4. Kiểm tra: mở 1 trong 8 báo cáo "Top 5 ..." hoặc Dashboard "Top 5 chi
+   nhánh" → bảng hiện thêm cột "Trung bình giao dịch"; xuất Excel/PDF
+   cũng có cột này.
+
+Không đổi CSDL, không đổi biểu đồ/logic xếp hạng Top 5.
+
 ## 8.55 — Script tạo tự động 2 job đồng bộ cho 3 báo cáo "hết hàng"
 
 **Theo yêu cầu người dùng**: 3 báo cáo "hết hàng" (Top bán chạy tồn kho=0,
