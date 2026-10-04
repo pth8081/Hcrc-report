@@ -11,6 +11,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
 import DataTable from '../components/DataTable';
+import { useRowSelection } from '../lib/useRowSelection';
 
 const TABS = [
   { value: 'MART', label: 'Core Mart' },
@@ -28,6 +29,9 @@ export default function CoreItemListPage() {
   const [downloadingTemplate, setDownloadingTemplate] = useState(false);
   const [downloadingExport, setDownloadingExport] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
+  // Chọn nhiều + xoá hàng loạt (bản 8.62).
+  const selection = useRowSelection(row => row.id);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   function reload() {
     api.get('/core-item-list').then(setRows).catch(err => setError(err.message));
@@ -49,6 +53,19 @@ export default function CoreItemListPage() {
     } finally {
       setDeletingId(null);
     }
+  }
+
+  async function deleteSelected() {
+    if (selection.selectedIds.size === 0) return;
+    if (!confirm(`Xoá ${selection.selectedIds.size} mã hàng Core đã chọn?`)) return;
+    setBulkDeleting(true);
+    try {
+      for (const id of selection.selectedIds) {
+        await api.del(`/core-item-list/${id}`);
+      }
+      selection.clear();
+      reload();
+    } catch (err) { setError(err.message); } finally { setBulkDeleting(false); }
   }
 
   async function submitImport(e) {
@@ -202,7 +219,16 @@ export default function CoreItemListPage() {
           }
         ]}
         rows={visibleRows}
+        selection={selection}
       />
+
+      {selection.selectedIds.size > 0 && (
+        <div className="inline-actions">
+          <button type="button" onClick={deleteSelected} disabled={bulkDeleting}>
+            {bulkDeleting ? 'Đang xoá...' : `Xoá ${selection.selectedIds.size} mục đã chọn`}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/AuthContext';
 import DataTable from '../components/DataTable';
+import { useRowSelection } from '../lib/useRowSelection';
 
 const EMPTY_FORM = { name: '', server: '', port: 1433, databaseName: '', username: '', password: '', encrypt: true, trustServerCert: false };
 
@@ -24,6 +25,9 @@ export default function DataSourcesPage() {
   const [testing, setTesting] = useState(false);
   const [creating, setCreating] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
+  // Chọn nhiều + xoá hàng loạt (bản 8.62).
+  const selection = useRowSelection();
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   function reload() {
     api.get('/data-sources').then(setSources).catch(err => setError(err.message));
@@ -86,6 +90,19 @@ export default function DataSourcesPage() {
       await api.del(`/data-sources/${source.Id}`);
       reload();
     } catch (err) { setError(err.message); } finally { setDeletingId(null); }
+  }
+
+  async function deleteSelected() {
+    if (selection.selectedIds.size === 0) return;
+    if (!confirm(`Xoá ${selection.selectedIds.size} nguồn dữ liệu đã chọn?`)) return;
+    setBulkDeleting(true);
+    try {
+      for (const id of selection.selectedIds) {
+        await api.del(`/data-sources/${id}`);
+      }
+      selection.clear();
+      reload();
+    } catch (err) { setError(err.message); } finally { setBulkDeleting(false); }
   }
 
   return (

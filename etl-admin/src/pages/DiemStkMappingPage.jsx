@@ -21,6 +21,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
 import DataTable from '../components/DataTable';
+import { useRowSelection } from '../lib/useRowSelection';
 
 const EMPTY_EDIT_FORM = { maDiem: '', maStkCu: '', maStkMoi: '', tenSieuThi: '', buId: '', loaiChuoi: '' };
 
@@ -40,6 +41,9 @@ export default function DiemStkMappingPage() {
   const [downloadingExport, setDownloadingExport] = useState(false);
   const [savingEdit, setSavingEdit] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
+  // Chọn nhiều + xoá hàng loạt (bản 8.62).
+  const selection = useRowSelection(row => row.id);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   function reload() {
     api.get('/diem-stk-mapping').then(setRows).catch(err => setError(err.message));
@@ -109,6 +113,19 @@ export default function DiemStkMappingPage() {
     } finally {
       setDeletingId(null);
     }
+  }
+
+  async function deleteSelected() {
+    if (selection.selectedIds.size === 0) return;
+    if (!confirm(`Xoá ${selection.selectedIds.size} ánh xạ đã chọn?`)) return;
+    setBulkDeleting(true);
+    try {
+      for (const id of selection.selectedIds) {
+        await api.del(`/diem-stk-mapping/${id}`);
+      }
+      selection.clear();
+      reload();
+    } catch (err) { setError(err.message); } finally { setBulkDeleting(false); }
   }
 
   async function submitImport(e) {
@@ -256,7 +273,16 @@ export default function DiemStkMappingPage() {
           }
         ]}
         rows={visibleRows}
+        selection={selection}
       />
+
+      {selection.selectedIds.size > 0 && (
+        <div className="inline-actions">
+          <button type="button" onClick={deleteSelected} disabled={bulkDeleting}>
+            {bulkDeleting ? 'Đang xoá...' : `Xoá ${selection.selectedIds.size} mục đã chọn`}
+          </button>
+        </div>
+      )}
 
       <h2>Sửa / thêm 1 dòng</h2>
       <p>

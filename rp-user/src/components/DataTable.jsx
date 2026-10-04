@@ -57,11 +57,33 @@ function buildGroupedHeader(columns, columnGroups) {
   return segments;
 }
 
-export default function DataTable({ columns, rows, emptyMessage = 'Không có dữ liệu.', scrollClassName = '', columnGroups = null, standaloneColumnColors = null }) {
+// selection (TUỲ CHỌN — bản 8.62, kết quả của hook lib/useRowSelection) —
+// thêm 1 cột checkbox đầu bảng (cả ô "chọn tất cả" ở header) để chọn nhiều
+// dòng rồi xoá hàng loạt; không truyền thì bảng vẽ như cũ, không đổi gì.
+// Chỉ dùng cho các bảng quản trị phẳng (Vai trò, Danh mục...) — KHÔNG dùng
+// cho báo cáo có columnGroups (không có ý nghĩa "xoá hàng loạt" ở đó).
+function selectionColumn(rows, selection) {
+  return {
+    key: '_select',
+    label: (
+      <input
+        type="checkbox"
+        checked={rows.length > 0 && rows.every(r => selection.isSelected(r))}
+        onChange={() => selection.toggleAll(rows)}
+      />
+    ),
+    render: (row) => (
+      <input type="checkbox" checked={selection.isSelected(row)} onChange={() => selection.toggle(row)} />
+    )
+  };
+}
+
+export default function DataTable({ columns, rows, emptyMessage = 'Không có dữ liệu.', scrollClassName = '', columnGroups = null, standaloneColumnColors = null, selection = null }) {
   if (!rows.length) return <p className="empty-message">{emptyMessage}</p>;
 
+  const allColumns = selection ? [selectionColumn(rows, selection), ...columns] : columns;
   const hasGroups = !!(columnGroups && columnGroups.length);
-  const segments = hasGroups ? buildGroupedHeader(columns, columnGroups) : null;
+  const segments = hasGroups ? buildGroupedHeader(allColumns, columnGroups) : null;
   const tableClassName = segments ? 'data-table data-table--grouped' : 'data-table';
   const zebraFlags = hasGroups ? computeZebraFlags(rows) : rows.map(() => false);
 
@@ -92,14 +114,14 @@ export default function DataTable({ columns, rows, emptyMessage = 'Không có d�
             </>
           ) : (
             <tr>
-              {columns.map(col => <th key={col.key}>{col.label}</th>)}
+              {allColumns.map(col => <th key={col.key}>{col.label}</th>)}
             </tr>
           )}
         </thead>
         <tbody>
           {rows.map((row, i) => (
             <tr key={row.id ?? i}>
-              {columns.map(col => (
+              {allColumns.map(col => (
                 <td key={col.key} style={cellStyle(row, col, columnGroups, zebraFlags[i])}>
                   {col.render ? col.render(row) : String(row[col.key] ?? '')}
                 </td>

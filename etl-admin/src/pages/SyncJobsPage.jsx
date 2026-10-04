@@ -9,6 +9,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/AuthContext';
 import DataTable from '../components/DataTable';
+import { useRowSelection } from '../lib/useRowSelection';
 
 const EMPTY_FORM = {
   name: '', type: 'table', dataSourceId: '', targetDomain: '', cronExpression: '*/15 * * * *',
@@ -53,6 +54,10 @@ export default function SyncJobsPage() {
   const [checkingSchemaId, setCheckingSchemaId] = useState(null);
   const [togglingId, setTogglingId] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
+  // Chọn nhiều + xoá hàng loạt (bản 8.62) — selection dùng chung cho cả bảng
+  // nhóm theo siêu thị (nhiều DataTable, 1 Set id chung) và bảng phẳng.
+  const selection = useRowSelection();
+  const [bulkDeleting, setBulkDeleting] = useState(false);
   const [downloadingTemplate, setDownloadingTemplate] = useState(false);
   const [importing, setImporting] = useState(false);
   // Bộ lọc/nhóm theo siêu thị (bản 8.44) — CHỈ gọn cách XEM danh sách, KHÔNG
@@ -199,6 +204,19 @@ export default function SyncJobsPage() {
     } catch (err) { setError(err.message); } finally { setDeletingId(null); }
   }
 
+  async function deleteSelected() {
+    if (selection.selectedIds.size === 0) return;
+    if (!confirm(`Xoá ${selection.selectedIds.size} job đã chọn?`)) return;
+    setBulkDeleting(true);
+    try {
+      for (const id of selection.selectedIds) {
+        await api.del(`/sync-jobs/${id}`);
+      }
+      selection.clear();
+      reload();
+    } catch (err) { setError(err.message); } finally { setBulkDeleting(false); }
+  }
+
   async function downloadTemplate() {
     setImportError('');
     setDownloadingTemplate(true);
@@ -327,12 +345,20 @@ export default function SyncJobsPage() {
                     <span>{isOpen ? '▾' : '▸'} {g.name}</span>
                     <span className="sync-jobs-store-count">{g.jobs.length} job</span>
                   </button>
-                  {isOpen && <DataTable columns={jobColumns(false)} rows={g.jobs} emptyMessage="" />}
+                  {isOpen && <DataTable columns={jobColumns(false)} rows={g.jobs} emptyMessage="" selection={isAdmin ? selection : null} />}
                 </div>
               );
             })
       ) : (
-        <DataTable columns={jobColumns(true)} rows={filteredJobs} emptyMessage="Chưa có job đồng bộ nào." />
+        <DataTable columns={jobColumns(true)} rows={filteredJobs} emptyMessage="Chưa có job đồng bộ nào." selection={isAdmin ? selection : null} />
+      )}
+
+      {isAdmin && selection.selectedIds.size > 0 && (
+        <div className="inline-actions">
+          <button type="button" onClick={deleteSelected} disabled={bulkDeleting}>
+            {bulkDeleting ? 'Đang xoá...' : `Xoá ${selection.selectedIds.size} job đã chọn`}
+          </button>
+        </div>
       )}
 
       {isAdmin && (
