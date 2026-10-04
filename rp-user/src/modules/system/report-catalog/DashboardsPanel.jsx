@@ -10,6 +10,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../../lib/api';
 import DataTable from '../../../components/DataTable';
+import { useRowSelection } from '../../../lib/useRowSelection';
 
 const EXAMPLE_DEFINITION = '{"tiles":[{"key":"doanhThuTheoChiNhanh","reportId":"..."},{"key":"topSanPham","reportId":"...","title":"Top sản phẩm"}]}';
 
@@ -25,6 +26,8 @@ export default function DashboardsPanel() {
   const [creating, setCreating] = useState(false);
   const [savingEdit, setSavingEdit] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
+  const selection = useRowSelection(row => row.DashboardId);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   function reload() {
     api.get('/system/dashboards').then(setDashboards).catch(err => setError(err.message));

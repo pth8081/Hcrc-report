@@ -17,6 +17,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../../lib/api';
 import DataTable from '../../../components/DataTable';
+import { useRowSelection } from '../../../lib/useRowSelection';
 
 const WEEKDAY_OPTIONS = [
   { value: 1, label: 'T2' }, { value: 2, label: 'T3' }, { value: 3, label: 'T4' },
@@ -335,6 +336,9 @@ export default function EmailSchedulesPage() {
   const [togglingId, setTogglingId] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
   const [runningId, setRunningId] = useState(null);
+  // Chọn nhiều + xoá hàng loạt (bản 8.62).
+  const selection = useRowSelection();
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   function reload() {
     api.get('/system/report-email-schedules').then(setRows).catch(err => setError(err.message));
@@ -400,6 +404,20 @@ export default function EmailSchedulesPage() {
       await api.del(`/system/report-email-schedules/${row.Id}`);
       reload();
     } catch (err) { setError(err.message); } finally { setDeletingId(null); }
+  }
+
+  async function deleteSelected() {
+    if (selection.selectedIds.size === 0) return;
+    if (!confirm(`Xoá ${selection.selectedIds.size} lịch đã chọn?`)) return;
+    setError('');
+    setBulkDeleting(true);
+    try {
+      for (const id of selection.selectedIds) {
+        await api.del(`/system/report-email-schedules/${id}`);
+      }
+      selection.clear();
+      reload();
+    } catch (err) { setError(err.message); } finally { setBulkDeleting(false); }
   }
 
   async function runNow(row) {

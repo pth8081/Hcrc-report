@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../../lib/api';
 import DataTable from '../../../components/DataTable';
+import { useRowSelection } from '../../../lib/useRowSelection';
 
 export default function CategoriesPage() {
   const [types, setTypes] = useState([]);
@@ -13,6 +14,9 @@ export default function CategoriesPage() {
   const [creating, setCreating] = useState(false);
   const [togglingId, setTogglingId] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
+  // Chọn nhiều + xoá hàng loạt (bản 8.62).
+  const selection = useRowSelection();
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   function loadTypes() {
     api.get('/system/categories/types').then(setTypes).catch(err => setError(err.message));
@@ -53,6 +57,19 @@ export default function CategoriesPage() {
     } catch (err) { setError(err.message); } finally { setDeletingId(null); }
   }
 
+  async function deleteSelected() {
+    if (selection.selectedIds.size === 0) return;
+    if (!confirm(`Xoá ${selection.selectedIds.size} danh mục đã chọn?`)) return;
+    setBulkDeleting(true);
+    try {
+      for (const id of selection.selectedIds) {
+        await api.del(`/system/categories/${id}`);
+      }
+      selection.clear();
+      loadRows(activeType);
+    } catch (err) { setError(err.message); } finally { setBulkDeleting(false); }
+  }
+
   return (
     <div className="page">
       <h1>Danh mục</h1>
@@ -88,7 +105,16 @@ export default function CategoriesPage() {
           }
         ]}
         rows={rows}
+        selection={selection}
       />
+
+      {selection.selectedIds.size > 0 && (
+        <div className="inline-actions">
+          <button type="button" onClick={deleteSelected} disabled={bulkDeleting}>
+            {bulkDeleting ? 'Đang xoá...' : `Xoá ${selection.selectedIds.size} mục đã chọn`}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

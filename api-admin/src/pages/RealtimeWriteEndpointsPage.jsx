@@ -13,6 +13,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/AuthContext';
 import DataTable from '../components/DataTable';
+import { useRowSelection } from '../lib/useRowSelection';
 
 const EMPTY_FORM = { endpoint: '', label: '', dataSourceId: '', schemaName: '', tableName: '', keyColumn: '', statusColumn: '', usedValue: '' };
 
@@ -28,6 +29,10 @@ export default function RealtimeWriteEndpointsPage() {
   const [creating, setCreating] = useState(false);
   const [checkingId, setCheckingId] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
+  // Chọn nhiều + xoá hàng loạt (bản 8.62) — khoá dòng là Endpoint (string),
+  // khớp đúng field dùng trong URL xoá 1 dòng hiện có.
+  const selection = useRowSelection(row => row.Endpoint);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   function reload() {
     api.get('/realtime-write-endpoints').then(setEndpoints).catch(err => setError(err.message));
@@ -81,6 +86,19 @@ export default function RealtimeWriteEndpointsPage() {
       await api.del(`/realtime-write-endpoints/${ep.Endpoint}`);
       reload();
     } catch (err) { setError(err.message); } finally { setDeletingId(null); }
+  }
+
+  async function deleteSelected() {
+    if (selection.selectedIds.size === 0) return;
+    if (!confirm(`Xoá ${selection.selectedIds.size} endpoint đã chọn?`)) return;
+    setBulkDeleting(true);
+    try {
+      for (const id of selection.selectedIds) {
+        await api.del(`/realtime-write-endpoints/${id}`);
+      }
+      selection.clear();
+      reload();
+    } catch (err) { setError(err.message); } finally { setBulkDeleting(false); }
   }
 
   return (
@@ -154,7 +172,16 @@ export default function RealtimeWriteEndpointsPage() {
           isAdmin && { key: 'actions', label: '', render: (r) => <button type="button" onClick={() => deleteEndpoint(r)} disabled={deletingId === r.Endpoint}>{deletingId === r.Endpoint ? 'Đang xoá...' : 'Xoá'}</button> }
         ].filter(Boolean)}
         rows={endpoints}
+        selection={isAdmin ? selection : null}
       />
+
+      {isAdmin && selection.selectedIds.size > 0 && (
+        <div className="inline-actions">
+          <button type="button" onClick={deleteSelected} disabled={bulkDeleting}>
+            {bulkDeleting ? 'Đang xoá...' : `Xoá ${selection.selectedIds.size} mục đã chọn`}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/AuthContext';
 import DataTable from '../components/DataTable';
+import { useRowSelection } from '../lib/useRowSelection';
 
 const EMPTY_FORM = { reportId: '', title: '', domain: '', definitionJson: '' };
 
@@ -18,6 +19,9 @@ export default function ReportCatalogPage() {
   const [error, setError] = useState('');
   const [creating, setCreating] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
+  // Chọn nhiều + xoá hàng loạt (bản 8.62) — khoá dòng là ReportId.
+  const selection = useRowSelection(row => row.ReportId);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   function reload() {
     api.get('/report-catalog').then(setReports).catch(err => setError(err.message));
