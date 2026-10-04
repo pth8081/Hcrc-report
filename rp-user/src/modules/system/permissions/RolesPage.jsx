@@ -25,6 +25,10 @@ export default function RolesPage() {
   const [dashboardGroupAccess, setDashboardGroupAccess] = useState({});
   const [editingNameFor, setEditingNameFor] = useState(null);
   const [nameForm, setNameForm] = useState('');
+  const [creatingRole, setCreatingRole] = useState(false);
+  const [savingName, setSavingName] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
+  const [savingAccess, setSavingAccess] = useState(false);
 
   function reload() {
     api.get('/system/roles').then(setRoles).catch(err => setError(err.message));
@@ -54,11 +58,12 @@ export default function RolesPage() {
   async function createRole(e) {
     e.preventDefault();
     setError('');
+    setCreatingRole(true);
     try {
       await api.post('/system/roles', form);
       setForm({ code: '', name: '' });
       reload();
-    } catch (err) { setError(err.message); }
+    } catch (err) { setError(err.message); } finally { setCreatingRole(false); }
   }
 
   // Đổi tên vai trò — route PUT /system/roles/:id đã có sẵn từ trước nhưng
@@ -73,19 +78,21 @@ export default function RolesPage() {
   async function saveName(e) {
     e.preventDefault();
     setError('');
+    setSavingName(true);
     try {
       await api.put(`/system/roles/${editingNameFor.Id}`, { name: nameForm });
       setEditingNameFor(null);
       reload();
-    } catch (err) { setError(err.message); }
+    } catch (err) { setError(err.message); } finally { setSavingName(false); }
   }
 
   async function deleteRole(role) {
     if (!confirm(`Xoá vai trò "${role.Name}"?`)) return;
+    setDeletingId(role.Id);
     try {
       await api.del(`/system/roles/${role.Id}`);
       reload();
-    } catch (err) { setError(err.message); }
+    } catch (err) { setError(err.message); } finally { setDeletingId(null); }
   }
 
   async function openAccessEditor(role) {
@@ -102,6 +109,7 @@ export default function RolesPage() {
   }
 
   async function saveAccess() {
+    setSavingAccess(true);
     try {
       await api.put(`/system/roles/${editingAccessFor.Id}/menu-access`, { menuItemIds: selectedMenuIds });
       await api.put(`/system/roles/${editingAccessFor.Id}/report-access`, { reportIds: selectedReportIds });
@@ -112,7 +120,7 @@ export default function RolesPage() {
       }));
       await api.put(`/system/roles/${editingAccessFor.Id}/dashboard-group-access`, { entries });
       setEditingAccessFor(null);
-    } catch (err) { setError(err.message); }
+    } catch (err) { setError(err.message); } finally { setSavingAccess(false); }
   }
 
   return (
@@ -123,7 +131,7 @@ export default function RolesPage() {
       <form className="inline-form" onSubmit={createRole}>
         <input placeholder="Mã (vd truong-phong-mua-hang)" value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} required />
         <input placeholder="Tên vai trò" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
-        <button type="submit">Thêm vai trò</button>
+        <button type="submit" disabled={creatingRole}>{creatingRole ? 'Đang thêm...' : 'Thêm vai trò'}</button>
       </form>
 
       <DataTable
@@ -136,7 +144,7 @@ export default function RolesPage() {
               <>
                 <button type="button" onClick={() => openEditName(r)}>Sửa tên</button>{' '}
                 <button type="button" onClick={() => openAccessEditor(r)}>Gán quyền</button>{' '}
-                <button type="button" onClick={() => deleteRole(r)}>Xoá</button>
+                <button type="button" onClick={() => deleteRole(r)} disabled={deletingId === r.Id}>{deletingId === r.Id ? 'Đang xoá...' : 'Xoá'}</button>
               </>
             )
           }
@@ -225,7 +233,7 @@ export default function RolesPage() {
                 mình) — người xem thường vẫn xem được quyền hiện có, chỉ ẩn nút Lưu. */}
             <div className="modal-actions">
               {me?.isSystemRole
-                ? <button type="button" onClick={saveAccess}>Lưu</button>
+                ? <button type="button" onClick={saveAccess} disabled={savingAccess}>{savingAccess ? 'Đang lưu...' : 'Lưu'}</button>
                 : <span className="form-hint">Chỉ Admin hệ thống mới sửa được quyền này.</span>}
               <button type="button" onClick={() => setEditingAccessFor(null)}>Đóng</button>
             </div>
@@ -240,7 +248,7 @@ export default function RolesPage() {
             <form className="stacked-form" onSubmit={saveName}>
               <input value={nameForm} onChange={(e) => setNameForm(e.target.value)} autoFocus required />
               <div className="modal-actions">
-                <button type="submit">Lưu</button>
+                <button type="submit" disabled={savingName}>{savingName ? 'Đang lưu...' : 'Lưu'}</button>
                 <button type="button" onClick={() => setEditingNameFor(null)}>Huỷ</button>
               </div>
             </form>

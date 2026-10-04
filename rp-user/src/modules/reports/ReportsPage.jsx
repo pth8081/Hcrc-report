@@ -32,6 +32,7 @@ export default function ReportsPage() {
   // xem lại được dạng bảng). Báo cáo KHÔNG khai visualization thì luôn là
   // bảng, không có nút chuyển (không có gì để chuyển sang).
   const [showTable, setShowTable] = useState(false);
+  const [exportingFormat, setExportingFormat] = useState(null);
 
   // Drill-through (Giai đoạn D — xem VERSION.md): bấm 1 điểm trên biểu đồ
   // của báo cáo NÀY điều hướng sang MỘT báo cáo KHÁC đã lọc sẵn, qua URL
@@ -119,10 +120,13 @@ export default function ReportsPage() {
   }
 
   async function exportAs(format) {
+    setExportingFormat(format);
     try {
       await downloadFile(`/reports/${selectedId}/export`, { filters: filterValues, format }, `${definition?.title || 'bao-cao'}.${format === 'excel' ? 'xlsx' : 'pdf'}`);
     } catch (err) {
       setError(err.message);
+    } finally {
+      setExportingFormat(null);
     }
   }
 
@@ -165,7 +169,7 @@ export default function ReportsPage() {
 
       {definition && (
         <>
-          <FilterForm reportId={selectedId} filters={definition.filters} values={filterValues} onChange={setFilterValues} onSubmit={runReport} />
+          <FilterForm reportId={selectedId} filters={definition.filters} values={filterValues} onChange={setFilterValues} onSubmit={runReport} loading={loading} />
           {result && (
             <>
               <div className="export-actions">

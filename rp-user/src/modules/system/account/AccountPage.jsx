@@ -128,6 +128,7 @@ function WebauthnDevicesSection() {
   const [error, setError] = useState('');
   const [registering, setRegistering] = useState(false);
   const [newLabel, setNewLabel] = useState('');
+  const [deletingId, setDeletingId] = useState(null);
 
   function reload() {
     webauthnListDevices().then(setDevices).catch((err) => setError(err.message));
@@ -153,11 +154,14 @@ function WebauthnDevicesSection() {
 
   async function handleDelete(device) {
     if (!confirm(`Gỡ thiết bị "${device.label}"? Thiết bị này sẽ KHÔNG còn đăng nhập nhanh được nữa.`)) return;
+    setDeletingId(device.id);
     try {
       await webauthnDeleteDevice(device.id);
       reload();
     } catch (err) {
       setError(err.message);
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -174,7 +178,7 @@ function WebauthnDevicesSection() {
       {devices?.map((d) => (
         <div key={d.id} className="security-card" style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
           <strong>{d.label}</strong>
-          <button type="button" onClick={() => handleDelete(d)}>Gỡ thiết bị</button>
+          <button type="button" onClick={() => handleDelete(d)} disabled={deletingId === d.id}>{deletingId === d.id ? 'Đang gỡ...' : 'Gỡ thiết bị'}</button>
         </div>
       ))}
       <form className="inline-form" onSubmit={handleRegister}>

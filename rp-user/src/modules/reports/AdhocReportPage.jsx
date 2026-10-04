@@ -52,6 +52,9 @@ export default function AdhocReportPage() {
   const [error, setError] = useState('');
 
   const [savedReports, setSavedReports] = useState([]);
+  const [savingCurrent, setSavingCurrent] = useState(false);
+  const [renamingSavedId, setRenamingSavedId] = useState(null);
+  const [deletingSavedId, setDeletingSavedId] = useState(null);
 
   function reloadSaved() {
     api.get('/adhoc-reports/saved').then(setSavedReports).catch(err => setError(err.message));
@@ -129,6 +132,7 @@ export default function AdhocReportPage() {
   async function saveCurrent() {
     const title = prompt('Đặt tên cho báo cáo này:');
     if (!title) return;
+    setSavingCurrent(true);
     try {
       const configJson = JSON.stringify({
         domain, dimensionFields: selectedDimensions, measures: selectedMeasures,
@@ -137,7 +141,7 @@ export default function AdhocReportPage() {
       });
       await api.post('/adhoc-reports/saved', { title, configJson });
       reloadSaved();
-    } catch (err) { setError(err.message); }
+    } catch (err) { setError(err.message); } finally { setSavingCurrent(false); }
   }
 
   async function openSaved(saved) {
@@ -157,18 +161,20 @@ export default function AdhocReportPage() {
   async function renameSaved(saved) {
     const title = prompt('Đổi tên báo cáo:', saved.Title);
     if (!title || title === saved.Title) return;
+    setRenamingSavedId(saved.Id);
     try {
       await api.put(`/adhoc-reports/saved/${saved.Id}`, { title, configJson: saved.ConfigJson });
       reloadSaved();
-    } catch (err) { setError(err.message); }
+    } catch (err) { setError(err.message); } finally { setRenamingSavedId(null); }
   }
 
   async function deleteSaved(saved) {
     if (!confirm(`Xoá báo cáo đã lưu "${saved.Title}"?`)) return;
+    setDeletingSavedId(saved.Id);
     try {
       await api.del(`/adhoc-reports/saved/${saved.Id}`);
       reloadSaved();
-    } catch (err) { setError(err.message); }
+    } catch (err) { setError(err.message); } finally { setDeletingSavedId(null); }
   }
 
   const canRun = domain && (selectedDimensions.length || selectedMeasures.length) && dateFrom && dateTo
@@ -186,8 +192,8 @@ export default function AdhocReportPage() {
           {savedReports.map(s => (
             <div key={s.Id} className="checkbox-row">
               <button type="button" className="link-button" onClick={() => openSaved(s)}>{s.Title}</button>{' '}
-              <button type="button" onClick={() => renameSaved(s)}>Đổi tên</button>{' '}
-              <button type="button" onClick={() => deleteSaved(s)}>Xoá</button>
+              <button type="button" onClick={() => renameSaved(s)} disabled={renamingSavedId === s.Id}>{renamingSavedId === s.Id ? 'Đang đổi...' : 'Đổi tên'}</button>{' '}
+              <button type="button" onClick={() => deleteSaved(s)} disabled={deletingSavedId === s.Id}>{deletingSavedId === s.Id ? 'Đang xoá...' : 'Xoá'}</button>
             </div>
           ))}
         </div>
@@ -276,7 +282,7 @@ export default function AdhocReportPage() {
 
           <div className="export-actions">
             <button type="button" disabled={!canRun || loading} onClick={run}>{loading ? 'Đang chạy...' : 'Chạy'}</button>
-            <button type="button" disabled={!result} onClick={saveCurrent}>Lưu báo cáo của tôi</button>
+            <button type="button" disabled={!result || savingCurrent} onClick={saveCurrent}>{savingCurrent ? 'Đang lưu...' : 'Lưu báo cáo của tôi'}</button>
             {result && vizType !== 'table' && (
               <button type="button" onClick={() => setShowTable(v => !v)}>{showTable ? '📊 Xem lại biểu đồ' : '📋 Xem bảng chi tiết'}</button>
             )}

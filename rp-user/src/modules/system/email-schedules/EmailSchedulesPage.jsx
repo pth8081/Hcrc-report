@@ -330,6 +330,11 @@ export default function EmailSchedulesPage() {
   const [editing, setEditing] = useState(null); // {id, form}
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
+  const [creating, setCreating] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [togglingId, setTogglingId] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
+  const [runningId, setRunningId] = useState(null);
 
   function reload() {
     api.get('/system/report-email-schedules').then(setRows).catch(err => setError(err.message));
@@ -340,6 +345,7 @@ export default function EmailSchedulesPage() {
   async function createSchedule(e) {
     e.preventDefault();
     setError(''); setMessage('');
+    setCreating(true);
     try {
       await api.post('/system/report-email-schedules', {
         name: form.name, reportId: form.reportId, cronExpressions: buildCronList(form),
@@ -350,11 +356,12 @@ export default function EmailSchedulesPage() {
       });
       setForm(emptyScheduleForm());
       reload();
-    } catch (err) { setError(err.message); }
+    } catch (err) { setError(err.message); } finally { setCreating(false); }
   }
 
   async function saveEdit() {
     setError(''); setMessage('');
+    setSavingEdit(true);
     try {
       const f = editing.form;
       await api.put(`/system/report-email-schedules/${editing.id}`, {
@@ -366,11 +373,12 @@ export default function EmailSchedulesPage() {
       });
       setEditing(null);
       reload();
-    } catch (err) { setError(err.message); }
+    } catch (err) { setError(err.message); } finally { setSavingEdit(false); }
   }
 
   async function toggleActive(row) {
     setError('');
+    setTogglingId(row.Id);
     try {
       const f = scheduleToForm(row);
       await api.put(`/system/report-email-schedules/${row.Id}`, {
@@ -381,25 +389,27 @@ export default function EmailSchedulesPage() {
         highlightThreshold: f.deliveryMode === 'body' && f.highlightColumnKey ? f.highlightThreshold : ''
       });
       reload();
-    } catch (err) { setError(err.message); }
+    } catch (err) { setError(err.message); } finally { setTogglingId(null); }
   }
 
   async function deleteSchedule(row) {
     if (!confirm(`Xoá lịch "${row.Name}"?`)) return;
     setError('');
+    setDeletingId(row.Id);
     try {
       await api.del(`/system/report-email-schedules/${row.Id}`);
       reload();
-    } catch (err) { setError(err.message); }
+    } catch (err) { setError(err.message); } finally { setDeletingId(null); }
   }
 
   async function runNow(row) {
     setError(''); setMessage('');
+    setRunningId(row.Id);
     try {
       await api.post(`/system/report-email-schedules/${row.Id}/run-now`);
       setMessage(`✅ Đã gửi "${row.Name}" — kiểm tra hộp thư người nhận.`);
       reload();
-    } catch (err) { setError(`Gửi "${row.Name}" thất bại: ${err.message}`); }
+    } catch (err) { setError(`Gửi "${row.Name}" thất bại: ${err.message}`); } finally { setRunningId(null); }
   }
 
   return (
@@ -416,7 +426,7 @@ export default function EmailSchedulesPage() {
 
       <form className="stacked-form" onSubmit={createSchedule}>
         <ScheduleFormFields form={form} setForm={setForm} reports={reports} reportLocked={false} />
-        <button type="submit">Tạo lịch</button>
+        <button type="submit" disabled={creating}>{creating ? 'Đang tạo...' : 'Tạo lịch'}</button>
       </form>
 
       <DataTable
@@ -443,9 +453,9 @@ export default function EmailSchedulesPage() {
             key: 'actions', label: '', render: (r) => (
               <>
                 <button type="button" onClick={() => setEditing({ id: r.Id, form: { ...scheduleToForm(r), isActive: r.IsActive } })}>Sửa</button>{' '}
-                <button type="button" onClick={() => runNow(r)}>Gửi ngay</button>{' '}
-                <button type="button" onClick={() => toggleActive(r)}>{r.IsActive ? 'Tắt' : 'Bật'}</button>{' '}
-                <button type="button" onClick={() => deleteSchedule(r)}>Xoá</button>
+                <button type="button" onClick={() => runNow(r)} disabled={runningId === r.Id}>{runningId === r.Id ? 'Đang gửi...' : 'Gửi ngay'}</button>{' '}
+                <button type="button" onClick={() => toggleActive(r)} disabled={togglingId === r.Id}>{togglingId === r.Id ? 'Đang xử lý...' : (r.IsActive ? 'Tắt' : 'Bật')}</button>{' '}
+                <button type="button" onClick={() => deleteSchedule(r)} disabled={deletingId === r.Id}>{deletingId === r.Id ? 'Đang xoá...' : 'Xoá'}</button>
               </>
             )
           }
@@ -467,7 +477,7 @@ export default function EmailSchedulesPage() {
               <input type="checkbox" checked={editing.form.isActive} onChange={(e) => setEditing({ ...editing, form: { ...editing.form, isActive: e.target.checked } })} /> Hoạt động
             </label>
             <div className="modal-actions">
-              <button type="button" onClick={saveEdit}>Lưu</button>
+              <button type="button" onClick={saveEdit} disabled={savingEdit}>{savingEdit ? 'Đang lưu...' : 'Lưu'}</button>
               <button type="button" onClick={() => setEditing(null)}>Huỷ</button>
             </div>
           </div>

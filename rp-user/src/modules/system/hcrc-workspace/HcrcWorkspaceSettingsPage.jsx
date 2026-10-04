@@ -24,6 +24,9 @@ export default function HcrcWorkspaceSettingsPage() {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [revealedApiKey, setRevealedApiKey] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [revealing, setRevealing] = useState(false);
+  const [testingConnection, setTestingConnection] = useState(false);
 
   function reload() {
     api.get('/system/hcrc-workspace').then(data => {
@@ -39,23 +42,25 @@ export default function HcrcWorkspaceSettingsPage() {
     e.preventDefault();
     setError('');
     setMessage('');
+    setSaving(true);
     try {
       await api.put('/system/hcrc-workspace', form);
       setMessage('Đã lưu.');
       setHasApiKey(hasApiKey || !!form.apiKey);
       setForm({ ...form, apiKey: '' });
       setRevealedApiKey(null);
-    } catch (err) { setError(err.message); }
+    } catch (err) { setError(err.message); } finally { setSaving(false); }
   }
 
   // Xem lại khoá thật — gọi riêng, chỉ khi bấm (không tự tải cùng reload())
   // để không tự động lộ khoá qua Audit Log mỗi lần vào trang.
   async function revealApiKey() {
     setError('');
+    setRevealing(true);
     try {
       const { apiKey } = await api.get('/system/hcrc-workspace/api-key');
       setRevealedApiKey(apiKey);
-    } catch (err) { setError(err.message); }
+    } catch (err) { setError(err.message); } finally { setRevealing(false); }
   }
 
   async function copyRevealedKey() {
@@ -69,10 +74,11 @@ export default function HcrcWorkspaceSettingsPage() {
   async function testConnection() {
     setError('');
     setMessage('');
+    setTestingConnection(true);
     try {
       const result = await api.post('/system/hcrc-workspace/test-connection', {});
       setMessage(`Kết nối OK — lấy được ${result.count} bản ghi từ danh bạ.`);
-    } catch (err) { setError(err.message); }
+    } catch (err) { setError(err.message); } finally { setTestingConnection(false); }
   }
 
   return (
@@ -94,7 +100,7 @@ export default function HcrcWorkspaceSettingsPage() {
             <input placeholder={hasApiKey ? 'Khoá API (bỏ trống để giữ nguyên)' : 'Khoá API'} type="password" value={form.apiKey} onChange={(e) => setForm({ ...form, apiKey: e.target.value })} />
             {hasApiKey && (
               <div className="inline-actions">
-                <button type="button" onClick={revealApiKey}>Xem khoá API hiện tại</button>
+                <button type="button" onClick={revealApiKey} disabled={revealing}>{revealing ? 'Đang tải...' : 'Xem khoá API hiện tại'}</button>
                 {revealedApiKey && (
                   <>
                     <code>{revealedApiKey}</code>
@@ -111,11 +117,11 @@ export default function HcrcWorkspaceSettingsPage() {
               Số ngày tối đa dùng mật khẩu dự phòng cục bộ khi HCRC Workspace không gọi được (0 = tắt hẳn dự phòng)
               <input type="number" min="0" value={form.fallbackMaxAgeDays} onChange={(e) => setForm({ ...form, fallbackMaxAgeDays: e.target.value })} />
             </label>
-            <button type="submit">Lưu cấu hình</button>
+            <button type="submit" disabled={saving}>{saving ? 'Đang lưu...' : 'Lưu cấu hình'}</button>
           </form>
 
           <div className="inline-form">
-            <button type="button" onClick={testConnection}>Kiểm tra kết nối</button>
+            <button type="button" onClick={testConnection} disabled={testingConnection}>{testingConnection ? 'Đang kiểm tra...' : 'Kiểm tra kết nối'}</button>
           </div>
         </>
       ) : (

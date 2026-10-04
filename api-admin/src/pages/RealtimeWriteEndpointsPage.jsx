@@ -25,6 +25,9 @@ export default function RealtimeWriteEndpointsPage() {
   const [columns, setColumns] = useState([]);
   const [form, setForm] = useState(EMPTY_FORM);
   const [error, setError] = useState('');
+  const [creating, setCreating] = useState(false);
+  const [checkingId, setCheckingId] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
 
   function reload() {
     api.get('/realtime-write-endpoints').then(setEndpoints).catch(err => setError(err.message));
@@ -52,29 +55,32 @@ export default function RealtimeWriteEndpointsPage() {
   async function createEndpoint(e) {
     e.preventDefault();
     setError('');
+    setCreating(true);
     try {
       await api.post('/realtime-write-endpoints', { ...form, dataSourceId: Number(form.dataSourceId) });
       setForm(EMPTY_FORM);
       setTables([]);
       setColumns([]);
       reload();
-    } catch (err) { setError(err.message); }
+    } catch (err) { setError(err.message); } finally { setCreating(false); }
   }
 
   async function checkSchema(ep) {
+    setCheckingId(ep.Endpoint);
     try {
       const result = await api.post(`/realtime-write-endpoints/${ep.Endpoint}/check-schema`);
       if (result.ok) alert(`✅ "${ep.Endpoint}": schema khớp với nguồn hiện tại.`);
       else alert(`⛔ "${ep.Endpoint}": ${result.error}`);
-    } catch (err) { setError(err.message); }
+    } catch (err) { setError(err.message); } finally { setCheckingId(null); }
   }
 
   async function deleteEndpoint(ep) {
     if (!confirm(`Xoá endpoint "${ep.Endpoint}"? Mọi lời gọi POST /api/v1/realtime-write/${ep.Endpoint}/... sẽ lỗi 404 ngay sau đó.`)) return;
+    setDeletingId(ep.Endpoint);
     try {
       await api.del(`/realtime-write-endpoints/${ep.Endpoint}`);
       reload();
-    } catch (err) { setError(err.message); }
+    } catch (err) { setError(err.message); } finally { setDeletingId(null); }
   }
 
   return (
@@ -131,7 +137,7 @@ export default function RealtimeWriteEndpointsPage() {
             </fieldset>
           )}
 
-          <button type="submit">Tạo endpoint</button>
+          <button type="submit" disabled={creating}>{creating ? 'Đang tạo...' : 'Tạo endpoint'}</button>
         </form>
       )}
 
@@ -144,8 +150,8 @@ export default function RealtimeWriteEndpointsPage() {
           { key: 'KeyColumn', label: 'Cột khoá' },
           { key: 'status', label: 'Trạng thái -> đã dùng', render: (r) => `${r.StatusColumn} = "${r.UsedValue}"` },
           { key: 'IsActive', label: 'Hoạt động', render: (r) => (r.IsActive ? 'Có' : 'Tắt') },
-          { key: 'checkSchema', label: '', render: (r) => <button type="button" onClick={() => checkSchema(r)}>Kiểm tra schema</button> },
-          isAdmin && { key: 'actions', label: '', render: (r) => <button type="button" onClick={() => deleteEndpoint(r)}>Xoá</button> }
+          { key: 'checkSchema', label: '', render: (r) => <button type="button" onClick={() => checkSchema(r)} disabled={checkingId === r.Endpoint}>{checkingId === r.Endpoint ? 'Đang kiểm tra...' : 'Kiểm tra schema'}</button> },
+          isAdmin && { key: 'actions', label: '', render: (r) => <button type="button" onClick={() => deleteEndpoint(r)} disabled={deletingId === r.Endpoint}>{deletingId === r.Endpoint ? 'Đang xoá...' : 'Xoá'}</button> }
         ].filter(Boolean)}
         rows={endpoints}
       />

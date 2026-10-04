@@ -25,31 +25,36 @@ export default function ApiConnectionsPanel() {
 
   async function testConnection() {
     setTestResult('Đang kiểm tra...');
+    setTesting(true);
     try {
       await api.post('/system/api-connections/test', { baseUrl: form.baseUrl });
       setTestResult('✅ API Server phản hồi "ok"');
     } catch (err) {
       setTestResult(`⛔ ${err.message}`);
+    } finally {
+      setTesting(false);
     }
   }
 
   async function createConnection(e) {
     e.preventDefault();
     setError('');
+    setSaving(true);
     try {
       await api.post('/system/api-connections', form);
       setForm(EMPTY_FORM);
       setTestResult('');
       reload();
-    } catch (err) { setError(err.message); }
+    } catch (err) { setError(err.message); } finally { setSaving(false); }
   }
 
   async function deleteConnection(c) {
     if (!confirm(`Xoá kết nối "${c.Name}"?`)) return;
+    setDeletingId(c.Id);
     try {
       await api.del(`/system/api-connections/${c.Id}`);
       reload();
-    } catch (err) { setError(err.message); }
+    } catch (err) { setError(err.message); } finally { setDeletingId(null); }
   }
 
   return (
@@ -67,8 +72,8 @@ export default function ApiConnectionsPanel() {
         <input placeholder="Base URL (vd http://localhost:4002)" value={form.baseUrl} onChange={(e) => setForm({ ...form, baseUrl: e.target.value })} required />
         <input placeholder="API Key" type="password" value={form.apiKey} onChange={(e) => setForm({ ...form, apiKey: e.target.value })} required />
         <div className="inline-actions">
-          <button type="button" onClick={testConnection}>Kiểm tra kết nối</button>
-          <button type="submit">Lưu kết nối</button>
+          <button type="button" onClick={testConnection} disabled={testing}>{testing ? 'Đang kiểm tra...' : 'Kiểm tra kết nối'}</button>
+          <button type="submit" disabled={saving}>{saving ? 'Đang lưu...' : 'Lưu kết nối'}</button>
         </div>
         {testResult && <p>{testResult}</p>}
       </form>
@@ -78,7 +83,7 @@ export default function ApiConnectionsPanel() {
           { key: 'Id', label: 'Id' }, // báo cáo SourceType='composite' cần số Id này (blocks[].apiConnectionId) — không có UI có cấu trúc riêng, xem rp-server/README.md
           { key: 'Name', label: 'Tên' },
           { key: 'BaseUrl', label: 'Base URL' },
-          { key: 'actions', label: '', render: (c) => <button type="button" onClick={() => deleteConnection(c)}>Xoá</button> }
+          { key: 'actions', label: '', render: (c) => <button type="button" onClick={() => deleteConnection(c)} disabled={deletingId === c.Id}>{deletingId === c.Id ? 'Đang xoá...' : 'Xoá'}</button> }
         ]}
         rows={connections}
       />

@@ -24,6 +24,10 @@ export default function CoreItemListPage() {
   const [tab, setTab] = useState('MART');
   const [filterMaHang, setFilterMaHang] = useState('');
   const [rows, setRows] = useState([]);
+  const [importing, setImporting] = useState(false);
+  const [downloadingTemplate, setDownloadingTemplate] = useState(false);
+  const [downloadingExport, setDownloadingExport] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
 
   function reload() {
     api.get('/core-item-list').then(setRows).catch(err => setError(err.message));
@@ -36,11 +40,14 @@ export default function CoreItemListPage() {
 
   async function removeRow(row) {
     if (!window.confirm(`Xoá mã hàng Core "${row.maHang}" (${row.loaiDiem})?`)) return;
+    setDeletingId(row.id);
     try {
       await api.del(`/core-item-list/${row.id}`);
       reload();
     } catch (err) {
       setError(err.message);
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -52,48 +59,59 @@ export default function CoreItemListPage() {
 
     const formData = new FormData();
     formData.append('file', file);
+    setImporting(true);
     try {
-      const result = await api.post('/core-item-list/import', formData, true);
-      setImportResult(result);
-      setFile(null);
-      reload();
-    } catch (err) {
-      // requiresConfirm: sheet có mặt nhưng 0 dòng dữ liệu, loại điểm đó ĐANG
-      // có sẵn danh sách — hỏi lại rõ ràng trước khi cho xoá sạch (xem
-      // etl/routes/admin/coreItemList.js).
-      if (err.data?.requiresConfirm && window.confirm(`${err.message}\n\nBấm OK để xác nhận xoá sạch, Huỷ để dừng lại.`)) {
-        const confirmFormData = new FormData();
-        confirmFormData.append('file', file);
-        confirmFormData.append('confirmEmpty', 'true');
-        try {
-          const result = await api.post('/core-item-list/import', confirmFormData, true);
-          setImportResult(result);
-          setFile(null);
-          reload();
-        } catch (err2) {
-          setError(err2.message);
+      try {
+        const result = await api.post('/core-item-list/import', formData, true);
+        setImportResult(result);
+        setFile(null);
+        reload();
+      } catch (err) {
+        // requiresConfirm: sheet có mặt nhưng 0 dòng dữ liệu, loại điểm đó ĐANG
+        // có sẵn danh sách — hỏi lại rõ ràng trước khi cho xoá sạch (xem
+        // etl/routes/admin/coreItemList.js).
+        if (err.data?.requiresConfirm && window.confirm(`${err.message}\n\nBấm OK để xác nhận xoá sạch, Huỷ để dừng lại.`)) {
+          const confirmFormData = new FormData();
+          confirmFormData.append('file', file);
+          confirmFormData.append('confirmEmpty', 'true');
+          try {
+            const result = await api.post('/core-item-list/import', confirmFormData, true);
+            setImportResult(result);
+            setFile(null);
+            reload();
+          } catch (err2) {
+            setError(err2.message);
+          }
+          return;
         }
-        return;
+        setError(err.message);
       }
-      setError(err.message);
+    } finally {
+      setImporting(false);
     }
   }
 
   async function downloadTemplate() {
     setError('');
+    setDownloadingTemplate(true);
     try {
       await api.downloadFile('/core-item-list/template', 'mau-danh-sach-hang-core.xlsx');
     } catch (err) {
       setError(err.message);
+    } finally {
+      setDownloadingTemplate(false);
     }
   }
 
   async function downloadExport() {
     setError('');
+    setDownloadingExport(true);
     try {
       await api.downloadFile('/core-item-list/export', 'danh-sach-hang-core.xlsx');
     } catch (err) {
       setError(err.message);
+    } finally {
+      setDownloadingExport(false);
     }
   }
 
@@ -123,11 +141,13 @@ export default function CoreItemListPage() {
       {error && <div className="form-error"><p>{error}</p></div>}
 
       <div className="inline-actions">
-        <button type="button" onClick={downloadTemplate}>Tải file mẫu</button>
+        <button type="button" onClick={downloadTemplate} disabled={downloadingTemplate}>
+          {downloadingTemplate ? 'Đang tải...' : 'Tải file mẫu'}
+        </button>
       </div>
       <form className="stacked-form" onSubmit={submitImport}>
         <input type="file" accept=".xlsx" onChange={(e) => setFile(e.target.files?.[0] ?? null)} required />
-        <button type="submit">Nhập file danh sách Core</button>
+        <button type="submit" disabled={importing}>{importing ? 'Đang nhập...' : 'Nhập file danh sách Core'}</button>
       </form>
 
       {importResult && (
@@ -158,7 +178,9 @@ export default function CoreItemListPage() {
           </button>
         ))}
         <input placeholder="Lọc theo Mã hàng" value={filterMaHang} onChange={(e) => setFilterMaHang(e.target.value)} />
-        <button type="button" onClick={downloadExport}>Xuất tất cả (Excel)</button>
+        <button type="button" onClick={downloadExport} disabled={downloadingExport}>
+          {downloadingExport ? 'Đang xuất...' : 'Xuất tất cả (Excel)'}
+        </button>
       </div>
 
       <DataTable
@@ -173,7 +195,9 @@ export default function CoreItemListPage() {
           { key: 'importedAt', label: 'Lúc nhập', render: (r) => new Date(r.importedAt).toLocaleString('vi-VN') },
           {
             key: 'actions', label: '', render: (r) => (
-              <button type="button" onClick={() => removeRow(r)}>Xoá</button>
+              <button type="button" onClick={() => removeRow(r)} disabled={deletingId === r.id}>
+                {deletingId === r.id ? 'Đang xoá...' : 'Xoá'}
+              </button>
             )
           }
         ]}

@@ -16,6 +16,8 @@ export default function ReportCatalogPage() {
   const [reports, setReports] = useState([]);
   const [form, setForm] = useState(EMPTY_FORM);
   const [error, setError] = useState('');
+  const [creating, setCreating] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
 
   function reload() {
     api.get('/report-catalog').then(setReports).catch(err => setError(err.message));
@@ -25,19 +27,21 @@ export default function ReportCatalogPage() {
   async function createReport(e) {
     e.preventDefault();
     setError('');
+    setCreating(true);
     try {
       await api.post('/report-catalog', form);
       setForm(EMPTY_FORM);
       reload();
-    } catch (err) { setError(err.message); }
+    } catch (err) { setError(err.message); } finally { setCreating(false); }
   }
 
   async function deleteReport(r) {
     if (!confirm(`Xoá báo cáo "${r.Title}"?`)) return;
+    setDeletingId(r.ReportId);
     try {
       await api.del(`/report-catalog/${r.ReportId}`);
       reload();
-    } catch (err) { setError(err.message); }
+    } catch (err) { setError(err.message); } finally { setDeletingId(null); }
   }
 
   return (
@@ -62,7 +66,7 @@ export default function ReportCatalogPage() {
             onChange={(e) => setForm({ ...form, definitionJson: e.target.value })}
             required
           />
-          <button type="submit">Tạo báo cáo</button>
+          <button type="submit" disabled={creating}>{creating ? 'Đang tạo...' : 'Tạo báo cáo'}</button>
         </form>
       )}
 
@@ -72,7 +76,7 @@ export default function ReportCatalogPage() {
           { key: 'ReportId', label: 'Mã' },
           { key: 'Domain', label: 'Domain' },
           { key: 'IsActive', label: 'Trạng thái', render: (r) => (r.IsActive ? 'Hoạt động' : 'Tắt') },
-          isAdmin && { key: 'actions', label: '', render: (r) => <button type="button" onClick={() => deleteReport(r)}>Xoá</button> }
+          isAdmin && { key: 'actions', label: '', render: (r) => <button type="button" onClick={() => deleteReport(r)} disabled={deletingId === r.ReportId}>{deletingId === r.ReportId ? 'Đang xoá...' : 'Xoá'}</button> }
         ].filter(Boolean)}
         rows={reports}
       />

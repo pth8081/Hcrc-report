@@ -46,6 +46,10 @@ export default function SalesTargetsPage({ menuCode, apiBase, title }) {
   const [editForm, setEditForm] = useState(EMPTY_EDIT_FORM);
   const [editError, setEditError] = useState('');
   const [editResult, setEditResult] = useState('');
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [downloadingTemplate, setDownloadingTemplate] = useState(false);
+  const [downloadingExport, setDownloadingExport] = useState(false);
 
   function reload() {
     const params = new URLSearchParams();
@@ -88,6 +92,7 @@ export default function SalesTargetsPage({ menuCode, apiBase, title }) {
     } catch {
       return setEditError('Ô "Chỉ tiêu khác" phải là JSON hợp lệ, vd {"ChiTieuDoanhThu": 100000000}');
     }
+    setSavingEdit(true);
     try {
       await api.put(`${apiBase}/one`, {
         entityCode: editForm.entityCode.trim(),
@@ -100,6 +105,8 @@ export default function SalesTargetsPage({ menuCode, apiBase, title }) {
       reload();
     } catch (err) {
       setEditError(err.message);
+    } finally {
+      setSavingEdit(false);
     }
   }
 
@@ -111,6 +118,7 @@ export default function SalesTargetsPage({ menuCode, apiBase, title }) {
 
     const formData = new FormData();
     formData.append('file', file);
+    setImporting(true);
     try {
       const result = await api.post(`${apiBase}/import`, formData, true);
       setImportResult(result);
@@ -118,20 +126,26 @@ export default function SalesTargetsPage({ menuCode, apiBase, title }) {
       reload();
     } catch (err) {
       setError(err.message);
+    } finally {
+      setImporting(false);
     }
   }
 
   async function downloadTemplate() {
     setError('');
+    setDownloadingTemplate(true);
     try {
       await api.downloadFile(`${apiBase}/template`, 'mau-chi-tieu.xlsx');
     } catch (err) {
       setError(err.message);
+    } finally {
+      setDownloadingTemplate(false);
     }
   }
 
   async function downloadExport() {
     setError('');
+    setDownloadingExport(true);
     try {
       const params = new URLSearchParams();
       if (filterPeriod) params.set('periodMonth', filterPeriod);
@@ -139,6 +153,8 @@ export default function SalesTargetsPage({ menuCode, apiBase, title }) {
       await api.downloadFile(`${apiBase}/export${qs ? `?${qs}` : ''}`, 'chi-tieu.xlsx');
     } catch (err) {
       setError(err.message);
+    } finally {
+      setDownloadingExport(false);
     }
   }
 
@@ -181,11 +197,13 @@ export default function SalesTargetsPage({ menuCode, apiBase, title }) {
       {isEditor && (
         <>
           <div className="inline-actions">
-            <button type="button" onClick={downloadTemplate}>Tải file mẫu</button>
+            <button type="button" onClick={downloadTemplate} disabled={downloadingTemplate}>
+              {downloadingTemplate ? 'Đang tải...' : 'Tải file mẫu'}
+            </button>
           </div>
           <form className="stacked-form" onSubmit={submitImport}>
             <input type="file" accept=".xlsx" onChange={(e) => setFile(e.target.files?.[0] ?? null)} required />
-            <button type="submit">Nhập chỉ tiêu</button>
+            <button type="submit" disabled={importing}>{importing ? 'Đang nhập...' : 'Nhập chỉ tiêu'}</button>
           </form>
         </>
       )}
@@ -215,7 +233,9 @@ export default function SalesTargetsPage({ menuCode, apiBase, title }) {
       <h2>Chỉ tiêu đã nhập</h2>
       <div className="inline-actions">
         <input type="date" value={filterPeriod} onChange={(e) => setFilterPeriod(e.target.value)} />
-        <button type="button" onClick={downloadExport}>Xuất Excel</button>
+        <button type="button" onClick={downloadExport} disabled={downloadingExport}>
+          {downloadingExport ? 'Đang xuất...' : 'Xuất Excel'}
+        </button>
       </div>
 
       <DataTable
@@ -270,7 +290,7 @@ export default function SalesTargetsPage({ menuCode, apiBase, title }) {
               onChange={(e) => setEditForm({ ...editForm, otherTargetsJson: e.target.value })}
             />
             <div className="inline-actions">
-              <button type="submit">Lưu</button>
+              <button type="submit" disabled={savingEdit}>{savingEdit ? 'Đang lưu...' : 'Lưu'}</button>
               <button type="button" onClick={startAdd}>Thêm siêu thị mới (form trống)</button>
             </div>
           </form>

@@ -10,6 +10,9 @@ export default function CategoriesPage() {
   const [rows, setRows] = useState([]);
   const [form, setForm] = useState({ categoryType: '', code: '', name: '' });
   const [error, setError] = useState('');
+  const [creating, setCreating] = useState(false);
+  const [togglingId, setTogglingId] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
 
   function loadTypes() {
     api.get('/system/categories/types').then(setTypes).catch(err => setError(err.message));
@@ -24,27 +27,30 @@ export default function CategoriesPage() {
   async function createCategory(e) {
     e.preventDefault();
     setError('');
+    setCreating(true);
     try {
       await api.post('/system/categories', form);
       setForm({ categoryType: form.categoryType, code: '', name: '' });
       loadTypes();
       loadRows(activeType);
-    } catch (err) { setError(err.message); }
+    } catch (err) { setError(err.message); } finally { setCreating(false); }
   }
 
   async function toggleActive(row) {
+    setTogglingId(row.Id);
     try {
       await api.put(`/system/categories/${row.Id}`, { name: row.Name, sortOrder: row.SortOrder, isActive: !row.IsActive });
       loadRows(activeType);
-    } catch (err) { setError(err.message); }
+    } catch (err) { setError(err.message); } finally { setTogglingId(null); }
   }
 
   async function deleteCategory(row) {
     if (!confirm(`Xoá "${row.Name}"?`)) return;
+    setDeletingId(row.Id);
     try {
       await api.del(`/system/categories/${row.Id}`);
       loadRows(activeType);
-    } catch (err) { setError(err.message); }
+    } catch (err) { setError(err.message); } finally { setDeletingId(null); }
   }
 
   return (
@@ -63,7 +69,7 @@ export default function CategoriesPage() {
         <input placeholder="Loại (vd PhongBan)" value={form.categoryType} onChange={(e) => setForm({ ...form, categoryType: e.target.value })} required />
         <input placeholder="Mã" value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} required />
         <input placeholder="Tên" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
-        <button type="submit">Thêm</button>
+        <button type="submit" disabled={creating}>{creating ? 'Đang thêm...' : 'Thêm'}</button>
       </form>
 
       <DataTable
@@ -75,8 +81,8 @@ export default function CategoriesPage() {
           {
             key: 'actions', label: '', render: (r) => (
               <>
-                <button type="button" onClick={() => toggleActive(r)}>{r.IsActive ? 'Tắt' : 'Bật'}</button>{' '}
-                <button type="button" onClick={() => deleteCategory(r)}>Xoá</button>
+                <button type="button" onClick={() => toggleActive(r)} disabled={togglingId === r.Id}>{togglingId === r.Id ? 'Đang xử lý...' : (r.IsActive ? 'Tắt' : 'Bật')}</button>{' '}
+                <button type="button" onClick={() => deleteCategory(r)} disabled={deletingId === r.Id}>{deletingId === r.Id ? 'Đang xoá...' : 'Xoá'}</button>
               </>
             )
           }

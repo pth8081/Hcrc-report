@@ -27,6 +27,11 @@ export default function UsersPage() {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [resetError, setResetError] = useState('');
+  const [creating, setCreating] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [savingRoles, setSavingRoles] = useState(false);
+  const [savingResetPassword, setSavingResetPassword] = useState(false);
+  const [resetting2faId, setResetting2faId] = useState(null);
 
   function reload() {
     api.get('/users').then(setUsers).catch(err => setError(err.message));

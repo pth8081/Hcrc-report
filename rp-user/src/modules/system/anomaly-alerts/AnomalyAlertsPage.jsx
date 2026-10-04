@@ -197,6 +197,11 @@ export default function AnomalyAlertsPage() {
   const [editing, setEditing] = useState(null);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
+  const [creating, setCreating] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [runningId, setRunningId] = useState(null);
+  const [togglingId, setTogglingId] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
 
   function reload() {
     api.get('/system/anomaly-alerts').then(setRows).catch(err => setError(err.message));
@@ -207,48 +212,53 @@ export default function AnomalyAlertsPage() {
   async function createAlert(e) {
     e.preventDefault();
     setError(''); setMessage('');
+    setCreating(true);
     try {
       await api.post('/system/anomaly-alerts', form);
       setForm(emptyForm());
       reload();
-    } catch (err) { setError(err.message); }
+    } catch (err) { setError(err.message); } finally { setCreating(false); }
   }
 
   async function saveEdit() {
     setError(''); setMessage('');
+    setSavingEdit(true);
     try {
       await api.put(`/system/anomaly-alerts/${editing.id}`, editing.form);
       setEditing(null);
       reload();
-    } catch (err) { setError(err.message); }
+    } catch (err) { setError(err.message); } finally { setSavingEdit(false); }
   }
 
   async function toggleActive(row) {
     setError('');
+    setTogglingId(row.Id);
     try {
       await api.put(`/system/anomaly-alerts/${row.Id}`, { ...alertToForm(row), isActive: !row.IsActive });
       reload();
-    } catch (err) { setError(err.message); }
+    } catch (err) { setError(err.message); } finally { setTogglingId(null); }
   }
 
   async function deleteAlert(row) {
     if (!confirm(`Xoá cảnh báo "${row.Name}"?`)) return;
     setError('');
+    setDeletingId(row.Id);
     try {
       await api.del(`/system/anomaly-alerts/${row.Id}`);
       reload();
-    } catch (err) { setError(err.message); }
+    } catch (err) { setError(err.message); } finally { setDeletingId(null); }
   }
 
   async function runNow(row) {
     setError(''); setMessage('');
+    setRunningId(row.Id);
     try {
       const result = await api.post(`/system/anomaly-alerts/${row.Id}/run-now`);
       setMessage(result.anomalyCount
         ? `⚠️ "${row.Name}": phát hiện ${result.anomalyCount} thực thể bất thường — đã gửi email.`
         : `✅ "${row.Name}": không có gì bất thường, không gửi email.`);
       reload();
-    } catch (err) { setError(`Kiểm tra "${row.Name}" thất bại: ${err.message}`); }
+    } catch (err) { setError(`Kiểm tra "${row.Name}" thất bại: ${err.message}`); } finally { setRunningId(null); }
   }
 
   return (
@@ -269,7 +279,7 @@ export default function AnomalyAlertsPage() {
 
       <form className="stacked-form" onSubmit={createAlert}>
         <AlertFormFields form={form} setForm={setForm} reports={reports} reportLocked={false} />
-        <button type="submit">Tạo cảnh báo</button>
+        <button type="submit" disabled={creating}>{creating ? 'Đang tạo...' : 'Tạo cảnh báo'}</button>
       </form>
 
       <DataTable
@@ -302,9 +312,9 @@ export default function AnomalyAlertsPage() {
             key: 'actions', label: '', render: (r) => (
               <>
                 <button type="button" onClick={() => setEditing({ id: r.Id, form: alertToForm(r) })}>Sửa</button>{' '}
-                <button type="button" onClick={() => runNow(r)}>Kiểm tra ngay</button>{' '}
-                <button type="button" onClick={() => toggleActive(r)}>{r.IsActive ? 'Tắt' : 'Bật'}</button>{' '}
-                <button type="button" onClick={() => deleteAlert(r)}>Xoá</button>
+                <button type="button" onClick={() => runNow(r)} disabled={runningId === r.Id}>{runningId === r.Id ? 'Đang kiểm tra...' : 'Kiểm tra ngay'}</button>{' '}
+                <button type="button" onClick={() => toggleActive(r)} disabled={togglingId === r.Id}>{togglingId === r.Id ? 'Đang xử lý...' : (r.IsActive ? 'Tắt' : 'Bật')}</button>{' '}
+                <button type="button" onClick={() => deleteAlert(r)} disabled={deletingId === r.Id}>{deletingId === r.Id ? 'Đang xoá...' : 'Xoá'}</button>
               </>
             )
           }
@@ -321,7 +331,7 @@ export default function AnomalyAlertsPage() {
               <input type="checkbox" checked={editing.form.isActive} onChange={(e) => setEditing({ ...editing, form: { ...editing.form, isActive: e.target.checked } })} /> Hoạt động
             </label>
             <div className="modal-actions">
-              <button type="button" onClick={saveEdit}>Lưu</button>
+              <button type="button" onClick={saveEdit} disabled={savingEdit}>{savingEdit ? 'Đang lưu...' : 'Lưu'}</button>
               <button type="button" onClick={() => setEditing(null)}>Huỷ</button>
             </div>
           </div>

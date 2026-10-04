@@ -15,7 +15,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
 import SearchableSelect from './SearchableSelect';
 
-export default function FilterForm({ reportId, filters, values, onChange, onSubmit }) {
+export default function FilterForm({ reportId, filters, values, onChange, onSubmit, loading }) {
   const [dynamicOptions, setDynamicOptions] = useState({});
   const [loadingFields, setLoadingFields] = useState({});
 
@@ -91,7 +91,7 @@ export default function FilterForm({ reportId, filters, values, onChange, onSubm
           )}
         </label>
       ))}
-      <button type="submit">Lọc</button>
+      <button type="submit" disabled={loading}>{loading ? 'Đang lọc...' : 'Lọc'}</button>
     </form>
   );
 }
