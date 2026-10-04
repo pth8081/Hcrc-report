@@ -173,8 +173,8 @@ export default function ReportsPage() {
           {result && (
             <>
               <div className="export-actions">
-                <button type="button" onClick={() => exportAs('excel')}>Xuất Excel</button>
-                <button type="button" onClick={() => exportAs('pdf')}>Xuất PDF</button>
+                <button type="button" onClick={() => exportAs('excel')} disabled={!!exportingFormat}>{exportingFormat === 'excel' ? 'Đang xuất...' : 'Xuất Excel'}</button>
+                <button type="button" onClick={() => exportAs('pdf')} disabled={!!exportingFormat}>{exportingFormat === 'pdf' ? 'Đang xuất...' : 'Xuất PDF'}</button>
                 {/* Chỉ hiện nút chuyển đổi khi báo cáo THẬT SỰ có biểu đồ để
                     chuyển sang/về — báo cáo không khai visualization luôn ở
                     dạng bảng, không có gì để bấm. */}

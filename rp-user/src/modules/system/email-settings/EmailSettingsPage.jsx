@@ -12,6 +12,8 @@ export default function EmailSettingsPage() {
   const [testTo, setTestTo] = useState('');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [sendingTest, setSendingTest] = useState(false);
 
   useEffect(() => {
     api.get('/system/email-settings').then(data => {
@@ -25,21 +27,23 @@ export default function EmailSettingsPage() {
     e.preventDefault();
     setError('');
     setMessage('');
+    setSaving(true);
     try {
       await api.put('/system/email-settings', form);
       setMessage('Đã lưu.');
       setHasPassword(hasPassword || !!form.password);
       setForm({ ...form, password: '' });
-    } catch (err) { setError(err.message); }
+    } catch (err) { setError(err.message); } finally { setSaving(false); }
   }
 
   async function sendTest() {
     setError('');
     setMessage('');
+    setSendingTest(true);
     try {
       await api.post('/system/email-settings/test', { to: testTo });
       setMessage(`Đã gửi email thử tới ${testTo}.`);
-    } catch (err) { setError(err.message); }
+    } catch (err) { setError(err.message); } finally { setSendingTest(false); }
   }
 
   return (
@@ -56,12 +60,12 @@ export default function EmailSettingsPage() {
         <input placeholder={hasPassword ? 'Password (bỏ trống để giữ nguyên)' : 'Password'} type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
         <input placeholder="Địa chỉ gửi (From)" value={form.fromAddress} onChange={(e) => setForm({ ...form, fromAddress: e.target.value })} required />
         <input placeholder="Tên hiển thị (From name)" value={form.fromName || ''} onChange={(e) => setForm({ ...form, fromName: e.target.value })} />
-        <button type="submit">Lưu cấu hình</button>
+        <button type="submit" disabled={saving}>{saving ? 'Đang lưu...' : 'Lưu cấu hình'}</button>
       </form>
 
       <div className="inline-form">
         <input placeholder="Email nhận thử" value={testTo} onChange={(e) => setTestTo(e.target.value)} />
-        <button type="button" onClick={sendTest}>Gửi thử</button>
+        <button type="button" onClick={sendTest} disabled={sendingTest}>{sendingTest ? 'Đang gửi...' : 'Gửi thử'}</button>
       </div>
     </div>
   );

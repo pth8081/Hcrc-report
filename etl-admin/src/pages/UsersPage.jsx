@@ -42,11 +42,12 @@ export default function UsersPage() {
   async function createUser(e) {
     e.preventDefault();
     setError('');
+    setCreating(true);
     try {
       await api.post('/users', form);
       setForm(EMPTY_FORM);
       reload();
-    } catch (err) { setError(err.message); }
+    } catch (err) { setError(err.message); } finally { setCreating(false); }
   }
 
   function openEdit(user) {
@@ -55,11 +56,12 @@ export default function UsersPage() {
   }
 
   async function saveEdit() {
+    setSavingEdit(true);
     try {
       await api.put(`/users/${editingUser.Id}`, editForm);
       setEditingUser(null);
       reload();
-    } catch (err) { setError(err.message); }
+    } catch (err) { setError(err.message); } finally { setSavingEdit(false); }
   }
 
   function openAssignRoles(user) {
@@ -68,11 +70,12 @@ export default function UsersPage() {
   }
 
   async function saveRoles() {
+    setSavingRoles(true);
     try {
       await api.put(`/users/${assigningUser.Id}/roles`, { roleIds: selectedRoleIds });
       setAssigningUser(null);
       reload();
-    } catch (err) { setError(err.message); }
+    } catch (err) { setError(err.message); } finally { setSavingRoles(false); }
   }
 
 // window.prompt() cũ TRƯỚC ĐÂY hiện mật khẩu THÔ (hộp thoại trình duyệt
@@ -91,10 +94,11 @@ export default function UsersPage() {
     setResetError('');
     if (newPassword.length < 8) return setResetError('Mật khẩu phải có ít nhất 8 ký tự');
     if (newPassword !== confirmPassword) return setResetError('Xác nhận mật khẩu không khớp');
+    setSavingResetPassword(true);
     try {
       await api.post(`/users/${resettingPasswordFor.Id}/reset-password`, { password: newPassword });
       setResettingPasswordFor(null);
-    } catch (err) { setResetError(err.message); }
+    } catch (err) { setResetError(err.message); } finally { setSavingResetPassword(false); }
   }
 
   // Giúp admin khác bị mất thiết bị/cần khôi phục — 2FA vẫn BẮT BUỘC, chỉ
@@ -102,11 +106,12 @@ export default function UsersPage() {
   // (xem etl/routes/admin/users.js).
   async function reset2fa(user) {
     if (!confirm(`Đặt lại 2FA cho "${user.Username}"? Lần đăng nhập kế tiếp của họ sẽ phải đăng ký 2FA lại từ đầu.`)) return;
+    setResetting2faId(user.Id);
     try {
       await api.post(`/users/${user.Id}/reset-2fa`, {});
       alert('Đã đặt lại 2FA.');
       reload();
-    } catch (err) { setError(err.message); }
+    } catch (err) { setError(err.message); } finally { setResetting2faId(null); }
   }
 
   return (
@@ -119,7 +124,7 @@ export default function UsersPage() {
           <input placeholder="Username" value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} required />
           <PasswordInput placeholder="Mật khẩu" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required autoComplete="new-password" />
           <input placeholder="Họ tên" value={form.fullName} onChange={(e) => setForm({ ...form, fullName: e.target.value })} required />
-          <button type="submit">Thêm người dùng</button>
+          <button type="submit" disabled={creating}>{creating ? 'Đang thêm...' : 'Thêm người dùng'}</button>
         </form>
       )}
       {canManage && <p className="form-hint">Tài khoản mới chưa thấy trang nào — vào "Vai trò" hoặc bấm "Gán vai trò" bên dưới để cấp quyền.</p>}
@@ -137,7 +142,11 @@ export default function UsersPage() {
                 {canManage && <button type="button" onClick={() => openEdit(u)}>Sửa</button>}{' '}
                 {isSystemRole && <button type="button" onClick={() => openAssignRoles(u)}>Gán vai trò</button>}{' '}
                 {isSystemRole && <button type="button" onClick={() => openResetPassword(u)}>Đặt lại mật khẩu</button>}{' '}
-                {isSystemRole && u.roles?.some(r => r.isSystemRole) && <button type="button" onClick={() => reset2fa(u)}>Đặt lại 2FA</button>}
+                {isSystemRole && u.roles?.some(r => r.isSystemRole) && (
+                  <button type="button" onClick={() => reset2fa(u)} disabled={resetting2faId === u.Id}>
+                    {resetting2faId === u.Id ? 'Đang xử lý...' : 'Đặt lại 2FA'}
+                  </button>
+                )}
               </>
             )
           }
@@ -156,7 +165,7 @@ export default function UsersPage() {
               Hoạt động (bỏ chọn = khoá tài khoản, thu hồi phiên đăng nhập ngay)
             </label>
             <div className="modal-actions">
-              <button type="button" onClick={saveEdit}>Lưu</button>
+              <button type="button" onClick={saveEdit} disabled={savingEdit}>{savingEdit ? 'Đang lưu...' : 'Lưu'}</button>
               <button type="button" onClick={() => setEditingUser(null)}>Đóng</button>
             </div>
           </div>
@@ -180,7 +189,7 @@ export default function UsersPage() {
               </label>
             ))}
             <div className="modal-actions">
-              <button type="button" onClick={saveRoles}>Lưu</button>
+              <button type="button" onClick={saveRoles} disabled={savingRoles}>{savingRoles ? 'Đang lưu...' : 'Lưu'}</button>
               <button type="button" onClick={() => setAssigningUser(null)}>Đóng</button>
             </div>
           </div>
@@ -199,7 +208,7 @@ export default function UsersPage() {
               <label>Xác nhận mật khẩu mới</label>
               <PasswordInput value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} autoComplete="new-password" required />
               <div className="modal-actions">
-                <button type="submit">Lưu</button>
+                <button type="submit" disabled={savingResetPassword}>{savingResetPassword ? 'Đang lưu...' : 'Lưu'}</button>
                 <button type="button" onClick={() => setResettingPasswordFor(null)}>Huỷ</button>
               </div>
             </form>
