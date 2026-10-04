@@ -29,6 +29,36 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 8.67 — Sửa THIẾU SÓT: SMTP (Postfix/Exchange/Gmail) chưa hỗ trợ chứng chỉ TLS tự ký
+
+**Theo yêu cầu người dùng**: Postfix của người dùng dùng chứng chỉ TLS
+**TỰ KÝ** (không do CA công khai xác thực) — yêu cầu kiểm tra lại xem cơ
+chế gửi email đã đáp ứng chưa. **Rà soát xác nhận ĐÚNG — đây là THIẾU
+SÓT thật**: nhánh EWS (bản 8.65) đã có `EwsInsecureTls`, nhưng nhánh SMTP
+(Postfix/Exchange qua SMTP/Gmail, dùng NHIỀU hơn) KHÔNG có cờ tương đương
+— `nodemailer` mặc định LUÔN kiểm tra chứng chỉ qua danh sách CA công
+khai, từ chối thẳng chứng chỉ tự ký ("self signed certificate"), khiến
+gửi thất bại dù host/port/mật khẩu đều đúng. **Đã kiểm chứng bằng test
+thật** (dựng máy chủ SMTPS giả dùng chứng chỉ tự ký): trước khi sửa báo
+lỗi "self-signed certificate" đúng như dự đoán, sau khi sửa gửi được.
+
+- `app.EmailSettings` (`rp-db/schema.sql`): thêm cột `SmtpInsecureTls`
+  (mặc định `0` — vẫn kiểm tra chứng chỉ bình thường, không tự ý nới lỏng
+  cấu hình đang chạy).
+- `rp-server/lib/mailer.js`: nhánh SMTP truyền thêm
+  `tls: { rejectUnauthorized: !row.SmtpInsecureTls }` vào `nodemailer`.
+- `etl/lib/mailer.js` + `etl/.env.example`: thêm biến `SMTP_INSECURE_TLS`
+  (mặc định `false`), cùng cơ chế cho email cảnh báo lỗi đồng bộ/đổi cấu
+  trúc CSDL của ETL (đúng kênh SMTP có thể trỏ tới CÙNG Postfix nội bộ).
+- `rp-user/.../EmailSettingsPage.jsx`: thêm checkbox **"Bỏ qua kiểm tra
+  chứng chỉ TLS"** ở form SMTP (song song checkbox đã có cho EWS), hint
+  preset Postfix nhắc rõ: BẮT BUỘC tick ô này nếu Postfix dùng chứng chỉ
+  tự ký.
+
+Đã demo xác nhận checkbox hiện đúng ở form SMTP (preset Postfix). Không
+ảnh hưởng gateway dùng chứng chỉ CA công khai hợp lệ (Gmail, Exchange
+Online...) — mặc định vẫn kiểm tra chứng chỉ như trước.
+
 ## 8.66 — Thêm preset Gmail, giữ đủ 4 phương thức SMTP/EWS trong "Thiết lập email"
 
 **Theo yêu cầu người dùng**: hỏi thêm cấu hình Gmail + nhắc giữ lại lựa

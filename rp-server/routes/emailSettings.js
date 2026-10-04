@@ -16,7 +16,7 @@ router.get('/', async (req, res, next) => {
   try {
     const pool = await getPool('RP');
     const result = await pool.request().query(`
-      SELECT Protocol, SmtpHost, SmtpPort, Secure, EwsUrl, EwsInsecureTls,
+      SELECT Protocol, SmtpHost, SmtpPort, Secure, SmtpInsecureTls, EwsUrl, EwsInsecureTls,
              Username, PasswordEncrypted, FromAddress, FromName
       FROM app.EmailSettings WHERE Id = 1
     `);
@@ -27,6 +27,7 @@ router.get('/', async (req, res, next) => {
       smtpHost: row.SmtpHost,
       smtpPort: row.SmtpPort,
       secure: !!row.Secure,
+      smtpInsecureTls: !!row.SmtpInsecureTls,
       ewsUrl: row.EwsUrl,
       ewsInsecureTls: !!row.EwsInsecureTls,
       username: row.Username,
@@ -39,7 +40,7 @@ router.get('/', async (req, res, next) => {
 
 router.put('/', async (req, res, next) => {
   try {
-    const { protocol, smtpHost, smtpPort, secure, ewsUrl, ewsInsecureTls, username, password, fromAddress, fromName } = req.body || {};
+    const { protocol, smtpHost, smtpPort, secure, smtpInsecureTls, ewsUrl, ewsInsecureTls, username, password, fromAddress, fromName } = req.body || {};
     const proto = protocol === 'ews' ? 'ews' : 'smtp';
     if (!fromAddress) return res.status(400).json({ error: 'Thiếu fromAddress' });
     if (proto === 'smtp' && !smtpHost) return res.status(400).json({ error: 'Thiếu smtpHost' });
@@ -60,6 +61,7 @@ router.put('/', async (req, res, next) => {
       .input('smtpHost', sql.NVarChar(200), smtpHost || '')
       .input('smtpPort', sql.Int, smtpPort || 587)
       .input('secure', sql.Bit, secure ? 1 : 0)
+      .input('smtpInsecureTls', sql.Bit, smtpInsecureTls ? 1 : 0)
       .input('ewsUrl', sql.NVarChar(500), ewsUrl || null)
       .input('ewsInsecureTls', sql.Bit, ewsInsecureTls ? 1 : 0)
       .input('username', sql.NVarChar(200), username || null)
@@ -71,11 +73,11 @@ router.put('/', async (req, res, next) => {
         USING (SELECT 1 AS Id) AS src ON target.Id = src.Id
         WHEN MATCHED THEN UPDATE SET
           Protocol = @protocol, SmtpHost = @smtpHost, SmtpPort = @smtpPort, Secure = @secure,
-          EwsUrl = @ewsUrl, EwsInsecureTls = @ewsInsecureTls,
+          SmtpInsecureTls = @smtpInsecureTls, EwsUrl = @ewsUrl, EwsInsecureTls = @ewsInsecureTls,
           Username = @username, PasswordEncrypted = @passwordEncrypted,
           FromAddress = @fromAddress, FromName = @fromName, UpdatedAt = SYSUTCDATETIME()
-        WHEN NOT MATCHED THEN INSERT (Id, Protocol, SmtpHost, SmtpPort, Secure, EwsUrl, EwsInsecureTls, Username, PasswordEncrypted, FromAddress, FromName)
-          VALUES (1, @protocol, @smtpHost, @smtpPort, @secure, @ewsUrl, @ewsInsecureTls, @username, @passwordEncrypted, @fromAddress, @fromName);
+        WHEN NOT MATCHED THEN INSERT (Id, Protocol, SmtpHost, SmtpPort, Secure, SmtpInsecureTls, EwsUrl, EwsInsecureTls, Username, PasswordEncrypted, FromAddress, FromName)
+          VALUES (1, @protocol, @smtpHost, @smtpPort, @secure, @smtpInsecureTls, @ewsUrl, @ewsInsecureTls, @username, @passwordEncrypted, @fromAddress, @fromName);
       `);
 
     await logAction(req, { module: 'Thiết lập email', actionType: 'CAP_NHAT', description: 'Cập nhật cấu hình email' });

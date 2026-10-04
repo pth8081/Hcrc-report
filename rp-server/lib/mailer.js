@@ -15,7 +15,7 @@ const { sendMailEws } = require('./ewsMailer');
 async function loadSettings() {
   const pool = await getPool('RP');
   const result = await pool.request().query(`
-    SELECT Protocol, SmtpHost, SmtpPort, Secure, EwsUrl, EwsInsecureTls,
+    SELECT Protocol, SmtpHost, SmtpPort, Secure, SmtpInsecureTls, EwsUrl, EwsInsecureTls,
            Username, PasswordEncrypted, FromAddress, FromName
     FROM app.EmailSettings WHERE Id = 1
   `);
@@ -58,6 +58,14 @@ async function sendMail({ to, subject, text, html, attachments }) {
     // không chào STARTTLS (Exchange/Office 365 LUÔN từ chối AUTH không mã
     // hoá nên không ảnh hưởng gateway đó, chỉ thêm 1 lớp an toàn rõ ràng).
     requireTLS: !secure && !!row.Username,
+    // tls.rejectUnauthorized (bản 8.67 — THIẾU SÓT phát hiện qua rà soát
+    // người dùng, Postfix nội bộ dùng chứng chỉ TỰ KÝ, không do CA công
+    // khai cấp): mặc định Node/nodemailer LUÔN kiểm tra chứng chỉ qua
+    // danh sách CA tin cậy công khai — chứng chỉ tự ký bị từ chối thẳng
+    // ("self signed certificate"), gửi thất bại dù host/port/mật khẩu
+    // đúng hết. row.SmtpInsecureTls=1 (admin tự tick, mặc định TẮT) mới
+    // bỏ qua kiểm tra này — same cơ chế đã có cho EWS (EwsInsecureTls).
+    tls: { rejectUnauthorized: !row.SmtpInsecureTls },
     auth: row.Username ? { user: row.Username, pass: row.PasswordEncrypted ? decrypt(row.PasswordEncrypted) : undefined } : undefined
   });
 

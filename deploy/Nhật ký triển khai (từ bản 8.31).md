@@ -14,6 +14,34 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 8.67 — Sửa THIẾU SÓT: SMTP (Postfix/Exchange/Gmail) chưa hỗ trợ chứng chỉ TLS tự ký
+
+**Thay đổi**: nhánh SMTP (Postfix/Exchange qua SMTP/Gmail) thiếu cờ bỏ
+qua kiểm tra chứng chỉ TLS tương đương EWS — chứng chỉ TỰ KÝ (phổ biến ở
+Postfix nội bộ) bị từ chối thẳng, gửi thất bại dù host/port/mật khẩu
+đúng. `app.EmailSettings` thêm cột `SmtpInsecureTls`; `rp-server/lib/
+mailer.js` + `etl/lib/mailer.js` (biến `.env` mới `SMTP_INSECURE_TLS`)
+truyền `tls.rejectUnauthorized` theo cờ này. Đã kiểm chứng bằng test thật
+(máy chủ SMTPS giả, chứng chỉ tự ký) — lỗi "self-signed certificate"
+trước khi sửa, gửi được sau khi sửa.
+
+**Các bước triển khai:**
+1. `git pull origin main`.
+2. Chạy lại `rp-db/schema.sql` (BẮT BUỘC — thêm cột `SmtpInsecureTls` vào
+   `app.EmailSettings`, an toàn chạy lại nhiều lần, mặc định `0`, không
+   đổi cấu hình đang chạy).
+3. `pm2 restart hcrc-rp-server` và `pm2 restart hcrc-etl` (BẮT BUỘC — đổi
+   `lib/mailer.js` của cả 2).
+4. `cd rp-user && npm run build`, copy `dist/` mới (checkbox mới ở "Thiết
+   lập email").
+5. Nếu Postfix/SMTP dùng chứng chỉ TỰ KÝ: rp-user → "Thiết lập email" →
+   tick "Bỏ qua kiểm tra chứng chỉ TLS" → Lưu → "Gửi thử" xác nhận gửi
+   được; ETL (nếu alert email cũng qua Postfix này): thêm
+   `SMTP_INSECURE_TLS=true` vào `etl/.env` → `pm2 restart hcrc-etl`.
+
+Không ảnh hưởng gateway dùng chứng chỉ CA công khai hợp lệ (mặc định vẫn
+kiểm tra chứng chỉ như trước).
+
 ## 8.66 — Thêm preset Gmail, giữ đủ 4 phương thức SMTP/EWS trong "Thiết lập email"
 
 **Thay đổi**: thêm preset "Gmail — đăng nhập qua SMTP (cổng 587)" vào

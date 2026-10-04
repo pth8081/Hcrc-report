@@ -1,9 +1,9 @@
-# Hướng dẫn triển khai gộp — bản 8.29 đến 8.66 (làm 1 lần)
+# Hướng dẫn triển khai gộp — bản 8.29 đến 8.67 (làm 1 lần)
 
 **Mục đích**: theo yêu cầu người dùng — thay vì đọc/làm tuần tự từng mục
 trong "Nhật ký triển khai (từ bản 8.31)" (nhiều mục riêng, mỗi mục 1 bản),
 file NÀY gộp lại thành **1 lượt làm duy nhất** để đưa server từ trước bản
-8.29 lên thẳng bản 8.66. Các bước **idempotent** (an toàn chạy lại nhiều
+8.29 lên thẳng bản 8.67. Các bước **idempotent** (an toàn chạy lại nhiều
 lần) được gộp chỉ chạy **1 LẦN** ở bản mới nhất thay vì lặp lại theo từng
 bản cũ. Nếu server đã ở 1 bản nào đó rồi (vd đã tới 8.62), chỉ cần làm
 PHẦN CÒN THIẾU — hầu hết các bước dưới đây không hại gì nếu lỡ làm lại.
@@ -19,8 +19,9 @@ chi tiết kỹ thuật của từng bản khi cần — file này chỉ gộp p
 1. `git pull origin main`.
 
 2. Cài gói npm mới cho backend (gộp từ 8.39 captcha + 8.41 WebAuthn —
-   bản 8.63-8.66 (sửa gửi email tương thích Postfix/Exchange/Gmail, thêm
-   EWS) KHÔNG cần gói npm nào mới, tự dựng bằng module gốc của Node):
+   bản 8.63-8.67 (sửa gửi email tương thích Postfix/Exchange/Gmail, thêm
+   EWS, hỗ trợ chứng chỉ tự ký) KHÔNG cần gói npm nào mới, tự dựng bằng
+   module gốc của Node):
    ```
    cd rp-server && npm install
    cd ../etl && npm install
@@ -42,7 +43,9 @@ chi tiết kỹ thuật của từng bản khi cần — file này chỉ gộp p
      ETL cũ); thiếu thì 2 job vẫn chạy/ghi lịch sử bình thường, chỉ không
      gửi được email. Nếu gateway là Postfix cổng 465: chỉ cần đổi
      `SMTP_PORT=465`, KHÔNG cần khai thêm `SMTP_SECURE` (bản 8.63 — tự
-     nhận đúng theo cổng).
+     nhận đúng theo cổng). Nếu Postfix đó dùng chứng chỉ TLS TỰ KÝ: thêm
+     `SMTP_INSECURE_TLS=true` (bản 8.67) — thiếu dòng này ETL sẽ KHÔNG
+     gửi được email cảnh báo, báo lỗi "self signed certificate".
    - `etl/.env`: `DSMART16_SERVER`/`DSMART16_USER`/`DSMART16_PASSWORD`
      (bản 8.55) — **CHỈ cần nếu triển khai tính năng "Top bán chạy tồn
      kho=0"** (xem mục B.6 bên dưới), bỏ qua nếu không dùng.
@@ -56,7 +59,9 @@ chi tiết kỹ thuật của từng bản khi cần — file này chỉ gộp p
      `app.UserDashboardGroupAccess`, `app.DepartmentStoreMapping` (+ menu
      mới), `app.UserStoreAccess`, cột `Protocol`/`EwsUrl`/`EwsInsecureTls`
      trên `app.EmailSettings` (bản 8.65 — gửi email qua Exchange bằng
-     EWS, mặc định `Protocol='smtp'`, KHÔNG đổi cấu hình SMTP đang chạy).
+     EWS, mặc định `Protocol='smtp'`, KHÔNG đổi cấu hình SMTP đang chạy),
+     cột `SmtpInsecureTls` trên `app.EmailSettings` (bản 8.67 — bỏ qua
+     kiểm tra chứng chỉ TLS tự ký cho nhánh SMTP, mặc định `0`).
    - `etl-db/schema.sql` — bảng mới `etl.DataSourceConnectionStatus`/
      `etl.SchemaSnapshots`/`etl.SchemaChangeLog` (bản 8.57).
    - `api-db/schema.sql` — bảng mới `api.DataSourceConnectionStatus`
@@ -151,7 +156,7 @@ mật khẩu hiện nằm vĩnh viễn trong lịch sử Git của repo (ngườ
 
 ---
 
-## F. Cấu hình gửi email (bản 8.63-8.66 — làm SAU khi đã deploy xong A/B/C)
+## F. Cấu hình gửi email (bản 8.63-8.67 — làm SAU khi đã deploy xong A/B/C)
 
 Trang "Thiết lập email" (rp-user → menu "Thiết lập email") giờ hỗ trợ
 **5 loại gateway**, chọn đúng 1 dropdown là tự điền sẵn host/port/giao
@@ -159,9 +164,15 @@ thức — vẫn sửa tay được mọi ô:
 
 1. **Postfix** (relay nội bộ) — mặc định **KHÔNG cần đăng nhập** (để
    trống Username/Password), cổng 465 (SMTPS, tự bật TLS đúng theo cổng).
+   **Nếu Postfix dùng chứng chỉ TLS TỰ KÝ** (không do CA công khai cấp —
+   RẤT phổ biến ở Postfix nội bộ công ty, xem bản 8.67): **BẮT BUỘC** tick
+   thêm "Bỏ qua kiểm tra chứng chỉ TLS" trong form — thiếu bước này gửi sẽ
+   LUÔN thất bại với lỗi "self-signed certificate" dù host/port đều đúng.
 2. **Exchange qua SMTP** (cổng 587) — dùng được cho cả Exchange Online
    lẫn Exchange tại chỗ có bật SMTP AUTH — **BẮT BUỘC** Username/Password
-   (dùng "Mật khẩu ứng dụng" nếu tài khoản bật MFA).
+   (dùng "Mật khẩu ứng dụng" nếu tài khoản bật MFA). Cũng có ô "Bỏ qua
+   kiểm tra chứng chỉ TLS" nếu máy chủ Exchange tại chỗ dùng chứng chỉ tự
+   ký (Exchange Online dùng chứng chỉ CA công khai, không cần tick).
 3. **Gmail qua SMTP** (cổng 587) — Username = Gmail đầy đủ, Password
    PHẢI là "Mật khẩu ứng dụng" (App password, tạo tại
    myaccount.google.com/apppasswords sau khi bật "Xác minh 2 bước") —
@@ -185,7 +196,9 @@ thức — vẫn sửa tay được mọi ô:
    email tới hộp thư đó.
 4. Nếu "Gửi thử" báo lỗi: đọc đúng nội dung lỗi trả về (sai host/port/
    mật khẩu/URL EWS đều báo rõ, không phải lỗi 500 chung chung) và sửa
-   lại đúng chỗ đó.
+   lại đúng chỗ đó. Báo lỗi đúng chữ **"self signed certificate"** nghĩa
+   là máy chủ gateway dùng chứng chỉ TLS tự ký — quay lại tick "Bỏ qua
+   kiểm tra chứng chỉ TLS" rồi gửi thử lại.
 
 Không cần làm mục này nếu hệ thống hiện tại ĐÃ gửi email ổn định qua cổng
 587/25 trước đây — cấu hình cũ tự chuyển `Protocol='smtp'`, hoạt động y
@@ -228,7 +241,9 @@ hệt, không bắt buộc đổi gateway chỉ vì có bản mới.
   (8.31/8.32).
 - [ ] rp-user → "Thiết lập email": dropdown "Loại email gateway" hiện đủ
   5 lựa chọn (8.63-8.66); chọn đúng loại đang dùng, "Gửi thử" nhận được
-  email thật.
+  email thật — nếu gateway dùng chứng chỉ TLS tự ký (vd Postfix nội bộ),
+  đã tick "Bỏ qua kiểm tra chứng chỉ TLS" (8.67), không còn báo lỗi "self
+  signed certificate".
 
 Không có bước nào ở trên làm mất dữ liệu đã có hoặc ảnh hưởng job/báo cáo
 đang chạy ổn định — mọi thay đổi CSDL đều là CREATE/ALTER thêm mới.

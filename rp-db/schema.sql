@@ -734,6 +734,22 @@ BEGIN
 END
 GO
 
+-- SmtpInsecureTls (bản 8.67) — THIẾU SÓT phát hiện qua rà soát người dùng:
+-- Postfix/Exchange/Gmail qua SMTP (Protocol='smtp') KHÔNG có cờ bỏ qua
+-- kiểm tra chứng chỉ TLS tương đương `EwsInsecureTls` ở trên — chứng chỉ
+-- TỰ KÝ (không do CA công khai cấp, phổ biến ở Postfix nội bộ công ty) bị
+-- `nodemailer` TỪ CHỐI kết nối mặc định ("self signed certificate"), gửi
+-- thất bại dù host/port/mật khẩu đều đúng. Mặc định 0 (vẫn kiểm tra chứng
+-- chỉ bình thường — an toàn, không tự ý nới lỏng cấu hình đang chạy), chỉ
+-- bật khi admin xác nhận gateway là máy chủ nội bộ tin cậy dùng chứng chỉ
+-- tự ký. Xem lib/mailer.js.
+IF COL_LENGTH('app.EmailSettings', 'SmtpInsecureTls') IS NULL
+BEGIN
+    ALTER TABLE app.EmailSettings ADD
+        SmtpInsecureTls BIT NOT NULL DEFAULT 0;
+END
+GO
+
 -- Lịch gửi email tự động cho MỘT báo cáo cụ thể (vd "Doanh thu hàng ngày —
 -- gửi 07:00 cho Ban GĐ") — dùng cấu hình SMTP chung ở app.EmailSettings.
 -- FilterValuesJson lưu bộ lọc áp KHI CHẠY TỰ ĐỘNG, dạng

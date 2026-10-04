@@ -30,6 +30,13 @@ function getTransport() {
     // cấu hình) — bắt buộc STARTTLS trước khi gửi SMTP_USER/SMTP_PASSWORD
     // thật khi KHÔNG dùng TLS ngay từ đầu.
     requireTLS: !secure && !!process.env.SMTP_USER,
+    // tls.rejectUnauthorized (bản 8.67 — THIẾU SÓT phát hiện qua rà soát
+    // người dùng, Postfix nội bộ dùng chứng chỉ TỰ KÝ): mặc định
+    // nodemailer LUÔN kiểm tra chứng chỉ qua CA công khai, từ chối thẳng
+    // chứng chỉ tự ký ("self signed certificate") — khai
+    // SMTP_INSECURE_TLS=true trong .env mới bỏ qua kiểm tra này (mặc định
+    // false/chưa khai = vẫn kiểm tra bình thường, không tự ý nới lỏng).
+    tls: { rejectUnauthorized: process.env.SMTP_INSECURE_TLS !== 'true' },
     auth: process.env.SMTP_USER ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASSWORD } : undefined
   });
 }

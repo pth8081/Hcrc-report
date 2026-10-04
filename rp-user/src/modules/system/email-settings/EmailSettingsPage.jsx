@@ -16,7 +16,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../../../lib/api';
 
 const EMPTY = {
-  protocol: 'smtp', smtpHost: '', smtpPort: 587, secure: false,
+  protocol: 'smtp', smtpHost: '', smtpPort: 587, secure: false, smtpInsecureTls: false,
   ewsUrl: '', ewsInsecureTls: false,
   username: '', password: '', fromAddress: '', fromName: ''
 };
@@ -29,7 +29,7 @@ const GATEWAY_PRESETS = {
     label: 'Postfix — relay nội bộ, KHÔNG cần đăng nhập (SMTP, cổng 465)',
     protocol: 'smtp',
     apply: (form) => ({ ...form, protocol: 'smtp', smtpPort: 465, secure: true, username: '', password: '' }),
-    hint: 'Điền tên máy chủ Postfix nội bộ vào ô "SMTP host", ĐỂ TRỐNG Username/Password — Postfix dạng relay nội bộ thường cho phép gửi thẳng theo IP, không cần tài khoản. Nếu Postfix CÓ yêu cầu đăng nhập, điền Username/Password như bình thường.'
+    hint: 'Điền tên máy chủ Postfix nội bộ vào ô "SMTP host", ĐỂ TRỐNG Username/Password — Postfix dạng relay nội bộ thường cho phép gửi thẳng theo IP, không cần tài khoản. Nếu Postfix CÓ yêu cầu đăng nhập, điền Username/Password như bình thường. Nếu Postfix dùng chứng chỉ TLS TỰ KÝ (không do CA công khai cấp — phổ biến ở Postfix nội bộ), BẮT BUỘC tick thêm "Bỏ qua kiểm tra chứng chỉ TLS" bên dưới, nếu không sẽ gửi thất bại.'
   },
   'exchange-smtp': {
     label: 'Exchange — đăng nhập qua SMTP (cổng 587)',
@@ -141,6 +141,10 @@ export default function EmailSettingsPage() {
             />
             <label className="checkbox-row"><input type="checkbox" checked={form.secure} onChange={(e) => setForm({ ...form, secure: e.target.checked })} /> Secure (SSL/TLS)</label>
             {form.smtpPort === 465 && <p className="form-hint">Cổng 465 luôn dùng TLS ngay từ đầu kết nối — hệ thống tự gửi bằng chế độ này dù ô trên có tick hay không.</p>}
+            <label className="checkbox-row">
+              <input type="checkbox" checked={form.smtpInsecureTls} onChange={(e) => setForm({ ...form, smtpInsecureTls: e.target.checked })} />
+              Bỏ qua kiểm tra chứng chỉ TLS (chỉ dùng nếu máy chủ SMTP nội bộ dùng chứng chỉ tự ký)
+            </label>
           </>
         )}
 
