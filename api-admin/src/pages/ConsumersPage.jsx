@@ -110,6 +110,14 @@ export default function ConsumersPage() {
   const [accessWriteEndpoints, setAccessWriteEndpoints] = useState([]);
   const [revealedCreds, setRevealedCreds] = useState(null); // { authMethod, ...bí mật } vừa tạo/luân chuyển
   const [error, setError] = useState('');
+  const [creating, setCreating] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [togglingId, setTogglingId] = useState(null);
+  const [rotatingId, setRotatingId] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
+  const [savingReportAccess, setSavingReportAccess] = useState(false);
+  const [savingRealtimeAccess, setSavingRealtimeAccess] = useState(false);
+  const [savingWriteAccess, setSavingWriteAccess] = useState(false);
 
   function reload() {
     api.get('/consumers').then(setConsumers).catch(err => setError(err.message));
@@ -133,10 +141,11 @@ export default function ConsumersPage() {
   }
 
   async function saveReportAccess() {
+    setSavingReportAccess(true);
     try {
       await api.put(`/consumers/${accessFor.Id}/report-access`, { reportIds: accessReportIds });
       setAccessFor(null);
-    } catch (err) { setError(err.message); }
+    } catch (err) { setError(err.message); } finally { setSavingReportAccess(false); }
   }
 
   async function openRealtimeAccess(consumer) {
@@ -153,10 +162,11 @@ export default function ConsumersPage() {
   }
 
   async function saveRealtimeAccess() {
+    setSavingRealtimeAccess(true);
     try {
       await api.put(`/consumers/${realtimeAccessFor.Id}/realtime-access`, { endpoints: accessEndpoints });
       setRealtimeAccessFor(null);
-    } catch (err) { setError(err.message); }
+    } catch (err) { setError(err.message); } finally { setSavingRealtimeAccess(false); }
   }
 
   async function openWriteAccess(consumer) {
@@ -173,10 +183,11 @@ export default function ConsumersPage() {
   }
 
   async function saveWriteAccess() {
+    setSavingWriteAccess(true);
     try {
       await api.put(`/consumers/${writeAccessFor.Id}/write-access`, { endpoints: accessWriteEndpoints });
       setWriteAccessFor(null);
-    } catch (err) { setError(err.message); }
+    } catch (err) { setError(err.message); } finally { setSavingWriteAccess(false); }
   }
 
   function toggleScope(scopeList, scope) {

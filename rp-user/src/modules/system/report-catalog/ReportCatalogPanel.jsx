@@ -45,6 +45,8 @@ export default function ReportCatalogPanel() {
   // null = đang tạo mới; có giá trị = đang sửa ĐÚNG report đó (khoá ô "Mã báo
   // cáo" — PUT theo reportId trong URL, không đổi được khoá chính qua form).
   const [editingReportId, setEditingReportId] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [deletingReportId, setDeletingReportId] = useState(null);
 
   function reload() {
     api.get('/system/report-catalog').then(setReports).catch(err => setError(err.message));

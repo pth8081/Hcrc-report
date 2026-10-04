@@ -28,6 +28,15 @@ input, select, textarea, button { font: inherit; }
 input, select, textarea { padding: 7px 10px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); color: var(--ink); }
 button { padding: 7px 14px; border: 1px solid var(--accent); border-radius: 4px; background: var(--accent); color: #fff; cursor: pointer; }
 button:hover { opacity: 0.9; }
+/* button[disabled] (bản 8.60, theo yêu cầu người dùng) — PHẢI đổi màu rõ
+   rệt (không chỉ đổi con trỏ chuột) khi 1 nút đang chờ kết quả từ server
+   (disabled={đang_xử_lý}), để người dùng KHÔNG hiểu nhầm là chưa bấm được
+   rồi bấm lại nhiều lần, dễ gửi trùng nhiều yêu cầu lên server cùng lúc.
+   Đặt SAU rule button:hover để thắng được opacity:0.9 lúc di chuột qua. */
+button:disabled, button:disabled:hover {
+  background: var(--line); border-color: var(--line); color: var(--ink-soft);
+  opacity: 1; cursor: not-allowed;
+}
 .inline-form { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 16px; }
 .stacked-form { display: flex; flex-direction: column; gap: 10px; max-width: 420px; margin-bottom: 20px; }
 .wizard-form { max-width: 520px; }

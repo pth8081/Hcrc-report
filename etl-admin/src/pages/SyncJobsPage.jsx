@@ -47,6 +47,14 @@ export default function SyncJobsPage() {
   const [importFile, setImportFile] = useState(null);
   const [importResult, setImportResult] = useState(null);
   const [importError, setImportError] = useState('');
+  const [creating, setCreating] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [runningId, setRunningId] = useState(null);
+  const [checkingSchemaId, setCheckingSchemaId] = useState(null);
+  const [togglingId, setTogglingId] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
+  const [downloadingTemplate, setDownloadingTemplate] = useState(false);
+  const [importing, setImporting] = useState(false);
   // Bộ lọc/nhóm theo siêu thị (bản 8.44) — CHỈ gọn cách XEM danh sách, KHÔNG
   // đổi kiến trúc 1 job/1 loại dữ liệu (xem phân tích đã trao đổi với người
   // dùng: gộp nhiều domain vào 1 job sẽ mất lịch chạy/watermark/log riêng
@@ -80,11 +88,12 @@ export default function SyncJobsPage() {
   async function submitEdit(e) {
     e.preventDefault();
     setError('');
+    setSavingEdit(true);
     try {
       await api.put(`/sync-jobs/${editingJob.Id}`, { ...editForm, isActive: !!editingJob.IsActive });
       closeEdit();
       reload();
-    } catch (err) { setError(err.message); }
+    } catch (err) { setError(err.message); } finally { setSavingEdit(false); }
   }
 
   function reload() {
@@ -132,6 +141,7 @@ export default function SyncJobsPage() {
   async function createJob(e) {
     e.preventDefault();
     setError('');
+    setCreating(true);
     try {
       const body = { ...form };
       if (!body.useJoin) {
@@ -141,14 +151,15 @@ export default function SyncJobsPage() {
       await api.post('/sync-jobs', body);
       setForm(EMPTY_FORM);
       reload();
-    } catch (err) { setError(err.message); }
+    } catch (err) { setError(err.message); } finally { setCreating(false); }
   }
 
   async function runNow(job) {
+    setRunningId(job.Id);
     try {
       await api.post(`/sync-jobs/${job.Id}/run-now`);
       alert(`Đã chạy "${job.Name}" — xem kết quả ở trang Log.`);
-    } catch (err) { setError(err.message); }
+    } catch (err) { setError(err.message); } finally { setRunningId(null); }
   }
 
   // Đối chiếu LẠI job đã lưu với schema THẬT hiện tại của nguồn — bắt được
@@ -156,15 +167,17 @@ export default function SyncJobsPage() {
   // lúc job chạy thật mới báo lỗi SQL. Đọc-only nên KHÔNG gói trong isAdmin
   // (viewer bấm được, cùng mức xem như phần còn lại của trang).
   async function checkSchema(job) {
+    setCheckingSchemaId(job.Id);
     try {
       const result = await api.post(`/sync-jobs/${job.Id}/check-schema`);
       if (result.skipped) alert(result.message);
       else if (result.ok) alert(`✅ "${job.Name}": schema khớp với nguồn hiện tại.`);
       else alert(`⛔ "${job.Name}": ${result.error}`);
-    } catch (err) { setError(err.message); }
+    } catch (err) { setError(err.message); } finally { setCheckingSchemaId(null); }
   }
 
   async function toggleActive(job) {
+    setTogglingId(job.Id);
     try {
       await api.put(`/sync-jobs/${job.Id}`, {
         name: job.Name, cronExpression: job.CronExpression, targetDomain: job.TargetDomain,
@@ -174,23 +187,27 @@ export default function SyncJobsPage() {
         isActive: !job.IsActive
       });
       reload();
-    } catch (err) { setError(err.message); }
+    } catch (err) { setError(err.message); } finally { setTogglingId(null); }
   }
 
   async function deleteJob(job) {
     if (!confirm(`Xoá job "${job.Name}"?`)) return;
+    setDeletingId(job.Id);
     try {
       await api.del(`/sync-jobs/${job.Id}`);
       reload();
-    } catch (err) { setError(err.message); }
+    } catch (err) { setError(err.message); } finally { setDeletingId(null); }
   }
 
   async function downloadTemplate() {
     setImportError('');
+    setDownloadingTemplate(true);
     try {
       await api.downloadFile('/sync-jobs/template', 'mau-sync-jobs.xlsx');
     } catch (err) {
       setImportError(err.message);
+    } finally {
+      setDownloadingTemplate(false);
     }
   }
 
@@ -218,16 +235,24 @@ export default function SyncJobsPage() {
       { key: 'IsActive', label: 'Trạng thái', render: (j) => (j.IsActive ? 'Bật' : 'Tắt') },
       {
         key: 'checkSchema', label: '', render: (j) => (
-          <button type="button" onClick={() => checkSchema(j)}>Kiểm tra schema</button>
+          <button type="button" onClick={() => checkSchema(j)} disabled={checkingSchemaId === j.Id}>
+            {checkingSchemaId === j.Id ? 'Đang kiểm tra...' : 'Kiểm tra schema'}
+          </button>
         )
       },
       isAdmin && {
         key: 'actions', label: '', render: (j) => (
           <>
             <button type="button" onClick={() => openEdit(j)}>Sửa</button>{' '}
-            <button type="button" onClick={() => runNow(j)}>Chạy thử</button>{' '}
-            <button type="button" onClick={() => toggleActive(j)}>{j.IsActive ? 'Tắt' : 'Bật'}</button>{' '}
-            <button type="button" onClick={() => deleteJob(j)}>Xoá</button>
+            <button type="button" onClick={() => runNow(j)} disabled={runningId === j.Id}>
+              {runningId === j.Id ? 'Đang chạy...' : 'Chạy thử'}
+            </button>{' '}
+            <button type="button" onClick={() => toggleActive(j)} disabled={togglingId === j.Id}>
+              {togglingId === j.Id ? 'Đang xử lý...' : (j.IsActive ? 'Tắt' : 'Bật')}
+            </button>{' '}
+            <button type="button" onClick={() => deleteJob(j)} disabled={deletingId === j.Id}>
+              {deletingId === j.Id ? 'Đang xoá...' : 'Xoá'}
+            </button>
           </>
         )
       }
@@ -260,6 +285,7 @@ export default function SyncJobsPage() {
 
     const formData = new FormData();
     formData.append('file', importFile);
+    setImporting(true);
     try {
       const result = await api.post('/sync-jobs/import', formData, true);
       setImportResult(result);
@@ -267,6 +293,8 @@ export default function SyncJobsPage() {
       reload();
     } catch (err) {
       setImportError(err.message);
+    } finally {
+      setImporting(false);
     }
   }
 
@@ -444,7 +472,7 @@ export default function SyncJobsPage() {
               <input type="checkbox" checked={form.keepHistory} onChange={(e) => setForm({ ...form, keepHistory: e.target.checked })} />
               Giữ lịch sử theo ngày (mỗi EventDate 1 dòng riêng, không ghi đè — bật cho domain cần so cùng kỳ năm trước)
             </label>
-            <button type="submit">Tạo job đồng bộ</button>
+            <button type="submit" disabled={creating}>{creating ? 'Đang tạo...' : 'Tạo job đồng bộ'}</button>
           </form>
 
           <h3>Nhập hàng loạt</h3>
@@ -469,11 +497,13 @@ export default function SyncJobsPage() {
           </p>
           {importError && <p className="form-error">{importError}</p>}
           <div className="inline-actions">
-            <button type="button" onClick={downloadTemplate}>Tải file mẫu</button>
+            <button type="button" onClick={downloadTemplate} disabled={downloadingTemplate}>
+              {downloadingTemplate ? 'Đang tải...' : 'Tải file mẫu'}
+            </button>
           </div>
           <form className="stacked-form" onSubmit={submitImport}>
             <input type="file" accept=".xlsx" onChange={(e) => setImportFile(e.target.files?.[0] ?? null)} required />
-            <button type="submit">Nhập hàng loạt</button>
+            <button type="submit" disabled={importing}>{importing ? 'Đang nhập...' : 'Nhập hàng loạt'}</button>
           </form>
           {importResult && (
             <div>
@@ -530,7 +560,7 @@ export default function SyncJobsPage() {
               )}
 
               <div className="inline-actions">
-                <button type="submit">Cập nhật job</button>
+                <button type="submit" disabled={savingEdit}>{savingEdit ? 'Đang lưu...' : 'Cập nhật job'}</button>
                 <button type="button" onClick={closeEdit}>Huỷ</button>
               </div>
             </form>

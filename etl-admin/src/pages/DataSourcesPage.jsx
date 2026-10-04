@@ -42,6 +42,15 @@ export default function DataSourcesPage() {
   const [encImportError, setEncImportError] = useState('');
   const [exportError, setExportError] = useState('');
   const [editing, setEditing] = useState(null); // { ...source, password: '' } đang sửa, hoặc null
+  const [downloadingTemplate, setDownloadingTemplate] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [importingEncrypted, setImportingEncrypted] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [savingSource, setSavingSource] = useState(false);
+  const [togglingId, setTogglingId] = useState(null);
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
 
   function reload() {
     api.get('/data-sources').then(setSources).catch(err => setError(err.message));
