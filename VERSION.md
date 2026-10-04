@@ -29,6 +29,43 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 8.58 — Đổi màu 4 báo cáo doanh thu cuối ngày LDTD/HCRC theo mẫu BRGMART
+
+**Theo yêu cầu người dùng**: "làm màu báo cáo doanh thu cuối ngày HCRC,
+LDTD (Thành viên) giống y hệt kiểu màu sắc" 1 file PDF mẫu BRGMART người
+dùng gửi, nhưng "báo cáo nhìn sắc, mỏng chuyên nghiệp hơn" (xem demo ảnh
+đã gửi, người dùng xác nhận "Ok, màu đẹp rồi"). Áp dụng ĐỒNG THỜI cả 3 nơi
+hiển thị (bảng xem trên web, xuất Excel, xuất PDF — dùng chung
+`rp-server/lib/reportCellFormat.js`/`rp-user/src/lib/reportGroupColors.js`),
+cho ĐỦ 4 báo cáo dùng chung 1 `buildDefinition()`: "Doanh thu cuối ngày
+LDTD"/"HCRC" (gốc + "(Thành viên)"). Không có báo cáo "HO" nào khác trong
+hệ thống cần áp màu (đã xác nhận lại với người dùng).
+
+Thay đổi cụ thể:
+- Đổi mã màu nhóm cột đúng theo file mẫu (lấy mẫu pixel trực tiếp từ PDF):
+  xanh lá = Doanh thu, cam đất = Lãi gộp, vàng gold = Giao dịch, tím =
+  2 cột đơn lẻ "Trung bình GD"/"Doanh thu/m2" (MỚI — trước đây 2 cột này
+  không có màu) — đã giảm độ bão hoà ~15-20% so với file mẫu gốc cho đỡ
+  chói, "chuyên nghiệp hơn".
+- Dòng "Tổng cộng"/"Tổng cộng MART"/"Tổng cộng MINIMART" giờ tô màu THEO
+  TỪNG CỘT (cột nào giữ màu của nhóm cột đó) thay vì 1 màu tím phẳng như
+  trước — đúng file mẫu; dòng Tổng cộng TOÀN báo cáo (cuối bảng) tô riêng
+  1 màu xanh dương đồng nhất cho mọi cột.
+- Thêm xen kẽ màu (zebra) nhẹ cho các dòng dữ liệu thường — CHỈ áp dụng
+  báo cáo có `columnGroups` (4 báo cáo trên), không đổi giao diện các
+  bảng/báo cáo khác trong hệ thống.
+- Viền bảng Excel/PDF đổi sang màu xám nhạt (khớp đúng màu viền nhẹ đang
+  dùng ở bảng web) thay vì xám đậm trước đây — "mỏng" hơn, đồng nhất cả 3
+  nơi xuất.
+- Thêm cơ chế mới `definition.standaloneColumnColors` (tô màu HEADER 1 cột
+  đơn lẻ không thuộc `columnGroups` nào, không vẽ thêm dòng tiêu đề nhóm
+  phía trên — khác hẳn `columnGroups`).
+
+**Các bước triển khai:** xem chi tiết ở
+`deploy/Cập nhật bản 8.58 — Đổi màu báo cáo doanh thu cuối ngày theo mẫu BRGMART.md`.
+BẮT BUỘC chạy lại `node scripts/seedLdtdHcrcReports.js` sau khi `git pull`
+— code mới KHÔNG tự áp dụng vào báo cáo đang chạy nếu không seed lại.
+
 ## 8.57 — Trạng thái kết nối + Giám sát cấu trúc CSDL
 
 **Theo yêu cầu người dùng**: 2 tính năng mới cho `etl-admin`/`api-admin`

@@ -14,6 +14,33 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 8.58 — Đổi màu 4 báo cáo doanh thu cuối ngày LDTD/HCRC theo mẫu BRGMART
+
+**Thay đổi**: theo yêu cầu người dùng (demo ảnh đã gửi, đã xác nhận "màu
+đẹp rồi") — đổi màu nhóm cột (web+Excel+PDF) của 4 báo cáo "Doanh thu cuối
+ngày LDTD/HCRC" (gốc + Thành viên) đúng theo file mẫu BRGMART người dùng
+gửi, thêm xen kẽ màu dòng + viền nhạt hơn cho "mỏng, chuyên nghiệp hơn".
+
+**Các bước triển khai:**
+1. `git pull origin main`.
+2. `cd rp-server && node scripts/seedLdtdHcrcReports.js` (BẮT BUỘC — ghi
+   đè `DefinitionJson` đã lưu trong CSDL, code mới không tự áp dụng nếu
+   không chạy lại; dùng đúng `menuCode` đã seed lần đầu nếu khác mặc định
+   `reports-kinh-doanh`: `node scripts/seedLdtdHcrcReports.js <menuCode>`).
+3. `pm2 restart hcrc-rp-server` (BẮT BUỘC — đổi `lib/exportExcel.js`/
+   `lib/exportPdf.js`/`lib/reportCellFormat.js`/`lib/reportRunner.js`/
+   `lib/compositeReportRunner.js`).
+4. `cd rp-user && npm run build`, copy `dist/` mới (đổi
+   `components/DataTable.jsx`/`lib/reportGroupColors.js`).
+5. Kiểm tra: mở 1 trong 4 báo cáo "Doanh thu cuối ngày ..." → màu nhóm cột
+   mới (xanh lá/cam/vàng/tím), dòng "Tổng cộng" tô theo từng nhóm, xen kẽ
+   màu dòng nhẹ; xuất Excel/PDF cũng đúng màu mới.
+
+Không đổi CSDL, không ảnh hưởng báo cáo khác (chỉ 4 báo cáo khai
+`columnGroups` mới bị ảnh hưởng).
+
+---
+
 ## 8.57 — Trạng thái kết nối + Giám sát cấu trúc CSDL
 
 **Thay đổi**: theo yêu cầu người dùng (demo đã gửi, đã xác nhận) — thêm
