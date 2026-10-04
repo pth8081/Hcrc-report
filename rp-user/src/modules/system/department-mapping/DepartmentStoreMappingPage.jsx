@@ -9,6 +9,7 @@ import { useEffect, useState } from 'react';
 import { api, downloadFile } from '../../../lib/api';
 import { useAuth } from '../../../lib/AuthContext';
 import DataTable from '../../../components/DataTable';
+import { useRowSelection } from '../../../lib/useRowSelection';
 
 const EMPTY_EDIT_FORM = { id: null, departmentRaw: '', maDiem: '' };
 

@@ -10,6 +10,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../../lib/api';
 import DataTable from '../../../components/DataTable';
+import { useRowSelection } from '../../../lib/useRowSelection';
 
 const DATE_RANGE_PRESET_OPTIONS = [
   { value: '', label: '— Chọn khoảng ngày —' },
@@ -202,6 +203,9 @@ export default function AnomalyAlertsPage() {
   const [runningId, setRunningId] = useState(null);
   const [togglingId, setTogglingId] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
+  // Chọn nhiều + xoá hàng loạt (bản 8.62).
+  const selection = useRowSelection();
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   function reload() {
     api.get('/system/anomaly-alerts').then(setRows).catch(err => setError(err.message));
@@ -247,6 +251,20 @@ export default function AnomalyAlertsPage() {
       await api.del(`/system/anomaly-alerts/${row.Id}`);
       reload();
     } catch (err) { setError(err.message); } finally { setDeletingId(null); }
+  }
+
+  async function deleteSelected() {
+    if (selection.selectedIds.size === 0) return;
+    if (!confirm(`Xoá ${selection.selectedIds.size} cảnh báo đã chọn?`)) return;
+    setError('');
+    setBulkDeleting(true);
+    try {
+      for (const id of selection.selectedIds) {
+        await api.del(`/system/anomaly-alerts/${id}`);
+      }
+      selection.clear();
+      reload();
+    } catch (err) { setError(err.message); } finally { setBulkDeleting(false); }
   }
 
   async function runNow(row) {
@@ -320,7 +338,16 @@ export default function AnomalyAlertsPage() {
           }
         ]}
         rows={rows}
+        selection={selection}
       />
+
+      {selection.selectedIds.size > 0 && (
+        <div className="inline-actions">
+          <button type="button" onClick={deleteSelected} disabled={bulkDeleting}>
+            {bulkDeleting ? 'Đang xoá...' : `Xoá ${selection.selectedIds.size} mục đã chọn`}
+          </button>
+        </div>
+      )}
 
       {editing && (
         <div className="modal">

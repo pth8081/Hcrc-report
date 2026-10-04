@@ -48,6 +48,19 @@ export default function ReportCatalogPage() {
     } catch (err) { setError(err.message); } finally { setDeletingId(null); }
   }
 
+  async function deleteSelected() {
+    if (selection.selectedIds.size === 0) return;
+    if (!confirm(`Xoá ${selection.selectedIds.size} báo cáo đã chọn?`)) return;
+    setBulkDeleting(true);
+    try {
+      for (const id of selection.selectedIds) {
+        await api.del(`/report-catalog/${id}`);
+      }
+      selection.clear();
+      reload();
+    } catch (err) { setError(err.message); } finally { setBulkDeleting(false); }
+  }
+
   return (
     <div className="page">
       <h1>Báo cáo</h1>
@@ -83,7 +96,16 @@ export default function ReportCatalogPage() {
           isAdmin && { key: 'actions', label: '', render: (r) => <button type="button" onClick={() => deleteReport(r)} disabled={deletingId === r.ReportId}>{deletingId === r.ReportId ? 'Đang xoá...' : 'Xoá'}</button> }
         ].filter(Boolean)}
         rows={reports}
+        selection={isAdmin ? selection : null}
       />
+
+      {isAdmin && selection.selectedIds.size > 0 && (
+        <div className="inline-actions">
+          <button type="button" onClick={deleteSelected} disabled={bulkDeleting}>
+            {bulkDeleting ? 'Đang xoá...' : `Xoá ${selection.selectedIds.size} mục đã chọn`}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

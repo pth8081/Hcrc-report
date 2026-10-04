@@ -65,6 +65,19 @@ export default function DashboardsPanel() {
     } catch (err) { setError(err.message); } finally { setDeletingId(null); }
   }
 
+  async function deleteSelected() {
+    if (selection.selectedIds.size === 0) return;
+    if (!confirm(`Xoá ${selection.selectedIds.size} dashboard đã chọn?`)) return;
+    setBulkDeleting(true);
+    try {
+      for (const id of selection.selectedIds) {
+        await api.del(`/system/dashboards/${id}`);
+      }
+      selection.clear();
+      reload();
+    } catch (err) { setError(err.message); } finally { setBulkDeleting(false); }
+  }
+
   return (
     <div>
       {error && <p className="form-error">{error}</p>}
@@ -99,7 +112,16 @@ export default function DashboardsPanel() {
           }
         ]}
         rows={dashboards}
+        selection={selection}
       />
+
+      {selection.selectedIds.size > 0 && (
+        <div className="inline-actions">
+          <button type="button" onClick={deleteSelected} disabled={bulkDeleting}>
+            {bulkDeleting ? 'Đang xoá...' : `Xoá ${selection.selectedIds.size} mục đã chọn`}
+          </button>
+        </div>
+      )}
 
       {editing && (
         <div className="modal">

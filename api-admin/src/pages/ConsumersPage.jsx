@@ -36,6 +36,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/AuthContext';
 import DataTable from '../components/DataTable';
+import { useRowSelection } from '../lib/useRowSelection';
 
 const SCOPE_OPTIONS = ['reports', 'realtime', 'realtimeWrite', 'voucherCheck', 'voucherRedeem'];
 const EMPTY_FORM = { name: '', authMethod: 'apiKey', scopes: [], rateLimitPerMinute: 120, allowedIps: '' };
@@ -118,6 +119,9 @@ export default function ConsumersPage() {
   const [savingReportAccess, setSavingReportAccess] = useState(false);
   const [savingRealtimeAccess, setSavingRealtimeAccess] = useState(false);
   const [savingWriteAccess, setSavingWriteAccess] = useState(false);
+  // Chọn nhiều + xoá hàng loạt (bản 8.62).
+  const selection = useRowSelection();
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   function reload() {
     api.get('/consumers').then(setConsumers).catch(err => setError(err.message));
@@ -254,6 +258,19 @@ export default function ConsumersPage() {
     } catch (err) { setError(err.message); } finally { setDeletingId(null); }
   }
 
+  async function deleteSelected() {
+    if (selection.selectedIds.size === 0) return;
+    if (!confirm(`Xoá ${selection.selectedIds.size} đối tác đã chọn? Không hoàn tác được.`)) return;
+    setBulkDeleting(true);
+    try {
+      for (const id of selection.selectedIds) {
+        await api.del(`/consumers/${id}`);
+      }
+      selection.clear();
+      reload();
+    } catch (err) { setError(err.message); } finally { setBulkDeleting(false); }
+  }
+
   return (
     <div className="page">
       <div className="page-header">
@@ -320,7 +337,16 @@ export default function ConsumersPage() {
           }
         ].filter(Boolean)}
         rows={consumers}
+        selection={isAdmin ? selection : null}
       />
+
+      {isAdmin && selection.selectedIds.size > 0 && (
+        <div className="inline-actions">
+          <button type="button" onClick={deleteSelected} disabled={bulkDeleting}>
+            {bulkDeleting ? 'Đang xoá...' : `Xoá ${selection.selectedIds.size} mục đã chọn`}
+          </button>
+        </div>
+      )}
 
       {editing && (
         <div className="modal">

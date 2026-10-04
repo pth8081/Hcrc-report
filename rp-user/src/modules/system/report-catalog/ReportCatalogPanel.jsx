@@ -14,6 +14,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../../../lib/api';
 import DataTable from '../../../components/DataTable';
+import { useRowSelection } from '../../../lib/useRowSelection';
 
 const EMPTY_FORM = {
   reportId: '', title: '', domain: '', menuItemId: '', dataSourceId: '', definitionJson: '',
@@ -47,6 +48,8 @@ export default function ReportCatalogPanel() {
   const [editingReportId, setEditingReportId] = useState(null);
   const [saving, setSaving] = useState(false);
   const [deletingReportId, setDeletingReportId] = useState(null);
+  const selection = useRowSelection(row => row.ReportId);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   function reload() {
     api.get('/system/report-catalog').then(setReports).catch(err => setError(err.message));
@@ -145,6 +148,19 @@ export default function ReportCatalogPanel() {
       await api.del(`/system/report-catalog/${r.ReportId}`);
       reload();
     } catch (err) { setError(err.message); } finally { setDeletingReportId(null); }
+  }
+
+  async function deleteSelected() {
+    if (selection.selectedIds.size === 0) return;
+    if (!confirm(`Xoá ${selection.selectedIds.size} báo cáo đã chọn?`)) return;
+    setBulkDeleting(true);
+    try {
+      for (const id of selection.selectedIds) {
+        await api.del(`/system/report-catalog/${id}`);
+      }
+      selection.clear();
+      reload();
+    } catch (err) { setError(err.message); } finally { setBulkDeleting(false); }
   }
 
   async function uploadTemplate(e) {
@@ -345,7 +361,16 @@ export default function ReportCatalogPanel() {
           }
         ]}
         rows={reports}
+        selection={selection}
       />
+
+      {selection.selectedIds.size > 0 && (
+        <div className="inline-actions">
+          <button type="button" onClick={deleteSelected} disabled={bulkDeleting}>
+            {bulkDeleting ? 'Đang xoá...' : `Xoá ${selection.selectedIds.size} mục đã chọn`}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

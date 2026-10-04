@@ -479,7 +479,16 @@ export default function EmailSchedulesPage() {
           }
         ]}
         rows={rows}
+        selection={selection}
       />
+
+      {selection.selectedIds.size > 0 && (
+        <div className="inline-actions">
+          <button type="button" onClick={deleteSelected} disabled={bulkDeleting}>
+            {bulkDeleting ? 'Đang xoá...' : `Xoá ${selection.selectedIds.size} mục đã chọn`}
+          </button>
+        </div>
+      )}
 
       {editing && (
         <div className="modal">
