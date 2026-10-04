@@ -30,14 +30,18 @@ async function loadJob(jobId) {
   return result.recordset[0] || null;
 }
 
-async function runJobIfNotAlreadyRunning(job) {
+// options.allowConnectRetry (bản 8.59, mặc định true — xem jobs/runSync.js)
+// — truyền false từ routes/admin/syncJobs.js (nút "Chạy thử") để giữ đúng
+// hành vi thử 1 lần/báo lỗi ngay, không bắt admin chờ tới 10 phút retry khi
+// đang đứng chờ kết quả trên trình duyệt.
+async function runJobIfNotAlreadyRunning(job, options) {
   if (runningJobs.has(job.Id)) {
     console.warn(`⏭  [${job.Name}] bỏ qua lượt chạy này — lượt trước chưa xong (chạy lâu hơn chu kỳ cron)`);
     return;
   }
   runningJobs.add(job.Id);
   try {
-    await runJobObject(job);
+    await runJobObject(job, options);
   } finally {
     runningJobs.delete(job.Id);
   }

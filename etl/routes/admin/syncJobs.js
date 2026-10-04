@@ -308,7 +308,10 @@ router.post('/:id/run-now', requireMenuEdit('sync-jobs'), async (req, res, next)
     // Đi qua ĐÚNG cơ chế chống chồng lấn của scheduler (jobs/scheduler.js) —
     // bấm "Chạy thử" khi job này đang tự chạy theo lịch cũng phải bị chặn
     // (bỏ qua lặng lẽ, ghi log), không chỉ 2 lượt cron tự động chồng nhau.
-    await runJobIfNotAlreadyRunning(result.recordset[0]);
+    // allowConnectRetry: false (bản 8.59) — admin đang CHỜ NGAY trên trình
+    // duyệt, không bắt chờ tới 10 phút retry như job chạy nền tự động;
+    // lỗi kết nối báo ngay như trước, retry chỉ áp dụng cho lịch cron.
+    await runJobIfNotAlreadyRunning(result.recordset[0], { allowConnectRetry: false });
     await logAction(req, { module: 'Đồng bộ', actionType: 'CHAY_THU_JOB', targetObject: String(jobId), description: `Chạy thử job đồng bộ "${result.recordset[0].Name}"` });
     res.json({ ok: true });
   } catch (err) { next(err); }

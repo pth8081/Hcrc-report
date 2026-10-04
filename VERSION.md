@@ -29,6 +29,44 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 8.59 — Tự thử lại khi mất kết nối nguồn lúc đồng bộ
+
+**Theo yêu cầu người dùng**: sau sự cố thật (04/10/2026) — vài chi nhánh
+("Thành viên") mất kết nối mạng, job Live báo lỗi liên tục mỗi 2 phút ("Lỗi
+đồng bộ: operation timed out", "Lỗi kết nối nguồn #N: Failed to connect
+to..."). Người dùng đề xuất: nếu quá thời gian mà job vẫn chưa đồng bộ
+được thì tự thử lại cho tới khi thành công, thay vì bỏ cuộc ngay rồi đợi
+đúng lịch đã đặt mới thử lại — đã phân tích phương án, xác nhận: KHÔNG thử
+lại vô hạn (rủi ro nếu 1 chi nhánh mất mạng thật sự nhiều giờ/ngày), mà
+thử lại nhanh dần có giới hạn (backoff, tối đa 10 phút/lượt).
+
+Thay đổi (`etl/jobs/runSync.js` + `etl/jobs/scheduler.js` +
+`etl/routes/admin/syncJobs.js`):
+
+- Lỗi **kết nối** (mạng/timeout tới nguồn) khi job đang chạy nền theo lịch
+  cron → tự thử lại NGAY, khoảng cách tăng dần 15s → 30s → 60s → 120s
+  (giữ 120s/lần sau đó), trong tối đa **10 phút**. Hết 10 phút vẫn lỗi mới
+  thật sự ghi nhận THẤT BẠI (như cũ) — lịch cron gốc của job (vd mỗi 2
+  phút) tự động tiếp tục bình thường ở lượt kế tiếp, không cần canh giờ gì
+  thêm.
+- CHỈ thử lại lỗi **kết nối** (mạng/timeout) — KHÔNG thử lại lỗi do cấu
+  hình sai (vd thiếu cột VIEW, sai cú pháp SQL) vì loại lỗi này không tự
+  hết, thử lại chỉ phí thời gian.
+- Việc thử lại xảy ra **TRƯỚC** khi giữ khoá chống chạy chồng (sp_getapplock)
+  — tránh chiếm dụng kết nối CSDL nội bộ (pool `ADMIN`) suốt 10 phút nếu
+  nhiều chi nhánh cùng mất kết nối 1 lúc.
+- Nút **"Chạy thử"** (etl-admin, admin bấm và đang chờ ngay trên trình
+  duyệt) **KHÔNG áp dụng retry** — vẫn báo lỗi ngay như trước, tránh bắt
+  admin chờ tới 10 phút mới thấy kết quả.
+- KHÔNG áp dụng cho job nền "Trạng thái kết nối" (bản 8.57) — trang đó cố
+  ý cần biết NGAY nguồn nào mất kết nối tại đúng thời điểm kiểm tra.
+- Chỉ ghi log (Nhật ký hệ thống) khi phải thử lại — KHÔNG gửi thêm email/
+  cảnh báo nào mới; email cảnh báo cũ chỉ gửi khi THẬT SỰ bỏ cuộc sau 10
+  phút (giữ nguyên hành vi cũ, không tăng số lượng cảnh báo).
+
+Không đổi cấu trúc CSDL, không ảnh hưởng job đang chạy ổn định (chỉ job
+đang lỗi kết nối mới thấy khác biệt).
+
 ## 8.58 — Đổi màu 4 báo cáo doanh thu cuối ngày LDTD/HCRC theo mẫu BRGMART
 
 **Theo yêu cầu người dùng**: "làm màu báo cáo doanh thu cuối ngày HCRC,

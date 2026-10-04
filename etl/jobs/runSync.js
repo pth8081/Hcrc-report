@@ -18,6 +18,75 @@ const sourcesRegistry = require('../sources');
 const EPOCH = new Date('1970-01-01T00:00:00.000Z');
 const WATERMARK_SAFETY_LAG_MS = 5000;
 
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// Bản 8.59 (theo yêu cầu người dùng, sau sự cố thật mất kết nối vài chi
+// nhánh — xem Log 04/10/2026): lỗi KẾT NỐI (không phải lỗi dữ liệu/cấu
+// hình) tới nguồn — vd mạng chi nhánh chập chờn vài giây-vài phút — giờ
+// được THỬ LẠI NGAY trong lúc job đang chạy, thay vì bỏ cuộc ngay rồi đợi
+// NGUYÊN 1 chu kỳ cron (2-15 phút tuỳ job) mới thử lại. Thử lại CÀNG LÚC
+// CÀNG THƯA (backoff 15s -> 30s -> 60s -> 120s, giữ 120s/lần sau đó) trong
+// tối đa CONNECT_RETRY_WINDOW_MS (10 phút, người dùng xác nhận) — HẾT cửa
+// sổ mà vẫn lỗi thì DỪNG HẲN, báo 1 lượt THẤT BẠI bình thường vào
+// etl.SyncLog — lịch cron GỐC của job tự lo lượt kế tiếp (đúng yêu cầu
+// "thời gian đã đặt áp dụng cho lần đồng bộ tiếp theo", không cần job này
+// tự canh giờ tiếp theo). Trong lúc đang thử lại, job vẫn nằm trong
+// `runningJobs` (jobs/scheduler.js) nên lượt cron kế tiếp của ĐÚNG job này
+// tự động bị bỏ qua — không chồng lấn.
+//
+// QUAN TRỌNG — gọi TRƯỚC khi vào runWithCrossProcessLock(), KHÔNG phải bên
+// trong: sp_getapplock giữ nguyên 1 transaction mở suốt thời gian chạy
+// fn(), tức 1 kết nối từ pool 'ADMIN' (mặc định tối đa 5, xem db.js
+// ADMIN_POOL_MAX) bị CHIẾM DỤNG suốt thời gian đó. Nếu retry nằm TRONG
+// lúc giữ khoá, nhiều job cùng mất kết nối 1 lúc (đúng kịch bản thật đã
+// xảy ra — nhiều chi nhánh cùng rớt mạng) sẽ giữ tới 10 PHÚT/job, dễ chiếm
+// hết pool 'ADMIN' khiến các job/API khác (kể cả trang quản trị) không
+// còn kết nối nào để dùng. Gọi TRƯỚC khi có khoá — mỗi lượt thử chỉ chiếm
+// kết nối ĐÚNG lúc thử (thất bại ngay, không giữ), lúc "ngủ" chờ thử lại
+// (15s/30s/60s/120s) KHÔNG giữ bất kỳ kết nối/khoá CSDL nào.
+//
+// CHỈ áp dụng cho bước LẤY KẾT NỐI (TCP/login tới nguồn) — đây là bước DUY
+// NHẤT quan sát được lỗi mạng chi nhánh thật (log "Lỗi kết nối nguồn #N" ở
+// lib/dataSourcePool.js). KHÔNG retry lỗi XẢY RA SAU KHI đã kết nối được
+// (vd thiếu cột trong VIEW, lỗi cú pháp SQL) — loại lỗi này KHÔNG tự hết dù
+// thử lại bao nhiêu lần, cần sửa tay ngay; thử lại chỉ phí thời gian và
+// khiến admin tưởng nhầm "hệ thống đang tự xử lý" trong khi thực ra cần
+// người can thiệp.
+//
+// KHÔNG tái dùng cho lib/connectionHealthChecker.js (bản 8.57, trang
+// "Trạng thái kết nối") — trang đó CỐ Ý muốn biết NGAY nguồn nào mất kết
+// nối tại đúng thời điểm kiểm tra, retry ở đó sẽ làm sai lệch kết quả hiện
+// trên trang (che mất tình trạng mất kết nối thật trong vài phút đầu).
+const CONNECT_RETRY_WINDOW_MS = 10 * 60 * 1000; // 10 phút
+const CONNECT_RETRY_DELAYS_MS = [15000, 30000, 60000, 120000]; // 15s,30s,60s,120s (giữ 120s/lần nếu còn thời gian)
+
+// allowRetry=false — dùng cho đường "Chạy thử" tương tác (routes/admin/syncJobs.js
+// POST /:id/run-now, admin BẤM NÚT VÀ ĐANG CHỜ ngay trên trình duyệt) — giữ
+// đúng hành vi CŨ (thử 1 lần, báo lỗi ngay) thay vì bắt admin chờ tới 10
+// phút mới thấy kết quả. CHỈ job chạy NỀN theo lịch cron (không ai chờ
+// trực tiếp) mới dùng retry đầy đủ — xem runJobObject().
+async function getConnectionWithRetry(job, allowRetry = true) {
+  const deadline = Date.now() + CONNECT_RETRY_WINDOW_MS;
+  let attempt = 0;
+  for (;;) {
+    try {
+      return await getConnection(job.DataSourceId);
+    } catch (err) {
+      attempt += 1;
+      const remaining = allowRetry ? deadline - Date.now() : 0;
+      if (remaining <= 0) {
+        if (attempt === 1) throw err; // allowRetry=false (hoặc hết giờ ngay từ lần đầu, không thực tế) — ném NGUYÊN lỗi gốc, không bọc thêm chữ "đã thử lại"
+        throw new Error(`Mất kết nối nguồn liên tục trong ${Math.round(CONNECT_RETRY_WINDOW_MS / 60000)} phút (đã thử lại ${attempt} lần) — ${err.message}`);
+      }
+      const delay = Math.min(CONNECT_RETRY_DELAYS_MS[Math.min(attempt - 1, CONNECT_RETRY_DELAYS_MS.length - 1)], remaining);
+      logWarn(`⏳ [${job.Name}] Lỗi kết nối nguồn (lần ${attempt}): ${err.message} — thử lại sau ${Math.round(delay / 1000)}s...`);
+      await sleep(delay);
+    }
+  }
+}
+
 // Số dòng đọc/biến đổi/ghi mỗi LÔ cho job Type='table' (xem runTableJob) —
 // job "Lịch sử" chạy lần đầu đọc VIEW gộp UNION ALL ~93 bảng/bảng lưu trữ
 // hàng chục triệu dòng không lọc ngày (đã gặp thật, xem chú thích
@@ -95,9 +164,10 @@ async function logRun({ jobId, status, rowCount = 0, errorMessage = null, starte
 // vô hại) — nhất quán với cách upsertReportFacts() vốn đã tự chia lô
 // ROWS_PER_TRANSACTION và commit từng lô độc lập, KHÔNG chờ ghi xong mới
 // đẩy watermark.
-async function runTableJob(job, lastSyncedAt, dwhPool) {
-  const connection = await getConnection(job.DataSourceId);
-
+// connection — ĐÃ lấy sẵn TRƯỚC khi gọi hàm này (xem runJobObject(), lý do
+// đầy đủ ở chú thích getConnectionWithRetry() phía trên: retry phải xảy ra
+// TRƯỚC khi giữ khoá sp_getapplock, không phải bên trong).
+async function runTableJob(job, lastSyncedAt, dwhPool, connection) {
   let offset = 0;
   let rawCount = 0;
   let rawMaxUpdatedAt = lastSyncedAt;
@@ -186,8 +256,29 @@ async function runWithCrossProcessLock(job, fn) {
   }
 }
 
-async function runJobObject(job) {
-  return runWithCrossProcessLock(job, () => runJobObjectLocked(job));
+// Lấy kết nối nguồn (+ retry nếu lỗi mạng, xem getConnectionWithRetry() ở
+// trên) TRƯỚC KHI vào khoá sp_getapplock — KHÔNG gộp vào runJobObjectLocked
+// (lý do đầy đủ ở chú thích getConnectionWithRetry()): tránh giữ 1 kết nối
+// pool 'ADMIN' suốt tối đa 10 phút retry mỗi job, dễ chiếm hết pool nếu
+// nhiều chi nhánh cùng mất kết nối 1 lúc. Mất kết nối liên tục hết cả cửa
+// sổ retry (10 phút) thì báo lỗi CUỐI ngay tại đây — giống hệt cách
+// runJobObjectLocked() báo lỗi cho mọi lỗi khác, không cần giữ khoá nào để
+// làm việc này.
+async function runJobObject(job, { allowConnectRetry = true } = {}) {
+  let connection;
+  if (job.Type === 'table') {
+    const startedAt = new Date();
+    try {
+      connection = await getConnectionWithRetry(job, allowConnectRetry);
+    } catch (err) {
+      const message = describeSyncError(err);
+      logError(`⛔ [${job.Name}] Lỗi đồng bộ: ${message}`);
+      await logRun({ jobId: job.Id, status: 'FAILED', errorMessage: message, startedAt, finishedAt: new Date() }).catch(() => {});
+      await alertSyncFailure({ key: job.Name, label: job.Name }, message).catch(() => {});
+      return;
+    }
+  }
+  return runWithCrossProcessLock(job, () => runJobObjectLocked(job, connection));
 }
 
 // err.message RỖNG là có thật, không phải lỗi hiển thị/log cắt bớt — gặp
@@ -234,7 +325,9 @@ function describeSyncError(err) {
   return extra.length ? `${primary} — chi tiết: ${extra.join('; ')}` : primary;
 }
 
-async function runJobObjectLocked(job) {
+// connection — ĐÃ lấy sẵn (+ retry nếu cần) TRƯỚC KHI vào khoá
+// sp_getapplock, chỉ dùng cho job.Type==='table' (xem runJobObject()).
+async function runJobObjectLocked(job, connection) {
   const startedAt = new Date();
   logInfo(`▶ [${job.Name}] Bắt đầu đồng bộ...`);
   try {
@@ -243,7 +336,7 @@ async function runJobObjectLocked(job) {
 
     let maxUpdatedAt, rawCount, inserted = 0, updated = 0;
     if (job.Type === 'table') {
-      ({ maxUpdatedAt, rawCount, inserted, updated } = await runTableJob(job, lastSyncedAt, dwhPool));
+      ({ maxUpdatedAt, rawCount, inserted, updated } = await runTableJob(job, lastSyncedAt, dwhPool, connection));
     } else {
       const custom = await runCustomJob(job, lastSyncedAt);
       maxUpdatedAt = custom.maxUpdatedAt;

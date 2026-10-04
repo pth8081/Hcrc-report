@@ -14,6 +14,28 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 8.59 — Tự thử lại khi mất kết nối nguồn lúc đồng bộ
+
+**Thay đổi**: theo yêu cầu người dùng sau sự cố thật (vài chi nhánh mất
+mạng, job Live báo lỗi liên tục) — job đồng bộ chạy nền giờ tự thử lại
+(backoff 15s→30s→60s→120s, tối đa 10 phút) khi lỗi KẾT NỐI tới nguồn,
+trước khi thật sự ghi nhận thất bại. Nút "Chạy thử" tương tác không đổi
+(vẫn báo lỗi ngay).
+
+**Các bước triển khai:**
+1. `git pull origin main`.
+2. `pm2 restart hcrc-etl` (BẮT BUỘC — đổi `jobs/runSync.js`, `jobs/scheduler.js`,
+   `routes/admin/syncJobs.js`).
+3. Không cần build lại giao diện nào (không đổi etl-admin).
+4. Kiểm tra: theo dõi etl-admin → Log — khi 1 job đang lỗi kết nối, thấy
+   dòng "Lỗi kết nối nguồn (lần N): ... — thử lại sau Xs..." thay vì chỉ 1
+   dòng lỗi rồi im lặng tới chu kỳ sau; nếu nguồn phục hồi trong 10 phút sẽ
+   thấy job chạy thành công mà không cần đợi hết chu kỳ cron.
+
+Không đổi cấu trúc CSDL, không ảnh hưởng job đang chạy ổn định.
+
+---
+
 ## 8.58 — Đổi màu 4 báo cáo doanh thu cuối ngày LDTD/HCRC theo mẫu BRGMART
 
 **Thay đổi**: theo yêu cầu người dùng (demo ảnh đã gửi, đã xác nhận "màu
