@@ -41,6 +41,11 @@ router.get('/', async (req, res, next) => {
       fullName: context.fullName,
       roles: context.roles,
       isSystemRole: context.isSystemRole,
+      // storeScope (bản 8.70) — null = Toàn bộ, mảng MaDiem = CHỈ đúng (các)
+      // siêu thị đó — an toàn để lộ cho CHÍNH người dùng đó (không phải của
+      // người khác), dùng để hiện rõ "bạn đang upload cho siêu thị nào" ở
+      // trang "Upload cảnh báo hàng tồn".
+      storeScope: context.storeScope,
       menu: menuTree
     });
   } catch (err) { next(err); }

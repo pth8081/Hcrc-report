@@ -31,6 +31,7 @@ const dashboardCatalogRoutes = require('./routes/dashboardCatalog');
 const dashboardsRoutes = require('./routes/dashboards');
 const adhocReportsRoutes = require('./routes/adhocReports');
 const webauthnRoutes = require('./routes/webauthn');
+const stockAlertThresholdsUploadRoutes = require('./routes/stockAlertThresholdsUpload');
 const {
   verifyCredentials, isSystemRoleForRateLimit, issueToken, COOKIE_NAME, getSecret, setSessionCookie,
   issuePending2FAToken, issueSetupRequiredToken
@@ -219,6 +220,7 @@ app.use('/api/system/anomaly-alerts', anomalyAlertsRoutes);
 app.use('/api/system/hcrc-workspace', hcrcWorkspaceSettingsRoutes);
 app.use('/api/system/department-mapping', departmentStoreMappingRoutes);
 app.use('/api/system/dashboards', dashboardCatalogRoutes);
+app.use('/api/stock-alert-upload', stockAlertThresholdsUploadRoutes);
 
 app.use((err, req, res, next) => { // eslint-disable-line no-unused-vars
   console.error(err);

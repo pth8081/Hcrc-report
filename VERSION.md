@@ -29,6 +29,50 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 8.70 — Upload cảnh báo hàng tồn NGAY trên rp-user (siêu thị tự upload)
+
+**Theo yêu cầu người dùng**: sau bản 8.69 (chặn đúng theo siêu thị cho
+etl-admin), người dùng làm rõ mô hình thật — **siêu thị KHÔNG có tài khoản
+etl-admin, chỉ người quản trị (HO) mới vào etl-admin**; siêu thị chỉ dùng
+rp-user (báo cáo). Người dùng muốn thêm đường upload MỚI: **"cho siêu thị
+upload từ report gọi API, report server chặn quyền upload, report server
+chỉ cho siêu thị nào upload đúng siêu thị ấy"**, và **"ETL không muốn làm
+API"** — chọn hướng api-server tự có API riêng nhận trực tiếp từ rp-server,
+ghi thẳng vào CSDL ETL bằng tài khoản etl đã có sẵn (không tạo tài khoản
+SQL mới).
+
+- **Trang mới "Upload cảnh báo hàng tồn"** (`rp-user`, menu `stock-alert-
+  upload`, ROOT — không nằm trong "Hệ thống" để gán quyền riêng được cho
+  vai trò "Siêu thị" mà không cần cấp cả nhóm cấu hình) — người dùng báo
+  cáo tự chọn file Excel upload NGAY trên rp-user, hiện rõ "Phạm vi của
+  bạn: [tên siêu thị]" trước khi upload.
+- **rp-server** (`routes/stockAlertThresholdsUpload.js`) — nhận file, parse
+  (`lib/stockAlertThresholdsUpload.js`, cùng định dạng file với etl-admin),
+  **TỪ CHỐI HẲN** (400, không ghi gì) nếu file có dòng thuộc siêu thị NGOÀI
+  phạm vi dữ liệu (storeScope, bản 8.50/8.51) của người đăng nhập — mirror
+  đúng cơ chế bản 8.69. Thêm lại lớp chặn "zip bomb" (`lib/fileSignature.js:
+  guardZipBombSize`, mirror etl) — upload mở cho MỌI người dùng báo cáo nên
+  càng cần lớp này. `GET /api/me` trả thêm `storeScope` của chính người
+  đăng nhập (an toàn để lộ) để trang hiện đúng phạm vi.
+- **api-server** — API NỘI BỘ MỚI `POST /internal/stock-alert-thresholds`
+  (`routes/internal/stockAlertThresholds.js`), xác thực bằng 1 secret cố
+  định dùng chung với rp-server (`INTERNAL_API_SECRET`, KHÔNG phải cơ chế
+  HMAC/API key dành cho đối tác ngoài) + IP allowlist tuỳ chọn — nhận dữ
+  liệu ĐÃ được rp-server kiểm tra phạm vi, ghi thẳng vào `etl.
+  StockAlertThresholds` (CSDL `HCRC_ETL`) qua pool mới `ETL_DB`, **DÙNG
+  LẠI Y NGUYÊN tài khoản SQL Server `etl_admin` đã có sẵn trong etl/.env**
+  (đã có quyền ghi bảng này) — theo đúng yêu cầu không tạo tài khoản SQL
+  mới, không đụng gì vào etl/etl-admin. Logic ghi (REPLACE theo từng
+  MaDiem có trong file) mirror đúng bản 8.69.
+- `app.MenuItems` (`rp-db/schema.sql`) — thêm mục `stock-alert-upload`.
+
+**2 đường upload giờ chạy song song, cùng ghi 1 bảng** `etl.
+StockAlertThresholds`: (1) admin HO upload qua etl-admin (bản 8.68/8.69,
+không đổi), (2) siêu thị tự upload qua rp-user (bản 8.70, MỚI) — etl-admin
+vẫn thấy đầy đủ dữ liệu từ cả 2 đường, dùng để admin kiểm tra/sửa/xoá tổng
+hợp. Chi tiết đầy đủ + cấu hình 2 biến môi trường mới:
+`deploy/Cập nhật bản 8.70 — Upload cảnh báo hàng tồn từ rp-user.md`.
+
 ## 8.69 — Sửa THIẾU SÓT bản 8.68: chặn đúng theo siêu thị + sửa lỗi import xoá nhầm dữ liệu siêu thị khác
 
 **Theo yêu cầu người dùng**: sau khi xác nhận bản 8.68, người dùng hỏi lại

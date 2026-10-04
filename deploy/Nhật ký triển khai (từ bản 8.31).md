@@ -14,6 +14,45 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 8.70 — Upload cảnh báo hàng tồn NGAY trên rp-user (siêu thị tự upload)
+
+**Thay đổi**: thêm đường upload MỚI cho file ngưỡng cảnh báo hàng tồn —
+siêu thị tự upload NGAY trên rp-user (trang mới "Upload cảnh báo hàng
+tồn"), rp-server tự chặn đúng theo "Phạm vi dữ liệu" của người đăng nhập
+rồi gọi API NỘI BỘ sang api-server để ghi thẳng vào CSDL ETL (api-server
+dùng lại tài khoản SQL etl_admin đã có sẵn, KHÔNG đụng gì etl/etl-admin).
+Đường upload cũ qua etl-admin (admin HO, bản 8.68/8.69) vẫn giữ nguyên,
+chạy song song, cùng ghi 1 bảng. Chi tiết đầy đủ: `deploy/Cập nhật bản
+8.70 — Upload cảnh báo hàng tồn từ rp-user.md`.
+
+**Các bước triển khai:**
+1. `git pull origin main`.
+2. Chạy lại `rp-db/schema.sql` (BẮT BUỘC — thêm menu mới
+   `stock-alert-upload`).
+3. Khai biến môi trường MỚI ở **CẢ 2** `.env`:
+   - `rp-server/.env`: `INTERNAL_API_SERVER_URL` (URL gốc api-server, vd
+     `http://localhost:4002`) và `INTERNAL_API_SECRET` (chuỗi bí mật tự
+     chọn).
+   - `api-server/.env`: `ETL_DB_SERVER`/`ETL_DB_DATABASE`/`ETL_DB_USER`/
+     `ETL_DB_PASSWORD` (**COPY Y NGUYÊN** giá trị `ADMIN_*` đang có trong
+     `etl/.env` — dùng lại đúng tài khoản `etl_admin`, KHÔNG tạo tài khoản
+     SQL mới) và `INTERNAL_API_SECRET` (**PHẢI khớp y hệt** giá trị vừa
+     đặt ở rp-server/.env). Tuỳ chọn: `INTERNAL_ALLOWED_IPS` (IP máy chủ
+     rp-server, nếu muốn thêm lớp chặn IP).
+4. `pm2 restart hcrc-rp-server` và `pm2 restart hcrc-api-server` (BẮT
+   BUỘC — KHÔNG cần restart `hcrc-etl`, bản này không đụng etl).
+5. `cd rp-user && npm run build`, copy `dist/` mới (trang "Upload cảnh báo
+   hàng tồn" mới).
+6. rp-user → "Vai trò" → cấp quyền menu "Upload cảnh báo hàng tồn" cho vai
+   trò "Siêu thị"/vai trò cần dùng (mặc định CHƯA ai có quyền này).
+7. Kiểm tra lại: đăng nhập 1 tài khoản đã gán "Phạm vi dữ liệu" 1 siêu thị
+   (bản 8.50) → vào "Upload cảnh báo hàng tồn" → thấy đúng tên siêu thị
+   mình → upload file đúng phạm vi → thành công; thử file có dòng thuộc
+   siêu thị khác → bị từ chối rõ ràng (400), không ghi gì. Vào etl-admin →
+   "Cảnh báo hàng tồn" → thấy đúng dữ liệu vừa upload từ rp-user.
+
+---
+
 ## 8.69 — Sửa THIẾU SÓT bản 8.68: chặn đúng theo siêu thị + sửa lỗi import xoá nhầm dữ liệu siêu thị khác
 
 **Thay đổi**: 2 lỗi của bản 8.68 ở trang etl-admin "Cảnh báo hàng tồn" —

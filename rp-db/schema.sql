@@ -977,6 +977,14 @@ IF NOT EXISTS (SELECT 1 FROM app.MenuItems WHERE Code = 'reports-adhoc')
     INSERT INTO app.MenuItems (Code, ParentId, Label, Path, SortOrder) VALUES ('reports-adhoc', NULL, N'Báo cáo tự do', '/reports/adhoc', 6);
 IF NOT EXISTS (SELECT 1 FROM app.MenuItems WHERE Code = 'system')
     INSERT INTO app.MenuItems (Code, ParentId, Label, Path, SortOrder) VALUES ('system', NULL, N'Hệ thống', '/system', 7);
+-- Mục ROOT riêng (KHÔNG nằm trong "Hệ thống") — bản 8.70, theo yêu cầu
+-- người dùng: người dùng báo cáo (siêu thị) tự upload file ngưỡng cảnh báo
+-- hàng tồn NGAY trên rp-user, không cần vào etl-admin. Đặt ROOT (không
+-- ParentId) để gán quyền menu riêng được cho vai trò "Siêu thị" mà không
+-- cần cấp cả nhóm "Hệ thống" (vốn dành cho cấu hình/quản trị) — xem
+-- rp-server/routes/stockAlertThresholdsUpload.js.
+IF NOT EXISTS (SELECT 1 FROM app.MenuItems WHERE Code = 'stock-alert-upload')
+    INSERT INTO app.MenuItems (Code, ParentId, Label, Path, SortOrder) VALUES ('stock-alert-upload', NULL, N'Upload cảnh báo hàng tồn', '/stock-alert-upload', 20);
 -- Module "Hướng dẫn" — trang tĩnh (nội dung viết cứng trong code, không có
 -- CRUD), gán quyền XEM y hệt mọi menu top-level khác (app.RoleMenuAccess,
 -- không có cờ CanEdit riêng — xem rp-user/src/pages/HuongDanPage.jsx).

@@ -23,6 +23,7 @@ const ICONS = {
   'system-email-schedules': '⏱️',
   'system-anomaly-alerts': '⚠️',
   'system-hcrc-workspace': '🔗',
+  'stock-alert-upload': '📤',
   'huong-dan': '❓'
 };
 function iconFor(code) { return ICONS[code] || '📄'; }

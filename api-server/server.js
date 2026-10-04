@@ -36,6 +36,7 @@ const adminStatsRoutes = require('./routes/admin/stats');
 const adminRolesRoutes = require('./routes/admin/roles');
 const adminVoucherSettingsRoutes = require('./routes/admin/voucherSettings');
 const adminConnectionStatusRoutes = require('./routes/admin/connectionStatus');
+const internalStockAlertThresholdsRoutes = require('./routes/internal/stockAlertThresholds');
 const { checkAllConnections } = require('./lib/connectionHealthChecker');
 const { requestLogger } = require('./lib/requestLogger');
 const { adminIpAllowlist } = require('./lib/adminIpAllowlist');
@@ -148,6 +149,16 @@ app.use('/admin/stats', adminStatsRoutes);
 app.use('/admin/roles', adminRolesRoutes);
 app.use('/admin/voucher-settings', adminVoucherSettingsRoutes);
 app.use('/admin/connection-status', adminConnectionStatusRoutes);
+
+// ===== /internal/* — rp-server gọi SANG (bản 8.70, theo yêu cầu người
+// dùng) — KHÔNG đi qua corsAllowlist/rate-limit/requestLogger của
+// /api/v1/* (dành cho đối tác ngoài) — xác thực riêng bằng secret cố định
+// (lib/internalAuth.js), không phải HMAC/API key đối tác. Pool "ETL_DB"
+// (CSDL HCRC_ETL, dùng LẠI tài khoản etl/.env ADMIN_* đã có sẵn) tự kiểm
+// tra cấu hình lúc gọi getPool() lần đầu — KHÔNG bắt buộc ngay lúc khởi
+// động, tính năng này tự "tắt" (trả lỗi rõ ràng, không crash cả service)
+// nếu operator chưa cấu hình ETL_DB_*/INTERNAL_API_SECRET.
+app.use('/internal/stock-alert-thresholds', internalStockAlertThresholdsRoutes);
 
 app.use((err, req, res, next) => { // eslint-disable-line no-unused-vars
   console.error(err);

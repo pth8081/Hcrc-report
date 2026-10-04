@@ -1,9 +1,9 @@
-# Hướng dẫn triển khai gộp — bản 8.29 đến 8.69 (làm 1 lần)
+# Hướng dẫn triển khai gộp — bản 8.29 đến 8.70 (làm 1 lần)
 
 **Mục đích**: theo yêu cầu người dùng — thay vì đọc/làm tuần tự từng mục
 trong "Nhật ký triển khai (từ bản 8.31)" (nhiều mục riêng, mỗi mục 1 bản),
 file NÀY gộp lại thành **1 lượt làm duy nhất** để đưa server từ trước bản
-8.29 lên thẳng bản 8.69. Các bước **idempotent** (an toàn chạy lại nhiều
+8.29 lên thẳng bản 8.70. Các bước **idempotent** (an toàn chạy lại nhiều
 lần) được gộp chỉ chạy **1 LẦN** ở bản mới nhất thay vì lặp lại theo từng
 bản cũ. Nếu server đã ở 1 bản nào đó rồi (vd đã tới 8.62), chỉ cần làm
 PHẦN CÒN THIẾU — hầu hết các bước dưới đây không hại gì nếu lỡ làm lại.
@@ -49,6 +49,15 @@ chi tiết kỹ thuật của từng bản khi cần — file này chỉ gộp p
    - `etl/.env`: `DSMART16_SERVER`/`DSMART16_USER`/`DSMART16_PASSWORD`
      (bản 8.55) — **CHỈ cần nếu triển khai tính năng "Top bán chạy tồn
      kho=0"** (xem mục B.6 bên dưới), bỏ qua nếu không dùng.
+   - `rp-server/.env`: `INTERNAL_API_SERVER_URL`/`INTERNAL_API_SECRET`
+     (bản 8.70 — "Upload cảnh báo hàng tồn" từ rp-user) VÀ `api-server/
+     .env`: `ETL_DB_SERVER`/`ETL_DB_DATABASE`/`ETL_DB_USER`/
+     `ETL_DB_PASSWORD` (**COPY Y NGUYÊN** giá trị `ADMIN_*` đang có trong
+     `etl/.env` — dùng lại đúng tài khoản `etl_admin`, KHÔNG tạo tài khoản
+     SQL mới) + `INTERNAL_API_SECRET` (PHẢI khớp y hệt giá trị bên
+     rp-server). **Thiếu các biến này tính năng tự trả lỗi rõ ràng khi bị
+     gọi, KHÔNG crash server** — chỉ bắt buộc nếu muốn siêu thị tự upload
+     ngay trên rp-user (không dùng thì vẫn upload qua etl-admin như cũ).
 
 5. Chạy lại schema CSDL (an toàn chạy lại nhiều lần — chỉ CREATE/ALTER
    thêm bảng/cột mới, không xoá dữ liệu cũ):
@@ -61,7 +70,9 @@ chi tiết kỹ thuật của từng bản khi cần — file này chỉ gộp p
      trên `app.EmailSettings` (bản 8.65 — gửi email qua Exchange bằng
      EWS, mặc định `Protocol='smtp'`, KHÔNG đổi cấu hình SMTP đang chạy),
      cột `SmtpInsecureTls` trên `app.EmailSettings` (bản 8.67 — bỏ qua
-     kiểm tra chứng chỉ TLS tự ký cho nhánh SMTP, mặc định `0`).
+     kiểm tra chứng chỉ TLS tự ký cho nhánh SMTP, mặc định `0`), menu mới
+     `stock-alert-upload` (bản 8.70 — "Upload cảnh báo hàng tồn", CHƯA ai
+     có quyền cho tới khi cấp tay ở mục D).
    - `etl-db/schema.sql` — bảng mới `etl.DataSourceConnectionStatus`/
      `etl.SchemaSnapshots`/`etl.SchemaChangeLog` (bản 8.57),
      `etl.StockAlertThresholds` (bản 8.68 — ngưỡng cảnh báo hàng tồn theo
@@ -173,6 +184,10 @@ chi tiết kỹ thuật của từng bản khi cần — file này chỉ gộp p
    cảnh báo của mình), bấm "Gán siêu thị" → chọn đúng (các) mã Điểm của
    siêu thị đó → Lưu. Tài khoản KHÔNG gán gì (mặc định) vẫn xem/sửa được
    TOÀN BỘ như trước — không tự ý giới hạn tài khoản nào chưa gán rõ.
+7. **(bản 8.70, chỉ nếu đã khai đủ biến môi trường `INTERNAL_API_*`/
+   `ETL_DB_*` ở mục A.4)** rp-user → "Vai trò" → cấp quyền menu "Upload
+   cảnh báo hàng tồn" cho vai trò "Siêu thị"/vai trò cần dùng (mặc định
+   CHƯA ai có quyền này).
 
 ---
 
@@ -285,6 +300,12 @@ hệt, không bắt buộc đổi gateway chỉ vì có bản mới.
   khác → bị từ chối (400), không ghi gì; upload đúng phạm vi → ngưỡng của
   siêu thị khác (do người khác khai trước đó) vẫn còn nguyên, không bị
   xoá mất (8.69).
+- [ ] (nếu đã khai đủ biến môi trường `INTERNAL_API_*`/`ETL_DB_*` và cấp
+  quyền menu ở mục D.7) rp-user → "Upload cảnh báo hàng tồn": trang hiện
+  đúng "Phạm vi của bạn: [tên siêu thị]"; upload file đúng phạm vi thành
+  công; upload file có dòng thuộc siêu thị khác bị từ chối (400); vào
+  etl-admin → "Cảnh báo hàng tồn" thấy đúng dữ liệu vừa upload từ rp-user
+  (8.70).
 
 Không có bước nào ở trên làm mất dữ liệu đã có hoặc ảnh hưởng job/báo cáo
 đang chạy ổn định — mọi thay đổi CSDL đều là CREATE/ALTER thêm mới.
