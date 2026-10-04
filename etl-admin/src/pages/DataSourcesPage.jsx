@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/AuthContext';
 import DataTable from '../components/DataTable';
+import { useRowSelection } from '../lib/useRowSelection';
 
 const EMPTY_FORM = { name: '', engine: 'mssql', server: '', port: 1433, databaseName: '', username: '', password: '', encrypt: true, trustServerCert: false };
 
@@ -51,6 +52,9 @@ export default function DataSourcesPage() {
   const [togglingId, setTogglingId] = useState(null);
   const [savingEdit, setSavingEdit] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
+  // Chọn nhiều + xoá hàng loạt (bản 8.62).
+  const selection = useRowSelection();
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   function reload() {
     api.get('/data-sources').then(setSources).catch(err => setError(err.message));
@@ -213,6 +217,19 @@ export default function DataSourcesPage() {
     } catch (err) { setError(err.message); } finally { setDeletingId(null); }
   }
 
+  async function deleteSelected() {
+    if (selection.selectedIds.size === 0) return;
+    if (!confirm(`Xoá ${selection.selectedIds.size} nguồn đã chọn? Các job đồng bộ dùng nguồn này sẽ lỗi.`)) return;
+    setBulkDeleting(true);
+    try {
+      for (const id of selection.selectedIds) {
+        await api.del(`/data-sources/${id}`);
+      }
+      selection.clear();
+      reload();
+    } catch (err) { setError(err.message); } finally { setBulkDeleting(false); }
+  }
+
   return (
     <div className="page">
       <h1>Nguồn dữ liệu</h1>
@@ -340,7 +357,16 @@ export default function DataSourcesPage() {
           }
         ].filter(Boolean)}
         rows={sources}
+        selection={isAdmin ? selection : null}
       />
+
+      {isAdmin && selection.selectedIds.size > 0 && (
+        <div className="inline-actions">
+          <button type="button" onClick={deleteSelected} disabled={bulkDeleting}>
+            {bulkDeleting ? 'Đang xoá...' : `Xoá ${selection.selectedIds.size} nguồn đã chọn`}
+          </button>
+        </div>
+      )}
 
       {editing && (
         <div className="modal">
