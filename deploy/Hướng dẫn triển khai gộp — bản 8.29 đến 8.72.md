@@ -1,9 +1,9 @@
-# Hướng dẫn triển khai gộp — bản 8.29 đến 8.71 (làm 1 lần)
+# Hướng dẫn triển khai gộp — bản 8.29 đến 8.72 (làm 1 lần)
 
 **Mục đích**: theo yêu cầu người dùng — thay vì đọc/làm tuần tự từng mục
 trong "Nhật ký triển khai (từ bản 8.31)" (nhiều mục riêng, mỗi mục 1 bản),
 file NÀY gộp lại thành **1 lượt làm duy nhất** để đưa server từ trước bản
-8.29 lên thẳng bản 8.71. Các bước **idempotent** (an toàn chạy lại nhiều
+8.29 lên thẳng bản 8.72. Các bước **idempotent** (an toàn chạy lại nhiều
 lần) được gộp chỉ chạy **1 LẦN** ở bản mới nhất thay vì lặp lại theo từng
 bản cũ. Nếu server đã ở 1 bản nào đó rồi (vd đã tới 8.62), chỉ cần làm
 PHẦN CÒN THIẾU — hầu hết các bước dưới đây không hại gì nếu lỡ làm lại.
@@ -306,20 +306,26 @@ hệt, không bắt buộc đổi gateway chỉ vì có bản mới.
   công; upload file có dòng thuộc siêu thị khác bị từ chối (400); vào
   etl-admin → "Cảnh báo hàng tồn" thấy đúng dữ liệu vừa upload từ rp-user
   (8.70).
-- [ ] (CHỈ nếu đã làm mục H — không dùng Nginx) etl-admin/api-admin/rp-user
+- [ ] (CHỈ nếu đã làm mục H.1 — không dùng Nginx) etl-admin/api-admin/rp-user
   → "Chứng chỉ TLS" (chỉ tài khoản vai trò hệ thống thấy mục này): upload
   private key + public cert → trang báo đúng "cần restart" (lần đầu) hay
   "đã áp dụng ngay" (gia hạn); `curl -k https://<ip>:<cổng>/` trả về đúng
   dữ liệu sau khi restart (8.71).
+- [ ] (CHỈ nếu đã làm mục H.2) Trang "Chứng chỉ TLS" → phần "CA tin cậy":
+  thêm 1 CA → cuộc gọi trước đó bị lỗi "self signed certificate" nay
+  thành công NGAY, không cần restart; xoá CA đó → cuộc gọi bị từ chối
+  lại, các CA khác đã thêm không bị ảnh hưởng (8.72).
 
 ---
 
-## H. Upload chứng chỉ TLS cho PM2 (bản 8.71 — TUỲ CHỌN, CHỈ cần nếu KHÔNG dùng Nginx)
+## H. Chứng chỉ TLS cho PM2 (bản 8.71-8.72)
 
-**Bỏ qua TOÀN BỘ mục này nếu hệ thống đang dùng Nginx để lo HTTPS** (mục
-E/phần lớn triển khai thật) — tính năng này dành riêng cho topology
-"PM2-only" (`deploy/Hướng dẫn triển khai PM2.md`) muốn có HTTPS mà không
-cần dựng Nginx.
+### H.1 — PM2 tự chạy HTTPS khi NGƯỜI KHÁC gọi VÀO (bản 8.71 — TUỲ CHỌN, CHỈ cần nếu KHÔNG dùng Nginx)
+
+**Bỏ qua mục H.1 nếu hệ thống đang dùng Nginx để lo HTTPS** (mục E/phần
+lớn triển khai thật) — tính năng này dành riêng cho topology "PM2-only"
+(`deploy/Hướng dẫn triển khai PM2.md`) muốn có HTTPS mà không cần dựng
+Nginx.
 
 1. Vào etl-admin/api-admin/rp-user (chỉ tài khoản vai trò hệ thống thấy
    mục "Chứng chỉ TLS") → upload private key + public cert (+ CA/chain
@@ -331,14 +337,27 @@ cần dựng Nginx.
    HTTPS: thêm `TLS_CERT_DIR` (trỏ tới thư mục `certs/` của backend song
    sinh, vd `../etl/certs`) vào mục `env` của ĐÚNG tiến trình giao diện đó
    trong `deploy/ecosystem.config.js`, `pm2 restart` tiến trình đó.
-4. (Chỉ nếu 2 service NỘI BỘ gọi lẫn nhau qua HTTPS bằng CA tự tạo — vd
-   rp-server gọi api-server, bản 8.70) Copy CA.pem sang máy chủ bên GỌI,
-   đặt `NODE_EXTRA_CA_CERTS=/đường-dẫn/ca.pem` trong `.env` của service
-   đó, restart — xem chi tiết ở `deploy/Cập nhật bản 8.71 — Upload chứng
-   chỉ TLS qua giao diện web.md` (lý do: service nội bộ KHÔNG tự tin
-   tưởng CA tự tạo/nội bộ của service khác, khác hẳn CA công khai như
-   Let's Encrypt — KHÔNG dùng `rejectUnauthorized:false`/
-   `NODE_TLS_REJECT_UNAUTHORIZED=0`, cả 2 đều nguy hiểm).
+
+### H.2 — PM2 tự BIẾT TIN AI khi CHÍNH MÌNH gọi RA (bản 8.72 — TUỲ CHỌN, áp dụng DÙ CÓ hay KHÔNG dùng Nginx)
+
+Khác H.1 — mục này CHO DÙ hệ thống có dùng Nginx hay không, chỉ cần CÓ
+XẢY RA việc 1 service nội bộ GỌI RA sang hệ thống khác qua HTTPS (vd
+rp-server gọi api-server, bản 8.70; hoặc gọi ra HCRC Workspace) VÀ bên
+kia dùng CA nội bộ/tự tạo (không phải CA công khai) thì mới cần.
+
+1. Nhận diện đúng lỗi: cuộc gọi báo `self signed certificate`/
+   `unable to verify the first certificate`.
+2. Vào trang "Chứng chỉ TLS" của ĐÚNG hệ thống đang GỌI RA bị lỗi (vd
+   rp-server gọi api-server lỗi → vào rp-user, KHÔNG phải api-admin) →
+   phần "CA tin cậy (cho các cuộc gọi ra ngoài)" → nhập nhãn gợi nhớ +
+   chọn file CA của hệ thống BÊN KIA → "Thêm CA tin cậy".
+3. Áp dụng NGAY, không cần restart — kiểm tra lại cuộc gọi trước đó đã
+   thành công.
+
+**KHÔNG dùng** `rejectUnauthorized:false`/`NODE_TLS_REJECT_UNAUTHORIZED=0`
+(tắt HẲN kiểm tra chứng chỉ, nguy hiểm) hay sửa tay `NODE_EXTRA_CA_CERTS`
+trong `.env` (cách cũ, phải restart) — trang "CA tin cậy" làm đúng việc
+này qua UI, áp dụng sống.
 
 Không có bước nào ở trên làm mất dữ liệu đã có hoặc ảnh hưởng job/báo cáo
 đang chạy ổn định — mọi thay đổi CSDL đều là CREATE/ALTER thêm mới.

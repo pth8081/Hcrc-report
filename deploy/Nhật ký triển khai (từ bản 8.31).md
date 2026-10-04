@@ -14,6 +14,33 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 8.72 — "CA tin cậy": nhận diện HTTPS của hệ thống khác khi PM2 tự gọi ra ngoài
+
+**Thay đổi**: thêm phần "CA tin cậy" vào CÙNG trang "Chứng chỉ TLS" (bản
+8.71) ở cả 3 giao diện — chiều NGƯỢC LẠI: khi etl/api-server/rp-server tự
+GỌI RA sang hệ thống khác dùng HTTPS ký bởi CA nội bộ/tự tạo (vd rp-server
+gọi api-server, bản 8.70), admin thêm đúng CA đó để Node tin tưởng, áp
+dụng NGAY không cần restart. Tính năng TỰ CHỌN, không ảnh hưởng gì nếu
+chưa dùng. Chi tiết đầy đủ: `deploy/Cập nhật bản 8.72 — CA tin cậy cho
+cuộc gọi HTTPS ra ngoài.md`.
+
+**Các bước triển khai (CHỈ cần nếu 2 service nội bộ/bên ngoài gọi nhau
+qua HTTPS bằng CA không phải CA công khai — bỏ qua nếu không gặp lỗi
+"self signed certificate" khi gọi ra):**
+1. `git pull origin main`.
+2. `pm2 restart hcrc-etl hcrc-api-server hcrc-rp-server` (BẮT BUỘC — thêm
+   route/lib mới, KHÔNG đổi hành vi nếu chưa thêm CA nào).
+3. Build + copy `dist/` mới cho cả 3 giao diện (trang "Chứng chỉ TLS" có
+   thêm phần "CA tin cậy").
+4. Vào trang "Chứng chỉ TLS" của ĐÚNG hệ thống đang GỌI RA bị lỗi (vd
+   rp-server gọi api-server lỗi thì vào rp-user) → phần "CA tin cậy" →
+   thêm nhãn gợi nhớ + file CA của hệ thống BÊN KIA → áp dụng ngay, không
+   cần restart.
+5. Kiểm tra lại: cuộc gọi trước đó bị lỗi "self signed certificate" nay
+   thành công.
+
+---
+
 ## 8.71 — Upload chứng chỉ TLS qua giao diện web cho cả 3 hệ thống (PM2 tự chạy HTTPS)
 
 **Thay đổi**: thêm trang "Chứng chỉ TLS" ở cả 3 giao diện quản trị

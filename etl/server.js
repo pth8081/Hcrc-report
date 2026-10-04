@@ -31,6 +31,7 @@ const adminRolesRoutes = require('./routes/admin/roles');
 const adminConnectionStatusRoutes = require('./routes/admin/connectionStatus');
 const adminSchemaMonitorRoutes = require('./routes/admin/schemaMonitor');
 const adminTlsCertificateRoutes = require('./routes/admin/tlsCertificate');
+const adminTrustedCaRoutes = require('./routes/admin/trustedCa');
 const { checkAllConnections } = require('./lib/connectionHealthChecker');
 const { runSchemaCheck } = require('./lib/schemaMonitor');
 const { getPool, closeAll, assertConfigured } = require('./db');
@@ -127,6 +128,7 @@ app.use('/admin/roles', adminRolesRoutes);
 app.use('/admin/connection-status', adminConnectionStatusRoutes);
 app.use('/admin/schema-monitor', adminSchemaMonitorRoutes);
 app.use('/admin/tls-certificate', adminTlsCertificateRoutes);
+app.use('/admin/trusted-ca', adminTrustedCaRoutes);
 
 app.use((err, req, res, next) => { // eslint-disable-line no-unused-vars
   console.error(err);

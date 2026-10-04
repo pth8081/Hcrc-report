@@ -33,6 +33,7 @@ const adhocReportsRoutes = require('./routes/adhocReports');
 const webauthnRoutes = require('./routes/webauthn');
 const stockAlertThresholdsUploadRoutes = require('./routes/stockAlertThresholdsUpload');
 const tlsCertificateRoutes = require('./routes/tlsCertificate');
+const trustedCaRoutes = require('./routes/trustedCa');
 const {
   verifyCredentials, isSystemRoleForRateLimit, issueToken, COOKIE_NAME, getSecret, setSessionCookie,
   issuePending2FAToken, issueSetupRequiredToken
@@ -224,6 +225,7 @@ app.use('/api/system/department-mapping', departmentStoreMappingRoutes);
 app.use('/api/system/dashboards', dashboardCatalogRoutes);
 app.use('/api/stock-alert-upload', stockAlertThresholdsUploadRoutes);
 app.use('/api/tls-certificate', tlsCertificateRoutes);
+app.use('/api/trusted-ca', trustedCaRoutes);
 
 app.use((err, req, res, next) => { // eslint-disable-line no-unused-vars
   console.error(err);

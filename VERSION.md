@@ -29,6 +29,52 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 8.72 — "CA tin cậy": nhận diện HTTPS của hệ thống khác khi PM2 tự gọi ra ngoài
+
+**Theo yêu cầu người dùng**: sau bản 8.71 (PM2 tự chạy HTTPS), người dùng
+hỏi tiếp "khi hệ thống PM2 call API sang hệ thống khác có sử dụng HTTPS
+thì hệ thống PM2 của chúng ta cần phải làm gì để nhận diện được? Nếu cần
+thì bạn cho một cái giao diện..." — bổ sung CHIỀU NGƯỢC LẠI của bản 8.71:
+không chỉ tự trình diện HTTPS khi NGƯỜI KHÁC gọi VÀO, mà còn cần BIẾT TIN
+AI khi CHÍNH MÌNH gọi RA (vd rp-server gọi api-server qua
+`lib/internalApiClient.js`, bản 8.70, hoặc gọi ra HCRC Workspace) nếu bên
+kia dùng HTTPS ký bởi CA nội bộ/tự tạo.
+
+- **`lib/trustedCa.js`** (etl/api-server/rp-server) — dùng
+  `tls.setDefaultCACertificates()` (có sẵn từ Node >= 20, không cần gói
+  ngoài) để **THÊM** CA admin upload vào danh sách tin cậy MẶC ĐỊNH của cả
+  tiến trình — áp dụng NGAY cho MỌI cuộc gọi `fetch()`/`https` tiếp theo,
+  **KHÔNG cần restart, KHÔNG cần sửa code ở nơi gọi** (các lib hiện có như
+  `internalApiClient.js`/`hcrcWorkspaceClient.js` tự động hưởng lợi vì
+  dùng đúng `fetch()` chuẩn của Node). **KHÔNG dùng**
+  `rejectUnauthorized:false`/`NODE_TLS_REJECT_UNAUTHORIZED=0` (tắt HẲN
+  kiểm tra chứng chỉ, mù quáng tin mọi chứng chỉ kể cả giả mạo) — chỉ
+  thêm ĐÚNG 1 CA cụ thể admin đã xác nhận, giữ nguyên kiểm tra cho mọi CA
+  khác. Lưu mỗi CA là 1 file `.pem` riêng trong `certs/trusted-ca/`
+  (KHÔNG lưu CSDL, cùng tinh thần bản 8.71).
+- **Mở rộng trang "Chứng chỉ TLS"** (etl-admin/api-admin/rp-user, không
+  tạo trang mới) — thêm phần "CA tin cậy (cho các cuộc gọi ra ngoài)":
+  liệt kê CA đã thêm (nhãn, chủ thể, hiệu lực), thêm/xoá CA theo nhãn gợi
+  nhớ (vd "HCRC Workspace", "api-server nội bộ") + file `.pem`.
+
+**Đã kiểm chứng bằng chứng chỉ test thật** (phát hiện lỗi thiết kế ban đầu
+qua chính quá trình test, sửa trước khi giao): `tls.getCACertificates
+('default')` KHÔNG trả về danh sách gốc "sạch" sau lần
+`setDefaultCACertificates()` đầu tiên (số lượng đổi khác hẳn) — phải chụp
+lại danh sách gốc CHỈ 1 LẦN lúc module nạp rồi dùng CỐ ĐỊNH cho mọi lần
+áp dụng sau, nếu không sẽ xây sai danh sách tin cậy qua nhiều lần
+thêm/xoá CA mà không có dấu hiệu lỗi rõ ràng. Sau khi sửa: dựng 2 máy chủ
+HTTPS giả (chứng chỉ tự ký khác nhau) — xác nhận cả 2 bị từ chối trước
+khi thêm; thêm CA 1 → chỉ dịch vụ 1 gọi được (CA 2 vẫn đúng bị từ chối,
+không "tin bừa tất cả"); thêm CA 2 → cả 2 gọi được, dịch vụ 1 không bị
+ảnh hưởng; xoá CA 1 → dịch vụ 1 bị từ chối lại, dịch vụ 2 vẫn còn; gọi ra
+HTTPS công khai thật (`example.com`) vẫn hoạt động bình thường trong suốt
+quá trình (không làm hỏng danh sách CA gốc); PEM không hợp lệ bị từ chối
+rõ ràng trước khi ghi file.
+
+Chi tiết đầy đủ: `deploy/Cập nhật bản 8.72 — CA tin cậy cho cuộc gọi
+HTTPS ra ngoài.md`.
+
 ## 8.71 — Upload chứng chỉ TLS qua giao diện web cho cả 3 hệ thống (PM2 tự chạy HTTPS)
 
 **Theo yêu cầu người dùng**: "muốn có một cái giao diện để upload
