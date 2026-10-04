@@ -1,10 +1,11 @@
-// pages/SchemaMonitorPage.jsx — "Giám sát cấu trúc CSDL" (NHÁP — demo, chưa
-// merge chính thức): giám sát bảng/cột THẬT mà các job đồng bộ đang bật
+// pages/SchemaMonitorPage.jsx — "Giám sát cấu trúc CSDL" (bản 8.57, theo
+// yêu cầu người dùng): giám sát bảng/cột THẬT mà các job đồng bộ đang bật
 // (etl.SyncJobs) phụ thuộc vào — mỗi bảng được chụp lại cấu trúc cột (tên +
-// kiểu dữ liệu) 1 lần/ngày (mặc định 6h sáng), so với lần chụp trước. Lệch
-// (mất cột/bảng, HOẶC đổi kiểu dữ liệu 1 cột dù tên không đổi) -> gửi email
-// cảnh báo NGAY (dùng lại etl/lib/mailer.js) + ghi vào đây. Nút "Kiểm tra
-// tất cả ngay" ép chạy lại không đợi tới 6h sáng hôm sau.
+// kiểu dữ liệu) 1 lần/ngày (mặc định 6h sáng, xem etl/server.js), so với
+// lần chụp trước (etl/lib/schemaMonitor.js). Lệch (mất cột/bảng, HOẶC đổi
+// kiểu dữ liệu 1 cột dù tên không đổi) -> gửi email cảnh báo NGAY (dùng lại
+// etl/lib/mailer.js) + ghi vào đây. Nút "Kiểm tra tất cả ngay" ép chạy lại
+// không đợi tới 6h sáng hôm sau.
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
 import DataTable from '../components/DataTable';
@@ -100,7 +101,7 @@ export default function SchemaMonitorPage() {
           { key: 'dataSourceName', label: 'Nguồn dữ liệu' },
           { key: 'table', label: 'Bảng', render: (r) => `${r.schemaName}.${r.tableName}` },
           { key: 'status', label: 'Trạng thái', render: (r) => <StatusBadge changeCount={r.changes.length} /> },
-          { key: 'lastCheckedAt', label: 'Kiểm tra lần cuối', render: (r) => new Date(r.lastCheckedAt).toLocaleString('vi-VN') },
+          { key: 'lastCheckedAt', label: 'Kiểm tra lần cuối', render: (r) => r.lastCheckedAt ? new Date(r.lastCheckedAt).toLocaleString('vi-VN') : 'Chưa kiểm tra lần nào' },
           {
             key: 'detail', label: '', render: (r) => r.changes.length > 0 && (
               <button type="button" className="link-button" onClick={() => setExpanded(expanded === r.id ? null : r.id)}>

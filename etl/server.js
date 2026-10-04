@@ -26,6 +26,10 @@ const { createSalesTargetsRouter } = require('./routes/admin/salesTargets');
 const adminDiemStkMappingRoutes = require('./routes/admin/diemStkMapping');
 const adminCoreItemListRoutes = require('./routes/admin/coreItemList');
 const adminRolesRoutes = require('./routes/admin/roles');
+const adminConnectionStatusRoutes = require('./routes/admin/connectionStatus');
+const adminSchemaMonitorRoutes = require('./routes/admin/schemaMonitor');
+const { checkAllConnections } = require('./lib/connectionHealthChecker');
+const { runSchemaCheck } = require('./lib/schemaMonitor');
 const { getPool, closeAll, assertConfigured } = require('./db');
 const { getSecret } = require('./lib/adminAuth');
 const { getKey } = require('./lib/crypto');
@@ -116,6 +120,8 @@ app.use('/admin/sales-targets-hcrc', createSalesTargetsRouter('sales-targets-hcr
 app.use('/admin/diem-stk-mapping', adminDiemStkMappingRoutes);
 app.use('/admin/core-item-list', adminCoreItemListRoutes);
 app.use('/admin/roles', adminRolesRoutes);
+app.use('/admin/connection-status', adminConnectionStatusRoutes);
+app.use('/admin/schema-monitor', adminSchemaMonitorRoutes);
 
 app.use((err, req, res, next) => { // eslint-disable-line no-unused-vars
   console.error(err);
@@ -151,4 +157,24 @@ if (isSchedulerLeader()) {
     cleanupAuditLog().catch(err => console.error('⛔ Lỗi dọn AuditLog:', err.message));
     cleanupSystemLog().catch(err => console.error('⛔ Lỗi dọn SystemLog:', err.message));
   });
+
+  // "Trạng thái kết nối" (bản 8.57) — kiểm tra lại MỌI Nguồn dữ liệu mỗi 15
+  // phút, lưu kết quả để trang xem được NGAY, không phải đợi tạo kết nối
+  // thật mỗi lần vào trang (xem lib/connectionHealthChecker.js). Chạy luôn
+  // 1 lượt NGAY LÚC KHỞI ĐỘNG (không đợi tới phút :00/:15/:30/:45 đầu tiên)
+  // để trang không trống nếu vừa restart service.
+  checkAllConnections().catch(err => console.error('⛔ Lỗi kiểm tra kết nối lúc khởi động:', err.message));
+  cron.schedule('*/15 * * * *', () => {
+    checkAllConnections().catch(err => console.error('⛔ Lỗi kiểm tra kết nối định kỳ:', err.message));
+  });
+
+  // "Giám sát cấu trúc CSDL" (bản 8.57) — đối chiếu cấu trúc bảng/cột mọi
+  // job đồng bộ đang bật phụ thuộc vào, 6h sáng mỗi ngày (giờ Việt Nam) —
+  // xem lib/schemaMonitor.js. KHÔNG chạy ngay lúc khởi động (khác job kết
+  // nối ở trên) — chụp "mốc" đầu tiên ngay khi service vừa khởi động dễ
+  // trùng đúng lúc đang triển khai dở (thêm/sửa job), để đúng khung giờ cố
+  // định mỗi ngày cho nhất quán.
+  cron.schedule(process.env.SCHEMA_MONITOR_CRON || '0 6 * * *', () => {
+    runSchemaCheck().catch(err => console.error('⛔ Lỗi giám sát cấu trúc CSDL:', err.message));
+  }, { timezone: 'Asia/Ho_Chi_Minh' });
 }

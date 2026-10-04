@@ -19,6 +19,7 @@ router.use(requireAdminAuth, requireMenuAccess('roles'));
 const MENU_CATALOG = [
   { code: 'consumers', label: 'Đối tác' },
   { code: 'data-sources', label: 'Nguồn dữ liệu' },
+  { code: 'connection-status', label: 'Trạng thái kết nối' },
   { code: 'realtime-endpoints', label: 'Endpoint realtime' },
   { code: 'realtime-write-endpoints', label: 'Endpoint ghi' },
   { code: 'report-catalog', label: 'Danh mục báo cáo' },

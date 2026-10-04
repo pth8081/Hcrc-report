@@ -528,3 +528,67 @@ FROM admin.AdminUsers u
 JOIN admin.Roles r ON r.Code = u.Role
 WHERE NOT EXISTS (SELECT 1 FROM admin.AdminUserRoles aur WHERE aur.AdminUserId = u.Id AND aur.RoleId = r.Id);
 GO
+
+-- ===== Bản 8.57 (theo yêu cầu người dùng): "Trạng thái kết nối" + "Giám
+-- sát cấu trúc CSDL" — xem lib/connectionHealthChecker.js + lib/schemaMonitor.js
+-- + routes/admin/connectionStatus.js + routes/admin/schemaMonitor.js. 2
+-- MenuCode mới 'connection-status'/'schema-monitor' — CHƯA gán sẵn cho
+-- vai trò nào (kể cả 'viewer' cũ) — admin tự gán qua trang "Vai trò" (xem
+-- MENU_CATALOG, routes/admin/roles.js), đúng nguyên tắc "không tự cấp
+-- quyền mới cho ai" đã áp dụng xuyên suốt dự án. =====
+
+-- Kết quả kiểm tra kết nối THẬT gần nhất tới từng etl.DataSources — job nền
+-- (etl/server.js, mỗi 15 phút) GHI ĐÈ lại mỗi lần chạy, KHÔNG phải lịch sử
+-- (chỉ cần biết trạng thái NGAY BÂY GIỜ, không cần xem lại quá khứ kết nối
+-- được/mất bao nhiêu lần).
+IF OBJECT_ID('etl.DataSourceConnectionStatus', 'U') IS NULL
+BEGIN
+    CREATE TABLE etl.DataSourceConnectionStatus (
+        DataSourceId  INT           NOT NULL PRIMARY KEY REFERENCES etl.DataSources(Id) ON DELETE CASCADE,
+        IsConnected   BIT           NOT NULL,
+        ErrorMessage  NVARCHAR(500) NULL,
+        LastCheckedAt DATETIME2(3)  NOT NULL DEFAULT SYSUTCDATETIME()
+    );
+END
+GO
+
+-- Cấu trúc cột MỚI NHẤT (tên + kiểu dữ liệu) của mỗi bảng nguồn đang được
+-- giám sát (xem lib/schemaMonitor.js:collectMonitoredTables — suy ra từ
+-- etl.SyncJobs đang bật, KHÔNG phải danh sách khai tay riêng) — LUÔN GHI ĐÈ
+-- mỗi lần chạy, dùng để SO SÁNH ở lần chạy KẾ TIẾP, không phải lịch sử (xem
+-- etl.SchemaChangeLog bên dưới cho lịch sử thật).
+IF OBJECT_ID('etl.SchemaSnapshots', 'U') IS NULL
+BEGIN
+    CREATE TABLE etl.SchemaSnapshots (
+        DataSourceId INT           NOT NULL REFERENCES etl.DataSources(Id) ON DELETE CASCADE,
+        SchemaName   NVARCHAR(100) NOT NULL,
+        TableName    NVARCHAR(100) NOT NULL,
+        ColumnsJson  NVARCHAR(MAX) NOT NULL,
+        CapturedAt   DATETIME2(3)  NOT NULL DEFAULT SYSUTCDATETIME(),
+        CONSTRAINT PK_SchemaSnapshots PRIMARY KEY (DataSourceId, SchemaName, TableName)
+    );
+END
+GO
+
+-- Lịch sử MỌI thay đổi cấu trúc từng phát hiện được (cộng dồn, KHÔNG ghi
+-- đè) — DetectedAt khớp ĐÚNG CapturedAt của SchemaSnapshots tại lần chạy
+-- phát hiện ra thay đổi đó, nhờ vậy GET /schema-monitor nhận biết được thay
+-- đổi nào thuộc "lần chạy gần nhất" (so khớp DetectedAt = CapturedAt hiện
+-- tại) so với thay đổi của các lần chạy trước (vẫn giữ lại để xem/kiểm
+-- toán, chỉ không còn hiện ở trạng thái "hiện tại" nữa).
+IF OBJECT_ID('etl.SchemaChangeLog', 'U') IS NULL
+BEGIN
+    CREATE TABLE etl.SchemaChangeLog (
+        Id           INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        DataSourceId INT           NOT NULL REFERENCES etl.DataSources(Id) ON DELETE CASCADE,
+        SchemaName   NVARCHAR(100) NOT NULL,
+        TableName    NVARCHAR(100) NOT NULL,
+        ChangeType   VARCHAR(20)   NOT NULL, -- 'added' | 'removed' | 'typeChanged'
+        ColumnName   NVARCHAR(200) NOT NULL,
+        OldValue     NVARCHAR(200) NULL,
+        NewValue     NVARCHAR(200) NULL,
+        DetectedAt   DATETIME2(3)  NOT NULL DEFAULT SYSUTCDATETIME()
+    );
+    CREATE INDEX IX_SchemaChangeLog_Table ON etl.SchemaChangeLog (DataSourceId, SchemaName, TableName, DetectedAt);
+END
+GO

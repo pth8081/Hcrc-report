@@ -14,6 +14,41 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 8.57 — Trạng thái kết nối + Giám sát cấu trúc CSDL
+
+**Thay đổi**: theo yêu cầu người dùng (demo đã gửi, đã xác nhận) — thêm
+trang "Trạng thái kết nối" (`etl-admin` + `api-admin`, job nền kiểm tra
+mỗi 15 phút) và trang "Giám sát cấu trúc CSDL" (chỉ `etl-admin`, job nền
+chạy 6h sáng, phát hiện cả đổi kiểu dữ liệu cột, gửi email cảnh báo).
+
+**Các bước triển khai:**
+1. `git pull origin main`.
+2. Chạy lại `etl-db/schema.sql` (bảng mới `etl.DataSourceConnectionStatus`,
+   `etl.SchemaSnapshots`, `etl.SchemaChangeLog`) VÀ `api-db/schema.sql`
+   (bảng mới `api.DataSourceConnectionStatus`).
+3. `pm2 restart hcrc-etl` và `pm2 restart hcrc-api-server` (BẮT BUỘC —
+   route API mới + 2 job `cron.schedule` mới trong `server.js`).
+4. Build lại 2 giao diện: `cd etl-admin && npm run build`, copy `dist/`
+   mới; `cd api-admin && npm run build`, copy `dist/` mới.
+5. Vào trang "Vai trò" (mỗi giao diện) → cấp quyền xem menu mới
+   ("Trạng thái kết nối" ở cả 2; "Giám sát cấu trúc CSDL" chỉ ở
+   `etl-admin`) cho vai trò cần dùng — **KHÔNG tự động cấp**, phải cấp
+   tay sau khi triển khai.
+6. Kiểm tra `.env` (etl, api-server) có đủ `SMTP_HOST`/`ALERT_EMAIL_TO`
+   (dùng chung cấu hình mailer đã có) để job "Giám sát cấu trúc CSDL" gửi
+   được email cảnh báo — nếu chưa cấu hình, job vẫn chạy/ghi lịch sử bình
+   thường, chỉ không gửi được email (giống job đồng bộ ETL hiện tại).
+7. Kiểm tra: mở trang "Trạng thái kết nối" → thấy danh sách nguồn dữ liệu
+   + trạng thái (bấm "Kiểm tra lại ngay" để test ngay không cần đợi job
+   nền); mở trang "Giám sát cấu trúc CSDL" (`etl-admin`) → thấy "Chưa
+   kiểm tra lần nào" cho tới 6h sáng hôm sau (hoặc đổi tạm
+   `SCHEMA_MONITOR_CRON` trong `.env` để test sớm hơn).
+
+Không đổi cấu trúc bảng/CSDL nguồn dữ liệu hiện có, không ảnh hưởng job
+đồng bộ đang chạy.
+
+---
+
 ## 8.56 — Thêm cột "Trung bình giao dịch" vào 8 báo cáo Top 5 chi nhánh
 
 **Thay đổi**: theo yêu cầu người dùng, thêm cột "Trung bình giao dịch"

@@ -9,6 +9,7 @@ import UpdateBanner from './UpdateBanner';
 const NAV = [
   { path: '/consumers', label: 'Đối tác', icon: '🤝', menuCode: 'consumers' },
   { path: '/data-sources', label: 'Nguồn dữ liệu', icon: '🔌', menuCode: 'data-sources' },
+  { path: '/connection-status', label: 'Trạng thái kết nối', icon: '📶', menuCode: 'connection-status' },
   { path: '/realtime-endpoints', label: 'Endpoint realtime', icon: '⚡', menuCode: 'realtime-endpoints' },
   { path: '/realtime-write-endpoints', label: 'Endpoint ghi', icon: '✍️', menuCode: 'realtime-write-endpoints' },
   { path: '/report-catalog', label: 'Báo cáo', icon: '📊', menuCode: 'report-catalog' },

@@ -1,10 +1,6 @@
-// pages/ConnectionStatusPage.jsx — "Trạng thái kết nối" (bản 8.57, theo yêu
-// cầu người dùng): xem NGAY trạng thái kết nối của MỌI "Nguồn dữ liệu"
-// (etl.DataSources) mà KHÔNG phải đợi tạo kết nối thật mỗi lần vào trang —
-// job nền (etl/server.js, chạy mỗi 15 phút, xem lib/connectionHealthChecker.js)
-// đã kiểm tra sẵn + lưu kết quả, trang này chỉ đọc lại. Nút "Kiểm tra lại
-// ngay" ép chạy lại NGAY LẬP TỨC (không đợi tới chu kỳ tiếp theo) — dùng lại
-// ĐÚNG testConnectionsBatch() (song song có giới hạn 5) đã có sẵn.
+// pages/ConnectionStatusPage.jsx — "Trạng thái kết nối" (bản 8.57) — mirror
+// ĐÚNG etl-admin/src/pages/ConnectionStatusPage.jsx, áp dụng cho
+// api.DataSources (xem api-server/routes/admin/connectionStatus.js).
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
 import DataTable from '../components/DataTable';

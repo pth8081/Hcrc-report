@@ -19,7 +19,9 @@ router.use(requireAdminAuth, requireMenuAccess('roles'));
 const MENU_CATALOG = [
   { code: 'dashboard', label: 'Bảng điều khiển' },
   { code: 'data-sources', label: 'Nguồn dữ liệu' },
+  { code: 'connection-status', label: 'Trạng thái kết nối' },
   { code: 'sync-jobs', label: 'Đồng bộ dữ liệu' },
+  { code: 'schema-monitor', label: 'Giám sát cấu trúc CSDL' },
   { code: 'diem-stk-mapping', label: 'Ánh xạ Điểm - STK_ID' },
   { code: 'core-item-list', label: 'Danh sách hàng Core' },
   // Trước là 1 trang "sales-targets" chung, đổi thành 2 trang ĐỘC LẬP theo

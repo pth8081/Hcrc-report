@@ -238,3 +238,13 @@ button:hover { opacity: 0.9; }
   .huong-dan-layout { flex-direction: column; }
   .huong-dan-nav { flex: none; width: 100%; }
 }
+
+/* "Trạng thái kết nối" (bản 8.57) */
+.conn-summary { display: flex; align-items: center; gap: 14px; margin-bottom: 12px; font-size: 14px; }
+.conn-summary-total { color: var(--ink-soft); }
+.conn-summary-ok { color: #1a7a3c; font-weight: 600; }
+.conn-summary-down { color: #b3261e; font-weight: 600; }
+.conn-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 12.5px; font-weight: 500; padding: 2px 8px; border-radius: 999px; }
+.conn-badge--ok { background: #e6f4ea; color: #1a7a3c; }
+.conn-badge--down { background: #fdecea; color: #b3261e; }
+.conn-badge--pending { background: #f1f1f1; color: #666; }

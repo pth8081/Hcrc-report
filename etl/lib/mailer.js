@@ -34,4 +34,38 @@ async function alertSyncFailure(source, errorMessage) {
   });
 }
 
-module.exports = { alertSyncFailure };
+// changedTables = [{dataSourceName, schemaName, tableName, changes: [{type,
+// column, before?, after?, usedByJobs?}]}] — xem lib/schemaMonitor.js. DÙNG
+// LẠI đúng kênh SMTP_HOST/ALERT_EMAIL_TO đã có (bản 8.57, theo yêu cầu
+// người dùng "giám sát cấu trúc CSDL, thay đổi là báo ngay") — không thêm
+// cấu hình SMTP riêng, cùng 1 nơi admin đã cấu hình cho cảnh báo lỗi đồng
+// bộ ở trên.
+const CHANGE_TYPE_LABELS = { removed: 'MẤT cột/bảng', added: 'Thêm cột mới', typeChanged: 'ĐỔI KIỂU DỮ LIỆU' };
+
+async function alertSchemaChange(changedTables) {
+  const to = process.env.ALERT_EMAIL_TO;
+  const transport = getTransport();
+  if (!transport || !to) {
+    logWarn('⚠️  Chưa cấu hình SMTP_HOST/ALERT_EMAIL_TO trong .env — bỏ qua gửi email cảnh báo đổi cấu trúc CSDL.');
+    return;
+  }
+  const lines = [];
+  for (const t of changedTables) {
+    lines.push(`\n[${t.dataSourceName}] ${t.schemaName}.${t.tableName}`);
+    for (const c of t.changes) {
+      const label = CHANGE_TYPE_LABELS[c.type] || c.type;
+      let detail = `  - ${label}: ${c.column}`;
+      if (c.type === 'typeChanged') detail += ` (${c.before} -> ${c.after})`;
+      if (c.type === 'removed' && c.usedByJobs?.length) detail += ` — ĐANG DÙNG bởi job: ${c.usedByJobs.join(', ')}`;
+      lines.push(detail);
+    }
+  }
+  await transport.sendMail({
+    from: process.env.SMTP_FROM || process.env.SMTP_USER,
+    to,
+    subject: `[ETL] Phát hiện ${changedTables.length} bảng nguồn thay đổi cấu trúc`,
+    text: `Thời điểm: ${new Date().toISOString()}\n${lines.join('\n')}`
+  });
+}
+
+module.exports = { alertSyncFailure, alertSchemaChange };

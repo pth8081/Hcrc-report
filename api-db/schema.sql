@@ -589,3 +589,18 @@ BEGIN
     );
 END
 GO
+
+-- "Trạng thái kết nối" (bản 8.57, theo yêu cầu người dùng) — mirror ĐÚNG
+-- etl.DataSourceConnectionStatus (xem etl-db/schema.sql), áp dụng cho
+-- api.DataSources. MenuCode 'connection-status' CHƯA gán sẵn cho vai trò
+-- nào — admin tự gán qua trang "Vai trò" (MENU_CATALOG, routes/admin/roles.js).
+IF OBJECT_ID('api.DataSourceConnectionStatus', 'U') IS NULL
+BEGIN
+    CREATE TABLE api.DataSourceConnectionStatus (
+        DataSourceId  INT           NOT NULL PRIMARY KEY REFERENCES api.DataSources(Id) ON DELETE CASCADE,
+        IsConnected   BIT           NOT NULL,
+        ErrorMessage  NVARCHAR(500) NULL,
+        LastCheckedAt DATETIME2(3)  NOT NULL DEFAULT SYSUTCDATETIME()
+    );
+END
+GO

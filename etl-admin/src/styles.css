@@ -160,6 +160,7 @@ legend { font-size: 12px; color: var(--ink-soft); padding: 0 6px; }
 .conn-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 12.5px; font-weight: 500; padding: 2px 8px; border-radius: 999px; }
 .conn-badge--ok { background: #e6f4ea; color: #1a7a3c; }
 .conn-badge--down { background: #fdecea; color: #b3261e; }
+.conn-badge--pending { background: #f1f1f1; color: #666; }
 .schema-change-detail { margin-top: 10px; padding: 12px 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; display: flex; flex-direction: column; gap: 8px; }
 .schema-change-row { display: flex; align-items: center; gap: 12px; font-size: 13px; flex-wrap: wrap; }
 .schema-change-col { font-family: monospace; background: var(--bg); padding: 1px 6px; border-radius: 4px; }

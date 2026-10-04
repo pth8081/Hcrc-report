@@ -35,6 +35,8 @@ const adminSystemLogRoutes = require('./routes/admin/systemLog');
 const adminStatsRoutes = require('./routes/admin/stats');
 const adminRolesRoutes = require('./routes/admin/roles');
 const adminVoucherSettingsRoutes = require('./routes/admin/voucherSettings');
+const adminConnectionStatusRoutes = require('./routes/admin/connectionStatus');
+const { checkAllConnections } = require('./lib/connectionHealthChecker');
 const { requestLogger } = require('./lib/requestLogger');
 const { adminIpAllowlist } = require('./lib/adminIpAllowlist');
 const { corsAllowlist } = require('./lib/corsAllowlist');
@@ -145,6 +147,7 @@ app.use('/admin/log', adminSystemLogRoutes);
 app.use('/admin/stats', adminStatsRoutes);
 app.use('/admin/roles', adminRolesRoutes);
 app.use('/admin/voucher-settings', adminVoucherSettingsRoutes);
+app.use('/admin/connection-status', adminConnectionStatusRoutes);
 
 app.use((err, req, res, next) => { // eslint-disable-line no-unused-vars
   console.error(err);
@@ -186,6 +189,14 @@ if (isSchedulerLeader()) {
     cleanupRequestLog().catch(err => console.error('⛔ Lỗi dọn RequestLog:', err.message));
     cleanupAuditLog().catch(err => console.error('⛔ Lỗi dọn AuditLog:', err.message));
     cleanupSystemLog().catch(err => console.error('⛔ Lỗi dọn SystemLog:', err.message));
+  });
+
+  // "Trạng thái kết nối" (bản 8.57, theo yêu cầu người dùng) — mirror ĐÚNG
+  // etl/server.js: kiểm tra lại MỌI api.DataSources mỗi 15 phút + 1 lượt
+  // ngay lúc khởi động, xem lib/connectionHealthChecker.js.
+  checkAllConnections().catch(err => console.error('⛔ Lỗi kiểm tra kết nối lúc khởi động:', err.message));
+  cron.schedule('*/15 * * * *', () => {
+    checkAllConnections().catch(err => console.error('⛔ Lỗi kiểm tra kết nối định kỳ:', err.message));
   });
 }
 

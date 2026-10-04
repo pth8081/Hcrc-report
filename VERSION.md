@@ -29,6 +29,42 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 8.57 — Trạng thái kết nối + Giám sát cấu trúc CSDL
+
+**Theo yêu cầu người dùng**: 2 tính năng mới cho `etl-admin`/`api-admin`
+(demo đã gửi, người dùng xác nhận "Ok, làm luôn đi"):
+
+1. **"Trạng thái kết nối"** (trang mới, cả 2 giao diện) — xem NGAY nguồn
+   dữ liệu nào đang kết nối được/mất kết nối tới CSDL nguồn, không phải
+   đợi mở kết nối thật mỗi lần vào trang. Job nền (`lib/connectionHealthChecker.js`,
+   dùng lại `testConnectionsBatch()` đã có sẵn) kiểm tra lại MỌI
+   `DataSources` đang bật mỗi 15 phút (+ 1 lượt ngay lúc service khởi
+   động), lưu kết quả vào bảng mới `DataSourceConnectionStatus`; trang chỉ
+   đọc lại kết quả đã lưu, có nút "Kiểm tra lại ngay" để ép kiểm tra tức
+   thì. 3 trạng thái tách riêng: 🟢 kết nối được / 🔴 mất kết nối / ⏳ chưa
+   kiểm tra lần nào (nguồn vừa tạo) — KHÔNG gộp "chưa kiểm tra" vào "mất
+   kết nối" để tránh hiểu nhầm là lỗi thật.
+2. **"Giám sát cấu trúc CSDL"** (trang mới, riêng `etl-admin`) — mỗi ngày
+   6h sáng (giờ Việt Nam), đối chiếu cấu trúc bảng/cột mà mọi `SyncJobs`
+   đang bật phụ thuộc vào (`SourceTable`, `KeyColumn`, các cột
+   dimension/measure...) với lần kiểm tra trước (`lib/schemaMonitor.js`,
+   dùng lại `schemaBrowser.js` có sẵn) — phát hiện CẢ cột bị xoá/đổi tên
+   VÀ cột đổi kiểu dữ liệu (không chỉ kiểm tra tồn tại như nút "Kiểm tra
+   cấu trúc" cũ ở trang Sync Jobs). Có thay đổi → gửi email cảnh báo ngay
+   (tái dùng `lib/mailer.js`) + ghi lịch sử vào bảng mới `SchemaChangeLog`,
+   xem lại được trên trang. Lần kiểm tra ĐẦU TIÊN của 1 bảng (chưa có mốc
+   so sánh) chỉ lưu mốc, không báo "mọi thứ đều mới" (toàn nhiễu).
+
+Cả 2 job chỉ chạy ở node lãnh (`isSchedulerLeader()`, tránh PM2 cluster
+chạy trùng gửi email nhiều lần) — mirror đúng cơ chế cron đã có trong
+`server.js`. 2 `MenuCode` mới (`connection-status`, `schema-monitor`) đã
+thêm vào `MENU_CATALOG` nhưng **CHƯA cấp cho vai trò nào** — quản trị viên
+phải vào trang "Vai trò" cấp quyền xem sau khi triển khai (không tự động
+cấp, theo nguyên tắc không tự cấp quyền đã áp dụng xuyên suốt hệ thống).
+
+**Các bước triển khai:** xem chi tiết ở
+`deploy/Cập nhật bản 8.57 — Trạng thái kết nối + Giám sát cấu trúc CSDL.md`.
+
 ## 8.56 — Thêm cột "Trung bình giao dịch" vào 8 báo cáo Top 5 chi nhánh
 
 **Theo yêu cầu người dùng**: 8 báo cáo "Top 5 chi nhánh" (MART/MINIMART ×
