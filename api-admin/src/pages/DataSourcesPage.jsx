@@ -185,7 +185,16 @@ export default function DataSourcesPage() {
           isAdmin && { key: 'actions', label: '', render: (s) => <button type="button" onClick={() => deleteSource(s)} disabled={deletingId === s.Id}>{deletingId === s.Id ? 'Đang xoá...' : 'Xoá'}</button> }
         ].filter(Boolean)}
         rows={sources}
+        selection={isAdmin ? selection : null}
       />
+
+      {isAdmin && selection.selectedIds.size > 0 && (
+        <div className="inline-actions">
+          <button type="button" onClick={deleteSelected} disabled={bulkDeleting}>
+            {bulkDeleting ? 'Đang xoá...' : `Xoá ${selection.selectedIds.size} mục đã chọn`}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
