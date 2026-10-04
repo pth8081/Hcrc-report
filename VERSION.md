@@ -29,6 +29,27 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 8.66 — Thêm preset Gmail, giữ đủ 4 phương thức SMTP/EWS trong "Thiết lập email"
+
+**Theo yêu cầu người dùng**: hỏi thêm cấu hình Gmail + nhắc giữ lại lựa
+chọn "Exchange — đăng nhập qua SMTP cổng 587" (đã có sẵn từ bản 8.65,
+không bị gỡ) trong danh sách lựa chọn.
+
+- `rp-user/.../EmailSettingsPage.jsx`: thêm preset **"Gmail — đăng nhập
+  qua SMTP (cổng 587)"** — tự điền `smtp.gmail.com`/587/bỏ Secure, kèm ghi
+  chú: Gmail **bắt buộc bật "Xác minh 2 bước"** rồi tạo **"Mật khẩu ứng
+  dụng"** (App password, 16 ký tự, tại myaccount.google.com/apppasswords)
+  dùng làm Password — Google đã chặn mật khẩu đăng nhập Gmail thường cho
+  SMTP từ ứng dụng ngoài, giống cơ chế MFA/App password của Exchange
+  Online.
+- Dropdown "Loại email gateway" giờ có đủ **5 lựa chọn**: Tuỳ chỉnh /
+  Postfix (không đăng nhập) / Exchange qua SMTP (587) / Gmail qua SMTP
+  (587) / Exchange tại chỗ qua EWS — không bớt lựa chọn nào đã có.
+
+Thuần frontend, không đổi CSDL/backend (Gmail dùng chung nhánh `Protocol
+= 'smtp'` đã có từ bản 8.65, không cần thêm code gửi riêng). Đã demo xác
+nhận đủ 5 lựa chọn trong dropdown + Gmail tự điền đúng.
+
 ## 8.65 — Gửi email qua Exchange bằng EWS (API riêng, không qua SMTP)
 
 **Theo yêu cầu người dùng**: Postfix của người dùng là relay nội bộ,

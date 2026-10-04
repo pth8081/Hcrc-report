@@ -6,7 +6,7 @@
 // nhập, Exchange tại chỗ cần "truy cập trực tiếp vào mailbox" qua chính
 // giao thức Exchange):
 // - "smtp" (mặc định) — dùng SMTP host/port/Secure như trước (Postfix,
-//   Exchange qua SMTP AUTH...).
+//   Exchange qua SMTP AUTH, Gmail — bản 8.66 — đều đi qua nhánh này).
 // - "ews" — Exchange Web Services (API HTTPS riêng của Exchange, KHÔNG qua
 //   SMTP), xem rp-server/lib/ewsMailer.js. CHỈ dùng được cho Exchange CÀI
 //   TẠI CHỖ (on-premise) — Exchange Online/Office 365 đã bị Microsoft chặn
@@ -36,6 +36,12 @@ const GATEWAY_PRESETS = {
     protocol: 'smtp',
     apply: (form) => ({ ...form, protocol: 'smtp', smtpHost: form.smtpHost || 'smtp.office365.com', smtpPort: 587, secure: false }),
     hint: 'Khác Postfix — Exchange LUÔN đòi đăng nhập, không gửi được nếu để trống Username/Password. Dùng được cho cả Exchange Online (mặc định điền sẵn smtp.office365.com — nếu tài khoản bật MFA, dùng "Mật khẩu ứng dụng" thay mật khẩu thường) lẫn Exchange tại chỗ có bật SMTP AUTH (đổi lại SMTP host cho đúng máy chủ nội bộ).'
+  },
+  gmail: {
+    label: 'Gmail — đăng nhập qua SMTP (cổng 587)',
+    protocol: 'smtp',
+    apply: (form) => ({ ...form, protocol: 'smtp', smtpHost: 'smtp.gmail.com', smtpPort: 587, secure: false }),
+    hint: 'Username = địa chỉ Gmail đầy đủ. BẮT BUỘC bật "Xác minh 2 bước" cho tài khoản Gmail đó trước, rồi tạo "Mật khẩu ứng dụng" (App password) tại myaccount.google.com/apppasswords — dùng đúng mật khẩu ứng dụng (16 ký tự) này ở ô Password, KHÔNG dùng mật khẩu đăng nhập Gmail thường (Google đã chặn mật khẩu thường cho SMTP từ ứng dụng ngoài).'
   },
   'exchange-ews': {
     label: 'Exchange tại chỗ — API EWS, đăng nhập thẳng vào mailbox (không qua SMTP)',

@@ -14,6 +14,20 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 8.66 — Thêm preset Gmail, giữ đủ 4 phương thức SMTP/EWS trong "Thiết lập email"
+
+**Thay đổi**: thêm preset "Gmail — đăng nhập qua SMTP (cổng 587)" vào
+dropdown "Loại email gateway" (`smtp.gmail.com`, port 587, kèm hướng dẫn
+bật "Xác minh 2 bước" + tạo "Mật khẩu ứng dụng"). Thuần frontend, không
+đổi backend/CSDL.
+
+**Các bước triển khai:**
+1. `git pull origin main`.
+2. `cd rp-user && npm run build`, copy `dist/` mới.
+3. Không cần restart backend, không cần chạy lại CSDL.
+4. Kiểm tra: "Thiết lập email" → dropdown có đủ 5 lựa chọn, chọn "Gmail"
+   tự điền `smtp.gmail.com`/587.
+
 ## 8.65 — Gửi email qua Exchange bằng EWS (API riêng, không qua SMTP)
 
 **Thay đổi**: thêm `rp-server/lib/ewsMailer.js` — gửi email qua Exchange
