@@ -14,6 +14,23 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 8.62 — Chọn nhiều dòng + xoá hàng loạt (toàn hệ thống)
+
+**Thay đổi**: thêm checkbox chọn nhiều dòng + nút "Xoá N mục đã chọn" cho
+21 trang danh sách dạng bảng ở cả 3 giao diện (etl-admin, api-admin,
+rp-user) — chỉ sửa frontend (React), KHÔNG đổi API/CSDL, KHÔNG có migration
+hay script cần chạy tay. Quy tắc mới đã ghi vào `CLAUDE.md` cho mọi bảng
+làm thêm sau này.
+
+**Các bước triển khai:**
+1. `git pull origin main`.
+2. Build lại và deploy cả 3 giao diện như quy trình thường dùng (`npm run
+   build` ở từng app, copy `dist/` lên server tĩnh) — không có bước gì
+   khác ngoài build/deploy thông thường.
+3. Kiểm tra nhanh: mở 1 trang bất kỳ trong 21 trang (vd etl-admin → Đồng
+   bộ), tick vài checkbox ở cột đầu bảng, thấy nút "Xoá N mục đã chọn"
+   hiện ra dưới bảng, bấm thử xoá 1 dòng rác để xác nhận hoạt động đúng.
+
 ## 8.61 — Điền đủ 34 siêu thị thật vào script tạo Nguồn dữ liệu + Sync Job (Thành viên)
 
 **Thay đổi**: theo yêu cầu người dùng — điền đủ 34 siêu thị thật (tên +

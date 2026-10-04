@@ -29,6 +29,47 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 8.62 — Chọn nhiều dòng + xoá hàng loạt (toàn hệ thống)
+
+**Theo yêu cầu người dùng**: ở các trang danh sách dạng bảng (Nguồn dữ
+liệu, Đồng bộ, Vai trò, Ánh xạ Điểm↔STK_ID...), muốn xoá nhiều dòng phải
+bấm "Xoá" + xác nhận từng dòng một — chậm, dễ bỏ sót khi cần dọn nhiều (vd
+nhiều siêu thị/job đồng bộ cùng lúc). Yêu cầu thêm checkbox chọn nhiều
+dòng + 1 nút xoá hàng loạt, áp dụng cho **TOÀN BỘ bảng có nút "Xoá" từng
+dòng ở cả 3 giao diện** (rp-user, etl-admin, api-admin), và trở thành
+**quy tắc bắt buộc cho mọi bảng làm thêm sau này** (đã ghi vào `CLAUDE.md`
+ở gốc repo, cùng mục với quy tắc khoá nút bản 8.60).
+
+**Hạ tầng dùng chung** (1 bộ, không viết riêng từng trang) — ở cả 3 app:
+- `src/lib/useRowSelection.js` — hook quản lý tập ID dòng đang chọn
+  (`selectedIds`, `toggle`, `toggleAll`, `isSelected`, `clear`).
+- `src/components/DataTable.jsx` — nhận thêm prop tuỳ chọn `selection`, tự
+  vẽ cột checkbox đầu bảng (gồm "chọn tất cả" ở header); không truyền thì
+  bảng vẽ như cũ, không ảnh hưởng nơi khác.
+
+Nút "Xoá N mục đã chọn" gọi LẶP LẠI đúng API xoá 1 dòng đã có sẵn của từng
+trang (không thêm API "xoá theo danh sách" riêng — theo lựa chọn của
+người dùng, ưu tiên triển khai nhanh, ít đổi backend) và tuân thủ ĐÚNG quy
+tắc khoá nút bản 8.60 (tự khoá + đổi chữ "Đang xoá..." trong lúc xử lý).
+
+**21 trang đã áp dụng** (mỗi trang chỉ thêm checkbox + nút xoá hàng loạt,
+KHÔNG đổi nút "Xoá" từng dòng đã có): etl-admin (Đồng bộ, Nguồn dữ liệu,
+Vai trò, Danh sách hàng Core, Ánh xạ Điểm↔STK_ID), api-admin (Nguồn dữ
+liệu, Endpoint realtime đọc/ghi, Báo cáo, Đối tác, Vai trò), rp-user (Vai
+trò, Danh mục, Lịch gửi email, Cảnh báo bất thường, Ánh xạ phòng/cửa
+hàng, và 5 bảng trong "Danh mục báo cáo": Nguồn dữ liệu, Kết nối ngoài,
+Kết nối API, Dashboard, Báo cáo).
+
+**1 trang không áp dụng**: `rp-user` → Báo cáo đã lưu (Adhoc) — danh sách
+này không vẽ bằng `DataTable` (dạng khác, không phải bảng nhiều dòng), để
+nguyên như cũ.
+
+**Lưu ý đã biết (không chặn dùng)**: vai trò hệ thống (không xoá được, nút
+"Xoá" từng dòng đã ẩn sẵn) vẫn có checkbox ở bảng Vai trò (DataTable chưa
+có cơ chế ẩn checkbox riêng 1 dòng) — nếu lỡ chọn kèm vai trò hệ thống rồi
+bấm xoá hàng loạt, server chặn đúng như xoá từng dòng, báo lỗi rõ ràng,
+không xoá nhầm.
+
 ## 8.61 — Điền đủ 34 siêu thị thật vào script tạo Nguồn dữ liệu + Sync Job (Thành viên)
 
 **Theo yêu cầu người dùng**: thay vì nhập 2 file Excel (Nguồn dữ liệu +
