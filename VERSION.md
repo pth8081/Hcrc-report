@@ -29,6 +29,36 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 8.60 — Khoá nút + đổi màu lúc đang gửi dữ liệu lên server (toàn hệ thống)
+
+**Theo yêu cầu người dùng**: trong lúc thử nút "Chạy thử" (trang Đồng bộ),
+người dùng nhận thấy nút không phản ứng rõ ràng khi bấm — lo ngại người
+dùng bấm lại nhiều lần liên tiếp ("ấn điên") trước khi yêu cầu trước xong,
+gây gửi trùng nhiều yêu cầu lên server. Yêu cầu: mọi nút bấm gửi dữ liệu
+lên server phải tự khoá (không bấm lại được) + đổi màu rõ rệt trong lúc
+đang xử lý, cho tới khi xong — áp dụng cho **TOÀN BỘ hệ thống** (rp-user,
+etl-admin, api-admin), và trở thành **quy tắc bắt buộc cho mọi nút làm
+thêm sau này** (đã ghi vào `CLAUDE.md` ở gốc repo).
+
+Thay đổi:
+- Thêm rule CSS `button:disabled` (nền + viền xám `--line`, chữ xám
+  `--ink-soft`, con trỏ `not-allowed`) vào cả 3 file `styles.css` — trước
+  đây 1 nút `disabled` vẫn hiện y hệt màu accent bình thường, không phân
+  biệt được bằng mắt.
+- Rà soát TOÀN BỘ 3 giao diện (43 file có gọi `api.get/post/put/del` khi
+  bấm nút) — thêm `useState` khoá (boolean cho nút đơn, theo ID dòng cho
+  nút lặp trong bảng) + đổi chữ "Đang..." cho MỌI nút còn thiếu, dùng
+  chung 1 mẫu đã có sẵn trong code (`ConnectionStatusPage.jsx`,
+  `ReportCatalogPanel.jsx`). Nút lặp trong bảng dùng ID DÒNG đang xử lý
+  (không dùng 1 cờ chung) — bấm "Chạy thử" ở 1 dòng không khoá nhầm nút
+  khác CÙNG dòng hay bất kỳ dòng nào khác.
+- `finally` LUÔN xoá cờ khoá kể cả khi lỗi — tránh khoá nút vĩnh viễn.
+- Không đổi hành vi/API nào ở backend — thuần UI.
+
+**Các bước triển khai:** `cd etl-admin && npm run build`, `cd api-admin
+&& npm run build`, `cd rp-user && npm run build`, copy `dist/` mới cho cả
+3 giao diện. Không đổi backend, không cần restart service nào.
+
 ## 8.59 — Tự thử lại khi mất kết nối nguồn lúc đồng bộ
 
 **Theo yêu cầu người dùng**: sau sự cố thật (04/10/2026) — vài chi nhánh

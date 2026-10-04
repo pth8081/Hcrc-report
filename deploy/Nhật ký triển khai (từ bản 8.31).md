@@ -14,6 +14,26 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 8.60 — Khoá nút + đổi màu lúc đang gửi dữ liệu lên server (toàn hệ thống)
+
+**Thay đổi**: theo yêu cầu người dùng — mọi nút bấm gửi dữ liệu lên server
+ở cả 3 giao diện (rp-user/etl-admin/api-admin) giờ tự khoá + đổi màu xám
+rõ rệt trong lúc đang xử lý, tránh bấm lại nhiều lần gây gửi trùng yêu
+cầu. Thuần sửa frontend, không đổi backend. Quy tắc này ghi vào
+`CLAUDE.md` — bắt buộc áp dụng cho mọi nút làm thêm sau này.
+
+**Các bước triển khai:**
+1. `git pull origin main`.
+2. `cd etl-admin && npm run build`, copy `dist/` mới.
+3. `cd api-admin && npm run build`, copy `dist/` mới.
+4. `cd rp-user && npm run build`, copy `dist/` mới.
+5. Không cần restart backend nào (`hcrc-etl`/`hcrc-api-server`/`hcrc-rp-server`
+   không đổi).
+6. Kiểm tra: vào etl-admin → Đồng bộ, bấm "Chạy thử" 1 job → nút chuyển
+   xám + hiện "Đang chạy..." ngay, không bấm lại được tới khi xong.
+
+---
+
 ## 8.59 — Tự thử lại khi mất kết nối nguồn lúc đồng bộ
 
 **Thay đổi**: theo yêu cầu người dùng sau sự cố thật (vài chi nhánh mất
