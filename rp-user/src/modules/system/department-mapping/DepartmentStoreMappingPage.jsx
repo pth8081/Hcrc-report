@@ -28,6 +28,10 @@ export default function DepartmentStoreMappingPage() {
   const [importing, setImporting] = useState(false);
   const [loadingTemplate, setLoadingTemplate] = useState(false);
   const [exportingAll, setExportingAll] = useState(false);
+  // Chọn nhiều + xoá hàng loạt (bản 8.62) — hàng dùng khoá "id" (thường, không
+  // phải "Id") nên truyền getId riêng.
+  const selection = useRowSelection(row => row.id);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   function reload() {
     api.get('/system/department-mapping').then(setRows).catch(err => setError(err.message));
@@ -75,6 +79,20 @@ export default function DepartmentStoreMappingPage() {
       await api.del(`/system/department-mapping/${row.id}`);
       reload();
     } catch (err) { setError(err.message); } finally { setDeletingId(null); }
+  }
+
+  async function deleteSelected() {
+    if (selection.selectedIds.size === 0) return;
+    if (!confirm(`Xoá ${selection.selectedIds.size} ánh xạ đã chọn?`)) return;
+    setError('');
+    setBulkDeleting(true);
+    try {
+      for (const id of selection.selectedIds) {
+        await api.del(`/system/department-mapping/${id}`);
+      }
+      selection.clear();
+      reload();
+    } catch (err) { setError(err.message); } finally { setBulkDeleting(false); }
   }
 
   async function submitImport(e) {
@@ -167,7 +185,16 @@ export default function DepartmentStoreMappingPage() {
         ].filter(Boolean)}
         rows={visibleRows}
         emptyMessage="Chưa có ánh xạ nào — hệ thống vẫn tự thử khớp tên Department với tên siêu thị ở Ánh xạ Điểm - STK_ID."
+        selection={me?.isSystemRole ? selection : null}
       />
+
+      {me?.isSystemRole && selection.selectedIds.size > 0 && (
+        <div className="inline-actions">
+          <button type="button" onClick={deleteSelected} disabled={bulkDeleting}>
+            {bulkDeleting ? 'Đang xoá...' : `Xoá ${selection.selectedIds.size} mục đã chọn`}
+          </button>
+        </div>
+      )}
 
       {me?.isSystemRole ? (
         <>

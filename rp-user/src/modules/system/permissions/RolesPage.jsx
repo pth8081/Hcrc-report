@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../../../lib/api';
 import { useAuth } from '../../../lib/AuthContext';
 import DataTable from '../../../components/DataTable';
+import { useRowSelection } from '../../../lib/useRowSelection';
 
 export default function RolesPage() {
   const { me } = useAuth();
@@ -29,6 +30,9 @@ export default function RolesPage() {
   const [savingName, setSavingName] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
   const [savingAccess, setSavingAccess] = useState(false);
+  // Chọn nhiều + xoá hàng loạt (bản 8.62).
+  const selection = useRowSelection();
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   function reload() {
     api.get('/system/roles').then(setRoles).catch(err => setError(err.message));
@@ -93,6 +97,20 @@ export default function RolesPage() {
       await api.del(`/system/roles/${role.Id}`);
       reload();
     } catch (err) { setError(err.message); } finally { setDeletingId(null); }
+  }
+
+  async function deleteSelected() {
+    if (selection.selectedIds.size === 0) return;
+    if (!confirm(`Xoá ${selection.selectedIds.size} vai trò đã chọn?`)) return;
+    setError('');
+    setBulkDeleting(true);
+    try {
+      for (const id of selection.selectedIds) {
+        await api.del(`/system/roles/${id}`);
+      }
+      selection.clear();
+      reload();
+    } catch (err) { setError(err.message); } finally { setBulkDeleting(false); }
   }
 
   async function openAccessEditor(role) {
