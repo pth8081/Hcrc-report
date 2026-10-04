@@ -37,7 +37,6 @@ const adminRolesRoutes = require('./routes/admin/roles');
 const adminVoucherSettingsRoutes = require('./routes/admin/voucherSettings');
 const adminConnectionStatusRoutes = require('./routes/admin/connectionStatus');
 const adminTlsCertificateRoutes = require('./routes/admin/tlsCertificate');
-const adminTrustedCaRoutes = require('./routes/admin/trustedCa');
 const internalStockAlertThresholdsRoutes = require('./routes/internal/stockAlertThresholds');
 const { checkAllConnections } = require('./lib/connectionHealthChecker');
 const { requestLogger } = require('./lib/requestLogger');
@@ -153,7 +152,6 @@ app.use('/admin/roles', adminRolesRoutes);
 app.use('/admin/voucher-settings', adminVoucherSettingsRoutes);
 app.use('/admin/connection-status', adminConnectionStatusRoutes);
 app.use('/admin/tls-certificate', adminTlsCertificateRoutes);
-app.use('/admin/trusted-ca', adminTrustedCaRoutes);
 
 // ===== /internal/* — rp-server gọi SANG (bản 8.70, theo yêu cầu người
 // dùng) — KHÔNG đi qua corsAllowlist/rate-limit/requestLogger của

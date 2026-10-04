@@ -1,9 +1,9 @@
-# Hướng dẫn triển khai gộp — bản 8.29 đến 8.72 (làm 1 lần)
+# Hướng dẫn triển khai gộp — bản 8.29 đến 8.73 (làm 1 lần)
 
 **Mục đích**: theo yêu cầu người dùng — thay vì đọc/làm tuần tự từng mục
 trong "Nhật ký triển khai (từ bản 8.31)" (nhiều mục riêng, mỗi mục 1 bản),
 file NÀY gộp lại thành **1 lượt làm duy nhất** để đưa server từ trước bản
-8.29 lên thẳng bản 8.72. Các bước **idempotent** (an toàn chạy lại nhiều
+8.29 lên thẳng bản 8.73. Các bước **idempotent** (an toàn chạy lại nhiều
 lần) được gộp chỉ chạy **1 LẦN** ở bản mới nhất thay vì lặp lại theo từng
 bản cũ. Nếu server đã ở 1 bản nào đó rồi (vd đã tới 8.62), chỉ cần làm
 PHẦN CÒN THIẾU — hầu hết các bước dưới đây không hại gì nếu lỡ làm lại.
@@ -311,14 +311,16 @@ hệt, không bắt buộc đổi gateway chỉ vì có bản mới.
   private key + public cert → trang báo đúng "cần restart" (lần đầu) hay
   "đã áp dụng ngay" (gia hạn); `curl -k https://<ip>:<cổng>/` trả về đúng
   dữ liệu sau khi restart (8.71).
-- [ ] (CHỈ nếu đã làm mục H.2) Trang "Chứng chỉ TLS" → phần "CA tin cậy":
-  thêm 1 CA → cuộc gọi trước đó bị lỗi "self signed certificate" nay
-  thành công NGAY, không cần restart; xoá CA đó → cuộc gọi bị từ chối
-  lại, các CA khác đã thêm không bị ảnh hưởng (8.72).
+- [ ] (CHỈ nếu đã làm mục H.2 — CHỈ còn ở rp-user từ bản 8.73) rp-user →
+  trang "Chứng chỉ TLS" → phần "CA tin cậy": thêm 1 CA → cuộc gọi trước
+  đó bị lỗi "self signed certificate" nay thành công NGAY, không cần
+  restart; xoá CA đó → cuộc gọi bị từ chối lại, các CA khác đã thêm
+  không bị ảnh hưởng (8.72). etl-admin/api-admin KHÔNG còn phần này
+  (8.73).
 
 ---
 
-## H. Chứng chỉ TLS cho PM2 (bản 8.71-8.72)
+## H. Chứng chỉ TLS cho PM2 (bản 8.71-8.73)
 
 ### H.1 — PM2 tự chạy HTTPS khi NGƯỜI KHÁC gọi VÀO (bản 8.71 — TUỲ CHỌN, CHỈ cần nếu KHÔNG dùng Nginx)
 
@@ -338,19 +340,25 @@ Nginx.
    sinh, vd `../etl/certs`) vào mục `env` của ĐÚNG tiến trình giao diện đó
    trong `deploy/ecosystem.config.js`, `pm2 restart` tiến trình đó.
 
-### H.2 — PM2 tự BIẾT TIN AI khi CHÍNH MÌNH gọi RA (bản 8.72 — TUỲ CHỌN, áp dụng DÙ CÓ hay KHÔNG dùng Nginx)
+### H.2 — PM2 tự BIẾT TIN AI khi CHÍNH MÌNH gọi RA (bản 8.72, thu hẹp ở bản 8.73 — TUỲ CHỌN, áp dụng DÙ CÓ hay KHÔNG dùng Nginx)
 
 Khác H.1 — mục này CHO DÙ hệ thống có dùng Nginx hay không, chỉ cần CÓ
 XẢY RA việc 1 service nội bộ GỌI RA sang hệ thống khác qua HTTPS (vd
 rp-server gọi api-server, bản 8.70; hoặc gọi ra HCRC Workspace) VÀ bên
 kia dùng CA nội bộ/tự tạo (không phải CA công khai) thì mới cần.
 
+**CHỈ áp dụng ở report server (rp-server + rp-user) — từ bản 8.73, theo
+yêu cầu người dùng, etl và api-server KHÔNG còn tính năng này nữa** (đã
+gỡ khỏi etl-admin/api-admin, chỉ còn đúng phần upload chứng chỉ TLS ở
+mục H.1). Nếu hệ thống khác (etl/api-server) tự gọi ra ngoài và cần cơ
+chế này trong tương lai, phải làm lại từ đầu, không còn sẵn trên 2 hệ
+thống đó.
+
 1. Nhận diện đúng lỗi: cuộc gọi báo `self signed certificate`/
    `unable to verify the first certificate`.
-2. Vào trang "Chứng chỉ TLS" của ĐÚNG hệ thống đang GỌI RA bị lỗi (vd
-   rp-server gọi api-server lỗi → vào rp-user, KHÔNG phải api-admin) →
-   phần "CA tin cậy (cho các cuộc gọi ra ngoài)" → nhập nhãn gợi nhớ +
-   chọn file CA của hệ thống BÊN KIA → "Thêm CA tin cậy".
+2. Vào rp-user → trang "Chứng chỉ TLS" → phần "CA tin cậy (cho các cuộc
+   gọi ra ngoài)" → nhập nhãn gợi nhớ + chọn file CA của hệ thống BÊN KIA
+   → "Thêm CA tin cậy".
 3. Áp dụng NGAY, không cần restart — kiểm tra lại cuộc gọi trước đó đã
    thành công.
 

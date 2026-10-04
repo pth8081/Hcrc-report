@@ -14,6 +14,28 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 8.73 — Thu hẹp "CA tin cậy": chỉ còn report server
+
+**Thay đổi**: gỡ bỏ phần "CA tin cậy" (bản 8.72) khỏi etl và api-server
+(backend + UI etl-admin/api-admin) theo yêu cầu người dùng — tính năng
+này CHỈ còn ở rp-server/rp-user. Không ảnh hưởng gì nếu chưa từng thêm CA
+nào ở etl/api-server (file `.pem` cũ trong `certs/trusted-ca/` của 2 hệ
+thống này, nếu có, không còn được đọc nữa — có thể xoá thủ công, không
+bắt buộc). Chi tiết đầy đủ: `deploy/Cập nhật bản 8.73 — Thu hẹp CA tin
+cậy chỉ còn report server.md`.
+
+**Các bước triển khai:**
+1. `git pull origin main`.
+2. `pm2 restart hcrc-etl hcrc-api-server` (BẮT BUỘC — bỏ route
+   `/admin/trusted-ca`; `hcrc-rp-server` KHÔNG cần restart, không đổi).
+3. `cd etl-admin && npm run build`, `cd ../api-admin && npm run build`,
+   copy `dist/` mới cho 2 giao diện này (trang "Chứng chỉ TLS" bỏ phần
+   "CA tin cậy", trở lại đúng bản 8.71) — rp-user KHÔNG cần build lại.
+4. Không có bước kiểm tra riêng — nếu etl-admin/api-admin đã từng thêm CA
+   tin cậy, admin sẽ không còn thấy phần đó nữa (bình thường, đúng ý).
+
+---
+
 ## 8.72 — "CA tin cậy": nhận diện HTTPS của hệ thống khác khi PM2 tự gọi ra ngoài
 
 **Thay đổi**: thêm phần "CA tin cậy" vào CÙNG trang "Chứng chỉ TLS" (bản

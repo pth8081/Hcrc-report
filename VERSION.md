@@ -29,6 +29,34 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 8.73 — Thu hẹp "CA tin cậy": chỉ còn report server
+
+**Theo yêu cầu người dùng**: sau khi bản 8.72 làm "CA tin cậy" cho cả 3 hệ
+thống (etl, api-server, rp-server), người dùng chỉ định rõ: "Phần này thì
+bạn chỉ cần làm trên report server thôi nhé." — gỡ bỏ HOÀN TOÀN tính năng
+này khỏi etl và api-server (backend + UI etl-admin/api-admin), CHỈ giữ lại
+ở rp-server/rp-user.
+
+- Xoá `etl/lib/trustedCa.js`, `etl/routes/admin/trustedCa.js`,
+  `api-server/lib/trustedCa.js`, `api-server/routes/admin/trustedCa.js` +
+  bỏ đăng ký route `/admin/trusted-ca` khỏi `etl/server.js` và
+  `api-server/server.js`.
+- Gỡ phần "CA tin cậy (cho các cuộc gọi ra ngoài)" khỏi
+  `etl-admin/src/pages/TlsCertificatePage.jsx` và
+  `api-admin/src/pages/TlsCertificatePage.jsx` — 2 trang này trở lại đúng
+  phạm vi bản 8.71 (chỉ upload chứng chỉ TLS cho chính máy chủ đó).
+- `rp-server/lib/trustedCa.js`, `rp-server/routes/trustedCa.js`,
+  `rp-server/server.js` và
+  `rp-user/src/modules/system/tls-certificate/TlsCertificatePage.jsx` GIỮ
+  NGUYÊN không đổi — tính năng vẫn hoạt động đầy đủ ở report server như
+  bản 8.72.
+
+**Lý do**: etl và api-server là 2 hệ thống nội bộ không cần tự gọi ra các
+dịch vụ bên ngoài dùng CA tự tạo; chỉ report server mới có nhu cầu đó
+(hiện tại qua `lib/internalApiClient.js` gọi sang api-server và tương lai
+có thể gọi ra HCRC Workspace), nên không cần duy trì tính năng này ở cả 3
+nơi.
+
 ## 8.72 — "CA tin cậy": nhận diện HTTPS của hệ thống khác khi PM2 tự gọi ra ngoài
 
 **Theo yêu cầu người dùng**: sau bản 8.71 (PM2 tự chạy HTTPS), người dùng

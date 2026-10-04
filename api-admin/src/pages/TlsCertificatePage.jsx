@@ -19,54 +19,10 @@ export default function TlsCertificatePage() {
   const [certFile, setCertFile] = useState(null);
   const [caFile, setCaFile] = useState(null);
 
-  // "CA tin cậy" (bản 8.72) — chiều NGƯỢC LẠI: API Server tự GỌI RA sang
-  // hệ thống khác dùng HTTPS ký bởi CA nội bộ/tự tạo thì cần thêm CA đó
-  // vào đây — xem api-server/lib/trustedCa.js.
-  const [trustedCas, setTrustedCas] = useState([]);
-  const [trustedCaError, setTrustedCaError] = useState('');
-  const [newCaLabel, setNewCaLabel] = useState('');
-  const [newCaFile, setNewCaFile] = useState(null);
-  const [addingCa, setAddingCa] = useState(false);
-  const [deletingCaId, setDeletingCaId] = useState(null);
-
   function reload() {
     api.get('/tls-certificate').then(setStatus).catch(err => setError(err.message));
   }
-  function reloadTrustedCas() {
-    api.get('/trusted-ca').then(setTrustedCas).catch(err => setTrustedCaError(err.message));
-  }
-  useEffect(() => { reload(); reloadTrustedCas(); }, []);
-
-  async function submitAddCa(e) {
-    e.preventDefault();
-    setTrustedCaError('');
-    if (!newCaLabel.trim() || !newCaFile) return setTrustedCaError('Nhập nhãn + chọn file CA trước');
-    setAddingCa(true);
-    try {
-      const pem = await newCaFile.text();
-      await api.post('/trusted-ca', { label: newCaLabel.trim(), pem });
-      setNewCaLabel('');
-      setNewCaFile(null);
-      reloadTrustedCas();
-    } catch (err) {
-      setTrustedCaError(err.message);
-    } finally {
-      setAddingCa(false);
-    }
-  }
-
-  async function removeCa(ca) {
-    if (!confirm(`Bỏ tin cậy CA "${ca.label}"? Các cuộc gọi HTTPS ra ngoài đang dựa vào CA này sẽ bị từ chối lại.`)) return;
-    setDeletingCaId(ca.id);
-    try {
-      await api.del(`/trusted-ca/${ca.id}`);
-      reloadTrustedCas();
-    } catch (err) {
-      setTrustedCaError(err.message);
-    } finally {
-      setDeletingCaId(null);
-    }
-  }
+  useEffect(reload, []);
 
   async function submitUpload(e) {
     e.preventDefault();
@@ -153,47 +109,6 @@ export default function TlsCertificatePage() {
           )}
         </div>
       )}
-
-      <hr />
-      <h2>CA tin cậy (cho các cuộc gọi ra ngoài)</h2>
-      <p className="form-hint">
-        Dùng CHIỀU NGƯỢC LẠI với phần trên — khi API Server tự GỌI RA sang 1 hệ thống khác dùng
-        HTTPS ký bởi CA nội bộ/tự tạo (không phải CA công khai như Let's Encrypt), cuộc gọi sẽ bị từ
-        chối ("self signed certificate") trừ khi thêm đúng CA đó vào đây. Áp dụng NGAY, không cần
-        restart.
-      </p>
-      {trustedCaError && <p className="form-error">{trustedCaError}</p>}
-
-      <table className="data-table">
-        <thead>
-          <tr><th>Nhãn</th><th>Chủ thể</th><th>Hiệu lực</th><th></th></tr>
-        </thead>
-        <tbody>
-          {trustedCas.length === 0 ? (
-            <tr><td colSpan={4}>Chưa thêm CA tin cậy nào.</td></tr>
-          ) : trustedCas.map(ca => (
-            <tr key={ca.id}>
-              <td>{ca.label}</td>
-              <td>{ca.subject || '(không đọc được)'}</td>
-              <td>{ca.validTo ? `${ca.validFrom} — ${ca.validTo}` : '—'}</td>
-              <td>
-                <button type="button" onClick={() => removeCa(ca)} disabled={deletingCaId === ca.id}>
-                  {deletingCaId === ca.id ? 'Đang xoá...' : 'Xoá'}
-                </button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-
-      <h3>Thêm CA tin cậy mới</h3>
-      <form className="stacked-form" onSubmit={submitAddCa}>
-        <label>Nhãn (tên gợi nhớ, vd "HCRC Workspace", "api-server nội bộ")</label>
-        <input type="text" value={newCaLabel} onChange={(e) => setNewCaLabel(e.target.value)} required />
-        <label>File CA (.pem/.crt)</label>
-        <input type="file" accept=".pem,.crt,.cer,.txt" onChange={(e) => setNewCaFile(e.target.files?.[0] ?? null)} required />
-        <button type="submit" disabled={addingCa}>{addingCa ? 'Đang thêm...' : 'Thêm CA tin cậy'}</button>
-      </form>
     </div>
   );
 }
