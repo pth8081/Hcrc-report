@@ -29,6 +29,40 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 8.63 — Sửa gửi email tương thích cổng 465 (Postfix)
+
+**Theo yêu cầu người dùng**: email gateway thật dùng Postfix, cổng 465 —
+hệ thống chưa gửi được email qua gateway này. Nguyên nhân: cổng 465 bắt
+buộc bật TLS NGAY TỪ ĐẦU kết nối (SMTPS), khác cổng 587/25 (STARTTLS, bắt
+đầu không mã hoá rồi mới nâng cấp) — thiếu cờ `secure:true` đúng cho cổng
+465 là lỗi phổ biến nhất khiến `nodemailer` không gửi được, dù host/port/
+mật khẩu đều đúng.
+
+- `etl/lib/mailer.js` (cảnh báo lỗi đồng bộ + cảnh báo đổi cấu trúc CSDL,
+  cấu hình qua `.env`): tự nhận `secure=true` khi `SMTP_PORT=465` và
+  `SMTP_SECURE` CHƯA khai rõ trong `.env` — admin chỉ cần đổi đúng
+  `SMTP_PORT=465`, không cần nhớ khai thêm `SMTP_SECURE=true`. Vẫn tôn
+  trọng `SMTP_SECURE=true`/`false` nếu đã khai rõ ràng (không đổi hành vi
+  cấu hình cũ đang chạy ổn với cổng 587).
+- `rp-server/lib/mailer.js` (dùng chung cho "Thiết lập email" → nút "Gửi
+  thử", "Lịch gửi email báo cáo", "Cảnh báo bất thường" — cấu hình qua
+  giao diện, lưu CSDL `app.EmailSettings`): ÉP `secure=true` khi
+  `SmtpPort=465`, bất kể checkbox "Secure" đã lưu trước đó — không có
+  gateway SMTP thật nào dùng cổng 465 ở chế độ không mã hoá, nên ép an
+  toàn theo cổng thay vì phụ thuộc người dùng nhớ tick đúng checkbox.
+- `rp-user/src/modules/system/email-settings/EmailSettingsPage.jsx`: gõ
+  cổng `465` tự tick sẵn "Secure" (gợi ý đúng giá trị THẬT sẽ dùng lúc
+  gửi) + hiện ghi chú giải thích ngay dưới checkbox.
+
+**KHÔNG áp dụng cho `api-server`** — rà soát xác nhận `api-server` KHÔNG
+có tính năng gửi email nào (trang "Trạng thái kết nối" chỉ hiển thị, không
+gửi cảnh báo qua email) — đúng yêu cầu người dùng "hệ thống nào có email
+mới gửi được không thì thôi" (bỏ qua hệ thống chưa có email).
+
+Đã demo xác nhận: `rp-user` → "Thiết lập email" gõ cổng 465 → checkbox
+"Secure" tự tick + hiện ghi chú. Không đổi CSDL, không ảnh hưởng cấu hình
+SMTP cổng 587/25 đang chạy ổn.
+
 ## 8.62 — Chọn nhiều dòng + xoá hàng loạt (toàn hệ thống)
 
 **Theo yêu cầu người dùng**: ở các trang danh sách dạng bảng (Nguồn dữ

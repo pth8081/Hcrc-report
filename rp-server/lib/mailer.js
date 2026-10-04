@@ -26,10 +26,18 @@ async function sendMail({ to, subject, text, html, attachments }) {
   const row = await loadSettings();
   if (!row) throw new Error('Chưa cấu hình email — vào "Thiết lập email" trước');
 
+  // Cổng 465 (vd Postfix smtps) bắt buộc TLS NGAY TỪ ĐẦU kết nối — khác
+  // 587/25 (STARTTLS). Lỗi phổ biến nhất khiến "Thiết lập email" cấu hình
+  // đúng host/port vẫn gửi thất bại là quên tick "Secure" khi đổi sang cổng
+  // 465 (bản 8.63, theo sự cố thật với Postfix của người dùng) — ÉP true
+  // khi port là 465 bất kể giá trị đã lưu, không phụ thuộc người dùng nhớ
+  // tick đúng checkbox (không có gateway SMTP thật nào dùng cổng 465 ở chế
+  // độ không mã hoá).
+  const secure = row.SmtpPort === 465 ? true : !!row.Secure;
   const transport = nodemailer.createTransport({
     host: row.SmtpHost,
     port: row.SmtpPort,
-    secure: !!row.Secure,
+    secure,
     auth: row.Username ? { user: row.Username, pass: row.PasswordEncrypted ? decrypt(row.PasswordEncrypted) : undefined } : undefined
   });
 

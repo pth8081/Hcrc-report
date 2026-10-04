@@ -54,8 +54,21 @@ export default function EmailSettingsPage() {
 
       <form className="stacked-form" onSubmit={save}>
         <input placeholder="SMTP host" value={form.smtpHost} onChange={(e) => setForm({ ...form, smtpHost: e.target.value })} required />
-        <input placeholder="SMTP port" type="number" value={form.smtpPort} onChange={(e) => setForm({ ...form, smtpPort: Number(e.target.value) })} />
+        <input
+          placeholder="SMTP port"
+          type="number"
+          value={form.smtpPort}
+          onChange={(e) => {
+            const smtpPort = Number(e.target.value);
+            // Cổng 465 (vd Postfix smtps) luôn cần TLS ngay từ đầu — tự tick
+            // sẵn "Secure" để tránh quên (server cũng tự ép true cho cổng
+            // này dù lỡ bỏ tick, xem rp-server/lib/mailer.js — đây chỉ là
+            // gợi ý cho đúng với giá trị thật sẽ dùng lúc gửi).
+            setForm({ ...form, smtpPort, secure: smtpPort === 465 ? true : form.secure });
+          }}
+        />
         <label className="checkbox-row"><input type="checkbox" checked={form.secure} onChange={(e) => setForm({ ...form, secure: e.target.checked })} /> Secure (SSL/TLS)</label>
+        {form.smtpPort === 465 && <p className="form-hint">Cổng 465 luôn dùng TLS ngay từ đầu kết nối — hệ thống tự gửi bằng chế độ này dù ô trên có tick hay không.</p>}
         <input placeholder="Username" value={form.username || ''} onChange={(e) => setForm({ ...form, username: e.target.value })} />
         <input placeholder={hasPassword ? 'Password (bỏ trống để giữ nguyên)' : 'Password'} type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
         <input placeholder="Địa chỉ gửi (From)" value={form.fromAddress} onChange={(e) => setForm({ ...form, fromAddress: e.target.value })} required />

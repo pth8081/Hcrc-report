@@ -14,6 +14,35 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 8.63 — Sửa gửi email tương thích cổng 465 (Postfix)
+
+**Thay đổi**: cổng 465 (SMTPS, vd Postfix của người dùng) bắt buộc TLS
+ngay từ đầu kết nối — thiếu `secure:true` đúng cho cổng này là lý do email
+gửi thất bại dù host/port/mật khẩu đúng. `etl/lib/mailer.js` tự nhận
+`secure=true` theo cổng 465 khi `.env` chưa khai `SMTP_SECURE` rõ ràng;
+`rp-server/lib/mailer.js` ép `secure=true` khi `SmtpPort=465` bất kể
+checkbox đã lưu. `api-server` không có tính năng gửi email nên không áp
+dụng (theo đúng yêu cầu người dùng).
+
+**Các bước triển khai:**
+1. `git pull origin main`.
+2. `pm2 restart hcrc-etl` và `pm2 restart hcrc-rp-server` (BẮT BUỘC — đổi
+   `lib/mailer.js` của cả 2).
+3. `cd rp-user && npm run build`, copy `dist/` mới (đổi
+   `EmailSettingsPage.jsx` — chỉ thêm gợi ý tick "Secure", không bắt buộc
+   phải build ngay để backend hoạt động đúng).
+4. Nếu dùng cổng 465: etl → sửa `.env` thành `SMTP_PORT=465` (xoá hoặc để
+   nguyên `SMTP_SECURE`, không bắt buộc đổi — hệ thống tự nhận đúng theo
+   cổng); rp-user → "Thiết lập email" → đổi "SMTP port" thành `465` → Lưu
+   → "Gửi thử" để xác nhận gửi được qua Postfix.
+5. Kiểm tra: etl — tạm làm 1 job lỗi kết nối để xem email cảnh báo có tới
+   không (hoặc đợi lần lỗi thật); rp-user — "Thiết lập email" → "Gửi thử"
+   nhận được email tại hộp thư đã nhập.
+
+Không đổi CSDL, không ảnh hưởng cấu hình SMTP cổng 587/25 đang chạy ổn.
+
+---
+
 ## 8.62 — Chọn nhiều dòng + xoá hàng loạt (toàn hệ thống)
 
 **Thay đổi**: thêm checkbox chọn nhiều dòng + nút "Xoá N mục đã chọn" cho

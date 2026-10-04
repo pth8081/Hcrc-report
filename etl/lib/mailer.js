@@ -4,12 +4,26 @@
 const nodemailer = require('nodemailer');
 const { logWarn } = require('./systemLog');
 
+// Cổng 465 (vd Postfix cấu hình submissions/smtps) bắt buộc bật TLS NGAY TỪ
+// ĐẦU kết nối — khác cổng 587/25 (STARTTLS, bắt đầu không mã hoá rồi mới
+// nâng cấp). Thiếu `secure:true` ở cổng 465 là lỗi phổ biến nhất khiến gửi
+// email thất bại (bản 8.63, theo sự cố thật với Postfix của người dùng) —
+// giờ TỰ ĐOÁN theo cổng khi SMTP_SECURE chưa khai rõ trong .env, để admin
+// chỉ cần đổi đúng SMTP_PORT=465 là chạy được, không phải nhớ khai thêm
+// SMTP_SECURE=true. Vẫn tôn trọng SMTP_SECURE nếu có khai rõ ràng (true/false).
+function resolveSecure(port) {
+  if (process.env.SMTP_SECURE === 'true') return true;
+  if (process.env.SMTP_SECURE === 'false') return false;
+  return port === 465;
+}
+
 function getTransport() {
   if (!process.env.SMTP_HOST) return null;
+  const port = parseInt(process.env.SMTP_PORT || '587', 10);
   return nodemailer.createTransport({
     host: process.env.SMTP_HOST,
-    port: parseInt(process.env.SMTP_PORT || '587', 10),
-    secure: process.env.SMTP_SECURE === 'true',
+    port,
+    secure: resolveSecure(port),
     auth: process.env.SMTP_USER ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASSWORD } : undefined
   });
 }
