@@ -1,11 +1,11 @@
-# Hướng dẫn triển khai gộp — bản 8.29 đến 8.62 (làm 1 lần)
+# Hướng dẫn triển khai gộp — bản 8.29 đến 8.66 (làm 1 lần)
 
 **Mục đích**: theo yêu cầu người dùng — thay vì đọc/làm tuần tự từng mục
-trong "Nhật ký triển khai (từ bản 8.31)" (34 mục riêng, mỗi mục 1 bản),
+trong "Nhật ký triển khai (từ bản 8.31)" (nhiều mục riêng, mỗi mục 1 bản),
 file NÀY gộp lại thành **1 lượt làm duy nhất** để đưa server từ trước bản
-8.29 lên thẳng bản 8.62. Các bước **idempotent** (an toàn chạy lại nhiều
+8.29 lên thẳng bản 8.66. Các bước **idempotent** (an toàn chạy lại nhiều
 lần) được gộp chỉ chạy **1 LẦN** ở bản mới nhất thay vì lặp lại theo từng
-bản cũ. Nếu server đã ở 1 bản nào đó rồi (vd đã tới 8.50), chỉ cần làm
+bản cũ. Nếu server đã ở 1 bản nào đó rồi (vd đã tới 8.62), chỉ cần làm
 PHẦN CÒN THIẾU — hầu hết các bước dưới đây không hại gì nếu lỡ làm lại.
 
 File gộp "Nhật ký triển khai (từ bản 8.31)" và từng file riêng
@@ -18,7 +18,9 @@ chi tiết kỹ thuật của từng bản khi cần — file này chỉ gộp p
 
 1. `git pull origin main`.
 
-2. Cài gói npm mới cho backend (gộp từ 8.39 captcha + 8.41 WebAuthn):
+2. Cài gói npm mới cho backend (gộp từ 8.39 captcha + 8.41 WebAuthn —
+   bản 8.63-8.66 (sửa gửi email tương thích Postfix/Exchange/Gmail, thêm
+   EWS) KHÔNG cần gói npm nào mới, tự dựng bằng module gốc của Node):
    ```
    cd rp-server && npm install
    cd ../etl && npm install
@@ -38,19 +40,23 @@ chi tiết kỹ thuật của từng bản khi cần — file này chỉ gộp p
      8.57 — email cảnh báo "Giám sát cấu trúc CSDL"/"Trạng thái kết nối")
      — có thể ĐÃ cấu hình sẵn (dùng chung mailer với cảnh báo lỗi đồng bộ
      ETL cũ); thiếu thì 2 job vẫn chạy/ghi lịch sử bình thường, chỉ không
-     gửi được email.
+     gửi được email. Nếu gateway là Postfix cổng 465: chỉ cần đổi
+     `SMTP_PORT=465`, KHÔNG cần khai thêm `SMTP_SECURE` (bản 8.63 — tự
+     nhận đúng theo cổng).
    - `etl/.env`: `DSMART16_SERVER`/`DSMART16_USER`/`DSMART16_PASSWORD`
      (bản 8.55) — **CHỈ cần nếu triển khai tính năng "Top bán chạy tồn
      kho=0"** (xem mục B.6 bên dưới), bỏ qua nếu không dùng.
 
 5. Chạy lại schema CSDL (an toàn chạy lại nhiều lần — chỉ CREATE/ALTER
    thêm bảng/cột mới, không xoá dữ liệu cũ):
-   - `rp-db/schema.sql` — gộp đủ các bảng/cột mới từ bản 8.41 đến 8.50:
+   - `rp-db/schema.sql` — gộp đủ các bảng/cột mới từ bản 8.41 đến 8.65:
      `app.UserWebAuthnCredentials`, `app.RoleDashboardGroupAccess`,
      `app.UserDashboardPreferences`, cột `CachedPasswordHash`/
      `CachedPasswordHashAt`/`FallbackMaxAgeDays`, `app.UserReportAccess`/
      `app.UserDashboardGroupAccess`, `app.DepartmentStoreMapping` (+ menu
-     mới), `app.UserStoreAccess`.
+     mới), `app.UserStoreAccess`, cột `Protocol`/`EwsUrl`/`EwsInsecureTls`
+     trên `app.EmailSettings` (bản 8.65 — gửi email qua Exchange bằng
+     EWS, mặc định `Protocol='smtp'`, KHÔNG đổi cấu hình SMTP đang chạy).
    - `etl-db/schema.sql` — bảng mới `etl.DataSourceConnectionStatus`/
      `etl.SchemaSnapshots`/`etl.SchemaChangeLog` (bản 8.57).
    - `api-db/schema.sql` — bảng mới `api.DataSourceConnectionStatus`
@@ -145,7 +151,49 @@ mật khẩu hiện nằm vĩnh viễn trong lịch sử Git của repo (ngườ
 
 ---
 
-## F. Kiểm tra tổng hợp sau khi xong tất cả
+## F. Cấu hình gửi email (bản 8.63-8.66 — làm SAU khi đã deploy xong A/B/C)
+
+Trang "Thiết lập email" (rp-user → menu "Thiết lập email") giờ hỗ trợ
+**5 loại gateway**, chọn đúng 1 dropdown là tự điền sẵn host/port/giao
+thức — vẫn sửa tay được mọi ô:
+
+1. **Postfix** (relay nội bộ) — mặc định **KHÔNG cần đăng nhập** (để
+   trống Username/Password), cổng 465 (SMTPS, tự bật TLS đúng theo cổng).
+2. **Exchange qua SMTP** (cổng 587) — dùng được cho cả Exchange Online
+   lẫn Exchange tại chỗ có bật SMTP AUTH — **BẮT BUỘC** Username/Password
+   (dùng "Mật khẩu ứng dụng" nếu tài khoản bật MFA).
+3. **Gmail qua SMTP** (cổng 587) — Username = Gmail đầy đủ, Password
+   PHẢI là "Mật khẩu ứng dụng" (App password, tạo tại
+   myaccount.google.com/apppasswords sau khi bật "Xác minh 2 bước") —
+   Google đã chặn mật khẩu đăng nhập thường cho SMTP từ ứng dụng ngoài.
+4. **Exchange tại chỗ qua EWS** (API riêng, KHÔNG qua SMTP) — đăng nhập
+   THẲNG vào mailbox bằng Username/Password, điền thêm "EWS URL" (thường
+   dạng `https://<máy chủ Exchange>/EWS/Exchange.asmx`). **CHỈ dùng được
+   cho Exchange CÀI TẠI CHỖ** — Exchange Online/Office 365 đã bị Microsoft
+   chặn kiểu xác thực này (Basic Auth) từ cuối 2022. Tick thêm "Bỏ qua
+   kiểm tra chứng chỉ TLS" nếu máy chủ Exchange nội bộ dùng chứng chỉ tự
+   ký (CA riêng công ty).
+5. **Tuỳ chỉnh** — không điền sẵn gì, tự gõ toàn bộ (dùng cho gateway
+   khác không khớp 4 loại trên).
+
+**Các bước:**
+1. rp-user → "Thiết lập email" → chọn ĐÚNG loại gateway thật của công ty
+   ở dropdown "Loại email gateway".
+2. Điền/sửa lại host-port (hoặc EWS URL)/Username/Password/"Địa chỉ gửi
+   (From)" cho khớp thật.
+3. Bấm "Lưu cấu hình" → "Gửi thử" (điền 1 email nhận được) → xác nhận có
+   email tới hộp thư đó.
+4. Nếu "Gửi thử" báo lỗi: đọc đúng nội dung lỗi trả về (sai host/port/
+   mật khẩu/URL EWS đều báo rõ, không phải lỗi 500 chung chung) và sửa
+   lại đúng chỗ đó.
+
+Không cần làm mục này nếu hệ thống hiện tại ĐÃ gửi email ổn định qua cổng
+587/25 trước đây — cấu hình cũ tự chuyển `Protocol='smtp'`, hoạt động y
+hệt, không bắt buộc đổi gateway chỉ vì có bản mới.
+
+---
+
+## G. Kiểm tra tổng hợp sau khi xong tất cả
 
 - [ ] etl-admin → Nguồn dữ liệu: đủ danh sách siêu thị Thành viên (nếu đã
   làm mục B.1-B.2), "Kiểm tra kết nối" thành công.
@@ -178,6 +226,9 @@ mật khẩu hiện nằm vĩnh viễn trong lịch sử Git của repo (ngườ
   Sync Job) chạy xong không còn lỗi "Failed to fetch"/"Không kết nối được
   backend" (8.33/8.35); "Tải file mẫu" tải đúng cấu trúc, dòng 1 là header
   (8.31/8.32).
+- [ ] rp-user → "Thiết lập email": dropdown "Loại email gateway" hiện đủ
+  5 lựa chọn (8.63-8.66); chọn đúng loại đang dùng, "Gửi thử" nhận được
+  email thật.
 
 Không có bước nào ở trên làm mất dữ liệu đã có hoặc ảnh hưởng job/báo cáo
 đang chạy ổn định — mọi thay đổi CSDL đều là CREATE/ALTER thêm mới.
