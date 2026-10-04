@@ -177,4 +177,23 @@ function buildBuIdLookup(diemMapping) {
   return lookup;
 }
 
-module.exports = { loadDiemStkMapping, remapRowsToDiem, stkListsMatch, buildBuIdLookup };
+// storeScope (bản 8.51, app.UserStoreAccess — mảng MaDiem, hoặc null =
+// "Toàn bộ") -> tập hợp STK_ID (kho) THẬT tương ứng, dùng để lọc trực tiếp
+// theo MaChiNhanh/STK_ID ở các báo cáo KHÔNG qua compositeReportRunner.js
+// (báo cáo đó đã tự xử lý __storeScope riêng — xem block.useDiemStkMapping).
+// null -> trả về null (không lọc gì, đúng ý nghĩa "không giới hạn", PHÂN
+// BIỆT RÕ với Set rỗng — Set rỗng nghĩa là CÓ giới hạn nhưng giới hạn đó
+// chưa khớp kho thật nào, phải lọc về rỗng, không phải "xem hết").
+async function resolveStoreScopeStkIds(storeScope) {
+  if (!storeScope) return null;
+  const diemMapping = await loadDiemStkMapping();
+  const stkIds = new Set();
+  for (const maDiem of storeScope) {
+    const info = diemMapping.get(maDiem);
+    if (!info) continue;
+    for (const stk of info.maStkMoi) stkIds.add(stk);
+  }
+  return stkIds;
+}
+
+module.exports = { loadDiemStkMapping, remapRowsToDiem, stkListsMatch, buildBuIdLookup, resolveStoreScopeStkIds };

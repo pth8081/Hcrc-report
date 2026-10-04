@@ -72,12 +72,31 @@ export default function StockAlertThresholdsPage() {
     formData.append('file', file);
     setImporting(true);
     try {
-      const result = await api.post('/stock-alert-thresholds/import', formData, true);
-      setImportResult(result);
-      setFile(null);
-      reload();
-    } catch (err) {
-      setError(err.message);
+      try {
+        const result = await api.post('/stock-alert-thresholds/import', formData, true);
+        setImportResult(result);
+        setFile(null);
+        reload();
+      } catch (err) {
+        // requiresConfirm: file không có dòng dữ liệu nào, danh sách ngưỡng
+        // hiện tại ĐANG có dữ liệu — hỏi lại rõ ràng trước khi cho xoá sạch
+        // (xem etl/routes/admin/stockAlertThresholds.js).
+        if (err.data?.requiresConfirm && window.confirm(`${err.message}\n\nBấm OK để xác nhận xoá sạch, Huỷ để dừng lại.`)) {
+          const confirmFormData = new FormData();
+          confirmFormData.append('file', file);
+          confirmFormData.append('confirmEmpty', 'true');
+          try {
+            const result = await api.post('/stock-alert-thresholds/import', confirmFormData, true);
+            setImportResult(result);
+            setFile(null);
+            reload();
+          } catch (err2) {
+            setError(err2.message);
+          }
+          return;
+        }
+        setError(err.message);
+      }
     } finally {
       setImporting(false);
     }

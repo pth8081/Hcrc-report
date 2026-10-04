@@ -299,6 +299,40 @@ BEGIN
 END
 GO
 
+-- Ngưỡng cảnh báo tồn kho do admin tự khai/upload (bản 8.68, theo yêu cầu
+-- người dùng) — dùng cho báo cáo "Cảnh báo hàng tồn"
+-- (SourceType='stockAlert', xem rp-server/lib/stockAlertRunner.js). KHÁC
+-- etl.CoreItemList ở trên (1 ngưỡng chung, áp cho mọi kho cùng LoaiĐiểm) —
+-- ở ĐÂY mỗi dòng có ngưỡng RIÊNG cho ĐÚNG 1 cặp (MaHang, MaDiem).
+--
+-- MaHang (BẮT BUỘC, khớp ĐÚNG Dimensions.MaHangHienThi đã đồng bộ ở domain
+-- banhang_sku/tonkho_sku — xem bc-ton-kho-0.md) là khoá LỌC dữ liệu thật.
+-- MaDiem (BẮT BUỘC, khớp "Ánh xạ Điểm - STK_ID" — etl.DiemStkMapping) xác
+-- định ĐÚNG siêu thị nào áp ngưỡng này — rp-server tự tra MaDiem -> (các)
+-- STK_ID thật qua bảng đó (lib/diemStkMapping.js), KHÔNG lưu STK_ID trực
+-- tiếp ở đây để không phải sửa lại khi 1 siêu thị đổi kho (MaStkMoi).
+-- NguongCanhBao (BẮT BUỘC, số lượng) — tồn kho ước tính hôm nay NHỎ HƠN
+-- giá trị này thì bị đưa vào báo cáo cảnh báo.
+-- TenHang/NhaCungCap (TUỲ CHỌN) — THUẦN THÔNG TIN hiển thị/lọc trên báo
+-- cáo, KHÔNG đối chiếu với bất kỳ dữ liệu đồng bộ nào khác (hệ thống hiện
+-- CHƯA đồng bộ dữ liệu nhà cung cấp thật từ nguồn nào — xem VERSION.md bản
+-- 8.68).
+IF OBJECT_ID('etl.StockAlertThresholds', 'U') IS NULL
+BEGIN
+    CREATE TABLE etl.StockAlertThresholds (
+        Id             INT           IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        MaHang         NVARCHAR(50)  NOT NULL,
+        MaDiem         NVARCHAR(50)  NOT NULL,
+        NguongCanhBao  DECIMAL(18,4) NOT NULL,
+        TenHang        NVARCHAR(300) NULL,
+        NhaCungCap     NVARCHAR(200) NULL,
+        ImportedAt     DATETIME2(3)  NOT NULL DEFAULT SYSUTCDATETIME(),
+        ImportedBy     NVARCHAR(50)  NULL,
+        CONSTRAINT UX_StockAlertThresholds_MaHang_MaDiem UNIQUE (MaHang, MaDiem)
+    );
+END
+GO
+
 -- Chuyển từ dwh.SyncState — khoá theo SyncJobId thay vì chuỗi SourceSystem tự do.
 IF OBJECT_ID('etl.SyncState', 'U') IS NULL
 BEGIN

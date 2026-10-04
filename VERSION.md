@@ -29,6 +29,41 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 8.68 — Báo cáo tồn kho theo ngưỡng + Cảnh báo hàng tồn
+
+**Theo yêu cầu người dùng**: thêm 2 báo cáo tồn kho mới, giống báo cáo
+hàng tuần siêu thị đang làm tay — phân biệt siêu thị theo "Ánh xạ Điểm -
+STK_ID" đã có sẵn, áp dụng "Phạm vi dữ liệu" (bản 8.50/8.51) để nhân sự
+từng siêu thị chỉ xem đúng siêu thị đó, HO xem toàn bộ. Đã demo xác nhận
+giao diện trước khi code phần CSDL/backend.
+
+- **"Tồn kho theo ngưỡng"** (`bc-ton-kho-nguong`, `SourceType=
+  'stockThreshold'`, `rp-server/lib/stockThresholdRunner.js`) — người xem
+  TỰ CHỌN chiều lọc (Tồn dưới/Tồn trên) VÀ tự nhập mức ngay trên bộ lọc
+  (mặc định "Tồn dưới 1" — tương đương "không còn hàng"), không cần sửa
+  cấu hình/deploy lại mỗi lần đổi mức muốn xem. Thêm filter kind MỚI dùng
+  chung mọi báo cáo: `'thresholdNumber'`
+  (`rp-user/src/components/FilterForm.jsx`).
+- **"Cảnh báo hàng tồn"** (`bc-canh-bao-ton`, `SourceType='stockAlert'`,
+  `rp-server/lib/stockAlertRunner.js`) — admin upload file Excel khai
+  NGƯỠNG RIÊNG cho từng cặp (Mã hàng, Siêu thị) — khác báo cáo trên (1
+  ngưỡng chung) — qua trang etl-admin MỚI "Cảnh báo hàng tồn"
+  (`etl.StockAlertThresholds`, menu code `stock-alert-thresholds`). Thông
+  tin mỗi dòng: Mã hàng, Tên hàng, Nhà cung cấp, Siêu thị, Ngưỡng cảnh báo
+  — **"Nhà cung cấp" THUẦN THÔNG TIN admin tự gõ khi khai ngưỡng, KHÔNG
+  phải dữ liệu đồng bộ** (hệ thống hiện chưa đồng bộ dữ liệu nhà cung cấp
+  thật từ nguồn nào).
+- `rp-server/lib/diemStkMapping.js` — thêm `resolveStoreScopeStkIds()` áp
+  "Phạm vi dữ liệu" cho 2 báo cáo mới (lọc theo MaChiNhanh/STK_ID — 2 báo
+  cáo tồn kho=0 cũ KHÔNG áp dụng cơ chế này, ngoài phạm vi bản 8.68).
+
+**KHÔNG CẦN VIEW MỚI NÀO** — dùng LẠI NGUYÊN VẸN đúng 2 domain
+`banhang_sku`/`tonkho_sku` đã có cho báo cáo "Top bán chạy đang tồn kho =
+0" (`bc-ton-kho-0.md`) — đã làm báo cáo đó rồi thì 2 báo cáo mới CÓ SỐ
+LIỆU NGAY, không cần DBA làm gì thêm ở nguồn. Chi tiết đầy đủ (gồm lại 2
+VIEW đó cho tiện, phòng trường hợp chưa từng làm): `deploy/Cập nhật bản
+8.68 — Báo cáo tồn kho theo ngưỡng + Cảnh báo hàng tồn.md`.
+
 ## 8.67 — Sửa THIẾU SÓT: SMTP (Postfix/Exchange/Gmail) chưa hỗ trợ chứng chỉ TLS tự ký
 
 **Theo yêu cầu người dùng**: Postfix của người dùng dùng chứng chỉ TLS

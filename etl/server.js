@@ -25,6 +25,7 @@ const adminDashboardRoutes = require('./routes/admin/dashboard');
 const { createSalesTargetsRouter } = require('./routes/admin/salesTargets');
 const adminDiemStkMappingRoutes = require('./routes/admin/diemStkMapping');
 const adminCoreItemListRoutes = require('./routes/admin/coreItemList');
+const adminStockAlertThresholdsRoutes = require('./routes/admin/stockAlertThresholds');
 const adminRolesRoutes = require('./routes/admin/roles');
 const adminConnectionStatusRoutes = require('./routes/admin/connectionStatus');
 const adminSchemaMonitorRoutes = require('./routes/admin/schemaMonitor');
@@ -119,6 +120,7 @@ app.use('/admin/sales-targets-corp', createSalesTargetsRouter('sales-targets-cor
 app.use('/admin/sales-targets-hcrc', createSalesTargetsRouter('sales-targets-hcrc', 'sales-targets-hcrc', 'doanhthu_chinhanh', 'hcrc-daily'));
 app.use('/admin/diem-stk-mapping', adminDiemStkMappingRoutes);
 app.use('/admin/core-item-list', adminCoreItemListRoutes);
+app.use('/admin/stock-alert-thresholds', adminStockAlertThresholdsRoutes);
 app.use('/admin/roles', adminRolesRoutes);
 app.use('/admin/connection-status', adminConnectionStatusRoutes);
 app.use('/admin/schema-monitor', adminSchemaMonitorRoutes);

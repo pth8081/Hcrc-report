@@ -11,6 +11,8 @@ const { runExternalReport } = require('./externalReportClient');
 const { runCompositeReport } = require('./compositeReportRunner');
 const { runTopZeroStockReport } = require('./topSellingZeroStockRunner');
 const { runCoreZeroStockReport } = require('./coreZeroStockRunner');
+const { runStockThresholdReport } = require('./stockThresholdRunner');
+const { runStockAlertReport } = require('./stockAlertRunner');
 
 async function loadDefinition(reportId) {
   const rpPool = await getPool('RP');
@@ -58,7 +60,12 @@ async function resolveFactsPool(definition) {
 // xem lib/topSellingZeroStockRunner.js. 'coreZeroStock' KHÔNG tự xếp hạng —
 // dùng danh sách mặt hàng "Core" cố định (etl.CoreItemList) theo LoaiĐiểm
 // (MART/MINIMART), cùng công thức tồn=0, cột hiển thị CỐ ĐỊNH — xem
-// lib/coreZeroStockRunner.js.
+// lib/coreZeroStockRunner.js. 'stockThreshold' (bản 8.68) — người xem TỰ
+// CHỌN chiều lọc (tồn dưới/trên) VÀ mức ngưỡng ngay trên bộ lọc, áp dụng
+// MỌI mặt hàng đang có dữ liệu (không cần danh sách cố định) — xem
+// lib/stockThresholdRunner.js. 'stockAlert' (bản 8.68) — đối chiếu với
+// NGƯỠNG RIÊNG cho từng cặp (Mã hàng, Siêu thị) do admin tự khai/upload
+// (etl.StockAlertThresholds) — xem lib/stockAlertRunner.js.
 async function runDefinition(definition, filterValues, pagination) {
   if (definition.sourceType === 'externalApi') {
     return runExternalReport(definition, filterValues);
@@ -71,6 +78,12 @@ async function runDefinition(definition, filterValues, pagination) {
   }
   if (definition.sourceType === 'coreZeroStock') {
     return runCoreZeroStockReport(definition, filterValues);
+  }
+  if (definition.sourceType === 'stockThreshold') {
+    return runStockThresholdReport(definition, filterValues);
+  }
+  if (definition.sourceType === 'stockAlert') {
+    return runStockAlertReport(definition, filterValues);
   }
   if (definition.sourceType && definition.sourceType !== 'directDb') {
     return runApiReport(definition, filterValues, pagination);

@@ -14,6 +14,31 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 8.68 — Báo cáo tồn kho theo ngưỡng + Cảnh báo hàng tồn
+
+**Thay đổi**: 2 báo cáo tồn kho mới — "Tồn kho theo ngưỡng" (tự chọn chiều
+trên/dưới + mức lọc ngay trên bộ lọc) và "Cảnh báo hàng tồn" (ngưỡng riêng
+từng cặp Mã hàng/Siêu thị, upload qua etl-admin). Dùng lại đúng domain
+`banhang_sku`/`tonkho_sku` đã có — KHÔNG CẦN VIEW MỚI nếu báo cáo
+"bc-ton-kho-0" đã chạy ổn. Áp "Phạm vi dữ liệu" (bản 8.50/8.51) theo siêu
+thị cho cả 2. Chi tiết đầy đủ: `deploy/Cập nhật bản 8.68 — Báo cáo tồn
+kho theo ngưỡng + Cảnh báo hàng tồn.md`.
+
+**Các bước triển khai:**
+1. `git pull origin main`.
+2. (Nếu CHƯA làm báo cáo "bc-ton-kho-0") DBA tạo 2 VIEW + chạy
+   `node scripts/seedZeroStockSkuSync.js` — xem file chi tiết ở trên.
+3. Chạy lại `etl-db/schema.sql` (BẮT BUỘC — bảng mới
+   `etl.StockAlertThresholds`).
+4. `pm2 restart hcrc-etl` và `pm2 restart hcrc-rp-server` (BẮT BUỘC).
+5. `cd etl-admin && npm run build`, `cd rp-user && npm run build`, copy
+   `dist/` mới cả 2.
+6. `cd rp-server && node scripts/seedStockThresholdReport.js && node
+   scripts/seedStockAlertReport.js`.
+7. Gán quyền menu "Cảnh báo hàng tồn" (etl-admin) + quyền xem 2 báo cáo
+   mới (rp-user → Phân quyền).
+8. etl-admin → "Cảnh báo hàng tồn" → upload danh sách ngưỡng (nếu dùng).
+
 ## 8.67 — Sửa THIẾU SÓT: SMTP (Postfix/Exchange/Gmail) chưa hỗ trợ chứng chỉ TLS tự ký
 
 **Thay đổi**: nhánh SMTP (Postfix/Exchange qua SMTP/Gmail) thiếu cờ bỏ
