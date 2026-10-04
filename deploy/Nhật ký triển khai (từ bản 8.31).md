@@ -14,6 +14,37 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 8.65 — Gửi email qua Exchange bằng EWS (API riêng, không qua SMTP)
+
+**Thay đổi**: thêm `rp-server/lib/ewsMailer.js` — gửi email qua Exchange
+Web Services (EWS, HTTPS riêng của Exchange, Basic Auth username/password)
+cho Exchange CÀI TẠI CHỖ (KHÔNG dùng được cho Exchange Online/Office 365).
+`app.EmailSettings` thêm cột `Protocol`/`EwsUrl`/`EwsInsecureTls`;
+`lib/mailer.js` rẽ nhánh theo `Protocol`, mọi nơi gọi `sendMail()` tự hoạt
+động với cả 2 giao thức. "Thiết lập email" có thêm lựa chọn "Exchange tại
+chỗ — API EWS" trong dropdown gateway.
+
+**Các bước triển khai:**
+1. `git pull origin main`.
+2. Chạy lại `rp-db/schema.sql` (BẮT BUỘC — thêm cột `Protocol`/`EwsUrl`/
+   `EwsInsecureTls` vào `app.EmailSettings`, an toàn chạy lại nhiều lần,
+   cấu hình SMTP đang có tự chuyển `Protocol='smtp'`, không đổi gì).
+3. `pm2 restart hcrc-rp-server` (BẮT BUỘC — đổi `lib/mailer.js`, file mới
+   `lib/ewsMailer.js`, route `routes/emailSettings.js`).
+4. `cd rp-user && npm run build`, copy `dist/` mới (dropdown "Thiết lập
+   email" có thêm lựa chọn EWS).
+5. Nếu dùng Exchange qua EWS: rp-user → "Thiết lập email" → chọn "Exchange
+   tại chỗ — API EWS" → điền EWS URL đầy đủ (hỏi IT quản trị Exchange nếu
+   không rõ, thường dạng `https://<máy chủ>/EWS/Exchange.asmx`) + Username/
+   Password đăng nhập mailbox + "Địa chỉ gửi (From)" → tick "Bỏ qua kiểm
+   tra chứng chỉ TLS" NẾU máy chủ dùng chứng chỉ tự ký → Lưu → "Gửi thử"
+   xác nhận gửi được.
+
+Không đổi CSDL/cấu hình khác đang chạy ổn (mặc định vẫn `Protocol='smtp'`
+cho tới khi admin tự đổi).
+
+---
+
 ## 8.64 — Gợi ý cấu hình theo loại email gateway (Postfix/Exchange) + tương thích Exchange
 
 **Thay đổi**: thêm dropdown "Loại email gateway" ở "Thiết lập email"

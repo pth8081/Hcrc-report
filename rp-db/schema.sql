@@ -713,6 +713,27 @@ BEGIN
 END
 GO
 
+-- Protocol/EwsUrl/EwsInsecureTls (bản 8.65) — gửi qua EWS (Exchange Web
+-- Services, API HTTPS riêng của Exchange — KHÔNG phải SMTP), cho Exchange
+-- CÀI TẠI CHỖ dùng Basic Auth (username/password trực tiếp vào mailbox) —
+-- KHÔNG dùng được cho Exchange Online/Office 365 (Microsoft đã chặn Basic
+-- Auth cho EWS từ cuối 2022). Protocol='smtp' (mặc định, không đổi hành vi
+-- cũ) dùng ĐÚNG SmtpHost/SmtpPort/Secure như trước; Protocol='ews' dùng
+-- EwsUrl (URL đầy đủ, vd https://mail.noibo.local/EWS/Exchange.asmx) +
+-- Username/PasswordEncrypted/FromAddress/FromName CÓ SẴN, bỏ qua Smtp*.
+-- EwsInsecureTls=1 cho phép chứng chỉ TLS tự ký (phổ biến ở Exchange nội
+-- bộ dùng CA riêng công ty) — mặc định 0 (vẫn kiểm tra chứng chỉ bình
+-- thường), chỉ bật khi admin xác nhận đây là máy chủ nội bộ tin cậy. Xem
+-- lib/ewsMailer.js.
+IF COL_LENGTH('app.EmailSettings', 'Protocol') IS NULL
+BEGIN
+    ALTER TABLE app.EmailSettings ADD
+        Protocol       NVARCHAR(10) NOT NULL DEFAULT 'smtp' CONSTRAINT CK_EmailSettings_Protocol CHECK (Protocol IN ('smtp', 'ews')),
+        EwsUrl         NVARCHAR(500) NULL,
+        EwsInsecureTls BIT           NOT NULL DEFAULT 0;
+END
+GO
+
 -- Lịch gửi email tự động cho MỘT báo cáo cụ thể (vd "Doanh thu hàng ngày —
 -- gửi 07:00 cho Ban GĐ") — dùng cấu hình SMTP chung ở app.EmailSettings.
 -- FilterValuesJson lưu bộ lọc áp KHI CHẠY TỰ ĐỘNG, dạng

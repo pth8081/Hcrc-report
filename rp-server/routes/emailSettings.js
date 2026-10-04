@@ -16,15 +16,19 @@ router.get('/', async (req, res, next) => {
   try {
     const pool = await getPool('RP');
     const result = await pool.request().query(`
-      SELECT SmtpHost, SmtpPort, Secure, Username, PasswordEncrypted, FromAddress, FromName
+      SELECT Protocol, SmtpHost, SmtpPort, Secure, EwsUrl, EwsInsecureTls,
+             Username, PasswordEncrypted, FromAddress, FromName
       FROM app.EmailSettings WHERE Id = 1
     `);
     if (!result.recordset.length) return res.json(null);
     const row = result.recordset[0];
     res.json({
+      protocol: row.Protocol,
       smtpHost: row.SmtpHost,
       smtpPort: row.SmtpPort,
       secure: !!row.Secure,
+      ewsUrl: row.EwsUrl,
+      ewsInsecureTls: !!row.EwsInsecureTls,
       username: row.Username,
       hasPassword: !!row.PasswordEncrypted,
       fromAddress: row.FromAddress,
@@ -35,8 +39,11 @@ router.get('/', async (req, res, next) => {
 
 router.put('/', async (req, res, next) => {
   try {
-    const { smtpHost, smtpPort, secure, username, password, fromAddress, fromName } = req.body || {};
-    if (!smtpHost || !fromAddress) return res.status(400).json({ error: 'Thiếu smtpHost/fromAddress' });
+    const { protocol, smtpHost, smtpPort, secure, ewsUrl, ewsInsecureTls, username, password, fromAddress, fromName } = req.body || {};
+    const proto = protocol === 'ews' ? 'ews' : 'smtp';
+    if (!fromAddress) return res.status(400).json({ error: 'Thiếu fromAddress' });
+    if (proto === 'smtp' && !smtpHost) return res.status(400).json({ error: 'Thiếu smtpHost' });
+    if (proto === 'ews' && !ewsUrl) return res.status(400).json({ error: 'Thiếu ewsUrl' });
 
     const pool = await getPool('RP');
     // Không đổi password nếu request không gửi (giữ nguyên giá trị mã hoá cũ).
@@ -49,9 +56,12 @@ router.put('/', async (req, res, next) => {
     }
 
     await pool.request()
-      .input('smtpHost', sql.NVarChar(200), smtpHost)
+      .input('protocol', sql.NVarChar(10), proto)
+      .input('smtpHost', sql.NVarChar(200), smtpHost || '')
       .input('smtpPort', sql.Int, smtpPort || 587)
       .input('secure', sql.Bit, secure ? 1 : 0)
+      .input('ewsUrl', sql.NVarChar(500), ewsUrl || null)
+      .input('ewsInsecureTls', sql.Bit, ewsInsecureTls ? 1 : 0)
       .input('username', sql.NVarChar(200), username || null)
       .input('passwordEncrypted', sql.NVarChar(500), passwordEncrypted)
       .input('fromAddress', sql.NVarChar(200), fromAddress)
@@ -60,14 +70,15 @@ router.put('/', async (req, res, next) => {
         MERGE app.EmailSettings AS target
         USING (SELECT 1 AS Id) AS src ON target.Id = src.Id
         WHEN MATCHED THEN UPDATE SET
-          SmtpHost = @smtpHost, SmtpPort = @smtpPort, Secure = @secure,
+          Protocol = @protocol, SmtpHost = @smtpHost, SmtpPort = @smtpPort, Secure = @secure,
+          EwsUrl = @ewsUrl, EwsInsecureTls = @ewsInsecureTls,
           Username = @username, PasswordEncrypted = @passwordEncrypted,
           FromAddress = @fromAddress, FromName = @fromName, UpdatedAt = SYSUTCDATETIME()
-        WHEN NOT MATCHED THEN INSERT (Id, SmtpHost, SmtpPort, Secure, Username, PasswordEncrypted, FromAddress, FromName)
-          VALUES (1, @smtpHost, @smtpPort, @secure, @username, @passwordEncrypted, @fromAddress, @fromName);
+        WHEN NOT MATCHED THEN INSERT (Id, Protocol, SmtpHost, SmtpPort, Secure, EwsUrl, EwsInsecureTls, Username, PasswordEncrypted, FromAddress, FromName)
+          VALUES (1, @protocol, @smtpHost, @smtpPort, @secure, @ewsUrl, @ewsInsecureTls, @username, @passwordEncrypted, @fromAddress, @fromName);
       `);
 
-    await logAction(req, { module: 'Thiết lập email', actionType: 'CAP_NHAT', description: 'Cập nhật cấu hình SMTP' });
+    await logAction(req, { module: 'Thiết lập email', actionType: 'CAP_NHAT', description: 'Cập nhật cấu hình email' });
     res.json({ ok: true });
   } catch (err) { next(err); }
 });
@@ -86,8 +97,9 @@ router.post('/test', async (req, res, next) => {
     await logAction(req, { module: 'Thiết lập email', actionType: 'GUI_THU', targetObject: to, description: `Gửi email thử nghiệm tới ${to}` });
     res.json({ ok: true });
   } catch (err) {
-    // Lỗi SMTP thật (sai host/port/mật khẩu...) — trả rõ cho người dùng thay
-    // vì 500 chung chung, giống nút "Kiểm tra kết nối" ở các trang khác.
+    // Lỗi gửi thật (sai host/port/mật khẩu/URL EWS...) — trả rõ cho người
+    // dùng thay vì 500 chung chung, giống nút "Kiểm tra kết nối" ở các
+    // trang khác.
     res.status(400).json({ error: err.message });
   }
 });

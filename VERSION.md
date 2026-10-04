@@ -29,6 +29,49 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 8.65 — Gửi email qua Exchange bằng EWS (API riêng, không qua SMTP)
+
+**Theo yêu cầu người dùng**: Postfix của người dùng là relay nội bộ,
+KHÔNG cần đăng nhập — Exchange (CÀI TẠI CHỖ) thì BẮT BUỘC xác thực
+username/password, và người dùng muốn "cơ chế access trực tiếp vào
+mailbox để gửi" — đã hỏi lại, xác nhận đây là **Exchange Web Services
+(EWS)**, dùng cho Exchange **tại chỗ (on-premise)** (đã lưu ý với người
+dùng: EWS với Basic Auth username/password **KHÔNG dùng được cho Exchange
+Online/Office 365** — Microsoft đã chặn từ cuối 2022, chỉ còn OAuth2/
+Microsoft Graph, ngoài phạm vi bản này).
+
+- `rp-server/lib/ewsMailer.js` (MỚI): tự dựng request SOAP bằng module
+  `https` gốc của Node (không thêm thư viện ngoài) — gửi mail KHÔNG đính
+  kèm dùng 1 lượt gọi `CreateItem` (`MessageDisposition=SendAndSaveCopy`);
+  gửi CÓ đính kèm (vd "Lịch gửi email báo cáo" kèm file Excel/PDF) cần 3
+  lượt: `CreateItem` (SaveOnly, lưu nháp) → `CreateAttachment` cho từng
+  file (lấy lại `ChangeKey` MỚI NHẤT của nháp — bắt buộc, dùng `ChangeKey`
+  cũ sẽ bị EWS từ chối) → `SendItem` (gửi thật bản nháp đã đính đủ file).
+  Đọc thêm `ResponseClass`/`ResponseCode` trong XML trả về — EWS báo lỗi
+  NGHIỆP VỤ (sai mailbox/thiếu quyền...) vẫn kèm HTTP 200 bình thường,
+  không đọc thêm sẽ tưởng gửi thành công dù thất bại.
+- `app.EmailSettings` (`rp-db/schema.sql`): thêm cột `Protocol` ('smtp' —
+  mặc định, giữ nguyên hành vi cũ — hoặc 'ews'), `EwsUrl` (URL EWS đầy đủ,
+  vd `https://mail.noibo.local/EWS/Exchange.asmx`), `EwsInsecureTls` (bỏ
+  qua kiểm tra chứng chỉ TLS — cho máy chủ Exchange nội bộ dùng chứng chỉ
+  tự ký, mặc định TẮT).
+- `rp-server/lib/mailer.js`: `sendMail()` rẽ nhánh theo `Protocol` — 'ews'
+  gọi `ewsMailer.js` (bỏ qua mọi field `Smtp*`), 'smtp' dùng `nodemailer`
+  như cũ. MỌI nơi gọi `sendMail()` (Gửi thử, Lịch gửi email báo cáo, Cảnh
+  báo bất thường) tự động hoạt động với cả 2 giao thức, không cần sửa gì
+  thêm ở từng nơi gọi.
+- `rp-user/.../EmailSettingsPage.jsx`: dropdown "Loại email gateway" có
+  thêm lựa chọn "Exchange tại chỗ — API EWS" — chọn vào chuyển hẳn form
+  sang EWS URL + checkbox "Bỏ qua kiểm tra chứng chỉ TLS", thay vì
+  host/port/Secure của SMTP; giữ nguyên preset Postfix (không đăng nhập)
+  và Exchange qua SMTP AUTH làm 2 lựa chọn khác.
+
+Đã demo xác nhận: chọn "Postfix" vẫn ra đúng form SMTP không đổi (không
+regress); chọn "Exchange tại chỗ — API EWS" chuyển đúng sang form EWS.
+Không ảnh hưởng cấu hình SMTP đang chạy ổn (`Protocol` mặc định 'smtp' khi
+nâng cấp, hành vi cũ giữ nguyên 100% cho tới khi admin TỰ chọn đổi sang
+EWS).
+
 ## 8.64 — Gợi ý cấu hình theo loại email gateway (Postfix/Exchange) + tương thích Exchange
 
 **Theo yêu cầu người dùng**: ngoài Postfix (bản 8.63), người dùng còn có 1

@@ -1,16 +1,22 @@
-// lib/mailer.js — Gửi email dùng CHUNG cấu hình SMTP (app.EmailSettings,
-// Id=1, xem routes/emailSettings.js). Tách riêng vì có 2 nơi cần gửi thật:
-// nút "Gửi thử" (routes/emailSettings.js) và lịch gửi báo cáo tự động
-// (jobs/reportEmailScheduler.js) — trước đây chỉ "Gửi thử" tự dựng transport
-// tại chỗ, giờ dùng chung để không lặp lại cùng logic.
+// lib/mailer.js — Gửi email dùng CHUNG cấu hình (app.EmailSettings, Id=1,
+// xem routes/emailSettings.js). Tách riêng vì có 2 nơi cần gửi thật: nút
+// "Gửi thử" (routes/emailSettings.js) và lịch gửi báo cáo tự động
+// (jobs/reportEmailScheduler.js) — dùng chung để không lặp lại cùng logic.
+//
+// Protocol='smtp' (mặc định) -> nodemailer như trước. Protocol='ews' (bản
+// 8.65, theo yêu cầu người dùng cho Exchange CÀI TẠI CHỖ — "truy cập trực
+// tiếp vào mailbox để gửi" thay vì SMTP) -> lib/ewsMailer.js, bỏ qua mọi
+// field Smtp*.
 const nodemailer = require('nodemailer');
 const { getPool } = require('../db');
 const { decrypt } = require('./crypto');
+const { sendMailEws } = require('./ewsMailer');
 
 async function loadSettings() {
   const pool = await getPool('RP');
   const result = await pool.request().query(`
-    SELECT SmtpHost, SmtpPort, Secure, Username, PasswordEncrypted, FromAddress, FromName
+    SELECT Protocol, SmtpHost, SmtpPort, Secure, EwsUrl, EwsInsecureTls,
+           Username, PasswordEncrypted, FromAddress, FromName
     FROM app.EmailSettings WHERE Id = 1
   `);
   return result.recordset[0] || null;
@@ -25,6 +31,13 @@ async function loadSettings() {
 async function sendMail({ to, subject, text, html, attachments }) {
   const row = await loadSettings();
   if (!row) throw new Error('Chưa cấu hình email — vào "Thiết lập email" trước');
+
+  if (row.Protocol === 'ews') {
+    return sendMailEws(
+      { ewsUrl: row.EwsUrl, username: row.Username, password: row.PasswordEncrypted ? decrypt(row.PasswordEncrypted) : undefined, insecureTls: !!row.EwsInsecureTls },
+      { fromAddress: row.FromAddress, fromName: row.FromName, to, subject, text, html, attachments }
+    );
+  }
 
   // Cổng 465 (vd Postfix smtps) bắt buộc TLS NGAY TỪ ĐẦU kết nối — khác
   // 587/25 (STARTTLS). Lỗi phổ biến nhất khiến "Thiết lập email" cấu hình
