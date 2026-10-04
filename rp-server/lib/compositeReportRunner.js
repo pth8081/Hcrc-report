@@ -167,12 +167,12 @@
 // chất là 1 danh sách ĐÃ xếp hạng, không phải danh sách cố định các chi
 // nhánh như báo cáo thường).
 //
-// Tiêu đề nhóm cột + màu (Excel/PDF) — DefinitionJson.columnGroups (TUỲ
-// CHỌN, mặc định KHÔNG có = xuất Excel/PDF phẳng như trước, không đổi hành
-// vi báo cáo cũ). Chỉ ẢNH HƯỞNG lúc XUẤT (lib/exportExcel.js/
-// lib/exportPdf.js — dùng chung, kể cả file đính kèm gửi email tự động,
-// xem jobs/reportEmailScheduler.js), KHÔNG ảnh hưởng bảng xem trên web
-// (rp-user tự vẽ bảng phẳng như cũ, không đọc field này):
+// Tiêu đề nhóm cột + màu (Excel/PDF + bảng xem trên web — bản 8.53 nối
+// thêm web, xem components/DataTable.jsx) — DefinitionJson.columnGroups
+// (TUỲ CHỌN, mặc định KHÔNG có = bảng/Excel/PDF phẳng như trước, không đổi
+// hành vi báo cáo cũ). ÁP DỤNG ĐỒNG THỜI cả 3 nơi (web/Excel/PDF — dùng
+// chung lib/reportCellFormat.js/rp-user/src/lib/reportGroupColors.js, kể cả
+// file đính kèm gửi email tự động, xem jobs/reportEmailScheduler.js):
 //   columnGroups: [{ label, color, keys }]
 //     label — nhãn nhóm (vd "Doanh thu"), gộp 1 ô ngang phía trên nhóm cột.
 //     color — 1 trong "green"/"yellow"/"orange"/"blue"/"red"/"gray"/"purple"
@@ -181,7 +181,15 @@
 //             liền kề nhau đúng thứ tự khai ở columns (không xen cột khác
 //             nhóm ở giữa) — xem seedLdtdHcrcReports.js làm ví dụ thật.
 //   Cột KHÔNG thuộc nhóm nào (vd "Siêu thị/Cửa hàng", "Diện tích") tự vẽ 1
-//   ô tiêu đề riêng, gộp dọc 2 dòng header, không tô màu.
+//   ô tiêu đề riêng, gộp dọc 2 dòng header, không tô màu — TRỪ KHI khai
+//   thêm definition.standaloneColumnColors = {colKey: 'tên màu'} (bản
+//   8.58, TUỲ CHỌN) để tô riêng HEADER 1 cột đơn lẻ (vd "Trung bình GD")
+//   mà KHÔNG thêm dòng tiêu đề nhóm phía trên (khác hẳn columnGroups).
+// Dòng "Tổng cộng"/"Tổng cộng <nhóm>" (groupBy bên dưới, row.__isSubtotal)
+// tô màu THEO TỪNG CỘT (resolveRowFillColor(), bản 8.58): cột thuộc 1
+// group giữ nguyên màu group đó, cột không thuộc group nào dùng chung màu
+// tím SUBTOTAL_COLOR, dòng Tổng cộng TOÀN BÁO CÁO (__isGrandTotal) đồng
+// nhất 1 màu xanh GRAND_TOTAL_COLOR cho mọi cột.
 // definition.columns[].format — TUỲ CHỌN "percent": công thức đã tự nhân
 //   100 sẵn (vd "ROUND(x/y*100,1)"), lúc xuất CHỈ thêm dấu "%" khi hiển thị
 //   (Excel: numFmt tự chế `0"%"`, không dùng numFmt phần trăm chuẩn — tránh
@@ -710,11 +718,11 @@ async function runCompositeReport(definition, filterValues = {}) {
       return (va - vb) * rankDir;
     }).slice(0, limit);
     const rows = ranked.map((r, i) => ({ ...projectCompositeRow(r, visibleColumns), stt: i + 1 }));
-    return { columns, rows, warnings, columnGroups: definition.columnGroups || null };
+    return { columns, rows, warnings, columnGroups: definition.columnGroups || null, standaloneColumnColors: definition.standaloneColumnColors || null };
   }
 
   if (!definition.groupBy) {
-    return { columns, rows: mergedRows.map(r => projectCompositeRow(r, visibleColumns)), warnings, columnGroups: definition.columnGroups || null };
+    return { columns, rows: mergedRows.map(r => projectCompositeRow(r, visibleColumns)), warnings, columnGroups: definition.columnGroups || null, standaloneColumnColors: definition.standaloneColumnColors || null };
   }
 
   const { field, groups = [], grandTotalLabel, labelColumn, sortBy } = definition.groupBy;
@@ -759,7 +767,7 @@ async function runCompositeReport(definition, filterValues = {}) {
 
   // columnGroups (bản 8.53) — xem chú thích ở lib/reportRunner.js, cùng lý
   // do an toàn để lộ.
-  return { columns, rows, warnings, columnGroups: definition.columnGroups || null };
+  return { columns, rows, warnings, columnGroups: definition.columnGroups || null, standaloneColumnColors: definition.standaloneColumnColors || null };
 }
 
 module.exports = { runCompositeReport, resolveRequestedRange };

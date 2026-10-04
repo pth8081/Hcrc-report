@@ -11,15 +11,23 @@
 // NGAY TRÊN WEB đẹp khớp hệt Excel/PDF thay vì bảng phẳng 1 dòng không màu
 // như trước. KHÔNG truyền columnGroups (mọi nơi gọi khác — UsersPage,
 // RolesPage...) thì vẽ bảng phẳng y hệt trước đây, không đổi gì.
-import { resolveGroupColor, SUBTOTAL_COLOR } from '../lib/reportGroupColors';
+//
+// standaloneColumnColors (TUỲ CHỌN — bản 8.58, xem deploy/Cập nhật bản
+// 8.58) = {colKey: 'tên màu'}, do server trả kèm result.standaloneColumnColors
+// — tô màu HEADER 1 cột đơn lẻ KHÔNG thuộc columnGroups nào (vd "Trung bình
+// GD"), khác hẳn columnGroups (không vẽ thêm dòng tiêu đề nhóm riêng).
+import { resolveGroupColor, resolveRowFillColor, resolveStandaloneColumnColor, computeZebraFlags, ZEBRA_COLOR } from '../lib/reportGroupColors';
 
-// Dòng "Tổng cộng"/"Tổng nhóm" — row.__isSubtotal (xem
-// compositeReportRunner.js) — tô nền tím nhạt + chữ đậm, ĐÚNG màu
-// SUBTOTAL_COLOR dùng ở Excel (lib/reportCellFormat.js), không phân biệt
-// dòng tổng nhóm (vd "Tổng cộng MART") với dòng tổng toàn báo cáo
-// (__isGrandTotal thêm) vì Excel cũng tô 2 loại dòng này CÙNG 1 màu.
-function rowStyle(row) {
-  return row.__isSubtotal ? { background: SUBTOTAL_COLOR, fontWeight: 700 } : undefined;
+// Màu nền 1 Ô dữ liệu — dòng Tổng cộng/Tổng cộng nhóm dùng ĐÚNG màu của
+// nhóm cột đó (resolveRowFillColor, bản 8.58 — xem lib/reportGroupColors.js),
+// dòng thường dùng màu zebra nếu tới lượt; không có gì đặc biệt thì để
+// trống (nền mặc định, không ép trắng — tránh đè màu nền khác nếu sau này
+// có nơi gọi khác dùng).
+function cellStyle(row, col, columnGroups, isZebra) {
+  const subtotalColor = resolveRowFillColor(row, col, columnGroups || []);
+  if (subtotalColor) return { background: subtotalColor, fontWeight: 700 };
+  if (isZebra) return { background: ZEBRA_COLOR };
+  return undefined;
 }
 
 // Dựng cấu trúc tiêu đề 2 dòng từ columnGroups — cột KHÔNG thuộc nhóm nào
@@ -49,11 +57,13 @@ function buildGroupedHeader(columns, columnGroups) {
   return segments;
 }
 
-export default function DataTable({ columns, rows, emptyMessage = 'Không có dữ liệu.', scrollClassName = '', columnGroups = null }) {
+export default function DataTable({ columns, rows, emptyMessage = 'Không có dữ liệu.', scrollClassName = '', columnGroups = null, standaloneColumnColors = null }) {
   if (!rows.length) return <p className="empty-message">{emptyMessage}</p>;
 
-  const segments = columnGroups && columnGroups.length ? buildGroupedHeader(columns, columnGroups) : null;
+  const hasGroups = !!(columnGroups && columnGroups.length);
+  const segments = hasGroups ? buildGroupedHeader(columns, columnGroups) : null;
   const tableClassName = segments ? 'data-table data-table--grouped' : 'data-table';
+  const zebraFlags = hasGroups ? computeZebraFlags(rows) : rows.map(() => false);
 
   return (
     <div className={`table-scroll ${scrollClassName}`.trim()}>
@@ -62,13 +72,17 @@ export default function DataTable({ columns, rows, emptyMessage = 'Không có d�
           {segments ? (
             <>
               <tr className="group-header-row">
-                {segments.map((seg, idx) => seg.type === 'single'
-                  ? <th key={seg.col.key} rowSpan={2}>{seg.col.label}</th>
-                  : (
+                {segments.map((seg, idx) => {
+                  if (seg.type === 'single') {
+                    const standaloneColor = resolveStandaloneColumnColor(seg.col, standaloneColumnColors);
+                    return <th key={seg.col.key} rowSpan={2} style={standaloneColor ? { background: standaloneColor } : undefined}>{seg.col.label}</th>;
+                  }
+                  return (
                     <th key={`g-${idx}`} colSpan={seg.cols.length} style={{ background: resolveGroupColor(seg.group.color) }}>
                       {seg.group.label}
                     </th>
-                  ))}
+                  );
+                })}
               </tr>
               <tr className="group-subheader-row">
                 {segments.filter(seg => seg.type === 'group').flatMap(seg => seg.cols.map(col => (
@@ -84,9 +98,11 @@ export default function DataTable({ columns, rows, emptyMessage = 'Không có d�
         </thead>
         <tbody>
           {rows.map((row, i) => (
-            <tr key={row.id ?? i} style={rowStyle(row)}>
+            <tr key={row.id ?? i}>
               {columns.map(col => (
-                <td key={col.key}>{col.render ? col.render(row) : String(row[col.key] ?? '')}</td>
+                <td key={col.key} style={cellStyle(row, col, columnGroups, zebraFlags[i])}>
+                  {col.render ? col.render(row) : String(row[col.key] ?? '')}
+                </td>
               ))}
             </tr>
           ))}

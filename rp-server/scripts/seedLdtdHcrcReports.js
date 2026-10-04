@@ -182,15 +182,25 @@ function buildDefinition(title, targetDomain, exportFileCode, domains) {
       { key: 'trungBinhGD', label: 'Trung bình GD', formula: 'ROUND(current.measures.doanhThu / currentGD.measures.SoGiaoDich, 0)', width: 1.1 },
       { key: 'doanhThuTrenM2', label: 'Doanh thu/m2', formula: 'ROUND(current.measures.doanhThu / current.dimensions.dienTich, 0)', width: 1.1 }
     ],
-    // Tiêu đề gộp 2 dòng theo màu từng nhóm cột lúc XUẤT Excel/PDF (+ file
-    // đính kèm gửi email tự động) — khớp đúng khuôn báo cáo cũ, xem chú
-    // thích DefinitionJson.columnGroups đầu lib/compositeReportRunner.js.
-    // KHÔNG ảnh hưởng bảng xem trên web (rp-user vẫn vẽ bảng phẳng như cũ).
+    // Tiêu đề gộp 2 dòng theo màu từng nhóm cột — ÁP DỤNG ĐỒNG THỜI web/
+    // Excel/PDF (bản 8.53 nối thêm web, bản 8.58 đổi mã màu + thêm
+    // standaloneColumnColors — xem chú thích DefinitionJson.columnGroups
+    // đầu lib/compositeReportRunner.js). Màu/thứ tự khớp ĐÚNG file mẫu
+    // BRGMART người dùng gửi (bản 8.58): xanh lá=Doanh thu, cam đất=Lãi
+    // gộp, vàng gold=Giao dịch — ĐỔI chỗ 'yellow'/'orange' so với trước
+    // (trước đây Lãi gộp='yellow', Giao dịch='orange', nay ngược lại) vì
+    // lib/reportCellFormat.js đã đổi mã HEX đứng sau 2 tên này cho khớp
+    // đúng file mẫu, không phải lỗi gõ nhầm.
     columnGroups: [
       { label: 'Doanh thu', color: 'green', keys: ['dt_chiTieu', 'dt_thucDat', 'dt_tyLeDat', 'dt_cungKy', 'dt_lfl'] },
-      { label: 'Lãi gộp', color: 'yellow', keys: ['lg_tyLe', 'lg_giaTri'] },
-      { label: 'Giao dịch', color: 'orange', keys: ['gd_chiTieu', 'gd_thucDat', 'gd_tyLeDat', 'gd_cungKy', 'gd_lfl'] }
+      { label: 'Lãi gộp', color: 'orange', keys: ['lg_tyLe', 'lg_giaTri'] },
+      { label: 'Giao dịch', color: 'yellow', keys: ['gd_chiTieu', 'gd_thucDat', 'gd_tyLeDat', 'gd_cungKy', 'gd_lfl'] }
     ],
+    // standaloneColumnColors (bản 8.58, MỚI) — tô tím HEADER 2 cột đơn lẻ
+    // "Trung bình GD"/"Doanh thu/m2" (KHÔNG thuộc columnGroups nào) đúng
+    // file mẫu BRGMART — khác columnGroups, KHÔNG vẽ thêm dòng tiêu đề
+    // nhóm phía trên 2 cột này.
+    standaloneColumnColors: { trungBinhGD: 'purple', doanhThuTrenM2: 'purple' },
     groupBy: {
       field: 'current.dimensions.chain',
       groups: [

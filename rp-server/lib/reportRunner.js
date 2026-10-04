@@ -80,8 +80,12 @@ async function runDefinition(definition, filterValues, pagination) {
   // columnGroups (bản 8.53) — trả kèm để rp-user vẽ tiêu đề nhóm có màu
   // khớp hệt Excel/PDF (xem components/DataTable.jsx) — an toàn để lộ, chỉ
   // là nhãn/màu nhóm + danh sách key đã CÓ SẴN trong `columns` trả ở trên,
-  // không thêm chi tiết kiến trúc nguồn dữ liệu nào mới.
-  return { columns: describeColumns(definition.columns), rows: rows.map(r => projectColumns(r, definition.columns)), columnGroups: definition.columnGroups || null };
+  // không thêm chi tiết kiến trúc nguồn dữ liệu nào mới. standaloneColumnColors
+  // (bản 8.58) — cùng lý do an toàn để lộ, chỉ là tên màu cho 1 cột đơn lẻ.
+  return {
+    columns: describeColumns(definition.columns), rows: rows.map(r => projectColumns(r, definition.columns)),
+    columnGroups: definition.columnGroups || null, standaloneColumnColors: definition.standaloneColumnColors || null
+  };
 }
 
 module.exports = { loadDefinition, runDefinition, resolveFactsPool };

@@ -4,7 +4,7 @@
 // ở đầu lib/compositeReportRunner.js); không khai columnGroups thì rơi về
 // bảng phẳng 1 dòng header như trước (không đổi hành vi báo cáo cũ).
 const ExcelJS = require('exceljs');
-const { resolveGroupColor, SUBTOTAL_COLOR, computeSttValues } = require('./reportCellFormat');
+const { resolveGroupColor, resolveRowFillColor, resolveStandaloneColumnColor, ZEBRA_COLOR, computeZebraFlags, computeSttValues } = require('./reportCellFormat');
 
 // Formula/CSV injection (OWASP): 1 ô bắt đầu bằng =, +, -, @ bị Excel/Sheets
 // hiểu thành CÔNG THỨC SỐNG khi người nhận mở file — dữ liệu này đến từ
@@ -19,7 +19,12 @@ function sanitizeFormulaValue(value) {
   return typeof value === 'string' && FORMULA_LEADING_CHAR_RE.test(value) ? `'${value}` : value;
 }
 
-const THIN = { style: 'thin', color: { argb: 'FF999999' } };
+// Màu viền nhạt (bản 8.58, theo yêu cầu người dùng "mỏng, chuyên nghiệp
+// hơn") — ĐÚNG mã màu đường kẻ nhẹ `--line` đang dùng ở bảng web
+// (rp-user/src/styles.css) để 3 nơi xuất (web/Excel/PDF) nhìn đồng nhất 1
+// kiểu viền, thay vì xám đậm FF999999 cũ (viền dày/nổi hơn kiểu Excel mặc
+// định).
+const THIN = { style: 'thin', color: { argb: 'FFD9DEE2' } };
 const BORDER_ALL = { top: THIN, left: THIN, bottom: THIN, right: THIN };
 function fillArgb(hex6) { return { type: 'pattern', pattern: 'solid', fgColor: { argb: `FF${hex6}` } }; }
 
@@ -115,6 +120,11 @@ function addReportSheet(workbook, definition, rows, sheetName) {
       cell.value = col.label;
       cell.font = { bold: true };
       cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+      // standaloneColumnColors (bản 8.58) — tô HEADER riêng 1 cột đơn lẻ
+      // không thuộc columnGroups nào (vd "Trung bình GD"), KHÔNG thêm dòng
+      // tiêu đề nhóm phía trên như columnGroups thật.
+      const standaloneColor = resolveStandaloneColumnColor(col, definition.standaloneColumnColors);
+      if (standaloneColor) cell.fill = fillArgb(standaloneColor);
     });
     for (let c = 1; c <= colCount; c++) {
       sheet.getCell(r1, c).border = BORDER_ALL;
@@ -131,6 +141,7 @@ function addReportSheet(workbook, definition, rows, sheetName) {
 
   const sttValues = computeSttValues(rows);
   const sttColIdx = columns.findIndex(c => c.key === 'stt');
+  const zebraFlags = groups.length ? computeZebraFlags(rows) : rows.map(() => false);
 
   rows.forEach((row, rIdx) => {
     const excelRow = sheet.getRow(dataStartRow + rIdx);
@@ -151,10 +162,19 @@ function addReportSheet(workbook, definition, rows, sheetName) {
       // Dòng tổng (SourceType='composite' + groupBy — xem
       // lib/compositeReportRunner.js) đánh dấu bằng __isSubtotal, không phải
       // cột thật (không nằm trong definition.columns nên ExcelJS tự bỏ qua
-      // khi ghi ô) — tô nền + in đậm, giống hàng "Tổng cộng" trong file mẫu.
-      if (row.__isSubtotal) {
-        cell.fill = fillArgb(SUBTOTAL_COLOR);
+      // khi ghi ô) — tô màu THEO TỪNG CỘT (bản 8.58, xem resolveRowFillColor
+      // ở lib/reportCellFormat.js: cột thuộc nhóm giữ màu nhóm đó, cột ngoài
+      // nhóm dùng SUBTOTAL_COLOR, dòng Tổng cộng toàn báo cáo đồng nhất 1
+      // màu) + in đậm, giống hàng "Tổng cộng" trong file mẫu. Dòng dữ liệu
+      // THƯỜNG (không phải Tổng cộng) xen kẽ màu zebra (bản 8.58) — CHỈ áp
+      // dụng báo cáo có columnGroups (groups.length), không đổi báo cáo
+      // phẳng cũ.
+      const fillColor = resolveRowFillColor(row, col, groups);
+      if (fillColor) {
+        cell.fill = fillArgb(fillColor);
         cell.font = { bold: true };
+      } else if (zebraFlags[rIdx]) {
+        cell.fill = fillArgb(ZEBRA_COLOR);
       }
     });
   });

@@ -30,7 +30,7 @@ const { PDFDocument, rgb } = require('pdf-lib');
 const fontkit = require('@pdf-lib/fontkit');
 const fs = require('fs');
 const path = require('path');
-const { resolveGroupColor, SUBTOTAL_COLOR, computeSttValues, formatCellText } = require('./reportCellFormat');
+const { resolveGroupColor, resolveRowFillColor, resolveStandaloneColumnColor, ZEBRA_COLOR, computeZebraFlags, computeSttValues, formatCellText } = require('./reportCellFormat');
 
 const FONT_DIR = path.join(__dirname, '..', 'node_modules', '@openfonts', 'noto-sans_vietnamese', 'files');
 
@@ -73,7 +73,10 @@ function hexToRgb01(hex6) {
     parseInt(hex6.slice(4, 6), 16) / 255
   );
 }
-const BORDER_RGB = rgb(0.6, 0.6, 0.6);
+// Viền nhạt (bản 8.58, theo yêu cầu người dùng "mỏng, chuyên nghiệp hơn") —
+// ĐÚNG mã màu đường kẻ nhẹ đang dùng ở Excel (lib/exportExcel.js, trùng
+// `--line` web) để 3 nơi xuất nhìn đồng nhất 1 kiểu viền.
+const BORDER_RGB = rgb(0xD9 / 255, 0xDE / 255, 0xE2 / 255);
 
 // definition.columns = [{key, label, format?, width?}] — xem
 // lib/reportEngine.js:describeColumns(). definition.columnGroups (TUỲ
@@ -379,7 +382,11 @@ async function exportPdf(definition, rows) {
     }
     columns.forEach((col, i) => {
       if (covered.has(i)) return;
-      drawGridRect(colX[i], row2Top - HEADER_ROW_HEIGHT, colWidths[i], HEADER_ROW_HEIGHT * 2);
+      // standaloneColumnColors (bản 8.58) — tô HEADER riêng 1 cột đơn lẻ
+      // không thuộc columnGroups nào (vd "Trung bình GD"), KHÔNG vẽ thêm
+      // dòng tiêu đề nhóm phía trên như columnGroups thật.
+      const standaloneColor = resolveStandaloneColumnColor(col, definition.standaloneColumnColors);
+      drawGridRect(colX[i], row2Top - HEADER_ROW_HEIGHT, colWidths[i], HEADER_ROW_HEIGHT * 2, standaloneColor);
       drawWrappedCenteredText(col.label, colX[i], colWidths[i], row1Top, HEADER_ROW_HEIGHT * 2, { bold: true, size: HEADER_FLAT_FONT_SIZE });
     });
     y -= HEADER_ROW_HEIGHT * 2;
@@ -394,12 +401,19 @@ async function exportPdf(definition, rows) {
   drawTitle();
   drawHeader();
 
+  // zebraFlags (bản 8.58) — xen kẽ màu dòng dữ liệu THƯỜNG, DÙNG CHUNG đúng
+  // 1 hàm với web/Excel (xem computeZebraFlags() ở lib/reportCellFormat.js)
+  // để không lệch pha giữa 3 nơi xuất. CHỈ áp dụng báo cáo có columnGroups.
+  const zebraFlags = hasGroups ? computeZebraFlags(rows) : rows.map(() => false);
+
   for (let rIdx = 0; rIdx < rows.length; rIdx++) {
     if (y - ROW_HEIGHT < MARGIN) newPage();
     const row = rows[rIdx];
     const rowTop = y;
-    const rowFill = row.__isSubtotal ? SUBTOTAL_COLOR : undefined;
     columns.forEach((col, i) => {
+      // Dòng Tổng cộng/Tổng cộng nhóm tô màu THEO TỪNG CỘT (bản 8.58, xem
+      // resolveRowFillColor); dòng thường xen kẽ zebra nếu tới lượt.
+      const rowFill = resolveRowFillColor(row, col, groups) || (zebraFlags[rIdx] ? ZEBRA_COLOR : undefined);
       drawGridRect(colX[i], rowTop - ROW_HEIGHT, colWidths[i], ROW_HEIGHT, rowFill);
       const raw = i === sttColIdx ? sttValues[rIdx] : row[col.key];
       const text = formatCellText(raw, col);
