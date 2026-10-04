@@ -16,6 +16,7 @@ import SalesTargetsPage from './pages/SalesTargetsPage';
 import DiemStkMappingPage from './pages/DiemStkMappingPage';
 import CoreItemListPage from './pages/CoreItemListPage';
 import StockAlertThresholdsPage from './pages/StockAlertThresholdsPage';
+import TlsCertificatePage from './pages/TlsCertificatePage';
 import HuongDanPage from './pages/HuongDanPage';
 import AccountPage from './pages/AccountPage';
 
@@ -63,6 +64,7 @@ export default function App() {
           <Route path="/stock-alert-thresholds" element={<StockAlertThresholdsPage />} />
           <Route path="/users" element={<UsersPage />} />
           <Route path="/roles" element={<RolesPage />} />
+          <Route path="/tls-certificate" element={<TlsCertificatePage />} />
           <Route path="/huong-dan" element={<HuongDanPage />} />
           <Route path="/account" element={<AccountPage />} />
         </Route>

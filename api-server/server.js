@@ -36,11 +36,13 @@ const adminStatsRoutes = require('./routes/admin/stats');
 const adminRolesRoutes = require('./routes/admin/roles');
 const adminVoucherSettingsRoutes = require('./routes/admin/voucherSettings');
 const adminConnectionStatusRoutes = require('./routes/admin/connectionStatus');
+const adminTlsCertificateRoutes = require('./routes/admin/tlsCertificate');
 const internalStockAlertThresholdsRoutes = require('./routes/internal/stockAlertThresholds');
 const { checkAllConnections } = require('./lib/connectionHealthChecker');
 const { requestLogger } = require('./lib/requestLogger');
 const { adminIpAllowlist } = require('./lib/adminIpAllowlist');
 const { corsAllowlist } = require('./lib/corsAllowlist');
+const { createAppServer, isRunningHttps } = require('./lib/tlsServer');
 const { cleanupRequestLog } = require('./jobs/cleanupRequestLog');
 const { cleanupAuditLog } = require('./jobs/cleanupAuditLog');
 const { cleanupSystemLog } = require('./jobs/cleanupSystemLog');
@@ -149,6 +151,7 @@ app.use('/admin/stats', adminStatsRoutes);
 app.use('/admin/roles', adminRolesRoutes);
 app.use('/admin/voucher-settings', adminVoucherSettingsRoutes);
 app.use('/admin/connection-status', adminConnectionStatusRoutes);
+app.use('/admin/tls-certificate', adminTlsCertificateRoutes);
 
 // ===== /internal/* — rp-server gọi SANG (bản 8.70, theo yêu cầu người
 // dùng) — KHÔNG đi qua corsAllowlist/rate-limit/requestLogger của
@@ -173,7 +176,11 @@ app.use((err, req, res, next) => { // eslint-disable-line no-unused-vars
 // (slow-loris) có thể giữ kết nối (và connection CSDL đã mượn trong handler)
 // mở gần như vô hạn. Chỉ đáng tin cậy thật khi Nginx/proxy phía trước CŨNG
 // có timeout riêng — đây là lớp phòng thủ độc lập, không thay được Nginx.
-const server = app.listen(PORT, () => console.log(`API Server đang chạy ở cổng ${PORT}`));
+// createAppServer() (bản 8.71) — trả về https.Server NẾU đã upload chứng
+// chỉ qua trang "Chứng chỉ TLS" (api-admin), ngược lại http.Server như cũ
+// (mặc định, KHÔNG đổi hành vi) — xem lib/tlsServer.js.
+const server = createAppServer(app);
+server.listen(PORT, () => console.log(`API Server đang chạy ở cổng ${PORT} (${isRunningHttps() ? 'HTTPS' : 'HTTP'})`));
 server.requestTimeout = 60 * 1000; // tối đa để nhận trọn request (header+body)
 server.headersTimeout = 76 * 1000; // phải LỚN HƠN keepAliveTimeout (ràng buộc của Node)
 server.timeout = 120 * 1000; // timeout rảnh (idle) cho toàn bộ kết nối

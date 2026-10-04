@@ -32,6 +32,7 @@ const dashboardsRoutes = require('./routes/dashboards');
 const adhocReportsRoutes = require('./routes/adhocReports');
 const webauthnRoutes = require('./routes/webauthn');
 const stockAlertThresholdsUploadRoutes = require('./routes/stockAlertThresholdsUpload');
+const tlsCertificateRoutes = require('./routes/tlsCertificate');
 const {
   verifyCredentials, isSystemRoleForRateLimit, issueToken, COOKIE_NAME, getSecret, setSessionCookie,
   issuePending2FAToken, issueSetupRequiredToken
@@ -49,6 +50,7 @@ const { isSchedulerLeader } = require('./lib/clusterLeader');
 const { closeAll, assertConfigured } = require('./db');
 const { getKey } = require('./lib/crypto');
 const { installProcessGuards } = require('./lib/processGuards');
+const { createAppServer, isRunningHttps } = require('./lib/tlsServer');
 
 // ===== Kiểm tra cấu hình BẮT BUỘC NGAY lúc khởi động — lỗi rõ ràng, dừng
 // hẳn ở đây, KHÔNG đợi tới request đầu tiên cần tới DB/JWT/mã hoá mới lộ ra
@@ -221,6 +223,7 @@ app.use('/api/system/hcrc-workspace', hcrcWorkspaceSettingsRoutes);
 app.use('/api/system/department-mapping', departmentStoreMappingRoutes);
 app.use('/api/system/dashboards', dashboardCatalogRoutes);
 app.use('/api/stock-alert-upload', stockAlertThresholdsUploadRoutes);
+app.use('/api/tls-certificate', tlsCertificateRoutes);
 
 app.use((err, req, res, next) => { // eslint-disable-line no-unused-vars
   console.error(err);
@@ -249,7 +252,11 @@ if (isSchedulerLeader()) {
 // (slow-loris) có thể giữ kết nối (và connection CSDL đã mượn trong handler)
 // mở gần như vô hạn. Chỉ đáng tin cậy thật khi Nginx/proxy phía trước CŨNG
 // có timeout riêng — đây là lớp phòng thủ độc lập, không thay được Nginx.
-const server = app.listen(PORT, () => console.log(`Report Server đang chạy ở cổng ${PORT}`));
+// createAppServer() (bản 8.71) — trả về https.Server NẾU đã upload chứng
+// chỉ qua trang "Chứng chỉ TLS" (rp-user → Hệ thống), ngược lại http.Server
+// như cũ (mặc định, KHÔNG đổi hành vi) — xem lib/tlsServer.js.
+const server = createAppServer(app);
+server.listen(PORT, () => console.log(`Report Server đang chạy ở cổng ${PORT} (${isRunningHttps() ? 'HTTPS' : 'HTTP'})`));
 server.requestTimeout = 60 * 1000; // tối đa để nhận trọn request (header+body)
 server.headersTimeout = 76 * 1000; // phải LỚN HƠN keepAliveTimeout (ràng buộc của Node)
 server.timeout = 120 * 1000; // timeout rảnh (idle) cho toàn bộ kết nối

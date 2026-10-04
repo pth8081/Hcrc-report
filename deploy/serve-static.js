@@ -47,6 +47,7 @@
 //                      sẵn ở cả 3 service, xem server.js) nhận đúng IP người
 //                      dùng thật thay vì luôn thấy 127.0.0.1.
 const http = require('http');
+const https = require('https');
 const fs = require('fs');
 const path = require('path');
 
@@ -57,6 +58,20 @@ const DIST_DIR = process.env.STATIC_DIST_DIR
 const PROXY_PREFIX = process.env.PROXY_PREFIX || null;
 const PROXY_TARGET_PORT = process.env.PROXY_TARGET_PORT
   ? parseInt(process.env.PROXY_TARGET_PORT, 10)
+  : null;
+// TLS_CERT_DIR (bản 8.71, theo yêu cầu người dùng) — TUỲ CHỌN, trỏ tới
+// ĐÚNG thư mục certs/ của tiến trình backend SONG SINH (vd rp-server/certs
+// cho tiến trình phục vụ rp-user) — xem backend/lib/tlsServer.js, nơi
+// THẬT SỰ ghi 3 file key.pem/cert.pem/ca.pem khi admin upload qua trang
+// "Chứng chỉ TLS". File này KHÔNG tự ghi gì vào đó, chỉ ĐỌC lại — và KHÔNG
+// tự áp dụng chứng chỉ MỚI khi backend hot-reload (setSecureContext) như
+// bên kia, vì đây là tiến trình PM2 RIÊNG, không chia sẻ bộ nhớ: cần
+// `pm2 restart` tiến trình NÀY (hcrc-rp-user/hcrc-api-admin/hcrc-etl-admin)
+// mỗi khi backend song sinh áp dụng chứng chỉ mới — xem trang "Chứng chỉ
+// TLS" tương ứng, mục ghi chú "đã áp dụng cho backend, nhớ restart giao
+// diện". Thiếu biến này hoặc thiếu file = HTTP như cũ, KHÔNG đổi hành vi.
+const TLS_CERT_DIR = process.env.TLS_CERT_DIR
+  ? path.resolve(__dirname, process.env.TLS_CERT_DIR)
   : null;
 
 // Số phiên bản chung của cả hệ thống, đọc từ VERSION.md gốc repo (mục mới
@@ -181,7 +196,7 @@ function proxyToBackend(req, res) {
   req.pipe(proxyReq);
 }
 
-http.createServer((req, res) => {
+function requestHandler(req, res) {
   const urlPath = decodeURIComponent((req.url || '/').split('?')[0]);
 
   // GET /__version — kiểm tra nhanh bản đang chạy qua curl/script, không đi
@@ -219,6 +234,23 @@ http.createServer((req, res) => {
     });
     fs.createReadStream(filePath).pipe(res);
   });
-}).listen(PORT, () => {
-  console.log(`serve-static: ${DIST_DIR} -> http://0.0.0.0:${PORT} (bản ${APP_VERSION})`);
+}
+
+// Chọn HTTP hay HTTPS tuỳ TLS_CERT_DIR có trỏ tới đủ key.pem+cert.pem hay
+// không (bản 8.71) — thiếu 1 trong 2 = HTTP như cũ, KHÔNG đổi hành vi.
+function buildServer() {
+  if (!TLS_CERT_DIR) return http.createServer(requestHandler);
+  const keyPath = path.join(TLS_CERT_DIR, 'key.pem');
+  const certPath = path.join(TLS_CERT_DIR, 'cert.pem');
+  if (!fs.existsSync(keyPath) || !fs.existsSync(certPath)) return http.createServer(requestHandler);
+  const credentials = { key: fs.readFileSync(keyPath), cert: fs.readFileSync(certPath) };
+  const caPath = path.join(TLS_CERT_DIR, 'ca.pem');
+  if (fs.existsSync(caPath)) credentials.ca = fs.readFileSync(caPath);
+  return https.createServer(credentials, requestHandler);
+}
+
+const server = buildServer();
+const isHttps = server instanceof https.Server;
+server.listen(PORT, () => {
+  console.log(`serve-static: ${DIST_DIR} -> ${isHttps ? 'https' : 'http'}://0.0.0.0:${PORT} (bản ${APP_VERSION})`);
 });

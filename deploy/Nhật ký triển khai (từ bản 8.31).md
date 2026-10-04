@@ -14,6 +14,44 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 8.71 — Upload chứng chỉ TLS qua giao diện web cho cả 3 hệ thống (PM2 tự chạy HTTPS)
+
+**Thay đổi**: thêm trang "Chứng chỉ TLS" ở cả 3 giao diện quản trị
+(etl-admin/api-admin/rp-user) — admin upload CA/private key/public cert,
+tiến trình backend tương ứng (etl/api-server/rp-server) VÀ giao diện tĩnh
+song sinh tự chạy HTTPS trực tiếp, không cần Nginx. Tính năng TỰ CHỌN
+(opt-in), mặc định tắt — không ảnh hưởng gì hệ thống đang dùng Nginx.
+Chi tiết đầy đủ + hướng dẫn CA nội bộ giữa các service: `deploy/Cập nhật
+bản 8.71 — Upload chứng chỉ TLS qua giao diện web.md`.
+
+**Các bước triển khai (CHỈ cần nếu muốn dùng tính năng này — bỏ qua hoàn
+toàn nếu hệ thống đang dùng Nginx để lo TLS):**
+1. `git pull origin main`.
+2. `pm2 restart hcrc-etl hcrc-api-server hcrc-rp-server` (BẮT BUỘC — thêm
+   route/lib mới, KHÔNG đổi hành vi nếu chưa upload chứng chỉ nào).
+3. `cd etl-admin && npm run build`, `cd ../api-admin && npm run build`,
+   `cd ../rp-user && npm run build`, copy `dist/` mới cả 3 (trang "Chứng
+   chỉ TLS" mới).
+4. Vào từng trang (etl-admin/api-admin/rp-user, chỉ tài khoản vai trò hệ
+   thống thấy mục "Chứng chỉ TLS") → upload private key + public cert
+   (+ CA/chain nếu có) → trang báo "Lần upload ĐẦU TIÊN — cần restart" →
+   chạy đúng lệnh `pm2 restart` được hiện ra.
+5. (Tuỳ chọn, nếu muốn giao diện tĩnh — rp-user/api-admin/etl-admin — CŨNG
+   chạy HTTPS, không chỉ backend) Thêm biến `TLS_CERT_DIR` vào
+   `deploy/ecosystem.config.js` của ĐÚNG tiến trình giao diện tĩnh, trỏ
+   tới thư mục `certs/` của backend song sinh (vd `TLS_CERT_DIR:
+   '../etl/certs'` cho `hcrc-etl-admin`) rồi `pm2 restart` tiến trình đó.
+6. (Nếu 2 service NỘI BỘ gọi lẫn nhau qua HTTPS bằng CA tự tạo/nội bộ —
+   vd rp-server gọi api-server, bản 8.70) Copy file CA.pem sang máy/máy
+   chủ bên GỌI, đặt `NODE_EXTRA_CA_CERTS=/đường-dẫn/ca.pem` trong `.env`
+   của service đó rồi restart — xem chi tiết lý do + ví dụ ở file deploy
+   riêng.
+7. Kiểm tra lại: `curl -k https://<ip-máy-chủ>:<cổng>/` (etl 4003/api-server
+   4002/rp-server 4001, và 3 giao diện nếu làm bước 5) trả về đúng dữ liệu;
+   lần upload SAU (gia hạn) không cần restart, áp dụng ngay.
+
+---
+
 ## 8.70 — Upload cảnh báo hàng tồn NGAY trên rp-user (siêu thị tự upload)
 
 **Thay đổi**: thêm đường upload MỚI cho file ngưỡng cảnh báo hàng tồn —

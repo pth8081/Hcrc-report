@@ -21,12 +21,17 @@ const NAV = [
   { path: '/admin-users', label: 'Tài khoản quản trị', icon: '🔐', menuCode: 'users' },
   { path: '/roles', label: 'Vai trò', icon: '🛡️', menuCode: 'roles' },
   { path: '/voucher-settings', label: 'Cấu hình Voucher', icon: '🎟️', menuCode: 'voucher-settings' },
+  // Chứng chỉ TLS (bản 8.71) — KHÔNG đi qua hệ thống RoleMenuAccess thông
+  // thường (systemOnly, không có menuCode) — thao tác nắm private key của
+  // hệ thống, không thể giao cho 1 tài khoản "quản lý thông thường" nào,
+  // CHỈ tài khoản vai trò hệ thống thật mới thấy mục này.
+  { path: '/tls-certificate', label: 'Chứng chỉ TLS', icon: '🔒', systemOnly: true },
   { path: '/huong-dan', label: 'Hướng dẫn', icon: '❓', menuCode: 'huong-dan' }
 ];
 
 export default function Layout() {
   const { me, isSystemRole, can, logout } = useAuth();
-  const nav = NAV.filter(item => can(item.menuCode));
+  const nav = NAV.filter(item => (item.systemOnly ? isSystemRole : can(item.menuCode)));
   // Dưới breakpoint di động (xem styles.css @media max-width:880px), sidebar
   // chuyển từ dải cố định 240px cạnh nội dung sang drawer ẩn/hiện qua nút ☰.
   const [sidebarOpen, setSidebarOpen] = useState(false);

@@ -29,6 +29,55 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 8.71 — Upload chứng chỉ TLS qua giao diện web cho cả 3 hệ thống (PM2 tự chạy HTTPS)
+
+**Theo yêu cầu người dùng**: "muốn có một cái giao diện để upload
+certificate cho các trang ETL, API và report cấu hình trực tiếp trên
+giao diện UI khi tôi upload CA, private key và public key lên hệ thống
+cho PM2... để cho team IT họ tiện dụng cho việc cấu hình sau này". Chốt
+kiến trúc: **mỗi tiến trình PM2 tự chạy HTTPS trực tiếp** bằng chứng chỉ
+vừa upload — không cần dựng Nginx riêng, đúng mô hình "PM2-only" đã có
+sẵn trong tài liệu triển khai (`deploy/Hướng dẫn triển khai PM2.md`).
+Không ảnh hưởng gì tới các hệ thống ĐANG dùng Nginx để lo TLS (tính năng
+hoàn toàn tự chọn, mặc định tắt).
+
+- **`lib/tlsServer.js`** (etl/api-server/rp-server) — đọc 3 file
+  `certs/{key,cert,ca}.pem` trên đĩa (CA tuỳ chọn, **KHÔNG lưu CSDL** —
+  cùng tinh thần Nginx/certbot vốn đã làm từ trước giờ): có đủ file hợp
+  lệ → `https.Server`, không có → `http.Server` như cũ (KHÔNG đổi hành vi
+  mặc định). Kiểm tra private key KHỚP ĐÚNG public cert bằng
+  `tls.createSecureContext()` TRƯỚC khi ghi file — báo lỗi rõ ràng ngay
+  nếu sai, không để hỏng TLS lúc có người kết nối thật. Hỗ trợ
+  **hot-reload chứng chỉ MỚI không cần restart** (`setSecureContext()`)
+  cho các lần gia hạn SAU lần đầu — lần upload ĐẦU TIÊN (chuyển từ HTTP
+  sang HTTPS) bắt buộc `pm2 restart` 1 lần (giới hạn của Node, không "nâng
+  cấp" 1 http.Server đang chạy thành https.Server được).
+- **Trang mới "Chứng chỉ TLS"** ở cả 3 giao diện quản trị (etl-admin,
+  api-admin, rp-user → mục riêng ngoài "Hệ thống") — upload 3 file
+  (private key + public cert bắt buộc, CA/chain tuỳ chọn), hiện trạng
+  thái hiện tại (đang HTTP hay HTTPS, chủ thể/hiệu lực chứng chỉ). **CHỈ
+  tài khoản vai trò hệ thống thật mới thấy/dùng được** — KHÔNG đi qua hệ
+  thống RoleMenuAccess/app.MenuItems thông thường (không thể giao cho vai
+  trò nào khác, nắm private key = giả mạo được chính danh tính TLS của cả
+  hệ thống).
+- **`deploy/serve-static.js`** (3 giao diện tĩnh) — thêm biến môi trường
+  tuỳ chọn `TLS_CERT_DIR` trỏ tới đúng thư mục `certs/` của tiến trình
+  backend song sinh, tự chuyển HTTPS nếu có đủ file — tiến trình RIÊNG
+  (không chia sẻ bộ nhớ với backend) nên cần `pm2 restart` giao diện khi
+  backend áp dụng chứng chỉ mới (không tự hot-reload được qua tiến trình
+  khác).
+- **Trả lời câu hỏi "làm sao các service nội bộ tin tưởng CA nội bộ của
+  nhau khi gọi chéo qua HTTPS"**: dùng biến môi trường CÓ SẴN của Node
+  `NODE_EXTRA_CA_CERTS` trỏ tới 1 bản copy file CA — KHÔNG tắt kiểm tra
+  chứng chỉ (`rejectUnauthorized:false`/`NODE_TLS_REJECT_UNAUTHORIZED=0`
+  nguy hiểm, áp dụng toàn tiến trình) — xem chi tiết ở file deploy riêng.
+
+Đã kiểm chứng bằng chứng chỉ test thật (tạo bằng `openssl`): phát hiện
+đúng cặp key/cert không khớp, chuyển HTTP↔HTTPS đúng, hot-reload chứng chỉ
+mới không cần restart, `serve-static.js` phục vụ HTTPS thật qua `curl -k`.
+Chi tiết đầy đủ: `deploy/Cập nhật bản 8.71 — Upload chứng chỉ TLS qua giao
+diện web.md`.
+
 ## 8.70 — Upload cảnh báo hàng tồn NGAY trên rp-user (siêu thị tự upload)
 
 **Theo yêu cầu người dùng**: sau bản 8.69 (chặn đúng theo siêu thị cho

@@ -17,6 +17,7 @@ import LogPage from './pages/LogPage';
 import AdminUsersPage from './pages/AdminUsersPage';
 import RolesPage from './pages/RolesPage';
 import VoucherSettingsPage from './pages/VoucherSettingsPage';
+import TlsCertificatePage from './pages/TlsCertificatePage';
 import HuongDanPage from './pages/HuongDanPage';
 import AccountPage from './pages/AccountPage';
 
@@ -56,6 +57,7 @@ export default function App() {
           <Route path="/admin-users" element={<AdminUsersPage />} />
           <Route path="/roles" element={<RolesPage />} />
           <Route path="/voucher-settings" element={<VoucherSettingsPage />} />
+          <Route path="/tls-certificate" element={<TlsCertificatePage />} />
           <Route path="/huong-dan" element={<HuongDanPage />} />
           <Route path="/account" element={<AccountPage />} />
         </Route>

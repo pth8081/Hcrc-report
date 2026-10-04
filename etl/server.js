@@ -13,6 +13,7 @@ const cron = require('node-cron');
 const scheduler = require('./jobs/scheduler');
 const { cleanupSyncLog, cleanupAuditLog, cleanupSystemLog } = require('./jobs/cleanupLogs');
 const { isSchedulerLeader } = require('./lib/clusterLeader');
+const { createAppServer, isRunningHttps } = require('./lib/tlsServer');
 const { adminIpAllowlist } = require('./lib/adminIpAllowlist');
 const adminAuthRoutes = require('./routes/admin/auth');
 const adminTwoFactorRoutes = require('./routes/admin/twoFactor');
@@ -29,6 +30,7 @@ const adminStockAlertThresholdsRoutes = require('./routes/admin/stockAlertThresh
 const adminRolesRoutes = require('./routes/admin/roles');
 const adminConnectionStatusRoutes = require('./routes/admin/connectionStatus');
 const adminSchemaMonitorRoutes = require('./routes/admin/schemaMonitor');
+const adminTlsCertificateRoutes = require('./routes/admin/tlsCertificate');
 const { checkAllConnections } = require('./lib/connectionHealthChecker');
 const { runSchemaCheck } = require('./lib/schemaMonitor');
 const { getPool, closeAll, assertConfigured } = require('./db');
@@ -124,6 +126,7 @@ app.use('/admin/stock-alert-thresholds', adminStockAlertThresholdsRoutes);
 app.use('/admin/roles', adminRolesRoutes);
 app.use('/admin/connection-status', adminConnectionStatusRoutes);
 app.use('/admin/schema-monitor', adminSchemaMonitorRoutes);
+app.use('/admin/tls-certificate', adminTlsCertificateRoutes);
 
 app.use((err, req, res, next) => { // eslint-disable-line no-unused-vars
   console.error(err);
@@ -135,7 +138,12 @@ app.use((err, req, res, next) => { // eslint-disable-line no-unused-vars
 
 // Giới hạn thời gian ở tầng HTTP server (Node) — cùng lý do đã áp dụng cho
 // api-server/rp-server (xem chú thích ở đó): chống socket "chờ mãi".
-const server = app.listen(PORT, () => console.log(`ETL Server đang chạy ở cổng ${PORT}`));
+//
+// createAppServer() (bản 8.71) — trả về https.Server NẾU đã upload chứng
+// chỉ qua trang "Chứng chỉ TLS" (etl-admin), ngược lại http.Server như cũ
+// (mặc định, KHÔNG đổi hành vi) — xem lib/tlsServer.js.
+const server = createAppServer(app);
+server.listen(PORT, () => console.log(`ETL Server đang chạy ở cổng ${PORT} (${isRunningHttps() ? 'HTTPS' : 'HTTP'})`));
 server.requestTimeout = 60 * 1000;
 server.headersTimeout = 76 * 1000; // phải LỚN HƠN keepAliveTimeout (ràng buộc của Node)
 server.timeout = 120 * 1000;

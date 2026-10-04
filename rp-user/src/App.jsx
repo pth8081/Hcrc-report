@@ -21,6 +21,7 @@ import AnomalyAlertsPage from './modules/system/anomaly-alerts/AnomalyAlertsPage
 import HcrcWorkspaceSettingsPage from './modules/system/hcrc-workspace/HcrcWorkspaceSettingsPage';
 import DepartmentStoreMappingPage from './modules/system/department-mapping/DepartmentStoreMappingPage';
 import StockAlertUploadPage from './modules/stock-alert-upload/StockAlertUploadPage';
+import TlsCertificatePage from './modules/system/tls-certificate/TlsCertificatePage';
 import HuongDanPage from './modules/huong-dan/HuongDanPage';
 import AccountPage from './modules/system/account/AccountPage';
 
@@ -58,6 +59,11 @@ export default function App() {
           {/* Không gắn menuCode nào — mọi tài khoản đã đăng nhập đều vào được
               (xem chú thích RequireMenuAccess.jsx và modules/system/account/AccountPage.jsx). */}
           <Route path="/account" element={<RequireMenuAccess><AccountPage /></RequireMenuAccess>} />
+          {/* Chứng chỉ TLS (bản 8.71) — cũng không gắn menuCode (không qua
+              app.MenuItems/RoleMenuAccess, không thể giao cho vai trò khác)
+              — tự kiểm tra isSystemRole NGAY TRONG trang, xem chú thích đầu
+              TlsCertificatePage.jsx. */}
+          <Route path="/system/tls-certificate" element={<RequireMenuAccess><TlsCertificatePage /></RequireMenuAccess>} />
         </Route>
       </Routes>
     </AuthProvider>

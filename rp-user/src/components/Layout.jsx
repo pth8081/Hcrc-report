@@ -24,12 +24,13 @@ const ICONS = {
   'system-anomaly-alerts': '⚠️',
   'system-hcrc-workspace': '🔗',
   'stock-alert-upload': '📤',
+  'tls-certificate': '🔒',
   'huong-dan': '❓'
 };
 function iconFor(code) { return ICONS[code] || '📄'; }
 
 export default function Layout() {
-  const { me, logout } = useAuth();
+  const { me, isSystemRole, logout } = useAuth();
   const [systemOpen, setSystemOpen] = useState(true);
   // Dưới breakpoint di động (xem styles.css @media max-width:880px), sidebar
   // chuyển từ dải cố định 240px cạnh nội dung sang drawer ẩn/hiện qua nút ☰
@@ -53,6 +54,13 @@ export default function Layout() {
     const systemIdx = navItems.findIndex(i => i.code === 'system');
     if (systemIdx === -1) navItems.push(reportsItem);
     else navItems.splice(systemIdx, 0, reportsItem);
+  }
+  // "Chứng chỉ TLS" (bản 8.71) — KHÔNG đi qua app.MenuItems/RoleMenuAccess
+  // thông thường (không gán được cho vai trò nào khác) — thao tác nắm
+  // private key của hệ thống, CHỈ tài khoản vai trò hệ thống thật mới thấy
+  // mục này, mirror "Tài khoản của tôi" (cũng không qua hệ thống menu DB).
+  if (isSystemRole) {
+    navItems.push({ code: 'tls-certificate', label: 'Chứng chỉ TLS', path: '/system/tls-certificate' });
   }
 
   return (
