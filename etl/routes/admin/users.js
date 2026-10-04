@@ -33,7 +33,33 @@ router.get('/', requireMenuAccess('users'), async (req, res, next) => {
       if (!rolesByUser.has(r.AdminUserId)) rolesByUser.set(r.AdminUserId, []);
       rolesByUser.get(r.AdminUserId).push({ id: r.RoleId, code: r.Code, name: r.Name, isSystemRole: !!r.IsSystemRole });
     }
-    res.json(users.recordset.map(u => ({ ...u, roles: rolesByUser.get(u.Id) || [] })));
+    // Phạm vi siêu thị (bản 8.69) — [] = "Toàn bộ" (không có dòng nào gán,
+    // xem lib/adminPermissions.js), KHÔNG liên quan IsSystemRole ở đây (chỉ
+    // là HIỂN THỊ dòng đã gán, loadContext() mới là nơi quyết định có áp
+    // dụng hay không).
+    const stores = await pool.request().query(`
+      SELECT AdminUserId, MaDiem FROM admin.AdminUserStoreAccess
+    `);
+    const storesByUser = new Map();
+    for (const s of stores.recordset) {
+      if (!storesByUser.has(s.AdminUserId)) storesByUser.set(s.AdminUserId, []);
+      storesByUser.get(s.AdminUserId).push(s.MaDiem);
+    }
+    res.json(users.recordset.map(u => ({ ...u, roles: rolesByUser.get(u.Id) || [], stores: storesByUser.get(u.Id) || [] })));
+  } catch (err) { next(err); }
+});
+
+// Danh sách mã Điểm để chọn khi gán phạm vi siêu thị (PUT /:id/stores bên
+// dưới) — đọc THẲNG etl.DiemStkMapping (ánh xạ Điểm - STK_ID, cùng pool
+// 'ADMIN'), không cần requireMenuEdit('diem-stk-mapping') vì đây chỉ là
+// danh sách lựa chọn, không phải sửa/xem bảng ánh xạ.
+router.get('/store-options', requireMenuAccess('users'), async (req, res, next) => {
+  try {
+    const pool = await getPool('ADMIN');
+    const result = await pool.request().query(`
+      SELECT MaDiem, TenSieuThi FROM etl.DiemStkMapping ORDER BY MaDiem
+    `);
+    res.json(result.recordset.map(r => ({ maDiem: r.MaDiem, tenSieuThi: r.TenSieuThi })));
   } catch (err) { next(err); }
 });
 
@@ -115,6 +141,39 @@ router.put('/:id/roles', requireSystemRoleActor, async (req, res, next) => {
     // kiểm tra quyền tươi.
     await revokeSessions(parseInt(req.params.id, 10));
     await logAction(req, { module: 'Phân quyền', actionType: 'GAN_VAI_TRO', targetObject: req.params.id, description: `Cập nhật vai trò tài khoản #${req.params.id}` });
+    res.json({ ok: true });
+  } catch (err) { next(err); }
+});
+
+// Gán phạm vi siêu thị của 1 tài khoản (bản 8.69, theo yêu cầu người dùng)
+// — [] = "Toàn bộ" (không giới hạn), mảng MaDiem = CHỈ thấy/sửa đúng (các)
+// siêu thị đó (áp dụng ở etl/routes/admin/stockAlertThresholds.js — xem
+// lib/adminPermissions.js:loadContext(), KHÔNG áp dụng cho IsSystemRole).
+// Thao tác NHẠY CẢM — requireSystemRoleActor giống /:id/roles ở trên: nếu
+// chỉ chặn bằng requireMenuEdit('users') thì 1 tài khoản "quản lý tài
+// khoản thông thường" có thể tự mở rộng phạm vi của CHÍNH MÌNH (gán
+// ngược [] = Toàn bộ cho bản thân) để bỏ hẳn giới hạn đang bị áp.
+router.put('/:id/stores', requireSystemRoleActor, async (req, res, next) => {
+  try {
+    const { maDiems = [] } = req.body || {};
+    const pool = await getPool('ADMIN');
+    const tx = new sql.Transaction(pool);
+    await tx.begin();
+    try {
+      await new sql.Request(tx).input('id', sql.Int, req.params.id).query('DELETE FROM admin.AdminUserStoreAccess WHERE AdminUserId = @id');
+      for (const maDiem of maDiems) {
+        await new sql.Request(tx)
+          .input('id', sql.Int, req.params.id)
+          .input('maDiem', sql.NVarChar(50), maDiem)
+          .query('INSERT INTO admin.AdminUserStoreAccess (AdminUserId, MaDiem) VALUES (@id, @maDiem)');
+      }
+      await tx.commit();
+    } catch (err) {
+      await tx.rollback().catch(() => {});
+      throw err;
+    }
+    invalidateUser(parseInt(req.params.id, 10));
+    await logAction(req, { module: 'Phân quyền', actionType: 'GAN_SIEU_THI', targetObject: req.params.id, description: `Cập nhật phạm vi siêu thị tài khoản #${req.params.id} (${maDiems.length ? maDiems.join(', ') : 'Toàn bộ'})` });
     res.json({ ok: true });
   } catch (err) { next(err); }
 });

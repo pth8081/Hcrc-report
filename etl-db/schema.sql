@@ -454,6 +454,25 @@ BEGIN
 END
 GO
 
+-- Phạm vi dữ liệu theo siêu thị cho 1 tài khoản etl-admin (bản 8.69, theo
+-- yêu cầu người dùng) — mirror ĐÚNG app.UserStoreAccess (rp-db/schema.sql)
+-- nhưng khoá theo MaDiem (không phải STK_ID — STK_ID là ánh xạ nội bộ của
+-- rp-server, etl-admin chỉ cần biết "siêu thị nào"). Không có dòng nào =
+-- "Toàn bộ" (HO, mặc định AN TOÀN — xem lib/adminPermissions.js), có ít
+-- nhất 1 dòng = CHỈ được xem/sửa dữ liệu đúng (các) siêu thị đó. KHÔNG áp
+-- dụng cho IsSystemRole (luôn thấy hết, bất kể có dòng gán nhầm hay
+-- không — phòng thủ chiều sâu, giống cách loadContext() bỏ qua hẳn
+-- RoleMenuAccess cho vai trò này).
+IF OBJECT_ID('admin.AdminUserStoreAccess', 'U') IS NULL
+BEGIN
+    CREATE TABLE admin.AdminUserStoreAccess (
+        AdminUserId INT          NOT NULL REFERENCES admin.AdminUsers(Id) ON DELETE CASCADE,
+        MaDiem      NVARCHAR(50) NOT NULL,
+        CONSTRAINT PK_AdminUserStoreAccess PRIMARY KEY (AdminUserId, MaDiem)
+    );
+END
+GO
+
 -- MenuCode = 1 trong các trang CỐ ĐỊNH của etl-admin/ (khai trong code —
 -- lib/adminPermissions.js — KHÔNG có bảng MenuItems riêng như rp-db: số
 -- trang ít, cố định theo route thật, không có CRUD thêm trang mới). CanEdit

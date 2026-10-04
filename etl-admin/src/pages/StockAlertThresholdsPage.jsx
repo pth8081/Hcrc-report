@@ -72,31 +72,12 @@ export default function StockAlertThresholdsPage() {
     formData.append('file', file);
     setImporting(true);
     try {
-      try {
-        const result = await api.post('/stock-alert-thresholds/import', formData, true);
-        setImportResult(result);
-        setFile(null);
-        reload();
-      } catch (err) {
-        // requiresConfirm: file không có dòng dữ liệu nào, danh sách ngưỡng
-        // hiện tại ĐANG có dữ liệu — hỏi lại rõ ràng trước khi cho xoá sạch
-        // (xem etl/routes/admin/stockAlertThresholds.js).
-        if (err.data?.requiresConfirm && window.confirm(`${err.message}\n\nBấm OK để xác nhận xoá sạch, Huỷ để dừng lại.`)) {
-          const confirmFormData = new FormData();
-          confirmFormData.append('file', file);
-          confirmFormData.append('confirmEmpty', 'true');
-          try {
-            const result = await api.post('/stock-alert-thresholds/import', confirmFormData, true);
-            setImportResult(result);
-            setFile(null);
-            reload();
-          } catch (err2) {
-            setError(err2.message);
-          }
-          return;
-        }
-        setError(err.message);
-      }
+      const result = await api.post('/stock-alert-thresholds/import', formData, true);
+      setImportResult(result);
+      setFile(null);
+      reload();
+    } catch (err) {
+      setError(err.message);
     } finally {
       setImporting(false);
     }
@@ -141,8 +122,10 @@ export default function StockAlertThresholdsPage() {
         <code>NhaCungCap</code> (chỉ để hiển thị/lọc, không đối chiếu dữ liệu đồng bộ nào).
       </p>
       <p>
-        <strong>Lưu ý</strong>: mỗi lần nhập là <strong>THAY HẲN</strong> toàn bộ danh sách ngưỡng —
-        giống "Danh sách hàng Core", khác "Ánh xạ Điểm - STK_ID" (cộng dồn/cập nhật).
+        <strong>Lưu ý</strong>: mỗi lần nhập chỉ <strong>THAY</strong> ngưỡng của ĐÚNG (các) siêu thị
+        (Mã điểm) CÓ xuất hiện trong file đang upload — ngưỡng của các siêu thị KHÁC (không có trong
+        file) giữ nguyên, không bị ảnh hưởng. Nếu tài khoản của bạn chỉ được giao quản lý 1 (vài) siêu
+        thị cụ thể, file upload cũng CHỈ được chứa đúng (các) siêu thị đó.
       </p>
       {error && <div className="form-error"><p>{error}</p></div>}
 
@@ -158,7 +141,7 @@ export default function StockAlertThresholdsPage() {
 
       {importResult && (
         <div className="import-result">
-          <p>✅ Đã thay danh sách: {importResult.count ?? 0} dòng.</p>
+          <p>✅ Đã thay ngưỡng của (các) siêu thị trong file: {importResult.count ?? 0} dòng.</p>
           {importResult.rowErrors?.length > 0 && (
             <>
               <p>⚠️ {importResult.rowErrors.length} dòng bị bỏ qua:</p>

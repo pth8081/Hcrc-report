@@ -42,7 +42,18 @@ async function loadContext(adminUserId) {
     for (const row of menuResult.recordset) menuAccess.set(row.MenuCode, { canEdit: !!row.CanEdit });
   }
 
-  return { adminUserId: user.Id, isSystemRole, menuAccess };
+  // Phạm vi dữ liệu theo siêu thị (bản 8.69, theo yêu cầu người dùng — xem
+  // admin.AdminUserStoreAccess) — null = "Toàn bộ" (không giới hạn, mặc định
+  // AN TOÀN), mảng MaDiem = CHỈ được xem/sửa đúng (các) siêu thị đó. KHÔNG áp
+  // dụng cho IsSystemRole — mirror rp-server/lib/permissions.js:132-143.
+  let storeScope = null;
+  if (!isSystemRole) {
+    const storeResult = await pool.request().input('id', sql.Int, adminUserId)
+      .query('SELECT MaDiem FROM admin.AdminUserStoreAccess WHERE AdminUserId = @id');
+    if (storeResult.recordset.length) storeScope = storeResult.recordset.map(r => r.MaDiem);
+  }
+
+  return { adminUserId: user.Id, isSystemRole, menuAccess, storeScope };
 }
 
 async function getAdminContext(adminUserId) {

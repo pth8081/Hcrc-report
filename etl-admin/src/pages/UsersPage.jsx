@@ -17,12 +17,15 @@ export default function UsersPage() {
   const canManage = canEdit('users');
   const [users, setUsers] = useState([]);
   const [roles, setRoles] = useState([]);
+  const [storeOptions, setStoreOptions] = useState([]);
   const [form, setForm] = useState(EMPTY_FORM);
   const [error, setError] = useState('');
   const [editingUser, setEditingUser] = useState(null);
   const [editForm, setEditForm] = useState({ fullName: '', isActive: true });
   const [assigningUser, setAssigningUser] = useState(null);
   const [selectedRoleIds, setSelectedRoleIds] = useState([]);
+  const [assigningStoresUser, setAssigningStoresUser] = useState(null);
+  const [selectedMaDiems, setSelectedMaDiems] = useState([]);
   const [resettingPasswordFor, setResettingPasswordFor] = useState(null);
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -30,12 +33,14 @@ export default function UsersPage() {
   const [creating, setCreating] = useState(false);
   const [savingEdit, setSavingEdit] = useState(false);
   const [savingRoles, setSavingRoles] = useState(false);
+  const [savingStores, setSavingStores] = useState(false);
   const [savingResetPassword, setSavingResetPassword] = useState(false);
   const [resetting2faId, setResetting2faId] = useState(null);
 
   function reload() {
     api.get('/users').then(setUsers).catch(err => setError(err.message));
     api.get('/roles').then(setRoles).catch(err => setError(err.message));
+    api.get('/users/store-options').then(setStoreOptions).catch(err => setError(err.message));
   }
   useEffect(reload, []);
 
@@ -76,6 +81,24 @@ export default function UsersPage() {
       setAssigningUser(null);
       reload();
     } catch (err) { setError(err.message); } finally { setSavingRoles(false); }
+  }
+
+  // "Gán siêu thị" (bản 8.69, theo yêu cầu người dùng) — phạm vi dữ liệu
+  // theo siêu thị cho 1 tài khoản etl-admin, áp dụng ở trang "Cảnh báo hàng
+  // tồn" (xem etl/lib/adminPermissions.js + routes/admin/
+  // stockAlertThresholds.js). Không chọn gì = "Toàn bộ" (không giới hạn).
+  function openAssignStores(user) {
+    setAssigningStoresUser(user);
+    setSelectedMaDiems(user.stores || []);
+  }
+
+  async function saveStores() {
+    setSavingStores(true);
+    try {
+      await api.put(`/users/${assigningStoresUser.Id}/stores`, { maDiems: selectedMaDiems });
+      setAssigningStoresUser(null);
+      reload();
+    } catch (err) { setError(err.message); } finally { setSavingStores(false); }
   }
 
 // window.prompt() cũ TRƯỚC ĐÂY hiện mật khẩu THÔ (hộp thoại trình duyệt
@@ -134,6 +157,7 @@ export default function UsersPage() {
           { key: 'Username', label: 'Username' },
           { key: 'FullName', label: 'Họ tên' },
           { key: 'roles', label: 'Vai trò', render: (u) => (u.roles?.length ? u.roles.map(r => r.name).join(', ') : '—') },
+          { key: 'stores', label: 'Phạm vi siêu thị', render: (u) => (u.stores?.length ? u.stores.join(', ') : 'Toàn bộ') },
           { key: 'IsActive', label: 'Trạng thái', render: (u) => (u.IsActive ? 'Hoạt động' : 'Đã khoá') },
           { key: 'TwoFactorEnabled', label: '2FA', render: (u) => (u.roles?.some(r => r.isSystemRole) ? (u.TwoFactorEnabled ? 'Đã bật' : 'Chưa bật') : '—') },
           (canManage || isSystemRole) && {
@@ -141,6 +165,7 @@ export default function UsersPage() {
               <>
                 {canManage && <button type="button" onClick={() => openEdit(u)}>Sửa</button>}{' '}
                 {isSystemRole && <button type="button" onClick={() => openAssignRoles(u)}>Gán vai trò</button>}{' '}
+                {isSystemRole && <button type="button" onClick={() => openAssignStores(u)}>Gán siêu thị</button>}{' '}
                 {isSystemRole && <button type="button" onClick={() => openResetPassword(u)}>Đặt lại mật khẩu</button>}{' '}
                 {isSystemRole && u.roles?.some(r => r.isSystemRole) && (
                   <button type="button" onClick={() => reset2fa(u)} disabled={resetting2faId === u.Id}>
@@ -191,6 +216,35 @@ export default function UsersPage() {
             <div className="modal-actions">
               <button type="button" onClick={saveRoles} disabled={savingRoles}>{savingRoles ? 'Đang lưu...' : 'Lưu'}</button>
               <button type="button" onClick={() => setAssigningUser(null)}>Đóng</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {assigningStoresUser && (
+        <div className="modal">
+          <div className="modal-body">
+            <h3>Gán siêu thị — {assigningStoresUser.Username}</h3>
+            <p className="form-hint">
+              Không chọn siêu thị nào = "Toàn bộ" (xem/sửa được dữ liệu của mọi siêu thị, vd HO).
+              Chọn 1 (vài) siêu thị = CHỈ xem/sửa/upload được đúng dữ liệu (các) siêu thị đó
+              (áp dụng ở trang "Cảnh báo hàng tồn").
+            </p>
+            {storeOptions.map(s => (
+              <label key={s.maDiem} className="checkbox-row">
+                <input
+                  type="checkbox"
+                  checked={selectedMaDiems.includes(s.maDiem)}
+                  onChange={(e) => setSelectedMaDiems(e.target.checked
+                    ? [...selectedMaDiems, s.maDiem]
+                    : selectedMaDiems.filter(m => m !== s.maDiem))}
+                />
+                {s.maDiem}{s.tenSieuThi ? ` — ${s.tenSieuThi}` : ''}
+              </label>
+            ))}
+            <div className="modal-actions">
+              <button type="button" onClick={saveStores} disabled={savingStores}>{savingStores ? 'Đang lưu...' : 'Lưu'}</button>
+              <button type="button" onClick={() => setAssigningStoresUser(null)}>Đóng</button>
             </div>
           </div>
         </div>

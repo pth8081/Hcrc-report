@@ -1,9 +1,9 @@
-# Hướng dẫn triển khai gộp — bản 8.29 đến 8.67 (làm 1 lần)
+# Hướng dẫn triển khai gộp — bản 8.29 đến 8.69 (làm 1 lần)
 
 **Mục đích**: theo yêu cầu người dùng — thay vì đọc/làm tuần tự từng mục
 trong "Nhật ký triển khai (từ bản 8.31)" (nhiều mục riêng, mỗi mục 1 bản),
 file NÀY gộp lại thành **1 lượt làm duy nhất** để đưa server từ trước bản
-8.29 lên thẳng bản 8.67. Các bước **idempotent** (an toàn chạy lại nhiều
+8.29 lên thẳng bản 8.69. Các bước **idempotent** (an toàn chạy lại nhiều
 lần) được gộp chỉ chạy **1 LẦN** ở bản mới nhất thay vì lặp lại theo từng
 bản cũ. Nếu server đã ở 1 bản nào đó rồi (vd đã tới 8.62), chỉ cần làm
 PHẦN CÒN THIẾU — hầu hết các bước dưới đây không hại gì nếu lỡ làm lại.
@@ -63,7 +63,11 @@ chi tiết kỹ thuật của từng bản khi cần — file này chỉ gộp p
      cột `SmtpInsecureTls` trên `app.EmailSettings` (bản 8.67 — bỏ qua
      kiểm tra chứng chỉ TLS tự ký cho nhánh SMTP, mặc định `0`).
    - `etl-db/schema.sql` — bảng mới `etl.DataSourceConnectionStatus`/
-     `etl.SchemaSnapshots`/`etl.SchemaChangeLog` (bản 8.57).
+     `etl.SchemaSnapshots`/`etl.SchemaChangeLog` (bản 8.57),
+     `etl.StockAlertThresholds` (bản 8.68 — ngưỡng cảnh báo hàng tồn theo
+     từng cặp Mã hàng/Siêu thị), `admin.AdminUserStoreAccess` (bản 8.69 —
+     phạm vi siêu thị của 1 tài khoản etl-admin, mặc định KHÔNG giới hạn
+     ai cho tới khi admin chủ động "Gán siêu thị" — xem mục D.5).
    - `api-db/schema.sql` — bảng mới `api.DataSourceConnectionStatus`
      (bản 8.57).
 
@@ -111,6 +115,22 @@ chi tiết kỹ thuật của từng bản khi cần — file này chỉ gộp p
    4. Upload danh sách hàng Core + gán quyền xem 3 báo cáo — chi tiết đầy
       đủ ở `bc-ton-kho-0.md` và `bc-core-ton-kho-0.md`.
 
+7. **(CHỈ nếu triển khai "Tồn kho theo ngưỡng"/"Cảnh báo hàng tồn" — bản
+   8.68; bỏ qua cả mục này nếu không dùng)**:
+   1. Dùng LẠI đúng 2 domain `banhang_sku`/`tonkho_sku` đã có cho "Top bán
+      chạy tồn kho=0" — đã làm mục B.6 rồi thì **bỏ qua bước này**, có số
+      liệu ngay. Chưa từng làm thì làm theo đúng `bc-ton-kho-0.md` Bước 1+2
+      trước (DBA tạo 2 VIEW + `node scripts/seedZeroStockSkuSync.js`).
+   2. `cd rp-server && node scripts/seedStockThresholdReport.js && node scripts/seedStockAlertReport.js`.
+   3. etl-admin → "Cảnh báo hàng tồn" → upload file ngưỡng (nếu dùng báo
+      cáo cảnh báo riêng từng mặt hàng/siêu thị) — **từ bản 8.69**, nếu
+      tài khoản upload chỉ được giao quản lý 1 (vài) siêu thị cụ thể, file
+      đó CHỈ được chứa đúng (các) siêu thị trong phạm vi được gán (xem
+      mục D.5), ngoài phạm vi sẽ bị từ chối.
+   4. Gán quyền xem 2 báo cáo mới cho vai trò cần dùng (rp-user → Phân
+      quyền) + quyền menu "Cảnh báo hàng tồn" (etl-admin → Vai trò, xem
+      mục D.4).
+
 ---
 
 ## C. Build + restart (sau khi xong A + B)
@@ -144,6 +164,15 @@ chi tiết kỹ thuật của từng bản khi cần — file này chỉ gộp p
    etl-admin) cho vai trò cần dùng.
 4. **(bản 8.55, chỉ nếu đã làm mục B.6)** Gán quyền xem 3 báo cáo "hết
    hàng" cho vai trò cần dùng.
+5. **(bản 8.68, chỉ nếu đã làm mục B.7)** etl-admin → "Vai trò" → cấp
+   quyền menu "Cảnh báo hàng tồn" cho vai trò cần dùng; rp-user → Phân
+   quyền → gán quyền xem 2 báo cáo "Tồn kho theo ngưỡng"/"Cảnh báo hàng
+   tồn" mới.
+6. **(bản 8.69)** etl-admin → "Phân quyền" → với MỖI tài khoản chỉ quản
+   lý 1 (vài) siêu thị cụ thể (vd nhân sự 1 siêu thị tự upload file ngưỡng
+   cảnh báo của mình), bấm "Gán siêu thị" → chọn đúng (các) mã Điểm của
+   siêu thị đó → Lưu. Tài khoản KHÔNG gán gì (mặc định) vẫn xem/sửa được
+   TOÀN BỘ như trước — không tự ý giới hạn tài khoản nào chưa gán rõ.
 
 ---
 
@@ -244,6 +273,18 @@ hệt, không bắt buộc đổi gateway chỉ vì có bản mới.
   email thật — nếu gateway dùng chứng chỉ TLS tự ký (vd Postfix nội bộ),
   đã tick "Bỏ qua kiểm tra chứng chỉ TLS" (8.67), không còn báo lỗi "self
   signed certificate".
+- [ ] (nếu đã làm mục B.7) rp-user → báo cáo "Tồn kho theo ngưỡng": chọn
+  được "Tồn dưới"/"Tồn trên" + tự nhập mức ngay trên bộ lọc (8.68).
+  etl-admin → "Cảnh báo hàng tồn": upload file mẫu thành công, báo cáo
+  "Cảnh báo hàng tồn" (rp-user) lên đúng số liệu đối chiếu ngưỡng đã khai
+  (8.68).
+- [ ] etl-admin → "Phân quyền": cột "Phạm vi siêu thị" + nút "Gán siêu
+  thị" hiện ra (chỉ tài khoản vai trò hệ thống thấy nút, 8.69); gán thử 1
+  tài khoản 1 siêu thị → đăng nhập tài khoản đó → "Cảnh báo hàng tồn" chỉ
+  thấy đúng dòng của siêu thị đó; thử upload file có dòng thuộc siêu thị
+  khác → bị từ chối (400), không ghi gì; upload đúng phạm vi → ngưỡng của
+  siêu thị khác (do người khác khai trước đó) vẫn còn nguyên, không bị
+  xoá mất (8.69).
 
 Không có bước nào ở trên làm mất dữ liệu đã có hoặc ảnh hưởng job/báo cáo
 đang chạy ổn định — mọi thay đổi CSDL đều là CREATE/ALTER thêm mới.

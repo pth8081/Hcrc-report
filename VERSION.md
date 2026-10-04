@@ -29,6 +29,56 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 8.69 — Sửa THIẾU SÓT bản 8.68: chặn đúng theo siêu thị + sửa lỗi import xoá nhầm dữ liệu siêu thị khác
+
+**Theo yêu cầu người dùng**: sau khi xác nhận bản 8.68, người dùng hỏi lại
+"siêu thị nào tự upload file của siêu thị đấy đúng không?" — rà soát xác
+nhận **ĐÚNG, đây là THIẾU SÓT thật**, gồm 2 lỗi độc lập ở trang etl-admin
+"Cảnh báo hàng tồn":
+
+1. **Lỗi nguy hiểm — import "thay hẳn" TOÀN BẢNG**:
+   `etl/lib/stockAlertThresholdsImport.js:replaceStockAlertThresholds()`
+   `DELETE FROM etl.StockAlertThresholds` KHÔNG lọc điều kiện gì trước khi
+   ghi lại — 1 siêu thị upload file của MÌNH sẽ XOÁ SẠCH ngưỡng cảnh báo
+   đã khai của MỌI siêu thị khác. **Đã sửa**: REPLACE THEO TỪNG MaDiem CÓ
+   xuất hiện trong file đang upload (mirror đúng
+   `coreItemListImport.js:replaceCoreItemList()` — scoped theo LoaiDiem),
+   ngưỡng của các siêu thị KHÁC không có trong file giữ nguyên. File 0
+   dòng dữ liệu giờ KHÔNG LÀM GÌ (trước đây xoá sạch toàn bộ danh sách —
+   bỏ hẳn cơ chế "confirmEmpty" cũ, không còn cần thiết vì không còn khái
+   niệm "xoá sạch qua upload"; muốn xoá 1 siêu thị, dùng nút "Xoá N mục đã
+   chọn" đã có sẵn — bản 8.62).
+2. **Thiếu hẳn phân quyền theo siêu thị cho etl-admin** (etl-admin TRƯỚC
+   GIỜ chỉ có phân quyền theo MENU/vai trò — admin.RoleMenuAccess — CHƯA
+   từng có khái niệm "tài khoản này chỉ được thấy siêu thị X", khác hẳn
+   rp-user đã có từ bản 8.50/8.51 qua `app.UserStoreAccess`). **Đã thêm
+   MỚI, mirror đúng tinh thần rp-user**:
+   - `admin.AdminUserStoreAccess(AdminUserId, MaDiem)` (`etl-db/schema.sql`)
+     — không có dòng nào = "Toàn bộ" (HO/vai trò hệ thống luôn bỏ qua bảng
+     này, xem hết), có dòng = CHỈ xem/sửa/xoá/upload đúng (các) siêu thị
+     đó.
+   - `etl/lib/adminPermissions.js:loadContext()` — nạp thêm `storeScope`
+     (null = Toàn bộ, mảng MaDiem = giới hạn), gắn sẵn vào
+     `req.adminContext` qua `requireMenuAccess`/`requireMenuEdit` như
+     `isSystemRole`/`menuAccess` đã có.
+   - `PUT /admin/users/:id/stores` (`etl/routes/admin/users.js`) — gán
+     phạm vi siêu thị cho 1 tài khoản, thao tác NHẠY CẢM
+     (`requireSystemRoleActor`, giống `/:id/roles`) để tránh 1 tài khoản
+     tự mở rộng phạm vi của chính mình. `GET /admin/users/store-options`
+     — danh sách mã Điểm để chọn (đọc `etl.DiemStkMapping`).
+   - Trang "Phân quyền" (`etl-admin/src/pages/UsersPage.jsx`) — thêm cột
+     "Phạm vi siêu thị" + nút "Gán siêu thị" (modal chọn nhiều, chỉ
+     `isSystemRole` thấy nút, giống "Gán vai trò").
+   - `etl/routes/admin/stockAlertThresholds.js` — áp `storeScope`: `GET /`
+     và `GET /export` chỉ trả dòng trong phạm vi; `DELETE /:id` trả 404
+     (không lộ thông tin) nếu dòng ngoài phạm vi; `POST /import` TỪ CHỐI
+     HẲN (400, không ghi gì) nếu file có MaDiem ngoài phạm vi của người
+     upload, thay vì âm thầm bỏ qua hoặc âm thầm cho qua.
+
+Đã demo xác nhận giao diện cột "Phạm vi siêu thị" + modal "Gán siêu thị"
+trên trang Phân quyền. Chi tiết đầy đủ + bước triển khai: `deploy/Cập nhật
+bản 8.69 — Chặn đúng theo siêu thị cho Cảnh báo hàng tồn.md`.
+
 ## 8.68 — Báo cáo tồn kho theo ngưỡng + Cảnh báo hàng tồn
 
 **Theo yêu cầu người dùng**: thêm 2 báo cáo tồn kho mới, giống báo cáo

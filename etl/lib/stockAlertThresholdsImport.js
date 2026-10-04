@@ -6,9 +6,20 @@
 // Định dạng file (.xlsx): 1 sheet duy nhất, dòng 1 header — MaHang (BẮT
 // BUỘC, khớp Dimensions.MaHangHienThi đã đồng bộ), MaDiem (BẮT BUỘC, khớp
 // "Ánh xạ Điểm - STK_ID"), NguongCanhBao (BẮT BUỘC, số), TenHang/NhaCungCap
-// (TUỲ CHỌN, chỉ để hiển thị/lọc). THAY HẲN (replace) toàn bộ danh sách mỗi
-// lần nhập — giống lib/coreItemListImport.js, khác lib/diemStkMappingImport.js
-// (upsert cộng dồn).
+// (TUỲ CHỌN, chỉ để hiển thị/lọc).
+//
+// REPLACE THEO TỪNG MaDiem có trong file (bản 8.69, SỬA LỖI theo yêu cầu
+// người dùng) — KHÔNG còn REPLACE TOÀN BẢNG như trước: trước đây 1 lượt
+// nhập của 1 siêu thị XOÁ SẠCH ngưỡng cảnh báo của MỌI siêu thị khác (vì
+// DELETE FROM etl.StockAlertThresholds không lọc điều kiện gì), rất nguy
+// hiểm khi mỗi siêu thị tự upload file RIÊNG (xem routes/admin/
+// stockAlertThresholds.js — từ bản 8.69 còn chặn theo storeScope của người
+// upload). Giờ chỉ XOÁ+GHI LẠI đúng (các) MaDiem CÓ xuất hiện trong file —
+// mirror ĐÚNG lib/coreItemListImport.js:replaceCoreItemList() (scoped theo
+// LoaiDiem). File không có dòng dữ liệu nào (0 dòng) = KHÔNG LÀM GÌ (không
+// còn khái niệm "xoá sạch toàn bộ qua upload" — muốn xoá 1 siêu thị, dùng
+// nút "Xoá N mục đã chọn" đã có sẵn trên trang, chọn đúng các dòng của siêu
+// thị đó).
 const ExcelJS = require('exceljs');
 const { sql } = require('../db');
 const { guardZipBombSize } = require('./fileSignature');
@@ -72,8 +83,8 @@ async function parseStockAlertThresholdsFile(buffer) {
   return parseSheet(sheet);
 }
 
-// ---- Ghi vào CSDL — REPLACE (xoá hết rồi ghi lại toàn bộ), giống
-// lib/coreItemListImport.js.
+// ---- Ghi vào CSDL — REPLACE THEO TỪNG MaDiem có trong `rows` (xem chú
+// thích đầu file), giống lib/coreItemListImport.js:replaceCoreItemList().
 const INSERT_BATCH_SIZE = 500;
 
 function sqlNStr(value) {
@@ -83,19 +94,35 @@ function sqlNStrOrNull(value) {
   return value === null || value === undefined || value === '' ? 'NULL' : sqlNStr(value);
 }
 
+// Danh sách MaDiem XUẤT HIỆN trong rows đã parse — dùng để kiểm tra phạm vi
+// siêu thị của người upload TRƯỚC khi ghi (routes/admin/
+// stockAlertThresholds.js), và để nhóm rows theo MaDiem khi ghi bên dưới.
+function distinctMaDiems(rows) {
+  return [...new Set(rows.map(r => r.maDiem))];
+}
+
 async function replaceStockAlertThresholds(pool, rows, importedBy) {
+  const rowsByMaDiem = new Map();
+  for (const r of rows) {
+    if (!rowsByMaDiem.has(r.maDiem)) rowsByMaDiem.set(r.maDiem, []);
+    rowsByMaDiem.get(r.maDiem).push(r);
+  }
+
   const tx = new sql.Transaction(pool);
   await tx.begin();
   try {
-    await new sql.Request(tx).query('DELETE FROM etl.StockAlertThresholds');
-    for (let i = 0; i < rows.length; i += INSERT_BATCH_SIZE) {
-      const chunk = rows.slice(i, i + INSERT_BATCH_SIZE);
-      if (!chunk.length) continue;
-      const values = chunk.map(r => `(${sqlNStr(r.maHang)}, ${sqlNStr(r.maDiem)}, ${Number(r.nguongCanhBao)}, ${sqlNStrOrNull(r.tenHang)}, ${sqlNStrOrNull(r.nhaCungCap)}, ${importedBy ? sqlNStr(importedBy) : 'NULL'})`).join(',\n');
-      await new sql.Request(tx).query(`
-        INSERT INTO etl.StockAlertThresholds (MaHang, MaDiem, NguongCanhBao, TenHang, NhaCungCap, ImportedBy)
-        VALUES ${values};
-      `);
+    for (const [maDiem, chunkRows] of rowsByMaDiem) {
+      await new sql.Request(tx).input('maDiem', sql.NVarChar(50), maDiem)
+        .query('DELETE FROM etl.StockAlertThresholds WHERE MaDiem = @maDiem');
+      for (let i = 0; i < chunkRows.length; i += INSERT_BATCH_SIZE) {
+        const chunk = chunkRows.slice(i, i + INSERT_BATCH_SIZE);
+        if (!chunk.length) continue;
+        const values = chunk.map(r => `(${sqlNStr(r.maHang)}, ${sqlNStr(r.maDiem)}, ${Number(r.nguongCanhBao)}, ${sqlNStrOrNull(r.tenHang)}, ${sqlNStrOrNull(r.nhaCungCap)}, ${importedBy ? sqlNStr(importedBy) : 'NULL'})`).join(',\n');
+        await new sql.Request(tx).query(`
+          INSERT INTO etl.StockAlertThresholds (MaHang, MaDiem, NguongCanhBao, TenHang, NhaCungCap, ImportedBy)
+          VALUES ${values};
+        `);
+      }
     }
     await tx.commit();
     return rows.length;
@@ -125,6 +152,6 @@ function buildStockAlertThresholdsExport(rows) {
 }
 
 module.exports = {
-  parseStockAlertThresholdsFile, replaceStockAlertThresholds,
+  parseStockAlertThresholdsFile, replaceStockAlertThresholds, distinctMaDiems,
   buildStockAlertThresholdsTemplate, buildStockAlertThresholdsExport
 };

@@ -14,6 +14,35 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 8.69 — Sửa THIẾU SÓT bản 8.68: chặn đúng theo siêu thị + sửa lỗi import xoá nhầm dữ liệu siêu thị khác
+
+**Thay đổi**: 2 lỗi của bản 8.68 ở trang etl-admin "Cảnh báo hàng tồn" —
+(1) upload file của 1 siêu thị trước đây XOÁ SẠCH ngưỡng của MỌI siêu thị
+khác (nay chỉ thay đúng (các) siêu thị có trong file); (2) etl-admin
+TRƯỚC GIỜ không có khái niệm "tài khoản chỉ thấy 1 siêu thị" (nay thêm
+bảng `admin.AdminUserStoreAccess` + gán qua trang "Phân quyền" → nút "Gán
+siêu thị", áp dụng cho GET/DELETE/import của trang "Cảnh báo hàng tồn").
+Chi tiết đầy đủ: `deploy/Cập nhật bản 8.69 — Chặn đúng theo siêu thị cho
+Cảnh báo hàng tồn.md`.
+
+**Các bước triển khai:**
+1. `git pull origin main`.
+2. Chạy lại `etl-db/schema.sql` (BẮT BUỘC — bảng mới
+   `admin.AdminUserStoreAccess`).
+3. `pm2 restart hcrc-etl` (BẮT BUỘC — sửa cả `lib/adminPermissions.js` và
+   các route `/admin/users`, `/admin/stock-alert-thresholds`).
+4. `cd etl-admin && npm run build`, copy `dist/` mới (trang "Phân quyền"
+   có cột + nút mới).
+5. Vào "Phân quyền" → với mỗi tài khoản chỉ quản lý 1 (vài) siêu thị cụ
+   thể, bấm "Gán siêu thị" → chọn đúng (các) siêu thị đó → Lưu. Tài khoản
+   KHÔNG gán gì (mặc định) = xem/sửa được TOÀN BỘ (giữ nguyên hành vi cũ
+   — an toàn ngược, không tự ý giới hạn tài khoản nào chưa được gán rõ).
+6. Kiểm tra lại: đăng nhập thử 1 tài khoản đã gán siêu thị → vào "Cảnh
+   báo hàng tồn" → chỉ thấy đúng dòng của siêu thị đó; thử upload file có
+   dòng thuộc siêu thị khác → phải bị từ chối rõ ràng (400), không ghi gì.
+
+---
+
 ## 8.68 — Báo cáo tồn kho theo ngưỡng + Cảnh báo hàng tồn
 
 **Thay đổi**: 2 báo cáo tồn kho mới — "Tồn kho theo ngưỡng" (tự chọn chiều
