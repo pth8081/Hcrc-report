@@ -14,6 +14,26 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 8.87 — Chặn bớt số job chạy đồng thời + không bỏ sót lỗi xin khoá (ETL)
+
+**Thay đổi**: tối đa 4 job đồng bộ chạy THỰC SỰ cùng lúc (trước đây không
+giới hạn — 68 job "(TV)" cùng lịch 2 phút/lần tranh pool 'ADMIN' gây lỗi
+hàng loạt "operation timed out"); lỗi xin khoá sp_getapplock giờ ghi
+FAILED + gửi cảnh báo như mọi lỗi khác (trước đây chỉ in pm2 log, không
+lên trang "Đồng bộ").
+
+**Các bước triển khai:**
+1. `git pull origin main`.
+2. (Tuỳ chọn) Thêm `ETL_MAX_CONCURRENT_JOBS=4` vào `etl/.env` nếu muốn
+   đổi khác mặc định — bỏ qua vẫn dùng được.
+3. `pm2 restart hcrc-etl` (BẮT BUỘC — đổi logic chạy job/xin khoá).
+4. Kiểm tra: `pm2 logs hcrc-etl` sau vài chu kỳ cron — không còn hàng
+   loạt lỗi "operation timed out" đồng thời; nếu còn lỗi xin khoá, giờ
+   thấy đúng dòng đó XUẤT HIỆN TRÊN trang etl-admin → "Đồng bộ" → "Job
+   lỗi trong 24h qua" (trước đây không hiện).
+
+---
+
 ## 8.86 — Thử lại + rút ngắn thời gian chờ khi VPN chi nhánh chập chờn giữa chừng đồng bộ (ETL)
 
 **Thay đổi**: job đồng bộ "(TV)"/định kỳ giờ thất bại NHANH hơn (90 giây

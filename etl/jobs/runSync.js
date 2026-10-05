@@ -337,18 +337,45 @@ function effectiveSourceSystem(job) {
 // tiến trình. LockTimeout=0 -> không chờ, job đang chạy dở thì bỏ qua ngay
 // lập tức (giống hành vi runningJobs Set), không xếp hàng chờ.
 async function runWithCrossProcessLock(job, fn) {
-  const pool = await getPool('ADMIN');
-  const transaction = new sql.Transaction(pool);
-  await transaction.begin();
-  const request = new sql.Request(transaction);
-  const result = await request
-    .input('resource', sql.NVarChar(255), `etl_domain_${effectiveSourceSystem(job)}_${job.TargetDomain}`)
-    .query(`
-      DECLARE @res INT;
-      EXEC @res = sp_getapplock @Resource = @resource, @LockMode = 'Exclusive', @LockOwner = 'Transaction', @LockTimeout = 0;
-      SELECT @res AS LockResult;
-    `);
-  const lockResult = result.recordset[0].LockResult;
+  // Bản 8.87 (theo yêu cầu người dùng, sau sự cố thật nhiều job "(TV)" báo
+  // "operation timed out for an unknown reason" trong pm2 log nhưng KHÔNG
+  // hề xuất hiện trên trang "Đồng bộ"/etl.SyncLog, KHÔNG có mail cảnh báo
+  // nào — khác hẳn mọi lỗi khác trong file này, vốn LUÔN ghi FAILED + gửi
+  // cảnh báo): TRƯỚC bản này, các bước xin khoá dưới đây (mở pool 'ADMIN',
+  // mở transaction, chạy sp_getapplock) KHÔNG nằm trong try/catch nào cả —
+  // lỗi ở đây (vd pool 'ADMIN' quá tải khi NHIỀU job cùng chạy 1 lúc, xem
+  // jobs/scheduler.js:MAX_CONCURRENT_JOBS) rơi thẳng ra ngoài, chỉ được
+  // scheduler.js in ra console.error, KHÔNG ai thấy ngoài soi pm2 log tay.
+  // Từ bản này, MỌI lỗi ở đây đều ghi FAILED + gửi cảnh báo như mọi lỗi
+  // khác, qua recordFailure() dùng chung (xem chú thích ở đó).
+  const startedAt = new Date();
+  let pool, transaction;
+  try {
+    pool = await getPool('ADMIN');
+    transaction = new sql.Transaction(pool);
+    await transaction.begin();
+  } catch (err) {
+    await recordFailure(job, err, startedAt);
+    return;
+  }
+
+  let lockResult;
+  try {
+    const request = new sql.Request(transaction);
+    const result = await request
+      .input('resource', sql.NVarChar(255), `etl_domain_${effectiveSourceSystem(job)}_${job.TargetDomain}`)
+      .query(`
+        DECLARE @res INT;
+        EXEC @res = sp_getapplock @Resource = @resource, @LockMode = 'Exclusive', @LockOwner = 'Transaction', @LockTimeout = 0;
+        SELECT @res AS LockResult;
+      `);
+    lockResult = result.recordset[0].LockResult;
+  } catch (err) {
+    await transaction.rollback().catch(() => {});
+    await recordFailure(job, err, startedAt);
+    return;
+  }
+
   if (lockResult < 0) {
     logWarn(`⏭  [${job.Name}] bỏ qua lượt chạy này — 1 tiến trình khác đang ghi CÙNG nguồn+domain "${effectiveSourceSystem(job)}/${job.TargetDomain}" (chính job này chạy ở tiến trình khác, HOẶC 1 job KHÁC trỏ cùng nguồn+domain — server.js theo lịch, nút "Chạy thử", hoặc etl/index.js chạy tay)`);
     await transaction.rollback();
@@ -356,8 +383,20 @@ async function runWithCrossProcessLock(job, fn) {
   }
   try {
     await fn();
+  } catch (err) {
+    // fn() (runJobObjectLocked) tự bắt lỗi của chính nó rồi, KHÔNG BAO GIỜ
+    // ném ra trong điều kiện bình thường — nhánh này chỉ đề phòng lỗi THẬT
+    // BẤT THƯỜNG (lỗi lập trình, OOM...), vẫn ghi FAILED thay vì để thành
+    // console.error vô hình như trước bản 8.87.
+    await recordFailure(job, err, startedAt);
   } finally {
-    await transaction.commit(); // giải phóng khoá sp_getapplock giữ bởi transaction này
+    // Giải phóng khoá là best-effort — lỗi ở ĐÂY (hiếm, vd mất kết nối
+    // ngay lúc commit) chỉ cảnh báo, không ném tiếp (tránh che mất kết quả
+    // THẬT của fn() ở trên, và vì transaction sẽ tự rollback khi tiến
+    // trình giải phóng connection, không để khoá "kẹt" vĩnh viễn).
+    await transaction.commit().catch(err => {
+      logError(`⚠️  [${job.Name}] Không giải phóng được khoá sp_getapplock (bỏ qua, tiếp tục): ${err.message}`);
+    });
   }
 }
 
@@ -382,10 +421,7 @@ async function runJobObject(job, { allowConnectRetry = true } = {}) {
       const lastSyncedAt = await getLastSyncedAt(job.Id);
       connection = await getConnectionWithRetry(job, allowConnectRetry, requestTimeoutFor(lastSyncedAt));
     } catch (err) {
-      const message = describeSyncError(err);
-      logError(`⛔ [${job.Name}] Lỗi đồng bộ: ${message}`);
-      await logRun({ jobId: job.Id, status: 'FAILED', errorMessage: message, startedAt, finishedAt: new Date() }).catch(() => {});
-      await alertSyncFailure({ key: job.Name, label: job.Name }, message).catch(() => {});
+      await recordFailure(job, err, startedAt);
       return;
     }
   }
@@ -436,6 +472,22 @@ function describeSyncError(err) {
   return extra.length ? `${primary} — chi tiết: ${extra.join('; ')}` : primary;
 }
 
+// Dùng CHUNG cho MỌI điểm 1 lượt chạy thất bại hẳn (bản 8.87 — gộp lại từ
+// 3 chỗ trước đây tự lặp lại y hệt nhau: lỗi lấy kết nối ban đầu, lỗi BÊN
+// TRONG lượt chạy, VÀ lỗi xin khoá sp_getapplock — xem
+// runWithCrossProcessLock() bên dưới, bản 8.87 mới thêm nhánh thứ 3) —
+// LUÔN ghi FAILED vào etl.SyncLog + gửi cảnh báo, không bao giờ để lỗi rơi
+// ra ngoài thành console.error KHÔNG AI NHÌN THẤY trên trang quản trị (lỗi
+// thật đã gặp: lỗi xin khoá do pool 'ADMIN' quá tải chỉ in ra pm2 log,
+// KHÔNG lên trang "Đồng bộ"/không gửi mail, admin không biết job đã thất
+// bại cho tới khi tự soi log server).
+async function recordFailure(job, err, startedAt) {
+  const message = describeSyncError(err);
+  logError(`⛔ [${job.Name}] Lỗi đồng bộ: ${message}`);
+  await logRun({ jobId: job.Id, status: 'FAILED', errorMessage: message, startedAt, finishedAt: new Date() }).catch(() => {});
+  await alertSyncFailure({ key: job.Name, label: job.Name }, message).catch(() => {});
+}
+
 // connection — ĐÃ lấy sẵn (+ retry nếu cần) TRƯỚC KHI vào khoá
 // sp_getapplock, chỉ dùng cho job.Type==='table' (xem runJobObject()).
 async function runJobObjectLocked(job, connection) {
@@ -467,16 +519,7 @@ async function runJobObjectLocked(job, connection) {
     await logRun({ jobId: job.Id, status: 'SUCCESS', rowCount: rawCount, startedAt, finishedAt: new Date() });
     logInfo(`✅ [${job.Name}] Xong — ${inserted} dòng mới, ${updated} dòng cập nhật.`);
   } catch (err) {
-    const message = describeSyncError(err);
-    logError(`⛔ [${job.Name}] Lỗi đồng bộ: ${message}`);
-    await logRun({
-      jobId: job.Id,
-      status: 'FAILED',
-      errorMessage: message,
-      startedAt,
-      finishedAt: new Date()
-    }).catch(() => {});
-    await alertSyncFailure({ key: job.Name, label: job.Name }, message).catch(() => {});
+    await recordFailure(job, err, startedAt);
   }
 }
 

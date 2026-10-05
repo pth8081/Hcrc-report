@@ -18,6 +18,52 @@ const scheduledTasks = new Map(); // jobId -> { task, cronExpression }
 // trong dwh.ReportFacts, và cùng cạnh tranh chung 1 pool ghi (DWH_POOL_MAX).
 const runningJobs = new Set(); // jobId
 
+// Bản 8.87 (theo yêu cầu người dùng, sau sự cố thật): job "(TV)" của 34
+// siêu thị (68 job — Doanh thu + Giao dịch mỗi siêu thị, xem
+// scripts/seedThanhVienLiveSync.js:LIVE_CRON) đều chạy CHUNG lịch mỗi 2
+// phút (`*/2 * * * *`) — node-cron gọi CẢ 68 callback GẦN NHƯ ĐỒNG THỜI
+// mỗi lần tới giờ. Mỗi job cần vài round-trip tới CSDL etl CHUNG (pool
+// 'ADMIN', mặc định tối đa 5 connection — xem db.js ADMIN_POOL_MAX) để
+// xin khoá sp_getapplock/đọc-ghi mốc đồng bộ/ghi log — 68 job tranh 5
+// connection khiến nhiều job phải CHỜ QUÁ LÂU trong hàng đợi riêng của
+// pool 'ADMIN' và bị CHÍNH thư viện pool báo lỗi "operation timed out for
+// an unknown reason" — side thông điệp GIỐNG HỆT lỗi mạng tới nguồn dữ
+// liệu (xem jobs/runSync.js:isTransientNetworkError) nhưng đây là tranh
+// chấp ở pool 'ADMIN' DÙNG CHUNG, KHÔNG phải lỗi mạng tới riêng 1 chi
+// nhánh — bản 8.86 (rút ngắn/thử lại requestTimeout PER NGUỒN) không sửa
+// được trường hợp này, cần CHẶN BỚT SỐ JOB CHẠY ĐỒNG THỜI ngay từ gốc.
+//
+// Giới hạn còn tối đa MAX_CONCURRENT_JOBS job THỰC SỰ đang chạy cùng lúc
+// (mặc định 4 — CHỦ Ý thấp hơn ADMIN_POOL_MAX mặc định 5 ở db.js, chừa dư
+// ít nhất 1 connection cho trang quản trị etl-admin/API vẫn dùng CHUNG
+// pool 'ADMIN' trong lúc job đang chạy; chỉnh qua .env
+// `ETL_MAX_CONCURRENT_JOBS`, nên tăng CÙNG LÚC với ADMIN_POOL_MAX nếu đổi)
+// — job vượt quá KHÔNG bị bỏ qua (khác hẳn runningJobs Set ở trên, vốn bỏ
+// qua HẲN lượt cron nếu CHÍNH job đó còn đang chạy dở) — chỉ XẾP HÀNG
+// (FIFO) chờ tới lượt, thường chỉ vài giây vì mỗi job "(TV)" đọc delta
+// nhỏ rất nhanh — xong thừa thời gian trước chu kỳ cron 2 phút kế tiếp.
+// Dùng CHUNG cho cả job chạy theo lịch LẪN nút "Chạy thử" (route qua
+// runJobIfNotAlreadyRunning — xem module.exports cuối file) — admin bấm
+// "Chạy thử" lúc hệ thống đang bận chỉ chờ thêm vài giây, không tranh
+// thêm connection ngoài dự tính.
+const MAX_CONCURRENT_JOBS = parseInt(process.env.ETL_MAX_CONCURRENT_JOBS || '4', 10);
+let runningSlotCount = 0;
+const slotWaiters = [];
+
+function acquireSlot() {
+  if (runningSlotCount < MAX_CONCURRENT_JOBS) {
+    runningSlotCount += 1;
+    return Promise.resolve();
+  }
+  return new Promise(resolve => slotWaiters.push(resolve));
+}
+
+function releaseSlot() {
+  const next = slotWaiters.shift();
+  if (next) next();
+  else runningSlotCount -= 1;
+}
+
 async function loadActiveJobs() {
   const pool = await getPool('ADMIN');
   const result = await pool.request().query('SELECT * FROM etl.SyncJobs WHERE IsActive = 1');
@@ -40,9 +86,11 @@ async function runJobIfNotAlreadyRunning(job, options) {
     return;
   }
   runningJobs.add(job.Id);
+  await acquireSlot();
   try {
     await runJobObject(job, options);
   } finally {
+    releaseSlot();
     runningJobs.delete(job.Id);
   }
 }

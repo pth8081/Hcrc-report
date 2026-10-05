@@ -1,9 +1,9 @@
-# Hướng dẫn triển khai gộp — bản 8.29 đến 8.86 (làm 1 lần)
+# Hướng dẫn triển khai gộp — bản 8.29 đến 8.87 (làm 1 lần)
 
 **Mục đích**: theo yêu cầu người dùng — thay vì đọc/làm tuần tự từng mục
 trong "Nhật ký triển khai (từ bản 8.31)" (nhiều mục riêng, mỗi mục 1 bản),
 file NÀY gộp lại thành **1 lượt làm duy nhất** để đưa server từ trước bản
-8.29 lên thẳng bản 8.86 (KHÔNG gồm bản 8.82 — script ad-hoc
+8.29 lên thẳng bản 8.87 (KHÔNG gồm bản 8.82 — script ad-hoc
 `deleteThanhVienLiveSync.js`, chạy khi cần, không phải bước triển khai
 thường trực). Các bước **idempotent** (an toàn chạy lại nhiều
 lần) được gộp chỉ chạy **1 LẦN** ở bản mới nhất thay vì lặp lại theo từng
@@ -663,6 +663,25 @@ Chỉ `etl` (backend) — KHÔNG đổi API/CSDL, KHÔNG có gói npm mới.
 
 Chi tiết đầy đủ: `deploy/Cập nhật bản 8.86 — Thử lại + rút ngắn thời gian
 chờ khi VPN chi nhánh chập chờn giữa chừng đồng bộ.md`.
+
+---
+
+## U. Chặn bớt số job chạy đồng thời + không bỏ sót lỗi xin khoá (bản 8.87)
+
+Chỉ `etl` (backend) — KHÔNG đổi API/CSDL, KHÔNG có gói npm mới.
+
+1. `git pull origin main` (đã làm ở mục A.1 nếu làm gộp từ đầu).
+2. (Tuỳ chọn) Thêm `ETL_MAX_CONCURRENT_JOBS=4` vào `etl/.env` nếu muốn
+   đổi khác mặc định — bỏ qua vẫn dùng được.
+3. `pm2 restart hcrc-etl` (đã gộp vào mục D ở trên).
+4. Kiểm tra: `pm2 logs hcrc-etl` sau vài chu kỳ cron (10-15 phút) —
+   không còn hàng loạt lỗi "operation timed out" đồng thời (nhiều job
+   khác chi nhánh cùng lúc); nếu thỉnh thoảng vẫn còn lỗi xin khoá, giờ
+   thấy đúng dòng đó xuất hiện trên etl-admin → "Đồng bộ" → "Job lỗi
+   trong 24h qua" (trước đây hoàn toàn không hiện ở đó).
+
+Chi tiết đầy đủ: `deploy/Cập nhật bản 8.87 — Chặn bớt số job chạy đồng
+thời + không bỏ sót lỗi xin khoá.md`.
 
 ---
 

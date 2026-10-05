@@ -1,9 +1,9 @@
-# Hướng dẫn triển khai gộp — bản 8.79 đến 8.86 (làm 1 lần)
+# Hướng dẫn triển khai gộp — bản 8.79 đến 8.87 (làm 1 lần)
 
-**Mục đích**: gộp các bước triển khai từ bản 8.79 tới bản 8.86 hiện tại
+**Mục đích**: gộp các bước triển khai từ bản 8.79 tới bản 8.87 hiện tại
 thành **1 lượt làm duy nhất**, cho server đã deploy tới khoảng bản 8.78
 và cần bắt kịp bản mới nhất — KHÔNG lặp lại toàn bộ lịch sử từ bản 8.29
-(xem `deploy/Hướng dẫn triển khai gộp — bản 8.29 đến 8.86.md` nếu cần
+(xem `deploy/Hướng dẫn triển khai gộp — bản 8.29 đến 8.87.md` nếu cần
 dựng server hoàn toàn mới từ đầu).
 
 **Không gồm bản 8.82** (`scripts/deleteThanhVienLiveSync.js`) — đây là
@@ -17,7 +17,7 @@ chi tiết kỹ thuật của từng bản khi cần — file này chỉ gộp p
 
 ---
 
-## Tóm tắt những gì thay đổi (8.79 → 8.86)
+## Tóm tắt những gì thay đổi (8.79 → 8.87)
 
 | Bản | Nội dung |
 |---|---|
@@ -29,6 +29,7 @@ chi tiết kỹ thuật của từng bản khi cần — file này chỉ gộp p
 | 8.84 | Dropdown "Chọn nhóm" thay thẻ lưới ở trang Dashboard (rp-user) |
 | 8.85 | Sửa màn hình trắng khi vào URL không khớp route nào (rp-user) |
 | 8.86 | Thử lại + rút ngắn thời gian chờ khi VPN chi nhánh chập chờn giữa chừng đồng bộ (ETL) |
+| 8.87 | Chặn bớt số job chạy đồng thời + không bỏ sót lỗi xin khoá (ETL) |
 
 ---
 
@@ -38,8 +39,8 @@ chi tiết kỹ thuật của từng bản khi cần — file này chỉ gộp p
 git pull origin main
 ```
 
-Lệnh này lấy về ĐỦ cả 7 bản (8.79/8.80/8.81/8.83/8.84/8.85/8.86) cùng lúc
-— không cần chạy lại cho từng bản.
+Lệnh này lấy về ĐỦ cả 8 bản (8.79/8.80/8.81/8.83/8.84/8.85/8.86/8.87)
+cùng lúc — không cần chạy lại cho từng bản.
 
 ---
 
@@ -78,13 +79,15 @@ nào — cả 2 chỉ đổi frontend, không có gói npm mới).
 
 ```bash
 pm2 restart hcrc-rp-server    # BẮT BUỘC — bản 8.79 (KHẨN), sửa crash trên Node < 22.4
-pm2 restart hcrc-etl          # BẮT BUỘC — bản 8.81 (route DELETE /data-sources/:id) VÀ bản 8.86 (lấy kết nối/trích xuất)
+pm2 restart hcrc-etl          # BẮT BUỘC — bản 8.81/8.86/8.87 (route DELETE, lấy kết nối/trích xuất, giới hạn job đồng thời)
 ```
 
-(Tuỳ chọn, bản 8.86) Thêm `DATASOURCE_INCREMENTAL_REQUEST_TIMEOUT_MS=90000`
-vào `etl/.env` nếu muốn đổi khác mặc định 90 giây cho thời gian chờ mỗi
-truy vấn ở lượt đồng bộ ĐỊNH KỲ — bỏ qua vẫn dùng được (có sẵn mặc định
-trong code).
+(Tuỳ chọn, bản 8.86/8.87) Thêm vào `etl/.env` nếu muốn đổi khác mặc định
+— bỏ qua vẫn dùng được (có sẵn mặc định trong code):
+```
+DATASOURCE_INCREMENTAL_REQUEST_TIMEOUT_MS=90000
+ETL_MAX_CONCURRENT_JOBS=4
+```
 
 `hcrc-api-server` KHÔNG cần restart — bản 8.83 (PWA) chỉ đổi frontend,
 không đụng backend của api-server. Bản 8.84/8.85 (rp-user) cũng chỉ đổi
@@ -167,7 +170,12 @@ Chi tiết đầy đủ xem mục "8.82" trong `VERSION.md`.
   `pm2 logs hcrc-etl` thấy dòng "⏳ [...] Lỗi mạng khi trích xuất lô dữ
   liệu..." khi VPN chập chờn (bình thường), và phần lớn các lượt đó tự
   phục hồi (SUCCESS) thay vì thất bại hẳn.
+- [ ] **(8.87)** `pm2 logs hcrc-etl` sau vài chu kỳ cron (10-15 phút) —
+  không còn hàng loạt lỗi "operation timed out" đồng thời (nhiều job
+  khác chi nhánh cùng lúc); nếu thỉnh thoảng vẫn còn lỗi xin khoá, giờ
+  thấy đúng dòng đó xuất hiện trên etl-admin → "Đồng bộ" → "Job lỗi
+  trong 24h qua" (trước đây hoàn toàn không hiện ở đó).
 
 Không có bước nào ở trên làm mất dữ liệu đã có hoặc ảnh hưởng job/báo
 cáo đang chạy ổn định — mọi thay đổi CSDL (nếu có) đều là CREATE/ALTER
-thêm mới (bản 8.79-8.86 thực tế KHÔNG đổi schema CSDL nào).
+thêm mới (bản 8.79-8.87 thực tế KHÔNG đổi schema CSDL nào).

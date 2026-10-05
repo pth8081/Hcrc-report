@@ -29,6 +29,66 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 8.87 — Chặn bớt số job chạy đồng thời + không bỏ sót lỗi xin khoá (ETL)
+
+**Theo yêu cầu người dùng**: gửi ảnh chụp `pm2 logs hcrc-etl` sau khi lên
+bản 8.86 — HÀNG LOẠT job (khác chi nhánh, khác domain) vẫn báo "operation
+timed out for an unknown reason" gần như ĐỒNG THỜI, hỏi lại "Lỗi mà chưa
+biết nguyên nhân làm sao? Kết nối vẫn thông" (ngụ ý: không phải lỗi VPN
+từng chi nhánh như bản 8.86 đã sửa — tất cả xảy ra CÙNG LÚC, không phân
+biệt chi nhánh nào).
+
+**Nguyên nhân (KHÁC bản 8.86 — không phải VPN chi nhánh)**: 34 siêu thị
+"Thành viên" × 2 job (Doanh thu + Giao dịch) = 68 job, TẤT CẢ dùng CHUNG 1
+lịch `*/2 * * * *` (xem `scripts/seedThanhVienLiveSync.js:LIVE_CRON`).
+`node-cron` gọi CẢ 68 callback GẦN NHƯ ĐỒNG THỜI mỗi 2 phút — mỗi job cần
+vài lượt kết nối tới CSDL quản trị ETL DÙNG CHUNG (pool `'ADMIN'`, mặc
+định tối đa 5 connection — `db.js:ADMIN_POOL_MAX`) để xin khoá
+`sp_getapplock`/đọc-ghi mốc đồng bộ/ghi log. 68 job tranh 5 connection
+khiến nhiều job phải chờ quá lâu trong HÀNG ĐỢI CỦA CHÍNH POOL 'ADMIN' và
+bị thư viện pool báo lỗi **CÙNG thông điệp** "operation timed out for an
+unknown reason" — giống hệt lỗi mạng bản 8.86 đã sửa, nhưng đây là tranh
+chấp ở pool `'ADMIN'` DÙNG CHUNG, hoàn toàn KHÔNG liên quan tới VPN/kết
+nối riêng của BẤT KỲ chi nhánh nào — đúng như người dùng quan sát "kết nối
+vẫn thông".
+
+Rà soát thêm phát hiện: bước XIN KHOÁ `sp_getapplock` (mở pool 'ADMIN',
+mở transaction, chạy `sp_getapplock`) trước bản này KHÔNG nằm trong bất
+kỳ `try/catch` nào — lỗi ở đây rơi thẳng ra `jobs/scheduler.js`, CHỈ được
+in `console.error` (pm2 log), **KHÔNG ghi vào `etl.SyncLog`, KHÔNG gửi
+mail cảnh báo** — khác hẳn MỌI lỗi khác trong hệ thống (luôn ghi
+FAILED + gửi cảnh báo) — giải thích vì sao các lỗi này KHÔNG hiện trên
+trang "Đồng bộ" của etl-admin, chỉ thấy khi tự soi `pm2 logs`.
+
+- **`etl/jobs/scheduler.js`**: thêm giới hạn **tối đa 4 job chạy THỰC SỰ
+  đồng thời** (`MAX_CONCURRENT_JOBS`, chỉnh qua `.env`
+  `ETL_MAX_CONCURRENT_JOBS`, mặc định thấp hơn `ADMIN_POOL_MAX` để chừa
+  dư connection cho trang quản trị) — job vượt quá KHÔNG bị bỏ qua, chỉ
+  XẾP HÀNG (FIFO) chờ tới lượt, thường chỉ vài giây (mỗi job "(TV)" đọc
+  delta nhỏ rất nhanh) — dư thời gian trước chu kỳ cron 2 phút kế tiếp.
+  Áp dụng chung cho cả job chạy theo lịch lẫn nút "Chạy thử".
+- **`etl/jobs/runSync.js`**: bước xin khoá `sp_getapplock` giờ nằm trong
+  `try/catch` đầy đủ — MỌI lỗi ở đây (kể cả lỗi pool 'ADMIN' quá tải)
+  đều ghi FAILED vào `etl.SyncLog` + gửi cảnh báo như mọi lỗi khác, qua
+  hàm dùng chung `recordFailure()` (gộp lại từ 3 chỗ trước đây tự lặp
+  logic y hệt nhau).
+- **`etl/.env.example`**: thêm `ETL_MAX_CONCURRENT_JOBS=4`, kèm ghi chú
+  nên tăng CÙNG LÚC với `ADMIN_POOL_MAX` nếu hệ thống có thêm nhiều
+  chi nhánh/job hơn.
+
+**Đã kiểm chứng**: mock gọi thẳng `runJob()`/`runJobIfNotAlreadyRunning()`
+— (1) lỗi xin khoá (giả lập pool 'ADMIN' quá tải) giờ ghi đúng FAILED +
+gửi cảnh báo, không còn rơi ra ngoài vô hình; (2) giả lập 20 job khác
+nhau kích hoạt đồng thời (mô phỏng đúng kịch bản 68 job cùng lịch) — đỉnh
+điểm CHỈ 4 job chạy cùng lúc đúng như cấu hình, CẢ 20 job đều hoàn tất
+(xếp hàng, không bỏ sót job nào).
+
+Không đổi lịch chạy (CronExpression) của bất kỳ job nào, không đổi dữ
+liệu đã đồng bộ. Khuyến nghị theo dõi thêm sau khi lên bản này — nếu hệ
+thống vẫn còn nhiều job dồn cùng lúc do số lượng chi nhánh lớn, cân nhắc
+tăng `ETL_MAX_CONCURRENT_JOBS` + `ADMIN_POOL_MAX` theo cùng tỉ lệ, hoặc
+giãn lịch `*/2 * * * *` ra nhiều phút lệch nhau giữa các nhóm chi nhánh.
+
 ## 8.86 — Thử lại + rút ngắn thời gian chờ khi VPN chi nhánh chập chờn giữa chừng đồng bộ (ETL)
 
 **Theo yêu cầu người dùng**: gửi ảnh chụp trang "Trạng thái kết nối" (35/36
