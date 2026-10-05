@@ -5,7 +5,7 @@
 import { forwardRef, useEffect, useImperativeHandle, useState } from 'react';
 import { api } from '../lib/api';
 
-const CaptchaField = forwardRef(function CaptchaField({ value, onChange, onTokenChange }, ref) {
+const CaptchaField = forwardRef(function CaptchaField({ value, onChange, onTokenChange, disabled }, ref) {
   const [svg, setSvg] = useState('');
   const [loading, setLoading] = useState(true);
 
@@ -35,10 +35,10 @@ const CaptchaField = forwardRef(function CaptchaField({ value, onChange, onToken
       <span className="field-label">Mã xác nhận</span>
       <div className="captcha-row">
         <div className="captcha-img" dangerouslySetInnerHTML={{ __html: svg }} aria-label="Ảnh mã xác nhận" />
-        <button type="button" className="captcha-refresh" onClick={load} disabled={loading} title="Lấy mã khác">⟲</button>
+        <button type="button" className="captcha-refresh" onClick={load} disabled={loading || disabled} title="Lấy mã khác">⟲</button>
       </div>
       <span className="input-wrap">
-        <input value={value} onChange={(e) => onChange(e.target.value)} placeholder="Nhập 4 số trong ảnh" maxLength={4} inputMode="numeric" autoComplete="off" />
+        <input value={value} onChange={(e) => onChange(e.target.value)} placeholder="Nhập 4 số trong ảnh" maxLength={4} inputMode="numeric" autoComplete="off" disabled={disabled} />
       </span>
     </label>
   );

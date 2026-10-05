@@ -222,6 +222,13 @@ button:disabled, button:disabled:hover {
 .input-wrap:focus-within { border-color: var(--accent); background: #fff; }
 .input-icon-glyph { opacity: .55; font-size: 15px; }
 .login-card button[type='submit'] { margin-top: 6px; padding: 12px; border-radius: 8px; font-weight: 600; font-size: 14px; }
+/* .remembered-account-row (bản 8.89) — thay chỗ ô "Tên đăng nhập" khi đã
+   nhớ sẵn username từ lần đăng nhập trước (LoginPage.jsx) — cùng khung
+   .input-wrap cho đồng bộ thị giác, thêm link "Tài khoản khác" để gõ lại
+   username khác (xoá CHỈ lúc đăng nhập THÀNH CÔNG bằng tên khác, không xoá
+   ngay lúc bấm — tránh mất nhớ chỉ vì bấm nhầm). */
+.remembered-account-row { display: flex; align-items: center; gap: 8px; border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; background: #fbfbfc; }
+.remembered-account-name { flex: 1; font-weight: 600; font-size: 14px; }
 .login-card .twofa-qr, .login-card .recovery-codes { align-self: stretch; }
 /* .biometric-btn (bản 8.78) — nút "Dùng vân tay/Face ID" ở bước xác thực
    hai yếu tố lúc đăng nhập (LoginPage.jsx) — cố ý khác màu nút submit

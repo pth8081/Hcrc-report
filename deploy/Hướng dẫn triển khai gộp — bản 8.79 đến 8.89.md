@@ -1,9 +1,9 @@
-# Hướng dẫn triển khai gộp — bản 8.79 đến 8.88 (làm 1 lần)
+# Hướng dẫn triển khai gộp — bản 8.79 đến 8.89 (làm 1 lần)
 
-**Mục đích**: gộp các bước triển khai từ bản 8.79 tới bản 8.88 hiện tại
+**Mục đích**: gộp các bước triển khai từ bản 8.79 tới bản 8.89 hiện tại
 thành **1 lượt làm duy nhất**, cho server đã deploy tới khoảng bản 8.78
 và cần bắt kịp bản mới nhất — KHÔNG lặp lại toàn bộ lịch sử từ bản 8.29
-(xem `deploy/Hướng dẫn triển khai gộp — bản 8.29 đến 8.88.md` nếu cần
+(xem `deploy/Hướng dẫn triển khai gộp — bản 8.29 đến 8.89.md` nếu cần
 dựng server hoàn toàn mới từ đầu).
 
 **Không gồm bản 8.82** (`scripts/deleteThanhVienLiveSync.js`) — đây là
@@ -17,7 +17,7 @@ chi tiết kỹ thuật của từng bản khi cần — file này chỉ gộp p
 
 ---
 
-## Tóm tắt những gì thay đổi (8.79 → 8.88)
+## Tóm tắt những gì thay đổi (8.79 → 8.89)
 
 | Bản | Nội dung |
 |---|---|
@@ -31,6 +31,7 @@ chi tiết kỹ thuật của từng bản khi cần — file này chỉ gộp p
 | 8.86 | Thử lại + rút ngắn thời gian chờ khi VPN chi nhánh chập chờn giữa chừng đồng bộ (ETL) |
 | 8.87 | Chặn bớt số job chạy đồng thời + không bỏ sót lỗi xin khoá (ETL) |
 | 8.88 | Sửa gửi email cổng 465 không gửi được khi máy chủ không bật TLS (rp-user/rp-server) |
+| 8.89 | Đăng nhập bằng vân tay/Face ID thay thế hoàn toàn mật khẩu + nhớ tên đăng nhập (cả 3 app) |
 
 ---
 
@@ -40,8 +41,9 @@ chi tiết kỹ thuật của từng bản khi cần — file này chỉ gộp p
 git pull origin main
 ```
 
-Lệnh này lấy về ĐỦ cả 9 bản (8.79/8.80/8.81/8.83/8.84/8.85/8.86/8.87/8.88)
-cùng lúc — không cần chạy lại cho từng bản.
+Lệnh này lấy về ĐỦ cả 10 bản
+(8.79/8.80/8.81/8.83/8.84/8.85/8.86/8.87/8.88/8.89) cùng lúc — không cần
+chạy lại cho từng bản.
 
 ---
 
@@ -72,16 +74,21 @@ này PWA sẽ không hoạt động (không cài được "Thêm vào màn hình
 
 `rp-user` **PHẢI build lại** (bản 8.84 — dropdown "Chọn nhóm" ở trang
 Dashboard; bản 8.85 — sửa màn hình trắng khi vào URL không khớp route
-nào; bản 8.88 — sửa "Thiết lập email" cổng 465 — cả 3 chỉ đổi frontend,
-không có gói npm mới).
+nào; bản 8.88 — sửa "Thiết lập email" cổng 465; bản 8.89 — đăng nhập vân
+tay + nhớ username — cả 4 chỉ đổi frontend, không có gói npm mới).
+
+Bản 8.89 đổi `LoginPage.jsx`/`CaptchaField.jsx`/`styles.css` ở **CẢ 3
+app** — lệnh `npm run build` ở trên cho etl-admin/api-admin/rp-user ĐÃ
+đủ, không cần thêm lệnh riêng.
 
 ---
 
 ## D. Restart backend
 
 ```bash
-pm2 restart hcrc-rp-server    # BẮT BUỘC — bản 8.79 (KHẨN, Node<22.4), bản 8.88 (sửa gửi email cổng 465)
-pm2 restart hcrc-etl          # BẮT BUỘC — bản 8.81/8.86/8.87 (route DELETE, lấy kết nối/trích xuất, giới hạn job đồng thời)
+pm2 restart hcrc-rp-server    # BẮT BUỘC — bản 8.79 (KHẨN, Node<22.4), bản 8.88 (sửa gửi email cổng 465), bản 8.89 (route đăng nhập vân tay mới)
+pm2 restart hcrc-etl          # BẮT BUỘC — bản 8.81/8.86/8.87 (route DELETE, lấy kết nối/trích xuất, giới hạn job đồng thời), bản 8.89 (route đăng nhập vân tay mới)
+pm2 restart hcrc-api-server   # BẮT BUỘC — bản 8.89 (route đăng nhập vân tay mới)
 ```
 
 (Tuỳ chọn, bản 8.86/8.87) Thêm vào `etl/.env` nếu muốn đổi khác mặc định
@@ -91,10 +98,11 @@ DATASOURCE_INCREMENTAL_REQUEST_TIMEOUT_MS=90000
 ETL_MAX_CONCURRENT_JOBS=4
 ```
 
-`hcrc-api-server` KHÔNG cần restart — bản 8.83 (PWA) chỉ đổi frontend,
-không đụng backend của api-server. Bản 8.84/8.85 (rp-user) cũng chỉ đổi
-frontend — không cần restart `hcrc-rp-server` riêng cho 2 bản này (chỉ
-cần restart vì lý do 8.79 ở trên).
+`hcrc-api-server` trước bản 8.89 KHÔNG cần restart (bản 8.83 PWA chỉ đổi
+frontend, không đụng backend api-server) — từ bản 8.89 BẮT BUỘC restart
+như lệnh trên. Bản 8.84/8.85 (rp-user) chỉ đổi frontend — không cần
+restart `hcrc-rp-server` riêng cho 2 bản này (chỉ cần restart vì lý do
+8.79/8.89 ở trên).
 
 ---
 
@@ -181,7 +189,14 @@ Chi tiết đầy đủ xem mục "8.82" trong `VERSION.md`.
   "Secure" (nếu máy chủ SMTP thật không bật TLS ở cổng đó) → "Gửi thử"
   → gửi thành công (trước đây luôn báo lỗi "wrong version number" dù đã
   bỏ tick).
+- [ ] **(8.89)** Mỗi app (rp-user/etl-admin/api-admin): đăng nhập bằng
+  mật khẩu 1 lần → đăng xuất → mở lại trang đăng nhập → username hiện
+  sẵn (không cần gõ lại) + nút "Đăng nhập bằng vân tay / Face ID" xuất
+  hiện (nếu tài khoản đã đăng ký thiết bị ở "Tài khoản của tôi") → bấm
+  vào, xác thực vân tay/Face ID → vào thẳng, không hỏi mật khẩu/captcha/
+  mã 2FA; lúc đang chờ xác thực, mọi ô/nút khác trên form bị khoá (xám,
+  không bấm được).
 
 Không có bước nào ở trên làm mất dữ liệu đã có hoặc ảnh hưởng job/báo
 cáo đang chạy ổn định — mọi thay đổi CSDL (nếu có) đều là CREATE/ALTER
-thêm mới (bản 8.79-8.88 thực tế KHÔNG đổi schema CSDL nào).
+thêm mới (bản 8.79-8.89 thực tế KHÔNG đổi schema CSDL nào).

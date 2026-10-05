@@ -11,15 +11,25 @@
 // .env trước khi dùng được, xem .env.example. Sai domain thì đăng ký/đăng
 // nhập luôn báo lỗi "invalid rpID"/"origin mismatch" — KHÔNG phải lỗi code.
 //
-// 6 route:
+// 8 route:
 //   GET    /devices          — danh sách thiết bị CỦA CHÍNH MÌNH (phiên đầy đủ)
 //   DELETE /devices/:id      — gỡ 1 thiết bị CỦA CHÍNH MÌNH
 //   POST   /register/options — bắt đầu đăng ký thiết bị mới (phiên đầy đủ)
 //   POST   /register/verify  — hoàn tất đăng ký, LƯU credential vào CSDL
 //   POST   /login/options    — bắt đầu đăng nhập bằng thiết bị đã đăng ký
 //                              (nhận token "pending" như /2fa/verify, CHƯA
-//                              có phiên đầy đủ)
+//                              có phiên đầy đủ — THAY bước nhập mã 2FA, vẫn
+//                              phải gõ ĐÚNG mật khẩu trước)
 //   POST   /login/verify     — hoàn tất đăng nhập, đặt cookie phiên đầy đủ
+//   POST   /login-by-username/options — bản 8.89 (theo yêu cầu người dùng,
+//                              mirror rp-server/routes/webauthn.js), xem
+//                              chú thích đầy đủ ở nhóm route bên dưới
+//   POST   /login-by-username/verify  — THAY THẾ HẲN mật khẩu (không qua
+//                              bước gõ mật khẩu/captcha nào) — KHÁC HẲN
+//                              /login/options,/login/verify ở trên (đó vẫn
+//                              đòi mật khẩu đúng trước, WebAuthn chỉ thay
+//                              bước 2FA).
+const crypto = require('crypto');
 const express = require('express');
 const {
   generateRegistrationOptions, verifyRegistrationResponse,
@@ -27,7 +37,8 @@ const {
 } = require('@simplewebauthn/server');
 const { sql, getPool } = require('../../db');
 const { requireAdminAuth, requireTwoFactorToken, setSessionCookie, issueToken } = require('../../lib/adminAuth');
-const { isBlocked, recordFailure, recordSuccess, ADMIN_PROFILE } = require('../../lib/loginRateLimit');
+const { isSystemRoleForRateLimit } = require('../../lib/adminPermissions');
+const { isBlocked, recordFailure, recordSuccess, ADMIN_PROFILE, DEFAULT_PROFILE } = require('../../lib/loginRateLimit');
 const { logAction } = require('../../lib/auditLog');
 
 const router = express.Router();
@@ -50,12 +61,17 @@ function assertConfigured(res) {
 // CHÍNH token "pending" (chưa có phiên lúc đăng nhập).
 const CHALLENGE_TTL_MS = 5 * 60 * 1000;
 const registerChallenges = new Map(); // adminUserId -> { challenge, expiresAt }
-const loginChallenges = new Map(); // token -> { challenge, adminUserId, expiresAt }
+const loginChallenges = new Map(); // token (2FA "pending") -> { challenge, adminUserId, expiresAt }
+// Khoá RIÊNG map (bản 8.89) — xem chú thích đầy đủ ở rp-server/routes/
+// webauthn.js:passwordlessChallenges (cùng lý do: token ở đây tự tạo
+// bằng crypto.randomUUID(), KHÔNG phải JWT "pending" như loginChallenges).
+const passwordlessChallenges = new Map(); // token -> { challenge, adminUserId, username, expiresAt }
 
 setInterval(() => {
   const now = Date.now();
   for (const [k, v] of registerChallenges) if (v.expiresAt < now) registerChallenges.delete(k);
   for (const [k, v] of loginChallenges) if (v.expiresAt < now) loginChallenges.delete(k);
+  for (const [k, v] of passwordlessChallenges) if (v.expiresAt < now) passwordlessChallenges.delete(k);
 }, 60 * 1000).unref();
 
 async function getAdminCredentials(adminUserId) {
@@ -223,6 +239,107 @@ router.post('/login/verify', requireTwoFactorToken('pending'), async (req, res, 
 
     await logAction({ ip: req.ip, admin: { sub: adminUserId, username } }, {
       module: 'Đăng nhập', actionType: 'DANG_NHAP', description: `Đăng nhập thành công (vân tay/Face ID, thiết bị "${matched.DeviceLabel}")`
+    });
+    setSessionCookie(res, issueToken({ id: adminUserId, username }));
+    res.json({ ok: true });
+  } catch (err) { next(err); }
+});
+
+// ===== Đăng nhập THẲNG bằng vân tay/Face ID — THAY THẾ HẲN mật khẩu =====
+// Bản 8.89, mirror NGUYÊN VẸN rp-server/routes/webauthn.js (cùng tên biến
+// adminUserId thay userId) — xem chú thích đầy đủ ở đó cho lý do thiết kế/
+// chống dò tên đăng nhập, không lặp lại ở đây.
+async function findAdminForPasswordless(username) {
+  if (!username) return null;
+  const pool = await getPool('ADMIN');
+  const result = await pool.request().input('username', sql.NVarChar(50), username)
+    .query('SELECT Id, Username, IsActive FROM admin.AdminUsers WHERE Username = @username');
+  const admin = result.recordset[0];
+  return admin && admin.IsActive ? admin : null;
+}
+
+router.post('/login-by-username/options', async (req, res, next) => {
+  try {
+    if (!assertConfigured(res)) return;
+    const { username } = req.body || {};
+    const admin = await findAdminForPasswordless(username);
+    const credentials = admin ? await getAdminCredentials(admin.Id) : [];
+
+    const options = await generateAuthenticationOptions({
+      rpID: RP_ID,
+      allowCredentials: credentials.map(c => ({ id: c.CredentialId })),
+      userVerification: 'preferred'
+    });
+    const token = crypto.randomUUID();
+    passwordlessChallenges.set(token, {
+      challenge: options.challenge,
+      adminUserId: admin ? admin.Id : null,
+      username: admin ? admin.Username : null,
+      expiresAt: Date.now() + CHALLENGE_TTL_MS
+    });
+    res.json({ ...options, token });
+  } catch (err) { next(err); }
+});
+
+router.post('/login-by-username/verify', async (req, res, next) => {
+  try {
+    if (!assertConfigured(res)) return;
+    const { token, response } = req.body || {};
+
+    const entry = passwordlessChallenges.get(token);
+    passwordlessChallenges.delete(token); // dùng 1 lần, kể cả sai
+    if (!entry || entry.expiresAt < Date.now() || !entry.adminUserId) {
+      return res.status(400).json({ error: 'Không nhận diện được thiết bị này, hoặc phiên đã hết hạn — thử lại' });
+    }
+    const { adminUserId, username } = entry;
+
+    // Rate limit DÙNG CHUNG namespace với đăng nhập mật khẩu thường (KHÔNG
+    // phải "2fa:username" như /login/verify ở trên) — route NÀY LÀ đăng
+    // nhập CHÍNH, không phải bước yếu tố thứ 2 sau mật khẩu.
+    const isSystemRole = await isSystemRoleForRateLimit(username);
+    const profile = isSystemRole ? ADMIN_PROFILE : DEFAULT_PROFILE;
+    const retryAfter = isBlocked(req.ip, username, profile);
+    if (retryAfter) {
+      res.setHeader('Retry-After', String(retryAfter));
+      return res.status(429).json({ error: 'Thử lại quá nhiều lần, thử lại sau ít phút' });
+    }
+
+    const credentials = await getAdminCredentials(adminUserId);
+    const matched = credentials.find((c) => c.CredentialId === response?.id);
+    if (!matched) {
+      recordFailure(req.ip, username, profile);
+      return res.status(400).json({ error: 'Không nhận diện được thiết bị này' });
+    }
+
+    let verification;
+    try {
+      verification = await verifyAuthenticationResponse({
+        response,
+        expectedChallenge: entry.challenge,
+        expectedOrigin: ORIGIN,
+        expectedRPID: RP_ID,
+        credential: {
+          id: matched.CredentialId,
+          publicKey: Buffer.from(matched.PublicKeyBase64, 'base64'),
+          counter: matched.Counter
+        }
+      });
+    } catch (err) {
+      recordFailure(req.ip, username, profile);
+      return res.status(400).json({ error: 'Xác thực vân tay/Face ID thất bại: ' + err.message });
+    }
+    if (!verification.verified) {
+      recordFailure(req.ip, username, profile);
+      return res.status(400).json({ error: 'Xác thực vân tay/Face ID thất bại' });
+    }
+    recordSuccess(req.ip, username);
+
+    const pool = await getPool('ADMIN');
+    await pool.request().input('id', sql.Int, matched.Id).input('counter', sql.BigInt, verification.authenticationInfo.newCounter)
+      .query('UPDATE admin.AdminWebAuthnCredentials SET Counter = @counter, LastUsedAt = SYSUTCDATETIME() WHERE Id = @id');
+
+    await logAction({ ip: req.ip, admin: { sub: adminUserId, username } }, {
+      module: 'Đăng nhập', actionType: 'DANG_NHAP', description: `Đăng nhập thành công (vân tay/Face ID, thiết bị "${matched.DeviceLabel}" — không cần mật khẩu)`
     });
     setSessionCookie(res, issueToken({ id: adminUserId, username }));
     res.json({ ok: true });

@@ -65,6 +65,18 @@ export function AuthProvider({ children }) {
     return result;
   }, [refresh]);
 
+  // Đăng nhập THẲNG bằng vân tay/Face ID — THAY THẾ HẲN mật khẩu (bản 8.89,
+  // theo yêu cầu người dùng, mirror rp-user) — dùng ở LoginPage.jsx ngay
+  // màn hình đầu tiên, KHÁC webauthnLoginOptions/Verify ở trên (những cái
+  // đó vẫn đòi mật khẩu đúng trước). Nhận "username" (không phải token
+  // 2FA, vì CHƯA qua bước mật khẩu nào).
+  const webauthnPasswordlessOptions = useCallback((username) => api.post('/webauthn/login-by-username/options', { username }), []);
+  const webauthnPasswordlessVerify = useCallback(async (token, response) => {
+    const result = await api.post('/webauthn/login-by-username/verify', { token, response });
+    await refresh();
+    return result;
+  }, [refresh]);
+
   const logout = useCallback(async () => {
     await api.post('/auth/logout');
     setMe(null);
@@ -77,7 +89,8 @@ export function AuthProvider({ children }) {
   return (
     <AuthContext.Provider value={{
       me, loading, login, logout, isSystemRole, can, canEdit, refresh, setupTwoFactor, confirmTwoFactor, verifyTwoFactor,
-      webauthnListDevices, webauthnDeleteDevice, webauthnRegisterOptions, webauthnRegisterVerify, webauthnLoginOptions, webauthnLoginVerify
+      webauthnListDevices, webauthnDeleteDevice, webauthnRegisterOptions, webauthnRegisterVerify, webauthnLoginOptions, webauthnLoginVerify,
+      webauthnPasswordlessOptions, webauthnPasswordlessVerify
     }}>
       {children}
     </AuthContext.Provider>

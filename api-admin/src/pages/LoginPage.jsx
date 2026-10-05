@@ -65,10 +65,10 @@ function TwoFactorVerifyStep({ token, onDone }) {
       )}
       <label>
         <span className="field-label">{useRecovery ? 'Mã khôi phục (dạng AAAAA-BBBBB)' : 'Mã 6 số từ app Authenticator'}</span>
-        <span className="input-wrap"><input value={code} onChange={(e) => setCode(e.target.value)} autoFocus autoComplete="one-time-code" /></span>
+        <span className="input-wrap"><input value={code} onChange={(e) => setCode(e.target.value)} autoFocus autoComplete="one-time-code" disabled={webauthnBusy} /></span>
       </label>
-      <button type="submit" disabled={submitting}>{submitting ? 'Đang kiểm tra...' : 'Xác nhận'}</button>
-      <button type="button" className="link-button" onClick={() => { setUseRecovery(!useRecovery); setCode(''); setError(''); }}>
+      <button type="submit" disabled={submitting || webauthnBusy}>{submitting ? 'Đang kiểm tra...' : 'Xác nhận'}</button>
+      <button type="button" className="link-button" disabled={webauthnBusy} onClick={() => { setUseRecovery(!useRecovery); setCode(''); setError(''); }}>
         {useRecovery ? 'Dùng mã 6 số thay vì mã khôi phục' : 'Mất thiết bị? Dùng mã khôi phục'}
       </button>
     </form>
@@ -143,16 +143,26 @@ function TwoFactorSetupStep({ token, onDone }) {
   );
 }
 
+// Bản 8.89 — "nhớ tên đăng nhập" cho LẦN SAU, lưu ở máy người dùng (KHÔNG
+// phải phiên đăng nhập — chỉ là gợi nhớ chuỗi username, không có gì nhạy
+// cảm). Theo đúng yêu cầu người dùng (kèm ảnh 1 app khác minh hoạ).
+const REMEMBERED_USERNAME_KEY = 'hcrc_api_admin_remembered_username';
+
 export default function LoginPage() {
-  const { me, login } = useAuth();
+  const { me, login, webauthnPasswordlessOptions, webauthnPasswordlessVerify } = useAuth();
   const location = useLocation();
-  const [username, setUsername] = useState('');
+  const [rememberedUsername, setRememberedUsername] = useState(() => {
+    try { return localStorage.getItem(REMEMBERED_USERNAME_KEY) || ''; } catch { return ''; }
+  });
+  const [editingUsername, setEditingUsername] = useState(!rememberedUsername);
+  const [username, setUsername] = useState(rememberedUsername);
   const [password, setPassword] = useState('');
   const [captchaAnswer, setCaptchaAnswer] = useState('');
   const [captchaToken, setCaptchaToken] = useState('');
   const captchaRef = useRef(null);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [webauthnBusy, setWebauthnBusy] = useState(false);
   const [twofa, setTwofa] = useState(null); // { twofa: 'pending'|'setupRequired', token }
   const [done, setDone] = useState(false);
 
@@ -163,6 +173,18 @@ export default function LoginPage() {
   // trang họ vào được.
   if (me || done) return <Navigate to={location.state?.from?.pathname || '/'} replace />;
 
+  function rememberUsername(u) {
+    try { localStorage.setItem(REMEMBERED_USERNAME_KEY, u); } catch { /* localStorage chặn — bỏ qua, không chặn đăng nhập */ }
+  }
+
+  function switchAccount() {
+    setEditingUsername(true);
+    setUsername('');
+    setError('');
+  }
+
+  const busy = submitting || webauthnBusy;
+
   async function handleSubmit(e) {
     e.preventDefault();
     setError('');
@@ -170,12 +192,31 @@ export default function LoginPage() {
     try {
       const result = await login(username, password, captchaToken, captchaAnswer);
       if (result?.twofa) setTwofa(result);
+      else rememberUsername(username);
     } catch (err) {
       setError(err.message);
     } finally {
       setCaptchaAnswer('');
       captchaRef.current?.refresh();
       setSubmitting(false);
+    }
+  }
+
+  // Đăng nhập THẲNG bằng vân tay/Face ID — THAY THẾ HẲN mật khẩu/captcha
+  // (bản 8.89, theo yêu cầu người dùng), ngay ở màn hình đầu tiên.
+  async function handleWebauthnLogin() {
+    setError('');
+    setWebauthnBusy(true);
+    try {
+      const { token, ...webauthnOptions } = await webauthnPasswordlessOptions(username);
+      const response = await startAuthentication({ optionsJSON: webauthnOptions });
+      await webauthnPasswordlessVerify(token, response);
+      rememberUsername(username);
+      setDone(true);
+    } catch (err) {
+      if (err?.name !== 'NotAllowedError') setError(err.message);
+    } finally {
+      setWebauthnBusy(false);
     }
   }
 
@@ -208,22 +249,35 @@ export default function LoginPage() {
           <h1>Đăng nhập</h1>
           <p className="login-card-hint">Nhập tài khoản quản trị được cấp để truy cập hệ thống API.</p>
           {error && <p className="form-error">{error}</p>}
-          <label>
-            <span className="field-label">Tên đăng nhập</span>
-            <span className="input-wrap">
+          {editingUsername ? (
+            <label>
+              <span className="field-label">Tên đăng nhập</span>
+              <span className="input-wrap">
+                <span className="input-icon-glyph">👤</span>
+                <input value={username} onChange={(e) => setUsername(e.target.value)} autoFocus disabled={busy} />
+              </span>
+            </label>
+          ) : (
+            <div className="remembered-account-row">
               <span className="input-icon-glyph">👤</span>
-              <input value={username} onChange={(e) => setUsername(e.target.value)} autoFocus />
-            </span>
-          </label>
+              <span className="remembered-account-name">{username}</span>
+              <button type="button" className="link-button" onClick={switchAccount} disabled={busy}>Tài khoản khác</button>
+            </div>
+          )}
           <label>
             <span className="field-label">Mật khẩu</span>
             <span className="input-wrap">
               <span className="input-icon-glyph">🔒</span>
-              <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+              <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} disabled={busy} />
             </span>
           </label>
-          <CaptchaField ref={captchaRef} value={captchaAnswer} onChange={setCaptchaAnswer} onTokenChange={setCaptchaToken} />
-          <button type="submit" disabled={submitting}>{submitting ? 'Đang đăng nhập...' : 'Đăng nhập'}</button>
+          <CaptchaField ref={captchaRef} value={captchaAnswer} onChange={setCaptchaAnswer} onTokenChange={setCaptchaToken} disabled={busy} />
+          <button type="submit" disabled={busy}>{submitting ? 'Đang đăng nhập...' : 'Đăng nhập'}</button>
+          {browserSupportsWebAuthn() && username.trim() && (
+            <button type="button" className="biometric-btn" onClick={handleWebauthnLogin} disabled={busy}>
+              🫆 {webauthnBusy ? 'Đang chờ xác thực...' : 'Đăng nhập bằng vân tay / Face ID'}
+            </button>
+          )}
         </form>
       </div>
     </div>

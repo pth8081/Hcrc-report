@@ -1,9 +1,9 @@
-# Hướng dẫn triển khai gộp — bản 8.29 đến 8.88 (làm 1 lần)
+# Hướng dẫn triển khai gộp — bản 8.29 đến 8.89 (làm 1 lần)
 
 **Mục đích**: theo yêu cầu người dùng — thay vì đọc/làm tuần tự từng mục
 trong "Nhật ký triển khai (từ bản 8.31)" (nhiều mục riêng, mỗi mục 1 bản),
 file NÀY gộp lại thành **1 lượt làm duy nhất** để đưa server từ trước bản
-8.29 lên thẳng bản 8.88 (KHÔNG gồm bản 8.82 — script ad-hoc
+8.29 lên thẳng bản 8.89 (KHÔNG gồm bản 8.82 — script ad-hoc
 `deleteThanhVienLiveSync.js`, chạy khi cần, không phải bước triển khai
 thường trực). Các bước **idempotent** (an toàn chạy lại nhiều
 lần) được gộp chỉ chạy **1 LẦN** ở bản mới nhất thay vì lặp lại theo từng
@@ -698,6 +698,30 @@ Chỉ `rp-server`/`rp-user` — KHÔNG đổi API/CSDL, KHÔNG có gói npm mớ
 
 Chi tiết đầy đủ: `deploy/Cập nhật bản 8.88 — Sửa gửi email cổng 465
 không gửi được khi máy chủ không bật TLS.md`.
+
+---
+
+## W. Đăng nhập bằng vân tay/Face ID thay thế hoàn toàn mật khẩu + nhớ tên đăng nhập (bản 8.89)
+
+Cả 3 app — KHÔNG đổi CSDL, KHÔNG có gói npm mới, chỉ thêm route mới.
+
+1. `git pull origin main` (đã làm ở mục A.1 nếu làm gộp từ đầu).
+2. `pm2 restart hcrc-rp-server hcrc-etl hcrc-api-server` (đã gộp vào mục
+   C ở trên — cả 3 backend đều thêm route `/webauthn/login-by-username/
+   options|verify`).
+3. Build lại cả 3 frontend (đã gộp vào mục C — `npm run build` ở
+   rp-user/etl-admin/api-admin).
+4. Kiểm tra: đăng nhập bằng mật khẩu 1 lần ở mỗi app → đăng xuất → mở lại
+   trang đăng nhập → username hiện sẵn (không cần gõ lại) + nút "Đăng
+   nhập bằng vân tay / Face ID" xuất hiện (nếu tài khoản đó đã đăng ký
+   thiết bị ở "Tài khoản của tôi", xem mục G/D.3 ở trên) → bấm vào, xác
+   thực vân tay/Face ID → vào thẳng hệ thống, không hỏi mật khẩu/captcha/
+   mã 2FA; lúc đang chờ xác thực, mọi ô/nút khác trên form bị khoá (xám,
+   không bấm được). Tài khoản CHƯA đăng ký thiết bị nào vẫn đăng nhập
+   bằng mật khẩu bình thường, không có gì thay đổi.
+
+Chi tiết đầy đủ: `deploy/Cập nhật bản 8.89 — Đăng nhập bằng vân tay-Face
+ID thay thế hoàn toàn mật khẩu + nhớ tên đăng nhập.md`.
 
 ---
 

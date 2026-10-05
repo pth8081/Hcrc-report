@@ -14,6 +14,29 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 8.89 — Đăng nhập bằng vân tay/Face ID THAY THẾ HOÀN TOÀN mật khẩu + nhớ tên đăng nhập (cả 3 app)
+
+**Thay đổi**: ai đã đăng ký vân tay/Face ID ở "Tài khoản của tôi" giờ bấm
+nút vân tay NGAY Ở màn hình đăng nhập là vào thẳng, KHÔNG cần gõ mật
+khẩu/captcha/mã 2FA nữa (áp dụng cả rp-user, etl-admin, api-admin); người
+chưa đăng ký vẫn gõ mật khẩu như cũ. Trang đăng nhập cũng tự nhớ sẵn
+username của lần trước (lưu ở máy, không phải phiên đăng nhập).
+
+**Các bước triển khai:**
+1. `git pull origin main`.
+2. `pm2 restart hcrc-rp-server hcrc-etl hcrc-api-server` (BẮT BUỘC — thêm
+   route `/webauthn/login-by-username/options|verify` ở cả 3 backend).
+3. `cd rp-user && npm run build`, `cd etl-admin && npm run build`,
+   `cd api-admin && npm run build` — copy `dist/` mới cho cả 3.
+4. Kiểm tra: mở trang đăng nhập (ẩn danh hoặc xoá cookie) → đăng nhập
+   bằng mật khẩu 1 lần → đăng xuất → mở lại trang đăng nhập → username
+   hiện sẵn (không cần gõ lại) + nút "Đăng nhập bằng vân tay / Face ID"
+   xuất hiện (nếu tài khoản đó đã đăng ký thiết bị ở "Tài khoản của tôi")
+   → bấm vào, xác thực vân tay/Face ID → vào thẳng hệ thống, không hỏi
+   gì thêm.
+
+---
+
 ## 8.88 — Sửa gửi email cổng 465 không gửi được khi máy chủ không bật TLS (rp-user/rp-server)
 
 **Thay đổi**: "Thiết lập email" cổng 465 giờ gửi ĐÚNG theo checkbox

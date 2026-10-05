@@ -29,6 +29,58 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 8.89 — Đăng nhập bằng vân tay/Face ID THAY THẾ HOÀN TOÀN mật khẩu + nhớ tên đăng nhập (cả 3 app)
+
+**Theo yêu cầu người dùng** (kèm ảnh màn hình đăng nhập của 1 app khác làm
+mẫu): "1. Nhớ username 2. Vân tay ngay chỗ đăng nhập và mã captcha 3. Khi
+đăng nhập vân tay hoặc khuôn mặt những nút khác disable ko thao tác được."
+Hỏi lại và được xác nhận: vân tay/Face ID THAY THẾ HOÀN TOÀN mật khẩu (ai
+đã đăng ký thiết bị ở "Tài khoản của tôi" bấm vân tay là vào thẳng, KHÔNG
+cần mật khẩu/captcha/mã 2FA nào nữa), áp dụng đồng bộ cả 3 app (rp-user,
+etl-admin, api-admin) — KHÁC WebAuthn đã có từ bản 8.40/8.78 (chỉ thay bước
+nhập mã 2FA SAU KHI đã gõ đúng mật khẩu).
+
+- **`rp-server/routes/webauthn.js`, `etl/routes/admin/webauthn.js`,
+  `api-server/routes/admin/webauthn.js`**: thêm 2 route mới
+  `/login-by-username/options` + `/login-by-username/verify` — nhận
+  `username` (KHÔNG cần mật khẩu/phiên đăng nhập trước), tra sẵn thiết bị
+  đã đăng ký của đúng username đó, xác thực vân tay/Face ID xong là cấp
+  phiên đăng nhập đầy đủ luôn (y hệt cơ chế "passkey" của Google/Microsoft/
+  GitHub). Chống dò username: `/options` LUÔN trả 200 dù username có tồn
+  tại hay không (không có thiết bị thì `allowCredentials` rỗng); bảo mật
+  thật nằm ở `/verify` — chỉ chấp nhận ĐÚNG thiết bị đã khoá sẵn vào đúng
+  username lúc `/options` (chặn trường hợp dùng thiết bị CỦA MÌNH để đăng
+  nhập giả làm username CỦA NGƯỜI KHÁC). Token thử thách dùng 1 lần, hết
+  hạn 5 phút, dùng chung giới hạn số lần thử sai (rate-limit) với trang
+  đăng nhập mật khẩu thường (không dùng khoá `2fa:` của route 2FA cũ).
+- **`rp-user/src/lib/AuthContext.jsx`, `etl-admin/src/lib/AuthContext.jsx`,
+  `api-admin/src/lib/AuthContext.jsx`**: thêm `webauthnPasswordlessOptions`/
+  `webauthnPasswordlessVerify` gọi 2 route trên.
+- **`LoginPage.jsx` (cả 3 app)**: username đăng nhập thành công (bằng
+  CÁCH NÀO cũng được) được nhớ lại ở máy (`localStorage`, mỗi app 1 khoá
+  riêng) cho lần mở trang SAU — hiện sẵn tên kèm link "Tài khoản khác" để
+  gõ lại username khác (CHỈ xoá khi đăng nhập THÀNH CÔNG bằng tên khác,
+  không xoá ngay lúc bấm, tránh mất nhớ chỉ vì bấm nhầm). Thêm nút "Đăng
+  nhập bằng vân tay / Face ID" ngay cạnh nút "Đăng nhập" thường (hiện khi
+  trình duyệt hỗ trợ WebAuthn VÀ đã có username). Lúc đang chờ xác thực
+  vân tay/Face ID (`webauthnBusy=true`): disable TOÀN BỘ ô username/mật
+  khẩu/captcha/nút đăng nhập thường/nút vân tay — không thao tác được gì
+  khác cho tới khi xong (đúng yêu cầu #3), áp dụng luôn cho bước xác thực
+  2FA cũ (`TwoFactorVerifyStep`) để đồng bộ.
+- **`CaptchaField.jsx` (cả 3 app)**: thêm prop `disabled` (khoá cả ô nhập
+  và nút ⟲ đổi mã).
+- **`styles.css` (cả 3 app)**: thêm `.remembered-account-row` /
+  `.remembered-account-name` cho khung hiện username đã nhớ (tái dùng
+  `.biometric-btn`/`.link-button` có sẵn từ bản 8.40/8.41/8.78, không cần
+  CSS riêng cho nút vân tay mới).
+
+**Đã kiểm chứng**: viết lại 3 bộ test (Node `http` + Express thật, mock
+DB) cho cả 3 backend — xác nhận: username tồn tại trả đúng thiết bị của
+họ; username không tồn tại vẫn trả 200 (không lộ thông tin); dùng thiết bị
+của NGƯỜI KHÁC để đăng nhập giả danh bị từ chối (không cấp phiên); chữ ký
+giả không qua được `verifyAuthenticationResponse()` thật; token dùng 1 lần
+(gọi lại bị "hết hạn"). Build sạch (`vite build`) cả 3 frontend.
+
 ## 8.88 — Sửa gửi email cổng 465 không gửi được khi máy chủ không bật TLS (rp-user/rp-server)
 
 **Theo yêu cầu người dùng**: gửi log `/var/log/mail.log` của Postfix nội
