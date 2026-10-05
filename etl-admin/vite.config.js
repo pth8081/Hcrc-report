@@ -3,6 +3,7 @@ import { fileURLToPath } from 'url';
 import { dirname, resolve } from 'path';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import { VitePWA } from 'vite-plugin-pwa';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -45,7 +46,38 @@ function writeVersionFile() {
 // vụ tĩnh CHỈ trong mạng nội bộ — cả etl-admin/ lẫn /admin/* của ETL không
 // nên lộ ra Internet (xem etl/README.md).
 export default defineConfig({
-  plugins: [react(), writeVersionFile()],
+  plugins: [
+    react(),
+    // PWA thật (manifest + service worker, bản 8.83, theo yêu cầu người
+    // dùng — mirror rp-user/vite.config.js bản 6.18, trước đó CHỈ triển
+    // khai rp-user theo đúng yêu cầu gốc) — cho phép "Thêm vào màn hình
+    // chính" trên điện thoại. registerType:'autoUpdate' giống rp-user —
+    // xem chú thích đầy đủ ở rp-user/vite.config.js.
+    VitePWA({
+      registerType: 'autoUpdate',
+      includeAssets: ['icons/apple-touch-icon.png'],
+      workbox: {
+        cleanupOutdatedCaches: true
+      },
+      manifest: {
+        name: 'HCRC — Quản trị ETL',
+        short_name: 'HCRC ETL',
+        description: 'Trang quản trị ETL HCRC — nguồn dữ liệu, đồng bộ, phân quyền',
+        lang: 'vi',
+        start_url: '/',
+        scope: '/',
+        display: 'standalone',
+        theme_color: '#7a4f9e',
+        background_color: '#f4f6f7',
+        icons: [
+          { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
+          { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
+          { src: '/icons/icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' }
+        ]
+      }
+    }),
+    writeVersionFile()
+  ],
   define: {
     __APP_VERSION__: JSON.stringify(APP_VERSION)
   },

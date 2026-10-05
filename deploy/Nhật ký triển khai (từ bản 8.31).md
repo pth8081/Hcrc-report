@@ -14,6 +14,36 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 8.83 — PWA thật cho etl-admin + api-admin (đồng bộ ngang rp-user)
+
+**Thay đổi**: etl-admin + api-admin giờ là PWA thật (manifest + service
+worker qua `vite-plugin-pwa`), cài được "Thêm vào màn hình chính" trên
+điện thoại như rp-user đã có từ bản 6.18. Kiểm tra lại responsive cả 3
+app ở khung điện thoại — không phát hiện lỗi mới.
+
+**Các bước triển khai (giống bản 6.18 — có gói npm MỚI + sửa Nginx):**
+1. `git pull origin main`.
+2. `cd etl-admin && npm install && cd ../api-admin && npm install` (gói
+   mới `vite-plugin-pwa`).
+3. `cd etl-admin && npm run build && cd ../api-admin && npm run build`,
+   copy `dist/` mới (giờ có thêm `manifest.webmanifest`, `sw.js`,
+   `registerSW.js`, `workbox-*.js` — copy TOÀN BỘ `dist/`, không thiếu
+   file nào).
+4. **Sửa tay Nginx** (nếu dùng mô hình Nginx đọc thẳng file, không phải
+   PM2-only): thêm khối `location = /manifest.webmanifest {
+   default_type application/manifest+json; add_header Cache-Control
+   "no-cache" always; }` vào server block `api-admin.hcrc.vidu.vn` VÀ
+   `etl-admin.hcrc.vidu.vn` — xem `deploy/nginx.conf` mục tương ứng.
+   `nginx -t` rồi `systemctl reload nginx`. (Mô hình PM2-only/
+   `serve-static.js` KHÔNG cần sửa gì — đã tự nhận `manifest.webmanifest`
+   dùng chung cho cả 3 app từ trước.)
+5. Kiểm tra: mở etl-admin/api-admin bằng điện thoại thật → Android Chrome
+   (menu ⋮ → "Cài đặt ứng dụng") hoặc iOS Safari (Chia sẻ → "Thêm vào màn
+   hình chính") → icon riêng từng app hiện trên màn hình chính, mở toàn
+   màn hình (không thanh địa chỉ trình duyệt).
+
+---
+
 ## 8.81 — Xoá kèm job đồng bộ khi Nguồn dữ liệu còn job tham chiếu (ETL)
 
 **Thay đổi**: xoá 1 Nguồn dữ liệu bị chặn (còn Sync Job tham chiếu) giờ

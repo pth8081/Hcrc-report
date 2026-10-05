@@ -1,9 +1,11 @@
-# Hướng dẫn triển khai gộp — bản 8.29 đến 8.81 (làm 1 lần)
+# Hướng dẫn triển khai gộp — bản 8.29 đến 8.83 (làm 1 lần)
 
 **Mục đích**: theo yêu cầu người dùng — thay vì đọc/làm tuần tự từng mục
 trong "Nhật ký triển khai (từ bản 8.31)" (nhiều mục riêng, mỗi mục 1 bản),
 file NÀY gộp lại thành **1 lượt làm duy nhất** để đưa server từ trước bản
-8.29 lên thẳng bản 8.81. Các bước **idempotent** (an toàn chạy lại nhiều
+8.29 lên thẳng bản 8.83 (KHÔNG gồm bản 8.82 — script ad-hoc
+`deleteThanhVienLiveSync.js`, chạy khi cần, không phải bước triển khai
+thường trực). Các bước **idempotent** (an toàn chạy lại nhiều
 lần) được gộp chỉ chạy **1 LẦN** ở bản mới nhất thay vì lặp lại theo từng
 bản cũ. Nếu server đã ở 1 bản nào đó rồi (vd đã tới 8.62), chỉ cần làm
 PHẦN CÒN THIẾU — hầu hết các bước dưới đây không hại gì nếu lỡ làm lại.
@@ -28,8 +30,9 @@ chi tiết kỹ thuật của từng bản khi cần — file này chỉ gộp p
    cd ../api-server && npm install
    ```
 
-3. Build + cài gói npm mới cho cả 3 frontend (gộp từ 8.39 + 8.41 — làm ở
-   bước C bên dưới cùng lúc build lần cuối, không cần làm riêng ở đây).
+3. Build + cài gói npm mới cho cả 3 frontend (gộp từ 8.39 + 8.41 + 8.83
+   "PWA thật cho etl-admin/api-admin" — làm ở bước C bên dưới cùng lúc
+   build lần cuối, không cần làm riêng ở đây).
 
 4. Bổ sung biến môi trường MỚI nếu chưa có (không phải mọi tính năng đều
    bắt buộc — xem ghi chú từng dòng):
@@ -97,6 +100,14 @@ chi tiết kỹ thuật của từng bản khi cần — file này chỉ gộp p
    `proxy_read_timeout`/`proxy_send_timeout` lên 600s — xem khối cấu hình
    mẫu ở `deploy/nginx.conf` (khối `/admin/` còn lại giữ nguyên 65s). Sau
    đó: `nginx -t` (phải báo "syntax is ok") rồi `systemctl reload nginx`.
+
+7. Nginx (bản 8.83 — **sửa TAY, chỉ cần nếu dùng Nginx đọc thẳng file,
+   KHÔNG cần nếu PM2-only**): thêm khối `location = /manifest.webmanifest
+   {...}` vào server block `api-admin.hcrc.vidu.vn` VÀ
+   `etl-admin.hcrc.vidu.vn` (copy nguyên văn từ `deploy/nginx.conf`,
+   domain `report.hcrc.vidu.vn` đã có sẵn khối tương tự) — PWA mới của 2
+   app này cần đúng `Content-Type: application/manifest+json`. `nginx -t`
+   rồi `systemctl reload nginx`.
 
 ---
 
@@ -576,6 +587,31 @@ quay lại. KHÔNG tự động xoá job nào mà không hỏi.
 
 Chi tiết đầy đủ: `deploy/Cập nhật bản 8.81 — Xoá kèm job đồng bộ khi
 Nguồn dữ liệu còn job tham chiếu.md`.
+
+---
+
+## Q. PWA thật cho etl-admin + api-admin (bản 8.83)
+
+rp-user đã là PWA thật từ bản 6.18 (cài "Thêm vào màn hình chính" trên
+điện thoại) — bản 8.83 làm nốt etl-admin + api-admin, đồng bộ đầy đủ.
+Có gói npm MỚI + sửa Nginx (nếu không dùng PM2-only).
+
+1. `git pull origin main` (đã làm ở mục A.1 nếu làm gộp từ đầu).
+2. `cd etl-admin && npm install && cd ../api-admin && npm install` (gói
+   mới `vite-plugin-pwa`, đã gộp vào mục A.3 ở trên).
+3. Build lại `etl-admin`/`api-admin` (đã gộp vào mục C.1 — giờ có thêm
+   `manifest.webmanifest`/`sw.js`/`registerSW.js`/`workbox-*.js`, copy
+   TOÀN BỘ `dist/`).
+4. (Chỉ nếu dùng Nginx đọc thẳng file, không phải PM2-only) Thêm khối
+   `location = /manifest.webmanifest {...}` vào server block
+   `api-admin.hcrc.vidu.vn` VÀ `etl-admin.hcrc.vidu.vn` (đã gộp vào mục
+   A.7 ở trên) → `nginx -t` → `systemctl reload nginx`.
+5. Kiểm tra bằng điện thoại thật: mở etl-admin/api-admin → Android Chrome
+   (menu ⋮ → "Cài đặt ứng dụng") hoặc iOS Safari (Chia sẻ → "Thêm vào màn
+   hình chính") → icon riêng từng app hiện ra, mở toàn màn hình.
+
+Chi tiết đầy đủ (kèm kết quả kiểm tra responsive cả 3 app):
+`deploy/Cập nhật bản 8.83 — PWA thật cho etl-admin + api-admin.md`.
 
 ---
 

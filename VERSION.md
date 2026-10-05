@@ -29,6 +29,51 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 8.83 — PWA thật cho etl-admin + api-admin (đồng bộ ngang rp-user)
+
+**Theo yêu cầu người dùng**: "Bạn triển khai PWA cho API và ETL luôn
+nhé, nhớ kiểm tra và responsive cả 3 trang đảm bảo giao diện mobile
+chuẩn rồi nhé" — rp-user đã là PWA thật từ bản 6.18 (lúc đó cố ý CHỈ
+làm rp-user, "api-admin/etl-admin để sau"), giờ làm nốt 2 app còn lại.
+
+- **`etl-admin`/`api-admin`**: thêm `vite-plugin-pwa` (đúng phiên bản
+  rp-user đang dùng, `^1.3.0`), cấu hình `VitePWA({registerType:
+  'autoUpdate', ...})` trong `vite.config.js` — mirror NGUYÊN VẸN cấu
+  hình rp-user, chỉ đổi `name`/`short_name`/`description`/`theme_color`
+  cho đúng từng app:
+  - etl-admin: "HCRC — Quản trị ETL" / theme `#7a4f9e` (đúng `--accent`
+    tím đang dùng).
+  - api-admin: "HCRC — Quản trị API" / theme `#1c7566` (đúng `--accent`
+    xanh ngọc đang dùng).
+- **Icon mới** (`public/icons/icon-192.png`, `icon-512.png`,
+  `icon-maskable-512.png`, `apple-touch-icon.png`, mỗi app) — cùng
+  phong cách bo góc + glyph trắng như rp-user, glyph RIÊNG cho từng app
+  để phân biệt khi cài song song nhiều app trên cùng máy: etl-admin
+  dùng biểu tượng "đồng bộ" (2 mũi tên vòng tròn), api-admin dùng biểu
+  tượng "API/code" (`</>`).
+- **`index.html`** (cả 2 app) — thêm đủ thẻ `theme-color`, `apple-touch-icon`,
+  `apple-mobile-web-app-*`, mirror rp-user.
+- **`deploy/nginx.conf`** — thêm `location = /manifest.webmanifest` (khai
+  đúng `Content-Type: application/manifest+json`, `Cache-Control:
+  no-cache`) cho domain `api-admin.hcrc.vidu.vn` và `etl-admin.hcrc.vidu.vn`,
+  mirror domain `report.hcrc.vidu.vn` đã có. `deploy/serve-static.js`
+  (mô hình PM2-only) KHÔNG cần sửa — `NO_CACHE_FILES` đã dùng chung cho
+  cả 3 app từ trước (`manifest.webmanifest`/`sw.js`/`registerSW.js`).
+- **Kiểm tra responsive cả 3 trang** (theo yêu cầu): dùng Playwright chụp
+  màn hình thật ở khung điện thoại phổ biến (390×844, kiểu iPhone 12/13)
+  cho các trang quan trọng nhất của CẢ 3 app — đăng nhập, bảng dữ liệu
+  chính kèm 3 nút Bật/Tắt/Xoá hàng loạt (bản 8.80, khu vực mới nhất),
+  trang "Tài khoản của tôi" với 2 mục 2FA/WebAuthn mới (bản 8.78), menu
+  drawer mobile. **Không phát hiện tràn ngang** (`scrollWidth >
+  clientWidth`) ở bất kỳ trang nào — hạ tầng responsive (sidebar drawer
+  dưới 880px, login stack dưới 860px, bảng cuộn ngang `.table-scroll`)
+  đã có sẵn từ trước và hoạt động đúng, không cần sửa CSS thêm.
+
+Sau khi cài đặt (Android Chrome: menu ⋮ → "Cài đặt ứng dụng"; iOS
+Safari: nút Chia sẻ → "Thêm vào màn hình chính"), etl-admin/api-admin mở
+toàn màn hình như app thật, có icon riêng, hoạt động ngoại tuyến cơ bản
+(trang đã từng mở) nhờ service worker — y hệt rp-user.
+
 ## 8.82 — Script xoá hàng loạt 34 Nguồn dữ liệu + Sync Job "Thành viên" (ETL)
 
 **Theo yêu cầu người dùng**: "Bạn làm cho tôi một script cho phép tôi
