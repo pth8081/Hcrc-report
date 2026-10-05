@@ -166,18 +166,43 @@ const SECURITY_HEADERS = {
   'Referrer-Policy': 'strict-origin-when-cross-origin'
 };
 
+// Backend SONG SINH (cổng PROXY_TARGET_PORT) đã tự chuyển sang HTTPS qua
+// trang "Chứng chỉ TLS" chưa — DÙNG LẠI đúng TLS_CERT_DIR đã khai cho CHÍNH
+// tiến trình này (trỏ tới cùng thư mục certs/ của backend, xem chú thích
+// đầu file) làm nguồn xác định, KHÔNG cần biến môi trường riêng.
+function backendUsesHttps() {
+  if (!TLS_CERT_DIR) return false;
+  return fs.existsSync(path.join(TLS_CERT_DIR, 'key.pem')) && fs.existsSync(path.join(TLS_CERT_DIR, 'cert.pem'));
+}
+
 // Proxy TCP thô sang backend (không dùng thư viện ngoài, xem đầu file) —
 // forward nguyên request (method/headers/body) và pipe thẳng response về,
 // không đụng vào Cache-Control/JSON gì (để nguyên response gốc của backend).
+//
+// BẮT BUỘC tự đổi sang https.request() khi backend đã chuyển HTTPS (bản
+// 8.90) — trước đây LUÔN gọi bằng http.request() dù backend đã chuyển
+// sang https.Server (sau khi admin upload "Chứng chỉ TLS" cho backend +
+// `pm2 restart`): backend chờ bắt tay TLS nhưng nhận được byte HTTP thường
+// → mọi request qua proxy lỗi "socket hang up"/502 "Không kết nối được
+// backend" NGAY CẢ KHI KHÔNG dùng Nginx (lỗi thật người dùng gặp — upload
+// cert cho ETL xong, etl-admin mất captcha/không gọi được API nào, dù
+// deployment này không đứng sau Nginx). `rejectUnauthorized: false` vì gọi
+// thẳng 127.0.0.1 (chứng chỉ backend cấp cho TÊN MIỀN THẬT, không phải
+// 127.0.0.1) — vẫn CHỈ qua loopback nội bộ, không ra Internet, không giảm
+// an toàn so với trước (trước đó proxy còn chưa hề mã hoá, nay ít nhất có
+// mã hoá dù không xác thực tên).
 function proxyToBackend(req, res) {
   const forwardedFor = req.headers['x-forwarded-for']
     ? `${req.headers['x-forwarded-for']}, ${req.socket.remoteAddress}`
     : req.socket.remoteAddress;
-  const proxyReq = http.request({
+  const useHttps = backendUsesHttps();
+  const client = useHttps ? https : http;
+  const proxyReq = client.request({
     host: '127.0.0.1',
     port: PROXY_TARGET_PORT,
     method: req.method,
     path: req.url,
+    ...(useHttps ? { rejectUnauthorized: false } : {}),
     headers: {
       ...req.headers,
       'x-forwarded-for': forwardedFor,
@@ -245,7 +270,13 @@ function buildServer() {
   if (!fs.existsSync(keyPath) || !fs.existsSync(certPath)) return http.createServer(requestHandler);
   const credentials = { key: fs.readFileSync(keyPath), cert: fs.readFileSync(certPath) };
   const caPath = path.join(TLS_CERT_DIR, 'ca.pem');
-  if (fs.existsSync(caPath)) credentials.ca = fs.readFileSync(caPath);
+  // Nối CA/chain NGAY SAU cert lá trong CÙNG field `cert` (KHÔNG gán riêng
+  // vào `ca`) — ở phía SERVER, `ca` chỉ dùng để xác minh chứng chỉ CLIENT
+  // (mTLS), KHÔNG được Node gửi cho client như 1 phần chuỗi chứng chỉ lúc
+  // bắt tay TLS — xem cùng lỗi/sửa ở lib/tlsServer.js (bản 8.90).
+  if (fs.existsSync(caPath)) {
+    credentials.cert = Buffer.concat([credentials.cert, Buffer.from('\n'), fs.readFileSync(caPath)]);
+  }
   return https.createServer(credentials, requestHandler);
 }
 

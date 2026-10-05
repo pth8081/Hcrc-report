@@ -29,6 +29,54 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 8.90 — Sửa proxy nội bộ không theo kịp khi backend chuyển sang HTTPS (PM2-only, cả 3 app)
+
+**Theo yêu cầu người dùng**: báo "add CA vào ETL [qua trang 'Chứng chỉ
+TLS'] và lỗi mã captcha luôn. Và hệ thống ngoài cũng ko trust được ssl vừa
+add", xác nhận deployment KHÔNG dùng Nginx (PM2-only, dùng
+`deploy/serve-static.js`).
+
+**Nguyên nhân chính**: `deploy/serve-static.js` — tiến trình phục vụ giao
+diện tĩnh (`hcrc-rp-user`/`hcrc-api-admin`/`hcrc-etl-admin`) — có 1 proxy
+nội bộ (`proxyToBackend()`) chuyển tiếp `/api`/`/admin/...` sang đúng
+backend song sinh (`hcrc-rp-server`/`hcrc-api-server`/`hcrc-etl`), LUÔN
+gọi bằng `http.request()` KỂ CẢ KHI backend đã chuyển sang HTTPS (sau khi
+admin upload "Chứng chỉ TLS" cho backend + `pm2 restart`). Backend lúc đó
+chờ bắt tay TLS nhưng nhận byte HTTP thường → MỌI request qua proxy lỗi
+("socket hang up"/502 "Không kết nối được backend"), bao gồm cả mã xác
+nhận (captcha) — xảy ra NGAY CẢ KHI không dùng Nginx, đúng chế độ PM2-only
+mà tính năng "Chứng chỉ TLS" (bản 8.71) nói là được hỗ trợ.
+
+- **`deploy/serve-static.js`**: `proxyToBackend()` giờ tự kiểm tra backend
+  song sinh đã chuyển HTTPS chưa (dùng lại đúng `TLS_CERT_DIR` đã khai cho
+  CHÍNH tiến trình này) — nếu có, chuyển sang gọi `https.request()` (kèm
+  `rejectUnauthorized: false`, vì gọi thẳng `127.0.0.1` trong khi chứng
+  chỉ cấp cho tên miền thật — vẫn chỉ qua loopback nội bộ, không ra
+  Internet). Đã kiểm chứng bằng test TLS thật (backend HTTPS tự ký +
+  proxy cũ lỗi "socket hang up", proxy mới trả đúng JSON 200; backend HTTP
+  thường không đổi hành vi).
+- Thêm hướng dẫn RÕ trên cả 3 trang "Chứng chỉ TLS" (lúc upload lần đầu,
+  chuyển HTTP→HTTPS): nếu deployment KHÔNG dùng Nginx, PHẢI thêm
+  `TLS_CERT_DIR: '../<backend>/certs'` vào `env` của tiến trình giao diện
+  tương ứng trong `deploy/ecosystem.config.js` rồi `pm2 restart` tiến
+  trình đó — trước đây chỉ nhắc restart backend, bỏ sót bước này khiến
+  proxy vẫn hỏng dù đã deploy code sửa ở trên.
+- **`etl/lib/tlsServer.js`, `rp-server/lib/tlsServer.js`,
+  `api-server/lib/tlsServer.js`**: sửa thêm 1 chỗ liên quan (không phải
+  nguyên nhân chính của lỗi báo — đã kiểm chứng Node/OpenSSL bản đang dùng
+  tự động nối chuỗi chứng chỉ dù gán CA qua `ca`) — nối CA/chain NGAY SAU
+  cert lá vào CÙNG field `cert` thay vì gán riêng `ca` (vốn chỉ dùng để
+  xác minh chứng chỉ CLIENT/mTLS ở phía server theo tài liệu Node chính
+  thức), để không phụ thuộc hành vi "tự động nối chuỗi" ngầm định của
+  OpenSSL — an toàn hơn, không đổi hành vi hiện tại.
+
+**Lưu ý về "hệ thống ngoài không trust SSL vừa add"**: nếu chứng chỉ vừa
+upload do 1 CA NỘI BỘ (không phải CA công cộng như Let's Encrypt/CA
+thương mại) cấp, đây là hành vi ĐÚNG — hệ thống bên ngoài (chưa cài đặt
+CA gốc nội bộ đó) sẽ KHÔNG trust, không phải lỗi. Cần làm 1 trong 2:
+(1) dùng chứng chỉ từ CA công cộng (vd Let's Encrypt, miễn phí), hoặc
+(2) cài CA gốc nội bộ vào máy/hệ thống của BÊN NGOÀI cần kết nối tới.
+
 ## 8.89 — Đăng nhập bằng vân tay/Face ID THAY THẾ HOÀN TOÀN mật khẩu + nhớ tên đăng nhập (cả 3 app)
 
 **Theo yêu cầu người dùng** (kèm ảnh màn hình đăng nhập của 1 app khác làm

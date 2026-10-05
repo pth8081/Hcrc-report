@@ -1,9 +1,9 @@
-# Hướng dẫn triển khai gộp — bản 8.79 đến 8.89 (làm 1 lần)
+# Hướng dẫn triển khai gộp — bản 8.79 đến 8.90 (làm 1 lần)
 
-**Mục đích**: gộp các bước triển khai từ bản 8.79 tới bản 8.89 hiện tại
+**Mục đích**: gộp các bước triển khai từ bản 8.79 tới bản 8.90 hiện tại
 thành **1 lượt làm duy nhất**, cho server đã deploy tới khoảng bản 8.78
 và cần bắt kịp bản mới nhất — KHÔNG lặp lại toàn bộ lịch sử từ bản 8.29
-(xem `deploy/Hướng dẫn triển khai gộp — bản 8.29 đến 8.89.md` nếu cần
+(xem `deploy/Hướng dẫn triển khai gộp — bản 8.29 đến 8.90.md` nếu cần
 dựng server hoàn toàn mới từ đầu).
 
 **Không gồm bản 8.82** (`scripts/deleteThanhVienLiveSync.js`) — đây là
@@ -17,7 +17,7 @@ chi tiết kỹ thuật của từng bản khi cần — file này chỉ gộp p
 
 ---
 
-## Tóm tắt những gì thay đổi (8.79 → 8.89)
+## Tóm tắt những gì thay đổi (8.79 → 8.90)
 
 | Bản | Nội dung |
 |---|---|
@@ -32,6 +32,7 @@ chi tiết kỹ thuật của từng bản khi cần — file này chỉ gộp p
 | 8.87 | Chặn bớt số job chạy đồng thời + không bỏ sót lỗi xin khoá (ETL) |
 | 8.88 | Sửa gửi email cổng 465 không gửi được khi máy chủ không bật TLS (rp-user/rp-server) |
 | 8.89 | Đăng nhập bằng vân tay/Face ID thay thế hoàn toàn mật khẩu + nhớ tên đăng nhập (cả 3 app) |
+| 8.90 | Sửa proxy nội bộ không theo kịp khi backend chuyển sang HTTPS (PM2-only, cả 3 app) |
 
 ---
 
@@ -41,9 +42,9 @@ chi tiết kỹ thuật của từng bản khi cần — file này chỉ gộp p
 git pull origin main
 ```
 
-Lệnh này lấy về ĐỦ cả 10 bản
-(8.79/8.80/8.81/8.83/8.84/8.85/8.86/8.87/8.88/8.89) cùng lúc — không cần
-chạy lại cho từng bản.
+Lệnh này lấy về ĐỦ cả 11 bản
+(8.79/8.80/8.81/8.83/8.84/8.85/8.86/8.87/8.88/8.89/8.90) cùng lúc — không
+cần chạy lại cho từng bản.
 
 ---
 
@@ -78,18 +79,33 @@ nào; bản 8.88 — sửa "Thiết lập email" cổng 465; bản 8.89 — đă
 tay + nhớ username — cả 4 chỉ đổi frontend, không có gói npm mới).
 
 Bản 8.89 đổi `LoginPage.jsx`/`CaptchaField.jsx`/`styles.css` ở **CẢ 3
-app** — lệnh `npm run build` ở trên cho etl-admin/api-admin/rp-user ĐÃ
-đủ, không cần thêm lệnh riêng.
+app**; bản 8.90 đổi thêm `TlsCertificatePage.jsx` ở cả 3 app (chỉ thêm 1
+đoạn cảnh báo, không đổi hành vi) — lệnh `npm run build` ở trên cho
+etl-admin/api-admin/rp-user ĐÃ đủ, không cần thêm lệnh riêng.
+
+Bản 8.90 CÒN đổi `deploy/serve-static.js` (script PM2-only, KHÔNG qua
+bước build — `git pull` ở mục A đã lấy về bản mới, chỉ cần restart đúng
+tiến trình ở mục D bên dưới).
 
 ---
 
 ## D. Restart backend
 
 ```bash
-pm2 restart hcrc-rp-server    # BẮT BUỘC — bản 8.79 (KHẨN, Node<22.4), bản 8.88 (sửa gửi email cổng 465), bản 8.89 (route đăng nhập vân tay mới)
-pm2 restart hcrc-etl          # BẮT BUỘC — bản 8.81/8.86/8.87 (route DELETE, lấy kết nối/trích xuất, giới hạn job đồng thời), bản 8.89 (route đăng nhập vân tay mới)
-pm2 restart hcrc-api-server   # BẮT BUỘC — bản 8.89 (route đăng nhập vân tay mới)
+pm2 restart hcrc-rp-server    # BẮT BUỘC — bản 8.79 (KHẨN, Node<22.4), bản 8.88 (sửa gửi email cổng 465), bản 8.89 (route đăng nhập vân tay mới), bản 8.90 (cách nối CA/chain)
+pm2 restart hcrc-etl          # BẮT BUỘC — bản 8.81/8.86/8.87 (route DELETE, lấy kết nối/trích xuất, giới hạn job đồng thời), bản 8.89 (route đăng nhập vân tay mới), bản 8.90 (cách nối CA/chain)
+pm2 restart hcrc-api-server   # BẮT BUỘC — bản 8.89 (route đăng nhập vân tay mới), bản 8.90 (cách nối CA/chain)
+pm2 restart hcrc-rp-user hcrc-api-admin hcrc-etl-admin   # BẮT BUỘC (nếu dùng deploy/serve-static.js, PM2-only) — bản 8.90 (sửa proxy nội bộ)
 ```
+
+**CHỈ áp dụng cho ai ĐÃ upload "Chứng chỉ TLS" cho 1 backend nào đó, qua
+`deploy/serve-static.js` (PM2-only, KHÔNG Nginx)**: nếu CHƯA có, thêm
+`TLS_CERT_DIR` vào mục `env` của tiến trình giao diện tương ứng trong
+`deploy/ecosystem.config.js` (ánh xạ: `hcrc-rp-user`↔
+`'../rp-server/certs'`, `hcrc-api-admin`↔`'../api-server/certs'`,
+`hcrc-etl-admin`↔`'../etl/certs'`), rồi `pm2 restart` đúng tiến trình đó
+LẦN NỮA — thiếu bước này, proxy nội bộ (bản 8.90 mới sửa) vẫn không biết
+backend đã chuyển HTTPS, tiếp tục lỗi "Không kết nối được backend".
 
 (Tuỳ chọn, bản 8.86/8.87) Thêm vào `etl/.env` nếu muốn đổi khác mặc định
 — bỏ qua vẫn dùng được (có sẵn mặc định trong code):
@@ -196,7 +212,12 @@ Chi tiết đầy đủ xem mục "8.82" trong `VERSION.md`.
   vào, xác thực vân tay/Face ID → vào thẳng, không hỏi mật khẩu/captcha/
   mã 2FA; lúc đang chờ xác thực, mọi ô/nút khác trên form bị khoá (xám,
   không bấm được).
+- [ ] **(8.90, CHỈ nếu đã từng upload "Chứng chỉ TLS" cho 1 backend VÀ
+  dùng `deploy/serve-static.js` PM2-only)** Sau khi thêm `TLS_CERT_DIR` +
+  restart tiến trình giao diện tương ứng: mở trang đăng nhập app đó → mã
+  xác nhận hiện ảnh bình thường, đăng nhập được (trước đây báo "Không kết
+  nối được backend").
 
 Không có bước nào ở trên làm mất dữ liệu đã có hoặc ảnh hưởng job/báo
 cáo đang chạy ổn định — mọi thay đổi CSDL (nếu có) đều là CREATE/ALTER
-thêm mới (bản 8.79-8.89 thực tế KHÔNG đổi schema CSDL nào).
+thêm mới (bản 8.79-8.90 thực tế KHÔNG đổi schema CSDL nào).

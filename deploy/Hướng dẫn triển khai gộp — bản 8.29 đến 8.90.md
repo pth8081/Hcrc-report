@@ -1,9 +1,9 @@
-# Hướng dẫn triển khai gộp — bản 8.29 đến 8.89 (làm 1 lần)
+# Hướng dẫn triển khai gộp — bản 8.29 đến 8.90 (làm 1 lần)
 
 **Mục đích**: theo yêu cầu người dùng — thay vì đọc/làm tuần tự từng mục
 trong "Nhật ký triển khai (từ bản 8.31)" (nhiều mục riêng, mỗi mục 1 bản),
 file NÀY gộp lại thành **1 lượt làm duy nhất** để đưa server từ trước bản
-8.29 lên thẳng bản 8.89 (KHÔNG gồm bản 8.82 — script ad-hoc
+8.29 lên thẳng bản 8.90 (KHÔNG gồm bản 8.82 — script ad-hoc
 `deleteThanhVienLiveSync.js`, chạy khi cần, không phải bước triển khai
 thường trực). Các bước **idempotent** (an toàn chạy lại nhiều
 lần) được gộp chỉ chạy **1 LẦN** ở bản mới nhất thay vì lặp lại theo từng
@@ -722,6 +722,36 @@ Cả 3 app — KHÔNG đổi CSDL, KHÔNG có gói npm mới, chỉ thêm route 
 
 Chi tiết đầy đủ: `deploy/Cập nhật bản 8.89 — Đăng nhập bằng vân tay-Face
 ID thay thế hoàn toàn mật khẩu + nhớ tên đăng nhập.md`.
+
+---
+
+## X. Sửa proxy nội bộ không theo kịp khi backend chuyển sang HTTPS (bản 8.90)
+
+Cả 3 app — KHÔNG đổi CSDL, KHÔNG có gói npm mới. CHỈ ảnh hưởng ai dùng
+`deploy/serve-static.js` (PM2-only, KHÔNG Nginx) VÀ đã/sẽ upload "Chứng
+chỉ TLS" cho 1 backend — bỏ qua mục này nếu chưa từng dùng trang "Chứng
+chỉ TLS".
+
+1. `git pull origin main` (đã làm ở mục A.1 nếu làm gộp từ đầu).
+2. `pm2 restart hcrc-rp-server hcrc-etl hcrc-api-server hcrc-rp-user hcrc-api-admin hcrc-etl-admin`
+   (đã gộp vào mục C ở trên — cả 6 tiến trình).
+3. **CHỈ nếu đã upload "Chứng chỉ TLS" cho 1 backend nào đó**: thêm
+   `TLS_CERT_DIR` vào mục `env` của tiến trình giao diện TƯƠNG ỨNG trong
+   `deploy/ecosystem.config.js` nếu CHƯA có (`hcrc-rp-user`↔
+   `'../rp-server/certs'`, `hcrc-api-admin`↔`'../api-server/certs'`,
+   `hcrc-etl-admin`↔`'../etl/certs'`), rồi `pm2 restart` đúng tiến trình
+   đó LẦN NỮA — thiếu bước này, proxy nội bộ vẫn không biết backend đã
+   HTTPS, tiếp tục lỗi "Không kết nối được backend"/mất captcha.
+4. Kiểm tra: mở trang đăng nhập app đã upload chứng chỉ cho backend tương
+   ứng → mã xác nhận hiện ảnh bình thường, đăng nhập được.
+
+Nếu KHÔNG thật sự cần backend chạy HTTPS (đa số trường hợp): đơn giản hơn
+là xoá chứng chỉ đã upload nhầm (`rm etl/certs/*.pem` hoặc tương ứng,
+`pm2 restart hcrc-etl` hoặc tương ứng) để quay về HTTP như cũ, không cần
+làm bước 3.
+
+Chi tiết đầy đủ: `deploy/Cập nhật bản 8.90 — Sửa proxy nội bộ không theo
+kịp khi backend chuyển sang HTTPS (PM2-only).md`.
 
 ---
 

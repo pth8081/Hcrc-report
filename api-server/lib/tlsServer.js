@@ -31,7 +31,16 @@ let currentServer = null; // để applyCertificateLive() gọi setSecureContext
 function readCredentialsIfPresent() {
   if (!fs.existsSync(KEY_PATH) || !fs.existsSync(CERT_PATH)) return null;
   const credentials = { key: fs.readFileSync(KEY_PATH), cert: fs.readFileSync(CERT_PATH) };
-  if (fs.existsSync(CA_PATH)) credentials.ca = fs.readFileSync(CA_PATH);
+  // Nối CA/chain NGAY SAU cert lá trong CÙNG field `cert` (KHÔNG gán riêng
+  // vào `ca`) — ở phía SERVER, `ca` chỉ dùng để xác minh chứng chỉ CLIENT
+  // (mTLS), KHÔNG được Node gửi cho client như 1 phần chuỗi chứng chỉ lúc
+  // bắt tay TLS. Gán nhầm vào `ca` khiến client/trình duyệt bên ngoài chỉ
+  // nhận được mỗi cert lá, không dựng được đường tin cậy đầy đủ dù đã
+  // upload đúng CA/chain hợp lệ — sửa ở bản 8.90 (lỗi phát hiện khi người
+  // dùng báo "hệ thống ngoài không trust SSL vừa add").
+  if (fs.existsSync(CA_PATH)) {
+    credentials.cert = Buffer.concat([credentials.cert, Buffer.from('\n'), fs.readFileSync(CA_PATH)]);
+  }
   return credentials;
 }
 

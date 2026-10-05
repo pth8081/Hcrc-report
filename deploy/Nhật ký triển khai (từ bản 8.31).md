@@ -14,6 +14,44 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 8.90 — Sửa proxy nội bộ không theo kịp khi backend chuyển sang HTTPS (PM2-only, cả 3 app)
+
+**Thay đổi**: deployment PM2-only (không Nginx, dùng
+`deploy/serve-static.js`) — upload "Chứng chỉ TLS" cho backend nào xong,
+proxy nội bộ của tiến trình giao diện tương ứng giờ TỰ BIẾT gọi HTTPS
+thay vì vẫn gọi HTTP (trước đây gây lỗi "Không kết nối được backend"/mất
+captcha ngay cả khi không dùng Nginx).
+
+**Các bước triển khai:**
+1. `git pull origin main`.
+2. `pm2 restart hcrc-rp-user hcrc-api-admin hcrc-etl-admin hcrc-rp-server hcrc-api-server hcrc-etl`
+   (BẮT BUỘC — đổi logic proxy ở `serve-static.js` + cách nối CA/chain ở
+   `lib/tlsServer.js` cả 3 backend).
+3. **CHỈ áp dụng cho ai ĐÃ upload "Chứng chỉ TLS" cho 1 backend nào đó
+   (PM2-only, không Nginx)**: thêm dòng `TLS_CERT_DIR: '../<thư mục
+   backend>/certs'` vào mục `env` của tiến trình giao diện TƯƠNG ỨNG
+   trong `deploy/ecosystem.config.js` nếu CHƯA có — vd backend ETL thì
+   thêm `TLS_CERT_DIR: '../etl/certs'` vào `hcrc-etl-admin` (ánh xạ đủ 3
+   cặp: `hcrc-rp-user`↔`../rp-server/certs`,
+   `hcrc-api-admin`↔`../api-server/certs`,
+   `hcrc-etl-admin`↔`../etl/certs`) — rồi `pm2 restart` đúng tiến trình đó
+   lần nữa. Thiếu bước này, proxy vẫn gọi HTTP dù đã deploy code ở bước 2
+   (code chỉ TỰ BIẾT đổi sang HTTPS khi biết đúng thư mục chứng chỉ của
+   backend qua biến này).
+4. Kiểm tra: mở trang đăng nhập (etl-admin/api-admin/rp-user tuỳ đã upload
+   chứng chỉ cho backend nào) → mã xác nhận hiện ảnh bình thường, đăng
+   nhập được — không còn "Không kết nối được backend".
+
+**Nếu KHÔNG cần backend chạy HTTPS** (đa số trường hợp — Nginx hoặc
+reverse proxy khác đã lo TLS từ bên ngoài, hoặc chỉ dùng nội bộ): đơn giản
+nhất là XOÁ chứng chỉ đã upload nhầm để quay lại HTTP như cũ:
+```bash
+rm etl/certs/*.pem       # hoặc rp-server/certs/*.pem, api-server/certs/*.pem
+pm2 restart hcrc-etl     # hoặc hcrc-rp-server, hcrc-api-server
+```
+
+---
+
 ## 8.89 — Đăng nhập bằng vân tay/Face ID THAY THẾ HOÀN TOÀN mật khẩu + nhớ tên đăng nhập (cả 3 app)
 
 **Thay đổi**: ai đã đăng ký vân tay/Face ID ở "Tài khoản của tôi" giờ bấm

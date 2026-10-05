@@ -147,11 +147,23 @@ export default function TlsCertificatePage() {
           <p>✅ Đã lưu chứng chỉ mới.</p>
           {result.appliedLive && <p>Đã áp dụng NGAY (không cần restart) — chứng chỉ cũ chỉ là gia hạn/thay thế.</p>}
           {result.restartRequired && (
-            <p className="form-error">
-              Đây là lần upload ĐẦU TIÊN (từ HTTP sang HTTPS) — PHẢI chạy lệnh sau trên máy chủ để
-              áp dụng: <code>{result.restartCommand}</code> (Node không tự chuyển 1 tiến trình đang
-              chạy HTTP sang HTTPS mà không restart).
-            </p>
+            <>
+              <p className="form-error">
+                Đây là lần upload ĐẦU TIÊN (từ HTTP sang HTTPS) — PHẢI chạy lệnh sau trên máy chủ để
+                áp dụng: <code>{result.restartCommand}</code> (Node không tự chuyển 1 tiến trình đang
+                chạy HTTP sang HTTPS mà không restart).
+              </p>
+              <p className="form-error">
+                Nếu triển khai KHÔNG dùng Nginx (dùng <code>deploy/serve-static.js</code> chạy bằng
+                PM2 trực tiếp): tiến trình phục vụ giao diện <code>hcrc-rp-user</code> gọi API qua 1
+                proxy nội bộ sang <code>hcrc-rp-server</code> — backend vừa đổi sang HTTPS thì proxy
+                đó CŨNG phải biết, nếu không MỌI API (kể cả mã xác nhận) sẽ báo lỗi "Không kết nối
+                được backend". Thêm dòng <code>TLS_CERT_DIR: '../rp-server/certs'</code> vào mục{' '}
+                <code>env</code> của <code>hcrc-rp-user</code> trong{' '}
+                <code>deploy/ecosystem.config.js</code>, rồi chạy thêm{' '}
+                <code>pm2 restart hcrc-rp-user</code>.
+              </p>
+            </>
           )}
         </div>
       )}
