@@ -29,6 +29,39 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 8.76 — Sửa treo khi xoá hàng loạt Nguồn dữ liệu (ETL)
+
+**Theo yêu cầu người dùng**: báo lỗi "ETL khi tôi chọn nhiều mục ở trong
+đồng bộ và trong nguồn dữ liệu, ấn xoá không thể xoá được, cảm giác như
+kết nối lên server bị treo."
+
+**Nguyên nhân thật tìm được**: `etl/lib/dataSourcePool.js:invalidate()`
+(gọi mỗi khi sửa/xoá 1 "Nguồn dữ liệu") đóng kết nối cũ (nếu từng mở —
+vd admin từng duyệt bảng/cột nguồn đó lúc tạo Sync Job) bằng
+`adapter.close(pool)` **KHÔNG có timeout nào**. Driver `tedious` (mssql)
+chờ sự kiện `'end'` để coi là đóng xong — nếu nguồn DSmart16 bên kia rớt
+mạng kiểu "zombie" (không có TCP RST/từ chối rõ ràng, chỉ lặng im), sự
+kiện đó **không bao giờ tới** → `invalidate()` treo VĨNH VIỄN → route
+`DELETE /admin/data-sources/:id` không bao giờ trả response. Vì nút "Xoá
+N mục đã chọn" chạy TUẦN TỰ (đúng mẫu CLAUDE.md, `await` trong vòng
+`for`), **1 nguồn "treo" chặn đứng toàn bộ các mục còn lại** trong cùng 1
+lượt xoá hàng loạt — đúng mô tả "cảm giác mất kết nối server".
+
+- **Đã sửa**: bọc `adapter.close(pool)` trong `invalidate()` bằng timeout
+  5 giây (`withTimeout()`, hàm mới) — hết hạn thì BỎ QUA (chỉ cảnh báo
+  log), không chặn request. Việc xoá khỏi cache (phần quan trọng, đảm bảo
+  lần dùng sau kết nối MỚI đúng) đã chạy TRƯỚC, không phụ thuộc bước đóng
+  pool cũ — đóng pool cũ chỉ là dọn dẹp tài nguyên tốt-nhất-có-thể, không
+  đáng để treo cả thao tác admin đang chờ.
+- **Đã kiểm chứng bằng cách dựng lại ĐÚNG lỗi**: giả lập `adapter.close()`
+  treo vĩnh viễn (promise không bao giờ resolve) — xác nhận `invalidate()`
+  THẬT (không fake logic nghiệp vụ) trả về đúng sau ~5000ms thay vì treo
+  mãi mãi.
+- **Sửa kèm 1 lỗi liên quan**: xoá "Nguồn dữ liệu" còn Sync Job tham chiếu
+  (`etl.SyncJobs.DataSourceId` không có `ON DELETE CASCADE`, cố ý) trước
+  đây ném lỗi FK violation THÔ của SQL Server — giờ kiểm tra trước, báo rõ
+  tên các Sync Job đang chặn.
+
 ## 8.75 — Báo cáo Đơn đặt hàng / Đơn nhập hàng / So sánh đặt–nhận
 
 **Theo yêu cầu người dùng**: "Tôi muốn bạn lấy cho tôi báo cáo đơn đặt

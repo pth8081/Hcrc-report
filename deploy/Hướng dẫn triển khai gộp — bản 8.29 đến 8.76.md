@@ -1,9 +1,9 @@
-# Hướng dẫn triển khai gộp — bản 8.29 đến 8.75 (làm 1 lần)
+# Hướng dẫn triển khai gộp — bản 8.29 đến 8.76 (làm 1 lần)
 
 **Mục đích**: theo yêu cầu người dùng — thay vì đọc/làm tuần tự từng mục
 trong "Nhật ký triển khai (từ bản 8.31)" (nhiều mục riêng, mỗi mục 1 bản),
 file NÀY gộp lại thành **1 lượt làm duy nhất** để đưa server từ trước bản
-8.29 lên thẳng bản 8.75. Các bước **idempotent** (an toàn chạy lại nhiều
+8.29 lên thẳng bản 8.76. Các bước **idempotent** (an toàn chạy lại nhiều
 lần) được gộp chỉ chạy **1 LẦN** ở bản mới nhất thay vì lặp lại theo từng
 bản cũ. Nếu server đã ở 1 bản nào đó rồi (vd đã tới 8.62), chỉ cần làm
 PHẦN CÒN THIẾU — hầu hết các bước dưới đây không hại gì nếu lỡ làm lại.
@@ -426,6 +426,22 @@ Khác mọi mục trên (chỉ cần `pm2 restart`/build lại) — mục này *
 7. Đợi tối đa 15 phút (chu kỳ đồng bộ) rồi kiểm tra báo cáo có dữ liệu —
    siêu thị CHƯA khai "Ánh xạ Điểm - STK_ID" sẽ KHÔNG xuất hiện (không
    phải lỗi, bổ sung ánh xạ để hiện ra).
+
+---
+
+## K. Sửa treo khi xoá hàng loạt Nguồn dữ liệu (bản 8.76)
+
+Xoá hàng loạt "Nguồn dữ liệu"/"Đồng bộ" (etl-admin) bị TREO VÔ THỜI HẠN
+nếu 1 trong các nguồn đã chọn đang mất kết nối mạng kiểu "zombie" (không
+từ chối rõ ràng, chỉ lặng im) — `etl/lib/dataSourcePool.js` đóng kết nối
+cũ không có timeout, chặn đứng toàn bộ vòng xoá tuần tự. Sửa thuần
+backend, không đổi CSDL.
+
+1. `git pull origin main`.
+2. `pm2 restart hcrc-etl` (BẮT BUỘC).
+3. Kiểm tra: xoá hàng loạt "Nguồn dữ liệu"/"Đồng bộ" — không còn treo
+   (kể cả khi 1 nguồn trong đó đang mất kết nối mạng thật, chỉ mất thêm
+   tối đa 5 giây thay vì vô thời hạn).
 
 Không có bước nào ở trên làm mất dữ liệu đã có hoặc ảnh hưởng job/báo cáo
 đang chạy ổn định — mọi thay đổi CSDL đều là CREATE/ALTER thêm mới.

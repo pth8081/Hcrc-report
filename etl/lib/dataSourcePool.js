@@ -45,15 +45,51 @@ async function getConnection(id) {
   return connections.get(id);
 }
 
-// Gọi khi admin sửa/xoá một nguồn — đóng kết nối cũ (nếu có).
+// Thời gian tối đa chờ đóng 1 kết nối cũ trước khi BỎ QUA, không chờ thêm —
+// LỖI THẬT đã gặp (bản 8.76): `adapter.close(pool)` (tedious `pool.close()`)
+// chờ sự kiện 'end' từ driver, KHÔNG có timeout nào — nếu nguồn bên kia rớt
+// mạng kiểu "zombie" (không đóng cổng hẳn, không có TCP RST, chỉ lặng im)
+// thay vì từ chối kết nối rõ ràng, sự kiện 'end' có thể KHÔNG BAO GIỜ tới —
+// `invalidate()` treo VĨNH VIỄN, kéo theo route DELETE /admin/data-sources/:id
+// (routes/admin/dataSources.js) không bao giờ trả response, và vì
+// SyncJobsPage.jsx/DataSourcesPage.jsx xoá hàng loạt chạy TUẦN TỰ (await
+// trong vòng for, đúng mẫu CLAUDE.md), 1 nguồn "treo" chặn đứng toàn bộ các
+// mục còn lại trong cùng 1 lượt xoá hàng loạt — admin thấy "Đang xoá..."
+// không bao giờ hết, cảm giác như mất kết nối server. Mục đích CHỈ xoá cache
+// (đã làm ở dòng connections.delete(id) phía trên, LUÔN chạy trước) — việc
+// đóng gọn connection cũ chỉ là dọn dẹp tài nguyên, KHÔNG đáng để treo cả
+// request vì nó.
+const CLOSE_TIMEOUT_MS = 5000;
+
+function withTimeout(promise, ms) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`timeout sau ${ms}ms`)), ms);
+    promise.then(
+      (v) => { clearTimeout(timer); resolve(v); },
+      (err) => { clearTimeout(timer); reject(err); }
+    );
+  });
+}
+
+// Gọi khi admin sửa/xoá một nguồn — đóng kết nối cũ (nếu có), KHÔNG để việc
+// đóng kết nối (có thể treo, xem CLOSE_TIMEOUT_MS ở trên) chặn hành động
+// sửa/xoá chính — xoá khỏi cache LUÔN LUÔN thành công trước, việc đóng pool
+// cũ là best-effort.
 async function invalidate(id) {
   const existing = connections.get(id);
   connections.delete(id);
   if (existing) {
     try {
       const { pool, adapter } = await existing;
-      await adapter.close(pool);
-    } catch { /* chưa từng kết nối thành công — bỏ qua */ }
+      await withTimeout(adapter.close(pool), CLOSE_TIMEOUT_MS);
+    } catch (err) {
+      // chưa từng kết nối thành công, HOẶC đóng quá hạn (nguồn "treo") — bỏ
+      // qua, chỉ cảnh báo. Cache đã xoá ở trên nên lần dùng sau vẫn tạo kết
+      // nối MỚI đúng — không ảnh hưởng tính đúng đắn, chỉ có thể rò rỉ 1
+      // kết nối cũ phía driver cho tới khi hệ điều hành tự dọn (hiếm, chấp
+      // nhận được so với treo cả request admin đang chờ).
+      logError(`⚠️  [dataSourcePool] Không đóng gọn được kết nối cũ #${id} (bỏ qua, tiếp tục): ${err.message}`);
+    }
   }
 }
 

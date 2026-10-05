@@ -186,6 +186,18 @@ router.put('/:id', requireMenuEdit('data-sources'), async (req, res, next) => {
 router.delete('/:id', requireMenuEdit('data-sources'), async (req, res, next) => {
   try {
     const pool = await getPool('ADMIN');
+    // Kiểm tra TRƯỚC còn Sync Job nào tham chiếu nguồn này không (LỖI THẬT
+    // đã gặp, bản 8.76) — etl.SyncJobs.DataSourceId KHÔNG có ON DELETE
+    // CASCADE (cố ý — xoá nguồn không nên âm thầm xoá luôn job đồng bộ),
+    // nên để nguyên sẽ ném lỗi FK violation THÔ của SQL Server, khó hiểu
+    // với người dùng cuối. Báo rõ TÊN các job đang chặn thay vì để lỗi SQL
+    // thô lộ ra — nhất quán với cách báo lỗi còn lại của hệ thống.
+    const referencing = await pool.request().input('id', sql.Int, req.params.id)
+      .query('SELECT Name FROM etl.SyncJobs WHERE DataSourceId = @id');
+    if (referencing.recordset.length) {
+      const names = referencing.recordset.map((r) => r.Name).join(', ');
+      return res.status(400).json({ error: `Không thể xoá — còn ${referencing.recordset.length} job đồng bộ đang dùng nguồn này: ${names}. Xoá/đổi nguồn của các job đó trước.` });
+    }
     await pool.request().input('id', sql.Int, req.params.id).query('DELETE FROM etl.DataSources WHERE Id = @id');
     await invalidate(parseInt(req.params.id, 10));
     await logAction(req, { module: 'Nguồn dữ liệu', actionType: 'XOA_NGUON', targetObject: req.params.id, description: `Xoá nguồn dữ liệu #${req.params.id}` });

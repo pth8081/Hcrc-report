@@ -14,6 +14,22 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 8.76 — Sửa treo khi xoá hàng loạt Nguồn dữ liệu (ETL)
+
+**Thay đổi**: sửa `etl/lib/dataSourcePool.js` (timeout 5s khi đóng kết nối
+cũ, trước đây có thể treo vĩnh viễn nếu nguồn DSmart16 rớt mạng kiểu
+"zombie") + `etl/routes/admin/dataSources.js` (báo lỗi rõ ràng khi xoá
+nguồn còn Sync Job tham chiếu, thay vì lỗi SQL thô). Sửa thuần backend,
+không đổi CSDL.
+
+**Các bước triển khai:**
+1. `git pull origin main`.
+2. `pm2 restart hcrc-etl` (BẮT BUỘC — nạp code mới).
+3. Kiểm tra: chọn nhiều "Nguồn dữ liệu"/"Đồng bộ" → xoá hàng loạt — không
+   còn bị treo (kể cả khi 1 nguồn trong đó đang mất kết nối mạng thật).
+
+---
+
 ## 8.75 — Báo cáo Đơn đặt hàng / Đơn nhập hàng / So sánh đặt–nhận
 
 **Thay đổi**: thêm 3 báo cáo mới dựa trên dữ liệu đơn hàng DSmart16
