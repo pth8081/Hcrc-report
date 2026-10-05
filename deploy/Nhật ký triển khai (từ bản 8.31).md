@@ -14,6 +14,24 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 8.80 — Bật/Tắt hàng loạt + sửa xoá hàng loạt dừng cả loạt (ETL)
+
+**Thay đổi**: thêm nút "Bật N đã chọn"/"Tắt N đã chọn" cho trang "Nguồn
+dữ liệu" và "Đồng bộ" (etl-admin). Sửa vòng lặp xoá hàng loạt (2 trang
+này) để lỗi 1 mục (vd nguồn còn job tham chiếu) KHÔNG còn chặn các mục
+khác — trước đây dừng im lặng ngay mục đầu tiên bị lỗi.
+
+**Các bước triển khai:**
+1. `git pull origin main`.
+2. `cd etl-admin && npm run build`, copy `dist/` mới (sửa thuần frontend
+   — KHÔNG cần `pm2 restart` backend).
+3. Kiểm tra: Nguồn dữ liệu/Đồng bộ → tick nhiều dòng → thấy đủ 3 nút
+   "Bật N"/"Tắt N"/"Xoá N đã chọn" → bấm "Bật"/"Tắt" đổi đúng trạng thái
+   TOÀN BỘ dòng đã chọn; thử xoá hàng loạt khi 1 nguồn còn job tham
+   chiếu → các nguồn KHÁC vẫn xoá được, trang báo rõ tên nguồn bị chặn.
+
+---
+
 ## 8.79 — KHẨN: Sửa crash rp-server trên Node < 22.4
 
 **Thay đổi**: `rp-server/lib/trustedCa.js` (bản 8.72) gọi API chỉ có từ

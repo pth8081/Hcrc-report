@@ -56,8 +56,11 @@ export default function SyncJobsPage() {
   const [deletingId, setDeletingId] = useState(null);
   // Chọn nhiều + xoá hàng loạt (bản 8.62) — selection dùng chung cho cả bảng
   // nhóm theo siêu thị (nhiều DataTable, 1 Set id chung) và bảng phẳng.
+  // Bật/tắt hàng loạt thêm ở bản 8.80, theo yêu cầu người dùng.
   const selection = useRowSelection();
   const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [bulkEnabling, setBulkEnabling] = useState(false);
+  const [bulkDisabling, setBulkDisabling] = useState(false);
   const [downloadingTemplate, setDownloadingTemplate] = useState(false);
   const [importing, setImporting] = useState(false);
   // Bộ lọc/nhóm theo siêu thị (bản 8.44) — CHỈ gọn cách XEM danh sách, KHÔNG
@@ -204,17 +207,58 @@ export default function SyncJobsPage() {
     } catch (err) { setError(err.message); } finally { setDeletingId(null); }
   }
 
+  // Xoá hàng loạt (bản 8.62, sửa KHẢ NĂNG CHỊU LỖI ở bản 8.80 — theo yêu
+  // cầu người dùng, báo cáo "xoá nhiều không được"): lỗi 1 job (vd mất kết
+  // nối tạm thời) KHÔNG còn chặn các job khác trong cùng lượt xoá — cùng
+  // tinh thần sửa ở DataSourcesPage.jsx.
   async function deleteSelected() {
     if (selection.selectedIds.size === 0) return;
     if (!confirm(`Xoá ${selection.selectedIds.size} job đã chọn?`)) return;
     setBulkDeleting(true);
+    const failed = [];
     try {
       for (const id of selection.selectedIds) {
-        await api.del(`/sync-jobs/${id}`);
+        try {
+          await api.del(`/sync-jobs/${id}`);
+        } catch (err) {
+          const job = jobs.find((j) => j.Id === id);
+          failed.push(`${job?.Name || id}: ${err.message}`);
+        }
       }
+      setError(failed.length ? `Không xoá được ${failed.length} job — ${failed.join('; ')}` : '');
       selection.clear();
       reload();
-    } catch (err) { setError(err.message); } finally { setBulkDeleting(false); }
+    } finally { setBulkDeleting(false); }
+  }
+
+  // Bật/tắt hàng loạt (bản 8.80, theo yêu cầu người dùng) — gọi LẶP LẠI
+  // đúng PUT /:id đã có (như nút "Bật"/"Tắt" từng dòng), ép isActive THEO
+  // Ý MUỐN (không đảo ngược riêng từng dòng).
+  async function setActiveForSelected(forceActive) {
+    if (selection.selectedIds.size === 0) return;
+    const setBusy = forceActive ? setBulkEnabling : setBulkDisabling;
+    setBusy(true);
+    const failed = [];
+    try {
+      for (const id of selection.selectedIds) {
+        const job = jobs.find((j) => j.Id === id);
+        if (!job) continue;
+        try {
+          await api.put(`/sync-jobs/${id}`, {
+            name: job.Name, cronExpression: job.CronExpression, targetDomain: job.TargetDomain,
+            dimensionColumns: JSON.parse(job.DimensionColumnsJson || '[]'),
+            measureColumns: JSON.parse(job.MeasureColumnsJson || '[]'),
+            keepHistory: !!job.KeepHistory,
+            isActive: forceActive
+          });
+        } catch (err) {
+          failed.push(`${job.Name}: ${err.message}`);
+        }
+      }
+      setError(failed.length ? `Không cập nhật được ${failed.length} job — ${failed.join('; ')}` : '');
+      selection.clear();
+      reload();
+    } finally { setBusy(false); }
   }
 
   async function downloadTemplate() {
@@ -355,7 +399,13 @@ export default function SyncJobsPage() {
 
       {isAdmin && selection.selectedIds.size > 0 && (
         <div className="inline-actions">
-          <button type="button" onClick={deleteSelected} disabled={bulkDeleting}>
+          <button type="button" onClick={() => setActiveForSelected(true)} disabled={bulkEnabling || bulkDisabling || bulkDeleting}>
+            {bulkEnabling ? 'Đang bật...' : `Bật ${selection.selectedIds.size} job đã chọn`}
+          </button>
+          <button type="button" onClick={() => setActiveForSelected(false)} disabled={bulkEnabling || bulkDisabling || bulkDeleting}>
+            {bulkDisabling ? 'Đang tắt...' : `Tắt ${selection.selectedIds.size} job đã chọn`}
+          </button>
+          <button type="button" onClick={deleteSelected} disabled={bulkDeleting || bulkEnabling || bulkDisabling}>
             {bulkDeleting ? 'Đang xoá...' : `Xoá ${selection.selectedIds.size} job đã chọn`}
           </button>
         </div>

@@ -53,9 +53,12 @@ export default function DataSourcesPage() {
   const [togglingId, setTogglingId] = useState(null);
   const [savingEdit, setSavingEdit] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
-  // Chọn nhiều + xoá hàng loạt (bản 8.62).
+  // Chọn nhiều + xoá hàng loạt (bản 8.62) + bật/tắt hàng loạt (bản 8.80,
+  // theo yêu cầu người dùng).
   const selection = useRowSelection();
   const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [bulkEnabling, setBulkEnabling] = useState(false);
+  const [bulkDisabling, setBulkDisabling] = useState(false);
 
   function reload() {
     api.get('/data-sources').then(setSources).catch(err => setError(err.message));
@@ -227,7 +230,10 @@ export default function DataSourcesPage() {
   }
 
   async function deleteSource(source) {
-    if (!confirm(`Xoá nguồn "${source.Name}"? Các job đồng bộ dùng nguồn này sẽ lỗi.`)) return;
+    // Lưu ý: KHÔNG tự xoá khi còn job đồng bộ tham chiếu (etl.SyncJobs.
+    // DataSourceId) — route sẽ TỪ CHỐI, báo rõ tên các job đang chặn (bản
+    // 8.76), không phải âm thầm xoá rồi job lỗi như câu hỏi cũ từng ngụ ý.
+    if (!confirm(`Xoá nguồn "${source.Name}"?`)) return;
     setDeletingId(source.Id);
     try {
       await api.del(`/data-sources/${source.Id}`);
@@ -235,17 +241,64 @@ export default function DataSourcesPage() {
     } catch (err) { setError(err.message); } finally { setDeletingId(null); }
   }
 
+  // Xoá hàng loạt (bản 8.62, sửa KHẢ NĂNG CHỊU LỖI ở bản 8.80 — theo yêu
+  // cầu người dùng, báo cáo "xoá nhiều không được"): TRƯỚC ĐÂY vòng lặp
+  // dừng NGAY ở mục đầu tiên bị chặn (vd còn job đồng bộ tham chiếu, xem
+  // routes/admin/dataSources.js DELETE — bản 8.76), khiến các mục SAU
+  // trong danh sách chọn KHÔNG được thử xoá, mà người dùng không biết mục
+  // nào đã xoá/mục nào bị chặn vì sao. Giờ thử XOÁ TỪNG MỤC ĐỘC LẬP (lỗi 1
+  // mục không chặn các mục còn lại), gộp báo lỗi rõ ràng cuối cùng.
   async function deleteSelected() {
     if (selection.selectedIds.size === 0) return;
-    if (!confirm(`Xoá ${selection.selectedIds.size} nguồn đã chọn? Các job đồng bộ dùng nguồn này sẽ lỗi.`)) return;
+    if (!confirm(`Xoá ${selection.selectedIds.size} nguồn đã chọn?`)) return;
     setBulkDeleting(true);
+    const failed = [];
     try {
       for (const id of selection.selectedIds) {
-        await api.del(`/data-sources/${id}`);
+        try {
+          await api.del(`/data-sources/${id}`);
+        } catch (err) {
+          const src = sources.find((s) => s.Id === id);
+          failed.push(`${src?.Name || id}: ${err.message}`);
+        }
       }
+      setError(failed.length ? `Không xoá được ${failed.length} nguồn — ${failed.join('; ')}` : '');
       selection.clear();
       reload();
-    } catch (err) { setError(err.message); } finally { setBulkDeleting(false); }
+    } finally { setBulkDeleting(false); }
+  }
+
+  // Bật/tắt hàng loạt (bản 8.80, theo yêu cầu người dùng) — gọi LẶP LẠI
+  // đúng PUT /:id đã có (như nút "Bật"/"Tắt" từng dòng), chỉ ép isActive
+  // THEO Ý MUỐN (không phải đảo ngược từng dòng — chọn 5 nguồn trạng thái
+  // khác nhau, bấm "Bật" phải làm CẢ 5 cùng bật, không phải đảo ngược
+  // riêng từng dòng). Lỗi 1 mục không chặn các mục còn lại, cùng tinh thần
+  // deleteSelected() ở trên.
+  async function setActiveForSelected(forceActive) {
+    if (selection.selectedIds.size === 0) return;
+    const setBusy = forceActive ? setBulkEnabling : setBulkDisabling;
+    setBusy(true);
+    const failed = [];
+    try {
+      for (const id of selection.selectedIds) {
+        const source = sources.find((s) => s.Id === id);
+        if (!source) continue;
+        try {
+          await api.put(`/data-sources/${id}`, {
+            name: source.Name, server: source.Server, port: source.Port,
+            databaseName: source.DatabaseName, username: source.Username,
+            encrypt: source.Encrypt, trustServerCert: source.TrustServerCert,
+            isActive: forceActive
+            // password bỏ trống -> route giữ nguyên mật khẩu đã lưu
+          });
+        } catch (err) {
+          failed.push(`${source.Name}: ${err.message}`);
+        }
+      }
+      setError(failed.length ? `Không cập nhật được ${failed.length} nguồn — ${failed.join('; ')}` : '');
+      selection.clear();
+      reload();
+    } finally { setBusy(false); }
   }
 
   return (
@@ -386,7 +439,13 @@ export default function DataSourcesPage() {
 
       {isAdmin && selection.selectedIds.size > 0 && (
         <div className="inline-actions">
-          <button type="button" onClick={deleteSelected} disabled={bulkDeleting}>
+          <button type="button" onClick={() => setActiveForSelected(true)} disabled={bulkEnabling || bulkDisabling || bulkDeleting}>
+            {bulkEnabling ? 'Đang bật...' : `Bật ${selection.selectedIds.size} nguồn đã chọn`}
+          </button>
+          <button type="button" onClick={() => setActiveForSelected(false)} disabled={bulkEnabling || bulkDisabling || bulkDeleting}>
+            {bulkDisabling ? 'Đang tắt...' : `Tắt ${selection.selectedIds.size} nguồn đã chọn`}
+          </button>
+          <button type="button" onClick={deleteSelected} disabled={bulkDeleting || bulkEnabling || bulkDisabling}>
             {bulkDeleting ? 'Đang xoá...' : `Xoá ${selection.selectedIds.size} nguồn đã chọn`}
           </button>
         </div>

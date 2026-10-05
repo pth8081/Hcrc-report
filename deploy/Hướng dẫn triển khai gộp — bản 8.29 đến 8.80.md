@@ -1,9 +1,9 @@
-# Hướng dẫn triển khai gộp — bản 8.29 đến 8.79 (làm 1 lần)
+# Hướng dẫn triển khai gộp — bản 8.29 đến 8.80 (làm 1 lần)
 
 **Mục đích**: theo yêu cầu người dùng — thay vì đọc/làm tuần tự từng mục
 trong "Nhật ký triển khai (từ bản 8.31)" (nhiều mục riêng, mỗi mục 1 bản),
 file NÀY gộp lại thành **1 lượt làm duy nhất** để đưa server từ trước bản
-8.29 lên thẳng bản 8.79. Các bước **idempotent** (an toàn chạy lại nhiều
+8.29 lên thẳng bản 8.80. Các bước **idempotent** (an toàn chạy lại nhiều
 lần) được gộp chỉ chạy **1 LẦN** ở bản mới nhất thay vì lặp lại theo từng
 bản cũ. Nếu server đã ở 1 bản nào đó rồi (vd đã tới 8.62), chỉ cần làm
 PHẦN CÒN THIẾU — hầu hết các bước dưới đây không hại gì nếu lỡ làm lại.
@@ -533,6 +533,29 @@ tls.getCACertificates is not a function`** — `lib/trustedCa.js` (bản
 
 Chi tiết đầy đủ: `deploy/Cập nhật bản 8.79 — Sửa crash rp-server trên
 Node dưới 22.4 (KHẨN).md`.
+
+---
+
+## O. Bật/Tắt hàng loạt + sửa xoá hàng loạt dừng cả loạt (bản 8.80)
+
+Thêm nút "Bật N đã chọn"/"Tắt N đã chọn" cho trang "Nguồn dữ liệu" và
+"Đồng bộ" (etl-admin). Sửa xoá hàng loạt (2 trang này) để lỗi 1 mục
+(vd nguồn còn job tham chiếu, bị `DELETE` từ chối theo bản 8.76) KHÔNG
+còn chặn các mục khác — trước đây dừng im lặng ngay mục đầu tiên bị lỗi,
+đúng cảm giác "xoá nhiều không được" người dùng báo cáo. Lưu ý: Bật/Tắt
+(`IsActive`) và xoá được hay không là 2 việc KHÔNG liên quan — Tắt trước
+KHÔNG giúp xoá được, phải xoá/đổi nguồn của các Sync Job đang tham chiếu.
+
+1. `git pull origin main` (đã làm ở mục A.1 nếu làm gộp từ đầu).
+2. `cd etl-admin && npm run build`, copy `dist/` mới (sửa thuần frontend
+   — KHÔNG cần `pm2 restart` backend).
+3. Kiểm tra: Nguồn dữ liệu/Đồng bộ → tick nhiều dòng → thấy đủ 3 nút
+   "Bật N"/"Tắt N"/"Xoá N đã chọn" → bấm "Bật"/"Tắt" đổi đúng trạng thái
+   TOÀN BỘ dòng đã chọn; thử xoá hàng loạt khi 1 nguồn còn job tham
+   chiếu → các nguồn KHÁC vẫn xoá được, trang báo rõ tên nguồn bị chặn.
+
+Chi tiết đầy đủ: `deploy/Cập nhật bản 8.80 — Bật-Tắt hàng loạt + sửa xoá
+hàng loạt dừng cả loạt.md`.
 
 ---
 

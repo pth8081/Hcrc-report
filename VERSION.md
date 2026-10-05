@@ -29,6 +29,42 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 8.80 — Bật/Tắt hàng loạt + sửa xoá hàng loạt dừng cả loạt khi 1 mục bị chặn (ETL)
+
+**Theo yêu cầu người dùng**: "Bạn cho phép chọn nhiều ở nguồn dữ liệu và
+đồng bộ để tắt, bật nhiều cùng một lúc, xoá đang ko thể xoá được nhiều
+đâu có thể phải tắt hết mới xoá được phải ko? Bạn kiểm tra luôn nhé."
+
+**Trả lời câu hỏi "phải tắt hết mới xoá được?"**: KHÔNG đúng — Bật/Tắt
+(`IsActive`) chỉ quyết định có kết nối/chạy lịch hay không, KHÔNG liên
+quan gì tới việc xoá được hay không. Nguyên nhân thật khiến "xoá nhiều
+không được" (trang Nguồn dữ liệu): `DELETE /data-sources/:id` (bản 8.76)
+**từ chối** xoá 1 nguồn nếu còn Sync Job nào có `DataSourceId` trỏ vào
+đó — dù job đó đang Bật hay Tắt đều bị chặn như nhau. Vòng lặp xoá hàng
+loạt ở frontend TRƯỚC ĐÂY dừng NGAY khi gặp mục đầu tiên bị chặn kiểu
+này, khiến MỌI mục SAU trong danh sách đã chọn **không được thử xoá**,
+mà người dùng không biết mục nào đã xoá/mục nào bị chặn vì sao — đúng
+triệu chứng "chọn nhiều, ấn xoá không ăn thua".
+
+- **Đã sửa (cả Nguồn dữ liệu lẫn Đồng bộ)**: vòng lặp xoá hàng loạt giờ
+  thử XOÁ TỪNG MỤC ĐỘC LẬP — lỗi 1 mục (vd còn job tham chiếu) KHÔNG còn
+  chặn các mục khác, kết thúc gộp báo lỗi rõ ràng (tên từng mục thất bại
+  + lý do thật) thay vì dừng im lặng giữa chừng.
+- **Đã thêm (đúng yêu cầu)**: nút "Bật N mục đã chọn"/"Tắt N mục đã chọn"
+  cạnh nút "Xoá N mục đã chọn" sẵn có, cho CẢ trang "Nguồn dữ liệu" lẫn
+  "Đồng bộ" — gọi LẶP LẠI đúng `PUT /:id` đã có (như nút Bật/Tắt từng
+  dòng), ép TOÀN BỘ mục đã chọn về CÙNG 1 trạng thái mong muốn (không
+  đảo ngược riêng từng dòng), cùng khả năng chịu lỗi như trên.
+- Bỏ câu "Các job đồng bộ dùng nguồn này sẽ lỗi" lỗi thời trong hộp thoại
+  xác nhận xoá (còn sót từ TRƯỚC bản 8.76 — lúc đó xoá vẫn chạy rồi job
+  mới lỗi; giờ route TỪ CHỐI hẳn, không xoá, không có job nào lỗi).
+- **Đã kiểm chứng bằng Playwright + mock backend THẬT** (không giả logic
+  nghiệp vụ UI): bấm "Bật N đã chọn" trên 3 nguồn trạng thái khác nhau →
+  cả 3 chuyển đúng "Hoạt động"; dựng lại ĐÚNG tình huống báo lỗi (xoá 3
+  nguồn, 1 nguồn trả về 400 "còn job tham chiếu") → xác nhận 2 nguồn còn
+  lại XOÁ ĐÚNG, nguồn bị chặn VẪN CÒN, trang hiện rõ tên nguồn thất bại +
+  lý do thật.
+
 ## 8.79 — KHẨN: Sửa crash rp-server trên Node < 22.4 (lỗi "tls.getCACertificates is not a function")
 
 **Theo yêu cầu người dùng**: gửi log PM2 cho thấy `hcrc-rp-server` ở
