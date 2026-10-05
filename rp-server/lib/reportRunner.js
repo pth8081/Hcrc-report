@@ -13,6 +13,7 @@ const { runTopZeroStockReport } = require('./topSellingZeroStockRunner');
 const { runCoreZeroStockReport } = require('./coreZeroStockRunner');
 const { runStockThresholdReport } = require('./stockThresholdRunner');
 const { runStockAlertReport } = require('./stockAlertRunner');
+const { runPurchaseOrderReport } = require('./purchaseOrderRunner');
 
 async function loadDefinition(reportId) {
   const rpPool = await getPool('RP');
@@ -65,7 +66,10 @@ async function resolveFactsPool(definition) {
 // MỌI mặt hàng đang có dữ liệu (không cần danh sách cố định) — xem
 // lib/stockThresholdRunner.js. 'stockAlert' (bản 8.68) — đối chiếu với
 // NGƯỠNG RIÊNG cho từng cặp (Mã hàng, Siêu thị) do admin tự khai/upload
-// (etl.StockAlertThresholds) — xem lib/stockAlertRunner.js.
+// (etl.StockAlertThresholds) — xem lib/stockAlertRunner.js. 'purchaseOrder'
+// (bản 8.75) — domain `don_dat_hang` (SL đặt + SL thực nhận CÙNG 1 dòng),
+// tự ánh xạ mã STK thô sang mã Điểm chuẩn qua "Ánh xạ Điểm - STK_ID"
+// TRƯỚC khi chiếu cột — xem lib/purchaseOrderRunner.js.
 async function runDefinition(definition, filterValues, pagination) {
   if (definition.sourceType === 'externalApi') {
     return runExternalReport(definition, filterValues);
@@ -84,6 +88,9 @@ async function runDefinition(definition, filterValues, pagination) {
   }
   if (definition.sourceType === 'stockAlert') {
     return runStockAlertReport(definition, filterValues);
+  }
+  if (definition.sourceType === 'purchaseOrder') {
+    return runPurchaseOrderReport(definition, filterValues, pagination);
   }
   if (definition.sourceType && definition.sourceType !== 'directDb') {
     return runApiReport(definition, filterValues, pagination);

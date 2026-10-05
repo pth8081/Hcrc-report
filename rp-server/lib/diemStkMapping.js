@@ -177,6 +177,25 @@ function buildBuIdLookup(diemMapping) {
   return lookup;
 }
 
+// Dựng Map<STK_ID thô, {maDiem, tenSieuThi}> — CHIỀU NGƯỢC LẠI với
+// remapRowsToDiem() (hàm đó CỘNG DỒN nhiều STK về 1 dòng/mã Điểm, dùng cho
+// báo cáo TỔNG HỢP theo ngày) — hàm này CHỈ dịch tên, KHÔNG gộp dòng, dùng
+// cho báo cáo CHI TIẾT theo từng dòng/chứng từ (vd đơn đặt hàng, bản 8.75)
+// nơi 1 siêu thị có thể có NHIỀU dòng trong cùng 1 ngày (nhiều đơn/nhiều
+// mặt hàng) mà KHÔNG được gộp lại — xem lib/purchaseOrderRunner.js. CHỈ
+// dùng MaStkMoi (mã kho HIỆN TẠI) — dữ liệu vận hành (đơn hàng) không có
+// khái niệm "cùng kỳ năm trước" như doanh thu, không cần tách STK cũ/mới.
+// STK_ID khai trùng ở 2 mã Điểm khác nhau (hiếm, lỗi khai tay) thì mã Điểm
+// SAU (theo thứ tự Map.entries()) ghi đè — cùng giới hạn đã biết như
+// buildBuIdLookup() ở trên.
+function buildStkIdLookup(diemMapping) {
+  const lookup = new Map();
+  for (const [maDiem, info] of diemMapping) {
+    for (const stk of info.maStkMoi) lookup.set(stk, { maDiem, tenSieuThi: info.tenSieuThi });
+  }
+  return lookup;
+}
+
 // storeScope (bản 8.51, app.UserStoreAccess — mảng MaDiem, hoặc null =
 // "Toàn bộ") -> tập hợp STK_ID (kho) THẬT tương ứng, dùng để lọc trực tiếp
 // theo MaChiNhanh/STK_ID ở các báo cáo KHÔNG qua compositeReportRunner.js
@@ -196,4 +215,4 @@ async function resolveStoreScopeStkIds(storeScope) {
   return stkIds;
 }
 
-module.exports = { loadDiemStkMapping, remapRowsToDiem, stkListsMatch, buildBuIdLookup, resolveStoreScopeStkIds };
+module.exports = { loadDiemStkMapping, remapRowsToDiem, stkListsMatch, buildBuIdLookup, buildStkIdLookup, resolveStoreScopeStkIds };

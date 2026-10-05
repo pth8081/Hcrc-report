@@ -14,6 +14,37 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 8.75 — Báo cáo Đơn đặt hàng / Đơn nhập hàng / So sánh đặt–nhận
+
+**Thay đổi**: thêm 3 báo cáo mới dựa trên dữ liệu đơn hàng DSmart16
+(`ST_ORDER`/`ST_ORDER_ARC`). Chi tiết đầy đủ: `bc-don-dat-hang.md`,
+`deploy/Cập nhật bản 8.75 — Báo cáo Đơn đặt hàng-Nhập hàng-So sánh.md`.
+
+**Các bước triển khai (CHƯA xong bước DBA — xem bước 1):**
+1. **[DBA]** Đối chiếu VIEW mẫu ở `bc-don-dat-hang.md` mục 2 với tên cột
+   THẬT của `ST_ORDER`/`ST_ORDER_ARC` (hiện chỉ là VÍ DỤ, chưa xác nhận) —
+   tạo `CREATE VIEW dbo.vw_DonDatHangChiNhanh` trên DSMART16 với tên cột
+   ĐÃ SỬA ĐÚNG.
+2. `git pull origin main`.
+3. Chạy `rp-db/schema.sql` (BẮT BUỘC — sửa `CK_ReportCatalog_SourceType`,
+   kèm fix 2 giá trị thiếu từ bản 8.68).
+4. `cd etl && node scripts/seedDonDatHangSync.js` (cần
+   `DSMART16_SERVER`/`DSMART16_USER`/`DSMART16_PASSWORD` trong `.env`, xem
+   đầu file script) — tạo Sync Job domain `don_dat_hang`.
+5. `cd rp-server && node scripts/seedPurchaseOrderReports.js` — tạo 3
+   `ReportCatalog`.
+6. Vào rp-user → Hệ thống → Phân quyền — gán quyền xem 3 `ReportId`
+   (`bc-don-dat-hang`/`bc-don-nhap-hang`/`bc-so-sanh-dat-nhan`) cho đúng
+   vai trò.
+7. `pm2 restart hcrc-etl hcrc-rp-server` (nạp code mới —
+   `purchaseOrderRunner.js`/route `SourceType='purchaseOrder'`).
+8. Kiểm tra: đợi tối đa 15 phút (chu kỳ đồng bộ) rồi mở 1 trong 3 báo cáo
+   — có dữ liệu đúng siêu thị đã khai "Ánh xạ Điểm - STK_ID"; siêu thị
+   CHƯA khai ánh xạ sẽ KHÔNG xuất hiện (không phải lỗi — bổ sung ánh xạ để
+   hiện ra).
+
+---
+
 ## 8.74 — Sửa lỗi captcha đăng nhập hiện rỗng không log (KHẨN)
 
 **Thay đổi**: sửa `src/lib/api.js` (cả 3 app) để KHÔNG còn âm thầm coi

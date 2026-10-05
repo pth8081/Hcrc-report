@@ -468,15 +468,20 @@ IF COL_LENGTH('app.ReportCatalog', 'ExternalConnectionId') IS NULL
 BEGIN
     ALTER TABLE app.ReportCatalog ADD ExternalConnectionId INT NULL REFERENCES app.ExternalApiConnections(Id);
 END
--- Bản cũ tạo CK_ReportCatalog_SourceType chưa đủ giá trị mới nhất (thiếu
--- 'externalApi'/'composite'/'topZeroStock'/'coreZeroStock') — xoá và tạo lại
--- cho đủ, kể cả khi đã đủ (rẻ, an toàn).
+-- Bản cũ tạo CK_ReportCatalog_SourceType chưa đủ giá trị mới nhất — xoá và
+-- tạo lại cho đủ, kể cả khi đã đủ (rẻ, an toàn). LỖI THẬT đã phát hiện khi
+-- làm bản 8.75: 2 giá trị 'stockThreshold'/'stockAlert' (bản 8.68,
+-- scripts/seedStockThresholdReport.js + seedStockAlertReport.js) CHƯA từng
+-- được thêm vào đây — mọi lần chạy 2 script đó trên 1 CSDL ĐÃ áp constraint
+-- này sẽ bị SQL Server từ chối với lỗi vi phạm CHECK constraint (không rõ
+-- ràng, dễ nhầm là lỗi khác) — bổ sung đủ cả 2 cùng lúc với 'purchaseOrder'
+-- (bản 8.75, scripts/seedPurchaseOrderReports.js) ở đây.
 IF EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = 'CK_ReportCatalog_SourceType')
 BEGIN
     ALTER TABLE app.ReportCatalog DROP CONSTRAINT CK_ReportCatalog_SourceType;
 END
 ALTER TABLE app.ReportCatalog ADD CONSTRAINT CK_ReportCatalog_SourceType
-    CHECK (SourceType IN ('directDb', 'apiReport', 'apiRealtime', 'externalApi', 'composite', 'topZeroStock', 'coreZeroStock'));
+    CHECK (SourceType IN ('directDb', 'apiReport', 'apiRealtime', 'externalApi', 'composite', 'topZeroStock', 'coreZeroStock', 'stockThreshold', 'stockAlert', 'purchaseOrder'));
 GO
 
 IF OBJECT_ID('app.RoleReportAccess', 'U') IS NULL

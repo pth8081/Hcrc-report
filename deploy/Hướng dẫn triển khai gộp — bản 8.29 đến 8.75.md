@@ -1,9 +1,9 @@
-# Hướng dẫn triển khai gộp — bản 8.29 đến 8.74 (làm 1 lần)
+# Hướng dẫn triển khai gộp — bản 8.29 đến 8.75 (làm 1 lần)
 
 **Mục đích**: theo yêu cầu người dùng — thay vì đọc/làm tuần tự từng mục
 trong "Nhật ký triển khai (từ bản 8.31)" (nhiều mục riêng, mỗi mục 1 bản),
 file NÀY gộp lại thành **1 lượt làm duy nhất** để đưa server từ trước bản
-8.29 lên thẳng bản 8.74. Các bước **idempotent** (an toàn chạy lại nhiều
+8.29 lên thẳng bản 8.75. Các bước **idempotent** (an toàn chạy lại nhiều
 lần) được gộp chỉ chạy **1 LẦN** ở bản mới nhất thay vì lặp lại theo từng
 bản cũ. Nếu server đã ở 1 bản nào đó rồi (vd đã tới 8.62), chỉ cần làm
 PHẦN CÒN THIẾU — hầu hết các bước dưới đây không hại gì nếu lỡ làm lại.
@@ -400,6 +400,32 @@ permission denied trên `dwh.ReportFacts`/`etl.CoreItemList`, "Invalid
 object name 'app.SystemLog'", lỗi SSL gửi email lịch báo cáo) **KHÔNG
 liên quan tới captcha** — route captcha không đụng CSDL nào — các lỗi đó
 cần xử lý riêng (thiếu quyền SQL/thiếu bảng ở từng báo cáo liên quan).
+
+---
+
+## J. Báo cáo Đơn đặt hàng / Đơn nhập hàng / So sánh đặt–nhận (bản 8.75 — CẦN DBA XÁC NHẬN TRƯỚC, KHÁC các mục trên)
+
+Khác mọi mục trên (chỉ cần `pm2 restart`/build lại) — mục này **CHƯA chạy
+được ngay** vì còn thiếu 1 bước bắt buộc phía DBA. Xem đầy đủ:
+`bc-don-dat-hang.md`.
+
+1. **[DBA — BẮT BUỘC TRƯỚC TIÊN]** Đối chiếu VIEW mẫu ở `bc-don-dat-hang.md`
+   mục 2 với tên cột THẬT của `ST_ORDER`/`ST_ORDER_ARC` (VIEW hiện tại chỉ
+   là VÍ DỤ, dùng tên cột phỏng đoán từ mẫu phiếu in — CHƯA xác nhận với
+   DBA) — tạo `CREATE VIEW dbo.vw_DonDatHangChiNhanh` trên DSMART16 với
+   tên cột ĐÃ SỬA ĐÚNG.
+2. Chạy `rp-db/schema.sql` (BẮT BUỘC — sửa CHECK constraint
+   `CK_ReportCatalog_SourceType`, kèm sửa luôn 2 giá trị thiếu từ bản
+   8.68).
+3. `cd etl && node scripts/seedDonDatHangSync.js` (cần
+   `DSMART16_SERVER`/`DSMART16_USER`/`DSMART16_PASSWORD` trong `.env`).
+4. `cd rp-server && node scripts/seedPurchaseOrderReports.js`.
+5. rp-user → Hệ thống → Phân quyền — gán quyền xem 3 `ReportId`
+   (`bc-don-dat-hang`/`bc-don-nhap-hang`/`bc-so-sanh-dat-nhan`).
+6. `pm2 restart hcrc-etl hcrc-rp-server`.
+7. Đợi tối đa 15 phút (chu kỳ đồng bộ) rồi kiểm tra báo cáo có dữ liệu —
+   siêu thị CHƯA khai "Ánh xạ Điểm - STK_ID" sẽ KHÔNG xuất hiện (không
+   phải lỗi, bổ sung ánh xạ để hiện ra).
 
 Không có bước nào ở trên làm mất dữ liệu đã có hoặc ảnh hưởng job/báo cáo
 đang chạy ổn định — mọi thay đổi CSDL đều là CREATE/ALTER thêm mới.

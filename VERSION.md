@@ -29,6 +29,60 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 8.75 — Báo cáo Đơn đặt hàng / Đơn nhập hàng / So sánh đặt–nhận
+
+**Theo yêu cầu người dùng**: "Tôi muốn bạn lấy cho tôi báo cáo đơn đặt
+hàng, đơn nhập hàng và báo cáo so sánh giá trị giữa nhập hàng thực và đặt
+hàng thực tế của toàn bộ siêu thị" — 3 báo cáo mới dựa trên dữ liệu đơn
+hàng DSmart16 (bảng `ST_ORDER`/`ST_ORDER_ARC`, DBA xác nhận), CSDL **trung
+tâm** (một nơi chứa đơn hàng mọi siêu thị, không phải mỗi siêu thị 1 CSDL
+riêng như domain doanh thu). Chi tiết đầy đủ (nguồn dữ liệu, VIEW mẫu,
+thiết kế): `bc-don-dat-hang.md`.
+
+- **Phát hiện quan trọng từ mẫu "Phiếu đặt hàng" thật** (người dùng gửi):
+  SL đặt ("Theo đơn") và SL thực nhận ("Thực nhận") nằm **TRÊN CÙNG 1
+  DÒNG chứng từ** — `ST_ORDER`/`ST_ORDER_ARC` là **1 nguồn duy nhất** cho
+  cả đặt lẫn nhận, KHÔNG phải 2 nguồn phải ghép composite. Nhờ vậy cả 3
+  báo cáo dùng CHUNG 1 domain ETL (`don_dat_hang`) và 1 `SourceType` mới
+  (`purchaseOrder`), chỉ khác nhau ở cột hiển thị.
+- **`rp-server/lib/purchaseOrderRunner.js`** (mới) — tái dùng nguyên
+  `lib/reportEngine.js` (filter/cột/công thức), chỉ thêm ĐÚNG 1 việc:
+  `Dimensions.MaDiem` đồng bộ từ DSmart16 là mã **STK_ID thô** (CSDL trung
+  tâm) — tự tra bảng "Ánh xạ Điểm - STK_ID" (`lib/diemStkMapping.js`, hàm
+  mới `buildStkIdLookup()`) để **ghi đè** bằng mã Điểm + tên siêu thị
+  CHUẨN của HCRC trước khi trả kết quả, theo đúng yêu cầu người dùng ("vẫn
+  dựa vào bảng ánh xạ mã STK để thực hiện"). STK chưa khai ánh xạ bị LOẠI
+  khỏi báo cáo (không hiện mã thô lẫn mã chuẩn). `__storeScope` (bản 8.51)
+  vẫn áp dụng đúng — người dùng bị giới hạn phạm vi chỉ thấy đơn hàng của
+  đúng siêu thị mình.
+- **Cột "So sánh đặt–nhận"** dùng công thức có sẵn (`lib/formulaEngine.js`)
+  trên CÙNG 1 dòng dữ liệu: Chênh lệch SL, Tỷ lệ hoàn thành (%), Chênh
+  lệch giá trị — không cần hạ tầng composite.
+- **`etl/scripts/seedDonDatHangSync.js`** (mới) — tạo Sync Job domain
+  `don_dat_hang`, `KeepHistory=1` (giữ lịch sử theo ngày — yêu cầu "lấy
+  theo ngày cả quá khứ").
+- **`rp-server/scripts/seedPurchaseOrderReports.js`** (mới) — tạo 3
+  `ReportCatalog` (`bc-don-dat-hang`/`bc-don-nhap-hang`/`bc-so-sanh-dat-nhan`),
+  gắn menu "Báo cáo Mua hàng" (`reports-mua-hang`, đã có sẵn).
+- **Sửa kèm 1 lỗi thật phát hiện được**: `CK_ReportCatalog_SourceType`
+  (`rp-db/schema.sql`) thiếu hẳn 2 giá trị `'stockThreshold'`/`'stockAlert'`
+  (bản 8.68) — mọi lần chạy lại `seedStockThresholdReport.js`/
+  `seedStockAlertReport.js` trên CSDL đã áp constraint này sẽ bị SQL Server
+  từ chối (vi phạm CHECK constraint) — bổ sung đủ cùng lúc với
+  `'purchaseOrder'`.
+- **Đã kiểm chứng bằng mock** (chưa có CSDL DSmart16 thật để nối): giả lập
+  dữ liệu `dwh.ReportFacts` + `etl.DiemStkMapping`, xác nhận ĐÚNG: ghi đè
+  mã Điểm/tên siêu thị, loại bỏ dòng có STK chưa khai ánh xạ, công thức so
+  sánh tính đúng, VÀ **`__storeScope` cô lập đúng dữ liệu giữa các siêu
+  thị khác nhau** (không rò rỉ đơn hàng của siêu thị khác).
+
+**CHƯA CÓ SỐ LIỆU THẬT cho tới khi**: (1) DBA xác nhận đúng tên cột thật
+của `ST_ORDER`/`ST_ORDER_ARC` (VIEW trong `bc-don-dat-hang.md` hiện là
+**VÍ DỤ**, dùng tên cột phỏng đoán từ mẫu phiếu, CHƯA xác nhận với DBA);
+(2) tạo VIEW `dbo.vw_DonDatHangChiNhanh` thật trên DSMART16; (3) chạy
+`seedDonDatHangSync.js` + `seedPurchaseOrderReports.js`; (4) gán quyền
+xem báo cáo.
+
 ## 8.74 — Sửa lỗi captcha đăng nhập hiện rỗng không log (KHẨN)
 
 **Theo yêu cầu người dùng**: báo lỗi khẩn trang đăng nhập report.hcrc.vn —
