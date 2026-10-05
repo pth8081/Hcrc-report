@@ -29,6 +29,33 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 8.81 — Xoá kèm job đồng bộ khi Nguồn dữ liệu còn job tham chiếu (ETL)
+
+**Theo yêu cầu người dùng**: gửi ảnh chụp bị chặn xoá Nguồn dữ liệu kèm
+báo "Tôi đã tắt cả nguồn và job mà ko xoá được" — sau khi đã hỏi và xác
+nhận (AskUserQuestion) đây là THIẾT KẾ ĐÚNG, có chủ đích (bản 8.76, chặn
+xoá khi còn Sync Job tham chiếu để không bao giờ âm thầm mất cấu hình
+job), người dùng chọn phương án **thêm nút "Xoá kèm job"** thay vì tự
+qua trang "Đồng bộ" xoá job trước rồi quay lại.
+
+- **`DELETE /admin/data-sources/:id`** nhận thêm `{ cascadeJobs: true }`
+  (tuỳ chọn) — có thì xoá hết các Sync Job đang tham chiếu nguồn đó
+  TRƯỚC (gỡ đúng khỏi lịch cron qua `rescheduleJob()`), rồi mới xoá
+  nguồn; không có (mặc định, hành vi CŨ không đổi) thì vẫn chặn như bản
+  8.76, trả kèm `blockingJobs` (id + tên từng job) để frontend hiển thị.
+- **`DataSourcesPage.jsx`**: bấm "Xoá" bị chặn → hỏi RIÊNG 1 lần nữa,
+  nêu ĐÚNG tên từng job đang chặn ("Xoá CẢ N job này CÙNG LÚC với
+  nguồn?") → đồng ý mới gọi lại với `cascadeJobs: true`. KHÔNG tự động
+  xoá job nào mà không hỏi — giữ đúng tinh thần "không bao giờ âm thầm"
+  của bản 8.76, chỉ gộp 2 bước (xoá job + xoá nguồn) vào 1 lượt.
+- **Đã kiểm chứng bằng mock CSDL THẬT** (gọi thẳng route handler): mặc
+  định vẫn chặn đúng, trả đủ `blockingJobs`; `cascadeJobs:true` xoá đúng
+  CHỈ các job của ĐÚNG nguồn đang xoá (không đụng job của nguồn khác),
+  gọi đúng `rescheduleJob()` gỡ khỏi lịch; nguồn không ai dùng vẫn xoá
+  bình thường như cũ (`deletedJobs: 0`). Demo Playwright xác nhận đúng
+  trình tự 2 hộp thoại xác nhận, nêu đúng tên 2 job thật từ ảnh chụp
+  người dùng gửi ("Doanh thu (TV)..."/"Giao dịch (TV)...").
+
 ## 8.80 — Bật/Tắt hàng loạt + sửa xoá hàng loạt dừng cả loạt khi 1 mục bị chặn (ETL)
 
 **Theo yêu cầu người dùng**: "Bạn cho phép chọn nhiều ở nguồn dữ liệu và

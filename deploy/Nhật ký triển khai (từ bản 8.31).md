@@ -14,6 +14,23 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 8.81 — Xoá kèm job đồng bộ khi Nguồn dữ liệu còn job tham chiếu (ETL)
+
+**Thay đổi**: xoá 1 Nguồn dữ liệu bị chặn (còn Sync Job tham chiếu) giờ
+hỏi thêm "Xoá CẢ N job này CÙNG LÚC với nguồn?" — đồng ý thì xoá job
+trước rồi xoá nguồn, trong 1 thao tác, không cần tự qua trang "Đồng bộ"
+xoá job trước. `DELETE /data-sources/:id` nhận thêm `cascadeJobs: true`.
+
+**Các bước triển khai:**
+1. `git pull origin main`.
+2. `pm2 restart hcrc-etl` (BẮT BUỘC — route DELETE đổi logic).
+3. `cd etl-admin && npm run build`, copy `dist/` mới.
+4. Kiểm tra: xoá 1 nguồn còn job tham chiếu → thấy hộp thoại hỏi RIÊNG
+   "Xoá CẢ N job này..." nêu đúng tên job → đồng ý → nguồn VÀ các job đó
+   đều mất; bấm "Huỷ" ở bước 2 → không mất gì cả, giữ nguyên lỗi chặn.
+
+---
+
 ## 8.80 — Bật/Tắt hàng loạt + sửa xoá hàng loạt dừng cả loạt (ETL)
 
 **Thay đổi**: thêm nút "Bật N đã chọn"/"Tắt N đã chọn" cho trang "Nguồn

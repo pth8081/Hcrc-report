@@ -31,6 +31,7 @@ const { exportDataSourcesEncrypted, importDataSourcesEncrypted, MAGIC_HEADER } =
 const { summarizeSourceSyncStatus } = require('../../lib/syncStatus');
 const { logAction } = require('../../lib/auditLog');
 const { hasZipSignature } = require('../../lib/fileSignature');
+const { rescheduleJob } = require('../../jobs/scheduler');
 
 // Chạy testConnection() nhưng KHÔNG BAO GIỜ throw — dùng ngay sau khi lưu,
 // lỗi kết nối không được làm hỏng response lưu-thành-công.
@@ -188,20 +189,39 @@ router.delete('/:id', requireMenuEdit('data-sources'), async (req, res, next) =>
     const pool = await getPool('ADMIN');
     // Kiểm tra TRƯỚC còn Sync Job nào tham chiếu nguồn này không (LỖI THẬT
     // đã gặp, bản 8.76) — etl.SyncJobs.DataSourceId KHÔNG có ON DELETE
-    // CASCADE (cố ý — xoá nguồn không nên âm thầm xoá luôn job đồng bộ),
+    // CASCADE (cố ý — xoá nguồn không nên ÂM THẦM xoá luôn job đồng bộ),
     // nên để nguyên sẽ ném lỗi FK violation THÔ của SQL Server, khó hiểu
-    // với người dùng cuối. Báo rõ TÊN các job đang chặn thay vì để lỗi SQL
-    // thô lộ ra — nhất quán với cách báo lỗi còn lại của hệ thống.
+    // với người dùng cuối. Mặc định CHẶN, báo rõ TÊN các job đang chặn.
+    //
+    // `cascadeJobs: true` (bản 8.80, theo yêu cầu người dùng — thực tế
+    // gặp phải khi xoá 1 nguồn còn job tham chiếu, "đã tắt cả nguồn và
+    // job mà không xoá được") — frontend gửi cờ này SAU KHI người dùng đã
+    // xác nhận RIÊNG "Xoá cả N job đồng bộ này?" (không phải mặc định, xem
+    // DataSourcesPage.jsx) thì xoá LUÔN các job đang chặn TRƯỚC khi xoá
+    // nguồn — vẫn KHÔNG ÂM THẦM (luôn có 1 bước xác nhận rõ ràng riêng),
+    // chỉ gộp 2 thao tác "xoá job" + "xoá nguồn" vào 1 lượt thay vì bắt
+    // người dùng tự qua trang "Đồng bộ" xoá job trước rồi quay lại.
     const referencing = await pool.request().input('id', sql.Int, req.params.id)
-      .query('SELECT Name FROM etl.SyncJobs WHERE DataSourceId = @id');
-    if (referencing.recordset.length) {
+      .query('SELECT Id, Name FROM etl.SyncJobs WHERE DataSourceId = @id');
+    if (referencing.recordset.length && !req.body?.cascadeJobs) {
       const names = referencing.recordset.map((r) => r.Name).join(', ');
-      return res.status(400).json({ error: `Không thể xoá — còn ${referencing.recordset.length} job đồng bộ đang dùng nguồn này: ${names}. Xoá/đổi nguồn của các job đó trước.` });
+      return res.status(400).json({
+        error: `Không thể xoá — còn ${referencing.recordset.length} job đồng bộ đang dùng nguồn này: ${names}. Xoá/đổi nguồn của các job đó trước.`,
+        blockingJobs: referencing.recordset.map((r) => ({ id: r.Id, name: r.Name }))
+      });
+    }
+    for (const job of referencing.recordset) {
+      await pool.request().input('jid', sql.Int, job.Id).query('DELETE FROM etl.SyncJobs WHERE Id = @jid');
+      await rescheduleJob(job.Id); // job không còn -> tự gỡ khỏi lịch
+      await logAction(req, { module: 'Đồng bộ', actionType: 'XOA_JOB', targetObject: String(job.Id), description: `Xoá job đồng bộ "${job.Name}" (xoá kèm khi xoá nguồn dữ liệu #${req.params.id})` });
     }
     await pool.request().input('id', sql.Int, req.params.id).query('DELETE FROM etl.DataSources WHERE Id = @id');
     await invalidate(parseInt(req.params.id, 10));
-    await logAction(req, { module: 'Nguồn dữ liệu', actionType: 'XOA_NGUON', targetObject: req.params.id, description: `Xoá nguồn dữ liệu #${req.params.id}` });
-    res.json({ ok: true });
+    await logAction(req, {
+      module: 'Nguồn dữ liệu', actionType: 'XOA_NGUON', targetObject: req.params.id,
+      description: `Xoá nguồn dữ liệu #${req.params.id}` + (referencing.recordset.length ? ` (kèm xoá ${referencing.recordset.length} job đồng bộ tham chiếu)` : '')
+    });
+    res.json({ ok: true, deletedJobs: referencing.recordset.length });
   } catch (err) { next(err); }
 });
 

@@ -229,16 +229,36 @@ export default function DataSourcesPage() {
     } catch (err) { setError(err.message); } finally { setSavingEdit(false); }
   }
 
+  // Xoá 1 nguồn — nếu còn job đồng bộ tham chiếu (etl.SyncJobs.DataSourceId),
+  // route TỪ CHỐI mặc định, trả kèm `blockingJobs` (tên từng job, bản 8.80,
+  // theo yêu cầu người dùng — thực tế gặp "đã tắt cả nguồn và job mà không
+  // xoá được"). Hỏi RIÊNG 1 lần nữa "Xoá CẢ N job này?" — xác nhận ĐÚNG tên
+  // từng job trước khi xoá kèm (`cascadeJobs: true`), KHÔNG tự ý xoá job nào
+  // mà không hỏi lại — giữ đúng tinh thần "không bao giờ âm thầm" của bản
+  // 8.76, chỉ gộp 2 bước (xoá job + xoá nguồn) vào 1 lượt thay vì bắt người
+  // dùng tự qua trang "Đồng bộ" xoá job trước rồi quay lại xoá nguồn.
   async function deleteSource(source) {
-    // Lưu ý: KHÔNG tự xoá khi còn job đồng bộ tham chiếu (etl.SyncJobs.
-    // DataSourceId) — route sẽ TỪ CHỐI, báo rõ tên các job đang chặn (bản
-    // 8.76), không phải âm thầm xoá rồi job lỗi như câu hỏi cũ từng ngụ ý.
     if (!confirm(`Xoá nguồn "${source.Name}"?`)) return;
     setDeletingId(source.Id);
     try {
       await api.del(`/data-sources/${source.Id}`);
       reload();
-    } catch (err) { setError(err.message); } finally { setDeletingId(null); }
+    } catch (err) {
+      const blockingJobs = err.data?.blockingJobs;
+      if (blockingJobs?.length) {
+        const names = blockingJobs.map((j) => j.name).join(', ');
+        if (confirm(`Nguồn "${source.Name}" còn ${blockingJobs.length} job đồng bộ đang dùng: ${names}.\n\nXoá CẢ ${blockingJobs.length} job này CÙNG LÚC với nguồn?`)) {
+          try {
+            await api.del(`/data-sources/${source.Id}`, { cascadeJobs: true });
+            reload();
+          } catch (err2) { setError(err2.message); }
+        } else {
+          setError(err.message);
+        }
+      } else {
+        setError(err.message);
+      }
+    } finally { setDeletingId(null); }
   }
 
   // Xoá hàng loạt (bản 8.62, sửa KHẢ NĂNG CHỊU LỖI ở bản 8.80 — theo yêu

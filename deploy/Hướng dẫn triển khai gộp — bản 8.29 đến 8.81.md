@@ -1,9 +1,9 @@
-# Hướng dẫn triển khai gộp — bản 8.29 đến 8.80 (làm 1 lần)
+# Hướng dẫn triển khai gộp — bản 8.29 đến 8.81 (làm 1 lần)
 
 **Mục đích**: theo yêu cầu người dùng — thay vì đọc/làm tuần tự từng mục
 trong "Nhật ký triển khai (từ bản 8.31)" (nhiều mục riêng, mỗi mục 1 bản),
 file NÀY gộp lại thành **1 lượt làm duy nhất** để đưa server từ trước bản
-8.29 lên thẳng bản 8.80. Các bước **idempotent** (an toàn chạy lại nhiều
+8.29 lên thẳng bản 8.81. Các bước **idempotent** (an toàn chạy lại nhiều
 lần) được gộp chỉ chạy **1 LẦN** ở bản mới nhất thay vì lặp lại theo từng
 bản cũ. Nếu server đã ở 1 bản nào đó rồi (vd đã tới 8.62), chỉ cần làm
 PHẦN CÒN THIẾU — hầu hết các bước dưới đây không hại gì nếu lỡ làm lại.
@@ -556,6 +556,26 @@ KHÔNG giúp xoá được, phải xoá/đổi nguồn của các Sync Job đang
 
 Chi tiết đầy đủ: `deploy/Cập nhật bản 8.80 — Bật-Tắt hàng loạt + sửa xoá
 hàng loạt dừng cả loạt.md`.
+
+---
+
+## P. Xoá kèm job đồng bộ khi Nguồn dữ liệu còn job tham chiếu (bản 8.81)
+
+Bấm "Xoá" 1 Nguồn dữ liệu bị chặn (còn Sync Job tham chiếu, chặn có chủ
+đích từ bản 8.76) giờ hỏi thêm RIÊNG "Xoá CẢ N job này CÙNG LÚC với
+nguồn?", nêu đúng tên từng job — đồng ý thì xoá job trước rồi xoá nguồn,
+trong 1 thao tác, không cần tự qua trang "Đồng bộ" xoá job trước rồi
+quay lại. KHÔNG tự động xoá job nào mà không hỏi.
+
+1. `git pull origin main` (đã làm ở mục A.1 nếu làm gộp từ đầu).
+2. `pm2 restart hcrc-etl` (BẮT BUỘC — route `DELETE` đổi logic).
+3. `cd etl-admin && npm run build`, copy `dist/` mới.
+4. Kiểm tra: xoá 1 nguồn còn job tham chiếu → hộp thoại thứ 2 nêu đúng
+   tên job đang chặn → đồng ý → cả nguồn lẫn các job đó đều mất; bấm
+   "Huỷ" ở bước 2 → không mất gì, giữ nguyên lỗi chặn.
+
+Chi tiết đầy đủ: `deploy/Cập nhật bản 8.81 — Xoá kèm job đồng bộ khi
+Nguồn dữ liệu còn job tham chiếu.md`.
 
 ---
 

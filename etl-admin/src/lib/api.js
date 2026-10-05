@@ -60,6 +60,6 @@ export const api = {
   get: (path) => request(path),
   post: (path, body, isFormData = false) => request(path, { method: 'POST', body, isFormData }),
   put: (path, body) => request(path, { method: 'PUT', body }),
-  del: (path) => request(path, { method: 'DELETE' }),
+  del: (path, body) => request(path, { method: 'DELETE', body }),
   downloadFile
 };
