@@ -29,6 +29,53 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 8.88 — Sửa gửi email cổng 465 không gửi được khi máy chủ không bật TLS (rp-user/rp-server)
+
+**Theo yêu cầu người dùng**: gửi log `/var/log/mail.log` của Postfix nội
+bộ cho thấy nhiều kết nối từ server HCRC bị "lost connection after
+CONNECT" (mất kết nối NGAY sau khi kết nối, không gửi được lệnh SMTP
+nào) — tiếp theo gửi ảnh chụp trang "Thiết lập email", bấm "Gửi thử" báo
+lỗi rõ: "Máy chủ SMTP 172.16.80.41:465 từ chối/lỗi gửi thử — Lỗi SMTP:
+...SSL routines:tls_validate_record_header:wrong version number...".
+
+**Nguyên nhân**: lỗi OpenSSL "wrong version number" là dấu hiệu RẤT ĐẶC
+TRƯNG — ứng dụng gửi ClientHello TLS tới 1 cổng máy chủ đang nói SMTP
+THUẦN (không mã hoá). `rp-server/lib/mailer.js` (từ bản 8.63) ÉP CỨNG
+`secure=true` MỖI KHI `SmtpPort=465`, bất kể admin đã tick/bỏ tick
+"Secure" trong "Thiết lập email" — giả định lúc đó "không có gateway SMTP
+thật nào dùng cổng 465 ở chế độ không mã hoá" hoá ra SAI với đúng Postfix
+nội bộ của người dùng (nghe cổng 465 nhưng KHÔNG bật TLS ở đó) — admin
+KHÔNG CÓ CÁCH NÀO bỏ tick "Secure" để gửi không mã hoá trên cổng đó, mọi
+lần "Gửi thử" đều lỗi y hệt.
+
+- **`rp-server/lib/mailer.js`**: bỏ ép cứng — `secure` giờ LUÔN theo đúng
+  giá trị admin đã lưu (`row.Secure`), kể cả ở cổng 465. Thêm
+  `describeMailError()` — lỗi "wrong version number" được diễn giải thêm
+  câu gợi ý rõ ràng ("máy chủ SMTP này có vẻ KHÔNG bật TLS ngay từ đầu...
+  hãy BỎ tick Secure") NGAY SAU thông điệp gốc (giữ nguyên gốc để còn tra
+  cứu), áp dụng cho CẢ nút "Gửi thử" lẫn lịch gửi báo cáo tự động (dùng
+  chung `sendMail()`).
+- **`rp-user/src/modules/system/email-settings/EmailSettingsPage.jsx`**:
+  cổng 465 giờ CHỈ còn tự tick sẵn "Secure" làm GỢI Ý tiện tay lúc đổi
+  cổng (vẫn sửa lại được bình thường) — câu hint cũ khẳng định "hệ thống
+  tự gửi bằng chế độ này dù ô trên có tick hay không" (SAI từ bản này) đã
+  đổi thành hướng dẫn cụ thể: gặp lỗi "wrong version number" thì bỏ tick
+  "Secure".
+- **`rp-user/src/styles.css`**: `.form-error` thêm `white-space: pre-line`
+  để câu gợi ý 2 dòng của `describeMailError()` xuống dòng rõ ràng thay vì
+  dính liền 1 hàng dài.
+
+**Đã kiểm chứng**: mock gọi thẳng `sendMail()` — (1) cổng 465 với
+`Secure` đã lưu = false → gửi đúng `secure:false`, không còn ép true; (2)
+cổng 465 với `Secure` đã lưu = true → vẫn gửi `secure:true` như bình
+thường (không đổi hành vi phổ biến); (3) lỗi "wrong version number" được
+diễn giải thêm câu gợi ý, giữ nguyên thông điệp gốc. Build `rp-user &&
+npx vite build` sạch.
+
+Không đổi mặc định (preset "Postfix" vẫn gợi ý cổng 465 + tick "Secure"
+sẵn, đúng với đa số Postfix thật) — chỉ thêm đường thoát cho trường hợp
+máy chủ THẬT không khớp giả định đó, như của người dùng.
+
 ## 8.87 — Chặn bớt số job chạy đồng thời + không bỏ sót lỗi xin khoá (ETL)
 
 **Theo yêu cầu người dùng**: gửi ảnh chụp `pm2 logs hcrc-etl` sau khi lên

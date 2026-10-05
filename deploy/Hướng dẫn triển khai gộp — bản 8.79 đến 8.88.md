@@ -1,9 +1,9 @@
-# Hướng dẫn triển khai gộp — bản 8.79 đến 8.87 (làm 1 lần)
+# Hướng dẫn triển khai gộp — bản 8.79 đến 8.88 (làm 1 lần)
 
-**Mục đích**: gộp các bước triển khai từ bản 8.79 tới bản 8.87 hiện tại
+**Mục đích**: gộp các bước triển khai từ bản 8.79 tới bản 8.88 hiện tại
 thành **1 lượt làm duy nhất**, cho server đã deploy tới khoảng bản 8.78
 và cần bắt kịp bản mới nhất — KHÔNG lặp lại toàn bộ lịch sử từ bản 8.29
-(xem `deploy/Hướng dẫn triển khai gộp — bản 8.29 đến 8.87.md` nếu cần
+(xem `deploy/Hướng dẫn triển khai gộp — bản 8.29 đến 8.88.md` nếu cần
 dựng server hoàn toàn mới từ đầu).
 
 **Không gồm bản 8.82** (`scripts/deleteThanhVienLiveSync.js`) — đây là
@@ -17,7 +17,7 @@ chi tiết kỹ thuật của từng bản khi cần — file này chỉ gộp p
 
 ---
 
-## Tóm tắt những gì thay đổi (8.79 → 8.87)
+## Tóm tắt những gì thay đổi (8.79 → 8.88)
 
 | Bản | Nội dung |
 |---|---|
@@ -30,6 +30,7 @@ chi tiết kỹ thuật của từng bản khi cần — file này chỉ gộp p
 | 8.85 | Sửa màn hình trắng khi vào URL không khớp route nào (rp-user) |
 | 8.86 | Thử lại + rút ngắn thời gian chờ khi VPN chi nhánh chập chờn giữa chừng đồng bộ (ETL) |
 | 8.87 | Chặn bớt số job chạy đồng thời + không bỏ sót lỗi xin khoá (ETL) |
+| 8.88 | Sửa gửi email cổng 465 không gửi được khi máy chủ không bật TLS (rp-user/rp-server) |
 
 ---
 
@@ -39,7 +40,7 @@ chi tiết kỹ thuật của từng bản khi cần — file này chỉ gộp p
 git pull origin main
 ```
 
-Lệnh này lấy về ĐỦ cả 8 bản (8.79/8.80/8.81/8.83/8.84/8.85/8.86/8.87)
+Lệnh này lấy về ĐỦ cả 9 bản (8.79/8.80/8.81/8.83/8.84/8.85/8.86/8.87/8.88)
 cùng lúc — không cần chạy lại cho từng bản.
 
 ---
@@ -71,14 +72,15 @@ này PWA sẽ không hoạt động (không cài được "Thêm vào màn hình
 
 `rp-user` **PHẢI build lại** (bản 8.84 — dropdown "Chọn nhóm" ở trang
 Dashboard; bản 8.85 — sửa màn hình trắng khi vào URL không khớp route
-nào — cả 2 chỉ đổi frontend, không có gói npm mới).
+nào; bản 8.88 — sửa "Thiết lập email" cổng 465 — cả 3 chỉ đổi frontend,
+không có gói npm mới).
 
 ---
 
 ## D. Restart backend
 
 ```bash
-pm2 restart hcrc-rp-server    # BẮT BUỘC — bản 8.79 (KHẨN), sửa crash trên Node < 22.4
+pm2 restart hcrc-rp-server    # BẮT BUỘC — bản 8.79 (KHẨN, Node<22.4), bản 8.88 (sửa gửi email cổng 465)
 pm2 restart hcrc-etl          # BẮT BUỘC — bản 8.81/8.86/8.87 (route DELETE, lấy kết nối/trích xuất, giới hạn job đồng thời)
 ```
 
@@ -175,7 +177,11 @@ Chi tiết đầy đủ xem mục "8.82" trong `VERSION.md`.
   khác chi nhánh cùng lúc); nếu thỉnh thoảng vẫn còn lỗi xin khoá, giờ
   thấy đúng dòng đó xuất hiện trên etl-admin → "Đồng bộ" → "Job lỗi
   trong 24h qua" (trước đây hoàn toàn không hiện ở đó).
+- [ ] **(8.88)** rp-user → "Thiết lập email" → cổng 465 → bỏ tick
+  "Secure" (nếu máy chủ SMTP thật không bật TLS ở cổng đó) → "Gửi thử"
+  → gửi thành công (trước đây luôn báo lỗi "wrong version number" dù đã
+  bỏ tick).
 
 Không có bước nào ở trên làm mất dữ liệu đã có hoặc ảnh hưởng job/báo
 cáo đang chạy ổn định — mọi thay đổi CSDL (nếu có) đều là CREATE/ALTER
-thêm mới (bản 8.79-8.87 thực tế KHÔNG đổi schema CSDL nào).
+thêm mới (bản 8.79-8.88 thực tế KHÔNG đổi schema CSDL nào).

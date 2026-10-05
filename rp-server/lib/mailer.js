@@ -12,6 +12,22 @@ const { getPool } = require('../db');
 const { decrypt } = require('./crypto');
 const { sendMailEws } = require('./ewsMailer');
 
+// Bản 8.88 — "wrong version number" (OpenSSL) là dấu hiệu RẤT ĐẶC TRƯNG:
+// client gửi ClientHello TLS tới 1 cổng máy chủ đang nói SMTP THUẦN (không
+// TLS) — đúng kịch bản gặp thật: admin tick "Secure" (hoặc dùng cổng 465,
+// trước bản 8.88 bị ép secure=true cứng) nhưng Postfix/gateway thật KHÔNG
+// bật TLS ngay-từ-đầu ở cổng đó. Thông điệp gốc của OpenSSL quá kỹ thuật
+// (nhắc tới file .c/dòng số trong thư viện) để admin tự hiểu phải sửa gì —
+// thêm 1 câu diễn giải NGAY SAU thông điệp gốc (giữ nguyên gốc để còn tra
+// cứu/báo lỗi khi cần), chỉ đúng hướng sửa: bỏ tick "Secure".
+function describeMailError(err) {
+  const message = err?.message || String(err);
+  if (/wrong version number|wrong_version_number/i.test(message)) {
+    return `${message}\n→ Máy chủ SMTP này có vẻ KHÔNG bật TLS ngay từ đầu ở cổng đang dùng (dù đã tick "Secure") — thử BỎ tick "Secure" rồi gửi thử lại.`;
+  }
+  return message;
+}
+
 async function loadSettings() {
   const pool = await getPool('RP');
   const result = await pool.request().query(`
@@ -39,14 +55,20 @@ async function sendMail({ to, subject, text, html, attachments }) {
     );
   }
 
-  // Cổng 465 (vd Postfix smtps) bắt buộc TLS NGAY TỪ ĐẦU kết nối — khác
-  // 587/25 (STARTTLS). Lỗi phổ biến nhất khiến "Thiết lập email" cấu hình
-  // đúng host/port vẫn gửi thất bại là quên tick "Secure" khi đổi sang cổng
-  // 465 (bản 8.63, theo sự cố thật với Postfix của người dùng) — ÉP true
-  // khi port là 465 bất kể giá trị đã lưu, không phụ thuộc người dùng nhớ
-  // tick đúng checkbox (không có gateway SMTP thật nào dùng cổng 465 ở chế
-  // độ không mã hoá).
-  const secure = row.SmtpPort === 465 ? true : !!row.Secure;
+  // Cổng 465 (vd Postfix smtps) THƯỜNG bắt buộc TLS NGAY TỪ ĐẦU kết nối —
+  // khác 587/25 (STARTTLS). Bản 8.63 từng ÉP secure=true mỗi khi port=465,
+  // bất kể checkbox "Secure" đã lưu gì — giả định "không có gateway SMTP
+  // thật nào dùng cổng 465 ở chế độ không mã hoá" (bản 8.88, SỬA LẠI sau sự
+  // cố thật: giả định đó SAI — Postfix nội bộ của người dùng lắng nghe cổng
+  // 465 nhưng KHÔNG bật TLS ở đó, gửi thất bại với lỗi OpenSSL
+  // "SSL routines:tls_validate_record_header:wrong version number" — đúng
+  // dấu hiệu client gửi ClientHello TLS tới 1 cổng đang nói SMTP thuần, và
+  // vì bị ép cứng, admin KHÔNG CÓ CÁCH NÀO bỏ tick "Secure" để thử gửi
+  // không mã hoá trên cổng đó — mọi lần bấm "Gửi thử" đều lỗi y hệt). Từ
+  // bản này, LUÔN tôn trọng đúng giá trị admin đã lưu — cổng 465 chỉ còn là
+  // GỢI Ý tự tick sẵn lúc đổi cổng (xem EmailSettingsPage.jsx), không còn
+  // ép buộc lúc GỬI THẬT.
+  const secure = !!row.Secure;
   const transport = nodemailer.createTransport({
     host: row.SmtpHost,
     port: row.SmtpPort,
@@ -69,14 +91,19 @@ async function sendMail({ to, subject, text, html, attachments }) {
     auth: row.Username ? { user: row.Username, pass: row.PasswordEncrypted ? decrypt(row.PasswordEncrypted) : undefined } : undefined
   });
 
-  await transport.sendMail({
-    from: row.FromName ? `${row.FromName} <${row.FromAddress}>` : row.FromAddress,
-    to,
-    subject,
-    text,
-    html,
-    attachments
-  });
+  try {
+    await transport.sendMail({
+      from: row.FromName ? `${row.FromName} <${row.FromAddress}>` : row.FromAddress,
+      to,
+      subject,
+      text,
+      html,
+      attachments
+    });
+  } catch (err) {
+    err.message = describeMailError(err);
+    throw err;
+  }
 }
 
 module.exports = { sendMail };

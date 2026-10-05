@@ -14,6 +14,24 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 8.88 — Sửa gửi email cổng 465 không gửi được khi máy chủ không bật TLS (rp-user/rp-server)
+
+**Thay đổi**: "Thiết lập email" cổng 465 giờ gửi ĐÚNG theo checkbox
+"Secure" admin đã tick/bỏ tick — trước đây bị ép cứng `secure=true` mỗi
+khi port=465, khiến Postfix nội bộ KHÔNG bật TLS ở cổng đó không cách
+nào gửi được (lỗi OpenSSL "wrong version number").
+
+**Các bước triển khai:**
+1. `git pull origin main`.
+2. `pm2 restart hcrc-rp-server` (BẮT BUỘC — đổi logic gửi email
+   `rp-server/lib/mailer.js`).
+3. `cd rp-user && npm run build`, copy `dist/` mới.
+4. Kiểm tra: "Thiết lập email" → cổng 465 → BỎ tick "Secure" nếu máy chủ
+   thật không bật TLS ở cổng đó → "Gửi thử" → gửi thành công (trước đây
+   luôn lỗi "wrong version number" dù đã bỏ tick).
+
+---
+
 ## 8.87 — Chặn bớt số job chạy đồng thời + không bỏ sót lỗi xin khoá (ETL)
 
 **Thay đổi**: tối đa 4 job đồng bộ chạy THỰC SỰ cùng lúc (trước đây không

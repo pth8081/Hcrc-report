@@ -132,15 +132,23 @@ export default function EmailSettingsPage() {
               value={form.smtpPort}
               onChange={(e) => {
                 const smtpPort = Number(e.target.value);
-                // Cổng 465 (vd Postfix smtps) luôn cần TLS ngay từ đầu — tự
-                // tick sẵn "Secure" để tránh quên (server cũng tự ép true
-                // cho cổng này dù lỡ bỏ tick, xem rp-server/lib/mailer.js —
-                // đây chỉ là gợi ý cho đúng với giá trị thật sẽ dùng lúc gửi).
+                // Cổng 465 (vd Postfix smtps) THƯỜNG cần TLS ngay từ đầu —
+                // tự tick sẵn "Secure" khi đổi sang cổng này, CHỈ là gợi ý
+                // tiện tay (đa số gateway thật đúng vậy) — KHÔNG còn ép
+                // buộc lúc gửi thật (bản 8.88, xem rp-server/lib/mailer.js:
+                // trước đây ép cứng khiến 1 Postfix nội bộ KHÔNG bật TLS ở
+                // cổng 465 không cách nào gửi được, dù admin đã bỏ tick).
                 setForm({ ...form, smtpPort, secure: smtpPort === 465 ? true : form.secure });
               }}
             />
             <label className="checkbox-row"><input type="checkbox" checked={form.secure} onChange={(e) => setForm({ ...form, secure: e.target.checked })} /> Secure (SSL/TLS)</label>
-            {form.smtpPort === 465 && <p className="form-hint">Cổng 465 luôn dùng TLS ngay từ đầu kết nối — hệ thống tự gửi bằng chế độ này dù ô trên có tick hay không.</p>}
+            {form.smtpPort === 465 && (
+              <p className="form-hint">
+                Cổng 465 thường dùng TLS ngay từ đầu kết nối — đã tự tick "Secure" ở trên. Nếu "Gửi thử" báo lỗi OpenSSL
+                kiểu "wrong version number"/"wrong_version_number", máy chủ SMTP này KHÔNG thật sự bật TLS ở cổng 465 —
+                hãy BỎ tick "Secure" rồi thử lại.
+              </p>
+            )}
             <label className="checkbox-row">
               <input type="checkbox" checked={form.smtpInsecureTls} onChange={(e) => setForm({ ...form, smtpInsecureTls: e.target.checked })} />
               Bỏ qua kiểm tra chứng chỉ TLS (chỉ dùng nếu máy chủ SMTP nội bộ dùng chứng chỉ tự ký)

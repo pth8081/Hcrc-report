@@ -1,9 +1,9 @@
-# Hướng dẫn triển khai gộp — bản 8.29 đến 8.87 (làm 1 lần)
+# Hướng dẫn triển khai gộp — bản 8.29 đến 8.88 (làm 1 lần)
 
 **Mục đích**: theo yêu cầu người dùng — thay vì đọc/làm tuần tự từng mục
 trong "Nhật ký triển khai (từ bản 8.31)" (nhiều mục riêng, mỗi mục 1 bản),
 file NÀY gộp lại thành **1 lượt làm duy nhất** để đưa server từ trước bản
-8.29 lên thẳng bản 8.87 (KHÔNG gồm bản 8.82 — script ad-hoc
+8.29 lên thẳng bản 8.88 (KHÔNG gồm bản 8.82 — script ad-hoc
 `deleteThanhVienLiveSync.js`, chạy khi cần, không phải bước triển khai
 thường trực). Các bước **idempotent** (an toàn chạy lại nhiều
 lần) được gộp chỉ chạy **1 LẦN** ở bản mới nhất thay vì lặp lại theo từng
@@ -682,6 +682,22 @@ Chỉ `etl` (backend) — KHÔNG đổi API/CSDL, KHÔNG có gói npm mới.
 
 Chi tiết đầy đủ: `deploy/Cập nhật bản 8.87 — Chặn bớt số job chạy đồng
 thời + không bỏ sót lỗi xin khoá.md`.
+
+---
+
+## V. Sửa gửi email cổng 465 không gửi được khi máy chủ không bật TLS (bản 8.88)
+
+Chỉ `rp-server`/`rp-user` — KHÔNG đổi API/CSDL, KHÔNG có gói npm mới.
+
+1. `git pull origin main` (đã làm ở mục A.1 nếu làm gộp từ đầu).
+2. `pm2 restart hcrc-rp-server` (đã gộp vào mục D ở trên).
+3. Build lại `rp-user` (đã gộp vào mục C — `cd rp-user && npm run build`).
+4. Kiểm tra: "Thiết lập email" → cổng 465 → bỏ tick "Secure" (nếu máy
+   chủ SMTP thật không bật TLS ở cổng đó) → "Gửi thử" → gửi thành công
+   (trước đây luôn báo lỗi "wrong version number" dù đã bỏ tick).
+
+Chi tiết đầy đủ: `deploy/Cập nhật bản 8.88 — Sửa gửi email cổng 465
+không gửi được khi máy chủ không bật TLS.md`.
 
 ---
 
