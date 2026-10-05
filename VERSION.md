@@ -29,6 +29,44 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 8.82 — Script xoá hàng loạt 34 Nguồn dữ liệu + Sync Job "Thành viên" (ETL)
+
+**Theo yêu cầu người dùng**: "Bạn làm cho tôi một script cho phép tôi
+xoá nguồn và đồng bộ của 34 siêu thị này luôn nhé và tôi sẽ tạo lại bằng
+script, DL đồng bộ đang không về đúng mặc dù đã làm cấu hình trước đó" —
+muốn xoá sạch 34 Nguồn dữ liệu + Sync Job "Thành viên" (tạo bởi
+`scripts/seedThanhVienLiveSync.js`, bản 8.15) để tạo lại từ đầu, loại trừ
+khả năng cấu hình/dữ liệu cũ còn sót gây lỗi đồng bộ.
+
+- **`etl/scripts/deleteThanhVienLiveSync.js`** (mới) — dùng ĐÚNG 34 tên
+  siêu thị (copy nguyên văn từ `seedThanhVienLiveSync.js`, phải giữ khớp
+  2 file) để xoá CHÍNH XÁC 34 Nguồn dữ liệu "DSMART16 - &lt;tên&gt;" +
+  MỌI Sync Job đang tham chiếu (dò theo `DataSourceId` thật trong CSDL,
+  không chỉ theo tên job). KHÔNG đụng Nguồn/Job nào khác (vd job "...Lịch
+  sử (DSMART16_EOM)" của `seedThanhVienHistorySync.js` dùng 1 nguồn trung
+  tâm riêng, không nằm trong 34 nguồn này).
+- **Mặc định CHỈ xem trước (dry-run)** — liệt kê đúng những gì SẼ xoá,
+  KHÔNG xoá gì. Thêm `--confirm` để xoá thật:
+  ```
+  node scripts/deleteThanhVienLiveSync.js            # xem trước
+  node scripts/deleteThanhVienLiveSync.js --confirm  # xoá thật
+  ```
+- Xoá Sync Job TRƯỚC (gỡ đúng khỏi lịch cron qua `rescheduleJob()`), rồi
+  mới xoá Nguồn dữ liệu (đóng pool kết nối cũ qua `invalidate()`, có
+  timeout 5s theo bản 8.76, không treo) — đúng thứ tự tránh vi phạm FK.
+  Siêu thị chưa từng tạo (không tìm thấy Nguồn) được bỏ qua êm, không
+  báo lỗi.
+- **Đã kiểm chứng bằng mock CSDL THẬT** (gọi thẳng script, không giả
+  logic nghiệp vụ): dry-run không xoá gì; `--confirm` xoá ĐÚNG 33/34
+  nguồn dựng sẵn + 66 job tương ứng, nguồn/job KHÔNG liên quan (mô phỏng
+  DSMART16_EOM) giữ nguyên không bị đụng tới, gọi đúng `rescheduleJob()`
+  cho từng job xoá và `invalidate()` cho từng nguồn xoá; chạy lại lần 2
+  khi không còn gì để xoá không lỗi, thoát sạch.
+
+Sau khi xoá, chạy lại `node scripts/seedThanhVienLiveSync.js` để tạo mới
+hoàn toàn 34 Nguồn + Sync Job — script này idempotent (đã có sẵn từ bản
+8.15), an toàn chạy lại nhiều lần.
+
 ## 8.81 — Xoá kèm job đồng bộ khi Nguồn dữ liệu còn job tham chiếu (ETL)
 
 **Theo yêu cầu người dùng**: gửi ảnh chụp bị chặn xoá Nguồn dữ liệu kèm
