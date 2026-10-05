@@ -381,21 +381,19 @@ export default function DashboardPage() {
         </label>
       )}
 
+      {/* Droplist thay thẻ lưới (bản 8.84, theo yêu cầu người dùng — "để sau
+          này nhiều nhóm Dashboard sẽ gọn hơn") — cùng mẫu "Chọn dashboard" ở
+          trên/"Chọn báo cáo" bên trang Báo cáo (.report-picker), thay vì thẻ
+          lưới .dashboard-group-grid cũ (chiếm nhiều chỗ khi có nhiều nhóm). */}
       {groups.length > 1 && (
-        <div className="dashboard-group-grid">
-          {groups.map(g => (
-            <button
-              key={g.key}
-              type="button"
-              className={`dashboard-group-card${g.key === activeGroup ? ' active' : ''}`}
-              onClick={() => selectGroup(g.key)}
-            >
-              {g.icon && <span className="dashboard-group-card-icon">{g.icon}</span>}
-              <span className="dashboard-group-card-label">{g.label}</span>
-              <span className="dashboard-group-card-count">{g.count} ô</span>
-            </button>
-          ))}
-        </div>
+        <label className="report-picker">
+          <span>Chọn nhóm</span>
+          <select value={activeGroup} onChange={(e) => selectGroup(e.target.value)}>
+            {groups.map(g => (
+              <option key={g.key} value={g.key}>{g.icon ? `${g.icon} ` : ''}{g.label} ({g.count} ô)</option>
+            ))}
+          </select>
+        </label>
       )}
 
       {needsDatePicker && (

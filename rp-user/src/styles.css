@@ -249,17 +249,6 @@ button:disabled, button:disabled:hover {
 .dashboard-group { margin-bottom: 28px; }
 .dashboard-group-title { display: inline-block; font-size: 12px; font-weight: 700; letter-spacing: .05em; color: #fff; background: var(--accent); margin: 0 0 14px; padding: 5px 14px; border-radius: 999px; text-transform: uppercase; }
 
-/* .dashboard-group-card (bản 8.42) — bộ chọn "nhóm" ở đầu trang Dashboard
-   (vd "Top 5 chi nhánh"/"Realtime") — xem DashboardPage.jsx:groups. KHÔNG
-   nhầm với .dashboard-group-title ở trên (đó là tiêu đề nhóm Mart/Minimart
-   BÊN TRONG 1 nhóm đã chọn, 2 tầng khác nhau). */
-.dashboard-group-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 18px; max-width: 760px; }
-.dashboard-group-card { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; background: var(--surface); border: 1.5px solid var(--line); border-radius: 12px; padding: 14px 16px; cursor: pointer; box-shadow: 0 2px 8px rgba(20, 30, 40, .06); text-align: left; }
-.dashboard-group-card.active { border-color: var(--accent); box-shadow: 0 4px 14px rgba(181, 85, 31, .18); }
-.dashboard-group-card-icon { font-size: 20px; }
-.dashboard-group-card-label { font-size: 14px; font-weight: 700; color: var(--ink); }
-.dashboard-group-card-count { font-size: 12px; color: var(--ink-soft); }
-
 /* Cá nhân hoá Dashboard (bản 8.45) — nút mở/khung "Tuỳ chỉnh" ở
    DashboardPage.jsx — xem thêm .checkbox-row dùng chung ở trên. */
 .dashboard-customize-toggle { font-size: 12px; padding: 4px 10px; border: 1px solid var(--line); background: var(--surface); border-radius: 999px; cursor: pointer; color: var(--ink); }
