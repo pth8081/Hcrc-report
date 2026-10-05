@@ -25,7 +25,7 @@ const { requireMenuAccess, requireMenuEdit } = require('../../lib/adminPermissio
 const { encrypt, decrypt } = require('../../lib/crypto');
 const { invalidate, testConnection, testConnectionsBatch } = require('../../lib/dataSourcePool');
 const schemaBrowser = require('../../lib/schemaBrowser');
-const { parseDataSourcesFile, upsertDataSources, buildDataSourcesTemplate } = require('../../lib/dataSourcesImport');
+const { parseDataSourcesFile, upsertDataSources, buildDataSourcesTemplate, exportDataSourcesPlain } = require('../../lib/dataSourcesImport');
 const { sendXlsx } = require('../../lib/xlsxResponse');
 const { exportDataSourcesEncrypted, importDataSourcesEncrypted, MAGIC_HEADER } = require('../../lib/dataSourcesEncryptedExport');
 const { summarizeSourceSyncStatus } = require('../../lib/syncStatus');
@@ -225,6 +225,21 @@ router.get('/template', requireMenuAccess('data-sources'), async (req, res, next
   } catch (err) { next(err); }
 });
 
+// Xuất danh sách Nguồn dữ liệu HIỆN CÓ ra Excel thường (bản 8.77, theo yêu
+// cầu người dùng — khác "Tải file mẫu" ở trên, chỉ có 1 dòng ví dụ trống)
+// — cột Password LUÔN TRỐNG (xem lib/dataSourcesImport.js:exportDataSourcesPlain),
+// sửa xong nộp thẳng lại qua POST /import. requireMenuEdit (không chỉ
+// requireMenuAccess như /template) vì file lộ Server/Username/Database thật
+// của mọi nguồn — thông tin kết nối nội bộ, không nên để người chỉ-xem tải.
+router.get('/export-plain', requireMenuEdit('data-sources'), async (req, res, next) => {
+  try {
+    const pool = await getPool('ADMIN');
+    const buffer = await exportDataSourcesPlain(pool);
+    await logAction(req, { module: 'Nguồn dữ liệu', actionType: 'XUAT_EXCEL', description: `Xuất Excel (chưa mã hoá) ${buffer.length} byte` });
+    sendXlsx(res, buffer, 'nguon-du-lieu.xlsx');
+  } catch (err) { next(err); }
+});
+
 // Tạo/cập nhật hàng loạt qua file Excel — xem chú thích đầu file.
 router.post('/import', requireMenuEdit('data-sources'), upload.single('file'), async (req, res, next) => {
   // Tắt timeout socket riêng cho route này — cùng lý do route tương ứng ở
@@ -255,13 +270,23 @@ router.post('/import', requireMenuEdit('data-sources'), upload.single('file'), a
     const result = await upsertDataSources(pool, rows);
     await Promise.all(result.ids.map(id => invalidate(id)));
 
-    const connectionResults = await testConnectionsBatch(rows.map(r => ({
+    // blockedRows (bản 8.77) — dòng để trống "Password" nhưng "Name" CHƯA
+    // tồn tại (không có mật khẩu cũ nào để giữ) — KHÔNG được ghi, gộp vào
+    // rowErrors để admin thấy TRONG CÙNG 1 danh sách lý do bị bỏ qua, không
+    // tách riêng 2 nơi. Loại các dòng này khỏi lượt test kết nối bên dưới
+    // (không có gì để test). Dòng để trống Password nhưng HỢP LỆ (Name đã
+    // có) dùng lại mật khẩu THẬT đã giải mã (resolvedPasswords) để test kết
+    // nối đúng mật khẩu đang lưu, KHÔNG test bằng chuỗi rỗng.
+    const blockedNames = new Set(result.blockedRows.map((b) => b.name));
+    const allRowErrors = [...rowErrors, ...result.blockedRows.map((b) => `Nguồn "${b.name}": ${b.reason}`)];
+    const testableRows = rows.filter((r) => !blockedNames.has(r.name));
+    const connectionResults = await testConnectionsBatch(testableRows.map(r => ({
       name: r.name,
-      config: { engine: r.engine, server: r.server, port: r.port, database: r.databaseName, user: r.username, password: r.password, encrypt: r.encrypt, trustServerCert: r.trustServerCert }
+      config: { engine: r.engine, server: r.server, port: r.port, database: r.databaseName, user: r.username, password: r.password || result.resolvedPasswords[r.name], encrypt: r.encrypt, trustServerCert: r.trustServerCert }
     })));
 
     await logAction(req, { module: 'Nguồn dữ liệu', actionType: 'NHAP_HANG_LOAT', description: `Nhập hàng loạt: thêm mới ${result.inserted}, cập nhật ${result.updated} nguồn` });
-    res.json({ inserted: result.inserted, updated: result.updated, rowErrors, connectionResults });
+    res.json({ inserted: result.inserted, updated: result.updated, rowErrors: allRowErrors, connectionResults });
   } catch (err) { next(err); }
 });
 

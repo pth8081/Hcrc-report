@@ -14,6 +14,28 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 8.77 — Xuất Excel chưa mã hoá cho Nguồn dữ liệu
+
+**Thay đổi**: thêm nút "Xuất Excel (danh sách hiện có, chưa mã hoá)" ở
+trang Nguồn dữ liệu — cột Password luôn để trống (an toàn), nộp lại qua
+Nhập hàng loạt với Password để trống = giữ nguyên mật khẩu cũ. Sửa kèm
+backend để chấp nhận Password trống khi "Name" đã tồn tại. Chi tiết:
+`deploy/Cập nhật bản 8.77 — Xuất Excel chưa mã hoá cho Nguồn dữ liệu.md`.
+
+**Các bước triển khai:**
+1. `git pull origin main`.
+2. `pm2 restart hcrc-etl` (BẮT BUỘC — route mới + sửa logic nhập hàng
+   loạt).
+3. `cd etl-admin && npm run build`, copy `dist/` mới (nút mới ở trang
+   Nguồn dữ liệu).
+4. Kiểm tra: vào Nguồn dữ liệu → "Xuất Excel (danh sách hiện có, chưa mã
+   hoá)" → mở file → cột Password trống, các cột khác đúng dữ liệu thật →
+   sửa 1 dòng (vd đổi Server) → nộp lại qua "Nhập hàng loạt" (để nguyên
+   Password trống) → dòng đó cập nhật đúng Server mới, mật khẩu KHÔNG đổi
+   (vẫn kết nối được như trước).
+
+---
+
 ## 8.76 — Sửa treo khi xoá hàng loạt Nguồn dữ liệu (ETL)
 
 **Thay đổi**: sửa `etl/lib/dataSourcePool.js` (timeout 5s khi đóng kết nối

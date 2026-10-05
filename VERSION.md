@@ -29,6 +29,42 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 8.77 — Xuất Excel chưa mã hoá cho Nguồn dữ liệu
+
+**Theo yêu cầu người dùng**: "phần tạo nguồn dữ liệu không xuất được file
+Excel ở mục chưa mã hoá... tôi cần xuất Excel ở mục này để tôi có thể
+import được."
+
+**Xác nhận**: KHÔNG phải lỗi/bug — tính năng "xuất danh sách nguồn hiện
+có ra Excel thường" **chưa từng được xây dựng**. Hệ thống trước đây chỉ
+có "Xuất file mã hoá" (`.hcrcenc`, không mở được bằng Excel) và "Tải file
+mẫu" (chỉ 1 dòng ví dụ TRỐNG, không phải dữ liệu thật).
+
+**Quyết định bảo mật** (người dùng chọn qua hỏi đáp): file xuất ra để cột
+**Password luôn TRỐNG** — mật khẩu thật KHÔNG BAO GIỜ chạm tới 1 file
+Excel thường, kể cả chỉ để xem/xuất ra.
+
+- **`etl/lib/dataSourcesImport.js:exportDataSourcesPlain()`** (mới) — đọc
+  đúng dữ liệu thật trong `etl.DataSources` (Name/Server/Database/
+  Username/Engine/Port/Encrypt/TrustServerCert), cột Password luôn để
+  trống, cùng khuôn cột với "Tải file mẫu" để sửa xong nộp thẳng lại qua
+  Nhập hàng loạt.
+- **Sửa kèm luồng Nhập hàng loạt để "Password" không còn bắt buộc**: để
+  trống nghĩa là GIỮ NGUYÊN mật khẩu cũ — CHỈ hợp lệ khi "Name" đó đã tồn
+  tại (nguồn MỚI hoàn toàn vẫn bắt buộc phải có mật khẩu, không thể tạo
+  nguồn rỗng mật khẩu) — khớp đúng hành vi đã có sẵn ở form sửa 1 nguồn
+  (`PUT /data-sources/:id`), giờ áp dụng nhất quán cho cả đường Excel hàng
+  loạt.
+- **`GET /data-sources/export-plain`** (mới, `requireMenuEdit` — file lộ
+  thông tin kết nối thật Server/Username/Database của mọi nguồn).
+- Nút mới "Xuất Excel (danh sách hiện có, chưa mã hoá)" cạnh "Tải file
+  mẫu" trong `DataSourcesPage.jsx`.
+- **Đã kiểm chứng bằng mock CSDL + mã hoá/giải mã THẬT** (không giả logic
+  nghiệp vụ): xác nhận cột Password luôn trống khi xuất; dòng để trống
+  Password với "Name" đã tồn tại được GIỮ ĐÚNG mật khẩu cũ (giải mã khớp
+  100% với mật khẩu gốc); dòng để trống Password với "Name" MỚI bị chặn
+  đúng, không tạo nguồn rỗng mật khẩu.
+
 ## 8.76 — Sửa treo khi xoá hàng loạt Nguồn dữ liệu (ETL)
 
 **Theo yêu cầu người dùng**: báo lỗi "ETL khi tôi chọn nhiều mục ở trong

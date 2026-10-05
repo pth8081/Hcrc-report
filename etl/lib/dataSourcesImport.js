@@ -23,7 +23,7 @@
 // tự dọn trùng trước khi import.
 const ExcelJS = require('exceljs');
 const { sql } = require('../db');
-const { encrypt } = require('./crypto');
+const { encrypt, decrypt } = require('./crypto');
 const { guardZipBombSize } = require('./fileSignature');
 
 // Mã "VIDU" (không khớp Nguồn dữ liệu thật nào) — XOÁ trước khi nhập. KHÔNG
@@ -50,7 +50,35 @@ async function buildDataSourcesTemplate() {
   return workbook.xlsx.writeBuffer();
 }
 
-const REQUIRED_HEADERS = ['Name', 'Server', 'DatabaseName', 'Username', 'Password'];
+// Xuất danh sách Nguồn dữ liệu HIỆN CÓ ra Excel thường (bản 8.77, theo yêu
+// cầu người dùng) — khác "Tải file mẫu" ở trên (chỉ 1 dòng ví dụ TRỐNG,
+// không phải dữ liệu thật) — hàm này đọc ĐÚNG dữ liệu thật trong
+// etl.DataSources, cùng khuôn cột để sửa xong nộp thẳng lại qua POST
+// /import. Cột "Password" LUÔN ĐỂ TRỐNG — KHÔNG đọc/giải mã PasswordEncrypted
+// ở đây (an toàn có chủ đích: mật khẩu thật không bao giờ chạm tới 1 file
+// Excel thường, dù chỉ để xuất ra xem) — để trống khi nhập lại nghĩa là
+// "giữ nguyên mật khẩu cũ", xem parseDataSourcesFile()/upsertDataSources()
+// bên dưới. Admin cần ĐỔI mật khẩu dòng nào thì tự gõ mật khẩu mới vào đúng
+// ô đó trước khi nộp lại — không có cách "xuất rồi nhập y nguyên" cho riêng
+// mật khẩu qua đường Excel thường (dùng "Xuất/Nhập file mã hoá" nếu cần
+// giữ nguyên cả mật khẩu khi di chuyển/sao lưu).
+async function exportDataSourcesPlain(pool) {
+  const result = await pool.request().query(`
+    SELECT Name, Engine, Server, Port, DatabaseName, Username, Encrypt, TrustServerCert
+    FROM etl.DataSources ORDER BY Name
+  `);
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet('Nguon du lieu');
+  const headerRow = sheet.addRow(['Name', 'Server', 'DatabaseName', 'Username', 'Password', 'Engine', 'Port', 'Encrypt', 'TrustServerCert']);
+  headerRow.font = { bold: true };
+  for (const r of result.recordset) {
+    sheet.addRow([r.Name, r.Server, r.DatabaseName, r.Username, '', r.Engine, r.Port, r.Encrypt ? 'TRUE' : 'FALSE', r.TrustServerCert ? 'TRUE' : 'FALSE']);
+  }
+  sheet.columns.forEach((col) => { col.width = 22; });
+  return workbook.xlsx.writeBuffer();
+}
+
+const REQUIRED_HEADERS = ['Name', 'Server', 'DatabaseName', 'Username'];
 const ENGINE_VALUES = ['mssql', 'mysql'];
 const BOOL_TRUE_VALUES = ['true', '1', 'yes', 'có', 'x'];
 
@@ -115,7 +143,11 @@ async function parseDataSourcesFile(buffer) {
     if (!server) missing.push('Server');
     if (!databaseName) missing.push('DatabaseName');
     if (!username) missing.push('Username');
-    if (!password) missing.push('Password');
+    // "Password" KHÔNG còn bắt buộc ở đây (bản 8.77, theo yêu cầu người
+    // dùng) — để trống nghĩa là "giữ nguyên mật khẩu cũ", CHỈ hợp lệ khi
+    // "Name" đã tồn tại trong etl.DataSources (nguồn MỚI bắt buộc phải có
+    // mật khẩu) — việc đó cần tra CSDL nên kiểm tra ở upsertDataSources(),
+    // không phải ở đây (hàm này thuần, không có kết nối CSDL).
     if (missing.length) { rowErrors.push(`Dòng ${rowNumber}: thiếu ${missing.join(', ')}`); return; }
 
     const engine = str(cell(col.Engine)) || 'mssql';
@@ -165,7 +197,10 @@ function buildDataSourcesInsertBatches(rows) {
   const batches = [];
   for (let i = 0; i < rows.length; i += DATA_SOURCES_INSERT_BATCH_SIZE) {
     const chunk = rows.slice(i, i + DATA_SOURCES_INSERT_BATCH_SIZE);
-    const values = chunk.map(r => `(${sqlNStr(r.name)}, ${sqlNStr(r.engine)}, ${sqlNStr(r.server)}, ${Number(r.port)}, ${sqlNStr(r.databaseName)}, ${sqlNStr(r.username)}, ${sqlNStr(encrypt(r.password))}, ${r.encrypt ? 1 : 0}, ${r.trustServerCert ? 1 : 0})`).join(',\n');
+    // passwordEncryptedOverride (bản 8.77) — gắn sẵn ở upsertDataSources()
+    // cho dòng để trống "Password" (giữ nguyên mật khẩu cũ đã mã hoá, KHÔNG
+    // mã hoá lại chuỗi rỗng) — dòng có mật khẩu mới vẫn mã hoá như cũ.
+    const values = chunk.map(r => `(${sqlNStr(r.name)}, ${sqlNStr(r.engine)}, ${sqlNStr(r.server)}, ${Number(r.port)}, ${sqlNStr(r.databaseName)}, ${sqlNStr(r.username)}, ${sqlNStr(r.passwordEncryptedOverride || encrypt(r.password))}, ${r.encrypt ? 1 : 0}, ${r.trustServerCert ? 1 : 0})`).join(',\n');
     batches.push(`INSERT INTO #StagingDataSources (Name, Engine, Server, Port, DatabaseName, Username, PasswordEncrypted, Encrypt, TrustServerCert) VALUES\n${values};`);
   }
   return batches;
@@ -199,20 +234,52 @@ WHEN NOT MATCHED THEN
   VALUES (src.Name, src.Engine, src.Server, src.Port, src.DatabaseName, src.Username, src.PasswordEncrypted, src.Encrypt, src.TrustServerCert, 1)
 OUTPUT $action AS Action, inserted.Id AS Id;`;
 
+// "Password" để trống (bản 8.77, theo yêu cầu người dùng) -> giữ nguyên
+// mật khẩu cũ, CHỈ hợp lệ cho dòng đã tồn tại (khớp theo Name) — tra
+// TOÀN BỘ tên trong file 1 lượt trước khi ghi để biết dòng nào đã có
+// (dùng lại PasswordEncrypted cũ NGUYÊN VẸN, không giải mã rồi mã hoá lại
+// — tránh phụ thuộc đúng key mã hoá còn hiệu lực) và dòng nào mới hoàn
+// toàn (không được để trống mật khẩu, loại khỏi lượt ghi — trả về qua
+// "blockedRows" để route báo lỗi rõ ràng). "resolvedPasswords" (name ->
+// mật khẩu THẬT, giải mã lại) CHỈ dùng nội bộ để
+// routes/admin/dataSources.js test kết nối ngay sau khi nhập — KHÔNG trả
+// ra response JSON cho client.
 async function upsertDataSources(pool, rows) {
-  if (!rows.length) return { inserted: 0, updated: 0, ids: [] };
+  if (!rows.length) return { inserted: 0, updated: 0, ids: [], blockedRows: [], resolvedPasswords: {} };
+
+  const names = [...new Set(rows.map((r) => r.name))];
+  const existingResult = await pool.request().query(
+    `SELECT Name, PasswordEncrypted FROM etl.DataSources WHERE Name IN (${names.map(sqlNStr).join(',')})`
+  );
+  const existingByName = new Map(existingResult.recordset.map((r) => [r.Name, r.PasswordEncrypted]));
+
+  const blockedRows = [];
+  const resolvedPasswords = {};
+  const readyRows = [];
+  for (const row of rows) {
+    if (row.password) { readyRows.push(row); continue; }
+    const existingPasswordEncrypted = existingByName.get(row.name);
+    if (!existingPasswordEncrypted) {
+      blockedRows.push({ name: row.name, reason: 'Thiếu Password — bắt buộc khi tạo nguồn MỚI (chưa có "Name" này trong hệ thống)' });
+      continue;
+    }
+    resolvedPasswords[row.name] = decrypt(existingPasswordEncrypted);
+    readyRows.push({ ...row, passwordEncryptedOverride: existingPasswordEncrypted });
+  }
+
+  if (!readyRows.length) return { inserted: 0, updated: 0, ids: [], blockedRows, resolvedPasswords };
 
   let inserted = 0;
   let updated = 0;
   let ids = [];
-  for (let i = 0; i < rows.length; i += DATA_SOURCES_ROWS_PER_TRANSACTION) {
-    const chunk = rows.slice(i, i + DATA_SOURCES_ROWS_PER_TRANSACTION);
+  for (let i = 0; i < readyRows.length; i += DATA_SOURCES_ROWS_PER_TRANSACTION) {
+    const chunk = readyRows.slice(i, i + DATA_SOURCES_ROWS_PER_TRANSACTION);
     const result = await upsertDataSourcesChunk(pool, chunk);
     inserted += result.inserted;
     updated += result.updated;
     ids = ids.concat(result.ids);
   }
-  return { inserted, updated, ids };
+  return { inserted, updated, ids, blockedRows, resolvedPasswords };
 }
 
 async function upsertDataSourcesChunk(pool, rows) {
@@ -236,4 +303,4 @@ async function upsertDataSourcesChunk(pool, rows) {
   }
 }
 
-module.exports = { parseDataSourcesFile, upsertDataSources, buildDataSourcesTemplate, REQUIRED_HEADERS, ENGINE_VALUES };
+module.exports = { parseDataSourcesFile, upsertDataSources, buildDataSourcesTemplate, exportDataSourcesPlain, REQUIRED_HEADERS, ENGINE_VALUES };

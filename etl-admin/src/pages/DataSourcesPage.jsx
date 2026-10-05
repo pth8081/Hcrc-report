@@ -42,6 +42,7 @@ export default function DataSourcesPage() {
   const [encImportResult, setEncImportResult] = useState(null);
   const [encImportError, setEncImportError] = useState('');
   const [exportError, setExportError] = useState('');
+  const [exportingPlain, setExportingPlain] = useState(false);
   const [editing, setEditing] = useState(null); // { ...source, password: '' } đang sửa, hoặc null
   const [downloadingTemplate, setDownloadingTemplate] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -70,6 +71,23 @@ export default function DataSourcesPage() {
       setImportError(err.message);
     } finally {
       setDownloadingTemplate(false);
+    }
+  }
+
+  // Xuất Excel THƯỜNG (chưa mã hoá) — bản 8.77, theo yêu cầu người dùng —
+  // khác "Tải file mẫu" (chỉ 1 dòng ví dụ trống): xuất ĐÚNG danh sách nguồn
+  // hiện có, cột Password luôn để trống (xem etl/lib/dataSourcesImport.js:
+  // exportDataSourcesPlain) — sửa xong nộp thẳng lại qua "Nhập hàng loạt" ở
+  // trên, để trống Password = giữ nguyên mật khẩu cũ.
+  async function exportPlain() {
+    setImportError('');
+    setExportingPlain(true);
+    try {
+      await api.downloadFile('/data-sources/export-plain', 'nguon-du-lieu.xlsx');
+    } catch (err) {
+      setImportError(err.message);
+    } finally {
+      setExportingPlain(false);
     }
   }
 
@@ -263,24 +281,30 @@ export default function DataSourcesPage() {
           <p>
             Tải lên file Excel (.xlsx) để tạo/sửa NHIỀU nguồn cùng lúc — dùng khi cần khai
             báo kết nối cho nhiều chi nhánh cùng cấu trúc. Dòng 1 là header, cột bắt buộc:{' '}
-            <code>Name</code>, <code>Server</code>, <code>DatabaseName</code>, <code>Username</code>,{' '}
-            <code>Password</code>. Cột tuỳ chọn: <code>Engine</code> (<code>mssql</code> hoặc{' '}
+            <code>Name</code>, <code>Server</code>, <code>DatabaseName</code>, <code>Username</code>.
+            Cột tuỳ chọn: <code>Password</code> (để trống = GIỮ NGUYÊN mật khẩu cũ, chỉ bắt
+            buộc khi "Name" đó CHƯA từng tạo), <code>Engine</code> (<code>mssql</code> hoặc{' '}
             <code>mysql</code>, mặc định <code>mssql</code>), <code>Port</code>, <code>Encrypt</code>,{' '}
             <code>TrustServerCert</code> (để trống dùng mặc định).
           </p>
           <p>
             Khoá để CẬP NHẬT thay vì tạo trùng là <code>Name</code> — chạy lại file với 1 dòng
-            sửa (vd đổi mật khẩu, đổi server) chỉ dòng đó đổi, các dòng khác giữ nguyên. Nguồn
+            sửa (vd đổi server, đổi database) chỉ dòng đó đổi, các dòng khác giữ nguyên. Nguồn
             đang được job đồng bộ dùng sẽ tự nạp lại kết nối mới ngay sau khi nhập.
           </p>
           <p>
-            <strong>Lưu ý:</strong> file này chứa mật khẩu THẬT dạng chữ thường (không mã hoá) —
-            chỉ được mã hoá SAU khi tải lên. Xoá file khỏi máy sau khi nhập xong.
+            <strong>Lưu ý:</strong> nếu điền cột <code>Password</code>, file này chứa mật khẩu
+            THẬT dạng chữ thường (không mã hoá) — chỉ được mã hoá SAU khi tải lên. Xoá file khỏi
+            máy sau khi nhập xong. Để trống cột này (dùng "Xuất Excel" bên dưới) thì file KHÔNG
+            chứa mật khẩu nào.
           </p>
           {importError && <p className="form-error">{importError}</p>}
           <div className="inline-actions">
             <button type="button" onClick={downloadTemplate} disabled={downloadingTemplate}>
               {downloadingTemplate ? 'Đang tải...' : 'Tải file mẫu'}
+            </button>
+            <button type="button" onClick={exportPlain} disabled={exportingPlain}>
+              {exportingPlain ? 'Đang xuất...' : 'Xuất Excel (danh sách hiện có, chưa mã hoá)'}
             </button>
           </div>
           <form className="stacked-form" onSubmit={submitImport}>

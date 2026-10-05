@@ -1,9 +1,9 @@
-# Hướng dẫn triển khai gộp — bản 8.29 đến 8.76 (làm 1 lần)
+# Hướng dẫn triển khai gộp — bản 8.29 đến 8.77 (làm 1 lần)
 
 **Mục đích**: theo yêu cầu người dùng — thay vì đọc/làm tuần tự từng mục
 trong "Nhật ký triển khai (từ bản 8.31)" (nhiều mục riêng, mỗi mục 1 bản),
 file NÀY gộp lại thành **1 lượt làm duy nhất** để đưa server từ trước bản
-8.29 lên thẳng bản 8.76. Các bước **idempotent** (an toàn chạy lại nhiều
+8.29 lên thẳng bản 8.77. Các bước **idempotent** (an toàn chạy lại nhiều
 lần) được gộp chỉ chạy **1 LẦN** ở bản mới nhất thay vì lặp lại theo từng
 bản cũ. Nếu server đã ở 1 bản nào đó rồi (vd đã tới 8.62), chỉ cần làm
 PHẦN CÒN THIẾU — hầu hết các bước dưới đây không hại gì nếu lỡ làm lại.
@@ -442,6 +442,24 @@ backend, không đổi CSDL.
 3. Kiểm tra: xoá hàng loạt "Nguồn dữ liệu"/"Đồng bộ" — không còn treo
    (kể cả khi 1 nguồn trong đó đang mất kết nối mạng thật, chỉ mất thêm
    tối đa 5 giây thay vì vô thời hạn).
+
+---
+
+## L. Xuất Excel chưa mã hoá cho Nguồn dữ liệu (bản 8.77)
+
+Nút mới "Xuất Excel (danh sách hiện có, chưa mã hoá)" ở trang Nguồn dữ
+liệu — cột Password LUÔN để trống (an toàn), nộp lại qua Nhập hàng loạt
+với Password để trống = giữ nguyên mật khẩu cũ (chỉ hợp lệ khi "Name" đã
+tồn tại).
+
+1. `git pull origin main`.
+2. `pm2 restart hcrc-etl` (BẮT BUỘC — route mới + sửa logic nhập hàng
+   loạt).
+3. `cd etl-admin && npm run build`, copy `dist/` mới.
+4. Kiểm tra: "Xuất Excel (danh sách hiện có, chưa mã hoá)" → mở file, cột
+   Password trống → sửa 1 dòng, để nguyên Password trống → nộp lại qua
+   "Nhập hàng loạt" → dòng đó cập nhật đúng, mật khẩu KHÔNG đổi (vẫn kết
+   nối được như trước).
 
 Không có bước nào ở trên làm mất dữ liệu đã có hoặc ảnh hưởng job/báo cáo
 đang chạy ổn định — mọi thay đổi CSDL đều là CREATE/ALTER thêm mới.
