@@ -1,9 +1,9 @@
-# Hướng dẫn triển khai gộp — bản 8.79 đến 8.84 (làm 1 lần)
+# Hướng dẫn triển khai gộp — bản 8.79 đến 8.85 (làm 1 lần)
 
-**Mục đích**: gộp các bước triển khai từ bản 8.79 tới bản 8.84 hiện tại
+**Mục đích**: gộp các bước triển khai từ bản 8.79 tới bản 8.85 hiện tại
 thành **1 lượt làm duy nhất**, cho server đã deploy tới khoảng bản 8.78
 và cần bắt kịp bản mới nhất — KHÔNG lặp lại toàn bộ lịch sử từ bản 8.29
-(xem `deploy/Hướng dẫn triển khai gộp — bản 8.29 đến 8.84.md` nếu cần
+(xem `deploy/Hướng dẫn triển khai gộp — bản 8.29 đến 8.85.md` nếu cần
 dựng server hoàn toàn mới từ đầu).
 
 **Không gồm bản 8.82** (`scripts/deleteThanhVienLiveSync.js`) — đây là
@@ -17,7 +17,7 @@ chi tiết kỹ thuật của từng bản khi cần — file này chỉ gộp p
 
 ---
 
-## Tóm tắt những gì thay đổi (8.79 → 8.84)
+## Tóm tắt những gì thay đổi (8.79 → 8.85)
 
 | Bản | Nội dung |
 |---|---|
@@ -27,6 +27,7 @@ chi tiết kỹ thuật của từng bản khi cần — file này chỉ gộp p
 | 8.82 | (Không gồm — script ad-hoc, xem mục F) |
 | 8.83 | PWA thật cho etl-admin + api-admin (rp-user đã có từ bản 6.18) |
 | 8.84 | Dropdown "Chọn nhóm" thay thẻ lưới ở trang Dashboard (rp-user) |
+| 8.85 | Sửa màn hình trắng khi vào URL không khớp route nào (rp-user) |
 
 ---
 
@@ -36,8 +37,8 @@ chi tiết kỹ thuật của từng bản khi cần — file này chỉ gộp p
 git pull origin main
 ```
 
-Lệnh này lấy về ĐỦ cả 5 bản (8.79/8.80/8.81/8.83/8.84) cùng lúc — không
-cần chạy lại cho từng bản.
+Lệnh này lấy về ĐỦ cả 6 bản (8.79/8.80/8.81/8.83/8.84/8.85) cùng lúc —
+không cần chạy lại cho từng bản.
 
 ---
 
@@ -67,7 +68,8 @@ Cả 2 app etl-admin/api-admin giờ có thêm `manifest.webmanifest`, `sw.js`,
 này PWA sẽ không hoạt động (không cài được "Thêm vào màn hình chính").
 
 `rp-user` **PHẢI build lại** (bản 8.84 — dropdown "Chọn nhóm" ở trang
-Dashboard, chỉ đổi frontend, không có gói npm mới).
+Dashboard; bản 8.85 — sửa màn hình trắng khi vào URL không khớp route
+nào — cả 2 chỉ đổi frontend, không có gói npm mới).
 
 ---
 
@@ -79,9 +81,9 @@ pm2 restart hcrc-etl          # BẮT BUỘC — bản 8.81, route DELETE /data-
 ```
 
 `hcrc-api-server` KHÔNG cần restart — bản 8.83 (PWA) chỉ đổi frontend,
-không đụng backend của api-server. Bản 8.84 (dropdown Dashboard) cũng
-chỉ đổi frontend rp-user — không cần restart `hcrc-rp-server` riêng cho
-bản này (chỉ cần restart vì lý do 8.79 ở trên).
+không đụng backend của api-server. Bản 8.84/8.85 (rp-user) cũng chỉ đổi
+frontend — không cần restart `hcrc-rp-server` riêng cho 2 bản này (chỉ
+cần restart vì lý do 8.79 ở trên).
 
 ---
 
@@ -151,7 +153,10 @@ Chi tiết đầy đủ xem mục "8.82" trong `VERSION.md`.
 - [ ] **(8.84)** rp-user → Dashboard (dashboard có ≥ 2 nhóm) → thấy
   dropdown "Chọn nhóm" thay thẻ lưới cũ 🏆/⚡ → chọn nhóm khác → danh
   sách ô đổi đúng theo nhóm vừa chọn.
+- [ ] **(8.85)** Gõ thẳng URL `report.hcrc.vn/system` (hoặc URL bất kỳ
+  không có trang thật) → tự chuyển về trang chủ, sidebar/topbar hiện
+  bình thường (không còn trang trắng).
 
 Không có bước nào ở trên làm mất dữ liệu đã có hoặc ảnh hưởng job/báo
 cáo đang chạy ổn định — mọi thay đổi CSDL (nếu có) đều là CREATE/ALTER
-thêm mới (bản 8.79-8.84 thực tế KHÔNG đổi schema CSDL nào).
+thêm mới (bản 8.79-8.85 thực tế KHÔNG đổi schema CSDL nào).

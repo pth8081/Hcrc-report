@@ -1,9 +1,9 @@
-# Hướng dẫn triển khai gộp — bản 8.29 đến 8.84 (làm 1 lần)
+# Hướng dẫn triển khai gộp — bản 8.29 đến 8.85 (làm 1 lần)
 
 **Mục đích**: theo yêu cầu người dùng — thay vì đọc/làm tuần tự từng mục
 trong "Nhật ký triển khai (từ bản 8.31)" (nhiều mục riêng, mỗi mục 1 bản),
 file NÀY gộp lại thành **1 lượt làm duy nhất** để đưa server từ trước bản
-8.29 lên thẳng bản 8.84 (KHÔNG gồm bản 8.82 — script ad-hoc
+8.29 lên thẳng bản 8.85 (KHÔNG gồm bản 8.82 — script ad-hoc
 `deleteThanhVienLiveSync.js`, chạy khi cần, không phải bước triển khai
 thường trực). Các bước **idempotent** (an toàn chạy lại nhiều
 lần) được gộp chỉ chạy **1 LẦN** ở bản mới nhất thay vì lặp lại theo từng
@@ -629,6 +629,22 @@ KHÔNG cần restart backend nào.
 
 Chi tiết đầy đủ: `deploy/Cập nhật bản 8.84 — Dropdown Chọn nhóm thay thẻ
 lưới ở trang Dashboard.md`.
+
+---
+
+## S. Sửa màn hình trắng khi vào URL không khớp route nào (bản 8.85)
+
+Chỉ `rp-user`, chỉ frontend — KHÔNG gói npm mới, KHÔNG đổi API/CSDL,
+KHÔNG cần restart backend nào.
+
+1. `git pull origin main` (đã làm ở mục A.1 nếu làm gộp từ đầu).
+2. Build lại `rp-user` (đã gộp vào mục C — `cd rp-user && npm run build`).
+3. Kiểm tra: gõ thẳng URL `report.hcrc.vidu.vn/system` (hoặc URL bất kỳ
+   không có trang thật) → tự chuyển về trang chủ, sidebar/topbar hiện
+   bình thường (không còn trang trắng).
+
+Chi tiết đầy đủ: `deploy/Cập nhật bản 8.85 — Sửa màn hình trắng khi vào
+URL không khớp route nào.md`.
 
 ---
 

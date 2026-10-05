@@ -14,6 +14,20 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 8.85 — Sửa màn hình trắng khi vào URL không khớp route nào (rp-user)
+
+**Thay đổi**: thêm route "bắt đáy" (`path="*"` → về trang chủ) cho
+rp-user — trước đây 1 URL không khớp route nào (vd gõ tay `/system`)
+làm mất luôn cả sidebar/topbar, chỉ còn trang trắng.
+
+**Các bước triển khai (chỉ frontend, KHÔNG cần restart backend nào):**
+1. `git pull origin main`.
+2. `cd rp-user && npm run build`, copy `dist/` mới.
+3. Kiểm tra: gõ thẳng URL `.../system` (hoặc URL bất kỳ không có trang) →
+   về trang chủ, sidebar/topbar hiện bình thường (không còn trang trắng).
+
+---
+
 ## 8.84 — Dropdown "Chọn nhóm" thay thẻ lưới ở trang Dashboard (rp-user)
 
 **Thay đổi**: trang Dashboard (rp-user) chọn nhóm bằng dropdown (cùng

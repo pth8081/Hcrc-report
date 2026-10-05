@@ -29,6 +29,32 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 8.85 — Sửa màn hình trắng khi vào URL không khớp route nào (rp-user)
+
+**Theo yêu cầu người dùng**: gửi ảnh chụp vào thẳng URL
+`report.hcrc.vn/system` → trang trắng hoàn toàn, không cả sidebar/topbar
+— "Vấn vào system trên dashboard đang bị lỗi."
+
+**Nguyên nhân** (lỗi có từ trước, KHÔNG liên quan bản 8.84 vừa chốt):
+`App.jsx` chưa từng có route riêng cho `/system` — đây chỉ là mục CHA mở
+submenu ở sidebar (`Layout.jsx`, bấm "Hệ thống" chỉ `setSystemOpen()`,
+không điều hướng), các trang thật đều nằm ở `/system/<mục con>`. App
+cũng KHÔNG có route bắt mọi URL còn lại (`path="*"`), nên bất kỳ URL
+không khớp route nào (gõ tay `/system`, bookmark cũ trỏ đường dẫn đã đổi,
+gõ sai chính tả...) đều khiến `<Routes>` không khớp được route con nào
+— kể cả `<Layout>` (bọc ngoài mọi route) cũng không vẽ ra, nên mất luôn
+cả sidebar/topbar, không chỉ mất nội dung trang.
+
+- **`rp-user/src/App.jsx`** — thêm route `path="*"` ở cuối (trong
+  `<Layout>`), `<Navigate to="/" replace />` — mọi URL không khớp giờ về
+  thẳng trang chủ (CÓ sidebar/topbar), không còn trang trắng.
+- Chỉ `rp-user` có hiện tượng này — etl-admin/api-admin không có cấu
+  trúc menu cha/con 2 cấp tương tự (menu phẳng, mỗi mục đều có route
+  riêng).
+
+Không đổi route/trang nào đang hoạt động đúng — chỉ thêm 1 route "bắt
+đáy" cho trường hợp không khớp.
+
 ## 8.84 — Dropdown "Chọn nhóm" thay thẻ lưới ở trang Dashboard (rp-user)
 
 **Theo yêu cầu người dùng**: gửi 2 ảnh chụp (trang "Báo cáo" dùng

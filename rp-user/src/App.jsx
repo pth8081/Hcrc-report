@@ -1,7 +1,7 @@
 // App.jsx — Toàn bộ route khớp đúng cây menu ở app/schema.sql (app.MenuItems).
 // Thêm 1 route mới LUÔN đi kèm thêm đúng 1 dòng MenuItems + RequireMenuAccess
 // cùng code — không có menu nào không có route chặn tương ứng.
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './lib/AuthContext';
 import Layout from './components/Layout';
 import RequireMenuAccess from './components/RequireMenuAccess';
@@ -64,6 +64,13 @@ export default function App() {
               — tự kiểm tra isSystemRole NGAY TRONG trang, xem chú thích đầu
               TlsCertificatePage.jsx. */}
           <Route path="/system/tls-certificate" element={<RequireMenuAccess><TlsCertificatePage /></RequireMenuAccess>} />
+
+          {/* Mọi URL không khớp route nào ở trên (vd gõ tay "/system" — chỉ là
+              mục cha mở submenu, không có trang riêng; hoặc link/bookmark cũ
+              trỏ tới trang đã đổi đường dẫn) — về trang chủ thay vì màn hình
+              trắng không có cả sidebar/topbar (trước đây KHÔNG có route nào
+              bắt những URL này nên <Routes> không vẽ gì cả, kể cả <Layout>). */}
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>
     </AuthProvider>
