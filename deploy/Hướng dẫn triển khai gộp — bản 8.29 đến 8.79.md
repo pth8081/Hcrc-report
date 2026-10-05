@@ -1,9 +1,9 @@
-# Hướng dẫn triển khai gộp — bản 8.29 đến 8.78 (làm 1 lần)
+# Hướng dẫn triển khai gộp — bản 8.29 đến 8.79 (làm 1 lần)
 
 **Mục đích**: theo yêu cầu người dùng — thay vì đọc/làm tuần tự từng mục
 trong "Nhật ký triển khai (từ bản 8.31)" (nhiều mục riêng, mỗi mục 1 bản),
 file NÀY gộp lại thành **1 lượt làm duy nhất** để đưa server từ trước bản
-8.29 lên thẳng bản 8.78. Các bước **idempotent** (an toàn chạy lại nhiều
+8.29 lên thẳng bản 8.79. Các bước **idempotent** (an toàn chạy lại nhiều
 lần) được gộp chỉ chạy **1 LẦN** ở bản mới nhất thay vì lặp lại theo từng
 bản cũ. Nếu server đã ở 1 bản nào đó rồi (vd đã tới 8.62), chỉ cần làm
 PHẦN CÒN THIẾU — hầu hết các bước dưới đây không hại gì nếu lỡ làm lại.
@@ -509,6 +509,30 @@ tắc đã áp dụng ở rp-user.
 
 Chi tiết đầy đủ: `deploy/Cập nhật bản 8.78 — 2FA đổi thiết bị + WebAuthn
 cho ETL, API.md`.
+
+---
+
+## N. KHẨN: Sửa crash rp-server trên Node < 22.4 (bản 8.79)
+
+**Làm NGAY nếu `pm2 status` thấy `hcrc-rp-server` ở trạng thái
+`errored`/`pm2 logs hcrc-rp-server` có dòng `TypeError:
+tls.getCACertificates is not a function`** — `lib/trustedCa.js` (bản
+8.72) gọi API chỉ có từ Node >= 22.4 ngay lúc nạp module, crash toàn bộ
+`hcrc-rp-server` trên server chạy Node cũ hơn (mọi API kể cả captcha/
+`/api/me` đều 502, KHÔNG phải lỗi riêng captcha).
+
+1. `git pull origin main` (đã làm ở mục A.1 nếu làm gộp từ đầu).
+2. `pm2 restart hcrc-rp-server` (BẮT BUỘC — sửa thuần code, không đổi
+   CSDL, không cần `npm install`/build frontend).
+3. Kiểm tra: `pm2 status hcrc-rp-server` → cả 2 worker `online`; `pm2 logs
+   hcrc-rp-server` → hết dòng `TypeError: tls.getCACertificates...`; trang
+   đăng nhập report.hcrc.vn → captcha hiện ảnh, đăng nhập được.
+4. (Tuỳ chọn) Muốn dùng lại tính năng "CA tin cậy": nâng Node.js trên
+   server lên >= 22.4 rồi `pm2 restart hcrc-rp-server` lại — không nâng
+   vẫn chạy bình thường, chỉ riêng tính năng này tắt.
+
+Chi tiết đầy đủ: `deploy/Cập nhật bản 8.79 — Sửa crash rp-server trên
+Node dưới 22.4 (KHẨN).md`.
 
 ---
 

@@ -14,6 +14,30 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 8.79 — KHẨN: Sửa crash rp-server trên Node < 22.4
+
+**Thay đổi**: `rp-server/lib/trustedCa.js` (bản 8.72) gọi API chỉ có từ
+Node >= 22.4 ngay lúc nạp module — crash TOÀN BỘ `hcrc-rp-server` trên
+server chạy Node cũ hơn (mọi API kể cả captcha/`/api/me` đều 502). Sửa
+tự nhận diện Node không hỗ trợ → tắt gọn tính năng "CA tin cậy" thay vì
+crash cả tiến trình.
+
+**Các bước triển khai (KHẨN — làm ngay):**
+1. `git pull origin main`.
+2. `pm2 restart hcrc-rp-server` (BẮT BUỘC — sửa thuần code, không đổi
+   CSDL, không cần `npm install`/build frontend).
+3. Kiểm tra NGAY: `pm2 status hcrc-rp-server` → cả 2 worker `online`
+   (không còn `errored`); `pm2 logs hcrc-rp-server` → không còn dòng
+   `TypeError: tls.getCACertificates is not a function`; mở lại trang
+   đăng nhập report.hcrc.vn → captcha hiện ảnh bình thường, đăng nhập
+   được. Nếu server này có dùng tính năng "CA tin cậy" (trang "Chứng chỉ
+   TLS" → mục CA tin cậy) và Node hiện tại < 22.4: mục đó trống, thêm CA
+   mới báo lỗi rõ "cần Node.js >= 22.4" — cần nâng cấp Node.js trên server
+   rồi `pm2 restart hcrc-rp-server` lại để dùng được tính năng này (không
+   ảnh hưởng gì khác nếu chưa nâng cấp).
+
+---
+
 ## 8.78 — Đồng bộ 2FA đổi/thêm thiết bị + vân tay/Face ID (WebAuthn) — ETL, API
 
 **Thay đổi**: đồng bộ đầy đủ ngang rp-user (bản 8.40/8.41) cho CẢ

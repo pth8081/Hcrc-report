@@ -6,9 +6,12 @@
 // first certificate", CÙNG LOẠI lỗi đã gặp với Postfix tự ký (bản 8.67),
 // khác ở chỗ đây là gọi HTTPS (fetch), không phải SMTP.
 //
-// Xử lý: dùng tls.setDefaultCACertificates() (Node >= ~20, có sẵn —
-// KHÔNG cần gói ngoài) để THÊM CA admin upload vào danh sách tin cậy MẶC
-// ĐỊNH của CẢ TIẾN TRÌNH — áp dụng NGAY cho MỌI cuộc gọi HTTPS tiếp theo
+// Xử lý: dùng tls.setDefaultCACertificates() (BẮT BUỘC Node >= 22.4 — đây
+// là API MỚI, KHÔNG phải mọi bản Node >=18 như "engines" trong
+// package.json đều có — xem SUPPORTED bên dưới, bản 8.79 sửa KHẨN sau khi
+// phát hiện crash thật trên server chạy Node cũ hơn 22.4) để THÊM CA admin
+// upload vào danh sách tin cậy MẶC ĐỊNH của CẢ TIẾN TRÌNH — áp dụng NGAY
+// cho MỌI cuộc gọi HTTPS tiếp theo
 // (fetch/https/tls), KHÔNG cần restart, và KHÔNG cần sửa code ở nơi gọi
 // (lib/internalApiClient.js, lib/hcrcWorkspaceClient.js...) — tự động có
 // hiệu lực vì các nơi đó dùng `fetch()`/`https` chuẩn của Node, vốn đọc
@@ -31,6 +34,20 @@ const { X509Certificate } = require('crypto');
 
 const TRUST_DIR = path.join(__dirname, '..', 'certs', 'trusted-ca');
 
+// KIỂM TRA SỚM (bản 8.79, sửa KHẨN) — tls.getCACertificates/
+// setDefaultCACertificates chỉ có từ Node >= 22.4, KHÔNG phải mọi bản Node
+// >=18 đều có. Gọi thẳng 2 hàm này ở top-level (như trước bản 8.79) khiến
+// require('./lib/trustedCa') NÉM LỖI ngay lúc server.js khởi động trên
+// Node cũ hơn 22.4 — làm SẬP TOÀN BỘ rp-server (xác nhận bằng log PM2
+// thật: TypeError "tls.getCACertificates is not a function", cả 2 cluster
+// worker "errored"), khiến MỌI API (kể cả /api/auth/captcha, /api/me) báo
+// 502 — không phải lỗi riêng captcha. Giờ tự nhận diện và TẮT GỌN tính
+// năng "CA tin cậy" thay vì crash cả tiến trình.
+const SUPPORTED = typeof tls.getCACertificates === 'function' && typeof tls.setDefaultCACertificates === 'function';
+if (!SUPPORTED) {
+  console.warn('⚠️  Tính năng "CA tin cậy" cần Node.js >= 22.4 (thiếu tls.getCACertificates/setDefaultCACertificates) — máy chủ đang chạy', process.version, '— tính năng này TẮT, các tính năng khác của rp-server không bị ảnh hưởng.');
+}
+
 // Chụp lại danh sách CA GỐC của Node CHỈ 1 LẦN, NGAY LÚC module này được
 // nạp lần đầu (trước khi gọi setDefaultCACertificates() bất kỳ lần nào
 // trong tiến trình) — ĐÃ KIỂM CHỨNG BẰNG TEST THẬT: gọi LẠI
@@ -40,7 +57,7 @@ const TRUST_DIR = path.join(__dirname, '..', 'certs', 'trusted-ca');
 // 'default' mỗi lần applyTrustedCas() thay vì dùng bản đã chụp CỐ ĐỊNH
 // này, các lần gọi sau có nguy cơ xây danh sách tin cậy SAI (thiếu CA gốc
 // thật) mà không có dấu hiệu lỗi rõ ràng nào.
-const BUILT_IN_CAS = tls.getCACertificates('default');
+const BUILT_IN_CAS = SUPPORTED ? tls.getCACertificates('default') : [];
 
 function slugify(label) {
   return String(label).trim().toLowerCase()
@@ -61,6 +78,7 @@ function listFiles() {
 // (danh sách gốc Mozilla đi kèm Node, KHÔNG phải danh sách đã bị ghi đè
 // lần trước) để tránh nhân đôi/mất CA gốc qua nhiều lần gọi.
 function applyTrustedCas() {
+  if (!SUPPORTED) return; // Node < 22.4 — không có API để gọi, bỏ qua thay vì crash
   const uploaded = listFiles().map(f => fs.readFileSync(path.join(TRUST_DIR, f), 'utf8'));
   tls.setDefaultCACertificates([...BUILT_IN_CAS, ...uploaded]);
 }
@@ -71,6 +89,7 @@ function readCertInfo(pem) {
 }
 
 function listTrustedCas() {
+  if (!SUPPORTED) return []; // trang vẫn mở được, chỉ không có gì để liệt kê (không crash UI)
   return listFiles().map(f => {
     const id = f.replace(/\.pem$/, '');
     const pem = fs.readFileSync(path.join(TRUST_DIR, f), 'utf8');
@@ -85,6 +104,11 @@ function listTrustedCas() {
 // khi ghi file/áp dụng, tránh làm hỏng danh sách CA tin cậy đang chạy tốt
 // bằng 1 file rác.
 function addTrustedCa(label, pem) {
+  if (!SUPPORTED) {
+    const err = new Error(`Tính năng "CA tin cậy" cần Node.js >= 22.4, máy chủ đang chạy ${process.version} — nâng cấp Node.js rồi khởi động lại rp-server để dùng được tính năng này`);
+    err.status = 503;
+    throw err;
+  }
   const id = slugify(label);
   if (!id) { const err = new Error('Thiếu nhãn (tên gợi nhớ) cho CA này'); err.status = 400; throw err; }
   try {
@@ -101,6 +125,11 @@ function addTrustedCa(label, pem) {
 }
 
 function removeTrustedCa(id) {
+  if (!SUPPORTED) {
+    const err = new Error(`Tính năng "CA tin cậy" cần Node.js >= 22.4, máy chủ đang chạy ${process.version} — nâng cấp Node.js rồi khởi động lại rp-server để dùng được tính năng này`);
+    err.status = 503;
+    throw err;
+  }
   const safeId = slugify(id); // chặn path traversal qua :id trên URL
   const filePath = path.join(TRUST_DIR, `${safeId}.pem`);
   if (!fs.existsSync(filePath)) { const err = new Error('Không tìm thấy CA này'); err.status = 404; throw err; }

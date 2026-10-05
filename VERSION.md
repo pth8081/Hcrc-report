@@ -29,6 +29,43 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 8.79 — KHẨN: Sửa crash rp-server trên Node < 22.4 (lỗi "tls.getCACertificates is not a function")
+
+**Theo yêu cầu người dùng**: gửi log PM2 cho thấy `hcrc-rp-server` ở
+trạng thái `errored` (cả 2 cluster worker) với lỗi `TypeError:
+tls.getCACertificates is not a function` tại `rp-server/lib/trustedCa.js:43`,
+kèm ảnh chụp trang đăng nhập không hiện captcha và DevTools báo `502 Bad
+Gateway` trên `/api/auth/captcha` và `/api/me`.
+
+**Xác nhận root cause — KHÔNG phải lỗi captcha**: `lib/trustedCa.js`
+(tính năng "CA tin cậy", bản 8.72) gọi `tls.getCACertificates()` và
+`tls.setDefaultCACertificates()` **ngay lúc module được `require()`**,
+ngoài mọi try/catch. Hai API này chỉ có từ **Node.js >= 22.4** — comment
+cũ trong code ghi nhầm "Node >= ~20", trong khi `package.json` còn khai
+`"engines": {"node": ">=18.0.0"}`. Server đang chạy Node cũ hơn 22.4 nên
+`require()` ném lỗi ngay lúc khởi động → **toàn bộ `hcrc-rp-server`
+crash** (xác nhận đúng từ log PM2 gửi kèm) → mọi API kể cả captcha và
+`/api/me` đều 502 vì backend không hề chạy, không phải lỗi riêng captcha
+hay vấn đề từ bản 8.74/8.78.
+
+- **Đã sửa**: `lib/trustedCa.js` tự nhận diện (`typeof tls.getCACertificates
+  === 'function'`) lúc nạp module — nếu Node không hỗ trợ, **TẮT GỌN**
+  tính năng "CA tin cậy" (log cảnh báo rõ ràng, `listTrustedCas()` trả
+  `[]`, `addTrustedCa()`/`removeTrustedCa()` trả lỗi 503 rõ ràng "cần
+  Node.js >= 22.4") thay vì ném lỗi làm crash cả tiến trình. Các tính
+  năng khác của rp-server (đăng nhập, captcha, báo cáo...) **hoàn toàn
+  không phụ thuộc** module này, chỉ bị crash lây do lỗi xảy ra ở top-level
+  lúc `require()`.
+- **Đã kiểm chứng bằng cách dựng lại ĐÚNG lỗi**: xoá `tls.getCACertificates`/
+  `tls.setDefaultCACertificates` trước khi `require()` — xác nhận module
+  THẬT (không giả logic) không còn ném lỗi, `listTrustedCas()` trả mảng
+  rỗng, `addTrustedCa()`/`removeTrustedCa()` trả đúng lỗi 503. Kiểm chứng
+  lại luồng BÌNH THƯỜNG (Node có đủ API) vẫn hoạt động đúng 100% bằng CA
+  tự ký thật (`openssl`): thêm/liệt kê/xoá đều đúng, không có hồi quy.
+- **Khuyến nghị thêm (không bắt buộc để hết crash)**: nâng Node.js trên
+  server production lên >= 22.4 nếu muốn dùng lại tính năng "CA tin cậy".
+  Không nâng vẫn chạy bình thường, chỉ riêng tính năng này tắt.
+
 ## 8.78 — Đồng bộ 2FA đổi/thêm thiết bị + vân tay/Face ID (WebAuthn) cho ETL, API
 
 **Theo yêu cầu người dùng**: gửi ảnh chụp trang "Tài khoản bảo mật" của
