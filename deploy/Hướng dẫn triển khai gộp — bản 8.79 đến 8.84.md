@@ -1,9 +1,9 @@
-# Hướng dẫn triển khai gộp — bản 8.79 đến 8.83 (làm 1 lần)
+# Hướng dẫn triển khai gộp — bản 8.79 đến 8.84 (làm 1 lần)
 
-**Mục đích**: gộp các bước triển khai từ bản 8.79 tới bản 8.83 hiện tại
+**Mục đích**: gộp các bước triển khai từ bản 8.79 tới bản 8.84 hiện tại
 thành **1 lượt làm duy nhất**, cho server đã deploy tới khoảng bản 8.78
 và cần bắt kịp bản mới nhất — KHÔNG lặp lại toàn bộ lịch sử từ bản 8.29
-(xem `deploy/Hướng dẫn triển khai gộp — bản 8.29 đến 8.83.md` nếu cần
+(xem `deploy/Hướng dẫn triển khai gộp — bản 8.29 đến 8.84.md` nếu cần
 dựng server hoàn toàn mới từ đầu).
 
 **Không gồm bản 8.82** (`scripts/deleteThanhVienLiveSync.js`) — đây là
@@ -17,7 +17,7 @@ chi tiết kỹ thuật của từng bản khi cần — file này chỉ gộp p
 
 ---
 
-## Tóm tắt những gì thay đổi (8.79 → 8.83)
+## Tóm tắt những gì thay đổi (8.79 → 8.84)
 
 | Bản | Nội dung |
 |---|---|
@@ -26,6 +26,7 @@ chi tiết kỹ thuật của từng bản khi cần — file này chỉ gộp p
 | 8.81 | Xoá kèm job đồng bộ khi Nguồn dữ liệu còn job tham chiếu (hỏi riêng, không âm thầm) |
 | 8.82 | (Không gồm — script ad-hoc, xem mục F) |
 | 8.83 | PWA thật cho etl-admin + api-admin (rp-user đã có từ bản 6.18) |
+| 8.84 | Dropdown "Chọn nhóm" thay thẻ lưới ở trang Dashboard (rp-user) |
 
 ---
 
@@ -35,8 +36,8 @@ chi tiết kỹ thuật của từng bản khi cần — file này chỉ gộp p
 git pull origin main
 ```
 
-Lệnh này lấy về ĐỦ cả 4 bản (8.79/8.80/8.81/8.83) cùng lúc — không cần
-chạy lại cho từng bản.
+Lệnh này lấy về ĐỦ cả 5 bản (8.79/8.80/8.81/8.83/8.84) cùng lúc — không
+cần chạy lại cho từng bản.
 
 ---
 
@@ -57,15 +58,16 @@ hưởng runtime). Các bản 8.79-8.81 KHÔNG cần gói npm nào mới.
 ```bash
 cd etl-admin && npm run build && cd ..
 cd api-admin && npm run build && cd ..
+cd rp-user && npm run build && cd ..
 ```
 
-Cả 2 app giờ có thêm `manifest.webmanifest`, `sw.js`, `registerSW.js`,
-`workbox-*.js` trong `dist/` (bản 8.83) — **copy TOÀN BỘ `dist/`**, đừng
-chỉ copy `index.html`/`assets/` như trước, thiếu các file này PWA sẽ
-không hoạt động (không cài được "Thêm vào màn hình chính").
+Cả 2 app etl-admin/api-admin giờ có thêm `manifest.webmanifest`, `sw.js`,
+`registerSW.js`, `workbox-*.js` trong `dist/` (bản 8.83) — **copy TOÀN BỘ
+`dist/`**, đừng chỉ copy `index.html`/`assets/` như trước, thiếu các file
+này PWA sẽ không hoạt động (không cài được "Thêm vào màn hình chính").
 
-`rp-user` KHÔNG có thay đổi frontend nào trong khoảng 8.79-8.83, không
-cần build lại (trừ khi đang làm gộp từ mốc khác).
+`rp-user` **PHẢI build lại** (bản 8.84 — dropdown "Chọn nhóm" ở trang
+Dashboard, chỉ đổi frontend, không có gói npm mới).
 
 ---
 
@@ -77,7 +79,9 @@ pm2 restart hcrc-etl          # BẮT BUỘC — bản 8.81, route DELETE /data-
 ```
 
 `hcrc-api-server` KHÔNG cần restart — bản 8.83 (PWA) chỉ đổi frontend,
-không đụng backend của api-server.
+không đụng backend của api-server. Bản 8.84 (dropdown Dashboard) cũng
+chỉ đổi frontend rp-user — không cần restart `hcrc-rp-server` riêng cho
+bản này (chỉ cần restart vì lý do 8.79 ở trên).
 
 ---
 
@@ -144,7 +148,10 @@ Chi tiết đầy đủ xem mục "8.82" trong `VERSION.md`.
   vào màn hình chính") → icon riêng từng app hiện ra (etl-admin: vòng
   tròn tím 2 mũi tên đồng bộ; api-admin: vuông xanh ngọc `</>`), mở toàn
   màn hình không thanh địa chỉ.
+- [ ] **(8.84)** rp-user → Dashboard (dashboard có ≥ 2 nhóm) → thấy
+  dropdown "Chọn nhóm" thay thẻ lưới cũ 🏆/⚡ → chọn nhóm khác → danh
+  sách ô đổi đúng theo nhóm vừa chọn.
 
 Không có bước nào ở trên làm mất dữ liệu đã có hoặc ảnh hưởng job/báo
 cáo đang chạy ổn định — mọi thay đổi CSDL (nếu có) đều là CREATE/ALTER
-thêm mới (bản 8.79-8.83 thực tế KHÔNG đổi schema CSDL nào).
+thêm mới (bản 8.79-8.84 thực tế KHÔNG đổi schema CSDL nào).

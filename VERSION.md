@@ -29,6 +29,38 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 8.84 — Dropdown "Chọn nhóm" thay thẻ lưới ở trang Dashboard (rp-user)
+
+**Theo yêu cầu người dùng**: gửi 2 ảnh chụp (trang "Báo cáo" dùng
+dropdown "Chọn báo cáo"; trang "Dashboard" dùng thẻ lưới 🏆/⚡ cho 2 nhóm
+hiện có) kèm lời nhắn "tôi muốn làm chọn dạng droplist như Module Báo
+cáo để sau này nhiều nhóm Dashboard sẽ gọn hơn, bạn nghiên cứu và gửi
+demo cho mình nhé" — đã gửi demo ảnh chụp, người dùng duyệt ("Đẹp rồi,
+bạn chốt luôn đi").
+
+- **`rp-user/src/modules/dashboard/DashboardPage.jsx`** — thay khối thẻ
+  lưới `.dashboard-group-grid` (mỗi nhóm 1 thẻ bấm chọn) bằng 1 dropdown
+  `<select>` dùng ĐÚNG class `.report-picker` đã dùng cho "Chọn
+  dashboard" (cùng trang)/"Chọn báo cáo" (trang Báo cáo) — mỗi `<option>`
+  hiện `{icon} {label} ({count} ô)`, chọn gọi lại đúng `selectGroup()`
+  có sẵn (không đổi logic lọc tile/lưu `lastGroup` vào
+  `UserDashboardPreferences`, chỉ đổi WIDGET chọn).
+- **`rp-user/src/styles.css`** — xoá các rule CSS chết của thẻ lưới cũ
+  (`.dashboard-group-grid`, `.dashboard-group-card*`) — không còn nơi nào
+  dùng. KHÔNG đụng `.dashboard-group`/`.dashboard-group-title` (khác tầng
+  — tiêu đề nhóm Mart/Minimart BÊN TRONG 1 nhóm Dashboard đã chọn).
+- Phân quyền 2 cấp (`RoleReportAccess`/`RoleDashboardGroupAccess`, bản
+  8.42/8.43) và cá nhân hoá (`UserDashboardPreferences`, bản 8.45/8.46)
+  hoàn toàn KHÔNG đổi — lọc tile vẫn làm ở server TRƯỚC khi về client,
+  đổi UI chọn nhóm chỉ là đổi giao diện, không đổi dữ liệu người dùng
+  thấy được.
+- **Chỉ `rp-user`** — etl-admin/api-admin không có khái niệm "nhóm
+  Dashboard" nên không áp dụng.
+
+Gọn hơn khi hệ thống có thêm nhiều nhóm Dashboard sau này (thẻ lưới cũ
+chiếm nhiều chỗ theo số nhóm, dropdown không đổi chiều cao dù có bao
+nhiêu nhóm).
+
 ## 8.83 — PWA thật cho etl-admin + api-admin (đồng bộ ngang rp-user)
 
 **Theo yêu cầu người dùng**: "Bạn triển khai PWA cho API và ETL luôn

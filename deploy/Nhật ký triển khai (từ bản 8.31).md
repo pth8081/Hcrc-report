@@ -14,6 +14,20 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 8.84 — Dropdown "Chọn nhóm" thay thẻ lưới ở trang Dashboard (rp-user)
+
+**Thay đổi**: trang Dashboard (rp-user) chọn nhóm bằng dropdown (cùng
+kiểu "Chọn báo cáo" ở trang Báo cáo) thay thẻ lưới cũ — chỉ đổi giao
+diện, không đổi dữ liệu/quyền xem.
+
+**Các bước triển khai (chỉ frontend, KHÔNG cần restart backend nào):**
+1. `git pull origin main`.
+2. `cd rp-user && npm run build`, copy `dist/` mới.
+3. Kiểm tra: trang Dashboard (có ≥ 2 nhóm) → thấy dropdown "Chọn nhóm"
+   thay thẻ lưới cũ → chọn nhóm khác → danh sách ô đổi đúng theo nhóm.
+
+---
+
 ## 8.83 — PWA thật cho etl-admin + api-admin (đồng bộ ngang rp-user)
 
 **Thay đổi**: etl-admin + api-admin giờ là PWA thật (manifest + service

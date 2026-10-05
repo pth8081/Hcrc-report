@@ -1,9 +1,9 @@
-# Hướng dẫn triển khai gộp — bản 8.29 đến 8.83 (làm 1 lần)
+# Hướng dẫn triển khai gộp — bản 8.29 đến 8.84 (làm 1 lần)
 
 **Mục đích**: theo yêu cầu người dùng — thay vì đọc/làm tuần tự từng mục
 trong "Nhật ký triển khai (từ bản 8.31)" (nhiều mục riêng, mỗi mục 1 bản),
 file NÀY gộp lại thành **1 lượt làm duy nhất** để đưa server từ trước bản
-8.29 lên thẳng bản 8.83 (KHÔNG gồm bản 8.82 — script ad-hoc
+8.29 lên thẳng bản 8.84 (KHÔNG gồm bản 8.82 — script ad-hoc
 `deleteThanhVienLiveSync.js`, chạy khi cần, không phải bước triển khai
 thường trực). Các bước **idempotent** (an toàn chạy lại nhiều
 lần) được gộp chỉ chạy **1 LẦN** ở bản mới nhất thay vì lặp lại theo từng
@@ -287,9 +287,10 @@ hệt, không bắt buộc đổi gateway chỉ vì có bản mới.
   cần đã khai `WEBAUTHN_RP_*`).
 - [ ] rp-user → "Người dùng": có nút "Phạm vi dữ liệu" (8.50), "Gán quyền
   riêng" (8.48), cột "Mật khẩu dự phòng" (8.47).
-- [ ] rp-user → Dashboard: chọn được nhóm 🏆 Top 5 / ⚡ Realtime (8.42);
-  "⚙️ Tuỳ chỉnh" hoạt động, 2 nút đổi thứ tự hiện rõ chữ "Lên"/"Xuống"
-  (8.45/8.46); các bảng quản trị có checkbox + "Xoá N mục đã chọn" (8.62).
+- [ ] rp-user → Dashboard: dropdown "Chọn nhóm" đổi được giữa 🏆 Top 5 /
+  ⚡ Realtime (8.42, đổi UI thẻ lưới → dropdown ở 8.84); "⚙️ Tuỳ chỉnh"
+  hoạt động, 2 nút đổi thứ tự hiện rõ chữ "Lên"/"Xuống" (8.45/8.46); các
+  bảng quản trị có checkbox + "Xoá N mục đã chọn" (8.62).
 - [ ] rp-user → báo cáo "Doanh thu cuối ngày ...": màu nhóm cột mới theo
   mẫu BRGMART (8.58); bảng xem trên web đã lên màu tiêu đề nhóm giống hệt
   Excel/PDF (8.53).
@@ -612,6 +613,22 @@ Có gói npm MỚI + sửa Nginx (nếu không dùng PM2-only).
 
 Chi tiết đầy đủ (kèm kết quả kiểm tra responsive cả 3 app):
 `deploy/Cập nhật bản 8.83 — PWA thật cho etl-admin + api-admin.md`.
+
+---
+
+## R. Dropdown "Chọn nhóm" thay thẻ lưới ở trang Dashboard (bản 8.84)
+
+Chỉ `rp-user`, chỉ frontend — KHÔNG gói npm mới, KHÔNG đổi API/CSDL,
+KHÔNG cần restart backend nào.
+
+1. `git pull origin main` (đã làm ở mục A.1 nếu làm gộp từ đầu).
+2. Build lại `rp-user` (đã gộp vào mục C — `cd rp-user && npm run build`).
+3. Kiểm tra: rp-user → Dashboard (dashboard có ≥ 2 nhóm) → thấy dropdown
+   "Chọn nhóm" thay thẻ lưới cũ 🏆/⚡ → chọn nhóm khác → danh sách ô đổi
+   đúng theo nhóm vừa chọn.
+
+Chi tiết đầy đủ: `deploy/Cập nhật bản 8.84 — Dropdown Chọn nhóm thay thẻ
+lưới ở trang Dashboard.md`.
 
 ---
 
