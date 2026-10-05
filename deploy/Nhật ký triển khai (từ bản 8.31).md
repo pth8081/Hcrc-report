@@ -14,6 +14,44 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 8.78 — Đồng bộ 2FA đổi/thêm thiết bị + vân tay/Face ID (WebAuthn) — ETL, API
+
+**Thay đổi**: đồng bộ đầy đủ ngang rp-user (bản 8.40/8.41) cho CẢ
+etl-admin lẫn api-admin — "Đặt lại mã 2FA" (đổi thiết bị Authenticator) +
+đăng ký vân tay/Face ID (WebAuthn), lúc đăng nhập có thêm nút "Dùng vân
+tay/Face ID" thay HẲN bước nhập mã 2FA. Có bảng CSDL mới + gói npm mới +
+BẮT BUỘC khai domain thật cho CẢ 2 app.
+
+**Các bước triển khai (giống bản 8.41, nhân đôi cho etl-admin VÀ
+api-admin):**
+1. `git pull origin main`
+2. Chạy lại `etl-db/schema.sql` (thêm bảng `admin.AdminWebAuthnCredentials`,
+   an toàn chạy lại nhiều lần) VÀ `api-db/schema.sql` (bảng cùng tên, CSDL
+   riêng `HCRC_API`).
+3. **Thêm vào `etl/.env`**: `WEBAUTHN_RP_ID=<domain thật etl-admin, không
+   có https://>` và `WEBAUTHN_RP_ORIGIN=https://<domain thật etl-admin>`.
+4. **Thêm vào `api-server/.env`**: `WEBAUTHN_RP_ID=<domain thật api-admin>`
+   và `WEBAUTHN_RP_ORIGIN=https://<domain thật api-admin>`. THIẾU 1 trong 2
+   biến ở mỗi app thì tính năng vân tay tự tắt ở ĐÚNG app đó (không crash,
+   "Đặt lại mã 2FA" vẫn dùng được bình thường).
+5. `cd etl && npm install` VÀ `cd api-server && npm install` (gói mới
+   `@simplewebauthn/server`).
+6. `cd etl-admin && npm run build`, copy `dist/` mới VÀ `cd api-admin &&
+   npm run build`, copy `dist/` mới (gói mới `@simplewebauthn/browser`).
+7. `pm2 restart hcrc-etl` VÀ `pm2 restart hcrc-api-server` (BẮT BUỘC —
+   route mới `/admin/webauthn/*`).
+8. Kiểm tra bằng THIẾT BỊ THẬT (điện thoại/laptop có vân tay/Face ID,
+   không mô phỏng được), LÀM Ở CẢ 2 APP: "Tài khoản của tôi" (tài khoản
+   Admin hệ thống) có thêm mục "Bảo mật — Xác thực hai yếu tố" (thử "Đặt
+   lại mã 2FA" 1 lần, mã cũ ngừng dùng được) và "Bảo mật — Vân tay / Face
+   ID" (đăng ký 1 thiết bị, đăng xuất/đăng nhập lại, bấm "Dùng vân tay/Face
+   ID" vào thẳng hệ thống không cần gõ mã 6 số).
+
+Chi tiết đầy đủ: `deploy/Cập nhật bản 8.78 — 2FA đổi thiết bị + WebAuthn
+cho ETL, API.md`.
+
+---
+
 ## 8.77 — Xuất Excel chưa mã hoá cho Nguồn dữ liệu
 
 **Thay đổi**: thêm nút "Xuất Excel (danh sách hiện có, chưa mã hoá)" ở

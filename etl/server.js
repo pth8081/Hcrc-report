@@ -17,6 +17,7 @@ const { createAppServer, isRunningHttps } = require('./lib/tlsServer');
 const { adminIpAllowlist } = require('./lib/adminIpAllowlist');
 const adminAuthRoutes = require('./routes/admin/auth');
 const adminTwoFactorRoutes = require('./routes/admin/twoFactor');
+const adminWebauthnRoutes = require('./routes/admin/webauthn');
 const adminUsersRoutes = require('./routes/admin/users');
 const adminDataSourcesRoutes = require('./routes/admin/dataSources');
 const adminSyncJobsRoutes = require('./routes/admin/syncJobs');
@@ -103,6 +104,7 @@ app.get('/health', async (req, res) => {
 app.use('/admin', adminIpAllowlist);
 app.use('/admin/auth', adminAuthRoutes);
 app.use('/admin/2fa', adminTwoFactorRoutes);
+app.use('/admin/webauthn', adminWebauthnRoutes);
 app.use('/admin/users', adminUsersRoutes);
 app.use('/admin/data-sources', adminDataSourcesRoutes);
 app.use('/admin/sync-jobs', adminSyncJobsRoutes);

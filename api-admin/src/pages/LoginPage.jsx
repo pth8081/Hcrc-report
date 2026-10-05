@@ -6,16 +6,18 @@
 //               xem 10 mã khôi phục ĐÚNG 1 LẦN trước khi vào hệ thống.
 import { useEffect, useRef, useState } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
+import { startAuthentication, browserSupportsWebAuthn } from '@simplewebauthn/browser';
 import { useAuth } from '../lib/AuthContext';
 import LoginHeroIllustration from '../components/LoginHeroIllustration';
 import CaptchaField from '../components/CaptchaField';
 
 function TwoFactorVerifyStep({ token, onDone }) {
-  const { verifyTwoFactor } = useAuth();
+  const { verifyTwoFactor, webauthnLoginOptions, webauthnLoginVerify } = useAuth();
   const [code, setCode] = useState('');
   const [useRecovery, setUseRecovery] = useState(false);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [webauthnBusy, setWebauthnBusy] = useState(false);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -31,10 +33,36 @@ function TwoFactorVerifyStep({ token, onDone }) {
     }
   }
 
+  // Vân tay/Face ID (WebAuthn, bản 8.78, theo yêu cầu người dùng) — THAY
+  // HẲN bước nhập mã 6 số ở trên khi dùng cách này, không bắt gõ thêm gì
+  // nữa (xem routes/admin/webauthn.js: xác thực xong là đăng nhập luôn).
+  // Đăng ký thiết bị ở trang "Tài khoản của tôi".
+  async function handleWebauthn() {
+    setError('');
+    setWebauthnBusy(true);
+    try {
+      const options = await webauthnLoginOptions(token);
+      const response = await startAuthentication({ optionsJSON: options });
+      await webauthnLoginVerify(token, response);
+      onDone();
+    } catch (err) {
+      // Người dùng tự bấm Huỷ ở hộp thoại trình duyệt -> không phải lỗi
+      // thật, không cần hiện thông báo đỏ (vẫn còn cách nhập mã 6 số).
+      if (err?.name !== 'NotAllowedError') setError(err.message);
+    } finally {
+      setWebauthnBusy(false);
+    }
+  }
+
   return (
     <form className="login-card" onSubmit={handleSubmit}>
       <h1>Xác thực hai yếu tố</h1>
       {error && <p className="form-error">{error}</p>}
+      {browserSupportsWebAuthn() && (
+        <button type="button" className="biometric-btn" onClick={handleWebauthn} disabled={webauthnBusy}>
+          🫆 {webauthnBusy ? 'Đang chờ xác thực...' : 'Dùng vân tay / Face ID'}
+        </button>
+      )}
       <label>
         <span className="field-label">{useRecovery ? 'Mã khôi phục (dạng AAAAA-BBBBB)' : 'Mã 6 số từ app Authenticator'}</span>
         <span className="input-wrap"><input value={code} onChange={(e) => setCode(e.target.value)} autoFocus autoComplete="one-time-code" /></span>

@@ -1,9 +1,9 @@
-# Hướng dẫn triển khai gộp — bản 8.29 đến 8.77 (làm 1 lần)
+# Hướng dẫn triển khai gộp — bản 8.29 đến 8.78 (làm 1 lần)
 
 **Mục đích**: theo yêu cầu người dùng — thay vì đọc/làm tuần tự từng mục
 trong "Nhật ký triển khai (từ bản 8.31)" (nhiều mục riêng, mỗi mục 1 bản),
 file NÀY gộp lại thành **1 lượt làm duy nhất** để đưa server từ trước bản
-8.29 lên thẳng bản 8.77. Các bước **idempotent** (an toàn chạy lại nhiều
+8.29 lên thẳng bản 8.78. Các bước **idempotent** (an toàn chạy lại nhiều
 lần) được gộp chỉ chạy **1 LẦN** ở bản mới nhất thay vì lặp lại theo từng
 bản cũ. Nếu server đã ở 1 bản nào đó rồi (vd đã tới 8.62), chỉ cần làm
 PHẦN CÒN THIẾU — hầu hết các bước dưới đây không hại gì nếu lỡ làm lại.
@@ -18,10 +18,10 @@ chi tiết kỹ thuật của từng bản khi cần — file này chỉ gộp p
 
 1. `git pull origin main`.
 
-2. Cài gói npm mới cho backend (gộp từ 8.39 captcha + 8.41 WebAuthn —
-   bản 8.63-8.67 (sửa gửi email tương thích Postfix/Exchange/Gmail, thêm
-   EWS, hỗ trợ chứng chỉ tự ký) KHÔNG cần gói npm nào mới, tự dựng bằng
-   module gốc của Node):
+2. Cài gói npm mới cho backend (gộp từ 8.39 captcha + 8.41 WebAuthn
+   (rp-server) + 8.78 WebAuthn (etl, api-server) — bản 8.63-8.67 (sửa gửi
+   email tương thích Postfix/Exchange/Gmail, thêm EWS, hỗ trợ chứng chỉ tự
+   ký) KHÔNG cần gói npm nào mới, tự dựng bằng module gốc của Node):
    ```
    cd rp-server && npm install
    cd ../etl && npm install
@@ -37,6 +37,12 @@ chi tiết kỹ thuật của từng bản khi cần — file này chỉ gộp p
      `WEBAUTHN_RP_ORIGIN=https://<domain thật>` (bản 8.41 — vân tay/Face
      ID). **Thiếu 2 biến này tính năng tự tắt, KHÔNG crash** — chỉ bắt
      buộc nếu muốn dùng đăng nhập vân tay/Face ID.
+   - `etl/.env`: `WEBAUTHN_RP_ID=<domain thật etl-admin>` và
+     `WEBAUTHN_RP_ORIGIN=https://<domain thật etl-admin>`; `api-server/
+     .env`: cùng 2 biến nhưng trỏ đúng domain thật **api-admin** (bản 8.78
+     — vân tay/Face ID cho ETL, API). Cùng quy ước: thiếu thì tính năng tự
+     tắt ở ĐÚNG app đó, KHÔNG crash, "Đặt lại mã 2FA" vẫn dùng bình
+     thường.
    - `etl/.env` và `api-server/.env`: `SMTP_HOST`/`ALERT_EMAIL_TO` (bản
      8.57 — email cảnh báo "Giám sát cấu trúc CSDL"/"Trạng thái kết nối")
      — có thể ĐÃ cấu hình sẵn (dùng chung mailer với cảnh báo lỗi đồng bộ
@@ -78,9 +84,11 @@ chi tiết kỹ thuật của từng bản khi cần — file này chỉ gộp p
      `etl.StockAlertThresholds` (bản 8.68 — ngưỡng cảnh báo hàng tồn theo
      từng cặp Mã hàng/Siêu thị), `admin.AdminUserStoreAccess` (bản 8.69 —
      phạm vi siêu thị của 1 tài khoản etl-admin, mặc định KHÔNG giới hạn
-     ai cho tới khi admin chủ động "Gán siêu thị" — xem mục D.5).
+     ai cho tới khi admin chủ động "Gán siêu thị" — xem mục D.5),
+     `admin.AdminWebAuthnCredentials` (bản 8.78 — vân tay/Face ID).
    - `api-db/schema.sql` — bảng mới `api.DataSourceConnectionStatus`
-     (bản 8.57).
+     (bản 8.57), `admin.AdminWebAuthnCredentials` (bản 8.78 — vân tay/
+     Face ID, cùng cấu trúc bảng bên etl-db nhưng CSDL riêng `HCRC_API`).
 
 6. Nginx (bản 8.33 — **sửa TAY, `git pull`/`pm2 restart` KHÔNG đủ**): mở
    file cấu hình Nginx thật đang dùng cho domain etl-admin, thêm 1
@@ -317,6 +325,14 @@ hệt, không bắt buộc đổi gateway chỉ vì có bản mới.
   restart; xoá CA đó → cuộc gọi bị từ chối lại, các CA khác đã thêm
   không bị ảnh hưởng (8.72). etl-admin/api-admin KHÔNG còn phần này
   (8.73).
+- [ ] etl-admin VÀ api-admin → "Xuất Excel (danh sách hiện có, chưa mã
+  hoá)" ở trang Nguồn dữ liệu → mở file, cột Password trống, các cột khác
+  đúng dữ liệu thật (8.77).
+- [ ] etl-admin VÀ api-admin → "Tài khoản của tôi" (tài khoản Admin hệ
+  thống): có mục "Bảo mật — Xác thực hai yếu tố" (8.78, "Đặt lại mã 2FA")
+  + "Bảo mật — Vân tay/Face ID" (8.78, đăng ký được bằng thiết bị thật
+  nếu đã khai `WEBAUTHN_RP_*`); đăng nhập lại, bấm "Dùng vân tay/Face ID"
+  ở bước xác thực hai yếu tố → vào thẳng hệ thống, không cần gõ mã 6 số.
 
 ---
 
@@ -460,6 +476,41 @@ tồn tại).
    Password trống → sửa 1 dòng, để nguyên Password trống → nộp lại qua
    "Nhập hàng loạt" → dòng đó cập nhật đúng, mật khẩu KHÔNG đổi (vẫn kết
    nối được như trước).
+
+---
+
+## M. Đồng bộ 2FA đổi thiết bị + Vân tay/Face ID (WebAuthn) cho ETL, API (bản 8.78)
+
+Đồng bộ đầy đủ ngang rp-user (bản 8.40/8.41) cho CẢ etl-admin lẫn
+api-admin — "Đặt lại mã 2FA" (backend có sẵn, chỉ thêm giao diện) + đăng
+ký vân tay/Face ID (tính năng MỚI, bảng CSDL mới + route mới + gói npm
+mới). Xác thực vân tay thành công THAY HẲN bước nhập mã 2FA, giữ đúng quy
+tắc đã áp dụng ở rp-user.
+
+1. `git pull origin main` (đã làm ở mục A.1).
+2. Chạy lại `etl-db/schema.sql` + `api-db/schema.sql` (đã gộp vào mục
+   A.5 — bảng `admin.AdminWebAuthnCredentials`).
+3. Khai `WEBAUTHN_RP_ID`/`WEBAUTHN_RP_ORIGIN` ở `etl/.env` VÀ
+   `api-server/.env` (đã gộp vào mục A.4) — **bắt buộc nếu muốn dùng vân
+   tay/Face ID ở app đó**, bỏ qua thì "Đặt lại mã 2FA" vẫn dùng được bình
+   thường.
+4. `cd etl && npm install` và `cd api-server && npm install` (gói mới
+   `@simplewebauthn/server`, đã gộp vào mục A.2).
+5. Build lại `etl-admin` và `api-admin` (gói mới
+   `@simplewebauthn/browser`, đã gộp vào mục C.1).
+6. `pm2 restart hcrc-etl` và `pm2 restart hcrc-api-server` (đã gộp vào
+   mục C.2 — BẮT BUỘC, route mới `/admin/webauthn/*`).
+7. Kiểm tra bằng THIẾT BỊ THẬT (điện thoại/laptop có vân tay/Face ID),
+   làm ở CẢ 2 app: "Tài khoản của tôi" (tài khoản Admin hệ thống) có mục
+   "Bảo mật — Xác thực hai yếu tố" (thử "Đặt lại mã 2FA") và "Bảo mật —
+   Vân tay / Face ID" (đăng ký 1 thiết bị); đăng xuất/đăng nhập lại, bấm
+   "Dùng vân tay/Face ID" ở bước xác thực hai yếu tố → vào thẳng hệ
+   thống, KHÔNG phải gõ thêm mã 6 số.
+
+Chi tiết đầy đủ: `deploy/Cập nhật bản 8.78 — 2FA đổi thiết bị + WebAuthn
+cho ETL, API.md`.
+
+---
 
 Không có bước nào ở trên làm mất dữ liệu đã có hoặc ảnh hưởng job/báo cáo
 đang chạy ổn định — mọi thay đổi CSDL đều là CREATE/ALTER thêm mới.

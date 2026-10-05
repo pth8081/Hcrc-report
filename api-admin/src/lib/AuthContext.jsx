@@ -50,6 +50,21 @@ export function AuthProvider({ children }) {
     return result;
   }, [refresh]);
 
+  // Vân tay/Face ID (WebAuthn, bản 8.78) — xem routes/admin/webauthn.js.
+  // 2 nhóm: quản lý thiết bị (cần phiên đầy đủ, dùng ở "Tài khoản của tôi")
+  // và đăng nhập bằng thiết bị đã đăng ký (thay bước nhập mã 2FA, dùng ở
+  // LoginPage.jsx — nhận "token" pending y hệt verifyTwoFactor() ở trên).
+  const webauthnListDevices = useCallback(() => api.get('/webauthn/devices'), []);
+  const webauthnDeleteDevice = useCallback((id) => api.del(`/webauthn/devices/${id}`), []);
+  const webauthnRegisterOptions = useCallback(() => api.post('/webauthn/register/options', {}), []);
+  const webauthnRegisterVerify = useCallback((response, label) => api.post('/webauthn/register/verify', { response, label }), []);
+  const webauthnLoginOptions = useCallback((token) => api.post('/webauthn/login/options', { token }), []);
+  const webauthnLoginVerify = useCallback(async (token, response) => {
+    const result = await api.post('/webauthn/login/verify', { token, response });
+    await refresh();
+    return result;
+  }, [refresh]);
+
   const logout = useCallback(async () => {
     await api.post('/auth/logout');
     setMe(null);
@@ -60,7 +75,10 @@ export function AuthProvider({ children }) {
   const canEdit = useCallback((menuCode) => isSystemRole || !!me?.menuAccess?.[menuCode]?.canEdit, [isSystemRole, me]);
 
   return (
-    <AuthContext.Provider value={{ me, loading, login, logout, isSystemRole, can, canEdit, refresh, setupTwoFactor, confirmTwoFactor, verifyTwoFactor }}>
+    <AuthContext.Provider value={{
+      me, loading, login, logout, isSystemRole, can, canEdit, refresh, setupTwoFactor, confirmTwoFactor, verifyTwoFactor,
+      webauthnListDevices, webauthnDeleteDevice, webauthnRegisterOptions, webauthnRegisterVerify, webauthnLoginOptions, webauthnLoginVerify
+    }}>
       {children}
     </AuthContext.Provider>
   );

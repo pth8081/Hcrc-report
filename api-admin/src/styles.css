@@ -64,6 +64,12 @@ button:disabled, button:disabled:hover {
 .twofa-qr { align-self: center; width: 180px; height: 180px; border: 1px solid var(--line); border-radius: 6px; }
 .twofa-secret { font-family: monospace; font-size: 13px; word-break: break-all; text-align: center; color: var(--ink-soft); }
 .twofa-hint { font-size: 12.5px; color: var(--ink-soft); line-height: 1.5; }
+/* .security-card (bản 8.78) — khung luồng "Đặt lại mã 2FA" ở trang "Tài
+   khoản của tôi" (AccountPage.jsx), cùng kiểu khung với .login-card
+   nhưng không cần full-screen/box-shadow nặng (nằm GIỮA trang bình
+   thường, không phải màn hình đăng nhập riêng). */
+.security-card { max-width: 420px; display: flex; flex-direction: column; gap: 10px; border: 1px solid var(--line); border-radius: 10px; padding: 18px 20px; background: var(--surface); margin-bottom: 20px; }
+.security-card h4 { margin: 0; font-size: 14px; }
 .recovery-codes { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; font-family: monospace; font-size: 14px; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 12px; }
 .link-button { background: none; border: none; color: var(--accent); padding: 0; text-decoration: underline; cursor: pointer; font-size: 13px; align-self: flex-start; }
 
@@ -217,6 +223,11 @@ button:disabled, button:disabled:hover {
 .input-icon-glyph { opacity: .55; font-size: 15px; }
 .login-card button[type='submit'] { margin-top: 6px; padding: 12px; border-radius: 8px; font-weight: 600; font-size: 14px; }
 .login-card .twofa-qr, .login-card .recovery-codes { align-self: stretch; }
+/* .biometric-btn (bản 8.78) — nút "Dùng vân tay/Face ID" ở bước xác thực
+   hai yếu tố lúc đăng nhập (LoginPage.jsx) — cố ý khác màu nút submit
+   chính (accent đậm) để không lẫn, dùng tông nhạt hơn giống nút phụ. */
+.biometric-btn { padding: 11px; border-radius: 8px; font-weight: 600; font-size: 13.5px; border: 1px solid var(--line); background: var(--accent-soft); color: var(--accent); cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; }
+.biometric-btn:disabled { opacity: .6; cursor: default; }
 
 @media (max-width: 860px) {
   .login-page { flex-direction: column; }

@@ -22,6 +22,7 @@ const vouchersRoutes = require('./routes/v1/vouchers');
 const oauthRoutes = require('./routes/v1/oauth');
 const adminAuthRoutes = require('./routes/admin/auth');
 const adminTwoFactorRoutes = require('./routes/admin/twoFactor');
+const adminWebauthnRoutes = require('./routes/admin/webauthn');
 const adminConsumersRoutes = require('./routes/admin/consumers');
 const adminUsersRoutes = require('./routes/admin/users');
 const adminDataSourcesRoutes = require('./routes/admin/dataSources');
@@ -137,6 +138,7 @@ app.use('/api/v1/vouchers', vouchersRoutes); // POST /api/v1/vouchers/check, /re
 app.use('/admin', adminIpAllowlist);
 app.use('/admin/auth', adminAuthRoutes);
 app.use('/admin/2fa', adminTwoFactorRoutes);
+app.use('/admin/webauthn', adminWebauthnRoutes);
 app.use('/admin/consumers', adminConsumersRoutes);
 app.use('/admin/users', adminUsersRoutes);
 app.use('/admin/data-sources', adminDataSourcesRoutes);

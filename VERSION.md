@@ -29,6 +29,60 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 8.78 — Đồng bộ 2FA đổi/thêm thiết bị + vân tay/Face ID (WebAuthn) cho ETL, API
+
+**Theo yêu cầu người dùng**: gửi ảnh chụp trang "Tài khoản bảo mật" của
+rp-user (mục "Vân tay / Face ID của tôi" + "Xác thực hai yếu tố của tôi"),
+hỏi "các trang ETL, API và report xem đã có cái tính năng giống hình ảnh
+này... chưa? Cho phép đổi thiết bị Authent và thêm thiết bị Authent." —
+xác nhận etl-admin/api-admin **CHƯA CÓ CẢ HAI** tính năng (rp-user đã có từ
+bản 8.39/8.40). Người dùng chọn làm **cả 2** (đồng bộ đầy đủ ngang
+rp-user), cho **cả etl-admin lẫn api-admin**.
+
+**Lưu ý vẫn giữ nguyên quy tắc đã có** (theo yêu cầu người dùng, áp dụng
+CẢ 3 trang ETL/API/Report): xác thực bằng vân tay/Face ID thành công thì
+**KHÔNG cần nhập thêm mã 2FA** — WebAuthn ở đây THAY HẲN bước nhập mã 6
+số, không phải thêm 1 bước nữa.
+
+- **"Đặt lại mã 2FA"** (tự đăng ký lại 2FA trên thiết bị/app Authenticator
+  KHÁC mà không cần nhờ Admin khác "Đặt lại 2FA" giúp) — backend route đã
+  có sẵn từ trước (`POST /admin/2fa/setup` nhánh "Đổi thiết bị"), CHỈ thiếu
+  giao diện gọi tới — bản này thêm `TwoFactorResetFlow` vào `AccountPage.jsx`
+  (port nguyên khối từ rp-user, không đổi logic).
+- **Vân tay/Face ID (WebAuthn)** — tính năng MỚI hoàn toàn cho etl-admin/
+  api-admin, mirror `rp-server`/`rp-user` (bản 8.40/8.41):
+  - Bảng mới `admin.AdminWebAuthnCredentials` (`etl-db/schema.sql`,
+    `api-db/schema.sql`) — CredentialId/PublicKeyBase64/Counter (tăng dần
+    mỗi lần dùng, phát hiện khoá bị nhân bản)/DeviceLabel, khoá ngoài
+    `AdminUserId` → `admin.AdminUsers`.
+  - `routes/admin/webauthn.js` (mới, cả `etl/` và `api-server/`) — 6 route:
+    `GET/DELETE /devices` (quản lý thiết bị, cần phiên đầy đủ),
+    `POST /register/options`, `POST /register/verify` (đăng ký thiết bị
+    mới), `POST /login/options`, `POST /login/verify` (đăng nhập bằng
+    thiết bị đã đăng ký — nhận token "pending" **Y HỆT** `POST /2fa/verify`,
+    xác thực xong cấp cookie phiên ĐẦY ĐỦ ngay, không yêu cầu gì thêm).
+  - `WEBAUTHN_RP_NAME`/`WEBAUTHN_RP_ID`/`WEBAUTHN_RP_ORIGIN` (`.env.example`
+    cả 2 app) — để trống 1 trong 2 biến ID/ORIGIN thì tính năng tự tắt (API
+    trả lỗi rõ ràng), KHÔNG crash server — cùng quy ước với rp-server.
+  - `WebauthnDevicesSection` (`AccountPage.jsx`) — đăng ký/gỡ nhiều thiết
+    bị; nút "🫆 Dùng vân tay / Face ID" (`LoginPage.jsx`, bước
+    `TwoFactorVerifyStep`) — chỉ hiện khi trình duyệt hỗ trợ
+    (`browserSupportsWebAuthn()`), xác thực xong gọi thẳng `onDone()`, bỏ
+    qua hoàn toàn form nhập mã 6 số bên dưới.
+  - `@simplewebauthn/server` (`etl`, `api-server`) + `@simplewebauthn/browser`
+    (`etl-admin`, `api-admin`) — đúng phiên bản đã dùng ở rp-server/rp-user.
+- **Đã kiểm chứng bằng mock DB + mock `@simplewebauthn/server` THẬT** (gọi
+  thẳng các route handler, không giả logic nghiệp vụ): đăng ký thiết bị lưu
+  đúng `AdminUserId`; danh sách/gỡ thiết bị **scoped đúng theo từng admin**
+  (admin A không thấy/không gỡ được thiết bị của admin B); đăng nhập bằng
+  vân tay **bỏ qua hẳn** bước nhập mã 2FA (chỉ cần token "pending" + phản
+  hồi WebAuthn khớp thiết bị, cấp cookie phiên ngay); dùng thiết bị của
+  admin khác để đăng nhập bị chặn đúng; Counter tăng sau mỗi lần đăng nhập.
+  Build `etl-admin`/`api-admin` qua `vite build` sạch; demo bằng mock
+  server + Playwright xác nhận cả 2 mục mới hiện đúng trên "Tài khoản của
+  tôi" và nút vân tay hiện đúng vị trí ở bước xác thực hai yếu tố khi đăng
+  nhập.
+
 ## 8.77 — Xuất Excel chưa mã hoá cho Nguồn dữ liệu
 
 **Theo yêu cầu người dùng**: "phần tạo nguồn dữ liệu không xuất được file

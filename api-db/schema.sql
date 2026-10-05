@@ -447,6 +447,31 @@ BEGIN
 END
 GO
 
+-- Thiết bị vân tay/Face ID đã đăng ký qua WebAuthn (bản 8.78, theo yêu cầu
+-- người dùng — mirror app.UserWebAuthnCredentials bên rp-server, xem
+-- rp-db/schema.sql) — THAY HẲN bước nhập mã 2FA khi dùng (không bắt gõ
+-- thêm mã 6 số), KHÔNG thay thế mật khẩu — xem routes/admin/webauthn.js.
+-- CredentialId là khoá công khai định danh thiết bị, PublicKeyBase64/Counter
+-- dùng để XÁC THỰC chữ ký lúc đăng nhập (Counter tăng dần mỗi lần dùng —
+-- phát hiện khoá bị nhân bản nếu counter không tăng, xem
+-- verifyAuthenticationResponse() của @simplewebauthn/server).
+IF OBJECT_ID('admin.AdminWebAuthnCredentials', 'U') IS NULL
+BEGIN
+    CREATE TABLE admin.AdminWebAuthnCredentials (
+        Id               INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        AdminUserId      INT           NOT NULL REFERENCES admin.AdminUsers(Id) ON DELETE CASCADE,
+        CredentialId     VARCHAR(400)  NOT NULL, -- base64url, do authenticator cấp
+        PublicKeyBase64  NVARCHAR(800) NOT NULL,
+        Counter          BIGINT        NOT NULL DEFAULT 0,
+        DeviceLabel      NVARCHAR(200) NOT NULL, -- tên admin tự đặt lúc đăng ký (vd "iPhone của Đào Phan Anh")
+        CreatedAt        DATETIME2(3)  NOT NULL DEFAULT SYSUTCDATETIME(),
+        LastUsedAt       DATETIME2(3)  NULL
+    );
+    CREATE UNIQUE INDEX UX_AdminWebAuthnCredentials_CredentialId ON admin.AdminWebAuthnCredentials (CredentialId);
+    CREATE INDEX IX_AdminWebAuthnCredentials_AdminUserId ON admin.AdminWebAuthnCredentials (AdminUserId);
+END
+GO
+
 -- Chống PHÁT LẠI (replay) chữ ký HMAC — CẤP CSDL (không phải bộ nhớ tiến
 -- trình) để đúng dưới PM2 cluster mode (nhiều worker Node cùng service, mỗi
 -- worker bộ nhớ RIÊNG — 1 request bị chặn bắt gửi lại có thể rơi vào worker
