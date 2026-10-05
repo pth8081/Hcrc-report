@@ -29,6 +29,65 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 8.86 — Thử lại + rút ngắn thời gian chờ khi VPN chi nhánh chập chờn giữa chừng đồng bộ (ETL)
+
+**Theo yêu cầu người dùng**: gửi ảnh chụp trang "Trạng thái kết nối" (35/36
+nguồn "Kết nối được", chỉ 1 nguồn mất kết nối hẳn) CÙNG trang "Đồng bộ" (rất
+nhiều job báo lỗi trong 24h qua) và "Job lỗi trong 24h qua" toàn lỗi
+"operation timed out for an unknown reason" — hỏi "Kết nối thông suốt nhưng
+nhiều job đồng bộ không chạy được... có thể thay đổi cơ chế đồng bộ dữ liệu
+sao cho nhanh hơn và kết nối đảm bảo lấy dữ liệu liên tục nếu chưa được cho
+đến khi chuyển sang lịch lấy dữ liệu định kỳ được không?"
+
+**Nguyên nhân**: trang "Trạng thái kết nối" chỉ mở+đóng NGAY 1 kết nối
+NGẮN để kiểm tra — vẫn qua được dù VPN đang chập chờn. Job đồng bộ THẬT giữ
+1 kết nối gộp (pool) LÂU hơn nhiều để chạy câu truy vấn, và TRƯỚC bản này
+mọi job (kể cả job "(TV)" chỉ đọc vài dòng mới mỗi vài phút) đều dùng CHUNG
+thời gian chờ 10 PHÚT của job "Lịch sử" (hợp lý cho job đó, quá dài cho job
+thường) — 1 lượt bị VPN làm treo GIỮA CHỪNG câu truy vấn phải chờ đủ 10
+phút mới báo lỗi, và vì bản 8.59 CỐ Ý không thử lại lỗi xảy ra SAU KHI đã
+kết nối được (đúng với lỗi thiếu cột/sai cú pháp, nhưng SAI với đúng kịch
+bản VPN chập chờn giữa chừng), lượt đó thất bại hẳn, phải chờ lượt cron kế
+tiếp mới có cơ hội thử lại.
+
+- **`etl/jobs/runSync.js`**: rút ngắn thời gian chờ mỗi truy vấn
+  (`requestTimeout`) xuống còn 90 giây (`DATASOURCE_INCREMENTAL_REQUEST_TIMEOUT_MS`,
+  mới) cho LƯỢT CHẠY ĐỊNH KỲ (đã có mốc đồng bộ, không phải lần đầu) — lần
+  chạy ĐẦU TIÊN của mọi job (kể cả job "(TV)" mới tạo) vẫn giữ nguyên 10
+  phút (`DATASOURCE_REQUEST_TIMEOUT_MS`, không đổi) vì job "Lịch sử" đọc
+  VIEW gộp hàng chục triệu dòng thật sự cần thời gian dài.
+- Lỗi MẠNG TẠM THỜI xảy ra NGAY TRONG LÚC TRÍCH XUẤT (không chỉ lúc mở kết
+  nối ban đầu như bản 8.59) giờ được THỬ LẠI NGAY trong lúc job đang chạy —
+  tối đa 3 lần, cách nhau 5 giây, kèm làm mới (đóng + mở lại) kết nối trước
+  mỗi lần thử để không dùng lại đúng kết nối đang "kẹt". Nhận diện lỗi mạng
+  qua mã lỗi chuẩn (ETIMEOUT/ESOCKET/ECONNRESET/...) và `TimeoutError` của
+  `tarn` (thư viện pool bên trong `mssql`, chính là nguồn gốc thông điệp
+  "operation timed out for an unknown reason") — lỗi dữ liệu/cấu hình thật
+  (thiếu cột, sai cú pháp SQL...) KHÔNG thử lại, vẫn báo lỗi ngay như cũ.
+  Hết 3 lần thử nhanh vẫn lỗi mạng → dừng, ghi FAILED + gửi cảnh báo như
+  bình thường — lượt cron KẾ TIẾP của chính job đó (2-3 phút sau với job
+  "(TV)") tự thử lại từ đầu qua cơ chế retry 10 phút đã có từ bản 8.59.
+- **`etl/lib/dataSourcePool.js`**: 1 nguồn dữ liệu giờ có thể có 2 kết nối
+  gộp (pool) RIÊNG tuỳ thời gian chờ đang dùng (lần đầu / định kỳ) — không
+  tranh connection giữa job backfill (có thể chạy lâu) và job định kỳ (cần
+  thất bại/thử lại nhanh). `invalidate()` (gọi khi admin sửa/xoá 1 nguồn,
+  hoặc khi gặp lỗi mạng tạm thời) gỡ ĐỦ CẢ 2 pool.
+- **`etl/lib/dbAdapters/mssql.js`**: `createPool()` nhận thêm tham số
+  `requestTimeout` tuỳ chọn — không truyền vẫn giữ nguyên mặc định cũ (mọi
+  nơi gọi khác, vd "Kiểm tra kết nối"/duyệt schema, không đổi hành vi).
+
+**Đã kiểm chứng**: mock CSDL thật, gọi thẳng `runJob()` — (1) lỗi mạng tạm
+thời giữa chừng trích xuất được thử lại đúng, làm mới kết nối đúng nguồn,
+lượt chạy vẫn THÀNH CÔNG; (2) lần chạy đầu tiên (chưa có mốc) giữ nguyên
+thời gian chờ dài, không bị rút ngắn nhầm; (3) lỗi mạng kéo dài quá 3 lần
+thử nhanh thì dừng đúng lúc, ghi FAILED + gửi cảnh báo, không treo vô hạn
+trong lúc giữ khoá CSDL; (4) `dataSourcePool.js` tạo đúng 2 pool riêng cho
+2 hồ sơ thời gian chờ, dùng lại đúng pool đã mở (không tạo lại mỗi lần
+gọi), `invalidate()` đóng đủ cả 2.
+
+Không đổi lịch chạy (CronExpression) của bất kỳ job nào, không đổi hành vi
+job "Lịch sử"/job chạy lần đầu, không đổi dữ liệu đã đồng bộ.
+
 ## 8.85 — Sửa màn hình trắng khi vào URL không khớp route nào (rp-user)
 
 **Theo yêu cầu người dùng**: gửi ảnh chụp vào thẳng URL

@@ -8,7 +8,7 @@
 // đã có từ bản đầu: dễ kiểm soát tải lên từng máy chủ nguồn, dễ đọc log khi
 // có lỗi. Job nào lỗi chỉ dừng riêng job đó.
 const { sql, getPool } = require('../db');
-const { getConnection } = require('../lib/dataSourcePool');
+const { getConnection, invalidate: invalidateDataSource } = require('../lib/dataSourcePool');
 const { extractTable, transformRow } = require('../lib/tableSyncEngine');
 const { upsertReportFacts } = require('../lib/upsert');
 const { alertSyncFailure } = require('../lib/mailer');
@@ -20,6 +20,74 @@ const WATERMARK_SAFETY_LAG_MS = 5000;
 
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// Lượt chạy ĐẦU TIÊN của 1 job (chưa có etl.SyncState, getLastSyncedAt() trả
+// về EPOCH) — job "Lịch sử" kiểu này đọc VIEW gộp hàng chục triệu dòng không
+// lọc ngày, cần giữ NGUYÊN requestTimeout dài (DATASOURCE_REQUEST_TIMEOUT_MS,
+// mặc định 10 phút — xem dbAdapters/mssql.js). Dùng cùng đối tượng EPOCH làm
+// "cột mốc" cho MỌI job Type='table', không cần biết trước job nào là job
+// "Lịch sử"/job mới tạo.
+function isFirstRun(lastSyncedAt) {
+  return lastSyncedAt.getTime() === EPOCH.getTime();
+}
+
+// Bản 8.86 (theo yêu cầu người dùng, sau sự cố thật nhiều job "(TV)" báo lỗi
+// "operation timed out for an unknown reason" dù trang "Trạng thái kết nối"
+// báo CÁC NGUỒN ĐÓ vẫn kết nối được — hệ thống dùng VPN tới từng chi nhánh,
+// thỉnh thoảng chập chờn VÀI GIÂY-VÀI PHÚT nhưng KHÔNG mất hẳn): trang
+// "Trạng thái kết nối" (lib/connectionHealthChecker.js) chỉ mở+đóng ngay 1
+// kết nối NGẮN để kiểm tra — thường vẫn qua được dù VPN đang chập chờn. Job
+// đồng bộ THẬT thì giữ 1 kết nối gộp (pool) LÂU hơn nhiều để chạy cả câu
+// truy vấn — trước bản này, MỌI job (kể cả job "(TV)" đọc vài dòng mới phát
+// sinh mỗi vài phút) đều dùng CHUNG requestTimeout 10 PHÚT của job "Lịch sử"
+// (hợp lý cho job đó, QUÁ DÀI cho job thường) — 1 lượt bị VPN làm treo giữa
+// chừng phải chờ ĐỦ 10 phút mới báo lỗi, chiếm 1 connection trong pool suốt
+// thời gian đó, và vì bản 8.59 CỐ Ý không thử lại lỗi xảy ra SAU KHI đã kết
+// nối được (coi là lỗi dữ liệu/cấu hình, không phải lỗi mạng — đúng với lỗi
+// thiếu cột/sai cú pháp, nhưng SAI với đúng kịch bản VPN chập chờn giữa
+// chừng câu truy vấn), lượt đó coi như THẤT BẠI HẲN, phải chờ lượt cron kế
+// tiếp (2-3 phút sau, xem CronExpression từng job) mới có cơ hội thử lại.
+//
+// Rút ngắn requestTimeout CHO JOB CHẠY ĐỊNH KỲ (không phải lần đầu) xuống
+// mức đủ dùng cho 1 lô dữ liệu gia tăng nhỏ (EXTRACT_BATCH_SIZE dòng) — lượt
+// bị treo thật sự giờ báo lỗi NHANH hơn nhiều (mặc định 90 giây thay vì 10
+// phút), giải phóng connection sớm, và (xem extractBatch() ở runTableJob())
+// được THỬ LẠI NGAY trong lúc job đang chạy thay vì phải chờ lượt cron kế
+// tiếp — tổng thời gian tới khi có dữ liệu mới giảm đáng kể mà
+// KHÔNG đổi gì cho job "Lịch sử" (vẫn đủ 10 phút như trước, qua
+// isFirstRun() ở trên).
+const INCREMENTAL_REQUEST_TIMEOUT_MS = parseInt(process.env.DATASOURCE_INCREMENTAL_REQUEST_TIMEOUT_MS || '90000', 10);
+
+function requestTimeoutFor(lastSyncedAt) {
+  return isFirstRun(lastSyncedAt) ? undefined : INCREMENTAL_REQUEST_TIMEOUT_MS; // undefined = dùng mặc định dài của adapter
+}
+
+// Nhận diện lỗi MẠNG TẠM THỜI (đáng thử lại) — KHÁC lỗi dữ liệu/cấu hình
+// (thiếu cột, sai cú pháp SQL, tên bảng không tồn tại...), loại lỗi đó
+// KHÔNG tự hết dù thử lại bao nhiêu lần, phải ném ngay như cũ (xem chú thích
+// đầu CONNECT_RETRY_WINDOW_MS phía dưới — giữ nguyên nguyên tắc đã có từ bản
+// 8.59, chỉ mở rộng DANH SÁCH NƠI ÁP DỤNG, không đổi nguyên tắc). Gồm:
+// - Mã lỗi hệ điều hành/socket chuẩn (ETIMEOUT, ESOCKET, ECONNRESET,
+//   ECONNREFUSED, EHOSTUNREACH, ENETUNREACH, EPIPE) — ném bởi tedious/net.
+// - TimeoutError của `tarn` (pool kết nối dùng trong thư viện `mssql`) —
+//   ném khi không xin được 1 connection rảnh trong pool kịp thời, thường vì
+//   1 connection khác trong CÙNG pool đang "treo" do mạng chập chờn, không
+//   phải vì nguồn đã từ chối kết nối rõ ràng (lỗi đó có message khác, cụ
+//   thể, không rơi vào nhánh "unknown reason" này).
+// - Vài chuỗi message quen thuộc khác không có err.code chuẩn (tedious đôi
+//   khi chỉ có message, không có code) — xem describeSyncError() bên dưới
+//   để hiểu vì sao .message có thể trống/không đủ, dùng describeSyncError()
+//   khi cần GHI LOG đầy đủ, hàm NÀY chỉ cần đủ để PHÂN LOẠI, không cần đẹp.
+const TRANSIENT_ERROR_CODES = new Set(['ETIMEOUT', 'ESOCKET', 'ECONNRESET', 'ECONNREFUSED', 'EHOSTUNREACH', 'ENETUNREACH', 'EPIPE']);
+const TRANSIENT_MESSAGE_RE = /timed out|ECONNRESET|socket hang up|read ECONNRESET|connection is closed|no longer usable|EPIPE/i;
+
+function isTransientNetworkError(err) {
+  if (!err) return false;
+  if (err.code && TRANSIENT_ERROR_CODES.has(err.code)) return true;
+  if (err.name === 'TimeoutError') return true; // tarn (pool) — xem chú thích ở trên
+  const texts = [err.message, ...(Array.isArray(err.errors) ? err.errors.map(e => e && e.message) : []), ...(Array.isArray(err.precedingErrors) ? err.precedingErrors.map(e => e && e.message) : [])].filter(Boolean);
+  return texts.some(t => TRANSIENT_MESSAGE_RE.test(t));
 }
 
 // Bản 8.59 (theo yêu cầu người dùng, sau sự cố thật mất kết nối vài chi
@@ -67,12 +135,12 @@ const CONNECT_RETRY_DELAYS_MS = [15000, 30000, 60000, 120000]; // 15s,30s,60s,12
 // đúng hành vi CŨ (thử 1 lần, báo lỗi ngay) thay vì bắt admin chờ tới 10
 // phút mới thấy kết quả. CHỈ job chạy NỀN theo lịch cron (không ai chờ
 // trực tiếp) mới dùng retry đầy đủ — xem runJobObject().
-async function getConnectionWithRetry(job, allowRetry = true) {
+async function getConnectionWithRetry(job, allowRetry = true, requestTimeout) {
   const deadline = Date.now() + CONNECT_RETRY_WINDOW_MS;
   let attempt = 0;
   for (;;) {
     try {
-      return await getConnection(job.DataSourceId);
+      return await getConnection(job.DataSourceId, { requestTimeout });
     } catch (err) {
       attempt += 1;
       const remaining = allowRetry ? deadline - Date.now() : 0;
@@ -164,18 +232,55 @@ async function logRun({ jobId, status, rowCount = 0, errorMessage = null, starte
 // vô hại) — nhất quán với cách upsertReportFacts() vốn đã tự chia lô
 // ROWS_PER_TRANSACTION và commit từng lô độc lập, KHÔNG chờ ghi xong mới
 // đẩy watermark.
+// Bản 8.86 — lỗi mạng tạm thời XẢY RA TRONG LÚC TRÍCH XUẤT (connection đã
+// mở thành công nhưng VPN chập chờn GIỮA CHỪNG câu truy vấn, xem chú thích
+// isTransientNetworkError() ở trên) giờ được thử lại NGAY, KHÔNG ném lỗi
+// luôn như trước bản này. CHỈ 3 lần thử/5 giây — KHÔNG dùng cửa sổ 10 phút
+// như getConnectionWithRetry(): hàm này chạy BÊN TRONG khoá sp_getapplock
+// (runWithCrossProcessLock), giữ khoá lâu chiếm 1 connection pool 'ADMIN'
+// suốt thời gian đó (đúng vấn đề bản 8.59 đã tránh — xem chú thích đầu
+// CONNECT_RETRY_WINDOW_MS). Hết 3 lần thử nhanh mà vẫn lỗi mạng → ném ra
+// NGOÀI khoá như bình thường (runJobObjectLocked ghi FAILED, gửi cảnh báo)
+// — lượt cron KẾ TIẾP của chính job này (2-3 phút sau với job "(TV)") tự
+// thử lại từ đầu qua getConnectionWithRetry() (đủ 10 phút, ngoài khoá) —
+// vẫn đảm bảo "thử liên tục tới khi thành công" ở tầm job, chỉ không giữ
+// khoá CSDL trong lúc chờ.
+//
+// invalidateDataSource() TRƯỚC khi lấy connection mới — tránh lấy lại ĐÚNG
+// connection/pool đang "kẹt" (lỗi mạng giữa chừng 1 request không có nghĩa
+// các request SAU trên CÙNG socket sẽ ổn trở lại ngay).
+const EXTRACT_RETRY_ATTEMPTS = 3;
+const EXTRACT_RETRY_DELAY_MS = 5000;
+
 // connection — ĐÃ lấy sẵn TRƯỚC khi gọi hàm này (xem runJobObject(), lý do
-// đầy đủ ở chú thích getConnectionWithRetry() phía trên: retry phải xảy ra
-// TRƯỚC khi giữ khoá sp_getapplock, không phải bên trong).
+// đầy đủ ở chú thích getConnectionWithRetry() phía trên: retry BƯỚC KẾT NỐI
+// BAN ĐẦU phải xảy ra TRƯỚC khi giữ khoá sp_getapplock, không phải bên
+// trong) — CÓ THỂ bị thay thế bằng connection MỚI giữa chừng nếu gặp lỗi
+// mạng tạm thời lúc trích xuất (xem EXTRACT_RETRY_ATTEMPTS ở trên).
 async function runTableJob(job, lastSyncedAt, dwhPool, connection) {
+  let conn = connection;
   let offset = 0;
   let rawCount = 0;
   let rawMaxUpdatedAt = lastSyncedAt;
   let inserted = 0;
   let updated = 0;
 
+  async function extractBatch(currentOffset) {
+    for (let attempt = 1; ; attempt++) {
+      try {
+        return await extractTable(conn, job, lastSyncedAt, { offset: currentOffset, limit: EXTRACT_BATCH_SIZE });
+      } catch (err) {
+        if (!isTransientNetworkError(err) || attempt >= EXTRACT_RETRY_ATTEMPTS) throw err;
+        logWarn(`⏳ [${job.Name}] Lỗi mạng khi trích xuất lô dữ liệu (lần ${attempt}/${EXTRACT_RETRY_ATTEMPTS - 1}): ${describeSyncError(err)} — làm mới kết nối, thử lại sau ${Math.round(EXTRACT_RETRY_DELAY_MS / 1000)}s...`);
+        await invalidateDataSource(job.DataSourceId);
+        await sleep(EXTRACT_RETRY_DELAY_MS);
+        conn = await getConnection(job.DataSourceId, { requestTimeout: requestTimeoutFor(lastSyncedAt) });
+      }
+    }
+  }
+
   for (;;) {
-    const { rows, ...meta } = await extractTable(connection, job, lastSyncedAt, { offset, limit: EXTRACT_BATCH_SIZE });
+    const { rows, ...meta } = await extractBatch(offset);
     if (!rows.length) break;
 
     rawCount += rows.length;
@@ -269,7 +374,13 @@ async function runJobObject(job, { allowConnectRetry = true } = {}) {
   if (job.Type === 'table') {
     const startedAt = new Date();
     try {
-      connection = await getConnectionWithRetry(job, allowConnectRetry);
+      // requestTimeoutFor() cần lastSyncedAt để biết đây có phải lượt chạy
+      // ĐẦU TIÊN hay không (xem chú thích đầy đủ ở requestTimeoutFor() phía
+      // trên) — đọc TRƯỚC khi mở kết nối, không đợi vào runJobObjectLocked()
+      // (vốn cũng tự đọc lại giá trị này — 1 truy vấn rẻ, KHÔNG đáng để
+      // luồn tham số qua nhiều lớp hàm chỉ để tránh đọc 2 lần).
+      const lastSyncedAt = await getLastSyncedAt(job.Id);
+      connection = await getConnectionWithRetry(job, allowConnectRetry, requestTimeoutFor(lastSyncedAt));
     } catch (err) {
       const message = describeSyncError(err);
       logError(`⛔ [${job.Name}] Lỗi đồng bộ: ${message}`);

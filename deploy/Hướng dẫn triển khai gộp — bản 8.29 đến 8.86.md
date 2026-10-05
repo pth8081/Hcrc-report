@@ -1,9 +1,9 @@
-# Hướng dẫn triển khai gộp — bản 8.29 đến 8.85 (làm 1 lần)
+# Hướng dẫn triển khai gộp — bản 8.29 đến 8.86 (làm 1 lần)
 
 **Mục đích**: theo yêu cầu người dùng — thay vì đọc/làm tuần tự từng mục
 trong "Nhật ký triển khai (từ bản 8.31)" (nhiều mục riêng, mỗi mục 1 bản),
 file NÀY gộp lại thành **1 lượt làm duy nhất** để đưa server từ trước bản
-8.29 lên thẳng bản 8.85 (KHÔNG gồm bản 8.82 — script ad-hoc
+8.29 lên thẳng bản 8.86 (KHÔNG gồm bản 8.82 — script ad-hoc
 `deleteThanhVienLiveSync.js`, chạy khi cần, không phải bước triển khai
 thường trực). Các bước **idempotent** (an toàn chạy lại nhiều
 lần) được gộp chỉ chạy **1 LẦN** ở bản mới nhất thay vì lặp lại theo từng
@@ -645,6 +645,24 @@ KHÔNG cần restart backend nào.
 
 Chi tiết đầy đủ: `deploy/Cập nhật bản 8.85 — Sửa màn hình trắng khi vào
 URL không khớp route nào.md`.
+
+---
+
+## T. Thử lại + rút ngắn thời gian chờ khi VPN chi nhánh chập chờn giữa chừng đồng bộ (bản 8.86)
+
+Chỉ `etl` (backend) — KHÔNG đổi API/CSDL, KHÔNG có gói npm mới.
+
+1. `git pull origin main` (đã làm ở mục A.1 nếu làm gộp từ đầu).
+2. (Tuỳ chọn) Thêm `DATASOURCE_INCREMENTAL_REQUEST_TIMEOUT_MS=90000` vào
+   `etl/.env` nếu muốn đổi khác mặc định — bỏ qua vẫn dùng được.
+3. `pm2 restart hcrc-etl` (đã gộp vào mục D ở trên).
+4. Kiểm tra: etl-admin → "Đồng bộ" → theo dõi "Job lỗi trong 24h qua" sau
+   vài giờ — số lượt lỗi "operation timed out..." giảm rõ rệt; `pm2 logs
+   hcrc-etl` thấy dòng "⏳ [...] Lỗi mạng khi trích xuất lô dữ liệu..."
+   khi VPN chập chờn (bình thường), phần lớn tự phục hồi (SUCCESS).
+
+Chi tiết đầy đủ: `deploy/Cập nhật bản 8.86 — Thử lại + rút ngắn thời gian
+chờ khi VPN chi nhánh chập chờn giữa chừng đồng bộ.md`.
 
 ---
 

@@ -14,6 +14,27 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 8.86 — Thử lại + rút ngắn thời gian chờ khi VPN chi nhánh chập chờn giữa chừng đồng bộ (ETL)
+
+**Thay đổi**: job đồng bộ "(TV)"/định kỳ giờ thất bại NHANH hơn (90 giây
+thay vì 10 phút) khi VPN chi nhánh làm treo giữa chừng câu truy vấn, VÀ
+được thử lại NGAY (tối đa 3 lần, làm mới kết nối trước mỗi lần) trước khi
+báo lỗi hẳn — không đổi gì cho job "Lịch sử"/lần chạy đầu tiên.
+
+**Các bước triển khai:**
+1. `git pull origin main`.
+2. (Tuỳ chọn) Thêm `DATASOURCE_INCREMENTAL_REQUEST_TIMEOUT_MS=90000` vào
+   `etl/.env` nếu muốn đổi khác mặc định 90 giây — KHÔNG bắt buộc, có sẵn
+   giá trị mặc định nếu bỏ qua bước này.
+3. `pm2 restart hcrc-etl` (BẮT BUỘC — đổi logic lấy kết nối/trích xuất).
+4. Kiểm tra: etl-admin → "Đồng bộ" → theo dõi "Job lỗi trong 24h qua" sau
+   vài giờ — số lượt lỗi "operation timed out..." giảm rõ rệt so với
+   trước; `pm2 logs hcrc-etl` thấy dòng "⏳ [...] Lỗi mạng khi trích xuất
+   lô dữ liệu (lần N/2): ... — làm mới kết nối, thử lại sau 5s..." khi có
+   VPN chập chờn (bình thường, không phải lỗi cần xử lý tay).
+
+---
+
 ## 8.85 — Sửa màn hình trắng khi vào URL không khớp route nào (rp-user)
 
 **Thay đổi**: thêm route "bắt đáy" (`path="*"` → về trang chủ) cho

@@ -7,7 +7,26 @@ const { decrypt } = require('./crypto');
 const { getAdapter } = require('./dbAdapters');
 const { logInfo, logError } = require('./systemLog');
 
-const connections = new Map(); // dataSourceId -> Promise<{ pool, adapter, engine, name }>
+// Khoá cache = "<id>::<requestTimeout>" (bản 8.86) — KHÔNG còn chỉ theo id
+// trơn: jobs/runSync.js giờ xin kết nối với 2 "hồ sơ" thời gian chờ khác
+// nhau tuỳ lượt chạy ĐẦU TIÊN (requestTimeout mặc định dài, xem
+// dbAdapters/mssql.js) hay ĐỊNH KỲ (requestTimeout rút ngắn, xem chú thích ở
+// jobs/runSync.js) — mỗi hồ sơ cần 1 `sql.ConnectionPool` RIÊNG (requestTimeout
+// được khoá cứng lúc tạo pool, không đổi được sau đó), nên 1 nguồn dữ liệu có
+// thể có TỐI ĐA 2 pool đang mở song song, không tranh chấp connection lẫn
+// nhau giữa job chạy lần đầu (có thể kéo dài nhiều phút) và job chạy định kỳ
+// (cần thất bại/thử lại nhanh). idKeyPrefix(id) dùng để invalidate() gỡ ĐỦ
+// CẢ 2 hồ sơ khi admin sửa/xoá 1 nguồn — gọi theo id trơn như trước giờ,
+// không cần biết có bao nhiêu hồ sơ đang mở.
+const connections = new Map(); // "<id>::<requestTimeout>" -> Promise<{ pool, adapter, engine, name }>
+
+function cacheKey(id, requestTimeout) {
+  return `${id}::${requestTimeout || 'default'}`;
+}
+
+function idKeyPrefix(id) {
+  return `${id}::`;
+}
 
 async function loadDataSource(id) {
   const adminPool = await getPool('ADMIN');
@@ -19,8 +38,11 @@ async function loadDataSource(id) {
   return result.recordset[0];
 }
 
-async function getConnection(id) {
-  if (!connections.has(id)) {
+// options.requestTimeout (tuỳ chọn, bản 8.86) — xem chú thích `connections`
+// ở trên. KHÔNG truyền = giữ nguyên hành vi cũ (dùng mặc định của adapter).
+async function getConnection(id, options = {}) {
+  const key = cacheKey(id, options.requestTimeout);
+  if (!connections.has(key)) {
     const promise = (async () => {
       const source = await loadDataSource(id);
       const adapter = getAdapter(source.Engine);
@@ -31,18 +53,19 @@ async function getConnection(id) {
         user: source.Username,
         password: decrypt(source.PasswordEncrypted),
         encrypt: !!source.Encrypt,
-        trustServerCert: !!source.TrustServerCert
+        trustServerCert: !!source.TrustServerCert,
+        requestTimeout: options.requestTimeout
       });
       logInfo(`✅ Đã kết nối nguồn [#${id} ${source.Name}] (${source.Engine}): ${source.Server} - ${source.DatabaseName}`);
       return { pool, adapter, engine: source.Engine, name: source.Name };
     })().catch(err => {
-      connections.delete(id);
+      connections.delete(key);
       logError(`⛔ Lỗi kết nối nguồn #${id}: ${err.message}`);
       throw err;
     });
-    connections.set(id, promise);
+    connections.set(key, promise);
   }
-  return connections.get(id);
+  return connections.get(key);
 }
 
 // Thời gian tối đa chờ đóng 1 kết nối cũ trước khi BỎ QUA, không chờ thêm —
@@ -75,10 +98,16 @@ function withTimeout(promise, ms) {
 // đóng kết nối (có thể treo, xem CLOSE_TIMEOUT_MS ở trên) chặn hành động
 // sửa/xoá chính — xoá khỏi cache LUÔN LUÔN thành công trước, việc đóng pool
 // cũ là best-effort.
+// Gỡ ĐỦ mọi "hồ sơ" (requestTimeout khác nhau, xem chú thích `connections`
+// ở trên) đang mở cho ĐÚNG id này — người gọi (routes/admin/dataSources.js,
+// jobs/runSync.js khi gặp lỗi mạng tạm thời...) chỉ cần biết id, không cần
+// biết hồ sơ nào đang thật sự mở.
 async function invalidate(id) {
-  const existing = connections.get(id);
-  connections.delete(id);
-  if (existing) {
+  const prefix = idKeyPrefix(id);
+  const keys = [...connections.keys()].filter(k => k.startsWith(prefix));
+  await Promise.all(keys.map(async (key) => {
+    const existing = connections.get(key);
+    connections.delete(key);
     try {
       const { pool, adapter } = await existing;
       await withTimeout(adapter.close(pool), CLOSE_TIMEOUT_MS);
@@ -90,7 +119,7 @@ async function invalidate(id) {
       // nhận được so với treo cả request admin đang chờ).
       logError(`⚠️  [dataSourcePool] Không đóng gọn được kết nối cũ #${id} (bỏ qua, tiếp tục): ${err.message}`);
     }
-  }
+  }));
 }
 
 // Thử một cấu hình CHƯA lưu — nút "Kiểm tra kết nối" trên form thêm/sửa nguồn,

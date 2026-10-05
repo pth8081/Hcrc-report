@@ -30,6 +30,11 @@ function paginate(offsetParam, limitParam) {
 // càng ngày càng lớn) mà không cần sửa code.
 const DEFAULT_REQUEST_TIMEOUT_MS = parseInt(process.env.DATASOURCE_REQUEST_TIMEOUT_MS || '600000', 10);
 
+// config.requestTimeout (tuỳ chọn, bản 8.86) — override ĐÚNG pool này, KHÔNG
+// đụng DEFAULT_REQUEST_TIMEOUT_MS dùng chung cho mọi nơi gọi createPool()
+// không truyền override (testConnection()/schemaBrowser.js — giữ nguyên hành
+// vi cũ). Dùng bởi jobs/runSync.js để rút ngắn thời gian chờ cho lượt đồng
+// bộ ĐỊNH KỲ (không phải lần chạy đầu) — xem chú thích đầy đủ ở đó.
 async function createPool(config) {
   const pool = new sql.ConnectionPool({
     server: config.server,
@@ -43,7 +48,7 @@ async function createPool(config) {
       enableArithAbort: true
     },
     connectionTimeout: 10000,
-    requestTimeout: DEFAULT_REQUEST_TIMEOUT_MS
+    requestTimeout: config.requestTimeout || DEFAULT_REQUEST_TIMEOUT_MS
   });
   await pool.connect();
   return pool;
