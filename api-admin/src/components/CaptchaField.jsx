@@ -15,7 +15,11 @@ const CaptchaField = forwardRef(function CaptchaField({ value, onChange, onToken
       const result = await api.get('/auth/captcha');
       setSvg(result.svg);
       onTokenChange(result.token);
-    } catch {
+    } catch (err) {
+      // Log ra console trình duyệt (bản 8.74) — trước đây lỗi bị NUỐT HOÀN
+      // TOÀN (không console.error), captcha hiện rỗng mà không ai (kể cả
+      // người mở DevTools) biết lý do thật — lỗi thật đã gặp.
+      console.error('Không tải được captcha:', err);
       setSvg('');
       onTokenChange('');
     } finally {

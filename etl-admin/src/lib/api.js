@@ -9,7 +9,16 @@ async function request(path, { method = 'GET', body, isFormData = false } = {}) 
   });
 
   const contentType = res.headers.get('content-type') || '';
-  const data = contentType.includes('application/json') ? await res.json() : null;
+  if (!contentType.includes('application/json')) {
+    // Phản hồi không phải JSON dù HTTP status có thể vẫn 200 OK (vd rơi vào
+    // SPA fallback của serve-static.js do thiếu PROXY_PREFIX/PROXY_TARGET_PORT)
+    // — TRƯỚC ĐÂY âm thầm trả về null coi như thành công, lỗi thật không ai
+    // biết (vd CaptchaField không hiện ảnh, không log gì cả 2 phía).
+    const err = new Error(`Phản hồi không phải JSON (Content-Type: ${contentType || '(trống)'}) — kiểm tra cấu hình proxy /admin`);
+    err.status = res.status;
+    throw err;
+  }
+  const data = await res.json();
 
   if (!res.ok) {
     const err = new Error(data?.error || `Lỗi ${res.status}`);

@@ -29,6 +29,54 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 8.74 — Sửa lỗi captcha đăng nhập hiện rỗng không log (KHẨN)
+
+**Theo yêu cầu người dùng**: báo lỗi khẩn trang đăng nhập report.hcrc.vn —
+ô "Mã xác nhận" hiện input + nút refresh nhưng KHÔNG hiện ảnh captcha,
+kèm ảnh chụp log PM2 có nhiều lỗi khác (SELECT permission denied trên
+`dwh.ReportFacts`/`etl.CoreItemList`, "Invalid object name 'app.SystemLog'",
+lỗi SSL gửi email lịch báo cáo).
+
+**Đã xác nhận các lỗi trong log PM2 KHÔNG liên quan tới captcha** — route
+`GET /api/auth/captcha` (`rp-server/server.js`) không đụng CSDL nào (chỉ
+sinh SVG ngẫu nhiên trong bộ nhớ, xem `rp-server/lib/captcha.js`), các lỗi
+đó thuộc về những báo cáo khác (`bc-doanh-thu-hcrc`, `bc-ton-kho-0`...) —
+sẽ xử lý riêng.
+
+**Lỗi thật tìm được — lỗi code, không phải do thiếu cấu hình riêng lẻ**:
+`src/lib/api.js` (cả 3 app rp-user/etl-admin/api-admin) kiểm tra
+`Content-Type` của response nhưng khi KHÔNG phải JSON dù HTTP status vẫn
+200 OK (vd rơi vào "SPA fallback" của `serve-static.js` khi thiếu
+`PROXY_PREFIX`/`PROXY_TARGET_PORT`, hoặc Nginx trả trang lỗi HTML) —
+**âm thầm coi là THÀNH CÔNG** (rp-user: trả về `Blob`; etl-admin/api-admin:
+trả về `null`) thay vì báo lỗi. Hậu quả: `CaptchaField.jsx` nhận dữ liệu
+rỗng/`undefined`, hiện captcha trống, và vì không có `Error` nào được ném
+ra nên **không có dòng log nào cả phía server lẫn console trình duyệt** —
+đúng mô tả lỗi "không hiện ảnh, không biết vì sao".
+
+**Đã sửa** (áp dụng đồng nhất cả 3 app):
+- `src/lib/api.js`: response không phải JSON → ném `Error` rõ ràng
+  (kèm Content-Type thật nhận được) thay vì âm thầm trả về
+  `Blob`/`null` coi như thành công.
+- `CaptchaField.jsx`: thêm `console.error` khi tải captcha lỗi — trước đây
+  `catch` nuốt lỗi hoàn toàn, không log gì.
+
+**Đã kiểm chứng bằng cách dựng lại ĐÚNG lỗi**: mock server trả về
+`index.html` (200, `text/html`) cho mọi request `/auth/*` — tái hiện
+CHÍNH XÁC giao diện lỗi người dùng chụp gửi (captcha trống, nút refresh
+vẫn hiện bình thường); sau khi sửa, lỗi hiện rõ ở console trình duyệt:
+`"Phản hồi không phải JSON (Content-Type: text/html...) — kiểm tra cấu
+hình proxy /api"` — xác nhận sửa đúng chỗ.
+
+**LƯU Ý QUAN TRỌNG — bản sửa này làm lỗi HIỆN RA RÕ thay vì ẩn đi, chưa
+chắc đã tự hết captcha trống** nếu nguyên nhân gốc là do triển khai
+"PM2-only" (không Nginx) thiếu biến môi trường `PROXY_PREFIX=/api` +
+`PROXY_TARGET_PORT=4001` ở tiến trình `hcrc-rp-user` trong
+`deploy/ecosystem.config.js` (xem chú thích trong `deploy/serve-static.js`)
+— cần kiểm tra `curl -i https://report.hcrc.vn/api/auth/captcha`: nếu trả
+về HTML thay vì JSON, phải sửa đúng 2 biến môi trường này rồi
+`pm2 restart hcrc-rp-user`, KHÔNG phải lỗi code.
+
 ## 8.73 — Thu hẹp "CA tin cậy": chỉ còn report server
 
 **Theo yêu cầu người dùng**: sau khi bản 8.72 làm "CA tin cậy" cho cả 3 hệ

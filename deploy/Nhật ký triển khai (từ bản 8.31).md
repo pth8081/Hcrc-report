@@ -14,6 +14,37 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 8.74 — Sửa lỗi captcha đăng nhập hiện rỗng không log (KHẨN)
+
+**Thay đổi**: sửa `src/lib/api.js` (cả 3 app) để KHÔNG còn âm thầm coi
+response không phải JSON (dù status 200) là thành công — trước đây khiến
+captcha (và bất kỳ API nào khác gặp tình huống tương tự) hiện rỗng mà
+không log lỗi ở đâu cả. Chi tiết đầy đủ + cách chẩn đoán nguyên nhân gốc
+(có thể là thiếu `PROXY_PREFIX`/`PROXY_TARGET_PORT` ở triển khai PM2-only):
+`deploy/Cập nhật bản 8.74 — Sửa lỗi captcha đăng nhập hiện rỗng không
+log.md`.
+
+**Các bước triển khai (BẮT BUỘC — ảnh hưởng toàn bộ 3 trang đăng nhập):**
+1. `git pull origin main`.
+2. `cd rp-user && npm run build`, `cd ../etl-admin && npm run build`,
+   `cd ../api-admin && npm run build` — copy `dist/` mới cho cả 3 giao
+   diện (sửa thuần frontend, KHÔNG cần restart backend/PM2 nào).
+3. **Kiểm tra NGAY xem captcha đã hiện ảnh chưa** ở cả 3 trang đăng nhập
+   (report/etl-admin/api-admin). Nếu VẪN trống:
+   a. Mở DevTools (F12) → tab Console lúc tải lại trang đăng nhập — giờ
+      PHẢI thấy dòng lỗi rõ ràng "Không tải được captcha: ...".
+   b. Nếu lỗi là "Phản hồi không phải JSON" → chạy
+      `curl -i https://<domain>/api/auth/captcha` (đổi `/api` thành
+      `/admin` cho etl-admin/api-admin) — nếu trả về HTML thay vì JSON,
+      server đang chạy theo mô hình "PM2-only" (không Nginx) và THIẾU 2
+      biến môi trường `PROXY_PREFIX`/`PROXY_TARGET_PORT` ở tiến trình
+      giao diện tương ứng trong `deploy/ecosystem.config.js` — thêm đúng
+      2 biến này (xem chú thích đầu `deploy/serve-static.js`) rồi
+      `pm2 restart hcrc-rp-user`/`hcrc-etl-admin`/`hcrc-api-admin`. Đây là
+      SỬA CẤU HÌNH, không phải chạy lại bước nào ở trên.
+
+---
+
 ## 8.73 — Thu hẹp "CA tin cậy": chỉ còn report server
 
 **Thay đổi**: gỡ bỏ phần "CA tin cậy" (bản 8.72) khỏi etl và api-server

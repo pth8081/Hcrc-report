@@ -1,9 +1,9 @@
-# Hướng dẫn triển khai gộp — bản 8.29 đến 8.73 (làm 1 lần)
+# Hướng dẫn triển khai gộp — bản 8.29 đến 8.74 (làm 1 lần)
 
 **Mục đích**: theo yêu cầu người dùng — thay vì đọc/làm tuần tự từng mục
 trong "Nhật ký triển khai (từ bản 8.31)" (nhiều mục riêng, mỗi mục 1 bản),
 file NÀY gộp lại thành **1 lượt làm duy nhất** để đưa server từ trước bản
-8.29 lên thẳng bản 8.73. Các bước **idempotent** (an toàn chạy lại nhiều
+8.29 lên thẳng bản 8.74. Các bước **idempotent** (an toàn chạy lại nhiều
 lần) được gộp chỉ chạy **1 LẦN** ở bản mới nhất thay vì lặp lại theo từng
 bản cũ. Nếu server đã ở 1 bản nào đó rồi (vd đã tới 8.62), chỉ cần làm
 PHẦN CÒN THIẾU — hầu hết các bước dưới đây không hại gì nếu lỡ làm lại.
@@ -366,6 +366,40 @@ thống đó.
 (tắt HẲN kiểm tra chứng chỉ, nguy hiểm) hay sửa tay `NODE_EXTRA_CA_CERTS`
 trong `.env` (cách cũ, phải restart) — trang "CA tin cậy" làm đúng việc
 này qua UI, áp dụng sống.
+
+---
+
+## I. Sửa lỗi captcha đăng nhập hiện rỗng không log (bản 8.74, KHẨN)
+
+`src/lib/api.js` (cả 3 app) trước đây âm thầm coi response KHÔNG phải
+JSON (dù HTTP status vẫn 200 OK — vd rơi vào "SPA fallback" của
+`serve-static.js` khi thiếu `PROXY_PREFIX`/`PROXY_TARGET_PORT`) là THÀNH
+CÔNG, khiến captcha hiện trống mà KHÔNG log lỗi ở đâu cả (server lẫn
+console trình duyệt). Đã sửa: ném lỗi rõ ràng khi gặp response không phải
+JSON + thêm `console.error` khi `CaptchaField.jsx` tải captcha lỗi.
+
+1. `git pull origin main`.
+2. Build lại cả 3 giao diện, copy `dist/` mới (sửa thuần frontend, KHÔNG
+   cần restart backend):
+   ```
+   cd rp-user && npm run build
+   cd ../etl-admin && npm run build
+   cd ../api-admin && npm run build
+   ```
+3. Kiểm tra captcha đã hiện ảnh ở cả 3 trang đăng nhập. **Nếu vẫn trống**:
+   mở DevTools (F12) → Console → đọc lỗi mới hiện ra. Nếu là "Phản hồi
+   không phải JSON" → chạy `curl -i https://<domain>/api/auth/captcha`
+   (`/admin/auth/captcha` cho etl-admin/api-admin) — nếu trả HTML thay vì
+   JSON, triển khai đang thiếu `PROXY_PREFIX`/`PROXY_TARGET_PORT` ở tiến
+   trình giao diện đó (`deploy/ecosystem.config.js`, xem chú thích đầu
+   `deploy/serve-static.js`) — thêm đúng 2 biến rồi `pm2 restart` tiến
+   trình đó (SỬA CẤU HÌNH, không phải lỗi code).
+
+**LƯU Ý**: các lỗi khác trong log PM2 lúc báo cáo lỗi này (SELECT
+permission denied trên `dwh.ReportFacts`/`etl.CoreItemList`, "Invalid
+object name 'app.SystemLog'", lỗi SSL gửi email lịch báo cáo) **KHÔNG
+liên quan tới captcha** — route captcha không đụng CSDL nào — các lỗi đó
+cần xử lý riêng (thiếu quyền SQL/thiếu bảng ở từng báo cáo liên quan).
 
 Không có bước nào ở trên làm mất dữ liệu đã có hoặc ảnh hưởng job/báo cáo
 đang chạy ổn định — mọi thay đổi CSDL đều là CREATE/ALTER thêm mới.
