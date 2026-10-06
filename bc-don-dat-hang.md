@@ -39,48 +39,105 @@ như "không tính chênh lệch") hay vẫn hiện để đối chiếu — t�
 nguyên, hiện đủ cả 6 trạng thái, admin tự lọc qua cột "Trạng thái" nếu
 cần loại trừ.
 
-## 2. VIEW mẫu trên DSmart16 — ĐÃ XÁC NHẬN 1 PHẦN bằng SQL thật (06/10/2026), VẪN CÒN THIẾU cột hàng hoá
+### Toàn bộ danh sách cột thật của `ST_ORDER` (SQL thật, 06/10/2026)
 
-**Đã xác nhận bằng SQL thật** (`INFORMATION_SCHEMA.COLUMNS` + `SELECT TOP
-20` trên `ST_ORDER`):
-- Mã siêu thị = cột **`BU_ID`** (KHÔNG phải `STK_ID` như giả định ban đầu
-  — xem sửa mục 4). Mẫu: `BU_ID='40000'`, `BU_ID='30400'`.
-- Cột `STATUS` tồn tại đúng tên, chạy `GROUP BY STATUS` được — nhưng kết
-  quả mẫu CHỈ thấy 3 nhóm (trống/`D`/`E`), CHƯA thấy `C`/`P`/`F`/`M` (có
-  thể do mẫu dữ liệu đang xem, hoặc do lọc `TRANS_CODE='330'` — xem điểm
-  mới bên dưới).
-- Các cột khác đã thấy tên thật: `TRANS_NUM` (char 18, có thể là số đơn,
-  dạng ghép), `TRANS_CODE` (char 3, mẫu toàn `'330'`), `TRAN_DATE`/
-  `TRAN_TIME`, `EF_DATE`, `DUE_DATE`, `DELIVER_DT`, `FINISH_DT`,
-  `STOPED_DT`, `REF_NO`, `REF_DATE`, `REF_TYPE`, `REF`, `EXPIRY_DT`.
+`ST_ORDER` là bảng **GỘP header + chi tiết dòng hàng TRONG CÙNG 1 BẢNG**
+(mỗi dòng = 1 mặt hàng/SKU trong 1 đơn, các cột "header" như `TRANS_NUM`/
+`BU_ID`/`STATUS` LẶP LẠI giống nhau ở mọi dòng cùng 1 đơn — ĐÃ XÁC NHẬN
+cấu trúc, giải đáp điểm nghi vấn "1 dòng = 1 SKU hay 1 đơn" ở các bản
+trước). Danh sách đầy đủ + cách đọc (phần nhiều cột KHÔNG liên quan tới 3
+báo cáo này, ví dụ cột khuyến mãi/ngoại tệ của hệ POS — liệt kê đủ để dễ
+đối chiếu):
 
-**VẪN THIẾU — CHƯA thấy cột nào cho**: mã hàng, tên hàng, số lượng đặt,
-số lượng thực nhận, đơn giá, thành tiền, mã/tên nhà cung cấp. 2 khả năng:
-(a) các cột đó nằm ngoài phần đã xem (`ST_ORDER` có thể còn nhiều cột hơn
-8-15 cột đã thấy), hoặc (b) `ST_ORDER` chỉ là bảng ĐẦU ĐƠN (header), chi
-tiết từng mặt hàng nằm ở 1 bảng khác liên kết qua `TRANS_NUM`. **CHƯA thể
-viết VIEW thật cho tới khi rõ điểm này** — VIEW dưới đây VẪN CHỈ LÀ VÍ DỤ
-cho phần đã biết (mã siêu thị, trạng thái), phần hàng hoá/số lượng/giá
-GIỮ NGUYÊN tên PHỎNG ĐOÁN cũ, chưa đối chiếu được.
+**Các cột LIÊN QUAN trực tiếp tới 3 báo cáo (ứng viên khá chắc, vẫn cần
+DBA xác nhận lần cuối — xem danh sách câu hỏi còn lại bên dưới mục 2)**:
+
+| Cột thật | Kiểu | Ứng viên cho |
+|---|---|---|
+| `TRANS_NUM` | char | Số đơn (SoDon) |
+| `IDX` | numeric | STT dòng hàng trong đơn (ghép với TRANS_NUM làm khoá `MaThucThe`) |
+| `TRAN_DATE` | datetime | Ngày đặt (EventDate) |
+| `DUE_DATE` | datetime | Ngày giao DỰ KIẾN (NgayGiao) |
+| `DELIVER_DT` | datetime | **CÓ THỂ là ngày giao/nhận THỰC TẾ** — nếu đúng, giải quyết được "Giới hạn đã biết" cũ (trước đây tưởng KHÔNG có cột ngày nhận thật) |
+| `BU_ID` | char | Mã siêu thị thô — ĐÃ XÁC NHẬN (xem mục 4) |
+| `STATUS` | char | Trạng thái — ĐÃ XÁC NHẬN |
+| `SKU_ID` | char | **Mã hàng** (MaHang) |
+| `UNIT_SYMB` | char | Đơn vị tính (DVT) |
+| `ORD_QTY` / `ORDP_QTY` | numeric | **2 ứng viên cho SL đặt** — CẦN DBA phân biệt rõ khác nhau thế nào |
+| `DLV_QTY` | numeric | **SL thực nhận** (DLV = Deliver) |
+| `ORD_PRICE` | numeric | Đơn giá đặt (DonGia) |
+| `AMOUNT` | decimal | Thành tiền |
+| `SUPP_ID` | char | Mã nhà cung cấp (MaNCC) |
+| `STAFF_ID` / `USER_ID` | char/int | Người đặt (NguoiDat) |
+| `HDR_REMARK` / `REMARK` | nvarchar | Ghi chú đầu đơn / ghi chú dòng |
+
+**CHƯA thấy trong `ST_ORDER`, nhiều khả năng cần JOIN sang bảng khác**:
+- **Tên hàng** (`TenHang`) — không có cột tên, chỉ có `SKU_ID` (mã) — cần
+  hỏi DBA tên bảng "danh mục hàng hoá" (item master) để `JOIN` lấy tên.
+- **Tên nhà cung cấp** (`TenNCC`) — tương tự, chỉ có `SUPP_ID` (mã) — cần
+  tên bảng "danh mục nhà cung cấp" (supplier master) để `JOIN`.
+- **Watermark cập nhật** — CHƯA thấy cột nào rõ nghĩa "lần sửa gần nhất"
+  (`UPDATED` là kiểu `bit` — cờ đúng/sai, KHÔNG phải mốc thời gian, không
+  dùng được làm watermark). Ứng viên còn lại: `STOPED_DT`/`FINISH_DT`
+  nhưng ý nghĩa thật chưa rõ — cần DBA xác nhận có cột nào khác phù hợp
+  hơn, hoặc xác nhận KHÔNG CÓ (nếu vậy, đồng bộ phải đổi chiến lược — quét
+  lại toàn bộ thay vì theo watermark, cần bàn thêm).
+
+**Toàn bộ 116 cột đã thấy** (để tra cứu nhanh khi cần, phần lớn KHÔNG dùng
+cho 3 báo cáo này — mã khuyến mãi/hoa hồng/ngoại tệ của hệ POS):
+`TRANS_NUM, TRANS_CODE, TRAN_DATE, TRAN_TIME, EF_DATE, DUE_DATE,
+DELIVER_DT, FINISH_DT, STOPED_DT, BU_ID, REF_NO, REF_DATE, REF_TYPE, REF,
+RS_CODE, CS_ID, STAFF_ID, CARD_ID, CTC_ID, PMT_MODE, PMT_TYPE, PMT_TIME,
+CR_TYPE, ORD_WAY, POST, UPDATED, ACTION, COPIES, SHIFT, USER_ID, WS_ID,
+HDR_REMARK, STATUS, IMPORT, STK_ID, STK_TYPE, OSTK_ID, OSTK_TYPE, KIT_ID,
+KIT_TYPE, KIT_QTY, IDX, SKU_ID, UNIT_SYMB, BASE_UNIT, UNITCONV, DMS,
+SAL_QTY, STK_QTY, ORDP_QTY, ORD_QTY, ORD_PRICE, DLV_QTY, ST_QTY, QTY,
+PRICE, AMOUNT, SURPLUS, VAT_AMT, VAT_INCL, COMM_AMT, COMM_RATE, DISCOUNT,
+DISC_RATE, CDISC_CODE, CDISC_RATE, CDISC_AMT, TDISC_CODE, TDISC_RATE,
+TDISC_AMT, MDISC_CODE, MDISC_AMT, MDISC_TYPE, GDISC_CODE, GDISC_TYPE,
+GDISC_AMT, GIFT_SQTY, GIFT_QTY, CCOMM_CODE, CCOMM_RATE, CCOMM_AMT,
+TCOMM_CODE, TCOMM_RATE, TCOMM_AMT, TCOMM_TYPE, MCOMM_CODE, MCOMM_AMT,
+MCOMM_TYPE, GCOMM_CODE, GCOMM_TYPE, GCOMM_AMT, GCOMM_SQTY, GCOMM_QTY,
+TAX_CODE, MERC_TYPE, ITEM_TYPE, FOREX_RATE, FOREX_CYS, FOREX_AMT,
+EXPIRY_DT, WARR_TM, REMARK, SUPP_ID, CUST_ID, CDISC_TYPE, TDISC_TYPE,
+TDADD_CODE, TDADD_TYPE, TDADD_RATE, TDADD_AMT, MDISC_RATE, MDADD_CODE,
+MDADD_TYPE, MDADD_RATE, MDADD_AMT`.
+
+**Phát hiện thêm cần lưu ý**: `ST_ORDER` CÒN CÓ 1 cột `STK_ID` RIÊNG (khác
+`BU_ID`) — đây nhiều khả năng là mã KHO chi tiết (khớp đúng khái niệm
+"STK_ID do người dùng tự tạo, gắn theo mã Điểm" trong "quy tắc mã BU_ID và
+STK_ID.md") chứ KHÔNG phải mã dùng để ánh xạ siêu thị ở tầng báo cáo —
+**VẪN dùng `BU_ID` để ánh xạ ra mã Điểm** (đã xác nhận đúng ở mục 4), cột
+`STK_ID` này CHỈ mang tính tham khảo nội bộ DSmart16, không cần đưa vào
+VIEW trừ khi DBA xác nhận cần dùng cho mục đích khác.
+
+## 2. VIEW mẫu trên DSmart16 — ĐÃ CÓ ĐỦ DANH SÁCH CỘT THẬT (06/10/2026), chỉ còn vài điểm cần DBA xác nhận Ý NGHĨA
+
+**Đã có đủ `INFORMATION_SCHEMA.COLUMNS` của `ST_ORDER` (116 cột)** — xem
+danh sách đầy đủ + phân tích ở mục 1. Đã xác định rõ: `ST_ORDER` là bảng
+GỘP header+chi tiết dòng hàng (1 dòng = 1 SKU trong 1 đơn), giải quyết
+dứt điểm câu hỏi "1 dòng = 1 SKU hay 1 đơn" các bản trước. VIEW dưới đây
+dùng ĐÚNG tên cột thật cho các ứng viên khá chắc chắn — các cột còn in
+đậm `<<<` vẫn cần DBA xác nhận Ý NGHĨA (không phải tên, tên đã có).
 
 ```sql
 CREATE VIEW dbo.vw_DonDatHangChiNhanh AS
 SELECT
-    CAST(SoDon AS VARCHAR(50)) + '|' + CAST(STT AS VARCHAR(10)) AS MaThucThe,  -- khoá duy nhất 1 dòng hàng — CHƯA XÁC NHẬN, có thể TRANS_NUM đã đủ làm khoá nếu ST_ORDER là header
-    CAST(NgayDat AS DATE)       AS EventDate,        -- CHƯA XÁC NHẬN — có thể là TRAN_DATE (đã thấy tên thật) thay vì NgayDat
-    UpdatedAt                   AS UpdatedAt,        -- watermark đồng bộ — CHƯA XÁC NHẬN — ứng viên: STOPED_DT/FINISH_DT (đã thấy tên thật, cần hỏi DBA cột nào đúng nghĩa "lần sửa gần nhất")
-    BU_ID                       AS MaDiem,           -- ĐÃ XÁC NHẬN đúng tên cột thật — mã siêu thị thô, ánh xạ ra mã Điểm chuẩn ở tầng rp-server (buildBuIdLookup(), xem mục 4)
-    TenSieuThiDSmart            AS TenDiem,          -- CHƯA XÁC NHẬN tên cột — tên siêu thị theo DSmart16 (dự phòng, ưu tiên ánh xạ Điểm-STK nếu có)
-    SoDon                       AS SoDon,            -- CHƯA XÁC NHẬN — có thể chính là TRANS_NUM
-    CAST(NgayGiao AS DATE)      AS NgayGiao,         -- CHƯA XÁC NHẬN — có thể là DUE_DATE/DELIVER_DT (đã thấy tên thật)
-    MaNCC                       AS MaNCC,            -- CHƯA THẤY cột này ở đâu cả — xem ghi chú "VẪN THIẾU" ở trên
-    TenNCC                      AS TenNCC,           -- CHƯA THẤY
-    NguoiDat                    AS NguoiDat,         -- CHƯA THẤY
-    MaHang                      AS MaHang,           -- CHƯA THẤY
-    TenHang                     AS TenHang,          -- CHƯA THẤY
-    MaVach                      AS MaVach,           -- CHƯA THẤY
-    DVT                         AS DVT,              -- CHƯA THẤY
-    STATUS                      AS TrangThai,        -- ĐÃ XÁC NHẬN đúng tên cột thật
+    CAST(TRANS_NUM AS VARCHAR(50)) + '|' + CAST(IDX AS VARCHAR(10)) AS MaThucThe,  -- khoá 1 dòng hàng trong 1 đơn (IDX = STT dòng)
+    CAST(TRAN_DATE AS DATE)     AS EventDate,        -- <<< Ngày đặt — xác nhận Ý NGHĨA đúng (tên cột đã chắc)
+    STOPED_DT                   AS UpdatedAt,        -- <<< Watermark — CHƯA CHẮC, xem câu hỏi watermark bên dưới, có thể KHÔNG có cột phù hợp
+    BU_ID                       AS MaDiem,           -- ĐÃ XÁC NHẬN — ánh xạ ra mã Điểm chuẩn ở tầng rp-server (buildBuIdLookup(), xem mục 4)
+    NULL                        AS TenDiem,          -- Không có tên siêu thị trực tiếp trong ST_ORDER — hệ thống LUÔN ưu tiên tên trong bảng Ánh xạ Điểm-STK, cột này chỉ dự phòng nên để NULL
+    TRANS_NUM                   AS SoDon,
+    CAST(DUE_DATE AS DATE)      AS NgayGiao,         -- Ngày giao DỰ KIẾN
+    CAST(DELIVER_DT AS DATE)    AS NgayNhanThat,      -- <<< MỚI — có thể là ngày giao/nhận THỰC TẾ, xác nhận với DBA (nếu đúng, bỏ được "Giới hạn đã biết" cũ)
+    SUPP_ID                     AS MaNCC,
+    NULL                        AS TenNCC,           -- <<< Cần tên bảng "danh mục nhà cung cấp" để JOIN lấy tên — xem câu hỏi bên dưới
+    STAFF_ID                    AS NguoiDat,
+    SKU_ID                      AS MaHang,
+    NULL                        AS TenHang,          -- <<< Cần tên bảng "danh mục hàng hoá" để JOIN lấy tên — xem câu hỏi bên dưới
+    UNIT_SYMB                   AS DVT,
+    STATUS                      AS TrangThai,
     CASE STATUS
         WHEN 'C' THEN N'Chưa nhập'
         WHEN 'P' THEN N'Đã nhập 1 phần'
@@ -90,49 +147,46 @@ SELECT
         WHEN 'E' THEN N'Đã huỷ'
         ELSE STATUS
     END                         AS TrangThaiLabel,
-    SoLuongTheoDon              AS SoLuongTheoDon,   -- CHƯA THẤY — SL đặt (cột "Theo đơn" trên phiếu)
-    SoLuongThucNhan             AS SoLuongThucNhan,  -- CHƯA THẤY — SL nhận thật (cột "Thực nhận" trên phiếu, NULL/0 khi STATUS='C')
-    DonGia                      AS DonGia,           -- CHƯA THẤY
-    ThanhTien                   AS ThanhTien         -- CHƯA THẤY
+    ORD_QTY                     AS SoLuongTheoDon,   -- <<< CHƯA CHẮC — ORD_QTY hay ORDP_QTY mới đúng "SL đặt"? xem câu hỏi bên dưới
+    DLV_QTY                     AS SoLuongThucNhan,  -- <<< Khá chắc (DLV=Deliver) nhưng vẫn cần DBA xác nhận
+    ORD_PRICE                   AS DonGia,
+    AMOUNT                      AS ThanhTien
 FROM dbo.ST_ORDER
+WHERE TRANS_CODE = '330'  -- <<< lọc đúng loại "đơn đặt hàng" — XÁC NHẬN đây là mã cố định, không lẫn mã khác trong bảng
 UNION ALL
 SELECT
-    CAST(SoDon AS VARCHAR(50)) + '|' + CAST(STT AS VARCHAR(10)), CAST(NgayDat AS DATE), UpdatedAt, BU_ID, TenSieuThiDSmart,
-    SoDon, CAST(NgayGiao AS DATE), MaNCC, TenNCC, NguoiDat, MaHang, TenHang, MaVach, DVT, STATUS,
+    CAST(TRANS_NUM AS VARCHAR(50)) + '|' + CAST(IDX AS VARCHAR(10)), CAST(TRAN_DATE AS DATE), STOPED_DT, BU_ID, NULL,
+    TRANS_NUM, CAST(DUE_DATE AS DATE), CAST(DELIVER_DT AS DATE), SUPP_ID, NULL, STAFF_ID, SKU_ID, NULL, UNIT_SYMB, STATUS,
     CASE STATUS
         WHEN 'C' THEN N'Chưa nhập' WHEN 'P' THEN N'Đã nhập 1 phần' WHEN 'F' THEN N'Đã nhập hết'
         WHEN 'M' THEN N'Đơn sửa' WHEN 'D' THEN N'Đã xoá' WHEN 'E' THEN N'Đã huỷ' ELSE STATUS
     END,
-    SoLuongTheoDon, SoLuongThucNhan, DonGia, ThanhTien
-FROM dbo.ST_ORDER_ARC;
+    ORD_QTY, DLV_QTY, ORD_PRICE, AMOUNT
+FROM dbo.ST_ORDER_ARC
+WHERE TRANS_CODE = '330';
 ```
 
-**Các điểm còn CẦN đối chiếu lại với DBA (đã bỏ điểm "mã siêu thị" — đã
-xác nhận xong là `BU_ID`):**
-1. **[MỚI, QUAN TRỌNG NHẤT]** Toàn bộ danh sách cột của `ST_ORDER` (SQL
-   kiểm tra mới chỉ xem được ~15 cột, có vẻ chưa đủ hết) — đặc biệt cần
-   tìm cột mã hàng/tên hàng/số lượng đặt/số lượng nhận/đơn giá/thành tiền/
-   nhà cung cấp. Nếu KHÔNG có trong `ST_ORDER`, hỏi DBA tên bảng chi tiết
-   (dòng hàng) liên kết qua `TRANS_NUM`.
-2. **[MỚI]** `TRANS_CODE` — mẫu đã xem toàn bộ là `'330'`, hỏi DBA đây có
-   phải mã CỐ ĐỊNH cho "đơn đặt hàng" hay `ST_ORDER` còn chứa cả mã khác
-   (nếu có mã khác, VIEW cần thêm `WHERE TRANS_CODE = '330'` để lọc đúng
-   loại giao dịch, tránh lẫn dữ liệu không phải đơn đặt hàng).
-3. Tên cột ngày đặt thật — `TRAN_DATE` có khả năng cao là ứng viên (đã
-   xác nhận TỒN TẠI, nhưng chưa xác nhận Ý NGHĨA đúng là "ngày đặt").
-4. Tên cột watermark cập nhật — cần 1 cột phản ánh ĐÚNG lần sửa gần nhất
-   (để đồng bộ bắt được đơn chuyển trạng thái `C→P→F` hoặc `M`) — ứng
-   viên: `STOPED_DT`/`FINISH_DT` (đã xác nhận tồn tại, chưa xác nhận ý
-   nghĩa).
-5. `SoLuongThucNhan` khi `STATUS='C'` (chưa nhập) — xác nhận trả về `0`
-   hay `NULL` (ảnh hưởng công thức "Chênh lệch"/"Tỷ lệ hoàn thành" ở báo
-   cáo so sánh — cả 2 trường hợp đều cho kết quả ĐÚNG với công thức đã
-   viết, chỉ cần biết để không nhầm "0" là lỗi dữ liệu).
-6. `ST_ORDER`/`ST_ORDER_ARC` có đúng là "1 dòng = 1 dòng hàng (SKU) trong
-   1 đơn" hay "1 dòng = 1 đơn hàng" (SL/Mã hàng nằm ở bảng khác, cần JOIN
-   thêm) — mẫu dữ liệu đã xem (`TRANS_NUM` lặp lại 4 dòng giống hệt nhau ở
-   1 mẫu) gợi ý CÓ THỂ là header lặp theo số lần cập nhật, KHÔNG phải dòng
-   hàng khác nhau — CẦN XÁC NHẬN RÕ, ảnh hưởng toàn bộ thiết kế VIEW.
+**Các câu hỏi còn CẦN DBA trả lời (đã thu hẹp từ "chưa biết tên cột" xuống
+"biết tên rồi, cần xác nhận ý nghĩa"):**
+1. **`ORD_QTY` vs `ORDP_QTY`** — cả 2 đều có vẻ là "số lượng đặt", khác
+   nhau chỗ nào? Cột nào đúng là SL trên "Phiếu đặt hàng" (cột "Theo
+   đơn")?
+2. **`DLV_QTY`** — xác nhận đây đúng là SL thực nhận (cột "Thực nhận"
+   trên phiếu)? Giá trị khi `STATUS='C'` (chưa nhập) là `0` hay `NULL`?
+3. **Tên bảng "danh mục hàng hoá"** (để `JOIN SKU_ID` lấy Tên hàng) và
+   **"danh mục nhà cung cấp"** (để `JOIN SUPP_ID` lấy Tên NCC) — `ST_ORDER`
+   không có cột tên trực tiếp, chỉ có mã.
+4. **`DELIVER_DT`** — có đúng là ngày giao/nhận THỰC TẾ không (khác
+   `DUE_DATE` = ngày giao dự kiến)? Nếu đúng, báo cáo có thể lọc theo
+   ngày nhận thật thay vì chỉ ngày đặt — cải thiện so với giới hạn v1 cũ.
+5. **Watermark cập nhật** — `ST_ORDER` KHÔNG có cột nào rõ nghĩa "lần sửa
+   gần nhất" (`UPDATED` chỉ là cờ `bit`, không phải mốc thời gian).
+   `STOPED_DT`/`FINISH_DT` có phản ánh đúng lần sửa gần nhất không, hay
+   cần chiến lược đồng bộ khác (vd quét lại toàn bộ mỗi lần thay vì theo
+   watermark)?
+6. **`TRANS_CODE='330'`** — xác nhận đây là mã CỐ ĐỊNH DUY NHẤT cho "đơn
+   đặt hàng" trong `ST_ORDER`, hay bảng còn chứa giao dịch khác cần lọc
+   thêm?
 
 ## 3. Thiết kế đồng bộ — domain `don_dat_hang`
 
