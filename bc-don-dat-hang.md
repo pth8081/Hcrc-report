@@ -86,28 +86,29 @@ bằng `WHERE STATUS NOT IN ('D', 'E')` ngay trong VIEW/runner — KHÔNG còn
 chỉ "hiện kèm cột để người xem tự lọc" như thiết kế v1 cũ. Chỉ còn
 `C`/`P`/`F`/`M` được đưa vào báo cáo.
 
-### ⚠️ Lưu ý MỚI (06/10/2026) — "đơn nhập nhiều lần" (nhận hàng có thể chia nhiều đợt)
+### ⚠️ "đơn nhập nhiều lần" (nhận hàng chia nhiều đợt) — ĐÃ XÁC NHẬN CƠ CHẾ, CÒN THIẾU VỊ TRÍ DỮ LIỆU
 
 Người dùng xác nhận: 1 đơn đặt hàng có thể được **nhận hàng NHIỀU LẦN**
-(giao/nhận từng đợt, không phải 1 lần duy nhất). Đây là điểm MẤU CHỐT ảnh
-hưởng trực tiếp thiết kế "SL thực nhận" (`SoLuongThucNhan`/`DLV_QTY`) —
-**CHƯA rõ** cấu trúc dữ liệu phản ánh việc nhận nhiều lần ra sao, 2 khả
-năng:
-1. Mỗi lần nhận hàng tạo 1 DÒNG RIÊNG (vd nhiều dòng `FN_ORDER` cùng
-   `TRANS_NUM`/mã hàng, mỗi dòng 1 đợt nhận) — nếu vậy, "SL thực nhận"
-   của báo cáo so sánh phải **CỘNG DỒN (SUM)** nhiều dòng theo đúng khoá
-   (đơn + mã hàng), KHÔNG lấy giá trị 1 dòng đơn lẻ như thiết kế VIEW
-   hiện tại (`DLV_QTY` AS `SoLuongThucNhan`, 1-1).
-2. Giá trị ở 1 dòng được CẬP NHẬT CỘNG DỒN mỗi lần nhận thêm (vd
-   `DLV_QTY` tự tăng dần qua các lần `UPDATE`) — nếu vậy, thiết kế hiện
-   tại (đọc trực tiếp giá trị cuối) vẫn ĐÚNG, không cần sửa gì.
+(giao/nhận từng đợt). **ĐÃ XÁC NHẬN (06/10/2026, nguyên văn người dùng)**:
+*"dựa vào mã đơn đặt hàng để biet nhập nhiều lần"* — tức đúng khả năng
+(1) dưới đây: mỗi lần nhận hàng tạo **1 DÒNG RIÊNG**, các dòng đó nhóm lại
+được với nhau nhờ CÙNG MỘT **mã đơn đặt hàng gốc** (`TRANS_NUM` của đơn
+ĐẶT ban đầu) được ghi lại trên mỗi dòng nhận hàng.
 
-**CẦN DBA xác nhận lại**: khi 1 đơn nhận hàng 2+ đợt, dữ liệu phản ánh
-theo khả năng (1) hay (2) ở trên? Nếu là (1), cần biết thêm: nhiều dòng
-nhận hàng đó nằm ở `FN_ORDER` hay `ST_ORDER`, và khoá nào (ngoài
-`TRANS_NUM`+mã hàng) dùng để nhóm đúng các lần nhận CỦA CÙNG 1 ĐƠN lại
-với nhau (vd có mã "lần nhận"/"phiếu nhập" riêng không, hay nhóm theo
-giá trị gốc `TRANS_NUM` của đơn ĐẶT ban đầu).
+**Hệ quả thiết kế (ĐÃ CHỐT CÔNG THỨC, còn thiếu vị trí dữ liệu thật)**:
+"SL thực nhận" (`SoLuongThucNhan`) của báo cáo so sánh PHẢI tính bằng
+**`SUM(DLV_QTY)` nhóm theo (mã đơn đặt hàng gốc + mã hàng)`**, KHÔNG phải
+đọc trực tiếp 1 giá trị `DLV_QTY` đơn lẻ như thiết kế VIEW nháp hiện tại
+(1-1) — VIEW/runner cần sửa lại theo hướng GROUP BY + SUM thay vì chiếu
+thẳng 1 dòng.
+
+**CÒN THIẾU để viết VIEW thật**: các dòng "1 lần nhận hàng" đó nằm Ở ĐÂU
+— trong chính `ST_ORDER` (vd nhiều dòng cùng `TRANS_NUM` gốc nhưng khác
+`IDX`/`TRANS_CODE` cho mỗi đợt nhận) hay nằm ở `FN_ORDER` (bảng riêng,
+cần `JOIN`/gộp thêm vào `ST_ORDER` qua đúng mã đơn đặt hàng gốc)? Đây
+chính là lý do vẫn cần: (a) đủ danh sách cột `FN_ORDER`, và (b) kết quả
+`SELECT DISTINCT TRANS_CODE` của `ON_ORDER`/`FN_ORDER` — đang chờ người
+dùng gửi (xem câu hỏi ở cuối mục "MÂU THUẪN MỚI" phía trên).
 
 ### Toàn bộ danh sách cột thật của `ST_ORDER` (SQL thật, 06/10/2026)
 
