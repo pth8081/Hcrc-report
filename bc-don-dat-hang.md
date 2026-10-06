@@ -6,7 +6,7 @@ bất kỳ logic nào liên quan** (`rp-server/lib/purchaseOrderRunner.js`,
 `etl/scripts/seedDonDatHangSync.js`), cùng quy ước với "quy tắc mã BU_ID và
 STK_ID.md"/"bc-ton-kho-0.md".
 
-## 1. Nguồn dữ liệu DSmart16 (theo DBA xác nhận)
+## 1. Nguồn dữ liệu DSmart16 (theo DBA xác nhận — CÓ MÂU THUẪN MỚI, xem cảnh báo 06/10/2026)
 
 - `ON_ORDER` — đơn hàng (bảng trạng thái SỐNG, KHÔNG dùng cho báo cáo —
   xem mục 2).
@@ -22,6 +22,51 @@ STK_ID.md"/"bc-ton-kho-0.md".
   thực nhận nằm TRÊN CÙNG 1 DÒNG chứng từ** (cột "Theo đơn"/"Thực nhận"
   cạnh nhau) — `ST_ORDER`/`ST_ORDER_ARC` nhiều khả năng là CÙNG 1 bảng cho
   cả 2 khái niệm, KHÔNG phải 2 nguồn phải JOIN.
+
+### ⚠️ MÂU THUẪN MỚI phát sinh (06/10/2026) — CHƯA GIẢI QUYẾT, CHƯA ĐỔI THIẾT KẾ
+
+DBA trả lời lại (qua người dùng), **nguyên văn ý**: *"`ON_ORDER` là bảng
+đặt hàng, `FN_ORDER` là bảng nhập hàng, `ON_ORDER` có trạng thái xoá đơn
+hàng là `D`, bảng `ST_ORDER` có MỘT PHẦN trạng thái xoá của bảng
+`ON_ORDER`."*
+
+Mâu thuẫn trực tiếp với dòng đầu mục này (do chính DBA cung cấp lúc đầu,
+ghi nhận ở bản 8.75): lúc đó nói `ON_ORDER`/`FN_ORDER` là bảng "trạng thái
+SỐNG, KHÔNG dùng cho báo cáo", còn `ST_ORDER` mới là "bảng LỊCH SỬ". Câu
+trả lời MỚI lại gọi thẳng `ON_ORDER`="bảng đặt hàng", `FN_ORDER`="bảng
+nhập hàng" — nghe như ĐÂY MỚI LÀ bảng chính xác cho 2 khái niệm "đặt"/
+"nhập", còn `ST_ORDER` chỉ là nơi lưu lại **MỘT PHẦN** (không phải toàn
+bộ) các đơn bị XOÁ từ `ON_ORDER` — tức có thể `ST_ORDER` KHÔNG PHẢI "lịch
+sử đầy đủ mọi đơn hàng" như vẫn tưởng, mà chỉ là 1 bảng PHỤ liên quan tới
+việc xoá đơn.
+
+**CHƯA đổi bất kỳ code/SQL nào** cho tới khi làm rõ — các câu hỏi cần hỏi
+lại DBA:
+1. `ON_ORDER` có giữ lại dữ liệu LÂU DÀI (xem được đơn hàng của nhiều
+   tháng/năm trước) hay chỉ giữ đơn CÒN HOẠT ĐỘNG/gần đây (đơn cũ bị dọn
+   đi sau khi xong)? Đây là câu hỏi mấu chốt — báo cáo cần xem được dữ
+   liệu quá khứ nhiều tháng.
+2. Quan hệ giữa `ON_ORDER` và `ST_ORDER` là gì — `ST_ORDER` có phải bản
+   SAO/LƯU TRỮ của `ON_ORDER` (đồng bộ mọi thay đổi, trong đó phần "xoá"
+   là 1 loại thay đổi) hay 2 bảng HOÀN TOÀN TÁCH BIỆT, chỉ tình cờ cùng
+   phản ánh 1 phần dữ liệu xoá?
+3. `FN_ORDER` (nhập hàng) có bảng LỊCH SỬ tương ứng kiểu `ST_ORDER`
+   không, hay bản thân `FN_ORDER` đã là nơi lưu lâu dài?
+4. Nếu `ON_ORDER`="đặt hàng" và `FN_ORDER`="nhập hàng" là **2 BẢNG RIÊNG
+   BIỆT** — có mâu thuẫn với phát hiện trước đó (mẫu "Phiếu đặt hàng" cho
+   thấy SL đặt + SL thực nhận NẰM CHUNG 1 DÒNG chứng từ, gợi ý 1 NGUỒN DUY
+   NHẤT)? Nếu đúng là 2 bảng riêng, cần biết CỘT NÀO liên kết 1 dòng ở
+   `ON_ORDER` với đúng 1 dòng tương ứng ở `FN_ORDER` để làm báo cáo "So
+   sánh đặt–nhận" (JOIN theo gì — số đơn? mã hàng + ngày?).
+5. (Nếu cần dùng `ON_ORDER`/`FN_ORDER` thay vì `ST_ORDER`) Cấu trúc cột 2
+   bảng này — chạy lại đúng kiểu câu lệnh đã dùng cho `ST_ORDER`:
+   ```sql
+   SELECT COLUMN_NAME, DATA_TYPE FROM INFORMATION_SCHEMA.COLUMNS
+   WHERE TABLE_NAME = 'ON_ORDER' ORDER BY ORDINAL_POSITION;
+
+   SELECT COLUMN_NAME, DATA_TYPE FROM INFORMATION_SCHEMA.COLUMNS
+   WHERE TABLE_NAME = 'FN_ORDER' ORDER BY ORDINAL_POSITION;
+   ```
 
 ### Mã trạng thái (`STATUS`, đã xác nhận đủ 6 mã)
 
