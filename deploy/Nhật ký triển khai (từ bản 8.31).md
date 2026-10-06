@@ -14,6 +14,58 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 8.91-8.93 — Báo cáo Đơn đặt hàng / Đơn nhập hàng / So sánh đặt–nhận (nguồn STRANS, DSMART16)
+
+**Thay đổi**: hoàn thiện thiết kế + sửa 2 lỗi phát hiện khi chạy thật 3
+báo cáo "Đơn đặt hàng"/"Đơn nhập hàng"/"So sánh đặt–nhận" (bắt đầu từ bản
+8.75, qua nhiều vòng xác nhận với DBA) — nguồn dữ liệu chốt là `STRANS`
+(TRANS_CODE 133=đặt/333=nhập), mã siêu thị dùng `BU_ID` (không phải
+`STK_ID`), `DonGia` tính từ `AMOUNT/QTY` (STRANS không có cột `PRICE`
+riêng), watermark đồng bộ dùng `EventDate` (cột `STOPED_DT` dự định ban
+đầu luôn NULL). Chi tiết đầy đủ xem `bc-don-dat-hang.md` (tài liệu tham
+chiếu chính của 3 báo cáo này) và mục 8.91/8.92/8.93 trong `VERSION.md`.
+
+**Các bước triển khai (làm 1 lần, theo đúng thứ tự):**
+1. `git pull origin main`.
+2. Chạy NGUYÊN VĂN `deploy/Thiết lập VIEW Đơn đặt hàng-Nhập hàng-So sánh
+   (DSMART16 trung tâm).sql` trên CSDL DSMART16 **trung tâm** — CHỈ 1 LẦN
+   DUY NHẤT (không phải từng siêu thị) — an toàn chạy lại nhiều lần
+   (`CREATE OR ALTER VIEW`).
+3. (Tuỳ chọn) Kiểm tra VIEW có dữ liệu thật: `SELECT TOP 20 * FROM
+   dbo.vw_DonDatHangChiNhanh ORDER BY EventDate DESC;`.
+4. Trên máy chủ ETL — cần sẵn `DSMART16_SERVER`/`DSMART16_USER`/
+   `DSMART16_PASSWORD` trong `etl/.env` (dùng lại được nếu đã có cho báo
+   cáo doanh thu cuối ngày/tồn kho):
+   ```bash
+   cd etl
+   node scripts/seedDonDatHangSync.js
+   ```
+   Script tự kiểm tra VIEW đủ cột, dừng lại báo lỗi rõ ràng nếu thiếu —
+   không cần khởi động lại ETL, scheduler tự nạp job trong tối đa 60 giây.
+5. Trên máy chủ report:
+   ```bash
+   cd rp-server
+   node scripts/seedPurchaseOrderReports.js
+   ```
+   (menu "reports-mua-hang" đã có sẵn trong `rp-db/schema.sql`, không cần
+   tạo thêm.)
+6. Vào **Hệ thống → Phân quyền**, gán quyền xem 3 báo cáo
+   (`bc-don-dat-hang`/`bc-don-nhap-hang`/`bc-so-sanh-dat-nhan`) cho đúng
+   vai trò/người dùng cần xem — 2 script trên KHÔNG tự gán quyền.
+7. Kiểm tra: siêu thị nào KHÔNG hiện trong báo cáo dù có đơn hàng thật →
+   kiểm tra đã khai đủ cột `BuId` (tường minh) trong bảng "Ánh xạ Điểm -
+   STK_ID" cho đúng mã `BU_ID` đó chưa.
+8. Chờ job chạy (mỗi 15 phút) rồi mở rp-user → menu "Báo cáo Mua hàng" →
+   kiểm tra cả 3 báo cáo có số liệu đúng, đặc biệt báo cáo "So sánh
+   đặt–nhận" cộng dồn đúng khi 1 đơn được nhận nhiều lần.
+
+**Chưa xác nhận, không chặn triển khai**: mã trạng thái mới `TrangThai =
+'N'` (ngoài C/P/F/M/D/E đã biết) hiện tạm nhãn mã thô; công thức
+`DonGia = AMOUNT/QTY` nên đối chiếu thêm với cách người dùng hiểu "đơn
+giá" trên 2 loại giao dịch 133/333.
+
+---
+
 ## 8.90 — Sửa proxy nội bộ không theo kịp khi backend chuyển sang HTTPS (PM2-only, cả 3 app)
 
 **Thay đổi**: deployment PM2-only (không Nginx, dùng

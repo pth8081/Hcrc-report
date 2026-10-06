@@ -29,6 +29,35 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 8.93 — Sửa 2 lỗi phát hiện khi chạy VIEW thật lần đầu trên DSMART16 (Báo cáo Đơn đặt/Nhập hàng)
+
+**Theo yêu cầu người dùng**: tự tạo VIEW `dbo.vw_DonDatHangChiNhanh`
+(bản 8.92) trên DSMART16 thật — 2 lỗi/phát hiện lộ ra:
+
+1. **Lỗi `Invalid column name 'PRICE'`** — `STRANS` KHÔNG có cột đơn giá
+   riêng (đúng như báo cáo doanh thu cuối ngày đã xác nhận từ trước, bảng
+   này chỉ có `QTY`/`AMOUNT`). Sửa `deploy/Thiết lập VIEW Đơn đặt hàng-
+   Nhập hàng-So sánh (DSMART16 trung tâm).sql` + mục 2 `bc-don-dat-hang.md`:
+   `DonGia` = `AMOUNT / NULLIF(QTY, 0)` thay vì đọc thẳng cột `PRICE`.
+2. **Chạy VIEW thành công, `SELECT TOP 20` cho thấy cột `STOPED_DT`
+   (dùng làm watermark `UpdatedAt`) NULL TRÊN TOÀN BỘ dòng mẫu** — nếu
+   giữ nguyên, job đồng bộ sẽ chạy "thành công" nhưng KHÔNG BAO GIỜ lấy
+   được dòng nào (`NULL >= watermark` không bao giờ `TRUE`). Sửa
+   `etl/scripts/seedDonDatHangSync.js`: `updatedAtColumn` đổi từ
+   `'UpdatedAt'` sang `'EventDate'` — đúng tiền lệ đã dùng cho
+   `V_HCRC_GIAODICH_CHINHANH` (`seedLdtdHcrcSync.js`) — không cần sửa/
+   chạy lại VIEW trên SQL Server, chỉ sửa cấu hình job.
+
+Cũng ghi nhận thêm (không chặn, chưa sửa): dữ liệu thật xuất hiện mã
+trạng thái MỚI `TrangThai = 'N'`, ngoài 6 mã C/P/F/M/D/E đã biết — VIEW
+vẫn chạy đúng (không lọc nhầm, nhãn hiện tạm mã thô), cần hỏi DBA ý nghĩa
+để bổ sung nhãn tiếng Việt sau.
+
+**Vẫn CHƯA lên production hoàn toàn** — VIEW đã chạy tốt trên DSMART16,
+còn thiếu: chạy `etl/scripts/seedDonDatHangSync.js` +
+`rp-server/scripts/seedPurchaseOrderReports.js`, gán quyền xem, chờ đồng
+bộ, kiểm tra số liệu thật trên rp-user.
+
 ## 8.92 — Chốt lại nguồn dữ liệu Báo cáo Đơn đặt hàng/Nhập hàng/So sánh: STRANS thay ST_ORDER (vẫn chưa lên production, chờ xác nhận cột SL/giá)
 
 **Theo yêu cầu người dùng**: tiếp tục trao đổi qua ảnh chụp SQL thật với
