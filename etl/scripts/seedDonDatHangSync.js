@@ -187,9 +187,16 @@ async function main() {
   // measure `SoLuong` DUY NHẤT (ý nghĩa tuỳ theo `LoaiGiaoDich` của dòng đó).
   const dimensionColumns = ['MaDiem', 'TenDiem', 'SoDon', 'LoaiGiaoDich', 'NgayGiao', 'MaNCC', 'TenNCC', 'NguoiDat', 'MaHang', 'TenHang', 'DVT', 'TrangThai', 'TrangThaiLabel'];
   const measureColumns = ['SoLuong', 'DonGia', 'ThanhTien'];
+  // SỬA 06/10/2026 (theo yêu cầu người dùng, sau khi chạy thử VIEW thật):
+  // cột UpdatedAt (STOPED_DT) ra NULL hết — dùng làm watermark sẽ khiến job
+  // KHÔNG BAO GIỜ lấy được dòng nào (WHERE updatedAtCol >= watermark luôn
+  // NULL/false khi cột NULL). Dùng luôn EventDate làm watermark — ĐÚNG tiền
+  // lệ seedLdtdHcrcSync.js (GIAODICH_VIEW, cũng không có cột cập nhật thật) —
+  // tableSyncEngine.js đã có sẵn cơ chế quét lại trọn ngày mỗi lượt chạy
+  // (floorToDay + ">="), an toàn vì upsert dùng MERGE idempotent.
   const job = {
     name: JOB_NAME, sourceTable: VIEW_NAME,
-    keyColumn: 'MaThucThe', dateColumn: 'EventDate', updatedAtColumn: 'UpdatedAt',
+    keyColumn: 'MaThucThe', dateColumn: 'EventDate', updatedAtColumn: 'EventDate',
     dimensionColumns, measureColumns, targetDomain: TARGET_DOMAIN,
     cronExpression: '*/15 * * * *'
   };

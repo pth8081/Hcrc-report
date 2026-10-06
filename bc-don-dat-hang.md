@@ -273,16 +273,36 @@ FROM dbo.STRANS
 WHERE TRANS_CODE IN ('133','333') AND STATUS NOT IN ('D','E');
 ```
 
-**Còn 1 điểm chưa chắc, kiểm tra sau khi chạy xong:**
-- `STOPED_DT` làm watermark (`UpdatedAt`) — nếu sau này đồng bộ không bắt
-  được đơn mới cập nhật/nhận hàng thêm, đây là chỗ xem lại đầu tiên.
+**✅ ĐÃ CHẠY THẬT 06/10/2026 — VIEW tạo thành công, có dữ liệu thật** (người
+dùng gửi `SELECT TOP 20 ... ORDER BY EventDate DESC`, không còn lỗi
+"Invalid column name" cho bất kỳ cột nào khác — `IDX`/`DUE_DATE`/`SUPP_ID`/
+`STAFF_ID`/`UNIT_SYMB`/`STOPED_DT`/`REF` đều tồn tại và đọc được). 2 phát
+hiện MỚI từ dữ liệu thật:
+
+1. **`STOPED_DT` (watermark `UpdatedAt`) ra NULL HẾT** trên toàn bộ 20
+   dòng mẫu — XÁC NHẬN đây KHÔNG dùng được làm watermark: `WHERE
+   updatedAtCol >= watermark` sẽ luôn loại bỏ dòng có cột NULL (SQL:
+   `NULL >= x` không bao giờ là `TRUE`), khiến job đồng bộ chạy "thành
+   công" nhưng KHÔNG BAO GIỜ lấy được dòng nào. **ĐÃ SỬA** (tầng job,
+   KHÔNG cần sửa/chạy lại VIEW): `etl/scripts/seedDonDatHangSync.js` đổi
+   `updatedAtColumn` từ `'UpdatedAt'` sang `'EventDate'` — đúng tiền lệ
+   `seedLdtdHcrcSync.js` dùng cho `V_HCRC_GIAODICH_CHINHANH` (cũng không
+   có cột cập nhật thật) — `tableSyncEngine.js` đã có sẵn cơ chế quét lại
+   trọn ngày mỗi lượt chạy (`floorToDay` + `>=`), an toàn vì upsert dùng
+   MERGE idempotent.
+2. **Phát hiện mã trạng thái MỚI `TrangThai = 'N'`** — KHÔNG có trong danh
+   sách 6 mã đã xác nhận trước đây (C/P/F/M/D/E, xem bảng ở mục 1).
+   KHÔNG gây lỗi (VIEW chỉ loại `D`/`E`, còn lại hiện bình thường — `CASE`
+   rơi vào `ELSE STATUS` nên `TrangThaiLabel` hiện tạm đúng mã thô `"N"`
+   thay vì nhãn tiếng Việt) — **CẦN hỏi DBA ý nghĩa mã `N`** để bổ sung
+   nhãn đúng vào `CASE` (phỏng đoán: có thể là "Mới tạo", CHƯA XÁC NHẬN).
+
+Còn lại, chưa xác nhận:
 - `DonGia` tính từ `AMOUNT/QTY` — khi `QTY=0` ra `NULL` (đã chặn chia 0
   bằng `NULLIF`), cần xem có hợp lý với cách DBA/người dùng hiểu "đơn
-  giá" trên 2 loại giao dịch 133/333 hay không.
-- Nếu chạy VIEW còn báo lỗi "Invalid column name" cho cột khác
-  (`IDX`/`DUE_DATE`/`SUPP_ID`/`STAFF_ID`/`UNIT_SYMB`/`STOPED_DT`/`REF`),
-  gửi lại nguyên văn lỗi để sửa tiếp — SQL Server có thể chỉ báo 1 lỗi
-  đầu tiên mỗi lần chạy, không báo hết cùng lúc.
+  giá" trên 2 loại giao dịch 133/333 hay không (vd có thể cần xem thêm
+  `VAT_AMT`/`DISCOUNT`/`COMM_AMT` nếu đơn giá hiển thị lệch so với phiếu
+  giấy).
 
 ## 3. Thiết kế đồng bộ — domain `don_dat_hang` (SỬA bản 8.92, nguồn STRANS)
 
