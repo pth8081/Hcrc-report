@@ -79,10 +79,35 @@ lại DBA:
 | `D` | Đã xoá | Hiện bình thường, có cột trạng thái để người xem tự lọc |
 | `E` | Đã huỷ | Hiện bình thường, có cột trạng thái để người xem tự lọc |
 
-**CHƯA xác nhận với DBA**: `D`/`E` có tự loại khỏi báo cáo so sánh (coi
-như "không tính chênh lệch") hay vẫn hiện để đối chiếu — tạm thời giữ
-nguyên, hiện đủ cả 6 trạng thái, admin tự lọc qua cột "Trạng thái" nếu
-cần loại trừ.
+**ĐÃ XÁC NHẬN (06/10/2026, nguyên văn người dùng)**: *"loại cả đơn xóa
+nữa bạn chỉ lấy đơn đặt thực tế và nhập thực tế"* — `D` (Đã xoá) VÀ `E`
+(Đã huỷ) đều bị **LOẠI HẲN** khỏi CẢ 3 báo cáo (không chỉ báo cáo so sánh)
+bằng `WHERE STATUS NOT IN ('D', 'E')` ngay trong VIEW/runner — KHÔNG còn
+chỉ "hiện kèm cột để người xem tự lọc" như thiết kế v1 cũ. Chỉ còn
+`C`/`P`/`F`/`M` được đưa vào báo cáo.
+
+### ⚠️ Lưu ý MỚI (06/10/2026) — "đơn nhập nhiều lần" (nhận hàng có thể chia nhiều đợt)
+
+Người dùng xác nhận: 1 đơn đặt hàng có thể được **nhận hàng NHIỀU LẦN**
+(giao/nhận từng đợt, không phải 1 lần duy nhất). Đây là điểm MẤU CHỐT ảnh
+hưởng trực tiếp thiết kế "SL thực nhận" (`SoLuongThucNhan`/`DLV_QTY`) —
+**CHƯA rõ** cấu trúc dữ liệu phản ánh việc nhận nhiều lần ra sao, 2 khả
+năng:
+1. Mỗi lần nhận hàng tạo 1 DÒNG RIÊNG (vd nhiều dòng `FN_ORDER` cùng
+   `TRANS_NUM`/mã hàng, mỗi dòng 1 đợt nhận) — nếu vậy, "SL thực nhận"
+   của báo cáo so sánh phải **CỘNG DỒN (SUM)** nhiều dòng theo đúng khoá
+   (đơn + mã hàng), KHÔNG lấy giá trị 1 dòng đơn lẻ như thiết kế VIEW
+   hiện tại (`DLV_QTY` AS `SoLuongThucNhan`, 1-1).
+2. Giá trị ở 1 dòng được CẬP NHẬT CỘNG DỒN mỗi lần nhận thêm (vd
+   `DLV_QTY` tự tăng dần qua các lần `UPDATE`) — nếu vậy, thiết kế hiện
+   tại (đọc trực tiếp giá trị cuối) vẫn ĐÚNG, không cần sửa gì.
+
+**CẦN DBA xác nhận lại**: khi 1 đơn nhận hàng 2+ đợt, dữ liệu phản ánh
+theo khả năng (1) hay (2) ở trên? Nếu là (1), cần biết thêm: nhiều dòng
+nhận hàng đó nằm ở `FN_ORDER` hay `ST_ORDER`, và khoá nào (ngoài
+`TRANS_NUM`+mã hàng) dùng để nhóm đúng các lần nhận CỦA CÙNG 1 ĐƠN lại
+với nhau (vd có mã "lần nhận"/"phiếu nhập" riêng không, hay nhóm theo
+giá trị gốc `TRANS_NUM` của đơn ĐẶT ban đầu).
 
 ### Toàn bộ danh sách cột thật của `ST_ORDER` (SQL thật, 06/10/2026)
 
