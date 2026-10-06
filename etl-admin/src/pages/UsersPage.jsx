@@ -21,7 +21,7 @@ export default function UsersPage() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [error, setError] = useState('');
   const [editingUser, setEditingUser] = useState(null);
-  const [editForm, setEditForm] = useState({ fullName: '', isActive: true });
+  const [editForm, setEditForm] = useState({ fullName: '', email: '', isActive: true });
   const [assigningUser, setAssigningUser] = useState(null);
   const [selectedRoleIds, setSelectedRoleIds] = useState([]);
   const [assigningStoresUser, setAssigningStoresUser] = useState(null);
@@ -57,7 +57,7 @@ export default function UsersPage() {
 
   function openEdit(user) {
     setEditingUser(user);
-    setEditForm({ fullName: user.FullName, isActive: !!user.IsActive });
+    setEditForm({ fullName: user.FullName, email: user.Email || '', isActive: !!user.IsActive });
   }
 
   async function saveEdit() {
@@ -156,6 +156,7 @@ export default function UsersPage() {
         columns={[
           { key: 'Username', label: 'Username' },
           { key: 'FullName', label: 'Họ tên' },
+          { key: 'Email', label: 'Email', render: (u) => u.Email || '—' },
           { key: 'roles', label: 'Vai trò', render: (u) => (u.roles?.length ? u.roles.map(r => r.name).join(', ') : '—') },
           { key: 'stores', label: 'Phạm vi siêu thị', render: (u) => (u.stores?.length ? u.stores.join(', ') : 'Toàn bộ') },
           { key: 'IsActive', label: 'Trạng thái', render: (u) => (u.IsActive ? 'Hoạt động' : 'Đã khoá') },
@@ -185,6 +186,8 @@ export default function UsersPage() {
             <h3>Sửa tài khoản — {editingUser.Username}</h3>
             <label>Họ tên</label>
             <input value={editForm.fullName} onChange={(e) => setEditForm({ ...editForm, fullName: e.target.value })} />
+            <label>Email</label>
+            <input type="email" value={editForm.email} onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} />
             <label className="checkbox-row">
               <input type="checkbox" checked={editForm.isActive} onChange={(e) => setEditForm({ ...editForm, isActive: e.target.checked })} />
               Hoạt động (bỏ chọn = khoá tài khoản, thu hồi phiên đăng nhập ngay)

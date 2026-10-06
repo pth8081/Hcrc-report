@@ -14,6 +14,48 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 8.94 — Vân tay/Face ID cho mọi user + Ma trận phân quyền báo cáo + Nút Sửa người dùng (cả 3 app)
+
+**Thay đổi**: (1) mục "Vân tay/Face ID" ở trang "Tài khoản của tôi" nay
+hiện cho MỌI user (trước chỉ Admin hệ thống); (2) thêm tab "Ma trận" ở
+trang "Phân quyền" (`rp-user`) — xem/sửa quyền báo cáo dạng bảng lưới;
+(3) nút "Sửa" người dùng sửa được Email ở cả 3 app (`rp-user` đã hỗ trợ
+sẵn; `etl-admin`/`api-admin` cần thêm cột CSDL).
+
+**Các bước triển khai (làm 1 lần, theo đúng thứ tự):**
+1. `git pull origin main`.
+2. Chạy lại `etl-db/schema.sql` trên CSDL ETL và `api-db/schema.sql` trên
+   CSDL API (an toàn chạy lại nhiều lần — script tự kiểm tra `COL_LENGTH`,
+   CHỈ thêm cột `Email` mới vào `admin.AdminUsers` nếu CHƯA có, không đụng
+   dữ liệu cũ). BỎ QUA bước này nếu không cần sửa Email cho etl-admin/
+   api-admin — `rp-user` không cần đổi CSDL gì (cột Email đã có sẵn từ
+   trước ở `app.Users`).
+3. `cd rp-user && npm run build` (đổi `AccountPage.jsx`, thêm trang Ma
+   trận, thêm modal Sửa ở `UsersPage.jsx`).
+4. `cd etl-admin && npm run build` / `cd api-admin && npm run build` (đổi
+   `AccountPage.jsx` + modal Sửa thêm Email).
+5. `pm2 restart hcrc-rp-server` (thêm 3 route đọc ma trận mới + route
+   PUT /system/users/:id không đổi logic, đã sẵn từ trước).
+6. `pm2 restart hcrc-etl hcrc-api-server` (route GET/PUT users đổi, thêm
+   Email) — BỎ QUA nếu bỏ qua bước 2.
+7. Copy TOÀN BỘ `dist/` của cả 3 frontend lên đúng vị trí phục vụ tĩnh như
+   mọi lần build trước (PM2-only hoặc Nginx tuỳ cách triển khai hiện có).
+
+**Kiểm tra sau khi triển khai:**
+- [ ] Đăng nhập bằng 1 tài khoản KHÔNG phải Admin hệ thống → "Tài khoản
+  của tôi" → thấy mục "Bảo mật — Vân tay / Face ID", KHÔNG thấy mục "Xác
+  thực hai yếu tố" → đăng ký 1 thiết bị → đăng xuất → màn hình đăng nhập
+  → nút "Dùng vân tay/Face ID" vào thẳng, không hỏi mật khẩu.
+- [ ] `rp-user` → "Phân quyền" → tab "Ma trận" → 3 tab con đều tải được
+  dữ liệu, bấm 1 ô đổi đúng trạng thái NGAY (không cần F5), mở lại tab
+  "Vai trò"/"Người dùng" cũ → quyền vừa đổi ở ma trận PHẢN ÁNH đúng.
+- [ ] `rp-user` → "Phân quyền" → "Người dùng" → nút "Sửa" → đổi Email →
+  Lưu → cột Email trong bảng cập nhật đúng.
+- [ ] (Nếu đã chạy bước 2) `etl-admin`/`api-admin` → "Phân quyền" → nút
+  "Sửa" → modal nay có thêm ô Email → sửa được, lưu đúng.
+
+---
+
 ## 8.91-8.93 — Báo cáo Đơn đặt hàng / Đơn nhập hàng / So sánh đặt–nhận (nguồn STRANS, DSMART16)
 
 **Thay đổi**: hoàn thiện thiết kế + sửa 2 lỗi phát hiện khi chạy thật 3

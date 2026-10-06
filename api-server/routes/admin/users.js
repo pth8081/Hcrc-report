@@ -24,7 +24,7 @@ router.get('/', requireMenuAccess('users'), async (req, res, next) => {
   try {
     const pool = await getPool('ADMIN');
     const users = await pool.request().query(`
-      SELECT Id, Username, FullName, IsActive, TwoFactorEnabled, CreatedAt, LastLoginAt FROM admin.AdminUsers ORDER BY Username
+      SELECT Id, Username, FullName, Email, IsActive, TwoFactorEnabled, CreatedAt, LastLoginAt FROM admin.AdminUsers ORDER BY Username
     `);
     const roles = await pool.request().query(`
       SELECT aur.AdminUserId, r.Id AS RoleId, r.Code, r.Name, r.IsSystemRole
@@ -70,13 +70,14 @@ router.post('/', requireMenuEdit('users'), async (req, res, next) => {
 
 router.put('/:id', requireMenuEdit('users'), async (req, res, next) => {
   try {
-    const { fullName, isActive } = req.body || {};
+    const { fullName, email, isActive } = req.body || {};
     const pool = await getPool('ADMIN');
     await pool.request()
       .input('id', sql.Int, req.params.id)
       .input('fullName', sql.NVarChar(200), fullName)
+      .input('email', sql.NVarChar(200), email || null)
       .input('isActive', sql.Bit, isActive ? 1 : 0)
-      .query('UPDATE admin.AdminUsers SET FullName = @fullName, IsActive = @isActive WHERE Id = @id');
+      .query('UPDATE admin.AdminUsers SET FullName = @fullName, Email = @email, IsActive = @isActive WHERE Id = @id');
     invalidateUser(parseInt(req.params.id, 10));
     // Khoá tài khoản (isActive=false) — thu hồi NGAY phiên đăng nhập đang có
     // (nếu có), không đợi token tự hết hạn — xem lib/sessionRevocation.js.

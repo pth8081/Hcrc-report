@@ -171,8 +171,9 @@ function WebauthnDevicesSection() {
     <>
       <h3>Bảo mật — Vân tay / Face ID</h3>
       <p className="form-hint">
-        Đăng ký thiết bị để đăng nhập nhanh — bấm "Dùng vân tay/Face ID" lúc xác thực hai yếu tố
-        THAY VÌ gõ mã 6 số, trên ĐÚNG thiết bị đã đăng ký (không dùng được ở máy khác).
+        Đăng ký thiết bị để đăng nhập nhanh — bấm "Dùng vân tay/Face ID" ngay ở màn hình đăng
+        nhập, KHÔNG cần gõ mật khẩu (và mã 2FA nếu tài khoản có bật), trên ĐÚNG thiết bị đã đăng
+        ký (không dùng được ở máy khác).
       </p>
       {error && <p className="form-error">{error}</p>}
       {devices?.map((d) => (
@@ -268,9 +269,16 @@ export default function AccountPage() {
           ) : (
             <TwoFactorResetFlow onClose={() => setShowTwoFactorReset(false)} />
           )}
-          <WebauthnDevicesSection />
         </>
       )}
+
+      {/* Vân tay/Face ID (bản 8.94, theo yêu cầu người dùng) — TÁCH RIÊNG
+          khỏi khối 2FA ở trên: 2FA mã số vẫn chỉ bắt buộc/áp dụng cho vai
+          trò hệ thống, nhưng đăng ký thiết bị vân tay/Face ID để đăng nhập
+          nhanh thì backend (rp-server/routes/webauthn.js) chưa từng giới
+          hạn theo vai trò — chỉ UI cũ lỡ gộp chung điều kiện khiến user
+          thường không thấy mục này. Hiện cho MỌI user đã đăng nhập. */}
+      <WebauthnDevicesSection />
     </div>
   );
 }

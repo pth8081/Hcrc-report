@@ -466,3 +466,27 @@ button:disabled, button:disabled:hover {
   .huong-dan-layout { flex-direction: column; }
   .huong-dan-nav { flex: none; width: 100%; }
 }
+
+/* Ma trận phân quyền (bản 8.94, theo yêu cầu người dùng) — xem
+   modules/system/permissions/PermissionMatrixPage.jsx. Mỗi ô là 1 <td>
+   trống (không phải checkbox thật) bấm được trực tiếp — tô màu theo class
+   on/off thay vì vẽ icon, nhẹ hơn khi bảng có nhiều hàng/cột. */
+.matrix-toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 14px; flex-wrap: wrap; }
+.matrix-toolbar input { min-width: 240px; }
+.matrix-wrap { overflow: auto; border: 1px solid var(--line); border-radius: 8px; max-height: 65vh; }
+table.matrix { border-collapse: collapse; font-size: 13px; white-space: nowrap; width: 100%; }
+table.matrix th, table.matrix td { border-bottom: 1px solid var(--line); border-right: 1px solid var(--line); padding: 0; }
+table.matrix thead th { background: var(--surface); position: sticky; top: 0; z-index: 2; padding: 10px 8px; font-weight: 600; color: var(--ink-soft); }
+table.matrix thead tr.domain-row th { background: var(--accent-soft); color: var(--ink); font-size: 11px; text-transform: uppercase; letter-spacing: .03em; padding: 6px 8px; top: 0; }
+table.matrix thead tr.report-row th { top: 30px; }
+table.matrix tbody th { position: sticky; left: 0; background: var(--surface); z-index: 1; text-align: left; padding: 9px 12px; font-weight: 600; min-width: 170px; }
+table.matrix td { text-align: center; width: 56px; min-width: 56px; cursor: pointer; }
+table.matrix td.on { background: #e8f6ee; }
+table.matrix td.on::after { content: "✓"; color: #2f9e44; font-weight: 800; font-size: 15px; }
+table.matrix td:hover { background: var(--accent-soft); }
+table.matrix tbody tr:nth-child(even) th, table.matrix tbody tr:nth-child(even) td { background: var(--bg); }
+table.matrix tbody tr:nth-child(even) td.on { background: #dcefe4; }
+.matrix-legend { display: flex; gap: 18px; align-items: center; font-size: 12.5px; color: var(--ink-soft); margin-top: 10px; }
+.legend-dot { display: inline-flex; align-items: center; gap: 6px; }
+.legend-box { width: 16px; height: 16px; border-radius: 4px; border: 1px solid var(--line); display: inline-block; }
+.legend-box--on { background: #e8f6ee; }

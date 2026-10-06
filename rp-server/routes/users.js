@@ -274,6 +274,29 @@ router.get('/:id/access', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// Ma trận phân quyền báo cáo THEO NGƯỜI DÙNG (bản 8.94, mirror
+// routes/roles.js GET /access-matrix) — TOÀN BỘ Người dùng × Báo cáo +
+// quyền RIÊNG hiện có (app.UserReportAccess, CỘNG DỒN vào quyền theo Vai
+// trò, KHÔNG thay thế) trong 1 lần gọi, cho giao diện "Ma trận phân quyền"
+// > tab "Theo Người dùng". Lưu vẫn dùng LẠI PUT /:id/report-access đã có.
+router.get('/access-matrix', async (req, res, next) => {
+  try {
+    const pool = await getPool('RP');
+    const users = await pool.request().query('SELECT Id, Username, FullName FROM app.Users ORDER BY FullName');
+    const reports = await pool.request().query('SELECT ReportId, Title, Domain FROM app.ReportCatalog ORDER BY Domain, Title');
+    const access = await pool.request().query('SELECT UserId, ReportId FROM app.UserReportAccess');
+    const accessByUser = {};
+    for (const row of access.recordset) {
+      (accessByUser[row.UserId] ||= []).push(row.ReportId);
+    }
+    res.json({
+      users: users.recordset.map(u => ({ id: u.Id, username: u.Username, fullName: u.FullName })),
+      reports: reports.recordset.map(r => ({ reportId: r.ReportId, title: r.Title, domain: r.Domain || '' })),
+      access: accessByUser
+    });
+  } catch (err) { next(err); }
+});
+
 // Cấp quyền riêng NHẠY CẢM (vượt qua giới hạn vai trò của chính người đó) —
 // chỉ Admin hệ thống thật mới làm được, cùng mức requireSystemRoleActor với
 // /:id/roles ở trên.

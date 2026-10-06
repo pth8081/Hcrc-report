@@ -431,6 +431,16 @@ BEGIN
 END
 GO
 
+-- Email (bản 8.94, theo yêu cầu người dùng) — trước đây admin.AdminUsers
+-- KHÔNG có cột Email nào, nút "Sửa" chỉ sửa được FullName. Thêm cột (NULL,
+-- không ràng buộc UNIQUE — giống app.Users ở rp-db) để trang "Sửa" sửa
+-- được cả Email, KHÔNG ảnh hưởng tài khoản cũ (mặc định NULL).
+IF COL_LENGTH('admin.AdminUsers', 'Email') IS NULL
+BEGIN
+    ALTER TABLE admin.AdminUsers ADD Email NVARCHAR(200) NULL;
+END
+GO
+
 -- Mã khôi phục dùng 1 lần (10 mã/tài khoản, hash bcrypt, hiện nguyên văn cho
 -- admin đúng 1 lần lúc bật 2FA) — tự cứu được khi không có admin nào khác
 -- trong api-admin/ để nhờ "Đặt lại 2FA" (xem routes/admin/twoFactor.js).

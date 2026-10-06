@@ -17,6 +17,13 @@ export default function UsersPage() {
   const [selectedRoleIds, setSelectedRoleIds] = useState([]);
   const [editingAuthFor, setEditingAuthFor] = useState(null);
   const [authForm, setAuthForm] = useState({ authSource: 'local', password: '' });
+  // Sửa thông tin (bản 8.94, theo yêu cầu người dùng) — route PUT /:id đã
+  // nhận đủ các trường này từ trước (dùng chung với toggleActive ở trên),
+  // chỉ thiếu giao diện sửa riêng Tên/Email/... Không đổi Username (khoá
+  // đăng nhập, không cho sửa ở đây).
+  const [editingInfoFor, setEditingInfoFor] = useState(null);
+  const [infoForm, setInfoForm] = useState({ fullName: '', email: '', phone: '', department: '', position: '', workLocation: '' });
+  const [savingInfo, setSavingInfo] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [resettingPasswordFor, setResettingPasswordFor] = useState(null);
   const [newPassword, setNewPassword] = useState('');
@@ -106,6 +113,25 @@ export default function UsersPage() {
       alert(msg);
       reload();
     } catch (err) { setError(err.message); } finally { setSyncing(false); }
+  }
+
+  function openInfoEditor(user) {
+    setEditingInfoFor(user);
+    setInfoForm({
+      fullName: user.FullName || '', email: user.Email || '', phone: user.Phone || '',
+      department: user.Department || '', position: user.Position || '', workLocation: user.WorkLocation || ''
+    });
+  }
+
+  async function saveInfo(e) {
+    e.preventDefault();
+    setError('');
+    setSavingInfo(true);
+    try {
+      await api.put(`/system/users/${editingInfoFor.Id}`, { ...infoForm, isActive: !!editingInfoFor.IsActive });
+      setEditingInfoFor(null);
+      reload();
+    } catch (err) { setError(err.message); } finally { setSavingInfo(false); }
   }
 
   function openRoleEditor(user) {
@@ -289,6 +315,7 @@ export default function UsersPage() {
           {
             key: 'actions', label: '', render: (u) => (
               <>
+                {me?.isSystemRole && <button type="button" onClick={() => openInfoEditor(u)}>Sửa</button>}{' '}
                 {me?.isSystemRole && <button type="button" onClick={() => toggleActive(u)} disabled={togglingActiveId === u.Id}>{togglingActiveId === u.Id ? 'Đang xử lý...' : (u.IsActive ? 'Khoá' : 'Cho phép kết nối')}</button>}{' '}
                 <button type="button" onClick={() => openRoleEditor(u)}>Gán vai trò</button>{' '}
                 <button type="button" onClick={() => openAccessEditor(u)}>Gán quyền riêng</button>{' '}
@@ -303,6 +330,32 @@ export default function UsersPage() {
         ]}
         rows={users}
       />
+
+      {editingInfoFor && (
+        <div className="modal">
+          <div className="modal-body">
+            <h3>Sửa thông tin — {editingInfoFor.Username}</h3>
+            <form className="stacked-form" onSubmit={saveInfo}>
+              <label>Họ tên</label>
+              <input value={infoForm.fullName} onChange={(e) => setInfoForm({ ...infoForm, fullName: e.target.value })} required autoFocus />
+              <label>Email</label>
+              <input type="email" value={infoForm.email} onChange={(e) => setInfoForm({ ...infoForm, email: e.target.value })} />
+              <label>Điện thoại</label>
+              <input value={infoForm.phone} onChange={(e) => setInfoForm({ ...infoForm, phone: e.target.value })} />
+              <label>Phòng ban</label>
+              <input value={infoForm.department} onChange={(e) => setInfoForm({ ...infoForm, department: e.target.value })} />
+              <label>Chức danh</label>
+              <input value={infoForm.position} onChange={(e) => setInfoForm({ ...infoForm, position: e.target.value })} />
+              <label>Nơi làm việc</label>
+              <input value={infoForm.workLocation} onChange={(e) => setInfoForm({ ...infoForm, workLocation: e.target.value })} />
+              <div className="modal-actions">
+                <button type="submit" disabled={savingInfo}>{savingInfo ? 'Đang lưu...' : 'Lưu'}</button>
+                <button type="button" onClick={() => setEditingInfoFor(null)}>Huỷ</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {editingRolesFor && (
         <div className="modal">

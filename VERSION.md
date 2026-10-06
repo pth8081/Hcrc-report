@@ -29,6 +29,51 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 8.94 — Vân tay/Face ID cho mọi user + Ma trận phân quyền báo cáo + Nút Sửa người dùng (cả 3 app)
+
+**Theo yêu cầu người dùng**, 3 phần (đã gửi báo cáo phương án + ảnh demo
+trước khi làm, người dùng xác nhận):
+
+1. **Vân tay/Face ID cho MỌI user** — trước đây UI trang "Tài khoản của
+   tôi" lỡ gộp chung mục "Vân tay/Face ID" vào điều kiện hiển thị của "2FA"
+   (chỉ hiện với `isSystemRole`), dù backend (`routes/webauthn.js`) chưa
+   từng giới hạn theo vai trò. Tách `WebauthnDevicesSection` ra khỏi khối
+   2FA, hiện cho mọi user đã đăng nhập ở cả 3 app (`rp-user`, `etl-admin`,
+   `api-admin`) — 2FA mã số vẫn chỉ dành cho Admin hệ thống như cũ. Sửa lại
+   câu mô tả cho đúng cả 2 trường hợp (trước đây giả định đang ở bước 2FA
+   "THAY VÌ gõ mã 6 số" — user thường không có 2FA, vân tay thay cho cả
+   bước mật khẩu qua luồng đăng nhập không mật khẩu bản 8.89).
+
+2. **Ma trận phân quyền báo cáo** — thêm tab "Ma trận" trong trang "Phân
+   quyền" (`rp-user`), gồm 3 bảng lưới: "Theo Nhóm" (Vai trò × Báo cáo),
+   "Theo Người dùng" (quyền riêng cộng dồn), "Ma trận Dashboard" (Vai trò ×
+   nhóm Dashboard, 2 cột Xem/Xuất mỗi nhóm). Bấm trực tiếp vào ô để bật/tắt
+   quyền, tự lưu ngay (khoá đúng 1 ô đang xử lý, không khoá cả bảng) — tái
+   sử dụng NGUYÊN các route ghi quyền đã có từ trước
+   (`PUT /:id/report-access`, `PUT /:id/dashboard-group-access`), chỉ thêm
+   2 route đọc gộp MỚI (`GET /system/roles/access-matrix`,
+   `GET /system/roles/dashboard-access-matrix`,
+   `GET /system/users/access-matrix`) để tải toàn bộ ma trận trong 1 lần
+   gọi thay vì mở từng Vai trò/Người dùng một. KHÔNG thay thế 2 tab cũ
+   "Người dùng"/"Vai trò" — bổ sung thêm cách xem tổng quan.
+
+3. **Nút "Sửa" người dùng (Tên/Email)** — `rp-user`: thêm nút "Sửa" +
+   modal (Họ tên/Email/Điện thoại/Phòng ban/Chức danh/Nơi làm việc) ở
+   `UsersPage.jsx`, dùng LẠI route `PUT /system/users/:id` đã hỗ trợ đủ các
+   trường này từ trước, chỉ thiếu giao diện. `etl-admin`/`api-admin`: modal
+   "Sửa" cũ chỉ sửa được Họ tên (bảng `admin.AdminUsers` trước đây KHÔNG
+   có cột Email) — thêm cột `Email NVARCHAR(200) NULL` (ALTER TABLE, an
+   toàn/không ảnh hưởng dữ liệu cũ) vào cả `etl-db`/`api-db`, cập nhật
+   route `GET /`/`PUT /:id` + modal "Sửa" thêm trường Email.
+
+**Đã kiểm chứng**: build-check sạch cả 3 frontend (`npm run build`),
+syntax-check sạch 4 file backend sửa đổi, VÀ demo THẬT trên `vite dev`
+server thật (không phải mock tĩnh) bằng Playwright + chặn API thật bằng dữ
+liệu giả lập — xác nhận: (a) user vai trò thường thấy mục Vân tay, KHÔNG
+thấy mục 2FA; (b) bấm ô ma trận đổi đúng trạng thái + gửi đúng danh sách
+cập nhật lên server; (c) ma trận Dashboard khoá đúng cột "Xuất" khi chưa
+bật "Xem"; (d) modal "Sửa" tải sẵn đúng Email hiện có.
+
 ## 8.93 — Sửa 2 lỗi phát hiện khi chạy VIEW thật lần đầu trên DSMART16 (Báo cáo Đơn đặt/Nhập hàng)
 
 **Theo yêu cầu người dùng**: tự tạo VIEW `dbo.vw_DonDatHangChiNhanh`

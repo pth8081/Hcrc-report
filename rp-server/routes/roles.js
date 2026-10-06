@@ -183,6 +183,52 @@ router.put('/:id/menu-access', requireSystemRoleActor, async (req, res, next) =>
   } catch (err) { next(err); }
 });
 
+// Ma trận phân quyền báo cáo (bản 8.94, theo yêu cầu người dùng) — TOÀN BỘ
+// Vai trò × Báo cáo + quyền hiện có trong 1 lần gọi, thay vì phải mở từng
+// Vai trò một (GET /:id/access ở trên) mới thấy được quyền của riêng vai
+// trò đó. Dùng để vẽ bảng lưới (hàng=Vai trò, cột=Báo cáo) ở giao diện
+// "Ma trận phân quyền". KHÔNG thêm route ghi riêng — lưu vẫn dùng LẠI
+// PUT /:id/report-access đã có (gửi nguyên mảng reportIds đầy đủ của đúng
+// 1 hàng vừa đổi), tránh viết trùng logic transaction DELETE+INSERT.
+router.get('/access-matrix', async (req, res, next) => {
+  try {
+    const pool = await getPool('RP');
+    const roles = await pool.request().query('SELECT Id, Code, Name, IsSystemRole FROM app.Roles ORDER BY Name');
+    const reports = await pool.request().query('SELECT ReportId, Title, Domain FROM app.ReportCatalog ORDER BY Domain, Title');
+    const access = await pool.request().query('SELECT RoleId, ReportId FROM app.RoleReportAccess');
+    const accessByRole = {};
+    for (const row of access.recordset) {
+      (accessByRole[row.RoleId] ||= []).push(row.ReportId);
+    }
+    res.json({
+      roles: roles.recordset.map(r => ({ id: r.Id, code: r.Code, name: r.Name, isSystemRole: !!r.IsSystemRole })),
+      reports: reports.recordset.map(r => ({ reportId: r.ReportId, title: r.Title, domain: r.Domain || '' })),
+      access: accessByRole
+    });
+  } catch (err) { next(err); }
+});
+
+// Mirror access-matrix ở trên nhưng cho Dashboard (theo nhóm, bản 8.42) —
+// dùng chung dashboard-groups-catalog đã có, chỉ thêm phần quyền hiện có
+// của MỌI vai trò trong 1 lần gọi. Lưu vẫn dùng LẠI
+// PUT /:id/dashboard-group-access đã có.
+router.get('/dashboard-access-matrix', async (req, res, next) => {
+  try {
+    const pool = await getPool('RP');
+    const roles = await pool.request().query('SELECT Id, Code, Name, IsSystemRole FROM app.Roles ORDER BY Name');
+    const access = await pool.request().query('SELECT RoleId, DashboardId, GroupKey, CanView, CanExport FROM app.RoleDashboardGroupAccess');
+    const accessByRole = {};
+    for (const row of access.recordset) {
+      const key = `${row.DashboardId}::${row.GroupKey}`;
+      (accessByRole[row.RoleId] ||= {})[key] = { canView: !!row.CanView, canExport: !!row.CanExport };
+    }
+    res.json({
+      roles: roles.recordset.map(r => ({ id: r.Id, code: r.Code, name: r.Name, isSystemRole: !!r.IsSystemRole })),
+      access: accessByRole
+    });
+  } catch (err) { next(err); }
+});
+
 // Cùng lý do — chỉ Admin hệ thống thật mới cấp quyền BÁO CÁO cho 1 vai trò.
 router.put('/:id/report-access', requireSystemRoleActor, async (req, res, next) => {
   try {
