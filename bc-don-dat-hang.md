@@ -126,16 +126,35 @@ domain doanh thu.
 **ĐÃ XÁC NHẬN (06/10/2026, người dùng)**: `133` = đặt hàng, `333` = nhập
 hàng.
 
-**CÒN CHỜ xác nhận**: cột **`REF`** (dạng `"3011-00100302609000206"`,
-NHIỀU dòng cùng `TRANS_NUM` chia sẻ CHUNG 1 giá trị `REF`, rồi đổi sang
-giá trị khác cho nhóm `TRANS_NUM` tiếp theo) có phải chính là **"mã đơn
-đặt hàng gốc"** dùng để nhóm nhiều lần nhận hàng (`TRANS_CODE='333'`) lại
-với đúng 1 đơn đặt (`TRANS_CODE='133'`) ban đầu hay không — đây là mảnh
-ghép CUỐI CÙNG cần có trước khi khoá thiết kế VIEW. Nếu đúng, khả năng
-cao TOÀN BỘ thiết kế sẽ CHUYỂN sang dùng `STRANS` (đã có sẵn cấu trúc
-chi tiết dòng hàng tốt, đã dùng ổn định cho doanh thu) thay vì
-`ST_ORDER`/`ON_ORDER`/`FN_ORDER` — **CHƯA đổi code/SQL cho tới khi xác
-nhận xong điểm này.**
+**ĐÃ XÁC NHẬN (06/10/2026, nguyên văn người dùng)**: *"REF là mã đơn hàng
+gốc nhé"* — cột `REF` chính là khoá dùng để nhóm nhiều lần nhận hàng
+(`TRANS_CODE='333'`) lại với đúng 1 đơn đặt (`TRANS_CODE='133'`) ban đầu.
+
+**KẾT LUẬN THIẾT KẾ (CHỐT nguồn dữ liệu)**: TOÀN BỘ 3 báo cáo chuyển sang
+dùng **`STRANS`** (`WHERE TRANS_CODE IN ('133','333') AND STATUS NOT IN
+('D','E')`) thay vì `ST_ORDER`/`ON_ORDER`/`FN_ORDER`:
+- **"Đơn đặt hàng"**: lọc `TRANS_CODE='133'`.
+- **"Đơn nhập hàng"**: lọc `TRANS_CODE='333'`.
+- **"So sánh đặt–nhận"**: nhóm theo `REF` (+ mã hàng) — SL đặt lấy từ dòng
+  `133`, SL thực nhận = `SUM(...)` mọi dòng `333` CÙNG `REF` (+ mã hàng)
+  — đúng công thức đã chốt ở mục trên cho trường hợp nhận nhiều lần.
+
+**CÒN THIẾU đúng 1 việc cuối** để viết VIEW thật — xác nhận CỘT nào trong
+`STRANS` chứa số lượng/đơn giá cho dòng `133` vs dòng `333` (nghi vấn:
+`STRANS` dùng CHUNG cấu trúc với `ST_ORDER` nên khả năng cao vẫn là
+`SKU_ID`/`ORD_QTY`/`DLV_QTY`/`ORD_PRICE`/`AMOUNT`/`SUPP_ID`/`UNIT_SYMB`
+như đã xác nhận ở `ST_ORDER`, nhưng CHƯA chắc 2 loại dòng `133`/`333` có
+dùng CHUNG đúng những cột đó hay không). Câu lệnh sau sẽ trả lời dứt điểm
+— chọn 1 giá trị `REF` đã thấy có cả 2 loại dòng (vd
+`'3011-00100302609000206'`), xem TOÀN BỘ cột của cả dòng `133` lẫn `333`
+cạnh nhau:
+
+```sql
+SELECT * FROM STRANS WHERE REF = '3011-00100302609000206' ORDER BY TRANS_CODE;
+```
+
+Sau khi có kết quả này, đủ thông tin viết VIEW thật — không cần hỏi thêm
+gì khác (trừ khi kết quả lộ ra điều bất ngờ mới).
 
 ### Toàn bộ danh sách cột thật của `ST_ORDER` (SQL thật, 06/10/2026)
 
