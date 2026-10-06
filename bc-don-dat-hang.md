@@ -15,8 +15,9 @@ STK_ID.md"/"bc-ton-kho-0.md".
 - `ST_ORDER_ARC` — đơn hàng tháng quá khứ, cùng cấu trúc `ST_ORDER`
   (**DÙNG**).
 - CSDL **trung tâm** (không phải mỗi siêu thị 1 CSDL riêng) — `ST_ORDER`/
-  `ST_ORDER_ARC` chứa đơn hàng của TẤT CẢ siêu thị, phân biệt bằng 1 cột mã
-  siêu thị (giả định tên `STK_ID`, cần DBA xác nhận tên cột thật).
+  `ST_ORDER_ARC` chứa đơn hàng của TẤT CẢ siêu thị, phân biệt bằng cột
+  **`BU_ID`** (ĐÃ XÁC NHẬN bằng SQL thật 06/10/2026 — xem mục 4, KHÔNG
+  phải `STK_ID` như giả định ban đầu ở bản 8.75).
 - Mẫu "Phiếu đặt hàng" thật (người dùng cung cấp) xác nhận: **SL đặt và SL
   thực nhận nằm TRÊN CÙNG 1 DÒNG chứng từ** (cột "Theo đơn"/"Thực nhận"
   cạnh nhau) — `ST_ORDER`/`ST_ORDER_ARC` nhiều khả năng là CÙNG 1 bảng cho
@@ -38,33 +39,48 @@ như "không tính chênh lệch") hay vẫn hiện để đối chiếu — t�
 nguyên, hiện đủ cả 6 trạng thái, admin tự lọc qua cột "Trạng thái" nếu
 cần loại trừ.
 
-## 2. VIEW mẫu trên DSmart16 — CHỈ VÍ DỤ, DBA PHẢI ĐỐI CHIẾU TÊN CỘT THẬT
+## 2. VIEW mẫu trên DSmart16 — ĐÃ XÁC NHẬN 1 PHẦN bằng SQL thật (06/10/2026), VẪN CÒN THIẾU cột hàng hoá
 
-**QUAN TRỌNG**: chưa có xác nhận tên cột thật của `ST_ORDER`/`ST_ORDER_ARC`
-(mới chỉ biết tên 2 bảng + mã `STATUS`) — VIEW dưới đây dùng tên cột
-**PHỎNG ĐOÁN** dựa trên mẫu "Phiếu đặt hàng" đã xem — **DBA PHẢI SỬA LẠI
-ĐÚNG TÊN CỘT THẬT** (vế trái `AS`) trước khi tạo, KHÔNG được chạy nguyên
-văn. Vế phải (tên alias sau `AS`) **GIỮ NGUYÊN** — khớp đúng tên dùng ở
-`etl/scripts/seedDonDatHangSync.js`.
+**Đã xác nhận bằng SQL thật** (`INFORMATION_SCHEMA.COLUMNS` + `SELECT TOP
+20` trên `ST_ORDER`):
+- Mã siêu thị = cột **`BU_ID`** (KHÔNG phải `STK_ID` như giả định ban đầu
+  — xem sửa mục 4). Mẫu: `BU_ID='40000'`, `BU_ID='30400'`.
+- Cột `STATUS` tồn tại đúng tên, chạy `GROUP BY STATUS` được — nhưng kết
+  quả mẫu CHỈ thấy 3 nhóm (trống/`D`/`E`), CHƯA thấy `C`/`P`/`F`/`M` (có
+  thể do mẫu dữ liệu đang xem, hoặc do lọc `TRANS_CODE='330'` — xem điểm
+  mới bên dưới).
+- Các cột khác đã thấy tên thật: `TRANS_NUM` (char 18, có thể là số đơn,
+  dạng ghép), `TRANS_CODE` (char 3, mẫu toàn `'330'`), `TRAN_DATE`/
+  `TRAN_TIME`, `EF_DATE`, `DUE_DATE`, `DELIVER_DT`, `FINISH_DT`,
+  `STOPED_DT`, `REF_NO`, `REF_DATE`, `REF_TYPE`, `REF`, `EXPIRY_DT`.
+
+**VẪN THIẾU — CHƯA thấy cột nào cho**: mã hàng, tên hàng, số lượng đặt,
+số lượng thực nhận, đơn giá, thành tiền, mã/tên nhà cung cấp. 2 khả năng:
+(a) các cột đó nằm ngoài phần đã xem (`ST_ORDER` có thể còn nhiều cột hơn
+8-15 cột đã thấy), hoặc (b) `ST_ORDER` chỉ là bảng ĐẦU ĐƠN (header), chi
+tiết từng mặt hàng nằm ở 1 bảng khác liên kết qua `TRANS_NUM`. **CHƯA thể
+viết VIEW thật cho tới khi rõ điểm này** — VIEW dưới đây VẪN CHỈ LÀ VÍ DỤ
+cho phần đã biết (mã siêu thị, trạng thái), phần hàng hoá/số lượng/giá
+GIỮ NGUYÊN tên PHỎNG ĐOÁN cũ, chưa đối chiếu được.
 
 ```sql
 CREATE VIEW dbo.vw_DonDatHangChiNhanh AS
 SELECT
-    CAST(SoDon AS VARCHAR(50)) + '|' + CAST(STT AS VARCHAR(10)) AS MaThucThe,  -- khoá duy nhất 1 dòng hàng
-    CAST(NgayDat AS DATE)       AS EventDate,        -- cột ngày đặt thật, vd ORDER_DT
-    UpdatedAt                   AS UpdatedAt,        -- watermark đồng bộ — CẦN XÁC NHẬN cột nào phản ánh lần sửa gần nhất (đơn sửa, trạng thái M)
-    STK_ID                      AS MaDiem,           -- mã siêu thị thô (Nơi nhận) — ánh xạ ra mã Điểm chuẩn ở tầng rp-server
-    TenSieuThiDSmart            AS TenDiem,          -- tên siêu thị theo DSmart16 (dự phòng, ưu tiên ánh xạ Điểm-STK nếu có)
-    SoDon                       AS SoDon,
-    CAST(NgayGiao AS DATE)      AS NgayGiao,
-    MaNCC                       AS MaNCC,
-    TenNCC                      AS TenNCC,
-    NguoiDat                    AS NguoiDat,
-    MaHang                      AS MaHang,
-    TenHang                     AS TenHang,
-    MaVach                      AS MaVach,
-    DVT                         AS DVT,
-    STATUS                      AS TrangThai,
+    CAST(SoDon AS VARCHAR(50)) + '|' + CAST(STT AS VARCHAR(10)) AS MaThucThe,  -- khoá duy nhất 1 dòng hàng — CHƯA XÁC NHẬN, có thể TRANS_NUM đã đủ làm khoá nếu ST_ORDER là header
+    CAST(NgayDat AS DATE)       AS EventDate,        -- CHƯA XÁC NHẬN — có thể là TRAN_DATE (đã thấy tên thật) thay vì NgayDat
+    UpdatedAt                   AS UpdatedAt,        -- watermark đồng bộ — CHƯA XÁC NHẬN — ứng viên: STOPED_DT/FINISH_DT (đã thấy tên thật, cần hỏi DBA cột nào đúng nghĩa "lần sửa gần nhất")
+    BU_ID                       AS MaDiem,           -- ĐÃ XÁC NHẬN đúng tên cột thật — mã siêu thị thô, ánh xạ ra mã Điểm chuẩn ở tầng rp-server (buildBuIdLookup(), xem mục 4)
+    TenSieuThiDSmart            AS TenDiem,          -- CHƯA XÁC NHẬN tên cột — tên siêu thị theo DSmart16 (dự phòng, ưu tiên ánh xạ Điểm-STK nếu có)
+    SoDon                       AS SoDon,            -- CHƯA XÁC NHẬN — có thể chính là TRANS_NUM
+    CAST(NgayGiao AS DATE)      AS NgayGiao,         -- CHƯA XÁC NHẬN — có thể là DUE_DATE/DELIVER_DT (đã thấy tên thật)
+    MaNCC                       AS MaNCC,            -- CHƯA THẤY cột này ở đâu cả — xem ghi chú "VẪN THIẾU" ở trên
+    TenNCC                      AS TenNCC,           -- CHƯA THẤY
+    NguoiDat                    AS NguoiDat,         -- CHƯA THẤY
+    MaHang                      AS MaHang,           -- CHƯA THẤY
+    TenHang                     AS TenHang,          -- CHƯA THẤY
+    MaVach                      AS MaVach,           -- CHƯA THẤY
+    DVT                         AS DVT,              -- CHƯA THẤY
+    STATUS                      AS TrangThai,        -- ĐÃ XÁC NHẬN đúng tên cột thật
     CASE STATUS
         WHEN 'C' THEN N'Chưa nhập'
         WHEN 'P' THEN N'Đã nhập 1 phần'
@@ -74,14 +90,14 @@ SELECT
         WHEN 'E' THEN N'Đã huỷ'
         ELSE STATUS
     END                         AS TrangThaiLabel,
-    SoLuongTheoDon              AS SoLuongTheoDon,   -- SL đặt (cột "Theo đơn" trên phiếu)
-    SoLuongThucNhan             AS SoLuongThucNhan,  -- SL nhận thật (cột "Thực nhận" trên phiếu, NULL/0 khi STATUS='C')
-    DonGia                      AS DonGia,
-    ThanhTien                   AS ThanhTien
+    SoLuongTheoDon              AS SoLuongTheoDon,   -- CHƯA THẤY — SL đặt (cột "Theo đơn" trên phiếu)
+    SoLuongThucNhan             AS SoLuongThucNhan,  -- CHƯA THẤY — SL nhận thật (cột "Thực nhận" trên phiếu, NULL/0 khi STATUS='C')
+    DonGia                      AS DonGia,           -- CHƯA THẤY
+    ThanhTien                   AS ThanhTien         -- CHƯA THẤY
 FROM dbo.ST_ORDER
 UNION ALL
 SELECT
-    CAST(SoDon AS VARCHAR(50)) + '|' + CAST(STT AS VARCHAR(10)), CAST(NgayDat AS DATE), UpdatedAt, STK_ID, TenSieuThiDSmart,
+    CAST(SoDon AS VARCHAR(50)) + '|' + CAST(STT AS VARCHAR(10)), CAST(NgayDat AS DATE), UpdatedAt, BU_ID, TenSieuThiDSmart,
     SoDon, CAST(NgayGiao AS DATE), MaNCC, TenNCC, NguoiDat, MaHang, TenHang, MaVach, DVT, STATUS,
     CASE STATUS
         WHEN 'C' THEN N'Chưa nhập' WHEN 'P' THEN N'Đã nhập 1 phần' WHEN 'F' THEN N'Đã nhập hết'
@@ -91,21 +107,32 @@ SELECT
 FROM dbo.ST_ORDER_ARC;
 ```
 
-**Các điểm BẮT BUỘC đối chiếu lại với DBA trước khi tạo VIEW thật:**
-1. Tên cột ngày đặt (`NgayDat` ở trên chỉ là ví dụ — có thể là `ORDER_DT`).
-2. Tên cột watermark cập nhật (`UpdatedAt`) — cần 1 cột phản ánh ĐÚNG lần
-   sửa gần nhất (để đồng bộ bắt được đơn chuyển trạng thái `C→P→F` hoặc
-   `M`), KHÔNG dùng `NgayDat` (không đổi khi đơn được cập nhật).
-3. Tên cột mã siêu thị (`STK_ID` ở trên) — xác nhận ĐÚNG tên cột trong
-   `ST_ORDER`, và đúng là CSDL trung tâm (1 cột phân biệt siêu thị trong
-   cùng bảng) như người dùng đã xác nhận.
-4. `SoLuongThucNhan` khi `STATUS='C'` (chưa nhập) — xác nhận trả về `0`
+**Các điểm còn CẦN đối chiếu lại với DBA (đã bỏ điểm "mã siêu thị" — đã
+xác nhận xong là `BU_ID`):**
+1. **[MỚI, QUAN TRỌNG NHẤT]** Toàn bộ danh sách cột của `ST_ORDER` (SQL
+   kiểm tra mới chỉ xem được ~15 cột, có vẻ chưa đủ hết) — đặc biệt cần
+   tìm cột mã hàng/tên hàng/số lượng đặt/số lượng nhận/đơn giá/thành tiền/
+   nhà cung cấp. Nếu KHÔNG có trong `ST_ORDER`, hỏi DBA tên bảng chi tiết
+   (dòng hàng) liên kết qua `TRANS_NUM`.
+2. **[MỚI]** `TRANS_CODE` — mẫu đã xem toàn bộ là `'330'`, hỏi DBA đây có
+   phải mã CỐ ĐỊNH cho "đơn đặt hàng" hay `ST_ORDER` còn chứa cả mã khác
+   (nếu có mã khác, VIEW cần thêm `WHERE TRANS_CODE = '330'` để lọc đúng
+   loại giao dịch, tránh lẫn dữ liệu không phải đơn đặt hàng).
+3. Tên cột ngày đặt thật — `TRAN_DATE` có khả năng cao là ứng viên (đã
+   xác nhận TỒN TẠI, nhưng chưa xác nhận Ý NGHĨA đúng là "ngày đặt").
+4. Tên cột watermark cập nhật — cần 1 cột phản ánh ĐÚNG lần sửa gần nhất
+   (để đồng bộ bắt được đơn chuyển trạng thái `C→P→F` hoặc `M`) — ứng
+   viên: `STOPED_DT`/`FINISH_DT` (đã xác nhận tồn tại, chưa xác nhận ý
+   nghĩa).
+5. `SoLuongThucNhan` khi `STATUS='C'` (chưa nhập) — xác nhận trả về `0`
    hay `NULL` (ảnh hưởng công thức "Chênh lệch"/"Tỷ lệ hoàn thành" ở báo
    cáo so sánh — cả 2 trường hợp đều cho kết quả ĐÚNG với công thức đã
    viết, chỉ cần biết để không nhầm "0" là lỗi dữ liệu).
-5. `ST_ORDER`/`ST_ORDER_ARC` có đúng là "1 dòng = 1 dòng hàng (SKU) trong
-   1 đơn" hay "1 dòng = 1 đơn hàng" (SL/Mã hàng nằm ở bảng khác) — VIEW
-   trên giả định dòng chi tiết, nếu sai cấu trúc JOIN cần viết lại.
+6. `ST_ORDER`/`ST_ORDER_ARC` có đúng là "1 dòng = 1 dòng hàng (SKU) trong
+   1 đơn" hay "1 dòng = 1 đơn hàng" (SL/Mã hàng nằm ở bảng khác, cần JOIN
+   thêm) — mẫu dữ liệu đã xem (`TRANS_NUM` lặp lại 4 dòng giống hệt nhau ở
+   1 mẫu) gợi ý CÓ THỂ là header lặp theo số lần cập nhật, KHÔNG phải dòng
+   hàng khác nhau — CẦN XÁC NHẬN RÕ, ảnh hưởng toàn bộ thiết kế VIEW.
 
 ## 3. Thiết kế đồng bộ — domain `don_dat_hang`
 
@@ -123,22 +150,32 @@ không cần ghép composite nhiều nguồn):
   `TrangThaiLabel`.
 - **Measures**: `SoLuongTheoDon`, `SoLuongThucNhan`, `DonGia`, `ThanhTien`.
 
-## 4. Ánh xạ mã siêu thị — dùng bảng "Ánh xạ Điểm - STK_ID" đã có
+## 4. Ánh xạ mã siêu thị — dùng bảng "Ánh xạ Điểm - STK_ID" đã có (SỬA bản 8.91)
 
-Theo yêu cầu người dùng ("vẫn dựa vào bảng ánh xạ mã STK để thực hiện") —
-`rp-server/lib/purchaseOrderRunner.js` đọc `Dimensions.MaDiem` (mã STK thô
-do DSmart16 đồng bộ sang), tra `etl.DiemStkMapping` (qua
-`lib/diemStkMapping.js:buildStkIdLookup()`, dùng `MaStkMoi` — mã kho HIỆN
-TẠI, vì đơn hàng là dữ liệu VẬN HÀNH LIVE, không có khái niệm "cùng kỳ năm
-trước" như doanh thu) để **GHI ĐÈ** `MaDiem`/`TenDiem` bằng mã Điểm +
-tên siêu thị CHUẨN của HCRC. STK thô **CHƯA khai** trong bảng ánh xạ bị
-**LOẠI KHỎI báo cáo** (không hiện mã thô lẫn với mã Điểm chuẩn) — admin bổ
-sung bảng ánh xạ để dòng đó xuất hiện.
+**SỬA bản 8.91** (đối chiếu lại "quy tắc mã BU_ID và STK_ID.md" theo yêu
+cầu người dùng): mục này BAN ĐẦU (bản 8.75) viết SAI là dùng mã STK_ID —
+SQL thật chạy trên `ST_ORDER` (06/10/2026) xác nhận cột mã siêu thị đồng
+bộ về là **`BU_ID`** (y hệt `TRANSHDR`, domain `giaodich_chinhanh`),
+**KHÔNG PHẢI** `STK_ID` (`STK_ID` CHỈ có ở `STRANS`, domain doanh thu) —
+`ST_ORDER` KHÔNG có khái niệm "kỳ cũ/mới" như STK (kho), chỉ 1 giá trị
+`BU_ID` DUY NHẤT, cố định theo mã Điểm.
+
+`rp-server/lib/purchaseOrderRunner.js` đọc `Dimensions.MaDiem` (mã BU_ID
+thô do DSmart16 đồng bộ sang), tra `etl.DiemStkMapping` (qua
+`lib/diemStkMapping.js:buildBuIdLookup()` — đọc **tường minh** cột `BuId`
+trong bảng "Ánh xạ Điểm - STK_ID", **KHÔNG tự suy** quy tắc "+00" — xem
+file quy tắc, mục "Bỏ hẳn quy tắc tự suy '+00'") để **GHI ĐÈ** `MaDiem`/
+`TenDiem` bằng mã Điểm + tên siêu thị CHUẨN của HCRC. BU_ID thô **CHƯA
+khai tường minh** trong bảng ánh xạ bị **LOẠI KHỎI báo cáo** (không hiện
+mã thô lẫn với mã Điểm chuẩn, không đoán bừa) — admin bổ sung cột `BuId`
+trong bảng ánh xạ để dòng đó xuất hiện.
 
 `__storeScope` (bản 8.51, phạm vi siêu thị theo người dùng đăng nhập) áp
-dụng như MỌI báo cáo khác — người dùng bị giới hạn 1/nhiều siêu thị chỉ
-thấy đúng đơn hàng của siêu thị đó (lọc theo STK thô TRƯỚC khi ghi đè,
-dùng `resolveStoreScopeStkIds()` đã có sẵn).
+dụng SAU khi đã dịch BU_ID → mã Điểm (so khớp TRỰC TIẾP theo mã Điểm
+chuẩn, mirror đúng cách `lib/compositeReportRunner.js` áp storeScope sau
+`mapBuIdToMaDiem` — KHÔNG dùng `resolveStoreScopeStkIds()`, hàm đó dành
+riêng cho domain dùng STK_ID) — người dùng bị giới hạn 1/nhiều siêu thị
+chỉ thấy đúng đơn hàng của siêu thị đó.
 
 ## 5. 3 báo cáo — CÙNG 1 domain, khác cột hiển thị
 

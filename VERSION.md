@@ -29,6 +29,50 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 8.91 — Sửa đổi lại thiết kế Báo cáo Đơn đặt hàng/Nhập hàng/So sánh dùng SAI mã STK_ID (chưa lên production, đang chờ DBA xác nhận tiếp)
+
+**Theo yêu cầu người dùng**: báo cáo này (bản 8.75, chưa deploy) lại gửi
+query kiểm tra thật trên `ST_ORDER` — đối chiếu lại "quy tắc mã BU_ID và
+STK_ID.md" cho thấy thiết kế BAN ĐẦU dùng **SAI** mã — người dùng chỉ rõ
+trực tiếp: *"tôi đã có mã ánh xạ STK để bạn tham chiếu cho tất cả mà, bạn
+quên rồi sao?"*.
+
+**Lỗi thiết kế ban đầu**: `rp-server/lib/purchaseOrderRunner.js` (bản
+8.75) dùng `buildStkIdLookup()` (tra theo `STK_ID`) để dịch mã siêu thị
+thô đồng bộ từ `ST_ORDER` sang mã Điểm chuẩn. SQL kiểm tra thật (chạy trên
+`ST_ORDER`) xác nhận cột mã siêu thị đồng bộ về là **`BU_ID`** (y hệt
+`TRANSHDR`, domain `giaodich_chinhanh`), **KHÔNG PHẢI** `STK_ID` (`STK_ID`
+CHỈ tồn tại ở `STRANS`, domain doanh thu) — dùng sai hàm tra cứu sẽ khiến
+MỌI dòng bị loại khỏi báo cáo (không khớp được STK_ID nào) khi lên thật.
+
+- **`rp-server/lib/purchaseOrderRunner.js`**: đổi sang `buildBuIdLookup()`
+  (đọc tường minh cột `BuId` trong bảng "Ánh xạ Điểm - STK_ID", KHÔNG tự
+  suy "+00") — mirror ĐÚNG cách `lib/compositeReportRunner.js` đã xử lý
+  domain `giaodich_chinhanh` (`block.mapBuIdToMaDiem`). `__storeScope`
+  cũng đổi sang so khớp TRỰC TIẾP theo mã Điểm SAU khi dịch BU_ID (không
+  còn dùng `resolveStoreScopeStkIds()`, hàm đó dành cho domain STK_ID).
+- **`bc-don-dat-hang.md`**: cập nhật mục 1/2/4 — ghi rõ BU_ID đã xác nhận
+  bằng SQL thật (06/10/2026), liệt kê các cột đã thấy tên thật
+  (`TRANS_NUM`/`TRANS_CODE`/`TRAN_DATE`/... ) và các cột VẪN CÒN THIẾU
+  (mã hàng, SL đặt/nhận, đơn giá, NCC — chưa thấy cột nào cho các mục
+  này, cần DBA xác nhận tiếp).
+- **`deploy/Thiết lập VIEW Đơn đặt hàng-Nhập hàng-So sánh (DSMART16 trung
+  tâm).sql`**: cập nhật VIEW mẫu dùng `BU_ID` (đã xác nhận) thay `STK_ID`,
+  đánh dấu rõ từng cột ĐÃ/CHƯA xác nhận.
+- **`rp-server/scripts/seedPurchaseOrderReports.js`**: sửa câu nhắc cuối
+  script (trước đây nói sai "khai đủ mã STK", giờ đúng "khai đủ cột
+  BuId").
+
+**Đã kiểm chứng**: viết lại bộ test mock (BU_ID thay STK_ID) — xác nhận
+dịch đúng BU_ID→mã Điểm, BU_ID chưa khai bị loại khỏi báo cáo (không đoán
+bừa), `__storeScope` cô lập đúng dữ liệu giữa các siêu thị, VÀ thêm 1
+kiểm tra MỚI: `__storeScope` không khớp mã Điểm nào trả về RỖNG (không
+phải "xem hết" — tránh lộ dữ liệu ngoài phạm vi nếu có lỗi cấu hình).
+
+**Vẫn CHƯA lên production** — còn thiếu thông tin cột hàng hoá/số lượng/
+đơn giá/nhà cung cấp trong `ST_ORDER`, đang chờ người dùng gửi tiếp kết
+quả SQL kiểm tra.
+
 ## 8.90 — Sửa proxy nội bộ không theo kịp khi backend chuyển sang HTTPS (PM2-only, cả 3 app)
 
 **Theo yêu cầu người dùng**: báo "add CA vào ETL [qua trang 'Chứng chỉ

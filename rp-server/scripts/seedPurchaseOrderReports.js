@@ -144,7 +144,8 @@ async function main() {
   console.log('      dbo.vw_DonDatHangChiNhanh trên DSMART16 + chạy');
   console.log('      node scripts/seedDonDatHangSync.js (thư mục etl/) — xem bc-don-dat-hang.md.');
   console.log('   3. Siêu thị KHÔNG xuất hiện trong báo cáo dù có đơn hàng thật -> kiểm tra');
-  console.log('      đã khai đủ "Ánh xạ Điểm - STK_ID" cho đúng mã STK đó chưa.');
+  console.log('      đã khai đủ cột "BuId" (tường minh, KHÔNG tự suy) trong bảng');
+  console.log('      "Ánh xạ Điểm - STK_ID" cho đúng mã BU_ID đó chưa.');
   process.exit(0);
 }
 
