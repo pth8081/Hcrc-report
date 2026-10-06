@@ -305,21 +305,26 @@ WHERE TRANS_CODE = '330';
    đặt hàng" trong `ST_ORDER`, hay bảng còn chứa giao dịch khác cần lọc
    thêm?
 
-## 3. Thiết kế đồng bộ — domain `don_dat_hang`
+## 3. Thiết kế đồng bộ — domain `don_dat_hang` (SỬA bản 8.92, nguồn STRANS)
 
-Dùng chung 1 domain cho CẢ 3 báo cáo (SL đặt + SL nhận trên CÙNG 1 dòng —
-không cần ghép composite nhiều nguồn):
+**SỬA bản 8.92**: nguồn đổi sang `STRANS`, `TRANS_CODE` 133=đặt hàng/
+333=nhập hàng — **MỖI LOẠI LÀ 1 DÒNG RIÊNG** (khác thiết kế 8.75 ban đầu
+giả định SL đặt + SL nhận chung 1 dòng). Domain vẫn DÙNG CHUNG cho cả 3
+báo cáo — chỉ khác ở việc runner lọc/gộp theo `LoaiGiaoDich`/`SoDon`:
 
 - **Sync Job**: `etl/scripts/seedDonDatHangSync.js` — Type='table', trỏ
-  `dbo.vw_DonDatHangChiNhanh`, `KeyColumn=MaThucThe`, `DateColumn=EventDate`
-  (= ngày đặt), `UpdatedAtColumn=UpdatedAt`, `TargetDomain=don_dat_hang`,
+  `dbo.vw_DonDatHangChiNhanh`, `KeyColumn=MaThucThe`, `DateColumn=EventDate`,
+  `UpdatedAtColumn=UpdatedAt`, `TargetDomain=don_dat_hang`,
   **`KeepHistory=1`** (bắt buộc — cần lưu riêng từng ngày để báo cáo lọc
   "theo ngày cả quá khứ").
-- **Dimensions**: `MaDiem` (mã siêu thị thô, ghi đè bằng mã Điểm chuẩn lúc
-  chạy báo cáo — xem mục 4), `TenDiem`, `SoDon`, `NgayGiao`, `MaNCC`,
-  `TenNCC`, `NguoiDat`, `MaHang`, `TenHang`, `MaVach`, `DVT`, `TrangThai`,
-  `TrangThaiLabel`.
-- **Measures**: `SoLuongTheoDon`, `SoLuongThucNhan`, `DonGia`, `ThanhTien`.
+- **Dimensions**: `MaDiem` (mã BU_ID thô, ghi đè bằng mã Điểm chuẩn lúc
+  chạy báo cáo — xem mục 4), `TenDiem`, `SoDon` (= cột `REF`, "mã đơn hàng
+  gốc" — ĐÃ XÁC NHẬN), `LoaiGiaoDich` (= `TRANS_CODE` thô, `'133'`/`'333'`),
+  `NgayGiao`, `MaNCC`, `TenNCC`, `NguoiDat`, `MaHang`, `TenHang`, `DVT`,
+  `TrangThai`, `TrangThaiLabel`.
+- **Measures**: `SoLuong` (1 measure DUY NHẤT — SL đặt khi `LoaiGiaoDich=
+  '133'`, SL nhận khi `'333'`, ý nghĩa tuỳ `LoaiGiaoDich` của dòng đó),
+  `DonGia`, `ThanhTien`.
 
 ## 4. Ánh xạ mã siêu thị — dùng bảng "Ánh xạ Điểm - STK_ID" đã có (SỬA bản 8.91)
 
@@ -348,26 +353,41 @@ chuẩn, mirror đúng cách `lib/compositeReportRunner.js` áp storeScope sau
 riêng cho domain dùng STK_ID) — người dùng bị giới hạn 1/nhiều siêu thị
 chỉ thấy đúng đơn hàng của siêu thị đó.
 
-## 5. 3 báo cáo — CÙNG 1 domain, khác cột hiển thị
+## 5. 3 báo cáo — CÙNG 1 domain, khác `transCode`/`aggregateByOrder` (SỬA bản 8.92)
 
-| Báo cáo | ReportId | Cột chính |
-|---|---|---|
-| Đơn đặt hàng | `bc-don-dat-hang` | Ngày đặt, Số đơn, Siêu thị, NCC, Mã/Tên hàng, SL theo đơn, Đơn giá, Thành tiền, Ngày giao, Trạng thái |
-| Đơn nhập hàng | `bc-don-nhap-hang` | Ngày đặt, Số đơn, Siêu thị, NCC, Mã/Tên hàng, SL thực nhận, Đơn giá, Thành tiền thực nhận, Trạng thái |
-| So sánh đặt–nhận | `bc-so-sanh-dat-nhan` | Ngày đặt, Siêu thị, NCC, Mã/Tên hàng, SL theo đơn, SL thực nhận, Chênh lệch SL, Tỷ lệ hoàn thành (%), Chênh lệch giá trị, Trạng thái |
+| Báo cáo | ReportId | `definition` | Cột chính |
+|---|---|---|---|
+| Đơn đặt hàng | `bc-don-dat-hang` | `transCode: '133'` | Ngày đặt, Số đơn, Siêu thị, NCC, Mã/Tên hàng, SL đặt, Đơn giá, Thành tiền, Ngày giao, Trạng thái |
+| Đơn nhập hàng | `bc-don-nhap-hang` | `transCode: '333'` | Ngày đặt(*), Số đơn, Siêu thị, NCC, Mã/Tên hàng, SL nhận, Đơn giá, Thành tiền, Trạng thái |
+| So sánh đặt–nhận | `bc-so-sanh-dat-nhan` | `aggregateByOrder: true` | Ngày đặt, Siêu thị, NCC, Mã/Tên hàng, SL đặt (SUM dòng 133), SL thực nhận (SUM mọi dòng 333 CÙNG Số đơn — xử lý nhận NHIỀU LẦN), Chênh lệch SL, Tỷ lệ hoàn thành (%), Chênh lệch giá trị, Trạng thái |
+
+(*) `eventDate`/`EventDate` = `TRAN_DATE` của CHÍNH dòng đó — với báo cáo
+"Đơn nhập hàng", mỗi dòng là 1 LẦN NHẬN riêng nên `eventDate` ở đây thực
+chất là NGÀY NHẬN của lần đó (không phải ngày đặt gốc) — tên field giữ
+nguyên `eventDate` cho đồng bộ với các domain khác trong hệ thống, không
+đổi tên riêng cho domain này.
 
 Cả 3 dùng `SourceType='purchaseOrder'` (runner riêng, KHÔNG phải
-`directDb` thường — vì cần bước ánh xạ mã STK ở mục 4 mà `reportEngine.js`
-gốc không có) — xem `rp-server/lib/purchaseOrderRunner.js`. Cột "Chênh
-lệch"/"Tỷ lệ hoàn thành" dùng công thức (`lib/formulaEngine.js`) trên
-CÙNG 1 dòng dữ liệu (`measures.SoLuongTheoDon - measures.SoLuongThucNhan`)
-— không cần ghép composite nhiều khối.
+`directDb` thường — vì cần bước ánh xạ BU_ID ở mục 4 VÀ bước lọc/gộp theo
+`LoaiGiaoDich`/`SoDon` mà `reportEngine.js` gốc không có) — xem
+`rp-server/lib/purchaseOrderRunner.js`. "So sánh đặt–nhận" gộp (SUM)
+trong JS (`aggregateByOrder()`, nhóm theo `MaDiem+SoDon+MaHang`) — KHÔNG
+gộp trong SQL/VIEW — để 2 báo cáo đơn lẻ vẫn thấy ĐÚNG từng dòng/lần giao
+dịch riêng biệt. Cột "Chênh lệch"/"Tỷ lệ hoàn thành" dùng công thức
+(`lib/formulaEngine.js`) trên kết quả ĐÃ GỘP
+(`measures.SoLuongTheoDon - measures.SoLuongThucNhan`).
+
+**Loại trừ đơn xoá/huỷ** (ĐÃ XÁC NHẬN, 06/10/2026): `D` (Đã xoá) và `E`
+(Đã huỷ) bị loại HẲN khỏi cả 3 báo cáo ngay trong VIEW
+(`WHERE STATUS NOT IN ('D','E')`), không chỉ riêng báo cáo so sánh.
 
 ## 6. Giới hạn đã biết (v1)
 
-- Lọc/sắp xếp theo **ngày ĐẶT** (duy nhất có trong `EventDate`) — CHƯA có
-  cột "ngày nhận thực tế" riêng (mẫu phiếu chỉ có "ngày giao DỰ KIẾN").
-  Nếu DBA xác nhận có cột ngày nhận thật, có thể bổ sung sau.
+- **ĐÃ GIẢI QUYẾT ở bản 8.92** (không còn là giới hạn): trước đây tưởng
+  CHỈ lọc được theo "ngày ĐẶT" — giờ mỗi dòng (`133`/`333`) tự mang ĐÚNG
+  ngày của chính giao dịch đó (`EventDate`=`TRAN_DATE`) nhờ đổi nguồn sang
+  `STRANS`, nên "Đơn nhập hàng" lọc được theo đúng NGÀY NHẬN thật của
+  từng lần nhận, không chỉ ngày đặt gốc.
 - KHÔNG có bộ lọc "Siêu thị" trên giao diện ở v1 (yêu cầu ban đầu là xem
   TOÀN BỘ siêu thị cùng lúc) — `__storeScope` vẫn áp dụng đúng cho người
   dùng bị giới hạn phạm vi.

@@ -4,12 +4,18 @@
 // dữ liệu, VIEW mẫu, lý do dùng chung 1 domain). Chạy LẠI file này an toàn
 // — khớp theo ReportId để UPDATE DefinitionJson thay vì tạo trùng.
 //
+// SỬA bản 8.92 (theo yêu cầu người dùng, đối chiếu DBA) — nguồn dữ liệu
+// đổi sang STRANS (TRANS_CODE 133=đặt hàng/333=nhập hàng, MỖI LOẠI 1 DÒNG
+// RIÊNG, KHÔNG chung 1 dòng như thiết kế 8.75 cũ): "Đơn đặt hàng"/"Đơn
+// nhập hàng" lọc riêng `transCode`, "So sánh đặt–nhận" gộp
+// `aggregateByOrder=true` (SUM theo REF="mã đơn hàng gốc" — xử lý nhận
+// nhiều lần — xem lib/purchaseOrderRunner.js).
+//
 // LƯU Ý QUAN TRỌNG — chạy script này KHÔNG đủ để báo cáo CÓ SỐ LIỆU: đây
 // chỉ là bước tạo "khung" 3 báo cáo trong app.ReportCatalog. Báo cáo chỉ
 // thật sự chạy được sau khi:
-//   1. DBA tạo VIEW dbo.vw_DonDatHangChiNhanh trên DSMART16 (xem
-//      bc-don-dat-hang.md mục 2 — VIEW mẫu ở đó CHỈ VÍ DỤ, DBA PHẢI đối
-//      chiếu đúng tên cột thật của ST_ORDER/ST_ORDER_ARC).
+//   1. DBA tạo VIEW dbo.vw_DonDatHangChiNhanh trên DSMART16, nguồn STRANS
+//      (xem bc-don-dat-hang.md mục 2 để biết VIEW chính xác cần tạo).
 //   2. Chạy `node scripts/seedDonDatHangSync.js` (thư mục etl/) để tạo job
 //      đồng bộ domain "don_dat_hang".
 // Không có 2 bước trên chạy trước, cả 3 báo cáo sẽ luôn trả về rỗng (không
@@ -31,38 +37,39 @@ const DOMAIN = 'don_dat_hang';
 const COMMON_HEAD = ['eventDate', 'SoDon', 'TenDiem', 'TenNCC', 'MaHang', 'TenHang', 'DVT'];
 const COMMON_TAIL = ['TrangThaiLabel'];
 
-// Trạng thái CỐ ĐỊNH (enum DSmart16 đã xác nhận: C/P/F/M/D/E) — options
-// tĩnh, KHÔNG dùng optionsSource domain-scan (field này không cần quét dữ
-// liệu thật để biết hết giá trị có thể có, khác "Chi nhánh"/"NCC").
+// Trạng thái hiện trong bộ lọc — CHỈ còn C/P/F/M (bản 8.92, theo yêu cầu
+// người dùng: "loại cả đơn xóa nữa bạn chỉ lấy đơn đặt thực tế và nhập
+// thực tế") — D (Đã xoá)/E (Đã huỷ) đã bị LOẠI HẲN ngay trong VIEW
+// (`WHERE STATUS NOT IN ('D','E')`), không còn cần hiện trong bộ lọc.
 const TRANG_THAI_FILTER = {
   field: 'trangThai', type: 'multiSelect', label: 'Trạng thái',
   options: [
     { value: 'C', label: 'Chưa nhập' },
     { value: 'P', label: 'Đã nhập 1 phần' },
     { value: 'F', label: 'Đã nhập hết' },
-    { value: 'M', label: 'Đơn sửa' },
-    { value: 'D', label: 'Đã xoá' },
-    { value: 'E', label: 'Đã huỷ' }
+    { value: 'M', label: 'Đơn sửa' }
   ]
 };
 
 const REPORTS = [
   {
-    reportId: 'bc-don-dat-hang', title: 'Đơn đặt hàng',
+    reportId: 'bc-don-dat-hang', title: 'Đơn đặt hàng', transCode: '133',
     columns: [
-      ...COMMON_HEAD, 'NgayGiao', 'measures.SoLuongTheoDon', 'measures.DonGia', 'measures.ThanhTien', ...COMMON_TAIL
+      ...COMMON_HEAD, 'NgayGiao',
+      { key: 'soLuongDat', label: 'SL đặt', formula: 'measures.SoLuong' },
+      'measures.DonGia', 'measures.ThanhTien', ...COMMON_TAIL
     ]
   },
   {
-    reportId: 'bc-don-nhap-hang', title: 'Đơn nhập hàng',
+    reportId: 'bc-don-nhap-hang', title: 'Đơn nhập hàng', transCode: '333',
     columns: [
-      ...COMMON_HEAD, 'measures.SoLuongThucNhan', 'measures.DonGia',
-      { key: 'thanhTienThucNhan', label: 'Thành tiền thực nhận', formula: 'measures.SoLuongThucNhan * measures.DonGia' },
-      ...COMMON_TAIL
+      ...COMMON_HEAD,
+      { key: 'soLuongNhan', label: 'SL nhận', formula: 'measures.SoLuong' },
+      'measures.DonGia', 'measures.ThanhTien', ...COMMON_TAIL
     ]
   },
   {
-    reportId: 'bc-so-sanh-dat-nhan', title: 'So sánh đặt–nhận',
+    reportId: 'bc-so-sanh-dat-nhan', title: 'So sánh đặt–nhận', aggregateByOrder: true,
     columns: [
       ...COMMON_HEAD, 'measures.SoLuongTheoDon', 'measures.SoLuongThucNhan',
       { key: 'chenhLechSoLuong', label: 'Chênh lệch SL', formula: 'measures.SoLuongTheoDon - measures.SoLuongThucNhan' },
@@ -77,6 +84,8 @@ function buildDefinition(report) {
   return {
     title: report.title,
     domain: DOMAIN,
+    ...(report.transCode ? { transCode: report.transCode } : {}),
+    ...(report.aggregateByOrder ? { aggregateByOrder: true } : {}),
     columns: report.columns,
     filters: [
       { field: 'eventDate', type: 'dateRange', label: 'Ngày đặt' },

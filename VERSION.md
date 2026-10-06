@@ -29,6 +29,45 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 8.92 — Chốt lại nguồn dữ liệu Báo cáo Đơn đặt hàng/Nhập hàng/So sánh: STRANS thay ST_ORDER (vẫn chưa lên production, chờ xác nhận cột SL/giá)
+
+**Theo yêu cầu người dùng**: tiếp tục trao đổi qua ảnh chụp SQL thật với
+DBA — phát hiện nguồn dữ liệu ĐÚNG không phải `ST_ORDER`/`ON_ORDER`/
+`FN_ORDER` như các bản 8.75/8.91 giả định, mà là **`STRANS`** (bảng ĐÃ
+dùng ổn định cho báo cáo doanh thu cuối ngày), lọc `TRANS_CODE IN
+('133','333')` — `133`=đặt hàng, `333`=nhập hàng, **MỖI LOẠI 1 DÒNG
+RIÊNG** (khác giả định ban đầu "SL đặt + SL nhận chung 1 dòng"). Cột
+`REF` = "mã đơn hàng gốc" (xác nhận trực tiếp) — nhóm nhiều lần nhận hàng
+(1 đơn có thể nhận NHIỀU ĐỢT) lại với đúng 1 đơn đặt ban đầu. Cũng xác
+nhận: loại hẳn `D` (Đã xoá)/`E` (Đã huỷ) khỏi cả 3 báo cáo.
+
+- **`rp-server/lib/purchaseOrderRunner.js`**: viết lại hoàn toàn cách xử
+  lý — thêm `definition.transCode` (lọc 1 loại giao dịch, dùng cho 2 báo
+  cáo đơn lẻ) và `definition.aggregateByOrder` (gộp SUM theo mã đơn hàng
+  gốc + mã hàng cho báo cáo so sánh, xử lý ĐÚNG trường hợp nhận nhiều lần
+  — nhiều dòng `333` cùng 1 đơn được CỘNG DỒN thay vì chỉ lấy 1 dòng).
+- **`rp-server/scripts/seedPurchaseOrderReports.js`**: cập nhật 3 định
+  nghĩa báo cáo theo `transCode`/`aggregateByOrder` mới; bỏ `D`/`E` khỏi
+  tuỳ chọn lọc "Trạng thái" (đã loại hẳn ở VIEW, không cần hiện nữa).
+- **`etl/scripts/seedDonDatHangSync.js`**: Dimensions/Measures đổi theo
+  VIEW mới — thêm `LoaiGiaoDich`, gộp `SoLuongTheoDon`/`SoLuongThucNhan`
+  cũ thành 1 measure `SoLuong` duy nhất (ý nghĩa tuỳ `LoaiGiaoDich`).
+- **`bc-don-dat-hang.md`, `deploy/Thiết lập VIEW ... (DSMART16 trung
+  tâm).sql`**: cập nhật VIEW mẫu dùng nguồn `STRANS` + `REF`/`TRANS_CODE`,
+  tài liệu đầy đủ lịch sử trao đổi với DBA.
+
+**Đã kiểm chứng**: viết lại bộ test mock (10 kiểm tra) mô phỏng đúng kịch
+bản "1 đơn nhận 2 đợt" (60 + 40 = 100, khớp đơn) và "1 đơn nhận 1 phần"
+(30/50, còn thiếu) — xác nhận: lọc đúng từng loại giao dịch cho 2 báo cáo
+đơn lẻ (mỗi lần nhận là 1 dòng riêng), gộp SUM đúng theo mã đơn hàng gốc
+cho báo cáo so sánh, công thức Chênh lệch/Tỷ lệ hoàn thành tính đúng trên
+kết quả đã gộp, BU_ID chưa khai ánh xạ vẫn bị loại đúng như trước.
+
+**Vẫn CHƯA lên production** — còn 1 điểm cần DBA xác nhận: cột số lượng/
+đơn giá dùng cho 2 loại dòng `133`/`333` trong `STRANS` (đang dùng tạm
+`QTY`/`PRICE`/`AMOUNT`, cùng cột đã dùng ổn định cho doanh thu — cần DBA
+xác nhận có đúng hay phải dùng cột riêng kiểu `ORD_QTY`/`ORD_PRICE`).
+
 ## 8.91 — Sửa đổi lại thiết kế Báo cáo Đơn đặt hàng/Nhập hàng/So sánh dùng SAI mã STK_ID (chưa lên production, đang chờ DBA xác nhận tiếp)
 
 **Theo yêu cầu người dùng**: báo cáo này (bản 8.75, chưa deploy) lại gửi

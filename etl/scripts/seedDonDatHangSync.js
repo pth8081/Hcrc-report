@@ -5,11 +5,10 @@
 // thay vì tạo trùng.
 //
 // ĐIỀU KIỆN TRƯỚC KHI CHẠY: đã tạo xong VIEW `dbo.vw_DonDatHangChiNhanh`
-// trên CSDL nguồn DSMART16 (xem `bc-don-dat-hang.md` mục 2 — VIEW mẫu ở
-// đó CHỈ LÀ VÍ DỤ, DBA PHẢI đối chiếu đúng tên cột thật của ST_ORDER/
-// ST_ORDER_ARC trước khi tạo). Script TỰ KIỂM TRA lại bằng cách duyệt
-// schema thật của nguồn, báo lỗi rõ ràng và DỪNG LẠI nếu thiếu VIEW/cột,
-// không tạo job nửa vời.
+// trên CSDL nguồn DSMART16, nguồn `STRANS` (TRANS_CODE 133=đặt/333=nhập —
+// SỬA bản 8.92, xem `bc-don-dat-hang.md` mục 2 để biết VIEW chính xác cần
+// tạo). Script TỰ KIỂM TRA lại bằng cách duyệt schema thật của nguồn, báo
+// lỗi rõ ràng và DỪNG LẠI nếu thiếu VIEW/cột, không tạo job nửa vời.
 //
 // Cách dùng — điền các biến môi trường sau vào .env (hoặc export trước khi
 // chạy), rồi:
@@ -180,8 +179,14 @@ async function main() {
   // Dimensions/Measures ĐÚNG TÊN ALIAS trong VIEW mẫu ở bc-don-dat-hang.md
   // mục 2 — KeepHistory=1 BẮT BUỘC (báo cáo cần lọc/giữ "theo ngày cả quá
   // khứ", không chỉ 1 dòng mới nhất/thực thể).
-  const dimensionColumns = ['MaDiem', 'TenDiem', 'SoDon', 'NgayGiao', 'MaNCC', 'TenNCC', 'NguoiDat', 'MaHang', 'TenHang', 'MaVach', 'DVT', 'TrangThai', 'TrangThaiLabel'];
-  const measureColumns = ['SoLuongTheoDon', 'SoLuongThucNhan', 'DonGia', 'ThanhTien'];
+  //
+  // SỬA bản 8.92 — nguồn đổi sang STRANS (TRANS_CODE 133=đặt/333=nhập, MỖI
+  // LOẠI 1 DÒNG RIÊNG thay vì SL đặt+SL nhận chung 1 dòng như bản 8.75) —
+  // thêm `LoaiGiaoDich` (TRANS_CODE thô) để lib/purchaseOrderRunner.js lọc/
+  // gộp đúng loại; `SoLuongTheoDon`/`SoLuongThucNhan` gộp lại thành 1
+  // measure `SoLuong` DUY NHẤT (ý nghĩa tuỳ theo `LoaiGiaoDich` của dòng đó).
+  const dimensionColumns = ['MaDiem', 'TenDiem', 'SoDon', 'LoaiGiaoDich', 'NgayGiao', 'MaNCC', 'TenNCC', 'NguoiDat', 'MaHang', 'TenHang', 'DVT', 'TrangThai', 'TrangThaiLabel'];
+  const measureColumns = ['SoLuong', 'DonGia', 'ThanhTien'];
   const job = {
     name: JOB_NAME, sourceTable: VIEW_NAME,
     keyColumn: 'MaThucThe', dateColumn: 'EventDate', updatedAtColumn: 'UpdatedAt',

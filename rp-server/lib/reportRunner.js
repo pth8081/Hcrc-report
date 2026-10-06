@@ -67,9 +67,11 @@ async function resolveFactsPool(definition) {
 // lib/stockThresholdRunner.js. 'stockAlert' (bản 8.68) — đối chiếu với
 // NGƯỠNG RIÊNG cho từng cặp (Mã hàng, Siêu thị) do admin tự khai/upload
 // (etl.StockAlertThresholds) — xem lib/stockAlertRunner.js. 'purchaseOrder'
-// (bản 8.75) — domain `don_dat_hang` (SL đặt + SL thực nhận CÙNG 1 dòng),
-// tự ánh xạ mã STK thô sang mã Điểm chuẩn qua "Ánh xạ Điểm - STK_ID"
-// TRƯỚC khi chiếu cột — xem lib/purchaseOrderRunner.js.
+// (bản 8.75, SỬA nguồn dữ liệu ở bản 8.92) — domain `don_dat_hang`
+// (nguồn STRANS, TRANS_CODE 133=đặt/333=nhập, MỖI LOẠI 1 DÒNG RIÊNG), tự
+// ánh xạ mã BU_ID thô sang mã Điểm chuẩn qua "Ánh xạ Điểm - STK_ID" TRƯỚC
+// khi chiếu cột, gộp SUM theo REF (mã đơn gốc) cho báo cáo so sánh — xem
+// lib/purchaseOrderRunner.js.
 async function runDefinition(definition, filterValues, pagination) {
   if (definition.sourceType === 'externalApi') {
     return runExternalReport(definition, filterValues);
