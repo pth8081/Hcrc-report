@@ -18,13 +18,16 @@
    KHÔNG cần gộp trong VIEW này (VIEW trả về dòng THÔ, 1 dòng/1 lần giao
    dịch).
 
-   ‼️ CÒN 1 ĐIỂM CHƯA CHẮC — KIỂM TRA SAU KHI TẠO VIEW ‼️
-   Cột số lượng/đơn giá dùng `QTY`/`PRICE`/`AMOUNT` (cột CHUNG, đã dùng ổn
-   định cho báo cáo doanh thu trên CHÍNH bảng `STRANS` này) — NẾU sau khi
-   tạo VIEW, chạy `SELECT TOP 20 * FROM dbo.vw_DonDatHangChiNhanh` thấy
-   `SoLuong`/`DonGia`/`ThanhTien` ra **0 hoặc NULL** hết cho dòng `133`/
-   `333`, nhiều khả năng `STRANS` dùng cột RIÊNG (`ORD_QTY`/`ORD_PRICE`,
-   giống `ST_ORDER`) cho 2 loại giao dịch này — báo lại để sửa VIEW.
+   ‼️ ĐÃ SỬA 06/10/2026 — STRANS KHÔNG CÓ CỘT `PRICE` ‼️
+   Chạy thử lần đầu báo lỗi `Invalid column name 'PRICE'` — xác nhận
+   `STRANS` KHÔNG có cột đơn giá riêng (giống báo cáo doanh thu cuối ngày,
+   bảng này chỉ có `QTY`/`AMOUNT`, không có `PRICE`). Đã sửa: `DonGia` tính
+   = `AMOUNT / NULLIF(QTY, 0)` (đơn giá suy ra từ thành tiền/số lượng),
+   `ThanhTien` = `AMOUNT` (giữ nguyên). Nếu vẫn còn lỗi "Invalid column
+   name" cho cột khác (`IDX`/`DUE_DATE`/`SUPP_ID`/`STAFF_ID`/`UNIT_SYMB`/
+   `STOPED_DT`/`REF`), gửi lại thông báo lỗi NGUYÊN VĂN để sửa tiếp —
+   SQL Server có thể chỉ báo 1 lỗi đầu tiên mỗi lần chạy, không báo hết
+   cùng lúc.
 
    Cũng còn 1 cột chưa chắc: `STOPED_DT` làm watermark (`UpdatedAt`) — nếu
    sau này đồng bộ không bắt được đơn mới cập nhật/nhận hàng thêm, đây là
@@ -64,8 +67,8 @@ SELECT
         WHEN 'M' THEN N'Đơn sửa'
         ELSE STATUS
     END                         AS TrangThaiLabel,
-    QTY                         AS SoLuong,          -- <<< chưa chắc — xem cảnh báo ở trên (ứng viên dự phòng: ORD_QTY)
-    PRICE                       AS DonGia,           -- <<< chưa chắc — ứng viên dự phòng: ORD_PRICE
+    QTY                         AS SoLuong,
+    AMOUNT / NULLIF(QTY, 0)     AS DonGia,           -- STRANS không có cột PRICE — suy ra từ AMOUNT/QTY
     AMOUNT                      AS ThanhTien
 FROM dbo.STRANS
 WHERE TRANS_CODE IN ('133','333') AND STATUS NOT IN ('D','E');  -- loại hẳn đơn đã xoá/đã huỷ (theo yêu cầu người dùng)

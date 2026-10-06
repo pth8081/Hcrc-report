@@ -228,82 +228,61 @@ STK_ID.md") chứ KHÔNG phải mã dùng để ánh xạ siêu thị ở tầng
 `STK_ID` này CHỈ mang tính tham khảo nội bộ DSmart16, không cần đưa vào
 VIEW trừ khi DBA xác nhận cần dùng cho mục đích khác.
 
-## 2. VIEW mẫu trên DSmart16 — ĐÃ CÓ ĐỦ DANH SÁCH CỘT THẬT (06/10/2026), chỉ còn vài điểm cần DBA xác nhận Ý NGHĨA
+## 2. VIEW mẫu trên DSmart16 — ĐÃ CHỐT nguồn STRANS (06/10/2026), đã test thật, đang sửa theo lỗi thật
 
-**Đã có đủ `INFORMATION_SCHEMA.COLUMNS` của `ST_ORDER` (116 cột)** — xem
-danh sách đầy đủ + phân tích ở mục 1. Đã xác định rõ: `ST_ORDER` là bảng
-GỘP header+chi tiết dòng hàng (1 dòng = 1 SKU trong 1 đơn), giải quyết
-dứt điểm câu hỏi "1 dòng = 1 SKU hay 1 đơn" các bản trước. VIEW dưới đây
-dùng ĐÚNG tên cột thật cho các ứng viên khá chắc chắn — các cột còn in
-đậm `<<<` vẫn cần DBA xác nhận Ý NGHĨA (không phải tên, tên đã có).
+**SỬA bản 8.92**: bỏ hẳn `ST_ORDER`/`ST_ORDER_ARC` — nguồn THẬT đã xác
+nhận là `STRANS` (bảng ĐÃ dùng cho báo cáo doanh thu cuối ngày),
+`TRANS_CODE IN ('133','333')` (133=đặt hàng, 333=nhập hàng, MỖI LOẠI 1
+DÒNG RIÊNG), `REF`=mã đơn hàng gốc (dùng gộp nhiều lần nhận ở tầng ứng
+dụng, KHÔNG gộp trong VIEW). Xem `deploy/Thiết lập VIEW Đơn đặt hàng-Nhập
+hàng-So sánh (DSMART16 trung tâm).sql` — VIEW thật chạy trên server, nội
+dung dưới đây PHẢI khớp y hệt file đó, đừng sửa lệch 2 nơi.
+
+**SỬA 06/10/2026 (sau khi chạy thật)**: `STRANS` KHÔNG có cột `PRICE`
+(lỗi `Invalid column name 'PRICE'` khi chạy lần đầu) — đúng như báo cáo
+doanh thu cuối ngày đã xác nhận trước đó (`STRANS` chỉ có `QTY`/`AMOUNT`,
+không có đơn giá riêng). Đã sửa `DonGia` = `AMOUNT / NULLIF(QTY, 0)`
+(suy ra từ thành tiền/số lượng) thay vì đọc thẳng cột `PRICE`.
 
 ```sql
-CREATE VIEW dbo.vw_DonDatHangChiNhanh AS
+CREATE OR ALTER VIEW dbo.vw_DonDatHangChiNhanh AS
 SELECT
-    CAST(TRANS_NUM AS VARCHAR(50)) + '|' + CAST(IDX AS VARCHAR(10)) AS MaThucThe,  -- khoá 1 dòng hàng trong 1 đơn (IDX = STT dòng)
-    CAST(TRAN_DATE AS DATE)     AS EventDate,        -- <<< Ngày đặt — xác nhận Ý NGHĨA đúng (tên cột đã chắc)
-    STOPED_DT                   AS UpdatedAt,        -- <<< Watermark — CHƯA CHẮC, xem câu hỏi watermark bên dưới, có thể KHÔNG có cột phù hợp
-    BU_ID                       AS MaDiem,           -- ĐÃ XÁC NHẬN — ánh xạ ra mã Điểm chuẩn ở tầng rp-server (buildBuIdLookup(), xem mục 4)
-    NULL                        AS TenDiem,          -- Không có tên siêu thị trực tiếp trong ST_ORDER — hệ thống LUÔN ưu tiên tên trong bảng Ánh xạ Điểm-STK, cột này chỉ dự phòng nên để NULL
-    TRANS_NUM                   AS SoDon,
-    CAST(DUE_DATE AS DATE)      AS NgayGiao,         -- Ngày giao DỰ KIẾN
-    CAST(DELIVER_DT AS DATE)    AS NgayNhanThat,      -- <<< MỚI — có thể là ngày giao/nhận THỰC TẾ, xác nhận với DBA (nếu đúng, bỏ được "Giới hạn đã biết" cũ)
+    CAST(TRANS_NUM AS VARCHAR(50)) + '|' + CAST(IDX AS VARCHAR(10)) AS MaThucThe,
+    CAST(TRAN_DATE AS DATE)     AS EventDate,
+    STOPED_DT                   AS UpdatedAt,        -- watermark — vẫn chưa chắc, xem cảnh báo dưới
+    BU_ID                       AS MaDiem,           -- ánh xạ ra mã Điểm chuẩn ở tầng rp-server (buildBuIdLookup(), xem mục 4)
+    NULL                        AS TenDiem,          -- hệ thống LUÔN ưu tiên tên trong bảng Ánh xạ Điểm-STK
+    REF                         AS SoDon,            -- MÃ ĐƠN HÀNG GỐC (đã xác nhận) — dùng nhóm nhiều lần nhận hàng
+    TRANS_CODE                  AS LoaiGiaoDich,     -- '133'=đặt hàng, '333'=nhập hàng (đã xác nhận)
+    CAST(DUE_DATE AS DATE)      AS NgayGiao,
     SUPP_ID                     AS MaNCC,
-    NULL                        AS TenNCC,           -- <<< Cần tên bảng "danh mục nhà cung cấp" để JOIN lấy tên — xem câu hỏi bên dưới
+    NULL                        AS TenNCC,           -- cần JOIN bảng danh mục NCC nếu muốn hiện tên (chưa có, hiện mã)
     STAFF_ID                    AS NguoiDat,
     SKU_ID                      AS MaHang,
-    NULL                        AS TenHang,          -- <<< Cần tên bảng "danh mục hàng hoá" để JOIN lấy tên — xem câu hỏi bên dưới
+    NULL                        AS TenHang,          -- cần JOIN bảng danh mục hàng hoá nếu muốn hiện tên (chưa có, hiện mã)
     UNIT_SYMB                   AS DVT,
     STATUS                      AS TrangThai,
     CASE STATUS
-        WHEN 'C' THEN N'Chưa nhập'
-        WHEN 'P' THEN N'Đã nhập 1 phần'
-        WHEN 'F' THEN N'Đã nhập hết'
-        WHEN 'M' THEN N'Đơn sửa'
-        WHEN 'D' THEN N'Đã xoá'
-        WHEN 'E' THEN N'Đã huỷ'
-        ELSE STATUS
-    END                         AS TrangThaiLabel,
-    ORD_QTY                     AS SoLuongTheoDon,   -- <<< CHƯA CHẮC — ORD_QTY hay ORDP_QTY mới đúng "SL đặt"? xem câu hỏi bên dưới
-    DLV_QTY                     AS SoLuongThucNhan,  -- <<< Khá chắc (DLV=Deliver) nhưng vẫn cần DBA xác nhận
-    ORD_PRICE                   AS DonGia,
-    AMOUNT                      AS ThanhTien
-FROM dbo.ST_ORDER
-WHERE TRANS_CODE = '330'  -- <<< lọc đúng loại "đơn đặt hàng" — XÁC NHẬN đây là mã cố định, không lẫn mã khác trong bảng
-UNION ALL
-SELECT
-    CAST(TRANS_NUM AS VARCHAR(50)) + '|' + CAST(IDX AS VARCHAR(10)), CAST(TRAN_DATE AS DATE), STOPED_DT, BU_ID, NULL,
-    TRANS_NUM, CAST(DUE_DATE AS DATE), CAST(DELIVER_DT AS DATE), SUPP_ID, NULL, STAFF_ID, SKU_ID, NULL, UNIT_SYMB, STATUS,
-    CASE STATUS
         WHEN 'C' THEN N'Chưa nhập' WHEN 'P' THEN N'Đã nhập 1 phần' WHEN 'F' THEN N'Đã nhập hết'
-        WHEN 'M' THEN N'Đơn sửa' WHEN 'D' THEN N'Đã xoá' WHEN 'E' THEN N'Đã huỷ' ELSE STATUS
-    END,
-    ORD_QTY, DLV_QTY, ORD_PRICE, AMOUNT
-FROM dbo.ST_ORDER_ARC
-WHERE TRANS_CODE = '330';
+        WHEN 'M' THEN N'Đơn sửa' ELSE STATUS
+    END                         AS TrangThaiLabel,
+    QTY                         AS SoLuong,
+    AMOUNT / NULLIF(QTY, 0)     AS DonGia,           -- STRANS không có cột PRICE — suy ra từ AMOUNT/QTY
+    AMOUNT                      AS ThanhTien
+FROM dbo.STRANS
+WHERE TRANS_CODE IN ('133','333') AND STATUS NOT IN ('D','E');
 ```
 
-**Các câu hỏi còn CẦN DBA trả lời (đã thu hẹp từ "chưa biết tên cột" xuống
-"biết tên rồi, cần xác nhận ý nghĩa"):**
-1. **`ORD_QTY` vs `ORDP_QTY`** — cả 2 đều có vẻ là "số lượng đặt", khác
-   nhau chỗ nào? Cột nào đúng là SL trên "Phiếu đặt hàng" (cột "Theo
-   đơn")?
-2. **`DLV_QTY`** — xác nhận đây đúng là SL thực nhận (cột "Thực nhận"
-   trên phiếu)? Giá trị khi `STATUS='C'` (chưa nhập) là `0` hay `NULL`?
-3. **Tên bảng "danh mục hàng hoá"** (để `JOIN SKU_ID` lấy Tên hàng) và
-   **"danh mục nhà cung cấp"** (để `JOIN SUPP_ID` lấy Tên NCC) — `ST_ORDER`
-   không có cột tên trực tiếp, chỉ có mã.
-4. **`DELIVER_DT`** — có đúng là ngày giao/nhận THỰC TẾ không (khác
-   `DUE_DATE` = ngày giao dự kiến)? Nếu đúng, báo cáo có thể lọc theo
-   ngày nhận thật thay vì chỉ ngày đặt — cải thiện so với giới hạn v1 cũ.
-5. **Watermark cập nhật** — `ST_ORDER` KHÔNG có cột nào rõ nghĩa "lần sửa
-   gần nhất" (`UPDATED` chỉ là cờ `bit`, không phải mốc thời gian).
-   `STOPED_DT`/`FINISH_DT` có phản ánh đúng lần sửa gần nhất không, hay
-   cần chiến lược đồng bộ khác (vd quét lại toàn bộ mỗi lần thay vì theo
-   watermark)?
-6. **`TRANS_CODE='330'`** — xác nhận đây là mã CỐ ĐỊNH DUY NHẤT cho "đơn
-   đặt hàng" trong `ST_ORDER`, hay bảng còn chứa giao dịch khác cần lọc
-   thêm?
+**Còn 1 điểm chưa chắc, kiểm tra sau khi chạy xong:**
+- `STOPED_DT` làm watermark (`UpdatedAt`) — nếu sau này đồng bộ không bắt
+  được đơn mới cập nhật/nhận hàng thêm, đây là chỗ xem lại đầu tiên.
+- `DonGia` tính từ `AMOUNT/QTY` — khi `QTY=0` ra `NULL` (đã chặn chia 0
+  bằng `NULLIF`), cần xem có hợp lý với cách DBA/người dùng hiểu "đơn
+  giá" trên 2 loại giao dịch 133/333 hay không.
+- Nếu chạy VIEW còn báo lỗi "Invalid column name" cho cột khác
+  (`IDX`/`DUE_DATE`/`SUPP_ID`/`STAFF_ID`/`UNIT_SYMB`/`STOPED_DT`/`REF`),
+  gửi lại nguyên văn lỗi để sửa tiếp — SQL Server có thể chỉ báo 1 lỗi
+  đầu tiên mỗi lần chạy, không báo hết cùng lúc.
 
 ## 3. Thiết kế đồng bộ — domain `don_dat_hang` (SỬA bản 8.92, nguồn STRANS)
 
