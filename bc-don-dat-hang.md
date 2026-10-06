@@ -110,6 +110,33 @@ chính là lý do vẫn cần: (a) đủ danh sách cột `FN_ORDER`, và (b) k�
 `SELECT DISTINCT TRANS_CODE` của `ON_ORDER`/`FN_ORDER` — đang chờ người
 dùng gửi (xem câu hỏi ở cuối mục "MÂU THUẪN MỚI" phía trên).
 
+### 🆕 PHÁT HIỆN MỚI (06/10/2026) — có thể nguồn dữ liệu thật nằm ở `STRANS`, không phải `ST_ORDER`/`FN_ORDER`
+
+DBA gửi ảnh chụp SQL thật: `SELECT * FROM STRANS WHERE TRANS_CODE IN
+('333','133')` — `STRANS` là bảng ĐÃ BIẾT TRƯỚC (dùng cho báo cáo doanh
+thu cuối ngày, xem `deploy/Thiết lập VIEW ... Thành viên.sql`), cùng cấu
+trúc cột với `ST_ORDER`/`ON_ORDER`/`FN_ORDER` (`TRANS_NUM`, `TRANS_CODE`,
+`TRAN_DATE`, `BU_ID`...). Tài liệu doanh thu cũ từng ghi "mã `333` bị
+LOẠI HẲN khỏi Doanh thu" mà không giải thích rõ — giờ có khả năng **`333`
+VÀ `133` chính là giao dịch đặt/nhập hàng, nằm LẪN trong CÙNG bảng
+`STRANS`** với giao dịch bán hàng (`211`/`221`/`232`/`212`/`222`), chỉ
+phân biệt bằng `TRANS_CODE` — giống hệt cách `STRANS` đã hoạt động cho
+domain doanh thu.
+
+**ĐÃ XÁC NHẬN (06/10/2026, người dùng)**: `133` = đặt hàng, `333` = nhập
+hàng.
+
+**CÒN CHỜ xác nhận**: cột **`REF`** (dạng `"3011-00100302609000206"`,
+NHIỀU dòng cùng `TRANS_NUM` chia sẻ CHUNG 1 giá trị `REF`, rồi đổi sang
+giá trị khác cho nhóm `TRANS_NUM` tiếp theo) có phải chính là **"mã đơn
+đặt hàng gốc"** dùng để nhóm nhiều lần nhận hàng (`TRANS_CODE='333'`) lại
+với đúng 1 đơn đặt (`TRANS_CODE='133'`) ban đầu hay không — đây là mảnh
+ghép CUỐI CÙNG cần có trước khi khoá thiết kế VIEW. Nếu đúng, khả năng
+cao TOÀN BỘ thiết kế sẽ CHUYỂN sang dùng `STRANS` (đã có sẵn cấu trúc
+chi tiết dòng hàng tốt, đã dùng ổn định cho doanh thu) thay vì
+`ST_ORDER`/`ON_ORDER`/`FN_ORDER` — **CHƯA đổi code/SQL cho tới khi xác
+nhận xong điểm này.**
+
 ### Toàn bộ danh sách cột thật của `ST_ORDER` (SQL thật, 06/10/2026)
 
 `ST_ORDER` là bảng **GỘP header + chi tiết dòng hàng TRONG CÙNG 1 BẢNG**
