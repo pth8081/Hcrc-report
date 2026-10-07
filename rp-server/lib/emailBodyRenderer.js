@@ -36,7 +36,8 @@
 // không tô (nền trắng).
 const {
   resolveGroupColor, resolveRowFillColor, resolveStandaloneColumnColor,
-  ZEBRA_COLOR, computeZebraFlags, computeSttValues, formatCellText
+  ZEBRA_COLOR, computeZebraFlags, computeSttValues, formatCellText,
+  filterColumns, filterGroups
 } = require('./reportCellFormat');
 
 const BORDER_COLOR = 'D9DEE2'; // trùng --line (rp-user/src/styles.css) + viền Excel/PDF (bản 8.58).
@@ -58,13 +59,11 @@ function isHighlighted(row, col, highlightColumnKey, highlightThreshold) {
   return Math.abs(num) > Number(highlightThreshold);
 }
 
-// Lọc definition.columns theo bodyColumnKeys (nếu có khai), GIỮ NGUYÊN thứ
-// tự gốc — xem chú thích đầu file.
-function filterColumns(columns, bodyColumnKeys) {
-  if (!Array.isArray(bodyColumnKeys) || !bodyColumnKeys.length) return columns;
-  const keep = new Set(bodyColumnKeys);
-  return columns.filter(col => keep.has(col.key));
-}
+// filterColumns/filterGroups (bản 8.97) — chuyển sang DÙNG CHUNG
+// lib/reportCellFormat.js (trước đây file này tự định nghĩa filterColumns
+// RIÊNG, trùng lặp đúng logic lọc cột + tính lại colSpan nhóm giờ cũng cần
+// cho tính năng "ẩn/chọn cột báo cáo doanh thu" ở routes/reports.js — gộp
+// về 1 nguồn để không lệch nhau khi sửa sau này).
 
 // Mirror ĐÚNG đoạn dựng header 2 dòng ở lib/exportExcel.js:addReportSheet()
 // (dòng ~84-134) nhưng trả về mô tả CELL thay vì ghi trực tiếp vào sheet —
@@ -108,9 +107,7 @@ function buildGroupedHeaderRows(columns, groups, standaloneColumnColors) {
 function renderEmailBodyHtml(definition, rows, options = {}) {
   const { highlightColumnKey, highlightThreshold, bodyColumnKeys } = options;
   const columns = filterColumns(definition.columns, bodyColumnKeys);
-  const groups = (definition.columnGroups || []).map(g => ({
-    ...g, keys: (g.keys || []).filter(k => columns.some(c => c.key === k))
-  })).filter(g => g.keys.length);
+  const groups = filterGroups(definition.columnGroups, columns);
 
   const cellBase = `border:1px solid #${BORDER_COLOR};padding:6px 10px;`;
   const thBase = cellBase + 'font-weight:bold;';

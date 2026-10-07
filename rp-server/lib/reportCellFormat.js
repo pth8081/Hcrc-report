@@ -122,8 +122,37 @@ function formatCellText(value, col) {
   return sign + Math.abs(Math.round(value)).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 }
 
+// Lọc columns theo keepKeys (mảng key được NGƯỜI DÙNG chọn hiển thị — bản
+// 8.97, dùng chung cho cả 3 nơi xuất VÀ web: ẩn/chọn cột khi xem báo cáo
+// doanh thu trên web hoặc xuất Excel/PDF, xem routes/reports.js:POST
+// /:reportId/export + rp-user/src/lib/reportGroupColors.js (mirror hàm này
+// cho phía web, filter result.columns/columnGroups TRƯỚC khi vẽ bảng —
+// KHÔNG cần gọi lại server, rows đã có sẵn mọi field). GIỮ NGUYÊN thứ tự
+// cột gốc (không theo thứ tự người dùng tick) — các cột CÙNG 1 nhóm màu
+// (columnGroups) phải LIỀN KỀ nhau trong definition.columns để colSpan tính
+// đúng (xem buildGroupedHeader ở DataTable.jsx/addReportSheet ở
+// exportExcel.js) — lọc rồi vẫn giữ thứ tự gốc thì các cột còn lại của 1
+// nhóm vẫn liền kề. keepKeys rỗng/không khai (null/undefined/[]) -> trả
+// NGUYÊN columns, không lọc gì (tương thích ngược — không chọn gì nghĩa là
+// lấy hết, giống hệt quy ước bodyColumnKeys ở lib/emailBodyRenderer.js).
+function filterColumns(columns, keepKeys) {
+  if (!Array.isArray(keepKeys) || !keepKeys.length) return columns;
+  const keep = new Set(keepKeys);
+  return columns.filter(col => keep.has(col.key));
+}
+
+// Tính lại columnGroups theo columns ĐÃ LỌC (dùng SAU filterColumns ở trên)
+// — bỏ key không còn cột tương ứng trong mỗi nhóm, XOÁ HẲN nhóm nếu rỗng
+// hết (vd người dùng bỏ chọn toàn bộ cột "Lãi gộp" -> nhãn nhóm "Lãi gộp"
+// tự biến mất khỏi tiêu đề, không còn ô colSpan=0 trống vô nghĩa).
+function filterGroups(groups, columns) {
+  return (groups || []).map(g => ({
+    ...g, keys: (g.keys || []).filter(k => columns.some(c => c.key === k))
+  })).filter(g => g.keys.length);
+}
+
 module.exports = {
   GROUP_COLORS, SUBTOTAL_COLOR, GRAND_TOTAL_COLOR, ZEBRA_COLOR,
   resolveGroupColor, resolveRowFillColor, resolveStandaloneColumnColor, computeZebraFlags,
-  computeSttValues, formatCellText
+  computeSttValues, formatCellText, filterColumns, filterGroups
 };

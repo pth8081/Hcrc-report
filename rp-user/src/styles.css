@@ -160,6 +160,7 @@ button:disabled, button:disabled:hover {
    nhẹ phần dữ liệu (td) để "nét" hơn mặc định trình duyệt (400). */
 .data-table--grouped td, .data-table--grouped th {
   padding: 12px; font-size: 14px; line-height: 1.5;
+  border: 1px solid var(--line);
 }
 .data-table--grouped td { font-weight: 500; }
 .empty-message { color: var(--ink-soft); font-size: 13px; }

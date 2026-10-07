@@ -14,6 +14,44 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 8.97 — Khung kẻ mảnh (web/Excel/PDF/email) + ẩn/chọn cột báo cáo doanh thu
+
+**Thay đổi**: bảng web báo cáo doanh thu có thêm khung kẻ mảnh (đã có sẵn
+ở Excel/PDF/email từ trước — nay khớp cả 4 nơi); xác nhận làm tròn số
+body email khớp Excel/PDF (không cần sửa gì, đã đúng từ bản 8.96); thêm
+ô "Cột hiển thị" MỚI ở trang xem báo cáo — cho chọn/ẩn cột khi xem trên
+web VÀ khi xuất Excel/PDF (khác ô "Cột hiển thị trong bảng" ở bản 8.96 —
+ô đó chỉ áp dụng cho LỊCH GỬI EMAIL).
+
+**Các bước triển khai (làm 1 lần, theo đúng thứ tự):**
+1. `git pull origin main`.
+2. `cd rp-user && npm run build` (đổi `styles.css` + thêm ô "Cột hiển
+   thị" ở `ReportsPage.jsx`). Copy TOÀN BỘ `dist/` lên vị trí phục vụ
+   tĩnh như mọi lần trước.
+3. `pm2 restart hcrc-rp-server` (đổi `lib/reportCellFormat.js` +
+   `lib/emailBodyRenderer.js` + `routes/reports.js`).
+4. KHÔNG cần đổi gì ở CSDL (không có bảng/cột mới).
+
+**Kiểm tra:**
+- [ ] rp-user → "Báo cáo" → mở 1 trong 4 báo cáo "Doanh thu cuối ngày" →
+  bảng có khung kẻ mảnh quanh từng ô (trước đây chỉ có gạch ngang dưới
+  mỗi dòng).
+- [ ] Cùng báo cáo đó → thấy ô "Cột hiển thị (không chọn = hiện đủ cột)"
+  ngay dưới nút "Xuất Excel"/"Xuất PDF" → chọn vài cột → bảng web chỉ còn
+  đúng các cột đã chọn, nhóm màu nào hết cột tự ẩn khỏi tiêu đề.
+- [ ] Bấm "Xuất Excel"/"Xuất PDF" ngay sau khi chọn cột → file tải về
+  CHỈ có đúng các cột đang hiện trên web (không phải luôn đủ cột như
+  trước).
+- [ ] Đổi sang báo cáo khác (không phải 4 báo cáo doanh thu) → KHÔNG thấy
+  ô "Cột hiển thị" (chỉ 4 báo cáo doanh thu có, không ảnh hưởng báo cáo
+  khác).
+- [ ] Email báo cáo doanh thu gửi theo lịch (DeliveryMode='body') → số
+  lẻ vẫn làm tròn ĐÚNG như Excel/PDF (vd 950000.6 → "950,001").
+
+Không có bước nào làm mất dữ liệu đã có — không đổi schema CSDL.
+
+---
+
 ## 8.96 — Email báo cáo giống màu PDF/Excel + chọn cột gửi + bảng doanh thu dãn dòng/nét hơn
 
 **Thay đổi**: email gửi báo cáo doanh thu (DeliveryMode='body') nay chọn

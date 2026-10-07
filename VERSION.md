@@ -29,6 +29,55 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 8.97 — Khung kẻ mảnh (web/Excel/PDF/email) + xác nhận làm tròn số + ẩn/chọn cột báo cáo doanh thu
+
+**Theo yêu cầu người dùng** (tiếp nối bản 8.96): (1) "chữ và dãn dòng ok
+rồi, cho mình đóng khung kẻ mảnh và nét nữa — ở cả xuất Excel/PDF, body
+email và trên web"; (2) "gửi ở body mail cũng làm tròn số như xuất
+excel/pdf"; (3) các báo cáo doanh thu cho phép chọn các trường ẩn đi khi
+xem trên web hoặc xuất Excel/PDF (ngoài phần chọn trường gửi email đã có
+từ bản 8.96).
+
+**1. Khung kẻ mảnh**: Excel/PDF/email đã có sẵn viền mảnh `#D9DEE2` (toàn
+bộ ô, từ bản 8.58/8.96) — chỉ THIẾU ở bảng web. `rp-user/src/styles.css` —
+thêm `border: 1px solid var(--line)` cho `.data-table--grouped td/th` (CHỈ
+4 báo cáo Doanh thu cuối ngày, không đụng bảng khác). Đo lại chiều cao
+header 2 dòng bằng Playwright sau khi thêm viền — vẫn đúng 46px (không cần
+đổi offset sticky).
+
+**2. Làm tròn số body email** — ĐÃ ĐÚNG sẵn từ bản 8.96 (dùng chung
+`formatCellText()`/`Math.round` ở `lib/reportCellFormat.js` cho cả 3 nơi
+xuất) — xác nhận lại bằng số lẻ thật (950000.6 → "950,001", 94.6% →
+"95%") khớp Y HỆT Excel/PDF, không cần sửa code.
+
+**3. Ẩn/chọn cột báo cáo doanh thu (web + Excel/PDF)** — tính năng MỚI,
+tách riêng khỏi "chọn cột gửi email" (bản 8.96, theo lịch gửi):
+- `rp-server/lib/reportCellFormat.js` — thêm `filterColumns()`/
+  `filterGroups()` (lọc cột theo key được chọn, GIỮ NGUYÊN thứ tự gốc +
+  tính lại colSpan nhóm màu, bỏ nhóm rỗng) — gộp về 1 nguồn dùng chung,
+  `lib/emailBodyRenderer.js` refactor lại để dùng đúng 2 hàm này (trước đó
+  tự định nghĩa riêng, trùng lặp).
+- `routes/reports.js` — `POST /:reportId/export` nhận thêm
+  `visibleColumnKeys` (TUỲ CHỌN) trong body, lọc `columns`/`columnGroups`
+  trước khi gọi `exportExcel()`/`exportPdf()`. `POST /:reportId/run`
+  KHÔNG đổi — lọc cột cho bảng xem trên web làm NGAY TRÊN TRÌNH DUYỆT
+  (không gọi lại server, rows đã có sẵn mọi field).
+- `rp-user/src/lib/reportGroupColors.js` — mirror thêm `filterColumns()`/
+  `filterGroups()` cho phía web.
+- `rp-user/src/modules/reports/ReportsPage.jsx` — thêm ô "Cột hiển thị"
+  (dùng chung `SearchableSelect`, CHỈ hiện khi báo cáo có `columnGroups` —
+  hiện 4 báo cáo Doanh thu cuối ngày), không chọn gì = hiện đủ cột. Lọc
+  NGAY cho bảng xem + gửi kèm đúng cột đang chọn lúc bấm "Xuất Excel"/
+  "Xuất PDF" — file xuất ra KHỚP đúng những gì đang xem trên web. Là lựa
+  chọn THEO PHIÊN XEM hiện tại (không lưu lại), đổi báo cáo khác thì về
+  lại hiện đủ cột.
+
+**Đã kiểm chứng**: build/syntax check sạch; test lại bộ assertion email-
+body-colors (không hỏng sau refactor); demo THẬT trên vite dev server +
+Playwright (không phải ảnh tĩnh) — khung kẻ mảnh trên web khớp Excel/PDF/
+email, chọn bớt cột tự ẩn đúng nhóm màu + tính lại colSpan, `visibleColumnKeys`
+gửi lên `/export` khớp đúng cột đang hiện trên web.
+
 ## 8.96 — Email báo cáo giống màu PDF/Excel + chọn cột gửi + bảng doanh thu dãn dòng/nét hơn
 
 **Theo yêu cầu người dùng**: (1) email gửi báo cáo doanh thu HCRC/LĐTĐ (cả

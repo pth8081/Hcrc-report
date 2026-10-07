@@ -46,3 +46,20 @@ export function computeZebraFlags(rows) {
     return n % 2 === 0;
   });
 }
+
+// filterColumns/filterGroups (bản 8.97) — mirror ĐÚNG rp-server/lib/
+// reportCellFormat.js (xem chú thích đầy đủ ở file gốc) — dùng để ẩn/chọn
+// cột NGAY TRÊN WEB (modules/reports/ReportsPage.jsx) khi người dùng chọn
+// "Cột hiển thị", không cần gọi lại server (rows kết quả /run đã có sẵn mọi
+// field, DataTable.jsx chỉ vẽ theo đúng mảng columns truyền vào).
+export function filterColumns(columns, keepKeys) {
+  if (!Array.isArray(keepKeys) || !keepKeys.length) return columns;
+  const keep = new Set(keepKeys);
+  return columns.filter(col => keep.has(col.key));
+}
+
+export function filterGroups(groups, columns) {
+  return (groups || []).map(g => ({
+    ...g, keys: (g.keys || []).filter(k => columns.some(c => c.key === k))
+  })).filter(g => g.keys.length);
+}

@@ -28,6 +28,7 @@ const { loadDefinition, runDefinition, resolveFactsPool } = require('../lib/repo
 const { resolveTitleWithDate, resolveExportFileBaseName } = require('../lib/reportTitleDate');
 const { exportExcel } = require('../lib/exportExcel');
 const { exportPdf } = require('../lib/exportPdf');
+const { filterColumns, filterGroups } = require('../lib/reportCellFormat');
 const { getUserContext } = require('../lib/permissions');
 const reportResultCache = require('../lib/reportResultCache');
 const { logAction } = require('../lib/auditLog');
@@ -226,7 +227,19 @@ router.post('/:reportId/export', async (req, res, next) => {
     // __storeScope (bản 8.51) — xem chú thích ở POST /:reportId/run phía trên.
     const { format = 'excel' } = req.body || {};
     const filters = { ...(req.body?.filters || {}), __storeScope: context.storeScope };
-    const { columns, rows: projected } = await runDefinition(definition, filters, { page: 1, pageSize: 5000 });
+    const { columns: rawColumns, rows: projected } = await runDefinition(definition, filters, { page: 1, pageSize: 5000 });
+    // visibleColumnKeys (bản 8.97, TUỲ CHỌN — theo yêu cầu người dùng: "cho
+    // phép mình chọn các trường ẩn đi khi xem báo cáo trên web hoặc xuất
+    // excel/pdf") — người dùng chọn Ở TRANG XEM báo cáo (rp-user/.../
+    // ReportsPage.jsx), gửi kèm lúc bấm "Xuất Excel"/"Xuất PDF" để file xuất
+    // ra ĐÚNG những cột đang xem trên web, không phải luôn đủ cột như trước.
+    // Rỗng/không gửi = xuất ĐỦ cột (hành vi cũ, không đổi báo cáo nào chưa
+    // dùng tính năng này). Dùng CHUNG filterColumns/filterGroups với
+    // lib/emailBodyRenderer.js (lib/reportCellFormat.js) — giữ nguyên thứ tự
+    // cột gốc + tính lại colSpan nhóm màu đúng cách y hệt 3 nơi xuất khác.
+    const visibleColumnKeys = Array.isArray(req.body?.visibleColumnKeys) ? req.body.visibleColumnKeys : null;
+    const columns = visibleColumnKeys ? filterColumns(rawColumns, visibleColumnKeys) : rawColumns;
+    const columnGroups = visibleColumnKeys && definition.columnGroups ? filterGroups(definition.columnGroups, columns) : definition.columnGroups;
     // exportTitle (TUỲ CHỌN) — tiêu đề HIỂN THỊ TRONG TÀI LIỆU, tách riêng
     // khỏi definition.title (tên trong danh mục báo cáo, tĩnh) và
     // definition.exportFileCode (tên file, mã cố định) — báo cáo không
@@ -235,7 +248,7 @@ router.post('/:reportId/export', async (req, res, next) => {
     const displayTitle = resolveTitleWithDate(definition.exportTitle || definition.title, filters, '/');
     const fallbackFileTitle = resolveTitleWithDate(definition.exportTitle || definition.title, filters, '-');
     const fileTitle = resolveExportFileBaseName(definition.exportFileCode, filters, fallbackFileTitle);
-    const exportDefinition = { ...definition, columns, title: displayTitle };
+    const exportDefinition = { ...definition, columns, columnGroups, title: displayTitle };
 
     if (format === 'excel') {
       const buffer = await exportExcel(exportDefinition, projected);

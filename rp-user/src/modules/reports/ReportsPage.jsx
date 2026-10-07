@@ -11,6 +11,8 @@ import { api, downloadFile } from '../../lib/api';
 import { useAuth } from '../../lib/AuthContext';
 import FilterForm from '../../components/FilterForm';
 import ReportBody from '../../components/ReportBody';
+import SearchableSelect from '../../components/SearchableSelect';
+import { filterColumns, filterGroups } from '../../lib/reportGroupColors';
 
 export default function ReportsPage() {
   const { me } = useAuth();
@@ -33,6 +35,16 @@ export default function ReportsPage() {
   // bảng, không có nút chuyển (không có gì để chuyển sang).
   const [showTable, setShowTable] = useState(false);
   const [exportingFormat, setExportingFormat] = useState(null);
+  // visibleColumnKeys (bản 8.97, theo yêu cầu người dùng: "cho phép mình
+  // chọn các trường ẩn đi khi xem báo cáo trên web hoặc xuất excel/pdf") —
+  // CHỈ áp dụng cho báo cáo có columnGroups (hiện 4 báo cáo "Doanh thu cuối
+  // ngày", xem điều kiện hiện ô chọn bên dưới) — rỗng = hiện ĐỦ cột (mặc
+  // định). Lọc NGAY TRÊN TRÌNH DUYỆT cho bảng xem (không gọi lại server —
+  // result.rows đã có sẵn mọi field, DataTable chỉ vẽ theo đúng columns
+  // truyền vào) — chỉ gửi lên server lúc xuất Excel/PDF (xem exportAs()).
+  // Là lựa chọn THEO PHIÊN XEM hiện tại, không lưu lại — đổi báo cáo khác
+  // (selectedId đổi) thì về lại mặc định "hiện đủ cột".
+  const [visibleColumnKeys, setVisibleColumnKeys] = useState([]);
 
   // Drill-through (Giai đoạn D — xem VERSION.md): bấm 1 điểm trên biểu đồ
   // của báo cáo NÀY điều hướng sang MỘT báo cáo KHÁC đã lọc sẵn, qua URL
@@ -57,6 +69,7 @@ export default function ReportsPage() {
     setSelectedId('');
     setDefinition(null);
     setResult(null);
+    setVisibleColumnKeys([]);
   }, [activeCode]);
 
   // Drill-through đến (URL có ?reportId=...) — CHỌN THẲNG báo cáo đích, BỎ
@@ -83,6 +96,7 @@ export default function ReportsPage() {
     setFilterValues(drillFilters || {});
     setResult(null);
     setShowTable(false);
+    setVisibleColumnKeys([]);
     autoRunRef.current = !!drillFilters; // đến từ drill-through -> tự chạy ngay khi có definition, không đợi bấm "Lọc"
     api.get(`/reports/${selectedId}`).then(setDefinition).catch(err => setError(err.message));
   }, [selectedId]);
@@ -122,13 +136,31 @@ export default function ReportsPage() {
   async function exportAs(format) {
     setExportingFormat(format);
     try {
-      await downloadFile(`/reports/${selectedId}/export`, { filters: filterValues, format }, `${definition?.title || 'bao-cao'}.${format === 'excel' ? 'xlsx' : 'pdf'}`);
+      // visibleColumnKeys (bản 8.97) — gửi kèm đúng cột đang chọn hiện trên
+      // web, để file Excel/PDF xuất ra KHỚP những gì đang xem, không phải
+      // luôn đủ cột — xem routes/reports.js:POST /:reportId/export.
+      await downloadFile(
+        `/reports/${selectedId}/export`,
+        { filters: filterValues, format, visibleColumnKeys },
+        `${definition?.title || 'bao-cao'}.${format === 'excel' ? 'xlsx' : 'pdf'}`
+      );
     } catch (err) {
       setError(err.message);
     } finally {
       setExportingFormat(null);
     }
   }
+
+  // displayResult (bản 8.97) — result đã lọc theo visibleColumnKeys để vẽ
+  // bảng trên web (xem chú thích state ở trên) — KHÔNG đụng result.rows
+  // (DataTable chỉ vẽ theo đúng mảng columns truyền vào, field thừa trên
+  // mỗi row tự bị bỏ qua, xem components/DataTable.jsx).
+  const displayResult = useMemo(() => {
+    if (!result || !visibleColumnKeys.length) return result;
+    const columns = filterColumns(result.columns, visibleColumnKeys);
+    const columnGroups = result.columnGroups ? filterGroups(result.columnGroups, columns) : result.columnGroups;
+    return { ...result, columns, columnGroups };
+  }, [result, visibleColumnKeys]);
 
   if (!groups.length) {
     return (
@@ -186,6 +218,29 @@ export default function ReportsPage() {
                   </button>
                 )}
               </div>
+              {/* Ô chọn cột hiển thị (bản 8.97) — CHỈ hiện cho báo cáo có
+                  columnGroups (hiện 4 báo cáo "Doanh thu cuối ngày", đã rà
+                  soát `grep columnGroups` toàn repo — xem chú thích cùng chủ
+                  đề ở rp-user/src/styles.css:.data-table--grouped) — báo cáo
+                  phẳng khác KHÔNG hiện ô này, không đổi gì. Lọc NGAY lúc
+                  tick (xem displayResult ở trên), đồng thời gửi kèm đúng cột
+                  đang chọn lúc xuất Excel/PDF (xem exportAs()). */}
+              {result.columnGroups?.length > 0 && (
+                <div className="filter-config">
+                  <strong>Cột hiển thị (không chọn = hiện đủ cột)</strong>
+                  <SearchableSelect
+                    multi
+                    options={result.columns.map(c => ({ value: c.key, label: c.label }))}
+                    value={visibleColumnKeys}
+                    onChange={setVisibleColumnKeys}
+                    placeholder="Tất cả cột"
+                  />
+                  <p className="hint">
+                    Áp dụng NGAY cho bảng đang xem VÀ cho file xuất Excel/PDF — chỉ áp dụng cho
+                    phiên xem hiện tại, đổi báo cáo khác sẽ về lại hiện đủ cột.
+                  </p>
+                </div>
+              )}
               {/* warnings — CHỈ có ở báo cáo composite (xem
                   rp-server/lib/compositeReportRunner.js), khi 1 khối nguồn
                   trả nhiều hơn 1 dòng cho cùng thực thể — thực thể đó đã bị
@@ -198,7 +253,7 @@ export default function ReportsPage() {
               <ReportBody
                 visualization={definition.visualization}
                 showTable={showTable}
-                result={result}
+                result={displayResult}
                 onPointClick={definition.visualization?.drillThrough ? (row) => handleDrillThrough(row) : undefined}
               />
             </>
