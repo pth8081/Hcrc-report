@@ -191,8 +191,10 @@ DBA xác nhận lần cuối — xem danh sách câu hỏi còn lại bên dư�
 **CHƯA thấy trong `ST_ORDER`, nhiều khả năng cần JOIN sang bảng khác**:
 - **Tên hàng** (`TenHang`) — không có cột tên, chỉ có `SKU_ID` (mã) — cần
   hỏi DBA tên bảng "danh mục hàng hoá" (item master) để `JOIN` lấy tên.
-- **Tên nhà cung cấp** (`TenNCC`) — tương tự, chỉ có `SUPP_ID` (mã) — cần
-  tên bảng "danh mục nhà cung cấp" (supplier master) để `JOIN`.
+- **Tên nhà cung cấp** (`TenNCC`) — tương tự, chỉ có `SUPP_ID` (mã) —
+  **ĐÃ XÁC NHẬN 07/10/2026**: tên bảng là **`SUPPLIER`** — CÒN THIẾU tên
+  cột chính xác (mã NCC + tên NCC trong chính bảng này) trước khi sửa
+  VIEW, xem câu hỏi ở mục 2.
 - **Watermark cập nhật** — CHƯA thấy cột nào rõ nghĩa "lần sửa gần nhất"
   (`UPDATED` là kiểu `bit` — cờ đúng/sai, KHÔNG phải mốc thời gian, không
   dùng được làm watermark). Ứng viên còn lại: `STOPED_DT`/`FINISH_DT`
@@ -303,6 +305,19 @@ Còn lại, chưa xác nhận:
   giá" trên 2 loại giao dịch 133/333 hay không (vd có thể cần xem thêm
   `VAT_AMT`/`DISCOUNT`/`COMM_AMT` nếu đơn giá hiển thị lệch so với phiếu
   giấy).
+
+**🆕 CẦN XÁC NHẬN (07/10/2026) — tên cột bảng `SUPPLIER`**: người dùng đã
+xác nhận tên bảng nhà cung cấp là `SUPPLIER` (CHƯA rõ tên cột) — gửi DBA
+chạy câu lệnh sau, dán nguyên kết quả vào đây để JOIN đúng tên cột vào
+VIEW (hiện `TenNCC` đang để `NULL` tạm):
+```sql
+SELECT COLUMN_NAME, DATA_TYPE FROM INFORMATION_SCHEMA.COLUMNS
+WHERE TABLE_NAME = 'SUPPLIER' ORDER BY ORDINAL_POSITION;
+```
+Cần tìm đúng 2 cột: (1) mã NCC — PHẢI khớp kiểu/giá trị với `SUPP_ID`
+trong `STRANS` để `JOIN` được; (2) tên NCC hiển thị (dạng
+`NVARCHAR`/`VARCHAR`, thường tên kiểu `SUPP_NAME`/`NAME`/`FULL_NAME`...).
+CHƯA sửa VIEW/code cho tới khi có kết quả này.
 
 ## 3. Thiết kế đồng bộ — domain `don_dat_hang` (SỬA bản 8.92, nguồn STRANS)
 
