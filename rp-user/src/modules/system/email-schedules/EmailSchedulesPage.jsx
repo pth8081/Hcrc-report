@@ -17,6 +17,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../../lib/api';
 import DataTable from '../../../components/DataTable';
+import SearchableSelect from '../../../components/SearchableSelect';
 import { useRowSelection } from '../../../lib/useRowSelection';
 
 const WEEKDAY_OPTIONS = [
@@ -73,7 +74,8 @@ function emptyScheduleForm() {
     cronMode: 'simple', frequency: 'daily', weekdays: [1],
     times: ['07:00'], rawCrons: [''],
     filterValues: {},
-    subject: '', deliveryMode: 'attachment', highlightColumnKey: '', highlightThreshold: ''
+    subject: '', deliveryMode: 'attachment', highlightColumnKey: '', highlightThreshold: '',
+    bodyColumnKeys: [] // bản 8.96 — rỗng = lấy TOÀN BỘ cột (tương thích ngược)
   };
 }
 
@@ -96,7 +98,8 @@ function scheduleToForm(row) {
   const base = {
     name: row.Name, reportId: row.ReportId, recipients: row.Recipients, exportFormat: row.ExportFormat, filterValues: row.FilterValues || {},
     subject: row.Subject || '', deliveryMode: row.DeliveryMode || 'attachment',
-    highlightColumnKey: row.HighlightColumnKey || '', highlightThreshold: row.HighlightThreshold ?? ''
+    highlightColumnKey: row.HighlightColumnKey || '', highlightThreshold: row.HighlightThreshold ?? '',
+    bodyColumnKeys: row.BodyColumnKeys || []
   };
   if (sameShape) {
     return { ...base, cronMode: 'simple', frequency: parsed[0].frequency, weekdays: parsed[0].weekdays.length ? parsed[0].weekdays : [1], times: parsed.map(p => p.time), rawCrons: [''] };
@@ -274,6 +277,19 @@ function ScheduleFormFields({ form, setForm, reports, reportLocked }) {
         </label>
       ) : (
         <div className="filter-config">
+          <strong>Cột hiển thị trong bảng (không chọn = lấy toàn bộ cột)</strong>
+          <SearchableSelect
+            multi
+            options={(selectedReport?.columns || []).map(c => ({ value: c.key, label: c.label }))}
+            value={form.bodyColumnKeys}
+            onChange={(bodyColumnKeys) => setForm({ ...form, bodyColumnKeys })}
+            placeholder="Tất cả cột"
+          />
+          <p className="hint">
+            Màu nền/kiểu bảng trong email giống hệt file PDF/Excel xuất ra — nếu báo cáo có nhóm cột
+            màu (vd "Doanh thu"), bỏ hết cột của 1 nhóm thì nhóm đó tự ẩn khỏi bảng.
+          </p>
+
           <strong>Tô màu cảnh báo trong bảng (không bắt buộc)</strong>
           <label>
             Cột kiểm tra ngưỡng
@@ -356,7 +372,8 @@ export default function EmailSchedulesPage() {
         recipients: form.recipients, exportFormat: form.exportFormat, filterValues: form.filterValues,
         subject: form.subject, deliveryMode: form.deliveryMode,
         highlightColumnKey: form.deliveryMode === 'body' ? form.highlightColumnKey : '',
-        highlightThreshold: form.deliveryMode === 'body' && form.highlightColumnKey ? form.highlightThreshold : ''
+        highlightThreshold: form.deliveryMode === 'body' && form.highlightColumnKey ? form.highlightThreshold : '',
+        bodyColumnKeys: form.deliveryMode === 'body' ? form.bodyColumnKeys : []
       });
       setForm(emptyScheduleForm());
       reload();
@@ -373,7 +390,8 @@ export default function EmailSchedulesPage() {
         exportFormat: f.exportFormat, filterValues: f.filterValues, isActive: f.isActive,
         subject: f.subject, deliveryMode: f.deliveryMode,
         highlightColumnKey: f.deliveryMode === 'body' ? f.highlightColumnKey : '',
-        highlightThreshold: f.deliveryMode === 'body' && f.highlightColumnKey ? f.highlightThreshold : ''
+        highlightThreshold: f.deliveryMode === 'body' && f.highlightColumnKey ? f.highlightThreshold : '',
+        bodyColumnKeys: f.deliveryMode === 'body' ? f.bodyColumnKeys : []
       });
       setEditing(null);
       reload();
@@ -390,7 +408,8 @@ export default function EmailSchedulesPage() {
         exportFormat: f.exportFormat, filterValues: f.filterValues, isActive: !row.IsActive,
         subject: f.subject, deliveryMode: f.deliveryMode,
         highlightColumnKey: f.deliveryMode === 'body' ? f.highlightColumnKey : '',
-        highlightThreshold: f.deliveryMode === 'body' && f.highlightColumnKey ? f.highlightThreshold : ''
+        highlightThreshold: f.deliveryMode === 'body' && f.highlightColumnKey ? f.highlightThreshold : '',
+        bodyColumnKeys: f.deliveryMode === 'body' ? f.bodyColumnKeys : []
       });
       reload();
     } catch (err) { setError(err.message); } finally { setTogglingId(null); }

@@ -14,6 +14,41 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 8.96 — Email báo cáo giống màu PDF/Excel + chọn cột gửi + bảng doanh thu dãn dòng/nét hơn
+
+**Thay đổi**: email gửi báo cáo doanh thu (DeliveryMode='body') nay chọn
+được cột đưa vào nội dung, màu sắc giống hệt PDF/Excel; bảng kết quả báo
+cáo doanh thu (web) giãn dòng + font nét hơn.
+
+**Các bước triển khai (làm 1 lần, theo đúng thứ tự):**
+1. `git pull origin main`.
+2. Chạy lại NGUYÊN VĂN `rp-db/schema.sql` trên CSDL report (an toàn chạy
+   lại nhiều lần — chỉ thêm cột `BodyColumnKeysJson` mới vào
+   `app.ReportEmailSchedules` nếu CHƯA có, không đụng lịch gửi cũ).
+3. `cd rp-user && npm run build` (đổi `styles.css` + thêm ô chọn cột ở
+   `EmailSchedulesPage.jsx`). Copy TOÀN BỘ `dist/` lên vị trí phục vụ tĩnh
+   như mọi lần trước.
+4. `pm2 restart hcrc-rp-server` (đổi `emailBodyRenderer.js` +
+   `routes/reportEmailSchedules.js` + `jobs/reportEmailScheduler.js`).
+
+**Kiểm tra:**
+- [ ] rp-user → "Báo cáo" → mở báo cáo "Doanh thu cuối ngày HCRC/LĐTĐ"
+  (hoặc bản Thành viên) → bảng giãn dòng rõ hơn, chữ nét hơn; cuộn dọc →
+  2 dòng tiêu đề nhóm màu vẫn dính đúng, KHÔNG dòng nào đè lên dòng nào.
+- [ ] "Lịch gửi email báo cáo" → chọn 1 trong 4 báo cáo doanh thu → "Cách
+  gửi" = "Bảng ngay trong nội dung email" → thấy ô "Cột hiển thị trong
+  bảng" mới → chọn vài cột → "Tạo lịch"/"Lưu" → bấm "Gửi ngay" → kiểm tra
+  hộp thư: chỉ đúng các cột đã chọn, màu nhóm/tổng cộng/xen kẽ GIỐNG HỆT
+  file Excel/PDF xuất từ chính báo cáo đó.
+- [ ] Lịch gửi email CŨ (tạo trước bản này, chưa từng đụng tới ô chọn
+  cột) → vẫn gửi ĐỦ TOÀN BỘ cột như trước (không bị mất cột nào) — tương
+  thích ngược.
+
+Không có bước nào làm mất dữ liệu đã có — cột `BodyColumnKeysJson` mới chỉ
+THÊM, mặc định NULL cho lịch gửi cũ.
+
+---
+
 ## 8.95 — Hiện tên nhà cung cấp thật + bộ lọc NCC cho báo cáo Đơn đặt/Nhập hàng
 
 **Thay đổi**: cột "Nhà cung cấp" (3 báo cáo Đơn đặt/Nhập hàng/So sánh)

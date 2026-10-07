@@ -29,6 +29,48 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 8.96 — Email báo cáo giống màu PDF/Excel + chọn cột gửi + bảng doanh thu dãn dòng/nét hơn
+
+**Theo yêu cầu người dùng**: (1) email gửi báo cáo doanh thu HCRC/LĐTĐ (cả
+bản Thành viên) cho chọn được cột đưa vào nội dung email, màu sắc giống
+hệt file PDF/Excel xuất ra; (2) bảng kết quả báo cáo doanh thu giãn dòng,
+font chữ nét hơn cho dễ nhìn.
+
+**1. Email báo cáo (`DeliveryMode='body'`)**:
+- `rp-server/lib/emailBodyRenderer.js` — VIẾT LẠI, bỏ hẳn màu tự dựng
+  riêng (xám-trắng #ccc/#f2f2f2) — giờ DÙNG CHUNG
+  `rp-server/lib/reportCellFormat.js` (nguồn sự thật duy nhất đã dùng cho
+  `exportExcel.js`/`exportPdf.js` từ bản 8.58) để đảm bảo khớp màu TUYỆT
+  ĐỐI: header 2 dòng + colSpan theo nhóm (xanh lá "Doanh thu"/cam đất "Lãi
+  gộp"/vàng gold "Giao dịch"/tím cột đơn lẻ), tô màu dòng Tổng cộng/Tổng
+  cộng nhóm, xen kẽ zebra. Định dạng số đổi từ dấu chấm (`toLocaleString
+  ('vi-VN')`) sang dấu phẩy ngăn cách nghìn — khớp đúng Excel/PDF (trước
+  đây 2 nơi hiện số KHÁC kiểu nhau).
+- Thêm `BodyColumnKeysJson` (`app.ReportEmailSchedules`, ALTER TABLE an
+  toàn) — chọn TẬP CỘT đưa vào email (rỗng = toàn bộ cột, tương thích
+  ngược lịch gửi cũ). Lọc GIỮ NGUYÊN thứ tự cột gốc (cần thiết để nhóm
+  màu còn liền kề đúng, colSpan tính lại tự động — nhóm bị chọn hết cột
+  thì tự ẩn khỏi header).
+- UI `EmailSchedulesPage.jsx` — thêm ô chọn nhiều cột (dùng chung
+  `SearchableSelect`, giống mọi ô chọn/lọc khác trong hệ thống) khi Cách
+  gửi = "Bảng ngay trong nội dung email".
+
+**2. Bảng báo cáo doanh thu (web)**:
+- `rp-user/src/styles.css` — thêm rule riêng `.data-table--grouped`
+  (CHỈ 4 báo cáo Doanh thu cuối ngày LDTD/HCRC + 2 bản Thành viên có class
+  này, đã rà soát không báo cáo nào khác dùng — KHÔNG đụng `.data-table`
+  trần, không ảnh hưởng bảng khác trong hệ thống): tăng padding 8px→12px,
+  cỡ chữ 13.5px→14px, thêm `line-height:1.5`, `td` đậm nhẹ hơn
+  (400→500) cho "nét" hơn. Đo lại bằng Playwright + cập nhật offset sticky
+  2 dòng tiêu đề (34px→46px) cho khớp chiều cao thật — không áng chừng,
+  tránh dòng tiêu đề phụ bị dòng đầu đè lên khi cuộn dọc.
+
+**Đã kiểm chứng**: test mock cho `emailBodyRenderer.js` (lọc cột đúng,
+nhóm rỗng tự ẩn, màu/colSpan khớp đúng mã hex xác nhận ở
+`reportCellFormat.js`) + demo THẬT trên `vite dev` server + Playwright
+(không phải ảnh tĩnh) cho cả 2 phần — xác nhận header 2 dòng dính đúng
+khi cuộn (gap=0, không đè/hở), UI chọn cột hoạt động đúng.
+
 ## 8.95 — Hiện tên nhà cung cấp thật + bộ lọc NCC cho báo cáo Đơn đặt/Nhập hàng
 
 **Theo yêu cầu người dùng**: hỏi "báo cáo đơn đặt hàng và nhập hàng có

@@ -119,9 +119,15 @@ button:disabled, button:disabled:hover {
 /* Tiêu đề 2 dòng có màu (definition.columnGroups — bản 8.53): dòng 1 cố
    định chiều cao để dòng 2 biết CHÍNH XÁC offset "top" cần dính xuống dưới
    dòng 1 khi cuộn dọc (position: sticky không tự xếp chồng 2 hàng sticky
-   liên tiếp — phải khai top khác nhau cho từng dòng). */
-.data-table--grouped thead tr.group-header-row th { height: 34px; top: 0; }
-.data-table--grouped thead tr.group-subheader-row th { top: 34px; }
+   liên tiếp — phải khai top khác nhau cho từng dòng). SỬA bản 8.96 — tăng
+   từ 34px lên 46px (đo thật bằng Playwright sau khi tăng padding/cỡ chữ ở
+   trên — 12px padding + 14px/line-height 1.5 + viền ra đúng ~45.5px, làm
+   tròn lên 46px để không hở/đè lên dòng phụ khi cuộn). Nếu sau này còn đổi
+   padding/cỡ chữ của .data-table--grouped, PHẢI đo lại 2 số này cho khớp,
+   không áng chừng — lệch dù 1px cũng làm dòng phụ bị dòng đầu đè lên khi
+   cuộn dọc. */
+.data-table--grouped thead tr.group-header-row th { height: 46px; top: 0; }
+.data-table--grouped thead tr.group-subheader-row th { top: 46px; }
 /* Modifier CHỈ áp dụng khi ReportBody.jsx xác nhận cột 1 đúng là "TT" (key
    "stt", quy ước ở compositeReportRunner.js) — ép width cố định 44px để
    cố định LUÔN cột 2 (thường tên chi nhánh/thực thể, thông tin cần giữ khi
@@ -143,6 +149,19 @@ button:disabled, button:disabled:hover {
 .data-table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
 .data-table th { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); color: var(--ink-soft); font-weight: 600; }
 .data-table td { padding: 8px 10px; border-bottom: 1px solid var(--line); }
+/* .data-table--grouped (bản 8.96, theo yêu cầu người dùng: "dãn dòng cách
+   ra cho rõ nhìn, font chữ cho nét hơn") — CHỈ áp dụng cho bảng có
+   definition.columnGroups (hiện CHỈ 4 báo cáo "Doanh thu cuối ngày"
+   LDTD/HCRC + 2 bản Thành viên, xem reportCellFormat.js — đã rà soát
+   `grep columnGroups` toàn repo, không có báo cáo nào khác dùng class này)
+   — KHÔNG đụng `.data-table` trần (mọi bảng khác trong hệ thống: danh sách
+   người dùng/vai trò/log/báo cáo không có columnGroups) để không ảnh hưởng
+   ngoài ý muốn. Tăng padding + cỡ chữ + khoảng cách dòng cho dễ đọc, đậm
+   nhẹ phần dữ liệu (td) để "nét" hơn mặc định trình duyệt (400). */
+.data-table--grouped td, .data-table--grouped th {
+  padding: 12px; font-size: 14px; line-height: 1.5;
+}
+.data-table--grouped td { font-weight: 500; }
 .empty-message { color: var(--ink-soft); font-size: 13px; }
 /* ReportChart.jsx:unitNote (bản 8.29) — ghi chú "ĐVT: 1.000.000" khi biểu đồ
    quy đổi đơn vị (visualization.unitDivisor), căn phải ngay trên biểu đồ. */

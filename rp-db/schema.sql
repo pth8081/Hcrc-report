@@ -863,6 +863,16 @@ BEGIN
 END
 GO
 
+-- Chọn CÁC CỘT đưa vào bảng khi DeliveryMode='body' (bản 8.96, theo yêu cầu
+-- người dùng) — mảng key cột dạng JSON (vd ["stt","tenCuaHang","dt_thucDat"]),
+-- NULL/rỗng = lấy TOÀN BỘ cột như hành vi cũ (tương thích ngược lịch gửi tạo
+-- trước bản này). Xem lib/emailBodyRenderer.js.
+IF COL_LENGTH('app.ReportEmailSchedules', 'BodyColumnKeysJson') IS NULL
+BEGIN
+    ALTER TABLE app.ReportEmailSchedules ADD BodyColumnKeysJson NVARCHAR(MAX) NULL;
+END
+GO
+
 IF OBJECT_ID('app.AuditLog', 'U') IS NULL
 BEGIN
     CREATE TABLE app.AuditLog (

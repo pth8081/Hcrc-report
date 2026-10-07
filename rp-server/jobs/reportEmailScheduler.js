@@ -47,7 +47,8 @@ async function loadActiveOccurrences() {
   const pool = await getPool('RP');
   const result = await pool.request().query(`
     SELECT t.Id AS TimeId, t.CronExpression, s.Id AS ScheduleId, s.Name, s.ReportId, s.Recipients,
-           s.FilterValuesJson, s.ExportFormat, s.Subject, s.DeliveryMode, s.HighlightColumnKey, s.HighlightThreshold, s.CreatedBy
+           s.FilterValuesJson, s.ExportFormat, s.Subject, s.DeliveryMode, s.HighlightColumnKey, s.HighlightThreshold,
+           s.BodyColumnKeysJson, s.CreatedBy
     FROM app.ReportEmailScheduleTimes t
     JOIN app.ReportEmailSchedules s ON s.Id = t.ScheduleId
     WHERE s.IsActive = 1
@@ -59,7 +60,8 @@ async function loadOccurrencesForSchedule(scheduleId) {
   const pool = await getPool('RP');
   const result = await pool.request().input('scheduleId', sql.Int, scheduleId).query(`
     SELECT t.Id AS TimeId, t.CronExpression, s.Id AS ScheduleId, s.Name, s.ReportId, s.Recipients,
-           s.FilterValuesJson, s.ExportFormat, s.Subject, s.DeliveryMode, s.HighlightColumnKey, s.HighlightThreshold, s.CreatedBy
+           s.FilterValuesJson, s.ExportFormat, s.Subject, s.DeliveryMode, s.HighlightColumnKey, s.HighlightThreshold,
+           s.BodyColumnKeysJson, s.CreatedBy
     FROM app.ReportEmailScheduleTimes t
     JOIN app.ReportEmailSchedules s ON s.Id = t.ScheduleId
     WHERE s.Id = @scheduleId
@@ -149,7 +151,8 @@ async function runSchedule(schedule) {
   if (schedule.DeliveryMode === 'body') {
     const html = renderEmailBodyHtml(exportDefinition, rows, {
       highlightColumnKey: schedule.HighlightColumnKey,
-      highlightThreshold: schedule.HighlightThreshold
+      highlightThreshold: schedule.HighlightThreshold,
+      bodyColumnKeys: schedule.BodyColumnKeysJson ? JSON.parse(schedule.BodyColumnKeysJson) : null
     });
     await sendMail({
       to: recipients.join(','),

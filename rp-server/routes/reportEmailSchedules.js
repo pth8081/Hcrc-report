@@ -80,7 +80,7 @@ router.get('/', async (req, res, next) => {
     const schedulesResult = await pool.request().query(`
       SELECT s.Id, s.Name, s.ReportId, c.Title AS ReportTitle, s.Recipients,
              s.FilterValuesJson, s.ExportFormat, s.IsActive, s.LastRunAt, s.LastStatus, s.LastError,
-             s.Subject, s.DeliveryMode, s.HighlightColumnKey, s.HighlightThreshold
+             s.Subject, s.DeliveryMode, s.HighlightColumnKey, s.HighlightThreshold, s.BodyColumnKeysJson
       FROM app.ReportEmailSchedules s
       JOIN app.ReportCatalog c ON c.ReportId = s.ReportId
       ORDER BY s.Name
@@ -97,6 +97,7 @@ router.get('/', async (req, res, next) => {
     res.json(schedulesResult.recordset.map(r => ({
       ...r,
       FilterValues: r.FilterValuesJson ? JSON.parse(r.FilterValuesJson) : {},
+      BodyColumnKeys: r.BodyColumnKeysJson ? JSON.parse(r.BodyColumnKeysJson) : [],
       Times: timesBySchedule.get(r.Id) || []
     })));
   } catch (err) { next(err); }
@@ -106,7 +107,8 @@ router.post('/', async (req, res, next) => {
   try {
     const {
       name, reportId, cronExpressions, recipients, filterValues = {}, exportFormat = 'excel',
-      subject = null, deliveryMode = 'attachment', highlightColumnKey = null, highlightThreshold = null
+      subject = null, deliveryMode = 'attachment', highlightColumnKey = null, highlightThreshold = null,
+      bodyColumnKeys = []
     } = req.body || {};
     if (!name || !reportId) return res.status(400).json({ error: 'Thiếu name/reportId' });
     const cronError = validateCronExpressions(cronExpressions);
@@ -133,12 +135,13 @@ router.post('/', async (req, res, next) => {
       .input('deliveryMode', sql.VarChar(20), deliveryMode)
       .input('highlightColumnKey', sql.NVarChar(100), highlightColumnKey || null)
       .input('highlightThreshold', sql.Decimal(18, 2), highlightThreshold === '' ? null : highlightThreshold)
+      .input('bodyColumnKeysJson', sql.NVarChar(sql.MAX), Array.isArray(bodyColumnKeys) && bodyColumnKeys.length ? JSON.stringify(bodyColumnKeys) : null)
       .input('createdBy', sql.Int, req.user.sub)
       .query(`
         INSERT INTO app.ReportEmailSchedules
-          (Name, ReportId, CronExpression, Recipients, FilterValuesJson, ExportFormat, Subject, DeliveryMode, HighlightColumnKey, HighlightThreshold, CreatedBy)
+          (Name, ReportId, CronExpression, Recipients, FilterValuesJson, ExportFormat, Subject, DeliveryMode, HighlightColumnKey, HighlightThreshold, BodyColumnKeysJson, CreatedBy)
         OUTPUT INSERTED.Id
-        VALUES (@name, @reportId, @cronExpression, @recipients, @filterValuesJson, @exportFormat, @subject, @deliveryMode, @highlightColumnKey, @highlightThreshold, @createdBy)
+        VALUES (@name, @reportId, @cronExpression, @recipients, @filterValuesJson, @exportFormat, @subject, @deliveryMode, @highlightColumnKey, @highlightThreshold, @bodyColumnKeysJson, @createdBy)
       `);
     const id = result.recordset[0].Id;
 
@@ -159,7 +162,8 @@ router.put('/:id', async (req, res, next) => {
   try {
     const {
       name, cronExpressions, recipients, filterValues = {}, exportFormat = 'excel', isActive,
-      subject = null, deliveryMode = 'attachment', highlightColumnKey = null, highlightThreshold = null
+      subject = null, deliveryMode = 'attachment', highlightColumnKey = null, highlightThreshold = null,
+      bodyColumnKeys = []
     } = req.body || {};
     if (!name) return res.status(400).json({ error: 'Thiếu name' });
     const cronError = validateCronExpressions(cronExpressions);
@@ -184,6 +188,7 @@ router.put('/:id', async (req, res, next) => {
       .input('deliveryMode', sql.VarChar(20), deliveryMode)
       .input('highlightColumnKey', sql.NVarChar(100), highlightColumnKey || null)
       .input('highlightThreshold', sql.Decimal(18, 2), highlightThreshold === '' ? null : highlightThreshold)
+      .input('bodyColumnKeysJson', sql.NVarChar(sql.MAX), Array.isArray(bodyColumnKeys) && bodyColumnKeys.length ? JSON.stringify(bodyColumnKeys) : null)
       .input('isActive', sql.Bit, isActive ? 1 : 0)
       .query(`
         UPDATE app.ReportEmailSchedules
@@ -191,7 +196,7 @@ router.put('/:id', async (req, res, next) => {
             FilterValuesJson = @filterValuesJson, ExportFormat = @exportFormat,
             Subject = @subject, DeliveryMode = @deliveryMode,
             HighlightColumnKey = @highlightColumnKey, HighlightThreshold = @highlightThreshold,
-            IsActive = @isActive
+            BodyColumnKeysJson = @bodyColumnKeysJson, IsActive = @isActive
         WHERE Id = @id
       `);
 
