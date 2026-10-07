@@ -118,8 +118,22 @@ function buildDefinition(title, targetDomain, exportFileCode, domains) {
       // requireStkStability: true tự loại đúng những mã Điểm này khỏi khối
       // lastYearGD dựa vào "Ánh xạ Điểm - STK_ID" (MaStkCu khác MaStkMoi ->
       // loại), xem lib/compositeReportRunner.js.
-      { key: 'current', sourceType: 'directDb', domain: revenueDomain, useDiemStkMapping: true },
-      { key: 'currentGD', sourceType: 'directDb', domain: transactionDomain, mapBuIdToMaDiem: true },
+      // historicalDomain: DOMAIN_GOC.* (bản 9.00 — theo yêu cầu người dùng:
+      // 2 báo cáo "(Thành viên)" chọn khoảng ngày có cả ngày ĐÃ QUA ra
+      // "Thực đạt" thấp bất thường, có hẳn khoảng trống nhiều tháng) —
+      // domain "Thành viên" (revenueDomain/transactionDomain, phần Live đọc
+      // trực tiếp từng cửa hàng — xem "báo cáo doanh thu thành viên.md")
+      // CHỈ đáng tin cho ĐÚNG NGÀY HÔM NAY, không có lịch sử lùi xa đầy đủ.
+      // Domain gốc đã có SẴN đúng dữ liệu CHÍNH CÁC CỬA HÀNG "Thành viên"
+      // này cho mọi ngày ĐÃ ĐÓNG SỔ (job "Lịch sử" tập trung dùng CHUNG 1
+      // VIEW/Nguồn dữ liệu "DSMART16 - Lịch sử" với domain gốc — xem Bước 4
+      // cùng file trên) — compositeReportRunner.js:fetchSplitDomainRows() tự
+      // tách khoảng ngày theo ranh giới "hôm nay", đọc domain gốc cho phần
+      // đã qua, chỉ đọc domain "Thành viên" cho đúng hôm nay. 2 báo cáo GỐC
+      // (domains=DOMAIN_GOC) có historicalDomain TRÙNG domain -> không đổi
+      // hành vi (vẫn 1 lượt gọi như cũ).
+      { key: 'current', sourceType: 'directDb', domain: revenueDomain, historicalDomain: DOMAIN_GOC.revenue, useDiemStkMapping: true },
+      { key: 'currentGD', sourceType: 'directDb', domain: transactionDomain, historicalDomain: DOMAIN_GOC.transaction, mapBuIdToMaDiem: true },
       // lastYear/lastYearGD LUÔN đọc domain GỐC (DOMAIN_GOC), KỂ CẢ ở 2 báo
       // cáo "(Thành viên)" — bản 8.27, theo đúng góp ý người dùng: "Cùng kỳ
       // năm trước" là dữ liệu THÁNG ĐÃ ĐÓNG SỔ, giống hệt nhau dù đọc qua

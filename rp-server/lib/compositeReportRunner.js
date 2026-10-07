@@ -16,6 +16,21 @@
 //   key,                    // BẮT BUỘC, duy nhất — tên trường lồng trong dòng đã ghép
 //   sourceType,             // 'directDb' | 'apiReport' | 'apiRealtime' (bỏ qua nếu isTarget)
 //   domain, dataSourceId,   // directDb: domain BẮT BUỘC, dataSourceId tuỳ chọn (mặc định DWH)
+//   historicalDomain,       // directDb: TUỲ CHỌN — khi khác `domain`, TÁCH
+//                           // khoảng ngày yêu cầu theo ranh giới "hôm nay"
+//                           // (giờ Việt Nam): phần ngày ĐÃ QUA đọc
+//                           // `historicalDomain`, phần ĐÚNG hôm nay (nếu có
+//                           // trong khoảng) vẫn đọc `domain` — gộp rồi mới
+//                           // cộng dồn theo entity (xem fetchSplitDomainRows()
+//                           // bên dưới). Dùng cho domain "Live đọc trực tiếp
+//                           // từng cửa hàng" (vd doanhthu_chinhanh_thanhvien)
+//                           // CHỈ có dữ liệu gần đây (không đồng bộ lịch sử
+//                           // lùi xa) nhưng cùng 1 tập thực thể với domain
+//                           // gốc đã có đủ lịch sử qua job "Lịch sử" tập
+//                           // trung — xem "báo cáo doanh thu thành viên.md" +
+//                           // seedLdtdHcrcReports.js. Vắng mặt hoặc TRÙNG
+//                           // `domain` thì giữ nguyên 1 lượt gọi duy nhất
+//                           // (hành vi cũ, không đổi).
 //   dateOffsetYears,        // directDb: 0 = ngày yêu cầu (mặc định), -1 = cùng kỳ năm trước
 //   filters,                // directDb: definition.filters bổ sung, giống 'directDb' thường
 //   useDiemStkMapping,      // directDb: TUỲ CHỌN, mặc định false — BẬT khi
@@ -294,6 +309,12 @@ function firstOfMonth(dateStr) {
   return `${dateStr.slice(0, 7)}-01`;
 }
 
+function addDaysISO(dateStr, days) {
+  const d = new Date(`${dateStr}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return formatDateISO(d);
+}
+
 // So khớp block.skipWhen/column.hideWhen — CHUYỂN VỀ CHUỖI trước khi so
 // sánh (`filterValues[field]` đến từ query string/JSON body, thường là
 // chuỗi từ SearchableSelect ở frontend, nhưng không ép kiểu cứng để tránh
@@ -423,6 +444,51 @@ async function fetchAllReportRows(pool, blockDefinition, blockFilterValues) {
   return allRows;
 }
 
+// Bản 9.00 (theo yêu cầu người dùng — 2 báo cáo "(Thành viên)" khoảng ngày
+// rộng ra "Thực đạt" thấp bất thường, có khoảng trống nhiều tháng — xem
+// VERSION.md): domain "Live đọc trực tiếp từng cửa hàng" (block.domain, vd
+// doanhthu_chinhanh_thanhvien) chỉ đáng tin cho ĐÚNG NGÀY HÔM NAY — 34 cửa
+// hàng "Thành viên" chạy CSDL riêng, KHÔNG thuộc hệ Live tập trung của 2 báo
+// cáo gốc (xem "báo cáo doanh thu thành viên.md" mục "Vì sao có bản này"),
+// nên không có lịch sử lùi xa đầy đủ (job "Lịch sử (Thành viên)" tập trung
+// từng đồng bộ domain này bị TẮT giữa chừng lúc backfill, để lại khoảng
+// trống nhiều tháng). Domain gốc (block.historicalDomain) đã có SẴN đúng dữ
+// liệu các cửa hàng này cho MỌI ngày ĐÃ ĐÓNG SỔ — job "Lịch sử" 3h sáng tập
+// trung dùng CHUNG 1 VIEW/Nguồn dữ liệu "DSMART16 - Lịch sử" với domain gốc
+// (xem Bước 4 cùng file trên) — KHÔNG cần đọc domain Live cho những ngày đó.
+// Tách khoảng ngày yêu cầu theo đúng ranh giới "hôm nay" (giờ Việt Nam,
+// vietnamTodayISO() — xem chú thích bản 8.26 ở trên): phần ngày < hôm nay
+// đọc historicalDomain, phần ngày >= hôm nay (nếu có trong khoảng) đọc domain
+// Live — gộp dòng thô lại TRƯỚC khi cộng dồn theo entity (giữ nguyên
+// fetchAllReportRows() cho từng đoạn để không tái lặp lỗi giới hạn 5000
+// dòng/lượt gọi ở trên).
+async function fetchSplitDomainRows(pool, block, eventDateRange, filterValues) {
+  const today = vietnamTodayISO();
+  const yesterday = addDaysISO(today, -1);
+  const segments = [];
+  if (eventDateRange.from <= yesterday) {
+    segments.push({
+      domain: block.historicalDomain,
+      from: eventDateRange.from,
+      to: eventDateRange.to <= yesterday ? eventDateRange.to : yesterday
+    });
+  }
+  if (eventDateRange.to >= today) {
+    segments.push({
+      domain: block.domain,
+      from: eventDateRange.from >= today ? eventDateRange.from : today,
+      to: eventDateRange.to
+    });
+  }
+  const allRows = [];
+  for (const seg of segments) {
+    const blockDefinition = { domain: seg.domain, filters: [{ field: 'eventDate', type: 'dateRange' }, ...(block.filters || [])] };
+    const segFilterValues = { ...filterValues, eventDate: { from: seg.from, to: seg.to } };
+    allRows.push(...await fetchAllReportRows(pool, blockDefinition, segFilterValues));
+  }
+  return allRows;
+}
+
 async function runBlock(block, requestedRange, filterValues) {
   const { from, to } = requestedRange;
   if (block.isTarget) {
@@ -435,9 +501,14 @@ async function runBlock(block, requestedRange, filterValues) {
     const pool = block.dataSourceId ? await getPoolForDataSource(block.dataSourceId) : await getPool('DWH');
     const years = block.dateOffsetYears || 0;
     const eventDateRange = { from: shiftYears(from, years), to: shiftYears(to, years) };
-    const blockDefinition = { domain: block.domain, filters: [{ field: 'eventDate', type: 'dateRange' }, ...(block.filters || [])] };
-    const blockFilterValues = { ...filterValues, eventDate: eventDateRange };
-    const rawRows = await fetchAllReportRows(pool, blockDefinition, blockFilterValues);
+    let rawRows;
+    if (block.historicalDomain && block.historicalDomain !== block.domain) {
+      rawRows = await fetchSplitDomainRows(pool, block, eventDateRange, filterValues);
+    } else {
+      const blockDefinition = { domain: block.domain, filters: [{ field: 'eventDate', type: 'dateRange' }, ...(block.filters || [])] };
+      const blockFilterValues = { ...filterValues, eventDate: eventDateRange };
+      rawRows = await fetchAllReportRows(pool, blockDefinition, blockFilterValues);
+    }
     let stkRows = aggregateDailyRowsByEntity(rawRows, eventDateRange.to);
 
     // mapBuIdToMaDiem (TUỲ CHỌN) — domain 'giaodich_chinhanh' (TRANSHDR.BU_ID)
