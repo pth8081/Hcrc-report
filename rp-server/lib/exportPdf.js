@@ -73,10 +73,14 @@ function hexToRgb01(hex6) {
     parseInt(hex6.slice(4, 6), 16) / 255
   );
 }
-// Viền nhạt (bản 8.58, theo yêu cầu người dùng "mỏng, chuyên nghiệp hơn") —
-// ĐÚNG mã màu đường kẻ nhẹ đang dùng ở Excel (lib/exportExcel.js, trùng
-// `--line` web) để 3 nơi xuất nhìn đồng nhất 1 kiểu viền.
-const BORDER_RGB = rgb(0xD9 / 255, 0xDE / 255, 0xE2 / 255);
+// Viền — bản 8.58 dùng viền nhạt "mỏng, chuyên nghiệp hơn" cho MỌI báo
+// cáo (kể cả không có columnGroups). Bản 8.98 (theo yêu cầu người dùng —
+// "đóng khung màu đen như bản mẫu") ĐỔI viền ĐEN nhưng CHỈ cho báo cáo CÓ
+// columnGroups — exportPdf() bên dưới chọn lại biến BORDER_RGB cục bộ
+// (che biến module này) theo `hasGroups`, báo cáo phẳng khác GIỮ NGUYÊN
+// viền nhạt cũ, không đổi.
+const BORDER_RGB_LIGHT = rgb(0xD9 / 255, 0xDE / 255, 0xE2 / 255);
+const BORDER_RGB_BLACK = rgb(0, 0, 0);
 
 // definition.columns = [{key, label, format?, width?}] — xem
 // lib/reportEngine.js:describeColumns(). definition.columnGroups (TUỲ
@@ -92,6 +96,10 @@ async function exportPdf(definition, rows) {
   const groups = definition.columnGroups || [];
   const hasGroups = groups.length > 0;
   const compact = !!definition.compactSinglePage;
+  // Che BORDER_RGB_LIGHT ở scope module (xem chú thích 2 hằng số đó phía
+  // trên) — mọi hàm lồng bên trong exportPdf() (drawGridRect...) tham
+  // chiếu đúng biến cục bộ này theo closure.
+  const BORDER_RGB = hasGroups ? BORDER_RGB_BLACK : BORDER_RGB_LIGHT;
 
   const sttValues = computeSttValues(rows);
   const sttColIdx = columns.findIndex(c => c.key === 'stt');
@@ -163,14 +171,17 @@ async function exportPdf(definition, rows) {
 
     // Chiều cao 1 hàng tiêu đề CẦN THIẾT — lấy MAX số dòng thật (mô phỏng
     // wrapLines, khớp đúng width mỗi cột/nhóm sẽ dùng lúc vẽ) trong TỪNG
-    // nhãn, nhân lineGap (PHẢI khớp đúng lineGap trong drawWrappedCenteredText).
+    // nhãn, nhân lineGap (PHẢI khớp đúng lineGap trong drawWrappedCenteredText
+    // — nhánh `compact` này CHỈ chạy cho báo cáo CÓ columnGroups, nên luôn
+    // đúng số cộng thêm +4 của nhánh hasGroups ở đó, bản 8.98 — "chữ ở giữa
+    // hai dòng cách ra chút nữa cho rõ").
     function neededHeaderRowHeight(labelWidthPairs, fontSize) {
       let maxLines = 1;
       for (const [label, w] of labelWidthPairs) {
         const lines = wrapLines(label, boldFont, fontSize, Math.max(4, w - 4)).length;
         if (lines > maxLines) maxLines = lines;
       }
-      return maxLines * (fontSize + 2) + 4;
+      return maxLines * (fontSize + 4) + 4;
     }
 
     let found = null;
@@ -321,7 +332,12 @@ async function exportPdf(definition, rows) {
     const { bold = false, size = 7 } = opts;
     const f = bold ? boldFont : font;
     const lines = wrapLines(text, f, size, cw - 4);
-    const lineGap = size + 2;
+    // Bản 8.98 (theo yêu cầu người dùng — "chữ ở giữa hai dòng cách ra
+    // chút nữa cho rõ") — dãn thêm khoảng cách giữa các dòng nhãn tiêu đề
+    // bị wrap (vd "Tỷ lệ"/"đạt"), CHỈ cho báo cáo CÓ columnGroups (đúng 4
+    // báo cáo doanh thu — compactSinglePage CHỈ các báo cáo này bật, xem
+    // neededHeaderRowHeight() PHẢI khớp đúng số cộng thêm ở đây).
+    const lineGap = size + (hasGroups ? 4 : 2);
     const blockHeight = lines.length * lineGap;
     let ly = topY - (availableHeight - blockHeight) / 2 - size;
     for (const line of lines) {

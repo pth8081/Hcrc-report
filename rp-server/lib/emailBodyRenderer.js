@@ -40,7 +40,12 @@ const {
   filterColumns, filterGroups
 } = require('./reportCellFormat');
 
-const BORDER_COLOR = 'D9DEE2'; // trùng --line (rp-user/src/styles.css) + viền Excel/PDF (bản 8.58).
+// Viền — bản 8.58 dùng viền nhạt cho MỌI báo cáo gửi email dạng bảng.
+// Bản 8.98 (theo yêu cầu người dùng — "đóng khung màu đen như bản mẫu")
+// ĐỔI viền ĐEN nhưng CHỈ cho báo cáo CÓ columnGroups (xem renderEmailBodyHtml
+// bên dưới) — báo cáo khác gửi email dạng bảng GIỮ NGUYÊN viền nhạt cũ.
+const BORDER_COLOR_LIGHT = 'D9DEE2';
+const BORDER_COLOR_BLACK = '000000';
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -108,8 +113,9 @@ function renderEmailBodyHtml(definition, rows, options = {}) {
   const { highlightColumnKey, highlightThreshold, bodyColumnKeys } = options;
   const columns = filterColumns(definition.columns, bodyColumnKeys);
   const groups = filterGroups(definition.columnGroups, columns);
+  const borderColor = (definition.columnGroups || []).length ? BORDER_COLOR_BLACK : BORDER_COLOR_LIGHT;
 
-  const cellBase = `border:1px solid #${BORDER_COLOR};padding:6px 10px;`;
+  const cellBase = `border:1px solid #${borderColor};padding:6px 10px;`;
   const thBase = cellBase + 'font-weight:bold;';
 
   let theadHtml;

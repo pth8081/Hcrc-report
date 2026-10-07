@@ -1,12 +1,12 @@
-# Hướng dẫn triển khai gộp — bản 8.91 đến 8.97 (làm 1 lần)
+# Hướng dẫn triển khai gộp — bản 8.91 đến 8.98 (làm 1 lần)
 
-**Mục đích**: gộp các bước triển khai từ bản 8.91 tới bản 8.97 hiện tại
+**Mục đích**: gộp các bước triển khai từ bản 8.91 tới bản 8.98 hiện tại
 thành **1 lượt làm duy nhất**, cho server đang chạy bản 8.90 và cần bắt
 kịp bản mới nhất — KHÔNG lặp lại toàn bộ lịch sử từ bản 8.29 (xem
 `deploy/Hướng dẫn triển khai gộp — bản 8.29 đến 8.90.md` nếu cần dựng
 server hoàn toàn mới từ đầu).
 
-Gồm 5 phần ĐỘC LẬP, làm phần nào cũng được, không phụ thuộc nhau (riêng
+Gồm 6 phần ĐỘC LẬP, làm phần nào cũng được, không phụ thuộc nhau (riêng
 Phần 3 chỉ có ý nghĩa SAU KHI đã làm Phần 1):
 - **Phần 1 (mục B-F)** — bản 8.91/8.92/8.93: kích hoạt LẦN ĐẦU 3 báo cáo
   "Đơn đặt hàng"/"Đơn nhập hàng"/"So sánh đặt–nhận" (gồm cả bước tạo VIEW
@@ -19,10 +19,12 @@ Phần 3 chỉ có ý nghĩa SAU KHI đã làm Phần 1):
   + màu giống hệt PDF/Excel, bảng báo cáo doanh thu dãn dòng/nét hơn.
 - **Phần 5 (mục M-N)** — bản 8.97: khung kẻ mảnh bảng web (khớp Excel/
   PDF/email) + ô "Cột hiển thị" MỚI cho xem/xuất báo cáo doanh thu.
+- **Phần 6 (mục O-P)** — bản 8.98: viền ĐEN + màu gốc file mẫu BRGMART +
+  dãn dòng tiêu đề cho báo cáo doanh thu.
 
 ---
 
-## Tóm tắt những gì thay đổi (8.91 → 8.97)
+## Tóm tắt những gì thay đổi (8.91 → 8.98)
 
 | Bản | Nội dung |
 |---|---|
@@ -33,6 +35,7 @@ Phần 3 chỉ có ý nghĩa SAU KHI đã làm Phần 1):
 | 8.95 | Hiện tên nhà cung cấp thật (JOIN bảng `SUPPLIER`, trước để trống) + thêm cột mã NCC + bộ lọc "Nhà cung cấp" cho 3 báo cáo Đơn đặt/Nhập hàng/So sánh |
 | 8.96 | Email báo cáo doanh thu chọn được cột đưa vào nội dung + màu giống hệt PDF/Excel (dùng chung bộ màu bản 8.58); bảng web báo cáo doanh thu dãn dòng + font nét hơn |
 | 8.97 | Khung kẻ mảnh cho bảng web báo cáo doanh thu (khớp Excel/PDF/email, đã có sẵn từ trước); xác nhận làm tròn số body email khớp Excel/PDF; ô "Cột hiển thị" MỚI ở trang xem báo cáo — ẩn/chọn cột khi xem web hoặc xuất Excel/PDF |
+| 8.98 | Viền đổi ĐEN (thay xám nhạt bản 8.58) + màu nhóm cột đổi lại đúng màu GỐC file mẫu BRGMART (đậm/tươi hơn) + tiêu đề 2-3 dòng dãn cách rõ hơn — áp dụng đồng bộ web/Excel/PDF/email, CHỈ 4 báo cáo Doanh thu cuối ngày |
 
 ---
 
@@ -300,3 +303,33 @@ Doanh thu cuối ngày, không ảnh hưởng bảng nào khác trong hệ thố
 Không có bước nào ở Phần 5 làm mất dữ liệu đã có — không đổi schema CSDL;
 ô "Cột hiển thị" là lựa chọn THEO PHIÊN XEM hiện tại (không lưu lại),
 không ảnh hưởng tới lịch gửi email hay dữ liệu báo cáo gốc.
+
+---
+
+# PHẦN 6 — Viền đen + màu gốc file mẫu BRGMART + dãn dòng tiêu đề (bản 8.98)
+
+## O. Các bước triển khai
+
+1. `git pull origin main` (đã làm ở mục A).
+2. `cd rp-user && npm run build` (đổi `styles.css` + `lib/reportGroupColors.js`).
+   Copy TOÀN BỘ `dist/` lên vị trí phục vụ tĩnh như mọi lần trước.
+3. `pm2 restart hcrc-rp-server` (đổi `lib/reportCellFormat.js` +
+   `lib/exportExcel.js` + `lib/exportPdf.js` + `lib/emailBodyRenderer.js`).
+4. KHÔNG cần đổi gì ở CSDL.
+
+## P. Kiểm tra Phần 6 sau khi triển khai
+
+- [ ] rp-user → "Báo cáo" → mở 1 trong 4 báo cáo "Doanh thu cuối ngày" →
+  bảng có viền ĐEN (không còn xám nhạt như bản 8.97), màu nhóm cột đậm/
+  tươi hơn trước (xanh lá/cam/vàng gold/tím), xen kẽ dòng màu xanh cyan;
+  nhãn cột 2-3 dòng (vd "Tỷ lệ đạt") dãn cách rõ hơn, không bị đè/chồng
+  khi cuộn dọc.
+- [ ] Xuất Excel/PDF báo cáo đó → viền đen + màu khớp ĐÚNG bảng web.
+- [ ] "Lịch gửi email báo cáo" → chọn 1 báo cáo doanh thu → bấm "Gửi
+  ngay" → kiểm tra hộp thư: viền đen + màu khớp đúng web/Excel/PDF.
+- [ ] Mở 1 báo cáo KHÔNG có nhóm cột màu (vd "Đơn đặt hàng") → xuất
+  Excel/PDF/gửi email → viền VẪN nhạt như cũ (không bị đổi đen nhầm) —
+  xác nhận không ảnh hưởng báo cáo khác trong hệ thống.
+
+Không có bước nào ở Phần 6 làm mất dữ liệu đã có — chỉ đổi màu/viền hiển
+thị, không đổi schema CSDL hay logic tính số liệu.

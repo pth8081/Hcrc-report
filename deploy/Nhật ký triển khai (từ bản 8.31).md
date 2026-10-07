@@ -14,6 +14,37 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 8.98 — Viền đen + màu gốc file mẫu BRGMART + dãn dòng tiêu đề
+
+**Thay đổi**: báo cáo doanh thu (4 báo cáo "Doanh thu cuối ngày") đổi
+viền từ xám nhạt sang ĐEN, màu nhóm cột đổi lại đúng màu GỐC file mẫu
+BRGMART (đậm/tươi hơn bản trước), tiêu đề 2-3 dòng dãn cách rõ hơn — áp
+dụng đồng bộ cả 4 nơi: web, Excel, PDF, email.
+
+**Các bước triển khai (làm 1 lần, theo đúng thứ tự):**
+1. `git pull origin main`.
+2. `cd rp-user && npm run build` (đổi `styles.css` + `lib/reportGroupColors.js`).
+   Copy TOÀN BỘ `dist/` lên vị trí phục vụ tĩnh như mọi lần trước.
+3. `pm2 restart hcrc-rp-server` (đổi `lib/reportCellFormat.js` +
+   `lib/exportExcel.js` + `lib/exportPdf.js` + `lib/emailBodyRenderer.js`).
+4. KHÔNG cần đổi gì ở CSDL.
+
+**Kiểm tra:**
+- [ ] rp-user → "Báo cáo" → mở 1 trong 4 báo cáo "Doanh thu cuối ngày" →
+  bảng có viền ĐEN (không còn xám nhạt), màu nhóm cột đậm/tươi hơn trước
+  (xanh lá/cam/vàng gold/tím), xen kẽ dòng màu xanh cyan.
+- [ ] Xuất Excel/PDF báo cáo đó → viền đen + màu khớp đúng web.
+- [ ] Lịch gửi email báo cáo doanh thu (DeliveryMode='body') → bấm "Gửi
+  ngay" → kiểm tra hộp thư: viền đen + màu khớp đúng web/Excel/PDF.
+- [ ] Mở 1 báo cáo KHÔNG có nhóm cột màu (vd "Đơn đặt hàng") → xuất
+  Excel/PDF/gửi email → viền VẪN nhạt như cũ (không bị đổi đen nhầm) —
+  xác nhận không ảnh hưởng báo cáo khác.
+
+Không có bước nào làm mất dữ liệu đã có — không đổi schema CSDL, chỉ đổi
+màu/viền hiển thị.
+
+---
+
 ## 8.97 — Khung kẻ mảnh (web/Excel/PDF/email) + ẩn/chọn cột báo cáo doanh thu
 
 **Thay đổi**: bảng web báo cáo doanh thu có thêm khung kẻ mảnh (đã có sẵn

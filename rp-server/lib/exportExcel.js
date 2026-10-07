@@ -19,12 +19,12 @@ function sanitizeFormulaValue(value) {
   return typeof value === 'string' && FORMULA_LEADING_CHAR_RE.test(value) ? `'${value}` : value;
 }
 
-// Màu viền nhạt (bản 8.58, theo yêu cầu người dùng "mỏng, chuyên nghiệp
-// hơn") — ĐÚNG mã màu đường kẻ nhẹ `--line` đang dùng ở bảng web
-// (rp-user/src/styles.css) để 3 nơi xuất (web/Excel/PDF) nhìn đồng nhất 1
-// kiểu viền, thay vì xám đậm FF999999 cũ (viền dày/nổi hơn kiểu Excel mặc
-// định).
-const THIN = { style: 'thin', color: { argb: 'FFD9DEE2' } };
+// Màu viền — bản 8.58 dùng viền nhạt FFD9DEE2 ("mỏng, chuyên nghiệp hơn").
+// Bản 8.98 (theo yêu cầu người dùng — "đóng khung màu đen như bản mẫu")
+// ĐỔI sang viền ĐEN khớp đúng file mẫu BRGMART gốc. CHỈ áp dụng cho báo
+// cáo CÓ columnGroups (xem 2 nơi gọi BORDER_ALL bên dưới, đều trong nhánh
+// `if (groups.length)`) — không đổi viền báo cáo phẳng khác.
+const THIN = { style: 'thin', color: { argb: 'FF000000' } };
 const BORDER_ALL = { top: THIN, left: THIN, bottom: THIN, right: THIN };
 function fillArgb(hex6) { return { type: 'pattern', pattern: 'solid', fgColor: { argb: `FF${hex6}` } }; }
 

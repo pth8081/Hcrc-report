@@ -4,23 +4,26 @@
 // định dạng số/phần trăm hiển thị, và bảng màu nhóm cột
 // (definition.columnGroups — xem chú thích DefinitionJson ở đầu
 // lib/compositeReportRunner.js mục "Tiêu đề nhóm cột + màu (Excel/PDF)").
-// Bảng màu (bản 8.58, theo yêu cầu người dùng — "làm màu báo cáo doanh thu
-// cuối ngày giống y hệt kiểu màu sắc" 1 file mẫu BRGMART người dùng gửi,
-// nhưng "sắc, mỏng, chuyên nghiệp hơn"): lấy ĐÚNG mã màu từng nhóm trong
-// file mẫu (lấy mẫu pixel trực tiếp từ PDF — xanh lá #9BCC1E "Doanh thu",
-// cam đất #FACD9C "Lãi gộp", vàng gold #F9CE27 "Giao dịch", tím #9D98FD
-// "Trung bình GD"/"Doanh thu/m2" + nền dòng Tổng cộng nhóm), sau đó giảm
-// độ bão hoà ~15-20% + tăng nhẹ độ sáng để bớt chói/"nổi" kiểu Excel mặc
-// định, giữ đúng tông màu gốc (xem /root/.../scratchpad/color-sample khi
-// cần đối chiếu lại). 'yellow' PHẢI mang mã màu GOLD/VÀNG (không phải mã
-// 'orange' cũ) vì bản 8.58 đổi "Giao dịch" dùng tên 'yellow' (xem
-// scripts/seedLdtdHcrcReports.js) — tương tự 'orange' đổi thành mã CAM ĐẤT
-// dùng cho "Lãi gộp". GROUP_COLORS KHÔNG dùng ở báo cáo nào khác ngoài 4
-// báo cáo "cuối ngày LDTD/HCRC" (đã rà soát `grep columnGroups` toàn repo
-// lúc đổi) nên đổi mã màu ở đây AN TOÀN, không ảnh hưởng báo cáo khác.
+// Bảng màu — bản 8.58 (theo yêu cầu người dùng lúc đó — "làm màu báo cáo
+// doanh thu cuối ngày giống y hệt kiểu màu sắc" 1 file mẫu BRGMART người
+// dùng gửi, nhưng "sắc, mỏng, chuyên nghiệp hơn") đã GIẢM độ bão hoà
+// ~15-20% so với file mẫu gốc. Bản 8.98 (theo yêu cầu người dùng — gửi
+// LẠI đúng file mẫu BRGMART gốc, "màu nền dòng và màu đậm ở chỗ khác thử
+// làm giống hệt form báo cáo này xem như nào") — ĐỔI LẠI đúng mã màu GỐC
+// lấy mẫu pixel trực tiếp từ file mẫu thật (không giảm bão hoà nữa): xanh
+// lá #9BCC1E "Doanh thu", cam đất #FACD9C "Lãi gộp", vàng gold #F9CE27
+// "Giao dịch", tím #9D98FD "Trung bình GD"/"Doanh thu/m2" + nền dòng Tổng
+// cộng nhóm (xem /root/.../scratchpad/color-sample-8.98 — đã lấy mẫu pixel
+// lại từ chính file PDF mẫu người dùng gửi bản 8.98, khớp đúng giá trị đã
+// ghi từ bản 8.58). 'yellow' mang mã màu GOLD/VÀNG (không phải mã 'orange'
+// cũ) vì bản 8.58 đổi "Giao dịch" dùng tên 'yellow' (xem
+// scripts/seedLdtdHcrcReports.js) — tương tự 'orange' là mã CAM ĐẤT dùng
+// cho "Lãi gộp". GROUP_COLORS KHÔNG dùng ở báo cáo nào khác ngoài 4 báo
+// cáo "cuối ngày LDTD/HCRC" (đã rà soát `grep columnGroups` toàn repo lúc
+// đổi) nên đổi mã màu ở đây AN TOÀN, không ảnh hưởng báo cáo khác.
 const GROUP_COLORS = {
-  green: 'ADCF59', yellow: 'EAD78A', orange: 'EDC8A1',
-  blue: 'BDD7EE', red: 'F2A9A9', gray: 'D9D9D9', purple: 'BCB9E9'
+  green: '9BCC1E', yellow: 'F9CE27', orange: 'FACD9C',
+  blue: 'BDD7EE', red: 'F2A9A9', gray: 'D9D9D9', purple: '9D98FD'
 };
 // Màu nền Ô "Tổng cộng"/"Tổng cộng <nhóm>" cho các CỘT KHÔNG thuộc
 // columnGroups nào (TT/Siêu thị/Diện tích/Trung bình GD/Doanh thu/m2) —
@@ -33,12 +36,13 @@ const SUBTOTAL_COLOR = GROUP_COLORS.purple;
 // mã 'blue' ở trên.
 const GRAND_TOTAL_COLOR = GROUP_COLORS.blue;
 // Màu xen kẽ (zebra) cho các dòng dữ liệu THƯỜNG (không phải Tổng cộng) —
-// file mẫu dùng xanh cyan khá chói (#D1FEFF), giảm xuống 1 tông xám-xanh
-// rất nhạt cho "mỏng, chuyên nghiệp" (dễ phân biệt dòng nhưng không chói
-// mắt). CHỈ áp dụng cho báo cáo CÓ columnGroups (xem nơi gọi) — không đổi
-// giao diện các bảng khác (danh sách người dùng, vai trò...) dùng chung
+// bản 8.58 giảm từ màu cyan chói của file mẫu (#D1FEFF) xuống tông
+// xám-xanh nhạt. Bản 8.98 (theo yêu cầu người dùng, cùng đợt đổi màu
+// GROUP_COLORS ở trên) — ĐỔI LẠI đúng màu cyan gốc #D1FEFF. CHỈ áp dụng
+// cho báo cáo CÓ columnGroups (xem nơi gọi) — không đổi giao diện các
+// bảng khác (danh sách người dùng, vai trò...) dùng chung
 // DataTable.jsx/exportExcel.js/exportPdf.js.
-const ZEBRA_COLOR = 'F5F8FA';
+const ZEBRA_COLOR = 'D1FEFF';
 
 // Tên màu có sẵn (khớp đúng bảng trên), hoặc mã HEX 6 ký tự tự chọn (vd
 // "FFAA00") — không khớp cái nào thì rơi về "gray" (an toàn, không throw).

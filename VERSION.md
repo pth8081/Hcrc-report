@@ -29,6 +29,40 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 8.98 — Viền đen + màu gốc file mẫu BRGMART + dãn dòng tiêu đề (báo cáo doanh thu)
+
+**Theo yêu cầu người dùng** (gửi lại file mẫu BRGMART gốc, xác nhận qua
+demo trước khi lưu): "đóng khung màu đen như bản mẫu", "chữ ở giữa hai
+dòng cách ra chút nữa cho rõ", "màu nền dòng và màu đậm ở chỗ khác thử
+làm giống hệt form báo cáo này".
+
+- **Viền đen**: đổi viền nhạt `#D9DEE2` (bản 8.58) sang ĐEN — khớp đúng
+  file mẫu gốc — ở cả web (`.data-table--grouped`), Excel (`BORDER_ALL`),
+  PDF (`BORDER_RGB`), email (`emailBodyRenderer.js`). Excel/web đã sẵn
+  CHỈ áp dụng báo cáo có `columnGroups`; PDF/email trước đây áp viền nhạt
+  cho MỌI báo cáo — sửa lại để viền đen CHỈ áp cho báo cáo có
+  `columnGroups` (đúng 4 báo cáo Doanh thu cuối ngày), báo cáo khác giữ
+  nguyên viền nhạt cũ.
+- **Màu nhóm cột về lại đúng màu gốc file mẫu** (lấy mẫu pixel trực tiếp
+  từ file PDF mẫu BRGMART người dùng gửi, xem
+  `/tmp/.../scratchpad/color-sample-8.98`) — không giảm bão hoà như bản
+  8.58 nữa: xanh lá `#9BCC1E` "Doanh thu", cam đất `#FACD9C` "Lãi gộp",
+  vàng gold `#F9CE27` "Giao dịch", tím `#9D98FD` "Trung bình GD"/"Doanh
+  thu/m2" + dòng Tổng cộng nhóm; xen kẽ dòng về lại cyan gốc `#D1FEFF`.
+  Đổi ở `lib/reportCellFormat.js` (nguồn dùng chung Excel/PDF/email) +
+  mirror `rp-user/src/lib/reportGroupColors.js` (web).
+- **Dãn dòng tiêu đề**: nhãn cột 2-3 dòng (vd "Tỷ lệ"/"đạt", "Cùng
+  kỳ"/"năm 2025") dãn cách rõ hơn — web (`th { line-height: 1.9 }`,
+  riêng dữ liệu `td` giữ 1.5 như bản 8.97) + PDF (`lineGap` trong
+  `drawWrappedCenteredText`, CHỈ cho báo cáo `compactSinglePage`/có
+  `columnGroups`). Đo lại offset sticky header web (46px → 52px).
+
+**Đã kiểm chứng**: build/syntax check sạch; xuất thử Excel/PDF/email với
+CÙNG 1 bộ dữ liệu, so màu/viền khớp nhau tuyệt đối + khớp file mẫu gốc;
+xác nhận báo cáo KHÔNG có `columnGroups` vẫn giữ nguyên viền nhạt cũ
+(không bị đổi màu đen nhầm); demo THẬT trên vite dev server + Playwright
+gửi người dùng xác nhận trước khi merge.
+
 ## 8.97 — Khung kẻ mảnh (web/Excel/PDF/email) + xác nhận làm tròn số + ẩn/chọn cột báo cáo doanh thu
 
 **Theo yêu cầu người dùng** (tiếp nối bản 8.96): (1) "chữ và dãn dòng ok

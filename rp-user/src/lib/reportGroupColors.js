@@ -12,14 +12,16 @@
 // nhất 1 màu) + ZEBAR_COLOR (xen kẽ dòng thường) + resolveRowFillColor()
 // (dòng Tổng cộng/Tổng cộng nhóm giữ màu CỦA NHÓM, không phải 1 màu phẳng
 // như trước) + resolveStandaloneColumnColor() (tô màu 1 cột đơn lẻ không
-// thuộc nhóm nào, vd "Trung bình GD").
+// thuộc nhóm nào, vd "Trung bình GD"). Bản 8.98 (theo yêu cầu người dùng —
+// ĐỔI LẠI đúng màu gốc file mẫu, không giảm bão hoà nữa) — mirror đúng
+// rp-server/lib/reportCellFormat.js (xem chú thích đầy đủ ở đó).
 const GROUP_COLORS = {
-  green: '#ADCF59', yellow: '#EAD78A', orange: '#EDC8A1',
-  blue: '#BDD7EE', red: '#F2A9A9', gray: '#D9D9D9', purple: '#BCB9E9'
+  green: '#9BCC1E', yellow: '#F9CE27', orange: '#FACD9C',
+  blue: '#BDD7EE', red: '#F2A9A9', gray: '#D9D9D9', purple: '#9D98FD'
 };
 export const SUBTOTAL_COLOR = GROUP_COLORS.purple;
 export const GRAND_TOTAL_COLOR = GROUP_COLORS.blue;
-export const ZEBRA_COLOR = '#F5F8FA';
+export const ZEBRA_COLOR = '#D1FEFF';
 
 export function resolveGroupColor(color) {
   if (color && /^[0-9a-fA-F]{6}$/.test(color)) return `#${color.toUpperCase()}`;
