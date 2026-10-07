@@ -14,6 +14,36 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 8.95 — Hiện tên nhà cung cấp thật + bộ lọc NCC cho báo cáo Đơn đặt/Nhập hàng
+
+**Thay đổi**: cột "Nhà cung cấp" (3 báo cáo Đơn đặt/Nhập hàng/So sánh)
+trước đây luôn TRỐNG — nay JOIN đúng tên thật từ bảng `SUPPLIER`
+(DSMART16), thêm cột mã NCC, thêm bộ lọc "Nhà cung cấp" (dropdown tìm
+kiếm được, dữ liệu thật).
+
+**Các bước triển khai (CHỈ áp dụng nếu đã triển khai bản 8.91-8.93 — nếu
+chưa, làm theo "Hướng dẫn triển khai gộp" trước, bản này chỉ bổ sung):**
+1. `git pull origin main`.
+2. Chạy lại NGUYÊN VĂN `deploy/Thiết lập VIEW Đơn đặt hàng-Nhập hàng-So
+   sánh (DSMART16 trung tâm).sql` trên DSMART16 trung tâm (an toàn,
+   `CREATE OR ALTER VIEW`) — thêm JOIN bảng `SUPPLIER`.
+3. Trên máy chủ report:
+   ```bash
+   cd rp-server
+   node scripts/seedPurchaseOrderReports.js
+   ```
+   (cập nhật lại định nghĩa 3 báo cáo — thêm cột mã NCC + bộ lọc.)
+4. KHÔNG cần chạy lại `seedDonDatHangSync.js` (etl/) — cột `MaNCC` đã
+   đồng bộ sẵn từ trước, chỉ thiếu hiển thị ở tầng báo cáo.
+5. Không cần restart `hcrc-rp-server` (script seed chỉ ghi catalog).
+
+**Kiểm tra:** rp-user → "Đơn đặt hàng"/"Đơn nhập hàng" → cột "Nhà cung
+cấp" hiện tên thật (không còn trống) + có thêm cột mã NCC; bộ lọc "Nhà
+cung cấp" mở ra danh sách NCC thật (gõ tìm được), chọn 1 NCC → bảng chỉ
+còn đúng đơn hàng của NCC đó.
+
+---
+
 ## 8.94 — Vân tay/Face ID cho mọi user + Ma trận phân quyền báo cáo + Nút Sửa người dùng (cả 3 app)
 
 **Thay đổi**: (1) mục "Vân tay/Face ID" ở trang "Tài khoản của tôi" nay

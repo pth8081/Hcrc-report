@@ -34,8 +34,23 @@ const DOMAIN = 'don_dat_hang';
 
 // Cột CHUNG cho cả 3 báo cáo — tên field khớp ĐÚNG alias Dimensions/Measures
 // đã đồng bộ ở etl/scripts/seedDonDatHangSync.js (xem bc-don-dat-hang.md).
-const COMMON_HEAD = ['eventDate', 'SoDon', 'TenDiem', 'TenNCC', 'MaHang', 'TenHang', 'DVT'];
+// SỬA bản 8.95 (theo yêu cầu người dùng) — thêm cột MaNCC (trước đây chỉ
+// có TenNCC, không có mã) — tên NCC lấy từ VIEW đã JOIN dbo.SUPPLIER thật.
+const COMMON_HEAD = ['eventDate', 'SoDon', 'TenDiem', 'MaNCC', 'TenNCC', 'MaHang', 'TenHang', 'DVT'];
 const COMMON_TAIL = ['TrangThaiLabel'];
+
+// Bộ lọc "Nhà cung cấp" (bản 8.95, theo yêu cầu người dùng) — dropdown tìm
+// kiếm được, lấy DANH SÁCH THẬT từ dữ liệu đã đồng bộ qua `optionsSource`
+// (xem rp-server/routes/reports.js GET /:reportId/filter-options/:field) —
+// KHÔNG phải danh sách gõ tay cố định như TRANG_THAI_FILTER bên dưới, tự
+// cập nhật khi có NCC mới phát sinh trong dữ liệu đồng bộ. `field: 'maNCC'`
+// khớp field Dimensions `MaNCC` (SQL Server JSON_VALUE so khớp tên cột
+// không phân biệt hoa/thường theo collation mặc định — cùng quy ước đã
+// dùng cho `trangThai`/`TrangThai` ở TRANG_THAI_FILTER).
+const NCC_FILTER = {
+  field: 'maNCC', type: 'multiSelect', label: 'Nhà cung cấp',
+  optionsSource: { domain: DOMAIN, valueField: 'MaNCC', labelField: 'TenNCC' }
+};
 
 // Trạng thái hiện trong bộ lọc — CHỈ còn C/P/F/M (bản 8.92, theo yêu cầu
 // người dùng: "loại cả đơn xóa nữa bạn chỉ lấy đơn đặt thực tế và nhập
@@ -89,6 +104,7 @@ function buildDefinition(report) {
     columns: report.columns,
     filters: [
       { field: 'eventDate', type: 'dateRange', label: 'Ngày đặt' },
+      NCC_FILTER,
       TRANG_THAI_FILTER
     ]
   };

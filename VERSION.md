@@ -29,6 +29,40 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 8.95 — Hiện tên nhà cung cấp thật + bộ lọc NCC cho báo cáo Đơn đặt/Nhập hàng
+
+**Theo yêu cầu người dùng**: hỏi "báo cáo đơn đặt hàng và nhập hàng có
+lấy theo nhà cung cấp không" — phát hiện cột "Nhà cung cấp" có trong cả 3
+báo cáo nhưng luôn TRỐNG (VIEW để `TenNCC = NULL` tạm, chưa JOIN được
+danh mục NCC) và KHÔNG có bộ lọc theo NCC. Người dùng xác nhận tên bảng
+danh mục là `SUPPLIER` (DSMART16), gửi kèm cấu trúc cột thật — xác nhận
+`SUPP_ID` (char, khớp `STRANS.SUPP_ID`) và `SUPP_NAME` (nvarchar).
+
+- `deploy/Thiết lập VIEW Đơn đặt hàng-Nhập hàng-So sánh (DSMART16 trung
+  tâm).sql`: thêm `LEFT JOIN dbo.SUPPLIER s ON s.SUPP_ID = m.SUPP_ID`,
+  `TenNCC` nay lấy `s.SUPP_NAME` thay vì `NULL` — `LEFT JOIN` (không phải
+  `INNER`) để đơn hàng có mã NCC không khớp vẫn hiện ra, chỉ tên NCC trống.
+- `rp-server/scripts/seedPurchaseOrderReports.js`: thêm cột `MaNCC` (trước
+  chỉ có `TenNCC`, không có mã) cho cả 3 báo cáo; thêm bộ lọc "Nhà cung
+  cấp" (`NCC_FILTER`, dropdown tìm kiếm được) dùng `optionsSource` (đọc
+  DANH SÁCH THẬT từ dữ liệu đã đồng bộ, đúng cơ chế đang dùng cho bộ lọc
+  "Chi nhánh" ở báo cáo khác — KHÔNG phải danh sách gõ tay, tự cập nhật
+  khi có NCC mới).
+- `bc-don-dat-hang.md`: ghi nhận đầy đủ câu trả lời DBA, cập nhật VIEW
+  mẫu mục 2 khớp đúng VIEW thật.
+
+KHÔNG cần sửa `etl/scripts/seedDonDatHangSync.js` — cột `MaNCC` đã nằm
+sẵn trong `dimensionColumns` từ bản 8.92, dữ liệu đã đồng bộ sẵn, chỉ
+thiếu hiển thị ở tầng báo cáo.
+
+**Đã kiểm chứng**: viết test mock mới (`purchaseOrderRunner.js` thật,
+chỉ fake tầng CSDL) xác nhận cột `MaNCC`/`TenNCC` lên đúng giá trị và bộ
+lọc NCC (multiSelect + optionsSource) không làm vỡ runner.
+
+**Triển khai**: chạy lại VIEW SQL trên DSMART16 (đã có `CREATE OR ALTER`,
+an toàn) + chạy lại `node scripts/seedPurchaseOrderReports.js` (rp-server)
+— không cần đổi gì ở ETL.
+
 ## 8.94 — Vân tay/Face ID cho mọi user + Ma trận phân quyền báo cáo + Nút Sửa người dùng (cả 3 app)
 
 **Theo yêu cầu người dùng**, 3 phần (đã gửi báo cáo phương án + ảnh demo

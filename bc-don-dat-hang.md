@@ -249,30 +249,31 @@ không có đơn giá riêng). Đã sửa `DonGia` = `AMOUNT / NULLIF(QTY, 0)`
 ```sql
 CREATE OR ALTER VIEW dbo.vw_DonDatHangChiNhanh AS
 SELECT
-    CAST(TRANS_NUM AS VARCHAR(50)) + '|' + CAST(IDX AS VARCHAR(10)) AS MaThucThe,
-    CAST(TRAN_DATE AS DATE)     AS EventDate,
-    STOPED_DT                   AS UpdatedAt,        -- watermark — vẫn chưa chắc, xem cảnh báo dưới
-    BU_ID                       AS MaDiem,           -- ánh xạ ra mã Điểm chuẩn ở tầng rp-server (buildBuIdLookup(), xem mục 4)
+    CAST(m.TRANS_NUM AS VARCHAR(50)) + '|' + CAST(m.IDX AS VARCHAR(10)) AS MaThucThe,
+    CAST(m.TRAN_DATE AS DATE)   AS EventDate,
+    m.STOPED_DT                 AS UpdatedAt,        -- watermark — vẫn chưa chắc, xem cảnh báo dưới
+    m.BU_ID                     AS MaDiem,           -- ánh xạ ra mã Điểm chuẩn ở tầng rp-server (buildBuIdLookup(), xem mục 4)
     NULL                        AS TenDiem,          -- hệ thống LUÔN ưu tiên tên trong bảng Ánh xạ Điểm-STK
-    REF                         AS SoDon,            -- MÃ ĐƠN HÀNG GỐC (đã xác nhận) — dùng nhóm nhiều lần nhận hàng
-    TRANS_CODE                  AS LoaiGiaoDich,     -- '133'=đặt hàng, '333'=nhập hàng (đã xác nhận)
-    CAST(DUE_DATE AS DATE)      AS NgayGiao,
-    SUPP_ID                     AS MaNCC,
-    NULL                        AS TenNCC,           -- cần JOIN bảng danh mục NCC nếu muốn hiện tên (chưa có, hiện mã)
-    STAFF_ID                    AS NguoiDat,
-    SKU_ID                      AS MaHang,
+    m.REF                       AS SoDon,            -- MÃ ĐƠN HÀNG GỐC (đã xác nhận) — dùng nhóm nhiều lần nhận hàng
+    m.TRANS_CODE                AS LoaiGiaoDich,     -- '133'=đặt hàng, '333'=nhập hàng (đã xác nhận)
+    CAST(m.DUE_DATE AS DATE)    AS NgayGiao,
+    m.SUPP_ID                   AS MaNCC,
+    s.SUPP_NAME                 AS TenNCC,           -- JOIN dbo.SUPPLIER (đã xác nhận 07/10/2026)
+    m.STAFF_ID                  AS NguoiDat,
+    m.SKU_ID                    AS MaHang,
     NULL                        AS TenHang,          -- cần JOIN bảng danh mục hàng hoá nếu muốn hiện tên (chưa có, hiện mã)
-    UNIT_SYMB                   AS DVT,
-    STATUS                      AS TrangThai,
-    CASE STATUS
+    m.UNIT_SYMB                 AS DVT,
+    m.STATUS                    AS TrangThai,
+    CASE m.STATUS
         WHEN 'C' THEN N'Chưa nhập' WHEN 'P' THEN N'Đã nhập 1 phần' WHEN 'F' THEN N'Đã nhập hết'
-        WHEN 'M' THEN N'Đơn sửa' ELSE STATUS
+        WHEN 'M' THEN N'Đơn sửa' ELSE m.STATUS
     END                         AS TrangThaiLabel,
-    QTY                         AS SoLuong,
-    AMOUNT / NULLIF(QTY, 0)     AS DonGia,           -- STRANS không có cột PRICE — suy ra từ AMOUNT/QTY
-    AMOUNT                      AS ThanhTien
-FROM dbo.STRANS
-WHERE TRANS_CODE IN ('133','333') AND STATUS NOT IN ('D','E');
+    m.QTY                       AS SoLuong,
+    m.AMOUNT / NULLIF(m.QTY, 0) AS DonGia,           -- STRANS không có cột PRICE — suy ra từ AMOUNT/QTY
+    m.AMOUNT                    AS ThanhTien
+FROM dbo.STRANS m
+LEFT JOIN dbo.SUPPLIER s ON s.SUPP_ID = m.SUPP_ID
+WHERE m.TRANS_CODE IN ('133','333') AND m.STATUS NOT IN ('D','E');
 ```
 
 **✅ ĐÃ CHẠY THẬT 06/10/2026 — VIEW tạo thành công, có dữ liệu thật** (người
@@ -306,18 +307,21 @@ Còn lại, chưa xác nhận:
   `VAT_AMT`/`DISCOUNT`/`COMM_AMT` nếu đơn giá hiển thị lệch so với phiếu
   giấy).
 
-**🆕 CẦN XÁC NHẬN (07/10/2026) — tên cột bảng `SUPPLIER`**: người dùng đã
-xác nhận tên bảng nhà cung cấp là `SUPPLIER` (CHƯA rõ tên cột) — gửi DBA
-chạy câu lệnh sau, dán nguyên kết quả vào đây để JOIN đúng tên cột vào
-VIEW (hiện `TenNCC` đang để `NULL` tạm):
-```sql
-SELECT COLUMN_NAME, DATA_TYPE FROM INFORMATION_SCHEMA.COLUMNS
-WHERE TABLE_NAME = 'SUPPLIER' ORDER BY ORDINAL_POSITION;
-```
-Cần tìm đúng 2 cột: (1) mã NCC — PHẢI khớp kiểu/giá trị với `SUPP_ID`
-trong `STRANS` để `JOIN` được; (2) tên NCC hiển thị (dạng
-`NVARCHAR`/`VARCHAR`, thường tên kiểu `SUPP_NAME`/`NAME`/`FULL_NAME`...).
-CHƯA sửa VIEW/code cho tới khi có kết quả này.
+**✅ ĐÃ XÁC NHẬN (07/10/2026) — bảng `SUPPLIER`**: người dùng gửi kết quả
+`INFORMATION_SCHEMA.COLUMNS` thật của bảng `SUPPLIER` — có đúng `SUPP_ID`
+(`char`, khớp tên VÀ kiểu với `STRANS.SUPP_ID`, JOIN trực tiếp được không
+cần ép kiểu) và `SUPP_NAME` (`nvarchar`, tên NCC hiển thị). VIEW ở trên đã
+cập nhật `LEFT JOIN dbo.SUPPLIER s ON s.SUPP_ID = m.SUPP_ID` — dùng
+`LEFT JOIN` (không phải `INNER JOIN`) để đơn hàng có mã NCC không khớp
+dòng nào trong `SUPPLIER` vẫn hiện ra, chỉ tên NCC để trống.
+
+**SỬA bản 8.95 (sau khi JOIN SUPPLIER)**: thêm cột `MaNCC` vào 2 báo cáo
+"Đơn đặt hàng"/"Đơn nhập hàng" (trước đây chỉ có `TenNCC`, không có cột
+mã) + thêm bộ lọc "Nhà cung cấp" (dropdown tìm kiếm được, DÙNG DỮ LIỆU
+THẬT đã đồng bộ qua `optionsSource` — đúng cơ chế đang dùng cho bộ lọc
+"Chi nhánh" ở báo cáo khác, KHÔNG phải danh sách gõ tay cố định nên tự
+cập nhật khi có NCC mới) cho cả 3 báo cáo — xem
+`rp-server/scripts/seedPurchaseOrderReports.js`.
 
 ## 3. Thiết kế đồng bộ — domain `don_dat_hang` (SỬA bản 8.92, nguồn STRANS)
 

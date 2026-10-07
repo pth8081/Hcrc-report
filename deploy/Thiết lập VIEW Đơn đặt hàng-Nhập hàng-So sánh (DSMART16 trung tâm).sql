@@ -33,6 +33,15 @@
    sau này đồng bộ không bắt được đơn mới cập nhật/nhận hàng thêm, đây là
    chỗ cần xem lại đầu tiên.
 
+   ‼️ CẬP NHẬT 07/10/2026 — JOIN TÊN NHÀ CUNG CẤP TỪ BẢNG `SUPPLIER` ‼️
+   Người dùng xác nhận bảng danh mục nhà cung cấp là `SUPPLIER`, cột mã
+   `SUPP_ID` (char, khớp đúng tên/kiểu với `STRANS.SUPP_ID`) và tên
+   `SUPP_NAME` (nvarchar) — đã thêm `LEFT JOIN` lấy tên thật thay vì để
+   `NULL` như trước. Dùng `LEFT JOIN` (không phải `INNER JOIN`) để đơn
+   hàng có mã NCC không khớp được dòng nào trong `SUPPLIER` (dữ liệu rác/
+   NCC đã xoá) vẫn hiện ra, chỉ riêng tên NCC để trống thay vì mất nguyên
+   dòng đơn hàng.
+
    AN TOÀN CHẠY LẠI NHIỀU LẦN — dùng `CREATE OR ALTER VIEW`, không lỗi nếu
    VIEW đã tồn tại từ lần chạy trước.
 
@@ -45,33 +54,34 @@ GO
 
 CREATE OR ALTER VIEW dbo.vw_DonDatHangChiNhanh AS
 SELECT
-    CAST(TRANS_NUM AS VARCHAR(50)) + '|' + CAST(IDX AS VARCHAR(10)) AS MaThucThe,  -- khoá 1 dòng giao dịch (1 lần đặt HOẶC 1 lần nhận)
-    CAST(TRAN_DATE AS DATE)     AS EventDate,
-    STOPED_DT                   AS UpdatedAt,        -- watermark — chưa chắc, xem cảnh báo ở trên
-    BU_ID                       AS MaDiem,           -- ánh xạ ra mã Điểm chuẩn ở tầng rp-server (buildBuIdLookup())
+    CAST(m.TRANS_NUM AS VARCHAR(50)) + '|' + CAST(m.IDX AS VARCHAR(10)) AS MaThucThe,  -- khoá 1 dòng giao dịch (1 lần đặt HOẶC 1 lần nhận)
+    CAST(m.TRAN_DATE AS DATE)   AS EventDate,
+    m.STOPED_DT                 AS UpdatedAt,        -- watermark — chưa chắc, xem cảnh báo ở trên
+    m.BU_ID                     AS MaDiem,           -- ánh xạ ra mã Điểm chuẩn ở tầng rp-server (buildBuIdLookup())
     NULL                        AS TenDiem,          -- hệ thống LUÔN ưu tiên tên trong bảng Ánh xạ Điểm-STK
-    REF                         AS SoDon,            -- MÃ ĐƠN HÀNG GỐC (đã xác nhận) — dùng nhóm nhiều lần nhận hàng
-    TRANS_CODE                  AS LoaiGiaoDich,     -- '133'=đặt hàng, '333'=nhập hàng (đã xác nhận)
-    CAST(DUE_DATE AS DATE)      AS NgayGiao,
-    SUPP_ID                     AS MaNCC,
-    NULL                        AS TenNCC,           -- cần JOIN bảng danh mục NCC nếu muốn hiện tên (chưa có, hiện mã)
-    STAFF_ID                    AS NguoiDat,
-    SKU_ID                      AS MaHang,
+    m.REF                       AS SoDon,            -- MÃ ĐƠN HÀNG GỐC (đã xác nhận) — dùng nhóm nhiều lần nhận hàng
+    m.TRANS_CODE                AS LoaiGiaoDich,     -- '133'=đặt hàng, '333'=nhập hàng (đã xác nhận)
+    CAST(m.DUE_DATE AS DATE)    AS NgayGiao,
+    m.SUPP_ID                   AS MaNCC,
+    s.SUPP_NAME                 AS TenNCC,           -- JOIN dbo.SUPPLIER (đã xác nhận 07/10/2026)
+    m.STAFF_ID                  AS NguoiDat,
+    m.SKU_ID                    AS MaHang,
     NULL                        AS TenHang,          -- cần JOIN bảng danh mục hàng hoá nếu muốn hiện tên (chưa có, hiện mã)
-    UNIT_SYMB                   AS DVT,
-    STATUS                      AS TrangThai,
-    CASE STATUS
+    m.UNIT_SYMB                 AS DVT,
+    m.STATUS                    AS TrangThai,
+    CASE m.STATUS
         WHEN 'C' THEN N'Chưa nhập'
         WHEN 'P' THEN N'Đã nhập 1 phần'
         WHEN 'F' THEN N'Đã nhập hết'
         WHEN 'M' THEN N'Đơn sửa'
-        ELSE STATUS
+        ELSE m.STATUS
     END                         AS TrangThaiLabel,
-    QTY                         AS SoLuong,
-    AMOUNT / NULLIF(QTY, 0)     AS DonGia,           -- STRANS không có cột PRICE — suy ra từ AMOUNT/QTY
-    AMOUNT                      AS ThanhTien
-FROM dbo.STRANS
-WHERE TRANS_CODE IN ('133','333') AND STATUS NOT IN ('D','E');  -- loại hẳn đơn đã xoá/đã huỷ (theo yêu cầu người dùng)
+    m.QTY                       AS SoLuong,
+    m.AMOUNT / NULLIF(m.QTY, 0) AS DonGia,           -- STRANS không có cột PRICE — suy ra từ AMOUNT/QTY
+    m.AMOUNT                    AS ThanhTien
+FROM dbo.STRANS m
+LEFT JOIN dbo.SUPPLIER s ON s.SUPP_ID = m.SUPP_ID
+WHERE m.TRANS_CODE IN ('133','333') AND m.STATUS NOT IN ('D','E');  -- loại hẳn đơn đã xoá/đã huỷ (theo yêu cầu người dùng)
 GO
 
 /* ===================== (Tuỳ chọn) Cấp quyền đọc cho tài khoản đồng bộ ===================== */

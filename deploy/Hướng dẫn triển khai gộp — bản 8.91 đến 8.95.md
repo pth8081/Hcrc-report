@@ -1,21 +1,24 @@
-# Hướng dẫn triển khai gộp — bản 8.91 đến 8.94 (làm 1 lần)
+# Hướng dẫn triển khai gộp — bản 8.91 đến 8.95 (làm 1 lần)
 
-**Mục đích**: gộp các bước triển khai từ bản 8.91 tới bản 8.94 hiện tại
+**Mục đích**: gộp các bước triển khai từ bản 8.91 tới bản 8.95 hiện tại
 thành **1 lượt làm duy nhất**, cho server đang chạy bản 8.90 và cần bắt
 kịp bản mới nhất — KHÔNG lặp lại toàn bộ lịch sử từ bản 8.29 (xem
 `deploy/Hướng dẫn triển khai gộp — bản 8.29 đến 8.90.md` nếu cần dựng
 server hoàn toàn mới từ đầu).
 
-Gồm 2 phần ĐỘC LẬP, làm phần nào cũng được, không phụ thuộc nhau:
+Gồm 3 phần ĐỘC LẬP, làm phần nào cũng được, không phụ thuộc nhau (riêng
+Phần 3 chỉ có ý nghĩa SAU KHI đã làm Phần 1):
 - **Phần 1 (mục B-F)** — bản 8.91/8.92/8.93: kích hoạt LẦN ĐẦU 3 báo cáo
   "Đơn đặt hàng"/"Đơn nhập hàng"/"So sánh đặt–nhận" (gồm cả bước tạo VIEW
   trên DSMART16) — tài liệu đầy đủ: `bc-don-dat-hang.md` (gốc repo).
 - **Phần 2 (mục G-H)** — bản 8.94: Vân tay/Face ID cho mọi user + Ma trận
   phân quyền báo cáo + nút "Sửa" người dùng sửa được Email (3 app).
+- **Phần 3 (mục I-J)** — bản 8.95: hiện tên nhà cung cấp thật (JOIN bảng
+  `SUPPLIER`) + bộ lọc "Nhà cung cấp" cho 3 báo cáo ở Phần 1.
 
 ---
 
-## Tóm tắt những gì thay đổi (8.91 → 8.94)
+## Tóm tắt những gì thay đổi (8.91 → 8.95)
 
 | Bản | Nội dung |
 |---|---|
@@ -23,6 +26,7 @@ Gồm 2 phần ĐỘC LẬP, làm phần nào cũng được, không phụ thu�
 | 8.92 | Chốt nguồn dữ liệu THẬT là `STRANS` (thay giả định ban đầu `ST_ORDER`) — `TRANS_CODE` 133=đặt hàng/333=nhập hàng, mỗi loại 1 dòng riêng, cột `REF`=mã đơn hàng gốc dùng gộp nhiều lần nhận hàng |
 | 8.93 | Sửa 2 lỗi lộ ra khi chạy VIEW thật lần đầu: `STRANS` không có cột `PRICE` (tính `DonGia` từ `AMOUNT/QTY`), watermark `STOPED_DT` NULL hết (đổi dùng `EventDate`) |
 | 8.94 | Vân tay/Face ID cho MỌI user (trước chỉ Admin hệ thống) + tab "Ma trận phân quyền báo cáo" (rp-user) + nút "Sửa" người dùng sửa được Email (3 app) |
+| 8.95 | Hiện tên nhà cung cấp thật (JOIN bảng `SUPPLIER`, trước để trống) + thêm cột mã NCC + bộ lọc "Nhà cung cấp" cho 3 báo cáo Đơn đặt/Nhập hàng/So sánh |
 
 ---
 
@@ -173,3 +177,44 @@ thực tế trên phiếu giấy cho 2 loại giao dịch 133/333.
 Không có bước nào ở Phần 2 làm mất dữ liệu đã có hoặc ảnh hưởng báo cáo/
 job đồng bộ khác đang chạy ổn định — cột `Email` mới ở `etl-db`/`api-db`
 chỉ THÊM, không đổi/xoá cột nào có sẵn.
+
+---
+
+# PHẦN 3 — Tên nhà cung cấp thật + bộ lọc NCC (bản 8.95)
+
+**Điều kiện**: đã làm xong Phần 1 (3 báo cáo đã kích hoạt, có số liệu) —
+nếu chưa, làm Phần 1 trước, Phần 3 chỉ bổ sung thêm cho 3 báo cáo đó.
+
+## I. Các bước triển khai
+
+1. `git pull origin main` (đã làm ở mục A).
+2. Chạy lại NGUYÊN VĂN `deploy/Thiết lập VIEW Đơn đặt hàng-Nhập hàng-So
+   sánh (DSMART16 trung tâm).sql` trên DSMART16 trung tâm (an toàn chạy
+   lại nhiều lần, `CREATE OR ALTER VIEW`) — thêm `LEFT JOIN` bảng
+   `SUPPLIER` lấy tên NCC thật.
+3. Trên máy chủ report:
+   ```bash
+   cd rp-server
+   node scripts/seedPurchaseOrderReports.js
+   ```
+   Script cập nhật lại định nghĩa 3 báo cáo (thêm cột mã NCC + bộ lọc
+   "Nhà cung cấp") — KHÔNG cần restart `hcrc-rp-server` (chỉ ghi catalog).
+4. KHÔNG cần chạy lại `node scripts/seedDonDatHangSync.js` (etl/) — cột
+   `MaNCC` đã đồng bộ sẵn từ bản 8.92, chỉ thiếu hiển thị ở tầng báo cáo.
+
+## J. Kiểm tra Phần 3 sau khi triển khai
+
+- [ ] rp-user → "Đơn đặt hàng"/"Đơn nhập hàng" → cột "Nhà cung cấp" hiện
+  TÊN THẬT (không còn trống như trước) + có thêm cột mã NCC.
+- [ ] Mở bộ lọc "Nhà cung cấp" → dropdown hiện danh sách NCC THẬT (gõ tìm
+  được, không phải danh sách cố định) → chọn 1 NCC → bảng chỉ còn đúng
+  đơn hàng của NCC đó.
+- [ ] Nếu cột "Nhà cung cấp" VẪN trống sau khi làm xong bước I.2-I.3 →
+  kiểm tra VIEW đã chạy lại bản MỚI NHẤT chưa (`SELECT TOP 5 MaNCC,
+  TenNCC FROM dbo.vw_DonDatHangChiNhanh WHERE TenNCC IS NOT NULL` phải ra
+  kết quả) — nếu vẫn trống hết, có thể mã `SUPP_ID` trong `STRANS` không
+  khớp được dòng nào trong `SUPPLIER` (dữ liệu cũ/NCC đã xoá), báo lại để
+  kiểm tra thêm.
+
+Không có bước nào ở Phần 3 làm mất dữ liệu đã có — chỉ JOIN THÊM thông
+tin, không đổi cấu trúc bảng nguồn nào.
