@@ -28,6 +28,17 @@ const THIN = { style: 'thin', color: { argb: 'FF000000' } };
 const BORDER_ALL = { top: THIN, left: THIN, bottom: THIN, right: THIN };
 function fillArgb(hex6) { return { type: 'pattern', pattern: 'solid', fgColor: { argb: `FF${hex6}` } }; }
 
+// Bản 8.99 (theo yêu cầu người dùng — "chữ cách giữa dòng kẻ trên dưới quá
+// sát sẽ khó nhìn... dàn dòng ra thêm nữa... chữ nhỏ hơn một xíu") — TRƯỚC
+// ĐÂY dòng dữ liệu KHÔNG khai font/height riêng, rơi về mặc định ExcelJS
+// (Calibri 11pt, chiều cao dòng Excel tự co theo cỡ chữ đó ~15pt) — chữ sát
+// 2 viền trên/dưới của mỗi ô. Giảm cỡ chữ (11 -> 10) + tăng chiều cao dòng
+// (~15pt -> 20pt) để khoảng cách trong 1 ô rộng rãi hơn rõ rệt dù chữ nhỏ
+// hơn 1 chút — CHỈ áp dụng báo cáo CÓ columnGroups (4 báo cáo Doanh thu
+// cuối ngày, xem 2 nơi dùng bên dưới đều trong nhánh `if (groups.length)`).
+const DATA_FONT_SIZE = 10;
+const DATA_ROW_HEIGHT = 20;
+
 const MIN_COL_WIDTH = 8;
 const MAX_COL_WIDTH = 40;
 
@@ -145,6 +156,14 @@ function addReportSheet(workbook, definition, rows, sheetName) {
 
   rows.forEach((row, rIdx) => {
     const excelRow = sheet.getRow(dataStartRow + rIdx);
+    // SỬA bản 8.99 (theo yêu cầu người dùng — "chữ cách giữa dòng kẻ trên
+    // dưới quá sát sẽ khó nhìn... dàn dòng ra thêm nữa... chữ nhỏ hơn một
+    // xíu") — TRƯỚC ĐÂY không khai `height` cho dòng dữ liệu (Excel tự co
+    // theo cỡ chữ mặc định 11pt Calibri, ra ~15pt, sát 2 viền trên/dưới).
+    // Tăng chiều cao dòng lên DATA_ROW_HEIGHT, cỡ chữ giảm xuống
+    // DATA_FONT_SIZE — CHỈ áp dụng báo cáo CÓ columnGroups (4 báo cáo
+    // Doanh thu cuối ngày), không đổi báo cáo phẳng khác.
+    if (groups.length) excelRow.height = DATA_ROW_HEIGHT;
     columns.forEach((col, cIdx) => {
       const cell = excelRow.getCell(cIdx + 1);
       const raw = cIdx === sttColIdx ? sttValues[rIdx] : row[col.key];
@@ -158,7 +177,19 @@ function addReportSheet(workbook, definition, rows, sheetName) {
         cell.numFmt = col.format === 'percent' ? '[$-409]0"%"' : '[$-409]#,##0';
         cell.alignment = { horizontal: 'right' };
       }
-      if (groups.length) cell.border = BORDER_ALL;
+      // SỬA bản 8.99 (theo yêu cầu người dùng — "phải dãn cả trên và dưới,
+      // chữ nằm ở giữa hai dòng kẻ") — TRƯỚC ĐÂY chỉ set alignment cho Ô SỐ
+      // (horizontal:'right' ở trên) và KHÔNG set vertical bao giờ — Excel mặc
+      // định canh chữ SÁT ĐÁY ô theo chiều dọc (vertical: 'bottom'), nên dù
+      // đã tăng DATA_ROW_HEIGHT, chữ vẫn dồn xuống sát viền dưới, khoảng
+      // trống chỉ lộ ra ở phía TRÊN — không phải "dãn đều 2 bên" như yêu
+      // cầu. Set vertical:'middle' cho MỌI Ô (đè SAU đoạn numFmt ở trên để
+      // giữ đúng horizontal:'right' của Ô số, chỉ bổ sung vertical).
+      if (groups.length) {
+        cell.alignment = { ...(cell.alignment || {}), vertical: 'middle' };
+        cell.border = BORDER_ALL;
+        cell.font = { size: DATA_FONT_SIZE };
+      }
       // Dòng tổng (SourceType='composite' + groupBy — xem
       // lib/compositeReportRunner.js) đánh dấu bằng __isSubtotal, không phải
       // cột thật (không nằm trong definition.columns nên ExcelJS tự bỏ qua
@@ -172,7 +203,7 @@ function addReportSheet(workbook, definition, rows, sheetName) {
       const fillColor = resolveRowFillColor(row, col, groups);
       if (fillColor) {
         cell.fill = fillArgb(fillColor);
-        cell.font = { bold: true };
+        cell.font = groups.length ? { size: DATA_FONT_SIZE, bold: true } : { bold: true };
       } else if (zebraFlags[rIdx]) {
         cell.fill = fillArgb(ZEBRA_COLOR);
       }

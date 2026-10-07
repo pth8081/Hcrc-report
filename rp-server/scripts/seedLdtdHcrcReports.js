@@ -141,14 +141,30 @@ function buildDefinition(title, targetDomain, exportFileCode, domains) {
       // tháng (xem rp-server/lib/compositeReportRunner.js).
       { key: 'target', isTarget: true, targetDomain, targetGranularity: 'day' }
     ],
-    // Chỉ hiện thực thể CÓ chỉ tiêu (loại mã rác/mã test có dữ liệu thực đạt
-    // nhưng chưa từng được nhập chỉ tiêu) — xem compositeReportRunner.js.
-    requireTargetMatch: true,
-    // Chỉ hiện mã Điểm ĐÃ khai "Ánh xạ Điểm - STK_ID" — mã Điểm có chỉ tiêu
-    // (qua bộ lọc requireTargetMatch ở trên) nhưng CHƯA khai ánh xạ vẫn có
-    // dữ liệu Giao dịch/Chỉ tiêu (2 khối này không cần ánh xạ) nên sẽ lọt
-    // qua bộ lọc trên với cột Doanh thu luôn trống — ẨN HẲN dòng đó cho tới
-    // khi khai đủ ánh xạ, xem compositeReportRunner.js.
+    // SỬA bản 8.99 (theo yêu cầu người dùng — "chưa nhập chỉ tiêu thì chỉ
+    // tiêu trống vẫn báo doanh thu thực đạt"): TRƯỚC ĐÂY requireTargetMatch
+    // = true ("chỉ hiện thực thể CÓ chỉ tiêu, loại mã rác/mã test có dữ
+    // liệu thực đạt nhưng chưa từng được nhập chỉ tiêu") — hậu quả không
+    // lường trước: người dùng mới nhập Chỉ tiêu cho tháng 9-10/2026, MỌI
+    // ngày/tháng/năm KHÁC (kể cả nhiều năm dữ liệu thật đã có sẵn trong
+    // dwh.ReportFacts, xem SQL kiểm chứng trong hội thoại) bị ẩn TRẮNG HOÀN
+    // TOÀN (không phải thiếu 1 vài cột, mà MẤT HẲN mọi dòng siêu thị) — vì
+    // chưa có Chỉ tiêu cho kỳ đó nên MỌI thực thể đều không khớp khối
+    // target, bị loại hết theo đúng logic trên. Tắt cờ này (về lại mặc định
+    // false, xem chú thích DefinitionJson.requireTargetMatch ở đầu
+    // compositeReportRunner.js) — thực thể KHÔNG có Chỉ tiêu kỳ đó vẫn hiện
+    // ra bình thường với Thực đạt/Giao dịch đầy đủ, CHỈ trống đúng field
+    // target (cột "Chỉ tiêu"/"Tỷ lệ đạt" — formulaEngine.js đã lan truyền
+    // null an toàn cho field rỗng, không NaN/lỗi). Rủi ro "mã rác/mã test"
+    // mà cờ này từng chặn VẪN được chặn độc lập bởi requireDiemStkMapping
+    // bên dưới (chỉ hiện mã Điểm đã khai "Ánh xạ Điểm - STK_ID" — không phụ
+    // thuộc gì vào Chỉ tiêu), nên tắt requireTargetMatch không mở lại lỗ
+    // hổng đó.
+    requireTargetMatch: false,
+    // Chỉ hiện mã Điểm ĐÃ khai "Ánh xạ Điểm - STK_ID" — mã Điểm CHƯA khai
+    // ánh xạ vẫn có dữ liệu Giao dịch/Chỉ tiêu (2 khối này không cần ánh
+    // xạ) nên sẽ lọt qua với cột Doanh thu luôn trống — ẨN HẲN dòng đó cho
+    // tới khi khai đủ ánh xạ, xem compositeReportRunner.js.
     requireDiemStkMapping: true,
     columns: [
       // "stt" — cột đặc biệt, KHÔNG có formula (giá trị thô rơi về undefined,
