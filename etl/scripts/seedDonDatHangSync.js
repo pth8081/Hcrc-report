@@ -63,13 +63,24 @@ function readConfig() {
 // Khớp theo Name trước — có rồi thì DÙNG LẠI NGUYÊN VẸN (có thể do
 // seedLdtdHcrcSync.js/seedZeroStockSkuSync.js tạo từ trước với thông tin
 // đã đúng) — chỉ tạo mới khi THẬT SỰ chưa có.
+//
+// SỬA 07/10/2026 (theo yêu cầu người dùng: "bạn đang ẩn kết nối db") —
+// TRƯỚC ĐÂY khi dùng lại, script chỉ in "Dùng lại ... (Id X)" mà KHÔNG hề
+// hiện Server/Port/DatabaseName THẬT đang dùng — nếu bản ghi etl.DataSources
+// có sẵn đó lỡ trỏ sai server/CSDL (vd tạo từ lâu, trỏ nhầm môi trường), log
+// không có cách nào phát hiện được, dễ lầm tưởng "đã chạy xong" dù đang đọc
+// sai nguồn. Giờ LUÔN in rõ Server/Port/DatabaseName thật (KHÔNG in mật
+// khẩu) — kể cả khi dùng lại bản ghi cũ.
 async function resolveDataSourceId(pool, cfg) {
   const existing = await pool.request().input('name', sql.NVarChar(200), cfg.name)
-    .query('SELECT Id FROM etl.DataSources WHERE Name = @name');
+    .query('SELECT Id, Server, Port, DatabaseName FROM etl.DataSources WHERE Name = @name');
   if (existing.recordset.length) {
-    const id = existing.recordset[0].Id;
-    console.log(`↻ Dùng lại Nguồn dữ liệu "${cfg.name}" đã có (Id ${id}).`);
-    return id;
+    const row = existing.recordset[0];
+    console.log(`↻ Dùng lại Nguồn dữ liệu "${cfg.name}" đã có (Id ${row.Id}) — đang trỏ tới Server="${row.Server}" Port=${row.Port} DatabaseName="${row.DatabaseName}".`);
+    if (row.Server !== cfg.server || String(row.Port) !== String(cfg.port) || row.DatabaseName !== cfg.databaseName) {
+      console.warn(`⚠️  Nguồn dữ liệu đã có KHÔNG khớp với .env hiện tại (.env đang khai Server="${cfg.server}" Port=${cfg.port} DatabaseName="${cfg.databaseName}") — script KHÔNG tự sửa bản ghi cũ để tránh ảnh hưởng báo cáo khác đang dùng chung nguồn này. Nếu đây là nhầm lẫn, sửa tay bản ghi "${cfg.name}" trong etl-admin → "Nguồn dữ liệu", hoặc xác nhận lại .env cho đúng.`);
+    }
+    return row.Id;
   }
   const passwordEncrypted = encrypt(cfg.password);
   const result = await pool.request()
