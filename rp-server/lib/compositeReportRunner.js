@@ -392,6 +392,37 @@ function aggregateDailyRowsByEntity(rows, representativeEventDate) {
   return out;
 }
 
+// Bản 8.99 (phát hiện SAU KHI gỡ requireTargetMatch — xem seedLdtdHcrcReports.js
+// — khoảng ngày rộng trước đây LUÔN ra bảng trống vì thiếu Chỉ tiêu nên lỗi
+// này chưa ai thấy): runReport() mặc định CẮT CỨNG ở pageSize dòng/lượt gọi
+// (ORDER BY EventDate DESC — xem reportEngine.js), đúng cho ĐƯỜNG XEM
+// TƯƠNG TÁC bình thường (1 trang kết quả, định dạng cũ). Nhưng khối directDb
+// ở đây CẦN CỘNG DỒN measures qua MỌI ngày trong khoảng được chọn
+// (aggregateDailyRowsByEntity bên dưới) — chọn khoảng ngày rộng (vd cả năm,
+// nhiều năm, nhiều chi nhánh) dễ vượt quá 1 lượt gọi (vd ~33-48 chi nhánh x
+// 365 ngày = hàng chục nghìn dòng thô, trong khi 1 lượt chỉ lấy tối đa
+// REPORT_FETCH_BATCH_SIZE) — ORDER BY EventDate DESC nghĩa là phần NGÀY XA
+// HƠN trong khoảng bị ÂM THẦM BỎ QUA, "Thực đạt" cộng dồn ra số THẤP HƠN
+// THỰC TẾ mà không có cảnh báo gì (khác hẳn báo cáo trống rõ ràng — rất dễ
+// bị hiểu nhầm là số liệu đúng). Gọi LẶP LẠI nhiều trang (cùng
+// REPORT_FETCH_BATCH_SIZE, offset tăng dần) cho tới khi 1 trang trả về ÍT
+// HƠN batch size (hết dữ liệu) — lấy ĐỦ mọi dòng trong khoảng ngày, không
+// giới hạn số lượng chi nhánh/số ngày — cùng kiểu vòng lặp phân trang đã
+// dùng cho job ETL "Lịch sử" (etl/lib/tableSyncEngine.js, xem chú thích
+// extractTable()).
+const REPORT_FETCH_BATCH_SIZE = 5000;
+async function fetchAllReportRows(pool, blockDefinition, blockFilterValues) {
+  const allRows = [];
+  let page = 1;
+  for (;;) {
+    const pageRows = await runReport(pool, blockDefinition, blockFilterValues, { page, pageSize: REPORT_FETCH_BATCH_SIZE });
+    allRows.push(...pageRows);
+    if (pageRows.length < REPORT_FETCH_BATCH_SIZE) break;
+    page += 1;
+  }
+  return allRows;
+}
+
 async function runBlock(block, requestedRange, filterValues) {
   const { from, to } = requestedRange;
   if (block.isTarget) {
@@ -406,7 +437,7 @@ async function runBlock(block, requestedRange, filterValues) {
     const eventDateRange = { from: shiftYears(from, years), to: shiftYears(to, years) };
     const blockDefinition = { domain: block.domain, filters: [{ field: 'eventDate', type: 'dateRange' }, ...(block.filters || [])] };
     const blockFilterValues = { ...filterValues, eventDate: eventDateRange };
-    const rawRows = await runReport(pool, blockDefinition, blockFilterValues, { page: 1, pageSize: 5000 });
+    const rawRows = await fetchAllReportRows(pool, blockDefinition, blockFilterValues);
     let stkRows = aggregateDailyRowsByEntity(rawRows, eventDateRange.to);
 
     // mapBuIdToMaDiem (TUỲ CHỌN) — domain 'giaodich_chinhanh' (TRANSHDR.BU_ID)
