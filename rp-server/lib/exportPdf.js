@@ -212,7 +212,21 @@ async function exportPdf(definition, rows) {
         headerBlockHeight = neededHeaderRowHeight(flatPairs, flatFontSize);
       }
 
-      const rowH = Math.max(6, size + 4);
+      // SỬA bản 8.99 (theo yêu cầu người dùng — "dãn dòng như vậy chưa ổn,
+      // dãn dòng nhiều lên") — tăng từ size+4 lên size+12 (thử nhiều mức,
+      // đo thật bằng script — xem /tmp/.../test-8.99/gen-real.js — với
+      // đúng dữ liệu thật 36 dòng/17 cột người dùng gửi, mức +12 là NGƯỠNG
+      // CAO NHẤT vẫn giữ nguyên cỡ chữ 7pt đã dò được ở +6 cũ — tức khoảng
+      // cách dòng tăng gấp đôi HOÀN TOÀN MIỄN PHÍ, không đánh đổi cỡ chữ;
+      // vượt quá mức này (vd +14) mới bắt đầu phải thu nhỏ chữ đáng kể để
+      // còn vừa 1 trang. Báo cáo khác (ít/nhiều dòng hơn) ngưỡng này có thể
+      // khác — đây là kết quả đo THỰC TẾ cho đúng báo cáo 36 dòng, không
+      // phải ước lượng.
+      // SỬA bản 9.01 (theo yêu cầu người dùng xem demo +12 — "dãn hơi
+      // nhiều, co vào xíu thôi") — lùi về +10, vẫn trong ngưỡng đo được ở
+      // trên (chữ vẫn giữ nguyên 7pt từ +6 tới +12), chỉ bớt khoảng cách dư
+      // so với +12.
+      const rowH = Math.max(6, size + 10);
       const neededHeight = titleBlockHeight + headerBlockHeight + rowH * rows.length;
       if (neededHeight > usableHeight) continue;
 
@@ -228,7 +242,7 @@ async function exportPdf(definition, rows) {
       const widths = columns.map((col, i) => measureCellWidthAtSize(col, i, size, sidePad * 2 + 0.5, COMPACT_MIN_COL_WIDTH_PT));
       found = {
         size, widths, sidePad,
-        rowH: Math.max(6, size + 4),
+        rowH: Math.max(6, size + 12),
         headerRowH: Math.max(10, size + 6),
         groupFontSize: Math.max(4.5, size + 1.5), subColFontSize: Math.max(4, size), flatFontSize: Math.max(4, size)
       };
@@ -433,7 +447,11 @@ async function exportPdf(definition, rows) {
       drawGridRect(colX[i], rowTop - ROW_HEIGHT, colWidths[i], ROW_HEIGHT, rowFill);
       const raw = i === sttColIdx ? sttValues[rIdx] : row[col.key];
       const text = formatCellText(raw, col);
-      const align = typeof raw === 'number' ? 'right' : 'left';
+      // SỬA bản 8.99 (theo yêu cầu người dùng — "cột STT bạn chưa căn
+      // giữa") — TRƯỚC ĐÂY cột "TT" (số thứ tự) bị coi như MỌI cột số khác,
+      // canh phải (align:'right') — đổi riêng cột này sang canh GIỮA, khớp
+      // đúng cách trình bày cột TT trong file mẫu BRGMART gốc.
+      const align = i === sttColIdx ? 'center' : (typeof raw === 'number' ? 'right' : 'left');
       drawCellText(text, colX[i], colWidths[i], rowTop - ROW_HEIGHT + (compact ? ROW_HEIGHT * 0.28 : 4), { bold: !!row.__isSubtotal, align, size: CELL_FONT_SIZE });
     });
     y -= ROW_HEIGHT;
