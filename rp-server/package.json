@@ -7,7 +7,8 @@
     "start": "node server.js",
     "dev": "node --watch server.js",
     "seed:admin": "node scripts/seedAdmin.js",
-    "seed:voucher-check-report": "node scripts/seedVoucherCheckReport.js"
+    "seed:voucher-check-report": "node scripts/seedVoucherCheckReport.js",
+    "seed:voucher-api-connection": "node scripts/seedVoucherApiConnection.js"
   },
   "dependencies": {
     "@openfonts/noto-sans_vietnamese": "^1.44.3",

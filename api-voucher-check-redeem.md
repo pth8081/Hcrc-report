@@ -215,31 +215,45 @@ trang để NHÂN VIÊN tự gõ/tra 1 mã voucher xem trạng thái — dùng N
 chế "Endpoint realtime" + báo cáo tra-1-khoá đã có (mục 3/13.1
 `hướng_dẫn_báo_cáo.md`), KHÔNG cần code gì thêm.
 
-**Cách 1 (script, khuyên dùng — bản 9.02, không cần mở trình duyệt)**:
+**Cách 1 (TOÀN BỘ bằng script, khuyên dùng — bản 9.03, theo yêu cầu người
+dùng: không cấu hình gì qua web, chỉ chạy script + điền thông tin kết nối
+CSDL)**:
 
 ```
+# Bước 1 — api-server: tạo Endpoint realtime (YÊU CẦU đã chạy
+#          seed:voucher-datasource trước — xem Bước 4 ở trên)
 cd api-server
-npm run seed:voucher-check-endpoint   # YÊU CẦU đã chạy seed:voucher-datasource trước
-```
-Tự tạo/cập nhật "Endpoint realtime" `voucher-check` trỏ `PMCRDINF` (Cột
-khoá `BARCODE`, cột hiển thị `STATUS/VALUE_AMT/BAL_AMT/ISS_DATE/DUE_DATE`),
-tự đối chiếu schema thật trước khi ghi (an toàn như lưu qua UI). Xong bước
-này đã kiểm tra được TRỰC TIẾP trên api-server (chưa cần rp-user):
-`GET /api/v1/realtime/voucher-check/<mã-barcode>` kèm `X-API-Key` của 1
-"Đối tác" có scope `realtime` + được tick endpoint `voucher-check` (api-admin
-→ Đối tác).
+npm run seed:voucher-check-endpoint
 
-Muốn thêm báo cáo tra cứu trên rp-user — TRƯỚC HẾT vào rp-user → Hệ thống →
-Kết nối API Server, tạo kết nối (dán API key ở trên; bước này KHÔNG tự động
-hoá được vì API key chỉ hiện đúng 1 lần, không đi qua script), rồi:
+# Bước 2+3 — tạo "Đối tác" (API key) rồi NỐI THẲNG key đó sang rp-server để
+#            tạo "Kết nối API Server" — KHÔNG đi qua web, KHÔNG lưu key
+#            xuống file nào (chỉ truyền tay trong 1 lệnh, đúng nguyên tắc
+#            "bí mật chỉ hiện đúng 1 lần"):
+APIKEY=$(node scripts/seedVoucherCheckConsumer.js) && \
+  (cd ../rp-server && node scripts/seedVoucherApiConnection.js "$APIKEY")
+# baseUrl lấy từ API_SERVER_BASE_URL trong rp-server/.env — hoặc truyền tham
+# số thứ 3: node scripts/seedVoucherApiConnection.js "$APIKEY" "API Server" "http://..."
+
+# Bước 4 — rp-server: tạo báo cáo "Tra cứu voucher"
+cd ../rp-server
+node scripts/seedVoucherCheckReport.js
 ```
-cd rp-server
-node scripts/seedVoucherCheckReport.js        # mặc định tên kết nối "API Server"
-# hoặc: node scripts/seedVoucherCheckReport.js "<tên kết nối đã đặt>"
-```
-Tự tạo/cập nhật báo cáo `bc-tra-cuu-voucher` ("Tra cứu voucher"). Nhớ vào
-Hệ thống → Phân quyền gán quyền xem cho vai trò cần dùng (script không tự
-gán, giống `seedLdtdHcrcReports.js`).
+
+Sau Bước 1, đã kiểm tra được TRỰC TIẾP trên api-server (chưa cần đợi hết các
+bước sau): `GET /api/v1/realtime/voucher-check/<mã-barcode>` kèm
+`X-API-Key` = chính giá trị `$APIKEY` ở Bước 2+3.
+
+Chạy LẠI nhiều lần AN TOÀN (mọi script đều idempotent) — trừ
+`seedVoucherCheckConsumer.js`: đối tác đã tồn tại thì KHÔNG tự đổi key (sợ
+làm hỏng kết nối đang chạy) — lệnh `APIKEY=$(...)` sẽ RỖNG và `&&` tự dừng
+(không chạy bước sau với key rỗng). Mất key cũ/cần tạo lại từ đầu? Thêm
+`VOUCHER_CONSUMER_ROTATE=true` trước lệnh ở Bước 2+3.
+
+**Việc DUY NHẤT còn lại không script hoá được (cố ý)**: vào Hệ thống →
+Phân quyền gán quyền xem báo cáo `bc-tra-cuu-voucher` cho vai trò cần dùng.
+Toàn bộ script seed trong hệ thống này (kể cả 4 báo cáo doanh thu) đều CỐ
+Ý để bước "ai được xem" cho admin tự quyết — không có cơ chế tự gán, tránh
+1 script vô tình mở quyền xem dữ liệu cho sai người.
 
 **Cách 2 (thủ công qua giao diện)**:
 
