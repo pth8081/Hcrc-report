@@ -198,6 +198,28 @@ Chỉ có đúng 1 cấu hình cho toàn hệ thống (không phân biệt theo 
 
 ## Bước 5 — Cấp quyền gọi cho đối tác (app voucher)
 
+**Cách 1 (script, khuyên dùng — bản 9.04, theo yêu cầu người dùng)**:
+
+```
+cd api-server
+npm run seed:voucher-app-consumer
+```
+
+Tự tạo/cập nhật 1 "Đối tác" tên "App Voucher (thiết bị quét mã)" (đổi tên
+qua biến `VOUCHER_APP_CONSUMER_NAME` nếu cần), scope `voucherCheck` +
+`voucherRedeem`, idempotent (chạy lại an toàn). API key in ra màn hình RÕ
+RÀNG trong khung — copy đúng dòng đó gửi cho đội phát triển app voucher
+(kèm ví dụ `curl` dùng luôn, khỏi gõ lại). Đối tác đã tồn tại thì KHÔNG tự
+đổi key (tránh làm app ngoài đang chạy mất kết nối) — cần cấp lại key mới
+(đã làm mất key cũ, hoặc nghi lộ) thì chạy lại với
+`VOUCHER_APP_CONSUMER_ROTATE=true` (key CŨ hết tác dụng NGAY, nhớ báo đội
+app voucher trước khi làm).
+
+Xem chi tiết đầy đủ (kèm hướng dẫn gửi key an toàn cho đối tác) trong file
+docx riêng người dùng đã nhận.
+
+**Cách 2 (thủ công qua giao diện)**:
+
 Vào "Đối tác" → tạo/sửa đối tác cho app voucher:
 1. Tick scope `voucherCheck` (cho `/check`) và `voucherRedeem` (cho
    `/redeem`) — cấp cả 2 nếu app cần cả 2 API, chỉ 1 scope thì chỉ gọi

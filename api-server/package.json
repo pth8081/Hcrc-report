@@ -9,7 +9,8 @@
     "seed:admin": "node scripts/seedAdmin.js",
     "seed:voucher-datasource": "node scripts/seedVoucherDataSource.js",
     "seed:voucher-check-endpoint": "node scripts/seedVoucherCheckEndpoint.js",
-    "seed:voucher-check-consumer": "node scripts/seedVoucherCheckConsumer.js"
+    "seed:voucher-check-consumer": "node scripts/seedVoucherCheckConsumer.js",
+    "seed:voucher-app-consumer": "node scripts/seedVoucherAppConsumer.js"
   },
   "dependencies": {
     "@simplewebauthn/server": "^14.0.3",
