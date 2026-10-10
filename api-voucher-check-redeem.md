@@ -213,12 +213,40 @@ Vào "Đối tác" → tạo/sửa đối tác cho app voucher:
 Khác với API app voucher ở trên (dành cho THIẾT BỊ quét mã), nếu CÒN cần 1
 trang để NHÂN VIÊN tự gõ/tra 1 mã voucher xem trạng thái — dùng NGUYÊN cơ
 chế "Endpoint realtime" + báo cáo tra-1-khoá đã có (mục 3/13.1
-`hướng_dẫn_báo_cáo.md`), KHÔNG cần code gì thêm:
+`hướng_dẫn_báo_cáo.md`), KHÔNG cần code gì thêm.
+
+**Cách 1 (script, khuyên dùng — bản 9.02, không cần mở trình duyệt)**:
+
+```
+cd api-server
+npm run seed:voucher-check-endpoint   # YÊU CẦU đã chạy seed:voucher-datasource trước
+```
+Tự tạo/cập nhật "Endpoint realtime" `voucher-check` trỏ `PMCRDINF` (Cột
+khoá `BARCODE`, cột hiển thị `STATUS/VALUE_AMT/BAL_AMT/ISS_DATE/DUE_DATE`),
+tự đối chiếu schema thật trước khi ghi (an toàn như lưu qua UI). Xong bước
+này đã kiểm tra được TRỰC TIẾP trên api-server (chưa cần rp-user):
+`GET /api/v1/realtime/voucher-check/<mã-barcode>` kèm `X-API-Key` của 1
+"Đối tác" có scope `realtime` + được tick endpoint `voucher-check` (api-admin
+→ Đối tác).
+
+Muốn thêm báo cáo tra cứu trên rp-user — TRƯỚC HẾT vào rp-user → Hệ thống →
+Kết nối API Server, tạo kết nối (dán API key ở trên; bước này KHÔNG tự động
+hoá được vì API key chỉ hiện đúng 1 lần, không đi qua script), rồi:
+```
+cd rp-server
+node scripts/seedVoucherCheckReport.js        # mặc định tên kết nối "API Server"
+# hoặc: node scripts/seedVoucherCheckReport.js "<tên kết nối đã đặt>"
+```
+Tự tạo/cập nhật báo cáo `bc-tra-cuu-voucher` ("Tra cứu voucher"). Nhớ vào
+Hệ thống → Phân quyền gán quyền xem cho vai trò cần dùng (script không tự
+gán, giống `seedLdtdHcrcReports.js`).
+
+**Cách 2 (thủ công qua giao diện)**:
 
 1. api-admin → "Endpoint realtime" → tạo endpoint mới trỏ `PMCRDINF`, Cột
    khoá = `BARCODE`, cột hiển thị tick `STATUS`, `VALUE_AMT`, `BAL_AMT`,
    `ISS_DATE`, `DUE_DATE`.
-2. rp-user → Hệ thống → Biểu mẫu → tạo báo cáo `SourceType: apiReport`,
+2. rp-user → Hệ thống → Biểu mẫu → tạo báo cáo `SourceType: apiRealtime`,
    `apiTarget` = tên endpoint vừa tạo, `lookupField: barcode` — xem mục 3
    `hướng_dẫn_báo_cáo.md` cho ví dụ cấu hình đầy đủ.
 3. Gán quyền xem báo cáo này cho vai trò nhân viên cần tra cứu.
