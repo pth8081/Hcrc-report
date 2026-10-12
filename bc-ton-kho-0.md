@@ -65,7 +65,7 @@ SELECT
     s.STK_ID     AS MaChiNhanh,
     st.STK_NAME  AS TenChiNhanh,
     k.SKU_CODE   AS MaHangHienThi,
-    k.FULL_NAME  AS TenHang,
+    k.FULL_NAME_U  AS TenHang,  -- FULL_NAME_U (Unicode) chứ KHÔNG phải FULL_NAME (lỗi font, xem "giá vốn dsmart.md")
     CAST(s.TRAN_DATE AS DATE) AS EventDate,     -- Cột ngày
     SUM(s.QTY)   AS SoLuongBan,                 -- Measures
     MAX(s.TRAN_DATE) AS UpdatedAt               -- Cột watermark
@@ -73,7 +73,7 @@ FROM dbo.STRANS s
 JOIN dbo.SKU_DEF k ON k.SKU_ID = s.SKU_ID
 JOIN dbo.STOCK st ON st.STK_ID = s.STK_ID
 WHERE s.TRANS_CODE IN ('01', '02')  -- CHỈ VÍ DỤ — thay đúng mã bán lẻ thật
-GROUP BY s.STK_ID, st.STK_NAME, s.SKU_ID, k.SKU_CODE, k.FULL_NAME, CAST(s.TRAN_DATE AS DATE);
+GROUP BY s.STK_ID, st.STK_NAME, s.SKU_ID, k.SKU_CODE, k.FULL_NAME_U, CAST(s.TRAN_DATE AS DATE);
 ```
 
 **VIEW tồn kho theo SKU** — nguồn `DSTK_INFO` đã có sẵn 1 dòng/chi nhánh/mặt
@@ -86,7 +86,7 @@ SELECT
     d.STK_ID    AS MaChiNhanh,
     st.STK_NAME AS TenChiNhanh,
     k.SKU_CODE  AS MaHangHienThi,
-    k.FULL_NAME AS TenHang,
+    k.FULL_NAME_U AS TenHang,  -- FULL_NAME_U (Unicode) chứ KHÔNG phải FULL_NAME (lỗi font, xem "giá vốn dsmart.md")
     d.WORK_DATE AS EventDate,
     d.STOCK_QTY AS SoLuongTon,
     d.WORK_DATE AS UpdatedAt
