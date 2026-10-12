@@ -13,6 +13,22 @@
 // xem FilterForm.jsx).
 import { useEffect, useMemo, useRef, useState } from 'react';
 
+// Bỏ dấu tiếng Việt khi so khớp tìm kiếm (bản 9.16, theo yêu cầu người
+// dùng — danh sách Nhà cung cấp rất dài, gõ nhanh trên điện thoại hay bỏ
+// dấu, trước đây gõ "cong ty" KHÔNG tìm ra "Công ty" vì so khớp CHUỖI
+// NGUYÊN VĂN có dấu) — NFD tách dấu thành ký tự tổ hợp riêng rồi xoá, cộng
+// riêng đ/Đ (KHÔNG tách được qua NFD, là 1 ký tự Unicode riêng chứ không
+// phải "d" + dấu). Áp dụng cho CẢ chuỗi gõ tìm LẪN nhãn option — gõ có dấu
+// hay không dấu đều ra đúng kết quả.
+function normalizeVN(str) {
+  return String(str)
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D')
+    .toLowerCase();
+}
+
 export default function SearchableSelect({ options, multi = false, value, onChange, placeholder = 'Chọn...', loading = false }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -34,9 +50,9 @@ export default function SearchableSelect({ options, multi = false, value, onChan
   }, []);
 
   const filteredOptions = useMemo(() => {
-    const q = search.trim().toLowerCase();
+    const q = normalizeVN(search.trim());
     if (!q) return options;
-    return options.filter(o => o.label.toLowerCase().includes(q) || String(o.value).toLowerCase().includes(q));
+    return options.filter(o => normalizeVN(o.label).includes(q) || normalizeVN(o.value).includes(q));
   }, [options, search]);
 
   const selectedSet = useMemo(() => new Set(multi ? (value || []) : []), [multi, value]);
