@@ -371,13 +371,24 @@ chuẩn, mirror đúng cách `lib/compositeReportRunner.js` áp storeScope sau
 riêng cho domain dùng STK_ID) — người dùng bị giới hạn 1/nhiều siêu thị
 chỉ thấy đúng đơn hàng của siêu thị đó.
 
-## 5. 3 báo cáo — CÙNG 1 domain, khác `transCode`/`aggregateByOrder` (SỬA bản 8.92)
+## 5. 6 báo cáo — CÙNG 1 domain, khác `transCode`/`aggregateByOrder`/
+`aggregateOrderTotal`/`aggregateBySupplier` (SỬA bản 8.92, thêm 3 báo cáo
+giá trị ở bản 9.08)
 
 | Báo cáo | ReportId | `definition` | Cột chính |
 |---|---|---|---|
 | Đơn đặt hàng | `bc-don-dat-hang` | `transCode: '133'` | Ngày đặt, Số đơn, Siêu thị, NCC, Mã/Tên hàng, SL đặt, Đơn giá, Thành tiền, Ngày giao, Trạng thái |
 | Đơn nhập hàng | `bc-don-nhap-hang` | `transCode: '333'` | Ngày đặt(*), Số đơn, Siêu thị, NCC, Mã/Tên hàng, SL nhận, Đơn giá, Thành tiền, Trạng thái |
 | So sánh đặt–nhận | `bc-so-sanh-dat-nhan` | `aggregateByOrder: true` | Ngày đặt, Siêu thị, NCC, Mã/Tên hàng, SL đặt (SUM dòng 133), SL thực nhận (SUM mọi dòng 333 CÙNG Số đơn — xử lý nhận NHIỀU LẦN), Chênh lệch SL, Tỷ lệ hoàn thành (%), Chênh lệch giá trị, Trạng thái |
+| Giá trị đặt hàng theo đơn | `bc-gia-tri-dat-theo-don` | `transCode: '133', aggregateOrderTotal: true` | Ngày đặt, Số đơn, Siêu thị, NCC, Ngày giao, Tổng SL (SUM mọi mặt hàng trong đơn), Tổng giá trị, Trạng thái — **1 dòng = 1 ĐƠN** (gộp hết mặt hàng), khác "Đơn đặt hàng" ở trên (1 dòng = 1 mặt hàng) |
+| Giá trị nhập hàng theo đơn | `bc-gia-tri-nhap-theo-don` | `transCode: '333', aggregateOrderTotal: true` | Ngày đặt, Số đơn, Siêu thị, NCC, Tổng SL, Tổng giá trị, Trạng thái — 1 dòng = 1 đơn (gộp hết mặt hàng) |
+| So sánh giá trị đặt–nhập theo NCC | `bc-so-sanh-gia-tri-ncc` | `aggregateBySupplier: true` | Mã/Tên NCC, Tổng giá trị đặt (SUM dòng 133), Tổng giá trị nhập (SUM dòng 333), Chênh lệch giá trị, Tỷ lệ giao hàng (%) — **1 dòng = 1 NCC, gộp TOÀN BỘ siêu thị** (theo yêu cầu người dùng — KHÔNG tách theo siêu thị), KHÔNG có bộ lọc Trạng thái (gộp nhiều đơn trạng thái khác nhau, lọc theo trạng thái ở cấp này không có ý nghĩa) |
+
+3 báo cáo mới (bản 9.08) dùng CHUNG VIEW/đồng bộ với 3 báo cáo cũ (mục 1-4
+dưới đây), KHÔNG cần tạo VIEW hay job đồng bộ riêng — chỉ thêm định nghĩa
+báo cáo mới trong `app.ReportCatalog` qua
+`node scripts/seedPurchaseOrderReports.js` (rp-server), xem
+`lib/purchaseOrderRunner.js:aggregateOrderTotal()/aggregateBySupplier()`.
 
 (*) `eventDate`/`EventDate` = `TRAN_DATE` của CHÍNH dòng đó — với báo cáo
 "Đơn nhập hàng", mỗi dòng là 1 LẦN NHẬN riêng nên `eventDate` ở đây thực

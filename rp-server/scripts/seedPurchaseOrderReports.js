@@ -66,6 +66,11 @@ const TRANG_THAI_FILTER = {
   ]
 };
 
+// Cột CHUNG cho 2 báo cáo "Giá trị ... theo đơn" (bản 9.08) — KHÔNG có
+// MaHang/TenHang/DVT (đã gộp hết mặt hàng trong đơn về 1 dòng, không còn ý
+// nghĩa hiện 1 mã hàng đại diện).
+const ORDER_TOTAL_HEAD = ['eventDate', 'SoDon', 'TenDiem', 'MaNCC', 'TenNCC'];
+
 const REPORTS = [
   {
     reportId: 'bc-don-dat-hang', title: 'Đơn đặt hàng', transCode: '133',
@@ -92,6 +97,32 @@ const REPORTS = [
       { key: 'chenhLechGiaTri', label: 'Chênh lệch giá trị', formula: '(measures.SoLuongTheoDon - measures.SoLuongThucNhan) * measures.DonGia' },
       ...COMMON_TAIL
     ]
+  },
+  // 3 báo cáo dưới đây — bản 9.08, theo yêu cầu người dùng ("báo cáo giá trị
+  // tiền nhập/đặt của NCC theo đơn hàng, giá trị so sánh theo NCC").
+  {
+    reportId: 'bc-gia-tri-dat-theo-don', title: 'Giá trị đặt hàng theo đơn', transCode: '133', aggregateOrderTotal: true,
+    columns: [
+      ...ORDER_TOTAL_HEAD, 'NgayGiao',
+      'measures.TongSoLuong', 'measures.TongGiaTri', ...COMMON_TAIL
+    ]
+  },
+  {
+    reportId: 'bc-gia-tri-nhap-theo-don', title: 'Giá trị nhập hàng theo đơn', transCode: '333', aggregateOrderTotal: true,
+    columns: [
+      ...ORDER_TOTAL_HEAD,
+      'measures.TongSoLuong', 'measures.TongGiaTri', ...COMMON_TAIL
+    ]
+  },
+  {
+    // Gộp CẢ hệ thống (mọi siêu thị) theo NCC, theo yêu cầu người dùng —
+    // KHÔNG tách siêu thị, KHÔNG dùng transCode (cần cả 133 lẫn 333).
+    reportId: 'bc-so-sanh-gia-tri-ncc', title: 'So sánh giá trị đặt–nhập theo NCC', aggregateBySupplier: true,
+    columns: [
+      'MaNCC', 'TenNCC', 'measures.GiaTriDat', 'measures.GiaTriNhap',
+      { key: 'chenhLechGiaTriNcc', label: 'Chênh lệch giá trị', formula: 'measures.GiaTriDat - measures.GiaTriNhap' },
+      { key: 'tyLeGiaoHangNcc', label: 'Tỷ lệ giao hàng (%)', format: 'percent', formula: 'ROUND(measures.GiaTriNhap / measures.GiaTriDat * 100, 1)' }
+    ]
   }
 ];
 
@@ -101,11 +132,13 @@ function buildDefinition(report) {
     domain: DOMAIN,
     ...(report.transCode ? { transCode: report.transCode } : {}),
     ...(report.aggregateByOrder ? { aggregateByOrder: true } : {}),
+    ...(report.aggregateOrderTotal ? { aggregateOrderTotal: true } : {}),
+    ...(report.aggregateBySupplier ? { aggregateBySupplier: true } : {}),
     columns: report.columns,
     filters: [
       { field: 'eventDate', type: 'dateRange', label: 'Ngày đặt' },
       NCC_FILTER,
-      TRANG_THAI_FILTER
+      ...(report.aggregateBySupplier ? [] : [TRANG_THAI_FILTER])
     ]
   };
 }
@@ -161,9 +194,9 @@ async function main() {
   }
 
   console.log('');
-  console.log('✅ Xong — cả 3 báo cáo đã sẵn sàng trong danh mục. NHỚ:');
-  console.log('   1. Vào Hệ thống → Phân quyền, gán quyền xem đúng vai trò cho cả 3');
-  console.log('      ReportId (bc-don-dat-hang/bc-don-nhap-hang/bc-so-sanh-dat-nhan) —');
+  console.log(`✅ Xong — cả ${REPORTS.length} báo cáo đã sẵn sàng trong danh mục. NHỚ:`);
+  console.log('   1. Vào Hệ thống → Phân quyền, gán quyền xem đúng vai trò cho đủ');
+  console.log('      ' + REPORTS.map(r => r.reportId).join('/') + ' —');
   console.log('      script này KHÔNG tự gán quyền.');
   console.log('   2. Báo cáo CHƯA CÓ SỐ LIỆU cho tới khi tạo xong VIEW');
   console.log('      dbo.vw_DonDatHangChiNhanh trên DSMART16 + chạy');

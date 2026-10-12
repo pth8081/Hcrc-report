@@ -25,6 +25,24 @@
 // thức đã chốt với người dùng. `DonGia`/các cột mô tả khác lấy từ dòng
 // `133` (đơn đặt gốc) trong nhóm, KHÔNG lấy từ dòng `333`.
 //
+// `definition.aggregateOrderTotal` (`true`, TUỲ CHỌN, dùng CÙNG với
+// `definition.transCode` — bản 9.08, theo yêu cầu người dùng) — gộp các
+// dòng/mặt hàng CÙNG 1 đơn (MaDiem+SoDon) thành 1 dòng duy nhất, CỘNG DỒN
+// `ThanhTien`/`SoLuong` của TOÀN đơn thành `measures.TongGiaTri`/
+// `measures.TongSoLuong`. Dùng cho "Giá trị đặt hàng theo đơn"/"Giá trị
+// nhập hàng theo đơn" (xem mục KẾT LUẬN THIẾT KẾ bổ sung trong
+// bc-don-dat-hang.md) — KHÁC `aggregateByOrder` ở trên (gộp theo
+// MaDiem+SoDon+MaHang, tách riêng SL đặt/SL nhận, dùng cho "So sánh
+// đặt–nhận"): ở đây CHỈ 1 loại giao dịch (đã lọc sẵn qua `transCode`), gộp
+// tới cấp ĐƠN (bỏ qua MaHang), không cần tách SL theo loại.
+//
+// `definition.aggregateBySupplier` (`true`, TUỲ CHỌN, KHÔNG dùng cùng
+// `transCode`/`aggregateByOrder`/`aggregateOrderTotal` — bản 9.08, theo yêu
+// cầu người dùng) — gộp CẢ 2 loại `133`+`333`, TOÀN BỘ chi nhánh/đơn hàng
+// trong khoảng ngày đã chọn, CHỈ theo `MaNCC` (đúng nghĩa "theo nhà cung
+// cấp", KHÔNG tách siêu thị) — ra `measures.GiaTriDat`/`measures.GiaTriNhap`.
+// Dùng cho "So sánh giá trị đặt–nhập theo NCC".
+//
 // KHÁC `directDb` (lib/reportEngine.js) thường ở ĐÚNG 1 điểm: Dimensions.MaDiem
 // đồng bộ từ DSMART16 là mã BU_ID THÔ (CSDL trung tâm, không phải mã Điểm
 // chuẩn) — runner này tự tra "Ánh xạ Điểm - STK_ID" (lib/diemStkMapping.js)
@@ -80,6 +98,47 @@ function aggregateByOrder(rows) {
   return Array.from(groups.values());
 }
 
+// Gộp các dòng CÙNG 1 đơn (MaDiem+SoDon) thành 1 dòng — dùng SAU KHI đã lọc
+// `transCode` (CHỈ 1 loại giao dịch trong `rows`), nên không cần tách SL/giá
+// trị theo loại như aggregateByOrder(). Dimensions (NCC/ngày giao/trạng
+// thái...) lấy từ dòng ĐẦU TIÊN gặp trong nhóm — 1 đơn có thể có vài mặt
+// hàng trạng thái khác nhau (vd đơn nhập 1 phần), chấp nhận đơn giản hoá lấy
+// đại diện 1 dòng, KHÔNG cố gộp nhiều trạng thái thành 1 nhãn.
+function aggregateOrderTotal(rows) {
+  const groups = new Map();
+  for (const row of rows) {
+    const key = `${row.dimensions.MaDiem}|${row.dimensions.SoDon}`;
+    let group = groups.get(key);
+    if (!group) {
+      group = { ...row, dimensions: { ...row.dimensions }, measures: { TongSoLuong: 0, TongGiaTri: 0 } };
+      groups.set(key, group);
+    }
+    group.measures.TongSoLuong += row.measures.SoLuong || 0;
+    group.measures.TongGiaTri += row.measures.ThanhTien || 0;
+  }
+  return Array.from(groups.values());
+}
+
+// Gộp CẢ 2 loại giao dịch, CHỈ theo MaNCC (bỏ qua MaDiem/SoDon/MaHang) —
+// đúng nghĩa "theo nhà cung cấp", cộng dồn TOÀN BỘ chi nhánh trong khoảng
+// ngày đã chọn vào 1 dòng/1 NCC. TenNCC lấy từ dòng đầu tiên gặp (cùng 1
+// MaNCC luôn cùng 1 TenNCC, không có nhập nhằng như aggregateByOrder()).
+function aggregateBySupplier(rows) {
+  const groups = new Map();
+  for (const row of rows) {
+    const key = row.dimensions.MaNCC;
+    let group = groups.get(key);
+    if (!group) {
+      group = { ...row, dimensions: { ...row.dimensions }, measures: { GiaTriDat: 0, GiaTriNhap: 0 } };
+      groups.set(key, group);
+    }
+    const amount = row.measures.ThanhTien || 0;
+    if (row.dimensions.LoaiGiaoDich === TRANS_CODE_DAT) group.measures.GiaTriDat += amount;
+    else if (row.dimensions.LoaiGiaoDich === TRANS_CODE_NHAP) group.measures.GiaTriNhap += amount;
+  }
+  return Array.from(groups.values());
+}
+
 async function runPurchaseOrderReport(definition, filterValues = {}, pagination = { page: 1, pageSize: 500 }) {
   const pool = await getPool('DWH');
   const diemMapping = await loadDiemStkMapping();
@@ -112,6 +171,10 @@ async function runPurchaseOrderReport(definition, filterValues = {}, pagination 
   }
   if (definition.aggregateByOrder) {
     mappedRows = aggregateByOrder(mappedRows);
+  } else if (definition.aggregateOrderTotal) {
+    mappedRows = aggregateOrderTotal(mappedRows);
+  } else if (definition.aggregateBySupplier) {
+    mappedRows = aggregateBySupplier(mappedRows);
   }
 
   return {
