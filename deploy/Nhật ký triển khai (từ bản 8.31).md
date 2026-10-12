@@ -14,6 +14,28 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 9.19 — KHẨN: Sửa API check/redeem voucher tra sai cột (BARCODE → CARD_ID)
+
+**Thay đổi**: `api-server/lib/voucherRedeemService.js` — đổi cột khoá tra/
+ghi `PMCRDINF` từ `BARCODE` (thường rỗng, khiến mọi voucher hợp lệ báo sai
+"không tồn tại") sang `CARD_ID`, LUÔN tự bỏ ký tự `C` đầu mã quét trước khi
+tra (app gửi `voucherCode` luôn thừa 1 ký tự `C` so với `CARD_ID` thật).
+KHÔNG đổi gì phía đối tác (app quét mã) — chỉ sửa code `api-server`.
+
+**Các bước triển khai (làm 1 lần):**
+1. `git pull origin main`.
+2. `pm2 restart hcrc-api-server` — KHÔNG cần chạy script seed nào, KHÔNG
+   đổi schema CSDL (chỉ sửa logic code).
+
+**Kiểm tra:**
+- [ ] Quét/nhập 1 mã voucher ĐÃ BIẾT đã dùng trước đó — app phải báo đúng
+  "Voucher này đã được sử dụng" (KHÔNG còn báo "không hợp lệ/không tồn
+  tại" như trước).
+- [ ] Quét/nhập 1 mã voucher còn hạn, chưa dùng — app phải tra ra đúng
+  thông tin (giá trị/ngày hết hạn) và cho phép thu hồi bình thường.
+- [ ] Thu hồi xong — kiểm tra lại CSDL: `PMCRDINF.STATUS` của đúng
+  `CARD_ID` đó đã đổi sang `0`.
+
 ## 9.18 — KHẨN: Sửa lỗi 500 toàn bộ báo cáo mua hàng (lỗi tự gây ra ở bản 9.17)
 
 **Thay đổi**: bản 9.17 đổi tên cột tiếng Việt cho 6 báo cáo mua hàng,

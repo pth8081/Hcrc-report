@@ -28,6 +28,10 @@ Endpoint chỉ đọc, **không** làm thay đổi trạng thái voucher. Dùng 
 | `voucherCode` | string | Có | Tự động `trim()`. **Tối đa 24 ký tự** — mã quá dài bị từ chối ngay ở tầng validate |
 | `scanMethod` | string | Không | Chỉ nhận và ghi log phía HCRC, không ảnh hưởng kết quả trả về |
 
+Gửi nguyên `voucherCode` đúng y như máy quét/camera trả về, **không cần tự
+cắt/chỉnh sửa định dạng** — hệ thống HCRC tự chuẩn hoá mã trước khi tra
+cứu/cập nhật.
+
 ### Response
 
 **200 — còn dùng được:**

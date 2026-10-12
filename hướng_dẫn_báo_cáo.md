@@ -1349,8 +1349,26 @@ trạng thái 1 voucher, (2) báo voucher đã dùng. Bảng nguồn tại DSMAR
   `BAL_AMT` (số dư), `STATUS`, `DUE_DATE`, `ISS_DATE`, `STK_ID`. **Đã xác
   nhận với người dùng**: `STATUS = 1` là CHƯA thu hồi (voucher còn dùng
   được), `STATUS = 0` là ĐÃ thu hồi (đã dùng).
-- `PMCRDISS` — giao dịch PHÁT HÀNH voucher.
-- `PMCRDRCV` — giao dịch NHẬN/ĐỔI (redeem) voucher.
+- `PMCRDISS` — giao dịch PHÁT HÀNH voucher (cột: `TRANS_NUM`, `TRANS_CODE`,
+  `TRAN_DATE`, `TRAN_TIME`, `BU_ID`, `RS_CODE`, `REF`, `REMARK` — KHÔNG có
+  `CARD_ID`/`BARCODE` trực tiếp, xem bản 9.19).
+- `PMCRDRCV` — giao dịch NHẬN/ĐỔI (redeem) voucher (cột: `TRANS_NUM`,
+  `TRANS_CODE`, `TRAN_DATE`, `TRAN_TIME`, `BU_ID`, `REMARK`, `STATUS`,
+  `STK_ID` — cũng KHÔNG có `CARD_ID`/`BARCODE` trực tiếp, xem bản 9.19).
+
+**QUAN TRỌNG — tra/ghi PHẢI theo `CARD_ID`, KHÔNG dùng `BARCODE` (bản
+9.19, SỬA LỖI THẬT)**: kiểm tra trực tiếp dữ liệu thật trên DSMART16 bằng
+SSMS phát hiện cột `BARCODE` của `PMCRDINF` THƯỜNG RỖNG — tra theo cột này
+khiến mọi voucher hợp lệ đều báo sai "không tồn tại". Mã quét ra từ máy
+quét/camera của app cũng LUÔN thừa đúng 1 ký tự `C` ở đầu so với `CARD_ID`
+lưu trong CSDL (xác nhận thật: mã quét `CE34000089252` ↔ `CARD_ID` lưu
+`E34000089252`) — `api-server/lib/voucherRedeemService.js` LUÔN bỏ ký tự
+`C`/`c` đầu (nếu có) trước khi tra, KHÔNG cần đối tác tự xử lý gì. Nếu tạo
+thêm "Endpoint realtime"/"Endpoint ghi" riêng để tra `PMCRDINF` (mục 13.1/
+13.2 dưới đây — cơ chế tổng quát, khác hẳn 2 route cố định `/vouchers/
+check`/`redeem`), nhớ đặt **Cột khoá = `CARD_ID`** (không phải `BARCODE`)
+và tự xử lý bỏ ký tự `C` đầu TRƯỚC khi gọi (cơ chế endpoint tổng quát
+không tự làm việc này).
 
 Quyết định đã chốt với người dùng: voucher **dùng 1 lần là thu luôn** (không
 theo số dư trừ dần), và **ghi thẳng vào bảng đang có** (`PMCRDINF`) — KHÔNG
@@ -1361,10 +1379,13 @@ tạo bảng riêng của HCRC để lưu trạng thái "đã dùng".
 Không cần code gì thêm — vào **api-admin → Endpoint realtime**, tạo 1
 endpoint mới trỏ vào `PMCRDINF` (hoặc kèm JOIN sang `PMCRDISS`/`PMCRDRCV`
 nếu cần thêm cột lịch sử phát hành/đổi, xem mục "Quy tắc chung" — JOIN đơn
-giản dùng ô có sẵn, phức tạp hơn thì tạo VIEW), Cột khoá = `BARCODE` (hoặc
-`CARD_ID`), Cột hiển thị tick `STATUS`, `BAL_AMT`, `DUE_DATE`... Đối tác gọi
+giản dùng ô có sẵn, phức tạp hơn thì tạo VIEW), **Cột khoá = `CARD_ID`**
+(KHÔNG dùng `BARCODE` — xem lưu ý "QUAN TRỌNG" đầu mục 13), Cột hiển thị
+tick `STATUS`, `BAL_AMT`, `DUE_DATE`... Đối tác gọi
 `GET /api/v1/realtime/{endpoint}/{barcode}` — xem mục 3 cho ví dụ đầy đủ
-kiểu này (kiểm tra voucher tương tự).
+kiểu này (kiểm tra voucher tương tự). Cơ chế "Endpoint realtime" tổng quát
+KHÔNG tự bỏ ký tự `C` đầu như 2 route cố định `/vouchers/check`/`redeem` —
+nếu dùng cách này, đối tác phải tự bỏ ký tự `C` đầu TRƯỚC khi gọi.
 
 ### 13.2. Báo đã dùng — tính năng MỚI "Endpoint ghi" (`api.RealtimeWriteEndpointDefs`)
 
@@ -1376,7 +1397,10 @@ liệu vận hành (mọi engine khác — ETL, Endpoint realtime, mọi báo c�
 - **Tên endpoint**: vd `vouchers-redeem`.
 - **Nguồn dữ liệu**: chọn đúng nguồn trỏ tới DSMART16 (Live).
 - **Bảng**: `PMCRDINF`.
-- **Cột khoá**: `BARCODE` (giá trị đối tác gửi trong URL).
+- **Cột khoá**: `CARD_ID` (KHÔNG dùng `BARCODE` — xem lưu ý "QUAN TRỌNG"
+  đầu mục 13; giá trị đối tác gửi trong URL phải tự bỏ ký tự `C` đầu nếu
+  dùng cơ chế "Endpoint ghi" tổng quát này thay vì route cố định `/vouchers/
+  redeem`, vì cơ chế tổng quát không tự chuẩn hoá).
 - **Cột trạng thái**: `STATUS` — cột SẼ BỊ GHI ĐÈ.
 - **Giá trị đánh dấu "đã dùng"**: `0` (đã xác nhận với người dùng —
   `PMCRDINF.STATUS`: `1` = CHƯA thu hồi, `0` = ĐÃ thu hồi/đã dùng). Endpoint

@@ -29,6 +29,32 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 9.19 — SỬA LỖI THẬT: API check/redeem voucher tra sai cột (BARCODE → CARD_ID)
+
+**Theo báo cáo người dùng** (ảnh app "HCRC Voucher Redemption": quét 1
+voucher ĐÃ BIẾT là đã dùng nhưng app báo "KHÔNG HỢP LỆ/không tồn tại" thay
+vì "đã được sử dụng") — người dùng tự tra trực tiếp DSMART16 bằng SSMS
+(`sp_columns`, `SELECT ... WHERE CARD_ID = ...`) giúp xác định đúng nguyên
+nhân gốc.
+
+- **Nguyên nhân**: `api-server/lib/voucherRedeemService.js` tra/ghi
+  `PMCRDINF` theo cột `BARCODE` — cột này **THƯỜNG RỖNG** trên dữ liệu
+  thật, khiến MỌI voucher hợp lệ (kể cả đã dùng/còn hạn) đều bị báo nhầm
+  "không tồn tại". Mã `voucherCode` app gửi lên cũng LUÔN thừa đúng 1 ký
+  tự `C` ở đầu so với `CARD_ID` lưu trong CSDL (xác nhận thật: mã quét
+  `CE34000089252` ↔ `CARD_ID` lưu `E34000089252`).
+- **Sửa**: đổi cột khoá tra/ghi từ `BARCODE` sang `CARD_ID`; thêm
+  `normalizeCardId()` LUÔN bỏ ký tự `C`/`c` đầu (nếu có) trước khi tra —
+  áp dụng cả `/check` lẫn `/redeem`, không cần đối tác (app quét mã) đổi
+  gì phía họ. Đã kiểm chứng bằng mô phỏng gọi thật `checkVoucher()`/
+  `redeemVoucher()` với dữ liệu giả lập đúng tình huống lỗi trước khi
+  merge.
+- Cập nhật tài liệu hợp đồng API (`api-voucher-check-redeem.md`,
+  `api-voucher-check-redeem-gui-doi-tac.md`) và `hướng_dẫn_báo_cáo.md` mục
+  13 ghi rõ quy tắc `CARD_ID`/bỏ ký tự `C` đầu này, để cấu hình "Endpoint
+  realtime"/"Endpoint ghi" tổng quát sau này (nếu dùng) không lặp lại lỗi
+  tương tự.
+
 ## 9.18 — Sửa lỗi 500 TOÀN BỘ báo cáo mua hàng (lỗi tự gây ra ở bản 9.17)
 
 **Theo báo cáo người dùng** (ảnh F12/DevTools: `500 Internal Server

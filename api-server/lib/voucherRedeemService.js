@@ -23,13 +23,31 @@
 // để giữ mốc thời gian — nguồn DUY NHẤT cho phần "đã dùng" của báo cáo
 // voucher (bc-voucher.md khối C). Xác nhận với người dùng: hiện tại CHỈ CÓ 1
 // kênh redeem (app này).
+//
+// KEY_COL = CARD_ID, KHÔNG phải BARCODE (bản 9.19, SỬA LỖI THẬT phát hiện
+// qua báo cáo người dùng — tra trực tiếp DSMART16 bằng SSMS): cột BARCODE
+// của PMCRDINF THƯỜNG RỖNG trên dữ liệu thật, tra theo cột này khiến MỌI
+// voucher hợp lệ đều báo "INVALID — không tồn tại" dù voucher có thật và đã
+// dùng/còn hạn. Mã quét ra từ máy quét/camera của app cũng KHÔNG khớp thẳng
+// CARD_ID lưu trong CSDL — LUÔN thừa đúng 1 ký tự 'C' ở đầu (xác nhận thật
+// với người dùng: mã quét "CE34000089252" nhưng CARD_ID lưu là
+// "E34000089252") — normalizeCardId() bên dưới LUÔN bỏ ký tự này (không chỉ
+// thử khi không khớp — đúng theo yêu cầu người dùng), áp dụng CẢ cho
+// checkVoucher() lẫn redeemVoucher(), để 2 hàm không bao giờ lệch nhau (vd
+// check báo "còn dùng được" nhưng redeem lại báo "không tìm thấy").
 const { sql, getPool } = require('../db');
 const { getPoolForDataSource } = require('./dataSourcePool');
 
 const TABLE = 'PMCRDINF';
-const KEY_COL = 'BARCODE';
+const KEY_COL = 'CARD_ID';
 const STATUS_COL = 'STATUS';
 const USED_VALUE = 0; // đã xác nhận: 0 = đã thu hồi/đã dùng, 1 = chưa thu hồi
+
+// LUÔN bỏ đúng 1 ký tự 'C'/'c' đầu nếu mã quét bắt đầu bằng ký tự đó (theo
+// yêu cầu người dùng, bản 9.19) — mã còn lại mới là CARD_ID thật khớp CSDL.
+function normalizeCardId(code) {
+  return /^[Cc]/.test(code) ? code.slice(1) : code;
+}
 
 class ConfigError extends Error {}
 class NotFoundError extends Error {}
@@ -75,16 +93,20 @@ function generateTransNum(date) {
   return `${stamp}${suffix}`;
 }
 
+async function fetchByCardId(pool, cardId) {
+  const result = await pool.request()
+    .input('cardId', sql.NVarChar(24), cardId)
+    .query(`SELECT TOP 1 CARD_ID, BARCODE, VALUE_AMT, BAL_AMT, ${STATUS_COL}, DUE_DATE, ISS_DATE, STK_ID FROM ${TABLE} WHERE ${KEY_COL} = @cardId`);
+  return result.recordset[0];
+}
+
 // Đọc trạng thái 1 voucher — KHÔNG làm thay đổi gì (chỉ SELECT). Trả
 // {canRedeem, status: 'UNUSED'|'USED'|'INVALID', ...}.
-async function checkVoucher(barcode) {
+async function checkVoucher(code) {
   const dataSourceId = await loadDataSourceId();
   const pool = await getPoolForDataSource(dataSourceId);
-  const result = await pool.request()
-    .input('barcode', sql.NVarChar(24), barcode)
-    .query(`SELECT TOP 1 CARD_ID, BARCODE, VALUE_AMT, BAL_AMT, ${STATUS_COL}, DUE_DATE, ISS_DATE, STK_ID FROM ${TABLE} WHERE ${KEY_COL} = @barcode`);
 
-  const row = result.recordset[0];
+  const row = await fetchByCardId(pool, normalizeCardId(code));
   if (!row) {
     return { canRedeem: false, status: 'INVALID', message: 'Voucher khong hop le hoac khong ton tai.' };
   }
@@ -110,15 +132,16 @@ async function checkVoucher(barcode) {
 async function redeemVoucher(barcode, consumerId) {
   const dataSourceId = await loadDataSourceId();
   const pool = await getPoolForDataSource(dataSourceId);
+  const cardId = normalizeCardId(barcode); // mã THẬT khớp CARD_ID — barcode gốc (có thể còn 'C' đầu) chỉ giữ lại để ghi log/đối soát
 
   const now = new Date();
   const updateResult = await pool.request()
-    .input('barcode', sql.NVarChar(24), barcode)
+    .input('cardId', sql.NVarChar(24), cardId)
     .input('usedValue', sql.Int, USED_VALUE)
     .query(`
       UPDATE ${TABLE} SET ${STATUS_COL} = @usedValue
       OUTPUT INSERTED.VALUE_AMT AS ValueAmt, INSERTED.STK_ID AS StkId
-      WHERE ${KEY_COL} = @barcode AND (${STATUS_COL} <> @usedValue OR ${STATUS_COL} IS NULL)
+      WHERE ${KEY_COL} = @cardId AND (${STATUS_COL} <> @usedValue OR ${STATUS_COL} IS NULL)
     `);
 
   if (updateResult.recordset.length > 0) {
@@ -138,14 +161,14 @@ async function redeemVoucher(barcode, consumerId) {
       try {
         const adminPool = await getPool('ADMIN');
         await adminPool.request()
-          .input('barcode', sql.VarChar(24), barcode)
+          .input('cardId', sql.VarChar(24), cardId)
           .input('stkId', sql.VarChar(50), StkId != null ? String(StkId) : null)
           .input('valueAmt', sql.Decimal(18, 2), ValueAmt)
           .input('transNum', sql.VarChar(50), transNum)
           .input('consumerId', sql.Int, consumerId || null)
           .query(`
             INSERT INTO api.VoucherRedemptions (Barcode, StkId, ValueAmt, TransNum, ConsumerId)
-            VALUES (@barcode, @stkId, @valueAmt, @transNum, @consumerId)
+            VALUES (@cardId, @stkId, @valueAmt, @transNum, @consumerId)
           `);
         return { result: 'redeemed', transNum, valueAmt: ValueAmt, redeemedAt };
       } catch (err) {
@@ -154,18 +177,18 @@ async function redeemVoucher(barcode, consumerId) {
       }
     }
 
-    console.error(`🚨 [voucher] STATUS đã đổi thật cho barcode "${barcode}" (transNum ${transNum}) NHƯNG ghi api.VoucherRedemptions thất bại sau ${INSERT_RETRY_ATTEMPTS} lần thử — mất mốc thời gian đã dùng, cần đối soát tay. Lỗi gốc: ${lastErr.message}`);
+    console.error(`🚨 [voucher] STATUS đã đổi thật cho CARD_ID "${cardId}" (mã quét gốc "${barcode}", transNum ${transNum}) NHƯNG ghi api.VoucherRedemptions thất bại sau ${INSERT_RETRY_ATTEMPTS} lần thử — mất mốc thời gian đã dùng, cần đối soát tay. Lỗi gốc: ${lastErr.message}`);
     throw new RedeemAuditFailedError(
       'Voucher đã được xác nhận thu hồi THÀNH CÔNG nhưng hệ thống ghi nhận cục bộ bị lỗi. KHÔNG quét lại mã này — vui lòng báo quản trị viên để đối soát thủ công.',
-      { barcode, transNum, valueAmt: ValueAmt, redeemedAt }
+      { barcode: cardId, transNum, valueAmt: ValueAmt, redeemedAt }
     );
   }
 
   // Không đổi dòng nào — phân biệt KHÔNG TỒN TẠI (404) với ĐÃ ở đúng
   // USED_VALUE từ trước (idempotent/race thua, không báo lỗi 500).
   const checkResult = await pool.request()
-    .input('barcode', sql.NVarChar(24), barcode)
-    .query(`SELECT ${STATUS_COL} FROM ${TABLE} WHERE ${KEY_COL} = @barcode`);
+    .input('cardId', sql.NVarChar(24), cardId)
+    .query(`SELECT ${STATUS_COL} FROM ${TABLE} WHERE ${KEY_COL} = @cardId`);
   if (!checkResult.recordset.length) return { result: 'notFound' };
   return { result: 'alreadyUsed' };
 }

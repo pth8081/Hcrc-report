@@ -22,6 +22,18 @@ Bảng nguồn tại DSMART16 (đã xác nhận với người dùng ở
 `BARCODE`, `VALUE_AMT`, `BAL_AMT`, `STATUS` (`1`=CHƯA thu hồi, `0`=ĐÃ thu
 hồi), `DUE_DATE`, `ISS_DATE`, `STK_ID`.
 
+**Tra theo `CARD_ID`, KHÔNG phải `BARCODE`** (bản 9.19, SỬA LỖI THẬT —
+người dùng tự tra trực tiếp DSMART16 bằng SSMS phát hiện): cột `BARCODE`
+của `PMCRDINF` **THƯỜNG RỖNG** trên dữ liệu thật — tra theo cột này khiến
+MỌI voucher hợp lệ (kể cả đã dùng/còn hạn) đều bị báo nhầm `INVALID`
+("không tồn tại"). Mã `voucherCode` app gửi lên cũng **LUÔN thừa đúng 1 ký
+tự `C` ở đầu** so với `CARD_ID` lưu trong CSDL (xác nhận thật: mã quét
+`CE34000089252` nhưng `CARD_ID` lưu là `E34000089252`) — `lib/
+voucherRedeemService.js:normalizeCardId()` LUÔN bỏ ký tự `C`/`c` đầu (nếu
+có) trước khi tra/ghi, áp dụng CẢ `/check` lẫn `/redeem`. **Đối tác (app
+quét mã) KHÔNG cần đổi gì** — vẫn gửi nguyên `voucherCode` y như máy quét
+trả về, việc chuẩn hoá này api-server tự làm.
+
 **Khác gì "Endpoint realtime"/"Endpoint ghi" đã có** (mục 3/13
 `hướng_dẫn_báo_cáo.md`): 2 route này CỐ ĐỊNH trong code
 (`lib/voucherRedeemService.js`), không cấu hình bảng/cột qua UI — vì hợp
