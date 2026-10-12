@@ -29,6 +29,19 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 9.07 — Thêm nút "Sửa" cho trang "Nguồn dữ liệu" (api-admin)
+
+**Theo báo cáo người dùng**: trang "Nguồn dữ liệu" (api-admin) chỉ có nút
+"Xoá", không có nút "Sửa" để cập nhật Server/Database/Username/Password —
+trong khi backend (`api-server/routes/admin/dataSources.js`) đã có sẵn
+`PUT /:id` hoạt động tốt từ trước, chỉ chưa được nối ở frontend.
+
+- `api-admin/src/pages/DataSourcesPage.jsx` — thêm `openEdit`/`saveEdit` +
+  modal Sửa, đúng mẫu đã dùng ở `etl-admin/src/pages/DataSourcesPage.jsx`
+  (mật khẩu để trống = giữ nguyên mật khẩu đã lưu).
+- Đang rà soát toàn bộ các trang quản trị còn lại ở cả 3 app xem có thiếu
+  nút "Sửa" tương tự không (xem mục kế tiếp nếu phát hiện thêm).
+
 ## 9.06 — Tách 2 API độc lập ở trang "Cấu hình Voucher" (api-admin)
 
 **Theo báo cáo người dùng**: trang "Cấu hình Voucher" báo "Lỗi máy chủ",

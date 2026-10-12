@@ -14,6 +14,26 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 9.07 — Thêm nút "Sửa" cho trang "Nguồn dữ liệu" (api-admin)
+
+**Thay đổi**: trang "Nguồn dữ liệu" (api-admin) có thêm nút "Sửa" để cập
+nhật Server/Database/Username/Password mà không cần xoá tạo lại từ đầu.
+
+**Các bước triển khai (làm 1 lần):**
+1. `git pull origin main`.
+2. `cd api-admin && npm run build` — copy TOÀN BỘ `dist/` lên vị trí phục
+   vụ tĩnh api-admin.
+3. KHÔNG cần restart backend (route `PUT /:id` đã có sẵn từ trước, chỉ
+   thêm frontend gọi tới).
+
+**Kiểm tra:**
+- [ ] api-admin → "Nguồn dữ liệu" → bấm "Sửa" 1 dòng bất kỳ → đổi 1 trường
+  (vd Server) → Lưu → danh sách cập nhật đúng, không tạo trùng dòng mới.
+- [ ] Để trống ô Mật khẩu khi sửa → xác nhận endpoint realtime đang dùng
+  nguồn đó vẫn kết nối bình thường (không bị mất mật khẩu cũ).
+
+---
+
 ## 9.06 — Tách 2 API độc lập ở trang "Cấu hình Voucher" (api-admin)
 
 **Thay đổi**: trang "Cấu hình Voucher" (api-admin) hết bị trống dropdown
