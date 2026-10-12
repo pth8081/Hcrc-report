@@ -14,6 +14,37 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 9.08 — Thêm 3 báo cáo giá trị đặt/nhập theo đơn + theo NCC
+
+**Thay đổi**: 3 báo cáo mới trong "Báo cáo Mua hàng": "Giá trị đặt hàng
+theo đơn", "Giá trị nhập hàng theo đơn" (1 dòng/1 đơn hàng), "So sánh giá
+trị đặt–nhập theo NCC" (1 dòng/1 NCC, gộp cả hệ thống).
+
+**Các bước triển khai (làm 1 lần, theo đúng thứ tự):**
+1. `git pull origin main`.
+2. `cd rp-server && node scripts/seedPurchaseOrderReports.js` — BẮT BUỘC
+   chạy lại script này (không chỉ restart) — đây là nơi tạo 3 báo cáo mới
+   trong `app.ReportCatalog`. An toàn chạy lại nhiều lần.
+3. `pm2 restart hcrc-rp-server`.
+4. Vào rp-user → Hệ thống → Phân quyền, gán quyền xem 3 `ReportId` mới
+   (`bc-gia-tri-dat-theo-don`/`bc-gia-tri-nhap-theo-don`/
+   `bc-so-sanh-gia-tri-ncc`) cho đúng vai trò cần dùng — script KHÔNG tự
+   gán quyền.
+5. KHÔNG cần tạo VIEW/job đồng bộ mới (dùng chung dữ liệu đã có từ bản
+   8.92/8.95) — nếu 3 báo cáo cũ (Đơn đặt hàng/Đơn nhập hàng/So sánh
+   đặt–nhận) đang có số liệu bình thường thì 3 báo cáo mới cũng có ngay.
+
+**Kiểm tra:**
+- [ ] 3 báo cáo mới xuất hiện trong menu "Báo cáo Mua hàng" sau khi gán
+  quyền.
+- [ ] Mở "Giá trị đặt hàng theo đơn" — xác nhận mỗi dòng là 1 đơn (không
+  lặp lại nhiều dòng cùng Số đơn như báo cáo "Đơn đặt hàng" cũ).
+- [ ] Mở "So sánh giá trị đặt–nhập theo NCC" — chọn 1 NCC quen thuộc, đối
+  chiếu tổng giá trị đặt/nhập với vài đơn thật (tra trong "Đơn đặt hàng"/
+  "Đơn nhập hàng") để xác nhận cộng dồn đúng.
+
+---
+
 ## 9.07 — Thêm nút "Sửa" cho trang "Nguồn dữ liệu" (api-admin)
 
 **Thay đổi**: trang "Nguồn dữ liệu" (api-admin) có thêm nút "Sửa" để cập

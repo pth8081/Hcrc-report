@@ -29,6 +29,26 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 9.08 — Thêm 3 báo cáo giá trị đặt/nhập theo đơn + theo NCC
+
+**Theo yêu cầu người dùng**: "báo cáo giá trị tiền nhập của ncc theo đơn
+hàng, giá trị đặt của nhà cung cấp theo đơn hàng và giá trị so sánh giữa
+nhập và đặt theo nhà cung cấp" — thêm vào bộ 3 báo cáo "Đơn đặt hàng/Đơn
+nhập hàng/So sánh đặt–nhận" đã có (bản 8.92).
+
+- `rp-server/lib/purchaseOrderRunner.js` — thêm 2 kiểu gộp mới:
+  `aggregateOrderTotal()` (1 dòng/1 đơn hàng, cộng dồn SL+giá trị TOÀN đơn,
+  bỏ cấp mặt hàng) và `aggregateBySupplier()` (1 dòng/1 NCC, gộp TOÀN BỘ
+  siêu thị — theo đúng lựa chọn người dùng xác nhận qua câu hỏi làm rõ,
+  tách riêng Giá trị đặt/Giá trị nhập theo loại giao dịch).
+- `rp-server/scripts/seedPurchaseOrderReports.js` — 3 báo cáo mới:
+  "Giá trị đặt hàng theo đơn" (`bc-gia-tri-dat-theo-don`), "Giá trị nhập
+  hàng theo đơn" (`bc-gia-tri-nhap-theo-don`) — mỗi dòng = 1 đơn hàng; "So
+  sánh giá trị đặt–nhập theo NCC" (`bc-so-sanh-gia-tri-ncc`) — mỗi dòng =
+  1 NCC, gộp cả hệ thống, không tách siêu thị.
+- Dùng CHUNG VIEW/đồng bộ đã có với 3 báo cáo cũ — không cần tạo VIEW/job
+  mới, chỉ seed lại `app.ReportCatalog`.
+
 ## 9.07 — Thêm nút "Sửa" cho trang "Nguồn dữ liệu" (api-admin)
 
 **Theo báo cáo người dùng**: trang "Nguồn dữ liệu" (api-admin) chỉ có nút
