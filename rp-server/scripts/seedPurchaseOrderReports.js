@@ -49,20 +49,34 @@ const DOMAIN = 'don_dat_hang';
 // `eventDate` thực chất là NGÀY NHẬN (xem chú thích (*) trong
 // bc-don-dat-hang.md mục 5) — gộp chung 1 label "Ngày đặt" cho cả 2 sẽ
 // sai nghĩa với báo cáo nhập hàng.
+//
+// ‼️ SỬA LẦN 2, bản 9.18 (gây lỗi 500 thật trên server người dùng, phát
+// hiện ngay sau khi deploy 9.17) ‼️ — mọi cột field THƯỜNG (không công
+// thức) ở trên PHẢI kèm `formula: '<tên field>'` (vd `formula: 'SoDon'`)
+// — `projectColumns()` (lib/reportEngine.js) CHỈ biết xử lý 2 dạng cột:
+// (a) CHUỖI thô ('SoDon') — tự nhận field qua so sánh chuỗi/`.startsWith`,
+// hoặc (b) object CÓ `.formula` — chạy qua evaluateFormula(). Đổi cột field
+// thường từ chuỗi thô sang `{key,label}` KHÔNG kèm `formula` rơi vào
+// KHOẢNG TRỐNG không nhánh nào xử lý được — `col.startsWith is not a
+// function` (vì `col` giờ là object, không phải chuỗi) — 500 ngay lập tức
+// cho MỌI báo cáo domain này. Thêm `formula: '<tên field>'` (tự tham
+// chiếu field gốc, không tính toán gì) để đi qua ĐÚNG nhánh (a) — đã kiểm
+// chứng lại bằng `describeColumns()`/`projectColumns()` thật trước khi
+// merge (không chỉ `node --check` cú pháp).
 function commonHead(eventDateLabel) {
   return [
-    { key: 'eventDate', label: eventDateLabel },
-    { key: 'SoDon', label: 'Số đơn' },
-    { key: 'TenDiem', label: 'Siêu thị' },
-    { key: 'MaNCC', label: 'Mã NCC' },
-    { key: 'TenNCC', label: 'Nhà cung cấp' },
-    { key: 'MaHang', label: 'Mã hàng' },
-    { key: 'TenHang', label: 'Tên hàng' },
-    { key: 'DVT', label: 'ĐVT' }
+    { key: 'eventDate', label: eventDateLabel, formula: 'eventDate' },
+    { key: 'SoDon', label: 'Số đơn', formula: 'SoDon' },
+    { key: 'TenDiem', label: 'Siêu thị', formula: 'TenDiem' },
+    { key: 'MaNCC', label: 'Mã NCC', formula: 'MaNCC' },
+    { key: 'TenNCC', label: 'Nhà cung cấp', formula: 'TenNCC' },
+    { key: 'MaHang', label: 'Mã hàng', formula: 'MaHang' },
+    { key: 'TenHang', label: 'Tên hàng', formula: 'TenHang' },
+    { key: 'DVT', label: 'ĐVT', formula: 'DVT' }
   ];
 }
-const COMMON_TAIL = [{ key: 'TrangThaiLabel', label: 'Trạng thái' }];
-const NGAY_GIAO_COL = { key: 'NgayGiao', label: 'Ngày giao' };
+const COMMON_TAIL = [{ key: 'TrangThaiLabel', label: 'Trạng thái', formula: 'TrangThaiLabel' }];
+const NGAY_GIAO_COL = { key: 'NgayGiao', label: 'Ngày giao', formula: 'NgayGiao' };
 
 // Bộ lọc "Nhà cung cấp" (bản 8.95, theo yêu cầu người dùng) — dropdown tìm
 // kiếm được, lấy DANH SÁCH THẬT từ dữ liệu đã đồng bộ qua `optionsSource`
@@ -112,11 +126,11 @@ const TRANG_THAI_FILTER = {
 // nghĩa hiện 1 mã hàng đại diện).
 function orderTotalHead(eventDateLabel) {
   return [
-    { key: 'eventDate', label: eventDateLabel },
-    { key: 'SoDon', label: 'Số đơn' },
-    { key: 'TenDiem', label: 'Siêu thị' },
-    { key: 'MaNCC', label: 'Mã NCC' },
-    { key: 'TenNCC', label: 'Nhà cung cấp' }
+    { key: 'eventDate', label: eventDateLabel, formula: 'eventDate' },
+    { key: 'SoDon', label: 'Số đơn', formula: 'SoDon' },
+    { key: 'TenDiem', label: 'Siêu thị', formula: 'TenDiem' },
+    { key: 'MaNCC', label: 'Mã NCC', formula: 'MaNCC' },
+    { key: 'TenNCC', label: 'Nhà cung cấp', formula: 'TenNCC' }
   ];
 }
 
@@ -182,8 +196,8 @@ const REPORTS = [
     // KHÔNG tách siêu thị, KHÔNG dùng transCode (cần cả 133 lẫn 333).
     reportId: 'bc-so-sanh-gia-tri-ncc', title: 'So sánh giá trị đặt–nhập theo NCC', aggregateBySupplier: true, showGrandTotal: true,
     columns: [
-      { key: 'MaNCC', label: 'Mã NCC' },
-      { key: 'TenNCC', label: 'Nhà cung cấp' },
+      { key: 'MaNCC', label: 'Mã NCC', formula: 'MaNCC' },
+      { key: 'TenNCC', label: 'Nhà cung cấp', formula: 'TenNCC' },
       { key: 'giaTriDat', label: 'Giá trị đặt', formula: 'measures.GiaTriDat' },
       { key: 'giaTriNhap', label: 'Giá trị nhập', formula: 'measures.GiaTriNhap' },
       { key: 'chenhLechGiaTriNcc', label: 'Chênh lệch giá trị', formula: 'measures.GiaTriDat - measures.GiaTriNhap' },

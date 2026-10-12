@@ -14,6 +14,30 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 9.18 — KHẨN: Sửa lỗi 500 toàn bộ báo cáo mua hàng (lỗi tự gây ra ở bản 9.17)
+
+**Thay đổi**: bản 9.17 đổi tên cột tiếng Việt cho 6 báo cáo mua hàng,
+nhưng một số cột tham chiếu field thô bị thiếu `formula` khiến
+`projectColumns()` lỗi `col.startsWith is not a function` → báo cáo nào
+cũng trả về HTTP 500 khi bấm "Lọc"/chạy. Bản này sửa đúng lỗi đó, KHÔNG
+đổi logic/giao diện gì khác so với 9.17.
+
+**Các bước triển khai (làm 1 lần, theo đúng thứ tự — GIỐNG bước 1-3 của
+bản 9.17, BẮT BUỘC làm lại vì `DefinitionJson` cũ trong DB vẫn đang lỗi):**
+1. `git pull origin main`.
+2. `cd rp-server && node scripts/seedPurchaseOrderReports.js` — BẮT BUỘC
+   chạy lại để ghi đè `DefinitionJson` đã sửa vào DB (chỉ sửa file code
+   không đủ, báo cáo đọc định nghĩa cột từ DB).
+3. `pm2 restart hcrc-rp-server`.
+
+**Kiểm tra:**
+- [ ] Mở từng báo cáo trong 6 báo cáo mua hàng (Đơn đặt hàng/Đơn nhập
+  hàng/So sánh đặt–nhận/Giá trị đặt theo đơn/Giá trị nhập theo đơn/So
+  sánh giá trị theo NCC), bấm "Lọc" — KHÔNG còn báo lỗi "Lỗi máy chủ"/500
+  trên console F12.
+- [ ] Tên cột vẫn hiện tiếng Việt đúng như bản 9.17 (không bị quay lại
+  "eventDate"/"measures...").
+
 ## 9.17 — Sửa 3 lỗi + đổi tên cột tiếng Việt cho báo cáo mua hàng
 
 **Thay đổi**: 6 báo cáo domain `don_dat_hang` — sửa lỗi thiếu dữ liệu

@@ -29,6 +29,35 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 9.18 — Sửa lỗi 500 TOÀN BỘ báo cáo mua hàng (lỗi tự gây ra ở bản 9.17)
+
+**Theo báo cáo người dùng** (ảnh F12/DevTools: `500 Internal Server
+Error` trên `api/reports/bc-don-dat-hang/run`) — TẤT CẢ 6 báo cáo mua
+hàng (Đơn đặt hàng, Đơn nhập hàng, So sánh đặt–nhận, Giá trị đặt/nhập
+theo đơn, So sánh giá trị theo NCC) lỗi ngay khi bấm "Lọc"/chạy báo cáo.
+
+- **Nguyên nhân**: khi đổi tên cột tiếng Việt ở bản 9.17, các cột tham
+  chiếu field thô (không tính toán gì, vd `eventDate`, `SoDon`, `TenDiem`,
+  `MaNCC`, `TenNCC`, `NgayGiao`) bị viết thành `{key, label}` nhưng THIẾU
+  `formula` — hàm `projectColumns()` (`lib/reportEngine.js`) chỉ xử lý
+  được 2 dạng cột: chuỗi thô, HOẶC object CÓ `formula`; object thiếu
+  `formula` rơi vào nhánh `col.startsWith(...)` trong khi `col` là object
+  → `TypeError: col.startsWith is not a function` → 500 cho MỌI báo cáo.
+- **Sửa**: `scripts/seedPurchaseOrderReports.js` — thêm
+  `formula: '<tên field>'` (tự tham chiếu đúng field gốc) vào mọi cột
+  dạng này ở `commonHead()`, `COMMON_TAIL`, `orderTotalHead()`,
+  `NGAY_GIAO_COL`, và 2 cột `MaNCC`/`TenNCC` khai trực tiếp trong báo cáo
+  "So sánh giá trị đặt–nhập theo NCC".
+- **Đã kiểm chứng trước khi merge**: viết lại mô phỏng gọi THẬT
+  `describeColumns()`/`projectColumns()` từ `reportEngine.js` với TOÀN BỘ
+  6 định nghĩa báo cáo thật + dữ liệu dòng giả lập — xác nhận cả 6 báo
+  cáo chạy qua không còn lỗi (không chỉ `node --check` cú pháp, vì lỗi
+  này chỉ lộ ra lúc THỰC THI).
+- **Cần làm lại trên server sau khi `git pull`**: chạy lại
+  `node scripts/seedPurchaseOrderReports.js` (ghi đè `DefinitionJson` mới
+  vào DB) rồi `pm2 restart hcrc-rp-server` — giống bước triển khai bản
+  9.17, phải chạy lại lần này mới hết lỗi 500.
+
 ## 9.17 — Sửa 3 lỗi + đổi tên cột tiếng Việt cho báo cáo mua hàng
 
 **Theo báo cáo người dùng** (ảnh chụp thật "So sánh đặt–nhận" không thấy
