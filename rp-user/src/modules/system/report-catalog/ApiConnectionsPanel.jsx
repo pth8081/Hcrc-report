@@ -18,6 +18,8 @@ export default function ApiConnectionsPanel() {
   const [testing, setTesting] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
+  const [editing, setEditing] = useState(null); // { ...connection, apiKey: '' } đang sửa, hoặc null
+  const [savingEdit, setSavingEdit] = useState(false);
   const selection = useRowSelection();
   const [bulkDeleting, setBulkDeleting] = useState(false);
 
@@ -49,6 +51,23 @@ export default function ApiConnectionsPanel() {
       setTestResult('');
       reload();
     } catch (err) { setError(err.message); } finally { setSaving(false); }
+  }
+
+  function openEdit(c) {
+    setEditing({ ...c, apiKey: '' });
+  }
+
+  async function saveEdit(e) {
+    e.preventDefault();
+    setError('');
+    setSavingEdit(true);
+    try {
+      const body = { name: editing.Name, baseUrl: editing.BaseUrl };
+      if (editing.apiKey) body.apiKey = editing.apiKey;
+      await api.put(`/system/api-connections/${editing.Id}`, body);
+      setEditing(null);
+      reload();
+    } catch (err) { setError(err.message); } finally { setSavingEdit(false); }
   }
 
   async function deleteConnection(c) {
@@ -99,7 +118,16 @@ export default function ApiConnectionsPanel() {
           { key: 'Id', label: 'Id' }, // báo cáo SourceType='composite' cần số Id này (blocks[].apiConnectionId) — không có UI có cấu trúc riêng, xem rp-server/README.md
           { key: 'Name', label: 'Tên' },
           { key: 'BaseUrl', label: 'Base URL' },
-          { key: 'actions', label: '', render: (c) => <button type="button" onClick={() => deleteConnection(c)} disabled={deletingId === c.Id}>{deletingId === c.Id ? 'Đang xoá...' : 'Xoá'}</button> }
+          {
+            key: 'actions', label: '', render: (c) => (
+              <>
+                <button type="button" onClick={() => openEdit(c)}>Sửa</button>{' '}
+                <button type="button" onClick={() => deleteConnection(c)} disabled={deletingId === c.Id}>
+                  {deletingId === c.Id ? 'Đang xoá...' : 'Xoá'}
+                </button>
+              </>
+            )
+          }
         ]}
         rows={connections}
         selection={selection}
@@ -110,6 +138,28 @@ export default function ApiConnectionsPanel() {
           <button type="button" onClick={deleteSelected} disabled={bulkDeleting}>
             {bulkDeleting ? 'Đang xoá...' : `Xoá ${selection.selectedIds.size} mục đã chọn`}
           </button>
+        </div>
+      )}
+
+      {editing && (
+        <div className="modal">
+          <div className="modal-body">
+            <h3>Sửa kết nối "{editing.Name}"</h3>
+            <form className="stacked-form" onSubmit={saveEdit}>
+              <input placeholder="Tên kết nối" value={editing.Name} onChange={(e) => setEditing({ ...editing, Name: e.target.value })} required />
+              <input placeholder="Base URL" value={editing.BaseUrl} onChange={(e) => setEditing({ ...editing, BaseUrl: e.target.value })} required />
+              <input
+                placeholder="API Key mới (để trống = giữ nguyên key đã lưu)"
+                type="password"
+                value={editing.apiKey}
+                onChange={(e) => setEditing({ ...editing, apiKey: e.target.value })}
+              />
+              <div className="inline-actions">
+                <button type="submit" disabled={savingEdit}>{savingEdit ? 'Đang lưu...' : 'Cập nhật kết nối'}</button>
+                <button type="button" onClick={() => setEditing(null)}>Huỷ</button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>

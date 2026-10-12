@@ -18,16 +18,29 @@ const AUTH_TYPES = ['none', 'headerKey', 'queryParam', 'basicAuth', 'oauth2Clien
 
 // AuthKeyName/AuthValueEncrypted TÁI DÙNG cho 4 AuthType khác nhau (tên khác
 // nhau theo ngữ cảnh — header/param/ClientId/HMAC KeyId — xem rp-db/schema.sql).
-function validateAuthPayload({ authType = 'none', authKeyName, authValue, authUsername, authPassword, tokenUrl }) {
+//
+// isUpdate (bản 9.10, SỬA LỖI) — TRƯỚC ĐÂY hàm này dùng CHUNG cho cả POST
+// (tạo mới) LẪN PUT (sửa), luôn bắt buộc authValue/authPassword khác rỗng —
+// khiến cơ chế "để trống = giữ nguyên bí mật cũ đã lưu" ở router.put() bên
+// dưới (dòng comment đầu file đã hứa "sửa mà không gửi giá trị mới thì giữ
+// nguyên") KHÔNG BAO GIỜ chạy tới được, vì bị validate chặn trả 400 TRƯỚC —
+// người dùng buộc phải gõ lại bí mật mỗi lần chỉ muốn đổi Tên/Base URL. Khi
+// isUpdate=true: VẪN bắt buộc authKeyName/authUsername/tokenUrl (không có
+// cơ chế giữ nguyên cho các trường KHÔNG bí mật này), chỉ bỏ qua bắt buộc
+// riêng authValue/authPassword.
+function validateAuthPayload({ authType = 'none', authKeyName, authValue, authUsername, authPassword, tokenUrl }, { isUpdate = false } = {}) {
   if (!AUTH_TYPES.includes(authType)) return `authType phải là một trong: ${AUTH_TYPES.join(', ')}`;
-  if ((authType === 'headerKey' || authType === 'queryParam' || authType === 'hmacSignature') && (!authKeyName || !authValue)) {
-    return `authType "${authType}" cần authKeyName và authValue`;
+  if (authType === 'headerKey' || authType === 'queryParam' || authType === 'hmacSignature') {
+    if (!authKeyName) return `authType "${authType}" cần authKeyName`;
+    if (!isUpdate && !authValue) return `authType "${authType}" cần authValue`;
   }
-  if (authType === 'basicAuth' && (!authUsername || !authPassword)) {
-    return 'authType "basicAuth" cần authUsername và authPassword';
+  if (authType === 'basicAuth') {
+    if (!authUsername) return 'authType "basicAuth" cần authUsername';
+    if (!isUpdate && !authPassword) return 'authType "basicAuth" cần authPassword';
   }
-  if (authType === 'oauth2ClientCredentials' && (!authKeyName || !authValue || !tokenUrl)) {
-    return 'authType "oauth2ClientCredentials" cần authKeyName (ClientId), authValue (ClientSecret) và tokenUrl';
+  if (authType === 'oauth2ClientCredentials') {
+    if (!authKeyName || !tokenUrl) return 'authType "oauth2ClientCredentials" cần authKeyName (ClientId) và tokenUrl';
+    if (!isUpdate && !authValue) return 'authType "oauth2ClientCredentials" cần authValue (ClientSecret)';
   }
   return null;
 }
@@ -104,7 +117,7 @@ router.post('/', async (req, res, next) => {
 router.put('/:id', async (req, res, next) => {
   try {
     const { name, baseUrl, authType = 'none', authKeyName, authValue, authUsername, authPassword, tokenUrl } = req.body || {};
-    const authError = validateAuthPayload({ authType, authKeyName, authValue, authUsername, authPassword, tokenUrl });
+    const authError = validateAuthPayload({ authType, authKeyName, authValue, authUsername, authPassword, tokenUrl }, { isUpdate: true });
     if (authError) return res.status(400).json({ error: authError });
     try {
       await assertSafeConnectionUrls(baseUrl, authType, tokenUrl);

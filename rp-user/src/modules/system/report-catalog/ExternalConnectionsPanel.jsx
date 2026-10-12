@@ -33,6 +33,11 @@ export default function ExternalConnectionsPanel() {
   const [testingId, setTestingId] = useState(null);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
+  // Sửa (bản 9.10) — TÁI DÙNG nguyên form tạo mới (các trường xác thực đổi
+  // theo AuthType) làm form sửa, qua editingId (Id đang sửa, null = đang
+  // tạo mới) — field bí mật (authValue/authPassword) để TRỐNG SẴN khi mở
+  // sửa (route PUT giữ nguyên bí mật cũ nếu để trống, xem backend).
+  const [editingId, setEditingId] = useState(null);
   const selection = useRowSelection();
   const [bulkDeleting, setBulkDeleting] = useState(false);
 
@@ -54,14 +59,30 @@ export default function ExternalConnectionsPanel() {
     }
   }
 
-  async function createConnection(e) {
+  function openEdit(c) {
+    setError('');
+    setEditingId(c.Id);
+    setForm({
+      name: c.Name, baseUrl: c.BaseUrl, authType: c.AuthType || 'none',
+      authKeyName: c.AuthKeyName || '', authValue: '', // bí mật để trống — PUT giữ nguyên nếu không gõ gì
+      authUsername: c.AuthUsername || '', authPassword: '', tokenUrl: c.TokenUrl || ''
+    });
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+    setForm(EMPTY_FORM);
+    setTestResult('');
+  }
+
+  async function submitForm(e) {
     e.preventDefault();
     setError('');
     setSaving(true);
     try {
-      await api.post('/system/external-connections', form);
-      setForm(EMPTY_FORM);
-      setTestResult('');
+      if (editingId) await api.put(`/system/external-connections/${editingId}`, form);
+      else await api.post('/system/external-connections', form);
+      cancelEdit();
       reload();
     } catch (err) { setError(err.message); } finally { setSaving(false); }
   }
@@ -101,7 +122,8 @@ export default function ExternalConnectionsPanel() {
       </p>
       {error && <p className="form-error">{error}</p>}
 
-      <form className="stacked-form" onSubmit={createConnection}>
+      <form className="stacked-form" onSubmit={submitForm}>
+        {editingId && <p className="hint">Đang sửa kết nối — để trống ô bí mật (API key/mật khẩu/client secret) để giữ nguyên giá trị đã lưu.</p>}
         <input placeholder="Tên kết nối" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
         <input placeholder="Base URL (vd https://api.doitac.vn)" value={form.baseUrl} onChange={(e) => setForm({ ...form, baseUrl: e.target.value })} required />
 
@@ -118,11 +140,11 @@ export default function ExternalConnectionsPanel() {
               required
             />
             <input
-              placeholder={keyValueLabels[1]}
+              placeholder={editingId ? `${keyValueLabels[1]} (để trống = giữ nguyên)` : keyValueLabels[1]}
               type="password"
               value={form.authValue}
               onChange={(e) => setForm({ ...form, authValue: e.target.value })}
-              required
+              required={!editingId}
             />
           </>
         )}
@@ -139,11 +161,20 @@ export default function ExternalConnectionsPanel() {
         {form.authType === 'basicAuth' && (
           <>
             <input placeholder="Username" value={form.authUsername} onChange={(e) => setForm({ ...form, authUsername: e.target.value })} required />
-            <input placeholder="Password" type="password" value={form.authPassword} onChange={(e) => setForm({ ...form, authPassword: e.target.value })} required />
+            <input
+              placeholder={editingId ? 'Password (để trống = giữ nguyên)' : 'Password'}
+              type="password"
+              value={form.authPassword}
+              onChange={(e) => setForm({ ...form, authPassword: e.target.value })}
+              required={!editingId}
+            />
           </>
         )}
 
-        <button type="submit" disabled={saving}>{saving ? 'Đang lưu...' : 'Lưu kết nối'}</button>
+        <div className="inline-actions">
+          <button type="submit" disabled={saving}>{saving ? 'Đang lưu...' : (editingId ? 'Cập nhật kết nối' : 'Lưu kết nối')}</button>
+          {editingId && <button type="button" onClick={cancelEdit}>Huỷ</button>}
+        </div>
       </form>
 
       <DataTable
@@ -155,6 +186,7 @@ export default function ExternalConnectionsPanel() {
             key: 'actions', label: '', render: (c) => (
               <>
                 <button type="button" onClick={() => testConnection(c)} disabled={testingId === c.Id}>{testingId === c.Id ? 'Đang kiểm tra...' : 'Kiểm tra kết nối'}</button>{' '}
+                <button type="button" onClick={() => openEdit(c)}>Sửa</button>{' '}
                 <button type="button" onClick={() => deleteConnection(c)} disabled={deletingId === c.Id}>{deletingId === c.Id ? 'Đang xoá...' : 'Xoá'}</button>
               </>
             )

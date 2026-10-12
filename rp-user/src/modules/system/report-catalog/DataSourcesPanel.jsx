@@ -16,6 +16,8 @@ export default function DataSourcesPanel() {
   const [testing, setTesting] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
+  const [editing, setEditing] = useState(null); // { ...source, password: '' } đang sửa, hoặc null
+  const [savingEdit, setSavingEdit] = useState(false);
   const selection = useRowSelection();
   const [bulkDeleting, setBulkDeleting] = useState(false);
 
@@ -47,6 +49,27 @@ export default function DataSourcesPanel() {
       setTestResult('');
       reload();
     } catch (err) { setError(err.message); } finally { setSaving(false); }
+  }
+
+  function openEdit(source) {
+    setEditing({ ...source, password: '' });
+  }
+
+  async function saveEdit(e) {
+    e.preventDefault();
+    setError('');
+    setSavingEdit(true);
+    try {
+      const body = {
+        name: editing.Name, server: editing.Server, port: editing.Port,
+        databaseName: editing.DatabaseName, username: editing.Username,
+        encrypt: editing.Encrypt, trustServerCert: editing.TrustServerCert
+      };
+      if (editing.password) body.password = editing.password;
+      await api.put(`/system/data-sources/${editing.Id}`, body);
+      setEditing(null);
+      reload();
+    } catch (err) { setError(err.message); } finally { setSavingEdit(false); }
   }
 
   async function deleteSource(source) {
@@ -97,7 +120,16 @@ export default function DataSourcesPanel() {
           { key: 'Name', label: 'Tên' },
           { key: 'Server', label: 'Server' },
           { key: 'DatabaseName', label: 'Database' },
-          { key: 'actions', label: '', render: (s) => <button type="button" onClick={() => deleteSource(s)} disabled={deletingId === s.Id}>{deletingId === s.Id ? 'Đang xoá...' : 'Xoá'}</button> }
+          {
+            key: 'actions', label: '', render: (s) => (
+              <>
+                <button type="button" onClick={() => openEdit(s)}>Sửa</button>{' '}
+                <button type="button" onClick={() => deleteSource(s)} disabled={deletingId === s.Id}>
+                  {deletingId === s.Id ? 'Đang xoá...' : 'Xoá'}
+                </button>
+              </>
+            )
+          }
         ]}
         rows={sources}
         selection={selection}
@@ -108,6 +140,33 @@ export default function DataSourcesPanel() {
           <button type="button" onClick={deleteSelected} disabled={bulkDeleting}>
             {bulkDeleting ? 'Đang xoá...' : `Xoá ${selection.selectedIds.size} mục đã chọn`}
           </button>
+        </div>
+      )}
+
+      {editing && (
+        <div className="modal">
+          <div className="modal-body">
+            <h3>Sửa nguồn "{editing.Name}"</h3>
+            <form className="stacked-form" onSubmit={saveEdit}>
+              <input placeholder="Tên nguồn" value={editing.Name} onChange={(e) => setEditing({ ...editing, Name: e.target.value })} required />
+              <input placeholder="Server" value={editing.Server} onChange={(e) => setEditing({ ...editing, Server: e.target.value })} required />
+              <input placeholder="Port" type="number" value={editing.Port} onChange={(e) => setEditing({ ...editing, Port: Number(e.target.value) })} />
+              <input placeholder="Database" value={editing.DatabaseName} onChange={(e) => setEditing({ ...editing, DatabaseName: e.target.value })} required />
+              <input placeholder="Username" value={editing.Username} onChange={(e) => setEditing({ ...editing, Username: e.target.value })} required />
+              <input
+                placeholder="Mật khẩu mới (để trống = giữ nguyên mật khẩu đã lưu)"
+                type="password"
+                value={editing.password}
+                onChange={(e) => setEditing({ ...editing, password: e.target.value })}
+              />
+              <label className="checkbox-row"><input type="checkbox" checked={editing.Encrypt} onChange={(e) => setEditing({ ...editing, Encrypt: e.target.checked })} /> Encrypt</label>
+              <label className="checkbox-row"><input type="checkbox" checked={editing.TrustServerCert} onChange={(e) => setEditing({ ...editing, TrustServerCert: e.target.checked })} /> Trust server certificate</label>
+              <div className="inline-actions">
+                <button type="submit" disabled={savingEdit}>{savingEdit ? 'Đang lưu...' : 'Cập nhật nguồn dữ liệu'}</button>
+                <button type="button" onClick={() => setEditing(null)}>Huỷ</button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>
