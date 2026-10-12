@@ -14,6 +14,31 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 9.13 — Thêm bộ lọc "Siêu thị" cho báo cáo So sánh giá trị đặt–nhập theo NCC
+
+**Thay đổi**: báo cáo "So sánh giá trị đặt–nhập theo NCC" có thêm bộ lọc
+"Siêu thị" — không chọn gì = gộp toàn bộ hệ thống như trước, chọn 1/nhiều
+siêu thị = chỉ so sánh đúng (các) siêu thị đó.
+
+**Các bước triển khai (làm 1 lần, theo đúng thứ tự):**
+1. `git pull origin main`.
+2. `cd rp-server && node scripts/seedPurchaseOrderReports.js` — BẮT BUỘC
+   chạy lại (ghi đè `DefinitionJson` thêm bộ lọc mới), an toàn chạy lại
+   nhiều lần.
+3. `pm2 restart hcrc-rp-server` (đổi `routes/reports.js` +
+   `lib/purchaseOrderRunner.js`).
+
+**Kiểm tra:**
+- [ ] Mở báo cáo "So sánh giá trị đặt–nhập theo NCC" — thấy thêm ô lọc
+  "Siêu thị" (dropdown tìm kiếm được, đúng tên siêu thị thật).
+- [ ] Không chọn gì → chạy báo cáo → số liệu giống hệt trước khi có bộ lọc
+  này (gộp toàn hệ thống).
+- [ ] Chọn đúng 1 siêu thị quen thuộc → đối chiếu tổng giá trị đặt/nhập
+  của 1 NCC bất kỳ với báo cáo "Đơn đặt hàng"/"Đơn nhập hàng" đã lọc riêng
+  đúng siêu thị + NCC đó — phải khớp nhau.
+
+---
+
 ## 9.12 — Sửa dứt điểm lỗi font TenNCC/TenChiNhanh (SUPP_NAME_U, STK_NAME_U)
 
 **Thay đổi**: VIEW "Đơn đặt hàng" đổi `SUPP_NAME` → `SUPP_NAME_U`, VIEW tồn

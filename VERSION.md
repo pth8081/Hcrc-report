@@ -29,6 +29,20 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 9.13 — Thêm bộ lọc "Siêu thị" cho báo cáo So sánh giá trị đặt–nhập theo NCC
+
+**Theo yêu cầu người dùng**: "cho thêm option chọn siêu thị, không chọn
+gì = tất cả siêu thị, chọn siêu thị nào thì chỉ so sánh siêu thị đó thôi".
+
+- `routes/reports.js` — `optionsSource.storeCatalog` (cơ chế lấy danh sách
+  lựa chọn MỚI, khác hẳn `optionsSource.domain` thường dùng) — đọc trực
+  tiếp bảng "Ánh xạ Điểm - STK_ID" thay vì domain đã đồng bộ, vì
+  `Dimensions.MaDiem` trong domain `don_dat_hang` là BU_ID THÔ chưa dịch.
+- `lib/purchaseOrderRunner.js` — lọc theo mã Điểm người dùng chọn SAU khi
+  dịch BU_ID→MaDiem, TRƯỚC khi gộp theo NCC.
+- `scripts/seedPurchaseOrderReports.js` — bộ lọc "Siêu thị" mới, chỉ gắn
+  cho báo cáo "So sánh giá trị đặt–nhập theo NCC".
+
 ## 9.12 — Sửa dứt điểm lỗi font TenNCC/TenChiNhanh (SUPP_NAME_U, STK_NAME_U)
 
 **Theo báo cáo người dùng** (ảnh chụp thật báo cáo "Đơn đặt hàng" ra chữ
