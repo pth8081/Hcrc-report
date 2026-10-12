@@ -29,6 +29,26 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 9.05 — Ghim cố định cột "Sửa/Bật-Tắt/Xoá" bên phải khi cuộn ngang (3 app)
+
+**Theo báo cáo người dùng**: trên điện thoại, bảng quản trị nhiều cột (vd
+"Nguồn dữ liệu") phải cuộn ngang mới tới được cột nút thao tác, nhưng cuộn
+ngang bằng tay trên di động rất khó kéo hết cỡ tới mép phải — thực tế không
+bao giờ chạm được nút "Sửa" dù nút này đã luôn có sẵn trong code (chỉ nằm
+ngoài vùng nhìn thấy).
+
+- `components/DataTable.jsx` (cả 3 app: etl-admin, api-admin, rp-user) —
+  cột có `key: 'actions'` (quy ước sẵn có ở MỌI trang CRUD) giờ gắn class
+  `data-table__actions-cell`.
+- `styles.css` (cả 3 app) — rule `.data-table__actions-cell { position:
+  sticky; right: 0; ... }` ghim cố định đúng cột đó ở mép phải viewport khi
+  cuộn ngang, LUÔN hiện đủ nút thao tác mà không cần cuộn tới cuối. Chỉ áp
+  dụng bảng CRUD phẳng có cột `actions` — KHÔNG đụng bảng báo cáo
+  `columnGroups` (không có cột này).
+- Đã kiểm tra bằng trang HTML mô phỏng đúng cấu trúc + ảnh chụp màn hình độ
+  rộng điện thoại (390px) — xác nhận 3 nút Sửa/Bật/Xoá hiện đủ ngay cả khi
+  chưa cuộn.
+
 ## 9.04 — Script tạo API key cho đối tác App Voucher ngoài (copy gửi đối tác)
 
 **Theo yêu cầu người dùng**: tự động hoá nốt bước cuối cùng của tính năng

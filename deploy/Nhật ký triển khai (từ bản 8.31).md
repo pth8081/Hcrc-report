@@ -14,6 +14,32 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 9.05 — Ghim cố định cột "Sửa/Bật-Tắt/Xoá" bên phải khi cuộn ngang (3 app)
+
+**Thay đổi**: bảng quản trị (Nguồn dữ liệu, Người dùng, Vai trò...) ở cả 3
+app — cột nút thao tác (Sửa/Bật-Tắt/Xoá) giờ ghim cố định bên phải khi cuộn
+ngang trên màn hình hẹp, không cần cuộn hết cỡ mới thấy nút.
+
+**Các bước triển khai (làm 1 lần, theo đúng thứ tự):**
+1. `git pull origin main`.
+2. `cd etl-admin && npm run build` — copy TOÀN BỘ `dist/` lên vị trí phục
+   vụ tĩnh etl-admin như mọi lần trước.
+3. `cd api-admin && npm run build` — copy TOÀN BỘ `dist/` lên vị trí phục
+   vụ tĩnh api-admin.
+4. `cd rp-user && npm run build` — copy TOÀN BỘ `dist/` lên vị trí phục vụ
+   tĩnh rp-user.
+5. KHÔNG cần restart backend (`pm2 restart ...`), KHÔNG cần đổi gì ở CSDL —
+   chỉ đổi 2 file JS/CSS thuần frontend mỗi app.
+
+**Kiểm tra:**
+- [ ] Mở trang có bảng nhiều cột (vd etl-admin → "Nguồn dữ liệu") trên
+  điện thoại/màn hình hẹp — 3 nút Sửa/Bật/Xoá luôn hiện ở mép phải, không
+  cần cuộn ngang mới thấy.
+- [ ] Mở 1 báo cáo doanh thu (bảng columnGroups, rp-user) — vẫn hiển thị
+  bình thường, không có cột nào bị ghim nhầm.
+
+---
+
 ## 9.04 — Script tạo API key cho đối tác App Voucher ngoài
 
 **Thay đổi**: thêm `api-server/scripts/seedVoucherAppConsumer.js` — tạo
