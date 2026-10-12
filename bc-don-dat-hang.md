@@ -258,7 +258,7 @@ SELECT
     m.TRANS_CODE                AS LoaiGiaoDich,     -- '133'=đặt hàng, '333'=nhập hàng (đã xác nhận)
     CAST(m.DUE_DATE AS DATE)    AS NgayGiao,
     m.SUPP_ID                   AS MaNCC,
-    s.SUPP_NAME                 AS TenNCC,           -- JOIN dbo.SUPPLIER (đã xác nhận 07/10/2026)
+    s.SUPP_NAME_U                AS TenNCC,          -- SUPP_NAME_U (Unicode, xác nhận 12/10/2026) — SUPP_NAME (không _U) lỗi font
     m.STAFF_ID                  AS NguoiDat,
     m.SKU_ID                    AS MaHang,
     NULL                        AS TenHang,          -- cần JOIN bảng danh mục hàng hoá nếu muốn hiện tên (chưa có, hiện mã)
@@ -314,6 +314,15 @@ cần ép kiểu) và `SUPP_NAME` (`nvarchar`, tên NCC hiển thị). VIEW ở 
 cập nhật `LEFT JOIN dbo.SUPPLIER s ON s.SUPP_ID = m.SUPP_ID` — dùng
 `LEFT JOIN` (không phải `INNER JOIN`) để đơn hàng có mã NCC không khớp
 dòng nào trong `SUPPLIER` vẫn hiện ra, chỉ tên NCC để trống.
+
+**‼️ SỬA 12/10/2026 — LỖI FONT, DÙNG `SUPP_NAME_U` KHÔNG PHẢI `SUPP_NAME`**:
+người dùng báo cáo tên NCC ra chữ lỗi font trên báo cáo thật — chạy lại
+`INFORMATION_SCHEMA.COLUMNS` xác nhận `SUPPLIER` có CẢ 2 cột, `SUPP_NAME`
+(bảng mã cũ, lỗi font) VÀ `SUPP_NAME_U` (Unicode, ĐÚNG) — VIEW đã đổi dùng
+`SUPP_NAME_U` (xem `deploy/Thiết lập VIEW Đơn đặt hàng-Nhập hàng-So sánh
+(DSMART16 trung tâm).sql`). Nếu VIEW đã chạy trước 12/10/2026, PHẢI chạy
+lại nguyên file đó (an toàn, `CREATE OR ALTER`) rồi đồng bộ lại job
+`don_dat_hang` mới hết lỗi font dữ liệu CŨ đã lưu.
 
 **SỬA bản 8.95 (sau khi JOIN SUPPLIER)**: thêm cột `MaNCC` vào 2 báo cáo
 "Đơn đặt hàng"/"Đơn nhập hàng" (trước đây chỉ có `TenNCC`, không có cột

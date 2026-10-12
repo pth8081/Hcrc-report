@@ -42,6 +42,18 @@
    NCC đã xoá) vẫn hiện ra, chỉ riêng tên NCC để trống thay vì mất nguyên
    dòng đơn hàng.
 
+   ‼️ SỬA 12/10/2026 — LỖI FONT TÊN NCC: DÙNG `SUPP_NAME_U`, KHÔNG PHẢI
+   `SUPP_NAME` ‼️
+   Người dùng báo cáo tên NCC ra chữ lỗi font ("HTX s¶n xuÊt..." thay vì
+   "HTX sản xuất..."). Xác nhận qua INFORMATION_SCHEMA.COLUMNS: `SUPPLIER`
+   có CẢ 2 cột `SUPP_NAME` (nvarchar, bảng mã cũ — lỗi font) VÀ `SUPP_NAME_U`
+   (nvarchar, Unicode — ĐÚNG) — đã đổi JOIN dùng `SUPP_NAME_U`. VIEW này
+   NẾU ĐÃ CHẠY TRƯỚC 12/10/2026 (dùng `SUPP_NAME` cũ) PHẢI CHẠY LẠI NGUYÊN
+   FILE NÀY (CREATE OR ALTER, an toàn) để hết lỗi font — job đồng bộ
+   KHÔNG tự sửa dữ liệu CŨ đã đồng bộ, chỉ dòng đồng bộ MỚI SAU KHI chạy
+   lại VIEW mới đúng; dữ liệu cũ đã lưu lỗi font cần đồng bộ lại (xem
+   etl-admin → Đồng bộ → "Chạy thử" lại job domain `don_dat_hang`).
+
    AN TOÀN CHẠY LẠI NHIỀU LẦN — dùng `CREATE OR ALTER VIEW`, không lỗi nếu
    VIEW đã tồn tại từ lần chạy trước.
 
@@ -63,7 +75,7 @@ SELECT
     m.TRANS_CODE                AS LoaiGiaoDich,     -- '133'=đặt hàng, '333'=nhập hàng (đã xác nhận)
     CAST(m.DUE_DATE AS DATE)    AS NgayGiao,
     m.SUPP_ID                   AS MaNCC,
-    s.SUPP_NAME                 AS TenNCC,           -- JOIN dbo.SUPPLIER (đã xác nhận 07/10/2026)
+    s.SUPP_NAME_U                AS TenNCC,          -- SUPP_NAME_U (Unicode, đã xác nhận 12/10/2026 qua INFORMATION_SCHEMA.COLUMNS) — SUPP_NAME (không _U) lỗi font
     m.STAFF_ID                  AS NguoiDat,
     m.SKU_ID                    AS MaHang,
     NULL                        AS TenHang,          -- cần JOIN bảng danh mục hàng hoá nếu muốn hiện tên (chưa có, hiện mã)

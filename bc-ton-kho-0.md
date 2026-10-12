@@ -63,7 +63,7 @@ CREATE VIEW dbo.vw_BanHangTheoSKU AS
 SELECT
     s.STK_ID + '_' + CAST(s.SKU_ID AS VARCHAR(50)) AS MaThucThe,  -- Cột khoá (EntityCode)
     s.STK_ID     AS MaChiNhanh,
-    st.STK_NAME  AS TenChiNhanh,
+    st.STK_NAME_U  AS TenChiNhanh,  -- STK_NAME_U (Unicode) chứ KHÔNG phải STK_NAME (lỗi font)
     k.SKU_CODE   AS MaHangHienThi,
     k.FULL_NAME_U  AS TenHang,  -- FULL_NAME_U (Unicode) chứ KHÔNG phải FULL_NAME (lỗi font, xem "giá vốn dsmart.md")
     CAST(s.TRAN_DATE AS DATE) AS EventDate,     -- Cột ngày
@@ -73,7 +73,7 @@ FROM dbo.STRANS s
 JOIN dbo.SKU_DEF k ON k.SKU_ID = s.SKU_ID
 JOIN dbo.STOCK st ON st.STK_ID = s.STK_ID
 WHERE s.TRANS_CODE IN ('01', '02')  -- CHỈ VÍ DỤ — thay đúng mã bán lẻ thật
-GROUP BY s.STK_ID, st.STK_NAME, s.SKU_ID, k.SKU_CODE, k.FULL_NAME_U, CAST(s.TRAN_DATE AS DATE);
+GROUP BY s.STK_ID, st.STK_NAME_U, s.SKU_ID, k.SKU_CODE, k.FULL_NAME_U, CAST(s.TRAN_DATE AS DATE);
 ```
 
 **VIEW tồn kho theo SKU** — nguồn `DSTK_INFO` đã có sẵn 1 dòng/chi nhánh/mặt
@@ -84,7 +84,7 @@ CREATE VIEW dbo.vw_TonKhoTheoSKU AS
 SELECT
     d.STK_ID + '_' + CAST(d.SKU_ID AS VARCHAR(50)) AS MaThucThe,
     d.STK_ID    AS MaChiNhanh,
-    st.STK_NAME AS TenChiNhanh,
+    st.STK_NAME_U AS TenChiNhanh,  -- STK_NAME_U (Unicode) chứ KHÔNG phải STK_NAME (lỗi font)
     k.SKU_CODE  AS MaHangHienThi,
     k.FULL_NAME_U AS TenHang,  -- FULL_NAME_U (Unicode) chứ KHÔNG phải FULL_NAME (lỗi font, xem "giá vốn dsmart.md")
     d.WORK_DATE AS EventDate,
