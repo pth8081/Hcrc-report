@@ -14,6 +14,37 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 9.21 — Thêm nguồn Lịch sử (DSMART16_EOM) cho 6 báo cáo Mua hàng
+
+**Thay đổi**: domain `don_dat_hang` (6 báo cáo mua hàng) trước chỉ đồng bộ
+từ `DSMART16` (Live, chỉ giữ dữ liệu gần đây) — thêm nguồn "Lịch sử" THỨ 2
+đọc `DSMART16_EOM` (lưu trữ nhiều năm), mirror đúng kiến trúc đã dùng cho
+báo cáo doanh thu cuối ngày.
+
+**Các bước triển khai (làm 1 lần, CẦN DBA — có bước chạy SQL trên
+`DSMART16_EOM`, khác mọi bản trước chỉ cần `git pull`):**
+1. `git pull origin main`.
+2. DBA chạy NGUYÊN VĂN file
+   `deploy/Thiết lập VIEW Đơn đặt hàng Lịch sử (DSMART16_EOM).sql` trên
+   CSDL `DSMART16_EOM` (tạo VIEW `vw_DonDatHangChiNhanh` + stored procedure
+   `sp_HCRC_RebuildDonDatHangView` + tuỳ chọn Job SQL Server Agent chạy lại
+   hàng tháng). Nếu lỗi "Invalid column name"/"Invalid object name", gửi
+   lại nguyên văn lỗi — cần sửa lại câu lệnh theo đúng schema thật.
+3. `cd etl && node scripts/seedDonDatHangHistorySync.js` — tạo "Nguồn dữ
+   liệu" "DSMART16 - Lịch sử" (dùng lại nếu đã có) + job đồng bộ "Đơn đặt
+   hàng - nhập hàng - Lịch sử (DSMART16_EOM)".
+4. Theo dõi etl-admin → Sync Jobs → job vừa tạo — lần chạy ĐẦU TIÊN quét
+   ~93 tháng dữ liệu, có thể mất VÀI GIỜ, không phải bị treo.
+
+**Kiểm tra:**
+- [ ] Job "Lịch sử" chạy xong, không lỗi, số dòng xử lý lớn (nhiều tháng/
+  năm dữ liệu).
+- [ ] Mở bất kỳ báo cáo nào trong 6 báo cáo Mua hàng, chọn khoảng ngày
+  nhiều tháng/năm trước (không chỉ tháng hiện tại) — đã thấy dữ liệu cũ.
+- [ ] Cột "Nhà cung cấp" của dữ liệu cũ vẫn hiện tên (không trống) — nếu
+  trống, khả năng JOIN chéo sang `DSMART16.dbo.SUPPLIER` không hoạt động
+  (2 CSDL khác server) — báo lại để xử lý tiếp.
+
 ## 9.20 — Sửa lỗi 500 trang "Cấu hình Voucher" (api-admin) — thiếu requireAdminAuth
 
 **Thay đổi**: `api-server/routes/admin/voucherSettings.js` — thêm

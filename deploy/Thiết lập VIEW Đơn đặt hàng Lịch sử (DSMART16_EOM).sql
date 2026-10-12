@@ -1,0 +1,190 @@
+/* deploy/Thiết lập VIEW Đơn đặt hàng Lịch sử (DSMART16_EOM).sql
+   ============================================================================
+   BẢN 9.21 — BỔ SUNG, theo báo cáo người dùng: 6 báo cáo Mua hàng CHỈ lấy
+   được dữ liệu trong tháng hiện tại, KHÔNG lấy được lịch sử nhiều năm —
+   giống hệt lỗi "Cùng kỳ năm trước" đã gặp ở báo cáo doanh thu (xem
+   "báo cáo doanh thu cuối ngày.md" Script B) — NGUYÊN NHÂN GIỐNG NHAU:
+
+   `deploy/Thiết lập VIEW Đơn đặt hàng-Nhập hàng-So sánh (DSMART16 trung
+   tâm).sql` (VIEW "Live") chỉ đọc bảng `STRANS` trên CSDL `DSMART16` —
+   bảng này CHỈ giữ giao dịch gần đây (tháng hiện tại/vài tháng gần nhất).
+   Dữ liệu CŨ HƠN đã được DSMART16 tự chuyển sang CSDL RIÊNG `DSMART16_EOM`
+   (chia thành ~93 bảng `STRANS_YYYYMM`, vd `STRANS_202509`) — job đồng bộ
+   "Đơn đặt hàng - nhập hàng (DSMART16)" (chỉ trỏ VIEW Live) KHÔNG BAO GIỜ
+   thấy được phần dữ liệu này, dù đã ép đồng bộ lại từ đầu (xoá
+   etl.SyncState) — vì nguồn nó đọc đơn giản là KHÔNG CÓ dữ liệu đó.
+
+   FILE NÀY tạo VIEW THỨ 2, CÙNG TÊN (`vw_DonDatHangChiNhanh`) nhưng chạy
+   trên CSDL `DSMART16_EOM` — UNION ALL hết các bảng `STRANS_YYYYMM` +
+   `STRANS_EOM` (sinh SQL tự động từ `sys.tables`, không gõ tay ~93 tên
+   bảng — mirror ĐÚNG kỹ thuật "Script B" trong "báo cáo doanh thu cuối
+   ngày.md"). Sau khi tạo VIEW này, chạy
+   `etl/scripts/seedDonDatHangHistorySync.js` để tạo job đồng bộ "Lịch sử"
+   THỨ 2 (cùng TargetDomain `don_dat_hang` với job "Live" — 2 job cùng ghi
+   vào `dwh.ReportFacts`, phân biệt bằng SourceSystem khác nhau theo
+   DataSourceId, không đè lên nhau).
+
+   ‼️ GIẢ ĐỊNH CẦN XÁC NHẬN (chạy thử sẽ tự lộ nếu sai, báo lỗi rõ ràng) ‼️
+   1. `DSMART16` và `DSMART16_EOM` nằm CÙNG 1 SQL Server instance — VIEW
+      dưới đây JOIN chéo CSDL `DSMART16.dbo.SUPPLIER` (lấy tên NCC) — cách
+      này ĐÃ CÓ TIỀN LỆ hoạt động thật (Script B doanh thu JOIN
+      `DSMART16.dbo.STOCK` y hệt). Nếu 2 CSDL ở 2 SERVER KHÁC NHAU, JOIN
+      này sẽ lỗi "Invalid object name 'DSMART16.dbo.SUPPLIER'" — báo lại
+      cho tôi, sẽ bỏ JOIN này (TenNCC để NULL cho dữ liệu lịch sử, giống
+      TenDiem/TenHang đã chấp nhận NULL ở VIEW Live).
+   2. Các cột `IDX`/`REF`/`SUPP_ID`/`STAFF_ID`/`UNIT_SYMB`/`DUE_DATE` có
+      tồn tại trong `STRANS_YYYYMM`/`STRANS_EOM` không — tài liệu doanh thu
+      chỉ xác nhận tập cột KHÁC (`STK_ID/SKU_ID/BU_ID/TRAN_DATE/TRANS_NUM/
+      TRANS_CODE/QTY/AMOUNT/SURPLUS/VAT_AMT/DISCOUNT/COMM_AMT`), chưa xác
+      nhận các cột mua hàng cần thêm. Nếu lỗi "Invalid column name 'X'",
+      gửi lại NGUYÊN VĂN lỗi để sửa tiếp — SQL Server chỉ báo 1 lỗi đầu
+      tiên mỗi lần chạy.
+
+   AN TOÀN CHẠY LẠI NHIỀU LẦN — `CREATE OR ALTER VIEW`/`PROCEDURE`, không
+   lỗi nếu đã tồn tại từ lần chạy trước.
+   ============================================================================ */
+
+USE DSMART16_EOM;
+GO
+
+DECLARE @sql NVARCHAR(MAX);
+
+-- CAST(... AS NVARCHAR(MAX)) BẮT BUỘC (xem Script B doanh thu) — thiếu ép
+-- kiểu này STRING_AGG suy luận nhầm kiểu ngắn, lỗi "aggregation result
+-- exceeded the limit of 8000 bytes" khi ghép đủ ~93 bảng.
+-- Lọc TRANS_CODE/STATUS NGAY TRONG từng bảng con (trước khi UNION ALL ~93
+-- bảng) — tối ưu, đỡ quét thừa dữ liệu không dùng tới.
+SELECT @sql = STRING_AGG(
+    CAST('SELECT TRANS_NUM, IDX, TRAN_DATE, BU_ID, REF, TRANS_CODE, DUE_DATE, SUPP_ID, STAFF_ID, SKU_ID, UNIT_SYMB, STATUS, QTY, AMOUNT FROM '
+    + QUOTENAME(name) + ' WITH (NOLOCK) WHERE STATUS NOT IN (''D'',''E'') AND TRANS_CODE IN (''133'',''333'')' AS NVARCHAR(MAX)),
+    ' UNION ALL '
+)
+FROM sys.tables
+WHERE name LIKE 'STRANS[_][0-9][0-9][0-9][0-9][0-9][0-9]' OR name = 'STRANS_EOM';
+
+-- Cùng khuôn cột/alias với VIEW "Live" (dbo.vw_DonDatHangChiNhanh trên
+-- DSMART16) — rp-server/lib/purchaseOrderRunner.js không cần biết dữ liệu
+-- tới từ job Live hay Lịch sử, chỉ cần đúng tên cột.
+DECLARE @sqlView NVARCHAR(MAX) = N'
+CREATE OR ALTER VIEW dbo.vw_DonDatHangChiNhanh AS
+SELECT
+    CAST(d.TRANS_NUM AS VARCHAR(50)) + ''|'' + CAST(d.IDX AS VARCHAR(10)) AS MaThucThe,
+    CAST(d.TRAN_DATE AS DATE)   AS EventDate,
+    d.BU_ID                     AS MaDiem,
+    NULL                        AS TenDiem,
+    d.REF                       AS SoDon,
+    d.TRANS_CODE                AS LoaiGiaoDich,
+    CAST(d.DUE_DATE AS DATE)    AS NgayGiao,
+    d.SUPP_ID                   AS MaNCC,
+    s.SUPP_NAME_U                AS TenNCC,
+    d.STAFF_ID                  AS NguoiDat,
+    d.SKU_ID                    AS MaHang,
+    NULL                        AS TenHang,
+    d.UNIT_SYMB                 AS DVT,
+    d.STATUS                    AS TrangThai,
+    CASE d.STATUS
+        WHEN ''C'' THEN N''Chưa nhập''
+        WHEN ''P'' THEN N''Đã nhập 1 phần''
+        WHEN ''F'' THEN N''Đã nhập hết''
+        WHEN ''M'' THEN N''Đơn sửa''
+        ELSE d.STATUS
+    END                         AS TrangThaiLabel,
+    d.QTY                       AS SoLuong,
+    d.AMOUNT / NULLIF(d.QTY, 0) AS DonGia,
+    d.AMOUNT                    AS ThanhTien
+FROM (' + @sql + N') d
+LEFT JOIN DSMART16.dbo.SUPPLIER s ON s.SUPP_ID = d.SUPP_ID;';
+
+EXEC sp_executesql @sqlView;
+GO
+
+/* ===================== Tự động chạy lại hàng tháng ===================== */
+-- Mỗi khi DSMART16 tự tạo thêm bảng STRANS_YYYYMM mới, VIEW ở trên KHÔNG tự
+-- nhận bảng mới (CREATE VIEW chỉ chụp danh sách bảng tại thời điểm chạy) —
+-- gói lại thành stored procedure, chạy lại định kỳ (giống hệt
+-- sp_HCRC_RebuildDoanhThuView đã có cho báo cáo doanh thu).
+USE DSMART16_EOM;
+GO
+CREATE OR ALTER PROCEDURE dbo.sp_HCRC_RebuildDonDatHangView AS
+BEGIN
+    DECLARE @sql NVARCHAR(MAX);
+
+    SELECT @sql = STRING_AGG(
+        CAST('SELECT TRANS_NUM, IDX, TRAN_DATE, BU_ID, REF, TRANS_CODE, DUE_DATE, SUPP_ID, STAFF_ID, SKU_ID, UNIT_SYMB, STATUS, QTY, AMOUNT FROM '
+        + QUOTENAME(name) + ' WITH (NOLOCK) WHERE STATUS NOT IN (''D'',''E'') AND TRANS_CODE IN (''133'',''333'')' AS NVARCHAR(MAX)),
+        ' UNION ALL '
+    )
+    FROM sys.tables
+    WHERE name LIKE 'STRANS[_][0-9][0-9][0-9][0-9][0-9][0-9]' OR name = 'STRANS_EOM';
+
+    DECLARE @sqlView NVARCHAR(MAX) = N'
+    CREATE OR ALTER VIEW dbo.vw_DonDatHangChiNhanh AS
+    SELECT
+        CAST(d.TRANS_NUM AS VARCHAR(50)) + ''|'' + CAST(d.IDX AS VARCHAR(10)) AS MaThucThe,
+        CAST(d.TRAN_DATE AS DATE)   AS EventDate,
+        d.BU_ID                     AS MaDiem,
+        NULL                        AS TenDiem,
+        d.REF                       AS SoDon,
+        d.TRANS_CODE                AS LoaiGiaoDich,
+        CAST(d.DUE_DATE AS DATE)    AS NgayGiao,
+        d.SUPP_ID                   AS MaNCC,
+        s.SUPP_NAME_U                AS TenNCC,
+        d.STAFF_ID                  AS NguoiDat,
+        d.SKU_ID                    AS MaHang,
+        NULL                        AS TenHang,
+        d.UNIT_SYMB                 AS DVT,
+        d.STATUS                    AS TrangThai,
+        CASE d.STATUS
+            WHEN ''C'' THEN N''Chưa nhập''
+            WHEN ''P'' THEN N''Đã nhập 1 phần''
+            WHEN ''F'' THEN N''Đã nhập hết''
+            WHEN ''M'' THEN N''Đơn sửa''
+            ELSE d.STATUS
+        END                         AS TrangThaiLabel,
+        d.QTY                       AS SoLuong,
+        d.AMOUNT / NULLIF(d.QTY, 0) AS DonGia,
+        d.AMOUNT                    AS ThanhTien
+    FROM (' + @sql + N') d
+    LEFT JOIN DSMART16.dbo.SUPPLIER s ON s.SUPP_ID = d.SUPP_ID;';
+
+    EXEC sp_executesql @sqlView;
+END
+GO
+
+-- Chạy thử ngay: EXEC dbo.sp_HCRC_RebuildDonDatHangView; -- không lỗi là xong.
+
+/* ===================== Job SQL Server Agent (tuỳ chọn, khuyên dùng) =====================
+   Giống hệt job đã tạo cho sp_HCRC_RebuildDoanhThuView (xem "báo cáo doanh
+   thu cuối ngày.md") — nếu đã có job đó, CÓ THỂ chỉ cần thêm 1 step gọi
+   thêm dbo.sp_HCRC_RebuildDonDatHangView vào CÙNG job, thay vì tạo job mới.
+   Dưới đây tạo job RIÊNG cho rõ ràng, độc lập. */
+USE msdb;
+GO
+EXEC dbo.sp_add_job
+    @job_name = N'HCRC - Cap nhat lai VIEW vw_DonDatHangChiNhanh';
+GO
+EXEC dbo.sp_add_jobstep
+    @job_name = N'HCRC - Cap nhat lai VIEW vw_DonDatHangChiNhanh',
+    @step_name = N'Goi stored procedure sinh lai VIEW',
+    @database_name = N'DSMART16_EOM',
+    @subsystem = N'TSQL',
+    @command = N'EXEC dbo.sp_HCRC_RebuildDonDatHangView;';
+GO
+EXEC dbo.sp_add_schedule
+    @schedule_name = N'Hang thang - ngay 2 (Don dat hang)',
+    @freq_type = 16,              -- Hàng tháng
+    @freq_interval = 2,           -- Ngày 2
+    @freq_recurrence_factor = 1,  -- BẮT BUỘC khi @freq_type=16
+    @active_start_time = 31000; -- 03:10:00 (lệch 10 phút so với job doanh thu, tránh chạy trùng giờ)
+GO
+EXEC dbo.sp_attach_schedule
+    @job_name = N'HCRC - Cap nhat lai VIEW vw_DonDatHangChiNhanh',
+    @schedule_name = N'Hang thang - ngay 2 (Don dat hang)';
+GO
+EXEC dbo.sp_add_jobserver
+    @job_name = N'HCRC - Cap nhat lai VIEW vw_DonDatHangChiNhanh';
+GO
+
+/* Không có SQL Server Agent (bản Express)/không có quyền tạo Job — bỏ qua
+   phần Job, chỉ cần có stored procedure ở trên, đặt lịch nhắc DBA tự chạy
+   tay EXEC dbo.sp_HCRC_RebuildDonDatHangView; mỗi đầu tháng. */

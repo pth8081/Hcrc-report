@@ -453,6 +453,44 @@ Giờ MỌI cột đều khai `{key, label}` tường minh tiếng Việt. Cột
 tách 2 nhãn khác nhau theo báo cáo ("Ngày đặt" / "Ngày nhận") vì CÙNG 1
 field nhưng Ý NGHĨA KHÁC NHAU tuỳ báo cáo (xem chú thích (*) mục 5).
 
+## 6.6. Bản 9.21 — Thiếu nguồn Lịch sử (DSMART16_EOM), chỉ lấy được tháng hiện tại
+
+**Theo báo cáo người dùng** (ảnh chụp thật: lọc "Ngày đặt" cả 1-2 tháng
+trước nhưng kết quả CHỈ có dòng của tháng hiện tại) — giống HỆT lỗi đã gặp
++ đã sửa ở báo cáo doanh thu ("Cùng kỳ năm trước" thiếu dữ liệu, xem
+"báo cáo doanh thu cuối ngày.md" Script B).
+
+**Nguyên nhân**: job đồng bộ "Đơn đặt hàng - nhập hàng (DSMART16)"
+(`etl/scripts/seedDonDatHangSync.js`) CHỈ đọc VIEW trên CSDL `DSMART16`
+(Live) — bảng `STRANS` ở đó CHỈ giữ giao dịch gần đây. Dữ liệu cũ hơn đã
+được DSMART16 tự chuyển sang CSDL RIÊNG `DSMART16_EOM` (~93 bảng
+`STRANS_YYYYMM`) — job "Live" KHÔNG BAO GIỜ thấy được phần này, kể cả sau
+khi ép đồng bộ lại từ đầu (xoá `etl.SyncState`), vì nguồn nó đọc đơn giản
+KHÔNG CÓ dữ liệu đó.
+
+**Đã sửa — thêm nguồn "Lịch sử" THỨ 2, mirror đúng domain doanh thu**:
+- `deploy/Thiết lập VIEW Đơn đặt hàng Lịch sử (DSMART16_EOM).sql` — VIEW
+  CÙNG TÊN (`vw_DonDatHangChiNhanh`) nhưng chạy trên `DSMART16_EOM`, UNION
+  ALL toàn bộ bảng `STRANS_YYYYMM`/`STRANS_EOM` (sinh SQL tự động, không gõ
+  tay ~93 tên bảng) + stored procedure `sp_HCRC_RebuildDonDatHangView` để
+  chạy lại hàng tháng (bảng mới phát sinh). `TenNCC` JOIN CHÉO
+  `DSMART16.dbo.SUPPLIER` (giả định 2 CSDL CÙNG 1 server, có tiền lệ hoạt
+  động ở Script B doanh thu — JOIN `DSMART16.dbo.STOCK`).
+- `etl/scripts/seedDonDatHangHistorySync.js` — tạo "Nguồn dữ liệu"
+  "DSMART16 - Lịch sử" (dùng lại nếu đã có từ `seedLdtdHcrcSync.js`) + job
+  "Đơn đặt hàng - nhập hàng - Lịch sử (DSMART16_EOM)" — **CÙNG
+  `TargetDomain` `don_dat_hang`** với job "Live" (2 job cùng ghi
+  `dwh.ReportFacts`, phân biệt theo `SourceSystem` khác nhau, không đè lên
+  nhau) — `rp-server/lib/purchaseOrderRunner.js` KHÔNG cần sửa gì, áp dụng
+  TỰ ĐỘNG cho CẢ 6 báo cáo mua hàng ngay khi job Lịch sử đồng bộ xong.
+- Job Lịch sử chạy 1 lần/ngày (3h sáng, không cần mỗi 15 phút như Live) —
+  lần chạy ĐẦU TIÊN quét ~93 tháng dữ liệu, có thể mất VÀI GIỜ.
+
+**Thứ tự triển khai**: (1) DBA chạy file `.sql` trên `DSMART16_EOM` → (2)
+chạy `node scripts/seedDonDatHangHistorySync.js` (trong `etl/`) → (3) theo
+dõi etl-admin → Sync Jobs → job "...Lịch sử (DSMART16_EOM)" tới khi chạy
+xong lần đầu → (4) kiểm tra lại báo cáo với khoảng ngày nhiều tháng/năm.
+
 ## 6. Giới hạn đã biết (v1)
 
 - **ĐÃ GIẢI QUYẾT ở bản 8.92** (không còn là giới hạn): trước đây tưởng
