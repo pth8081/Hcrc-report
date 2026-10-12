@@ -29,6 +29,21 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 9.15 — Thêm dòng Tổng cộng cho 3 báo cáo giá trị đặt/nhập
+
+**Theo yêu cầu người dùng**: "phải có tổng cộng giá trị để phần so sánh
+giá nhập và đặt chính xác hơn".
+
+- `lib/purchaseOrderRunner.js` — `appendGrandTotal()`: cộng dồn mọi
+  measures số thành 1 dòng cuối, dùng đúng quy ước `__isSubtotal`/
+  `__isGrandTotal` đã có sẵn (`lib/compositeReportRunner.js`) nên
+  `DataTable.jsx` (web)/`exportExcel.js`/`exportPdf.js` tự nhận diện tô
+  màu/in đậm, không cần đổi gì ở tầng hiển thị.
+- Chỉ bật cho 3 báo cáo "giá trị" (`showGrandTotal: true`) — KHÔNG bật
+  cho "Đơn đặt hàng"/"Đơn nhập hàng"/"So sánh đặt–nhận" vì có cột `DonGia`
+  (đơn giá/1 đơn vị), cộng dồn đơn giá nhiều mặt hàng khác nhau ra số vô
+  nghĩa, dễ hiểu lầm là "tổng giá trị".
+
 ## 9.14 — Mở rộng bộ lọc Siêu thị ra cả 6 báo cáo + sửa lỗi chọn nhãn cũ ở dropdown lọc
 
 **Theo báo cáo người dùng** (ảnh chụp thật): dropdown "Nhà cung cấp" vẫn

@@ -14,6 +14,31 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 9.15 — Thêm dòng Tổng cộng cho 3 báo cáo giá trị đặt/nhập
+
+**Thay đổi**: 3 báo cáo "Giá trị đặt hàng theo đơn"/"Giá trị nhập hàng
+theo đơn"/"So sánh giá trị đặt–nhập theo NCC" có thêm dòng "Tổng cộng" ở
+cuối bảng (tô màu xanh đậm), cộng dồn đúng cột giá trị.
+
+**Các bước triển khai (làm 1 lần):**
+1. `git pull origin main`.
+2. `cd rp-server && node scripts/seedPurchaseOrderReports.js` — BẮT BUỘC
+   chạy lại (ghi đè `DefinitionJson` thêm `showGrandTotal`).
+3. `pm2 restart hcrc-rp-server` (đổi `lib/purchaseOrderRunner.js`).
+
+**Kiểm tra:**
+- [ ] Mở "Giá trị đặt hàng theo đơn" — cuối bảng có 1 dòng "Tổng cộng" tô
+  màu xanh, cộng đúng tổng cột "Tổng giá trị" của mọi dòng phía trên.
+- [ ] Mở "So sánh giá trị đặt–nhập theo NCC" — dòng "Tổng cộng" có cả 2
+  cột Giá trị đặt/Giá trị nhập cộng đúng, "Tỷ lệ giao hàng (%)" tính lại
+  đúng theo tổng (không phải trung bình cộng % từng NCC).
+- [ ] Mở "Đơn đặt hàng"/"Đơn nhập hàng"/"So sánh đặt–nhận" — xác nhận
+  KHÔNG có dòng Tổng cộng (giữ nguyên như cũ, tránh cộng nhầm Đơn giá).
+- [ ] Lọc ra kết quả RỖNG (vd chọn NCC không có đơn nào trong khoảng ngày)
+  — xác nhận KHÔNG hiện dòng "Tổng cộng" với toàn số 0.
+
+---
+
 ## 9.14 — Mở rộng bộ lọc Siêu thị ra cả 6 báo cáo + sửa lỗi chọn nhãn cũ ở dropdown lọc + đồng bộ lại toàn bộ dữ liệu đơn hàng
 
 **Thay đổi**: cả 6 báo cáo domain `don_dat_hang` có bộ lọc "Siêu thị". Sửa
