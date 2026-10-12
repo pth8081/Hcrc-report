@@ -14,6 +14,31 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 9.06 — Tách 2 API độc lập ở trang "Cấu hình Voucher" (api-admin)
+
+**Thay đổi**: trang "Cấu hình Voucher" (api-admin) hết bị trống dropdown
+"Nguồn dữ liệu" khi API `/voucher-settings` lỗi — tách riêng 2 lệnh gọi độc
+lập thay vì gọi chung `Promise.all`.
+
+**Các bước triển khai (làm 1 lần, theo đúng thứ tự):**
+1. `git pull origin main`.
+2. **QUAN TRỌNG — chạy TRƯỚC khi build**: chạy lại `api-db/schema.sql`
+   trên đúng CSDL `HCRC_API` (an toàn chạy lại nhiều lần) — khả năng cao
+   bảng `api.VoucherSettings` đang CHƯA tồn tại trên CSDL thật (nguyên
+   nhân gốc gây "Lỗi máy chủ"), script này tạo bù nếu thiếu, không đổi gì
+   nếu đã có.
+3. `cd api-admin && npm run build` — copy TOÀN BỘ `dist/` lên vị trí phục
+   vụ tĩnh api-admin.
+4. KHÔNG cần restart `pm2` (route backend không đổi, chỉ sửa frontend).
+
+**Kiểm tra:**
+- [ ] Chạy `SELECT * FROM api.VoucherSettings;` trên CSDL `HCRC_API` —
+  không còn báo lỗi "Invalid object name".
+- [ ] Mở api-admin → "Cấu hình Voucher" — dropdown "Nguồn dữ liệu" liệt kê
+  đủ (không còn "Lỗi máy chủ"), chọn được nguồn rồi bấm "Lưu" thành công.
+
+---
+
 ## 9.05 — Ghim cố định cột "Sửa/Bật-Tắt/Xoá" bên phải khi cuộn ngang (3 app)
 
 **Thay đổi**: bảng quản trị (Nguồn dữ liệu, Người dùng, Vai trò...) ở cả 3

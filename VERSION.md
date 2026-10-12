@@ -29,6 +29,24 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 9.06 — Tách 2 API độc lập ở trang "Cấu hình Voucher" (api-admin)
+
+**Theo báo cáo người dùng**: trang "Cấu hình Voucher" báo "Lỗi máy chủ",
+dropdown "Nguồn dữ liệu" trống hoàn toàn, dù API `/data-sources` (dùng
+chung ở trang "Endpoint ghi"/"Endpoint realtime") vẫn liệt kê bình thường
+(xác nhận qua 2 trang đó vẫn thấy "DSMART16 (Live) - Voucher").
+
+- `api-admin/src/pages/VoucherSettingsPage.jsx` — trước gọi `Promise.all`
+  chung `/data-sources` + `/voucher-settings`, 1 trong 2 lỗi làm CẢ HAI
+  đều không set state (dropdown trống theo dù phần kia chạy tốt). Nguyên
+  nhân có khả năng cao nhất: bảng `api.VoucherSettings` (api-db) chưa tồn
+  tại trên CSDL `HCRC_API` thật của người dùng — do chưa chạy lại
+  `api-db/schema.sql` kể từ lúc có tính năng voucher (bản 6.92). Đổi sang
+  `Promise.allSettled`, lỗi bên nào chỉ ảnh hưởng đúng bên đó.
+- Cần chạy lại `api-db/schema.sql` trên CSDL `HCRC_API` (an toàn chạy lại
+  nhiều lần, có `IF OBJECT_ID(...) IS NULL`) để tạo bù bảng
+  `api.VoucherSettings` nếu đó đúng là nguyên nhân gốc.
+
 ## 9.05 — Ghim cố định cột "Sửa/Bật-Tắt/Xoá" bên phải khi cuộn ngang (3 app)
 
 **Theo báo cáo người dùng**: trên điện thoại, bảng quản trị nhiều cột (vd
