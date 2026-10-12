@@ -52,6 +52,21 @@ const NCC_FILTER = {
   optionsSource: { domain: DOMAIN, valueField: 'MaNCC', labelField: 'TenNCC' }
 };
 
+// Bộ lọc "Siêu thị" (bản 9.13, theo yêu cầu người dùng — báo cáo "So sánh
+// giá trị đặt–nhập theo NCC": không chọn gì = gộp TOÀN BỘ siêu thị, chọn
+// 1/nhiều siêu thị = CHỈ gộp đúng (các) siêu thị đó). optionsSource.storeCatalog
+// (KHÁC optionsSource.domain/valueField/labelField ở NCC_FILTER trên) —
+// đọc thẳng bảng "Ánh xạ Điểm - STK_ID" thay vì dwh.ReportFacts, vì
+// Dimensions.MaDiem trong domain này là BU_ID thô chưa dịch (xem
+// routes/reports.js GET /:reportId/filter-options/:field +
+// lib/purchaseOrderRunner.js). field: 'maDiem' đọc ở JS
+// (lib/purchaseOrderRunner.js:userStoreFilter), KHÔNG xuống SQL (đã loại
+// khỏi sqlFilters từ trước, xem chú thích trong runner).
+const SIEU_THI_FILTER = {
+  field: 'maDiem', type: 'multiSelect', label: 'Siêu thị',
+  optionsSource: { storeCatalog: true }
+};
+
 // Trạng thái hiện trong bộ lọc — CHỈ còn C/P/F/M (bản 8.92, theo yêu cầu
 // người dùng: "loại cả đơn xóa nữa bạn chỉ lấy đơn đặt thực tế và nhập
 // thực tế") — D (Đã xoá)/E (Đã huỷ) đã bị LOẠI HẲN ngay trong VIEW
@@ -138,7 +153,7 @@ function buildDefinition(report) {
     filters: [
       { field: 'eventDate', type: 'dateRange', label: 'Ngày đặt' },
       NCC_FILTER,
-      ...(report.aggregateBySupplier ? [] : [TRANG_THAI_FILTER])
+      ...(report.aggregateBySupplier ? [SIEU_THI_FILTER] : [TRANG_THAI_FILTER])
     ]
   };
 }

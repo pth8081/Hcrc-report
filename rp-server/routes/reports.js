@@ -30,6 +30,7 @@ const { exportExcel } = require('../lib/exportExcel');
 const { exportPdf } = require('../lib/exportPdf');
 const { filterColumns, filterGroups } = require('../lib/reportCellFormat');
 const { getUserContext } = require('../lib/permissions');
+const { loadDiemStkMapping } = require('../lib/diemStkMapping');
 const reportResultCache = require('../lib/reportResultCache');
 const { logAction } = require('../lib/auditLog');
 
@@ -136,6 +137,23 @@ router.get('/:reportId/filter-options/:field', async (req, res, next) => {
 
     const filterDef = (definition.filters || []).find(f => f.field === req.params.field);
     if (!filterDef || !filterDef.optionsSource) return res.status(404).json({ error: 'Bộ lọc không có danh sách lựa chọn động' });
+
+    // optionsSource.storeCatalog (bản 9.13, theo yêu cầu người dùng — bộ
+    // lọc "Siêu thị" cho báo cáo gộp theo NCC) — KHÁC hẳn nhánh domain/
+    // JSON_VALUE bên dưới: domain `don_dat_hang` lưu Dimensions.MaDiem là
+    // BU_ID THÔ chưa dịch (dịch sang mã Điểm chuẩn ở tầng JS lúc chạy báo
+    // cáo — xem lib/purchaseOrderRunner.js), nên KHÔNG đọc trực tiếp từ
+    // dwh.ReportFacts được (sẽ ra mã thô khó hiểu, TenDiem luôn rỗng vì
+    // VIEW nguồn để NULL). Đọc thẳng bảng "Ánh xạ Điểm - STK_ID" (CSDL ETL,
+    // cùng nguồn buildBuIdLookup() dùng) — LUÔN ra đúng mã Điểm/tên siêu thị
+    // chuẩn đang hiển thị trên toàn hệ thống.
+    if (filterDef.optionsSource.storeCatalog) {
+      const diemMapping = await loadDiemStkMapping();
+      const list = [...diemMapping.entries()]
+        .map(([maDiem, info]) => ({ value: maDiem, label: info.tenSieuThi || maDiem }))
+        .sort((a, b) => a.label.localeCompare(b.label, 'vi'));
+      return res.json(list);
+    }
 
     const { domain, valueField, labelField } = filterDef.optionsSource;
     // valueField/labelField chèn thẳng vào chuỗi SQL (JSON_VALUE path) —

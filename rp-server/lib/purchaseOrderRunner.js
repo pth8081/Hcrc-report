@@ -144,6 +144,15 @@ async function runPurchaseOrderReport(definition, filterValues = {}, pagination 
   const diemMapping = await loadDiemStkMapping();
   const buIdLookup = buildBuIdLookup(diemMapping);
   const storeScope = Array.isArray(filterValues.__storeScope) ? new Set(filterValues.__storeScope) : null;
+  // Bộ lọc "Siêu thị" NGƯỜI DÙNG chủ động chọn trên form (bản 9.13, theo
+  // yêu cầu người dùng — báo cáo "So sánh giá trị đặt–nhập theo NCC":
+  // không chọn gì = gộp TOÀN BỘ siêu thị như cũ, chọn 1/nhiều siêu thị =
+  // CHỈ gộp đúng (các) siêu thị đó) — KHÁC storeScope ở trên (giới hạn
+  // QUYỀN admin gán cho người dùng, không phải lựa chọn chủ động). Chỉ áp
+  // dụng khi definition có khai filter field 'maDiem' (xem optionsSource.
+  // storeCatalog ở routes/reports.js) — báo cáo không khai filter này thì
+  // filterValues.maDiem luôn rỗng, dòng dưới không có tác dụng gì.
+  const userStoreFilter = Array.isArray(filterValues.maDiem) && filterValues.maDiem.length ? new Set(filterValues.maDiem) : null;
 
   // Chỉ chuyển filter dateRange/trạng thái xuống SQL (lib/reportEngine.js)
   // — filter "Siêu thị" (nếu có) PHẢI áp dụng SAU khi ghi đè mã Điểm bên
@@ -164,7 +173,8 @@ async function runPurchaseOrderReport(definition, filterValues = {}, pagination 
       };
     })
     .filter(Boolean)
-    .filter((row) => !storeScope || storeScope.has(row.dimensions.MaDiem));
+    .filter((row) => !storeScope || storeScope.has(row.dimensions.MaDiem))
+    .filter((row) => !userStoreFilter || userStoreFilter.has(row.dimensions.MaDiem));
 
   if (definition.transCode) {
     mappedRows = mappedRows.filter((row) => row.dimensions.LoaiGiaoDich === definition.transCode);
