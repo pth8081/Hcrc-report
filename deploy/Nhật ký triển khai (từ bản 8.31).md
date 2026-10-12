@@ -14,6 +14,90 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 9.12 — Sửa dứt điểm lỗi font TenNCC/TenChiNhanh (SUPP_NAME_U, STK_NAME_U)
+
+**Thay đổi**: VIEW "Đơn đặt hàng" đổi `SUPP_NAME` → `SUPP_NAME_U`, VIEW tồn
+kho đổi `STK_NAME` → `STK_NAME_U` — hết lỗi font tên NCC/tên chi nhánh.
+
+**Các bước triển khai (làm 1 lần, BẮT BUỘC đủ các bước, không chỉ git pull):**
+1. `git pull origin main`.
+2. Chạy LẠI NGUYÊN VĂN file `deploy/Thiết lập VIEW Đơn đặt hàng-Nhập
+   hàng-So sánh (DSMART16 trung tâm).sql` trên CSDL DSMART16 trung tâm (an
+   toàn, `CREATE OR ALTER VIEW`).
+3. Nếu đã deploy báo cáo tồn kho (bản 8.68) — chạy lại VIEW tồn kho theo
+   `bc-ton-kho-0.md`/`deploy/Cập nhật bản 8.68 ...md` (bản mới nhất, đã có
+   `STK_NAME_U`).
+4. etl-admin → Đồng bộ → tìm job domain `don_dat_hang` (và job tồn kho nếu
+   có) → "Chạy thử" lại — BẮT BUỘC, vì job đồng bộ KHÔNG tự sửa dữ liệu CŨ
+   đã lưu lỗi font, chỉ đúng dòng đồng bộ MỚI sau khi VIEW đã sửa.
+5. KHÔNG cần restart `pm2` (chỉ đổi VIEW phía CSDL nguồn, không đổi code).
+
+**Kiểm tra:**
+- [ ] Mở báo cáo "Đơn đặt hàng" — cột "NCC" hiện đúng chữ Việt có dấu
+  (không còn ký tự lạ như "s¶n", "n«ng").
+- [ ] Nếu có báo cáo tồn kho — cột "Chi nhánh" cũng hiện đúng chữ Việt.
+
+---
+
+## 9.11 — Thêm nút Sửa cho 3 panel rp-user + sửa lỗi validate PUT kết nối đối tác
+
+**Thay đổi**: "Nguồn dữ liệu"/"Kết nối API"/"Kết nối đối tác" (Hệ thống →
+Biểu mẫu, rp-user) có nút "Sửa". Sửa luôn 1 lỗi thật: trước đây sửa "Kết
+nối đối tác" bắt buộc phải gõ lại API key/mật khẩu dù chỉ muốn đổi tên.
+
+**Các bước triển khai (làm 1 lần):**
+1. `git pull origin main`.
+2. `cd rp-user && npm run build` — copy TOÀN BỘ `dist/` lên vị trí phục vụ
+   tĩnh rp-user.
+3. `pm2 restart hcrc-rp-server` (đổi `routes/externalConnections.js`).
+
+**Kiểm tra:**
+- [ ] Hệ thống → Biểu mẫu → "Nguồn dữ liệu"/"Kết nối API" → bấm "Sửa" 1
+  dòng → đổi 1 trường không phải mật khẩu → Lưu → không bị mất mật khẩu cũ.
+- [ ] "Kết nối đối tác" → Sửa 1 kết nối đã có bí mật (vd Basic Auth) → chỉ
+  đổi Tên, để trống Password → Lưu → KHÔNG còn báo lỗi bắt buộc nhập mật
+  khẩu (lỗi cũ) — kiểm tra kết nối vẫn chạy được (mật khẩu cũ còn nguyên).
+
+---
+
+## 9.10 — Thêm nút Sửa cho 3 trang api-admin (Endpoint realtime/ghi, Báo cáo)
+
+**Thay đổi**: "Endpoint realtime"/"Endpoint ghi"/"Báo cáo" (api-admin) có
+nút "Sửa".
+
+**Các bước triển khai (làm 1 lần):**
+1. `git pull origin main`.
+2. `cd api-admin && npm run build` — copy TOÀN BỘ `dist/` lên vị trí phục
+   vụ tĩnh api-admin.
+3. KHÔNG cần restart backend (route PUT đã có sẵn từ trước).
+
+**Kiểm tra:**
+- [ ] "Endpoint realtime" → Sửa 1 endpoint đã có bảng liên kết (JOIN) →
+  xác nhận form tự nạp đúng bảng/cột cũ, lưu lại không mất cấu hình JOIN.
+- [ ] "Báo cáo" → Sửa 1 báo cáo → đổi `definitionJson` → Lưu → báo cáo
+  chạy lại đúng theo định nghĩa mới.
+
+---
+
+## 9.09 — Sửa lỗi font tài liệu VIEW báo cáo tồn kho (FULL_NAME → FULL_NAME_U)
+
+**Thay đổi**: tài liệu VIEW báo cáo tồn kho (`bc-ton-kho-0.md`,
+`deploy/Cập nhật bản 8.68 ...md`) sửa `SKU_DEF.FULL_NAME` →
+`FULL_NAME_U` (lỗi font tên hàng, đã xác nhận ở tài liệu "giá vốn
+dsmart.md").
+
+**Các bước triển khai**: CHỈ áp dụng nếu đã từng deploy VIEW báo cáo tồn
+kho (bản 8.68) dùng bản SQL CŨ (có `FULL_NAME` không `_U`):
+1. `git pull origin main`.
+2. Chạy lại VIEW tồn kho theo bản SQL MỚI trong `bc-ton-kho-0.md` trên
+   DSMART16 (an toàn, `CREATE OR ALTER VIEW`).
+3. Đồng bộ lại job tồn kho liên quan.
+
+Nếu CHƯA từng deploy VIEW này, không cần làm gì — tài liệu chỉ sửa để lần
+deploy sau (nếu có) không bị dính lỗi font ngay từ đầu.
+
+---
+
 ## 9.08 — Thêm 3 báo cáo giá trị đặt/nhập theo đơn + theo NCC
 
 **Thay đổi**: 3 báo cáo mới trong "Báo cáo Mua hàng": "Giá trị đặt hàng

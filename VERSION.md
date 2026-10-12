@@ -29,6 +29,49 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 9.12 — Sửa dứt điểm lỗi font TenNCC/TenChiNhanh (SUPP_NAME_U, STK_NAME_U)
+
+**Theo báo cáo người dùng** (ảnh chụp thật báo cáo "Đơn đặt hàng" ra chữ
+lỗi font tên NCC) — người dùng chạy `INFORMATION_SCHEMA.COLUMNS` xác nhận
+`SUPPLIER.SUPP_NAME_U` và `STOCK.STK_NAME_U` đều tồn tại (Unicode, đúng).
+
+- `deploy/Thiết lập VIEW Đơn đặt hàng-Nhập hàng-So sánh (DSMART16 trung
+  tâm).sql` + `bc-don-dat-hang.md` — `SUPP_NAME` → `SUPP_NAME_U`.
+- `bc-ton-kho-0.md` + `deploy/Cập nhật bản 8.68 ...md` — `STK_NAME` →
+  `STK_NAME_U`.
+
+**BẮT BUỘC chạy lại VIEW trên DSMART16 trung tâm** (an toàn, `CREATE OR
+ALTER`) rồi đồng bộ lại job `don_dat_hang` — job đồng bộ KHÔNG tự sửa dữ
+liệu CŨ đã lưu lỗi font, chỉ dòng đồng bộ MỚI sau khi VIEW đã sửa mới
+đúng.
+
+## 9.11 — Thêm nút Sửa cho 3 panel rp-user (Nguồn dữ liệu/Kết nối API/Kết nối đối tác) + sửa lỗi validate PUT
+
+**Theo yêu cầu người dùng** (rà soát toàn hệ thống thiếu nút Sửa, tiếp
+sau bản 9.10).
+
+- `DataSourcesPanel.jsx`, `ApiConnectionsPanel.jsx` — modal Sửa (mật
+  khẩu/API key để trống = giữ nguyên).
+- `ExternalConnectionsPanel.jsx` — tái dùng form tạo mới làm form sửa.
+- `rp-server/routes/externalConnections.js` — **sửa lỗi thật phát hiện
+  khi làm nút Sửa**: `validateAuthPayload()` dùng chung cho cả POST/PUT,
+  luôn bắt buộc `authValue`/`authPassword` khác rỗng — khiến cơ chế "để
+  trống = giữ nguyên bí mật cũ" (đã hứa sẵn trong comment đầu file) không
+  bao giờ chạy tới được vì bị validate chặn trả 400 trước. Thêm tham số
+  `isUpdate` để bỏ bắt buộc riêng 2 trường bí mật khi sửa.
+
+## 9.10 — Thêm nút Sửa cho 3 trang api-admin (Endpoint realtime/ghi, Báo cáo)
+
+**Theo yêu cầu người dùng** — agent rà soát 26 trang CRUD cả 3 app, xác
+nhận 3 trang này ở api-admin thiếu nút Sửa dù backend đã có sẵn PUT.
+
+- `RealtimeEndpointsPage.jsx` ("Endpoint realtime") — tái dùng nguyên form
+  tạo mới (cascading chọn nguồn/bảng/cột + bảng liên kết JOIN) làm form
+  sửa.
+- `RealtimeWriteEndpointsPage.jsx` ("Endpoint ghi") — cùng mẫu, đơn giản
+  hơn.
+- `ReportCatalogPage.jsx` ("Báo cáo") — modal Sửa riêng.
+
 ## 9.09 — Sửa lỗi font tài liệu VIEW báo cáo tồn kho (FULL_NAME → FULL_NAME_U)
 
 **Phát hiện qua rà soát** (theo yêu cầu người dùng "rà soát lại các font
