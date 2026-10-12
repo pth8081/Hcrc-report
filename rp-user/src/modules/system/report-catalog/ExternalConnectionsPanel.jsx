@@ -38,6 +38,8 @@ export default function ExternalConnectionsPanel() {
   // tạo mới) — field bí mật (authValue/authPassword) để TRỐNG SẴN khi mở
   // sửa (route PUT giữ nguyên bí mật cũ nếu để trống, xem backend).
   const [editingId, setEditingId] = useState(null);
+  const [duplicating, setDuplicating] = useState(null); // { connection, newName } đang nhân bản, hoặc null
+  const [savingDuplicate, setSavingDuplicate] = useState(false);
   const selection = useRowSelection();
   const [bulkDeleting, setBulkDeleting] = useState(false);
 
@@ -85,6 +87,21 @@ export default function ExternalConnectionsPanel() {
       cancelEdit();
       reload();
     } catch (err) { setError(err.message); } finally { setSaving(false); }
+  }
+
+  function openDuplicate(c) {
+    setDuplicating({ connection: c, newName: `${c.Name} (bản sao)` });
+  }
+
+  async function saveDuplicate(e) {
+    e.preventDefault();
+    setError('');
+    setSavingDuplicate(true);
+    try {
+      await api.post(`/system/external-connections/${duplicating.connection.Id}/duplicate`, { name: duplicating.newName });
+      setDuplicating(null);
+      reload();
+    } catch (err) { setError(err.message); } finally { setSavingDuplicate(false); }
   }
 
   async function deleteConnection(c) {
@@ -187,6 +204,7 @@ export default function ExternalConnectionsPanel() {
               <>
                 <button type="button" onClick={() => testConnection(c)} disabled={testingId === c.Id}>{testingId === c.Id ? 'Đang kiểm tra...' : 'Kiểm tra kết nối'}</button>{' '}
                 <button type="button" onClick={() => openEdit(c)}>Sửa</button>{' '}
+                <button type="button" onClick={() => openDuplicate(c)}>Nhân bản</button>{' '}
                 <button type="button" onClick={() => deleteConnection(c)} disabled={deletingId === c.Id}>{deletingId === c.Id ? 'Đang xoá...' : 'Xoá'}</button>
               </>
             )
@@ -204,6 +222,32 @@ export default function ExternalConnectionsPanel() {
         </div>
       )}
       {testResult && <p>{testResult}</p>}
+
+      {duplicating && (
+        <div className="modal">
+          <div className="modal-body">
+            <h3>Nhân bản "{duplicating.connection.Name}"</h3>
+            <p className="hint">
+              Tạo 1 kết nối MỚI giống hệt kết nối này — giữ nguyên Base URL, cách xác thực và mọi
+              bí mật đã khai (key/secret/mật khẩu). Chỉ cần đặt tên khác.
+            </p>
+            <form className="stacked-form" onSubmit={saveDuplicate}>
+              <input
+                placeholder="Tên kết nối mới"
+                value={duplicating.newName}
+                onChange={(e) => setDuplicating({ ...duplicating, newName: e.target.value })}
+                required
+                autoFocus
+              />
+              <p className="hint">🔒 Mọi bí mật được sao chép nguyên dạng đã mã hoá ở máy chủ — không hiện ra, không đi qua trình duyệt lúc nhân bản.</p>
+              <div className="inline-actions">
+                <button type="submit" disabled={savingDuplicate}>{savingDuplicate ? 'Đang nhân bản...' : 'Tạo bản sao'}</button>
+                <button type="button" onClick={() => setDuplicating(null)}>Huỷ</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

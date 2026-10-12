@@ -29,6 +29,30 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 9.22 — THÊM MỚI: Nút "Nhân bản" cho các trang Nguồn dữ liệu/Đối tác API/Job đồng bộ
+
+**Theo yêu cầu người dùng**: nhiều kết nối (nguồn dữ liệu ETL/API/Biểu
+mẫu) hoặc đối tác API dùng chung cấu hình (server/database/username/
+password, hoặc cách xác thực) — chỉ khác tên. Thêm nút "Nhân bản" bên
+cạnh "Sửa" để tạo 1 bản ghi mới giống hệt, chỉ cần đổi tên — không phải
+gõ lại thủ công (và không phải hiện mật khẩu ra để copy).
+
+- Nguyên tắc chung: route mới `POST /:id/duplicate` đọc NGUYÊN VẸN các cột
+  (kể cả cột bí mật ĐÃ MÃ HOÁ) từ bản ghi gốc rồi INSERT bản ghi mới cùng
+  giá trị, chỉ đổi `Name` — không giải mã, không gửi mật khẩu/API key qua
+  request body hay hiện ra trình duyệt lúc nhân bản.
+- Áp dụng cho 7 trang: `etl-admin` (Nguồn dữ liệu, Job đồng bộ — job mới
+  tạo ở trạng thái TẮT để tránh chạy trùng), `api-admin` (Nguồn dữ liệu,
+  Đối tác API), `rp-user` trang "Biểu mẫu" (Kết nối API, Nguồn dữ liệu bổ
+  sung, Kết nối đối tác ngoài).
+- **Ngoại lệ bảo mật — "Đối tác API" (api.ApiConsumers)**: KHÔNG copy bí
+  mật cũ (ApiKeyHash/ClientSecretHash/HmacSecretEncrypted) — route nhân
+  bản LUÔN cấp bí mật HOÀN TOÀN MỚI (chạy đúng logic sinh bí mật của route
+  tạo/luân chuyển), hiện ra đúng 1 lần qua banner sau khi tạo — 2 đối tác
+  không bao giờ dùng chung 1 bí mật.
+- Quy ước này đã ghi vào `CLAUDE.md` để áp dụng cho mọi trang "kết nối"
+  tương tự làm thêm sau này.
+
 ## 9.21 — BỔ SUNG: Nguồn Lịch sử (DSMART16_EOM) cho 6 báo cáo Mua hàng — trước chỉ lấy được tháng hiện tại
 
 **Theo báo cáo người dùng** (ảnh chụp: lọc "Ngày đặt" nhiều tháng trước

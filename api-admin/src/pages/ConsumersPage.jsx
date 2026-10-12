@@ -102,6 +102,8 @@ export default function ConsumersPage() {
   const [endpoints, setEndpoints] = useState([]);
   const [form, setForm] = useState(EMPTY_FORM);
   const [editing, setEditing] = useState(null); // consumer đang sửa, hoặc null
+  const [duplicating, setDuplicating] = useState(null); // { consumer, newName } đang nhân bản, hoặc null
+  const [savingDuplicate, setSavingDuplicate] = useState(false);
   const [accessFor, setAccessFor] = useState(null); // consumer đang gán báo cáo, hoặc null
   const [accessReportIds, setAccessReportIds] = useState([]);
   const [realtimeAccessFor, setRealtimeAccessFor] = useState(null); // consumer đang gán endpoint realtime, hoặc null
@@ -219,6 +221,26 @@ export default function ConsumersPage() {
     } catch (err) { setError(err.message); } finally { setRotatingId(null); }
   }
 
+  function openDuplicate(consumer) {
+    setDuplicating({ consumer, newName: `${consumer.Name} (bản sao)` });
+  }
+
+  // Nhân bản (bản 9.22, theo yêu cầu người dùng) — route backend LUÔN cấp bí
+  // mật MỚI (không copy ApiKeyHash/ClientSecretHash/HmacSecretEncrypted cũ),
+  // tránh 2 đối tác dùng chung 1 bí mật — hiện banner "chỉ 1 lần" giống lúc
+  // tạo mới/luân chuyển.
+  async function saveDuplicate(e) {
+    e.preventDefault();
+    setError('');
+    setSavingDuplicate(true);
+    try {
+      const result = await api.post(`/consumers/${duplicating.consumer.Id}/duplicate`, { name: duplicating.newName });
+      setRevealedCreds(result);
+      setDuplicating(null);
+      reload();
+    } catch (err) { setError(err.message); } finally { setSavingDuplicate(false); }
+  }
+
   async function saveEdit() {
     setSavingEdit(true);
     try {
@@ -326,6 +348,7 @@ export default function ConsumersPage() {
             key: 'actions', label: '', render: (c) => (
               <>
                 <button type="button" onClick={() => setEditing({ ...c })}>Sửa</button>{' '}
+                <button type="button" onClick={() => openDuplicate(c)}>Nhân bản</button>{' '}
                 <button type="button" onClick={() => toggleActive(c)} disabled={togglingId === c.Id}>{togglingId === c.Id ? 'Đang lưu...' : (c.IsActive ? 'Tắt' : 'Bật')}</button>{' '}
                 <button type="button" onClick={() => openReportAccess(c)}>Báo cáo được gọi</button>{' '}
                 <button type="button" onClick={() => openRealtimeAccess(c)}>Realtime được gọi</button>{' '}
@@ -375,6 +398,36 @@ export default function ConsumersPage() {
               <button type="button" onClick={saveEdit} disabled={savingEdit}>{savingEdit ? 'Đang lưu...' : 'Lưu'}</button>
               <button type="button" onClick={() => setEditing(null)}>Huỷ</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {duplicating && (
+        <div className="modal">
+          <div className="modal-body">
+            <h3>Nhân bản "{duplicating.consumer.Name}"</h3>
+            <p className="hint">
+              Tạo 1 đối tác MỚI giống hệt đối tác này — giữ nguyên cách xác thực, phạm vi (scope),
+              giới hạn/phút, IP cho phép... Chỉ cần đặt tên khác.
+            </p>
+            <p className="hint">
+              🔒 Vì lý do an toàn, đối tác mới KHÔNG dùng chung bí mật với đối tác gốc — hệ thống sẽ
+              cấp bí mật HOÀN TOÀN MỚI, hiện ra ngay sau khi tạo (chỉ 1 lần, giống lúc tạo mới/luân
+              chuyển).
+            </p>
+            <form className="stacked-form" onSubmit={saveDuplicate}>
+              <input
+                placeholder="Tên đối tác mới"
+                value={duplicating.newName}
+                onChange={(e) => setDuplicating({ ...duplicating, newName: e.target.value })}
+                required
+                autoFocus
+              />
+              <div className="inline-actions">
+                <button type="submit" disabled={savingDuplicate}>{savingDuplicate ? 'Đang nhân bản...' : 'Tạo bản sao'}</button>
+                <button type="button" onClick={() => setDuplicating(null)}>Huỷ</button>
+              </div>
+            </form>
           </div>
         </div>
       )}

@@ -45,6 +45,11 @@ export default function SyncJobsPage() {
   const [editingJob, setEditingJob] = useState(null);
   const [editForm, setEditForm] = useState(null);
   const [editColumns, setEditColumns] = useState([]);
+  // Nhân bản (bản 9.22, theo yêu cầu người dùng) — { job, newName } đang
+  // nhân bản, hoặc null. Job mới tạo ở trạng thái TẮT (xem backend), admin
+  // tự bật lại sau khi kiểm tra/chỉnh đúng ý (vd đổi Nguồn dữ liệu qua "Sửa").
+  const [duplicatingJob, setDuplicatingJob] = useState(null);
+  const [savingDuplicate, setSavingDuplicate] = useState(false);
   const [importFile, setImportFile] = useState(null);
   const [importResult, setImportResult] = useState(null);
   const [importError, setImportError] = useState('');
@@ -198,6 +203,21 @@ export default function SyncJobsPage() {
     } catch (err) { setError(err.message); } finally { setTogglingId(null); }
   }
 
+  function openDuplicate(job) {
+    setDuplicatingJob({ job, newName: `${job.Name} (bản sao)` });
+  }
+
+  async function saveDuplicate(e) {
+    e.preventDefault();
+    setError('');
+    setSavingDuplicate(true);
+    try {
+      await api.post(`/sync-jobs/${duplicatingJob.job.Id}/duplicate`, { name: duplicatingJob.newName });
+      setDuplicatingJob(null);
+      reload();
+    } catch (err) { setError(err.message); } finally { setSavingDuplicate(false); }
+  }
+
   async function deleteJob(job) {
     if (!confirm(`Xoá job "${job.Name}"?`)) return;
     setDeletingId(job.Id);
@@ -306,6 +326,7 @@ export default function SyncJobsPage() {
         key: 'actions', label: '', render: (j) => (
           <>
             <button type="button" onClick={() => openEdit(j)}>Sửa</button>{' '}
+            <button type="button" onClick={() => openDuplicate(j)}>Nhân bản</button>{' '}
             <button type="button" onClick={() => runNow(j)} disabled={runningId === j.Id}>
               {runningId === j.Id ? 'Đang chạy...' : 'Chạy thử'}
             </button>{' '}
@@ -638,6 +659,32 @@ export default function SyncJobsPage() {
               <div className="inline-actions">
                 <button type="submit" disabled={savingEdit}>{savingEdit ? 'Đang lưu...' : 'Cập nhật job'}</button>
                 <button type="button" onClick={closeEdit}>Huỷ</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {duplicatingJob && (
+        <div className="modal">
+          <div className="modal-body">
+            <h3>Nhân bản job "{duplicatingJob.job.Name}"</h3>
+            <p className="hint">
+              Tạo 1 job MỚI giống hệt job này — giữ nguyên nguồn dữ liệu, bảng/cột nối, lịch
+              chạy... Chỉ cần đặt tên khác. Job mới tạo ra sẽ ở trạng thái TẮT — bật lại sau khi
+              kiểm tra, tránh chạy trùng với job gốc.
+            </p>
+            <form className="stacked-form" onSubmit={saveDuplicate}>
+              <input
+                placeholder="Tên job mới"
+                value={duplicatingJob.newName}
+                onChange={(e) => setDuplicatingJob({ ...duplicatingJob, newName: e.target.value })}
+                required
+                autoFocus
+              />
+              <div className="inline-actions">
+                <button type="submit" disabled={savingDuplicate}>{savingDuplicate ? 'Đang nhân bản...' : 'Tạo bản sao'}</button>
+                <button type="button" onClick={() => setDuplicatingJob(null)}>Huỷ</button>
               </div>
             </form>
           </div>

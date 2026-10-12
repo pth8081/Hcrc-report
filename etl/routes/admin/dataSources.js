@@ -225,6 +225,45 @@ router.delete('/:id', requireMenuEdit('data-sources'), async (req, res, next) =>
   } catch (err) { next(err); }
 });
 
+// Nhân bản (bản 9.22, theo yêu cầu người dùng — "các kết nối giống hệt
+// nhau cả về username và password... chỉ thay đổi cái tên") — tạo 1 dòng
+// MỚI copy NGUYÊN VẸN mọi cột (kể cả PasswordEncrypted ĐÃ MÃ HOÁ) từ dòng
+// nguồn, CHỈ đổi Name — KHÔNG giải mã password ra, KHÔNG để lộ qua request
+// body, an toàn hơn hẳn việc gõ lại tay (mật khẩu không đi qua trình duyệt
+// lần nào trong thao tác này).
+router.post('/:id/duplicate', requireMenuEdit('data-sources'), async (req, res, next) => {
+  try {
+    const { name } = req.body || {};
+    if (!name) return res.status(400).json({ error: 'Thiếu name (tên bản sao mới)' });
+    const pool = await getPool('ADMIN');
+    const existing = await pool.request().input('id', sql.Int, req.params.id).query(`
+      SELECT Engine, Server, Port, DatabaseName, Username, PasswordEncrypted, Encrypt, TrustServerCert, IsActive
+      FROM etl.DataSources WHERE Id = @id
+    `);
+    if (!existing.recordset.length) return res.status(404).json({ error: 'Không tìm thấy nguồn dữ liệu' });
+    const src = existing.recordset[0];
+    const result = await pool.request()
+      .input('name', sql.NVarChar(200), name)
+      .input('engine', sql.VarChar(20), src.Engine)
+      .input('server', sql.NVarChar(200), src.Server)
+      .input('port', sql.Int, src.Port)
+      .input('databaseName', sql.NVarChar(100), src.DatabaseName)
+      .input('username', sql.NVarChar(100), src.Username)
+      .input('passwordEncrypted', sql.NVarChar(500), src.PasswordEncrypted)
+      .input('encryptConn', sql.Bit, src.Encrypt)
+      .input('trustServerCert', sql.Bit, src.TrustServerCert)
+      .input('isActive', sql.Bit, src.IsActive)
+      .query(`
+        INSERT INTO etl.DataSources (Name, Engine, Server, Port, DatabaseName, Username, PasswordEncrypted, Encrypt, TrustServerCert, IsActive)
+        OUTPUT INSERTED.Id
+        VALUES (@name, @engine, @server, @port, @databaseName, @username, @passwordEncrypted, @encryptConn, @trustServerCert, @isActive)
+      `);
+    const id = result.recordset[0].Id;
+    await logAction(req, { module: 'Nguồn dữ liệu', actionType: 'NHAN_BAN_NGUON', targetObject: String(id), description: `Nhân bản nguồn "${name}" từ #${req.params.id}` });
+    res.status(201).json({ id });
+  } catch (err) { next(err); }
+});
+
 // Thử một cấu hình CHƯA lưu — nút "Kiểm tra kết nối".
 router.post('/test', requireMenuEdit('data-sources'), async (req, res) => {
   try {

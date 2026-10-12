@@ -124,6 +124,69 @@ router.post('/:id/rotate', requireMenuEdit('consumers'), async (req, res, next) 
   } catch (err) { next(err); }
 });
 
+// Nhân bản (bản 9.22, theo yêu cầu người dùng, ÁP DỤNG CÓ ĐIỀU KIỆN cho
+// Đối tác — KHÁC các trang "kết nối" khác: copy Scopes/RateLimit/AllowedIps/
+// AuthMethod từ đối tác gốc, nhưng LUÔN LUÔN sinh bí mật MỚI (không bao giờ
+// copy ApiKeyHash/ClientSecretHash/HmacSecretEncrypted) — 2 đối tác dùng
+// CHUNG 1 key là lỗ hổng bảo mật thật (không phân biệt được ai gọi, không
+// thu hồi quyền riêng từng bên được), nên "Nhân bản" ở đây LUÔN đi kèm
+// "Luân chuyển bí mật" ngay trong 1 thao tác — trả về bí mật MỚI này đúng 1
+// lần (y hệt /rotate), không có cách nào lấy lại sau khi đóng banner.
+router.post('/:id/duplicate', requireMenuEdit('consumers'), async (req, res, next) => {
+  try {
+    const { name } = req.body || {};
+    if (!name) return res.status(400).json({ error: 'Thiếu name (tên bản sao mới)' });
+    const pool = await getPool('ADMIN');
+    const existing = await pool.request().input('id', sql.Int, req.params.id).query(`
+      SELECT AuthMethod, Scopes, RateLimitPerMinute, AllowedIps, IsActive FROM api.ApiConsumers WHERE Id = @id
+    `);
+    if (!existing.recordset.length) return res.status(404).json({ error: 'Không tìm thấy đối tác' });
+    const src = existing.recordset[0];
+    const authMethod = src.AuthMethod;
+
+    const request = pool.request()
+      .input('name', sql.NVarChar(200), name)
+      .input('authMethod', sql.VarChar(20), authMethod)
+      .input('scopes', sql.NVarChar(200), src.Scopes)
+      .input('rateLimit', sql.Int, src.RateLimitPerMinute)
+      .input('allowedIps', sql.NVarChar(500), src.AllowedIps)
+      .input('isActive', sql.Bit, src.IsActive);
+
+    let secretsForResponse = {};
+    if (authMethod === 'apiKey') {
+      const rawKey = crypto.randomBytes(32).toString('base64url');
+      request.input('apiKeyHash', sql.Char(64), sha256Hex(rawKey))
+        .input('clientId', sql.VarChar(64), null).input('clientSecretHash', sql.Char(64), null)
+        .input('hmacKeyId', sql.VarChar(64), null).input('hmacSecretEncrypted', sql.NVarChar(500), null);
+      secretsForResponse = { apiKey: rawKey };
+    } else if (authMethod === 'oauth2') {
+      const clientId = crypto.randomBytes(12).toString('hex');
+      const clientSecret = crypto.randomBytes(32).toString('base64url');
+      request.input('apiKeyHash', sql.Char(64), null)
+        .input('clientId', sql.VarChar(64), clientId).input('clientSecretHash', sql.Char(64), sha256Hex(clientSecret))
+        .input('hmacKeyId', sql.VarChar(64), null).input('hmacSecretEncrypted', sql.NVarChar(500), null);
+      secretsForResponse = { clientId, clientSecret };
+    } else { // hmac
+      const hmacKeyId = crypto.randomBytes(12).toString('hex');
+      const hmacSecret = crypto.randomBytes(32).toString('base64url');
+      request.input('apiKeyHash', sql.Char(64), null)
+        .input('clientId', sql.VarChar(64), null).input('clientSecretHash', sql.Char(64), null)
+        .input('hmacKeyId', sql.VarChar(64), hmacKeyId).input('hmacSecretEncrypted', sql.NVarChar(500), encrypt(hmacSecret));
+      secretsForResponse = { hmacKeyId, hmacSecret };
+    }
+
+    const result = await request.query(`
+      INSERT INTO api.ApiConsumers (Name, AuthMethod, ApiKeyHash, ClientId, ClientSecretHash, HmacKeyId, HmacSecretEncrypted, Scopes, RateLimitPerMinute, AllowedIps, IsActive)
+      OUTPUT INSERTED.Id
+      VALUES (@name, @authMethod, @apiKeyHash, @clientId, @clientSecretHash, @hmacKeyId, @hmacSecretEncrypted, @scopes, @rateLimit, @allowedIps, @isActive)
+    `);
+    invalidate();
+    const id = result.recordset[0].Id;
+    await logAction(req, { module: 'Đối tác API', actionType: 'NHAN_BAN_DOI_TAC', targetObject: String(id), description: `Nhân bản đối tác "${name}" từ #${req.params.id} (xác thực ${authMethod}, cấp bí mật MỚI)` });
+    res.status(201).json({ id, authMethod, ...secretsForResponse }); // CHỈ response này có bí mật gốc
+  } catch (err) { next(err); }
+});
+
 router.put('/:id', requireMenuEdit('consumers'), async (req, res, next) => {
   try {
     const { name, scopes = [], rateLimitPerMinute, isActive, allowedIps = '' } = req.body || {};

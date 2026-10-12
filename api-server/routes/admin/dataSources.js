@@ -157,6 +157,41 @@ router.delete('/:id', requireMenuEdit('data-sources'), async (req, res, next) =>
   }
 });
 
+// Nhân bản (bản 9.22, theo yêu cầu người dùng) — tạo 1 nguồn MỚI copy
+// NGUYÊN VẸN mọi cột (kể cả PasswordEncrypted ĐÃ MÃ HOÁ) từ nguồn gốc, CHỈ
+// đổi Name — không giải mã, không lộ mật khẩu qua request body.
+router.post('/:id/duplicate', requireMenuEdit('data-sources'), async (req, res, next) => {
+  try {
+    const { name } = req.body || {};
+    if (!name) return res.status(400).json({ error: 'Thiếu name (tên bản sao mới)' });
+    const pool = await getPool('ADMIN');
+    const existing = await pool.request().input('id', sql.Int, req.params.id).query(`
+      SELECT Server, Port, DatabaseName, Username, PasswordEncrypted, Encrypt, TrustServerCert, IsActive
+      FROM api.DataSources WHERE Id = @id
+    `);
+    if (!existing.recordset.length) return res.status(404).json({ error: 'Không tìm thấy nguồn dữ liệu' });
+    const src = existing.recordset[0];
+    const result = await pool.request()
+      .input('name', sql.NVarChar(200), name)
+      .input('server', sql.NVarChar(200), src.Server)
+      .input('port', sql.Int, src.Port)
+      .input('databaseName', sql.NVarChar(100), src.DatabaseName)
+      .input('username', sql.NVarChar(100), src.Username)
+      .input('passwordEncrypted', sql.NVarChar(500), src.PasswordEncrypted)
+      .input('encryptConn', sql.Bit, src.Encrypt)
+      .input('trustServerCert', sql.Bit, src.TrustServerCert)
+      .input('isActive', sql.Bit, src.IsActive)
+      .query(`
+        INSERT INTO api.DataSources (Name, Server, Port, DatabaseName, Username, PasswordEncrypted, Encrypt, TrustServerCert, IsActive)
+        OUTPUT INSERTED.Id
+        VALUES (@name, @server, @port, @databaseName, @username, @passwordEncrypted, @encryptConn, @trustServerCert, @isActive)
+      `);
+    const id = result.recordset[0].Id;
+    await logAction(req, { module: 'Nguồn dữ liệu', actionType: 'NHAN_BAN_NGUON', targetObject: String(id), description: `Nhân bản nguồn "${name}" từ #${req.params.id}` });
+    res.status(201).json({ id });
+  } catch (err) { next(err); }
+});
+
 router.post('/test', requireMenuEdit('data-sources'), async (req, res) => {
   try {
     const { server, port, databaseName, username, password, encrypt: enc, trustServerCert } = req.body || {};

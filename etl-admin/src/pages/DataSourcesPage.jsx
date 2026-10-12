@@ -44,6 +44,8 @@ export default function DataSourcesPage() {
   const [exportError, setExportError] = useState('');
   const [exportingPlain, setExportingPlain] = useState(false);
   const [editing, setEditing] = useState(null); // { ...source, password: '' } đang sửa, hoặc null
+  const [duplicating, setDuplicating] = useState(null); // { source, newName } đang nhân bản, hoặc null
+  const [savingDuplicate, setSavingDuplicate] = useState(false);
   const [downloadingTemplate, setDownloadingTemplate] = useState(false);
   const [importing, setImporting] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -227,6 +229,26 @@ export default function DataSourcesPage() {
       setEditing(null);
       reload();
     } catch (err) { setError(err.message); } finally { setSavingEdit(false); }
+  }
+
+  // Nhân bản (bản 9.22, theo yêu cầu người dùng — "các kết nối giống hệt
+  // nhau cả về username và password... chỉ thay đổi cái tên") — tạo 1
+  // nguồn MỚI giống hệt nguồn này, CHỈ hỏi tên mới. Mật khẩu được copy
+  // NGUYÊN DẠNG đã mã hoá ở server (xem routes/admin/dataSources.js
+  // POST /:id/duplicate) — không đi qua trình duyệt lần nào ở thao tác này.
+  function openDuplicate(source) {
+    setDuplicating({ source, newName: `${source.Name} (bản sao)` });
+  }
+
+  async function saveDuplicate(e) {
+    e.preventDefault();
+    setError('');
+    setSavingDuplicate(true);
+    try {
+      await api.post(`/data-sources/${duplicating.source.Id}/duplicate`, { name: duplicating.newName });
+      setDuplicating(null);
+      reload();
+    } catch (err) { setError(err.message); } finally { setSavingDuplicate(false); }
   }
 
   // Xoá 1 nguồn — nếu còn job đồng bộ tham chiếu (etl.SyncJobs.DataSourceId),
@@ -443,6 +465,7 @@ export default function DataSourcesPage() {
             key: 'actions', label: '', render: (s) => (
               <>
                 <button type="button" onClick={() => openEdit(s)}>Sửa</button>{' '}
+                <button type="button" onClick={() => openDuplicate(s)}>Nhân bản</button>{' '}
                 <button type="button" onClick={() => toggleActive(s)} disabled={togglingId === s.Id}>
                   {togglingId === s.Id ? 'Đang xử lý...' : (s.IsActive ? 'Tắt' : 'Bật')}
                 </button>{' '}
@@ -494,6 +517,32 @@ export default function DataSourcesPage() {
               <div className="inline-actions">
                 <button type="submit" disabled={savingEdit}>{savingEdit ? 'Đang lưu...' : 'Cập nhật nguồn dữ liệu'}</button>
                 <button type="button" onClick={() => setEditing(null)}>Huỷ</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {duplicating && (
+        <div className="modal">
+          <div className="modal-body">
+            <h3>Nhân bản "{duplicating.source.Name}"</h3>
+            <p className="hint">
+              Tạo 1 nguồn dữ liệu MỚI giống hệt nguồn này — giữ nguyên Server, Database, Username,
+              Mật khẩu, Encrypt... Chỉ cần đặt tên khác.
+            </p>
+            <form className="stacked-form" onSubmit={saveDuplicate}>
+              <input
+                placeholder="Tên nguồn mới"
+                value={duplicating.newName}
+                onChange={(e) => setDuplicating({ ...duplicating, newName: e.target.value })}
+                required
+                autoFocus
+              />
+              <p className="hint">🔒 Mật khẩu được sao chép nguyên dạng đã mã hoá ở máy chủ — không hiện ra, không đi qua trình duyệt lúc nhân bản.</p>
+              <div className="inline-actions">
+                <button type="submit" disabled={savingDuplicate}>{savingDuplicate ? 'Đang nhân bản...' : 'Tạo bản sao'}</button>
+                <button type="button" onClick={() => setDuplicating(null)}>Huỷ</button>
               </div>
             </form>
           </div>

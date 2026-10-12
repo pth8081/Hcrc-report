@@ -79,6 +79,33 @@ router.delete('/:id', async (req, res, next) => {
   }
 });
 
+// Nhân bản (bản 9.22, theo yêu cầu người dùng) — tạo 1 kết nối MỚI copy
+// NGUYÊN VẸN BaseUrl + ApiKeyEncrypted (ĐÃ MÃ HOÁ) từ kết nối gốc, CHỈ đổi
+// Name — không giải mã, không lộ API key qua request body.
+router.post('/:id/duplicate', async (req, res, next) => {
+  try {
+    const { name } = req.body || {};
+    if (!name) return res.status(400).json({ error: 'Thiếu name (tên bản sao mới)' });
+    const pool = await getPool('RP');
+    const existing = await pool.request().input('id', sql.Int, req.params.id)
+      .query('SELECT BaseUrl, ApiKeyEncrypted FROM app.ApiConnections WHERE Id = @id');
+    if (!existing.recordset.length) return res.status(404).json({ error: 'Không tìm thấy kết nối' });
+    const src = existing.recordset[0];
+    const result = await pool.request()
+      .input('name', sql.NVarChar(200), name)
+      .input('baseUrl', sql.NVarChar(300), src.BaseUrl)
+      .input('apiKeyEncrypted', sql.NVarChar(500), src.ApiKeyEncrypted)
+      .query(`
+        INSERT INTO app.ApiConnections (Name, BaseUrl, ApiKeyEncrypted)
+        OUTPUT INSERTED.Id
+        VALUES (@name, @baseUrl, @apiKeyEncrypted)
+      `);
+    const id = result.recordset[0].Id;
+    await logAction(req, { module: 'Biểu mẫu', actionType: 'NHAN_BAN_KET_NOI_API', targetObject: name, description: `Nhân bản kết nối API "${name}" từ #${req.params.id}` });
+    res.status(201).json({ id });
+  } catch (err) { next(err); }
+});
+
 // Thử kết nối một cấu hình CHƯA lưu (nút "Kiểm tra kết nối") — chỉ ping
 // /v1/health (không cần key thật), không lưu gì.
 router.post('/test', async (req, res) => {

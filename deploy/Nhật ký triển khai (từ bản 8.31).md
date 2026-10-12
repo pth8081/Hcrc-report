@@ -14,6 +14,36 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 9.22 — Nút "Nhân bản" cho Nguồn dữ liệu/Đối tác API/Job đồng bộ
+
+**Thay đổi**: thêm route `POST /:id/duplicate` ở 7 router backend (ETL,
+api-server, rp-server) + nút "Nhân bản" + modal ở 7 trang frontend tương
+ứng (etl-admin, api-admin, rp-user). KHÔNG đổi schema CSDL, KHÔNG đổi
+biến môi trường.
+
+**Các bước triển khai (làm 1 lần, CHỈ `git pull` + rebuild/khởi động lại,
+KHÔNG cần DBA):**
+1. `git pull origin main`.
+2. Build lại 3 frontend (nếu deploy build tĩnh, không qua `npm run dev`):
+   `cd etl-admin && npm run build`, `cd api-admin && npm run build`,
+   `cd rp-user && npm run build`.
+3. Khởi động lại 3 backend để nạp route mới: `etl` (API routes
+   `etl/routes/admin/dataSources.js`, `etl/routes/admin/syncJobs.js`),
+   `api-server` (`api-server/routes/admin/dataSources.js`,
+   `api-server/routes/admin/consumers.js`), `rp-server`
+   (`rp-server/routes/apiConnections.js`, `rp-server/routes/dataSources.js`,
+   `rp-server/routes/externalConnections.js`).
+4. Không cần xoá cache trình duyệt bắt buộc — nhưng khuyên F5 cứng
+   (Ctrl+Shift+R) ở etl-admin/api-admin/rp-user để chắc nạp bundle JS mới.
+
+**Lưu ý khi dùng**: nút "Nhân bản" tạo bản ghi giống hệt bản gốc (kể cả
+mật khẩu/API key, đã mã hoá, copy nguyên vẹn ở server — không hiện ra
+trình duyệt) — CHỈ RIÊNG trang "Đối tác API" (api-admin) sẽ LUÔN cấp bí
+mật MỚI khi nhân bản (không copy bí mật cũ), hiện ra đúng 1 lần ngay sau
+khi tạo — nhớ sao chép lại trước khi đóng banner. Job đồng bộ nhân bản ra
+sẽ ở trạng thái TẮT — vào "Sửa" để chỉnh (vd đổi nguồn dữ liệu) rồi tự bật
+lại.
+
 ## 9.21 — Thêm nguồn Lịch sử (DSMART16_EOM) cho 6 báo cáo Mua hàng
 
 **Thay đổi**: domain `don_dat_hang` (6 báo cáo mua hàng) trước chỉ đồng bộ

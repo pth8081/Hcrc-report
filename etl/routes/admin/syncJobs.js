@@ -235,6 +235,65 @@ router.put('/:id', requireMenuEdit('sync-jobs'), async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// Nhân bản (bản 9.22, theo yêu cầu người dùng) — tạo 1 job MỚI copy NGUYÊN
+// VẸN mọi cấu hình (bảng/cột/join/lịch chạy...) từ job nguồn, CHỈ đổi Name
+// — dùng cho trường hợp nhiều chi nhánh CÙNG cấu trúc, chỉ khác Nguồn dữ
+// liệu/tên (đổi DataSourceId sau khi nhân bản bằng "Sửa" nếu cần, hoặc
+// truyền dataSourceId khác ngay lúc nhân bản). Job mới LUÔN tạo ở trạng
+// thái TẮT (IsActive=0) — tránh 2 job cấu hình giống hệt (trùng cả
+// DataSourceId nếu không đổi) cùng chạy song song ghi đè lẫn nhau ngay khi
+// tạo xong, admin tự bật lại sau khi đã chỉnh đúng ý (vd đổi nguồn).
+router.post('/:id/duplicate', requireMenuEdit('sync-jobs'), async (req, res, next) => {
+  try {
+    const { name, dataSourceId } = req.body || {};
+    if (!name) return res.status(400).json({ error: 'Thiếu name (tên bản sao mới)' });
+    const pool = await getPool('ADMIN');
+    const existing = await pool.request().input('id', sql.Int, req.params.id).query('SELECT * FROM etl.SyncJobs WHERE Id = @id');
+    if (!existing.recordset.length) return res.status(404).json({ error: 'Không tìm thấy job' });
+    const src = existing.recordset[0];
+    const result = await pool.request()
+      .input('name', sql.NVarChar(200), name)
+      .input('type', sql.VarChar(10), src.Type)
+      .input('dataSourceId', sql.Int, dataSourceId || src.DataSourceId)
+      .input('sourceSchema', sql.NVarChar(100), src.SourceSchema)
+      .input('sourceTable', sql.NVarChar(100), src.SourceTable)
+      .input('keyColumn', sql.NVarChar(100), src.KeyColumn)
+      .input('dateColumn', sql.NVarChar(100), src.DateColumn)
+      .input('updatedAtColumn', sql.NVarChar(100), src.UpdatedAtColumn)
+      .input('dimensionColumnsJson', sql.NVarChar(sql.MAX), src.DimensionColumnsJson)
+      .input('measureColumnsJson', sql.NVarChar(sql.MAX), src.MeasureColumnsJson)
+      .input('joinSchema', sql.NVarChar(100), src.JoinSchema)
+      .input('joinTable', sql.NVarChar(100), src.JoinTable)
+      .input('joinType', sql.VarChar(5), src.JoinType)
+      .input('mainJoinColumn', sql.NVarChar(100), src.MainJoinColumn)
+      .input('lookupJoinColumn', sql.NVarChar(100), src.LookupJoinColumn)
+      .input('lookupDimensionColumnsJson', sql.NVarChar(sql.MAX), src.LookupDimensionColumnsJson)
+      .input('customConnectorKey', sql.VarChar(50), src.CustomConnectorKey)
+      .input('targetDomain', sql.VarChar(50), src.TargetDomain)
+      .input('cronExpression', sql.VarChar(50), src.CronExpression)
+      .input('keepHistory', sql.Bit, src.KeepHistory)
+      .input('branchCodeMapType', sql.VarChar(50), src.BranchCodeMapType)
+      .query(`
+        INSERT INTO etl.SyncJobs (
+          Name, Type, DataSourceId, SourceSchema, SourceTable, KeyColumn, DateColumn, UpdatedAtColumn,
+          DimensionColumnsJson, MeasureColumnsJson, JoinSchema, JoinTable, JoinType, MainJoinColumn,
+          LookupJoinColumn, LookupDimensionColumnsJson, CustomConnectorKey, TargetDomain, CronExpression,
+          KeepHistory, BranchCodeMapType, IsActive
+        )
+        OUTPUT INSERTED.Id
+        VALUES (
+          @name, @type, @dataSourceId, @sourceSchema, @sourceTable, @keyColumn, @dateColumn, @updatedAtColumn,
+          @dimensionColumnsJson, @measureColumnsJson, @joinSchema, @joinTable, @joinType, @mainJoinColumn,
+          @lookupJoinColumn, @lookupDimensionColumnsJson, @customConnectorKey, @targetDomain, @cronExpression,
+          @keepHistory, @branchCodeMapType, 0
+        )
+      `);
+    const id = result.recordset[0].Id;
+    await logAction(req, { module: 'Đồng bộ', actionType: 'NHAN_BAN_JOB', targetObject: String(id), description: `Nhân bản job "${name}" từ #${req.params.id} (tạo ở trạng thái Tắt)` });
+    res.status(201).json({ id });
+  } catch (err) { next(err); }
+});
+
 router.delete('/:id', requireMenuEdit('sync-jobs'), async (req, res, next) => {
   try {
     const jobId = parseInt(req.params.id, 10);

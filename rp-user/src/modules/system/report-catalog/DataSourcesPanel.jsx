@@ -18,6 +18,8 @@ export default function DataSourcesPanel() {
   const [deletingId, setDeletingId] = useState(null);
   const [editing, setEditing] = useState(null); // { ...source, password: '' } đang sửa, hoặc null
   const [savingEdit, setSavingEdit] = useState(false);
+  const [duplicating, setDuplicating] = useState(null); // { source, newName } đang nhân bản, hoặc null
+  const [savingDuplicate, setSavingDuplicate] = useState(false);
   const selection = useRowSelection();
   const [bulkDeleting, setBulkDeleting] = useState(false);
 
@@ -72,6 +74,21 @@ export default function DataSourcesPanel() {
     } catch (err) { setError(err.message); } finally { setSavingEdit(false); }
   }
 
+  function openDuplicate(source) {
+    setDuplicating({ source, newName: `${source.Name} (bản sao)` });
+  }
+
+  async function saveDuplicate(e) {
+    e.preventDefault();
+    setError('');
+    setSavingDuplicate(true);
+    try {
+      await api.post(`/system/data-sources/${duplicating.source.Id}/duplicate`, { name: duplicating.newName });
+      setDuplicating(null);
+      reload();
+    } catch (err) { setError(err.message); } finally { setSavingDuplicate(false); }
+  }
+
   async function deleteSource(source) {
     if (!confirm(`Xoá nguồn "${source.Name}"?`)) return;
     setDeletingId(source.Id);
@@ -124,6 +141,7 @@ export default function DataSourcesPanel() {
             key: 'actions', label: '', render: (s) => (
               <>
                 <button type="button" onClick={() => openEdit(s)}>Sửa</button>{' '}
+                <button type="button" onClick={() => openDuplicate(s)}>Nhân bản</button>{' '}
                 <button type="button" onClick={() => deleteSource(s)} disabled={deletingId === s.Id}>
                   {deletingId === s.Id ? 'Đang xoá...' : 'Xoá'}
                 </button>
@@ -164,6 +182,32 @@ export default function DataSourcesPanel() {
               <div className="inline-actions">
                 <button type="submit" disabled={savingEdit}>{savingEdit ? 'Đang lưu...' : 'Cập nhật nguồn dữ liệu'}</button>
                 <button type="button" onClick={() => setEditing(null)}>Huỷ</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {duplicating && (
+        <div className="modal">
+          <div className="modal-body">
+            <h3>Nhân bản "{duplicating.source.Name}"</h3>
+            <p className="hint">
+              Tạo 1 nguồn dữ liệu MỚI giống hệt nguồn này — giữ nguyên Server, Database, Username,
+              Mật khẩu, Encrypt... Chỉ cần đặt tên khác.
+            </p>
+            <form className="stacked-form" onSubmit={saveDuplicate}>
+              <input
+                placeholder="Tên nguồn mới"
+                value={duplicating.newName}
+                onChange={(e) => setDuplicating({ ...duplicating, newName: e.target.value })}
+                required
+                autoFocus
+              />
+              <p className="hint">🔒 Mật khẩu được sao chép nguyên dạng đã mã hoá ở máy chủ — không hiện ra, không đi qua trình duyệt lúc nhân bản.</p>
+              <div className="inline-actions">
+                <button type="submit" disabled={savingDuplicate}>{savingDuplicate ? 'Đang nhân bản...' : 'Tạo bản sao'}</button>
+                <button type="button" onClick={() => setDuplicating(null)}>Huỷ</button>
               </div>
             </form>
           </div>

@@ -136,3 +136,100 @@ Lưu ý:
 **Lý do**: trước đây muốn xoá nhiều dòng phải bấm "Xoá" + xác nhận từng
 dòng một — chậm và dễ bỏ sót khi cần dọn nhiều (vd nhiều siêu thị/job
 đồng bộ cùng lúc).
+
+## Trang quản lý "kết nối" (nguồn dữ liệu/đối tác API) PHẢI có nút "Nhân bản" bên cạnh "Sửa"
+
+**Theo yêu cầu người dùng (bản 9.22, áp dụng cho các trang quản lý kết nối
+đã có ở bản 9.22 — Nguồn dữ liệu ETL/API/Biểu mẫu, Job đồng bộ, Kết nối
+API/đối tác bên ngoài — và MỌI trang "kết nối" tương tự làm thêm SAU NÀY:
+username/password/API key có thể giống nhau giữa nhiều bản ghi, chỉ khác
+tên).**
+
+Nút "Nhân bản" tạo 1 bản ghi MỚI copy NGUYÊN VẸN mọi cột (kể cả cột bí mật
+ĐÃ MÃ HOÁ) từ bản ghi gốc, CHỈ đổi `Name`/`Title` — không giải mã, không
+gửi mật khẩu/API key qua request body hay hiện ra trình duyệt lúc nhân
+bản (an toàn hơn gõ lại thủ công).
+
+Backend — route riêng `POST /:id/duplicate` (KHÔNG tái dùng `POST /` hay
+`PUT /:id`, vì 2 route đó yêu cầu/validate mật khẩu dạng chữ thường qua
+body — nhân bản không có và không cần mật khẩu thật):
+```js
+router.post('/:id/duplicate', async (req, res, next) => {
+  try {
+    const { name } = req.body || {};
+    if (!name) return res.status(400).json({ error: 'Thiếu name (tên bản sao mới)' });
+    const pool = await getPool('...');
+    const existing = await pool.request().input('id', sql.Int, req.params.id)
+      .query('SELECT <mọi cột, kể cả *Encrypted/*Hash> FROM ... WHERE Id = @id');
+    if (!existing.recordset.length) return res.status(404).json({ error: 'Không tìm thấy' });
+    const src = existing.recordset[0];
+    const result = await pool.request()
+      .input('name', sql.NVarChar(200), name)
+      /* .input(...src...) từng cột còn lại, giữ NGUYÊN giá trị src.* */
+      .query('INSERT INTO ... (Name, ...) OUTPUT INSERTED.Id VALUES (@name, ...)');
+    res.status(201).json({ id: result.recordset[0].Id });
+  } catch (err) { next(err); }
+});
+```
+
+Frontend — mẫu chuẩn (xem thật ở `etl-admin/src/pages/DataSourcesPage.jsx`):
+```jsx
+const [duplicating, setDuplicating] = useState(null); // { source, newName } đang nhân bản, hoặc null
+const [savingDuplicate, setSavingDuplicate] = useState(false);
+
+function openDuplicate(source) {
+  setDuplicating({ source, newName: `${source.Name} (bản sao)` });
+}
+async function saveDuplicate(e) {
+  e.preventDefault();
+  setSavingDuplicate(true);
+  try {
+    await api.post(`/data-sources/${duplicating.source.Id}/duplicate`, { name: duplicating.newName });
+    setDuplicating(null);
+    reload();
+  } catch (err) { setError(err.message); } finally { setSavingDuplicate(false); }
+}
+...
+<button type="button" onClick={() => openEdit(s)}>Sửa</button>{' '}
+<button type="button" onClick={() => openDuplicate(s)}>Nhân bản</button>{' '}
+...
+{duplicating && (
+  <div className="modal">
+    <div className="modal-body">
+      <h3>Nhân bản "{duplicating.source.Name}"</h3>
+      <form className="stacked-form" onSubmit={saveDuplicate}>
+        <input value={duplicating.newName} onChange={(e) => setDuplicating({ ...duplicating, newName: e.target.value })} required autoFocus />
+        <div className="inline-actions">
+          <button type="submit" disabled={savingDuplicate}>{savingDuplicate ? 'Đang nhân bản...' : 'Tạo bản sao'}</button>
+          <button type="button" onClick={() => setDuplicating(null)}>Huỷ</button>
+        </div>
+      </form>
+    </div>
+  </div>
+)}
+```
+
+Lưu ý quan trọng:
+- Nút "Tạo bản sao" PHẢI theo đúng quy ước khoá nút ở mục đầu (`savingDuplicate` + `disabled` + "Đang nhân bản...").
+- Chỉ hiện nút "Nhân bản" cho người có quyền sửa (gộp cùng điều kiện
+  `isAdmin`/`canEdit(...)` đã dùng cho nút "Sửa" của đúng trang đó).
+- Nếu bản ghi là 1 JOB/TÁC VỤ CÓ THỂ TỰ CHẠY (vd Sync Job, cron) — job mới
+  tạo PHẢI ở trạng thái TẮT (hardcode `IsActive = 0` trong INSERT, không
+  copy từ src) để tránh 2 job giống nhau chạy trùng ngay sau khi nhân bản;
+  admin tự bật lại sau khi kiểm tra/chỉnh đúng ý (xem
+  `etl/routes/admin/syncJobs.js`).
+- **NGOẠI LỆ BẮT BUỘC — bản ghi là ĐỐI TÁC/CONSUMER CÓ BÍ MẬT DÙNG XÁC THỰC
+  LẪN NHAU** (vd `api.ApiConsumers` — "Đối tác API"): KHÔNG BAO GIỜ copy
+  `ApiKeyHash`/`ClientSecretHash`/`HmacSecretEncrypted` — 2 đối tác dùng
+  chung 1 bí mật là lỗ hổng bảo mật (đối tác A có thể giả danh đối tác B).
+  Route `/duplicate` cho loại này PHẢI luân chuyển bí mật — chạy lại ĐÚNG
+  logic sinh bí mật mới của route tạo (`POST /`)/luân chuyển (`POST
+  /:id/rotate`), rồi trả về bí mật mới MỘT LẦN trong response (giống cơ chế
+  "hiện bí mật 1 lần" đã có) để frontend hiện banner `RevealedCredentials`
+  — xem `api-server/routes/admin/consumers.js` và
+  `api-admin/src/pages/ConsumersPage.jsx`.
+
+**Lý do**: nhiều kết nối/đối tác có cấu hình giống nhau gần như hoàn toàn
+(cùng server/database/username/password, hoặc cùng cách xác thực) — gõ lại
+thủ công vừa chậm vừa dễ gõ sai mật khẩu, mà hiện mật khẩu ra để copy thì
+lộ bí mật qua màn hình/trình duyệt không cần thiết.

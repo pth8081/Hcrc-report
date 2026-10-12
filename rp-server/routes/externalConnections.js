@@ -183,6 +183,41 @@ router.delete('/:id', async (req, res, next) => {
   }
 });
 
+// Nhân bản (bản 9.22, theo yêu cầu người dùng) — tạo 1 kết nối MỚI copy
+// NGUYÊN VẸN mọi cột (kể cả AuthValueEncrypted/AuthPasswordEncrypted ĐÃ MÃ
+// HOÁ, đúng kiểu xác thực hiện có — AuthType không đổi khi nhân bản) từ kết
+// nối gốc, CHỈ đổi Name — không giải mã, không lộ bí mật qua request body.
+router.post('/:id/duplicate', async (req, res, next) => {
+  try {
+    const { name } = req.body || {};
+    if (!name) return res.status(400).json({ error: 'Thiếu name (tên bản sao mới)' });
+    const pool = await getPool('RP');
+    const existing = await pool.request().input('id', sql.Int, req.params.id).query(`
+      SELECT BaseUrl, AuthType, AuthKeyName, AuthValueEncrypted, AuthUsername, AuthPasswordEncrypted, TokenUrl
+      FROM app.ExternalApiConnections WHERE Id = @id
+    `);
+    if (!existing.recordset.length) return res.status(404).json({ error: 'Không tìm thấy kết nối' });
+    const src = existing.recordset[0];
+    const result = await pool.request()
+      .input('name', sql.NVarChar(200), name)
+      .input('baseUrl', sql.NVarChar(300), src.BaseUrl)
+      .input('authType', sql.VarChar(30), src.AuthType)
+      .input('authKeyName', sql.NVarChar(200), src.AuthKeyName)
+      .input('authValueEncrypted', sql.NVarChar(500), src.AuthValueEncrypted)
+      .input('authUsername', sql.NVarChar(200), src.AuthUsername)
+      .input('authPasswordEncrypted', sql.NVarChar(500), src.AuthPasswordEncrypted)
+      .input('tokenUrl', sql.NVarChar(300), src.TokenUrl)
+      .query(`
+        INSERT INTO app.ExternalApiConnections (Name, BaseUrl, AuthType, AuthKeyName, AuthValueEncrypted, AuthUsername, AuthPasswordEncrypted, TokenUrl)
+        OUTPUT INSERTED.Id
+        VALUES (@name, @baseUrl, @authType, @authKeyName, @authValueEncrypted, @authUsername, @authPasswordEncrypted, @tokenUrl)
+      `);
+    const id = result.recordset[0].Id;
+    await logAction(req, { module: 'Biểu mẫu', actionType: 'NHAN_BAN_KET_NOI_DOI_TAC', targetObject: name, description: `Nhân bản kết nối API đối tác "${name}" từ #${req.params.id}` });
+    res.status(201).json({ id });
+  } catch (err) { next(err); }
+});
+
 // Thử một cấu hình ĐÃ LƯU (chỉ xác nhận máy chủ phản hồi — xem
 // lib/externalApiConnectionPool.js:testConnection() cho giới hạn thật).
 router.post('/:id/test', async (req, res, next) => {
