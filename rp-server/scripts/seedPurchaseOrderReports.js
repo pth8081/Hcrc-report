@@ -52,9 +52,10 @@ const NCC_FILTER = {
   optionsSource: { domain: DOMAIN, valueField: 'MaNCC', labelField: 'TenNCC' }
 };
 
-// Bộ lọc "Siêu thị" (bản 9.13, theo yêu cầu người dùng — báo cáo "So sánh
-// giá trị đặt–nhập theo NCC": không chọn gì = gộp TOÀN BỘ siêu thị, chọn
-// 1/nhiều siêu thị = CHỈ gộp đúng (các) siêu thị đó). optionsSource.storeCatalog
+// Bộ lọc "Siêu thị" (bản 9.13, ban đầu CHỈ gắn cho báo cáo "So sánh giá
+// trị đặt–nhập theo NCC"; bản 9.14 MỞ RỘNG ra CẢ 6 báo cáo theo yêu cầu
+// người dùng) — không chọn gì = tất cả siêu thị (như cũ), chọn 1/nhiều
+// siêu thị = CHỈ lấy đúng (các) siêu thị đó. optionsSource.storeCatalog
 // (KHÁC optionsSource.domain/valueField/labelField ở NCC_FILTER trên) —
 // đọc thẳng bảng "Ánh xạ Điểm - STK_ID" thay vì dwh.ReportFacts, vì
 // Dimensions.MaDiem trong domain này là BU_ID thô chưa dịch (xem
@@ -153,7 +154,12 @@ function buildDefinition(report) {
     filters: [
       { field: 'eventDate', type: 'dateRange', label: 'Ngày đặt' },
       NCC_FILTER,
-      ...(report.aggregateBySupplier ? [SIEU_THI_FILTER] : [TRANG_THAI_FILTER])
+      // Siêu thị (bản 9.14, theo yêu cầu người dùng — mở rộng ra CẢ 6 báo
+      // cáo, trước đây bản 9.13 chỉ gắn cho báo cáo So sánh theo NCC):
+      // không chọn gì = tất cả siêu thị, chọn 1/nhiều = chỉ đúng (các)
+      // siêu thị đó.
+      SIEU_THI_FILTER,
+      ...(report.aggregateBySupplier ? [] : [TRANG_THAI_FILTER])
     ]
   };
 }

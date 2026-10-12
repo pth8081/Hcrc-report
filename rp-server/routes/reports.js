@@ -166,17 +166,31 @@ router.get('/:reportId/filter-options/:field', async (req, res, next) => {
       return res.status(500).json({ error: 'Cấu hình optionsSource không hợp lệ' });
     }
     const pool = await resolveFactsPool(definition);
+    // Nhãn lấy từ dòng SyncedAt MỚI NHẤT của mỗi giá trị (bản 9.14, SỬA LỖI
+    // phát hiện qua báo cáo người dùng — dropdown "Nhà cung cấp" hiện tên
+    // lỗi font dù VIEW nguồn đã sửa) — TRƯỚC ĐÂY dùng `MAX(label)` (so
+    // sánh CHUỖI theo thứ tự chữ cái), nên khi 1 giá trị có NHIỀU dòng lịch
+    // sử với nhãn khác nhau (vd đổi tên NCC, hoặc như lần này — VIEW đổi
+    // cột nguồn hết lỗi font nhưng dòng LỊCH SỬ cũ vẫn còn trong
+    // dwh.ReportFacts tới khi đồng bộ lại), `MAX` có thể chọn NHẦM bản ghi
+    // CŨ nếu nó tình cờ sắp xếp chữ cái sau bản mới — không liên quan gì
+    // tới thời điểm đồng bộ thật. Dùng ROW_NUMBER() theo SyncedAt DESC để
+    // LUÔN lấy đúng nhãn của lần đồng bộ GẦN NHẤT.
     const result = await pool.request()
       .input('domain', sql.VarChar(50), domain)
       .query(`
-        SELECT
-          JSON_VALUE(Dimensions, '$.${valueField}') AS value,
-          MAX(JSON_VALUE(Dimensions, '$.${labelField || valueField}')) AS label
-        FROM dwh.ReportFacts
-        WHERE Domain = @domain
-        GROUP BY JSON_VALUE(Dimensions, '$.${valueField}')
-        HAVING JSON_VALUE(Dimensions, '$.${valueField}') IS NOT NULL
-        ORDER BY MAX(JSON_VALUE(Dimensions, '$.${labelField || valueField}'))
+        ;WITH ranked AS (
+          SELECT
+            JSON_VALUE(Dimensions, '$.${valueField}') AS value,
+            JSON_VALUE(Dimensions, '$.${labelField || valueField}') AS label,
+            ROW_NUMBER() OVER (
+              PARTITION BY JSON_VALUE(Dimensions, '$.${valueField}')
+              ORDER BY SyncedAt DESC
+            ) AS rn
+          FROM dwh.ReportFacts
+          WHERE Domain = @domain AND JSON_VALUE(Dimensions, '$.${valueField}') IS NOT NULL
+        )
+        SELECT value, label FROM ranked WHERE rn = 1 ORDER BY label
       `);
 
     // Danh sách rỗng ở đây có 2 NGUYÊN NHÂN hoàn toàn khác nhau, cùng ra
