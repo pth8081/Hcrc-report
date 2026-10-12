@@ -14,6 +14,139 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 9.04 — Script tạo API key cho đối tác App Voucher ngoài
+
+**Thay đổi**: thêm `api-server/scripts/seedVoucherAppConsumer.js` — tạo
+API key cho app voucher ngoài bằng script, không cần vào api-admin.
+
+**Các bước triển khai:**
+1. `git pull origin main`.
+2. `pm2 restart hcrc-api-server` (chỉ thêm script mới, không đổi route
+   đang chạy — restart để nhận biến `.env` mới nếu có dùng
+   `VOUCHER_APP_CONSUMER_NAME`).
+3. `cd api-server && npm run seed:voucher-app-consumer` — copy API key in
+   ra, gửi cho đội phát triển app voucher qua kênh an toàn.
+
+**Kiểm tra:**
+- [ ] Chạy script, API key hiện rõ trong khung kèm ví dụ `curl`.
+- [ ] Gọi thử `curl` ví dụ đó với 1 mã voucher thật — ra đúng
+  `UNUSED`/`USED`.
+
+---
+
+## 9.03 — Tự động hoá Đối tác nội bộ + Kết nối API Server cho voucher-check
+
+**Thay đổi**: thêm 2 script nối chuỗi tạo "Đối tác" nội bộ (rp-server) +
+"Kết nối API Server", không cần dán API key qua web.
+
+**Các bước triển khai (YÊU CẦU đã làm bản 9.02 trước — có endpoint
+`voucher-check`):**
+1. `git pull origin main` (cả api-server lẫn rp-server).
+2. `pm2 restart hcrc-api-server && pm2 restart hcrc-rp-server`.
+3. Điền `API_SERVER_BASE_URL` vào `rp-server/.env` (địa chỉ api-server mà
+   MÁY CHỦ rp-server gọi tới được).
+4. Trên máy chủ api-server:
+   ```
+   cd api-server
+   APIKEY=$(node scripts/seedVoucherCheckConsumer.js) && \
+     (cd ../rp-server && node scripts/seedVoucherApiConnection.js "$APIKEY")
+   ```
+
+**Kiểm tra:**
+- [ ] Lệnh chạy xong không lỗi, in "Đã TẠO MỚI/CẬP NHẬT Kết nối API
+  Server".
+- [ ] `GET /api/v1/realtime/voucher-check/<barcode>` gọi được với key vừa
+  tạo.
+
+---
+
+## 9.02 — Script tự động tạo Endpoint realtime + báo cáo tra cứu voucher
+
+**Thay đổi**: thêm Endpoint realtime `voucher-check` (api-server) + báo
+cáo "Tra cứu voucher" (rp-server) bằng script, thay cho thao tác tay qua
+UI.
+
+**Các bước triển khai (YÊU CẦU đã làm Bước 4 `api-voucher-check-redeem.md`
+— đã có "Nguồn dữ liệu" voucher):**
+1. `git pull origin main` (api-server + rp-server).
+2. `pm2 restart hcrc-api-server && pm2 restart hcrc-rp-server`.
+3. `cd api-server && npm run seed:voucher-check-endpoint`.
+4. Vào rp-user → Hệ thống → Kết nối API Server, tạo kết nối tay (dán API
+   key của 1 đối tác có scope `realtime` + tick endpoint `voucher-check`
+   — xem bản 9.03 nếu muốn bước này cũng bằng script).
+5. `cd rp-server && node scripts/seedVoucherCheckReport.js`.
+6. Vào Hệ thống → Phân quyền, gán quyền xem báo cáo "Tra cứu voucher" cho
+   vai trò cần dùng (bước thủ công cố ý).
+
+**Kiểm tra:**
+- [ ] `GET /api/v1/realtime/voucher-check/<barcode>` (kèm `X-API-Key`) ra
+  đúng dữ liệu `PMCRDINF`.
+- [ ] rp-user → báo cáo "Tra cứu voucher" → gõ thử 1 mã → ra đúng kết
+  quả.
+
+---
+
+## 9.01 — Giảm dãn dòng PDF báo cáo doanh thu từ +12 xuống +10
+
+**Thay đổi**: chỉ đổi 1 hằng số `rowH` trong `rp-server/lib/exportPdf.js`
+(chế độ `compactSinglePage`) — không đổi schema/dữ liệu.
+
+**Các bước triển khai:**
+1. `git pull origin main`.
+2. `pm2 restart hcrc-rp-server`.
+
+**Kiểm tra:**
+- [ ] Xuất PDF 1 trong 4 báo cáo doanh thu → dòng dãn vừa phải hơn bản
+  trước, cỡ chữ không đổi, vẫn đúng 1 trang A4 dọc.
+
+---
+
+## 9.00 — Tách domain current/currentGD theo ngày cho 2 báo cáo "(Thành viên)"
+
+**Thay đổi**: `rp-server/lib/compositeReportRunner.js` (logic chạy) +
+`rp-server/scripts/seedLdtdHcrcReports.js` (đổi `DefinitionJson` của 2
+báo cáo "(Thành viên)").
+
+**Các bước triển khai (BẮT BUỘC chạy lại script seed — đổi DefinitionJson
+lưu trong CSDL, không chỉ code):**
+1. `git pull origin main`.
+2. `cd rp-server && node scripts/seedLdtdHcrcReports.js`.
+3. `pm2 restart hcrc-rp-server`.
+
+**Kiểm tra:**
+- [ ] Mở 1 trong 2 báo cáo "(Thành viên)", chọn khoảng ngày có cả quá khứ
+  xa (vd đầu năm tới hôm nay) → không còn khoảng trống dữ liệu bất
+  thường, số khớp hợp lý so với báo cáo gốc cùng khoảng ngày.
+
+---
+
+## 8.99 — Sửa 3 lỗi số liệu + chữ báo cáo doanh thu cuối ngày (4 báo cáo)
+
+**Thay đổi**: `rp-server/scripts/seedLdtdHcrcReports.js` (đổi
+`requireTargetMatch` trong `DefinitionJson`), `rp-server/lib/
+compositeReportRunner.js` (phân trang lấy đủ dữ liệu), `rp-server/lib/
+exportExcel.js` + `rp-server/lib/exportPdf.js` (dãn dòng/căn giữa).
+
+**Các bước triển khai (BẮT BUỘC chạy lại script seed — đổi
+`DefinitionJson` lưu trong CSDL):**
+1. `git pull origin main`.
+2. `cd rp-server && node scripts/seedLdtdHcrcReports.js`.
+3. `pm2 restart hcrc-rp-server`.
+
+**Kiểm tra:**
+- [ ] Mở 1 trong 4 báo cáo, chọn 1 kỳ CHƯA nhập Chỉ tiêu → vẫn hiện danh
+  sách siêu thị với Thực đạt đầy đủ, chỉ cột Chỉ tiêu/Tỷ lệ đạt trống
+  (không còn trắng toàn bộ bảng).
+- [ ] Chọn khoảng ngày rộng (vd cả năm trước) → đối chiếu tổng Thực đạt
+  với 1 nguồn khác để xác nhận không còn bị thiếu.
+- [ ] Xuất Excel/PDF 1 báo cáo bất kỳ trong 4 báo cáo → dòng dãn rõ ràng
+  hơn, cột TT (PDF) căn giữa.
+
+Không có bước nào làm mất dữ liệu đã có — không đổi schema CSDL, chỉ đổi
+logic đọc/hiển thị.
+
+---
+
 ## 8.98 — Viền đen + màu gốc file mẫu BRGMART + dãn dòng tiêu đề
 
 **Thay đổi**: báo cáo doanh thu (4 báo cáo "Doanh thu cuối ngày") đổi

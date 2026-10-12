@@ -29,6 +29,122 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 9.04 — Script tạo API key cho đối tác App Voucher ngoài (copy gửi đối tác)
+
+**Theo yêu cầu người dùng**: tự động hoá nốt bước cuối cùng của tính năng
+voucher — cấp API key cho ứng dụng voucher ngoài (thiết bị quét mã) mà
+không cần vào api-admin bấm chuột.
+
+- `api-server/scripts/seedVoucherAppConsumer.js` — tạo/cập nhật "Đối tác"
+  "App Voucher (thiết bị quét mã)" (tên đổi được qua
+  `VOUCHER_APP_CONSUMER_NAME`), scope `voucherCheck` + `voucherRedeem`,
+  idempotent theo tên. API key gốc in RÕ RÀNG ra màn hình trong khung, kèm
+  sẵn ví dụ `curl` — copy gửi cho đội phát triển app voucher qua kênh an
+  toàn. Đối tác đã tồn tại thì KHÔNG tự đổi key (tránh làm app ngoài đang
+  chạy mất kết nối đột ngột) — chạy lại với `VOUCHER_APP_CONSUMER_ROTATE=true`
+  khi cần cấp lại (key CŨ hết tác dụng NGAY).
+- Thêm npm script `seed:voucher-app-consumer`.
+- Cập nhật `api-voucher-check-redeem.md` Bước 5 với hướng dẫn Cách 1
+  (script) mới, giữ Cách 2 (thủ công qua UI) làm phương án dự phòng.
+
+## 9.03 — Tự động hoá Đối tác nội bộ + Kết nối API Server cho voucher-check
+
+**Theo yêu cầu người dùng** ("tôi không muốn tự cấu hình trên web đâu"):
+tiếp tục tự động hoá chuỗi cấp quyền nội bộ (rp-server gọi vào api-server)
+mà KHÔNG đi qua trình duyệt, giữ nguyên nguyên tắc "API key chỉ hiện đúng
+1 lần".
+
+- `api-server/scripts/seedVoucherCheckConsumer.js` — tạo/cập nhật 1 "Đối
+  tác" RIÊNG cho rp-server (scope `realtime`, tick endpoint
+  `voucher-check`), idempotent theo tên. API key CHỈ in trần ra `stdout`
+  (mọi thông báo khác qua `stderr`) để dùng trực tiếp trong lệnh nối
+  chuỗi — KHÔNG lưu xuống file/.env nào. Đối tác đã tồn tại thì không tự
+  đổi key (hỗ trợ `VOUCHER_CONSUMER_ROTATE=true` khi cần).
+- `rp-server/scripts/seedVoucherApiConnection.js` — nhận API key qua THAM
+  SỐ DÒNG LỆNH (không qua .env), tự kiểm tra api-server phản hồi
+  `/api/v1/health` trước khi ghi, tạo/cập nhật `app.ApiConnections`
+  idempotent theo tên.
+- Lệnh nối chuỗi 1 dòng: `APIKEY=$(node scripts/seedVoucherCheckConsumer.js) && (cd ../rp-server && node scripts/seedVoucherApiConnection.js "$APIKEY")`.
+- Thêm biến `API_SERVER_BASE_URL` (rp-server/.env.example) và
+  `VOUCHER_CONSUMER_NAME`/`VOUCHER_CONSUMER_ROTATE` (api-server/.env.example).
+- 2 npm script: `seed:voucher-check-consumer`, `seed:voucher-api-connection`.
+
+## 9.02 — Script tự động tạo Endpoint realtime + báo cáo tra cứu voucher
+
+**Theo yêu cầu người dùng**: cho phép kiểm tra kết nối voucher TRỰC TIẾP
+trên api-server (chưa cần đợi app ngoài kết nối vào) + có sẵn báo cáo tra
+cứu nội bộ trên rp-user, tất cả bằng script.
+
+- `api-server/scripts/seedVoucherCheckEndpoint.js` — tạo/cập nhật "Endpoint
+  realtime" `voucher-check` (bảng `PMCRDINF`, khoá `BARCODE`, cột hiển
+  thị `STATUS/VALUE_AMT/BAL_AMT/ISS_DATE/DUE_DATE`), tự đối chiếu schema
+  thật trước khi ghi (cùng cơ chế UI dùng lúc lưu tay). Sau bước này đã
+  gọi thử được `GET /api/v1/realtime/voucher-check/<barcode>` trực tiếp.
+- `rp-server/scripts/seedVoucherCheckReport.js` — tạo/cập nhật báo cáo
+  "Tra cứu voucher" (`bc-tra-cuu-voucher`, `sourceType: apiRealtime`,
+  `lookupField: barcode`), yêu cầu đã có "Kết nối API Server" (tạo tay,
+  vì API key chỉ hiện 1 lần).
+- 2 npm script: `seed:voucher-check-endpoint` (api-server),
+  `seed:voucher-check-report` (rp-server).
+- Cập nhật `api-voucher-check-redeem.md` mục "Kiểm tra voucher nội bộ"
+  với Cách 1 (script) + giữ Cách 2 (thủ công) làm phương án dự phòng.
+
+## 9.01 — Giảm dãn dòng PDF báo cáo doanh thu từ +12 xuống +10
+
+**Theo yêu cầu người dùng** (xem demo bản +12 ở 8.99): "dãn hơi nhiều, co
+vào xíu thôi" — đo lại đúng dữ liệu thật người dùng gửi, xác nhận +10
+vẫn giữ nguyên cỡ chữ 7pt (không phải đánh đổi), chỉ bớt khoảng cách dư
+so với +12, vẫn vừa đúng 1 trang A4 dọc.
+
+## 9.00 — Tách domain current/currentGD theo ngày cho 2 báo cáo "(Thành viên)"
+
+**Phát hiện qua điều tra cùng người dùng** (báo cáo "Thành viên" ra số
+thấp bất thường so với báo cáo gốc cùng khoảng ngày): domain `_thanhvien`
+(Live, đọc trực tiếp từng cửa hàng Thành viên) có lỗ hổng dữ liệu
+10/2025-8/2026 (job "Lịch sử (Thành viên)" tập trung bị TẮT giữa chừng
+lúc backfill ở bản 8.27, chưa quét hết lịch sử) — trong khi domain gốc
+(dùng chung 1 nguồn/view) không có lỗ hổng vì job Lịch sử của nó chạy
+liên tục nhiều năm.
+
+- `rp-server/lib/compositeReportRunner.js` — thêm `historicalDomain` +
+  `fetchSplitDomainRows()`: khối `current`/`currentGD` tự tách khoảng
+  ngày yêu cầu theo ranh giới "hôm nay" (giờ Việt Nam) — ngày ĐÃ QUA đọc
+  domain gốc (đã có đủ lịch sử qua job Lịch sử tập trung), CHỈ đúng hôm
+  nay mới đọc domain `_thanhvien` (Live riêng từng cửa hàng). 2 báo cáo
+  gốc không đổi hành vi (domain trùng `historicalDomain` → vẫn 1 lượt gọi
+  như cũ).
+- `rp-server/scripts/seedLdtdHcrcReports.js` — khai `historicalDomain:
+  DOMAIN_GOC.*` cho 2 khối `current`/`currentGD`.
+
+## 8.99 — Sửa 3 lỗi số liệu + chữ báo cáo doanh thu cuối ngày (4 báo cáo)
+
+**Phát hiện qua điều tra cùng người dùng** ("báo cáo doanh thu quá khứ
+đang thiếu số", "doanh thu cả 1 năm không thể thấp như vậy được") + yêu
+cầu dãn dòng/căn giữa cho file Excel/PDF xuất ra.
+
+- **`requireTargetMatch: false`** (`seedLdtdHcrcReports.js`) — TRƯỚC ĐÂY
+  cờ này loại HẲN mọi thực thể không có dòng Chỉ tiêu khớp đúng kỳ xem —
+  hậu quả: người dùng mới nhập Chỉ tiêu cho tháng 9-10/2026 nên MỌI
+  kỳ/năm khác (dù dữ liệu Thực đạt đã có sẵn trong `dwh.ReportFacts`) bị
+  ẩn TRẮNG HOÀN TOÀN. Tắt cờ này — thực thể không có Chỉ tiêu kỳ đó vẫn
+  hiện bình thường, chỉ trống đúng cột Chỉ tiêu/Tỷ lệ đạt (an toàn, không
+  NaN/lỗi nhờ `formulaEngine.js` lan truyền null). `requireDiemStkMapping`
+  (chặn mã rác độc lập) giữ nguyên `true`.
+- **Sửa lỗi giới hạn cứng 5000 dòng/lượt gọi** (`compositeReportRunner.js`,
+  `fetchAllReportRows()`) — khoảng ngày rộng (cả năm, nhiều năm, nhiều chi
+  nhánh) dễ vượt `REPORT_FETCH_BATCH_SIZE`, trước đây CẮT ÂM THẦM phần
+  ngày xa hơn (do `ORDER BY EventDate DESC`), ra tổng Thực đạt THẤP HƠN
+  thực tế mà không cảnh báo gì. Giờ phân trang LẶP LẠI (cùng kiểu vòng
+  lặp ETL `extractTable()`) tới khi lấy ĐỦ dữ liệu, không giới hạn số
+  ngày/chi nhánh.
+- **Excel**: dãn dòng dữ liệu (cỡ chữ 10, chiều cao dòng 20, căn giữa dọc
+  `vertical: middle`) — trước đây dùng mặc định ExcelJS (Calibri 11,
+  không set chiều cao, căn `bottom`) khiến chữ sát 2 đường kẻ trên/dưới.
+- **PDF**: căn giữa cột TT (trước chỉ căn trái như cột chữ khác); tăng
+  chiều cao dòng chế độ `compactSinglePage` từ `size+4` lên `size+12` —
+  đo thật bằng dữ liệu thật người dùng gửi (36 dòng/17 cột), xác nhận đây
+  là mức tăng TỐI ĐA vẫn giữ nguyên cỡ chữ 7pt, không đánh đổi.
+
 ## 8.98 — Viền đen + màu gốc file mẫu BRGMART + dãn dòng tiêu đề (báo cáo doanh thu)
 
 **Theo yêu cầu người dùng** (gửi lại file mẫu BRGMART gốc, xác nhận qua
