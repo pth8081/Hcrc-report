@@ -19,6 +19,8 @@ export default function ReportCatalogPage() {
   const [error, setError] = useState('');
   const [creating, setCreating] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
+  const [editing, setEditing] = useState(null); // { ReportId, title, domain, definitionJson, isActive } đang sửa, hoặc null
+  const [savingEdit, setSavingEdit] = useState(false);
   // Chọn nhiều + xoá hàng loạt (bản 8.62) — khoá dòng là ReportId.
   const selection = useRowSelection(row => row.ReportId);
   const [bulkDeleting, setBulkDeleting] = useState(false);
@@ -37,6 +39,23 @@ export default function ReportCatalogPage() {
       setForm(EMPTY_FORM);
       reload();
     } catch (err) { setError(err.message); } finally { setCreating(false); }
+  }
+
+  function openEdit(r) {
+    setEditing({ reportId: r.ReportId, title: r.Title, domain: r.Domain, definitionJson: r.DefinitionJson, isActive: !!r.IsActive });
+  }
+
+  async function saveEdit(e) {
+    e.preventDefault();
+    setError('');
+    setSavingEdit(true);
+    try {
+      await api.put(`/report-catalog/${editing.reportId}`, {
+        title: editing.title, domain: editing.domain, definitionJson: editing.definitionJson, isActive: editing.isActive
+      });
+      setEditing(null);
+      reload();
+    } catch (err) { setError(err.message); } finally { setSavingEdit(false); }
   }
 
   async function deleteReport(r) {
@@ -93,7 +112,16 @@ export default function ReportCatalogPage() {
           { key: 'ReportId', label: 'Mã' },
           { key: 'Domain', label: 'Domain' },
           { key: 'IsActive', label: 'Trạng thái', render: (r) => (r.IsActive ? 'Hoạt động' : 'Tắt') },
-          isAdmin && { key: 'actions', label: '', render: (r) => <button type="button" onClick={() => deleteReport(r)} disabled={deletingId === r.ReportId}>{deletingId === r.ReportId ? 'Đang xoá...' : 'Xoá'}</button> }
+          isAdmin && {
+            key: 'actions', label: '', render: (r) => (
+              <>
+                <button type="button" onClick={() => openEdit(r)}>Sửa</button>{' '}
+                <button type="button" onClick={() => deleteReport(r)} disabled={deletingId === r.ReportId}>
+                  {deletingId === r.ReportId ? 'Đang xoá...' : 'Xoá'}
+                </button>
+              </>
+            )
+          }
         ].filter(Boolean)}
         rows={reports}
         selection={isAdmin ? selection : null}
@@ -104,6 +132,30 @@ export default function ReportCatalogPage() {
           <button type="button" onClick={deleteSelected} disabled={bulkDeleting}>
             {bulkDeleting ? 'Đang xoá...' : `Xoá ${selection.selectedIds.size} mục đã chọn`}
           </button>
+        </div>
+      )}
+
+      {editing && (
+        <div className="modal">
+          <div className="modal-body">
+            <h3>Sửa báo cáo "{editing.title}"</h3>
+            <p className="hint">Mã báo cáo ({editing.reportId}) không đổi được.</p>
+            <form className="stacked-form" onSubmit={saveEdit}>
+              <input placeholder="Tiêu đề" value={editing.title} onChange={(e) => setEditing({ ...editing, title: e.target.value })} required />
+              <input placeholder="Domain" value={editing.domain} onChange={(e) => setEditing({ ...editing, domain: e.target.value })} required />
+              <textarea
+                rows={8}
+                value={editing.definitionJson}
+                onChange={(e) => setEditing({ ...editing, definitionJson: e.target.value })}
+                required
+              />
+              <label className="checkbox-row"><input type="checkbox" checked={editing.isActive} onChange={(e) => setEditing({ ...editing, isActive: e.target.checked })} /> Hoạt động</label>
+              <div className="inline-actions">
+                <button type="submit" disabled={savingEdit}>{savingEdit ? 'Đang lưu...' : 'Cập nhật báo cáo'}</button>
+                <button type="button" onClick={() => setEditing(null)}>Huỷ</button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>

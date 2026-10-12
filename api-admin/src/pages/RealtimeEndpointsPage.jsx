@@ -20,7 +20,7 @@ const EMPTY_FORM = {
   endpoint: '', label: '', dataSourceId: '',
   schemaName: '', tableName: '', keyColumn: '', orderColumn: '', columns: [],
   useJoin: false, joinSchema: '', joinTable: '', joinType: 'LEFT',
-  mainJoinColumn: '', lookupJoinColumn: '', joinColumns: []
+  mainJoinColumn: '', lookupJoinColumn: '', joinColumns: [], isActive: true
 };
 
 function toggleInList(list, value) {
@@ -36,6 +36,13 @@ export default function RealtimeEndpointsPage() {
   const [columns, setColumns] = useState([]);
   const [joinColumnsList, setJoinColumnsList] = useState([]);
   const [form, setForm] = useState(EMPTY_FORM);
+  // Sửa (bản 9.08) — TÁI DÙNG nguyên form tạo mới (cascading chọn
+  // nguồn/bảng/cột đã có sẵn) thay vì viết modal riêng: editingEndpoint =
+  // tên endpoint gốc (KHÔNG đổi được qua PUT, xem backend) khi đang sửa,
+  // null khi đang tạo mới. Điền form từ dòng đang sửa -> các useEffect nạp
+  // bảng/cột TỰ ĐỘNG chạy theo (đã theo dõi form.dataSourceId/schemaName/
+  // tableName/joinSchema/joinTable từ trước), không cần state/effect riêng.
+  const [editingEndpoint, setEditingEndpoint] = useState(null);
   const [error, setError] = useState('');
   const [creating, setCreating] = useState(false);
   const [checkingId, setCheckingId] = useState(null);
@@ -81,7 +88,34 @@ export default function RealtimeEndpointsPage() {
     setForm({ ...form, joinSchema, joinTable, mainJoinColumn: '', lookupJoinColumn: '', joinColumns: [] });
   }
 
-  async function createEndpoint(e) {
+  // Điền form từ dòng đang sửa — parse 2 cột JSON (ColumnsJson/
+  // JoinColumnsJson), suy useJoin từ JoinTable có/không. Các useEffect theo
+  // dõi form.dataSourceId/schemaName/tableName/joinSchema/joinTable ở trên
+  // TỰ ĐỘNG nạp bảng/cột thật ngay sau khi set form, không cần gọi tay.
+  function openEdit(ep) {
+    setError('');
+    setEditingEndpoint(ep.Endpoint);
+    setForm({
+      endpoint: ep.Endpoint, label: ep.Label || '', dataSourceId: String(ep.DataSourceId),
+      schemaName: ep.SchemaName, tableName: ep.TableName, keyColumn: ep.KeyColumn,
+      orderColumn: ep.OrderColumn, columns: JSON.parse(ep.ColumnsJson || '[]'),
+      useJoin: !!ep.JoinTable, joinSchema: ep.JoinSchema || '', joinTable: ep.JoinTable || '',
+      joinType: ep.JoinType || 'LEFT', mainJoinColumn: ep.MainJoinColumn || '',
+      lookupJoinColumn: ep.LookupJoinColumn || '', joinColumns: JSON.parse(ep.JoinColumnsJson || '[]'),
+      isActive: !!ep.IsActive
+    });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function cancelEdit() {
+    setEditingEndpoint(null);
+    setForm(EMPTY_FORM);
+    setTables([]);
+    setColumns([]);
+    setJoinColumnsList([]);
+  }
+
+  async function submitForm(e) {
     e.preventDefault();
     setError('');
     setCreating(true);
@@ -91,11 +125,10 @@ export default function RealtimeEndpointsPage() {
         body.joinSchema = null; body.joinTable = null; body.joinType = null;
         body.mainJoinColumn = null; body.lookupJoinColumn = null; body.joinColumns = [];
       }
-      const result = await api.post('/realtime-endpoints', body);
-      setForm(EMPTY_FORM);
-      setTables([]);
-      setColumns([]);
-      setJoinColumnsList([]);
+      const result = editingEndpoint
+        ? await api.put(`/realtime-endpoints/${editingEndpoint}`, body)
+        : await api.post('/realtime-endpoints', body);
+      cancelEdit();
       reload();
       // Cột nối không unique trên nguồn -> lookup theo khoá có thể trả nhầm
       // dòng (xem lib/schemaBrowser.js isUniqueSingleColumn) — vẫn lưu bình
@@ -151,8 +184,9 @@ export default function RealtimeEndpointsPage() {
       {error && <p className="form-error">{error}</p>}
 
       {isAdmin && (
-        <form className="stacked-form wizard-form" onSubmit={createEndpoint}>
-          <input placeholder="Tên endpoint (vd inventory, don-hang-dang-xu-ly)" value={form.endpoint} onChange={(e) => setForm({ ...form, endpoint: e.target.value })} required />
+        <form className="stacked-form wizard-form" onSubmit={submitForm}>
+          {editingEndpoint && <p className="hint">Đang sửa endpoint "{editingEndpoint}" — tên endpoint không đổi được.</p>}
+          <input placeholder="Tên endpoint (vd inventory, don-hang-dang-xu-ly)" value={form.endpoint} onChange={(e) => setForm({ ...form, endpoint: e.target.value })} disabled={!!editingEndpoint} required />
           <input placeholder="Nhãn hiển thị (vd Tồn kho)" value={form.label} onChange={(e) => setForm({ ...form, label: e.target.value })} />
 
           <select value={form.dataSourceId} onChange={(e) => setForm({ ...form, dataSourceId: e.target.value, schemaName: '', tableName: '', keyColumn: '', orderColumn: '', columns: [], useJoin: false, joinSchema: '', joinTable: '', mainJoinColumn: '', lookupJoinColumn: '', joinColumns: [] })} required>
@@ -235,7 +269,18 @@ export default function RealtimeEndpointsPage() {
             </fieldset>
           )}
 
-          <button type="submit" disabled={creating}>{creating ? 'Đang tạo...' : 'Tạo endpoint'}</button>
+          {editingEndpoint && (
+            <label className="checkbox-row">
+              <input type="checkbox" checked={form.isActive} onChange={(e) => setForm({ ...form, isActive: e.target.checked })} /> Hoạt động
+            </label>
+          )}
+
+          <div className="inline-actions">
+            <button type="submit" disabled={creating}>
+              {creating ? 'Đang lưu...' : (editingEndpoint ? 'Cập nhật endpoint' : 'Tạo endpoint')}
+            </button>
+            {editingEndpoint && <button type="button" onClick={cancelEdit}>Huỷ</button>}
+          </div>
         </form>
       )}
 
@@ -249,7 +294,16 @@ export default function RealtimeEndpointsPage() {
           { key: 'KeyColumn', label: 'Cột khoá' },
           { key: 'IsActive', label: 'Trạng thái', render: (r) => (r.IsActive ? 'Hoạt động' : 'Tắt') },
           { key: 'checkSchema', label: '', render: (r) => <button type="button" onClick={() => checkSchema(r)} disabled={checkingId === r.Endpoint}>{checkingId === r.Endpoint ? 'Đang kiểm tra...' : 'Kiểm tra schema'}</button> },
-          isAdmin && { key: 'actions', label: '', render: (r) => <button type="button" onClick={() => deleteEndpoint(r)} disabled={deletingId === r.Endpoint}>{deletingId === r.Endpoint ? 'Đang xoá...' : 'Xoá'}</button> }
+          isAdmin && {
+            key: 'actions', label: '', render: (r) => (
+              <>
+                <button type="button" onClick={() => openEdit(r)}>Sửa</button>{' '}
+                <button type="button" onClick={() => deleteEndpoint(r)} disabled={deletingId === r.Endpoint}>
+                  {deletingId === r.Endpoint ? 'Đang xoá...' : 'Xoá'}
+                </button>
+              </>
+            )
+          }
         ].filter(Boolean)}
         rows={endpoints}
         selection={isAdmin ? selection : null}

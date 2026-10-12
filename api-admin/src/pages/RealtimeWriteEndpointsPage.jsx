@@ -15,7 +15,7 @@ import { useAuth } from '../lib/AuthContext';
 import DataTable from '../components/DataTable';
 import { useRowSelection } from '../lib/useRowSelection';
 
-const EMPTY_FORM = { endpoint: '', label: '', dataSourceId: '', schemaName: '', tableName: '', keyColumn: '', statusColumn: '', usedValue: '' };
+const EMPTY_FORM = { endpoint: '', label: '', dataSourceId: '', schemaName: '', tableName: '', keyColumn: '', statusColumn: '', usedValue: '', isActive: true };
 
 export default function RealtimeWriteEndpointsPage() {
   const { canEdit } = useAuth();
@@ -25,6 +25,10 @@ export default function RealtimeWriteEndpointsPage() {
   const [tables, setTables] = useState([]);
   const [columns, setColumns] = useState([]);
   const [form, setForm] = useState(EMPTY_FORM);
+  // Sửa (bản 9.08) — TÁI DÙNG nguyên form tạo mới, cùng mẫu
+  // RealtimeEndpointsPage.jsx: editingEndpoint = tên endpoint gốc (KHÔNG
+  // đổi được qua PUT) khi đang sửa, null khi đang tạo mới.
+  const [editingEndpoint, setEditingEndpoint] = useState(null);
   const [error, setError] = useState('');
   const [creating, setCreating] = useState(false);
   const [checkingId, setCheckingId] = useState(null);
@@ -57,15 +61,33 @@ export default function RealtimeWriteEndpointsPage() {
     setForm({ ...form, schemaName, tableName, keyColumn: '', statusColumn: '' });
   }
 
-  async function createEndpoint(e) {
+  function openEdit(ep) {
+    setError('');
+    setEditingEndpoint(ep.Endpoint);
+    setForm({
+      endpoint: ep.Endpoint, label: ep.Label || '', dataSourceId: String(ep.DataSourceId),
+      schemaName: ep.SchemaName, tableName: ep.TableName, keyColumn: ep.KeyColumn,
+      statusColumn: ep.StatusColumn, usedValue: ep.UsedValue, isActive: !!ep.IsActive
+    });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function cancelEdit() {
+    setEditingEndpoint(null);
+    setForm(EMPTY_FORM);
+    setTables([]);
+    setColumns([]);
+  }
+
+  async function submitForm(e) {
     e.preventDefault();
     setError('');
     setCreating(true);
     try {
-      await api.post('/realtime-write-endpoints', { ...form, dataSourceId: Number(form.dataSourceId) });
-      setForm(EMPTY_FORM);
-      setTables([]);
-      setColumns([]);
+      const body = { ...form, dataSourceId: Number(form.dataSourceId) };
+      if (editingEndpoint) await api.put(`/realtime-write-endpoints/${editingEndpoint}`, body);
+      else await api.post('/realtime-write-endpoints', body);
+      cancelEdit();
       reload();
     } catch (err) { setError(err.message); } finally { setCreating(false); }
   }
@@ -119,8 +141,9 @@ export default function RealtimeWriteEndpointsPage() {
       {error && <p className="form-error">{error}</p>}
 
       {isAdmin && (
-        <form className="stacked-form wizard-form" onSubmit={createEndpoint}>
-          <input placeholder="Tên endpoint (vd vouchers-redeem)" value={form.endpoint} onChange={(e) => setForm({ ...form, endpoint: e.target.value })} required />
+        <form className="stacked-form wizard-form" onSubmit={submitForm}>
+          {editingEndpoint && <p className="hint">Đang sửa endpoint "{editingEndpoint}" — tên endpoint không đổi được.</p>}
+          <input placeholder="Tên endpoint (vd vouchers-redeem)" value={form.endpoint} onChange={(e) => setForm({ ...form, endpoint: e.target.value })} disabled={!!editingEndpoint} required />
           <input placeholder="Nhãn hiển thị (vd Đánh dấu voucher đã dùng)" value={form.label} onChange={(e) => setForm({ ...form, label: e.target.value })} />
 
           <select value={form.dataSourceId} onChange={(e) => setForm({ ...form, dataSourceId: e.target.value, schemaName: '', tableName: '', keyColumn: '', statusColumn: '' })} required>
@@ -155,7 +178,18 @@ export default function RealtimeWriteEndpointsPage() {
             </fieldset>
           )}
 
-          <button type="submit" disabled={creating}>{creating ? 'Đang tạo...' : 'Tạo endpoint'}</button>
+          {editingEndpoint && (
+            <label className="checkbox-row">
+              <input type="checkbox" checked={form.isActive} onChange={(e) => setForm({ ...form, isActive: e.target.checked })} /> Hoạt động
+            </label>
+          )}
+
+          <div className="inline-actions">
+            <button type="submit" disabled={creating}>
+              {creating ? 'Đang lưu...' : (editingEndpoint ? 'Cập nhật endpoint' : 'Tạo endpoint')}
+            </button>
+            {editingEndpoint && <button type="button" onClick={cancelEdit}>Huỷ</button>}
+          </div>
         </form>
       )}
 
@@ -169,7 +203,16 @@ export default function RealtimeWriteEndpointsPage() {
           { key: 'status', label: 'Trạng thái -> đã dùng', render: (r) => `${r.StatusColumn} = "${r.UsedValue}"` },
           { key: 'IsActive', label: 'Hoạt động', render: (r) => (r.IsActive ? 'Có' : 'Tắt') },
           { key: 'checkSchema', label: '', render: (r) => <button type="button" onClick={() => checkSchema(r)} disabled={checkingId === r.Endpoint}>{checkingId === r.Endpoint ? 'Đang kiểm tra...' : 'Kiểm tra schema'}</button> },
-          isAdmin && { key: 'actions', label: '', render: (r) => <button type="button" onClick={() => deleteEndpoint(r)} disabled={deletingId === r.Endpoint}>{deletingId === r.Endpoint ? 'Đang xoá...' : 'Xoá'}</button> }
+          isAdmin && {
+            key: 'actions', label: '', render: (r) => (
+              <>
+                <button type="button" onClick={() => openEdit(r)}>Sửa</button>{' '}
+                <button type="button" onClick={() => deleteEndpoint(r)} disabled={deletingId === r.Endpoint}>
+                  {deletingId === r.Endpoint ? 'Đang xoá...' : 'Xoá'}
+                </button>
+              </>
+            )
+          }
         ].filter(Boolean)}
         rows={endpoints}
         selection={isAdmin ? selection : null}
