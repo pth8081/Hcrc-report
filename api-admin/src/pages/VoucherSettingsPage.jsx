@@ -18,13 +18,20 @@ export default function VoucherSettingsPage() {
   const [message, setMessage] = useState(null);
   const [error, setError] = useState(null);
 
+  // 2 API ĐỘC LẬP (danh sách Nguồn dữ liệu / cấu hình voucher đã lưu) — TRƯỚC
+  // ĐÂY gọi chung qua Promise.all nên 1 trong 2 lỗi (vd bảng api.VoucherSettings
+  // chưa tồn tại do chưa chạy lại api-db/schema.sql) làm dropdown Nguồn dữ
+  // liệu TRỐNG THEO dù chính API đó vẫn chạy tốt — xem VERSION.md bản sửa
+  // lỗi này. Giờ tách riêng, lỗi bên nào chỉ báo đúng bên đó, không kéo
+  // theo bên còn lại.
   useEffect(() => {
-    Promise.all([api.get('/data-sources'), api.get('/voucher-settings')])
-      .then(([sources, settings]) => {
-        setDataSources(sources);
-        setDataSourceId(settings.dataSourceId || '');
+    Promise.allSettled([api.get('/data-sources'), api.get('/voucher-settings')])
+      .then(([sourcesResult, settingsResult]) => {
+        if (sourcesResult.status === 'fulfilled') setDataSources(sourcesResult.value);
+        else setError(sourcesResult.reason.message);
+        if (settingsResult.status === 'fulfilled') setDataSourceId(settingsResult.value.dataSourceId || '');
+        else setError(prev => prev || settingsResult.reason.message);
       })
-      .catch(err => setError(err.message))
       .finally(() => setLoading(false));
   }, []);
 
