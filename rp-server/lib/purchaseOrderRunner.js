@@ -139,6 +139,43 @@ function aggregateBySupplier(rows) {
   return Array.from(groups.values());
 }
 
+// Dòng "Tổng cộng" cuối báo cáo (bản 9.15, theo yêu cầu người dùng — "phải
+// có tổng cộng giá trị để phần so sánh giá nhập và đặt chính xác hơn") —
+// cộng dồn MỌI measures số đang có thành 1 dòng cuối, nhãn "Tổng cộng" ở
+// cột TenNCC (cột chung cả 6 báo cáo). Dùng ĐÚNG quy ước __isSubtotal/
+// __isGrandTotal đã có sẵn (lib/compositeReportRunner.js) — DataTable.jsx
+// (web)/exportExcel.js/exportPdf.js đã TỰ nhận diện 2 cờ này để tô màu
+// xanh/in đậm, KHÔNG cần đổi gì thêm ở tầng hiển thị dù báo cáo này không
+// có columnGroups (xem rp-user/src/lib/reportGroupColors.js:
+// resolveRowFillColor — nhánh __isGrandTotal không phụ thuộc columnGroups).
+//
+// CHỈ gọi hàm này cho báo cáo có TOÀN BỘ measures là số CỘNG DỒN ĐƯỢC
+// (giá trị tiền/số lượng) — KHÔNG gọi cho "Đơn đặt hàng"/"Đơn nhập hàng"/
+// "So sánh đặt–nhận" (có cột `DonGia` = đơn giá/1 đơn vị, cộng dồn đơn giá
+// của nhiều mặt hàng khác nhau ra số vô nghĩa, còn gây hiểu lầm là "tổng
+// giá trị" — xem definition.showGrandTotal ở seedPurchaseOrderReports.js,
+// chỉ bật cho 3 báo cáo "giá trị" không có đơn giá).
+// Không có dòng dữ liệu nào thì KHÔNG thêm dòng Tổng cộng (tránh hiện toàn
+// số 0 gây hiểu nhầm là có dữ liệu).
+function appendGrandTotal(rows) {
+  if (!rows.length) return rows;
+  const measureKeys = new Set();
+  for (const r of rows) for (const k of Object.keys(r.measures || {})) measureKeys.add(k);
+  const totalMeasures = {};
+  for (const k of measureKeys) {
+    totalMeasures[k] = rows.reduce((sum, r) => sum + (typeof r.measures[k] === 'number' ? r.measures[k] : 0), 0);
+  }
+  return [...rows, {
+    entityCode: null,
+    sourceSystem: rows[0].sourceSystem,
+    eventDate: rows[0].eventDate,
+    dimensions: { TenNCC: 'Tổng cộng' },
+    measures: totalMeasures,
+    __isSubtotal: true,
+    __isGrandTotal: true
+  }];
+}
+
 async function runPurchaseOrderReport(definition, filterValues = {}, pagination = { page: 1, pageSize: 500 }) {
   const pool = await getPool('DWH');
   const diemMapping = await loadDiemStkMapping();
@@ -185,6 +222,10 @@ async function runPurchaseOrderReport(definition, filterValues = {}, pagination 
     mappedRows = aggregateOrderTotal(mappedRows);
   } else if (definition.aggregateBySupplier) {
     mappedRows = aggregateBySupplier(mappedRows);
+  }
+
+  if (definition.showGrandTotal) {
+    mappedRows = appendGrandTotal(mappedRows);
   }
 
   return {

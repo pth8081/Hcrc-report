@@ -117,14 +117,18 @@ const REPORTS = [
   // 3 báo cáo dưới đây — bản 9.08, theo yêu cầu người dùng ("báo cáo giá trị
   // tiền nhập/đặt của NCC theo đơn hàng, giá trị so sánh theo NCC").
   {
-    reportId: 'bc-gia-tri-dat-theo-don', title: 'Giá trị đặt hàng theo đơn', transCode: '133', aggregateOrderTotal: true,
+    // showGrandTotal (bản 9.15, theo yêu cầu người dùng — "phải có tổng
+    // cộng giá trị") — CHỈ 3 báo cáo "giá trị" (TongGiaTri/GiaTriDat/
+    // GiaTriNhap, không có cột Đơn giá) mới bật, xem chú thích
+    // lib/purchaseOrderRunner.js:appendGrandTotal().
+    reportId: 'bc-gia-tri-dat-theo-don', title: 'Giá trị đặt hàng theo đơn', transCode: '133', aggregateOrderTotal: true, showGrandTotal: true,
     columns: [
       ...ORDER_TOTAL_HEAD, 'NgayGiao',
       'measures.TongSoLuong', 'measures.TongGiaTri', ...COMMON_TAIL
     ]
   },
   {
-    reportId: 'bc-gia-tri-nhap-theo-don', title: 'Giá trị nhập hàng theo đơn', transCode: '333', aggregateOrderTotal: true,
+    reportId: 'bc-gia-tri-nhap-theo-don', title: 'Giá trị nhập hàng theo đơn', transCode: '333', aggregateOrderTotal: true, showGrandTotal: true,
     columns: [
       ...ORDER_TOTAL_HEAD,
       'measures.TongSoLuong', 'measures.TongGiaTri', ...COMMON_TAIL
@@ -133,7 +137,7 @@ const REPORTS = [
   {
     // Gộp CẢ hệ thống (mọi siêu thị) theo NCC, theo yêu cầu người dùng —
     // KHÔNG tách siêu thị, KHÔNG dùng transCode (cần cả 133 lẫn 333).
-    reportId: 'bc-so-sanh-gia-tri-ncc', title: 'So sánh giá trị đặt–nhập theo NCC', aggregateBySupplier: true,
+    reportId: 'bc-so-sanh-gia-tri-ncc', title: 'So sánh giá trị đặt–nhập theo NCC', aggregateBySupplier: true, showGrandTotal: true,
     columns: [
       'MaNCC', 'TenNCC', 'measures.GiaTriDat', 'measures.GiaTriNhap',
       { key: 'chenhLechGiaTriNcc', label: 'Chênh lệch giá trị', formula: 'measures.GiaTriDat - measures.GiaTriNhap' },
@@ -150,6 +154,7 @@ function buildDefinition(report) {
     ...(report.aggregateByOrder ? { aggregateByOrder: true } : {}),
     ...(report.aggregateOrderTotal ? { aggregateOrderTotal: true } : {}),
     ...(report.aggregateBySupplier ? { aggregateBySupplier: true } : {}),
+    ...(report.showGrandTotal ? { showGrandTotal: true } : {}),
     columns: report.columns,
     filters: [
       { field: 'eventDate', type: 'dateRange', label: 'Ngày đặt' },
