@@ -29,6 +29,19 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 9.16 — Tìm kiếm không phân biệt dấu tiếng Việt ở mọi ô lọc multi-select
+
+**Theo yêu cầu người dùng**: danh sách Nhà cung cấp rất dài, chọn kiểu
+select khó dùng — xác nhận ô tìm kiếm (`SearchableSelect.jsx`) đã có sẵn
+từ trước, dùng chung cho toàn bộ ô lọc multi-select, nhưng trước đây so
+khớp CHUỖI NGUYÊN VĂN có dấu — gõ không dấu (rất phổ biến khi gõ nhanh
+trên điện thoại) không ra kết quả.
+
+- `normalizeVN()` — bỏ dấu qua NFD + xử lý riêng `đ`/`Đ` (không tách được
+  qua NFD) — áp dụng cho cả chuỗi gõ tìm lẫn nhãn option.
+- Áp dụng cho MỌI ô lọc multi-select trong hệ thống (component dùng
+  chung), không riêng "Nhà cung cấp".
+
 ## 9.15 — Thêm dòng Tổng cộng cho 3 báo cáo giá trị đặt/nhập
 
 **Theo yêu cầu người dùng**: "phải có tổng cộng giá trị để phần so sánh

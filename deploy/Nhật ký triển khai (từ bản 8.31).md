@@ -14,6 +14,26 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 9.16 — Tìm kiếm không phân biệt dấu tiếng Việt ở mọi ô lọc multi-select
+
+**Thay đổi**: mọi ô lọc multi-select (Nhà cung cấp, Siêu thị, Trạng
+thái...) trên toàn hệ thống giờ tìm được dù gõ có dấu hay không dấu.
+
+**Các bước triển khai (làm 1 lần):**
+1. `git pull origin main`.
+2. `cd rp-user && npm run build` — copy TOÀN BỘ `dist/` lên vị trí phục vụ
+   tĩnh rp-user.
+3. KHÔNG cần restart backend (chỉ đổi frontend thuần tuý).
+
+**Kiểm tra:**
+- [ ] Mở 1 báo cáo bất kỳ có bộ lọc "Nhà cung cấp" → bấm vào ô đó → gõ
+  KHÔNG dấu (vd "cong ty") vào ô "Tìm kiếm..." → vẫn lọc đúng ra các NCC
+  có "Công ty" trong tên.
+- [ ] Gõ CÓ dấu (vd "Công ty") → vẫn lọc đúng như trước (không bị hỏng
+  hành vi cũ).
+
+---
+
 ## 9.15 — Thêm dòng Tổng cộng cho 3 báo cáo giá trị đặt/nhập
 
 **Thay đổi**: 3 báo cáo "Giá trị đặt hàng theo đơn"/"Giá trị nhập hàng
