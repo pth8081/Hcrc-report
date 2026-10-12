@@ -29,6 +29,15 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 9.09 — Sửa lỗi font tài liệu VIEW báo cáo tồn kho (FULL_NAME → FULL_NAME_U)
+
+**Phát hiện qua rà soát** (theo yêu cầu người dùng "rà soát lại các font
+chữ trên hệ thống"): `bc-ton-kho-0.md` + `deploy/Cập nhật bản 8.68 ...md`
+vẫn hướng dẫn dùng `SKU_DEF.FULL_NAME` (ĐÃ XÁC NHẬN lỗi font ở tài liệu
+"giá vốn dsmart.md") thay vì `FULL_NAME_U` (cột Unicode đúng) — sửa cả 2
+tài liệu. Nếu VIEW này đã deploy thật, cần chạy lại VIEW trên CSDL mới hết
+lỗi dữ liệu hiện có (tài liệu không tự sửa VIEW đã deploy).
+
 ## 9.08 — Thêm 3 báo cáo giá trị đặt/nhập theo đơn + theo NCC
 
 **Theo yêu cầu người dùng**: "báo cáo giá trị tiền nhập của ncc theo đơn
