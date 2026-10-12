@@ -29,6 +29,25 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 9.20 — SỬA LỖI THẬT: Trang "Cấu hình Voucher" (api-admin) lỗi 500 do thiếu `requireAdminAuth`
+
+**Theo báo cáo người dùng** (Console DevTools: `GET`/`PUT /admin/voucher-settings` đều `500`; trang "Log" cho đúng dòng `Cannot read properties of undefined (reading 'sub')`).
+
+- **Nguyên nhân**: `api-server/routes/admin/voucherSettings.js` thiếu hẳn
+  middleware `requireAdminAuth` (`lib/adminAuth.js`) — route chỉ gắn
+  `requireMenuAccess('voucher-settings')`, nhưng hàm này (và
+  `requireMenuEdit`) đọc `req.admin.sub`, mà `req.admin` CHỈ được gán bởi
+  `requireAdminAuth` chạy TRƯỚC đó. Thiếu middleware này khiến `req.admin`
+  luôn `undefined` → vỡ ngay ở `req.admin.sub` → rơi vào lỗi 500 chung cho
+  CẢ `GET` lẫn `PUT`. Đây là lỗi sót từ lúc tạo route này (không phải lỗi
+  mới phát sinh), mọi route `/admin/*` KHÁC đều đã có đúng middleware này.
+- **Sửa**: thêm `router.use(requireAdminAuth, requireMenuAccess(...))`
+  đúng khuôn mọi route admin khác (`routes/admin/dataSources.js`,
+  `routes/admin/realtimeEndpoints.js`...). Đã rà soát lại TOÀN BỘ 15 file
+  `routes/admin/*.js` dùng `requireMenuAccess`/`requireMenuEdit` — xác
+  nhận CHỈ `voucherSettings.js` thiếu, không còn trang nào khác bị lỗi
+  tương tự.
+
 ## 9.19 — SỬA LỖI THẬT: API check/redeem voucher tra sai cột (BARCODE → CARD_ID)
 
 **Theo báo cáo người dùng** (ảnh app "HCRC Voucher Redemption": quét 1

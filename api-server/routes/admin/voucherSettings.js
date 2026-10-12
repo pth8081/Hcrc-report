@@ -6,11 +6,21 @@
 // lib/voucherRedeemService.js.
 const express = require('express');
 const { sql, getPool } = require('../../db');
+const { requireAdminAuth } = require('../../lib/adminAuth');
 const { requireMenuAccess, requireMenuEdit } = require('../../lib/adminPermissions');
 const { logAction } = require('../../lib/auditLog');
 
 const router = express.Router();
-router.use(requireMenuAccess('voucher-settings'));
+// requireAdminAuth THIẾU ở đây từ lúc tạo route (bản 9.20, SỬA LỖI THẬT —
+// phát hiện qua báo cáo người dùng: "Cannot read properties of undefined
+// (reading 'sub')" trên cả GET lẫn PUT) — requireMenuAccess()/
+// requireMenuEdit() (lib/adminPermissions.js) đọc req.admin.sub, nhưng
+// req.admin chỉ được gán bởi requireAdminAuth (lib/adminAuth.js) chạy
+// TRƯỚC đó; thiếu nó thì req.admin undefined, vỡ ngay ở req.admin.sub. Mọi
+// route admin KHÁC đều có `router.use(requireAdminAuth, requireMenuAccess(...))`
+// (xem routes/admin/dataSources.js, routes/admin/realtimeEndpoints.js) —
+// route này sót mất requireAdminAuth.
+router.use(requireAdminAuth, requireMenuAccess('voucher-settings'));
 
 router.get('/', async (req, res, next) => {
   try {

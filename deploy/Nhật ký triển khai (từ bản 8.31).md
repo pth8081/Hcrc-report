@@ -14,6 +14,22 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 9.20 — Sửa lỗi 500 trang "Cấu hình Voucher" (api-admin) — thiếu requireAdminAuth
+
+**Thay đổi**: `api-server/routes/admin/voucherSettings.js` — thêm
+middleware `requireAdminAuth` bị thiếu từ đầu, khiến `GET`/`PUT
+/admin/voucher-settings` luôn lỗi 500 (`Cannot read properties of
+undefined (reading 'sub')`). Chỉ sửa code, không đổi CSDL.
+
+**Các bước triển khai (làm 1 lần):**
+1. `git pull origin main`.
+2. `pm2 restart hcrc-api-server`.
+
+**Kiểm tra:**
+- [ ] Vào api-admin → "Cấu hình Voucher" — KHÔNG còn báo "Lỗi máy chủ",
+  dropdown hiện đúng Nguồn dữ liệu đã chọn trước đó.
+- [ ] Chọn lại 1 Nguồn dữ liệu, bấm "Lưu" — báo thành công, không lỗi.
+
 ## 9.19 — KHẨN: Sửa API check/redeem voucher tra sai cột (BARCODE → CARD_ID)
 
 **Thay đổi**: `api-server/lib/voucherRedeemService.js` — đổi cột khoá tra/
