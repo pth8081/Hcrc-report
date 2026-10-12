@@ -71,6 +71,27 @@ const DOMAIN = 'don_dat_hang';
 const TRANS_CODE_DAT = '133';
 const TRANS_CODE_NHAP = '333';
 
+// Phân trang lấy ĐỦ dữ liệu (bản 9.17, theo báo cáo người dùng — chọn
+// khoảng ngày rộng/cả năm ra thiếu dữ liệu) — TRƯỚC ĐÂY chỉ gọi runReport()
+// ĐÚNG 1 LƯỢT (mặc định tối đa 500 dòng/lượt, ORDER BY EventDate DESC —
+// xem reportEngine.js), nên khoảng ngày rộng (cả năm, nhiều chi nhánh) dễ
+// vượt quá 500 dòng thô — phần NGÀY XA HƠN trong khoảng bị ÂM THẦM BỎ QUA,
+// không có cảnh báo gì (khác báo cáo trống rõ ràng — rất dễ hiểu nhầm là
+// đúng). CÙNG lỗi/CÙNG cách sửa đã áp dụng cho 4 báo cáo doanh thu cuối
+// ngày ở bản 8.99 (xem lib/compositeReportRunner.js:fetchAllReportRows).
+const REPORT_FETCH_BATCH_SIZE = 5000;
+async function fetchAllReportRows(pool, blockDefinition, blockFilterValues) {
+  const allRows = [];
+  let page = 1;
+  for (;;) {
+    const pageRows = await runReport(pool, blockDefinition, blockFilterValues, { page, pageSize: REPORT_FETCH_BATCH_SIZE });
+    allRows.push(...pageRows);
+    if (pageRows.length < REPORT_FETCH_BATCH_SIZE) break;
+    page += 1;
+  }
+  return allRows;
+}
+
 // Gộp nhiều dòng (133 + 333*) của CÙNG 1 (MaDiem+SoDon+MaHang) thành 1
 // dòng duy nhất cho báo cáo "So sánh đặt–nhận" — SUM riêng SoLuong theo
 // đúng loại giao dịch, các cột mô tả khác (TenNCC/NguoiDat/NgayGiao...)
@@ -176,7 +197,7 @@ function appendGrandTotal(rows) {
   }];
 }
 
-async function runPurchaseOrderReport(definition, filterValues = {}, pagination = { page: 1, pageSize: 500 }) {
+async function runPurchaseOrderReport(definition, filterValues = {}) {
   const pool = await getPool('DWH');
   const diemMapping = await loadDiemStkMapping();
   const buIdLookup = buildBuIdLookup(diemMapping);
@@ -190,13 +211,25 @@ async function runPurchaseOrderReport(definition, filterValues = {}, pagination 
   // storeCatalog ở routes/reports.js) — báo cáo không khai filter này thì
   // filterValues.maDiem luôn rỗng, dòng dưới không có tác dụng gì.
   const userStoreFilter = Array.isArray(filterValues.maDiem) && filterValues.maDiem.length ? new Set(filterValues.maDiem) : null;
+  // Bộ lọc "Trạng thái" (bản 9.17, SỬA LỖI phát hiện qua báo cáo người
+  // dùng) — TRƯỚC ĐÂY xuống SQL, áp vào TỪNG DÒNG THÔ (đặt/nhận riêng)
+  // TRƯỚC KHI gộp cặp — "So sánh đặt–nhận"/"...theo đơn" gộp CẢ dòng 133
+  // VÀ 333 của cùng 1 đơn; nếu 2 dòng đó có TrangThai KHÁC NHAU (bình
+  // thường — vd đơn "Đã nhập 1 phần": dòng 133 gốc giữ nguyên trạng thái
+  // CUỐI, dòng 333 lần nhận cụ thể có thể ghi trạng thái khác), lọc trạng
+  // thái Ở SQL trước khi gộp có thể làm rụng mất ĐÚNG dòng cần ghép cặp,
+  // ra kết quả thiếu/rỗng dù có dữ liệu thật. Giờ lọc SAU khi đã gộp xong
+  // (dùng TrangThai của dòng ĐẠI DIỆN đã chọn trong aggregateByOrder()/
+  // aggregateOrderTotal()), không ảnh hưởng gì bước gộp.
+  const trangThaiFilter = Array.isArray(filterValues.trangThai) && filterValues.trangThai.length ? new Set(filterValues.trangThai) : null;
 
-  // Chỉ chuyển filter dateRange/trạng thái xuống SQL (lib/reportEngine.js)
-  // — filter "Siêu thị" (nếu có) PHẢI áp dụng SAU khi ghi đè mã Điểm bên
-  // dưới, vì Dimensions.MaDiem lưu trong dwh.ReportFacts vẫn là BU_ID thô,
-  // KHÔNG so khớp trực tiếp được với mã Điểm chuẩn người dùng chọn.
-  const sqlFilters = (definition.filters || []).filter((f) => f.field !== 'maDiem');
-  const rawRows = await runReport(pool, { domain: DOMAIN, filters: sqlFilters }, filterValues, pagination);
+  // Chỉ chuyển filter dateRange/NCC xuống SQL (lib/reportEngine.js) —
+  // "Siêu thị" PHẢI áp dụng SAU khi ghi đè mã Điểm bên dưới (Dimensions.
+  // MaDiem lưu trong dwh.ReportFacts vẫn là BU_ID thô), "Trạng thái" PHẢI
+  // áp dụng SAU khi gộp (xem chú thích trangThaiFilter ở trên) — cả 2 loại
+  // khỏi sqlFilters.
+  const sqlFilters = (definition.filters || []).filter((f) => f.field !== 'maDiem' && f.field !== 'trangThai');
+  const rawRows = await fetchAllReportRows(pool, { domain: DOMAIN, filters: sqlFilters }, filterValues);
 
   let mappedRows = rawRows
     .map((row) => {
@@ -222,6 +255,13 @@ async function runPurchaseOrderReport(definition, filterValues = {}, pagination 
     mappedRows = aggregateOrderTotal(mappedRows);
   } else if (definition.aggregateBySupplier) {
     mappedRows = aggregateBySupplier(mappedRows);
+  }
+
+  // Lọc Trạng thái SAU KHI gộp (xem chú thích trangThaiFilter ở trên) —
+  // đặt TRƯỚC showGrandTotal để dòng "Tổng cộng" chỉ cộng đúng các dòng đã
+  // lọc, không cộng cả phần đã bị loại.
+  if (trangThaiFilter) {
+    mappedRows = mappedRows.filter((row) => trangThaiFilter.has(row.dimensions.TrangThai));
   }
 
   if (definition.showGrandTotal) {

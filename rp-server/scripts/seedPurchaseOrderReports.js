@@ -36,8 +36,33 @@ const DOMAIN = 'don_dat_hang';
 // đã đồng bộ ở etl/scripts/seedDonDatHangSync.js (xem bc-don-dat-hang.md).
 // SỬA bản 8.95 (theo yêu cầu người dùng) — thêm cột MaNCC (trước đây chỉ
 // có TenNCC, không có mã) — tên NCC lấy từ VIEW đã JOIN dbo.SUPPLIER thật.
-const COMMON_HEAD = ['eventDate', 'SoDon', 'TenDiem', 'MaNCC', 'TenNCC', 'MaHang', 'TenHang', 'DVT'];
-const COMMON_TAIL = ['TrangThaiLabel'];
+//
+// SỬA bản 9.17 (theo báo cáo người dùng: "tên cột toàn tiếng Anh, có dấu
+// chấm, không có ý nghĩa") — TRƯỚC ĐÂY khai CHUỖI THÔ (vd 'eventDate',
+// 'measures.ThanhTien'), describeColumns() (lib/reportEngine.js) không có
+// label riêng nên LẤY NGUYÊN chuỗi thô làm tiêu đề cột — hiện lên web/
+// Excel/PDF y hệt "eventDate"/"measures.ThanhTien", không ai hiểu. Giờ
+// MỌI cột đều khai `{ key, label }` tường minh — `eventDate` tách hàm
+// riêng (eventDateLabel) vì Ý NGHĨA KHÁC NHAU theo báo cáo: "Đơn đặt
+// hàng"/"So sánh đặt-nhận"/"Giá trị đặt..." là NGÀY ĐẶT, còn "Đơn nhập
+// hàng"/"Giá trị nhập..." mỗi dòng là 1 LẦN NHẬN riêng nên cùng field
+// `eventDate` thực chất là NGÀY NHẬN (xem chú thích (*) trong
+// bc-don-dat-hang.md mục 5) — gộp chung 1 label "Ngày đặt" cho cả 2 sẽ
+// sai nghĩa với báo cáo nhập hàng.
+function commonHead(eventDateLabel) {
+  return [
+    { key: 'eventDate', label: eventDateLabel },
+    { key: 'SoDon', label: 'Số đơn' },
+    { key: 'TenDiem', label: 'Siêu thị' },
+    { key: 'MaNCC', label: 'Mã NCC' },
+    { key: 'TenNCC', label: 'Nhà cung cấp' },
+    { key: 'MaHang', label: 'Mã hàng' },
+    { key: 'TenHang', label: 'Tên hàng' },
+    { key: 'DVT', label: 'ĐVT' }
+  ];
+}
+const COMMON_TAIL = [{ key: 'TrangThaiLabel', label: 'Trạng thái' }];
+const NGAY_GIAO_COL = { key: 'NgayGiao', label: 'Ngày giao' };
 
 // Bộ lọc "Nhà cung cấp" (bản 8.95, theo yêu cầu người dùng) — dropdown tìm
 // kiếm được, lấy DANH SÁCH THẬT từ dữ liệu đã đồng bộ qua `optionsSource`
@@ -85,29 +110,43 @@ const TRANG_THAI_FILTER = {
 // Cột CHUNG cho 2 báo cáo "Giá trị ... theo đơn" (bản 9.08) — KHÔNG có
 // MaHang/TenHang/DVT (đã gộp hết mặt hàng trong đơn về 1 dòng, không còn ý
 // nghĩa hiện 1 mã hàng đại diện).
-const ORDER_TOTAL_HEAD = ['eventDate', 'SoDon', 'TenDiem', 'MaNCC', 'TenNCC'];
+function orderTotalHead(eventDateLabel) {
+  return [
+    { key: 'eventDate', label: eventDateLabel },
+    { key: 'SoDon', label: 'Số đơn' },
+    { key: 'TenDiem', label: 'Siêu thị' },
+    { key: 'MaNCC', label: 'Mã NCC' },
+    { key: 'TenNCC', label: 'Nhà cung cấp' }
+  ];
+}
 
 const REPORTS = [
   {
     reportId: 'bc-don-dat-hang', title: 'Đơn đặt hàng', transCode: '133',
     columns: [
-      ...COMMON_HEAD, 'NgayGiao',
+      ...commonHead('Ngày đặt'), NGAY_GIAO_COL,
       { key: 'soLuongDat', label: 'SL đặt', formula: 'measures.SoLuong' },
-      'measures.DonGia', 'measures.ThanhTien', ...COMMON_TAIL
+      { key: 'donGia', label: 'Đơn giá', formula: 'measures.DonGia' },
+      { key: 'thanhTien', label: 'Thành tiền', formula: 'measures.ThanhTien' },
+      ...COMMON_TAIL
     ]
   },
   {
     reportId: 'bc-don-nhap-hang', title: 'Đơn nhập hàng', transCode: '333',
     columns: [
-      ...COMMON_HEAD,
+      ...commonHead('Ngày nhận'),
       { key: 'soLuongNhan', label: 'SL nhận', formula: 'measures.SoLuong' },
-      'measures.DonGia', 'measures.ThanhTien', ...COMMON_TAIL
+      { key: 'donGia', label: 'Đơn giá', formula: 'measures.DonGia' },
+      { key: 'thanhTien', label: 'Thành tiền', formula: 'measures.ThanhTien' },
+      ...COMMON_TAIL
     ]
   },
   {
     reportId: 'bc-so-sanh-dat-nhan', title: 'So sánh đặt–nhận', aggregateByOrder: true,
     columns: [
-      ...COMMON_HEAD, 'measures.SoLuongTheoDon', 'measures.SoLuongThucNhan',
+      ...commonHead('Ngày đặt'),
+      { key: 'soLuongTheoDon', label: 'SL đặt', formula: 'measures.SoLuongTheoDon' },
+      { key: 'soLuongThucNhan', label: 'SL thực nhận', formula: 'measures.SoLuongThucNhan' },
       { key: 'chenhLechSoLuong', label: 'Chênh lệch SL', formula: 'measures.SoLuongTheoDon - measures.SoLuongThucNhan' },
       { key: 'tyLeHoanThanh', label: 'Tỷ lệ hoàn thành (%)', format: 'percent', formula: 'ROUND(measures.SoLuongThucNhan / measures.SoLuongTheoDon * 100, 1)' },
       { key: 'chenhLechGiaTri', label: 'Chênh lệch giá trị', formula: '(measures.SoLuongTheoDon - measures.SoLuongThucNhan) * measures.DonGia' },
@@ -123,15 +162,19 @@ const REPORTS = [
     // lib/purchaseOrderRunner.js:appendGrandTotal().
     reportId: 'bc-gia-tri-dat-theo-don', title: 'Giá trị đặt hàng theo đơn', transCode: '133', aggregateOrderTotal: true, showGrandTotal: true,
     columns: [
-      ...ORDER_TOTAL_HEAD, 'NgayGiao',
-      'measures.TongSoLuong', 'measures.TongGiaTri', ...COMMON_TAIL
+      ...orderTotalHead('Ngày đặt'), NGAY_GIAO_COL,
+      { key: 'tongSoLuong', label: 'Tổng SL', formula: 'measures.TongSoLuong' },
+      { key: 'tongGiaTri', label: 'Tổng giá trị', formula: 'measures.TongGiaTri' },
+      ...COMMON_TAIL
     ]
   },
   {
     reportId: 'bc-gia-tri-nhap-theo-don', title: 'Giá trị nhập hàng theo đơn', transCode: '333', aggregateOrderTotal: true, showGrandTotal: true,
     columns: [
-      ...ORDER_TOTAL_HEAD,
-      'measures.TongSoLuong', 'measures.TongGiaTri', ...COMMON_TAIL
+      ...orderTotalHead('Ngày nhận'),
+      { key: 'tongSoLuong', label: 'Tổng SL', formula: 'measures.TongSoLuong' },
+      { key: 'tongGiaTri', label: 'Tổng giá trị', formula: 'measures.TongGiaTri' },
+      ...COMMON_TAIL
     ]
   },
   {
@@ -139,7 +182,10 @@ const REPORTS = [
     // KHÔNG tách siêu thị, KHÔNG dùng transCode (cần cả 133 lẫn 333).
     reportId: 'bc-so-sanh-gia-tri-ncc', title: 'So sánh giá trị đặt–nhập theo NCC', aggregateBySupplier: true, showGrandTotal: true,
     columns: [
-      'MaNCC', 'TenNCC', 'measures.GiaTriDat', 'measures.GiaTriNhap',
+      { key: 'MaNCC', label: 'Mã NCC' },
+      { key: 'TenNCC', label: 'Nhà cung cấp' },
+      { key: 'giaTriDat', label: 'Giá trị đặt', formula: 'measures.GiaTriDat' },
+      { key: 'giaTriNhap', label: 'Giá trị nhập', formula: 'measures.GiaTriNhap' },
       { key: 'chenhLechGiaTriNcc', label: 'Chênh lệch giá trị', formula: 'measures.GiaTriDat - measures.GiaTriNhap' },
       { key: 'tyLeGiaoHangNcc', label: 'Tỷ lệ giao hàng (%)', format: 'percent', formula: 'ROUND(measures.GiaTriNhap / measures.GiaTriDat * 100, 1)' }
     ]
