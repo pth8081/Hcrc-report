@@ -29,6 +29,26 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 9.14 — Mở rộng bộ lọc Siêu thị ra cả 6 báo cáo + sửa lỗi chọn nhãn cũ ở dropdown lọc
+
+**Theo báo cáo người dùng** (ảnh chụp thật): dropdown "Nhà cung cấp" vẫn
+hiện tên lỗi font dù VIEW nguồn đã sửa (bản 9.12), và báo cáo "Giá trị đặt
+hàng theo đơn" chưa có bộ lọc Siêu thị như báo cáo So sánh theo NCC.
+
+- `scripts/seedPurchaseOrderReports.js` — bộ lọc "Siêu thị" giờ gắn cho CẢ
+  6 báo cáo (trước đây bản 9.13 chỉ gắn 1 báo cáo).
+- `routes/reports.js` — **sửa lỗi thật**: dropdown filter-options trước
+  dùng `MAX(JSON_VALUE(...))` chọn nhãn hiển thị — so sánh CHUỖI theo thứ
+  tự chữ cái, không liên quan gì thời điểm đồng bộ, nên khi 1 giá trị có
+  nhiều dòng lịch sử nhãn khác nhau có thể chọn NHẦM bản ghi CŨ. Đổi sang
+  `ROW_NUMBER()...ORDER BY SyncedAt DESC` để luôn lấy đúng nhãn của lần
+  đồng bộ GẦN NHẤT — áp dụng chung mọi báo cáo dùng `optionsSource.domain`.
+
+**LƯU Ý quan trọng**: fix trên chỉ đúng từ lần đồng bộ TIẾP THEO — dữ liệu
+LỊCH SỬ đã đồng bộ trước bản 9.12 vẫn cần ĐỒNG BỘ LẠI TOÀN BỘ (xoá
+watermark `etl.SyncState`) mới hết hẳn lỗi font, vì "Chạy thử" bình thường
+chỉ đồng bộ tăng dần.
+
 ## 9.13 — Thêm bộ lọc "Siêu thị" cho báo cáo So sánh giá trị đặt–nhập theo NCC
 
 **Theo yêu cầu người dùng**: "cho thêm option chọn siêu thị, không chọn

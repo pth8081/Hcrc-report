@@ -14,6 +14,44 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 9.14 — Mở rộng bộ lọc Siêu thị ra cả 6 báo cáo + sửa lỗi chọn nhãn cũ ở dropdown lọc + đồng bộ lại toàn bộ dữ liệu đơn hàng
+
+**Thay đổi**: cả 6 báo cáo domain `don_dat_hang` có bộ lọc "Siêu thị". Sửa
+lỗi dropdown "Nhà cung cấp" chọn nhầm nhãn cũ (lỗi font) thay vì nhãn mới.
+
+**Các bước triển khai (làm 1 lần, theo đúng thứ tự, BẮT BUỘC đủ bước 4 —
+nếu bỏ qua, dữ liệu lịch sử vẫn còn lỗi font vĩnh viễn):**
+1. `git pull origin main`.
+2. `cd rp-server && node scripts/seedPurchaseOrderReports.js` — ghi đè
+   `DefinitionJson` thêm bộ lọc Siêu thị cho đủ 6 báo cáo.
+3. `pm2 restart hcrc-rp-server` (đổi `routes/reports.js`).
+4. **Đồng bộ lại TOÀN BỘ dữ liệu cũ** (chỉ cần làm 1 LẦN DUY NHẤT, để hết
+   hẳn lỗi font tên NCC/chi nhánh ở dữ liệu lịch sử — "Chạy thử" bình
+   thường KHÔNG tự làm việc này vì chỉ đồng bộ tăng dần theo watermark).
+   Chạy câu lệnh sau trên CSDL ETL (sửa tên CSDL nếu khác `HCRC_ETL`):
+   ```sql
+   USE HCRC_ETL; -- hoặc đúng tên CSDL ETL thật của bạn
+   DELETE FROM etl.SyncState
+   WHERE SyncJobId = (SELECT Id FROM etl.SyncJobs WHERE Name = N'Đơn đặt hàng - nhập hàng (DSMART16)');
+   ```
+   Xong câu lệnh trên, vào etl-admin → Đồng bộ → tìm job
+   "Đơn đặt hàng - nhập hàng (DSMART16)" → bấm "Chạy thử" — lần này sẽ
+   đồng bộ lại TOÀN BỘ lịch sử (vì watermark đã xoá, hệ thống coi như
+   chưa từng đồng bộ), lấy đúng tên NCC/chi nhánh mới (đã qua
+   `SUPP_NAME_U`/`STK_NAME_U`). Có thể mất lâu hơn 1 lượt "Chạy thử" bình
+   thường tuỳ khối lượng dữ liệu lịch sử.
+
+**Kiểm tra:**
+- [ ] Mở báo cáo "Giá trị đặt hàng theo đơn" (hoặc bất kỳ báo cáo nào
+  trong 6 báo cáo) — thấy thêm ô lọc "Siêu thị".
+- [ ] Mở dropdown "Nhà cung cấp" — tên NCC hiện đúng chữ Việt có dấu, hết
+  hẳn ký tự lạ (kể cả đơn hàng CŨ, không chỉ đơn mới).
+- [ ] Mở 1 báo cáo bất kỳ, chọn khoảng ngày có cả đơn hàng CŨ (vd đầu
+  năm) — cột "NCC" hiện đúng chữ Việt (xác nhận đồng bộ lại toàn bộ đã
+  chạy xong, không chỉ đơn mới).
+
+---
+
 ## 9.13 — Thêm bộ lọc "Siêu thị" cho báo cáo So sánh giá trị đặt–nhập theo NCC
 
 **Thay đổi**: báo cáo "So sánh giá trị đặt–nhập theo NCC" có thêm bộ lọc
