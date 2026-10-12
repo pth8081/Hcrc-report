@@ -423,6 +423,36 @@ dịch riêng biệt. Cột "Chênh lệch"/"Tỷ lệ hoàn thành" dùng công
 (Đã huỷ) bị loại HẲN khỏi cả 3 báo cáo ngay trong VIEW
 (`WHERE STATUS NOT IN ('D','E')`), không chỉ riêng báo cáo so sánh.
 
+## 6.5. Bản 9.17 — 2 lỗi thật phát hiện qua báo cáo người dùng + đổi tên cột
+
+**Lỗi 1 — khoảng ngày rộng/cả năm ra thiếu dữ liệu**: `runPurchaseOrderReport()`
+trước chỉ gọi `runReport()` (`lib/reportEngine.js`) ĐÚNG 1 lượt (mặc định
+tối đa 500 dòng thô/lượt, `ORDER BY EventDate DESC`) — chọn khoảng ngày
+rộng (cả năm, nhiều chi nhánh/mặt hàng) dễ vượt 500 dòng, phần NGÀY XA
+HƠN trong khoảng bị âm thầm bỏ qua, KHÔNG báo lỗi gì (dễ hiểu nhầm là số
+liệu đúng). Đã sửa bằng `fetchAllReportRows()` — gọi LẶP LẠI nhiều trang
+(5000 dòng/lượt) tới khi lấy hết — CÙNG lỗi/CÙNG cách sửa đã áp dụng cho
+4 báo cáo doanh thu cuối ngày ở bản 8.99.
+
+**Lỗi 2 — lọc "Trạng thái" trước khi gộp đặt-nhận**: `TRANG_THAI_FILTER`
+trước bị đẩy xuống SQL, áp vào TỪNG DÒNG THÔ (`133`/`333` riêng) TRƯỚC KHI
+`aggregateByOrder()`/`aggregateOrderTotal()` gộp cặp. 1 đơn "Đã nhập 1
+phần" hoàn toàn có thể có dòng `133` (TrangThai='P', trạng thái CUỐI của
+đơn) và dòng `333` (lần nhận cụ thể) mang `TrangThai` KHÁC — lọc trước khi
+gộp làm RỤNG MẤT đúng dòng cần ghép cặp, ra `SoLuongThucNhan` sai (thường
+về 0) hoặc cả đơn biến mất khỏi kết quả dù có dữ liệu thật. Đã sửa: lọc
+Trạng thái chuyển sang SAU KHI gộp xong (dùng `TrangThai` của dòng đại
+diện đã chọn trong hàm gộp) — đã kiểm chứng bằng mô phỏng dữ liệu giả lập
+trước khi merge.
+
+**Đổi tên cột tiếng Việt**: toàn bộ cột của cả 6 báo cáo trước khai CHUỖI
+THÔ (vd `'eventDate'`, `'measures.ThanhTien'`) — `describeColumns()`
+(`lib/reportEngine.js`) không có `label` riêng thì LẤY NGUYÊN chuỗi đó
+làm tiêu đề cột, hiện lên web/Excel/PDF y hệt `eventDate`/`measures.ThanhTien`.
+Giờ MỌI cột đều khai `{key, label}` tường minh tiếng Việt. Cột `eventDate`
+tách 2 nhãn khác nhau theo báo cáo ("Ngày đặt" / "Ngày nhận") vì CÙNG 1
+field nhưng Ý NGHĨA KHÁC NHAU tuỳ báo cáo (xem chú thích (*) mục 5).
+
 ## 6. Giới hạn đã biết (v1)
 
 - **ĐÃ GIẢI QUYẾT ở bản 8.92** (không còn là giới hạn): trước đây tưởng

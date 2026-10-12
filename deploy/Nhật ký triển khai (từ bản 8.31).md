@@ -14,6 +14,32 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 9.17 — Sửa 3 lỗi + đổi tên cột tiếng Việt cho báo cáo mua hàng
+
+**Thay đổi**: 6 báo cáo domain `don_dat_hang` — sửa lỗi thiếu dữ liệu
+khoảng ngày rộng, sửa lỗi lọc Trạng thái làm sai số liệu "So sánh
+đặt–nhận", đổi toàn bộ tên cột sang tiếng Việt. Bộ lọc Siêu thị (bản 9.14)
+nếu server bạn vẫn chưa thấy thì cần làm bước 2 dưới đây.
+
+**Các bước triển khai (làm 1 lần, theo đúng thứ tự):**
+1. `git pull origin main`.
+2. `cd rp-server && node scripts/seedPurchaseOrderReports.js` — BẮT BUỘC
+   chạy lại (ghi đè `DefinitionJson` — cả tên cột tiếng Việt lẫn bộ lọc
+   Siêu thị nếu server bạn còn thiếu từ bản 9.14).
+3. `pm2 restart hcrc-rp-server` (đổi `lib/purchaseOrderRunner.js`).
+
+**Kiểm tra:**
+- [ ] Mở "So sánh đặt–nhận" — có đủ 4 bộ lọc (Ngày đặt/Nhà cung cấp/Siêu
+  thị/Trạng thái).
+- [ ] Chọn khoảng ngày RỘNG (vd cả năm 2026) — không bị trống/thiếu dữ
+  liệu bất thường so với trước (nếu trước đó nghi thiếu).
+- [ ] Lọc Trạng thái = "Đã nhập 1 phần" — các đơn hiện ra có SL thực nhận
+  > 0 (khác 0 như lỗi cũ) nếu đơn đó thật sự đã nhận hàng.
+- [ ] Mọi tiêu đề cột trên cả 6 báo cáo hiện tiếng Việt có nghĩa (không
+  còn "eventDate"/"measures.ThanhTien"...).
+
+---
+
 ## 9.16 — Tìm kiếm không phân biệt dấu tiếng Việt ở mọi ô lọc multi-select
 
 **Thay đổi**: mọi ô lọc multi-select (Nhà cung cấp, Siêu thị, Trạng

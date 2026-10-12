@@ -29,6 +29,26 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 9.17 — Sửa 3 lỗi + đổi tên cột tiếng Việt cho báo cáo mua hàng
+
+**Theo báo cáo người dùng** (ảnh chụp thật "So sánh đặt–nhận" không thấy
+bộ lọc Siêu thị + báo "Không có dữ liệu", yêu cầu lọc theo siêu thị/xem
+được cả năm quá khứ/kiểm tra lại bộ lọc trạng thái/đổi tên cột tiếng Việt).
+
+- `lib/purchaseOrderRunner.js` — **sửa lỗi thật**: thiếu dữ liệu khoảng
+  ngày rộng (chỉ gọi SQL 1 lượt, tối đa 500 dòng — cùng lỗi/cùng cách sửa
+  bản 8.99). Thêm `fetchAllReportRows()` lấy đủ dữ liệu.
+- `lib/purchaseOrderRunner.js` — **sửa lỗi thật**: lọc Trạng thái trước
+  đây áp vào dòng thô TRƯỚC khi gộp cặp đặt-nhận, có thể làm rụng mất
+  dòng cần ghép cặp (1 đơn "Đã nhập 1 phần" có thể có dòng đặt/nhận trạng
+  thái khác nhau) — chuyển lọc sang SAU khi gộp. Đã kiểm chứng bằng mô
+  phỏng dữ liệu giả lập trước khi merge.
+- Bộ lọc Siêu thị đã có từ bản 9.14 trong code — ảnh người dùng gửi không
+  thấy là do server chưa chạy lại script seed (không phải lỗi code).
+- `scripts/seedPurchaseOrderReports.js` — toàn bộ cột cả 6 báo cáo đổi từ
+  chuỗi thô (`'eventDate'`, `'measures.ThanhTien'`) sang `{key,label}`
+  tiếng Việt tường minh.
+
 ## 9.16 — Tìm kiếm không phân biệt dấu tiếng Việt ở mọi ô lọc multi-select
 
 **Theo yêu cầu người dùng**: danh sách Nhà cung cấp rất dài, chọn kiểu
