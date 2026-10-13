@@ -29,6 +29,41 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 9.26 — SỬA LỖI QUAN TRỌNG: job Lịch sử lỗi lặp lại vô thời hạn + 2 cải tiến giao diện
+
+**1) SỬA LỖI THẬT (nguyên nhân chính khiến dữ liệu lịch sử Đơn đặt hàng
+luôn thiếu)** — theo báo cáo người dùng (ảnh lỗi job): job "Đơn đặt hàng -
+nhập hàng - Lịch sử (DSMART16_EOM)" báo lỗi lặp lại mãi mỗi lần cron chạy
+lại (3h sáng): `Violation of UNIQUE KEY constraint
+UX_ReportFacts_Source_Domain_Entity_Date... Cannot insert duplicate key`.
+
+- **Nguyên nhân**: 1 lô dữ liệu đưa vào ghi (`#Staging`) chứa 2+ dòng CÙNG
+  1 khoá nghiệp vụ (SourceSystem, Domain, EntityCode, EventDate) — do
+  nguồn thật có dữ liệu trùng (cùng giao dịch lọt vào cả bảng tháng VÀ
+  bảng `STRANS_EOM`) và/hoặc do phân trang OFFSET không có tiêu chí sắp
+  xếp tuyệt đối duy nhất. MERGE cố ghi dòng thứ 2 trong khi dòng thứ nhất
+  (cùng lô, chưa commit) đã chiếm khoá đó → vi phạm UNIQUE KEY → rollback
+  NGUYÊN CẢ LÔ. Lỗi này KHÔNG tự hết dù thử lại bao nhiêu lần (khác lỗi
+  mạng tạm thời) — job cứ lặp lại thất bại mãi mãi ở đúng lô đó.
+- **Sửa**: `etl/lib/upsert.js` loại trùng khoá nghiệp vụ TRƯỚC khi ghi
+  (giữ bản ghi cuối cùng gặp phải cho mỗi khoá trùng).
+- **Cải tiến đi kèm**: `etl/jobs/runSync.js` giờ lưu TẠM mốc đồng bộ
+  (watermark) SAU MỖI LÔ thay vì chỉ 1 lần lúc xong hẳn — nếu tiến trình
+  `etl` bị khởi động lại giữa chừng (job Lịch sử có thể chạy nhiều giờ),
+  lượt chạy sau tiếp tục ĐÚNG từ chỗ dở dang thay vì phải quét lại từ đầu.
+
+**2) THAY ĐỔI giao diện đăng nhập — "thu gọn" (3 app)**: theo yêu cầu
+người dùng (gửi kèm ảnh mẫu) — màn hình đăng nhập đổi từ trải dài hết
+toàn bộ chiều cao màn hình sang 1 thẻ bo tròn/đổ bóng, căn giữa trang —
+giữ nguyên màu sắc/chữ/hình minh hoạ riêng từng app, chỉ đổi khung bố cục.
+Màn hình hẹp (điện thoại) tự quay lại kiểu trải hết màn hình như cũ.
+
+**3) SỬA LỖI: ô ngày dd/mm/yyyy (bản 9.25) khó bấm mở lịch** — theo báo
+cáo người dùng: phải bấm ĐÚNG vào icon 📅 mới mở được lịch, bấm vào chữ
+thì không có phản hồi gì. Giờ gọi `input.showPicker()` ngay khi bấm vào
+BẤT KỲ đâu trong ô — mở lịch ngay không cần nhắm đúng icon (trình duyệt
+cũ không hỗ trợ `showPicker()` vẫn còn đường lùi như cũ, không mất gì).
+
 ## 9.25 — THAY ĐỔI: Mọi ô nhập ngày đổi sang hiện dd/mm/yyyy (3 app)
 
 **Theo yêu cầu người dùng** — ô nhập ngày kiểu chuẩn trình duyệt

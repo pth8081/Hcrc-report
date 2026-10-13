@@ -221,64 +221,66 @@ export default function LoginPage() {
   }
 
   if (twofa?.twofa === 'pending') {
-    return <div className="login-page"><div className="login-card-wrap"><TwoFactorVerifyStep token={twofa.token} onDone={() => setDone(true)} /></div></div>;
+    return <div className="login-page"><div className="login-shell login-shell--narrow"><div className="login-card-wrap"><TwoFactorVerifyStep token={twofa.token} onDone={() => setDone(true)} /></div></div></div>;
   }
   if (twofa?.twofa === 'setupRequired') {
-    return <div className="login-page"><div className="login-card-wrap"><TwoFactorSetupStep token={twofa.token} onDone={() => setDone(true)} /></div></div>;
+    return <div className="login-page"><div className="login-shell login-shell--narrow"><div className="login-card-wrap"><TwoFactorSetupStep token={twofa.token} onDone={() => setDone(true)} /></div></div></div>;
   }
 
   return (
     <div className="login-page">
-      <div className="login-hero">
-        <div className="login-hero-top">
-          <div className="h-logo h-logo--lg">H</div>
-          <div className="sidebar-brand-text">
-            <span className="sidebar-brand-name sidebar-brand-name--hero">HCRC · ETL</span>
-            <span className="sidebar-brand-sub">Nền tảng đồng bộ dữ liệu</span>
+      <div className="login-shell">
+        <div className="login-hero">
+          <div className="login-hero-top">
+            <div className="h-logo h-logo--lg">H</div>
+            <div className="sidebar-brand-text">
+              <span className="sidebar-brand-name sidebar-brand-name--hero">HCRC · ETL</span>
+              <span className="sidebar-brand-sub">Nền tảng đồng bộ dữ liệu</span>
+            </div>
           </div>
-        </div>
-        <div className="login-hero-illust-wrap">
-          <div className="login-hero-illust-card">
-            <LoginHeroIllustration />
+          <div className="login-hero-illust-wrap">
+            <div className="login-hero-illust-card">
+              <LoginHeroIllustration />
+            </div>
           </div>
+          <div className="login-hero-bottom-label">HCRC · ETL Admin</div>
         </div>
-        <div className="login-hero-bottom-label">HCRC · ETL Admin</div>
-      </div>
-      <div className="login-card-wrap">
-        <form className="login-card" onSubmit={handleSubmit}>
-          <h1>Đăng nhập</h1>
-          <p className="login-card-hint">Nhập tài khoản quản trị được cấp để truy cập hệ thống ETL.</p>
-          {error && <p className="form-error">{error}</p>}
-          {editingUsername ? (
-            <label>
-              <span className="field-label">Tên đăng nhập</span>
-              <span className="input-wrap">
+        <div className="login-card-wrap">
+          <form className="login-card" onSubmit={handleSubmit}>
+            <h1>Đăng nhập</h1>
+            <p className="login-card-hint">Nhập tài khoản quản trị được cấp để truy cập hệ thống ETL.</p>
+            {error && <p className="form-error">{error}</p>}
+            {editingUsername ? (
+              <label>
+                <span className="field-label">Tên đăng nhập</span>
+                <span className="input-wrap">
+                  <span className="input-icon-glyph">👤</span>
+                  <input value={username} onChange={(e) => setUsername(e.target.value)} autoFocus disabled={busy} />
+                </span>
+              </label>
+            ) : (
+              <div className="remembered-account-row">
                 <span className="input-icon-glyph">👤</span>
-                <input value={username} onChange={(e) => setUsername(e.target.value)} autoFocus disabled={busy} />
+                <span className="remembered-account-name">{username}</span>
+                <button type="button" className="link-button" onClick={switchAccount} disabled={busy}>Tài khoản khác</button>
+              </div>
+            )}
+            <label>
+              <span className="field-label">Mật khẩu</span>
+              <span className="input-wrap">
+                <span className="input-icon-glyph">🔒</span>
+                <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} disabled={busy} />
               </span>
             </label>
-          ) : (
-            <div className="remembered-account-row">
-              <span className="input-icon-glyph">👤</span>
-              <span className="remembered-account-name">{username}</span>
-              <button type="button" className="link-button" onClick={switchAccount} disabled={busy}>Tài khoản khác</button>
-            </div>
-          )}
-          <label>
-            <span className="field-label">Mật khẩu</span>
-            <span className="input-wrap">
-              <span className="input-icon-glyph">🔒</span>
-              <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} disabled={busy} />
-            </span>
-          </label>
-          <CaptchaField ref={captchaRef} value={captchaAnswer} onChange={setCaptchaAnswer} onTokenChange={setCaptchaToken} disabled={busy} />
-          <button type="submit" disabled={busy}>{submitting ? 'Đang đăng nhập...' : 'Đăng nhập'}</button>
-          {browserSupportsWebAuthn() && username.trim() && (
-            <button type="button" className="biometric-btn" onClick={handleWebauthnLogin} disabled={busy}>
-              🫆 {webauthnBusy ? 'Đang chờ xác thực...' : 'Đăng nhập bằng vân tay / Face ID'}
-            </button>
-          )}
-        </form>
+            <CaptchaField ref={captchaRef} value={captchaAnswer} onChange={setCaptchaAnswer} onTokenChange={setCaptchaToken} disabled={busy} />
+            <button type="submit" disabled={busy}>{submitting ? 'Đang đăng nhập...' : 'Đăng nhập'}</button>
+            {browserSupportsWebAuthn() && username.trim() && (
+              <button type="button" className="biometric-btn" onClick={handleWebauthnLogin} disabled={busy}>
+                🫆 {webauthnBusy ? 'Đang chờ xác thực...' : 'Đăng nhập bằng vân tay / Face ID'}
+              </button>
+            )}
+          </form>
+        </div>
       </div>
     </div>
   );

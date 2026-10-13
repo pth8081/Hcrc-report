@@ -225,13 +225,21 @@ async function logRun({ jobId, status, rowCount = 0, errorMessage = null, starte
 // Đọc-biến đổi-ghi theo LÔ (xem EXTRACT_BATCH_SIZE) — TỰ ghi luôn vào
 // dwh.ReportFacts qua upsertReportFacts() cho từng lô (khác runCustomJob:
 // connector tuỳ biến ở etl/sources/ thường trả về lượng dòng vừa phải, chưa
-// thấy rủi ro OOM tương tự nên giữ nguyên "gom hết rồi ghi 1 lần"). Watermark
-// (LastSyncedAt) CHỈ ghi 1 LẦN ở cuối lượt chạy (runJobObjectLocked, không
-// đổi) — lượt chạy bị crash giữa chừng thì lần chạy sau đọc lại TỪ ĐẦU với
-// CÙNG lastSyncedAt cũ, ghi lại đúng những lô đã ghi rồi (MERGE idempotent,
-// vô hại) — nhất quán với cách upsertReportFacts() vốn đã tự chia lô
-// ROWS_PER_TRANSACTION và commit từng lô độc lập, KHÔNG chờ ghi xong mới
-// đẩy watermark.
+// thấy rủi ro OOM tương tự nên giữ nguyên "gom hết rồi ghi 1 lần").
+//
+// Watermark (LastSyncedAt) GIỜ ĐƯỢC LƯU TẠM SAU MỖI LÔ (bản 9.26, SỬA LỖI —
+// theo báo cáo người dùng: job "Lịch sử" (DSMART16_EOM) quét hàng chục
+// triệu dòng mất NHIỀU GIỜ, nếu tiến trình `etl` bị khởi động lại giữa
+// chừng (deploy bản mới, restart thủ công...) TRƯỚC ĐÂY watermark KHÔNG hề
+// được lưu cho tới khi XONG HẲN — lượt chạy sau phải quét lại TỪ ĐẦU, và
+// nếu lại bị ngắt lần nữa thì KHÔNG BAO GIỜ chạy xong, admin cứ "Chạy thử"
+// lại mãi mà dữ liệu xa (vd các tháng đầu) không bao giờ tới lượt). Lưu tạm
+// sau mỗi lô AN TOÀN như lần ghi cuối (MERGE idempotent ở setLastSyncedAt(),
+// cùng applyWatermarkSafetyLag()) — WHERE updatedCol >= watermark ở
+// extractTable() tự loại các lô ĐÃ GHI RỒI trong lượt chạy KẾ TIẾP (dù job
+// tự retry hay chờ cron), KHÔNG cần nhớ `offset` giữa 2 lượt chạy khác
+// nhau — chỉ tốn thêm 1 lượt ghi etl.SyncState nhỏ mỗi lô, không đáng kể so
+// với chi phí quét+ghi 5000 dòng của chính lô đó.
 // Bản 8.86 — lỗi mạng tạm thời XẢY RA TRONG LÚC TRÍCH XUẤT (connection đã
 // mở thành công nhưng VPN chập chờn GIỮA CHỪNG câu truy vấn, xem chú thích
 // isTransientNetworkError() ở trên) giờ được thử lại NGAY, KHÔNG ném lỗi
@@ -293,6 +301,9 @@ async function runTableJob(job, lastSyncedAt, dwhPool, connection) {
     const batchResult = await upsertReportFacts(dwhPool, transformedBatch, { keepHistory: !!job.KeepHistory });
     inserted += batchResult.inserted;
     updated += batchResult.updated;
+
+    // Lưu TẠM watermark ngay sau lô này — xem chú thích đầu hàm.
+    await setLastSyncedAt(job.Id, applyWatermarkSafetyLag(rawMaxUpdatedAt));
 
     if (rows.length < EXTRACT_BATCH_SIZE) break;
     offset += EXTRACT_BATCH_SIZE;

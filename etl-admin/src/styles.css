@@ -239,9 +239,16 @@ legend { font-size: 12px; color: var(--ink-soft); padding: 0 6px; }
   .content { padding: 16px; }
 }
 
-/* ---- login (split hero + card) ---- */
-.login-page { min-height: 100vh; display: flex; background: var(--bg); }
-.login-hero { flex: 1 1 46%; min-height: 100vh; background: linear-gradient(160deg, var(--hero-grad-start), var(--hero-grad-end)); color: #fff; display: flex; flex-direction: column; justify-content: center; padding: 56px 52px; position: relative; overflow: hidden; }
+/* ---- login (thẻ bo tròn căn giữa trang — bản 9.26, theo yêu cầu người
+   dùng, "thu gọn" thay vì trải dài hết màn hình) ---- */
+.login-page { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: var(--bg); padding: 24px; }
+/* .login-shell — khung bo tròn/đổ bóng DUY NHẤT bọc cả .login-hero +
+   .login-card-wrap (hoặc chỉ .login-card-wrap ở bước 2FA không có hero) —
+   .login-card bên trong KHÔNG còn tự có nền/bóng riêng (xem bên dưới),
+   tránh "thẻ trong thẻ" không giống mẫu. */
+.login-shell { display: flex; width: 100%; max-width: 940px; border-radius: 20px; overflow: hidden; box-shadow: 0 24px 64px rgba(10, 22, 40, .18); background: var(--surface); }
+.login-shell--narrow { max-width: 440px; }
+.login-hero { flex: 0 0 44%; background: linear-gradient(160deg, var(--hero-grad-start), var(--hero-grad-end)); color: #fff; display: flex; flex-direction: column; justify-content: center; padding: 44px 40px; position: relative; overflow: hidden; }
 .login-hero::before { content: ''; position: absolute; inset: 0; opacity: .1; background-image: radial-gradient(circle, #fff 1px, transparent 1px); background-size: 26px 26px; }
 .login-hero-top { display: flex; align-items: center; gap: 12px; margin-bottom: 44px; position: relative; }
 .login-hero-eyebrow { display: flex; align-items: center; gap: 8px; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: #8fa6c9; margin-bottom: 16px; position: relative; }
@@ -251,9 +258,9 @@ legend { font-size: 12px; color: var(--ink-soft); padding: 0 6px; }
 .login-hero-note { font-size: 12px; color: #7f93b3; position: relative; border-top: 1px solid rgba(255, 255, 255, .1); padding-top: 18px; max-width: 380px; }
 
 /* .login-hero-illust-* (bản 8.38) — xem chú thích đầy đủ ở rp-user/src/styles.css. */
-.login-hero-illust-wrap { position: relative; z-index: 1; display: flex; justify-content: center; margin-top: 28px; }
-.login-hero-illust-card { background: rgba(255, 255, 255, .08); border: 1px solid rgba(255, 255, 255, .14); border-radius: 24px; padding: 32px; backdrop-filter: blur(2px); }
-.login-hero-bottom-label { position: absolute; bottom: 24px; left: 52px; font-size: 11px; color: #7f93b3; letter-spacing: .04em; }
+.login-hero-illust-wrap { position: relative; z-index: 1; display: flex; justify-content: center; margin-top: 20px; }
+.login-hero-illust-card { background: rgba(255, 255, 255, .08); border: 1px solid rgba(255, 255, 255, .14); border-radius: 24px; padding: 24px; backdrop-filter: blur(2px); }
+.login-hero-bottom-label { position: absolute; bottom: 20px; left: 40px; font-size: 11px; color: #7f93b3; letter-spacing: .04em; }
 
 /* .captcha-* (bản 8.39) — xem chú thích đầy đủ ở rp-user/src/styles.css. */
 .captcha-row { display: flex; gap: 10px; align-items: stretch; margin-bottom: 8px; }
@@ -262,18 +269,16 @@ legend { font-size: 12px; color: var(--ink-soft); padding: 0 6px; }
 .captcha-refresh { flex: 0 0 44px; border: 1px solid var(--line); border-radius: 8px; background: #fff; display: flex; align-items: center; justify-content: center; font-size: 18px; cursor: pointer; color: var(--ink-soft); }
 .captcha-refresh:hover { background: var(--bg); }
 
-.login-card-wrap { flex: 1 1 54%; display: flex; align-items: center; justify-content: center; padding: 32px; }
-.login-card { width: 100%; max-width: 380px; background: var(--surface); border-radius: 16px; padding: 38px 34px; box-shadow: 0 12px 32px rgba(10, 22, 40, .1); display: flex; flex-direction: column; gap: 14px; }
+.login-card-wrap { flex: 1 1 56%; display: flex; align-items: center; justify-content: center; padding: 40px; }
+.login-card { width: 100%; max-width: 340px; display: flex; flex-direction: column; gap: 14px; }
 /* .login-card--narrow — bước 2FA (QR code + mã khôi phục) cần rộng hơn card
-   đăng nhập thường (380px) — TRƯỚC ĐÂY dùng style={{maxWidth:420}} nội
-   tuyến, đổi sang class để không cần 'unsafe-inline' trong style-src CSP
-   (xem deploy/nginx.conf). */
-.login-card--narrow { max-width: 420px; }
+   đăng nhập thường (340px). */
+.login-card--narrow { max-width: 380px; }
 /* .sidebar-brand-name--hero — chữ "HCRC" ở khối hero trang đăng nhập to hơn
    chữ cùng tên trong sidebar (13.5px mặc định) — cùng lý do đổi từ inline
    style ở trên. */
 .sidebar-brand-name--hero { font-size: 16px; }
-.login-card h1, .login-card h2 { margin: 0; font-size: 22px; }
+.login-card h1, .login-card h2 { margin: 0; font-size: 21px; }
 .login-card-hint { margin: 0 0 6px; font-size: 13px; color: var(--ink-soft); line-height: 1.5; }
 .field-label { font-size: 12.5px; color: var(--ink-soft); font-weight: 600; }
 .input-wrap { display: flex; align-items: center; gap: 8px; border: 1px solid var(--line); border-radius: 8px; padding: 0 12px; background: #fbfbfc; }
@@ -297,7 +302,10 @@ legend { font-size: 12px; color: var(--ink-soft); padding: 0 6px; }
 .biometric-btn:disabled { opacity: .6; cursor: default; }
 
 @media (max-width: 860px) {
-  .login-page { flex-direction: column; }
+  /* Màn hình hẹp — thẻ bo tròn/đổ bóng ở giữa trang không còn phù hợp (quá
+     chật), về lại kiểu trải hết màn hình như trước bản 9.26. */
+  .login-page { padding: 0; }
+  .login-shell, .login-shell--narrow { max-width: none; min-height: 100vh; border-radius: 0; box-shadow: none; flex-direction: column; }
   .login-hero { flex: 0 0 auto; min-height: 240px; padding: 40px 28px; }
   .login-hero h1 { font-size: 24px; }
   .login-hero-note { display: none; }

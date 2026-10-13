@@ -187,13 +187,44 @@ function shouldBlockHistoryWipe({ count, minDate, maxDate }) {
   return spanDays > STALE_HISTORY_SPAN_DAYS;
 }
 
+// Loại trùng khoá nghiệp vụ TRƯỚC khi ghi (bản 9.26, SỬA LỖI THẬT — báo cáo
+// người dùng: job "Đơn đặt hàng - nhập hàng - Lịch sử (DSMART16_EOM)" lỗi
+// lặp lại mãi "Violation of UNIQUE KEY constraint
+// UX_ReportFacts_Source_Domain_Entity_Date... Cannot insert duplicate
+// key"). NGUYÊN NHÂN: nếu #Staging (nguồn đưa vào MERGE_SQL) chứa 2+ dòng
+// CÙNG 1 khoá (SourceSystem, Domain, EntityCode, EventDate) — có thể do
+// nguồn THẬT có dữ liệu trùng (vd cùng 1 giao dịch lọt vào cả bảng tháng
+// VÀ bảng STRANS_EOM do ranh giới lưu trữ chồng lấn), hoặc do phân trang
+// OFFSET không có tiêu chí sắp xếp DUY NHẤT (ORDER BY chỉ theo EventDate,
+// nhiều dòng cùng ngày không đảm bảo thứ tự ổn định giữa các lượt SELECT
+// riêng biệt — xem chú thích OFFSET ở etl/lib/tableSyncEngine.js) khiến 1
+// dòng vô tình bị lấy 2 lần rơi vào CÙNG 1 lô — thì nhánh "WHEN NOT
+// MATCHED THEN INSERT" cố ghi dòng THỨ HAI trong khi dòng THỨ NHẤT (cùng
+// lô, cùng 1 câu MERGE, chưa kịp "thấy" nhau qua index) đã chiếm đúng
+// khoá đó, vi phạm UNIQUE KEY, ROLLBACK NGUYÊN CẢ LÔ — khác lỗi mạng tạm
+// thời, lỗi này KHÔNG tự hết dù thử lại bao nhiêu lần (cùng dữ liệu nguồn
+// trùng y hệt mỗi lần quét lại). Giữ dòng CUỐI CÙNG gặp phải cho mỗi khoá
+// trùng (Map ghi đè tự nhiên theo thứ tự duyệt) — hợp lý vì trùng khoá
+// nghĩa là CÙNG 1 thực thể/ngày, bản nào trong lô cũng đại diện đúng giá
+// trị hiện tại, không cần phân biệt "đúng hơn".
+function dedupeByBusinessKey(rows) {
+  const map = new Map();
+  for (const r of rows) {
+    const entityKey = r.entityCode === null || r.entityCode === undefined ? '\u0000' : String(r.entityCode);
+    const dateKey = (r.eventDate instanceof Date ? r.eventDate : new Date(r.eventDate)).toISOString().slice(0, 10);
+    map.set(`${r.sourceSystem}|${r.domain}|${entityKey}|${dateKey}`, r);
+  }
+  return [...map.values()];
+}
+
 async function upsertReportFacts(pool, rows, { keepHistory = false } = {}) {
   if (!rows.length) return { inserted: 0, updated: 0 };
+  const deduped = dedupeByBusinessKey(rows);
 
   let inserted = 0;
   let updated = 0;
-  for (let i = 0; i < rows.length; i += ROWS_PER_TRANSACTION) {
-    const chunk = rows.slice(i, i + ROWS_PER_TRANSACTION);
+  for (let i = 0; i < deduped.length; i += ROWS_PER_TRANSACTION) {
+    const chunk = deduped.slice(i, i + ROWS_PER_TRANSACTION);
     const result = await upsertReportFactsChunk(pool, chunk, { keepHistory });
     inserted += result.inserted;
     updated += result.updated;
@@ -245,4 +276,4 @@ async function upsertReportFactsChunk(pool, rows, { keepHistory = false } = {}) 
   }
 }
 
-module.exports = { upsertReportFacts, shouldBlockHistoryWipe, STALE_HISTORY_SPAN_DAYS, buildStagingInsertBatches, ROWS_PER_TRANSACTION };
+module.exports = { upsertReportFacts, shouldBlockHistoryWipe, STALE_HISTORY_SPAN_DAYS, buildStagingInsertBatches, ROWS_PER_TRANSACTION, dedupeByBusinessKey };

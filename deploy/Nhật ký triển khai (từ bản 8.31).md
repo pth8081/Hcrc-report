@@ -14,6 +14,32 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 9.26 — Sửa lỗi job Lịch sử lặp lại vô thời hạn + thu gọn đăng nhập + sửa bấm mở lịch
+
+**Thay đổi**: `etl/lib/upsert.js` + `etl/jobs/runSync.js` (sửa lỗi dữ
+liệu, KHÔNG đổi schema CSDL) + 3×`LoginPage.jsx`/`styles.css` (giao diện
+đăng nhập) + 3×`DateInput.jsx` (sửa bấm mở lịch). KHÔNG đổi biến môi
+trường.
+
+**Các bước triển khai:**
+1. `git pull origin main`.
+2. Khởi động lại `etl` để nạp code sửa lỗi ghi dữ liệu + watermark tạm
+   (QUAN TRỌNG — đây là phần sửa lỗi dữ liệu thật, nên làm SỚM).
+3. Build lại 3 frontend: `npm run build` ở `etl-admin`, `api-admin`,
+   `rp-user` (cho cả giao diện đăng nhập mới lẫn sửa ô ngày).
+4. Sau khi khởi động lại `etl`, vào etl-admin → Sync Jobs → bấm lại
+   "Chạy thử" cho job "Đơn đặt hàng - nhập hàng - Lịch sử
+   (DSMART16_EOM)" — lần này sẽ KHÔNG còn lỗi trùng khoá nữa, và nếu bị
+   ngắt giữa chừng (vd deploy bản sau) thì lần sau tự tiếp tục từ chỗ dở
+   dang thay vì quét lại từ đầu.
+
+**Lưu ý khi dùng**:
+- Giao diện đăng nhập 3 app đổi sang 1 thẻ bo tròn căn giữa trang (trước
+  đây trải hết màn hình) — không ảnh hưởng tài khoản/mật khẩu/2FA, chỉ
+  đổi hình thức.
+- Ô ngày dd/mm/yyyy (bản 9.25) giờ bấm vào BẤT KỲ đâu trong ô đều mở lịch
+  ngay, không cần nhắm đúng icon 📅 nữa.
+
 ## 9.25 — Đổi mọi ô nhập ngày sang hiện dd/mm/yyyy (3 app)
 
 **Thay đổi**: thêm `components/DateInput.jsx` + CSS ở cả 3 app, thay 22 ô
