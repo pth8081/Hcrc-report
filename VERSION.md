@@ -29,6 +29,23 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 9.31 — Sửa `addThanhVienStore.js` (bản 9.30): gõ thông tin siêu thị TRONG FILE, không qua tham số dòng lệnh
+
+**Theo yêu cầu người dùng** — bản 9.30 dùng tham số dòng lệnh
+(`node scripts/addThanhVienStore.js "Tên" "IP"`), người dùng không quen
+thao tác này, muốn giống hệt kiểu mảng `STORES` của
+`seedThanhVienLiveSync.js` (gõ thẳng vào file). Đã sửa: thêm object
+`STORE` ngay đầu file (name/server bắt buộc; port/username/password/
+database/encrypt/trustServerCert tuỳ chọn, comment sẵn mẫu) — điền xong
+chạy KHÔNG CẦN tham số:
+```bash
+cd etl
+node scripts/addThanhVienStore.js
+```
+Script tự chặn + báo lỗi rõ nếu quên sửa `STORE.name`/`STORE.server`
+(còn nguyên giá trị mẫu). Logic tạo Nguồn dữ liệu + 2 Sync Job giữ nguyên
+như bản 9.30, không đổi gì khác.
+
 ## 9.30 — Script thêm 1 siêu thị Thành viên mới (không cần sửa/chạy lại file 34 siêu thị cũ)
 
 **Theo yêu cầu người dùng** — thêm `etl/scripts/addThanhVienStore.js`, làm

@@ -16,25 +16,37 @@
 // trong log), chạy lại script này sau khi tạo xong VIEW là được (an toàn
 // chạy lại nhiều lần, không tạo trùng).
 //
-// Cách dùng:
-//   node scripts/addThanhVienStore.js "Tên siêu thị" "IP hoặc tên server"
-// Vd:
-//   node scripts/addThanhVienStore.js "BRGMart Núi Trúc" "172.16.74.110"
-//
-// Tuỳ chọn (CHỈ cần khi siêu thị này khác mặc định — port/username/password/
-// database/encrypt/trustServerCert — xem DEFAULT_* trong
-// seedThanhVienLiveSync.js, mọi siêu thị cũ đều dùng chung mặc định đó):
-//   node scripts/addThanhVienStore.js "Tên siêu thị" "IP" --port=1434 --username=etl_reader2 --password="Mật khẩu riêng" --database=DSMART16_B --encrypt=true --trustServerCert=true
+// CÁCH DÙNG (theo yêu cầu người dùng — gõ thông tin NGAY TRONG FILE NÀY,
+// giống hệt kiểu mảng STORES của seedThanhVienLiveSync.js, KHÔNG gõ qua
+// tham số dòng lệnh): điền đúng name/server (và port/username/password/
+// database/encrypt/trustServerCert nếu khác mặc định DEFAULT_* bên dưới)
+// vào object STORE ngay sau đoạn chú thích này, rồi chạy:
+//   node scripts/addThanhVienStore.js
 //
 // SAU KHI script này chạy xong, NHỚ thêm thủ công đúng 1 dòng
 // `{ name: '...', server: '...' }` vào mảng STORES trong
 // scripts/seedThanhVienLiveSync.js (commit vào git) — để nếu sau này có ai
 // chạy lại file đó (vd set up môi trường mới), siêu thị này vẫn được tạo
 // đầy đủ, không chỉ tồn tại ở CSDL hiện tại mà "biến mất" khỏi code.
-require('dotenv').config();
-const { sql, getPool } = require('../db');
-const { encrypt } = require('../lib/crypto');
-const schemaBrowser = require('../lib/schemaBrowser');
+//
+// LƯU Ý BẢO MẬT: nếu điền password RIÊNG (khác DEFAULT_PASSWORD) vào đây,
+// KHÔNG commit file này lên Git lúc còn mật khẩu thật trong STORE — xoá/
+// đổi lại về rỗng (dùng DEFAULT_PASSWORD) SAU KHI chạy xong, trước khi
+// commit (đúng quy ước bảo mật đã áp dụng cho seedThanhVienLiveSync.js).
+
+// ====================== ĐIỀN THÔNG TIN SIÊU THỊ MỚI VÀO ĐÂY ======================
+const STORE = {
+  name: 'TÊN SIÊU THỊ MỚI',      // vd 'BRGMart Núi Trúc'
+  server: 'IP HOẶC TÊN SERVER'   // vd '172.16.74.110'
+  // Tuỳ chọn — CHỈ thêm dòng nào khác mặc định DEFAULT_* bên dưới (xoá dấu // ở dòng cần dùng):
+  // port: 1433,
+  // database: 'DSMART16',
+  // username: 'etl_reader',
+  // password: 'Mật khẩu riêng siêu thị này (nếu khác mặc định)',
+  // encrypt: false,
+  // trustServerCert: false
+};
+// ===================================================================================
 
 const DEFAULT_PORT = 1433;
 const DEFAULT_DATABASE = 'DSMART16';
@@ -47,29 +59,10 @@ const DOANHTHU_VIEW = 'V_HCRC_DOANHTHU_CHINHANH';
 const GIAODICH_VIEW = 'V_HCRC_GIAODICH_CHINHANH';
 const LIVE_CRON = '*/2 * * * *';
 
-function parseArgs(argv) {
-  const positional = argv.filter(a => !a.startsWith('--'));
-  if (positional.length < 2) {
-    console.error('⛔ Thiếu tham số. Cách dùng: node scripts/addThanhVienStore.js "Tên siêu thị" "IP hoặc tên server" [--port=1433] [--username=etl_reader] [--password="..."] [--database=DSMART16] [--encrypt=true] [--trustServerCert=true]');
-    process.exit(1);
-  }
-  const [name, server] = positional;
-  const opt = {};
-  for (const a of argv) {
-    const m = a.match(/^--([a-zA-Z]+)=(.*)$/);
-    if (m) opt[m[1]] = m[2];
-  }
-  return {
-    name,
-    server,
-    port: opt.port ? parseInt(opt.port, 10) : DEFAULT_PORT,
-    database: opt.database || DEFAULT_DATABASE,
-    username: opt.username || DEFAULT_USERNAME,
-    password: opt.password || DEFAULT_PASSWORD,
-    encrypt: opt.encrypt !== undefined ? opt.encrypt === 'true' : DEFAULT_ENCRYPT,
-    trustServerCert: opt.trustServerCert !== undefined ? opt.trustServerCert === 'true' : DEFAULT_TRUST_SERVER_CERT
-  };
-}
+require('dotenv').config();
+const { sql, getPool } = require('../db');
+const { encrypt } = require('../lib/crypto');
+const schemaBrowser = require('../lib/schemaBrowser');
 
 function dataSourceName(store) {
   return `DSMART16 - ${store.name}`;
@@ -80,18 +73,24 @@ async function upsertDataSource(pool, cfg) {
   const name = dataSourceName(cfg);
   const existing = await pool.request().input('name', sql.NVarChar(200), name)
     .query('SELECT Id FROM etl.DataSources WHERE Name = @name');
-  const passwordEncrypted = encrypt(cfg.password);
+  const passwordEncrypted = encrypt(cfg.password || DEFAULT_PASSWORD);
+  const port = cfg.port || DEFAULT_PORT;
+  const databaseName = cfg.database || DEFAULT_DATABASE;
+  const username = cfg.username || DEFAULT_USERNAME;
+  const encryptConn = cfg.encrypt !== undefined ? cfg.encrypt : DEFAULT_ENCRYPT;
+  const trustServerCert = cfg.trustServerCert !== undefined ? cfg.trustServerCert : DEFAULT_TRUST_SERVER_CERT;
+
   if (existing.recordset.length) {
     const id = existing.recordset[0].Id;
     await pool.request()
       .input('id', sql.Int, id)
       .input('server', sql.NVarChar(200), cfg.server)
-      .input('port', sql.Int, cfg.port)
-      .input('databaseName', sql.NVarChar(100), cfg.database)
-      .input('username', sql.NVarChar(100), cfg.username)
+      .input('port', sql.Int, port)
+      .input('databaseName', sql.NVarChar(100), databaseName)
+      .input('username', sql.NVarChar(100), username)
       .input('passwordEncrypted', sql.NVarChar(500), passwordEncrypted)
-      .input('encryptConn', sql.Bit, cfg.encrypt ? 1 : 0)
-      .input('trustServerCert', sql.Bit, cfg.trustServerCert ? 1 : 0)
+      .input('encryptConn', sql.Bit, encryptConn ? 1 : 0)
+      .input('trustServerCert', sql.Bit, trustServerCert ? 1 : 0)
       .query(`
         UPDATE etl.DataSources SET
           Server = @server, Port = @port, DatabaseName = @databaseName, Username = @username,
@@ -104,12 +103,12 @@ async function upsertDataSource(pool, cfg) {
   const result = await pool.request()
     .input('name', sql.NVarChar(200), name)
     .input('server', sql.NVarChar(200), cfg.server)
-    .input('port', sql.Int, cfg.port)
-    .input('databaseName', sql.NVarChar(100), cfg.database)
-    .input('username', sql.NVarChar(100), cfg.username)
+    .input('port', sql.Int, port)
+    .input('databaseName', sql.NVarChar(100), databaseName)
+    .input('username', sql.NVarChar(100), username)
     .input('passwordEncrypted', sql.NVarChar(500), passwordEncrypted)
-    .input('encryptConn', sql.Bit, cfg.encrypt ? 1 : 0)
-    .input('trustServerCert', sql.Bit, cfg.trustServerCert ? 1 : 0)
+    .input('encryptConn', sql.Bit, encryptConn ? 1 : 0)
+    .input('trustServerCert', sql.Bit, trustServerCert ? 1 : 0)
     .query(`
       INSERT INTO etl.DataSources (Name, Server, Port, DatabaseName, Username, PasswordEncrypted, Encrypt, TrustServerCert)
       OUTPUT INSERTED.Id
@@ -207,13 +206,17 @@ function buildJobsForStore(store, dataSourceId) {
 }
 
 async function main() {
-  const store = parseArgs(process.argv.slice(2));
+  if (STORE.name === 'TÊN SIÊU THỊ MỚI' || STORE.server === 'IP HOẶC TÊN SERVER') {
+    console.error('⛔ Chưa điền thông tin siêu thị — sửa object STORE ở đầu file này (name/server) rồi chạy lại.');
+    process.exit(1);
+  }
+
   const pool = await getPool('ADMIN');
 
-  const { id: dataSourceId, created } = await upsertDataSource(pool, store);
-  console.log(`${created ? '✅ Tạo' : '↻ Cập nhật'} Nguồn dữ liệu "${dataSourceName(store)}" (Id ${dataSourceId}).`);
+  const { id: dataSourceId, created } = await upsertDataSource(pool, STORE);
+  console.log(`${created ? '✅ Tạo' : '↻ Cập nhật'} Nguồn dữ liệu "${dataSourceName(STORE)}" (Id ${dataSourceId}).`);
 
-  const jobs = buildJobsForStore(store, dataSourceId);
+  const jobs = buildJobsForStore(STORE, dataSourceId);
   const skipped = [];
   for (const job of jobs) {
     const requiredColumns = [job.keyColumn, job.dateColumn, ...job.dimensionColumns, ...job.measureColumns];

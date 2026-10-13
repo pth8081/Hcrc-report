@@ -14,6 +14,18 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 9.31 — Sửa cách dùng `addThanhVienStore.js`: gõ thông tin trong file, không qua tham số dòng lệnh
+
+**Thay đổi**: sửa `etl/scripts/addThanhVienStore.js` (KHÔNG đổi file nào
+khác, KHÔNG đổi schema CSDL).
+
+**Cách dùng MỚI (thay bản 9.30):**
+1. `git pull origin main`.
+2. Mở `etl/scripts/addThanhVienStore.js`, sửa object `STORE` ở đầu file
+   (name/server — xem mẫu comment sẵn trong file).
+3. Chạy: `cd etl && node scripts/addThanhVienStore.js` (không còn tham số
+   dòng lệnh).
+
 ## 9.30 — Script thêm 1 siêu thị Thành viên mới
 
 **Thay đổi**: thêm mới `etl/scripts/addThanhVienStore.js` (KHÔNG sửa file
