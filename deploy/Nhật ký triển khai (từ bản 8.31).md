@@ -14,6 +14,16 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 9.33 — Sửa lỗi thật: mobile không thấy "Tài khoản của tôi" khi menu dài
+
+**Thay đổi**: `etl-admin/src/styles.css` + `api-admin/src/styles.css` +
+`rp-user/src/styles.css` (chỉ CSS, không đổi JS/schema CSDL).
+
+**Các bước triển khai:**
+1. `git pull origin main`.
+2. Build lại CẢ 3 frontend (`npm run build` ở `etl-admin`, `api-admin`,
+   `rp-user`).
+
 ## 9.32 — Thêm "Xuất Excel" danh sách job đồng bộ
 
 **Thay đổi**: `etl/lib/syncJobsImport.js` + `etl/routes/admin/syncJobs.js`

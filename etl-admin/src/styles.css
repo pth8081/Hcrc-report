@@ -233,6 +233,15 @@ legend { font-size: 12px; color: var(--ink-soft); padding: 0 6px; }
     box-shadow: 4px 0 24px rgba(0, 0, 0, .3);
   }
   .sidebar.open { transform: translateX(0); }
+  /* sidebar cố định chiều cao = viewport (position:fixed, top/bottom:0) —
+     khi menu dài (nhiều mục tuỳ quyền, vd vai trò "hệ thống" thấy hết mọi
+     mục) + .sidebar-footer ("Tài khoản của tôi"/"Đăng xuất") KHÔNG co giãn,
+     tổng chiều cao vượt màn hình điện thoại mà sidebar lại KHÔNG cuộn được
+     (lỗi thật người dùng gặp — không thấy "Tài khoản của tôi" trên mobile,
+     bị đẩy khuất dưới mép màn hình). Chỉ cho riêng .menu cuộn (min-height:0
+     bắt buộc — flex item mặc định không co dưới kích thước nội dung dù có
+     flex:1), brand/footer LUÔN cố định trên/dưới, không bị cuộn mất. */
+  .menu { overflow-y: auto; min-height: 0; }
   .sidebar-backdrop {
     display: block; position: fixed; inset: 0; background: rgba(6, 12, 22, .5); z-index: 40;
   }

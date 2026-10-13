@@ -29,6 +29,24 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 9.33 — SỬA LỖI THẬT: mobile không thấy "Tài khoản của tôi"/"Đăng xuất" khi menu dài (cả 3 app)
+
+**Theo báo cáo người dùng** (ảnh chụp màn hình etl-admin trên điện thoại,
+menu cuộn tới "Hướng dẫn" nhưng không thấy "Tài khoản của tôi") — sidebar
+trên mobile là `position: fixed` (chiều cao = viewport) nhưng KHÔNG có
+`overflow-y: auto` — khi vai trò thấy nhiều mục menu (vd vai trò "hệ
+thống"), tổng chiều cao brand+menu+footer vượt màn hình mà KHÔNG cuộn
+được, đẩy "Tài khoản của tôi"/"Đăng xuất" ra ngoài vĩnh viễn, không cách
+nào bấm tới. Đã mô phỏng bằng Playwright (viewport 390×500) xác nhận lỗi
+và xác nhận cách sửa đúng.
+
+- **Sửa cả 3 file `styles.css`** (etl-admin/api-admin/rp-user) — thêm
+  `.menu { overflow-y: auto; min-height: 0; }` trong khối `@media
+  (max-width: 880px)` — CHỈ riêng danh sách menu cuộn, phần đầu trang
+  (brand) và cuối trang (Tài khoản/Đăng xuất) LUÔN cố định hiện trên/dưới,
+  không bị đẩy khuất nữa, dù menu dài bao nhiêu.
+- KHÔNG đổi code JS/cấu trúc HTML (Layout.jsx), chỉ thêm CSS.
+
 ## 9.32 — Thêm "Xuất Excel" danh sách job đồng bộ (trang Đồng bộ, etl-admin)
 
 **Theo yêu cầu người dùng** — khu vực "Nhập hàng loạt" (trang Đồng bộ)
