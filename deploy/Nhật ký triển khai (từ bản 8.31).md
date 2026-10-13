@@ -14,6 +14,34 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 9.28 — Sửa bước 6 của bản 9.27: "Chạy thử" KHÔNG đủ để bù dữ liệu 130/330 cũ
+
+**Người dùng báo cáo**: sau khi làm đủ 6 bước deploy bản 9.27 (kể cả bấm
+"Chạy thử" lại 2 job `don_dat_hang`), báo cáo lọc kênh mua theo mã
+`130`/`330` VẪN CHƯA RA DỮ LIỆU CŨ. Nguyên nhân: "Chạy thử" chỉ gọi
+`run-now` → chạy ĐÚNG job như cron, vẫn lọc `WHERE UpdatedAt >= watermark`
+— watermark (`etl.SyncState.LastSyncedAt`) của 2 job này đã chạy qua các
+mốc QUÁ KHỨ từ lâu, bấm "Chạy thử" không tự lùi watermark lại.
+
+**Thay đổi**: thêm `etl/scripts/resyncDonDatHangWatermark.js` — reset
+`LastSyncedAt` về EPOCH cho 2 job domain `don_dat_hang`, KHÔNG xoá dữ liệu
+cũ (dữ liệu `133`/`333` đã đồng bộ vẫn đúng).
+
+**Các bước làm bù (chỉ cần làm 1 lần, SAU khi đã làm đủ 6 bước bản 9.27 —
+không cần làm lại 6 bước đó):**
+1. `git pull origin main`.
+2. `cd etl && node scripts/resyncDonDatHangWatermark.js` (xem trước, không
+   đổi gì) — kiểm tra đúng tên 2 job hiện ra.
+3. `node scripts/resyncDonDatHangWatermark.js --confirm` (thực sự reset
+   watermark). **LƯU Ý — phải đứng đúng trong thư mục `etl/` khi chạy**
+   (script đọc `.env` theo thư mục hiện tại, KHÔNG theo đường dẫn truyền
+   vào `node`) — xem thêm bài học dotenv/cwd đã gặp khi chạy
+   `seedPurchaseOrderReports.js`.
+4. Vào etl-admin → Đồng bộ → bấm "Chạy thử" lại CẢ 2 job domain
+   `don_dat_hang` (hoặc chờ job tự chạy theo lịch) — lần này job sẽ quét
+   lại TOÀN BỘ nguồn, bù đúng các đơn `130`/`330` còn thiếu. Job "Lịch sử"
+   quét lại toàn bộ có thể mất VÀI GIỜ — theo dõi qua etl-admin → Log.
+
 ## 9.27 — Thêm mã giao dịch 130/330 + bộ lọc "Kênh mua" cho 6 báo cáo Mua hàng
 
 **Thay đổi**: `rp-server/lib/purchaseOrderRunner.js` +

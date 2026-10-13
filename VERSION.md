@@ -29,6 +29,28 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 9.28 — Script bù dữ liệu 130/330 (watermark job `don_dat_hang` đã vượt qua các đơn cũ)
+
+**Theo báo cáo người dùng** — sau khi chạy 2 file VIEW bản 9.27 (thêm
+`130`/`330` vào `WHERE TRANS_CODE IN (...)`), báo cáo "Đơn đặt hàng" lọc
+kênh "Mua chung"/"Mua riêng" theo mã mới vẫn **CHƯA RA DỮ LIỆU** — nguyên
+nhân: 2 job đồng bộ domain `don_dat_hang` (job "Live" DSMART16 trung tâm
+VÀ job "Lịch sử" DSMART16_EOM) đã chạy qua các mốc thời gian **TRƯỚC KHI**
+VIEW được sửa — `etl.SyncState.LastSyncedAt` của 2 job này giờ đã vượt xa
+thời điểm phát sinh các đơn `130`/`330` **TRONG QUÁ KHỨ**, nên dù VIEW đã
+lọc đúng, lượt chạy định kỳ tiếp theo chỉ lấy dòng **MỚI PHÁT SINH**
+(`WHERE UpdatedAt >= watermark`) — không tự quay lại bù các đơn cũ.
+
+- Thêm `etl/scripts/resyncDonDatHangWatermark.js` — reset
+  `LastSyncedAt` về EPOCH cho MỌI job `TargetDomain='don_dat_hang'`, để
+  lượt chạy kế tiếp tự quét lại TOÀN BỘ nguồn. **KHÔNG xoá dữ liệu cũ**
+  (khác `resyncGiaodichChinhanh.js`) — dữ liệu `133`/`333` đã đồng bộ
+  trước đó vẫn đúng, `upsertReportFacts()` (MERGE theo khoá nghiệp vụ) chỉ
+  cập nhật no-op các dòng cũ và chèn mới đúng các dòng `130`/`330` còn
+  thiếu.
+- Mặc định dry-run (chỉ xem trước, không đổi gì); truyền `--confirm` mới
+  thực sự reset.
+
 ## 9.27 — THÊM MỚI: Mã giao dịch 130/330 + bộ lọc "Kênh mua" cho 6 báo cáo Mua hàng
 
 **Theo yêu cầu người dùng** — hệ thống trước đây CHỈ lấy mã giao dịch
