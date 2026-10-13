@@ -29,6 +29,24 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 9.32 — Thêm "Xuất Excel" danh sách job đồng bộ (trang Đồng bộ, etl-admin)
+
+**Theo yêu cầu người dùng** — khu vực "Nhập hàng loạt" (trang Đồng bộ)
+trước đây chỉ có "Tải file mẫu" (2 dòng ví dụ) + nộp file, không có cách
+xuất ra danh sách job ĐANG CÓ để sửa hàng loạt rồi nộp lại (vd đổi
+`CronExpression` nhiều job cùng lúc).
+
+- `etl/lib/syncJobsImport.js`: thêm `exportSyncJobs(pool)` — xuất mọi job
+  `Type='table'` hiện có, ĐÚNG khuôn cột với file mẫu/Nhập hàng loạt
+  (`Name`, `DataSourceName`, `TargetDomain`, `SourceSchema`, `SourceTable`,
+  `KeyColumn`, `DateColumn`, `UpdatedAtColumn`, `DimensionColumns`,
+  `MeasureColumns`, `CronExpression`, `KeepHistory`, `IsActive`) — sửa xong
+  nộp thẳng lại qua "Nhập hàng loạt". Job `Type='custom'` không xuất (Nhập
+  hàng loạt cũng không hỗ trợ loại đó).
+- `etl/routes/admin/syncJobs.js`: route mới `GET /sync-jobs/export`.
+- `etl-admin/src/pages/SyncJobsPage.jsx`: nút "Xuất Excel (danh sách hiện
+  có)" cạnh "Tải file mẫu".
+
 ## 9.31 — Sửa `addThanhVienStore.js` (bản 9.30): gõ thông tin siêu thị TRONG FILE, không qua tham số dòng lệnh
 
 **Theo yêu cầu người dùng** — bản 9.30 dùng tham số dòng lệnh

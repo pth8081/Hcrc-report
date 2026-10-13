@@ -47,6 +47,39 @@ async function buildSyncJobsTemplate() {
   return workbook.xlsx.writeBuffer();
 }
 
+// Xuất danh sách job Type='table' HIỆN CÓ, ĐÚNG khuôn cột với file mẫu/Nhập
+// hàng loạt ở trên — theo yêu cầu người dùng, để sửa/nhân bản job hàng loạt
+// (vd đổi CronExpression nhiều job cùng lúc) bằng cách xuất ra, sửa trong
+// Excel, nộp lại qua "Nhập hàng loạt" thay vì gõ tay từng job. Job
+// Type='custom' KHÔNG xuất (không có các cột này, và "Nhập hàng loạt" cũng
+// không hỗ trợ tạo job loại đó — xem chú thích đầu file).
+async function exportSyncJobs(pool) {
+  const result = await pool.request().query(`
+    SELECT j.Name, d.Name AS DataSourceName, j.TargetDomain, j.SourceSchema, j.SourceTable,
+           j.KeyColumn, j.DateColumn, j.UpdatedAtColumn, j.DimensionColumnsJson, j.MeasureColumnsJson,
+           j.CronExpression, j.KeepHistory, j.IsActive
+    FROM etl.SyncJobs j
+    JOIN etl.DataSources d ON d.Id = j.DataSourceId
+    WHERE j.Type = 'table'
+    ORDER BY j.Name
+  `);
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet('Sync Jobs');
+  const headerRow = sheet.addRow(['Name', 'DataSourceName', 'TargetDomain', 'SourceSchema', 'SourceTable', 'KeyColumn', 'DateColumn', 'UpdatedAtColumn', 'DimensionColumns', 'MeasureColumns', 'CronExpression', 'KeepHistory', 'IsActive']);
+  headerRow.font = { bold: true };
+  for (const r of result.recordset) {
+    const dimensionColumns = JSON.parse(r.DimensionColumnsJson || '[]').join(',');
+    const measureColumns = JSON.parse(r.MeasureColumnsJson || '[]').join(',');
+    sheet.addRow([
+      r.Name, r.DataSourceName, r.TargetDomain, r.SourceSchema, r.SourceTable,
+      r.KeyColumn, r.DateColumn, r.UpdatedAtColumn, dimensionColumns, measureColumns,
+      r.CronExpression, r.KeepHistory ? 'TRUE' : 'FALSE', r.IsActive ? 'TRUE' : 'FALSE'
+    ]);
+  }
+  sheet.columns.forEach((col) => { col.width = 22; });
+  return workbook.xlsx.writeBuffer();
+}
+
 const REQUIRED_HEADERS = ['Name', 'DataSourceName', 'TargetDomain', 'SourceSchema', 'SourceTable', 'KeyColumn', 'DateColumn', 'UpdatedAtColumn'];
 const DEFAULT_CRON = '*/15 * * * *';
 const BOOL_TRUE_VALUES = ['true', '1', 'yes', 'có', 'x'];
@@ -236,4 +269,4 @@ async function upsertSyncJobs(pool, rows) {
   return { inserted, updated, rowErrors, ids };
 }
 
-module.exports = { parseSyncJobsFile, upsertSyncJobs, buildSyncJobsTemplate, REQUIRED_HEADERS };
+module.exports = { parseSyncJobsFile, upsertSyncJobs, buildSyncJobsTemplate, exportSyncJobs, REQUIRED_HEADERS };

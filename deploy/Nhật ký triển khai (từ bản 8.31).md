@@ -14,6 +14,16 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 9.32 — Thêm "Xuất Excel" danh sách job đồng bộ
+
+**Thay đổi**: `etl/lib/syncJobsImport.js` + `etl/routes/admin/syncJobs.js`
+(backend) + `etl-admin/src/pages/SyncJobsPage.jsx` (giao diện).
+
+**Các bước triển khai:**
+1. `git pull origin main`.
+2. Khởi động lại `etl` (nạp route mới).
+3. Build lại `etl-admin` (`npm run build`).
+
 ## 9.31 — Sửa cách dùng `addThanhVienStore.js`: gõ thông tin trong file, không qua tham số dòng lệnh
 
 **Thay đổi**: sửa `etl/scripts/addThanhVienStore.js` (KHÔNG đổi file nào

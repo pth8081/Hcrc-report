@@ -21,7 +21,7 @@ const { requireMenuAccess, requireMenuEdit } = require('../../lib/adminPermissio
 const sourcesRegistry = require('../../sources');
 const { rescheduleJob, runJobIfNotAlreadyRunning } = require('../../jobs/scheduler');
 const { assertTableConfigMatchesSchema, validateTableJobSchema } = require('../../lib/syncJobSchemaValidation');
-const { parseSyncJobsFile, upsertSyncJobs, buildSyncJobsTemplate } = require('../../lib/syncJobsImport');
+const { parseSyncJobsFile, upsertSyncJobs, buildSyncJobsTemplate, exportSyncJobs } = require('../../lib/syncJobsImport');
 const { sendXlsx } = require('../../lib/xlsxResponse');
 const { logAction } = require('../../lib/auditLog');
 const multer = require('multer');
@@ -65,6 +65,19 @@ router.get('/template', requireMenuAccess('sync-jobs'), async (req, res, next) =
   try {
     const buffer = await buildSyncJobsTemplate();
     sendXlsx(res, buffer, 'mau-sync-jobs.xlsx');
+  } catch (err) { next(err); }
+});
+
+// Xuất danh sách job Type='table' hiện có ra Excel, đúng khuôn file mẫu/Nhập
+// hàng loạt — theo yêu cầu người dùng, để sửa/nhân bản hàng loạt rồi nộp lại
+// qua POST /import thay vì gõ tay từng job. Xem chú thích exportSyncJobs()
+// trong lib/syncJobsImport.js.
+router.get('/export', requireMenuEdit('sync-jobs'), async (req, res, next) => {
+  try {
+    const pool = await getPool('ADMIN');
+    const buffer = await exportSyncJobs(pool);
+    await logAction(req, { module: 'Đồng bộ', actionType: 'XUAT_EXCEL', description: `Xuất Excel danh sách job đồng bộ (${buffer.length} byte)` });
+    sendXlsx(res, buffer, 'sync-jobs.xlsx');
   } catch (err) { next(err); }
 });
 

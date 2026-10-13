@@ -67,6 +67,7 @@ export default function SyncJobsPage() {
   const [bulkEnabling, setBulkEnabling] = useState(false);
   const [bulkDisabling, setBulkDisabling] = useState(false);
   const [downloadingTemplate, setDownloadingTemplate] = useState(false);
+  const [exportingJobs, setExportingJobs] = useState(false);
   const [importing, setImporting] = useState(false);
   // Bộ lọc/nhóm theo siêu thị (bản 8.44) — CHỈ gọn cách XEM danh sách, KHÔNG
   // đổi kiến trúc 1 job/1 loại dữ liệu (xem phân tích đã trao đổi với người
@@ -290,6 +291,21 @@ export default function SyncJobsPage() {
       setImportError(err.message);
     } finally {
       setDownloadingTemplate(false);
+    }
+  }
+
+  // Xuất danh sách job Type="table" hiện có ra Excel (bản 9.32, theo yêu cầu
+  // người dùng) — đúng khuôn cột với "Tải file mẫu"/"Nhập hàng loạt", sửa
+  // xong nộp thẳng lại qua "Nhập hàng loạt" thay vì gõ tay từng job.
+  async function exportJobs() {
+    setImportError('');
+    setExportingJobs(true);
+    try {
+      await api.downloadFile('/sync-jobs/export', 'sync-jobs.xlsx');
+    } catch (err) {
+      setImportError(err.message);
+    } finally {
+      setExportingJobs(false);
     }
   }
 
@@ -596,6 +612,9 @@ export default function SyncJobsPage() {
           <div className="inline-actions">
             <button type="button" onClick={downloadTemplate} disabled={downloadingTemplate}>
               {downloadingTemplate ? 'Đang tải...' : 'Tải file mẫu'}
+            </button>
+            <button type="button" onClick={exportJobs} disabled={exportingJobs}>
+              {exportingJobs ? 'Đang xuất...' : 'Xuất Excel (danh sách hiện có)'}
             </button>
           </div>
           <form className="stacked-form" onSubmit={submitImport}>
