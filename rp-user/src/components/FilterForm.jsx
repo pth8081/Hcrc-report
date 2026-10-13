@@ -14,6 +14,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
 import SearchableSelect from './SearchableSelect';
+import DateInput from './DateInput';
 
 export default function FilterForm({ reportId, filters, values, onChange, onSubmit, loading }) {
   const [dynamicOptions, setDynamicOptions] = useState({});
@@ -46,21 +47,18 @@ export default function FilterForm({ reportId, filters, values, onChange, onSubm
         <label key={f.field} className="filter-field">
           <span>{f.label}</span>
           {f.type === 'date' ? (
-            <input
-              type="date"
+            <DateInput
               value={values[f.field] || ''}
               onChange={(e) => setValue(f.field, e.target.value)}
             />
           ) : f.type === 'dateRange' ? (
             <span className="date-range">
-              <input
-                type="date"
+              <DateInput
                 value={values[f.field]?.from || ''}
                 onChange={(e) => setValue(f.field, { ...values[f.field], from: e.target.value })}
               />
               <span>—</span>
-              <input
-                type="date"
+              <DateInput
                 value={values[f.field]?.to || ''}
                 onChange={(e) => setValue(f.field, { ...values[f.field], to: e.target.value })}
               />

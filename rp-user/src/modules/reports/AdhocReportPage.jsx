@@ -12,6 +12,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../lib/api';
 import ReportBody from '../../components/ReportBody';
+import DateInput from '../../components/DateInput';
 import { todayISO, firstOfMonth } from '../../lib/dateRange';
 
 const AGG_LABELS = { sum: 'Tổng', avg: 'Trung bình', count: 'Đếm', min: 'Nhỏ nhất', max: 'Lớn nhất' };
@@ -237,11 +238,11 @@ export default function AdhocReportPage() {
           <div className="inline-form">
             <label>
               <span>Từ ngày</span>
-              <input type="date" value={dateFrom} onChange={(e) => setDateRange(r => ({ ...r, dateFrom: e.target.value }))} />
+              <DateInput value={dateFrom} onChange={(e) => setDateRange(r => ({ ...r, dateFrom: e.target.value }))} />
             </label>
             <label>
               <span>Đến ngày</span>
-              <input type="date" value={dateTo} onChange={(e) => setDateRange(r => ({ ...r, dateTo: e.target.value }))} />
+              <DateInput value={dateTo} onChange={(e) => setDateRange(r => ({ ...r, dateTo: e.target.value }))} />
             </label>
           </div>
 

@@ -37,6 +37,13 @@ h4 { font-size: 13px; margin: 12px 0 6px; color: var(--ink-soft); }
 form label, .filter-field { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--ink-soft); }
 input, select, textarea, button { font: inherit; }
 input, select, textarea { padding: 7px 10px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); color: var(--ink); }
+/* Ô nhập ngày dd/mm/yyyy (bản 9.25) — xem components/DateInput.jsx */
+.date-input-wrap { position: relative; display: inline-flex; vertical-align: middle; }
+.date-input-display { display: flex; align-items: center; gap: 6px; padding: 7px 10px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); color: var(--ink); font-size: 14px; white-space: nowrap; pointer-events: none; }
+.date-input-placeholder { color: var(--ink-soft); }
+.date-input-icon { font-size: 12px; opacity: .7; }
+.date-input-native { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; margin: 0; padding: 0; border: none; cursor: pointer; }
+.date-input-native:disabled { cursor: default; }
 button { padding: 7px 14px; border: 1px solid var(--accent); border-radius: 4px; background: var(--accent); color: #fff; cursor: pointer; }
 button:hover { opacity: 0.9; }
 /* button[disabled] (bản 8.60, theo yêu cầu người dùng) — PHẢI đổi màu rõ
@@ -274,7 +281,6 @@ button:disabled, button:disabled:hover {
    "Top 5 chi nhánh" (xem DashboardPage.jsx, chỉ hiện khi tile khai field
    tương ứng — dashboard khác không đổi giao diện). */
 .dashboard-daterange-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 0 0 16px; font-size: 13px; color: var(--ink-soft); background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; }
-.dashboard-daterange-bar input[type="date"] { border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px; font-size: 13px; }
 .dashboard-daterange-bar button { font-size: 12px; padding: 4px 10px; border: 1px solid var(--accent); background: var(--accent-soft); color: var(--accent); border-radius: 999px; cursor: pointer; }
 .dashboard-metric-tabs { display: flex; gap: 8px; margin: 0 0 18px; }
 .dashboard-metric-tabs button { font-size: 13px; font-weight: 600; padding: 8px 16px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--ink-soft); cursor: pointer; }

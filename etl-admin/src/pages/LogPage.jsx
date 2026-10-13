@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
 import DataTable from '../components/DataTable';
+import DateInput from '../components/DateInput';
 
 // Trước đây trang này có 2 khối riêng (Log chạy job từ etl.SyncLog +
 // "Nhật ký hệ thống" từ etl.SystemLog) xếp chồng nhau — gây rối khi bấm tab
@@ -47,8 +48,8 @@ export default function LogPage() {
       </div>
 
       <form className="inline-form" onSubmit={(e) => { e.preventDefault(); setPage(1); load(); }}>
-        <input type="date" value={range.from} onChange={(e) => setRange({ ...range, from: e.target.value })} />
-        <input type="date" value={range.to} onChange={(e) => setRange({ ...range, to: e.target.value })} />
+        <DateInput value={range.from} onChange={(e) => setRange({ ...range, from: e.target.value })} />
+        <DateInput value={range.to} onChange={(e) => setRange({ ...range, to: e.target.value })} />
         <button type="submit">Lọc</button>
       </form>
 

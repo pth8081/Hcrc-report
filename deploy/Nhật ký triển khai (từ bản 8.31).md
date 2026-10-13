@@ -14,6 +14,25 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 9.25 — Đổi mọi ô nhập ngày sang hiện dd/mm/yyyy (3 app)
+
+**Thay đổi**: thêm `components/DateInput.jsx` + CSS ở cả 3 app, thay 22 ô
+`<input type="date">` bằng `<DateInput>` ở 12 file. KHÔNG đổi schema CSDL,
+KHÔNG đổi API/giá trị gửi lên server (vẫn chuỗi ISO yyyy-mm-dd y hệt
+trước), KHÔNG đổi biến môi trường, KHÔNG thêm thư viện npm mới.
+
+**Các bước triển khai (làm 1 lần cho CẢ 3 app, CHỈ `git pull` + build lại
+frontend, KHÔNG cần backend/DBA):**
+1. `git pull origin main`.
+2. Build lại CẢ 3 frontend: `cd etl-admin && npm run build`,
+   `cd api-admin && npm run build`, `cd rp-user && npm run build`.
+3. Khuyên người dùng F5 cứng (Ctrl+Shift+R) ở cả 3 app sau khi deploy để
+   chắc nạp bundle JS/CSS mới.
+
+**Lưu ý khi dùng**: ô ngày vẫn bấm mở được lịch chọn của trình duyệt/điện
+thoại như cũ (click vào bất kỳ đâu trong ô) — chỉ đổi DÒNG CHỮ hiển thị
+sang LUÔN LUÔN dd/mm/yyyy, không còn phụ thuộc ngôn ngữ máy người dùng.
+
 ## 9.24 — Sửa lỗi dropdown "Nhà cung cấp" chậm ở 6 báo cáo Mua hàng
 
 **Thay đổi**: `rp-server/lib/reportResultCache.js` (thêm tham số TTL tuỳ

@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
 import DataTable from '../components/DataTable';
+import DateInput from '../components/DateInput';
 
 export default function HistoryPage() {
   const [rows, setRows] = useState([]);
@@ -26,8 +27,8 @@ export default function HistoryPage() {
 
       <form className="inline-form" onSubmit={(e) => { e.preventDefault(); setPage(1); load(); }}>
         <input placeholder="Endpoint chứa..." value={filters.endpoint} onChange={(e) => setFilters({ ...filters, endpoint: e.target.value })} />
-        <input type="date" value={filters.from} onChange={(e) => setFilters({ ...filters, from: e.target.value })} />
-        <input type="date" value={filters.to} onChange={(e) => setFilters({ ...filters, to: e.target.value })} />
+        <DateInput value={filters.from} onChange={(e) => setFilters({ ...filters, from: e.target.value })} />
+        <DateInput value={filters.to} onChange={(e) => setFilters({ ...filters, to: e.target.value })} />
         <button type="submit">Lọc</button>
       </form>
 

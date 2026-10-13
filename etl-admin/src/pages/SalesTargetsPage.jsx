@@ -26,6 +26,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/AuthContext';
 import DataTable from '../components/DataTable';
+import DateInput from '../components/DateInput';
 
 const EMPTY_EDIT_FORM = { entityCode: '', periodMonth: '', trangThai: false, otherTargetsJson: '{}' };
 
@@ -232,7 +233,7 @@ export default function SalesTargetsPage({ menuCode, apiBase, title }) {
 
       <h2>Chỉ tiêu đã nhập</h2>
       <div className="inline-actions">
-        <input type="date" value={filterPeriod} onChange={(e) => setFilterPeriod(e.target.value)} />
+        <DateInput value={filterPeriod} onChange={(e) => setFilterPeriod(e.target.value)} />
         <button type="button" onClick={downloadExport} disabled={downloadingExport}>
           {downloadingExport ? 'Đang xuất...' : 'Xuất Excel'}
         </button>
@@ -269,8 +270,7 @@ export default function SalesTargetsPage({ menuCode, apiBase, title }) {
               onChange={(e) => setEditForm({ ...editForm, entityCode: e.target.value })}
               required
             />
-            <input
-              type="date"
+            <DateInput
               value={editForm.periodMonth}
               onChange={(e) => setEditForm({ ...editForm, periodMonth: e.target.value })}
               required

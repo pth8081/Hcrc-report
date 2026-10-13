@@ -4,6 +4,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
 import DataTable from '../components/DataTable';
+import DateInput from '../components/DateInput';
 
 export default function AuditLogPage() {
   const [rows, setRows] = useState([]);
@@ -28,8 +29,8 @@ export default function AuditLogPage() {
       <form className="inline-form" onSubmit={(e) => { e.preventDefault(); load(); }}>
         <input placeholder="Username" value={filters.username} onChange={(e) => setFilters({ ...filters, username: e.target.value })} />
         <input placeholder="Module" value={filters.module} onChange={(e) => setFilters({ ...filters, module: e.target.value })} />
-        <input type="date" value={filters.from} onChange={(e) => setFilters({ ...filters, from: e.target.value })} />
-        <input type="date" value={filters.to} onChange={(e) => setFilters({ ...filters, to: e.target.value })} />
+        <DateInput value={filters.from} onChange={(e) => setFilters({ ...filters, from: e.target.value })} />
+        <DateInput value={filters.to} onChange={(e) => setFilters({ ...filters, to: e.target.value })} />
         <button type="submit">Lọc</button>
       </form>
 

@@ -36,6 +36,7 @@ import { lazy, Suspense, useEffect, useState } from 'react';
 import { api, downloadFile } from '../../lib/api';
 import DashboardTile from './DashboardTile';
 import RealtimeReportTile from './RealtimeReportTile';
+import DateInput from '../../components/DateInput';
 import { addDaysISO, periodLabelFor, todayISO } from '../../lib/dateRange';
 
 // lazy() — Top5ChartTile.jsx import tĩnh recharts (BarChart/Cell/...), y hệt
@@ -399,9 +400,9 @@ export default function DashboardPage() {
       {needsDatePicker && (
         <div className="dashboard-daterange-bar">
           <span>Từ ngày</span>
-          <input type="date" value={fromDate} max={todayISO()} onChange={(e) => handleFromDateChange(e.target.value)} />
+          <DateInput value={fromDate} max={todayISO()} onChange={(e) => handleFromDateChange(e.target.value)} />
           <span>đến ngày</span>
-          <input type="date" value={toDate} max={todayISO()} onChange={(e) => handleToDateChange(e.target.value)} />
+          <DateInput value={toDate} max={todayISO()} onChange={(e) => handleToDateChange(e.target.value)} />
           <button type="button" onClick={resetToToday}>Hôm nay</button>
         </div>
       )}

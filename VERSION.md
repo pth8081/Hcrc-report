@@ -29,6 +29,25 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 9.25 — THAY ĐỔI: Mọi ô nhập ngày đổi sang hiện dd/mm/yyyy (3 app)
+
+**Theo yêu cầu người dùng** — ô nhập ngày kiểu chuẩn trình duyệt
+(`<input type="date">`) hiện `mm/dd/yyyy` hay `dd/mm/yyyy` tuỳ NGÔN NGỮ/
+VÙNG của máy người dùng, web không tự quyết định được — máy đặt tiếng Anh
+(Mỹ) sẽ luôn hiện kiểu Mỹ dù không mong muốn.
+
+- Thêm component dùng chung `components/DateInput.jsx` (bản sao độc lập ở
+  cả 3 app, cùng quy ước `LoginPage.jsx`) — vẫn DÙNG `<input type="date">`
+  THẬT bên dưới (ẩn đi, vẫn nhận click/gõ phím) để giữ lịch chọn ngày có
+  sẵn của hệ điều hành (tiện trên điện thoại — rp-user nhiều người dùng
+  xem trên mobile), chỉ vẽ ĐÈ lên 1 lớp hiển thị LUÔN đúng dd/mm/yyyy.
+  `value`/`onChange` giữ NGUYÊN hợp đồng y hệt input ngày thường (chuỗi
+  ISO yyyy-mm-dd) — KHÔNG đổi gì ở backend/API, chỉ đổi cách hiển thị.
+- Áp dụng cho toàn bộ 22 ô ngày ở 3 app: etl-admin (Nhật ký thao tác, Log,
+  Chỉ tiêu bán hàng), api-admin (Nhật ký thao tác, Log, Lịch sử), rp-user
+  (bộ lọc ngày động của MỌI báo cáo qua `FilterForm.jsx`, Dashboard, Báo
+  cáo tự do, Nhật ký thao tác, Nhật ký hệ thống).
+
 ## 9.24 — SỬA LỖI: Dropdown "Nhà cung cấp" chậm ở 6 báo cáo Mua hàng
 
 **Theo báo cáo người dùng** — mở bộ lọc "Nhà cung cấp" phải đợi một lúc
