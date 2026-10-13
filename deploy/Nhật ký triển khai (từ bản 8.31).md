@@ -14,6 +14,18 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 9.30 — Script thêm 1 siêu thị Thành viên mới
+
+**Thay đổi**: thêm mới `etl/scripts/addThanhVienStore.js` (KHÔNG sửa file
+nào khác, KHÔNG đổi schema CSDL).
+
+**Các bước triển khai:**
+1. `git pull origin main`.
+2. KHÔNG cần restart gì (script chạy tay khi cần, không phải code chạy
+   nền) — dùng ngay khi có siêu thị mới: `cd etl && node
+   scripts/addThanhVienStore.js "Tên siêu thị" "IP server"` (sau khi đã
+   chạy VIEW+etl_reader tại máy chủ đó, xem VERSION.md bản 9.30).
+
 ## 9.29 — Sửa lỗi thật: job Lịch sử (DSMART16_EOM) kẹt lại do "trùng khoá UNIQUE" lặp lại
 
 **Thay đổi**: `etl/lib/upsert.js` + `etl/lib/tableSyncEngine.js` (sửa lỗi

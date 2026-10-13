@@ -29,6 +29,29 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 9.30 — Script thêm 1 siêu thị Thành viên mới (không cần sửa/chạy lại file 34 siêu thị cũ)
+
+**Theo yêu cầu người dùng** — thêm `etl/scripts/addThanhVienStore.js`, làm
+ĐÚNG 2 việc cho 1 siêu thị MỚI (giống hệt 1 phần tử trong mảng `STORES`
+của `scripts/seedThanhVienLiveSync.js`, cùng mặc định port/username/
+password/database/VIEW/cron — không lệch cấu hình 34 siêu thị đã có):
+1. Tạo/cập nhật 1 "Nguồn dữ liệu" (`DSMART16 - <Tên siêu thị>`).
+2. Tạo/cập nhật 2 Sync Job Live (Doanh thu + Giao dịch, cron 2 phút/lần).
+
+Dùng khi chỉ cần thêm 1 siêu thị, không phải sửa mảng `STORES` (34 siêu
+thị) rồi chạy lại cả file — dù file đó vẫn an toàn chạy lại nhiều lần.
+
+```bash
+cd etl
+node scripts/addThanhVienStore.js "Tên siêu thị mới" "IP server"
+```
+Vẫn cần chạy `deploy/Thiết lập VIEW + tài khoản etl_reader tại mỗi siêu
+thị Thành viên.sql` tại máy chủ SQL Server của siêu thị mới TRƯỚC (như 34
+siêu thị cũ) — thiếu VIEW thì 2 Sync Job bị bỏ qua, script tự báo rõ, chạy
+lại sau khi có VIEW là được. Sau khi chạy xong, nhớ thêm thủ công 1 dòng
+vào mảng `STORES` trong `seedThanhVienLiveSync.js` (commit git) để siêu
+thị này không "biến mất" khỏi code nếu sau này setup lại môi trường.
+
 ## 9.29 — SỬA LỖI THẬT: job Lịch sử (DSMART16_EOM) vẫn lỗi "trùng khoá UNIQUE" lặp lại, không tiến được
 
 **Theo báo cáo người dùng** (job Lịch sử đứng yên ở năm 2023, không lên
