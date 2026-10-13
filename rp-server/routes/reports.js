@@ -165,6 +165,23 @@ router.get('/:reportId/filter-options/:field', async (req, res, next) => {
     if (!FIELD_RE.test(valueField) || (labelField && !FIELD_RE.test(labelField))) {
       return res.status(500).json({ error: 'Cấu hình optionsSource không hợp lệ' });
     }
+
+    // Cache TTL DÀI (bản 9.24, SỬA LỖI dropdown chậm — báo cáo người dùng:
+    // "Nhà cung cấp" mở ra phải đợi 1 lúc mới ra danh sách) — truy vấn bên
+    // dưới quét JSON_VALUE() + ROW_NUMBER() trên TOÀN BỘ dòng của domain
+    // (giờ domain `don_dat_hang` có thêm nhiều năm dữ liệu lịch sử — bản
+    // 9.21/9.22 — nên chậm hẳn so với trước). Danh sách NCC/chi nhánh gần
+    // như KHÔNG đổi phút-qua-phút (chỉ đổi khi có NCC mới phát sinh giao
+    // dịch) nên cache 10 phút là an toàn — khác hẳn cache 30s của /run (kết
+    // quả báo cáo cần mới hơn). reportResultCache dùng CHUNG cho mọi người
+    // gọi (không phân biệt user) — đúng nguyên tắc đã ghi ở
+    // lib/reportResultCache.js (kết quả chỉ phụ thuộc reportId+field, không
+    // phụ thuộc danh tính người gọi).
+    const FILTER_OPTIONS_CACHE_TTL_MS = parseInt(process.env.REPORT_FILTER_OPTIONS_CACHE_TTL_MS, 10) || 10 * 60 * 1000;
+    const filterOptionsCacheKey = ['filter-options', req.params.reportId, req.params.field];
+    const cached = reportResultCache.get(filterOptionsCacheKey);
+    if (cached) return res.json(cached);
+
     const pool = await resolveFactsPool(definition);
     // Nhãn lấy từ dòng SyncedAt MỚI NHẤT của mỗi giá trị (bản 9.14, SỬA LỖI
     // phát hiện qua báo cáo người dùng — dropdown "Nhà cung cấp" hiện tên
@@ -212,6 +229,7 @@ router.get('/:reportId/filter-options/:field', async (req, res, next) => {
       }
     }
 
+    reportResultCache.set(filterOptionsCacheKey, result.recordset, FILTER_OPTIONS_CACHE_TTL_MS);
     res.json(result.recordset);
   } catch (err) { next(err); }
 });

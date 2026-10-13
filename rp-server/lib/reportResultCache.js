@@ -47,8 +47,18 @@ function get(keyParts) {
   return entry.value;
 }
 
-function set(keyParts, value) {
-  const ttl = getTtlMs();
+// ttlMsOverride (bản 9.24, TUỲ CHỌN) — bỏ qua TTL mặc định ở trên cho ĐÚNG
+// lượt ghi này (vd danh sách lựa chọn động của bộ lọc — "Nhà cung cấp" ở 6
+// báo cáo Mua hàng — gần như không đổi, TTL 30s mặc định không đáng kể, cần
+// TTL dài hơn hẳn để đỡ chạy lại truy vấn JSON_VALUE() + ROW_NUMBER() quét
+// TOÀN BỘ domain mỗi lần người dùng mở dropdown — xem routes/reports.js).
+// KHÔNG đổi hành vi các lượt gọi khác (không truyền tham số này) — vẫn dùng
+// TTL mặc định như trước. REPORT_CACHE_TTL_MS=0 (tắt hẳn cache để debug)
+// VẪN tắt được cache này — ttlMsOverride chỉ đổi THỜI GIAN giữ, không bật
+// lại cache khi người dùng đã chủ động tắt qua biến môi trường.
+function set(keyParts, value, ttlMsOverride) {
+  if (getTtlMs() === 0) return; // tắt cache (biến môi trường) — áp dụng cho MỌI lượt ghi, kể cả có ttlMsOverride
+  const ttl = ttlMsOverride !== undefined ? ttlMsOverride : getTtlMs();
   if (ttl === 0) return;
   cache.set(buildKey(keyParts), { value, expiresAt: Date.now() + ttl });
 }

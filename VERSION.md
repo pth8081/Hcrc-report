@@ -29,6 +29,22 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 9.24 — SỬA LỖI: Dropdown "Nhà cung cấp" chậm ở 6 báo cáo Mua hàng
+
+**Theo báo cáo người dùng** — mở bộ lọc "Nhà cung cấp" phải đợi một lúc
+mới ra danh sách.
+
+- **Nguyên nhân**: `routes/reports.js:GET /:reportId/filter-options/:field`
+  quét `JSON_VALUE()` + `ROW_NUMBER()` trên TOÀN BỘ dòng của domain mỗi lần
+  mở dropdown — domain `don_dat_hang` giờ có thêm nhiều năm dữ liệu lịch sử
+  (bản 9.21/9.22) nên chậm hẳn so với trước.
+- **Sửa**: thêm cache 10 phút riêng cho đường này (TÁCH khỏi cache 30 giây
+  của `/run` — danh sách NCC gần như không đổi phút-qua-phút, khác kết quả
+  báo cáo cần mới hơn). Lần mở ĐẦU TIÊN sau khi cache hết hạn vẫn mất thời
+  gian như cũ (chưa đụng tới việc đánh index/chuyển cột tính toán trên CSDL
+  — cần bàn thêm với DBA nếu muốn nhanh ngay cả lần đầu), nhưng các lần mở
+  lại trong vòng 10 phút sau đó sẽ nhanh ngay.
+
 ## 9.23 — SỬA LỖI: Treo trình duyệt khi xem báo cáo Mua hàng có nhiều dữ liệu lịch sử
 
 **Theo báo cáo người dùng** (ảnh chụp màn hình xám trống, "hệ thống treo

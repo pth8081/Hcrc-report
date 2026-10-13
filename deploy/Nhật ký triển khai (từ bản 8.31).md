@@ -14,6 +14,25 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 9.24 — Sửa lỗi dropdown "Nhà cung cấp" chậm ở 6 báo cáo Mua hàng
+
+**Thay đổi**: `rp-server/lib/reportResultCache.js` (thêm tham số TTL tuỳ
+chọn, KHÔNG đổi hành vi mặc định) + `rp-server/routes/reports.js` (cache
+10 phút cho danh sách lựa chọn động của bộ lọc). KHÔNG đổi schema CSDL,
+KHÔNG đổi biến môi trường bắt buộc (có biến môi trường TUỲ CHỌN mới
+`REPORT_FILTER_OPTIONS_CACHE_TTL_MS` nếu muốn đổi 10 phút mặc định).
+
+**Các bước triển khai (làm 1 lần, CHỈ `git pull` + khởi động lại
+`rp-server`, KHÔNG cần DBA):**
+1. `git pull origin main`.
+2. Khởi động lại `rp-server` để nạp code mới.
+
+**Lưu ý khi dùng**: lần mở dropdown "Nhà cung cấp" (hoặc bộ lọc động khác
+dùng `optionsSource`) ĐẦU TIÊN sau khi cache hết hạn (10 phút) vẫn mất
+thời gian như trước — bản này chỉ giúp các lần mở LẠI trong vòng 10 phút
+sau đó nhanh ngay. Muốn nhanh ngay cả lần đầu cần bàn thêm với DBA về việc
+đánh index/cột tính toán trên `dwh.ReportFacts`, CHƯA làm ở bản này.
+
 ## 9.23 — Sửa lỗi treo trình duyệt khi xem báo cáo Mua hàng có nhiều dữ liệu lịch sử
 
 **Thay đổi**: `rp-server/lib/purchaseOrderRunner.js` (6 báo cáo nhóm Mua
