@@ -29,6 +29,28 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 9.23 — SỬA LỖI: Treo trình duyệt khi xem báo cáo Mua hàng có nhiều dữ liệu lịch sử
+
+**Theo báo cáo người dùng** (ảnh chụp màn hình xám trống, "hệ thống treo
+luôn") — sau khi bản 9.21/9.22 bổ sung dữ liệu lịch sử nhiều năm cho 6 báo
+cáo Mua hàng, chọn 1 khoảng ngày (vd 1 tháng) ra rất nhiều dòng khiến trình
+duyệt treo cứng khi xem trên web (không gặp lại lỗi "thiếu dữ liệu" nữa —
+đã xác nhận dữ liệu lịch sử lên đúng).
+
+- **Nguyên nhân**: `lib/purchaseOrderRunner.js` (từ bản 9.17, sửa lỗi
+  "khoảng ngày rộng mất dữ liệu") cố ý lấy ĐỦ mọi dòng từ SQL, không còn
+  tôn trọng tham số phân trang — ĐÚNG cho Xuất Excel/PDF (phải đủ dữ liệu),
+  nhưng applying luôn cho cả lúc xem trên web (bình thường chỉ hiện tối đa
+  200 dòng/trang như mọi báo cáo khác) — DataTable.jsx không ảo hoá, phải
+  dựng hàng chục nghìn `<tr>` cùng lúc khi dữ liệu lịch sử lớn.
+- **Sửa**: chỉ cắt bớt về 200 dòng khi gọi từ API "xem trên web"
+  (`routes/reports.js` gắn cờ `capForDisplay`) — Xuất Excel/PDF, gửi email
+  theo lịch, cảnh báo bất thường, widget Dashboard đều KHÔNG bị ảnh hưởng,
+  vẫn nhận đủ dữ liệu như trước. Khi bị cắt, web hiện thêm dòng cảnh báo
+  "Chỉ hiện N dòng đầu... Bấm Xuất Excel/PDF để xem đầy đủ"; dòng "Tổng
+  cộng" (3 báo cáo có) vẫn cộng đúng TOÀN BỘ dữ liệu, không chỉ phần hiện
+  ra.
+
 ## 9.22 — THÊM MỚI: Nút "Nhân bản" cho các trang Nguồn dữ liệu/Đối tác API/Job đồng bộ
 
 **Theo yêu cầu người dùng**: nhiều kết nối (nguồn dữ liệu ETL/API/Biểu

@@ -242,7 +242,15 @@ router.post('/:reportId/run', async (req, res, next) => {
     const cacheKey = [req.params.reportId, filters, page, pageSize];
     let result = reportResultCache.get(cacheKey);
     if (!result) {
-      result = await runDefinition(definition, filters, { page, pageSize });
+      // capForDisplay (bản 9.23) — CHỈ gắn cờ này ở ĐÚNG đây (xem trên web,
+      // pageSize nhỏ do CHÍNH ReportsPage.jsx/người dùng quyết định) —
+      // KHÔNG gắn cho /export, jobs/reportEmailScheduler.js,
+      // lib/anomalyAlertRunner.js, routes/dashboards.js (đều cần ĐỦ dữ
+      // liệu, không được cắt bớt). Hiện chỉ lib/purchaseOrderRunner.js đọc
+      // cờ này (6 báo cáo nhóm "Mua hàng" — xem chú thích ở đó); các loại
+      // báo cáo khác (runReport/runApiReport/...) bỏ qua field lạ này,
+      // không ảnh hưởng gì.
+      result = await runDefinition(definition, filters, { page, pageSize, capForDisplay: true });
       reportResultCache.set(cacheKey, result);
     }
     res.json(result);

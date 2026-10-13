@@ -178,18 +178,24 @@ function aggregateBySupplier(rows) {
 // chỉ bật cho 3 báo cáo "giá trị" không có đơn giá).
 // Không có dòng dữ liệu nào thì KHÔNG thêm dòng Tổng cộng (tránh hiện toàn
 // số 0 gây hiểu nhầm là có dữ liệu).
-function appendGrandTotal(rows) {
-  if (!rows.length) return rows;
+//
+// `displayRows`/`allRows` TÁCH RIÊNG (bản 9.23) — khi web xem bị cắt bớt
+// (xem capForDisplay ở runPurchaseOrderReport bên dưới), tổng cộng vẫn PHẢI
+// cộng đúng TOÀN BỘ dữ liệu đã lọc (allRows), không phải chỉ phần đang hiện
+// ra (displayRows) — nếu không "Tổng cộng" sẽ hiện SAI (chỉ cộng vài trăm
+// dòng đầu), còn gây hiểu lầm nặng hơn cả việc thiếu dòng chi tiết.
+function appendGrandTotal(displayRows, allRows) {
+  if (!allRows.length) return displayRows;
   const measureKeys = new Set();
-  for (const r of rows) for (const k of Object.keys(r.measures || {})) measureKeys.add(k);
+  for (const r of allRows) for (const k of Object.keys(r.measures || {})) measureKeys.add(k);
   const totalMeasures = {};
   for (const k of measureKeys) {
-    totalMeasures[k] = rows.reduce((sum, r) => sum + (typeof r.measures[k] === 'number' ? r.measures[k] : 0), 0);
+    totalMeasures[k] = allRows.reduce((sum, r) => sum + (typeof r.measures[k] === 'number' ? r.measures[k] : 0), 0);
   }
-  return [...rows, {
+  return [...displayRows, {
     entityCode: null,
-    sourceSystem: rows[0].sourceSystem,
-    eventDate: rows[0].eventDate,
+    sourceSystem: allRows[0].sourceSystem,
+    eventDate: allRows[0].eventDate,
     dimensions: { TenNCC: 'Tổng cộng' },
     measures: totalMeasures,
     __isSubtotal: true,
@@ -197,7 +203,7 @@ function appendGrandTotal(rows) {
   }];
 }
 
-async function runPurchaseOrderReport(definition, filterValues = {}) {
+async function runPurchaseOrderReport(definition, filterValues = {}, pagination = {}) {
   const pool = await getPool('DWH');
   const diemMapping = await loadDiemStkMapping();
   const buIdLookup = buildBuIdLookup(diemMapping);
@@ -264,13 +270,45 @@ async function runPurchaseOrderReport(definition, filterValues = {}) {
     mappedRows = mappedRows.filter((row) => trangThaiFilter.has(row.dimensions.TrangThai));
   }
 
+  // Cắt bớt dòng TRẢ VỀ cho xem trên web (bản 9.23, SỬA LỖI TREO TRÌNH
+  // DUYỆT — báo cáo người dùng: chọn "Đơn đặt hàng" 1 tháng, có đủ dữ liệu
+  // lịch sử rồi nhưng web TREO cứng lúc tải). NGUYÊN NHÂN: hàm này (từ bản
+  // 9.17, sửa lỗi "khoảng ngày rộng làm mất dữ liệu") CỐ Ý lấy ĐỦ mọi dòng
+  // thô từ SQL — ĐÚNG cho /export (phải xuất đủ, không được cắt), nhưng từ
+  // đó tới giờ KHÔNG còn tôn trọng `pagination` nữa, nên /run (xem trên
+  // web, luôn gọi page:1/pageSize:200 — xem routes/reports.js +
+  // rp-user/.../ReportsPage.jsx) cũng nhận NGUYÊN hàng chục nghìn dòng (giờ
+  // có thêm lịch sử nhiều năm) đổ thẳng vào DataTable KHÔNG ảo hoá
+  // (components/DataTable.jsx dựng <tr> cho MỌI dòng cùng lúc) — trình
+  // duyệt phải dựng hàng chục nghìn dòng DOM 1 lượt, treo cứng (nặng nhất
+  // trên điện thoại).
+  //
+  // CHỈ cắt khi gọi từ /run — routes/reports.js gắn rõ ràng
+  // `pagination.capForDisplay = true` CHỈ ở đúng chỗ đó; /export,
+  // jobs/reportEmailScheduler.js, lib/anomalyAlertRunner.js,
+  // routes/dashboards.js đều KHÔNG gắn cờ này nên vẫn nhận ĐỦ dữ liệu như
+  // trước, không tái lập lỗi bản 9.17. Cắt SAU KHI đã lọc/gộp/Trạng thái
+  // xong (mappedRows lúc này đã là kết quả CUỐI CÙNG đúng) — dòng "Tổng
+  // cộng" (nếu có) vẫn cộng dựa trên TOÀN BỘ mappedRows trước khi cắt (xem
+  // appendGrandTotal(displayRows, allRows) ở trên), không phải chỉ phần
+  // hiện ra, rồi mới gắn vào SAU phần đã cắt.
+  const fullMappedRows = mappedRows;
+  const warnings = [];
+  if (pagination?.capForDisplay && pagination.pageSize && mappedRows.length > pagination.pageSize) {
+    const page = Math.max(1, pagination.page || 1);
+    const start = (page - 1) * pagination.pageSize;
+    mappedRows = mappedRows.slice(start, start + pagination.pageSize);
+    warnings.push(`Chỉ hiện ${mappedRows.length} dòng đầu trên tổng ${fullMappedRows.length} dòng — bộ lọc quá rộng để hiện hết trên web. Bấm "Xuất Excel"/"Xuất PDF" để xem đầy đủ.`);
+  }
+
   if (definition.showGrandTotal) {
-    mappedRows = appendGrandTotal(mappedRows);
+    mappedRows = appendGrandTotal(mappedRows, fullMappedRows);
   }
 
   return {
     columns: describeColumns(definition.columns),
-    rows: mappedRows.map((r) => projectColumns(r, definition.columns))
+    rows: mappedRows.map((r) => projectColumns(r, definition.columns)),
+    warnings
   };
 }
 

@@ -14,6 +14,26 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 9.23 — Sửa lỗi treo trình duyệt khi xem báo cáo Mua hàng có nhiều dữ liệu lịch sử
+
+**Thay đổi**: `rp-server/lib/purchaseOrderRunner.js` (6 báo cáo nhóm Mua
+hàng) + `rp-server/routes/reports.js` — chỉ sửa cách TRẢ KẾT QUẢ, KHÔNG
+đổi schema CSDL, KHÔNG đổi biến môi trường, KHÔNG cần chạy lại ETL.
+
+**Các bước triển khai (làm 1 lần, CHỈ `git pull` + khởi động lại
+`rp-server`, KHÔNG cần DBA, KHÔNG cần rebuild frontend):**
+1. `git pull origin main`.
+2. Khởi động lại `rp-server` để nạp code mới.
+3. Không cần đổi gì ở `rp-user` (frontend) — trang "Báo cáo" đã sẵn có cơ
+   chế hiện cảnh báo (`result.warnings`), không cần build lại.
+
+**Lưu ý khi dùng**: 6 báo cáo "Đơn đặt hàng"/"Đơn nhập hàng"/"So sánh..."
+giờ chỉ hiện tối đa 200 dòng đầu trên web (giống mọi báo cáo khác) khi bộ
+lọc trả về nhiều dữ liệu — kèm dòng cảnh báo nhắc bấm "Xuất Excel"/"Xuất
+PDF" để xem đầy đủ (2 nút đó KHÔNG bị giới hạn, luôn xuất đủ). Dòng "Tổng
+cộng" vẫn tính đúng trên toàn bộ dữ liệu đã lọc, không chỉ 200 dòng hiện
+ra.
+
 ## 9.22 — Nút "Nhân bản" cho Nguồn dữ liệu/Đối tác API/Job đồng bộ
 
 **Thay đổi**: thêm route `POST /:id/duplicate` ở 7 router backend (ETL,
