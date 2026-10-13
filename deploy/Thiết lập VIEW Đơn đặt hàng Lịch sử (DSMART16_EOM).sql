@@ -40,6 +40,23 @@
       gửi lại NGUYÊN VĂN lỗi để sửa tiếp — SQL Server chỉ báo 1 lỗi đầu
       tiên mỗi lần chạy.
 
+   ‼️ MỞ RỘNG 13/10/2026 — THÊM MÃ GIAO DỊCH `130`/`330` (KÊNH MUA) ‼️
+   Theo yêu cầu người dùng, đã xác nhận lại TỪNG MÃ MỘT (tránh lặp lại lỗi
+   đoán sai nguồn dữ liệu trước đây): hệ thống trước đây CHỈ lọc `133`/`333`
+   (LOẠI BỎ HẲN giao dịch mang mã `130`/`330` — không phải lỗi đồng bộ, VIEW
+   không hề lấy 2 mã này, kể cả dữ liệu lịch sử). Ý nghĩa đã xác nhận:
+     133 = Đặt hàng, kênh "mua riêng"      130 = Đặt hàng, kênh "mua riêng"
+     330 = Đặt hàng, kênh "mua chung"      333 = Nhập hàng, kênh "mua chung" (qua Fuji)
+   ("mua riêng" CHỈ có 2 mã đặt, không có mã nhập riêng). Đã thêm `130`/`330`
+   vào CẢ 2 chỗ `TRANS_CODE IN (...)` bên dưới (lúc tạo VIEW lần đầu VÀ
+   trong stored procedure chạy lại hàng tháng) — rp-server/lib/purchaseOrderRunner.js
+   đã sửa tương ứng (bản 9.27). NẾU VIEW NÀY ĐÃ CHẠY TRƯỚC 13/10/2026, CẦN
+   CHẠY LẠI NGUYÊN FILE NÀY để VIEW nhận đủ 4 mã, rồi vào etl-admin → Đồng
+   bộ → "Chạy thử" lại job "Đơn đặt hàng - nhập hàng - Lịch sử
+   (DSMART16_EOM)" để đồng bộ bù phần dữ liệu `130`/`330` trước đây bị bỏ
+   sót (dữ liệu CŨ đã đồng bộ không tự có thêm, chỉ job chạy LẠI mới quét
+   ra được).
+
    AN TOÀN CHẠY LẠI NHIỀU LẦN — `CREATE OR ALTER VIEW`/`PROCEDURE`, không
    lỗi nếu đã tồn tại từ lần chạy trước.
    ============================================================================ */
@@ -56,7 +73,7 @@ DECLARE @sql NVARCHAR(MAX);
 -- bảng) — tối ưu, đỡ quét thừa dữ liệu không dùng tới.
 SELECT @sql = STRING_AGG(
     CAST('SELECT TRANS_NUM, IDX, TRAN_DATE, BU_ID, REF, TRANS_CODE, DUE_DATE, SUPP_ID, STAFF_ID, SKU_ID, UNIT_SYMB, STATUS, QTY, AMOUNT FROM '
-    + QUOTENAME(name) + ' WITH (NOLOCK) WHERE STATUS NOT IN (''D'',''E'') AND TRANS_CODE IN (''133'',''333'')' AS NVARCHAR(MAX)),
+    + QUOTENAME(name) + ' WITH (NOLOCK) WHERE STATUS NOT IN (''D'',''E'') AND TRANS_CODE IN (''133'',''333'',''130'',''330'')' AS NVARCHAR(MAX)),
     ' UNION ALL '
 )
 FROM sys.tables
@@ -111,7 +128,7 @@ BEGIN
 
     SELECT @sql = STRING_AGG(
         CAST('SELECT TRANS_NUM, IDX, TRAN_DATE, BU_ID, REF, TRANS_CODE, DUE_DATE, SUPP_ID, STAFF_ID, SKU_ID, UNIT_SYMB, STATUS, QTY, AMOUNT FROM '
-        + QUOTENAME(name) + ' WITH (NOLOCK) WHERE STATUS NOT IN (''D'',''E'') AND TRANS_CODE IN (''133'',''333'')' AS NVARCHAR(MAX)),
+        + QUOTENAME(name) + ' WITH (NOLOCK) WHERE STATUS NOT IN (''D'',''E'') AND TRANS_CODE IN (''133'',''333'',''130'',''330'')' AS NVARCHAR(MAX)),
         ' UNION ALL '
     )
     FROM sys.tables

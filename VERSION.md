@@ -29,6 +29,29 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 9.27 — THÊM MỚI: Mã giao dịch 130/330 + bộ lọc "Kênh mua" cho 6 báo cáo Mua hàng
+
+**Theo yêu cầu người dùng** — hệ thống trước đây CHỈ lấy mã giao dịch
+`133`(đặt)/`333`(nhập), LOẠI BỎ HẲN 2 mã `130`/`330` thuộc 1 kênh mua
+hàng khác — không phải lỗi đồng bộ, VIEW nguồn chưa từng lọc 2 mã này.
+
+- **Xác nhận ý nghĩa** (đã hỏi lại người dùng từng mã một, tránh lặp lại
+  bài học đoán sai nguồn dữ liệu ở bản 8.92):
+  - `133` = Đặt hàng, kênh **"Mua riêng"** — `130` = Đặt hàng, kênh "Mua riêng"
+  - `330` = Đặt hàng, kênh **"Mua chung" (qua Fuji)** — `333` = Nhập hàng, kênh "Mua chung"
+  - Kênh "Mua riêng" chỉ có 2 mã đặt, không có mã nhập riêng.
+- **Sửa**: 2 file VIEW SQL (`deploy/Thiết lập VIEW Đơn đặt hàng-Nhập
+  hàng-So sánh (DSMART16 trung tâm).sql` và `deploy/Thiết lập VIEW Đơn đặt
+  hàng Lịch sử (DSMART16_EOM).sql`) thêm `130`/`330` vào
+  `WHERE TRANS_CODE IN (...)` — **CẦN DBA CHẠY LẠI** cả 2 file trên CSDL
+  tương ứng. `rp-server/lib/purchaseOrderRunner.js` sửa để nhận diện đúng
+  đặt/nhập theo 4 mã.
+- **Thêm bộ lọc "Kênh mua"** ("Mua riêng"/"Mua chung qua Fuji") ở CẢ 6
+  báo cáo nhóm Mua hàng — kèm ghi chú giải thích ngay dưới bộ lọc, hiện
+  trên web qua `FilterForm.jsx` (field `f.hint` mới).
+- Không chọn gì ở bộ lọc "Kênh mua" = hiện CẢ 2 kênh gộp chung như trước
+  (không đổi hành vi mặc định các báo cáo đã quen dùng).
+
 ## 9.26 — SỬA LỖI QUAN TRỌNG: job Lịch sử lỗi lặp lại vô thời hạn + 2 cải tiến giao diện
 
 **1) SỬA LỖI THẬT (nguyên nhân chính khiến dữ liệu lịch sử Đơn đặt hàng

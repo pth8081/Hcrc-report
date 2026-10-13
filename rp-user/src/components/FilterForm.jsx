@@ -46,6 +46,12 @@ export default function FilterForm({ reportId, filters, values, onChange, onSubm
       {filters.map(f => (
         <label key={f.field} className="filter-field">
           <span>{f.label}</span>
+          {/* f.hint (bản 9.27, theo yêu cầu người dùng) — ghi chú giải
+              thích ý nghĩa bộ lọc ngay dưới nhãn, vd "Kênh mua" ở báo cáo
+              Mua hàng cần giải thích rõ mã giao dịch nào thuộc kênh nào —
+              KHÔNG bắt buộc, chỉ hiện khi definition.filters[].hint có
+              khai (xem seedPurchaseOrderReports.js). */}
+          {f.hint && <span className="hint filter-field-hint">{f.hint}</span>}
           {f.type === 'date' ? (
             <DateInput
               value={values[f.field] || ''}

@@ -14,6 +14,38 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 9.27 — Thêm mã giao dịch 130/330 + bộ lọc "Kênh mua" cho 6 báo cáo Mua hàng
+
+**Thay đổi**: `rp-server/lib/purchaseOrderRunner.js` +
+`rp-server/scripts/seedPurchaseOrderReports.js` +
+`rp-user/src/components/FilterForm.jsx` (code) + 2 file VIEW SQL ở
+`deploy/` (CẦN DBA CHẠY LẠI — xem bước 2 dưới đây, KHÁC các bản trước chỉ
+cần `git pull`).
+
+**Các bước triển khai (làm 1 lần, THEO ĐÚNG THỨ TỰ):**
+1. `git pull origin main`.
+2. **DBA chạy lại NGUYÊN VĂN** 2 file sau (an toàn chạy lại nhiều lần,
+   dùng `CREATE OR ALTER`):
+   - `deploy/Thiết lập VIEW Đơn đặt hàng-Nhập hàng-So sánh (DSMART16 trung
+     tâm).sql` trên CSDL `DSMART16`.
+   - `deploy/Thiết lập VIEW Đơn đặt hàng Lịch sử (DSMART16_EOM).sql` trên
+     CSDL `DSMART16_EOM`.
+3. Khởi động lại `rp-server` để nạp code mới.
+4. Chạy `node rp-server/scripts/seedPurchaseOrderReports.js` (có `.env`
+   kết nối đúng CSDL RP) để cập nhật bộ lọc "Kênh mua" + `transCode` mới
+   cho 6 báo cáo trong `app.ReportCatalog` (script AN TOÀN chạy lại nhiều
+   lần, khớp theo ReportId để UPDATE, không tạo trùng).
+5. Build lại `rp-user` (`npm run build`) để nạp giao diện bộ lọc mới +
+   ghi chú giải thích.
+6. **QUAN TRỌNG — bù dữ liệu cũ bị bỏ sót**: vào etl-admin → Đồng bộ →
+   "Chạy thử" lại CẢ 2 job domain `don_dat_hang` ("Đơn đặt hàng - nhập
+   hàng (DSMART16)" và "...Lịch sử (DSMART16_EOM)") — dữ liệu mang mã
+   `130`/`330` TRƯỚC ĐÂY chưa từng được đồng bộ (VIEW cũ loại bỏ hẳn,
+   không phải lỗi job), job cần chạy lại mới quét ra được.
+
+**Lưu ý khi dùng**: không chọn gì ở bộ lọc "Kênh mua" mới = hiện CẢ 2 kênh
+gộp chung như hành vi cũ, không ảnh hưởng số liệu đã quen dùng.
+
 ## 9.26 — Sửa lỗi job Lịch sử lặp lại vô thời hạn + thu gọn đăng nhập + sửa bấm mở lịch
 
 **Thay đổi**: `etl/lib/upsert.js` + `etl/jobs/runSync.js` (sửa lỗi dữ

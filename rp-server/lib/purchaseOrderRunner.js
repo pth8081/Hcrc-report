@@ -13,9 +13,21 @@
 // nhận) là khoá nhóm các lần nhận hàng lại với đúng đơn đặt ban đầu — xem
 // mục "KẾT LUẬN THIẾT KẾ" trong bc-don-dat-hang.md.
 //
-// `definition.transCode` ('133' hoặc '333', TUỲ CHỌN) — lọc CHỈ 1 loại
-// giao dịch, dùng cho 2 báo cáo đơn lẻ "Đơn đặt hàng"/"Đơn nhập hàng" (mỗi
-// dòng = 1 lần đặt/1 lần nhận thật, hiện NGUYÊN, không gộp).
+// MỞ RỘNG bản 9.27 (theo yêu cầu người dùng, đã xác nhận lại từng mã) —
+// thêm 2 mã `130`/`330` (trước đây VIEW nguồn chỉ lọc `133`/`333`, LOẠI BỎ
+// hẳn giao dịch mang 2 mã này — xem 2 file .sql ở deploy/, DBA cần chạy lại
+// để VIEW nhận đủ `TRANS_CODE IN ('133','333','130','330')`). Ý nghĩa:
+//   133 = Đặt hàng, kênh "mua riêng"     130 = Đặt hàng, kênh "mua riêng"
+//   330 = Đặt hàng, kênh "mua chung"     333 = Nhập hàng, kênh "mua chung" (qua Fuji)
+// "Mua riêng" CHỈ có 2 mã đặt, KHÔNG có mã nhập riêng. Xem TRANS_CODE_DAT/
+// TRANS_CODE_NHAP/KENH_MUA_CODES bên dưới.
+//
+// `definition.transCode` (MẢNG mã, vd `['133','130','330']`, TUỲ CHỌN) —
+// lọc giao dịch thuộc ĐÚNG tập mã đó, dùng cho 2 báo cáo đơn lẻ "Đơn đặt
+// hàng"/"Đơn nhập hàng" (mỗi dòng = 1 lần đặt/1 lần nhận thật, hiện
+// NGUYÊN, không gộp). `filterValues.kenhMua` (TUỲ CHỌN, người dùng chủ
+// động chọn trên form — xem KENH_MUA_FILTER) lọc THÊM (AND) trong tập đó
+// theo kênh mua riêng/mua chung.
 //
 // `definition.aggregateByOrder` (`true`, TUỲ CHỌN) — dùng cho "So sánh
 // đặt–nhận": gộp CẢ 2 loại `133`+`333` theo (MaDiem + SoDon + MaHang),
@@ -68,8 +80,24 @@ const { runReport, projectColumns, describeColumns } = require('./reportEngine')
 const { loadDiemStkMapping, buildBuIdLookup } = require('./diemStkMapping');
 
 const DOMAIN = 'don_dat_hang';
-const TRANS_CODE_DAT = '133';
-const TRANS_CODE_NHAP = '333';
+// TRANS_CODE (bản 9.27, MỞ RỘNG theo yêu cầu người dùng — trước đây CHỈ có
+// 133/333, giờ thêm 130/330 cho đúng 2 KÊNH MUA khác nhau, đã xác nhận lại
+// với người dùng từng mã một (tránh lặp lại bài học bản 8.92 — từng đoán
+// sai nguồn dữ liệu):
+//   133 = Đặt hàng (kênh "mua riêng")      130 = Đặt hàng (kênh "mua riêng")
+//   330 = Đặt hàng (kênh "mua chung")      333 = Nhập hàng (kênh "mua chung", qua Fuji)
+// Tức "mua riêng" CHỈ có 2 mã đặt (133/130), KHÔNG có mã nhập riêng — chỉ
+// "mua chung" (qua Fuji) mới có đủ cặp đặt(330)/nhập(333). Mảng THAY cho
+// 1 chuỗi cố định trước đây — MỌI so sánh `=== TRANS_CODE_DAT` cũ đổi thành
+// `.includes(...)`.
+const TRANS_CODE_DAT = ['133', '130', '330'];
+const TRANS_CODE_NHAP = ['333'];
+// KENH_MUA_CODES — map "kênh mua" (lựa chọn người dùng chọn ở bộ lọc, xem
+// KENH_MUA_FILTER trong seedPurchaseOrderReports.js) sang đúng tập mã
+// TRANS_CODE của kênh đó — dùng để LỌC THÊM (AND) bên trong tập transCode
+// báo cáo đã xác định theo đặt/nhập ở trên, xem filterValues.kenhMua bên
+// dưới.
+const KENH_MUA_CODES = { rieng: ['133', '130'], chung: ['330', '333'] };
 
 // Phân trang lấy ĐỦ dữ liệu (bản 9.17, theo báo cáo người dùng — chọn
 // khoảng ngày rộng/cả năm ra thiếu dữ liệu) — TRƯỚC ĐÂY chỉ gọi runReport()
@@ -108,11 +136,11 @@ function aggregateByOrder(rows) {
       groups.set(key, group);
     }
     const qty = row.measures.SoLuong || 0;
-    if (row.dimensions.LoaiGiaoDich === TRANS_CODE_DAT) {
+    if (TRANS_CODE_DAT.includes(row.dimensions.LoaiGiaoDich)) {
       group.measures.SoLuongTheoDon += qty;
       group.measures.DonGia = row.measures.DonGia; // ưu tiên đơn giá của dòng đặt gốc
       group.dimensions = { ...group.dimensions, ...row.dimensions }; // mô tả (NCC/ngày giao...) ưu tiên từ dòng đặt gốc
-    } else if (row.dimensions.LoaiGiaoDich === TRANS_CODE_NHAP) {
+    } else if (TRANS_CODE_NHAP.includes(row.dimensions.LoaiGiaoDich)) {
       group.measures.SoLuongThucNhan += qty;
     }
   }
@@ -154,8 +182,8 @@ function aggregateBySupplier(rows) {
       groups.set(key, group);
     }
     const amount = row.measures.ThanhTien || 0;
-    if (row.dimensions.LoaiGiaoDich === TRANS_CODE_DAT) group.measures.GiaTriDat += amount;
-    else if (row.dimensions.LoaiGiaoDich === TRANS_CODE_NHAP) group.measures.GiaTriNhap += amount;
+    if (TRANS_CODE_DAT.includes(row.dimensions.LoaiGiaoDich)) group.measures.GiaTriDat += amount;
+    else if (TRANS_CODE_NHAP.includes(row.dimensions.LoaiGiaoDich)) group.measures.GiaTriNhap += amount;
   }
   return Array.from(groups.values());
 }
@@ -228,13 +256,24 @@ async function runPurchaseOrderReport(definition, filterValues = {}, pagination 
   // (dùng TrangThai của dòng ĐẠI DIỆN đã chọn trong aggregateByOrder()/
   // aggregateOrderTotal()), không ảnh hưởng gì bước gộp.
   const trangThaiFilter = Array.isArray(filterValues.trangThai) && filterValues.trangThai.length ? new Set(filterValues.trangThai) : null;
+  // Bộ lọc "Kênh mua" (bản 9.27, theo yêu cầu người dùng) — "Mua riêng"
+  // (mã 133/130) / "Mua chung qua Fuji" (mã 330/333), xem KENH_MUA_CODES ở
+  // đầu file + KENH_MUA_FILTER trong seedPurchaseOrderReports.js. Không
+  // chọn gì = không lọc thêm (giữ nguyên tập mã đã xác định theo
+  // đặt/nhập ở `definition.transCode`). Áp dụng Ở SQL-FILTER-LEVEL (JS,
+  // cùng chỗ với `definition.transCode`) — TRƯỚC khi gộp, vì phân loại
+  // kênh dựa thẳng vào TRANS_CODE của TỪNG DÒNG THÔ, không bị ảnh hưởng
+  // bởi vấn đề "gộp cặp 2 dòng khác Trạng thái" như trangThaiFilter.
+  const kenhMuaFilter = Array.isArray(filterValues.kenhMua) && filterValues.kenhMua.length
+    ? new Set(filterValues.kenhMua.flatMap((k) => KENH_MUA_CODES[k] || []))
+    : null;
 
   // Chỉ chuyển filter dateRange/NCC xuống SQL (lib/reportEngine.js) —
   // "Siêu thị" PHẢI áp dụng SAU khi ghi đè mã Điểm bên dưới (Dimensions.
   // MaDiem lưu trong dwh.ReportFacts vẫn là BU_ID thô), "Trạng thái" PHẢI
-  // áp dụng SAU khi gộp (xem chú thích trangThaiFilter ở trên) — cả 2 loại
-  // khỏi sqlFilters.
-  const sqlFilters = (definition.filters || []).filter((f) => f.field !== 'maDiem' && f.field !== 'trangThai');
+  // áp dụng SAU khi gộp (xem chú thích trangThaiFilter ở trên), "Kênh mua"
+  // áp dụng Ở JS cùng transCode (xem trên) — cả 3 loại khỏi sqlFilters.
+  const sqlFilters = (definition.filters || []).filter((f) => f.field !== 'maDiem' && f.field !== 'trangThai' && f.field !== 'kenhMua');
   const rawRows = await fetchAllReportRows(pool, { domain: DOMAIN, filters: sqlFilters }, filterValues);
 
   let mappedRows = rawRows
@@ -252,8 +291,14 @@ async function runPurchaseOrderReport(definition, filterValues = {}, pagination 
     .filter((row) => !storeScope || storeScope.has(row.dimensions.MaDiem))
     .filter((row) => !userStoreFilter || userStoreFilter.has(row.dimensions.MaDiem));
 
+  // definition.transCode giờ LUÔN là MẢNG (vd ['133','130','330'] cho báo
+  // cáo "Đơn đặt hàng" — xem seedPurchaseOrderReports.js) — `.includes()`
+  // thay cho so sánh `===` 1 mã cố định trước đây.
   if (definition.transCode) {
-    mappedRows = mappedRows.filter((row) => row.dimensions.LoaiGiaoDich === definition.transCode);
+    mappedRows = mappedRows.filter((row) => definition.transCode.includes(row.dimensions.LoaiGiaoDich));
+  }
+  if (kenhMuaFilter) {
+    mappedRows = mappedRows.filter((row) => kenhMuaFilter.has(row.dimensions.LoaiGiaoDich));
   }
   if (definition.aggregateByOrder) {
     mappedRows = aggregateByOrder(mappedRows);

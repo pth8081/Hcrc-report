@@ -54,6 +54,17 @@
    lại VIEW mới đúng; dữ liệu cũ đã lưu lỗi font cần đồng bộ lại (xem
    etl-admin → Đồng bộ → "Chạy thử" lại job domain `don_dat_hang`).
 
+   ‼️ MỞ RỘNG 13/10/2026 — THÊM MÃ GIAO DỊCH `130`/`330` (KÊNH MUA) ‼️
+   Theo yêu cầu người dùng, đã xác nhận lại TỪNG MÃ MỘT (tránh lặp lại lỗi
+   đoán sai nguồn dữ liệu trước đây): hệ thống trước đây CHỈ lọc `133`/`333`
+   (LOẠI BỎ HẲN giao dịch mang mã `130`/`330` — không phải lỗi đồng bộ, VIEW
+   không hề lấy 2 mã này). Ý nghĩa đã xác nhận:
+     133 = Đặt hàng, kênh "mua riêng"      130 = Đặt hàng, kênh "mua riêng"
+     330 = Đặt hàng, kênh "mua chung"      333 = Nhập hàng, kênh "mua chung" (qua Fuji)
+   ("mua riêng" CHỈ có 2 mã đặt, không có mã nhập riêng). Thêm `130`/`330`
+   vào `WHERE TRANS_CODE IN (...)` bên dưới — rp-server/lib/purchaseOrderRunner.js
+   đã sửa tương ứng (bản 9.27) để phân loại đúng đặt/nhập + bộ lọc "Kênh mua".
+
    AN TOÀN CHẠY LẠI NHIỀU LẦN — dùng `CREATE OR ALTER VIEW`, không lỗi nếu
    VIEW đã tồn tại từ lần chạy trước.
 
@@ -72,7 +83,7 @@ SELECT
     m.BU_ID                     AS MaDiem,           -- ánh xạ ra mã Điểm chuẩn ở tầng rp-server (buildBuIdLookup())
     NULL                        AS TenDiem,          -- hệ thống LUÔN ưu tiên tên trong bảng Ánh xạ Điểm-STK
     m.REF                       AS SoDon,            -- MÃ ĐƠN HÀNG GỐC (đã xác nhận) — dùng nhóm nhiều lần nhận hàng
-    m.TRANS_CODE                AS LoaiGiaoDich,     -- '133'=đặt hàng, '333'=nhập hàng (đã xác nhận)
+    m.TRANS_CODE                AS LoaiGiaoDich,     -- '133'/'130'=đặt hàng, '333'=nhập hàng, '330'=đặt hàng (kênh mua chung) — đã xác nhận, xem ghi chú 13/10/2026 ở trên
     CAST(m.DUE_DATE AS DATE)    AS NgayGiao,
     m.SUPP_ID                   AS MaNCC,
     s.SUPP_NAME_U                AS TenNCC,          -- SUPP_NAME_U (Unicode, đã xác nhận 12/10/2026 qua INFORMATION_SCHEMA.COLUMNS) — SUPP_NAME (không _U) lỗi font
@@ -93,7 +104,7 @@ SELECT
     m.AMOUNT                    AS ThanhTien
 FROM dbo.STRANS m
 LEFT JOIN dbo.SUPPLIER s ON s.SUPP_ID = m.SUPP_ID
-WHERE m.TRANS_CODE IN ('133','333') AND m.STATUS NOT IN ('D','E');  -- loại hẳn đơn đã xoá/đã huỷ (theo yêu cầu người dùng)
+WHERE m.TRANS_CODE IN ('133','333','130','330') AND m.STATUS NOT IN ('D','E');  -- loại hẳn đơn đã xoá/đã huỷ (theo yêu cầu người dùng); 130/330 thêm bản 9.27
 GO
 
 /* ===================== (Tuỳ chọn) Cấp quyền đọc cho tài khoản đồng bộ ===================== */

@@ -107,6 +107,22 @@ const SIEU_THI_FILTER = {
   optionsSource: { storeCatalog: true }
 };
 
+// Bộ lọc "Kênh mua" (bản 9.27, theo yêu cầu người dùng — thêm mã giao
+// dịch 130/330, cần giải thích rõ cho người xem báo cáo biết mã nào thuộc
+// kênh nào) — áp dụng cho CẢ 6 báo cáo. Không chọn gì = không lọc thêm
+// (giữ nguyên hành vi hiện tại — báo cáo "Đơn đặt hàng" hiện cả 2 kênh
+// gộp chung, vd). `hint` hiện ngay dưới nhãn bộ lọc (xem
+// rp-user/src/components/FilterForm.jsx) — giải thích đúng mã nào ứng
+// với kênh nào, để người dùng tự đối chiếu nếu cần kiểm tra số liệu.
+const KENH_MUA_FILTER = {
+  field: 'kenhMua', type: 'multiSelect', label: 'Kênh mua',
+  hint: 'Mã giao dịch 133 (đặt), 130 (đặt) = Mua riêng. Mã giao dịch 330 (đặt), 333 (nhập) = Mua chung (qua Fuji).',
+  options: [
+    { value: 'rieng', label: 'Mua riêng' },
+    { value: 'chung', label: 'Mua chung (qua Fuji)' }
+  ]
+};
+
 // Trạng thái hiện trong bộ lọc — CHỈ còn C/P/F/M (bản 8.92, theo yêu cầu
 // người dùng: "loại cả đơn xóa nữa bạn chỉ lấy đơn đặt thực tế và nhập
 // thực tế") — D (Đã xoá)/E (Đã huỷ) đã bị LOẠI HẲN ngay trong VIEW
@@ -136,7 +152,7 @@ function orderTotalHead(eventDateLabel) {
 
 const REPORTS = [
   {
-    reportId: 'bc-don-dat-hang', title: 'Đơn đặt hàng', transCode: '133',
+    reportId: 'bc-don-dat-hang', title: 'Đơn đặt hàng', transCode: ['133', '130', '330'],
     columns: [
       ...commonHead('Ngày đặt'), NGAY_GIAO_COL,
       { key: 'soLuongDat', label: 'SL đặt', formula: 'measures.SoLuong' },
@@ -146,7 +162,7 @@ const REPORTS = [
     ]
   },
   {
-    reportId: 'bc-don-nhap-hang', title: 'Đơn nhập hàng', transCode: '333',
+    reportId: 'bc-don-nhap-hang', title: 'Đơn nhập hàng', transCode: ['333'],
     columns: [
       ...commonHead('Ngày nhận'),
       { key: 'soLuongNhan', label: 'SL nhận', formula: 'measures.SoLuong' },
@@ -174,7 +190,7 @@ const REPORTS = [
     // cộng giá trị") — CHỈ 3 báo cáo "giá trị" (TongGiaTri/GiaTriDat/
     // GiaTriNhap, không có cột Đơn giá) mới bật, xem chú thích
     // lib/purchaseOrderRunner.js:appendGrandTotal().
-    reportId: 'bc-gia-tri-dat-theo-don', title: 'Giá trị đặt hàng theo đơn', transCode: '133', aggregateOrderTotal: true, showGrandTotal: true,
+    reportId: 'bc-gia-tri-dat-theo-don', title: 'Giá trị đặt hàng theo đơn', transCode: ['133', '130', '330'], aggregateOrderTotal: true, showGrandTotal: true,
     columns: [
       ...orderTotalHead('Ngày đặt'), NGAY_GIAO_COL,
       { key: 'tongSoLuong', label: 'Tổng SL', formula: 'measures.TongSoLuong' },
@@ -183,7 +199,7 @@ const REPORTS = [
     ]
   },
   {
-    reportId: 'bc-gia-tri-nhap-theo-don', title: 'Giá trị nhập hàng theo đơn', transCode: '333', aggregateOrderTotal: true, showGrandTotal: true,
+    reportId: 'bc-gia-tri-nhap-theo-don', title: 'Giá trị nhập hàng theo đơn', transCode: ['333'], aggregateOrderTotal: true, showGrandTotal: true,
     columns: [
       ...orderTotalHead('Ngày nhận'),
       { key: 'tongSoLuong', label: 'Tổng SL', formula: 'measures.TongSoLuong' },
@@ -224,6 +240,8 @@ function buildDefinition(report) {
       // không chọn gì = tất cả siêu thị, chọn 1/nhiều = chỉ đúng (các)
       // siêu thị đó.
       SIEU_THI_FILTER,
+      // Kênh mua (bản 9.27) — gắn cho CẢ 6 báo cáo theo yêu cầu người dùng.
+      KENH_MUA_FILTER,
       ...(report.aggregateBySupplier ? [] : [TRANG_THAI_FILTER])
     ]
   };
