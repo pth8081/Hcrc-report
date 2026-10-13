@@ -14,6 +14,28 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 9.29 — Sửa lỗi thật: job Lịch sử (DSMART16_EOM) kẹt lại do "trùng khoá UNIQUE" lặp lại
+
+**Thay đổi**: `etl/lib/upsert.js` + `etl/lib/tableSyncEngine.js` (sửa lỗi
+dữ liệu/logic, KHÔNG đổi schema CSDL, KHÔNG cần DBA chạy lại VIEW).
+
+**Các bước triển khai:**
+1. `git pull origin main`.
+2. Restart `etl` (data-fix, nạp code mới) — `pm2 restart hcrc-etl`.
+3. KHÔNG cần làm gì thêm — job "Đơn đặt hàng - nhập hàng - Lịch sử
+   (DSMART16_EOM)" sẽ TỰ chạy tiếp từ watermark hiện tại ở lượt cron kế
+   tiếp (hàng ngày 3h sáng), hoặc bấm "Chạy thử" ngay trong etl-admin →
+   Đồng bộ nếu muốn thấy tiến độ sớm hơn. Theo dõi qua etl-admin → Log,
+   hoặc chạy lại 2 câu SQL so sánh theo năm (đã gửi người dùng trong lúc
+   debug) để xem tiến độ.
+
+**Bối cảnh lỗi (để tham khảo nếu gặp lại)**: nguồn `STRANS_YYYYMM` có
+dòng trùng `(TRANS_NUM, IDX)` thật (QTY/AMOUNT khác nhau — giao dịch bị
+sửa ghi thêm dòng mới) — job lỗi "Violation of UNIQUE KEY constraint
+UX_ReportFacts_Source_Domain_Entity_Date" lặp lại vô thời hạn do 2 dòng
+trùng khoá rơi vào 2 lô trích xuất khác nhau. Nay MERGE tự phục hồi bằng
+cách chia đôi lô + thử lại khi gặp lỗi này, không còn chặn tiến độ job.
+
 ## 9.28 — Sửa bước 6 của bản 9.27: "Chạy thử" KHÔNG đủ để bù dữ liệu 130/330 cũ
 
 **Người dùng báo cáo**: sau khi làm đủ 6 bước deploy bản 9.27 (kể cả bấm

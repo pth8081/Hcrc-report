@@ -29,6 +29,38 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 9.29 — SỬA LỖI THẬT: job Lịch sử (DSMART16_EOM) vẫn lỗi "trùng khoá UNIQUE" lặp lại, không tiến được
+
+**Theo báo cáo người dùng** (job Lịch sử đứng yên ở năm 2023, không lên
+tới 2024-2026) — tra `etl.SyncLog` thấy job lỗi lặp lại
+`Violation of UNIQUE KEY constraint 'UX_ReportFacts_Source_Domain_Entity_Date'`,
+mỗi lần 1 khoá khác nhau. Đã TRA TẬN NGUỒN (không đoán): bảng
+`STRANS_202105` có THẬT 2 dòng cùng `(TRANS_NUM, IDX)` nhưng QTY/AMOUNT
+khác nhau (vd 1 giao dịch bị sửa/điều chỉnh ghi thêm dòng mới ở nguồn thay
+vì UPDATE dòng cũ) — dedupeByBusinessKey() (bản 9.26) chỉ loại trùng
+TRONG ĐÚNG 1 lô trích xuất; 2 dòng trùng khoá nghiệp vụ này có thể rơi
+vào 2 LÔ KHÁC NHAU (OFFSET/FETCH không có tiêu chí sắp xếp phụ ổn định
+giữa các lượt SELECT riêng biệt) nên không bị loại, khiến MERGE báo lỗi
+và ROLLBACK NGUYÊN LÔ — job FAILED, không tiến thêm, lượt sau lại gặp
+y hệt (dữ liệu nguồn không đổi).
+
+- **`etl/lib/tableSyncEngine.js`**: thêm tiêu chí sắp xếp PHỤ (`keyCol`)
+  vào `ORDER BY` của `extractTable()` — 2 dòng cùng khoá nghiệp vụ luôn
+  đứng CẠNH NHAU, ổn định giữa các lượt gọi, giảm khả năng rơi vào 2 lô
+  khác nhau.
+- **`etl/lib/upsert.js`**: khi MERGE báo lỗi trùng khoá UNIQUE (SQL
+  2627/2601), KHÔNG còn coi là lỗi fatal — tự CHIA ĐÔI lô, thử lại riêng
+  từng nửa (đệ quy hội tụ dần); nếu chia tới đúng 1 dòng vẫn lỗi (dấu hiệu
+  chạy chồng với 1 lượt ghi khác), thử lại thêm đúng 1 lần. Tự phục hồi
+  được dù dữ liệu nguồn có bao nhiêu dòng trùng khoá, không cần biết trước
+  ở đâu.
+- Đã kiểm tra bằng mô phỏng (không cần CSDL thật) — xác nhận cơ chế chia
+  đôi hội tụ đúng, xử lý đủ mọi dòng kể cả khi có khoá trùng.
+
+**Không cần DBA chạy lại gì** — chỉ cần restart `etl` (data-fix, nạp code
+mới), job sẽ TỰ chạy tiếp từ watermark hiện tại (không mất tiến độ đã có),
+không còn bị kẹt lại ở lượt trùng khoá kế tiếp.
+
 ## 9.28 — Script bù dữ liệu 130/330 (watermark job `don_dat_hang` đã vượt qua các đơn cũ)
 
 **Theo báo cáo người dùng** — sau khi chạy 2 file VIEW bản 9.27 (thêm

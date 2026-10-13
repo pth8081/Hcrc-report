@@ -93,12 +93,22 @@ async function extractTable(connection, job, lastSyncedAt, pagination) {
     params.limit = pagination.limit;
   }
 
+  // ORDER BY kèm TIÊU CHÍ PHỤ keyCol (bản 9.29) — CHỈ sắp theo updatedCol
+  // (cột NGÀY, nhiều dòng trùng giá trị trong 1 ngày) khiến SQL Server
+  // KHÔNG đảm bảo thứ tự ổn định giữa các lượt OFFSET/FETCH riêng biệt
+  // (mỗi lô 1 câu SELECT mới, không phải 1 cursor giữ nguyên) — 2 dòng
+  // trùng mốc updatedCol có thể rơi vào 2 lô KHÁC NHAU tuỳ may rủi của kế
+  // hoạch truy vấn, dù dữ liệu nguồn không đổi giữa các lượt gọi. Thêm
+  // keyCol làm tiêu chí phụ giúp thứ tự ỔN ĐỊNH, LẶP LẠI ĐÚNG giữa các lượt
+  // gọi cùng tham số — đặc biệt QUAN TRỌNG khi 2 dòng CÙNG khoá nghiệp vụ
+  // (xem dedupeByBusinessKey() + isDuplicateKeyError() ở lib/upsert.js)
+  // luôn đứng CẠNH NHAU, giảm khả năng rơi vào 2 lô khác nhau.
   const sqlText = `
     SELECT ${selectParts.join(', ')}
     FROM ${q(mainSchema)}.${q(mainTable)} m
     ${joinClause}
     WHERE m.${q(updatedCol)} >= ${p('lastSyncedAt')}
-    ORDER BY m.${q(updatedCol)} ASC
+    ORDER BY m.${q(updatedCol)} ASC, m.${q(keyCol)} ASC
     ${paginationClause}
   `;
 

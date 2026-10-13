@@ -217,6 +217,33 @@ function dedupeByBusinessKey(rows) {
   return [...map.values()];
 }
 
+// Bản 9.29 — SỬA LỖI THẬT TIẾP: dedupeByBusinessKey() (bản 9.26) chỉ loại
+// trùng trong ĐÚNG 1 lô (rows truyền vào 1 lượt gọi upsertReportFacts()) —
+// job "Lịch sử" (DSMART16_EOM) VẪN lỗi lặp lại "Violation of UNIQUE KEY
+// constraint" (xác nhận qua log thật, 2 lượt chạy khác nhau, 2 khoá khác
+// nhau). Đã TRA TẬN NGUỒN (theo yêu cầu người dùng, kiểm chứng không đoán):
+// bảng nguồn STRANS_202105 (và khả năng cao MỌI bảng STRANS_YYYYMM khác)
+// tự nó CÓ SẴN 2 dòng THẬT cùng (TRANS_NUM, IDX) — vd TRANS_NUM
+// 004001332105000357 IDX=2 có 2 dòng, QTY/AMOUNT KHÁC NHAU (3.000/51000 vs
+// 8.000/56000) — nhiều khả năng là 1 giao dịch bị SỬA/ĐIỀU CHỈNH ở nguồn
+// ghi thêm dòng mới thay vì UPDATE dòng cũ. VIEW lịch sử UNION ALL ~93
+// bảng không lọc trùng này. 2 dòng trùng khoá nghiệp vụ đó CÓ THỂ rơi vào 2
+// LÔ KHÁC NHAU (OFFSET/FETCH không có tiêu chí sắp xếp phụ ổn định giữa
+// các lượt SELECT riêng biệt — xem chú thích ở tableSyncEngine.js) nên
+// dedupeByBusinessKey() của ĐÚNG lô đó không thấy được dòng kia.
+//
+// SỬA TẬN GỐC (không cần biết trước nguồn có bao nhiêu dòng trùng/ở đâu):
+// khi MERGE báo lỗi trùng khoá UNIQUE (2627/2601), THAY VÌ coi là lỗi fatal
+// làm rollback nguyên lô rồi ném ra ngoài (job FAILED, không tiến thêm) —
+// CHIA ĐÔI lô, thử lại TỪNG NỬA RIÊNG trong giao dịch riêng. Nếu 2 dòng
+// trùng khoá rơi vào 2 NỬA KHÁC NHAU, mỗi nửa tự MERGE thành công độc lập
+// (nửa xử lý trước INSERT, nửa xử lý sau thấy khoá đã có nên UPDATE, không
+// còn 2 dòng trùng khoá cùng 1 câu MERGE nữa) — tự đệ quy chia tiếp nếu 2
+// dòng trùng khoá tình cờ vẫn rơi cùng 1 nửa, hội tụ dần tới quy mô nhỏ.
+function isDuplicateKeyError(err) {
+  return err && (err.number === 2627 || err.number === 2601);
+}
+
 async function upsertReportFacts(pool, rows, { keepHistory = false } = {}) {
   if (!rows.length) return { inserted: 0, updated: 0 };
   const deduped = dedupeByBusinessKey(rows);
@@ -234,7 +261,7 @@ async function upsertReportFacts(pool, rows, { keepHistory = false } = {}) {
 
 // 1 lô ≤ ROWS_PER_TRANSACTION dòng, chạy TRỌN VẸN trong 1 transaction độc
 // lập — xem giải thích chia lô ở đầu file.
-async function upsertReportFactsChunk(pool, rows, { keepHistory = false } = {}) {
+async function upsertReportFactsChunk(pool, rows, { keepHistory = false, retriedSingleRow = false } = {}) {
   const setupSql = [CREATE_STAGING_SQL, ...buildStagingInsertBatches(rows)].join('\n');
 
   const tx = new sql.Transaction(pool);
@@ -272,8 +299,29 @@ async function upsertReportFactsChunk(pool, rows, { keepHistory = false } = {}) 
     };
   } catch (err) {
     await tx.rollback().catch(() => {});
+    // Chia đôi + thử lại riêng từng nửa khi lỗi trùng khoá UNIQUE — xem chú
+    // thích đầy đủ ở isDuplicateKeyError() phía trên.
+    if (isDuplicateKeyError(err) && rows.length > 1) {
+      const mid = Math.ceil(rows.length / 2);
+      const first = await upsertReportFactsChunk(pool, rows.slice(0, mid), { keepHistory });
+      const second = await upsertReportFactsChunk(pool, rows.slice(mid), { keepHistory });
+      return { inserted: first.inserted + second.inserted, updated: first.updated + second.updated };
+    }
+    // Chia tới đúng 1 dòng mà VẪN lỗi trùng khoá — không phải do rows
+    // truyền vào lần này tự trùng nhau nữa (chỉ còn 1 dòng), mà khoá đó ĐÃ
+    // CÓ SẴN trong target ngay lúc câu MERGE này chạy, dù ON clause lẽ ra
+    // phải thấy để UPDATE thay vì INSERT — dấu hiệu rõ nhất của 1 lượt GHI
+    // KHÁC (job này chạy chồng lên chính nó do bấm "Chạy thử" khi đang có
+    // lượt cron/lượt khác xử lý cùng khoá, hiếm nhưng có thể xảy ra) vừa
+    // commit ĐÚNG khoá này ở giữa chừng. Thử lại ĐÚNG 1 LẦN (không đệ quy
+    // vô hạn — retriedSingleRow chặn) — lượt thử lại chạy SAU khi lượt kia
+    // đã commit xong, MERGE lúc đó tự thấy khoá đã có, chuyển đúng sang
+    // UPDATE, không còn xung đột.
+    if (isDuplicateKeyError(err) && rows.length === 1 && !retriedSingleRow) {
+      return upsertReportFactsChunk(pool, rows, { keepHistory, retriedSingleRow: true });
+    }
     throw err;
   }
 }
 
-module.exports = { upsertReportFacts, shouldBlockHistoryWipe, STALE_HISTORY_SPAN_DAYS, buildStagingInsertBatches, ROWS_PER_TRANSACTION, dedupeByBusinessKey };
+module.exports = { upsertReportFacts, shouldBlockHistoryWipe, STALE_HISTORY_SPAN_DAYS, buildStagingInsertBatches, ROWS_PER_TRANSACTION, dedupeByBusinessKey, isDuplicateKeyError };
