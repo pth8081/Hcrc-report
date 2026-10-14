@@ -29,6 +29,20 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 9.37 — Thêm ô tìm kiếm người dùng ở trang Phân quyền (rp-user)
+
+**Theo yêu cầu người dùng** — trang Hệ thống → Phân quyền → tab "Người
+dùng" chỉ có danh sách dài, không có cách lọc nhanh khi cần tìm 1 người
+cụ thể để gán vai trò/quyền riêng.
+
+Thêm ô tìm kiếm phía trên bảng (`rp-user/src/modules/system/permissions/UsersPage.jsx`),
+lọc NGAY trên danh sách đã tải (không gọi lại API), khớp theo Username/Họ
+tên/Email/Phòng ban/Chức danh/Nơi làm việc, không phân biệt hoa thường và
+dấu tiếng Việt (vd gõ "linh" vẫn tìm ra "Linh", "Lính"...). Hiện kèm số
+dòng tìm thấy ("Tìm thấy X/Y người dùng") và nút "Xoá tìm kiếm".
+
+Chỉ sửa giao diện (frontend), không đổi API/CSDL.
+
 ## 9.36 — Báo cáo `bc-ton-kho-0`: thêm cột "Tồn kho hôm qua" + "Bán hôm nay"
 
 **Theo yêu cầu người dùng** — báo cáo "Top bán chạy đang tồn kho = 0" chỉ

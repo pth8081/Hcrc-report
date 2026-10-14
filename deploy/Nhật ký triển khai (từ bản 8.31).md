@@ -14,6 +14,15 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 9.37 — Thêm ô tìm kiếm người dùng ở trang Phân quyền (rp-user)
+
+**Thay đổi**: chỉ sửa `rp-user/src/modules/system/permissions/UsersPage.jsx`
+(giao diện, không đổi API/CSDL).
+
+**Các bước triển khai:**
+1. `git pull origin main`.
+2. Build lại `rp-user` (`npm run build`).
+
 ## 9.36 — Báo cáo bc-ton-kho-0: thêm cột "Tồn kho hôm qua" + "Bán hôm nay"
 
 **Thay đổi**: `rp-server/lib/topSellingZeroStockRunner.js` (backend —

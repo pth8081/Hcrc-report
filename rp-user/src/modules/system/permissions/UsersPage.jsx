@@ -12,6 +12,10 @@ export default function UsersPage() {
   const [users, setUsers] = useState([]);
   const [roles, setRoles] = useState([]);
   const [error, setError] = useState('');
+  // Ô tìm kiếm người dùng (theo yêu cầu người dùng) — lọc NGAY trên danh
+  // sách đã tải (không gọi lại API), khớp Username/Họ tên/Email/Phòng
+  // ban/Chức danh, không phân biệt hoa thường/dấu.
+  const [searchText, setSearchText] = useState('');
   const [form, setForm] = useState({ username: '', password: '', fullName: '', email: '' });
   const [editingRolesFor, setEditingRolesFor] = useState(null);
   const [selectedRoleIds, setSelectedRoleIds] = useState([]);
@@ -268,6 +272,15 @@ export default function UsersPage() {
     } catch (err) { setError(err.message); } finally { setClearingFallbackId(null); }
   }
 
+  function normalizeSearch(s) {
+    return (s || '').toString().normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  }
+  const searchKeyword = normalizeSearch(searchText);
+  const filteredUsers = searchKeyword
+    ? users.filter(u => [u.Username, u.FullName, u.Email, u.Department, u.Position, u.WorkLocation]
+        .some(field => normalizeSearch(field).includes(searchKeyword)))
+    : users;
+
   return (
     <div className="page">
       <h2>Người dùng</h2>
@@ -286,6 +299,16 @@ export default function UsersPage() {
         <input placeholder="Email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
         <button type="submit" disabled={creatingUser}>{creatingUser ? 'Đang thêm...' : 'Thêm người dùng'}</button>
       </form>
+
+      <div className="inline-form">
+        <input
+          placeholder="Tìm người dùng (Username/Họ tên/Email/Phòng ban...)"
+          value={searchText}
+          onChange={(e) => setSearchText(e.target.value)}
+        />
+        {searchText && <button type="button" onClick={() => setSearchText('')}>Xoá tìm kiếm</button>}
+      </div>
+      {searchText && <p className="form-hint">Tìm thấy {filteredUsers.length}/{users.length} người dùng.</p>}
 
       <DataTable
         columns={[
@@ -328,7 +351,7 @@ export default function UsersPage() {
             )
           }
         ]}
-        rows={users}
+        rows={filteredUsers}
       />
 
       {editingInfoFor && (
