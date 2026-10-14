@@ -4,7 +4,14 @@
 // ở đầu lib/compositeReportRunner.js); không khai columnGroups thì rơi về
 // bảng phẳng 1 dòng header như trước (không đổi hành vi báo cáo cũ).
 const ExcelJS = require('exceljs');
-const { resolveGroupColor, resolveRowFillColor, resolveStandaloneColumnColor, ZEBRA_COLOR, computeZebraFlags, computeSttValues } = require('./reportCellFormat');
+const {
+  resolveGroupColor, resolveRowFillColor, resolveStandaloneColumnColor, computeZebraFlags, computeSttValues,
+  GROUP_COLORS_CORPORATE, SUBTOTAL_COLOR_CORPORATE, GRAND_TOTAL_COLOR_CORPORATE, ZEBRA_COLOR_CORPORATE
+} = require('./reportCellFormat');
+// Bảng màu "kiểu báo cáo tài chính quốc tế" (theo yêu cầu người dùng) —
+// ÁP DỤNG CHO EXCEL (và web, xem rp-user/src/lib/reportGroupColors.js),
+// CHƯA áp dụng cho PDF/email (người dùng muốn review PDF riêng trước khi
+// chuyển luôn — xem chú thích GROUP_COLORS_CORPORATE ở lib/reportCellFormat.js).
 
 // Formula/CSV injection (OWASP): 1 ô bắt đầu bằng =, +, -, @ bị Excel/Sheets
 // hiểu thành CÔNG THỨC SỐNG khi người nhận mở file — dữ liệu này đến từ
@@ -107,7 +114,7 @@ function addReportSheet(workbook, definition, rows, sheetName) {
       const idxs = (g.keys || []).map(k => colIndexByKey.get(k)).filter(Boolean);
       if (!idxs.length) continue;
       const start = Math.min(...idxs), end = Math.max(...idxs);
-      const argb = resolveGroupColor(g.color);
+      const argb = resolveGroupColor(g.color, GROUP_COLORS_CORPORATE);
       sheet.mergeCells(r1, start, r1, end);
       const top = sheet.getCell(r1, start);
       top.value = g.label;
@@ -134,7 +141,7 @@ function addReportSheet(workbook, definition, rows, sheetName) {
       // standaloneColumnColors (bản 8.58) — tô HEADER riêng 1 cột đơn lẻ
       // không thuộc columnGroups nào (vd "Trung bình GD"), KHÔNG thêm dòng
       // tiêu đề nhóm phía trên như columnGroups thật.
-      const standaloneColor = resolveStandaloneColumnColor(col, definition.standaloneColumnColors);
+      const standaloneColor = resolveStandaloneColumnColor(col, definition.standaloneColumnColors, GROUP_COLORS_CORPORATE);
       if (standaloneColor) cell.fill = fillArgb(standaloneColor);
     });
     for (let c = 1; c <= colCount; c++) {
@@ -200,12 +207,12 @@ function addReportSheet(workbook, definition, rows, sheetName) {
       // THƯỜNG (không phải Tổng cộng) xen kẽ màu zebra (bản 8.58) — CHỈ áp
       // dụng báo cáo có columnGroups (groups.length), không đổi báo cáo
       // phẳng cũ.
-      const fillColor = resolveRowFillColor(row, col, groups);
+      const fillColor = resolveRowFillColor(row, col, groups, GROUP_COLORS_CORPORATE, SUBTOTAL_COLOR_CORPORATE, GRAND_TOTAL_COLOR_CORPORATE);
       if (fillColor) {
         cell.fill = fillArgb(fillColor);
         cell.font = groups.length ? { size: DATA_FONT_SIZE, bold: true } : { bold: true };
       } else if (zebraFlags[rIdx]) {
-        cell.fill = fillArgb(ZEBRA_COLOR);
+        cell.fill = fillArgb(ZEBRA_COLOR_CORPORATE);
       }
     });
   });

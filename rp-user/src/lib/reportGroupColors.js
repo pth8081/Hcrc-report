@@ -1,27 +1,23 @@
-// lib/reportGroupColors.js — MIRROR đúng rp-server/lib/reportCellFormat.js
-// (GROUP_COLORS/SUBTOTAL_COLOR/GRAND_TOTAL_COLOR/ZEBRA_COLOR/resolveRowFillColor/
-// resolveStandaloneColumnColor) để bảng báo cáo trên web tô MÀU KHỚP HỆT
-// Excel/PDF đã xuất, không rẽ 2 bảng màu khác nhau. definition.columnGroups
-// khai tên màu (vd "green") hoặc mã HEX 6 ký tự tự chọn — không khớp cái
-// nào thì rơi về "gray" (an toàn, không vỡ giao diện).
+// lib/reportGroupColors.js — MIRROR bảng màu web cho bảng báo cáo — tách
+// RIÊNG khỏi rp-server/lib/reportCellFormat.js (GROUP_COLORS, bản PDF/email
+// gốc) kể từ bản đổi màu "kiểu báo cáo tài chính quốc tế" dưới đây.
+// definition.columnGroups khai tên màu (vd "green") hoặc mã HEX 6 ký tự tự
+// chọn — không khớp cái nào thì rơi về "gray" (an toàn, không vỡ giao diện).
 //
-// Bản 8.58 (theo yêu cầu người dùng — xem chú thích đầy đủ ở bản gốc
-// rp-server/lib/reportCellFormat.js): đổi mã màu theo ĐÚNG file mẫu
-// BRGMART người dùng gửi (đã giảm bớt độ chói cho "sắc, mỏng, chuyên
-// nghiệp hơn"), thêm GRAND_TOTAL_COLOR (dòng Tổng cộng toàn báo cáo, đồng
-// nhất 1 màu) + ZEBAR_COLOR (xen kẽ dòng thường) + resolveRowFillColor()
-// (dòng Tổng cộng/Tổng cộng nhóm giữ màu CỦA NHÓM, không phải 1 màu phẳng
-// như trước) + resolveStandaloneColumnColor() (tô màu 1 cột đơn lẻ không
-// thuộc nhóm nào, vd "Trung bình GD"). Bản 8.98 (theo yêu cầu người dùng —
-// ĐỔI LẠI đúng màu gốc file mẫu, không giảm bão hoà nữa) — mirror đúng
-// rp-server/lib/reportCellFormat.js (xem chú thích đầy đủ ở đó).
+// Bản đổi màu CORPORATE (theo yêu cầu người dùng — xem demo PDF đã gửi
+// trước khi áp dụng): web + Excel (lib/reportCellFormat.js:GROUP_COLORS_CORPORATE)
+// dùng bảng xanh navy nhạt/vàng đồng/xám THỐNG NHẤT 1 họ màu, thay cho
+// bảng xanh lá/vàng/cam/tím sặc sỡ kiểu bán lẻ trước đây — PDF/email CHƯA
+// đổi (người dùng muốn review riêng PDF trước, báo khi nào chuyển).
+// Lịch sử trước đó (bản 8.58/8.98) đổi qua đổi lại màu gốc — xem lịch sử ở
+// rp-server/lib/reportCellFormat.js nếu cần đối chiếu.
 const GROUP_COLORS = {
-  green: '#9BCC1E', yellow: '#F9CE27', orange: '#FACD9C',
-  blue: '#BDD7EE', red: '#F2A9A9', gray: '#D9D9D9', purple: '#9D98FD'
+  green: '#C9D6E0', yellow: '#D7DCE3', orange: '#E3D5B8',
+  blue: '#9FB3C8', red: '#E3B8B5', gray: '#E0E0E0', purple: '#C3CEDC'
 };
 export const SUBTOTAL_COLOR = GROUP_COLORS.purple;
 export const GRAND_TOTAL_COLOR = GROUP_COLORS.blue;
-export const ZEBRA_COLOR = '#D1FEFF';
+export const ZEBRA_COLOR = '#F3F5F7';
 
 export function resolveGroupColor(color) {
   if (color && /^[0-9a-fA-F]{6}$/.test(color)) return `#${color.toUpperCase()}`;

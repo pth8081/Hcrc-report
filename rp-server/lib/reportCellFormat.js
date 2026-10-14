@@ -44,11 +44,31 @@ const GRAND_TOTAL_COLOR = GROUP_COLORS.blue;
 // DataTable.jsx/exportExcel.js/exportPdf.js.
 const ZEBRA_COLOR = 'D1FEFF';
 
+// Bảng màu MỚI "kiểu báo cáo tài chính quốc tế" (theo yêu cầu người dùng —
+// xem demo PDF đã gửi trước khi áp dụng) — CHỈ áp dụng cho Excel + web lúc
+// này; PDF/email GIỮ NGUYÊN bảng màu gốc ở trên cho tới khi người dùng xác
+// nhận chuyển luôn (người dùng nói rõ "mình cần review trước khi mình
+// chuyển sau, lúc nào mình chuyển thì mình bảo bạn") — xem
+// resolveGroupColor()/resolveRowFillColor()/resolveStandaloneColumnColor()
+// bên dưới nhận tham số `palette` tuỳ chọn, mặc định dùng bảng GỐC (PDF/
+// email không đổi gì), lib/exportExcel.js truyền rõ bảng CORPORATE này.
+// rp-user/src/lib/reportGroupColors.js (web) mirror TRỰC TIẾP các giá trị
+// hex dưới đây (không cần cơ chế palette vì file đó chỉ phục vụ web).
+const GROUP_COLORS_CORPORATE = {
+  green: 'C9D6E0', yellow: 'D7DCE3', orange: 'E3D5B8',
+  blue: '9FB3C8', red: 'E3B8B5', gray: 'E0E0E0', purple: 'C3CEDC'
+};
+const SUBTOTAL_COLOR_CORPORATE = GROUP_COLORS_CORPORATE.purple;
+const GRAND_TOTAL_COLOR_CORPORATE = GROUP_COLORS_CORPORATE.blue;
+const ZEBRA_COLOR_CORPORATE = 'F3F5F7';
+
 // Tên màu có sẵn (khớp đúng bảng trên), hoặc mã HEX 6 ký tự tự chọn (vd
 // "FFAA00") — không khớp cái nào thì rơi về "gray" (an toàn, không throw).
-function resolveGroupColor(color) {
+// `palette` TUỲ CHỌN — mặc định GROUP_COLORS (gốc, PDF/email đang dùng),
+// truyền GROUP_COLORS_CORPORATE để lấy bảng màu mới (Excel/web).
+function resolveGroupColor(color, palette = GROUP_COLORS) {
   if (color && /^[0-9a-fA-F]{6}$/.test(color)) return color.toUpperCase();
-  return GROUP_COLORS[color] || GROUP_COLORS.gray;
+  return palette[color] || palette.gray;
 }
 
 // Màu nền 1 Ô trong dòng "Tổng cộng"/"Tổng cộng <nhóm>" (row.__isSubtotal —
@@ -56,15 +76,16 @@ function resolveGroupColor(color) {
 // THUỘC 1 columnGroups nào đó GIỮ NGUYÊN màu của nhóm đó (không có màu
 // "đậm hơn" riêng cho dòng tổng — file mẫu dùng lại chính xác màu header);
 // cột KHÔNG thuộc nhóm nào (TT/Siêu thị/Diện tích/cột đơn lẻ như "Trung
-// bình GD") dùng chung SUBTOTAL_COLOR (tím); dòng TỔNG TOÀN BÁO CÁO
-// (__isGrandTotal) ĐỒNG NHẤT 1 màu GRAND_TOTAL_COLOR cho MỌI cột, không
+// bình GD") dùng chung subtotalColor (tím); dòng TỔNG TOÀN BÁO CÁO
+// (__isGrandTotal) ĐỒNG NHẤT 1 màu grandTotalColor cho MỌI cột, không
 // phân biệt nhóm. Trả về null nếu row không phải dòng tổng (không tô gì —
-// nơi gọi tự quyết định có tô zebar hay để trắng).
-function resolveRowFillColor(row, col, groups) {
+// nơi gọi tự quyết định có tô zebar hay để trắng). 3 tham số cuối TUỲ
+// CHỌN, mặc định bảng gốc — truyền bộ *_CORPORATE để dùng bảng mới.
+function resolveRowFillColor(row, col, groups, palette = GROUP_COLORS, subtotalColor = SUBTOTAL_COLOR, grandTotalColor = GRAND_TOTAL_COLOR) {
   if (!row || !row.__isSubtotal) return null;
-  if (row.__isGrandTotal) return GRAND_TOTAL_COLOR;
+  if (row.__isGrandTotal) return grandTotalColor;
   const group = (groups || []).find(g => (g.keys || []).includes(col.key));
-  return group ? resolveGroupColor(group.color) : SUBTOTAL_COLOR;
+  return group ? resolveGroupColor(group.color, palette) : subtotalColor;
 }
 
 // Màu nền HEADER cho 1 CỘT ĐƠN LẺ không thuộc columnGroups nào (rowSpan 2,
@@ -72,10 +93,11 @@ function resolveRowFillColor(row, col, groups) {
 // dòng tiêu đề nhóm riêng phía trên như "Doanh thu"/"Giao dịch", khác hẳn
 // cơ chế columnGroups vốn LUÔN vẽ 2 dòng tiêu đề). Khai ở
 // definition.standaloneColumnColors = {colKey: 'tên màu'} (TUỲ CHỌN — không
-// khai thì cột đó giữ nền trắng như trước bản 8.58).
-function resolveStandaloneColumnColor(col, standaloneColumnColors) {
+// khai thì cột đó giữ nền trắng như trước bản 8.58). `palette` TUỲ CHỌN,
+// mặc định bảng gốc.
+function resolveStandaloneColumnColor(col, standaloneColumnColors, palette = GROUP_COLORS) {
   const name = (standaloneColumnColors || {})[col.key];
-  return name ? resolveGroupColor(name) : null;
+  return name ? resolveGroupColor(name, palette) : null;
 }
 
 // Cờ xen kẽ (zebra) cho TỪNG DÒNG trong rows — DÙNG CHUNG cho cả 3 nơi xuất
@@ -157,6 +179,7 @@ function filterGroups(groups, columns) {
 
 module.exports = {
   GROUP_COLORS, SUBTOTAL_COLOR, GRAND_TOTAL_COLOR, ZEBRA_COLOR,
+  GROUP_COLORS_CORPORATE, SUBTOTAL_COLOR_CORPORATE, GRAND_TOTAL_COLOR_CORPORATE, ZEBRA_COLOR_CORPORATE,
   resolveGroupColor, resolveRowFillColor, resolveStandaloneColumnColor, computeZebraFlags,
   computeSttValues, formatCellText, filterColumns, filterGroups
 };
