@@ -265,6 +265,22 @@ const { runApiReport } = require('./apiReportClient');
 const { evaluateFormula, extractFieldPaths } = require('./formulaEngine');
 const { runSalesTargetsBlockRange } = require('./salesTargetsReader');
 const { loadDiemStkMapping, remapRowsToDiem, stkListsMatch, buildBuIdLookup } = require('./diemStkMapping');
+const { computeSttValues } = require('./reportCellFormat');
+
+// Gán cột "TT" (key 'stt') NGAY TRONG rows trả về — TRƯỚC ĐÂY chỉ tính lúc
+// xuất Excel/PDF/email (lib/reportCellFormat.js:computeSttValues(), gọi
+// riêng ở lib/exportExcel.js/lib/exportPdf.js/lib/emailBodyRenderer.js),
+// nên bảng xem TRÊN WEB (cả trang Báo cáo lẫn từng ô Dashboard — cùng gọi
+// POST /reports/:id/run, xem routes/reports.js/modules/dashboard/DashboardTile.jsx)
+// luôn hiện cột "TT" TRỐNG — người dùng báo lỗi này (xem VERSION.md). Gọi
+// ĐÚNG 1 hàm dùng chung ở đây (nguồn trả JSON cho MỌI nơi tiêu thụ) để 4 nơi
+// (web/Excel/PDF/email) LUÔN khớp số nhau tuyệt đối, không tính riêng rẽ.
+function assignSttIfPresent(rows, columns) {
+  if (!columns.some(c => c.key === 'stt')) return rows;
+  const sttValues = computeSttValues(rows);
+  rows.forEach((r, i) => { r.stt = sttValues[i]; });
+  return rows;
+}
 
 function formatDateISO(d) {
   return d.toISOString().slice(0, 10);
@@ -824,7 +840,8 @@ async function runCompositeReport(definition, filterValues = {}) {
   }
 
   if (!definition.groupBy) {
-    return { columns, rows: mergedRows.map(r => projectCompositeRow(r, visibleColumns)), warnings, columnGroups: definition.columnGroups || null, standaloneColumnColors: definition.standaloneColumnColors || null };
+    const flatRows = assignSttIfPresent(mergedRows.map(r => projectCompositeRow(r, visibleColumns)), columns);
+    return { columns, rows: flatRows, warnings, columnGroups: definition.columnGroups || null, standaloneColumnColors: definition.standaloneColumnColors || null };
   }
 
   const { field, groups = [], grandTotalLabel, labelColumn, sortBy } = definition.groupBy;
@@ -866,6 +883,7 @@ async function runCompositeReport(definition, filterValues = {}) {
   grandRow.__isSubtotal = true;
   grandRow.__isGrandTotal = true;
   rows.push(grandRow);
+  assignSttIfPresent(rows, columns);
 
   // columnGroups (bản 8.53) — xem chú thích ở lib/reportRunner.js, cùng lý
   // do an toàn để lộ.
