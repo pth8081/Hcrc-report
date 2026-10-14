@@ -29,6 +29,22 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 9.35 — Sửa tài liệu `bc-ton-kho-0.md`: VIEW tồn kho dùng đúng bảng `STK_INFO` (DBA xác nhận)
+
+**Theo thực tế triển khai + DBA xác nhận** — bảng `DSTK_INFO` (VIEW tồn
+kho mẫu ban đầu) TRỐNG HOÀN TOÀN ở hệ thống thật, không phải lỗi, chỉ là
+CSDL đó không dùng bảng này. Tra lại + DBA xác nhận bảng tồn kho THẬT là
+`STK_INFO` (kiểu sổ cái luỹ kế, không có cột ngày snapshot sẵn) — công
+thức DBA xác nhận: `SL tồn cuối = M_BEGIN + M_IMP - M_EXP`.
+
+Đã cập nhật VIEW mẫu `vw_TonKhoTheoSKU` dùng `STK_INFO` + công thức trên,
+`EventDate = GETDATE()` (tự xây lịch sử theo ngày qua các lần đồng bộ
+hàng ngày, vì nguồn không có sẵn lịch sử). Giữ lại mẫu `DSTK_INFO` cũ làm
+phương án dự phòng (ghi rõ điều kiện dùng — chỉ khi bảng đó thật sự có
+dữ liệu).
+
+Chỉ sửa tài liệu, không đổi code.
+
 ## 9.34 — Sửa tài liệu `bc-ton-kho-0.md`: thêm `GO`/`CREATE OR ALTER` + hướng dẫn đối chiếu TRANS_CODE
 
 **Theo thực tế triển khai với người dùng** — 2 câu `CREATE VIEW` ở Bước 1

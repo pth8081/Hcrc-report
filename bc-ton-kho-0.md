@@ -85,17 +85,52 @@ GROUP BY s.STK_ID, st.STK_NAME_U, s.SKU_ID, k.SKU_CODE, k.FULL_NAME_U, CAST(s.TR
 GO
 ```
 
-**VIEW tồn kho theo SKU** — nguồn `DSTK_INFO` đã có sẵn 1 dòng/chi nhánh/mặt
-hàng/ngày, không cần `GROUP BY`:
+**VIEW tồn kho theo SKU:**
+
+‼️ **CẬP NHẬT 14/10/2026** — bảng `DSTK_INFO` (mẫu ban đầu bên dưới giả định
+có sẵn 1 dòng/chi nhánh/mặt hàng/ngày) **TRỐNG HOÀN TOÀN** ở hệ thống thật
+đã triển khai — không phải lỗi, chỉ là CSDL đó không dùng bảng này để lưu
+tồn kho. Đã TRA LẠI + DBA XÁC NHẬN: bảng tồn kho THẬT là **`STK_INFO`**
+(kiểu "sổ cái luỹ kế", KHÔNG có cột ngày snapshot từng ngày như
+`DSTK_INFO`) — công thức DBA xác nhận:
+```
+SL tồn cuối   = M_BEGIN + M_IMP - M_EXP
+Giá trị tồn cuối = M_BEGAMT + M_IMPAMT - M_EXPAMT   (nếu cần, báo cáo này chưa dùng)
+```
+Vì `STK_INFO` không có cột ngày lịch sử sẵn, VIEW lấy số dư TẠI THỜI ĐIỂM
+đồng bộ (`GETDATE()`) làm `EventDate` — hệ thống TỰ xây lịch sử theo ngày
+qua các lần chạy job hàng ngày (BẮT BUỘC bật "Giữ lịch sử theo ngày"), chứ
+KHÔNG đọc được lịch sử có sẵn trong nguồn (không có).
+
+```sql
+CREATE OR ALTER VIEW dbo.vw_TonKhoTheoSKU AS
+SELECT
+    d.STK_ID + '_' + CAST(d.SKU_ID AS VARCHAR(50)) AS MaThucThe,
+    d.STK_ID     AS MaChiNhanh,
+    st.STK_NAME_U  AS TenChiNhanh,  -- STK_NAME_U (Unicode) chứ KHÔNG phải STK_NAME (lỗi font)
+    k.SKU_CODE   AS MaHangHienThi,
+    k.FULL_NAME_U  AS TenHang,  -- FULL_NAME_U (Unicode) chứ KHÔNG phải FULL_NAME (lỗi font, xem "giá vốn dsmart.md")
+    CAST(GETDATE() AS DATE) AS EventDate,
+    (d.M_BEGIN + d.M_IMP - d.M_EXP) AS SoLuongTon,  -- DBA xác nhận: SL tồn cuối
+    GETDATE() AS UpdatedAt
+FROM dbo.STK_INFO d
+JOIN dbo.SKU_DEF k ON k.SKU_ID = d.SKU_ID
+JOIN dbo.STOCK st ON st.STK_ID = d.STK_ID;
+GO
+```
+
+Nếu CSDL khác lại CÓ `DSTK_INFO` với dữ liệu thật (đã có sẵn lịch sử theo
+ngày) — dùng mẫu CŨ bên dưới thay vì bản trên (kiểm tra bằng
+`SELECT COUNT(*) FROM dbo.DSTK_INFO;` trước, >0 dòng mới dùng mẫu này):
 
 ```sql
 CREATE OR ALTER VIEW dbo.vw_TonKhoTheoSKU AS
 SELECT
     d.STK_ID + '_' + CAST(d.SKU_ID AS VARCHAR(50)) AS MaThucThe,
     d.STK_ID    AS MaChiNhanh,
-    st.STK_NAME_U AS TenChiNhanh,  -- STK_NAME_U (Unicode) chứ KHÔNG phải STK_NAME (lỗi font)
+    st.STK_NAME_U AS TenChiNhanh,
     k.SKU_CODE  AS MaHangHienThi,
-    k.FULL_NAME_U AS TenHang,  -- FULL_NAME_U (Unicode) chứ KHÔNG phải FULL_NAME (lỗi font, xem "giá vốn dsmart.md")
+    k.FULL_NAME_U AS TenHang,
     d.WORK_DATE AS EventDate,
     d.STOCK_QTY AS SoLuongTon,
     d.WORK_DATE AS UpdatedAt
@@ -105,7 +140,9 @@ JOIN dbo.STOCK st ON st.STK_ID = d.STK_ID;
 GO
 ```
 
-(Đổi tên bảng/cột đúng CSDL thật nếu khác cấu trúc DSMART16 chuẩn.)
+(Đổi tên bảng/cột đúng CSDL thật nếu khác cấu trúc DSMART16 chuẩn — luôn
+kiểm tra `SELECT TOP 5 * FROM <VIEW>;` ra dữ liệu thật trước khi coi là
+xong, xem hướng dẫn đối chiếu ở trên.)
 
 **Kiểm tra VIEW có dữ liệu THẬT trước khi qua Bước 2** — `CREATE VIEW`
 chạy "thành công" chỉ xác nhận cú pháp đúng, KHÔNG xác nhận mã `TRANS_CODE`

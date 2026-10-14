@@ -14,6 +14,11 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 9.35 — Sửa tài liệu bc-ton-kho-0.md: VIEW tồn kho dùng đúng bảng STK_INFO
+
+**Thay đổi**: chỉ sửa `bc-ton-kho-0.md` — không có bước triển khai server
+nào, chỉ `git pull`.
+
 ## 9.34 — Sửa tài liệu bc-ton-kho-0.md
 
 **Thay đổi**: chỉ sửa `bc-ton-kho-0.md` (tài liệu), không đổi code —
