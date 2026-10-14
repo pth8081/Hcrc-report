@@ -29,6 +29,24 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 9.36 — Báo cáo `bc-ton-kho-0`: thêm cột "Tồn kho hôm qua" + "Bán hôm nay"
+
+**Theo yêu cầu người dùng** — báo cáo "Top bán chạy đang tồn kho = 0" chỉ
+hiện kết quả cuối (`Tồn kho hiện tại`), người xem không tự đối chiếu được
+vì sao ra đúng số đó. Thêm 2 cột hiển thị mới, lộ rõ 2 số đầu vào của công
+thức `Tồn kho hiện tại = Tồn kho hôm qua − Bán hôm nay`:
+- **Tồn kho hôm qua** — tồn kho snapshot gần nhất TRƯỚC hôm nay (nguồn
+  giống số đang dùng để tính, không đổi logic tính).
+- **Bán hôm nay** — số lượng bán ĐÚNG hôm nay (CỐ Ý khác cột "Số lượng
+  bán (trong kỳ)" đã có — cột đó theo "Khoảng thời gian xếp hạng" người
+  dùng chọn, có thể 7/30 ngày; công thức tồn kho luôn dùng đúng hôm nay
+  bất kể chọn khoảng nào).
+
+Chỉ thêm cột hiển thị, KHÔNG đổi công thức tính `estimatedStock` hiện có,
+KHÔNG đổi CSDL. Sửa `rp-server/lib/topSellingZeroStockRunner.js` (thêm 2
+cột trong `describeColumns()` + gán giá trị khi build dòng) và tài liệu
+`bc-ton-kho-0.md` (mục "Cột hiển thị CỐ ĐỊNH").
+
 ## 9.35 — Sửa tài liệu `bc-ton-kho-0.md`: VIEW tồn kho dùng đúng bảng `STK_INFO` (DBA xác nhận)
 
 **Theo thực tế triển khai + DBA xác nhận** — bảng `DSTK_INFO` (VIEW tồn

@@ -78,6 +78,15 @@ function describeColumns(definition) {
     { key: 'maHang', label: 'Mã hàng', width: 0.8 },
     { key: 'tenHang', label: 'Tên hàng', width: 1.6 },
     { key: 'soLuongBan', label: 'Số lượng bán (trong kỳ)', width: 1 },
+    // tonKhoHomQua/soLuongBanHomNay (bản 9.36, theo yêu cầu người dùng) —
+    // hiện rõ 2 số dùng để TÍNH tonKho (Tồn hôm qua − Bán hôm nay = Tồn
+    // hiện tại), để người xem tự đối chiếu được phép tính thay vì chỉ thấy
+    // kết quả cuối — CỐ Ý tách riêng "Bán hôm nay" với "soLuongBan" ở trên
+    // (số đó theo rankWindow người dùng chọn, có thể là 7/30 ngày, KHÔNG
+    // phải số dùng trong công thức tồn kho — công thức LUÔN dùng đúng hôm
+    // nay, xem resolveDateRange()/bước 3 ở runTopZeroStockReport()).
+    { key: 'tonKhoHomQua', label: 'Tồn kho hôm qua', width: 1 },
+    { key: 'soLuongBanHomNay', label: 'Bán hôm nay', width: 1 },
     { key: 'tonKho', label: 'Tồn kho hiện tại', width: 1 }
   ];
   if (definition.pendingSupplierDomain) columns.push({ key: 'choNhapNCC', label: 'Chờ nhập (NCC)', width: 1 });
@@ -180,6 +189,8 @@ async function runTopZeroStockReport(definition, filterValues = {}) {
       maHang: row.SkuCode,
       tenHang: row.ItemName,
       soLuongBan: row.QtySold,
+      tonKhoHomQua: yesterdayStock,
+      soLuongBanHomNay: todaySales,
       tonKho: estimatedStock,
       ...(definition.pendingSupplierDomain ? { choNhapNCC: pendingSupplierByEntity.get(row.EntityCode) ?? null } : {}),
       ...(definition.pendingTransferDomain ? { choNhapDieuChuyen: pendingTransferByEntity.get(row.EntityCode) ?? null } : {}),

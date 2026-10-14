@@ -327,9 +327,15 @@ Muốn đổi `topN`/`threshold` hoặc tên domain khác mặc định: sửa t
 rp-user (Hệ thống → Biểu mẫu) hoặc sửa script rồi chạy lại.
 
 Cột hiển thị CỐ ĐỊNH: Chi nhánh, Mã hàng, Tên hàng, Số lượng bán (trong
-kỳ), Tồn kho hiện tại — cộng thêm 4 cột "Chờ nhập"/"Đã nhập" ở Bước 2b nếu
-đã khai domain tương ứng (bỏ trống domain nào thì cột đó không hiện, không
-bắt buộc khai đủ cả 4).
+kỳ), **Tồn kho hôm qua**, **Bán hôm nay**, Tồn kho hiện tại — 2 cột in đậm
+(bản 9.36, theo yêu cầu người dùng) hiện rõ 2 số dùng để TÍNH ra "Tồn kho
+hiện tại" (= Tồn kho hôm qua − Bán hôm nay), để người xem tự đối chiếu
+được phép tính thay vì chỉ thấy kết quả cuối — CỐ Ý tách riêng "Bán hôm
+nay" với "Số lượng bán (trong kỳ)" ở trên (cột đó theo "Khoảng thời gian
+xếp hạng" người xem chọn, có thể là 7/30 ngày — KHÁC "Bán hôm nay", công
+thức tồn kho LUÔN dùng đúng hôm nay bất kể chọn khoảng nào). Cộng thêm 4
+cột "Chờ nhập"/"Đã nhập" ở Bước 2b nếu đã khai domain tương ứng (bỏ trống
+domain nào thì cột đó không hiện, không bắt buộc khai đủ cả 4).
 
 ## Bước 4 — Gán quyền xem
 

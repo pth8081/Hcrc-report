@@ -14,6 +14,21 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 9.36 — Báo cáo bc-ton-kho-0: thêm cột "Tồn kho hôm qua" + "Bán hôm nay"
+
+**Thay đổi**: `rp-server/lib/topSellingZeroStockRunner.js` (backend —
+chỉ thêm 2 cột hiển thị, không đổi công thức/CSDL) + tài liệu
+`bc-ton-kho-0.md`.
+
+**Các bước triển khai:**
+1. `git pull origin main`.
+2. Khởi động lại `rp-server` (`pm2 restart hcrc-rp-server` hoặc tương
+   đương — route/logic chạy trong tiến trình Node, cần nạp lại code).
+3. Kiểm tra: mở lại báo cáo "Top bán chạy đang tồn kho = 0" → phải thấy
+   thêm 2 cột "Tồn kho hôm qua" và "Bán hôm nay" trước cột "Tồn kho hiện
+   tại", đúng công thức `Tồn kho hiện tại = Tồn kho hôm qua − Bán hôm
+   nay`.
+
 ## 9.35 — Sửa tài liệu bc-ton-kho-0.md: VIEW tồn kho dùng đúng bảng STK_INFO
 
 **Thay đổi**: chỉ sửa `bc-ton-kho-0.md` — không có bước triển khai server
