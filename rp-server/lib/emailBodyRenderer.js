@@ -36,9 +36,13 @@
 // không tô (nền trắng).
 const {
   resolveGroupColor, resolveRowFillColor, resolveStandaloneColumnColor,
-  ZEBRA_COLOR, computeZebraFlags, computeSttValues, formatCellText,
-  filterColumns, filterGroups
+  computeZebraFlags, computeSttValues, formatCellText,
+  filterColumns, filterGroups,
+  GROUP_COLORS_CORPORATE, SUBTOTAL_COLOR_CORPORATE, GRAND_TOTAL_COLOR_CORPORATE, ZEBRA_COLOR_CORPORATE
 } = require('./reportCellFormat');
+// Bảng màu "kiểu báo cáo tài chính quốc tế" (theo yêu cầu người dùng) —
+// ÁP DỤNG CHO EMAIL luôn (cùng bộ màu với Excel/web) — xem chú thích đầy đủ
+// ở lib/reportCellFormat.js:GROUP_COLORS_CORPORATE. PDF CHƯA đổi.
 
 // Viền — bản 8.58 dùng viền nhạt cho MỌI báo cáo gửi email dạng bảng.
 // Bản 8.98 (theo yêu cầu người dùng — "đóng khung màu đen như bản mẫu")
@@ -83,7 +87,7 @@ function buildGroupedHeaderRows(columns, groups, standaloneColumnColors) {
     const idxs = (g.keys || []).map(k => colIndexByKey.get(k)).filter(i => i !== undefined);
     if (!idxs.length) continue; // cả nhóm bị lọc hết (bodyColumnKeys bỏ hết cột thuộc nhóm này) -> bỏ qua nhóm
     const start = Math.min(...idxs), end = Math.max(...idxs);
-    const argb = resolveGroupColor(g.color);
+    const argb = resolveGroupColor(g.color, GROUP_COLORS_CORPORATE);
     topRow[start] = { label: g.label, colSpan: end - start + 1, color: argb };
     for (let c = start; c <= end; c++) {
       covered.add(c);
@@ -97,7 +101,7 @@ function buildGroupedHeaderRows(columns, groups, standaloneColumnColors) {
   columns.forEach((col, i) => {
     if (covered.has(i)) return;
     standaloneRowSpan[i] = true;
-    const standaloneColor = resolveStandaloneColumnColor(col, standaloneColumnColors);
+    const standaloneColor = resolveStandaloneColumnColor(col, standaloneColumnColors, GROUP_COLORS_CORPORATE);
     topRow[i] = { label: col.label, colSpan: 1, color: standaloneColor, rowSpan: 2 };
   });
 
@@ -156,9 +160,9 @@ function renderEmailBodyHtml(definition, rows, options = {}) {
       if (highlighted) {
         style += 'color:#C00000;font-weight:bold;background:#FDE8E8;';
       } else {
-        const fillColor = resolveRowFillColor(row, col, groups);
+        const fillColor = resolveRowFillColor(row, col, groups, GROUP_COLORS_CORPORATE, SUBTOTAL_COLOR_CORPORATE, GRAND_TOTAL_COLOR_CORPORATE);
         if (fillColor) style += `background:#${fillColor};font-weight:bold;`;
-        else if (zebraFlags[rIdx]) style += `background:#${ZEBRA_COLOR};`;
+        else if (zebraFlags[rIdx]) style += `background:#${ZEBRA_COLOR_CORPORATE};`;
       }
       return `<td style="${style}">${escapeHtml(text)}</td>`;
     }).join('');
