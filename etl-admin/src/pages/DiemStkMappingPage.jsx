@@ -41,6 +41,7 @@ export default function DiemStkMappingPage() {
   const [downloadingExport, setDownloadingExport] = useState(false);
   const [savingEdit, setSavingEdit] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
+  const [togglingActiveId, setTogglingActiveId] = useState(null);
   // Chọn nhiều + xoá hàng loạt (bản 8.62).
   const selection = useRowSelection(row => row.id);
   const [bulkDeleting, setBulkDeleting] = useState(false);
@@ -99,6 +100,23 @@ export default function DiemStkMappingPage() {
       setEditConflicts(err.data?.conflicts || []);
     } finally {
       setSavingEdit(false);
+    }
+  }
+
+  // Khoá/Kích hoạt (theo yêu cầu người dùng) — KHÔNG xoá dữ liệu, chỉ bật
+  // tắt IsActive. Dòng đang khoá bị rp-server bỏ qua hẳn (coi như không có
+  // trong bảng ánh xạ, hiệu ứng với báo cáo y hệt xoá), nhưng vẫn giữ
+  // nguyên cấu hình ở đây để bấm "Kích hoạt" dùng lại ngay, không cần khai
+  // lại từ đầu.
+  async function toggleActive(row) {
+    setTogglingActiveId(row.id);
+    try {
+      await api.put(`/diem-stk-mapping/${row.id}/active`, { isActive: !row.isActive });
+      reload();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setTogglingActiveId(null);
     }
   }
 
@@ -214,6 +232,13 @@ export default function DiemStkMappingPage() {
         thống tự kiểm tra, phát hiện trùng (kể cả trùng với dữ liệu đã lưu của mã Điểm khác) sẽ
         <strong> HUỶ TOÀN BỘ lượt nhập</strong>, không lưu dòng nào, để tránh cộng trùng doanh thu.
       </p>
+      <p>
+        Nút <strong>"Khoá"</strong>/<strong>"Kích hoạt"</strong> — dùng khi mã Điểm đã khai cấu
+        hình xong nhưng CHƯA muốn hiện trong báo cáo (vd khai trước cho siêu thị sắp mở): bấm
+        "Khoá" để báo cáo coi như KHÔNG CÓ dòng ánh xạ này (giống hệt bấm "Xoá"), nhưng cấu hình
+        (MaStkCu/MaStkMoi/BuId/...) vẫn được GIỮ NGUYÊN ở đây — bấm "Kích hoạt" là có lại ngay,
+        không cần khai lại từ đầu như khi lỡ bấm "Xoá".
+      </p>
       {error && (
         <div className="form-error">
           <p>{error}</p>
@@ -259,12 +284,16 @@ export default function DiemStkMappingPage() {
           { key: 'tenSieuThi', label: 'Tên siêu thị' },
           { key: 'buId', label: 'BU_ID', render: (r) => r.buId || '(chưa khai — Giao dịch trống)' },
           { key: 'loaiChuoi', label: 'Loại chuỗi', render: (r) => r.loaiChuoi || '(tự động theo STOCK.TYPE)' },
+          { key: 'isActive', label: 'Trạng thái', render: (r) => (r.isActive ? 'Đang hoạt động' : 'Đang khoá') },
           { key: 'importedBy', label: 'Người nhập' },
           { key: 'importedAt', label: 'Lúc nhập', render: (r) => new Date(r.importedAt).toLocaleString('vi-VN') },
           {
             key: 'actions', label: '', render: (r) => (
               <>
                 <button type="button" onClick={() => startEdit(r)}>Sửa</button>{' '}
+                <button type="button" onClick={() => toggleActive(r)} disabled={togglingActiveId === r.id}>
+                  {togglingActiveId === r.id ? 'Đang xử lý...' : (r.isActive ? 'Khoá' : 'Kích hoạt')}
+                </button>{' '}
                 <button type="button" onClick={() => removeRow(r)} disabled={deletingId === r.id}>
                   {deletingId === r.id ? 'Đang xoá...' : 'Xoá'}
                 </button>

@@ -257,6 +257,22 @@ BEGIN
 END
 GO
 
+-- IsActive (theo yêu cầu người dùng) — nút "Khoá"/"Kích hoạt" 1 dòng ánh xạ
+-- mà KHÔNG xoá hẳn (khác nút "Xoá" sẵn có) — dùng khi admin TẠM MUỐN ẨN 1
+-- mã Điểm khỏi báo cáo (vd cấu hình trước nhưng chưa dùng ngay) nhưng vẫn
+-- muốn giữ nguyên MaStkCu/MaStkMoi/BuId/... để bật lại sau, không phải gõ
+-- lại từ đầu. Mặc định 1 (đang hoạt động) — mọi dòng đã có trước khi thêm
+-- cột này coi như đang hoạt động, không đổi hành vi cũ. 0 = ĐANG KHOÁ —
+-- rp-server (lib/diemStkMapping.js:loadDiemStkMapping()) BỎ QUA HẲN dòng
+-- này khi đọc, coi như không tồn tại trong bảng ánh xạ — hiệu ứng với báo
+-- cáo Y HỆT xoá dòng, nhưng etl-admin vẫn giữ nguyên cấu hình để "Kích
+-- hoạt" lại bất kỳ lúc nào.
+IF COL_LENGTH('etl.DiemStkMapping', 'IsActive') IS NULL
+BEGIN
+    ALTER TABLE etl.DiemStkMapping ADD IsActive BIT NOT NULL DEFAULT 1;
+END
+GO
+
 -- Danh sách "hàng Core" (mặt hàng BẮT BUỘC luôn phải có hàng) do admin tự
 -- khai/upload — dùng cho báo cáo "Core stock = 0" (SourceType='coreZeroStock',
 -- xem rp-server/lib/coreZeroStockRunner.js + hướng_dẫn_báo_cáo.md mục 14).

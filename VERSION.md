@@ -29,6 +29,23 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 9.38 — Nút "Khoá"/"Kích hoạt" cho "Ánh xạ Điểm - STK_ID" (etl-admin)
+
+**Theo yêu cầu người dùng** — trang "Ánh xạ Điểm - STK_ID" trước đây chỉ
+có nút "Xoá" từng dòng; nhiều khi admin cấu hình trước 1 mã Điểm (vd siêu
+thị sắp mở) nhưng chưa muốn báo cáo lấy dữ liệu dòng đó ngay, rồi sau này
+lại muốn bật lại — bấm "Xoá" thì mất hết cấu hình, phải khai lại từ đầu.
+
+Thêm cột `IsActive` (mặc định `1`, `etl-db/schema.sql`) + route
+`PUT /diem-stk-mapping/:id/active` (`etl/routes/admin/diemStkMapping.js`)
++ nút **"Khoá"/"Kích hoạt"** ở mỗi dòng (`etl-admin/src/pages/DiemStkMappingPage.jsx`).
+Dòng đang khoá (`IsActive=0`) bị `rp-server/lib/diemStkMapping.js` BỎ QUA
+HẲN khi đọc bảng ánh xạ (`WHERE IsActive = 1`) — hiệu ứng với MỌI báo cáo
+dùng bảng này (composite LDTD/HCRC, Core stock=0, phạm vi dữ liệu theo
+siêu thị, đơn đặt hàng...) Y HỆT bấm "Xoá", nhưng cấu hình
+(MaStkCu/MaStkMoi/BuId/TenSieuThi/LoaiChuoi) vẫn GIỮ NGUYÊN trong CSDL —
+bấm "Kích hoạt" là dùng lại ngay, không cần khai lại.
+
 ## 9.37 — Thêm ô tìm kiếm người dùng ở trang Phân quyền (rp-user)
 
 **Theo yêu cầu người dùng** — trang Hệ thống → Phân quyền → tab "Người

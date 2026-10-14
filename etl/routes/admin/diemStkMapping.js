@@ -42,14 +42,38 @@ router.get('/', requireMenuEdit('diem-stk-mapping'), async (req, res, next) => {
   try {
     const pool = await getPool('ADMIN');
     const result = await pool.request().query(`
-      SELECT Id, MaDiem, MaStkCu, MaStkMoi, TenSieuThi, BuId, LoaiChuoi, ImportedAt, ImportedBy
+      SELECT Id, MaDiem, MaStkCu, MaStkMoi, TenSieuThi, BuId, LoaiChuoi, IsActive, ImportedAt, ImportedBy
       FROM etl.DiemStkMapping
       ORDER BY MaDiem
     `);
     res.json(result.recordset.map(r => ({
       id: r.Id, maDiem: r.MaDiem, maStkCu: parseStkList(r.MaStkCu), maStkMoi: parseStkList(r.MaStkMoi),
-      tenSieuThi: r.TenSieuThi, buId: r.BuId, loaiChuoi: r.LoaiChuoi, importedAt: r.ImportedAt, importedBy: r.ImportedBy
+      tenSieuThi: r.TenSieuThi, buId: r.BuId, loaiChuoi: r.LoaiChuoi, isActive: !!r.IsActive,
+      importedAt: r.ImportedAt, importedBy: r.ImportedBy
     })));
+  } catch (err) { next(err); }
+});
+
+// Khoá/Kích hoạt 1 dòng — KHÔNG xoá dữ liệu, chỉ bật/tắt IsActive. Khi
+// khoá, rp-server bỏ qua hẳn dòng này (lib/diemStkMapping.js), tương đương
+// hiệu ứng xoá với báo cáo nhưng vẫn giữ cấu hình để kích hoạt lại sau.
+router.put('/:id/active', requireMenuEdit('diem-stk-mapping'), async (req, res, next) => {
+  try {
+    const isActive = !!(req.body || {}).isActive;
+    const pool = await getPool('ADMIN');
+    const result = await pool.request()
+      .input('id', sql.Int, req.params.id)
+      .input('isActive', sql.Bit, isActive)
+      .query('UPDATE etl.DiemStkMapping SET IsActive = @isActive OUTPUT INSERTED.MaDiem WHERE Id = @id');
+    if (!result.recordset.length) return res.status(404).json({ error: 'Không tìm thấy dòng ánh xạ' });
+    const { MaDiem } = result.recordset[0];
+    await logAction(req, {
+      module: 'Ánh xạ Điểm - STK_ID',
+      actionType: isActive ? 'KICH_HOAT_ANH_XA_DIEM_STK' : 'KHOA_ANH_XA_DIEM_STK',
+      targetObject: MaDiem,
+      description: `${isActive ? 'Kích hoạt' : 'Khoá'} ánh xạ mã Điểm "${MaDiem}"`
+    });
+    res.json({ ok: true, isActive });
   } catch (err) { next(err); }
 });
 

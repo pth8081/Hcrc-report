@@ -48,7 +48,10 @@ async function loadDiemStkMapping() {
 
   try {
     const pool = await getPool('ETL_DIEM_STK');
-    const result = await pool.request().query('SELECT MaDiem, MaStkCu, MaStkMoi, TenSieuThi, BuId, LoaiChuoi FROM etl.DiemStkMapping');
+    // IsActive = 0 (đã "Khoá" ở etl-admin) -> BỎ QUA HẲN, coi như không có
+    // dòng ánh xạ này — hiệu ứng với báo cáo Y HỆT xoá dòng, theo yêu cầu
+    // người dùng (xem etl-db/schema.sql cột IsActive).
+    const result = await pool.request().query('SELECT MaDiem, MaStkCu, MaStkMoi, TenSieuThi, BuId, LoaiChuoi FROM etl.DiemStkMapping WHERE IsActive = 1');
     const mapping = new Map();
     for (const r of result.recordset) {
       mapping.set(r.MaDiem, {

@@ -14,6 +14,26 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 9.38 — Nút "Khoá"/"Kích hoạt" cho "Ánh xạ Điểm - STK_ID" (etl-admin)
+
+**Thay đổi**: `etl-db/schema.sql` (thêm cột `IsActive`, tự ALTER an toàn
+chạy lại) + `etl/routes/admin/diemStkMapping.js` (route mới) +
+`rp-server/lib/diemStkMapping.js` (lọc `WHERE IsActive = 1`) +
+`etl-admin/src/pages/DiemStkMappingPage.jsx` (nút + cột trạng thái).
+
+**Các bước triển khai:**
+1. `git pull origin main`.
+2. Chạy lại `etl-db/schema.sql` trên CSDL `HCRC_ETL` (tự thêm cột
+   `IsActive`, an toàn chạy lại nhiều lần — mọi dòng cũ mặc định
+   `IsActive=1`, không đổi hành vi báo cáo hiện có).
+3. Khởi động lại `etl` VÀ `rp-server` (cả 2 đều đọc/ghi bảng này).
+4. Build lại `etl-admin` (`npm run build`).
+5. Kiểm tra: trang "Ánh xạ Điểm - STK_ID" → mỗi dòng có thêm nút
+   "Khoá"/"Kích hoạt" — bấm "Khoá" 1 dòng rồi kiểm tra báo cáo liên quan
+   (vd composite LDTD/HCRC, Core stock=0) không còn lấy dữ liệu của mã
+   Điểm đó; bấm "Kích hoạt" lại thì có dữ liệu trở lại ngay, không mất
+   cấu hình MaStkCu/MaStkMoi/BuId.
+
 ## 9.37 — Thêm ô tìm kiếm người dùng ở trang Phân quyền (rp-user)
 
 **Thay đổi**: chỉ sửa `rp-user/src/modules/system/permissions/UsersPage.jsx`
