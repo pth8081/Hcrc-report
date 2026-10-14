@@ -122,6 +122,24 @@ app.use('/admin/dashboard', adminDashboardRoutes);
 // EntityCode gõ sai/nhầm khi nhập chỉ tiêu (xem routes/admin/salesTargets.js).
 app.use('/admin/sales-targets-corp', createSalesTargetsRouter('sales-targets-corp', 'sales-targets-ldtd', 'doanhthu_chinhanh', 'ldtd-daily'));
 app.use('/admin/sales-targets-hcrc', createSalesTargetsRouter('sales-targets-hcrc', 'sales-targets-hcrc', 'doanhthu_chinhanh', 'hcrc-daily'));
+// Chỉ tiêu "theo ngành hàng" (bản 9.41+, theo yêu cầu người dùng) — THEO
+// TOÀN CÔNG TY (1 con số/ngành hàng, không tách chi nhánh — khác hẳn
+// 'doanhthu_chinhanh' ở trên), shape 'generic' (để TRỐNG MaSieuThi + điền
+// MaNganhHang, xem lib/salesTargetsImport.js:parseGenericShape()).
+// KHÔNG truyền actualDataDomain (bỏ trống -> không đối chiếu
+// findUnknownEntityCodes) — EntityCode thật của domain THỰC ĐẠT
+// (doanhthu_nganhhang/nhaphang_nganhhang, khoá "<STK_ID>_<DEPT_ID>") khác
+// hẳn granularity EntityCode của chỉ tiêu (chỉ "<DEPT_ID>"), đối chiếu kiểu
+// so khớp CHÍNH XÁC chuỗi ở đây sẽ báo "không khớp" NHẦM cho MỌI dòng —
+// xem chú thích actualDataDomain đầu routes/admin/salesTargets.js.
+app.use('/admin/sales-targets-nganhhang-dt', createSalesTargetsRouter(
+  'sales-targets-nganhhang-dt', 'sales-targets-nganhhang-dt', undefined, 'generic',
+  [{ key: 'ChiTieuDoanhThu', sample: 1500000000 }]
+));
+app.use('/admin/sales-targets-nganhhang-nh', createSalesTargetsRouter(
+  'sales-targets-nganhhang-nh', 'sales-targets-nganhhang-nh', undefined, 'generic',
+  [{ key: 'ChiTieuGiaTriNhap', sample: 1000000000 }]
+));
 app.use('/admin/diem-stk-mapping', adminDiemStkMappingRoutes);
 app.use('/admin/core-item-list', adminCoreItemListRoutes);
 app.use('/admin/stock-alert-thresholds', adminStockAlertThresholdsRoutes);

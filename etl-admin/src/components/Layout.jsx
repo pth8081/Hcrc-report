@@ -21,6 +21,8 @@ const NAV = [
   // tách bạch (xem etl/routes/admin/roles.js MENU_CATALOG).
   { path: '/sales-targets-corp', label: 'Chỉ tiêu Lãnh đạo Tập đoàn', icon: '🎯', menuCode: 'sales-targets-corp' },
   { path: '/sales-targets-hcrc', label: 'Chỉ tiêu HCRC', icon: '🎯', menuCode: 'sales-targets-hcrc' },
+  { path: '/sales-targets-nganhhang-dt', label: 'Chỉ tiêu Doanh thu theo ngành hàng', icon: '🎯', menuCode: 'sales-targets-nganhhang-dt' },
+  { path: '/sales-targets-nganhhang-nh', label: 'Chỉ tiêu Nhập hàng theo ngành hàng', icon: '🎯', menuCode: 'sales-targets-nganhhang-nh' },
   { path: '/diem-stk-mapping', label: 'Ánh xạ Điểm - STK_ID', icon: '🧩', menuCode: 'diem-stk-mapping', editOnly: true },
   { path: '/core-item-list', label: 'Danh sách hàng Core', icon: '📦', menuCode: 'core-item-list', editOnly: true },
   { path: '/stock-alert-thresholds', label: 'Cảnh báo hàng tồn', icon: '⚠️', menuCode: 'stock-alert-thresholds', editOnly: true },

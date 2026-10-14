@@ -27,7 +27,7 @@ import AccountPage from './pages/AccountPage';
 // MENU_CATALOG) — trước đây thiếu roles/log/audit-log, khiến 1 tài khoản
 // CHỈ được cấp 1 trong các trang này bị điều hướng về '/dashboard' (trang
 // không thấy được) ngay sau đăng nhập thay vì vào đúng trang mình có quyền.
-const LANDING_ORDER = ['dashboard', 'sales-targets-corp', 'sales-targets-hcrc', 'data-sources', 'sync-jobs', 'diem-stk-mapping', 'core-item-list', 'stock-alert-thresholds', 'log', 'audit-log', 'users', 'roles', 'huong-dan'];
+const LANDING_ORDER = ['dashboard', 'sales-targets-corp', 'sales-targets-hcrc', 'sales-targets-nganhhang-dt', 'sales-targets-nganhhang-nh', 'data-sources', 'sync-jobs', 'diem-stk-mapping', 'core-item-list', 'stock-alert-thresholds', 'log', 'audit-log', 'users', 'roles', 'huong-dan'];
 
 function IndexRedirect() {
   const { can } = useAuth();
@@ -58,6 +58,15 @@ export default function App() {
           } />
           <Route path="/sales-targets-hcrc" element={
             <SalesTargetsPage menuCode="sales-targets-hcrc" apiBase="/sales-targets-hcrc" title="Chỉ tiêu HCRC" />
+          } />
+          {/* Bản 9.41+ — Chỉ tiêu "theo ngành hàng", THEO TOÀN CÔNG TY (để
+              trống MaSieuThi + điền MaNganhHang trong file nhập, xem
+              etl/lib/salesTargetsImport.js:parseGenericShape()). */}
+          <Route path="/sales-targets-nganhhang-dt" element={
+            <SalesTargetsPage menuCode="sales-targets-nganhhang-dt" apiBase="/sales-targets-nganhhang-dt" title="Chỉ tiêu Doanh thu theo ngành hàng" />
+          } />
+          <Route path="/sales-targets-nganhhang-nh" element={
+            <SalesTargetsPage menuCode="sales-targets-nganhhang-nh" apiBase="/sales-targets-nganhhang-nh" title="Chỉ tiêu Nhập hàng theo ngành hàng" />
           } />
           <Route path="/diem-stk-mapping" element={<DiemStkMappingPage />} />
           <Route path="/core-item-list" element={<CoreItemListPage />} />

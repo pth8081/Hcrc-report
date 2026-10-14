@@ -189,10 +189,19 @@ export default function SalesTargetsPage({ menuCode, apiBase, title }) {
         <code>DaDong</code> ở cột <code>TrangThai</code> để LOẠI HẲN siêu thị đó khỏi báo cáo
         tháng này (để trống/<code>HoatDong</code> = hiện bình thường, bỏ trống KHÔNG loại —
         chỉ đánh dấu rõ <code>DaDong</code> mới loại). Cột <code>MaNganhHang</code> điền chỉ
-        tiêu THEO NGÀNH HÀNG thay vì cả siêu thị — mã thực thể lưu lại thành
-        <code>&lt;MaSieuThi&gt;_&lt;MaNganhHang&gt;</code>, PHẢI khớp đúng "Cột khoá" ETL của
-        domain thực đạt tương ứng (xem hướng_dẫn_báo_cáo.md mục 5).
+        tiêu THEO NGÀNH HÀNG thay vì cả siêu thị:
       </p>
+      <ul>
+        <li>Điền CẢ <code>MaSieuThi</code> VÀ <code>MaNganhHang</code> — mã thực thể lưu lại
+          thành <code>&lt;MaSieuThi&gt;_&lt;MaNganhHang&gt;</code> (chỉ tiêu riêng 1 chi
+          nhánh + 1 ngành hàng), PHẢI khớp đúng "Cột khoá" ETL của domain thực đạt tương ứng
+          (xem hướng_dẫn_báo_cáo.md mục 5).</li>
+        <li>Để TRỐNG <code>MaSieuThi</code>, CHỈ điền <code>MaNganhHang</code> — chỉ tiêu
+          THEO TOÀN CÔNG TY cho đúng ngành hàng đó (không tách chi nhánh), mã thực thể lưu
+          lại CHÍNH LÀ <code>MaNganhHang</code> — dùng cho trang{' '}
+          <strong>Chỉ tiêu Doanh thu/Nhập hàng theo ngành hàng</strong> (xem báo cáo "Doanh
+          thu/Nhập hàng theo ngành hàng.md").</li>
+      </ul>
       {error && <p className="form-error">{error}</p>}
 
       {isEditor && (

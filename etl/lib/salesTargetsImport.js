@@ -221,16 +221,21 @@ function parseGenericShape(sheet, detected) {
     const thang = thangRaw != null ? String(thangRaw).trim() : '';
     const maNganhHangRaw = maNganhHangCol !== -1 ? row.getCell(maNganhHangCol).value : null;
     const maNganhHang = maNganhHangRaw != null ? String(maNganhHangRaw).trim() : '';
-    if (!maSieuThi && !thang) return; // dòng trống bỏ qua, không tính là lỗi
+    if (!maSieuThi && !maNganhHang && !thang) return; // dòng trống bỏ qua, không tính là lỗi
 
-    if (!maSieuThi) { rowErrors.push(`Dòng ${rowNumber}: thiếu MaSieuThi`); return; }
+    // MaSieuThi để TRỐNG + có MaNganhHang -> chỉ tiêu THEO TOÀN CÔNG TY cho
+    // đúng ngành hàng đó (KHÔNG tách chi nhánh) — EntityCode = ĐÚNG mã ngành
+    // hàng, không ghép thêm gì (khớp entityCode "DEPT_ID" sau khi
+    // rp-server/lib/compositeReportRunner.js:remapEntityCode() gộp khối
+    // Thực đạt về cùng mức này, xem báo cáo "theo ngành hàng"). Có MaSieuThi
+    // VÀ MaNganhHang vẫn giữ nguyên hành vi GHÉP cũ (chỉ tiêu theo
+    // từng chi nhánh+ngành hàng, xem chú thích đầu file).
+    if (!maSieuThi && !maNganhHang) { rowErrors.push(`Dòng ${rowNumber}: thiếu MaSieuThi (hoặc MaNganhHang nếu là chỉ tiêu theo toàn công ty)`); return; }
     if (!PERIOD_RE.test(thang)) {
       rowErrors.push(`Dòng ${rowNumber}: "Thang" phải dạng YYYY-MM (đang là "${thang}")`);
       return;
     }
-    // Có ngành hàng -> EntityCode GHÉP (xem chú thích đầu file) — PHẢI khớp
-    // đúng quy ước cột khoá của domain THỰC ĐẠT tương ứng bên ETL.
-    const entityCode = maNganhHang ? `${maSieuThi}_${maNganhHang}` : maSieuThi;
+    const entityCode = maNganhHang ? (maSieuThi ? `${maSieuThi}_${maNganhHang}` : maNganhHang) : maSieuThi;
 
     let trangThai = null;
     if (trangThaiCol !== -1) {
@@ -267,7 +272,7 @@ function parseGenericShape(sheet, detected) {
     // Ghi thêm MaSieuThi/MaNganhHang GỐC vào TargetsJson (ngoài việc đã ghép
     // vào EntityCode) — công thức báo cáo đọc thẳng "target.MaSieuThi"/
     // "target.MaNganhHang" mà không cần tự tách chuỗi EntityCode.
-    if (maNganhHang) { targets.MaSieuThi = maSieuThi; targets.MaNganhHang = maNganhHang; }
+    if (maNganhHang) { if (maSieuThi) targets.MaSieuThi = maSieuThi; targets.MaNganhHang = maNganhHang; }
     if (!Object.keys(targets).length) {
       rowErrors.push(`Dòng ${rowNumber}: không có giá trị chỉ tiêu nào (và không đánh dấu TrangThai)`);
       return;
@@ -684,8 +689,52 @@ function buildHcrcDailyExport(rows) {
   return buildWorkbook('Chi tieu', ['Kỳ', 'Mã đối tượng chứa', 'Loại đối tượng chứa', 'Mã loại chỉ tiêu', 'Tên loại chỉ tiêu', 'Giá trị chỉ tiêu'], dataRows);
 }
 
+// Mẫu "generic" (MaSieuThi+Thang[+MaNganhHang][+TrangThai], cột chỉ tiêu
+// tuỳ ý — xem parseGenericShape() ở trên) — dùng cho domain "theo ngành
+// hàng" (Chỉ tiêu theo toàn công ty, xem báo cáo doanh thu/nhập hàng theo
+// ngành hàng.md): để TRỐNG "MaSieuThi" + điền "MaNganhHang" = chỉ tiêu
+// THEO TOÀN CÔNG TY cho đúng ngành hàng đó (không tách chi nhánh, đúng lựa
+// chọn người dùng — EntityCode ghi thẳng = MaNganhHang). Điền CẢ 2 cột vẫn
+// hợp lệ (chỉ tiêu riêng 1 chi nhánh + 1 ngành hàng, hành vi ghép cũ) nếu
+// sau này cần tới, báo cáo hiện tại không dùng trường hợp này.
+function buildGenericTemplate(targetColumns, sampleTargetValues) {
+  return buildWorkbook(
+    'Chi tieu',
+    ['MaSieuThi', 'Thang', 'MaNganhHang', ...targetColumns],
+    [['', '2026-01', 'VIDU_NGANHHANG', ...sampleTargetValues]],
+    'XOÁ dòng ví dụ (mã "VIDU_NGANHHANG") trước khi nhập — để TRỐNG "MaSieuThi" + điền "MaNganhHang" = chỉ tiêu THEO TOÀN CÔNG TY cho đúng ngành hàng đó (không tách chi nhánh). "Thang" dạng YYYY-MM.'
+  );
+}
+
+// "Thang" ("generic" shape) đọc lại bằng PERIOD_RE (chuỗi "YYYY-MM" THUẦN
+// TEXT, xem parseGenericShape() ở trên) — KHÔNG đọc linh hoạt kiểu Date như
+// cột "Ngày"/"Kỳ" của 2 mẫu LDTD/HCRC (parseFlexibleDate()). Phải ghi lại
+// ĐÚNG dạng chuỗi này khi xuất, không ghi thẳng Date (PeriodMonth đọc từ
+// CSDL là kiểu Date) — String(Date) không khớp PERIOD_RE, xuất ra rồi nhập
+// lại sẽ bị lỗi "Thang phải dạng YYYY-MM" cho MỌI dòng.
+function periodDateToYYYYMM(periodMonth) {
+  const d = periodMonth instanceof Date ? periodMonth : new Date(periodMonth);
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+}
+
+function buildGenericExport(rows, targetColumns) {
+  const dataRows = rows.map(r => [
+    // targets.MaSieuThi/MaNganhHang CHỈ được ghi lúc nhập khi dòng gốc CÓ
+    // MaNganhHang (xem parseGenericShape() ở trên, giữ nguyên hành vi cũ) —
+    // dòng "thuần theo siêu thị" (không ngành hàng) không có field này
+    // trong TargetsJson, EntityCode CHÍNH LÀ MaSieuThi -> dùng thẳng
+    // r.entityCode làm MaSieuThi cho đúng trường hợp đó.
+    r.targets.MaNganhHang ? (r.targets.MaSieuThi || '') : r.entityCode,
+    periodDateToYYYYMM(r.periodMonth),
+    r.targets.MaNganhHang || '',
+    ...targetColumns.map(c => r.targets[c] ?? '')
+  ]);
+  return buildWorkbook('Chi tieu', ['MaSieuThi', 'Thang', 'MaNganhHang', ...targetColumns], dataRows);
+}
+
 module.exports = {
   parseSalesTargetsFile, upsertSalesTargets, findUnknownEntityCodes,
   buildLdtdDailyTemplate, buildHcrcDailyTemplate, buildLdtdDailyExport, buildHcrcDailyExport,
+  buildGenericTemplate, buildGenericExport,
   PERIOD_RE, PERIOD_DATE_RE, TRANG_THAI_VALUES, HCRC_TARGET_TYPE_MAP
 };

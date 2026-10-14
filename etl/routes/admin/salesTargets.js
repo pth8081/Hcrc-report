@@ -40,6 +40,7 @@ const { requireMenuAccess, requireMenuEdit } = require('../../lib/adminPermissio
 const {
   parseSalesTargetsFile, upsertSalesTargets, findUnknownEntityCodes,
   buildLdtdDailyTemplate, buildHcrcDailyTemplate, buildLdtdDailyExport, buildHcrcDailyExport,
+  buildGenericTemplate, buildGenericExport,
   PERIOD_RE, PERIOD_DATE_RE, TRANG_THAI_VALUES
 } = require('../../lib/salesTargetsImport');
 const { logAction } = require('../../lib/auditLog');
@@ -67,11 +68,17 @@ const upload = multer({
 // domain khác ngoài LDTD/HCRC, không biết chắc domain thực đạt nào tương
 // ứng).
 //
-// shape — 'ldtd-daily' hoặc 'hcrc-daily' (xem lib/salesTargetsImport.js) —
-// chọn ĐÚNG khuôn cột file mẫu/xuất Excel khớp định dạng file thật của
+// shape — 'ldtd-daily' | 'hcrc-daily' | 'generic' (xem lib/salesTargetsImport.js)
+// — chọn ĐÚNG khuôn cột file mẫu/xuất Excel khớp định dạng file thật của
 // từng trang (2 route /template và /export bên dưới), theo yêu cầu người
-// dùng "làm file mẫu, nhập và xuất file excel cho 2 mẫu chỉ tiêu".
-function createSalesTargetsRouter(menuCode, domain, actualDataDomain, shape) {
+// dùng "làm file mẫu, nhập và xuất file excel cho 2 mẫu chỉ tiêu". 'generic'
+// dùng cho domain "theo ngành hàng" — chỉ tiêu THEO TOÀN CÔNG TY (để trống
+// MaSieuThi, xem parseGenericShape() + buildGenericTemplate/buildGenericExport
+// trong lib/salesTargetsImport.js) — cần thêm genericTargetColumns.
+// genericTargetColumns — BẮT BUỘC khi shape==='generic': [{ key, sample }]
+// — tên cột chỉ tiêu (ghi thẳng vào TargetsJson, khớp field công thức báo
+// cáo đọc, vd "target.ChiTieuDoanhThu") + giá trị mẫu cho file template.
+function createSalesTargetsRouter(menuCode, domain, actualDataDomain, shape, genericTargetColumns) {
 const router = express.Router();
 router.use(requireAdminAuth);
 
@@ -143,7 +150,11 @@ router.put('/one', requireMenuEdit(menuCode), async (req, res, next) => {
 // nhạy cảm, ai xem được trang cũng tải được để chuẩn bị file.
 router.get('/template', requireMenuAccess(menuCode), async (req, res, next) => {
   try {
-    const buffer = await (shape === 'hcrc-daily' ? buildHcrcDailyTemplate() : buildLdtdDailyTemplate());
+    const buffer = await (
+      shape === 'generic'
+        ? buildGenericTemplate(genericTargetColumns.map(c => c.key), genericTargetColumns.map(c => c.sample))
+        : (shape === 'hcrc-daily' ? buildHcrcDailyTemplate() : buildLdtdDailyTemplate())
+    );
     sendXlsx(res, buffer, `mau-${menuCode}.xlsx`);
   } catch (err) { next(err); }
 });
@@ -165,7 +176,11 @@ router.get('/export', requireMenuAccess(menuCode), async (req, res, next) => {
       ORDER BY PeriodMonth, EntityCode
     `);
     const rows = result.recordset.map(r => ({ entityCode: r.EntityCode, periodMonth: r.PeriodMonth, targets: JSON.parse(r.TargetsJson) }));
-    const buffer = await (shape === 'hcrc-daily' ? buildHcrcDailyExport(rows) : buildLdtdDailyExport(rows));
+    const buffer = await (
+      shape === 'generic'
+        ? buildGenericExport(rows, genericTargetColumns.map(c => c.key))
+        : (shape === 'hcrc-daily' ? buildHcrcDailyExport(rows) : buildLdtdDailyExport(rows))
+    );
     sendXlsx(res, buffer, `${menuCode}.xlsx`);
   } catch (err) { next(err); }
 });
