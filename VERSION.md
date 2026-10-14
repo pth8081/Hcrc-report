@@ -29,6 +29,35 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 9.40 — Đổi màu báo cáo (Excel/web/email) sang bảng "kiểu báo cáo tài chính quốc tế"
+
+**Theo yêu cầu người dùng** — bảng màu cũ (xanh lá chói/vàng gold/cam đất/
+tím, kiểu bán lẻ BRGMART) đổi sang 1 họ màu xanh navy nhạt/vàng đồng/xám
+thống nhất, "sắc nét hơn", giống phong cách báo cáo tài chính các tập
+đoàn quốc tế — áp dụng cho **Excel + web (rp-user) + body email**.
+**PDF CHƯA đổi** (người dùng muốn review riêng, sẽ báo khi nào chuyển).
+
+Bảng màu mới (`GROUP_COLORS_CORPORATE`,
+`rp-server/lib/reportCellFormat.js`): "Doanh thu" xanh navy nhạt
+`#C9D6E0` (trước: xanh lá `#9BCC1E`), "Lãi gộp" vàng đồng/champagne
+`#E3D5B8` (trước: cam đất `#FACD9C`), "Giao dịch" xám-xanh nhạt `#D7DCE3`
+(trước: vàng gold `#F9CE27`), cột đơn lẻ (Trung bình GD/Doanh thu/m2) xám
+xanh `#C3CEDC` (trước: tím `#9D98FD`), dòng Tổng cộng toàn báo cáo xanh
+navy đậm hơn `#9FB3C8` (trước: xanh dương nhạt `#BDD7EE`), màu xen kẽ
+(zebra) xám rất nhạt `#F3F5F7` (trước: cyan chói `#D1FEFF`). Viền đen giữ
+nguyên như bản 8.98.
+
+**Cách triển khai (giữ PDF cũ, đổi Excel/web/email)**: thêm hằng số
+`GROUP_COLORS_CORPORATE`/`SUBTOTAL_COLOR_CORPORATE`/
+`GRAND_TOTAL_COLOR_CORPORATE`/`ZEBRA_COLOR_CORPORATE` song song bảng gốc
+trong `lib/reportCellFormat.js`; 3 hàm `resolveGroupColor()`/
+`resolveRowFillColor()`/`resolveStandaloneColumnColor()` nhận thêm tham số
+`palette` TUỲ CHỌN (mặc định bảng gốc — PDF/`lib/exportPdf.js` không đổi
+gì, không truyền tham số mới). `lib/exportExcel.js` và
+`lib/emailBodyRenderer.js` truyền rõ bảng CORPORATE. Web
+(`rp-user/src/lib/reportGroupColors.js`) đổi thẳng giá trị hex (file này
+chỉ phục vụ web, không dùng chung PDF).
+
 ## 9.39 — Sửa cột "TT" trống trên web (báo cáo doanh thu + Dashboard)
 
 **Theo báo cáo người dùng** — cột "TT" (số thứ tự) trên bảng "Doanh thu

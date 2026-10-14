@@ -14,6 +14,22 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 9.40 — Đổi màu báo cáo (Excel/web/email) sang bảng "kiểu báo cáo tài chính quốc tế"
+
+**Thay đổi**: `rp-server/lib/reportCellFormat.js` (thêm bảng màu mới song
+song bảng cũ) + `rp-server/lib/exportExcel.js` + `rp-server/lib/emailBodyRenderer.js`
+(dùng bảng mới) + `rp-user/src/lib/reportGroupColors.js` (web). **KHÔNG
+đổi** `rp-server/lib/exportPdf.js` — PDF vẫn giữ nguyên màu cũ.
+
+**Các bước triển khai:**
+1. `git pull origin main`.
+2. Khởi động lại `rp-server` (áp dụng Excel/email mới).
+3. Build lại `rp-user` (`npm run build`) — áp dụng màu mới trên web.
+4. Kiểm tra: mở báo cáo "Doanh thu Realtime..."/báo cáo cuối ngày trên
+   web → màu navy/vàng đồng/xám mới; xuất Excel → cùng màu mới; xuất PDF
+   → VẪN màu cũ (xanh lá/vàng/cam/tím, chưa đổi); gửi thử email báo cáo
+   (nếu có lịch gửi) → body email màu mới.
+
 ## 9.39 — Sửa cột "TT" trống trên web (báo cáo doanh thu + Dashboard)
 
 **Thay đổi**: chỉ sửa `rp-server/lib/compositeReportRunner.js` (backend),
