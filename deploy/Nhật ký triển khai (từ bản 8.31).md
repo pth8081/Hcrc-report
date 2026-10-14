@@ -14,6 +14,20 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 9.39 — Sửa cột "TT" trống trên web (báo cáo doanh thu + Dashboard)
+
+**Thay đổi**: chỉ sửa `rp-server/lib/compositeReportRunner.js` (backend),
+không đổi CSDL/Excel/PDF.
+
+**Các bước triển khai:**
+1. `git pull origin main`.
+2. Khởi động lại `rp-server` (`pm2 restart hcrc-rp-server` hoặc tương
+   đương).
+3. Kiểm tra: mở báo cáo "Doanh thu Realtime HCRC (Thành viên)" (hoặc bất
+   kỳ báo cáo/tile Dashboard nào có cột "TT") trên web — cột "TT" phải
+   hiện số 1,2,3... theo từng nhóm, trống đúng ở dòng "Tổng cộng", khớp
+   với bản Excel/PDF đã xuất trước đó.
+
 ## 9.38 — Nút "Khoá"/"Kích hoạt" cho "Ánh xạ Điểm - STK_ID" (etl-admin)
 
 **Thay đổi**: `etl-db/schema.sql` (thêm cột `IsActive`, tự ALTER an toàn

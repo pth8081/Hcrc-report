@@ -29,6 +29,28 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 9.39 — Sửa cột "TT" trống trên web (báo cáo doanh thu + Dashboard)
+
+**Theo báo cáo người dùng** — cột "TT" (số thứ tự) trên bảng "Doanh thu
+Realtime HCRC (Thành viên)" (và mọi báo cáo composite khác có khai cột
+`key: 'stt'`) luôn trống khi xem trực tiếp trên web, dù xuất ra Excel/PDF
+thì vẫn có số đúng.
+
+**Nguyên nhân**: đánh số "TT" (`lib/reportCellFormat.js:computeSttValues()`)
+trước đây CHỈ được gọi lúc xuất Excel/PDF/email
+(`lib/exportExcel.js`/`lib/exportPdf.js`/`lib/emailBodyRenderer.js`) —
+chưa bao giờ được gọi khi trả dữ liệu JSON cho web (`POST
+/reports/:id/run`), nên cột này luôn trống trên cả trang "Báo cáo" lẫn
+mỗi ô Dashboard (2 nơi dùng CHUNG 1 route, nên sửa đúng 1 chỗ là áp dụng
+cho cả 2).
+
+**Đã sửa**: `rp-server/lib/compositeReportRunner.js` — gọi đúng lại
+`computeSttValues()` ngay khi trả kết quả (cả 3 nhánh: phẳng, groupBy,
+topN), gán `row.stt` TRƯỚC khi trả JSON — số hiện trên web giờ khớp
+TUYỆT ĐỐI với số đã xuất Excel/PDF (đánh số 1,2,3... theo từng nhóm, để
+trống đúng ở dòng "Tổng cộng"). Chỉ sửa backend, không đổi gì ở
+Excel/PDF/email (đã tự đúng từ trước).
+
 ## 9.38 — Nút "Khoá"/"Kích hoạt" cho "Ánh xạ Điểm - STK_ID" (etl-admin)
 
 **Theo yêu cầu người dùng** — trang "Ánh xạ Điểm - STK_ID" trước đây chỉ
