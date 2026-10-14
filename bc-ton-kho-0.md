@@ -56,10 +56,18 @@ nhiều dòng trùng khoá khi ghi vào kho dữ liệu trung tâm.
 
 **VIEW doanh số theo SKU** — danh sách mã `TRANS_CODE` dưới đây CHỈ LÀ VÍ
 DỤ, DBA phải đối chiếu với đội DSMART16 xem mã nào là bán lẻ THẬT (khác trả
-hàng/chuyển kho/nhập hàng):
+hàng/chuyển kho/nhập hàng) — xem gợi ý đối chiếu ở cuối mục này.
+
+Dùng `CREATE OR ALTER VIEW` (an toàn chạy lại nhiều lần, không lỗi "đã tồn
+tại") và BẮT BUỘC có `GO` giữa 2 câu — `CREATE VIEW`/`CREATE OR ALTER VIEW`
+phải là câu ĐẦU TIÊN trong 1 batch, dán 2 câu liền nhau KHÔNG có `GO` ở
+giữa sẽ báo lỗi "Incorrect syntax near the keyword 'CREATE'":
 
 ```sql
-CREATE VIEW dbo.vw_BanHangTheoSKU AS
+USE DSMART16;
+GO
+
+CREATE OR ALTER VIEW dbo.vw_BanHangTheoSKU AS
 SELECT
     s.STK_ID + '_' + CAST(s.SKU_ID AS VARCHAR(50)) AS MaThucThe,  -- Cột khoá (EntityCode)
     s.STK_ID     AS MaChiNhanh,
@@ -74,13 +82,14 @@ JOIN dbo.SKU_DEF k ON k.SKU_ID = s.SKU_ID
 JOIN dbo.STOCK st ON st.STK_ID = s.STK_ID
 WHERE s.TRANS_CODE IN ('01', '02')  -- CHỈ VÍ DỤ — thay đúng mã bán lẻ thật
 GROUP BY s.STK_ID, st.STK_NAME_U, s.SKU_ID, k.SKU_CODE, k.FULL_NAME_U, CAST(s.TRAN_DATE AS DATE);
+GO
 ```
 
 **VIEW tồn kho theo SKU** — nguồn `DSTK_INFO` đã có sẵn 1 dòng/chi nhánh/mặt
 hàng/ngày, không cần `GROUP BY`:
 
 ```sql
-CREATE VIEW dbo.vw_TonKhoTheoSKU AS
+CREATE OR ALTER VIEW dbo.vw_TonKhoTheoSKU AS
 SELECT
     d.STK_ID + '_' + CAST(d.SKU_ID AS VARCHAR(50)) AS MaThucThe,
     d.STK_ID    AS MaChiNhanh,
@@ -93,9 +102,29 @@ SELECT
 FROM dbo.DSTK_INFO d
 JOIN dbo.SKU_DEF k ON k.SKU_ID = d.SKU_ID
 JOIN dbo.STOCK st ON st.STK_ID = d.STK_ID;
+GO
 ```
 
 (Đổi tên bảng/cột đúng CSDL thật nếu khác cấu trúc DSMART16 chuẩn.)
+
+**Kiểm tra VIEW có dữ liệu THẬT trước khi qua Bước 2** — `CREATE VIEW`
+chạy "thành công" chỉ xác nhận cú pháp đúng, KHÔNG xác nhận mã `TRANS_CODE`
+đã chọn đúng. Luôn chạy thử `SELECT TOP 5 * FROM dbo.vw_BanHangTheoSKU;`/
+`SELECT TOP 5 * FROM dbo.vw_TonKhoTheoSKU;` — nếu RỖNG, đối chiếu lại
+`TRANS_CODE` bằng câu sau (mã có SỐ LƯỢNG LỚN NHẤT trong vài ngày gần đây
+thường là mã bán lẻ thật — xem thêm mã `211`/`221`/`232` đã xác nhận dùng
+cho `STRANS` ở "báo cáo doanh thu cuối ngày.md"):
+```sql
+SELECT TRANS_CODE, COUNT(*) AS SoDong
+FROM dbo.STRANS
+WHERE TRAN_DATE >= DATEADD(DAY, -7, GETDATE())
+GROUP BY TRANS_CODE
+ORDER BY SoDong DESC;
+```
+Và nếu `vw_TonKhoTheoSKU` rỗng, kiểm tra bảng `DSTK_INFO` có dữ liệu không:
+```sql
+SELECT COUNT(*) AS SoDong, MAX(WORK_DATE) AS NgayGanNhat FROM dbo.DSTK_INFO;
+```
 
 ## Bước 2 — Admin etl-admin tạo 2 job "Theo bảng"
 

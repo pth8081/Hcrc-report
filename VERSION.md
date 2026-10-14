@@ -29,6 +29,20 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 9.34 — Sửa tài liệu `bc-ton-kho-0.md`: thêm `GO`/`CREATE OR ALTER` + hướng dẫn đối chiếu TRANS_CODE
+
+**Theo thực tế triển khai với người dùng** — 2 câu `CREATE VIEW` ở Bước 1
+dán liền nhau KHÔNG có `GO` ở giữa gây lỗi "Incorrect syntax near the
+keyword 'CREATE'" (CREATE VIEW phải là câu đầu tiên trong 1 batch). Đã
+sửa tài liệu: thêm `GO` giữa 2 câu, đổi `CREATE VIEW` → `CREATE OR ALTER
+VIEW` (an toàn chạy lại nhiều lần), và thêm hướng dẫn kiểm tra VIEW có dữ
+liệu thật + câu đối chiếu `TRANS_CODE` thật qua `STRANS` trước khi coi là
+xong Bước 1 (CREATE VIEW chạy "thành công" không đồng nghĩa mã lọc đúng —
+gặp thật: file mẫu dùng `TRANS_CODE IN ('01','02')` chỉ là ví dụ, không
+khớp dữ liệu thật nào).
+
+Chỉ sửa tài liệu `bc-ton-kho-0.md`, không đổi code.
+
 ## 9.33 — SỬA LỖI THẬT: mobile không thấy "Tài khoản của tôi"/"Đăng xuất" khi menu dài (cả 3 app)
 
 **Theo báo cáo người dùng** (ảnh chụp màn hình etl-admin trên điện thoại,

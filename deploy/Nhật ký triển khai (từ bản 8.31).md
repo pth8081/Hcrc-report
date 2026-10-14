@@ -14,6 +14,12 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 9.34 — Sửa tài liệu bc-ton-kho-0.md
+
+**Thay đổi**: chỉ sửa `bc-ton-kho-0.md` (tài liệu), không đổi code —
+không cần bước triển khai nào trên server, chỉ `git pull` để có bản tài
+liệu mới nhất.
+
 ## 9.33 — Sửa lỗi thật: mobile không thấy "Tài khoản của tôi" khi menu dài
 
 **Thay đổi**: `etl-admin/src/styles.css` + `api-admin/src/styles.css` +
