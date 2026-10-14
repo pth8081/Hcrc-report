@@ -182,6 +182,16 @@
 // chất là 1 danh sách ĐÃ xếp hạng, không phải danh sách cố định các chi
 // nhánh như báo cáo thường).
 //
+// DefinitionJson.preFilter (TUỲ CHỌN, theo yêu cầu người dùng — báo cáo
+// "theo ngành hàng") — { field, filterValuesField }, xem hàm
+// applyPreFilter() bên dưới. Lọc thực thể theo 1 dimension (vd mã kho
+// STK_ID) TRƯỚC khi nhóm theo field KHÁC (vd ngành hàng) — cho phép báo
+// cáo "mỗi dòng 1 ngành hàng, cộng dồn TẤT CẢ chi nhánh" NHƯNG người xem
+// vẫn CÓ THỂ bấm chọn 1/vài chi nhánh cụ thể để thu hẹp phạm vi cộng dồn,
+// không chọn gì = tính hết. Khác hẳn groupBy.field (field DÙNG ĐỂ GỘP
+// thành dòng) — preFilter.field là field DÙNG ĐỂ LỌC trước khi gộp, 2 field
+// này THƯỜNG KHÁC NHAU (vd preFilter theo STK_ID, groupBy theo DEPT_ID).
+//
 // Tiêu đề nhóm cột + màu (Excel/PDF + bảng xem trên web — bản 8.53 nối
 // thêm web, xem components/DataTable.jsx) — DefinitionJson.columnGroups
 // (TUỲ CHỌN, mặc định KHÔNG có = bảng/Excel/PDF phẳng như trước, không đổi
@@ -586,6 +596,90 @@ async function runBlock(block, requestedRange, filterValues) {
 // — giống hệt reportEngine.js:resolveField, chỉ khác đi qua 1 cấp "tên khối"
 // trước; target: field phẳng trực tiếp; api: field phẳng theo cột đã chiếu
 // sẵn bên api-server).
+// definition.preFilter (TUỲ CHỌN, theo yêu cầu người dùng — báo cáo "theo
+// ngành hàng") — lọc thực thể theo 1 DIMENSION cụ thể TRƯỚC khi nhóm/tính
+// toán (áp dụng cho CẢ 3 kiểu: phẳng/groupBy/topN), dùng
+// filterValues[filterValuesField] (mảng mã, vd mã kho STK_ID đã chọn ở bộ
+// lọc "Chi nhánh") — KHÔNG CHỌN GÌ (mảng rỗng/không khai) = KHÔNG lọc, giữ
+// nguyên MỌI thực thể (đúng ý "không chọn chi nhánh = tính tất cả chi
+// nhánh"). Khác hẳn requireDiemStkMapping/storeScope ở trên (luôn áp, theo
+// cấu hình báo cáo/quyền, không theo lựa chọn người dùng) — preFilter CHỈ
+// áp khi người xem báo cáo CHỦ ĐỘNG chọn giá trị ở đúng bộ lọc đó.
+//   field             — path "tenKhoi.field..." lấy giá trị để so khớp (vd
+//                        "current.dimensions.STK_ID").
+//   filterValuesField — tên field trong filterValues chứa mảng giá trị đã
+//                        chọn (vd "branches").
+function applyPreFilter(rows, definition, filterValues) {
+  const cfg = definition.preFilter;
+  if (!cfg) return rows;
+  const selected = filterValues?.[cfg.filterValuesField];
+  if (!Array.isArray(selected) || !selected.length) return rows;
+  const path = cfg.field.split('.');
+  const selectedSet = new Set(selected.map(String));
+  return rows.filter(r => selectedSet.has(String(resolveCompositeField(r, path))));
+}
+
+// block.remapEntityCode (TUỲ CHỌN, theo yêu cầu người dùng — báo cáo "theo
+// ngành hàng" cần ghép Thực đạt (khoá gốc `<STK_ID>_<DEPT_ID>`, để LỌC được
+// theo chi nhánh) với Chỉ tiêu nhập THEO TOÀN CÔNG TY (khoá chỉ `DEPT_ID`,
+// không tách chi nhánh) — 2 khối LỆCH khoá nên cơ chế ghép-theo-entityCode
+// thường (merged Map ở runCompositeReport()) không tự khớp được. Áp dụng
+// NGAY SAU khi khối trả rows thô (TRƯỚC bước ghép giữa các khối) — gộp lại
+// CHÍNH rows của khối này về 1 entityCode MỚI (THÔ, lấy từ 1 dimension, vd
+// "DEPT_ID"), CỘNG DỒN measures mọi dòng rơi cùng giá trị mới — TUỲ CHỌN
+// lọc bớt rows TRƯỚC khi gộp theo 1 dimension KHÁC (vd "STK_ID", theo
+// filterValues[filterValuesField] người dùng chọn ở bộ lọc "Chi nhánh" —
+// rỗng/không chọn = KHÔNG lọc, giữ mọi dòng). KHÔNG khai (mặc định) =
+// không đổi gì, hành vi y hệt trước — chỉ báo cáo nào CHỦ Ý khai mới dùng.
+//   field             — tên dimension THÔ (không phải path "tenKhoi.x") dùng
+//                        làm entityCode MỚI (vd "DEPT_ID").
+//   filterField        — TUỲ CHỌN, tên dimension THÔ dùng để lọc (vd "STK_ID").
+//   filterValuesField — TUỲ CHỌN, đi kèm filterField — tên field trong
+//                        filterValues chứa mảng giá trị đã chọn.
+function remapEntityCode(rows, cfg, filterValues) {
+  if (!cfg) return rows;
+  let filtered = rows;
+  if (cfg.filterField && cfg.filterValuesField) {
+    const selected = filterValues?.[cfg.filterValuesField];
+    if (Array.isArray(selected) && selected.length) {
+      const selectedSet = new Set(selected.map(String));
+      filtered = filtered.filter(r => selectedSet.has(String(r.dimensions?.[cfg.filterField])));
+    }
+  }
+  const groups = new Map();
+  for (const row of filtered) {
+    const newKey = row.dimensions?.[cfg.field];
+    if (newKey === null || newKey === undefined || newKey === '') continue;
+    const key = String(newKey);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(row);
+  }
+  const out = [];
+  for (const [newKey, groupRows] of groups) {
+    const measures = {};
+    const measureKeys = new Set();
+    for (const r of groupRows) for (const k of Object.keys(r.measures || {})) measureKeys.add(k);
+    for (const k of measureKeys) {
+      measures[k] = groupRows.reduce((sum, r) => sum + (typeof r.measures[k] === 'number' ? r.measures[k] : 0), 0);
+    }
+    const dimensions = {};
+    const dimensionKeys = new Set();
+    for (const r of groupRows) for (const k of Object.keys(r.dimensions || {})) dimensionKeys.add(k);
+    for (const k of dimensionKeys) {
+      const found = groupRows.map(r => r.dimensions[k]).find(v => v !== null && v !== undefined);
+      if (found !== undefined) dimensions[k] = found;
+    }
+    out.push({
+      entityCode: newKey,
+      sourceSystem: groupRows[0].sourceSystem,
+      eventDate: groupRows[0].eventDate,
+      dimensions,
+      measures
+    });
+  }
+  return out;
+}
+
 function resolveCompositeField(mergedRow, path) {
   const [blockKey, ...rest] = path;
   let cur = mergedRow[blockKey];
@@ -697,11 +791,15 @@ async function runCompositeReport(definition, filterValues = {}) {
   // đợi khối trước xong mới bắt đầu khối sau. Khối khớp `skipWhen` KHÔNG gọi
   // runBlock() (bỏ qua hẳn truy vấn, không chỉ ẩn kết quả) — coi như trả về
   // mảng rỗng, giống hệt "không có dữ liệu" ở bước ghép bên dưới.
-  const blockRowsList = await Promise.all(
+  const rawBlockRowsList = await Promise.all(
     definition.blocks.map(block => (
       matchesCondition(block.skipWhen, filterValues) ? [] : runBlock(block, requestedRange, filterValues)
     ))
   );
+  // block.remapEntityCode (TUỲ CHỌN) — xem chú thích đầy đủ ở hàm
+  // remapEntityCode() phía trên. KHÔNG khai = trả nguyên rows, KHÔNG đổi
+  // hành vi báo cáo cũ nào.
+  const blockRowsList = rawBlockRowsList.map((rows, i) => remapEntityCode(rows, definition.blocks[i].remapEntityCode, filterValues));
 
   // Map giữ thứ tự chèn -> thứ tự dòng trả về ổn định, khớp thứ tự khối
   // ĐẦU TIÊN gặp mỗi entityCode (thường là khối "hôm nay").
@@ -801,13 +899,13 @@ async function runCompositeReport(definition, filterValues = {}) {
   const nonTargetBlocks = definition.blocks.filter(b => !b.isTarget);
   const entityIsMaDiem = nonTargetBlocks.length > 0 && nonTargetBlocks.every(b => b.useDiemStkMapping || b.mapBuIdToMaDiem);
   const applyStoreScope = !!(storeScope && entityIsMaDiem);
-  const mergedRows = [...merged.values()].filter(
+  const mergedRows = applyPreFilter([...merged.values()].filter(
     r => !targetBlockKeys.some(key => r[key]?.TrangThai === 'DaDong')
       && !ambiguousEntityCodes.has(r.entityCode)
       && (!requireTargetMatch || targetBlockKeys.some(key => r[key] !== undefined))
       && (!requireDiemStkMapping || diemMappingForFilter.has(r.entityCode))
       && (!applyStoreScope || storeScope.has(r.entityCode))
-  );
+  ), definition, filterValues);
   // Cột khớp `hideWhen` -> LOẠI HẲN khỏi danh sách cột trả về (không chỉ để
   // trống giá trị) — dùng cho "chế độ xem" tuỳ chọn ẩn bớt nhóm cột so sánh,
   // xem chú thích block.skipWhen/column.hideWhen ở đầu file.
