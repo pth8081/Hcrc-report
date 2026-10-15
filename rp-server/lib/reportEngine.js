@@ -33,11 +33,26 @@ const PERSISTED_DIMENSION_COLUMNS = {
   // deptCode: 'DeptCode', // ví dụ — xem hướng dẫn đầy đủ trong dwh/schema.sql
 };
 
+// "measures.<tên>" (bản 9.43, theo yêu cầu người dùng — báo cáo Tồn kho cần
+// lọc "điều kiện lớn hơn/nhỏ hơn" trên 1 MEASURE, vd SoLuongTon) — đọc từ
+// cột Measures thay vì Dimensions, cùng quy ước prefix "measures." đã dùng
+// ở projectColumns()/resolveField() bên dưới (cho CỘT hiển thị) — giờ áp
+// dụng THÊM cho filterDef.field (lọc trong WHERE). Field KHÔNG có prefix
+// này vẫn đọc Dimensions như cũ, không đổi hành vi báo cáo hiện có nào
+// (chưa từng có filterDef.field nào bắt đầu bằng "measures." trước bản
+// này — rà soát `grep "field:.*'measures\."` toàn bộ scripts/ ra rỗng).
 function resolveColumn(field) {
   if (field === 'entityCode') return 'EntityCode';
   if (field === 'eventDate') return 'EventDate';
   if (field === 'sourceSystem') return 'SourceSystem';
   if (PERSISTED_DIMENSION_COLUMNS[field]) return `[${PERSISTED_DIMENSION_COLUMNS[field]}]`;
+  if (field.startsWith('measures.')) {
+    const measureName = field.slice('measures.'.length);
+    if (!FIELD_NAME_RE.test(measureName)) {
+      throw new Error(`Tên field không hợp lệ trong định nghĩa báo cáo: "${field}"`);
+    }
+    return `JSON_VALUE(Measures, '$.${measureName}')`;
+  }
   if (!FIELD_NAME_RE.test(field)) {
     throw new Error(`Tên field không hợp lệ trong định nghĩa báo cáo: "${field}"`);
   }
@@ -111,7 +126,13 @@ async function runReport(pool, definition, filterValues = {}, { page = 1, pageSi
   (definition.filters || []).forEach((filterDef, idx) => {
     const value = filterValues[filterDef.field];
     if (value === undefined || value === null || value === '') return;
-    const column = resolveColumn(filterDef.field);
+    // filterDef.column (TUỲ CHỌN, bản 9.43) — cột THẬT dùng để dựng SQL,
+    // KHÁC filterDef.field (khoá đọc trong filterValues) khi 2 filter cần
+    // CÙNG 1 cột nhưng filterValues riêng (vd "điều kiện lớn hơn"/"điều
+    // kiện nhỏ hơn" trên measures.SoLuongTon — field='tonKhoMin'/'tonKhoMax'
+    // để nhận 2 giá trị độc lập, column='measures.SoLuongTon' dùng chung).
+    // KHÔNG khai -> rơi về field như cũ, không đổi hành vi filter hiện có.
+    const column = resolveColumn(filterDef.column || filterDef.field);
     const p = `f${idx}`;
 
     if (filterDef.type === 'dateRange') {
@@ -130,6 +151,21 @@ async function runReport(pool, definition, filterValues = {}, { page = 1, pageSi
         return `@${name}`;
       });
       conditions.push(`${column} IN (${paramNames.join(', ')})`);
+    } else if (filterDef.type === 'numberMin' || filterDef.type === 'numberMax') {
+      // Bản 9.43 (theo yêu cầu người dùng — báo cáo Tồn kho: "điều kiện lớn
+      // hơn"/"điều kiện nhỏ hơn" nhập số TỰ DO, 2 ô tách biệt, khác hẳn
+      // 'thresholdNumber' đã có ở stockThresholdRunner.js/topSellingZeroStockRunner.js
+      // (1 ô + chọn chiều trên/dưới — dành riêng 2 SourceType custom đó,
+      // KHÔNG áp dụng cho 'directDb' chung). So sánh SỐ THẬT (TRY_CAST — ô
+      // dữ liệu nguồn không phải số, vd NULL/rác, tự thành NULL, KHÔNG khớp
+      // điều kiện thay vì lỗi 500 lúc query) — column thường là
+      // "measures.<tên>" (xem resolveColumn()), nhưng không bắt buộc, lọc
+      // được cả 1 Dimension dạng số nếu cần.
+      const num = Number(value);
+      if (Number.isFinite(num)) {
+        request.input(p, sql.Decimal(18, 4), num);
+        conditions.push(`TRY_CAST(${column} AS DECIMAL(18,4)) ${filterDef.type === 'numberMin' ? '>' : '<'} @${p}`);
+      }
     } else {
       request.input(p, sql.NVarChar(200), String(value));
       conditions.push(`${column} = @${p}`);

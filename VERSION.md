@@ -29,6 +29,46 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 9.43 — Chuyển nhóm báo cáo ngành hàng + báo cáo LDTD + Top 50/100 + Báo cáo Tồn kho mới
+
+**Theo yêu cầu người dùng**, 4 việc:
+
+1. **Chuyển nhóm**: "Doanh thu theo ngành hàng"/"Nhập hàng theo ngành
+   hàng" chuyển từ "Báo cáo kinh doanh" sang "Báo cáo Mua hàng"
+   (`rp-server/scripts/seedNganhHangReports.js` đổi `menuCode` mặc định —
+   chạy lại script để áp dụng).
+2. **Báo cáo "Doanh thu theo ngành hàng (LDTD)"** + trang etl-admin "Chỉ
+   tiêu Doanh thu theo ngành hàng (LDTD)" — mirror đúng pattern LDTD/HCRC
+   đã có: DÙNG CHUNG domain thực đạt `doanhthu_nganhhang` nhưng
+   `targetDomain` RIÊNG (`sales-targets-nganhhang-dt-ldtd`) để đội LDTD tự
+   nhập Chỉ tiêu độc lập.
+3. **"Top bán chạy đang tồn kho = 0"** — thêm filter "Số lượng hiển thị"
+   (Top 50/Top 100, người xem tự chọn, trước đây cố định 50 trong
+   DefinitionJson). Đồng thời sửa thứ tự xếp hạng: tính tồn kho cho MỌI
+   thực thể có bán trong kỳ (không cắt Top N trước khi biết tồn kho như
+   cũ), rồi xếp hạng theo (1) bán số lượng nhiều hơn trước, (2) cùng mức
+   bán thì tồn kho GẦN 0 HƠN trước — để tiêu chí tồn kho cũng tham gia
+   chọn Top N, không chỉ mỗi doanh số (`rp-server/lib/topSellingZeroStockRunner.js`).
+4. **Báo cáo "Tồn kho" MỚI** (nhóm Mua hàng, `bc-ton-kho-chi-tiet`) — lọc
+   theo ngành hàng/siêu thị/nhà cung cấp/kênh mua (mua riêng/mua chung) +
+   điều kiện lớn hơn/nhỏ hơn (2 ô số tự do). Nhà cung cấp/kênh mua lấy từ
+   ĐƠN GẦN NHẤT của đúng mã hàng (DSMART16 không có "NCC mặc định" theo
+   mã hàng). VIEW mới `vw_TonKhoChiTietTheoSKU` (mở rộng
+   `vw_TonKhoTheoSKU`, thêm ngành hàng + NCC/kênh mua đơn gần nhất qua
+   `OUTER APPLY` trên `STRANS`). `lib/reportEngine.js` (dùng chung mọi
+   báo cáo `directDb`) bổ sung 2 cơ chế STRICTLY ADDITIVE: field
+   `"measures.<tên>"` lọc được trên Measures (trước chỉ lọc được
+   Dimensions), 2 filter type mới `numberMin`/`numberMax` (so sánh số
+   thật `>`/`<`), và `filterDef.column` (TUỲ CHỌN) tách cột SQL khỏi khoá
+   đọc `filterValues` khi 2 filter dùng chung 1 cột — đã chạy regression
+   test xác nhận SQL báo cáo `directDb` hiện có không đổi. Xem đầy đủ:
+   `bc-ton-kho-chi-tiet.md`.
+
+**CHƯA merge main** — VIEW `vw_TonKhoChiTietTheoSKU` (mục 4) là VIEW MỚI
+HOÀN TOÀN, chưa chạy thử trên server thật (đặc biệt cần xác nhận hiệu
+năng `OUTER APPLY`) — chờ người dùng/DBA chạy + xác nhận kết quả trước
+khi merge.
+
 ## 9.42 — Màu header bản 9.40 cho mọi báo cáo phẳng (Mua hàng/Vận hành/Báo cáo tự do/Báo cáo kinh doanh)
 
 **Theo yêu cầu người dùng** — rà soát phát hiện: toàn hệ thống CHỈ đúng 4

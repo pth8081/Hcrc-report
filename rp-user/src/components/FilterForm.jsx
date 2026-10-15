@@ -105,6 +105,16 @@ export default function FilterForm({ reportId, filters, values, onChange, onSubm
               loading={!!loadingFields[f.field]}
               placeholder="Chọn..."
             />
+          ) : f.type === 'numberMin' || f.type === 'numberMax' ? (
+            // Bản 9.43 (báo cáo Tồn kho) — ô nhập số TỰ DO cho "điều kiện
+            // lớn hơn"/"điều kiện nhỏ hơn" (xem rp-server/lib/reportEngine.js
+            // — filterDef.column dùng chung 1 measure, filterDef.field riêng
+            // từng ô để không đè giá trị lên nhau).
+            <input
+              type="number"
+              value={values[f.field] ?? ''}
+              onChange={(e) => setValue(f.field, e.target.value === '' ? '' : Number(e.target.value))}
+            />
           ) : (
             <input
               type="text"

@@ -14,6 +14,49 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 9.43 — Chuyển nhóm ngành hàng + báo cáo LDTD + Top 50/100 + Báo cáo Tồn kho mới
+
+**Thay đổi**: `rp-server/scripts/seedNganhHangReports.js` (menuCode mặc
+định + báo cáo LDTD mới), `etl/server.js`/`roles.js`/`etl-admin` (trang
+Chỉ tiêu LDTD mới), `rp-server/lib/topSellingZeroStockRunner.js` +
+`scripts/seedTopZeroStockReport.js` (filter Top 50/100), `rp-server/lib/reportEngine.js`
+(2 cơ chế filter mới dùng chung mọi báo cáo `directDb`), 3 file MỚI:
+`deploy/Thiết lập VIEW Tồn kho Chi tiết theo SKU (DSMART16).sql`,
+`etl/scripts/seedTonKhoChiTietSync.js`, `rp-server/scripts/seedTonKhoChiTietReport.js`.
+
+**Các bước triển khai:**
+1. Trên DSMART16, DBA chạy `deploy/Thiết lập VIEW Tồn kho Chi tiết theo
+   SKU (DSMART16).sql` — kiểm tra 2 câu `SELECT TOP 20` cuối file (đặc
+   biệt chú ý thời gian chạy — VIEW dùng `OUTER APPLY`, có thể chậm nếu
+   danh mục hàng lớn).
+2. `git pull origin main`.
+3. Trên server ETL, chạy:
+   ```
+   node etl/scripts/seedTonKhoChiTietSync.js
+   ```
+4. Khởi động lại `etl` (2 router Chỉ tiêu LDTD mới) và `rp-server` (áp
+   dụng `topSellingZeroStockRunner.js`/`reportEngine.js` mới).
+5. Build lại `etl-admin` (`npm run build`) — trang "Chỉ tiêu Doanh thu
+   theo ngành hàng (LDTD)" mới.
+6. Trên server rp-server, chạy:
+   ```
+   node rp-server/scripts/seedNganhHangReports.js     (chuyển 2 báo cáo ngành
+                                                        hàng cũ sang Mua hàng +
+                                                        tạo báo cáo LDTD mới)
+   node rp-server/scripts/seedTopZeroStockReport.js    (thêm filter Top 50/100)
+   node rp-server/scripts/seedTonKhoChiTietReport.js   (tạo báo cáo Tồn kho mới)
+   ```
+7. Build lại `rp-user` (`npm run build`) — ô nhập số cho filter "điều kiện
+   lớn hơn/nhỏ hơn" mới.
+8. Vào etl-admin → "Chỉ tiêu Doanh thu theo ngành hàng (LDTD)" nhập Chỉ
+   tiêu (để trống MaSieuThi, điền MaNganhHang).
+9. Vào rp-user (Hệ thống → Phân quyền) gán quyền xem báo cáo LDTD mới +
+   báo cáo "Tồn kho" mới.
+10. Kiểm tra: 2 báo cáo ngành hàng cũ đã chuyển sang menu "Mua hàng"; báo
+    cáo LDTD mới hiện đúng Chỉ tiêu riêng; "Top bán chạy đang tồn kho = 0"
+    có filter Top 50/100 hoạt động đúng; báo cáo "Tồn kho" mới lọc đúng
+    ngành hàng/siêu thị/NCC/kênh mua + điều kiện lớn hơn/nhỏ hơn.
+
 ## 9.42 — Màu header bản 9.40 cho mọi báo cáo phẳng
 
 **Thay đổi**: `rp-server/lib/exportExcel.js` + `rp-server/lib/exportPdf.js`
