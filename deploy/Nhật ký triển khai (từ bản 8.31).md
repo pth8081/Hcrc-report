@@ -14,6 +14,51 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 9.41 — Báo cáo Doanh thu/Nhập hàng theo ngành hàng + Chỉ tiêu toàn công ty
+
+**Thay đổi**: `rp-server/lib/compositeReportRunner.js` (thêm `preFilter`/
+`block.remapEntityCode`, opt-in), `rp-server/scripts/seedNganhHangReports.js`
+(mới, 2 định nghĩa báo cáo), `etl/lib/salesTargetsImport.js` (shape
+"generic" hỗ trợ chỉ tiêu toàn công ty), `etl/routes/admin/salesTargets.js`
++ `etl/server.js` (2 router mới), `etl-admin` (2 trang + nav + quyền),
+`etl/scripts/seedNganhHangSync.js` (mới, job đồng bộ — đã có từ trước),
+2 VIEW mới trên `DSMART16`/`DSMART16_EOM` (xem file SQL riêng).
+
+**Các bước triển khai:**
+1. Đã chạy xong trên server DSMART16 thật (DBA/IT, người dùng xác nhận):
+   - VIEW Live: `V_HCRC_DOANHTHU_NGANHHANG`/`V_HCRC_NHAPHANG_NGANHHANG`
+     trên `DSMART16` (xem `bc-don-dat-hang.md`/báo cáo ngành hàng.md mục 2).
+   - VIEW Lịch sử: `deploy/Thiết lập VIEW Doanh thu-Nhập hàng theo Ngành
+     hàng Lịch sử (DSMART16_EOM).sql` trên `DSMART16_EOM` — ĐÃ XÁC NHẬN
+     chạy đúng (kết quả SELECT TOP 20 hợp lý, tên ngành hàng Unicode đúng).
+2. `git pull origin main`.
+3. Trên server ETL, chạy:
+   ```
+   node etl/scripts/seedNganhHangSync.js --with-history
+   ```
+   (tạo 2 job Live + 2 job Lịch sử — script tự kiểm tra VIEW/cột trước khi
+   ghi, dừng báo lỗi rõ nếu thiếu điều kiện).
+4. Khởi động lại `etl` (áp dụng 2 router/2 MenuCode mới
+   `sales-targets-nganhhang-dt`/`-nh`) và `rp-server` (áp dụng
+   `compositeReportRunner.js` mới).
+5. Build lại `etl-admin` (`npm run build`) — 2 trang "Chỉ tiêu Doanh
+   thu/Nhập hàng theo ngành hàng" mới trong menu.
+6. Trên server rp-server, chạy:
+   ```
+   node rp-server/scripts/seedNganhHangReports.js
+   ```
+   (tạo 2 báo cáo `bc-doanh-thu-nganhhang`/`bc-nhap-hang-nganhhang` vào
+   menu `reports-kinh-doanh`).
+7. Vào etl-admin → Đồng bộ → "Chạy thử" 4 job vừa tạo, xác nhận không lỗi.
+8. Vào etl-admin → "Chỉ tiêu Doanh thu/Nhập hàng theo ngành hàng" → nhập
+   chỉ tiêu (để TRỐNG MaSieuThi, điền MaNganhHang = đúng DEPT_ID).
+9. Vào rp-user (Hệ thống → Phân quyền) gán quyền xem 2 báo cáo mới cho
+   đúng vai trò.
+10. Kiểm tra: mở 2 báo cáo mới trên web — mỗi dòng 1 ngành hàng, bộ lọc
+    "Chi nhánh" hoạt động (không chọn = tổng hệ thống), cột Chỉ tiêu
+    không đổi khi lọc chi nhánh (đúng ý "toàn công ty"), cột Cùng kỳ năm
+    trước có số liệu sau khi đồng bộ job Lịch sử.
+
 ## 9.40 — Đổi màu báo cáo (Excel/web/email) sang bảng "kiểu báo cáo tài chính quốc tế"
 
 **Thay đổi**: `rp-server/lib/reportCellFormat.js` (thêm bảng màu mới song

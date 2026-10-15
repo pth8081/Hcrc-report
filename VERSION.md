@@ -29,6 +29,44 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 9.41 — Báo cáo Doanh thu/Nhập hàng theo ngành hàng + Chỉ tiêu toàn công ty
+
+**Theo yêu cầu người dùng** — 2 báo cáo mới, mỗi dòng LUÔN là 1 ngành
+hàng (không tách chi nhánh ra dòng riêng), có bộ lọc "Chi nhánh" tuỳ chọn
+(không chọn = cộng dồn toàn hệ thống), đầy đủ Chỉ tiêu/Thực đạt/Tỷ lệ
+đạt/Cùng kỳ năm trước/% LFL như báo cáo doanh thu chi nhánh. Chỉ tiêu nhập
+**THEO TOÀN CÔNG TY** (1 số/ngành hàng/tháng, không tách chi nhánh) —
+khác hẳn chỉ tiêu LDTD/HCRC theo từng siêu thị.
+
+Nguồn dữ liệu: VIEW mới `V_HCRC_DOANHTHU_NGANHHANG`/
+`V_HCRC_NHAPHANG_NGANHHANG` (Live, CSDL `DSMART16` — `STRANS` JOIN
+`SKU_DEF`/`DEPTLIST`, dùng `DEPT_NAME_U` tránh lỗi font) + VIEW cùng tên
+trên `DSMART16_EOM` (Lịch sử, UNION ALL `STRANS_YYYYMM`/`STRANS_EOM`, JOIN
+chéo `DSMART16.dbo.SKU_DEF`/`DEPTLIST` — 2 bảng này không có trên EOM,
+mirror kỹ thuật Script B). `etl/scripts/seedNganhHangSync.js` tạo job đồng
+bộ (domain mới `doanhthu_nganhhang`/`nhaphang_nganhhang`, tái dùng nguyên
+2 Nguồn dữ liệu "DSMART16 - Live"/"- Lịch sử" đã có).
+
+**Cơ chế ghép MỚI trong `rp-server/lib/compositeReportRunner.js`** (opt-in
+hoàn toàn, báo cáo nào không khai thì không đổi gì — đã chạy regression
+test byte-identical trên 1 báo cáo hình dạng cũ trước khi merge):
+`block.remapEntityCode` gộp lại rows thô của 1 khối về entityCode mới
+(vd từ `<STK_ID>_<DEPT_ID>` về `DEPT_ID`), tuỳ chọn lọc trước theo 1
+dimension khác (bộ lọc "Chi nhánh") — giải quyết việc ghép Thực đạt (khoá
+chi tiết, để lọc được theo chi nhánh) với Chỉ tiêu toàn công ty (khoá
+thô, không chi nhánh). `definition.preFilter` — lọc entity theo 1
+dimension SAU bước ghép (dự phòng cho thiết kế khác, 2 báo cáo này chưa
+dùng).
+
+**Chỉ tiêu toàn công ty**: `etl/lib/salesTargetsImport.js` shape
+"generic" (`MaSieuThi`+`Thang`+`MaNganhHang`+cột chỉ tiêu) mở rộng — để
+TRỐNG `MaSieuThi`, CHỈ điền `MaNganhHang` = chỉ tiêu theo toàn công ty
+(EntityCode = MaNganhHang), không ảnh hưởng hành vi ghép
+`<MaSieuThi>_<MaNganhHang>` cũ. 2 trang etl-admin mới "Chỉ tiêu Doanh
+thu/Nhập hàng theo ngành hàng" (`sales-targets-nganhhang-dt`/`-nh`).
+
+Xem đầy đủ: `báo cáo doanh thu-nhập hàng theo ngành hàng.md`.
+
 ## 9.40 — Đổi màu báo cáo (Excel/web/email) sang bảng "kiểu báo cáo tài chính quốc tế"
 
 **Theo yêu cầu người dùng** — bảng màu cũ (xanh lá chói/vàng gold/cam đất/
