@@ -63,8 +63,17 @@ const DOMAIN = 'don_dat_hang';
 // chiếu field gốc, không tính toán gì) để đi qua ĐÚNG nhánh (a) — đã kiểm
 // chứng lại bằng `describeColumns()`/`projectColumns()` thật trước khi
 // merge (không chỉ `node --check` cú pháp).
+// stt (bản 9.44, theo yêu cầu người dùng — "Báo cáo trong nhóm mua hàng ...
+// phải thêm cột STT và căn giữa") — KHÔNG cần `formula` (không phải field
+// thật, lib/purchaseOrderRunner.js tự lọc cột này ra trước khi chiếu rồi
+// gán SAU bằng assignSttIfPresent — xem lib/reportCellFormat.js). Căn giữa
+// tự áp dụng ở web/Excel/PDF theo đúng key 'stt' (không cần khai gì thêm
+// ở đây).
+const STT_COL = { key: 'stt', label: 'TT' };
+
 function commonHead(eventDateLabel) {
   return [
+    STT_COL,
     { key: 'eventDate', label: eventDateLabel, formula: 'eventDate' },
     { key: 'SoDon', label: 'Số đơn', formula: 'SoDon' },
     { key: 'TenDiem', label: 'Siêu thị', formula: 'TenDiem' },
@@ -142,6 +151,7 @@ const TRANG_THAI_FILTER = {
 // nghĩa hiện 1 mã hàng đại diện).
 function orderTotalHead(eventDateLabel) {
   return [
+    STT_COL,
     { key: 'eventDate', label: eventDateLabel, formula: 'eventDate' },
     { key: 'SoDon', label: 'Số đơn', formula: 'SoDon' },
     { key: 'TenDiem', label: 'Siêu thị', formula: 'TenDiem' },
@@ -212,6 +222,7 @@ const REPORTS = [
     // KHÔNG tách siêu thị, KHÔNG dùng transCode (cần cả 133 lẫn 333).
     reportId: 'bc-so-sanh-gia-tri-ncc', title: 'So sánh giá trị đặt–nhập theo NCC', aggregateBySupplier: true, showGrandTotal: true,
     columns: [
+      STT_COL,
       { key: 'MaNCC', label: 'Mã NCC', formula: 'MaNCC' },
       { key: 'TenNCC', label: 'Nhà cung cấp', formula: 'TenNCC' },
       { key: 'giaTriDat', label: 'Giá trị đặt', formula: 'measures.GiaTriDat' },

@@ -193,6 +193,13 @@ function addReportSheet(workbook, definition, rows, sheetName) {
         cell.numFmt = col.format === 'percent' ? '[$-409]0"%"' : '[$-409]#,##0';
         cell.alignment = { horizontal: 'right' };
       }
+      // Bản 9.44 (theo yêu cầu người dùng — "thêm cột STT và căn giữa") —
+      // cột STT là SỐ nên bị nhánh numFmt ở trên canh PHẢI như mọi cột số
+      // khác (giống lỗi đã sửa cho PDF ở bản 8.99, xem exportPdf.js) — đè
+      // riêng cột STT sang canh GIỮA, khớp đúng PDF.
+      if (cIdx === sttColIdx) {
+        cell.alignment = { ...(cell.alignment || {}), horizontal: 'center' };
+      }
       // SỬA bản 8.99 (theo yêu cầu người dùng — "phải dãn cả trên và dưới,
       // chữ nằm ở giữa hai dòng kẻ") — TRƯỚC ĐÂY chỉ set alignment cho Ô SỐ
       // (horizontal:'right' ở trên) và KHÔNG set vertical bao giờ — Excel mặc

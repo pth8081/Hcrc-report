@@ -31,6 +31,7 @@ const {
   todayUTC, loadLatestMeasureBefore, loadLatestMeasureWithDate, loadSumOnDate, loadLatestDimensionsForDomain
 } = require('./reportFactsHelpers');
 const { resolveStoreScopeStkIds } = require('./diemStkMapping');
+const { assignSttIfPresent } = require('./reportCellFormat');
 
 async function resolvePool(definition) {
   if (definition.dataSourceId) return getPoolForDataSource(definition.dataSourceId);
@@ -39,6 +40,9 @@ async function resolvePool(definition) {
 
 function describeColumns() {
   return [
+    // stt (bản 9.44, theo yêu cầu người dùng) — gán giá trị SAU bằng
+    // assignSttIfPresent (xem cuối runStockThresholdReport).
+    { key: 'stt', label: 'TT', width: 0.5 },
     { key: 'maKho', label: 'Mã kho', width: 0.8 },
     { key: 'tenKho', label: 'Tên kho', width: 1.6 },
     { key: 'maHang', label: 'Mã hàng', width: 0.8 },
@@ -111,7 +115,9 @@ async function runStockThresholdReport(definition, filterValues = {}) {
     });
   }
 
-  return { columns: describeColumns(), rows };
+  const columns = describeColumns();
+  assignSttIfPresent(rows, columns);
+  return { columns, rows };
 }
 
 module.exports = { runStockThresholdReport };

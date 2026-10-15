@@ -275,22 +275,17 @@ const { runApiReport } = require('./apiReportClient');
 const { evaluateFormula, extractFieldPaths } = require('./formulaEngine');
 const { runSalesTargetsBlockRange } = require('./salesTargetsReader');
 const { loadDiemStkMapping, remapRowsToDiem, stkListsMatch, buildBuIdLookup } = require('./diemStkMapping');
-const { computeSttValues } = require('./reportCellFormat');
-
-// Gán cột "TT" (key 'stt') NGAY TRONG rows trả về — TRƯỚC ĐÂY chỉ tính lúc
-// xuất Excel/PDF/email (lib/reportCellFormat.js:computeSttValues(), gọi
-// riêng ở lib/exportExcel.js/lib/exportPdf.js/lib/emailBodyRenderer.js),
-// nên bảng xem TRÊN WEB (cả trang Báo cáo lẫn từng ô Dashboard — cùng gọi
-// POST /reports/:id/run, xem routes/reports.js/modules/dashboard/DashboardTile.jsx)
+// assignSttIfPresent (bản 9.44 — dời sang lib/reportCellFormat.js để
+// lib/reportRunner.js/lib/purchaseOrderRunner.js dùng chung): gán cột "TT"
+// (key 'stt') NGAY TRONG rows trả về — TRƯỚC ĐÂY chỉ tính lúc xuất
+// Excel/PDF/email (lib/reportCellFormat.js:computeSttValues(), gọi riêng ở
+// lib/exportExcel.js/lib/exportPdf.js/lib/emailBodyRenderer.js), nên bảng
+// xem TRÊN WEB (cả trang Báo cáo lẫn từng ô Dashboard — cùng gọi POST
+// /reports/:id/run, xem routes/reports.js/modules/dashboard/DashboardTile.jsx)
 // luôn hiện cột "TT" TRỐNG — người dùng báo lỗi này (xem VERSION.md). Gọi
-// ĐÚNG 1 hàm dùng chung ở đây (nguồn trả JSON cho MỌI nơi tiêu thụ) để 4 nơi
+// ĐÚNG 1 hàm dùng chung (nguồn trả JSON cho MỌI nơi tiêu thụ) để các nơi
 // (web/Excel/PDF/email) LUÔN khớp số nhau tuyệt đối, không tính riêng rẽ.
-function assignSttIfPresent(rows, columns) {
-  if (!columns.some(c => c.key === 'stt')) return rows;
-  const sttValues = computeSttValues(rows);
-  rows.forEach((r, i) => { r.stt = sttValues[i]; });
-  return rows;
-}
+const { assignSttIfPresent } = require('./reportCellFormat');
 
 function formatDateISO(d) {
   return d.toISOString().slice(0, 10);
@@ -938,7 +933,29 @@ async function runCompositeReport(definition, filterValues = {}) {
   }
 
   if (!definition.groupBy) {
-    const flatRows = assignSttIfPresent(mergedRows.map(r => projectCompositeRow(r, visibleColumns)), columns);
+    // definition.sortBy (bản 9.44, theo yêu cầu người dùng — "báo cáo doanh
+    // thu ngành hàng và báo cáo nhập hàng theo ngành hàng ... sắp xếp mã
+    // ngành hàng từ thấp đến cao") — CÙNG hình dạng {field, direction} với
+    // groupBy.sortBy bên dưới (applySortBy), nhưng áp dụng cho nhánh PHẲNG
+    // (không groupBy) — TRƯỚC ĐÂY nhánh này không sắp xếp gì, giữ nguyên thứ
+    // tự trả về từ merge (không xác định). So sánh ƯU TIÊN SỐ
+    // (Number(...)) vì mã ngành hàng (DEPT_ID, vd "1001") là chuỗi số — rơi
+    // về so sánh CHUỖI (localeCompare) khi field không phải số (vd tên),
+    // tránh mọi giá trị không-số cùng quy về 0 rồi mất thứ tự.
+    let sortedRows = mergedRows;
+    if (definition.sortBy) {
+      const sortPath = definition.sortBy.field.split('.');
+      const sortDir = definition.sortBy.direction === 'desc' ? -1 : 1; // mặc định ASC (khác groupBy.sortBy mặc định DESC)
+      sortedRows = [...mergedRows].sort((a, b) => {
+        const va = resolveCompositeField(a, sortPath);
+        const vb = resolveCompositeField(b, sortPath);
+        const na = Number(va);
+        const nb = Number(vb);
+        if (Number.isFinite(na) && Number.isFinite(nb)) return (na - nb) * sortDir;
+        return String(va ?? '').localeCompare(String(vb ?? '')) * sortDir;
+      });
+    }
+    const flatRows = assignSttIfPresent(sortedRows.map(r => projectCompositeRow(r, visibleColumns)), columns);
     return { columns, rows: flatRows, warnings, columnGroups: definition.columnGroups || null, standaloneColumnColors: definition.standaloneColumnColors || null };
   }
 

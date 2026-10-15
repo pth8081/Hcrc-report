@@ -29,6 +29,40 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 9.44 — Cột STT + căn giữa toàn hệ thống + sắp xếp mã ngành hàng tăng dần
+
+**Theo yêu cầu người dùng**, 2 việc:
+
+1. **Cột STT (căn giữa)**: web (`rp-user/src/components/DataTable.jsx`) VÀ
+   Excel (`rp-server/lib/exportExcel.js`) trước đây chưa từng canh giữa cột
+   "TT" (Excel canh PHẢI theo đúng mọi cột số khác; web không có xử lý
+   riêng gì — cả 2 lỗi này ảnh hưởng CẢ các báo cáo ĐÃ CÓ cột TT từ trước,
+   không chỉ báo cáo mới) — chỉ PDF đã sửa đúng từ bản 8.99. Sửa cả 2 nơi
+   để khớp PDF. Thêm cột "TT" cho TOÀN BỘ báo cáo còn thiếu: 3 báo cáo
+   ngành hàng + "Doanh thu ngành hàng (LDTD)" (composite), 6 báo cáo nhóm
+   Mua hàng (`seedPurchaseOrderReports.js`), báo cáo "Tồn kho" mới
+   (`bc-ton-kho-chi-tiet`), và 4 báo cáo tồn kho còn lại (Core tồn=0, Tồn
+   kho theo ngưỡng, Cảnh báo hàng tồn, Top bán chạy đang tồn kho=0 —
+   `coreZeroStockRunner.js`/`stockThresholdRunner.js`/
+   `stockAlertRunner.js`/`topSellingZeroStockRunner.js`, cột hiển thị CỐ
+   ĐỊNH, không qua `definition.columns`). Hàm đánh số dùng chung
+   `assignSttIfPresent()` (rút ra từ `lib/compositeReportRunner.js`, dời
+   sang `lib/reportCellFormat.js`) — nay cũng dùng ở `lib/reportRunner.js`
+   (nhánh `directDb`) và `lib/purchaseOrderRunner.js` (trước đây CHỈ
+   composite report có cột TT hoạt động đúng trên web/email).
+2. **Sắp xếp mã ngành hàng tăng dần** — báo cáo "Doanh thu theo ngành
+   hàng"/"Nhập hàng theo ngành hàng"/"Doanh thu theo ngành hàng (LDTD)"
+   thêm `definition.sortBy: {field:'entityCode', direction:'asc'}`, xử lý
+   MỚI ở nhánh phẳng (không `groupBy`) của `lib/compositeReportRunner.js`
+   (trước đây nhánh này KHÔNG sắp xếp gì) — so sánh ưu tiên SỐ (mã ngành
+   hàng dạng chuỗi số, vd "1001"), rơi về so sánh chuỗi nếu không phải số.
+
+Đã regression-test bằng mock (hàm `assignSttIfPresent`/so sánh `sortBy`
+độc lập) + build 3 frontend — không cần chạy script seed lại dữ liệu cũ
+(cột TT/sắp xếp chỉ ảnh hưởng CÁCH HIỂN THỊ, không đổi nguồn dữ liệu), chỉ
+cần chạy lại các script seed báo cáo liên quan để cập nhật `DefinitionJson`
+(xem deploy log).
+
 ## 9.43 — Chuyển nhóm báo cáo ngành hàng + báo cáo LDTD + Top 50/100 + Báo cáo Tồn kho mới
 
 **Theo yêu cầu người dùng**, 4 việc:

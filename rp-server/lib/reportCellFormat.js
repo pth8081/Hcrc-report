@@ -131,6 +131,20 @@ function computeSttValues(rows) {
   return values;
 }
 
+// Gán giá trị cột 'stt' (nếu definition.columns có khai) NGAY TRÊN rows,
+// dùng computeSttValues() ở trên — bản 9.44 (theo yêu cầu người dùng,
+// "Báo cáo trong nhóm mua hàng và các báo cáo khác phải thêm cột STT") RÚT
+// RA từ 1 bản copy cục bộ y hệt trong lib/compositeReportRunner.js (đã có
+// từ trước, chỉ dùng cho SourceType 'composite') thành hàm CHUNG, để
+// lib/reportRunner.js (nhánh directDb) và lib/purchaseOrderRunner.js cũng
+// dùng được — không viết lại logic đánh số lần thứ 2.
+function assignSttIfPresent(rows, columns) {
+  if (!columns.some(c => c.key === 'stt')) return rows;
+  const sttValues = computeSttValues(rows);
+  rows.forEach((r, i) => { r.stt = sttValues[i]; });
+  return rows;
+}
+
 // Định dạng hiển thị DẠNG VĂN BẢN (dùng cho PDF, vẽ text trực tiếp — Excel
 // tự có numFmt riêng, xem lib/exportExcel.js, KHÔNG dùng hàm này để giữ
 // đúng kiểu số/sắp xếp được trong Excel).
@@ -181,5 +195,5 @@ module.exports = {
   GROUP_COLORS, SUBTOTAL_COLOR, GRAND_TOTAL_COLOR, ZEBRA_COLOR,
   GROUP_COLORS_CORPORATE, SUBTOTAL_COLOR_CORPORATE, GRAND_TOTAL_COLOR_CORPORATE, ZEBRA_COLOR_CORPORATE,
   resolveGroupColor, resolveRowFillColor, resolveStandaloneColumnColor, computeZebraFlags,
-  computeSttValues, formatCellText, filterColumns, filterGroups
+  computeSttValues, assignSttIfPresent, formatCellText, filterColumns, filterGroups
 };

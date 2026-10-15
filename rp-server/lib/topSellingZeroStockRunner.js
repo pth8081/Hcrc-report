@@ -51,6 +51,7 @@
 const { sql, getPool } = require('../db');
 const { getPoolForDataSource } = require('./dataSourcePool');
 const { todayUTC, loadLatestMeasureBefore, loadLatestMeasure, loadSumOnDate } = require('./reportFactsHelpers');
+const { assignSttIfPresent } = require('./reportCellFormat');
 
 const RANK_WINDOWS = ['1', '7', '30', 'daily'];
 
@@ -79,6 +80,9 @@ function resolveDateRange(rankWindow) {
 // chia đều 9 cột (khi khai đủ 4 domain Chờ/Đã nhập) làm chữ đè lên nhau.
 function describeColumns(definition) {
   const columns = [
+    // stt (bản 9.44, theo yêu cầu người dùng) — gán giá trị SAU bằng
+    // assignSttIfPresent (xem cuối runTopZeroStockReport).
+    { key: 'stt', label: 'TT', width: 0.5 },
     { key: 'chiNhanh', label: 'Chi nhánh', width: 1.6 },
     { key: 'maHang', label: 'Mã hàng', width: 0.8 },
     { key: 'tenHang', label: 'Tên hàng', width: 1.6 },
@@ -235,7 +239,9 @@ async function runTopZeroStockReport(definition, filterValues = {}) {
     }
   }
 
-  return { columns: describeColumns(definition), rows };
+  const columns = describeColumns(definition);
+  assignSttIfPresent(rows, columns);
+  return { columns, rows };
 }
 
 module.exports = { runTopZeroStockReport, resolveDateRange, RANK_WINDOWS };

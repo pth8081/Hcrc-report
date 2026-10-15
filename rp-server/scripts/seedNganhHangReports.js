@@ -66,7 +66,16 @@ function buildDefinition({ domain, targetDomain, exportFileCode, exportTitle, th
       { key: 'target', isTarget: true, targetDomain }
     ],
     requireTargetMatch: false,
+    // sortBy (bản 9.44, theo yêu cầu người dùng — "sắp xếp mã ngành hàng từ
+    // thấp đến cao") — xem lib/compositeReportRunner.js nhánh phẳng
+    // (!definition.groupBy). entityCode ĐÃ LÀ mã ngành hàng (DEPT_ID, xem
+    // block.remapEntityCode ở trên — mỗi dòng gộp về 1 ngành hàng).
+    sortBy: { field: 'entityCode', direction: 'asc' },
     columns: [
+      // stt (bản 9.44, theo yêu cầu người dùng) — KHÔNG kèm formula (không
+      // phải field thật — lib/compositeReportRunner.js:assignSttIfPresent
+      // tự gán SAU khi chiếu cột, xem lib/reportCellFormat.js).
+      { key: 'stt', label: 'TT' },
       { key: 'entityCode' },
       { key: 'tenNganhHang', label: 'Ngành hàng', formula: 'current.dimensions.TenNganhHang || lastYear.dimensions.TenNganhHang || entityCode', width: 2 },
       { key: 'chiTieu', label: 'Chỉ tiêu', formula: `target.${chiTieuField}`, width: 1.2 },

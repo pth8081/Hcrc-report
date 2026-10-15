@@ -63,6 +63,7 @@ const {
 } = require('./reportFactsHelpers');
 const { loadCoreItemListMap } = require('./coreItemList');
 const { loadDiemStkMapping } = require('./diemStkMapping');
+const { assignSttIfPresent } = require('./reportCellFormat');
 
 async function resolvePool(definition) {
   if (definition.dataSourceId) return getPoolForDataSource(definition.dataSourceId);
@@ -71,6 +72,10 @@ async function resolvePool(definition) {
 
 function describeColumns(definition) {
   const columns = [
+    // stt (bản 9.44, theo yêu cầu người dùng) — gán giá trị SAU bằng
+    // assignSttIfPresent (xem cuối runCoreZeroStockReport), căn giữa tự áp
+    // dụng ở web/Excel/PDF theo đúng key 'stt'.
+    { key: 'stt', label: 'TT', width: 0.5 },
     { key: 'maDiem', label: 'Mã điểm', width: 0.8 },
     { key: 'maKho', label: 'Mã kho', width: 0.8 },
     { key: 'tenKho', label: 'Tên kho', width: 1.6 },
@@ -204,7 +209,9 @@ async function runCoreZeroStockReport(definition, filterValues = {}) {
     });
   }
 
-  return { columns: describeColumns(definition), rows };
+  const columns = describeColumns(definition);
+  assignSttIfPresent(rows, columns);
+  return { columns, rows };
 }
 
 module.exports = { runCoreZeroStockReport };

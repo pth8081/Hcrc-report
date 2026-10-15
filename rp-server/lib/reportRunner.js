@@ -14,6 +14,7 @@ const { runCoreZeroStockReport } = require('./coreZeroStockRunner');
 const { runStockThresholdReport } = require('./stockThresholdRunner');
 const { runStockAlertReport } = require('./stockAlertRunner');
 const { runPurchaseOrderReport } = require('./purchaseOrderRunner');
+const { assignSttIfPresent } = require('./reportCellFormat');
 
 async function loadDefinition(reportId) {
   const rpPool = await getPool('RP');
@@ -104,8 +105,16 @@ async function runDefinition(definition, filterValues, pagination) {
   // là nhãn/màu nhóm + danh sách key đã CÓ SẴN trong `columns` trả ở trên,
   // không thêm chi tiết kiến trúc nguồn dữ liệu nào mới. standaloneColumnColors
   // (bản 8.58) — cùng lý do an toàn để lộ, chỉ là tên màu cho 1 cột đơn lẻ.
+  // Cột 'stt' (bản 9.44) — KHÔNG có cột nguồn thật trong DWH để projectColumns
+  // chiếu (không phải field/measures/formula nào), nên lọc RA trước khi gọi
+  // projectColumns (tránh lỗi/giá trị rác), rồi gán SAU bằng assignSttIfPresent
+  // (đánh số 1..N theo đúng thứ tự dòng trả về) — xem reportCellFormat.js.
+  const projectableColumns = definition.columns.filter(c => (typeof c === 'string' ? c : c.key) !== 'stt');
+  const columns = describeColumns(definition.columns);
+  const projectedRows = rows.map(r => projectColumns(r, projectableColumns));
+  assignSttIfPresent(projectedRows, columns);
   return {
-    columns: describeColumns(definition.columns), rows: rows.map(r => projectColumns(r, definition.columns)),
+    columns, rows: projectedRows,
     columnGroups: definition.columnGroups || null, standaloneColumnColors: definition.standaloneColumnColors || null
   };
 }

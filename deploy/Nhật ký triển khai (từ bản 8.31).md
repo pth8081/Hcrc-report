@@ -14,6 +14,38 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 9.44 — Cột STT + căn giữa toàn hệ thống + sắp xếp mã ngành hàng tăng dần
+
+**Thay đổi**: `rp-server/lib/exportExcel.js` (căn giữa cột TT, trước đây
+canh phải theo mọi cột số), `rp-user/src/components/DataTable.jsx` (căn
+giữa cột TT trên web, trước đây không xử lý gì), `rp-server/lib/reportCellFormat.js`
+(hàm `assignSttIfPresent()` MỚI dùng chung, rút từ `compositeReportRunner.js`),
+`rp-server/lib/reportRunner.js` + `lib/purchaseOrderRunner.js` (gọi hàm trên
+cho nhánh `directDb`/`purchaseOrder`, trước đây 2 nhánh này không đánh số
+TT), `rp-server/lib/compositeReportRunner.js` (thêm `definition.sortBy` cho
+nhánh phẳng không `groupBy`), `rp-server/lib/coreZeroStockRunner.js` +
+`stockThresholdRunner.js` + `stockAlertRunner.js` + `topSellingZeroStockRunner.js`
+(thêm cột TT cố định), `rp-server/scripts/seedPurchaseOrderReports.js` +
+`seedTonKhoChiTietReport.js` + `seedNganhHangReports.js` (khai cột
+`{key:'stt'}` + `sortBy` trong `DefinitionJson`).
+
+**Các bước triển khai:**
+1. `git pull origin main`.
+2. Khởi động lại `rp-server` (áp dụng toàn bộ thay đổi lib/ ở trên).
+3. Build lại `rp-user` (`npm run build`) — DataTable.jsx căn giữa cột TT.
+4. Trên server rp-server, chạy lại 3 script seed (cập nhật `DefinitionJson`
+   — thêm cột TT + sắp xếp mã ngành hàng, KHÔNG cần đồng bộ lại dữ liệu):
+   ```
+   node rp-server/scripts/seedPurchaseOrderReports.js
+   node rp-server/scripts/seedTonKhoChiTietReport.js
+   node rp-server/scripts/seedNganhHangReports.js
+   ```
+5. Kiểm tra: mọi báo cáo nhóm "Mua hàng" + 3 báo cáo ngành hàng + 4 báo
+   cáo tồn kho (Core tồn=0/Tồn kho theo ngưỡng/Cảnh báo hàng tồn/Top bán
+   chạy đang tồn kho=0) đều có cột "TT" căn giữa trên web/Excel/PDF; báo
+   cáo "Doanh thu theo ngành hàng"/"Nhập hàng theo ngành hàng"/"(LDTD)"
+   sắp xếp đúng mã ngành hàng từ thấp đến cao.
+
 ## 9.43 — Chuyển nhóm ngành hàng + báo cáo LDTD + Top 50/100 + Báo cáo Tồn kho mới
 
 **Thay đổi**: `rp-server/scripts/seedNganhHangReports.js` (menuCode mặc

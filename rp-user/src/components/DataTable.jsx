@@ -24,10 +24,21 @@ import { resolveGroupColor, resolveRowFillColor, resolveStandaloneColumnColor, c
 // trống (nền mặc định, không ép trắng — tránh đè màu nền khác nếu sau này
 // có nơi gọi khác dùng).
 function cellStyle(row, col, columnGroups, isZebra) {
+  const sttStyle = col.key === 'stt' ? { textAlign: 'center' } : undefined;
   const subtotalColor = resolveRowFillColor(row, col, columnGroups || []);
-  if (subtotalColor) return { background: subtotalColor, fontWeight: 700 };
-  if (isZebra) return { background: ZEBRA_COLOR };
-  return undefined;
+  if (subtotalColor) return { ...sttStyle, background: subtotalColor, fontWeight: 700 };
+  if (isZebra) return { ...sttStyle, background: ZEBRA_COLOR };
+  return sttStyle;
+}
+
+// headerStyle (bản 9.44, theo yêu cầu người dùng — "thêm cột STT và căn
+// giữa") — PDF/Excel đã canh giữa cột STT ở DÒNG DỮ LIỆU (xem exportPdf.js/
+// exportExcel.js) nhưng web (file này) trước đây KHÔNG có logic riêng cho
+// cột 'stt' — merge thêm textAlign:'center' vào style tiêu đề + dữ liệu cột
+// này, không đổi gì các cột khác.
+function headerStyle(col, baseStyle) {
+  if (col.key !== 'stt') return baseStyle;
+  return { ...(baseStyle || {}), textAlign: 'center' };
 }
 
 // Dựng cấu trúc tiêu đề 2 dòng từ columnGroups — cột KHÔNG thuộc nhóm nào
@@ -118,7 +129,7 @@ export default function DataTable({ columns, rows, emptyMessage = 'Không có d�
                 {segments.map((seg, idx) => {
                   if (seg.type === 'single') {
                     const standaloneColor = resolveStandaloneColumnColor(seg.col, standaloneColumnColors);
-                    return <th key={seg.col.key} rowSpan={2} style={standaloneColor ? { background: standaloneColor } : undefined}>{seg.col.label}</th>;
+                    return <th key={seg.col.key} rowSpan={2} style={headerStyle(seg.col, standaloneColor ? { background: standaloneColor } : undefined)}>{seg.col.label}</th>;
                   }
                   return (
                     <th key={`g-${idx}`} colSpan={seg.cols.length} style={{ background: resolveGroupColor(seg.group.color) }}>
@@ -135,7 +146,7 @@ export default function DataTable({ columns, rows, emptyMessage = 'Không có d�
             </>
           ) : (
             <tr>
-              {allColumns.map(col => <th key={col.key} className={actionsClassName(col.key)} style={flatHeaderStyle}>{col.label}</th>)}
+              {allColumns.map(col => <th key={col.key} className={actionsClassName(col.key)} style={headerStyle(col, flatHeaderStyle)}>{col.label}</th>)}
             </tr>
           )}
         </thead>

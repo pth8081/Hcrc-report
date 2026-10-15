@@ -64,6 +64,10 @@ function buildDefinition() {
     // formula bị projectColumns() coi là "chuỗi tên field thô" (ném lỗi
     // nếu không phải chuỗi thật) — xem chú thích hàm đó.
     columns: [
+      // stt (bản 9.44, theo yêu cầu người dùng) — KHÔNG kèm formula (không
+      // phải field thật — lib/reportRunner.js tự lọc cột này ra trước khi
+      // chiếu rồi gán SAU bằng assignSttIfPresent, xem lib/reportCellFormat.js).
+      { key: 'stt', label: 'TT' },
       { key: 'maChiNhanh', label: 'Mã chi nhánh', formula: 'MaChiNhanh' },
       { key: 'tenChiNhanh', label: 'Siêu thị', formula: 'TenChiNhanh' },
       { key: 'maHang', label: 'Mã hàng', formula: 'MaHangHienThi' },

@@ -31,6 +31,7 @@ const {
 } = require('./reportFactsHelpers');
 const { loadDiemStkMapping } = require('./diemStkMapping');
 const { loadStockAlertThresholds } = require('./stockAlertThresholds');
+const { assignSttIfPresent } = require('./reportCellFormat');
 
 async function resolvePool(definition) {
   if (definition.dataSourceId) return getPoolForDataSource(definition.dataSourceId);
@@ -39,6 +40,9 @@ async function resolvePool(definition) {
 
 function describeColumns() {
   return [
+    // stt (bản 9.44, theo yêu cầu người dùng) — gán giá trị SAU bằng
+    // assignSttIfPresent (xem cuối runStockAlertReport).
+    { key: 'stt', label: 'TT', width: 0.5 },
     { key: 'maKho', label: 'Mã kho', width: 0.8 },
     { key: 'tenKho', label: 'Tên kho', width: 1.6 },
     { key: 'maDiem', label: 'Siêu thị (Mã điểm)', width: 0.9 },
@@ -126,7 +130,9 @@ async function runStockAlertReport(definition, filterValues = {}) {
     });
   }
 
-  return { columns: describeColumns(), rows };
+  const columns = describeColumns();
+  assignSttIfPresent(rows, columns);
+  return { columns, rows };
 }
 
 module.exports = { runStockAlertReport };

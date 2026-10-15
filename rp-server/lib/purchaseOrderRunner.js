@@ -78,6 +78,7 @@
 const { getPool } = require('../db');
 const { runReport, projectColumns, describeColumns } = require('./reportEngine');
 const { loadDiemStkMapping, buildBuIdLookup } = require('./diemStkMapping');
+const { assignSttIfPresent } = require('./reportCellFormat');
 
 const DOMAIN = 'don_dat_hang';
 // TRANS_CODE (bản 9.27, MỞ RỘNG theo yêu cầu người dùng — trước đây CHỈ có
@@ -350,9 +351,16 @@ async function runPurchaseOrderReport(definition, filterValues = {}, pagination 
     mappedRows = appendGrandTotal(mappedRows, fullMappedRows);
   }
 
+  // Cột 'stt' (bản 9.44) — không phải field/measures nào thật, lọc RA trước
+  // projectColumns rồi gán SAU bằng assignSttIfPresent (xem lib/reportRunner.js
+  // directDb — cùng cách làm, dùng chung 1 hàm ở lib/reportCellFormat.js).
+  const columns = describeColumns(definition.columns);
+  const projectableColumns = definition.columns.filter((c) => (typeof c === 'string' ? c : c.key) !== 'stt');
+  const projectedRows = mappedRows.map((r) => projectColumns(r, projectableColumns));
+  assignSttIfPresent(projectedRows, columns);
   return {
-    columns: describeColumns(definition.columns),
-    rows: mappedRows.map((r) => projectColumns(r, definition.columns)),
+    columns,
+    rows: projectedRows,
     warnings
   };
 }
