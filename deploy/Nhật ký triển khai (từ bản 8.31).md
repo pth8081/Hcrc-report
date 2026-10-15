@@ -14,6 +14,28 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 9.42 — Màu header bản 9.40 cho mọi báo cáo phẳng
+
+**Thay đổi**: `rp-server/lib/exportExcel.js` + `rp-server/lib/exportPdf.js`
+(header fill cho báo cáo không `columnGroups`) + `rp-server/scripts/seedLdtdHcrcReports.js`
+(cờ `legacyPdfColors: true` cho 4 báo cáo LDTD/HCRC) +
+`rp-user/src/components/DataTable.jsx` + `rp-user/src/components/ReportBody.jsx`
+(prop `isReport`).
+
+**Các bước triển khai:**
+1. `git pull origin main`.
+2. Khởi động lại `rp-server` (áp dụng Excel/PDF mới + cờ `legacyPdfColors`).
+3. Chạy `node rp-server/scripts/seedLdtdHcrcReports.js` — BẮT BUỘC, để ghi
+   cờ `legacyPdfColors: true` mới vào `DefinitionJson` đã lưu của 4 báo cáo
+   LDTD/HCRC (nếu bỏ qua bước này, PDF 4 báo cáo đó sẽ đổi SANG màu mới
+   ngoài ý muốn, vì mặc định `exportPdf.js` đã đảo thành bảng corporate).
+4. Build lại `rp-user` (`npm run build`) — áp dụng màu header web mới.
+5. Kiểm tra: mở 1 báo cáo phẳng bất kỳ (vd Mua hàng/báo cáo theo ngành
+   hàng) trên web → header navy nhạt; xuất Excel/PDF → cùng màu. Mở báo
+   cáo "Doanh thu cuối ngày LDTD/HCRC" (gốc + Thành viên) → web/Excel VẪN
+   màu corporate bản 9.40 (không đổi); xuất PDF → VẪN màu cũ (xanh
+   lá/vàng gold, CHƯA đổi).
+
 ## 9.41 — Báo cáo Doanh thu/Nhập hàng theo ngành hàng + Chỉ tiêu toàn công ty
 
 **Thay đổi**: `rp-server/lib/compositeReportRunner.js` (thêm `preFilter`/

@@ -29,6 +29,34 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 9.42 — Màu header bản 9.40 cho mọi báo cáo phẳng (Mua hàng/Vận hành/Báo cáo tự do/Báo cáo kinh doanh)
+
+**Theo yêu cầu người dùng** — rà soát phát hiện: toàn hệ thống CHỈ đúng 4
+báo cáo "doanh thu cuối ngày" (LDTD/HCRC gốc + Thành viên) có khai
+`columnGroups` (màu theo nhóm cột) — mọi báo cáo khác (Mua hàng/Vận
+hành/Báo cáo tự do/Báo cáo kinh doanh, kể cả 2 báo cáo "theo ngành hàng"
+bản 9.41) là bảng PHẲNG, không có khái niệm "màu nhóm" để đổi. Thêm 1 lớp
+màu nền header xanh navy nhạt (`GROUP_COLORS_CORPORATE.green`, cùng tông
+bản 9.40) cho MỌI báo cáo phẳng — áp dụng ĐỒNG LOẠT cả web/Excel/PDF,
+không cần khai cờ riêng từng báo cáo.
+
+**4 báo cáo LDTD/HCRC**: Excel/web GIỮ NGUYÊN (đã ở bảng corporate từ bản
+9.40, không đổi gì). PDF **GIỮ MÀU CŨ** (xanh lá/vàng gold) theo đúng yêu
+cầu — thêm cờ `legacyPdfColors: true` vào `buildDefinition()` ở
+`rp-server/scripts/seedLdtdHcrcReports.js`, `lib/exportPdf.js` đọc cờ này
+để rơi về bảng màu gốc (mặc định MỚI của `exportPdf.js` giờ là bảng
+CORPORATE, đảo ngược so với bản 9.40 — chỉ 4 báo cáo này khai cờ để giữ
+hành vi cũ).
+
+**Thay đổi**: `rp-server/lib/exportExcel.js`/`lib/exportPdf.js` (nhánh
+"không columnGroups" tô fill header); `rp-user/src/components/DataTable.jsx`
+thêm prop `isReport` (CHỈ `ReportBody.jsx` — nơi DUY NHẤT render bảng báo
+cáo, dùng chung trang Báo cáo + ô Dashboard — truyền `true`, các trang
+CRUD khác dùng chung `DataTable.jsx` không bị ảnh hưởng).
+
+Đã demo thật (render PDF/Excel qua LibreOffice, 4 ảnh) xác nhận đúng cả 2
+nhóm trước khi merge.
+
 ## 9.41 — Báo cáo Doanh thu/Nhập hàng theo ngành hàng + Chỉ tiêu toàn công ty
 
 **Theo yêu cầu người dùng** — 2 báo cáo mới, mỗi dòng LUÔN là 1 ngành
