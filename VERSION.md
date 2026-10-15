@@ -29,6 +29,41 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 9.48 — Báo cáo "Core stock = 0": giải thích rõ lý do khi trống (chẩn đoán)
+
+**Theo báo cáo người dùng** — 2 báo cáo "Core stock = 0" (Mart/Minimart)
+vẫn trả "Không có dữ liệu" dù đã xác nhận: danh sách Core đã upload đủ
+(khớp đúng số dòng file gốc), job domain `doanhthu_chinhanh` (Dimension
+"chain") đã chạy, và test TRỰC TIẾP đúng 1 kho/mã hàng đã biết chắc có
+khai Core (`12061`/`2002182261`) cũng vẫn trống.
+
+**Vấn đề**: `rp-server/lib/coreZeroStockRunner.js` (6 bước lọc tuần tự)
+trước đây khi trả `rows: []` KHÔNG kèm lý do — không có cách nào (kể cả
+chính đội dev) biết đang chặn ở bước nào trong 6 bước mà không truy vấn
+trực tiếp CSDL sản xuất.
+
+**Sửa**: thêm `warnings` (field đã có sẵn, dùng chung ở nhiều báo cáo
+khác, `rp-user` tự hiện ⚠️ ngay trên trang — KHÔNG cần sửa gì ở frontend)
+giải thích CHÍNH XÁC đang dừng ở bước nào:
+1. Chưa có danh sách Core cho loại điểm đó.
+2. Domain `chainDomain` chưa có kho nào thuộc đúng loại điểm (hoặc (các)
+   kho đã chọn ở bộ lọc không khớp).
+3. Domain tồn kho/bán hàng không có dòng nào cho đúng kho đang lọc, HOẶC
+   có dòng nhưng KHÔNG mã hàng nào khớp danh sách Core của đúng kho đó
+   (gợi ý kiểm tra lệch định dạng mã kho giữa file Core và dữ liệu đồng
+   bộ — nguyên nhân nghi ngờ nhiều nhất hiện tại).
+4. Có ứng viên khớp Core nhưng bị loại vì: thiếu dữ liệu tồn kho "hôm
+   qua" / tồn hiện tại còn trên ngưỡng / đang bị khoá — kèm SỐ LƯỢNG từng
+   loại.
+
+Đã mock-test đủ cả 6 nhánh (bao gồm trường hợp thành công không có
+warning) — mỗi nhánh ra đúng thông báo tương ứng.
+
+**Bước tiếp theo**: người dùng chạy lại đúng báo cáo "Core stock = 0
+(Minimart)", lọc đúng 1 chi nhánh đã biết có khai Core — thông báo ⚠️ sẽ
+chỉ ra chính xác bước nào đang chặn, dựa vào đó xử lý tiếp (có thể là lệch
+mã kho giữa file Core và dữ liệu đã đồng bộ, hoặc thiếu lịch sử tồn kho).
+
 ## 9.47 — "Top bán chạy đang tồn kho = 0": chọn Top 50/Top 100/Tất cả khi gửi email
 
 **Theo yêu cầu người dùng** — lịch gửi email báo cáo "Top bán chạy đang tồn

@@ -14,6 +14,18 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 9.48 — Báo cáo "Core stock = 0": giải thích rõ lý do khi trống
+
+**Thay đổi**: `rp-server/lib/coreZeroStockRunner.js` (thêm `warnings` giải
+thích đang chặn ở bước nào trong 6 bước lọc — KHÔNG cần sửa frontend, trang
+báo cáo đã tự hiện `result.warnings` sẵn có từ trước).
+
+**Các bước triển khai:**
+1. `git pull origin main`.
+2. Khởi động lại `rp-server`.
+3. Chạy lại báo cáo "Core stock = 0 (Minimart)" đang trống — đọc dòng ⚠️
+   hiện ra ngay trên trang để biết chính xác nguyên nhân.
+
 ## 9.47 — "Top bán chạy đang tồn kho = 0": chọn Top 50/Top 100/Tất cả khi gửi email
 
 **Thay đổi**: `rp-server/scripts/seedTopZeroStockReport.js` (thêm option

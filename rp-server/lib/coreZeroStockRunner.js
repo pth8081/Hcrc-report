@@ -139,7 +139,12 @@ async function runCoreZeroStockReport(definition, filterValues = {}) {
   // trước đây coreMap phẳng Map<maHang, ref> áp dụng chung cho mọi kho cùng
   // LoaiDiem, xem lib/coreItemList.js).
   const coreByKho = await loadCoreItemListByKho(loaiDiem);
-  if (!coreByKho.size) return { columns: describeColumns(definition), rows: [] };
+  if (!coreByKho.size) {
+    return {
+      columns: describeColumns(definition), rows: [],
+      warnings: [`Chưa có danh sách hàng Core cho loại điểm ${loaiDiem} — vào "Danh sách hàng Core" để upload.`]
+    };
+  }
 
   // Bước 2.
   const chainByEntity = await loadLatestDimensionsForDomain(pool, definition.chainDomain, ['chain']);
@@ -150,14 +155,27 @@ async function runCoreZeroStockReport(definition, filterValues = {}) {
   const effectiveEligibleStk = branchFilter.length
     ? new Set(branchFilter.filter(stk => eligibleStk.has(stk)))
     : eligibleStk;
-  if (!effectiveEligibleStk.size) return { columns: describeColumns(definition), rows: [] };
+  if (!effectiveEligibleStk.size) {
+    // Chẩn đoán (bản 9.48, theo báo cáo người dùng — "Core mart/minimart
+    // vẫn chưa có data" dù danh sách Core đã upload đủ) — TRƯỚC ĐÂY trả
+    // rows:[] KHÔNG kèm lý do, người dùng không biết đang chặn ở bước nào
+    // trong 6 bước. Giờ giải thích RÕ: domain chainDomain có đồng bộ kho
+    // nào thuộc đúng loaiDiem không, và (nếu có chọn bộ lọc "Chi nhánh")
+    // kho đã chọn có khớp đúng loaiDiem không.
+    const warnings = branchFilter.length
+      ? [`${branchFilter.length} kho đã chọn ở bộ lọc "Chi nhánh" KHÔNG có kho nào thuộc loại điểm ${loaiDiem} theo domain "${definition.chainDomain}" (Dimension "chain") — kiểm tra lại domain này đã đồng bộ đúng mã kho/giá trị chain chưa.`]
+      : [`Domain "${definition.chainDomain}" (Dimension "chain") chưa có kho nào thuộc loại điểm ${loaiDiem} — kiểm tra job đồng bộ domain này đã chạy đủ và đúng giá trị "MART"/"MINIMART" chưa.`];
+    return { columns: describeColumns(definition), rows: [], warnings };
+  }
 
   // Bước 3.
   const stockDims = await loadLatestDimensionsForDomain(pool, definition.stockDomain, ['MaChiNhanh', 'TenChiNhanh', 'MaHangHienThi', 'TenHang']);
   const candidates = [];
+  let scannedInEligibleStk = 0;
   for (const [entityCode, info] of stockDims) {
     const d = info.dimensions;
     if (!d.MaChiNhanh || !effectiveEligibleStk.has(d.MaChiNhanh)) continue;
+    scannedInEligibleStk += 1;
     // So khớp ĐÚNG kho (bản 9.46) — 1 mã hàng chỉ tính là Core nếu ĐÚNG kho
     // đó có khai dòng Core tương ứng, không còn áp dụng chung mọi kho cùng
     // LoaiDiem như trước.
@@ -165,7 +183,17 @@ async function runCoreZeroStockReport(definition, filterValues = {}) {
     if (!coreMapForKho || !d.MaHangHienThi || !coreMapForKho.has(d.MaHangHienThi)) continue;
     candidates.push({ entityCode, ...d, coreRef: coreMapForKho.get(d.MaHangHienThi) });
   }
-  if (!candidates.length) return { columns: describeColumns(definition), rows: [] };
+  if (!candidates.length) {
+    const sampleKho = [...effectiveEligibleStk].slice(0, 3).join(', ');
+    return {
+      columns: describeColumns(definition), rows: [],
+      warnings: [
+        scannedInEligibleStk
+          ? `Có ${scannedInEligibleStk} dòng (kho, mã hàng) đã đồng bộ trong domain "${definition.stockDomain}" thuộc đúng kho đang lọc, nhưng KHÔNG dòng nào khớp mã hàng trong danh sách Core đã upload cho đúng kho đó — kiểm tra lại "Mã kho" trong file Core (vd ${sampleKho || 'không có kho nào đang lọc'}) có khớp CHÍNH XÁC mã kho (STK_ID) đã đồng bộ trong domain tồn kho/bán hàng không (lệch 1 ký tự/định dạng là không khớp).`
+          : `Domain "${definition.stockDomain}" KHÔNG có dòng dữ liệu nào đã đồng bộ cho đúng kho đang lọc (${sampleKho || 'không có kho nào đang lọc'}) — kiểm tra job đồng bộ tồn kho/bán hàng đã chạy cho đúng (các) kho đó chưa.`
+      ]
+    };
+  }
   const entityCodes = candidates.map(c => c.entityCode);
 
   // Bước 7 — tra ngược Mã điểm, độc lập với các bước còn lại (không phụ
@@ -188,14 +216,16 @@ async function runCoreZeroStockReport(definition, filterValues = {}) {
   ]);
 
   const rows = [];
+  let missingYesterdayStockCount = 0;
+  let aboveThresholdCount = 0;
+  let lockedCount = 0;
   for (const c of candidates) {
     const yesterdayStock = yesterdayStockByEntity.get(c.entityCode);
-    if (yesterdayStock === undefined || yesterdayStock === null) continue;
+    if (yesterdayStock === undefined || yesterdayStock === null) { missingYesterdayStockCount += 1; continue; }
     const todaySales = todaySalesByEntity.get(c.entityCode) || 0;
     const estimatedStock = yesterdayStock - todaySales;
-    if (estimatedStock > threshold) continue;
-    if (lockAllByEntity.get(c.entityCode) === 1) continue;
-    if (lockByStoreByEntity.get(c.entityCode) === 1) continue;
+    if (estimatedStock > threshold) { aboveThresholdCount += 1; continue; }
+    if (lockAllByEntity.get(c.entityCode) === 1 || lockByStoreByEntity.get(c.entityCode) === 1) { lockedCount += 1; continue; }
 
     const pendingOrder = pendingOrderByEntity.get(c.entityCode);
     const lastReceived = lastReceivedByEntity.get(c.entityCode);
@@ -231,7 +261,13 @@ async function runCoreZeroStockReport(definition, filterValues = {}) {
 
   const columns = describeColumns(definition);
   assignSttIfPresent(rows, columns);
-  return { columns, rows };
+  const warnings = rows.length ? [] : [
+    `Có ${candidates.length} (kho, mã hàng) khớp đúng danh sách Core trong phạm vi lọc, nhưng KHÔNG dòng nào hiện ra: ` +
+    `${missingYesterdayStockCount} chưa có dữ liệu tồn kho "hôm qua" (chưa đồng bộ đủ ngày), ` +
+    `${aboveThresholdCount} tồn kho hiện tại còn > ${threshold} (chưa hết hàng), ` +
+    `${lockedCount} đang bị khoá (Khoá All/Khoá theo kho).`
+  ];
+  return { columns, rows, warnings };
 }
 
 module.exports = { runCoreZeroStockReport };
