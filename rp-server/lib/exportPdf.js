@@ -30,7 +30,10 @@ const { PDFDocument, rgb } = require('pdf-lib');
 const fontkit = require('@pdf-lib/fontkit');
 const fs = require('fs');
 const path = require('path');
-const { resolveGroupColor, resolveRowFillColor, resolveStandaloneColumnColor, ZEBRA_COLOR, computeZebraFlags, computeSttValues, formatCellText } = require('./reportCellFormat');
+const {
+  resolveGroupColor, resolveRowFillColor, resolveStandaloneColumnColor, computeZebraFlags, computeSttValues, formatCellText,
+  ZEBRA_COLOR, GROUP_COLORS_CORPORATE, SUBTOTAL_COLOR_CORPORATE, GRAND_TOTAL_COLOR_CORPORATE, ZEBRA_COLOR_CORPORATE
+} = require('./reportCellFormat');
 
 const FONT_DIR = path.join(__dirname, '..', 'node_modules', '@openfonts', 'noto-sans_vietnamese', 'files');
 
@@ -85,7 +88,25 @@ const BORDER_RGB_BLACK = rgb(0, 0, 0);
 // definition.columns = [{key, label, format?, width?}] — xem
 // lib/reportEngine.js:describeColumns(). definition.columnGroups (TUỲ
 // CHỌN) — xem chú thích đầu file lib/compositeReportRunner.js.
+// Bảng màu PDF (bản 9.42, theo yêu cầu người dùng — "chuyển hết báo cáo
+// mua hàng/vận hành/báo cáo tự do/báo cáo kinh doanh sang màu bản 9.40,
+// CHỈ 4 báo cáo doanh thu cuối ngày LDTD/HCRC (gốc + Thành viên) giữ PDF
+// cũ tới khi xác nhận đổi"): MẶC ĐỊNH dùng bảng CORPORATE (khớp Excel/web
+// đã đổi từ bản 9.40) — `definition.legacyPdfColors === true` (CHỈ khai ở
+// buildDefinition() của 4 báo cáo trên, xem
+// rp-server/scripts/seedLdtdHcrcReports.js) mới rơi về bảng GỐC. Excel/web
+// KHÔNG đọc cờ này (đã chuyển hẳn từ bản 9.40, không có khái niệm "giữ
+// cũ" ở 2 kênh đó nữa).
 async function exportPdf(definition, rows) {
+  const useLegacyColors = definition.legacyPdfColors === true;
+  const pdfGroupColorPalette = useLegacyColors ? undefined : GROUP_COLORS_CORPORATE;
+  const pdfSubtotalColor = useLegacyColors ? undefined : SUBTOTAL_COLOR_CORPORATE;
+  const pdfGrandTotalColor = useLegacyColors ? undefined : GRAND_TOTAL_COLOR_CORPORATE;
+  const pdfZebraColor = useLegacyColors ? ZEBRA_COLOR : ZEBRA_COLOR_CORPORATE;
+  // Nền header báo cáo PHẲNG (không columnGroups) — xem chú thích đầy đủ ở
+  // drawHeader() bên dưới. LUÔN dùng bảng CORPORATE (không qua
+  // useLegacyColors) — nhánh phẳng không áp dụng cho 4 báo cáo LDTD/HCRC.
+  const flatHeaderFill = resolveGroupColor('green', GROUP_COLORS_CORPORATE);
   const { regular: regularBytes, bold: boldBytes } = loadFontBytes();
   const pdfDoc = await PDFDocument.create();
   pdfDoc.registerFontkit(fontkit);
@@ -383,9 +404,15 @@ async function exportPdf(definition, rows) {
       // dài như "Đã nhập hôm nay (Điều chuyển)") thì mỗi cột càng hẹp, nhãn
       // 1 dòng tràn đè lên cột kế bên (phát hiện được lúc demo báo cáo tồn
       // kho=0, xem VERSION.md).
+      // Nền header (bản 9.42, theo yêu cầu người dùng — "chuyển tất cả báo
+      // cáo Mua hàng/Vận hành/Báo cáo tự do/Báo cáo kinh doanh sang màu
+      // bản 9.40") — ÁP DỤNG ĐỒNG LOẠT, không qua `useLegacyColors`: nhánh
+      // !hasGroups này CHỈ chạy cho báo cáo KHÔNG khai columnGroups — 4 báo
+      // cáo LDTD/HCRC (duy nhất khai `legacyPdfColors`) luôn có columnGroups
+      // nên luôn đi qua nhánh `hasGroups` ở dưới, không bao giờ chạm đây.
       const rowTop = y;
       columns.forEach((col, i) => {
-        drawGridRect(colX[i], rowTop - HEADER_ROW_HEIGHT, colWidths[i], HEADER_ROW_HEIGHT);
+        drawGridRect(colX[i], rowTop - HEADER_ROW_HEIGHT, colWidths[i], HEADER_ROW_HEIGHT, flatHeaderFill);
         drawWrappedCenteredText(col.label, colX[i], colWidths[i], rowTop, HEADER_ROW_HEIGHT, { bold: true, size: HEADER_FLAT_FONT_SIZE });
       });
       y -= HEADER_ROW_HEIGHT;
@@ -399,7 +426,7 @@ async function exportPdf(definition, rows) {
       const idxs = (g.keys || []).map(k => colIndexByKey.get(k)).filter(v => v !== undefined);
       if (!idxs.length) continue;
       const start = Math.min(...idxs), end = Math.max(...idxs);
-      const argb = resolveGroupColor(g.color);
+      const argb = resolveGroupColor(g.color, pdfGroupColorPalette);
       const startX = colX[start];
       const spanW = colX[end] + colWidths[end] - startX;
       drawGridRect(startX, row1Top - HEADER_ROW_HEIGHT, spanW, HEADER_ROW_HEIGHT, argb);
@@ -415,7 +442,7 @@ async function exportPdf(definition, rows) {
       // standaloneColumnColors (bản 8.58) — tô HEADER riêng 1 cột đơn lẻ
       // không thuộc columnGroups nào (vd "Trung bình GD"), KHÔNG vẽ thêm
       // dòng tiêu đề nhóm phía trên như columnGroups thật.
-      const standaloneColor = resolveStandaloneColumnColor(col, definition.standaloneColumnColors);
+      const standaloneColor = resolveStandaloneColumnColor(col, definition.standaloneColumnColors, pdfGroupColorPalette);
       drawGridRect(colX[i], row2Top - HEADER_ROW_HEIGHT, colWidths[i], HEADER_ROW_HEIGHT * 2, standaloneColor);
       drawWrappedCenteredText(col.label, colX[i], colWidths[i], row1Top, HEADER_ROW_HEIGHT * 2, { bold: true, size: HEADER_FLAT_FONT_SIZE });
     });
@@ -443,7 +470,7 @@ async function exportPdf(definition, rows) {
     columns.forEach((col, i) => {
       // Dòng Tổng cộng/Tổng cộng nhóm tô màu THEO TỪNG CỘT (bản 8.58, xem
       // resolveRowFillColor); dòng thường xen kẽ zebra nếu tới lượt.
-      const rowFill = resolveRowFillColor(row, col, groups) || (zebraFlags[rIdx] ? ZEBRA_COLOR : undefined);
+      const rowFill = resolveRowFillColor(row, col, groups, pdfGroupColorPalette, pdfSubtotalColor, pdfGrandTotalColor) || (zebraFlags[rIdx] ? pdfZebraColor : undefined);
       drawGridRect(colX[i], rowTop - ROW_HEIGHT, colWidths[i], ROW_HEIGHT, rowFill);
       const raw = i === sttColIdx ? sttValues[rIdx] : row[col.key];
       const text = formatCellText(raw, col);

@@ -151,8 +151,17 @@ function addReportSheet(workbook, definition, rows, sheetName) {
     dataStartRow = 4;
     sheet.views = [{ state: 'frozen', ySplit: dataStartRow - 1 }];
   } else {
+    // Bản 9.42 (theo yêu cầu người dùng — "chuyển tất cả báo cáo Mua
+    // hàng/Vận hành/Báo cáo tự do/Báo cáo kinh doanh sang màu bản 9.40") —
+    // TRƯỚC ĐÂY nhánh phẳng (không columnGroups) không tô màu header nào,
+    // chỉ in đậm. Thêm nền xanh navy nhạt (GROUP_COLORS_CORPORATE.green,
+    // cùng tông "Doanh thu" ở 4 báo cáo cuối ngày) cho MỌI báo cáo phẳng —
+    // áp dụng ĐỒNG LOẠT, không cần cờ bật/tắt riêng từng báo cáo (khác
+    // nhánh columnGroups ở trên, nơi 4 báo cáo LDTD/HCRC đã đi qua).
+    const flatHeaderFill = fillArgb(resolveGroupColor('green', GROUP_COLORS_CORPORATE));
     sheet.getRow(1).values = columns.map(c => c.label);
     sheet.getRow(1).font = { bold: true };
+    sheet.getRow(1).eachCell({ includeEmpty: true }, (cell) => { cell.fill = flatHeaderFill; });
     dataStartRow = 2;
     sheet.views = [{ state: 'frozen', ySplit: 1 }];
   }

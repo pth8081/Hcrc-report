@@ -60,6 +60,16 @@ function buildDefinition(title, targetDomain, exportFileCode, domains) {
     // cung cấp) — xem rp-server/lib/exportPdf.js. CHỈ 4 báo cáo doanh thu
     // này khai cờ này, không ảnh hưởng cách xuất PDF của báo cáo khác.
     compactSinglePage: true,
+    // legacyPdfColors: true (bản 9.42, theo yêu cầu người dùng — "chuyển
+    // tất cả báo cáo Mua hàng/Vận hành/Báo cáo tự do/Báo cáo kinh doanh
+    // sang màu bản 9.40, CHỈ 4 báo cáo doanh thu cuối ngày LDTD/HCRC (gốc +
+    // Thành viên) giữ PDF cũ cho đến khi xác nhận đổi") — bản 9.40 đổi
+    // Excel/web sang bảng CORPORATE cho MỌI báo cáo nhưng giữ PDF nguyên
+    // bảng gốc CHO MỌI báo cáo (mặc định an toàn lúc đó). Bản 9.42 đảo
+    // ngược mặc định PDF (CORPORATE), nên 4 báo cáo NÀY cần khai RÕ cờ
+    // này để exportPdf() rơi về bảng gốc — xem lib/exportPdf.js. Excel/web
+    // KHÔNG đọc cờ này (đã đổi hẳn từ bản 9.40, không có đường lùi).
+    legacyPdfColors: true,
     domain: revenueDomain,
     filters: [
       // type: 'dateRange' (trước là 'date', chỉ chọn được 1 ngày) — chọn 1

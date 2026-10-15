@@ -89,11 +89,21 @@ function selectionColumn(rows, selection) {
   };
 }
 
-export default function DataTable({ columns, rows, emptyMessage = 'Không có dữ liệu.', scrollClassName = '', columnGroups = null, standaloneColumnColors = null, selection = null }) {
+export default function DataTable({ columns, rows, emptyMessage = 'Không có dữ liệu.', scrollClassName = '', columnGroups = null, standaloneColumnColors = null, selection = null, isReport = false }) {
   if (!rows.length) return <p className="empty-message">{emptyMessage}</p>;
 
   const allColumns = selection ? [selectionColumn(rows, selection), ...columns] : columns;
   const hasGroups = !!(columnGroups && columnGroups.length);
+  // flatHeaderStyle (bản 9.42, theo yêu cầu người dùng — "chuyển tất cả báo
+  // cáo Mua hàng/Vận hành/Báo cáo tự do/Báo cáo kinh doanh sang màu bản
+  // 9.40") — nền xanh navy nhạt cho header bảng PHẲNG (không columnGroups),
+  // khớp Excel/PDF (xem lib/exportExcel.js/lib/exportPdf.js). CHỈ áp dụng
+  // khi `isReport` (components/ReportBody.jsx — nơi DUY NHẤT render bảng
+  // báo cáo, dùng chung cho trang Báo cáo + ô Dashboard — truyền
+  // isReport={true}) — các trang CRUD khác (Users/Roles/Danh mục/Audit
+  // log/...) gọi DataTable KHÔNG truyền prop này, giữ nguyên bảng trắng
+  // như trước, không bị ảnh hưởng.
+  const flatHeaderStyle = isReport && !hasGroups ? { background: resolveGroupColor('green') } : undefined;
   const segments = hasGroups ? buildGroupedHeader(allColumns, columnGroups) : null;
   const tableClassName = segments ? 'data-table data-table--grouped' : 'data-table';
   const zebraFlags = hasGroups ? computeZebraFlags(rows) : rows.map(() => false);
@@ -125,7 +135,7 @@ export default function DataTable({ columns, rows, emptyMessage = 'Không có d�
             </>
           ) : (
             <tr>
-              {allColumns.map(col => <th key={col.key} className={actionsClassName(col.key)}>{col.label}</th>)}
+              {allColumns.map(col => <th key={col.key} className={actionsClassName(col.key)} style={flatHeaderStyle}>{col.label}</th>)}
             </tr>
           )}
         </thead>
