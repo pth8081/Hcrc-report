@@ -14,6 +14,23 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 9.45 — KHẨN: sửa lỗi 500 báo cáo tồn kho khi lọc "Tất cả" chi nhánh
+
+**Thay đổi**: `rp-server/lib/reportFactsHelpers.js` (CHIA NHỎ `entityCodes`
+thành nhiều lượt query ≤1900 mã/lượt, gộp kết quả — tránh vượt giới hạn
+2100 tham số/câu lệnh của SQL Server). KHÔNG đổi file nào khác — các
+runner gọi 4 hàm này (`topSellingZeroStockRunner.js`/
+`coreZeroStockRunner.js`/`stockThresholdRunner.js`/`stockAlertRunner.js`)
+giữ nguyên, không cần sửa.
+
+**Các bước triển khai (làm NGAY, đang lỗi 500 trên server):**
+1. `git pull origin main`.
+2. Khởi động lại `rp-server` (áp dụng `reportFactsHelpers.js` mới) —
+   KHÔNG cần build lại frontend nào, KHÔNG cần chạy script seed nào (chỉ
+   sửa cách query, không đổi DefinitionJson/schema).
+3. Kiểm tra lại: báo cáo "Top bán chạy đang tồn kho = 0" lọc "Tất cả" chi
+   nhánh + Top 100 chạy được bình thường, không còn lỗi 500.
+
 ## 9.44 — Cột STT + căn giữa toàn hệ thống + sắp xếp mã ngành hàng tăng dần
 
 **Thay đổi**: `rp-server/lib/exportExcel.js` (căn giữa cột TT, trước đây

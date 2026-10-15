@@ -32,27 +32,61 @@ function buildEntityCodeParams(request, entityCodes, prefix = 'code') {
   });
 }
 
+// SỬA LỖI (bản 9.44, phát hiện qua báo cáo người dùng — "Top bán chạy đang
+// tồn kho = 0" trả 500 khi lọc "Tất cả" chi nhánh) — SQL Server CHỈ nhận
+// tối đa 2100 tham số/câu lệnh. 4 hàm bên dưới gắn 1 tham số RIÊNG cho MỖI
+// EntityCode trong mảng `entityCodes` (buildEntityCodeParams, phòng SQL
+// injection — KHÔNG nội suy chuỗi trực tiếp) — mảng đó từ bản 9.43 không
+// còn bị cắt Top N TRƯỚC khi gọi các hàm này nữa (xem
+// lib/topSellingZeroStockRunner.js — tính tồn kho cho MỌI thực thể có bán
+// trong kỳ TRƯỚC khi xếp hạng), nên 1 chuỗi siêu thị thật (hàng chục chi
+// nhánh × hàng nghìn SKU) dễ vượt 2100 EntityCode/lượt, SQL Server từ chối
+// cả câu lệnh (lỗi "The incoming request has too many parameters") ->
+// 500. CHIA NHỎ `entityCodes` thành nhiều lượt query (CHUNK_SIZE an toàn,
+// chừa chỗ cho 1-2 tham số khác như domain/ngày mốc), chạy song song rồi
+// GỘP kết quả lại — hành vi trả về (Map EntityCode -> giá trị) giữ NGUYÊN,
+// nơi gọi không cần đổi gì.
+const ENTITY_CODE_CHUNK_SIZE = 1900;
+function chunkArray(arr, size) {
+  const chunks = [];
+  for (let i = 0; i < arr.length; i += size) chunks.push(arr.slice(i, i + size));
+  return chunks;
+}
+
+// Chạy `runChunk(chunk)` (trả về 1 Map hoặc mảng cặp [key,value]) cho từng
+// lô EntityCode, GỘP tất cả Map kết quả lại thành 1 Map duy nhất — dùng
+// chung cho cả 4 hàm loadLatestMeasure*/loadSumOnDate bên dưới.
+async function mapOverEntityCodeChunks(entityCodes, runChunk) {
+  const chunks = chunkArray(entityCodes, ENTITY_CODE_CHUNK_SIZE);
+  const chunkResults = await Promise.all(chunks.map(runChunk));
+  const merged = new Map();
+  for (const m of chunkResults) for (const [k, v] of m) merged.set(k, v);
+  return merged;
+}
+
 // Dòng GẦN NHẤT TRƯỚC 1 ngày mốc (dùng cho tồn kho "hôm qua") — KHÔNG lấy
 // dòng của chính ngày mốc hay sau đó, để luôn là số liệu ĐÃ CHỐT SỔ, không
 // lẫn số liệu đang cập nhật dở trong ngày.
 async function loadLatestMeasureBefore(pool, domain, entityCodes, measureKey, beforeDate) {
   assertSafeFieldKey(measureKey);
   if (!entityCodes.length) return new Map();
-  const request = pool.request();
-  request.input('domain', sql.VarChar(50), domain);
-  request.input('beforeDate', sql.Date, beforeDate);
-  const codeParams = buildEntityCodeParams(request, entityCodes);
-  const result = await request.query(`
-    SELECT EntityCode, Value FROM (
-      SELECT
-        EntityCode,
-        CAST(JSON_VALUE(Measures, '$.${measureKey}') AS DECIMAL(18,4)) AS Value,
-        ROW_NUMBER() OVER (PARTITION BY EntityCode ORDER BY EventDate DESC) AS rn
-      FROM dwh.ReportFacts
-      WHERE Domain = @domain AND EntityCode IN (${codeParams.join(', ')}) AND EventDate < @beforeDate
-    ) latest WHERE rn = 1
-  `);
-  return new Map(result.recordset.map(r => [r.EntityCode, r.Value]));
+  return mapOverEntityCodeChunks(entityCodes, async (chunk) => {
+    const request = pool.request();
+    request.input('domain', sql.VarChar(50), domain);
+    request.input('beforeDate', sql.Date, beforeDate);
+    const codeParams = buildEntityCodeParams(request, chunk);
+    const result = await request.query(`
+      SELECT EntityCode, Value FROM (
+        SELECT
+          EntityCode,
+          CAST(JSON_VALUE(Measures, '$.${measureKey}') AS DECIMAL(18,4)) AS Value,
+          ROW_NUMBER() OVER (PARTITION BY EntityCode ORDER BY EventDate DESC) AS rn
+        FROM dwh.ReportFacts
+        WHERE Domain = @domain AND EntityCode IN (${codeParams.join(', ')}) AND EventDate < @beforeDate
+      ) latest WHERE rn = 1
+    `);
+    return result.recordset.map(r => [r.EntityCode, r.Value]);
+  });
 }
 
 // Dòng GẦN NHẤT bất kỳ ngày nào (dùng cho "Chờ nhập"/"Chờ giao" — số lượng
@@ -62,20 +96,22 @@ async function loadLatestMeasureBefore(pool, domain, entityCodes, measureKey, be
 async function loadLatestMeasure(pool, domain, entityCodes, measureKey) {
   assertSafeFieldKey(measureKey);
   if (!entityCodes.length) return new Map();
-  const request = pool.request();
-  request.input('domain', sql.VarChar(50), domain);
-  const codeParams = buildEntityCodeParams(request, entityCodes);
-  const result = await request.query(`
-    SELECT EntityCode, Value FROM (
-      SELECT
-        EntityCode,
-        CAST(JSON_VALUE(Measures, '$.${measureKey}') AS DECIMAL(18,4)) AS Value,
-        ROW_NUMBER() OVER (PARTITION BY EntityCode ORDER BY EventDate DESC) AS rn
-      FROM dwh.ReportFacts
-      WHERE Domain = @domain AND EntityCode IN (${codeParams.join(', ')})
-    ) latest WHERE rn = 1
-  `);
-  return new Map(result.recordset.map(r => [r.EntityCode, r.Value]));
+  return mapOverEntityCodeChunks(entityCodes, async (chunk) => {
+    const request = pool.request();
+    request.input('domain', sql.VarChar(50), domain);
+    const codeParams = buildEntityCodeParams(request, chunk);
+    const result = await request.query(`
+      SELECT EntityCode, Value FROM (
+        SELECT
+          EntityCode,
+          CAST(JSON_VALUE(Measures, '$.${measureKey}') AS DECIMAL(18,4)) AS Value,
+          ROW_NUMBER() OVER (PARTITION BY EntityCode ORDER BY EventDate DESC) AS rn
+        FROM dwh.ReportFacts
+        WHERE Domain = @domain AND EntityCode IN (${codeParams.join(', ')})
+      ) latest WHERE rn = 1
+    `);
+    return result.recordset.map(r => [r.EntityCode, r.Value]);
+  });
 }
 
 // Như loadLatestMeasure() nhưng trả THÊM EventDate của đúng dòng đó (dùng
@@ -84,21 +120,23 @@ async function loadLatestMeasure(pool, domain, entityCodes, measureKey) {
 async function loadLatestMeasureWithDate(pool, domain, entityCodes, measureKey) {
   assertSafeFieldKey(measureKey);
   if (!entityCodes.length) return new Map();
-  const request = pool.request();
-  request.input('domain', sql.VarChar(50), domain);
-  const codeParams = buildEntityCodeParams(request, entityCodes);
-  const result = await request.query(`
-    SELECT EntityCode, Value, EventDate FROM (
-      SELECT
-        EntityCode,
-        CAST(JSON_VALUE(Measures, '$.${measureKey}') AS DECIMAL(18,4)) AS Value,
-        EventDate,
-        ROW_NUMBER() OVER (PARTITION BY EntityCode ORDER BY EventDate DESC) AS rn
-      FROM dwh.ReportFacts
-      WHERE Domain = @domain AND EntityCode IN (${codeParams.join(', ')})
-    ) latest WHERE rn = 1
-  `);
-  return new Map(result.recordset.map(r => [r.EntityCode, { value: r.Value, eventDate: r.EventDate }]));
+  return mapOverEntityCodeChunks(entityCodes, async (chunk) => {
+    const request = pool.request();
+    request.input('domain', sql.VarChar(50), domain);
+    const codeParams = buildEntityCodeParams(request, chunk);
+    const result = await request.query(`
+      SELECT EntityCode, Value, EventDate FROM (
+        SELECT
+          EntityCode,
+          CAST(JSON_VALUE(Measures, '$.${measureKey}') AS DECIMAL(18,4)) AS Value,
+          EventDate,
+          ROW_NUMBER() OVER (PARTITION BY EntityCode ORDER BY EventDate DESC) AS rn
+        FROM dwh.ReportFacts
+        WHERE Domain = @domain AND EntityCode IN (${codeParams.join(', ')})
+      ) latest WHERE rn = 1
+    `);
+    return result.recordset.map(r => [r.EntityCode, { value: r.Value, eventDate: r.EventDate }]);
+  });
 }
 
 // Dòng ĐÚNG 1 ngày cụ thể (dùng cho "Số lượng bán hôm nay"/"Đã nhập hôm
@@ -107,17 +145,19 @@ async function loadLatestMeasureWithDate(pool, domain, entityCodes, measureKey) 
 async function loadSumOnDate(pool, domain, entityCodes, measureKey, onDate) {
   assertSafeFieldKey(measureKey);
   if (!entityCodes.length) return new Map();
-  const request = pool.request();
-  request.input('domain', sql.VarChar(50), domain);
-  request.input('onDate', sql.Date, onDate);
-  const codeParams = buildEntityCodeParams(request, entityCodes);
-  const result = await request.query(`
-    SELECT EntityCode, SUM(CAST(JSON_VALUE(Measures, '$.${measureKey}') AS DECIMAL(18,4))) AS Value
-    FROM dwh.ReportFacts
-    WHERE Domain = @domain AND EntityCode IN (${codeParams.join(', ')}) AND EventDate = @onDate
-    GROUP BY EntityCode
-  `);
-  return new Map(result.recordset.map(r => [r.EntityCode, r.Value]));
+  return mapOverEntityCodeChunks(entityCodes, async (chunk) => {
+    const request = pool.request();
+    request.input('domain', sql.VarChar(50), domain);
+    request.input('onDate', sql.Date, onDate);
+    const codeParams = buildEntityCodeParams(request, chunk);
+    const result = await request.query(`
+      SELECT EntityCode, SUM(CAST(JSON_VALUE(Measures, '$.${measureKey}') AS DECIMAL(18,4))) AS Value
+      FROM dwh.ReportFacts
+      WHERE Domain = @domain AND EntityCode IN (${codeParams.join(', ')}) AND EventDate = @onDate
+      GROUP BY EntityCode
+    `);
+    return result.recordset.map(r => [r.EntityCode, r.Value]);
+  });
 }
 
 // QUÉT TOÀN BỘ domain (KHÔNG lọc theo entityCodes — dùng khi CHƯA biết

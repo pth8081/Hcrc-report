@@ -29,6 +29,37 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 9.45 — KHẨN: sửa lỗi 500 "Top bán chạy đang tồn kho = 0" (và 3 báo cáo tồn kho khác) khi lọc "Tất cả" chi nhánh
+
+**Theo báo cáo người dùng** — bấm "Lọc" báo cáo "Top bán chạy đang tồn kho
+= 0" (Chi nhánh: Tất cả) trả về lỗi 500 ngay sau khi deploy bản 9.43/9.44.
+
+**Nguyên nhân thật** — KHÔNG liên quan bản 9.44 (cột STT), mà là hệ quả
+của thay đổi Top 50/100 ở bản 9.43: trước đây `entityCodes` truyền vào
+`lib/reportFactsHelpers.js` (4 hàm `loadLatestMeasure*`/`loadSumOnDate`,
+mỗi EntityCode gắn 1 tham số SQL riêng để chống injection) bị cắt Top N
+THEO TỪNG CHI NHÁNH trước khi query, nên luôn có giới hạn (vd 50 × ~40 chi
+nhánh ≈ 2000). Bản 9.43 đổi logic tính tồn kho cho MỌI thực thể có bán
+trong kỳ TRƯỚC khi xếp hạng (để tiêu chí tồn kho tham gia chọn Top N) —
+`entityCodes` không còn giới hạn, chọn "Tất cả" chi nhánh ra hàng chục
+nghìn mã (chi nhánh × SKU), VƯỢT giới hạn **2100 tham số/câu lệnh** của
+SQL Server — server từ chối cả câu query, ném lỗi không bắt được -> 500.
+Lỗi này CŨNG ảnh hưởng 3 báo cáo khác dùng chung 4 hàm trên với
+`entityCodes` quét nguyên domain (không giới hạn sẵn): "Core stock = 0",
+"Tồn kho theo ngưỡng", "Cảnh báo hàng tồn" — chưa có báo cáo lỗi thật từ
+người dùng cho 3 báo cáo này (có thể catalogue hiện tại của họ còn dưới
+ngưỡng), nhưng sửa chung 1 lần để không tái phát khi danh mục hàng tăng.
+
+**Sửa**: `rp-server/lib/reportFactsHelpers.js` — CHIA NHỎ `entityCodes`
+thành nhiều lượt query (tối đa 1900 mã/lượt, an toàn dưới 2100), chạy
+song song rồi GỘP kết quả lại thành 1 Map — áp dụng cho cả 4 hàm
+`loadLatestMeasureBefore`/`loadLatestMeasure`/`loadLatestMeasureWithDate`/
+`loadSumOnDate`. Hành vi trả về (Map EntityCode -> giá trị) giữ NGUYÊN,
+không cần sửa gì ở 4 nơi gọi (`topSellingZeroStockRunner.js`/
+`coreZeroStockRunner.js`/`stockThresholdRunner.js`/`stockAlertRunner.js`).
+Đã mock-test xác nhận: 5000 EntityCode chia đúng 3 lượt (≤1900 tham số/
+lượt), gộp lại đủ 5000 kết quả, không vượt giới hạn SQL Server.
+
 ## 9.44 — Cột STT + căn giữa toàn hệ thống + sắp xếp mã ngành hàng tăng dần
 
 **Theo yêu cầu người dùng**, 2 việc:
