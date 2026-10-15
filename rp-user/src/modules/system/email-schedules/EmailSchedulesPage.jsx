@@ -159,6 +159,31 @@ function FilterConfigFields({ filters, filterValues, onChange }) {
             </label>
           );
         }
+        // Bản 9.47 (theo yêu cầu người dùng — báo cáo "Top bán chạy đang tồn
+        // kho = 0" cũng phải chọn được Top 50/Top 100/Tất cả khi gửi email) —
+        // filter type 'select' CÓ khai options (vd topLimit) vẽ dropdown THẬT
+        // thay vì bắt gõ tay chuỗi (dễ gõ sai, không rõ giá trị nào hợp lệ) —
+        // filter khác (multiSelect/text...) giữ NGUYÊN ô nhập chữ như cũ.
+        if (f.type === 'select' && f.options?.length) {
+          return (
+            <label key={f.field}>
+              {f.label || f.field}
+              <select
+                value={entry.kind === 'fixed' ? entry.value : ''}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  const next = { ...filterValues };
+                  if (value) next[f.field] = { kind: 'fixed', value };
+                  else delete next[f.field];
+                  onChange(next);
+                }}
+              >
+                <option value="">Không chọn (mặc định của báo cáo)</option>
+                {f.options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            </label>
+          );
+        }
         return (
           <label key={f.field}>
             {f.label || f.field}{f.type === 'multiSelect' ? ' (phân tách dấu phẩy)' : ''}

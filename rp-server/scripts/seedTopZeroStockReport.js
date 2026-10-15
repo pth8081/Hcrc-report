@@ -71,11 +71,17 @@ function buildDefinition() {
       // Top 50/Top 100 ngay trên báo cáo, không cần sửa DefinitionJson.
       // Xếp hạng theo ĐÚNG 2 tiêu chí: bán số lượng nhiều hơn trước, cùng
       // mức bán thì tồn kho GẦN 0 HƠN trước (xem lib/topSellingZeroStockRunner.js).
+      // 'all' (bản 9.47, theo yêu cầu người dùng — áp dụng cho CẢ xem trên
+      // web LẪN lịch gửi email) — không giới hạn, trả hết (xem chú thích
+      // TOP_LIMITS ở lib/topSellingZeroStockRunner.js: bỏ trống/không chọn
+      // KHÔNG đồng nghĩa "Tất cả" — vẫn rơi về Top 50 mặc định như cũ, PHẢI
+      // chọn rõ "Tất cả" mới bỏ giới hạn).
       {
         field: 'topLimit', type: 'select', label: 'Số lượng hiển thị (mỗi chi nhánh)', default: '50',
         options: [
           { value: '50', label: 'Top 50' },
-          { value: '100', label: 'Top 100' }
+          { value: '100', label: 'Top 100' },
+          { value: 'all', label: 'Tất cả' }
         ]
       }
     ]

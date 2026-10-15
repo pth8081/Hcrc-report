@@ -29,6 +29,29 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 9.47 — "Top bán chạy đang tồn kho = 0": chọn Top 50/Top 100/Tất cả khi gửi email
+
+**Theo yêu cầu người dùng** — lịch gửi email báo cáo "Top bán chạy đang tồn
+kho = 0" cũng phải chọn được Top 50/Top 100 hoặc "Tất cả" (không giới hạn),
+giống như xem trực tiếp trên web (bản 9.43/9.44).
+
+**Thay đổi**:
+- `rp-server/scripts/seedTopZeroStockReport.js` — filter "Số lượng hiển thị"
+  thêm lựa chọn thứ 3 `Tất cả` (value `'all'`).
+- `rp-server/lib/topSellingZeroStockRunner.js` — `topLimit === 'all'` ->
+  `topN = Infinity` (không cắt bớt, trả nguyên danh sách mỗi chi nhánh).
+  **Quan trọng**: "Tất cả" PHẢI được CHỌN RÕ — bỏ trống/không chọn vẫn rơi
+  về Top 50 mặc định như cũ (không đổi hành vi xem trên web khi chưa đụng
+  tới bộ lọc, tránh bảng quá dài làm nặng trình duyệt ngoài ý muốn).
+- `rp-user/.../EmailSchedulesPage.jsx` — ô cấu hình "Bộ lọc cố định khi gửi
+  tự động" cho filter kiểu `select` CÓ khai `options` (như `topLimit`) giờ
+  vẽ dropdown THẬT (chọn đúng Top 50/Top 100/Tất cả) thay vì ô nhập chữ tự
+  do dễ gõ sai — filter khác (multiSelect/text...) giữ nguyên như cũ.
+
+Đã mock-test xác nhận cả 3 trường hợp: không chọn -> 50 dòng/chi nhánh (giữ
+nguyên hành vi cũ), chọn Top 100 -> 100 dòng, chọn "Tất cả" -> trả đủ 120/120
+dòng mock (không bị cắt).
+
 ## 9.46 — Danh sách hàng Core: khai theo TỪNG KHO (Mã kho/Mã điểm), khớp file mẫu thật người dùng đang dùng
 
 **Theo yêu cầu người dùng**, kèm file mẫu THẬT đang dùng ("Core thg 08.2024

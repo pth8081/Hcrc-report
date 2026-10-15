@@ -14,6 +14,27 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 9.47 — "Top bán chạy đang tồn kho = 0": chọn Top 50/Top 100/Tất cả khi gửi email
+
+**Thay đổi**: `rp-server/scripts/seedTopZeroStockReport.js` (thêm option
+"Tất cả"), `rp-server/lib/topSellingZeroStockRunner.js` (xử lý `topLimit
+==='all'`), `rp-user/.../EmailSchedulesPage.jsx` (dropdown thật cho filter
+`select` có `options`, thay ô nhập chữ tự do).
+
+**Các bước triển khai:**
+1. `git pull origin main`.
+2. Khởi động lại `rp-server`.
+3. Trên server rp-server, chạy:
+   ```
+   node rp-server/scripts/seedTopZeroStockReport.js
+   ```
+   (cập nhật `DefinitionJson` — thêm lựa chọn "Tất cả" vào filter "Số lượng
+   hiển thị").
+4. Build lại `rp-user` (`npm run build`).
+5. Kiểm tra: Hệ thống → Lịch gửi email báo cáo → chọn báo cáo "Top bán chạy
+   đang tồn kho = 0" → ô "Số lượng hiển thị (mỗi chi nhánh)" hiện dropdown
+   thật với 3 lựa chọn Top 50/Top 100/Tất cả.
+
 ## 9.46 — Danh sách hàng Core: khai theo từng kho (Mã kho/Mã điểm)
 
 **Thay đổi**: `etl-db/schema.sql` (ĐỔI cấu trúc `etl.CoreItemList`, XOÁ

@@ -114,8 +114,20 @@ async function resolvePool(definition) {
 // tồn top 50") — filterValues.topLimit (TUỲ CHỌN, '50'/'100', xem filter
 // "topLimit" ở scripts/seedTopZeroStockReport.js) GHI ĐÈ definition.topN
 // NGAY LÚC XEM, không cần sửa DefinitionJson/chạy lại seed script mỗi khi
-// đổi cỡ top. KHÔNG truyền (báo cáo cũ chưa khai filter này) -> rơi về
-// definition.topN như trước, không đổi hành vi.
+// đổi cỡ top. KHÔNG truyền (báo cáo cũ chưa khai filter này, HOẶC chưa
+// đụng tới dropdown lúc xem trên web) -> rơi về definition.topN như trước,
+// không đổi hành vi.
+//
+// 'all' (bản 9.47, theo yêu cầu người dùng — "khi chọn gửi email cũng
+// phải cho mình chọn top 50, top 100 hoặc không chọn là gửi tất cả") —
+// THÊM lựa chọn thứ 3 "Tất cả" (topN = Infinity, `.slice(0, Infinity)`
+// bên dưới tự trả nguyên mảng) — dùng cho LỊCH GỬI EMAIL (admin CHỦ ĐỘNG
+// chọn "Tất cả" trong ô cấu hình bộ lọc cố định, xem
+// rp-user/.../EmailSchedulesPage.jsx) hoặc xem trực tiếp trên web. KHÁC hẳn
+// "không khai filterValues.topLimit" ở trên (vẫn rơi về definition.topN=50
+// như cũ) — "Tất cả" PHẢI được CHỌN RÕ, không suy luận ngầm từ việc bỏ
+// trống, để không âm thầm đổi hành vi xem báo cáo trên web (trước giờ bỏ
+// trống luôn ngầm hiểu Top 50, tránh bảng quá dài làm nặng trình duyệt).
 const TOP_LIMITS = ['50', '100'];
 
 async function runTopZeroStockReport(definition, filterValues = {}) {
@@ -123,9 +135,11 @@ async function runTopZeroStockReport(definition, filterValues = {}) {
     throw new Error('Báo cáo thiếu cấu hình salesDomain/stockDomain (topZeroStock)');
   }
   const pool = await resolvePool(definition);
-  const topN = TOP_LIMITS.includes(String(filterValues.topLimit))
-    ? Number(filterValues.topLimit)
-    : (Number(definition.topN) > 0 ? Number(definition.topN) : 50);
+  const topN = filterValues.topLimit === 'all'
+    ? Infinity
+    : TOP_LIMITS.includes(String(filterValues.topLimit))
+      ? Number(filterValues.topLimit)
+      : (Number(definition.topN) > 0 ? Number(definition.topN) : 50);
   const threshold = Number.isFinite(Number(definition.threshold)) ? Number(definition.threshold) : 0;
   const rankWindow = RANK_WINDOWS.includes(filterValues.rankWindow) ? filterValues.rankWindow : '1';
   const { from, to } = resolveDateRange(rankWindow);
