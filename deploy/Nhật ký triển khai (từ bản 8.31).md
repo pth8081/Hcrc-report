@@ -14,6 +14,37 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 9.46 — Danh sách hàng Core: khai theo từng kho (Mã kho/Mã điểm)
+
+**Thay đổi**: `etl-db/schema.sql` (ĐỔI cấu trúc `etl.CoreItemList`, XOÁ
+dữ liệu Core cũ khi migrate), `rp-server/lib/coreItemList.js` +
+`lib/coreZeroStockRunner.js` (so khớp theo kho), `etl/lib/coreItemListImport.js`
+(nhận cả tên cột/sheet tiếng Anh cũ VÀ tiếng Việt trong file thật người
+dùng, nâng giới hạn dòng/sheet), `etl/routes/admin/coreItemList.js` +
+`etl-admin/src/pages/CoreItemListPage.jsx` (cột mới).
+
+**⚠️ CẢNH BÁO QUAN TRỌNG** — bước 1 dưới đây XOÁ SẠCH toàn bộ danh sách
+Core hiện có (cấu trúc cũ không có Mã kho, không map được sang cấu trúc
+mới) — BẮT BUỘC có sẵn file Core mới (có cột Mã kho/Mã hàng, vd file thật
+người dùng đang dùng) TRƯỚC khi chạy bước 1, và upload lại NGAY ở bước 4,
+nếu không báo cáo "Core stock = 0" sẽ tạm trống cho tới khi upload lại.
+
+**Các bước triển khai:**
+1. Trên CSDL HCRC_ETL, chạy lại `etl-db/schema.sql` (hoặc riêng đoạn
+   migrate `etl.CoreItemList` — tìm `IF COL_LENGTH('etl.CoreItemList',
+   'MaKho') IS NULL`) — XOÁ SẠCH dữ liệu Core cũ, đổi cấu trúc bảng.
+2. `git pull origin main`.
+3. Khởi động lại `rp-server` + `etl` (áp dụng code mới).
+4. Vào etl-admin → "Danh sách hàng Core" → upload LẠI file Core đầy đủ
+   (có thể dùng NGUYÊN file thật đang dùng hàng tháng — hệ thống giờ nhận
+   cả tên cột tiếng Việt "Mã hàng"/"Mã kho"/... và tên sheet ngắn
+   "Mart"/"Mini", không cần đổi tên cột/sheet trước khi upload).
+5. Build lại `etl-admin` (`npm run build`) — cột mới (Mã kho/Mã điểm/Mã
+   NCC/Nhà cung cấp/Luồng giao hàng) + ô lọc theo Mã kho.
+6. Kiểm tra: báo cáo "Core stock = 0" (cả Mart/Minimart) chạy ra đúng số
+   liệu theo từng kho (1 mã hàng là Core ở kho A nhưng KHÔNG hiện ở kho B
+   cùng loại điểm nếu kho B không khai Core cho mã đó).
+
 ## 9.45 — KHẨN: sửa lỗi 500 báo cáo tồn kho khi lọc "Tất cả" chi nhánh
 
 **Thay đổi**: `rp-server/lib/reportFactsHelpers.js` (CHIA NHỎ `entityCodes`

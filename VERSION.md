@@ -29,6 +29,51 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 9.46 — Danh sách hàng Core: khai theo TỪNG KHO (Mã kho/Mã điểm), khớp file mẫu thật người dùng đang dùng
+
+**Theo yêu cầu người dùng**, kèm file mẫu THẬT đang dùng ("Core thg 08.2024
+Loại bỏ SKU ko hiệu quả — Cập nhật 08.07.2026.xlsx") — trước đây 1 mã hàng
+là Core (hay không) áp dụng CHUNG cho MỌI kho cùng loại điểm (Mart/Minimart),
+không phân biệt từng kho. File thật của người dùng có "Mã kho" RIÊNG từng
+dòng: 1 mã hàng có thể là Core ở kho NÀY nhưng KHÔNG PHẢI Core ở kho KHÁC
+cùng loại điểm.
+
+**Thay đổi**:
+- `etl-db/schema.sql` — `etl.CoreItemList` đổi khoá duy nhất từ
+  `(LoaiDiem, MaHang)` sang `(MaKho, MaHang)`, thêm cột `MaKho` (BẮT BUỘC,
+  khớp Dimensions.MaChiNhanh/STK_ID), `MaDiem`/`MaNCC`/`TenNCC`/
+  `LuongGiaoHang` (tham khảo, theo yêu cầu người dùng — "lưu thêm để hiện
+  trong danh sách Core/báo cáo"). Migration cho deployment CŨ: **XOÁ SẠCH**
+  dữ liệu Core hiện có (cấu trúc cũ không có Mã kho, không map được sang
+  cấu trúc mới) — BẮT BUỘC upload lại file Core (có cột Mã kho) ngay sau
+  khi chạy script.
+- `rp-server/lib/coreItemList.js` — đổi `loadCoreItemListMap(loaiDiem)`
+  (phẳng, Map&lt;MaHang,ref&gt;) thành `loadCoreItemListByKho(loaiDiem)`
+  (Map&lt;MaKho, Map&lt;MaHang,ref&gt;&gt;).
+- `rp-server/lib/coreZeroStockRunner.js` — so khớp ĐÚNG (kho, mã hàng)
+  thay vì chỉ mã hàng; `maDiem` hiển thị ưu tiên lấy từ chính file Core đã
+  upload, dự phòng tra "Ánh xạ Điểm - STK_ID" nếu dòng đó không khai; thêm
+  3 cột hiển thị Mã NCC/Nhà cung cấp/Luồng giao hàng.
+- `etl/lib/coreItemListImport.js` — parser nhận CẢ 2 quy ước tên cột/tên
+  sheet cùng lúc (tương thích ngược): tên tiếng Anh cũ ("MaHang"/"MaKho",
+  "Core Mart"/"Core Minimart") VÀ tên trong file thật người dùng đang dùng
+  (tiếng Việt "Mã hàng"/"Mã kho", tên sheet ngắn "Mart"/"Mini") — không cần
+  đổi tên cột/sheet trước khi upload. Nâng `MAX_IMPORT_ROWS` 20000 → 50000
+  (Core theo từng kho làm số dòng/sheet tăng hẳn — file thật: Mart 26248
+  dòng, Mini 11535 dòng).
+- `etl-admin/src/pages/CoreItemListPage.jsx` — hiện thêm cột Mã kho/Mã
+  điểm/Mã NCC/Nhà cung cấp/Luồng giao hàng, thêm ô lọc theo Mã kho.
+
+**Đã kiểm chứng bằng chính file thật người dùng gửi** (không chỉ mock) —
+parse thành công: MART 26234 dòng hợp lệ, MINIMART 11534 dòng hợp lệ, 13
+dòng trùng cặp (Mã kho, Mã hàng) trong CHÍNH file gốc được phát hiện và báo
+rõ (lỗi dữ liệu nguồn, không phải lỗi hệ thống). Mock-test riêng xác nhận
+`coreZeroStockRunner.js` CHỈ tính hết hàng đúng kho đã khai Core, không lan
+sang kho khác cùng loại điểm dù cùng mã hàng.
+
+**CHƯA merge main** — đổi cấu trúc CSDL kèm XOÁ dữ liệu cũ (migration), chờ
+người dùng xác nhận trước khi merge + chạy script trên server thật.
+
 ## 9.45 — KHẨN: sửa lỗi 500 "Top bán chạy đang tồn kho = 0" (và 3 báo cáo tồn kho khác) khi lọc "Tất cả" chi nhánh
 
 **Theo báo cáo người dùng** — bấm "Lọc" báo cáo "Top bán chạy đang tồn kho

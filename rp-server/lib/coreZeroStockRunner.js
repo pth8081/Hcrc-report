@@ -61,7 +61,7 @@ const {
   todayUTC, loadLatestMeasureBefore, loadLatestMeasure, loadLatestMeasureWithDate,
   loadSumOnDate, loadLatestDimensionsForDomain
 } = require('./reportFactsHelpers');
-const { loadCoreItemListMap } = require('./coreItemList');
+const { loadCoreItemListByKho } = require('./coreItemList');
 const { loadDiemStkMapping } = require('./diemStkMapping');
 const { assignSttIfPresent } = require('./reportCellFormat');
 
@@ -84,6 +84,13 @@ function describeColumns(definition) {
     { key: 'dvt', label: 'Đvt', width: 0.6 },
     { key: 'maNganh', label: 'Mã ngành', width: 0.8 },
     { key: 'tenNganh', label: 'Tên ngành', width: 1.4 },
+    // maNCC/tenNCC/luongGiaoHang (bản 9.46, theo yêu cầu người dùng — lấy từ
+    // chính file "Danh sách hàng Core" đã upload, xem etl/lib/coreItemListImport.js)
+    // — THUẦN THAM KHẢO, không ảnh hưởng việc lọc tồn=0, có thể để trống nếu
+    // dòng Core đó không khai (không bắt buộc).
+    { key: 'maNCC', label: 'Mã NCC', width: 0.8 },
+    { key: 'tenNCC', label: 'Nhà cung cấp', width: 1.4 },
+    { key: 'luongGiaoHang', label: 'Luồng giao hàng', width: 1 },
     { key: 'tonKho', label: 'Tồn Kho', width: 0.8 },
     { key: 'ngayBanCuoi', label: 'Ngày bán cuối', width: 1 }
   ];
@@ -128,9 +135,11 @@ async function runCoreZeroStockReport(definition, filterValues = {}) {
   const today = todayUTC();
   const branchFilter = Array.isArray(filterValues.branches) ? filterValues.branches.filter(Boolean).map(String) : [];
 
-  // Bước 1.
-  const coreMap = await loadCoreItemListMap(loaiDiem);
-  if (!coreMap.size) return { columns: describeColumns(definition), rows: [] };
+  // Bước 1 (bản 9.46 — coreByKho giờ là Map<maKho, Map<maHang, ref>>, khác
+  // trước đây coreMap phẳng Map<maHang, ref> áp dụng chung cho mọi kho cùng
+  // LoaiDiem, xem lib/coreItemList.js).
+  const coreByKho = await loadCoreItemListByKho(loaiDiem);
+  if (!coreByKho.size) return { columns: describeColumns(definition), rows: [] };
 
   // Bước 2.
   const chainByEntity = await loadLatestDimensionsForDomain(pool, definition.chainDomain, ['chain']);
@@ -149,8 +158,12 @@ async function runCoreZeroStockReport(definition, filterValues = {}) {
   for (const [entityCode, info] of stockDims) {
     const d = info.dimensions;
     if (!d.MaChiNhanh || !effectiveEligibleStk.has(d.MaChiNhanh)) continue;
-    if (!d.MaHangHienThi || !coreMap.has(d.MaHangHienThi)) continue;
-    candidates.push({ entityCode, ...d, coreRef: coreMap.get(d.MaHangHienThi) });
+    // So khớp ĐÚNG kho (bản 9.46) — 1 mã hàng chỉ tính là Core nếu ĐÚNG kho
+    // đó có khai dòng Core tương ứng, không còn áp dụng chung mọi kho cùng
+    // LoaiDiem như trước.
+    const coreMapForKho = coreByKho.get(d.MaChiNhanh);
+    if (!coreMapForKho || !d.MaHangHienThi || !coreMapForKho.has(d.MaHangHienThi)) continue;
+    candidates.push({ entityCode, ...d, coreRef: coreMapForKho.get(d.MaHangHienThi) });
   }
   if (!candidates.length) return { columns: describeColumns(definition), rows: [] };
   const entityCodes = candidates.map(c => c.entityCode);
@@ -188,7 +201,11 @@ async function runCoreZeroStockReport(definition, filterValues = {}) {
     const lastReceived = lastReceivedByEntity.get(c.entityCode);
     const lastSale = lastSaleByEntity.get(c.entityCode);
     rows.push({
-      maDiem: stkToDiem.get(c.MaChiNhanh) || null,
+      // maDiem (bản 9.46) — ƯU TIÊN đúng mã điểm NGƯỜI DÙNG đã khai trong
+      // file Core upload (coreRef.maDiem — vì đó là nguồn trực tiếp nhất,
+      // không qua suy luận); dự phòng tra ngược "Ánh xạ Điểm - STK_ID" nếu
+      // dòng Core đó không khai cột Mã điểm.
+      maDiem: c.coreRef.maDiem || stkToDiem.get(c.MaChiNhanh) || null,
       maKho: c.MaChiNhanh,
       tenKho: c.TenChiNhanh || c.MaChiNhanh,
       maHang: c.MaHangHienThi,
@@ -196,6 +213,9 @@ async function runCoreZeroStockReport(definition, filterValues = {}) {
       dvt: c.coreRef.dvt || null,
       maNganh: c.coreRef.maNganh || null,
       tenNganh: c.coreRef.tenNganh || null,
+      maNCC: c.coreRef.maNCC || null,
+      tenNCC: c.coreRef.tenNCC || null,
+      luongGiaoHang: c.coreRef.luongGiaoHang || null,
       tonKho: estimatedStock,
       ngayBanCuoi: lastSale ? formatDateOnly(lastSale.eventDate) : null,
       ...(definition.lastReceivedDomain ? {

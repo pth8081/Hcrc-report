@@ -36,13 +36,14 @@ router.get('/', requireMenuEdit('core-item-list'), async (req, res, next) => {
   try {
     const pool = await getPool('ADMIN');
     const result = await pool.request().query(`
-      SELECT Id, LoaiDiem, MaHang, MH, TenHang, Dvt, MaNganh, TenNganh, ImportedAt, ImportedBy
+      SELECT Id, LoaiDiem, MaKho, MaDiem, MaHang, MH, TenHang, Dvt, MaNganh, TenNganh, MaNCC, TenNCC, LuongGiaoHang, ImportedAt, ImportedBy
       FROM etl.CoreItemList
-      ORDER BY LoaiDiem, MaHang
+      ORDER BY LoaiDiem, MaKho, MaHang
     `);
     res.json(result.recordset.map(r => ({
-      id: r.Id, loaiDiem: r.LoaiDiem, maHang: r.MaHang, mh: r.MH,
+      id: r.Id, loaiDiem: r.LoaiDiem, maKho: r.MaKho, maDiem: r.MaDiem, maHang: r.MaHang, mh: r.MH,
       tenHang: r.TenHang, dvt: r.Dvt, maNganh: r.MaNganh, tenNganh: r.TenNganh,
+      maNCC: r.MaNCC, tenNCC: r.TenNCC, luongGiaoHang: r.LuongGiaoHang,
       importedAt: r.ImportedAt, importedBy: r.ImportedBy
     })));
   } catch (err) { next(err); }
@@ -52,10 +53,10 @@ router.delete('/:id', requireMenuEdit('core-item-list'), async (req, res, next) 
   try {
     const pool = await getPool('ADMIN');
     const result = await pool.request().input('id', sql.Int, req.params.id)
-      .query('DELETE FROM etl.CoreItemList OUTPUT DELETED.MaHang, DELETED.LoaiDiem WHERE Id = @id');
+      .query('DELETE FROM etl.CoreItemList OUTPUT DELETED.MaHang, DELETED.LoaiDiem, DELETED.MaKho WHERE Id = @id');
     if (!result.recordset.length) return res.status(404).json({ error: 'Không tìm thấy dòng hàng Core' });
-    const { MaHang, LoaiDiem } = result.recordset[0];
-    await logAction(req, { module: 'Danh sách hàng Core', actionType: 'XOA_HANG_CORE', targetObject: `${LoaiDiem}/${MaHang}`, description: `Xoá mã hàng Core "${MaHang}" (${LoaiDiem})` });
+    const { MaHang, LoaiDiem, MaKho } = result.recordset[0];
+    await logAction(req, { module: 'Danh sách hàng Core', actionType: 'XOA_HANG_CORE', targetObject: `${LoaiDiem}/${MaKho}/${MaHang}`, description: `Xoá mã hàng Core "${MaHang}" (kho ${MaKho}, ${LoaiDiem})` });
     res.json({ ok: true });
   } catch (err) { next(err); }
 });
@@ -75,12 +76,16 @@ router.get('/export', requireMenuEdit('core-item-list'), async (req, res, next) 
   try {
     const pool = await getPool('ADMIN');
     const result = await pool.request().query(`
-      SELECT LoaiDiem, MaHang, MH, TenHang, Dvt, MaNganh, TenNganh FROM etl.CoreItemList ORDER BY LoaiDiem, MaHang
+      SELECT LoaiDiem, MaKho, MaDiem, MaHang, MH, TenHang, Dvt, MaNganh, TenNganh, MaNCC, TenNCC, LuongGiaoHang
+      FROM etl.CoreItemList ORDER BY LoaiDiem, MaKho, MaHang
     `);
     const rowsByLoaiDiem = {};
     for (const loaiDiem of Object.keys(LOAI_DIEM_TO_SHEET)) rowsByLoaiDiem[loaiDiem] = [];
     for (const r of result.recordset) {
-      rowsByLoaiDiem[r.LoaiDiem].push({ maHang: r.MaHang, mh: r.MH, tenHang: r.TenHang, dvt: r.Dvt, maNganh: r.MaNganh, tenNganh: r.TenNganh });
+      rowsByLoaiDiem[r.LoaiDiem].push({
+        maKho: r.MaKho, maDiem: r.MaDiem, maHang: r.MaHang, mh: r.MH, tenHang: r.TenHang, dvt: r.Dvt,
+        maNganh: r.MaNganh, tenNganh: r.TenNganh, maNCC: r.MaNCC, tenNCC: r.TenNCC, luongGiaoHang: r.LuongGiaoHang
+      });
     }
     const buffer = await buildCoreItemListExport(rowsByLoaiDiem);
     sendXlsx(res, buffer, 'danh-sach-hang-core.xlsx');

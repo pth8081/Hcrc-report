@@ -3,6 +3,12 @@
 // cáo "Top bán chạy đang tồn kho = 0" (tự xếp hạng theo doanh số) — dùng cho
 // báo cáo "Core stock = 0" (xem rp-server/lib/coreZeroStockRunner.js).
 //
+// SỬA bản 9.46 (theo yêu cầu người dùng, kèm file mẫu thật đang dùng) —
+// TRƯỚC ĐÂY 1 mã hàng là Core (hay không) áp dụng CHUNG cho MỌI kho cùng
+// loại điểm. Giờ mỗi dòng khai RÕ "Mã kho" — 1 mã hàng có thể là Core ở kho
+// NÀY nhưng KHÔNG PHẢI Core ở kho KHÁC cùng loại điểm (khớp đúng file mẫu
+// thật người dùng đang dùng để export/import).
+//
 // File .xlsx nhập vào có ĐÚNG 2 sheet cố định "Core Mart"/"Core Minimart" —
 // upload 1 lần thay được CẢ 2 hoặc CHỈ 1 sheet (sheet nào không có trong
 // file thì danh sách hiện tại của loại điểm đó GIỮ NGUYÊN). Mỗi lần upload
@@ -24,6 +30,7 @@ export default function CoreItemListPage() {
   const [error, setError] = useState('');
   const [tab, setTab] = useState('MART');
   const [filterMaHang, setFilterMaHang] = useState('');
+  const [filterMaKho, setFilterMaKho] = useState('');
   const [rows, setRows] = useState([]);
   const [importing, setImporting] = useState(false);
   const [downloadingTemplate, setDownloadingTemplate] = useState(false);
@@ -40,10 +47,11 @@ export default function CoreItemListPage() {
 
   const visibleRows = rows
     .filter(r => r.loaiDiem === tab)
-    .filter(r => !filterMaHang || r.maHang.toLowerCase().includes(filterMaHang.trim().toLowerCase()));
+    .filter(r => !filterMaHang || r.maHang.toLowerCase().includes(filterMaHang.trim().toLowerCase()))
+    .filter(r => !filterMaKho || (r.maKho || '').toLowerCase().includes(filterMaKho.trim().toLowerCase()));
 
   async function removeRow(row) {
-    if (!window.confirm(`Xoá mã hàng Core "${row.maHang}" (${row.loaiDiem})?`)) return;
+    if (!window.confirm(`Xoá mã hàng Core "${row.maHang}" (kho ${row.maKho}, ${row.loaiDiem})?`)) return;
     setDeletingId(row.id);
     try {
       await api.del(`/core-item-list/${row.id}`);
@@ -136,18 +144,23 @@ export default function CoreItemListPage() {
     <div className="page">
       <h1>Danh sách hàng Core</h1>
       <p>
-        Danh sách mặt hàng BẮT BUỘC luôn phải có hàng ("hàng Core"), áp dụng CHUNG cho MỌI siêu
-        thị/cửa hàng cùng loại hình (Mart hoặc Minimart) — không khai riêng theo từng kho. Báo cáo
-        "Core stock = 0" dùng ĐÚNG danh sách này để kiểm tra hết hàng, khác báo cáo "Top bán chạy
-        đang tồn kho = 0" (tự xếp hạng theo doanh số, không dựa vào danh sách nào).
+        Danh sách mặt hàng BẮT BUỘC luôn phải có hàng ("hàng Core") — khai RIÊNG theo từng kho (bản
+        9.46): 1 mã hàng có thể là Core ở kho NÀY nhưng KHÔNG PHẢI Core ở kho KHÁC cùng loại điểm.
+        Báo cáo "Core stock = 0" dùng ĐÚNG danh sách này (so khớp cả kho lẫn mã hàng) để kiểm tra
+        hết hàng, khác báo cáo "Top bán chạy đang tồn kho = 0" (tự xếp hạng theo doanh số, không
+        dựa vào danh sách nào).
       </p>
       <p>
         File .xlsx: ĐÚNG 2 sheet tên cố định <code>Core Mart</code> và <code>Core Minimart</code> —
         upload 1 lần có thể chỉ chứa 1 trong 2 sheet (sheet vắng mặt thì danh sách hiện tại của loại
-        điểm đó GIỮ NGUYÊN, không bị xoá). Mỗi sheet: cột bắt buộc <code>MaHang</code> (khớp đúng mã
-        hàng thật đang đồng bộ), cột tuỳ chọn <code>MH</code> (mã hàng/mã vạch nội bộ khác — chỉ để
-        đối chiếu), <code>TenHang</code>/<code>Dvt</code>/<code>MaNganh</code>/<code>TenNganh</code>{' '}
-        (tham khảo) — đúng khuôn cột file "Stock_Core..." khách hàng vẫn dùng.
+        điểm đó GIỮ NGUYÊN, không bị xoá). Mỗi sheet: 2 cột bắt buộc <code>MaKho</code> (khớp đúng
+        mã kho/STK_ID thật đang đồng bộ — xác định ĐÚNG kho áp dụng dòng Core này) và{' '}
+        <code>MaHang</code> (khớp đúng mã hàng thật đang đồng bộ); các cột tuỳ chọn{' '}
+        <code>MH</code> (mã hàng/mã vạch nội bộ khác — chỉ để đối chiếu), <code>MaDiem</code>,{' '}
+        <code>TenHang</code>/<code>Dvt</code>/<code>MaNganh</code>/<code>TenNganh</code>/{' '}
+        <code>MaNCC</code>/<code>TenNCC</code>/<code>LuongGiaoHang</code> (tham khảo, hiện thêm
+        trong báo cáo) — cột có thể đặt thứ tự KHÁC file mẫu tải về, hệ thống đọc theo TÊN cột,
+        không theo vị trí.
       </p>
       <p>
         <strong>Lưu ý quan trọng</strong>: mỗi lần nhập là <strong>THAY HẲN</strong> toàn bộ danh
@@ -195,6 +208,7 @@ export default function CoreItemListPage() {
           </button>
         ))}
         <input placeholder="Lọc theo Mã hàng" value={filterMaHang} onChange={(e) => setFilterMaHang(e.target.value)} />
+        <input placeholder="Lọc theo Mã kho" value={filterMaKho} onChange={(e) => setFilterMaKho(e.target.value)} />
         <button type="button" onClick={downloadExport} disabled={downloadingExport}>
           {downloadingExport ? 'Đang xuất...' : 'Xuất tất cả (Excel)'}
         </button>
@@ -202,12 +216,17 @@ export default function CoreItemListPage() {
 
       <DataTable
         columns={[
+          { key: 'maKho', label: 'Mã kho' },
+          { key: 'maDiem', label: 'Mã điểm' },
           { key: 'maHang', label: 'Mã hàng' },
           { key: 'mh', label: 'MH (tham khảo)' },
           { key: 'tenHang', label: 'Tên hàng' },
           { key: 'dvt', label: 'Đvt' },
           { key: 'maNganh', label: 'Mã ngành' },
           { key: 'tenNganh', label: 'Tên ngành' },
+          { key: 'maNCC', label: 'Mã NCC' },
+          { key: 'tenNCC', label: 'Nhà cung cấp' },
+          { key: 'luongGiaoHang', label: 'Luồng giao hàng' },
           { key: 'importedBy', label: 'Người nhập' },
           { key: 'importedAt', label: 'Lúc nhập', render: (r) => new Date(r.importedAt).toLocaleString('vi-VN') },
           {

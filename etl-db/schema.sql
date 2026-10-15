@@ -288,20 +288,36 @@ GO
 -- khác trong file nguồn DSMART16, nếu có) chỉ lưu để ĐỐI CHIẾU/tham khảo,
 -- KHÔNG dùng để join dữ liệu (tránh sai nếu chưa xác nhận đúng ý nghĩa cột
 -- này với DBA).
+-- MaKho (bản 9.46, theo yêu cầu người dùng, kèm file mẫu thật đang dùng
+-- "Core thg 08.2024 Loại bỏ SKU ko hiệu quả") — TRƯỚC ĐÂY (UX_CoreItemList_
+-- LoaiDiem_MaHang) danh sách Core áp dụng CHUNG cho MỌI kho cùng LoaiDiem,
+-- không phân biệt từng kho. File mẫu thật của người dùng có "Mã kho" RIÊNG
+-- từng dòng — 1 mã hàng có thể là Core ở kho NÀY nhưng KHÔNG PHẢI Core ở
+-- kho KHÁC cùng loại điểm — đổi khoá duy nhất sang (MaKho, MaHang). MaKho
+-- khớp ĐÚNG Dimensions.MaChiNhanh (STK_ID) đã đồng bộ, so khớp TRỰC TIẾP
+-- (không qua "Ánh xạ Điểm - STK_ID" — file người dùng tự xuất đã có đúng mã
+-- kho thật theo từng dòng). MaDiem (tham khảo, lấy thẳng từ file) + MaNCC/
+-- TenNCC/LuongGiaoHang (tham khảo, theo yêu cầu người dùng — "lưu thêm để
+-- hiện trong danh sách Core/báo cáo") — xem rp-server/lib/coreItemList.js.
 IF OBJECT_ID('etl.CoreItemList', 'U') IS NULL
 BEGIN
     CREATE TABLE etl.CoreItemList (
-        Id          INT           IDENTITY(1,1) NOT NULL PRIMARY KEY,
-        LoaiDiem    VARCHAR(20)   NOT NULL,
-        MaHang      NVARCHAR(50)  NOT NULL,
-        MH          NVARCHAR(50)  NULL,
-        TenHang     NVARCHAR(300) NULL,
-        Dvt         NVARCHAR(50)  NULL,
-        MaNganh     NVARCHAR(50)  NULL,
-        TenNganh    NVARCHAR(200) NULL,
-        ImportedAt  DATETIME2(3)  NOT NULL DEFAULT SYSUTCDATETIME(),
-        ImportedBy  NVARCHAR(50)  NULL,
-        CONSTRAINT UX_CoreItemList_LoaiDiem_MaHang UNIQUE (LoaiDiem, MaHang),
+        Id            INT           IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        LoaiDiem      VARCHAR(20)   NOT NULL,
+        MaKho         NVARCHAR(50)  NOT NULL,
+        MaDiem        NVARCHAR(50)  NULL,
+        MaHang        NVARCHAR(50)  NOT NULL,
+        MH            NVARCHAR(50)  NULL,
+        TenHang       NVARCHAR(300) NULL,
+        Dvt           NVARCHAR(50)  NULL,
+        MaNganh       NVARCHAR(50)  NULL,
+        TenNganh      NVARCHAR(200) NULL,
+        MaNCC         NVARCHAR(50)  NULL,
+        TenNCC        NVARCHAR(300) NULL,
+        LuongGiaoHang NVARCHAR(100) NULL,
+        ImportedAt    DATETIME2(3)  NOT NULL DEFAULT SYSUTCDATETIME(),
+        ImportedBy    NVARCHAR(50)  NULL,
+        CONSTRAINT UX_CoreItemList_MaKho_MaHang UNIQUE (MaKho, MaHang),
         CONSTRAINT CK_CoreItemList_LoaiDiem CHECK (LoaiDiem IN ('MART', 'MINIMART'))
     );
 END
@@ -312,6 +328,27 @@ GO
 IF COL_LENGTH('etl.CoreItemList', 'Dvt') IS NULL
 BEGIN
     ALTER TABLE etl.CoreItemList ADD Dvt NVARCHAR(50) NULL;
+END
+GO
+
+-- Nâng cấp bản 9.46 (đổi khoá duy nhất LoaiDiem+MaHang -> MaKho+MaHang, xem
+-- chú thích đầu bảng) — CHỈ chạy trên deployment CŨ (bảng đã tồn tại TRƯỚC
+-- khi có cột MaKho). Cấu trúc bảng đổi hẳn Ý NGHĨA (từ "áp dụng chung theo
+-- loại điểm" sang "theo từng kho"), dữ liệu CŨ không có Mã kho nên không
+-- map được sang cấu trúc mới — XOÁ SẠCH, BẮT BUỘC upload lại file Core mới
+-- (có cột "Mã kho") ngay sau khi chạy script này (xem VERSION.md bản 9.46).
+IF COL_LENGTH('etl.CoreItemList', 'MaKho') IS NULL
+BEGIN
+    TRUNCATE TABLE etl.CoreItemList;
+    ALTER TABLE etl.CoreItemList DROP CONSTRAINT UX_CoreItemList_LoaiDiem_MaHang;
+    ALTER TABLE etl.CoreItemList ADD MaKho NVARCHAR(50) NULL;
+    ALTER TABLE etl.CoreItemList ADD MaDiem NVARCHAR(50) NULL;
+    ALTER TABLE etl.CoreItemList ADD MaNCC NVARCHAR(50) NULL;
+    ALTER TABLE etl.CoreItemList ADD TenNCC NVARCHAR(300) NULL;
+    ALTER TABLE etl.CoreItemList ADD LuongGiaoHang NVARCHAR(100) NULL;
+    -- Bảng vừa TRUNCATE (rỗng) nên ALTER COLUMN sang NOT NULL an toàn.
+    ALTER TABLE etl.CoreItemList ALTER COLUMN MaKho NVARCHAR(50) NOT NULL;
+    ALTER TABLE etl.CoreItemList ADD CONSTRAINT UX_CoreItemList_MaKho_MaHang UNIQUE (MaKho, MaHang);
 END
 GO
 
