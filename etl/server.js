@@ -140,6 +140,16 @@ app.use('/admin/sales-targets-nganhhang-nh', createSalesTargetsRouter(
   'sales-targets-nganhhang-nh', 'sales-targets-nganhhang-nh', undefined, 'generic',
   [{ key: 'ChiTieuGiaTriNhap', sample: 1000000000 }]
 ));
+// Chỉ tiêu "Doanh thu theo ngành hàng (LDTD)" (bản 9.43) — trang RIÊNG của
+// đội Lãnh đạo Tập đoàn, Domain KHOÁ CỨNG riêng (sales-targets-nganhhang-dt-ldtd)
+// khác hẳn 'sales-targets-nganhhang-dt' ở trên để 2 đội không ghi đè Chỉ
+// tiêu của nhau (cùng lý do tách sales-targets-corp/sales-targets-hcrc) —
+// báo cáo "bc-doanh-thu-nganhhang-ldtd" (rp-server/scripts/seedNganhHangReports.js)
+// trỏ targetDomain tới ĐÚNG domain này.
+app.use('/admin/sales-targets-nganhhang-dt-ldtd', createSalesTargetsRouter(
+  'sales-targets-nganhhang-dt-ldtd', 'sales-targets-nganhhang-dt-ldtd', undefined, 'generic',
+  [{ key: 'ChiTieuDoanhThu', sample: 1500000000 }]
+));
 app.use('/admin/diem-stk-mapping', adminDiemStkMappingRoutes);
 app.use('/admin/core-item-list', adminCoreItemListRoutes);
 app.use('/admin/stock-alert-thresholds', adminStockAlertThresholdsRoutes);

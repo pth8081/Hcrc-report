@@ -66,6 +66,17 @@ function buildDefinition() {
       {
         field: 'branches', type: 'multiSelect', label: 'Chi nhánh',
         optionsSource: { domain: 'banhang_sku', valueField: 'MaChiNhanh', labelField: 'TenChiNhanh' }
+      },
+      // topLimit (bản 9.43, theo yêu cầu người dùng) — người xem TỰ CHỌN
+      // Top 50/Top 100 ngay trên báo cáo, không cần sửa DefinitionJson.
+      // Xếp hạng theo ĐÚNG 2 tiêu chí: bán số lượng nhiều hơn trước, cùng
+      // mức bán thì tồn kho GẦN 0 HƠN trước (xem lib/topSellingZeroStockRunner.js).
+      {
+        field: 'topLimit', type: 'select', label: 'Số lượng hiển thị (mỗi chi nhánh)', default: '50',
+        options: [
+          { value: '50', label: 'Top 50' },
+          { value: '100', label: 'Top 100' }
+        ]
       }
     ]
   };

@@ -88,6 +88,19 @@ const REPORTS = [
     reportId: 'bc-nhap-hang-nganhhang', title: 'Báo cáo nhập hàng theo ngành hàng',
     exportFileCode: 'BCNHAPHANGNGANHHANG', domain: 'nhaphang_nganhhang', targetDomain: 'sales-targets-nganhhang-nh',
     exportTitle: EXPORT_TITLE_NHAP_HANG, thucDatField: 'GiaTriNhap', chiTieuField: 'ChiTieuGiaTriNhap', thucDatLabel: 'Thực nhập'
+  },
+  // Bản 9.43 (theo yêu cầu người dùng) — báo cáo "(LDTD)" RIÊNG của đội
+  // Lãnh đạo Tập đoàn, mirror ĐÚNG pattern 4 báo cáo doanh thu cuối ngày
+  // LDTD/HCRC đã có (seedLdtdHcrcReports.js): DÙNG CHUNG domain thực đạt
+  // `doanhthu_nganhhang` (cùng 1 nguồn dữ liệu Thực đạt với báo cáo gốc ở
+  // trên, không đồng bộ lặp lại) nhưng targetDomain RIÊNG
+  // (`sales-targets-nganhhang-dt-ldtd`) để đội LDTD tự nhập Chỉ tiêu độc
+  // lập, không đụng chạm Chỉ tiêu của báo cáo "Doanh thu theo ngành hàng"
+  // gốc (xem etl/server.js router `sales-targets-nganhhang-dt-ldtd`).
+  {
+    reportId: 'bc-doanh-thu-nganhhang-ldtd', title: 'Báo cáo doanh thu theo ngành hàng (LDTD)',
+    exportFileCode: 'BCDTNGANHHANGLDTD', domain: 'doanhthu_nganhhang', targetDomain: 'sales-targets-nganhhang-dt-ldtd',
+    exportTitle: EXPORT_TITLE_DOANH_THU, thucDatField: 'DoanhThu', chiTieuField: 'ChiTieuDoanhThu', thucDatLabel: 'Thực đạt'
   }
 ];
 
@@ -129,7 +142,11 @@ async function upsertReport(pool, menuItemId, report) {
 }
 
 async function main() {
-  const menuCode = process.argv[2] || 'reports-kinh-doanh';
+  // Bản 9.43 (theo yêu cầu người dùng) — chuyển mặc định từ
+  // 'reports-kinh-doanh' sang 'reports-mua-hang' ("Báo cáo Mua hàng") —
+  // chạy lại script này sẽ UPDATE MenuItemId của 2 báo cáo đã có (khớp
+  // ReportId), tự chuyển nhóm mà không cần xoá/tạo lại.
+  const menuCode = process.argv[2] || 'reports-mua-hang';
   const pool = await getPool('RP');
 
   const menuRow = await pool.request().input('code', sql.VarChar(50), menuCode)

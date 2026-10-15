@@ -6,19 +6,23 @@
 //      xếp hạng người dùng chọn (filterValues.rankWindow), CHỈ những thực
 //      thể có bán > 0 trong kỳ (hàng không nhập/không bán mà tồn = 0 không
 //      tính là "hết hàng" — yêu cầu đã chốt với người dùng).
-//   2. Xếp hạng TOP N (definition.topN, mặc định 50) theo Qty TRONG TỪNG
-//      chi nhánh (không xếp hạng chung toàn hệ thống).
-//   3. Với đúng các thực thể lọt top, tính TỒN KHO ƯỚC TÍNH HÔM NAY =
-//      Tồn cuối kỳ NGÀY HÔM QUA (dòng gần nhất trước hôm nay trong
-//      stockDomain) − Số lượng bán HÔM NAY (không phụ thuộc rankWindow —
-//      LUÔN là hôm nay, xem xác nhận người dùng: "hàng ngày tính lại tồn
-//      kho và chuyển tồn cuối ngày HN sang đầu ngày hôm sau"), và KHÔNG
-//      cộng lại hàng đã nhập trong ngày (dù từ NCC hay điều chuyển) — vì
-//      mục đích là phát hiện thực ra đã hết hàng từ tồn cũ, không bị "che"
-//      bởi lô hàng vừa về (xem xác nhận người dùng "không phụ thuộc hàng
-//      nhập").
-//   4. Chỉ giữ lại thực thể có tồn ước tính <= ngưỡng (definition.threshold,
+//   2. Với MỌI thực thể có bán > 0 trong kỳ (chưa cắt Top N vội), tính TỒN
+//      KHO ƯỚC TÍNH HÔM NAY = Tồn cuối kỳ NGÀY HÔM QUA (dòng gần nhất
+//      trước hôm nay trong stockDomain) − Số lượng bán HÔM NAY (không phụ
+//      thuộc rankWindow — LUÔN là hôm nay, xem xác nhận người dùng: "hàng
+//      ngày tính lại tồn kho và chuyển tồn cuối ngày HN sang đầu ngày hôm
+//      sau"), và KHÔNG cộng lại hàng đã nhập trong ngày (dù từ NCC hay
+//      điều chuyển) — vì mục đích là phát hiện thực ra đã hết hàng từ tồn
+//      cũ, không bị "che" bởi lô hàng vừa về (xem xác nhận người dùng
+//      "không phụ thuộc hàng nhập").
+//   3. Chỉ giữ lại thực thể có tồn ước tính <= ngưỡng (definition.threshold,
 //      mặc định 0 — sửa được sau qua DefinitionJson mà KHÔNG cần đổi code).
+//   4. Xếp hạng Top N (bản 9.43, filterValues.topLimit — '50'/'100', người
+//      xem tự chọn; KHÔNG khai thì rơi về definition.topN, mặc định 50)
+//      TRONG TỪNG chi nhánh (không xếp hạng chung toàn hệ thống), ưu tiên
+//      theo ĐÚNG 2 tiêu chí người dùng yêu cầu: (a) bán số lượng nhiều hơn
+//      trước, (b) cùng mức bán thì tồn kho GẦN 0 HƠN trước (tồn = 0 ưu
+//      tiên nhất, tồn âm CÀNG ÍT ưu tiên càng cao, âm càng sâu càng sau).
 //   5. TUỲ CHỌN (định nghĩa qua DefinitionJson, KHÔNG hardcode bảng/điều
 //      kiện trạng thái trong code — DBA tự đặt trong VIEW nguồn, xem
 //      bc-ton-kho-0.md): thêm 4 cột thông tin "Chờ nhập"/"Đã
@@ -36,7 +40,8 @@
 // 4).
 //
 // filterValues: { rankWindow: '1'|'7'|'30'|'daily' (mặc định '1'),
-//                 branches: [MaChiNhanh,...] (rỗng/bỏ trống = tất cả) }.
+//                 branches: [MaChiNhanh,...] (rỗng/bỏ trống = tất cả),
+//                 topLimit: '50'|'100' (TUỲ CHỌN, mặc định definition.topN) }.
 //
 // Dimensions domain salesDomain/stockDomain PHẢI có sẵn MaChiNhanh/
 // TenChiNhanh/MaHangHienThi/TenHang (tick khi tạo job etl-admin) — dùng để
@@ -101,12 +106,22 @@ async function resolvePool(definition) {
   return getPool('DWH');
 }
 
+// topLimit (bản 9.43, theo yêu cầu người dùng — "lọc lấy tồn top 100, lấy
+// tồn top 50") — filterValues.topLimit (TUỲ CHỌN, '50'/'100', xem filter
+// "topLimit" ở scripts/seedTopZeroStockReport.js) GHI ĐÈ definition.topN
+// NGAY LÚC XEM, không cần sửa DefinitionJson/chạy lại seed script mỗi khi
+// đổi cỡ top. KHÔNG truyền (báo cáo cũ chưa khai filter này) -> rơi về
+// definition.topN như trước, không đổi hành vi.
+const TOP_LIMITS = ['50', '100'];
+
 async function runTopZeroStockReport(definition, filterValues = {}) {
   if (!definition.salesDomain || !definition.stockDomain) {
     throw new Error('Báo cáo thiếu cấu hình salesDomain/stockDomain (topZeroStock)');
   }
   const pool = await resolvePool(definition);
-  const topN = Number(definition.topN) > 0 ? Number(definition.topN) : 50;
+  const topN = TOP_LIMITS.includes(String(filterValues.topLimit))
+    ? Number(filterValues.topLimit)
+    : (Number(definition.topN) > 0 ? Number(definition.topN) : 50);
   const threshold = Number.isFinite(Number(definition.threshold)) ? Number(definition.threshold) : 0;
   const rankWindow = RANK_WINDOWS.includes(filterValues.rankWindow) ? filterValues.rankWindow : '1';
   const { from, to } = resolveDateRange(rankWindow);
@@ -143,19 +158,19 @@ async function runTopZeroStockReport(definition, filterValues = {}) {
   `);
   if (!salesResult.recordset.length) return { columns: describeColumns(definition), rows: [] };
 
-  // Xếp hạng top N theo Qty TRONG TỪNG chi nhánh.
-  const byBranch = new Map();
-  for (const row of salesResult.recordset) {
-    const branchCode = row.BranchCode || '';
-    if (!byBranch.has(branchCode)) byBranch.set(branchCode, []);
-    byBranch.get(branchCode).push(row);
-  }
-  const topRows = [];
-  for (const rows of byBranch.values()) {
-    rows.sort((a, b) => b.QtySold - a.QtySold);
-    topRows.push(...rows.slice(0, topN));
-  }
-  const entityCodes = topRows.map(r => r.EntityCode);
+  // Bản 9.43 (theo yêu cầu người dùng) — TRƯỚC ĐÂY cắt Top N theo Qty NGAY
+  // Ở ĐÂY (trước khi biết tồn kho), rồi mới lọc trong đúng Top N đó xem ai
+  // hết hàng — nghĩa là 1 mặt hàng bán rất chạy nhưng lọt ngoài Top N theo
+  // SỐ LƯỢNG BÁN thô thì KHÔNG BAO GIỜ được xét tới dù tồn đã âm sâu. Giờ
+  // tính tồn kho cho TẤT CẢ thực thể có bán > 0 trong kỳ (không cắt trước),
+  // lọc tồn <= ngưỡng xong MỚI xếp hạng + cắt Top N — để tiêu chí "tồn
+  // kho hiện tại" (ưu tiên =0, càng ít âm càng ưu tiên) cũng tham gia xếp
+  // hạng cùng "bán số lượng nhiều", không chỉ mỗi doanh số quyết định ai
+  // lọt vào Top N. Đánh đổi: entityCodes truyền vào 2 hàm dưới đây không
+  // còn bị giới hạn bởi Top N nữa — có thể lớn hơn nếu kỳ xếp hạng dài (vd
+  // 30 ngày) ra nhiều mặt hàng có bán > 0; chấp nhận được vì vẫn chỉ gồm
+  // thực thể CÓ bán trong kỳ, không phải toàn bộ danh mục.
+  const entityCodes = salesResult.recordset.map(r => r.EntityCode);
 
   // Bước 3 — tồn kho ƯỚC TÍNH HÔM NAY = tồn "hôm qua" (dòng gần nhất TRƯỚC
   // hôm nay trong stockDomain) − bán "hôm nay" (LUÔN đúng ngày hôm nay,
@@ -177,15 +192,16 @@ async function runTopZeroStockReport(definition, filterValues = {}) {
   // Bước 4 — chỉ giữ thực thể có tồn ƯỚC TÍNH <= ngưỡng. Không có dòng tồn
   // kho "hôm qua" nào (chưa từng đồng bộ) -> KHÔNG đủ căn cứ kết luận hết
   // hàng, loại bỏ thay vì coi như 0.
-  const rows = [];
-  for (const row of topRows) {
+  const candidates = [];
+  for (const row of salesResult.recordset) {
     const yesterdayStock = yesterdayStockByEntity.get(row.EntityCode);
     if (yesterdayStock === undefined || yesterdayStock === null) continue;
     const todaySales = todaySalesByEntity.get(row.EntityCode) || 0;
     const estimatedStock = yesterdayStock - todaySales;
     if (estimatedStock > threshold) continue;
-    rows.push({
+    candidates.push({
       chiNhanh: row.BranchName || row.BranchCode,
+      branchCode: row.BranchCode || '',
       maHang: row.SkuCode,
       tenHang: row.ItemName,
       soLuongBan: row.QtySold,
@@ -197,6 +213,26 @@ async function runTopZeroStockReport(definition, filterValues = {}) {
       ...(definition.receivedSupplierDomain ? { daNhapNCC: receivedSupplierByEntity.get(row.EntityCode) ?? null } : {}),
       ...(definition.receivedTransferDomain ? { daNhapDieuChuyen: receivedTransferByEntity.get(row.EntityCode) ?? null } : {})
     });
+  }
+
+  // Bước 4b (bản 9.43) — xếp hạng Top N TRONG TỪNG chi nhánh, theo ĐÚNG 3
+  // tiêu chí người dùng yêu cầu, ưu tiên từ trên xuống: (1) bán số lượng
+  // nhiều hơn xếp trước, (2) tồn kho GẦN 0 HƠN xếp trước (tồn = 0 ưu tiên
+  // nhất, rồi tới tồn âm ÍT hơn, tồn âm SÂU hơn xếp sau — vd tồn -2 đứng
+  // trước tồn -200) — `tonKho` giảm dần (DESC) xếp đúng thứ tự này vì 0 >
+  // -2 > -200.
+  const byBranch = new Map();
+  for (const row of candidates) {
+    if (!byBranch.has(row.branchCode)) byBranch.set(row.branchCode, []);
+    byBranch.get(row.branchCode).push(row);
+  }
+  const rows = [];
+  for (const branchRows of byBranch.values()) {
+    branchRows.sort((a, b) => (b.soLuongBan - a.soLuongBan) || (b.tonKho - a.tonKho));
+    for (const row of branchRows.slice(0, topN)) {
+      delete row.branchCode; // field nội bộ, không thuộc describeColumns()
+      rows.push(row);
+    }
   }
 
   return { columns: describeColumns(definition), rows };
