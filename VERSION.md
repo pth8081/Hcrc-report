@@ -29,6 +29,24 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 9.57 — "Core stock = 0": chẩn đoán sâu hơn khi domain tồn kho "trống" dù CSDL xác nhận có dữ liệu
+
+**Theo báo cáo người dùng** — chọn ĐÚNG 1 kho đã xác nhận có dữ liệu thật
+qua SQL tay (y hệt truy vấn code dùng) vẫn báo "Domain tonkho_sku KHÔNG có
+dòng dữ liệu nào đã đồng bộ". Đã loại trừ sai server/CSDL (log xác nhận
+đúng `172.16.70.20 - HCRC_DWH`) và sai câu SQL (chạy tay y hệt vẫn ra kết
+quả) — vậy lỗi nằm ở tầng ứng dụng, cần thêm dữ liệu chẩn đoán để xác định.
+
+**Thay đổi**: `rp-server/lib/coreZeroStockRunner.js` — cảnh báo "trống" ở
+Bước 3 (domain tồn kho) giờ tách RÕ 2 trường hợp khác hẳn nhau, trước đây
+gộp chung 1 câu:
+- Domain **HOÀN TOÀN KHÔNG có dòng nào** (0 dòng, mọi kho) — nêu rõ khả
+  năng rp-server đang đọc SAI server/CSDL/pool so với nơi admin xác nhận
+  có dữ liệu, dù `.env` có vẻ đúng.
+- Domain **CÓ dữ liệu** nhưng không khớp đúng mã kho đang lọc — nêu rõ
+  khả năng lệch ĐỊNH DẠNG mã kho (khoảng trắng/số 0 đầu/viết hoa-thường)
+  giữa "Ánh xạ Điểm - STK_ID"/domain chain và domain tồn kho thật.
+
 ## 9.56 — "Core stock = 0": dropdown "Chi nhánh" bỏ hẳn quét domain bán hàng để lấy tên, CHỈ dùng "Ánh xạ Điểm - STK_ID"
 
 **Theo yêu cầu người dùng** (tiếp nối bản 9.55 — vẫn còn lệch tên do quét

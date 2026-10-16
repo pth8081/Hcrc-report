@@ -14,6 +14,18 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 9.57 — "Core stock = 0": chẩn đoán sâu hơn khi domain tồn kho "trống" dù CSDL xác nhận có dữ liệu
+
+**Thay đổi**: `rp-server/lib/coreZeroStockRunner.js` — chỉ sửa code, KHÔNG
+cần chạy lại script seed.
+
+**Các bước:**
+1. `git pull origin main` → khởi động lại `rp-server`.
+2. Chạy lại báo cáo "Core stock = 0 (Mart)", chọn ĐÚNG 1 kho đã xác nhận
+   có dữ liệu thật (vd "HP Hàm Tử Quan") — đọc kỹ nội dung cảnh báo mới,
+   gửi lại cho IT/Claude để xác định chính xác bước tiếp theo (server/CSDL
+   sai, hay lệch định dạng mã kho).
+
 ## 9.56 — "Core stock = 0": dropdown "Chi nhánh" chỉ dùng "Ánh xạ Điểm - STK_ID" cho tên
 
 **Thay đổi**: `rp-server/lib/coreZeroStockRunner.js` — chỉ sửa code, KHÔNG

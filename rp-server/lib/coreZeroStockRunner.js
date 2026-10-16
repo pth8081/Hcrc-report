@@ -263,14 +263,22 @@ async function runCoreZeroStockReport(definition, filterValues = {}) {
   }
   if (!candidates.length) {
     const sampleKho = [...effectiveEligibleStk].slice(0, 3).join(', ');
-    return {
-      columns: describeColumns(definition), rows: [],
-      warnings: [
-        scannedInEligibleStk
-          ? `Có ${scannedInEligibleStk} dòng (kho, mã hàng) đã đồng bộ trong domain "${definition.stockDomain}" thuộc đúng kho đang lọc, nhưng KHÔNG dòng nào khớp mã hàng trong danh sách Core đã upload cho đúng kho đó — kiểm tra lại "Mã kho" trong file Core (vd ${sampleKho || 'không có kho nào đang lọc'}) có khớp CHÍNH XÁC mã kho (STK_ID) đã đồng bộ trong domain tồn kho/bán hàng không (lệch 1 ký tự/định dạng là không khớp).`
-          : `Domain "${definition.stockDomain}" KHÔNG có dòng dữ liệu nào đã đồng bộ cho đúng kho đang lọc (${sampleKho || 'không có kho nào đang lọc'}) — kiểm tra job đồng bộ tồn kho/bán hàng đã chạy cho đúng (các) kho đó chưa.`
-      ]
-    };
+    // Chẩn đoán (bản 9.57, theo báo cáo người dùng — chọn ĐÚNG 1 kho đã xác
+    // nhận có dữ liệu thật qua SQL tay vẫn báo "KHÔNG có dòng dữ liệu nào đã
+    // đồng bộ") — phân biệt RÕ 2 trường hợp hoàn toàn khác nhau, trước đây
+    // gộp chung 1 câu: (a) domain stockDomain THẬT SỰ rỗng hoàn toàn (0 dòng
+    // bất kỳ mã thực thể nào) — khả năng cao rp-server đang đọc nhầm
+    // server/CSDL/pool so với nơi admin xác nhận có dữ liệu; (b) domain CÓ
+    // dữ liệu (stockDims.size > 0) nhưng KHÔNG mã nào khớp đúng kho đang lọc
+    // — khả năng cao lệch định dạng mã kho (vd khoảng trắng/số 0 đầu) giữa
+    // "Ánh xạ Điểm - STK_ID"/domain chain VÀ domain tồn kho thật.
+    const totalRowsInDomain = stockDims.size;
+    const warnings = scannedInEligibleStk
+      ? [`Có ${scannedInEligibleStk} dòng (kho, mã hàng) đã đồng bộ trong domain "${definition.stockDomain}" thuộc đúng kho đang lọc, nhưng KHÔNG dòng nào khớp mã hàng trong danh sách Core đã upload cho đúng kho đó — kiểm tra lại "Mã kho" trong file Core (vd ${sampleKho || 'không có kho nào đang lọc'}) có khớp CHÍNH XÁC mã kho (STK_ID) đã đồng bộ trong domain tồn kho/bán hàng không (lệch 1 ký tự/định dạng là không khớp).`]
+      : totalRowsInDomain
+        ? [`Domain "${definition.stockDomain}" CÓ ${totalRowsInDomain} dòng dữ liệu (mã thực thể) đã đồng bộ, nhưng KHÔNG dòng nào có Mã kho khớp đúng (${sampleKho || 'không có kho nào đang lọc'}) — khả năng lệch ĐỊNH DẠNG mã kho (khoảng trắng/số 0 ở đầu/viết hoa-thường) giữa "Ánh xạ Điểm - STK_ID" hoặc domain "${definition.chainDomain}" VÀ domain "${definition.stockDomain}" thật — so sánh CHÍNH XÁC từng ký tự của mã kho ở 2 nơi.`]
+        : [`Domain "${definition.stockDomain}" HOÀN TOÀN KHÔNG có dòng dữ liệu nào (0 dòng, mọi kho) qua kết nối rp-server đang dùng — dù DBA xác nhận CÓ dữ liệu khi tự truy vấn trực tiếp, nghĩa là rp-server đang đọc SAI server/CSDL/pool CSDL kho dữ liệu (DWH) so với nơi admin xác nhận — kiểm tra lại biến môi trường DWH_* trong .env của rp-server ĐANG CHẠY THẬT (không phải máy khác) và chắc chắn đã khởi động lại sau khi sửa.`];
+    return { columns: describeColumns(definition), rows: [], warnings };
   }
   const entityCodes = candidates.map(c => c.entityCode);
 
