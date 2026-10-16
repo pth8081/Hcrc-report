@@ -14,6 +14,18 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 9.56 — "Core stock = 0": dropdown "Chi nhánh" chỉ dùng "Ánh xạ Điểm - STK_ID" cho tên
+
+**Thay đổi**: `rp-server/lib/coreZeroStockRunner.js` — chỉ sửa code, KHÔNG
+cần chạy lại script seed.
+
+**Các bước:**
+1. `git pull origin main` → khởi động lại `rp-server`.
+2. Mở lại dropdown "Chi nhánh" — tên hiện ra giờ CHỈ theo đúng `TenSieuThi`
+   đã khai trong "Ánh xạ Điểm - STK_ID". Nếu thấy mã kho thô (chưa ra tên)
+   hoặc tên trùng lặp 2 dòng — vào etl-admin → "Ánh xạ Điểm - STK_ID" bổ
+   sung/rà soát lại dòng tương ứng (không phải lỗi code).
+
 ## 9.55 — "Core stock = 0": sửa lỗi dropdown "Chi nhánh" hiện mã kho thay vì tên
 
 **Thay đổi**: `rp-server/lib/coreZeroStockRunner.js` — chỉ sửa code, KHÔNG

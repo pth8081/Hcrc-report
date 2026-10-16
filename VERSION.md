@@ -29,6 +29,27 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 9.56 — "Core stock = 0": dropdown "Chi nhánh" bỏ hẳn quét domain bán hàng để lấy tên, CHỈ dùng "Ánh xạ Điểm - STK_ID"
+
+**Theo yêu cầu người dùng** (tiếp nối bản 9.55 — vẫn còn lệch tên do quét
+domain lớn) — thay vì cố "vá" lại cách dò tên qua `salesDomain`
+(`banhang_sku`), bỏ HẲN bước đó: dropdown "Chi nhánh" giờ CHỈ lấy tên từ
+`TenSieuThi` đã khai trong "Ánh xạ Điểm - STK_ID" — đúng nguồn người dùng
+tự quản lý cho báo cáo doanh thu cuối ngày, đáng tin hơn và không cần quét
+domain nào khác (nhanh hơn, không còn dính lỗi "chốt nhầm dòng không có
+tên" như bản 9.55 nữa vì không quét dòng nào cả).
+
+**Thay đổi**: `rp-server/lib/coreZeroStockRunner.js:resolveEligibleBranchOptions()`
+— bỏ tham số `definition.salesDomain` khỏi điều kiện bắt buộc của hàm này,
+bỏ hẳn đoạn quét `loadLatestDimensionsForDomain(pool, definition.salesDomain, ...)`.
+STK_ID nào CHƯA khai "Ánh xạ Điểm - STK_ID" thì dropdown tạm hiện mã kho
+(không phải lỗi — nhắc admin bổ sung dòng đó).
+
+**Lưu ý**: nếu dropdown hiện TRÙNG tên ở 2 dòng khác nhau (vd "HP Vĩnh
+Phúc" xuất hiện 2 lần) — đó là do "Ánh xạ Điểm - STK_ID" đang có 2 mã Điểm
+khác nhau cùng khai TRÙNG `TenSieuThi` (dữ liệu trùng/thừa, không phải lỗi
+code) — admin tự rà soát lại bảng đó, gộp/xoá dòng thừa.
+
 ## 9.55 — "Core stock = 0": sửa lỗi dropdown "Chi nhánh" hiện mã kho thay vì tên
 
 **Theo báo cáo người dùng** (sau bản 9.54 — dropdown đã lọc đúng Mart/

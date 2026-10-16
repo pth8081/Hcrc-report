@@ -162,14 +162,20 @@ async function loadEligibleStk(pool, chainDomain, loaiDiem, diemMapping) {
 // stock=0 (Mart/Minimart) — CHỈ gồm STK_ID thuộc đúng loaiDiem (bản 9.54,
 // theo yêu cầu người dùng: dropdown cũ hiện TOÀN BỘ chi nhánh — kể cả khác
 // loại điểm — optionsSource.domain='banhang_sku' không lọc gì — khiến người
-// dùng liên tục chọn nhầm chi nhánh khác loại điểm). Nhãn hiển thị ƯU TIÊN
-// TenSieuThi khai tay ở "Ánh xạ Điểm - STK_ID" (giống tenKho ở bản 9.53),
-// dự phòng TenChiNhanh tự động từ definition.salesDomain (nguồn cũ của
-// dropdown, vẫn đáng tin cho TÊN — chỉ không đáng tin cho việc lọc
-// Mart/Minimart vì không phân biệt loại điểm). Dùng cho
+// dùng liên tục chọn nhầm chi nhánh khác loại điểm).
+//
+// Nhãn hiển thị CHỈ lấy từ TenSieuThi khai tay ở "Ánh xạ Điểm - STK_ID"
+// (bản 9.56, theo yêu cầu người dùng — bỏ HẲN việc quét domain
+// definition.salesDomain để dò tên như bản 9.53-9.55: domain đó (banhang_sku)
+// có RẤT NHIỀU dòng/kho (1 dòng/mã hàng), quét toàn domain vừa CHẬM vừa từng
+// dính lỗi "chốt nhầm dòng không có tên" (bản 9.55) — "Ánh xạ Điểm - STK_ID"
+// đã là nguồn ĐÁNG TIN hơn cho tên siêu thị (admin tự khai, dùng chung cho cả
+// báo cáo LDTD/HCRC), không cần dự phòng domain nguồn nữa. STK_ID nào CHƯA
+// khai ánh xạ thì hiện tạm mã kho — không phải lỗi, chỉ là admin cần bổ
+// sung dòng đó vào "Ánh xạ Điểm - STK_ID". Dùng cho
 // routes/reports.js:optionsSource.coreZeroStockBranches.
 async function resolveEligibleBranchOptions(definition) {
-  if (!definition.loaiDiem || !definition.salesDomain || !definition.chainDomain) return [];
+  if (!definition.loaiDiem || !definition.chainDomain) return [];
   const loaiDiem = String(definition.loaiDiem).toUpperCase();
   const pool = await resolvePool(definition);
   const diemMapping = await loadDiemStkMapping();
@@ -177,25 +183,11 @@ async function resolveEligibleBranchOptions(definition) {
   if (!eligibleStk.size) return [];
 
   const stkToDiem = buildStkToDiemMap(diemMapping);
-  // salesDomain (banhang_sku) có NHIỀU dòng/kho (1 dòng/mã hàng — EntityCode
-  // = <MaChiNhanh>_<MaHang>) — CHỈ chốt tên khi dòng đó THẬT SỰ có
-  // TenChiNhanh (bản 9.55, SỬA LỖI theo báo cáo người dùng — dropdown hiện
-  // thẳng mã kho thay vì tên): TRƯỚC ĐÂY chốt luôn dòng ĐẦU TIÊN gặp cho mỗi
-  // mã kho dù tên rỗng (vd dòng của 1 mã hàng nào đó không có TenChiNhanh
-  // trong VIEW nguồn), nên BỎ LỠ tên thật ở dòng SAU của ĐÚNG kho đó — giờ bỏ
-  // qua dòng tên rỗng, tiếp tục tìm tới khi gặp dòng có tên.
-  const salesDims = await loadLatestDimensionsForDomain(pool, definition.salesDomain, ['MaChiNhanh', 'TenChiNhanh']);
-  const nameByStk = new Map();
-  for (const [, info] of salesDims) {
-    const d = info.dimensions;
-    if (d.MaChiNhanh && d.TenChiNhanh && !nameByStk.has(d.MaChiNhanh)) nameByStk.set(d.MaChiNhanh, d.TenChiNhanh);
-  }
-
   const options = [];
   for (const stk of eligibleStk) {
     const maDiem = stkToDiem.get(stk);
     const diemInfo = maDiem ? diemMapping.get(maDiem) : null;
-    const label = (diemInfo && diemInfo.tenSieuThi) || nameByStk.get(stk) || stk;
+    const label = (diemInfo && diemInfo.tenSieuThi) || stk;
     options.push({ value: stk, label });
   }
   options.sort((a, b) => a.label.localeCompare(b.label, 'vi'));
