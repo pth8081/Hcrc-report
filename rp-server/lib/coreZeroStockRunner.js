@@ -61,7 +61,7 @@ const {
   todayUTC, loadLatestMeasureBefore, loadLatestMeasure, loadLatestMeasureWithDate,
   loadSumOnDate, loadLatestDimensionsForDomain
 } = require('./reportFactsHelpers');
-const { loadCoreItemListByKho } = require('./coreItemList');
+const { loadCoreItemListByKho, getLastLoadError } = require('./coreItemList');
 const { loadDiemStkMapping } = require('./diemStkMapping');
 const { assignSttIfPresent } = require('./reportCellFormat');
 
@@ -140,10 +140,18 @@ async function runCoreZeroStockReport(definition, filterValues = {}) {
   // LoaiDiem, xem lib/coreItemList.js).
   const coreByKho = await loadCoreItemListByKho(loaiDiem);
   if (!coreByKho.size) {
-    return {
-      columns: describeColumns(definition), rows: [],
-      warnings: [`Chưa có danh sách hàng Core cho loại điểm ${loaiDiem} — vào "Danh sách hàng Core" để upload.`]
-    };
+    // Phân biệt 2 nguyên nhân (bản 9.49, theo báo cáo người dùng — trang
+    // "Danh sách hàng Core" hiện ĐỦ dữ liệu nhưng báo cáo vẫn báo "chưa
+    // upload") — lib/coreItemList.js đọc qua pool RIÊNG "ETL_DIEM_STK"
+    // (login/kết nối KHÁC pool "ADMIN" của etl-admin) — Map rỗng có thể là
+    // THẬT SỰ chưa upload, HOẶC đọc lỗi (kết nối/.env ETL_DIEM_STK_* trỏ
+    // sai server/database so với nơi admin thực sự upload) — getLastLoadError()
+    // phân biệt rõ 2 trường hợp thay vì gộp chung 1 câu gây hiểu lầm.
+    const loadErr = getLastLoadError();
+    const warnings = loadErr
+      ? [`KHÔNG đọc được danh sách hàng Core (lỗi kết nối CSDL riêng cho báo cáo này — "${loadErr.message}") — kiểm tra cấu hình ETL_DIEM_STK_* trong .env của rp-server có trỏ ĐÚNG server/database (HCRC_ETL) nơi đã upload danh sách Core không. Đây KHÔNG phải do chưa upload — trang "Danh sách hàng Core" có thể vẫn hiện đủ dữ liệu vì trang đó đọc qua kết nối KHÁC.`]
+      : [`Chưa có danh sách hàng Core cho loại điểm ${loaiDiem} — vào "Danh sách hàng Core" để upload.`];
+    return { columns: describeColumns(definition), rows: [], warnings };
   }
 
   // Bước 2.

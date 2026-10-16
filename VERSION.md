@@ -29,6 +29,43 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 9.49 — Core stock = 0: phát hiện LỖI KẾT NỐI riêng cho báo cáo này (khác "chưa upload")
+
+**Theo báo cáo người dùng, kèm ảnh thật** — sau khi deploy bản 9.48 (thêm
+cảnh báo chẩn đoán), chạy lại đúng 1 kho/mã hàng đã xác nhận có khai Core
+(`12061`/`2002182261`) vẫn ra cảnh báo **"Chưa có danh sách hàng Core cho
+loại điểm MART"** — MÂU THUẪN trực tiếp với ảnh trang "Danh sách hàng
+Core" (etl-admin) đang hiện ĐỦ **26.234 dòng MART**.
+
+**Nguyên nhân thật**: `rp-server/lib/coreItemList.js` đọc `etl.CoreItemList`
+qua **1 pool CSDL RIÊNG** (`ETL_DIEM_STK`, login `etl_diem_stk_reader`) —
+**KHÁC HẲN** pool `ADMIN` mà etl-admin dùng để hiện 26.234 dòng đó. Nếu
+`.env` của `rp-server` cấu hình `ETL_DIEM_STK_SERVER`/`ETL_DIEM_STK_DATABASE`
+trỏ SAI (khác server/database nơi admin thực sự upload), hoặc kết nối đó
+lỗi vì bất kỳ lý do gì, hàm đọc Core TRƯỚC ĐÂY bắt lỗi rồi ÂM THẦM trả về
+Map rỗng — y hệt biểu hiện "thật sự chưa upload" dù bản chất là lỗi kết
+nối hoàn toàn khác, và bản 9.48 chưa phân biệt được 2 trường hợp này.
+
+**Sửa**:
+- `rp-server/lib/coreItemList.js` — đổi `console.warn` sang `logWarn`
+  (`lib/systemLog.js`, ghi CẢ console LẪN `app.SystemLog` — xem được qua
+  rp-user Hệ thống → Log, không cần SSH server) + lưu lại lỗi gần nhất
+  (`getLastLoadError()`).
+- `rp-server/lib/coreZeroStockRunner.js` — cảnh báo ở Bước 1 giờ tách
+  RÕ 2 trường hợp: lỗi kết nối (nêu rõ thông báo lỗi SQL thật + nhắc kiểm
+  tra `ETL_DIEM_STK_*` trong `.env`, nói rõ "KHÔNG phải do chưa upload")
+  khác hẳn "thật sự chưa có danh sách Core".
+
+Đã mock-test xác nhận: lỗi kết nối -> đúng thông báo lỗi kết nối (không
+còn lẫn với "chưa upload"); trường hợp thành công không đổi hành vi.
+
+**Bước tiếp theo**: người dùng chạy lại đúng báo cáo "Core stock = 0
+(Mart)" sau khi deploy — nếu cảnh báo MỚI hiện ra là lỗi kết nối, kiểm tra
+`.env` của `rp-server` xem `ETL_DIEM_STK_SERVER`/`ETL_DIEM_STK_DATABASE`
+có trỏ ĐÚNG server/database nơi chạy `etl-db/schema.sql`/upload Core
+không (nhiều khả năng đây chính là gốc rễ cả loạt báo cáo trống trước
+giờ).
+
 ## 9.48 — Báo cáo "Core stock = 0": giải thích rõ lý do khi trống (chẩn đoán)
 
 **Theo báo cáo người dùng** — 2 báo cáo "Core stock = 0" (Mart/Minimart)

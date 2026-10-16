@@ -14,6 +14,24 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 9.49 — Core stock = 0: phát hiện lỗi kết nối riêng cho báo cáo này
+
+**Thay đổi**: `rp-server/lib/coreItemList.js` (ghi lỗi qua `logWarn` +
+`getLastLoadError()`), `rp-server/lib/coreZeroStockRunner.js` (tách rõ
+cảnh báo "lỗi kết nối" khác "chưa upload").
+
+**Các bước triển khai:**
+1. `git pull origin main`.
+2. Khởi động lại `rp-server`.
+3. Chạy lại báo cáo "Core stock = 0 (Mart)" — đọc dòng ⚠️ mới:
+   - Nếu báo **lỗi kết nối** → **KIỂM TRA NGAY** `.env` của `rp-server`:
+     `ETL_DIEM_STK_SERVER`/`ETL_DIEM_STK_PORT`/`ETL_DIEM_STK_DATABASE` có
+     trỏ ĐÚNG server/database (HCRC_ETL) nơi chạy `etl-db/schema.sql` bản
+     9.46 và nơi admin upload file Core không — sửa `.env` cho khớp rồi
+     khởi động lại `rp-server`.
+   - Nếu vẫn báo "chưa có danh sách Core" (không phải lỗi kết nối) → quay
+     lại kiểm tra domain `chainDomain`/mã kho như hướng dẫn bản 9.48.
+
 ## 9.48 — Báo cáo "Core stock = 0": giải thích rõ lý do khi trống
 
 **Thay đổi**: `rp-server/lib/coreZeroStockRunner.js` (thêm `warnings` giải
