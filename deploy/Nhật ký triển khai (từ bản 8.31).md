@@ -14,6 +14,29 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 9.51 — KHẨN: Cấp quyền CSDL còn thiếu cho "Core stock = 0"/"Cảnh báo hàng tồn"
+
+**Thay đổi**: `etl-db/grants.sql` (thêm dòng GRANT còn thiếu cho
+`etl.StockAlertThresholds` — dòng của `etl.CoreItemList` đã có sẵn từ
+trước, chỉ chưa được chạy lại trên CSDL thật).
+
+**⚠️ KHÔNG PHẢI deploy code bình thường — đây là việc DBA/người quản trị
+SQL Server cần chạy TRỰC TIẾP trên CSDL `HCRC_ETL`:**
+```sql
+USE HCRC_ETL;
+GRANT SELECT ON etl.CoreItemList TO etl_diem_stk_reader;
+GRANT SELECT ON etl.StockAlertThresholds TO etl_diem_stk_reader;
+```
+
+**Các bước:**
+1. Chạy 2 dòng SQL trên trực tiếp trên CSDL `HCRC_ETL` (dùng tài khoản có
+   quyền GRANT, vd `sa`/tài khoản quản trị).
+2. (Tuỳ chọn, để chắc chắn ngay lập tức) khởi động lại `rp-server`.
+3. Chạy lại báo cáo "Core stock = 0" — cảnh báo lỗi kết nối phải biến mất.
+4. `git pull origin main` để lấy bản cập nhật `etl-db/grants.sql` (ghi lại
+   đúng hiện trạng quyền, không bắt buộc chạy gì thêm vì đã chạy tay ở
+   bước 1).
+
 ## 9.50 — Danh sách hàng Core: phân trang (sửa treo trình duyệt)
 
 **Thay đổi**: `etl-admin/src/pages/CoreItemListPage.jsx` (phân trang phía

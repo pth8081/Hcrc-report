@@ -29,6 +29,37 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 9.51 — XÁC ĐỊNH NGUYÊN NHÂN THẬT "Core stock = 0" trống: THIẾU QUYỀN CSDL (không phải lỗi code)
+
+**Kết quả cảnh báo chẩn đoán bản 9.49** (ảnh thật người dùng gửi) đã chỉ
+đúng nguyên nhân: `"The SELECT permission was denied on the object
+'CoreItemList', database 'HCRC_ETL', schema 'etl'."` — login
+`etl_diem_stk_reader` (CSDL HCRC_ETL, dùng CHUNG cho
+`rp-server/lib/diemStkMapping.js`/`coreItemList.js`/`stockAlertThresholds.js`)
+**CHƯA TỪNG được cấp quyền SELECT** trên `etl.CoreItemList` trên server
+THẬT — dòng `GRANT SELECT ON etl.CoreItemList TO etl_diem_stk_reader;` ĐÃ
+CÓ SẴN trong `etl-db/grants.sql` nhưng chưa từng được DBA chạy lại trên
+CSDL thật sau khi dòng này được thêm vào repo (tính năng Core bổ sung SAU
+khi login này đã tạo xong ban đầu, chỉ để phục vụ "Ánh xạ Điểm - STK_ID").
+
+**KHÔNG PHẢI lỗi code** — rp-server xử lý hoàn toàn đúng, chỉ là quyền
+CSDL chưa khớp với tính năng mới.
+
+**Phát hiện thêm, sửa luôn**: `etl.StockAlertThresholds` (dùng CHUNG login
+này cho báo cáo "Cảnh báo hàng tồn") **CHƯA TỪNG có dòng GRANT nào** trong
+`etl-db/grants.sql` — thêm vào để tránh lặp lại đúng lỗi này sau.
+
+**Việc cần làm trên CSDL thật** (DBA/người quản trị SQL Server chạy, CHỈ
+2 dòng, an toàn chạy lại nhiều lần):
+```sql
+USE HCRC_ETL;
+GRANT SELECT ON etl.CoreItemList TO etl_diem_stk_reader;
+GRANT SELECT ON etl.StockAlertThresholds TO etl_diem_stk_reader;
+```
+Không cần khởi động lại `rp-server` — quyền SQL Server có hiệu lực ngay
+cho các kết nối MỚI từ connection pool (pool tự tạo kết nối mới định kỳ;
+nếu muốn chắc chắn ngay lập tức, khởi động lại `rp-server` 1 lần).
+
 ## 9.50 — Danh sách hàng Core: phân trang (sửa treo trình duyệt khi upload file lớn)
 
 **Theo báo cáo người dùng** — upload file Core ~26.000/~11.000 dòng (bản
