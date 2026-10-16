@@ -14,6 +14,19 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 9.58 — XÁC ĐỊNH NGUYÊN NHÂN THẬT: khoảng trắng thừa trong mã kho (CHAR cố định độ dài từ DSMART)
+
+**Thay đổi**: `rp-server/lib/reportFactsHelpers.js` — chỉ sửa code, KHÔNG
+cần chạy SQL/script gì thêm. Đây nhiều khả năng là bản sửa CUỐI CÙNG cho
+chuỗi lỗi "Core stock = 0 trống" — áp dụng cho MỌI domain, không riêng
+`tonkho_sku`.
+
+**Các bước:**
+1. `git pull origin main` → khởi động lại `rp-server`.
+2. Chạy lại báo cáo "Core stock = 0 (Mart)"/"(Minimart)" cho đúng chi
+   nhánh đã test trước đó ("HP Hàm Tử Quan", "HP Lương Đình Của"...) — kỳ
+   vọng ra DỮ LIỆU THẬT (nếu tồn kho ước tính hôm nay <= ngưỡng).
+
 ## 9.57 — "Core stock = 0": chẩn đoán sâu hơn khi domain tồn kho "trống" dù CSDL xác nhận có dữ liệu
 
 **Thay đổi**: `rp-server/lib/coreZeroStockRunner.js` — chỉ sửa code, KHÔNG

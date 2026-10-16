@@ -29,6 +29,29 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 9.58 — XÁC ĐỊNH NGUYÊN NHÂN THẬT: khoảng trắng thừa trong mã kho (CHAR cố định độ dài từ DSMART)
+
+**Theo báo cáo người dùng** — chọn đúng mã kho `12061`/`22061` đã xác nhận
+qua SQL tay là CÓ THẬT trong domain `tonkho_sku` (cảnh báo bản 9.57 xác
+nhận domain có 817.782 dòng, không trống) nhưng code vẫn báo "KHÔNG khớp
+đúng kho đang lọc".
+
+**Nguyên nhân thật**: nguồn DSMART lưu mã kho/mã chi nhánh bằng cột kiểu
+`CHAR` ĐỘ DÀI CỐ ĐỊNH — tự động đệm khoảng trắng ở cuối chuỗi (vd `"12061"`
+thực ra là `"12061 "`). SSMS hiển thị y hệt mã sạch nên không phát hiện
+được bằng mắt, và so sánh `WHERE ... = '12061'` trong T-SQL vẫn khớp (SQL
+Server BỎ QUA khoảng trắng cuối khi so sánh chuỗi) — nhưng so sánh chuỗi
+trong JavaScript (`Set.has()`, `===`) coi `"12061"` và `"12061 "` là 2 giá
+trị KHÁC NHAU, nên khớp mã kho ở tầng ứng dụng bị trật hoàn toàn, dù dữ
+liệu và server đều đúng.
+
+**Thay đổi**: `rp-server/lib/reportFactsHelpers.js:loadLatestDimensionsForDomain()`
+— TRIM khoảng trắng 2 đầu cho `EntityCode` VÀ từng giá trị Dimensions ngay
+khi đọc dữ liệu từ CSDL, trước khi dùng để so khớp ở bất kỳ nơi nào gọi
+hàm này — sửa CHUNG 1 chỗ cho MỌI báo cáo dùng domain qua hàm này (không
+riêng Core stock=0), vì rủi ro y hệt áp dụng cho mọi domain đọc từ nguồn
+DSMART.
+
 ## 9.57 — "Core stock = 0": chẩn đoán sâu hơn khi domain tồn kho "trống" dù CSDL xác nhận có dữ liệu
 
 **Theo báo cáo người dùng** — chọn ĐÚNG 1 kho đã xác nhận có dữ liệu thật

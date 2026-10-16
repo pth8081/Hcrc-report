@@ -180,11 +180,23 @@ async function loadLatestDimensionsForDomain(pool, domain, dimensionKeys) {
       WHERE Domain = @domain
     ) latest WHERE rn = 1
   `);
+  // TRIM EntityCode VÀ từng giá trị Dimensions (bản 9.58, theo báo cáo
+  // người dùng — báo cáo Core stock=0 báo "KHÔNG khớp" dù SQL tay xác nhận
+  // ĐÚNG mã kho có thật trong domain) — nguồn DSMART dùng cột CHAR độ dài cố
+  // định cho mã kho/mã chi nhánh, tự động đệm khoảng trắng cuối chuỗi; SSMS
+  // hiển thị y hệt mã sạch (vd "12061") nên mắt nhìn không phát hiện được,
+  // nhưng so sánh chuỗi JS (Set.has(), ===) coi "12061" và "12061 " là 2 giá
+  // trị KHÁC NHAU. Áp dụng CHUNG ở đây (thay vì sửa riêng từng nơi gọi) vì
+  // MỌI domain đọc qua hàm này đều có rủi ro y hệt, không riêng tonkho_sku.
   const out = new Map();
   for (const row of result.recordset) {
     const dimensions = {};
-    for (const k of dimensionKeys) dimensions[k] = row[k];
-    out.set(row.EntityCode, { eventDate: row.EventDate, dimensions });
+    for (const k of dimensionKeys) {
+      const v = row[k];
+      dimensions[k] = typeof v === 'string' ? v.trim() : v;
+    }
+    const entityCode = typeof row.EntityCode === 'string' ? row.EntityCode.trim() : row.EntityCode;
+    out.set(entityCode, { eventDate: row.EventDate, dimensions });
   }
   return out;
 }
