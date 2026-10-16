@@ -51,8 +51,15 @@ function buildDefinition({ loaiDiem, title }) {
     threshold: 0,
     filters: [
       {
+        // optionsSource.coreZeroStockBranches (bản 9.54, theo yêu cầu
+        // người dùng) — THAY cho optionsSource.domain='banhang_sku' cũ
+        // (hiện TOÀN BỘ chi nhánh trung tâm, không phân biệt Mart/Minimart,
+        // khiến người dùng liên tục chọn nhầm) — giờ CHỈ hiện đúng chi
+        // nhánh thuộc loaiDiem của report này, xác định qua domain "chain"
+        // (doanhthu_chinhanh) GỘP "Ánh xạ Điểm - STK_ID" (LoaiChuoi), dùng
+        // LẠI nguyên vẹn lib/coreZeroStockRunner.js:resolveEligibleBranchOptions().
         field: 'branches', type: 'multiSelect', label: 'Chi nhánh',
-        optionsSource: { domain: 'banhang_sku', valueField: 'MaChiNhanh', labelField: 'TenChiNhanh' }
+        optionsSource: { coreZeroStockBranches: true }
       }
     ]
   };

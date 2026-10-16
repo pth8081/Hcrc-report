@@ -14,6 +14,26 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 9.54 — "Core stock = 0": dropdown "Chi nhánh" tự lọc đúng Mart/Minimart
+
+**Thay đổi**: `rp-server/lib/coreZeroStockRunner.js`,
+`rp-server/routes/reports.js`, `rp-server/scripts/seedCoreZeroStockReports.js`.
+
+**⚠️ BẮT BUỘC chạy lại script seed sau khi deploy code** (khác các bản vá
+code thuần trước đó — lần này DefinitionJson cũ đã lưu trong CSDL cần ghi
+đè lại optionsSource mới):
+
+**Các bước:**
+1. `git pull origin main` → khởi động lại `rp-server`.
+2. Chạy LẠI script seed (an toàn chạy lại nhiều lần, khớp theo ReportId để
+   UPDATE):
+   ```
+   cd rp-server && node scripts/seedCoreZeroStockReports.js
+   ```
+3. Vào báo cáo "Core stock = 0 (Mart)"/"(Minimart)" trên rp-user, mở
+   dropdown "Chi nhánh" — kiểm tra chỉ còn hiện đúng chi nhánh thuộc loại
+   điểm tương ứng (không còn lẫn Mart/Minimart).
+
 ## 9.53 — "Core stock = 0": cột "Tên kho" cũng ưu tiên lấy từ "Ánh xạ Điểm - STK_ID"
 
 **Thay đổi**: `rp-server/lib/coreZeroStockRunner.js` — chỉ sửa code, KHÔNG

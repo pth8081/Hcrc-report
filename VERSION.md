@@ -29,6 +29,37 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 9.54 — "Core stock = 0": dropdown "Chi nhánh" tự lọc đúng Mart/Minimart (không hiện nhầm chi nhánh khác loại điểm)
+
+**Theo yêu cầu người dùng** — dropdown "Chi nhánh" của 2 báo cáo "Core
+stock = 0 (Mart)"/"(Minimart)" TRƯỚC ĐÂY dùng
+`optionsSource: { domain: 'banhang_sku', valueField: 'MaChiNhanh',
+labelField: 'TenChiNhanh' }` — hiện TOÀN BỘ chi nhánh trung tâm, KHÔNG
+phân biệt Mart/Minimart, khiến người dùng liên tục chọn NHẦM chi nhánh
+khác loại điểm (vd chọn "BRGMart 5 Hàm Tử Quan" — 1 chi nhánh Mart — ở báo
+cáo Minimart) rồi tưởng báo cáo bị lỗi.
+
+**Thay đổi**:
+- `rp-server/lib/coreZeroStockRunner.js` — thêm `resolveEligibleBranchOptions()`
+  (export mới) + tách `loadEligibleStk()` dùng CHUNG với `runCoreZeroStockReport()`
+  — trả về ĐÚNG danh sách {value, label} các chi nhánh thuộc loại điểm của
+  report, xác định qua domain `doanhthu_chinhanh` (chain) GỘP LoaiChuoi khai
+  tay ở "Ánh xạ Điểm - STK_ID" (bản 9.52) — nhãn hiển thị ưu tiên TenSieuThi
+  (bản 9.53).
+- `rp-server/routes/reports.js` — thêm nhánh `optionsSource.coreZeroStockBranches`
+  cho route `GET /:reportId/filter-options/:field`, cache 10 phút giống các
+  nhánh optionsSource khác.
+- `rp-server/scripts/seedCoreZeroStockReports.js` — đổi `optionsSource` của
+  bộ lọc "Chi nhánh" từ `{ domain: 'banhang_sku', ... }` sang
+  `{ coreZeroStockBranches: true }` cho cả 2 báo cáo Mart/Minimart.
+
+**⚠️ CẦN chạy lại script seed trên server** (chỉ sửa code KHÔNG đủ — DefinitionJson
+đã lưu trong CSDL app.ReportCatalog từ trước, phải chạy lại mới cập nhật
+`optionsSource` mới):
+```
+cd rp-server && node scripts/seedCoreZeroStockReports.js
+```
+
 ## 9.53 — "Core stock = 0": cột "Tên kho" cũng ưu tiên lấy từ "Ánh xạ Điểm - STK_ID"
 
 **Theo yêu cầu người dùng** (tiếp nối bản 9.52) — file "Danh sách hàng

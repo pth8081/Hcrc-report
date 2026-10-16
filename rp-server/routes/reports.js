@@ -138,6 +138,33 @@ router.get('/:reportId/filter-options/:field', async (req, res, next) => {
     const filterDef = (definition.filters || []).find(f => f.field === req.params.field);
     if (!filterDef || !filterDef.optionsSource) return res.status(404).json({ error: 'Bộ lọc không có danh sách lựa chọn động' });
 
+    // Cache TTL DÙNG CHUNG cho mọi nhánh optionsSource bên dưới (bản 9.24 —
+    // xem giải thích đầy đủ ở nhánh domain/JSON_VALUE phía dưới). Khai SỚM
+    // ở đây để nhánh coreZeroStockBranches (bản 9.54) cũng dùng được, không
+    // phải khai riêng.
+    const FILTER_OPTIONS_CACHE_TTL_MS = parseInt(process.env.REPORT_FILTER_OPTIONS_CACHE_TTL_MS, 10) || 10 * 60 * 1000;
+    const filterOptionsCacheKey = ['filter-options', req.params.reportId, req.params.field];
+
+    // optionsSource.coreZeroStockBranches (bản 9.54, theo yêu cầu người
+    // dùng) — dropdown "Chi nhánh" của báo cáo Core stock=0 (Mart)/
+    // (Minimart) TRƯỚC ĐÂY dùng optionsSource.domain='banhang_sku' — hiện
+    // TOÀN BỘ chi nhánh trung tâm, KHÔNG phân biệt loại điểm, khiến người
+    // dùng liên tục chọn NHẦM chi nhánh khác loại điểm (vd chọn 1 chi nhánh
+    // Mart ở báo cáo Minimart) rồi tưởng báo cáo lỗi. Giờ CHỈ trả đúng tập
+    // chi nhánh thuộc ĐÚNG loaiDiem của report này — dùng LẠI NGUYÊN VẸN
+    // logic xác định "chain"/LoaiChuoi đã có ở lib/coreZeroStockRunner.js
+    // (bản 9.52/9.53: domain doanhthu_chinhanh + LoaiChuoi khai tay ở "Ánh
+    // xạ Điểm - STK_ID"), không cần khai domain/valueField riêng ở
+    // DefinitionJson nữa (xem seedCoreZeroStockReports.js).
+    if (filterDef.optionsSource.coreZeroStockBranches) {
+      const cached = reportResultCache.get(filterOptionsCacheKey);
+      if (cached) return res.json(cached);
+      const { resolveEligibleBranchOptions } = require('../lib/coreZeroStockRunner');
+      const options = await resolveEligibleBranchOptions(definition);
+      reportResultCache.set(filterOptionsCacheKey, options, FILTER_OPTIONS_CACHE_TTL_MS);
+      return res.json(options);
+    }
+
     // optionsSource.storeCatalog (bản 9.13, theo yêu cầu người dùng — bộ
     // lọc "Siêu thị" cho báo cáo gộp theo NCC) — KHÁC hẳn nhánh domain/
     // JSON_VALUE bên dưới: domain `don_dat_hang` lưu Dimensions.MaDiem là
@@ -176,9 +203,9 @@ router.get('/:reportId/filter-options/:field', async (req, res, next) => {
     // quả báo cáo cần mới hơn). reportResultCache dùng CHUNG cho mọi người
     // gọi (không phân biệt user) — đúng nguyên tắc đã ghi ở
     // lib/reportResultCache.js (kết quả chỉ phụ thuộc reportId+field, không
-    // phụ thuộc danh tính người gọi).
-    const FILTER_OPTIONS_CACHE_TTL_MS = parseInt(process.env.REPORT_FILTER_OPTIONS_CACHE_TTL_MS, 10) || 10 * 60 * 1000;
-    const filterOptionsCacheKey = ['filter-options', req.params.reportId, req.params.field];
+    // phụ thuộc danh tính người gọi). FILTER_OPTIONS_CACHE_TTL_MS/
+    // filterOptionsCacheKey đã khai sớm hơn ở đầu route (bản 9.54, dùng
+    // chung với nhánh coreZeroStockBranches).
     const cached = reportResultCache.get(filterOptionsCacheKey);
     if (cached) return res.json(cached);
 

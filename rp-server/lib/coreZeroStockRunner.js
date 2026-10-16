@@ -143,6 +143,58 @@ function eligibleStkFromDiemMapping(diemMapping, loaiDiem) {
   return stkIds;
 }
 
+// Gộp 2 nguồn xác định STK_ID thuộc đúng loaiDiem — "chain" tự động (domain
+// chainDomain) + LoaiChuoi khai tay ("Ánh xạ Điểm - STK_ID") — TÁCH RIÊNG
+// khỏi runCoreZeroStockReport() (bản 9.54) để dùng LẠI được ở
+// resolveEligibleBranchOptions() bên dưới (dropdown "Chi nhánh"), không
+// phải chép lại logic 2 nơi.
+async function loadEligibleStk(pool, chainDomain, loaiDiem, diemMapping) {
+  const chainByEntity = await loadLatestDimensionsForDomain(pool, chainDomain, ['chain']);
+  const eligibleStk = new Set();
+  for (const [entityCode, info] of chainByEntity) {
+    if (String(info.dimensions.chain || '').toUpperCase() === loaiDiem) eligibleStk.add(entityCode);
+  }
+  for (const stk of eligibleStkFromDiemMapping(diemMapping, loaiDiem)) eligibleStk.add(stk);
+  return eligibleStk;
+}
+
+// Danh sách {value, label} CHO ĐÚNG dropdown "Chi nhánh" của 1 báo cáo Core
+// stock=0 (Mart/Minimart) — CHỈ gồm STK_ID thuộc đúng loaiDiem (bản 9.54,
+// theo yêu cầu người dùng: dropdown cũ hiện TOÀN BỘ chi nhánh — kể cả khác
+// loại điểm — optionsSource.domain='banhang_sku' không lọc gì — khiến người
+// dùng liên tục chọn nhầm chi nhánh khác loại điểm). Nhãn hiển thị ƯU TIÊN
+// TenSieuThi khai tay ở "Ánh xạ Điểm - STK_ID" (giống tenKho ở bản 9.53),
+// dự phòng TenChiNhanh tự động từ definition.salesDomain (nguồn cũ của
+// dropdown, vẫn đáng tin cho TÊN — chỉ không đáng tin cho việc lọc
+// Mart/Minimart vì không phân biệt loại điểm). Dùng cho
+// routes/reports.js:optionsSource.coreZeroStockBranches.
+async function resolveEligibleBranchOptions(definition) {
+  if (!definition.loaiDiem || !definition.salesDomain || !definition.chainDomain) return [];
+  const loaiDiem = String(definition.loaiDiem).toUpperCase();
+  const pool = await resolvePool(definition);
+  const diemMapping = await loadDiemStkMapping();
+  const eligibleStk = await loadEligibleStk(pool, definition.chainDomain, loaiDiem, diemMapping);
+  if (!eligibleStk.size) return [];
+
+  const stkToDiem = buildStkToDiemMap(diemMapping);
+  const salesDims = await loadLatestDimensionsForDomain(pool, definition.salesDomain, ['MaChiNhanh', 'TenChiNhanh']);
+  const nameByStk = new Map();
+  for (const [, info] of salesDims) {
+    const d = info.dimensions;
+    if (d.MaChiNhanh && !nameByStk.has(d.MaChiNhanh)) nameByStk.set(d.MaChiNhanh, d.TenChiNhanh || d.MaChiNhanh);
+  }
+
+  const options = [];
+  for (const stk of eligibleStk) {
+    const maDiem = stkToDiem.get(stk);
+    const diemInfo = maDiem ? diemMapping.get(maDiem) : null;
+    const label = (diemInfo && diemInfo.tenSieuThi) || nameByStk.get(stk) || stk;
+    options.push({ value: stk, label });
+  }
+  options.sort((a, b) => a.label.localeCompare(b.label, 'vi'));
+  return options;
+}
+
 async function runCoreZeroStockReport(definition, filterValues = {}) {
   if (!definition.loaiDiem || !definition.stockDomain || !definition.salesDomain || !definition.chainDomain) {
     throw new Error('Báo cáo thiếu cấu hình loaiDiem/stockDomain/salesDomain/chainDomain (coreZeroStock)');
@@ -176,12 +228,7 @@ async function runCoreZeroStockReport(definition, filterValues = {}) {
   // LoaiChuoi khai tay, VÀ ở Bước 7 để tra Mã điểm — chỉ 1 round-trip CSDL
   // ETL_DIEM_STK/lượt chạy).
   const diemMapping = await loadDiemStkMapping();
-  const chainByEntity = await loadLatestDimensionsForDomain(pool, definition.chainDomain, ['chain']);
-  const eligibleStk = new Set();
-  for (const [entityCode, info] of chainByEntity) {
-    if (String(info.dimensions.chain || '').toUpperCase() === loaiDiem) eligibleStk.add(entityCode);
-  }
-  for (const stk of eligibleStkFromDiemMapping(diemMapping, loaiDiem)) eligibleStk.add(stk);
+  const eligibleStk = await loadEligibleStk(pool, definition.chainDomain, loaiDiem, diemMapping);
   const effectiveEligibleStk = branchFilter.length
     ? new Set(branchFilter.filter(stk => eligibleStk.has(stk)))
     : eligibleStk;
@@ -310,4 +357,4 @@ async function runCoreZeroStockReport(definition, filterValues = {}) {
   return { columns, rows, warnings };
 }
 
-module.exports = { runCoreZeroStockReport };
+module.exports = { runCoreZeroStockReport, resolveEligibleBranchOptions };
