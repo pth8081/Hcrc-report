@@ -115,14 +115,32 @@ function formatDateOnly(value) {
 // STK_ID (Mã kho) -> Mã điểm (BU_ID) — tra NGƯỢC "Ánh xạ Điểm - STK_ID" đã
 // có sẵn (ưu tiên maStkMoi — kho ĐANG dùng hiện tại). Không tìm thấy -> để
 // trống, KHÔNG coi là lỗi (không phải kho nào cũng cần khai ánh xạ này nếu
-// không dùng báo cáo LDTD/HCRC).
-async function buildStkToDiemMap() {
-  const diemMapping = await loadDiemStkMapping();
+// không dùng báo cáo LDTD/HCRC). Nhận diemMapping ĐÃ NẠP SẴN (xem Bước 2 ở
+// runCoreZeroStockReport) — tránh round-trip CSDL ETL_DIEM_STK 2 lần/lượt chạy.
+function buildStkToDiemMap(diemMapping) {
   const stkToDiem = new Map();
   for (const [maDiem, info] of diemMapping) {
     for (const stk of info.maStkMoi) stkToDiem.set(stk, maDiem);
   }
   return stkToDiem;
+}
+
+// STK_ID nào được admin khai TƯỜNG MINH LoaiChuoi (MART/MINIMART) đúng
+// loaiDiem trong "Ánh xạ Điểm - STK_ID" — GHI ĐÈ/BỔ SUNG cho "chain" tự động
+// lấy từ domain doanhthu_chinhanh (bản 9.52, theo yêu cầu người dùng: dùng
+// LẠI NGUYÊN VẸN cơ chế LoaiChuoi đã có sẵn cho báo cáo LDTD/HCRC — xem
+// remapRowsToDiem() ở lib/diemStkMapping.js — thay vì phụ thuộc HOÀN TOÀN
+// vào job doanhthu_chinhanh đã đồng bộ đủ "chain" cho ĐÚNG kho đang cần hay
+// chưa, vì 1 số kho — vd các siêu thị Thành viên tuy CÓ dữ liệu bán hàng/tồn
+// kho ở domain banhang_sku/tonkho_sku trung tâm nhưng domain doanhthu_chinhanh
+// lại chưa gắn "chain" cho đúng mã kho đó). CHỈ dùng maStkMoi (kho hiện tại).
+function eligibleStkFromDiemMapping(diemMapping, loaiDiem) {
+  const stkIds = new Set();
+  for (const [, info] of diemMapping) {
+    if (String(info.loaiChuoi || '').toUpperCase() !== loaiDiem) continue;
+    for (const stk of info.maStkMoi) stkIds.add(stk);
+  }
+  return stkIds;
 }
 
 async function runCoreZeroStockReport(definition, filterValues = {}) {
@@ -154,12 +172,16 @@ async function runCoreZeroStockReport(definition, filterValues = {}) {
     return { columns: describeColumns(definition), rows: [], warnings };
   }
 
-  // Bước 2.
+  // Bước 2 (nạp diemMapping SỚM — dùng cả ở đây để bổ sung STK_ID theo
+  // LoaiChuoi khai tay, VÀ ở Bước 7 để tra Mã điểm — chỉ 1 round-trip CSDL
+  // ETL_DIEM_STK/lượt chạy).
+  const diemMapping = await loadDiemStkMapping();
   const chainByEntity = await loadLatestDimensionsForDomain(pool, definition.chainDomain, ['chain']);
   const eligibleStk = new Set();
   for (const [entityCode, info] of chainByEntity) {
     if (String(info.dimensions.chain || '').toUpperCase() === loaiDiem) eligibleStk.add(entityCode);
   }
+  for (const stk of eligibleStkFromDiemMapping(diemMapping, loaiDiem)) eligibleStk.add(stk);
   const effectiveEligibleStk = branchFilter.length
     ? new Set(branchFilter.filter(stk => eligibleStk.has(stk)))
     : eligibleStk;
@@ -169,10 +191,12 @@ async function runCoreZeroStockReport(definition, filterValues = {}) {
     // rows:[] KHÔNG kèm lý do, người dùng không biết đang chặn ở bước nào
     // trong 6 bước. Giờ giải thích RÕ: domain chainDomain có đồng bộ kho
     // nào thuộc đúng loaiDiem không, và (nếu có chọn bộ lọc "Chi nhánh")
-    // kho đã chọn có khớp đúng loaiDiem không.
+    // kho đã chọn có khớp đúng loaiDiem không. Bản 9.52: nhắc thêm lối tắt
+    // "Ánh xạ Điểm - STK_ID" (LoaiChuoi) — không cần chờ domain
+    // doanhthu_chinhanh đồng bộ lại.
     const warnings = branchFilter.length
-      ? [`${branchFilter.length} kho đã chọn ở bộ lọc "Chi nhánh" KHÔNG có kho nào thuộc loại điểm ${loaiDiem} theo domain "${definition.chainDomain}" (Dimension "chain") — kiểm tra lại domain này đã đồng bộ đúng mã kho/giá trị chain chưa.`]
-      : [`Domain "${definition.chainDomain}" (Dimension "chain") chưa có kho nào thuộc loại điểm ${loaiDiem} — kiểm tra job đồng bộ domain này đã chạy đủ và đúng giá trị "MART"/"MINIMART" chưa.`];
+      ? [`${branchFilter.length} kho đã chọn ở bộ lọc "Chi nhánh" KHÔNG có kho nào thuộc loại điểm ${loaiDiem} theo domain "${definition.chainDomain}" (Dimension "chain") VÀ cũng chưa khai LoaiChuoi tương ứng trong "Ánh xạ Điểm - STK_ID" — kiểm tra lại domain đã đồng bộ đúng mã kho/giá trị chain chưa, hoặc vào "Ánh xạ Điểm - STK_ID" khai LoaiChuoi=${loaiDiem} cho mã Điểm của (các) kho này.`]
+      : [`Domain "${definition.chainDomain}" (Dimension "chain") chưa có kho nào thuộc loại điểm ${loaiDiem}, VÀ "Ánh xạ Điểm - STK_ID" cũng chưa có dòng nào khai LoaiChuoi=${loaiDiem} — kiểm tra job đồng bộ domain này đã chạy đủ và đúng giá trị "MART"/"MINIMART" chưa, hoặc khai LoaiChuoi tại "Ánh xạ Điểm - STK_ID".`];
     return { columns: describeColumns(definition), rows: [], warnings };
   }
 
@@ -205,8 +229,8 @@ async function runCoreZeroStockReport(definition, filterValues = {}) {
   const entityCodes = candidates.map(c => c.entityCode);
 
   // Bước 7 — tra ngược Mã điểm, độc lập với các bước còn lại (không phụ
-  // thuộc entityCodes, quét theo STK_ID).
-  const stkToDiem = await buildStkToDiemMap();
+  // thuộc entityCodes, quét theo STK_ID). diemMapping đã nạp sẵn ở Bước 2.
+  const stkToDiem = buildStkToDiemMap(diemMapping);
 
   // Bước 4 — Y HỆT công thức đã chốt ở topSellingZeroStockRunner.js.
   const [yesterdayStockByEntity, todaySalesByEntity] = await Promise.all([

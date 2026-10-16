@@ -29,6 +29,32 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 9.52 — "Core stock = 0": dùng LẠI "Ánh xạ Điểm - STK_ID" (LoaiChuoi) khi domain chain chưa đồng bộ kho
+
+**Theo yêu cầu người dùng** (sau khi cấp quyền CSDL ở bản 9.51 — báo lỗi
+quyền đã hết, nhưng đổi sang cảnh báo "KHÔNG có kho nào thuộc loại điểm
+MART/MINIMART theo domain doanhthu_chinhanh" cho các siêu thị "HaproFood
+...") — xác định các kho này ĐÃ CÓ dữ liệu bán hàng/tồn kho ở domain trung
+tâm `banhang_sku`/`tonkho_sku` (hiện ra được ở dropdown "Chi nhánh") nhưng
+domain `doanhthu_chinhanh` (dùng để tự suy "chain" MART/MINIMART) CHƯA gắn
+đúng cho mã kho của các siêu thị này.
+
+**Thay đổi**: `rp-server/lib/coreZeroStockRunner.js` — Bước 2 (xác định
+STK_ID thuộc đúng loại điểm) giờ KHÔNG chỉ dựa vào "chain" tự động từ
+domain `doanhthu_chinhanh`, mà BỔ SUNG thêm các STK_ID được admin khai tay
+cột **`LoaiChuoi`** (MART/MINIMART) trong "Ánh xạ Điểm - STK_ID"
+(`etl.DiemStkMapping`, trang etl-admin đã có sẵn) — dùng LẠI NGUYÊN VẸN cơ
+chế GHI ĐÈ `LoaiChuoi` đã áp dụng cho báo cáo LDTD/HCRC
+(`lib/diemStkMapping.js:remapRowsToDiem()`), không cần đợi job đồng bộ
+`doanhthu_chinhanh` chạy lại/sửa gì ở nguồn DSMART16. Cảnh báo "trống" ở
+bước này cũng cập nhật, nhắc rõ thêm lối tắt khai LoaiChuoi.
+
+**Cách dùng (không cần deploy gì thêm ngoài merge code)**: vào etl-admin →
+"Ánh xạ Điểm - STK_ID" → tìm (hoặc tạo) dòng ứng với mã Điểm của siêu thị
+đang thiếu (vd các "Cửa hàng HaproFood...") → khai cột `LoaiChuoi` =
+`MART` hoặc `MINIMART` đúng loại → lưu lại → chạy lại báo cáo "Core stock
+= 0" tương ứng.
+
 ## 9.51 — XÁC ĐỊNH NGUYÊN NHÂN THẬT "Core stock = 0" trống: THIẾU QUYỀN CSDL (không phải lỗi code)
 
 **Kết quả cảnh báo chẩn đoán bản 9.49** (ảnh thật người dùng gửi) đã chỉ

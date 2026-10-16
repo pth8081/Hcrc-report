@@ -14,6 +14,24 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 9.52 — "Core stock = 0": dùng LẠI "Ánh xạ Điểm - STK_ID" (LoaiChuoi) khi domain chain chưa đồng bộ kho
+
+**Thay đổi**: `rp-server/lib/coreZeroStockRunner.js` — chỉ sửa code, KHÔNG
+cần chạy SQL/VIEW/job gì mới.
+
+**Các bước:**
+1. `git pull origin main` (hoặc kéo lại bản deploy mới) → khởi động lại
+   `rp-server`.
+2. Vào etl-admin → **"Ánh xạ Điểm - STK_ID"** → với mỗi siêu thị đang bị
+   báo "KHÔNG có kho nào thuộc loại điểm MART/MINIMART" (vd các "Cửa hàng
+   HaproFood..."), tìm đúng dòng mã Điểm của siêu thị đó (tạo mới nếu
+   chưa có, điền `MaStkMoi` = đúng mã kho/STK_ID) → khai cột **LoaiChuoi**
+   = `MART` hoặc `MINIMART` cho đúng → Lưu.
+3. Chạy lại báo cáo "Core stock = 0 (Mart)"/"(Minimart)" cho đúng siêu thị
+   vừa khai — cảnh báo "chain" phải hết, báo cáo đi tiếp sang bước kiểm
+   tra dữ liệu tồn kho (nếu `tonkho_sku` cũng đã có dữ liệu cho đúng kho
+   đó thì ra báo cáo bình thường).
+
 ## 9.51 — KHẨN: Cấp quyền CSDL còn thiếu cho "Core stock = 0"/"Cảnh báo hàng tồn"
 
 **Thay đổi**: `etl-db/grants.sql` (thêm dòng GRANT còn thiếu cho
