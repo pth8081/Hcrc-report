@@ -24,6 +24,20 @@ const TABS = [
   { value: 'MINIMART', label: 'Core Minimart' }
 ];
 
+// PAGE_SIZE (bản 9.50, theo báo cáo người dùng — "upload hàng Core hai mấy
+// nghìn dòng... bị treo trình duyệt") — TRƯỚC ĐÂY DataTable.jsx dựng <tr>
+// cho MỌI dòng cùng lúc (xem chú thích đầu file đó: "không phân trang ở
+// đây — nơi gọi tự quyết định... các trang CRUD danh sách ngắn không
+// cần") — ĐÚNG với danh sách Core CŨ (áp dụng chung theo loại điểm, chỉ
+// vài trăm dòng), nhưng bản 9.46 đổi sang khai theo TỪNG KHO làm danh sách
+// phình lên hàng chục nghìn dòng (file thật người dùng: Mart 26234/
+// Minimart 11534) — trình duyệt phải dựng hàng chục nghìn <tr> 1 lượt,
+// treo cứng (nặng nhất trên điện thoại, đúng lỗi đã gặp ở báo cáo bản
+// 9.23). Phân trang PHÍA CLIENT (dữ liệu đã tải đủ về 1 lần qua
+// api.get('/core-item-list'), chỉ CẮT bớt số dòng ĐƯA VÀO DataTable) —
+// không cần sửa API/backend.
+const PAGE_SIZE = 200;
+
 export default function CoreItemListPage() {
   const [file, setFile] = useState(null);
   const [importResult, setImportResult] = useState(null);
@@ -31,6 +45,7 @@ export default function CoreItemListPage() {
   const [tab, setTab] = useState('MART');
   const [filterMaHang, setFilterMaHang] = useState('');
   const [filterMaKho, setFilterMaKho] = useState('');
+  const [page, setPage] = useState(1);
   const [rows, setRows] = useState([]);
   const [importing, setImporting] = useState(false);
   const [downloadingTemplate, setDownloadingTemplate] = useState(false);
@@ -49,6 +64,13 @@ export default function CoreItemListPage() {
     .filter(r => r.loaiDiem === tab)
     .filter(r => !filterMaHang || r.maHang.toLowerCase().includes(filterMaHang.trim().toLowerCase()))
     .filter(r => !filterMaKho || (r.maKho || '').toLowerCase().includes(filterMaKho.trim().toLowerCase()));
+  const totalPages = Math.max(1, Math.ceil(visibleRows.length / PAGE_SIZE));
+  const pageSafe = Math.min(page, totalPages);
+  const pagedRows = visibleRows.slice((pageSafe - 1) * PAGE_SIZE, pageSafe * PAGE_SIZE);
+
+  // Đổi tab/lọc -> về lại trang 1 (giữ nguyên trang cũ dễ ra trang trống
+  // nếu kết quả lọc mới ít dòng hơn).
+  useEffect(() => { setPage(1); }, [tab, filterMaHang, filterMaKho]);
 
   async function removeRow(row) {
     if (!window.confirm(`Xoá mã hàng Core "${row.maHang}" (kho ${row.maKho}, ${row.loaiDiem})?`)) return;
@@ -237,9 +259,21 @@ export default function CoreItemListPage() {
             )
           }
         ]}
-        rows={visibleRows}
+        rows={pagedRows}
         selection={selection}
       />
+
+      {visibleRows.length > PAGE_SIZE && (
+        <div className="inline-actions">
+          <button type="button" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={pageSafe <= 1}>
+            ← Trang trước
+          </button>
+          <span>Trang {pageSafe}/{totalPages} — {visibleRows.length} dòng</span>
+          <button type="button" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={pageSafe >= totalPages}>
+            Trang sau →
+          </button>
+        </div>
+      )}
 
       {selection.selectedIds.size > 0 && (
         <div className="inline-actions">

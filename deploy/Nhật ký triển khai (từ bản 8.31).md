@@ -14,6 +14,17 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 9.50 — Danh sách hàng Core: phân trang (sửa treo trình duyệt)
+
+**Thay đổi**: `etl-admin/src/pages/CoreItemListPage.jsx` (phân trang phía
+client, 200 dòng/trang — KHÔNG đổi API/backend).
+
+**Các bước triển khai:**
+1. `git pull origin main`.
+2. Build lại `etl-admin` (`npm run build`).
+3. Kiểm tra: trang "Danh sách hàng Core" mở mượt, có nút "Trang trước"/
+   "Trang sau" khi danh sách trên 200 dòng.
+
 ## 9.49 — Core stock = 0: phát hiện lỗi kết nối riêng cho báo cáo này
 
 **Thay đổi**: `rp-server/lib/coreItemList.js` (ghi lỗi qua `logWarn` +

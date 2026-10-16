@@ -29,6 +29,24 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 9.50 — Danh sách hàng Core: phân trang (sửa treo trình duyệt khi upload file lớn)
+
+**Theo báo cáo người dùng** — upload file Core ~26.000/~11.000 dòng (bản
+9.46 đổi sang khai theo từng kho, danh sách phình to hẳn so với trước)
+khiến trình duyệt (đặc biệt điện thoại) bị treo/chậm.
+
+**Nguyên nhân**: `etl-admin/src/pages/CoreItemListPage.jsx` tải ĐỦ dữ liệu
+về 1 lần (hợp lý) nhưng đưa THẲNG toàn bộ vào `DataTable` — component này
+tự xác định KHÔNG phân trang (dùng cho cả báo cáo lẫn trang CRUD, trang
+CRUD trước giờ luôn ngắn, không cần) — dựng hàng chục nghìn `<tr>` DOM 1
+lượt, đúng lỗi "treo trình duyệt" đã gặp (và đã sửa) cho báo cáo ở bản
+9.23, giờ lặp lại ở trang quản lý này vì danh sách Core đổi quy mô.
+
+**Sửa**: `CoreItemListPage.jsx` — phân trang PHÍA CLIENT (200 dòng/trang,
+dữ liệu vẫn tải đủ 1 lần, chỉ CẮT bớt số dòng đưa vào `DataTable`) + nút
+"Trang trước"/"Trang sau". Không đổi backend/API nào — "Xuất tất cả
+(Excel)" vẫn xuất đủ toàn bộ như cũ, không bị ảnh hưởng.
+
 ## 9.49 — Core stock = 0: phát hiện LỖI KẾT NỐI riêng cho báo cáo này (khác "chưa upload")
 
 **Theo báo cáo người dùng, kèm ảnh thật** — sau khi deploy bản 9.48 (thêm
