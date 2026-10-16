@@ -14,6 +14,17 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 9.53 — "Core stock = 0": cột "Tên kho" cũng ưu tiên lấy từ "Ánh xạ Điểm - STK_ID"
+
+**Thay đổi**: `rp-server/lib/coreZeroStockRunner.js` — chỉ sửa code, KHÔNG
+cần chạy SQL/VIEW/job gì mới (dùng lại đúng dữ liệu "Ánh xạ Điểm - STK_ID"
+đã khai ở bản 9.52).
+
+**Các bước:**
+1. `git pull origin main` → khởi động lại `rp-server`.
+2. Không cần làm gì thêm nếu đã khai `TenSieuThi` sẵn trong "Ánh xạ Điểm -
+   STK_ID" cho các mã Điểm liên quan — cột "Tên kho" tự động hiện tên đó.
+
 ## 9.52 — "Core stock = 0": dùng LẠI "Ánh xạ Điểm - STK_ID" (LoaiChuoi) khi domain chain chưa đồng bộ kho
 
 **Thay đổi**: `rp-server/lib/coreZeroStockRunner.js` — chỉ sửa code, KHÔNG

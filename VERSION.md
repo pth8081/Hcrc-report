@@ -29,6 +29,20 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 9.53 — "Core stock = 0": cột "Tên kho" cũng ưu tiên lấy từ "Ánh xạ Điểm - STK_ID"
+
+**Theo yêu cầu người dùng** (tiếp nối bản 9.52) — file "Danh sách hàng
+Core" upload đã có sẵn Mã điểm/Mã kho, chỉ cần map qua "Ánh xạ Điểm -
+STK_ID" là ra được đúng tên siêu thị, không cần phụ thuộc domain
+`tonkho_sku` đã đồng bộ đủ `TenChiNhanh` cho đúng kho hay chưa.
+
+**Thay đổi**: `rp-server/lib/coreZeroStockRunner.js` — cột "Tên kho" ở báo
+cáo "Core stock = 0" giờ ƯU TIÊN lấy `TenSieuThi` đã khai trong "Ánh xạ
+Điểm - STK_ID" (cùng mã Điểm vừa dùng để xác định LoaiChuoi ở bản 9.52),
+mới dùng lại `TenChiNhanh` tự động từ domain `tonkho_sku` nếu mã Điểm đó
+chưa khai ánh xạ — cùng nguyên tắc ưu tiên đã áp dụng cho báo cáo LDTD/
+HCRC (`lib/diemStkMapping.js:remapRowsToDiem()`).
+
 ## 9.52 — "Core stock = 0": dùng LẠI "Ánh xạ Điểm - STK_ID" (LoaiChuoi) khi domain chain chưa đồng bộ kho
 
 **Theo yêu cầu người dùng** (sau khi cấp quyền CSDL ở bản 9.51 — báo lỗi

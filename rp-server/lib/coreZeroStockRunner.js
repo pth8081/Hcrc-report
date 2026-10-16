@@ -262,14 +262,22 @@ async function runCoreZeroStockReport(definition, filterValues = {}) {
     const pendingOrder = pendingOrderByEntity.get(c.entityCode);
     const lastReceived = lastReceivedByEntity.get(c.entityCode);
     const lastSale = lastSaleByEntity.get(c.entityCode);
+    // maDiem (bản 9.46) — ƯU TIÊN đúng mã điểm NGƯỜI DÙNG đã khai trong file
+    // Core upload (coreRef.maDiem — vì đó là nguồn trực tiếp nhất, không qua
+    // suy luận); dự phòng tra ngược "Ánh xạ Điểm - STK_ID" nếu dòng Core đó
+    // không khai cột Mã điểm.
+    const effectiveMaDiem = c.coreRef.maDiem || stkToDiem.get(c.MaChiNhanh) || null;
+    // tenKho (bản 9.52, theo yêu cầu người dùng) — ƯU TIÊN TenSieuThi khai
+    // tay trong "Ánh xạ Điểm - STK_ID" (đáng tin hơn — tên chuẩn hoá, không
+    // phụ thuộc domain tonkho_sku đã đồng bộ đủ TenChiNhanh cho đúng kho hay
+    // chưa, cùng nguyên tắc ưu tiên đã áp dụng ở remapRowsToDiem() cho báo
+    // cáo LDTD/HCRC); KHÔNG tìm thấy (mã Điểm chưa khai ánh xạ) thì dùng lại
+    // TenChiNhanh tự động như trước, không đổi hành vi cũ.
+    const diemInfo = effectiveMaDiem ? diemMapping.get(effectiveMaDiem) : null;
     rows.push({
-      // maDiem (bản 9.46) — ƯU TIÊN đúng mã điểm NGƯỜI DÙNG đã khai trong
-      // file Core upload (coreRef.maDiem — vì đó là nguồn trực tiếp nhất,
-      // không qua suy luận); dự phòng tra ngược "Ánh xạ Điểm - STK_ID" nếu
-      // dòng Core đó không khai cột Mã điểm.
-      maDiem: c.coreRef.maDiem || stkToDiem.get(c.MaChiNhanh) || null,
+      maDiem: effectiveMaDiem,
       maKho: c.MaChiNhanh,
-      tenKho: c.TenChiNhanh || c.MaChiNhanh,
+      tenKho: (diemInfo && diemInfo.tenSieuThi) || c.TenChiNhanh || c.MaChiNhanh,
       maHang: c.MaHangHienThi,
       tenHang: c.TenHang,
       dvt: c.coreRef.dvt || null,
