@@ -29,6 +29,22 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 9.55 — "Core stock = 0": sửa lỗi dropdown "Chi nhánh" hiện mã kho thay vì tên
+
+**Theo báo cáo người dùng** (sau bản 9.54 — dropdown đã lọc đúng Mart/
+Minimart, nhưng nhiều dòng hiện thẳng MÃ KHO (vd "12511") thay vì tên siêu
+thị thật).
+
+**Nguyên nhân**: `resolveEligibleBranchOptions()` (`rp-server/lib/coreZeroStockRunner.js`)
+dựng bảng tên (`nameByStk`) bằng cách quét domain `salesDomain` (`banhang_sku`
+— domain này có RẤT NHIỀU dòng/kho, 1 dòng/mã hàng) — code CŨ "chốt" tên
+ngay ở dòng ĐẦU TIÊN gặp cho mỗi mã kho, DÙ dòng đó có `TenChiNhanh` RỖNG
+(vd dòng của 1 mã hàng không có tên chi nhánh trong VIEW nguồn) — nên BỎ LỠ
+tên thật nằm ở dòng SAU của ĐÚNG kho đó, rơi về hiện mã kho.
+
+**Thay đổi**: Chỉ "chốt" tên khi dòng đó THẬT SỰ có `TenChiNhanh` khác
+rỗng — bỏ qua dòng tên rỗng, tiếp tục quét tới khi gặp dòng có tên.
+
 ## 9.54 — "Core stock = 0": dropdown "Chi nhánh" tự lọc đúng Mart/Minimart (không hiện nhầm chi nhánh khác loại điểm)
 
 **Theo yêu cầu người dùng** — dropdown "Chi nhánh" của 2 báo cáo "Core

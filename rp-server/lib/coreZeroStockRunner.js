@@ -177,11 +177,18 @@ async function resolveEligibleBranchOptions(definition) {
   if (!eligibleStk.size) return [];
 
   const stkToDiem = buildStkToDiemMap(diemMapping);
+  // salesDomain (banhang_sku) có NHIỀU dòng/kho (1 dòng/mã hàng — EntityCode
+  // = <MaChiNhanh>_<MaHang>) — CHỈ chốt tên khi dòng đó THẬT SỰ có
+  // TenChiNhanh (bản 9.55, SỬA LỖI theo báo cáo người dùng — dropdown hiện
+  // thẳng mã kho thay vì tên): TRƯỚC ĐÂY chốt luôn dòng ĐẦU TIÊN gặp cho mỗi
+  // mã kho dù tên rỗng (vd dòng của 1 mã hàng nào đó không có TenChiNhanh
+  // trong VIEW nguồn), nên BỎ LỠ tên thật ở dòng SAU của ĐÚNG kho đó — giờ bỏ
+  // qua dòng tên rỗng, tiếp tục tìm tới khi gặp dòng có tên.
   const salesDims = await loadLatestDimensionsForDomain(pool, definition.salesDomain, ['MaChiNhanh', 'TenChiNhanh']);
   const nameByStk = new Map();
   for (const [, info] of salesDims) {
     const d = info.dimensions;
-    if (d.MaChiNhanh && !nameByStk.has(d.MaChiNhanh)) nameByStk.set(d.MaChiNhanh, d.TenChiNhanh || d.MaChiNhanh);
+    if (d.MaChiNhanh && d.TenChiNhanh && !nameByStk.has(d.MaChiNhanh)) nameByStk.set(d.MaChiNhanh, d.TenChiNhanh);
   }
 
   const options = [];

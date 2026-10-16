@@ -14,6 +14,17 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 9.55 — "Core stock = 0": sửa lỗi dropdown "Chi nhánh" hiện mã kho thay vì tên
+
+**Thay đổi**: `rp-server/lib/coreZeroStockRunner.js` — chỉ sửa code, KHÔNG
+cần chạy lại script seed (khác bản 9.54).
+
+**Các bước:**
+1. `git pull origin main` → khởi động lại `rp-server`.
+2. Mở lại dropdown "Chi nhánh" ở báo cáo "Core stock = 0 (Mart)"/"(Minimart)"
+   — các dòng trước đây hiện mã kho (vd "12511") phải đổi sang tên siêu
+   thị thật (nếu kho đó đã có `TenChiNhanh` ở domain `banhang_sku`).
+
 ## 9.54 — "Core stock = 0": dropdown "Chi nhánh" tự lọc đúng Mart/Minimart
 
 **Thay đổi**: `rp-server/lib/coreZeroStockRunner.js`,
