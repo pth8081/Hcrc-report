@@ -7,9 +7,10 @@
 // (lib/voucherRedeemService.js) — đây là đường "tra thủ công" dùng lại đúng
 // cơ chế Endpoint realtime chung, chỉ đọc, không đổi STATUS gì cả.
 //
-// YÊU CẦU TRƯỚC: đã chạy "node scripts/seedVoucherDataSource.js" (tạo
-// "Nguồn dữ liệu" trỏ DSMART16 Live cho voucher) — script này tra theo đúng
-// tên đó (biến VOUCHER_DSMART16_NAME, mặc định "DSMART16 (Live) - Voucher").
+// YÊU CẦU TRƯỚC: đã tạo "Nguồn dữ liệu" trỏ DSMART16 Live cho voucher qua
+// api-admin (trang "Nguồn dữ liệu") — script này tra theo đúng TÊN đó
+// (biến VOUCHER_DSMART16_NAME, mặc định "DSMART16 (Live) - Voucher"; đổi
+// qua biến này nếu đặt tên khác lúc tạo).
 //
 // Cách dùng:
 //   node scripts/seedVoucherCheckEndpoint.js
@@ -57,7 +58,7 @@ async function main() {
   const dsRow = await pool.request().input('name', sql.NVarChar(200), dataSourceName)
     .query('SELECT Id FROM api.DataSources WHERE Name = @name');
   if (!dsRow.recordset.length) {
-    console.error(`⛔ Chưa có "Nguồn dữ liệu" tên "${dataSourceName}" — chạy "node scripts/seedVoucherDataSource.js" (hoặc npm run seed:voucher-datasource) trước.`);
+    console.error(`⛔ Chưa có "Nguồn dữ liệu" tên "${dataSourceName}" — vào api-admin, trang "Nguồn dữ liệu", tạo dòng trỏ DSMART16 Live trước (hoặc đổi biến VOUCHER_DSMART16_NAME khớp đúng tên đã tạo).`);
     process.exit(1);
   }
   const dataSourceId = dsRow.recordset[0].Id;

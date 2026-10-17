@@ -14,6 +14,22 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 9.61 — Bỏ hẳn script seed:voucher-datasource (chỉ dùng giao diện cho "Nguồn dữ liệu")
+
+**Thay đổi**: chỉ sửa code/doc, KHÔNG có migration CSDL mới. Nếu máy chủ
+đã từng chạy `npm run seed:voucher-datasource` trước đây (bản 9.59/9.60)
+thì dữ liệu đã lưu trong "Nguồn dữ liệu"/"Cấu hình Voucher" GIỮ NGUYÊN,
+không mất gì — chỉ bỏ hẳn CÁCH chạy script, không xoá dữ liệu.
+
+**Các bước:**
+1. `git pull origin main` → khởi động lại `api-server`.
+2. Lệnh `npm run seed:voucher-datasource` KHÔNG còn tồn tại — từ nay
+   dùng DUY NHẤT giao diện: "Nguồn dữ liệu" (tạo/sửa dòng DSMART16) →
+   "Cấu hình Voucher" (chọn đúng dòng đó cho `default` hoặc máy chủ mới).
+3. Có thể xoá các biến `VOUCHER_DSMART16_SERVER/PORT/DATABASE/USER/
+   PASSWORD/ENCRYPT/TRUST_CERT` khỏi `.env` nếu đã từng điền (không còn
+   gì đọc các biến này) — không bắt buộc, để lại cũng không ảnh hưởng gì.
+
 ## 9.60 — Sửa hướng dẫn thêm máy chủ DSMART mới (bản 9.59): BỎ cách qua script, CHỈ dùng giao diện
 
 **Thay đổi**: chỉ sửa code/doc, KHÔNG có migration CSDL mới (schema bản

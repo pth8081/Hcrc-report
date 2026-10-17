@@ -175,8 +175,8 @@ cần thiết cho 1 thiết bị quét mã đơn giản.
 | 1 | git pull + khởi động lại api-server VÀ api-admin | IT/Dev |
 | 2 | DBA chạy lại `api-db/schema.sql` (an toàn chạy lại nhiều lần) | DBA |
 | 2b | DBA chạy `api-db/grants-dsmart16-voucher.sql` TRÊN CSDL DSMART16 (Live, không phải HCRC_API) — tạo login CHỈ ĐÚNG SELECT+UPDATE trên `dbo.PMCRDINF`, nhớ ĐỔI MẬT KHẨU mẫu trước khi chạy | DBA phía DSMART16 |
-| 3 | Đã có "Nguồn dữ liệu" trỏ DSMART16 (Live) chưa? Nếu chưa, chạy `npm run seed:voucher-datasource` (xem Bước 4, dùng đúng tài khoản vừa tạo ở bước 2b) — TỰ tạo Nguồn dữ liệu + trỏ Cấu hình Voucher trong 1 lệnh, KHÔNG cần mở trình duyệt | IT/DBA |
-| 4 | Nếu KHÔNG dùng script ở bước 3 (vd đã có sẵn Nguồn dữ liệu từ mục 13): vào api-admin → "Cấu hình Voucher", chọn đúng Nguồn dữ liệu | Admin api-admin |
+| 3 | Vào api-admin → "Nguồn dữ liệu" → tạo 1 dòng trỏ DSMART16 (Live), dùng đúng tài khoản vừa tạo ở bước 2b (nếu chưa có sẵn từ mục 13) | Admin api-admin |
+| 4 | Vào "Cấu hình Voucher" → chọn đúng "Nguồn dữ liệu" vừa tạo cho dòng `default` (xem Bước 4) | Admin api-admin |
 | 5 | Vào "Đối tác", tạo/sửa 1 đối tác cho app voucher — scope `voucherCheck` + `voucherRedeem` | Admin api-admin |
 | 6 | Gán quyền Xem/Sửa trang "Cấu hình Voucher" ở "Vai trò" | Admin api-admin |
 | 7 | Đưa API key/HMAC cho team app voucher, xác nhận đổi base URL sang `/api/v1/vouchers/...` | IT/Dev |
@@ -193,49 +193,26 @@ với quyền CHỈ ĐÚNG SELECT + UPDATE trên `dbo.PMCRDINF` (không được
 khác) — chạy `api-db/grants-dsmart16-voucher.sql` (mẫu, nhớ đổi mật khẩu
 trước khi chạy thật) trên chính CSDL DSMART16 để tạo tài khoản này.
 
-**Cách 1 (khuyến nghị CHO ĐÚNG MÁY CHỦ DSMART16 "default" — chạy 1 lệnh,
-không cần mở trình duyệt/đăng nhập api-admin, phù hợp khi api-admin CHỈ
-chạy trong mạng nội bộ)**: điền các biến `VOUCHER_DSMART16_*` vào file
-`.env` của api-server (xem `api-server/.env.example` mục "Voucher — kết
-nối DSMART16" để biết đầy đủ các biến: server/port/database/username/
-password), rồi chạy trên chính máy chủ đang host api-server:
+Tất cả cấu hình máy chủ DSMART16 (kể cả `default` lúc setup lần đầu) làm
+ĐÚNG 1 CÁCH DUY NHẤT — qua giao diện api-admin, KHÔNG có script/biến
+`.env` nào thay thế (tránh 2 nơi lưu cùng 1 thông tin, dễ lệch/nhầm):
 
-```
-cd api-server
-npm run seed:voucher-datasource
-```
-
-Script `scripts/seedVoucherDataSource.js` tự động: (1) kiểm tra kết nối
-THẬT tới DSMART16 trước — nếu sai thông tin thì DỪNG NGAY, KHÔNG ghi gì cả
-(tránh lưu cấu hình hỏng); (2) tạo mới HOẶC cập nhật tại chỗ (idempotent,
-khớp theo tên, không tạo trùng) đúng 1 dòng trong "Nguồn dữ liệu"; (3) tự
-trỏ ĐÚNG cấu hình `default` vào dòng đó. **Mật khẩu chỉ nằm trong `.env`
-trên máy chủ — không đi qua trình duyệt, không đi qua chat/log.** Đổi mật
-khẩu/server DSMART16 (mặc định) sau này: sửa lại `.env` rồi chạy lại đúng
-lệnh trên. **Script này CHỈ phụ trách `default`** — không có biến nào để
-chọn cấu hình khác (xem Cách 2 bên dưới cho máy chủ mới).
-
-**Cách 2 (BẮT BUỘC khi thêm 1 máy chủ DSMART MỚI, vd "Fuji" — qua giao
-diện)**: vào trang **"Cấu hình Voucher"** (menu mới, mặc định KHÔNG vai
-trò nào tự có quyền xem — gán ở "Vai trò" như mọi trang khác) — giờ là 1
-DANH SÁCH (bản 9.59, nhiều máy chủ DSMART), mỗi dòng chọn 1 "Nguồn dữ
-liệu" đã khai ở trang "Nguồn dữ liệu". Dòng `default` LUÔN có sẵn (không
-xoá được) — ứng với API `/vouchers/check`,`/vouchers/redeem` KHÔNG kèm mã,
-đối tác hiện tại không cần đổi gì.
-
-Để thêm máy chủ MỚI (vd "Fuji"):
-1. Vào trang **"Nguồn dữ liệu"** → "+ Tạo mới" → gõ THẲNG server/port/
-   database/username/password của chính máy chủ Fuji. Mỗi dòng ở đây tự
-   lưu riêng thông tin kết nối của chính nó (mã hoá), **KHÔNG liên quan
-   gì tới `.env`/dòng "default"** — đây là trang bạn đã dùng quen để khai
-   mọi nguồn dữ liệu khác trong hệ thống, không có gì khác biệt.
-2. Vào trang **"Cấu hình Voucher"** → "+ Tạo cấu hình mới" → đặt mã
-   (ConfigKey, vd `fuji`) + tên (vd "Voucher redeem Fuji") → chọn đúng
-   "Nguồn dữ liệu" vừa tạo ở bước 1. Mã dùng THẲNG trên URL
-   (`/vouchers/fuji/check`), không đổi được sau khi tạo.
-
-Không cần sửa `.env`/chạy script gì cho máy chủ mới — toàn bộ làm qua
-giao diện.
+1. Vào trang **"Nguồn dữ liệu"** → "+ Tạo mới" → gõ THẲNG
+   server/port/database/username/password của máy chủ DSMART16 (dùng
+   đúng tài khoản vừa tạo ở Bước 2b cho `default`, hoặc thông tin máy
+   chủ mới vd "Fuji"). Mỗi dòng ở đây tự lưu riêng thông tin kết nối của
+   chính nó (mã hoá) — đây là trang bạn đã dùng quen để khai mọi nguồn
+   dữ liệu khác trong hệ thống, không có gì khác biệt.
+2. Vào trang **"Cấu hình Voucher"** (menu mới, mặc định KHÔNG vai trò
+   nào tự có quyền xem — gán ở "Vai trò" như mọi trang khác) — là 1 DANH
+   SÁCH (bản 9.59, nhiều máy chủ DSMART). Dòng `default` LUÔN có sẵn
+   (không xoá được) — ứng với API `/vouchers/check`,`/vouchers/redeem`
+   KHÔNG kèm mã, đối tác hiện tại không cần đổi gì — bấm "Sửa" dòng này,
+   chọn đúng "Nguồn dữ liệu" vừa tạo ở bước 1. Thêm máy chủ MỚI (vd
+   "Fuji"): bấm "+ Tạo cấu hình mới" → đặt mã (ConfigKey, vd `fuji`) +
+   tên (vd "Voucher redeem Fuji") → chọn đúng "Nguồn dữ liệu" tương ứng.
+   Mã dùng THẲNG trên URL (`/vouchers/fuji/check`), không đổi được sau
+   khi tạo.
 
 ## Bước 5 — Cấp quyền gọi cho đối tác (app voucher)
 
@@ -297,8 +274,8 @@ dùng: không cấu hình gì qua web, chỉ chạy script + điền thông tin 
 CSDL)**:
 
 ```
-# Bước 1 — api-server: tạo Endpoint realtime (YÊU CẦU đã chạy
-#          seed:voucher-datasource trước — xem Bước 4 ở trên)
+# Bước 1 — api-server: tạo Endpoint realtime (YÊU CẦU đã tạo "Nguồn dữ
+#          liệu" trỏ DSMART16 Live qua api-admin trước — xem Bước 4 ở trên)
 cd api-server
 npm run seed:voucher-check-endpoint
 
@@ -345,8 +322,8 @@ Toàn bộ script seed trong hệ thống này (kể cả 4 báo cáo doanh thu)
 ## Hỏi & đáp
 
 **Gọi `/check`/`/redeem` trả lỗi 503 "Chưa cấu hình Nguồn dữ liệu"?**
-Chưa làm Bước 4 (Cấu hình Voucher) — chạy `npm run seed:voucher-datasource`
-(xem `api-server/.env.example`) hoặc vào api-admin chọn Nguồn dữ liệu tay.
+Chưa làm Bước 4 (Cấu hình Voucher) — vào api-admin, trang "Cấu hình
+Voucher", chọn đúng "Nguồn dữ liệu" cho dòng cần dùng.
 
 **Gọi `/redeem` trả `403`?**
 Đối tác thiếu scope `voucherRedeem` (hoặc `voucherCheck` cho `/check`) —

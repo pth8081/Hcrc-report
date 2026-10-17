@@ -29,6 +29,31 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 9.61 — Bỏ hẳn script seed:voucher-datasource (chỉ dùng giao diện cho "Nguồn dữ liệu")
+
+**Theo yêu cầu người dùng** — tiếp nối bản 9.60 (đã khuyên dùng giao diện
+thay vì script cho máy chủ MỚI), người dùng yêu cầu bỏ LUÔN cả cách qua
+`.env`/script cho cấu hình `default` — vì "Nguồn dữ liệu" giờ cấu hình
+trên web rồi, giữ lại 2 đường (web + script/`.env`) cùng lúc dễ xung đột/
+nhầm lẫn không cần thiết.
+
+**Thay đổi**:
+- Xoá hẳn `api-server/scripts/seedVoucherDataSource.js` và lệnh
+  `npm run seed:voucher-datasource` (`api-server/package.json`).
+- `api-server/.env.example` — bỏ hẳn khối biến `VOUCHER_DSMART16_SERVER/
+  PORT/DATABASE/USER/PASSWORD/ENCRYPT/TRUST_CERT` (không còn gì đọc các
+  biến này nữa).
+- `api-server/scripts/seedVoucherCheckEndpoint.js` — chỉ sửa câu thông
+  báo/comment (bỏ nhắc tới script đã xoá), hành vi KHÔNG đổi — vẫn tự tra
+  "Nguồn dữ liệu" theo tên (`VOUCHER_DSMART16_NAME`, mặc định "DSMART16
+  (Live) - Voucher"), chỉ khác giờ dòng đó PHẢI đã tạo sẵn qua api-admin.
+- `api-voucher-check-redeem.md` — Bước 4 giờ CHỈ còn 1 cách DUY NHẤT
+  (giao diện) cho MỌI cấu hình, kể cả `default`: "Nguồn dữ liệu" tạo
+  dòng mới → "Cấu hình Voucher" chọn đúng dòng đó. Bỏ hết câu lệnh script
+  khỏi bảng "Việc cần làm" và mục "Hỏi & đáp".
+- `VERSION.md`/`deploy/Nhật ký triển khai...` bản 9.59/9.60 GIỮ NGUYÊN
+  (lịch sử), không sửa lại — chỉ thêm mục mới này.
+
 ## 9.60 — Sửa hướng dẫn thêm máy chủ DSMART mới (bản 9.59): BỎ cách qua script, CHỈ dùng giao diện
 
 **Theo phản hồi người dùng** — bản 9.59 có thêm biến

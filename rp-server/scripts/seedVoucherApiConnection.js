@@ -19,8 +19,8 @@
 // trong 2 nơi, đúng URL api-server mà MÁY CHỦ rp-server gọi tới được (vd
 // địa chỉ nội bộ, không nhất thiết là domain public).
 //
-// AN TOÀN: kiểm tra api-server có phản hồi /api/v1/health TRƯỚC khi ghi
-// (cùng tinh thần seedVoucherDataSource.js) — sai baseUrl thì DỪNG NGAY.
+// AN TOÀN: kiểm tra api-server có phản hồi /api/v1/health TRƯỚC khi ghi —
+// sai baseUrl thì DỪNG NGAY, không lưu cấu hình hỏng.
 //
 // IDEMPOTENT — khớp theo Name: lần đầu TẠO MỚI, các lần sau (đổi key do
 // luân chuyển, đổi baseUrl) CẬP NHẬT tại chỗ.
