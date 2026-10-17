@@ -100,19 +100,22 @@ async function main() {
   }
 
   // api.VoucherSettings giờ là DANH SÁCH theo ConfigKey (bản 9.59, nhiều
-  // máy chủ DSMART) — script này CHỈ phụ trách dòng 'default' (API
-  // /vouchers/check,/redeem KHÔNG :configKey, hành vi cũ); dòng khác
-  // (vd 'fuji') tạo qua api-admin trang "Cấu hình Voucher". MERGE để chạy
-  // đúng cả lần đầu (chưa có dòng 'default') lẫn các lần sau (đã có, chỉ
-  // cần đổi DataSourceId).
-  const configKey = process.env.VOUCHER_DSMART16_CONFIG_KEY || 'default';
-  await pool.request().input('dataSourceId', sql.Int, dataSourceId).input('configKey', sql.VarChar(50), configKey).input('name', sql.NVarChar(200), name).query(`
+  // máy chủ DSMART) — script này CHỈ phụ trách ĐÚNG 1 dòng 'default' (API
+  // /vouchers/check,/redeem KHÔNG :configKey, hành vi cũ), KHÔNG nhận biến
+  // nào để chọn configKey khác — mỗi dòng "Nguồn dữ liệu" đã tự lưu riêng
+  // server/user/password của chính nó (không chia sẻ gì với dòng khác), nên
+  // thêm 1 máy chủ DSMART MỚI (vd "Fuji") làm qua api-admin: trang "Nguồn
+  // dữ liệu" tạo dòng mới (gõ thẳng thông tin Fuji, không đụng .env) rồi
+  // "Cấu hình Voucher" trỏ vào đúng dòng đó — xem api-voucher-check-redeem.md
+  // mục "Thêm 1 máy chủ DSMART mới". MERGE để chạy đúng cả lần đầu (chưa có
+  // dòng 'default') lẫn các lần sau (đã có, chỉ cần đổi DataSourceId).
+  await pool.request().input('dataSourceId', sql.Int, dataSourceId).input('name', sql.NVarChar(200), name).query(`
     MERGE api.VoucherSettings AS target
-    USING (SELECT @configKey AS ConfigKey) AS src ON target.ConfigKey = src.ConfigKey
+    USING (SELECT 'default' AS ConfigKey) AS src ON target.ConfigKey = src.ConfigKey
     WHEN MATCHED THEN UPDATE SET DataSourceId = @dataSourceId
-    WHEN NOT MATCHED THEN INSERT (ConfigKey, Name, DataSourceId) VALUES (@configKey, @name, @dataSourceId);
+    WHEN NOT MATCHED THEN INSERT (ConfigKey, Name, DataSourceId) VALUES ('default', @name, @dataSourceId);
   `);
-  console.log(`✅ Đã trỏ api.VoucherSettings (ConfigKey="${configKey}") -> Nguồn dữ liệu #${dataSourceId}.`);
+  console.log(`✅ Đã trỏ api.VoucherSettings (ConfigKey="default") -> Nguồn dữ liệu #${dataSourceId}.`);
   console.log('Hoàn tất — thử gọi POST /api/v1/vouchers/check với 1 mã thật để xác nhận (xem api-voucher-check-redeem.md).');
   process.exit(0);
 }

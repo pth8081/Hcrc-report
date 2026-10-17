@@ -29,6 +29,28 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 9.60 — Sửa hướng dẫn thêm máy chủ DSMART mới (bản 9.59): BỎ cách qua script, CHỈ dùng giao diện
+
+**Theo phản hồi người dùng** — bản 9.59 có thêm biến
+`VOUCHER_DSMART16_CONFIG_KEY` để chạy `seed:voucher-datasource` cho 1 máy
+chủ KHÁC `default` (vd Fuji), nhưng script vẫn đọc server/user/password
+qua ĐÚNG 1 bộ tên biến `VOUCHER_DSMART16_SERVER/USER/PASSWORD` dùng chung
+cho mọi máy chủ — chạy cho Fuji nghĩa là phải SỬA LẠI 3 biến đó thành
+thông tin Fuji trong `.env`, tự làm MẤT thông tin kết nối máy chủ
+`default` đang lưu ở đó (không mất dữ liệu DB, nhưng mất chỗ lưu để chạy
+lại script cho `default` lần sau) — dễ nhầm, đúng như người dùng chỉ ra.
+
+**Thay đổi**: `api-server/scripts/seedVoucherDataSource.js` bỏ hẳn biến
+`VOUCHER_DSMART16_CONFIG_KEY` — script CHỈ còn phụ trách ĐÚNG 1 dòng
+`default` (đúng vai trò ban đầu: setup lần đầu không cần mở trình duyệt).
+Thêm 1 máy chủ DSMART MỚI (vd "Fuji") giờ CHỈ làm qua giao diện — không
+cần đụng `.env`/script: trang "Nguồn dữ liệu" tạo 1 dòng MỚI (mỗi dòng
+đã tự lưu riêng server/user/password mã hoá của chính nó từ trước, không
+chia sẻ gì với dòng khác), rồi "Cấu hình Voucher" trỏ vào đúng dòng đó —
+đúng con đường "Cách 2" đã có sẵn ở bản 9.59, không cần code gì thêm.
+Cập nhật `api-server/.env.example` + `api-voucher-check-redeem.md` khớp
+đúng hướng dẫn mới.
+
 ## 9.59 — Voucher redeem nhiều máy chủ DSMART (vd thêm chi nhánh "Fuji")
 
 **Theo yêu cầu người dùng** — thêm 1 máy chủ DSMART mới ("Fuji"), app

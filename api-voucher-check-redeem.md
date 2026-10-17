@@ -193,12 +193,12 @@ với quyền CHỈ ĐÚNG SELECT + UPDATE trên `dbo.PMCRDINF` (không được
 khác) — chạy `api-db/grants-dsmart16-voucher.sql` (mẫu, nhớ đổi mật khẩu
 trước khi chạy thật) trên chính CSDL DSMART16 để tạo tài khoản này.
 
-**Cách 1 (khuyến nghị — chạy 1 lệnh, không cần mở trình duyệt/đăng nhập
-api-admin, phù hợp khi api-admin CHỈ chạy trong mạng nội bộ)**: điền các
-biến `VOUCHER_DSMART16_*` vào file `.env` của api-server (xem
-`api-server/.env.example` mục "Voucher — kết nối DSMART16" để biết đầy đủ
-các biến: server/port/database/username/password), rồi chạy trên chính
-máy chủ đang host api-server:
+**Cách 1 (khuyến nghị CHO ĐÚNG MÁY CHỦ DSMART16 "default" — chạy 1 lệnh,
+không cần mở trình duyệt/đăng nhập api-admin, phù hợp khi api-admin CHỈ
+chạy trong mạng nội bộ)**: điền các biến `VOUCHER_DSMART16_*` vào file
+`.env` của api-server (xem `api-server/.env.example` mục "Voucher — kết
+nối DSMART16" để biết đầy đủ các biến: server/port/database/username/
+password), rồi chạy trên chính máy chủ đang host api-server:
 
 ```
 cd api-server
@@ -209,36 +209,33 @@ Script `scripts/seedVoucherDataSource.js` tự động: (1) kiểm tra kết n�
 THẬT tới DSMART16 trước — nếu sai thông tin thì DỪNG NGAY, KHÔNG ghi gì cả
 (tránh lưu cấu hình hỏng); (2) tạo mới HOẶC cập nhật tại chỗ (idempotent,
 khớp theo tên, không tạo trùng) đúng 1 dòng trong "Nguồn dữ liệu"; (3) tự
-trỏ "Cấu hình Voucher" vào dòng đó. **Mật khẩu chỉ nằm trong `.env` trên
-máy chủ — không đi qua trình duyệt, không đi qua chat/log.** Đổi mật
-khẩu/server DSMART16 sau này: sửa lại `.env` rồi chạy lại đúng lệnh trên.
+trỏ ĐÚNG cấu hình `default` vào dòng đó. **Mật khẩu chỉ nằm trong `.env`
+trên máy chủ — không đi qua trình duyệt, không đi qua chat/log.** Đổi mật
+khẩu/server DSMART16 (mặc định) sau này: sửa lại `.env` rồi chạy lại đúng
+lệnh trên. **Script này CHỈ phụ trách `default`** — không có biến nào để
+chọn cấu hình khác (xem Cách 2 bên dưới cho máy chủ mới).
 
-**Cách 2 (thủ công qua giao diện, nếu muốn tự tay kiểm tra từng bước)**:
-vào trang **"Cấu hình Voucher"** (menu mới, mặc định KHÔNG vai trò nào
-tự có quyền xem — gán ở "Vai trò" như mọi trang khác) — giờ là 1 DANH
-SÁCH (bản 9.59, nhiều máy chủ DSMART), mỗi dòng chọn 1 "Nguồn dữ liệu" đã
-khai ở trang "Nguồn dữ liệu". Dòng `default` LUÔN có sẵn (không xoá được)
-— ứng với API `/vouchers/check`,`/vouchers/redeem` KHÔNG kèm mã, đối tác
-hiện tại không cần đổi gì. Bấm "+ Tạo cấu hình mới" để thêm 1 máy chủ
-DSMART khác (vd mã `fuji`, tên "Voucher redeem Fuji") — mã (ConfigKey)
-dùng THẲNG trên URL (`/vouchers/fuji/check`), không đổi được sau khi tạo.
+**Cách 2 (BẮT BUỘC khi thêm 1 máy chủ DSMART MỚI, vd "Fuji" — qua giao
+diện)**: vào trang **"Cấu hình Voucher"** (menu mới, mặc định KHÔNG vai
+trò nào tự có quyền xem — gán ở "Vai trò" như mọi trang khác) — giờ là 1
+DANH SÁCH (bản 9.59, nhiều máy chủ DSMART), mỗi dòng chọn 1 "Nguồn dữ
+liệu" đã khai ở trang "Nguồn dữ liệu". Dòng `default` LUÔN có sẵn (không
+xoá được) — ứng với API `/vouchers/check`,`/vouchers/redeem` KHÔNG kèm mã,
+đối tác hiện tại không cần đổi gì.
 
-### Thêm 1 máy chủ DSMART mới (vd "Fuji") qua script
+Để thêm máy chủ MỚI (vd "Fuji"):
+1. Vào trang **"Nguồn dữ liệu"** → "+ Tạo mới" → gõ THẲNG server/port/
+   database/username/password của chính máy chủ Fuji. Mỗi dòng ở đây tự
+   lưu riêng thông tin kết nối của chính nó (mã hoá), **KHÔNG liên quan
+   gì tới `.env`/dòng "default"** — đây là trang bạn đã dùng quen để khai
+   mọi nguồn dữ liệu khác trong hệ thống, không có gì khác biệt.
+2. Vào trang **"Cấu hình Voucher"** → "+ Tạo cấu hình mới" → đặt mã
+   (ConfigKey, vd `fuji`) + tên (vd "Voucher redeem Fuji") → chọn đúng
+   "Nguồn dữ liệu" vừa tạo ở bước 1. Mã dùng THẲNG trên URL
+   (`/vouchers/fuji/check`), không đổi được sau khi tạo.
 
-Giống Cách 1 ở Bước 4 nhưng set thêm biến `VOUCHER_DSMART16_CONFIG_KEY`
-(và đổi `VOUCHER_DSMART16_NAME` cho dễ nhận biết) trước khi chạy, để
-script tạo/cập nhật ĐÚNG dòng cấu hình đó (KHÔNG đụng dòng `default`):
-
-```
-cd api-server
-VOUCHER_DSMART16_CONFIG_KEY=fuji \
-VOUCHER_DSMART16_NAME="DSMART16 (Live) - Fuji" \
-VOUCHER_DSMART16_SERVER=... VOUCHER_DSMART16_USER=... VOUCHER_DSMART16_PASSWORD=... \
-  npm run seed:voucher-datasource
-```
-
-Không set `VOUCHER_DSMART16_CONFIG_KEY` thì mặc định `default` — đúng
-hành vi cũ, không ảnh hưởng máy chủ/đối tác hiện tại.
+Không cần sửa `.env`/chạy script gì cho máy chủ mới — toàn bộ làm qua
+giao diện.
 
 ## Bước 5 — Cấp quyền gọi cho đối tác (app voucher)
 

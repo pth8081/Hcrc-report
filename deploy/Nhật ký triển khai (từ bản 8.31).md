@@ -14,6 +14,24 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 9.60 — Sửa hướng dẫn thêm máy chủ DSMART mới (bản 9.59): BỎ cách qua script, CHỈ dùng giao diện
+
+**Thay đổi**: chỉ sửa code/doc, KHÔNG có migration CSDL mới (schema bản
+9.59 giữ nguyên).
+
+**Các bước:**
+1. `git pull origin main` → khởi động lại `api-server`.
+2. Nếu đã LỠ chạy `seed:voucher-datasource` với
+   `VOUCHER_DSMART16_CONFIG_KEY` khác `default` theo hướng dẫn bản 9.59
+   (SỬA các biến `VOUCHER_DSMART16_SERVER/USER/PASSWORD` trong `.env`
+   thành thông tin máy chủ khác) — kiểm tra lại `.env` đã được trả về
+   ĐÚNG thông tin máy chủ `default` chưa, chạy lại
+   `npm run seed:voucher-datasource` (không kèm biến CONFIG_KEY) nếu cần.
+3. Thêm máy chủ DSMART mới từ nay CHỈ làm qua giao diện (xem
+   `api-voucher-check-redeem.md` mục "Bước 4"): "Nguồn dữ liệu" → tạo
+   dòng mới cho máy chủ đó → "Cấu hình Voucher" → "+ Tạo cấu hình mới" →
+   chọn đúng dòng vừa tạo.
+
 ## 9.59 — Voucher redeem nhiều máy chủ DSMART (vd thêm chi nhánh "Fuji")
 
 **Thay đổi**: `api-db/schema.sql` (migration tự chạy, an toàn chạy lại
