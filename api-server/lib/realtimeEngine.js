@@ -42,7 +42,8 @@ async function loadEndpointDef(endpoint) {
   const adminPool = await getPool('ADMIN');
   const result = await adminPool.request().input('endpoint', sql.VarChar(50), endpoint).query(`
     SELECT Endpoint, DataSourceId, SchemaName, TableName, KeyColumn, ColumnsJson, OrderColumn,
-           JoinSchema, JoinTable, JoinType, MainJoinColumn, LookupJoinColumn, JoinColumnsJson
+           JoinSchema, JoinTable, JoinType, MainJoinColumn, LookupJoinColumn, JoinColumnsJson,
+           KeyStripLeadingChar, FilterColumn, FilterOperator, FilterValue
     FROM api.RealtimeEndpointDefs WHERE Endpoint = @endpoint AND IsActive = 1
   `);
   if (!result.recordset.length) throw new NotFoundError(`Endpoint realtime "${endpoint}" không tồn tại hoặc đã tắt`);
@@ -52,6 +53,29 @@ async function loadEndpointDef(endpoint) {
     columns: JSON.parse(row.ColumnsJson),
     joinColumns: row.JoinTable ? JSON.parse(row.JoinColumnsJson || '[]') : []
   };
+}
+
+// Mã quét/gửi lên thừa đúng 1 ký tự đầu so với giá trị lưu CSDL (cấu hình
+// qua KeyStripLeadingChar — vd 'C' cho voucher, xem
+// lib/voucherRedeemService.js:normalizeCardId() là bản gốc hard-code riêng
+// voucher; đây là bản TỔNG QUÁT cho mọi endpoint). NULL/không khớp ký tự
+// đầu -> giữ nguyên giá trị, không đổi hành vi cũ.
+function stripLeadingChar(keyValue, stripChar) {
+  if (!stripChar) return keyValue;
+  const re = new RegExp(`^${stripChar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'i');
+  return re.test(keyValue) ? keyValue.slice(1) : keyValue;
+}
+
+// Điều kiện lọc TUỲ CHỌN (FilterColumn/FilterOperator/FilterValue) — áp
+// dụng cho CẢ runLookup lẫn runList, để 1 dòng không thoả điều kiện KHÔNG
+// lộ ra qua đường nào (vd endpoint chỉ cho đối tác xem voucher ĐÃ DÙNG —
+// tra đúng mã 1 voucher CHƯA dùng qua endpoint đó phải trả "không tìm
+// thấy", không phải trả về rồi để lộ thông tin). 3 cột đều NULL -> không
+// lọc gì (hành vi cũ).
+function filterClause(def) {
+  if (!def.FilterColumn) return { sql: '', input: null };
+  const op = def.FilterOperator === '<>' ? '<>' : '=';
+  return { sql: ` AND m.${quoteIdent(def.FilterColumn)} ${op} @filterValue`, input: def.FilterValue };
 }
 
 // Ghép SELECT + FROM (kèm JOIN nếu có) dùng chung cho runLookup/runList. Cột
@@ -81,15 +105,18 @@ async function runLookup(endpoint, keyValue) {
   const { cols, table, joinClause, allColumns } = selectClause(def);
   const keyCol = quoteIdent(def.KeyColumn);
   const pool = await getPoolForDataSource(def.DataSourceId);
+  const normalizedKey = stripLeadingChar(keyValue, def.KeyStripLeadingChar);
+  const filter = filterClause(def);
+  const request = pool.request().input('key', sql.NVarChar(200), normalizedKey);
+  if (filter.input !== null) request.input('filterValue', sql.NVarChar(100), filter.input);
   // TOP 2 (không phải TOP 1) — đủ 1 dòng thừa để PHÁT HIỆN join nhân dòng
   // (LookupJoinColumn không unique trên bảng liên kết, xem
   // routes/admin/realtimeEndpoints.js checkJoinCardinalityWarning cảnh báo
   // lúc lưu — đây là lớp bảo vệ lúc CHẠY, phòng khi dữ liệu nguồn đổi sau
   // đó khiến cột từng unique nay không còn). Không có join thì KeyColumn là
   // khoá tra cứu nên tối đa 1 dòng, nhánh cảnh báo này không kích hoạt.
-  const result = await pool.request()
-    .input('key', sql.NVarChar(200), keyValue)
-    .query(`SELECT TOP 2 ${cols} FROM ${table} ${joinClause} WHERE m.${keyCol} = @key`);
+  const result = await request
+    .query(`SELECT TOP 2 ${cols} FROM ${table} ${joinClause} WHERE m.${keyCol} = @key${filter.sql}`);
   if (result.recordset.length > 1) {
     console.warn(`⚠️  [realtime:${endpoint}] khoá "${keyValue}" khớp NHIỀU HƠN 1 dòng sau JOIN — LookupJoinColumn "${def.LookupJoinColumn}" có thể không unique trên "${def.JoinSchema}.${def.JoinTable}". Trả về dòng đầu tiên (không đảm bảo dòng nào), kiểm tra lại cấu hình endpoint.`);
   }
@@ -108,10 +135,12 @@ async function runList(endpoint, { page = 1, pageSize = 200 } = {}) {
   // NHIỀU dòng sau JOIN), nhưng ở đây không có TOP để giới hạn nên phải dò
   // trùng khoá NGAY TRONG trang kết quả thay vì so đếm cố định.
   const keyCol = def.JoinTable ? `, m.${quoteIdent(def.KeyColumn)} AS __rt_key_check` : '';
-  const result = await pool.request()
-    .input('offset', sql.Int, (page - 1) * pageSize)
-    .input('pageSize', sql.Int, pageSize)
-    .query(`SELECT ${cols}${keyCol} FROM ${table} ${joinClause} ORDER BY m.${orderCol} OFFSET @offset ROWS FETCH NEXT @pageSize ROWS ONLY`);
+  const filter = filterClause(def);
+  const request = pool.request().input('offset', sql.Int, (page - 1) * pageSize).input('pageSize', sql.Int, pageSize);
+  if (filter.input !== null) request.input('filterValue', sql.NVarChar(100), filter.input);
+  const whereClause = filter.sql ? `WHERE ${filter.sql.replace(/^ AND /, '')}` : '';
+  const result = await request
+    .query(`SELECT ${cols}${keyCol} FROM ${table} ${joinClause} ${whereClause} ORDER BY m.${orderCol} OFFSET @offset ROWS FETCH NEXT @pageSize ROWS ONLY`);
   let rows = result.recordset;
   if (def.JoinTable) {
     // TRƯỚC ĐÂY: chỉ console.warn() rồi vẫn trả TOÀN BỘ dòng đã bị JOIN

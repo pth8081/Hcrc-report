@@ -327,6 +327,17 @@ với schema thật (không cần bấm gì thêm). Endpoint này lộ ra 2 các
 này) — kết quả LUÔN có `CustomerName` ghép sẵn, không lộ ra `UsedByCustomerId`
 là khoá ngoại của bảng nào.
 
+**2 ô tuỳ chọn thêm (bản 9.62)**, nằm ngay dưới phần bảng liên kết — mặc
+định trống, không ảnh hưởng gì nếu không dùng:
+- **Bỏ ký tự đầu** — khi mã khách quét/gửi lên thừa 1 ký tự so với giá trị
+  lưu CSDL (vd mã voucher thật ở mục 13), điền đúng ký tự đó, hệ thống tự
+  bỏ trước khi tra.
+- **Chỉ cho xem dòng thoả 1 điều kiện** — chọn 1 cột + `=`/`<>` + giá trị;
+  dòng không thoả điều kiện báo "không tìm thấy" ở CẢ tra 1 khoá lẫn
+  `/list`, kể cả biết đúng khoá — dùng khi 1 đối tác chỉ được xem 1 TRẠNG
+  THÁI của dữ liệu (vd chỉ voucher đã dùng, xem mục 13.1), không phải toàn
+  bộ bảng.
+
 ### Bước 3 — api-admin: cấp quyền cho rp-server gọi endpoint này
 
 Trang "Đối tác" → tạo (hoặc dùng lại) đối tác cho rp-server, `Scope` có
@@ -1366,9 +1377,14 @@ lưu trong CSDL (xác nhận thật: mã quét `CE34000089252` ↔ `CARD_ID` lư
 `C`/`c` đầu (nếu có) trước khi tra, KHÔNG cần đối tác tự xử lý gì. Nếu tạo
 thêm "Endpoint realtime"/"Endpoint ghi" riêng để tra `PMCRDINF` (mục 13.1/
 13.2 dưới đây — cơ chế tổng quát, khác hẳn 2 route cố định `/vouchers/
-check`/`redeem`), nhớ đặt **Cột khoá = `CARD_ID`** (không phải `BARCODE`)
-và tự xử lý bỏ ký tự `C` đầu TRƯỚC khi gọi (cơ chế endpoint tổng quát
-không tự làm việc này).
+check`/`redeem`), nhớ đặt **Cột khoá = `CARD_ID`** (không phải `BARCODE`).
+
+**"Endpoint realtime" (CHỈ ĐỌC — mục 13.1) từ bản 9.62 TỰ bỏ ký tự đầu
+được** qua cấu hình `KeyStripLeadingChar` (vd `C`) — xem mục 13.1, KHÔNG
+cần đối tác tự xử lý nữa. **"Endpoint ghi" (mục 13.2) CHƯA có cấu hình
+này** — vẫn phải tự bỏ ký tự `C` đầu TRƯỚC khi gọi nếu dùng cơ chế tổng
+quát đó thay route cố định `/vouchers/redeem` (cố ý KHÔNG đụng vào phần
+ghi/redeem khi thêm tính năng này — xem api-voucher-check-redeem.md).
 
 Quyết định đã chốt với người dùng: voucher **dùng 1 lần là thu luôn** (không
 theo số dư trừ dần), và **ghi thẳng vào bảng đang có** (`PMCRDINF`) — KHÔNG
@@ -1382,10 +1398,20 @@ nếu cần thêm cột lịch sử phát hành/đổi, xem mục "Quy tắc chu
 giản dùng ô có sẵn, phức tạp hơn thì tạo VIEW), **Cột khoá = `CARD_ID`**
 (KHÔNG dùng `BARCODE` — xem lưu ý "QUAN TRỌNG" đầu mục 13), Cột hiển thị
 tick `STATUS`, `BAL_AMT`, `DUE_DATE`... Đối tác gọi
-`GET /api/v1/realtime/{endpoint}/{barcode}` — xem mục 3 cho ví dụ đầy đủ
-kiểu này (kiểm tra voucher tương tự). Cơ chế "Endpoint realtime" tổng quát
-KHÔNG tự bỏ ký tự `C` đầu như 2 route cố định `/vouchers/check`/`redeem` —
-nếu dùng cách này, đối tác phải tự bỏ ký tự `C` đầu TRƯỚC khi gọi.
+`GET /api/v1/realtime/{endpoint}/{mã}` — xem mục 3 cho ví dụ đầy đủ kiểu
+này (kiểm tra voucher tương tự).
+
+**Bản 9.62** — 2 ô cấu hình MỚI (tuỳ chọn, mặc định trống = hành vi cũ):
+- **"Mã quét/gửi lên thừa 1 ký tự đầu so với dữ liệu lưu?"** — điền `C`:
+  hệ thống TỰ bỏ ký tự này (không phân biệt hoa/thường) trước khi tra,
+  đối tác KHÔNG cần tự xử lý nữa (trước bản 9.62 phải tự bỏ).
+- **"Chỉ cho xem các dòng thoả 1 điều kiện"** — vd cột `STATUS` bằng `0`
+  (đã dùng): dòng KHÔNG thoả điều kiện báo "không tìm thấy" ở CẢ tra 1
+  khoá lẫn `/list`, dù biết đúng mã — dùng cho đối tác CHỈ được xem voucher
+  ĐÃ DÙNG (để họ tự lấy về cập nhật hệ thống của họ), không lộ voucher
+  chưa dùng. Endpoint mẫu đã seed sẵn kiểu này: `voucher-redeemed` (xem
+  `api-server/scripts/seedVoucherRedeemedEndpoint.js` +
+  api-voucher-check-redeem.md mục "Voucher đã dùng cho đối tác ngoài").
 
 ### 13.2. Báo đã dùng — tính năng MỚI "Endpoint ghi" (`api.RealtimeWriteEndpointDefs`)
 

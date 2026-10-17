@@ -294,8 +294,9 @@ node scripts/seedVoucherCheckReport.js
 ```
 
 Sau Bước 1, đã kiểm tra được TRỰC TIẾP trên api-server (chưa cần đợi hết các
-bước sau): `GET /api/v1/realtime/voucher-check/<mã-barcode>` kèm
-`X-API-Key` = chính giá trị `$APIKEY` ở Bước 2+3.
+bước sau): `GET /api/v1/realtime/voucher-check/<mã-quét-ra>` (có hoặc
+không có ký tự `C` đầu đều được — tự bỏ, xem Bước 1) kèm `X-API-Key` =
+chính giá trị `$APIKEY` ở Bước 2+3.
 
 Chạy LẠI nhiều lần AN TOÀN (mọi script đều idempotent) — trừ
 `seedVoucherCheckConsumer.js`: đối tác đã tồn tại thì KHÔNG tự đổi key (sợ
@@ -312,12 +313,50 @@ Toàn bộ script seed trong hệ thống này (kể cả 4 báo cáo doanh thu)
 **Cách 2 (thủ công qua giao diện)**:
 
 1. api-admin → "Endpoint realtime" → tạo endpoint mới trỏ `PMCRDINF`, Cột
-   khoá = `BARCODE`, cột hiển thị tick `STATUS`, `VALUE_AMT`, `BAL_AMT`,
-   `ISS_DATE`, `DUE_DATE`.
+   khoá = `CARD_ID` (KHÔNG dùng `BARCODE` — xem mục 1), ô "Mã quét/gửi lên
+   thừa 1 ký tự đầu" điền `C`, cột hiển thị tick `STATUS`, `VALUE_AMT`,
+   `BAL_AMT`, `ISS_DATE`, `DUE_DATE`.
 2. rp-user → Hệ thống → Biểu mẫu → tạo báo cáo `SourceType: apiRealtime`,
-   `apiTarget` = tên endpoint vừa tạo, `lookupField: barcode` — xem mục 3
+   `apiTarget` = tên endpoint vừa tạo, `lookupField: cardCode` — xem mục 3
    `hướng_dẫn_báo_cáo.md` cho ví dụ cấu hình đầy đủ.
 3. Gán quyền xem báo cáo này cho vai trò nhân viên cần tra cứu.
+
+## Voucher đã dùng — cho đối tác NGOÀI tự lấy về cập nhật hệ thống của họ
+
+**Theo yêu cầu người dùng (bản 9.62)** — khác hẳn mục "Kiểm tra voucher
+nội bộ" ở trên (nhân viên tra MỌI trạng thái để chẩn đoán): đối tác ngoài
+chỉ cần biết 1 voucher ĐÃ ĐƯỢC DÙNG (để tự cập nhật vào hệ thống của họ),
+KHÔNG được xem voucher chưa dùng. Dùng ĐÚNG cơ chế "Endpoint realtime"
+(scope `realtime` đã có — KHÔNG cần scope `voucherCheck`/`voucherRedeem`
+riêng của 2 route redeem cố định, và KHÔNG đụng gì tới redeem).
+
+**Cách 1 (script)**:
+```
+cd api-server
+npm run seed:voucher-redeemed-endpoint
+```
+Tạo endpoint `voucher-redeemed` trỏ `PMCRDINF`, khoá `CARD_ID` (tự bỏ ký
+tự `C` đầu), CHỈ trả về dòng có `STATUS = 0` (đã dùng) — tra đúng mã
+voucher CHƯA dùng qua endpoint này nhận `404`, dù đúng mã, không lộ gì.
+
+**Cách 2 (thủ công qua giao diện)**: api-admin → "Endpoint realtime" →
+tạo endpoint mới trỏ `PMCRDINF`, Cột khoá = `CARD_ID`, ô "Mã quét/gửi lên
+thừa 1 ký tự đầu" điền `C`, tick "Chỉ cho xem các dòng thoả 1 điều kiện" →
+cột `STATUS` → `=` → `0`, cột hiển thị tick `STATUS`, `VALUE_AMT`,
+`BAL_AMT`, `ISS_DATE`, `DUE_DATE`.
+
+**Cấp quyền cho đối tác**: api-admin → "Đối tác" → chọn đối tác → "Realtime
+được gọi" → tick `voucher-redeemed` (mặc định KHÔNG đối tác nào tự có
+quyền — phải gán rõ ràng từng đối tác).
+
+**Đối tác gọi** (header `X-API-Key`, scope `realtime`):
+- `GET /api/v1/realtime/voucher-redeemed/<mã-quét-ra>` — tra 1 mã, trả
+  `404` nếu mã chưa dùng hoặc không tồn tại.
+- `GET /api/v1/realtime/voucher-redeemed/list?page=1&pageSize=200` — lấy
+  DANH SÁCH phân trang TẤT CẢ voucher đã dùng (mới nhất theo `CARD_ID`,
+  không có cột ngày "đã dùng" riêng nên không sắp được theo thời điểm —
+  đối tác tự đối soát theo `CARD_ID` đã lấy trước đó nếu cần biết "mới
+  thêm từ lần gọi trước").
 
 ## Hỏi & đáp
 

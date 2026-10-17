@@ -29,6 +29,53 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 9.62 — API tra cứu voucher ĐÃ DÙNG cho đối tác ngoài (qua Endpoint realtime) + sửa lỗi khoá BARCODE còn sót
+
+**Theo yêu cầu người dùng** — đối tác cần 1 API chỉ-đọc để tự lấy thông
+tin voucher ĐÃ ĐƯỢC SỬ DỤNG về cập nhật hệ thống của họ, dùng cơ chế
+"Endpoint realtime" đã có (KHÔNG đụng/đổi gì ở 2 route cố định
+`/vouchers/check`/`redeem`, theo đúng yêu cầu người dùng "ko động vào
+voucher redeem"). Trong lúc rà soát, phát hiện endpoint "voucher-check"
+nội bộ (nhân viên tra thủ công) VẪN còn khoá theo `BARCODE` — CÙNG lỗi đã
+sửa ở route `/check`/`redeem` từ bản 9.19 (cột `BARCODE` của `PMCRDINF`
+THƯỜNG RỖNG trên dữ liệu thật) nhưng chưa bao giờ áp dụng sang endpoint
+generic này — sửa luôn cho đồng bộ.
+
+**Thay đổi**:
+- `api-db/schema.sql` — thêm 4 cột NULLABLE vào `api.RealtimeEndpointDefs`:
+  `KeyStripLeadingChar` (tổng quát hoá `normalizeCardId()` cho MỌI endpoint
+  realtime, không riêng voucher) + `FilterColumn`/`FilterOperator`/
+  `FilterValue` (chỉ cho xem dòng thoả 1 điều kiện, áp dụng CẢ tra 1 khoá
+  lẫn `/list`). Cả 4 NULL = giữ ĐÚNG hành vi cũ, không ảnh hưởng endpoint
+  đã tạo trước đó.
+- `api-server/lib/realtimeEngine.js` — `runLookup()`/`runList()` áp dụng
+  `stripLeadingChar()` (bỏ ký tự đầu nếu khớp) và `filterClause()` (thêm
+  điều kiện WHERE) trước khi truy vấn — endpoint không khai 2 trường này
+  thì hành vi KHÔNG đổi.
+- `api-server/routes/admin/realtimeEndpoints.js` — validate/lưu 2 nhóm
+  trường mới (Filter* phải khai ĐỦ cả 3 hoặc không khai gì; `FilterColumn`
+  cũng được đối chiếu schema thật như các cột khác).
+- `api-admin/src/pages/RealtimeEndpointsPage.jsx` — thêm 2 khối UI trong
+  form tạo/sửa endpoint: "Mã quét/gửi lên thừa 1 ký tự đầu" + "Chỉ cho
+  xem các dòng thoả 1 điều kiện".
+- `api-server/scripts/seedVoucherCheckEndpoint.js` — SỬA LỖI: đổi khoá từ
+  `BARCODE` sang `CARD_ID` + `KeyStripLeadingChar='C'` (nội bộ, nhân viên
+  vẫn tra được MỌI trạng thái, không lọc).
+- `api-server/scripts/seedVoucherRedeemedEndpoint.js` (MỚI) — seed
+  endpoint `voucher-redeemed` CHỈ lộ voucher `STATUS=0` (đã dùng) cho đối
+  tác ngoài, cấp quyền riêng qua "Đối tác" → "Realtime được gọi" (mặc định
+  KHÔNG đối tác nào tự có quyền).
+- `rp-server/scripts/seedVoucherCheckReport.js` — cập nhật cột/field báo
+  cáo nội bộ "Tra cứu voucher" khớp đổi tên cột (`BARCODE`→`CARD_ID`).
+- Đã kiểm chứng bằng mock test gọi THẲNG `runLookup()`/`runList()` thật
+  (mock DB, không đụng DSMART thật) — 8/8 pass: bỏ ký tự `C` đúng, lọc
+  đúng status ở CẢ 2 đường (tra 1 khoá lẫn danh sách), voucher chưa dùng
+  bị chặn đúng ở endpoint lọc, endpoint KHÔNG lọc không đổi hành vi (không
+  chèn điều kiện SQL nào).
+- Viết tài liệu riêng cho đối tác: `api-voucher-redeemed-gui-doi-tac.md`.
+- Cập nhật `hướng_dẫn_báo_cáo.md` mục 3/13/13.1 + `api-voucher-check-redeem.md`
+  (thêm mục "Voucher đã dùng — cho đối tác NGOÀI").
+
 ## 9.61 — Bỏ hẳn script seed:voucher-datasource (chỉ dùng giao diện cho "Nguồn dữ liệu")
 
 **Theo yêu cầu người dùng** — tiếp nối bản 9.60 (đã khuyên dùng giao diện

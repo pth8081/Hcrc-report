@@ -20,7 +20,8 @@ const EMPTY_FORM = {
   endpoint: '', label: '', dataSourceId: '',
   schemaName: '', tableName: '', keyColumn: '', orderColumn: '', columns: [],
   useJoin: false, joinSchema: '', joinTable: '', joinType: 'LEFT',
-  mainJoinColumn: '', lookupJoinColumn: '', joinColumns: [], isActive: true
+  mainJoinColumn: '', lookupJoinColumn: '', joinColumns: [], isActive: true,
+  keyStripLeadingChar: '', useFilter: false, filterColumn: '', filterOperator: '=', filterValue: ''
 };
 
 function toggleInList(list, value) {
@@ -102,7 +103,10 @@ export default function RealtimeEndpointsPage() {
       useJoin: !!ep.JoinTable, joinSchema: ep.JoinSchema || '', joinTable: ep.JoinTable || '',
       joinType: ep.JoinType || 'LEFT', mainJoinColumn: ep.MainJoinColumn || '',
       lookupJoinColumn: ep.LookupJoinColumn || '', joinColumns: JSON.parse(ep.JoinColumnsJson || '[]'),
-      isActive: !!ep.IsActive
+      isActive: !!ep.IsActive,
+      keyStripLeadingChar: ep.KeyStripLeadingChar || '',
+      useFilter: !!ep.FilterColumn, filterColumn: ep.FilterColumn || '',
+      filterOperator: ep.FilterOperator || '=', filterValue: ep.FilterValue || ''
     });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
@@ -125,6 +129,8 @@ export default function RealtimeEndpointsPage() {
         body.joinSchema = null; body.joinTable = null; body.joinType = null;
         body.mainJoinColumn = null; body.lookupJoinColumn = null; body.joinColumns = [];
       }
+      body.keyStripLeadingChar = body.keyStripLeadingChar || null;
+      if (!body.useFilter) { body.filterColumn = null; body.filterOperator = null; body.filterValue = null; }
       const result = editingEndpoint
         ? await api.put(`/realtime-endpoints/${editingEndpoint}`, body)
         : await api.post('/realtime-endpoints', body);
@@ -266,6 +272,38 @@ export default function RealtimeEndpointsPage() {
                   )}
                 </fieldset>
               )}
+
+              <fieldset>
+                <legend>Mã quét/gửi lên thừa 1 ký tự đầu so với dữ liệu lưu? (tuỳ chọn)</legend>
+                <input
+                  placeholder={`Ký tự cần bỏ (vd "C") — để trống nếu không cần`}
+                  value={form.keyStripLeadingChar}
+                  maxLength={1}
+                  onChange={(e) => setForm({ ...form, keyStripLeadingChar: e.target.value })}
+                />
+                <p className="hint">Vd mã quét "CE34000089252" nhưng CSDL lưu "E34000089252" — điền "C", hệ thống tự bỏ ký tự này (không phân biệt hoa/thường) trước khi tra, không cần đối tác tự xử lý.</p>
+              </fieldset>
+
+              <fieldset>
+                <label className="checkbox-row">
+                  <input type="checkbox" checked={form.useFilter} onChange={(e) => setForm({ ...form, useFilter: e.target.checked })} />
+                  Chỉ cho xem các dòng thoả 1 điều kiện (vd chỉ voucher ĐÃ DÙNG)
+                </label>
+                {form.useFilter && (
+                  <>
+                    <p className="hint">Dòng KHÔNG thoả điều kiện sẽ báo "không tìm thấy" ở CẢ tra 1 khoá lẫn danh sách — không lộ ra dù biết đúng khoá.</p>
+                    <select value={form.filterColumn} onChange={(e) => setForm({ ...form, filterColumn: e.target.value })} required>
+                      <option value="">— Cột điều kiện —</option>
+                      {columns.map(c => <option key={c.columnName} value={c.columnName}>{c.columnName} ({c.dataType})</option>)}
+                    </select>
+                    <select value={form.filterOperator} onChange={(e) => setForm({ ...form, filterOperator: e.target.value })}>
+                      <option value="=">bằng (=)</option>
+                      <option value="<>">khác (&lt;&gt;)</option>
+                    </select>
+                    <input placeholder="Giá trị (vd 0)" value={form.filterValue} onChange={(e) => setForm({ ...form, filterValue: e.target.value })} required />
+                  </>
+                )}
+              </fieldset>
             </fieldset>
           )}
 

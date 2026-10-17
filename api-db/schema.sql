@@ -298,6 +298,25 @@ BEGIN
 END
 GO
 
+-- KeyStripLeadingChar/Filter* (bản 9.62, theo yêu cầu người dùng) — 2 nhu
+-- cầu chung cho nhiều endpoint realtime, KHÔNG riêng voucher: (1) mã khách
+-- quét/gửi lên THỪA 1 ký tự đầu so với giá trị lưu CSDL (đã gặp ở voucher —
+-- lib/voucherRedeemService.js:normalizeCardId() — giờ tổng quát hoá thành
+-- cấu hình cho MỌI endpoint, không hard-code riêng voucher trong
+-- lib/realtimeEngine.js); (2) chỉ cho xem các dòng thoả 1 điều kiện đơn giản
+-- (vd STATUS = 0 "đã dùng") mà KHÔNG lộ các dòng còn lại qua cả tra 1 khoá
+-- lẫn danh sách. Cả 4 cột NULL = giữ ĐÚNG hành vi cũ (không strip, không
+-- lọc) — KHÔNG ảnh hưởng bất kỳ endpoint đã tạo trước đó.
+IF COL_LENGTH('api.RealtimeEndpointDefs', 'KeyStripLeadingChar') IS NULL
+BEGIN
+    ALTER TABLE api.RealtimeEndpointDefs ADD
+        KeyStripLeadingChar CHAR(1)      NULL,
+        FilterColumn        NVARCHAR(128) NULL,
+        FilterOperator       VARCHAR(2)   NULL,  -- '=' hoặc '<>' — validate ở routes/admin/realtimeEndpoints.js
+        FilterValue          NVARCHAR(100) NULL;
+END
+GO
+
 -- Danh mục báo cáo tổng hợp lộ ra qua GET /api/v1/reports/{ReportId}/run
 -- (đọc dwh.ReportFacts, xem routes/v1/reports.js) — CSDL RIÊNG của API
 -- Server, tự quản lý qua api-admin/, KHÔNG dùng chung với app.ReportCatalog

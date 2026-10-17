@@ -53,6 +53,7 @@ router.get('/', async (req, res, next) => {
       SELECT d.Endpoint, d.Label, d.DataSourceId, s.Name AS DataSourceName,
              d.SchemaName, d.TableName, d.KeyColumn, d.ColumnsJson, d.OrderColumn,
              d.JoinSchema, d.JoinTable, d.JoinType, d.MainJoinColumn, d.LookupJoinColumn, d.JoinColumnsJson,
+             d.KeyStripLeadingChar, d.FilterColumn, d.FilterOperator, d.FilterValue,
              d.IsActive, d.CreatedAt
       FROM api.RealtimeEndpointDefs d
       JOIN api.DataSources s ON s.Id = d.DataSourceId
@@ -62,7 +63,7 @@ router.get('/', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-function validatePayload({ endpoint, dataSourceId, schemaName, tableName, keyColumn, columns, orderColumn, joinSchema, joinTable, mainJoinColumn, lookupJoinColumn, joinColumns }) {
+function validatePayload({ endpoint, dataSourceId, schemaName, tableName, keyColumn, columns, orderColumn, joinSchema, joinTable, mainJoinColumn, lookupJoinColumn, joinColumns, keyStripLeadingChar, filterColumn, filterOperator, filterValue }) {
   if (!endpoint || !ENDPOINT_RE.test(endpoint)) return 'endpoint chỉ gồm chữ thường/số/dấu gạch ngang (vd "inventory", "don-hang-dang-xu-ly")';
   if (!dataSourceId || !schemaName || !tableName || !keyColumn || !orderColumn) {
     return 'Thiếu dataSourceId/schemaName/tableName/keyColumn/orderColumn';
@@ -74,9 +75,19 @@ function validatePayload({ endpoint, dataSourceId, schemaName, tableName, keyCol
     }
     if (joinColumns !== undefined && !Array.isArray(joinColumns)) return 'joinColumns phải là mảng tên cột';
   }
+  if (keyStripLeadingChar && !/^.$/.test(keyStripLeadingChar)) return 'keyStripLeadingChar phải ĐÚNG 1 ký tự';
+  // Filter* phải đi CÙNG NHAU hoặc KHÔNG CÓ GÌ — thiếu 1 trong 3 là cấu hình
+  // dở dang (vd có cột lọc mà thiếu giá trị thì lọc theo gì?).
+  const filterParts = [filterColumn, filterOperator, filterValue];
+  const filterPartsPresent = filterParts.filter(v => v !== undefined && v !== null && v !== '').length;
+  if (filterPartsPresent > 0 && filterPartsPresent < 3) {
+    return 'filterColumn/filterOperator/filterValue phải khai ĐỦ CẢ 3 hoặc KHÔNG khai gì';
+  }
+  if (filterOperator && filterOperator !== '=' && filterOperator !== '<>') return 'filterOperator chỉ nhận "=" hoặc "<>"';
   try {
     const idents = [schemaName, tableName, keyColumn, orderColumn, ...columns];
     if (joinTable) idents.push(joinSchema, joinTable, mainJoinColumn, lookupJoinColumn, ...(joinColumns || []));
+    if (filterColumn) idents.push(filterColumn);
     idents.forEach(assertSafeIdentifier);
   } catch (err) {
     return err.message;
@@ -84,8 +95,8 @@ function validatePayload({ endpoint, dataSourceId, schemaName, tableName, keyCol
   return null;
 }
 
-async function assertFullSchemaMatches({ dataSourceId, schemaName, tableName, keyColumn, orderColumn, columns, joinSchema, joinTable, mainJoinColumn, lookupJoinColumn, joinColumns }) {
-  const mainRequired = [keyColumn, orderColumn, ...columns];
+async function assertFullSchemaMatches({ dataSourceId, schemaName, tableName, keyColumn, orderColumn, columns, joinSchema, joinTable, mainJoinColumn, lookupJoinColumn, joinColumns, filterColumn }) {
+  const mainRequired = [keyColumn, orderColumn, ...columns, filterColumn];
   if (joinTable) mainRequired.push(mainJoinColumn);
   await assertSchemaMatches(dataSourceId, schemaName, tableName, mainRequired);
   if (joinTable) {
@@ -109,12 +120,13 @@ router.post('/', requireMenuEdit('realtime-endpoints'), async (req, res, next) =
   try {
     const {
       endpoint, label, dataSourceId, schemaName, tableName, keyColumn, columns, orderColumn,
-      joinSchema, joinTable, joinType, mainJoinColumn, lookupJoinColumn, joinColumns = []
+      joinSchema, joinTable, joinType, mainJoinColumn, lookupJoinColumn, joinColumns = [],
+      keyStripLeadingChar, filterColumn, filterOperator, filterValue
     } = req.body || {};
-    const validationError = validatePayload({ endpoint, dataSourceId, schemaName, tableName, keyColumn, columns, orderColumn, joinSchema, joinTable, mainJoinColumn, lookupJoinColumn, joinColumns });
+    const validationError = validatePayload({ endpoint, dataSourceId, schemaName, tableName, keyColumn, columns, orderColumn, joinSchema, joinTable, mainJoinColumn, lookupJoinColumn, joinColumns, keyStripLeadingChar, filterColumn, filterOperator, filterValue });
     if (validationError) return res.status(400).json({ error: validationError });
     try {
-      await assertFullSchemaMatches({ dataSourceId, schemaName, tableName, keyColumn, orderColumn, columns, joinSchema, joinTable, mainJoinColumn, lookupJoinColumn, joinColumns });
+      await assertFullSchemaMatches({ dataSourceId, schemaName, tableName, keyColumn, orderColumn, columns, joinSchema, joinTable, mainJoinColumn, lookupJoinColumn, joinColumns, filterColumn });
     } catch (err) {
       return res.status(400).json({ error: err.message });
     }
@@ -135,14 +147,20 @@ router.post('/', requireMenuEdit('realtime-endpoints'), async (req, res, next) =
       .input('mainJoinColumn', sql.NVarChar(128), joinTable ? mainJoinColumn : null)
       .input('lookupJoinColumn', sql.NVarChar(128), joinTable ? lookupJoinColumn : null)
       .input('joinColumnsJson', sql.NVarChar(sql.MAX), joinTable ? JSON.stringify(joinColumns) : null)
+      .input('keyStripLeadingChar', sql.Char(1), keyStripLeadingChar || null)
+      .input('filterColumn', sql.NVarChar(128), filterColumn || null)
+      .input('filterOperator', sql.VarChar(2), filterColumn ? filterOperator : null)
+      .input('filterValue', sql.NVarChar(100), filterColumn ? filterValue : null)
       .query(`
         INSERT INTO api.RealtimeEndpointDefs (
           Endpoint, Label, DataSourceId, SchemaName, TableName, KeyColumn, ColumnsJson, OrderColumn,
-          JoinSchema, JoinTable, JoinType, MainJoinColumn, LookupJoinColumn, JoinColumnsJson
+          JoinSchema, JoinTable, JoinType, MainJoinColumn, LookupJoinColumn, JoinColumnsJson,
+          KeyStripLeadingChar, FilterColumn, FilterOperator, FilterValue
         )
         VALUES (
           @endpoint, @label, @dataSourceId, @schemaName, @tableName, @keyColumn, @columnsJson, @orderColumn,
-          @joinSchema, @joinTable, @joinType, @mainJoinColumn, @lookupJoinColumn, @joinColumnsJson
+          @joinSchema, @joinTable, @joinType, @mainJoinColumn, @lookupJoinColumn, @joinColumnsJson,
+          @keyStripLeadingChar, @filterColumn, @filterOperator, @filterValue
         )
       `);
     await logAction(req, {
@@ -161,12 +179,13 @@ router.put('/:endpoint', requireMenuEdit('realtime-endpoints'), async (req, res,
   try {
     const {
       label, dataSourceId, schemaName, tableName, keyColumn, columns, orderColumn, isActive,
-      joinSchema, joinTable, joinType, mainJoinColumn, lookupJoinColumn, joinColumns = []
+      joinSchema, joinTable, joinType, mainJoinColumn, lookupJoinColumn, joinColumns = [],
+      keyStripLeadingChar, filterColumn, filterOperator, filterValue
     } = req.body || {};
-    const validationError = validatePayload({ endpoint: req.params.endpoint, dataSourceId, schemaName, tableName, keyColumn, columns, orderColumn, joinSchema, joinTable, mainJoinColumn, lookupJoinColumn, joinColumns });
+    const validationError = validatePayload({ endpoint: req.params.endpoint, dataSourceId, schemaName, tableName, keyColumn, columns, orderColumn, joinSchema, joinTable, mainJoinColumn, lookupJoinColumn, joinColumns, keyStripLeadingChar, filterColumn, filterOperator, filterValue });
     if (validationError) return res.status(400).json({ error: validationError });
     try {
-      await assertFullSchemaMatches({ dataSourceId, schemaName, tableName, keyColumn, orderColumn, columns, joinSchema, joinTable, mainJoinColumn, lookupJoinColumn, joinColumns });
+      await assertFullSchemaMatches({ dataSourceId, schemaName, tableName, keyColumn, orderColumn, columns, joinSchema, joinTable, mainJoinColumn, lookupJoinColumn, joinColumns, filterColumn });
     } catch (err) {
       return res.status(400).json({ error: err.message });
     }
@@ -187,6 +206,10 @@ router.put('/:endpoint', requireMenuEdit('realtime-endpoints'), async (req, res,
       .input('mainJoinColumn', sql.NVarChar(128), joinTable ? mainJoinColumn : null)
       .input('lookupJoinColumn', sql.NVarChar(128), joinTable ? lookupJoinColumn : null)
       .input('joinColumnsJson', sql.NVarChar(sql.MAX), joinTable ? JSON.stringify(joinColumns) : null)
+      .input('keyStripLeadingChar', sql.Char(1), keyStripLeadingChar || null)
+      .input('filterColumn', sql.NVarChar(128), filterColumn || null)
+      .input('filterOperator', sql.VarChar(2), filterColumn ? filterOperator : null)
+      .input('filterValue', sql.NVarChar(100), filterColumn ? filterValue : null)
       .input('isActive', sql.Bit, isActive ? 1 : 0)
       .query(`
         UPDATE api.RealtimeEndpointDefs
@@ -194,6 +217,8 @@ router.put('/:endpoint', requireMenuEdit('realtime-endpoints'), async (req, res,
             KeyColumn = @keyColumn, ColumnsJson = @columnsJson, OrderColumn = @orderColumn,
             JoinSchema = @joinSchema, JoinTable = @joinTable, JoinType = @joinType,
             MainJoinColumn = @mainJoinColumn, LookupJoinColumn = @lookupJoinColumn, JoinColumnsJson = @joinColumnsJson,
+            KeyStripLeadingChar = @keyStripLeadingChar, FilterColumn = @filterColumn,
+            FilterOperator = @filterOperator, FilterValue = @filterValue,
             IsActive = @isActive
         WHERE Endpoint = @endpoint
       `);
@@ -220,7 +245,7 @@ router.post('/:endpoint/check-schema', requireMenuAccess('realtime-endpoints'), 
     const pool = await getPool('ADMIN');
     const result = await pool.request().input('endpoint', sql.VarChar(50), req.params.endpoint).query(`
       SELECT Endpoint, Label, DataSourceId, SchemaName, TableName, KeyColumn, ColumnsJson, OrderColumn,
-             JoinSchema, JoinTable, MainJoinColumn, LookupJoinColumn, JoinColumnsJson
+             JoinSchema, JoinTable, MainJoinColumn, LookupJoinColumn, JoinColumnsJson, FilterColumn
       FROM api.RealtimeEndpointDefs WHERE Endpoint = @endpoint
     `);
     if (!result.recordset.length) return res.status(404).json({ error: 'Không tìm thấy endpoint' });
@@ -231,7 +256,8 @@ router.post('/:endpoint/check-schema', requireMenuAccess('realtime-endpoints'), 
         dataSourceId: d.DataSourceId, schemaName: d.SchemaName, tableName: d.TableName,
         keyColumn: d.KeyColumn, orderColumn: d.OrderColumn, columns: JSON.parse(d.ColumnsJson || '[]'),
         joinSchema: d.JoinSchema, joinTable: d.JoinTable, mainJoinColumn: d.MainJoinColumn,
-        lookupJoinColumn: d.LookupJoinColumn, joinColumns: JSON.parse(d.JoinColumnsJson || '[]')
+        lookupJoinColumn: d.LookupJoinColumn, joinColumns: JSON.parse(d.JoinColumnsJson || '[]'),
+        filterColumn: d.FilterColumn
       });
     } catch (err) {
       await logAction(req, {

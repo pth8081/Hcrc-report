@@ -8,6 +8,7 @@
     "dev": "node --watch server.js",
     "seed:admin": "node scripts/seedAdmin.js",
     "seed:voucher-check-endpoint": "node scripts/seedVoucherCheckEndpoint.js",
+    "seed:voucher-redeemed-endpoint": "node scripts/seedVoucherRedeemedEndpoint.js",
     "seed:voucher-check-consumer": "node scripts/seedVoucherCheckConsumer.js",
     "seed:voucher-app-consumer": "node scripts/seedVoucherAppConsumer.js"
   },

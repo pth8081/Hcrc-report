@@ -34,14 +34,18 @@ function buildDefinition(apiConnectionId) {
   return {
     apiConnectionId,
     apiTarget: ENDPOINT,
-    // lookupField bật chế độ tra-1-khoá (GET .../voucher-check/{barcode})
-    // thay vì /list — xem rp-server/lib/apiReportClient.js.
-    lookupField: 'barcode',
+    // lookupField bật chế độ tra-1-khoá (GET .../voucher-check/{key}) thay
+    // vì /list — xem rp-server/lib/apiReportClient.js. Tên field này KHÔNG
+    // cần khớp tên cột CSDL (chỉ là tên ô nhập trên UI) — giá trị người
+    // dùng gõ vào được gửi THẲNG làm {key}, api-server tự bỏ ký tự 'C' đầu
+    // nếu có trước khi tra theo CARD_ID (bản 9.62 — xem
+    // api-server/scripts/seedVoucherCheckEndpoint.js).
+    lookupField: 'cardCode',
     filters: [
-      { field: 'barcode', label: 'Mã Barcode', type: 'text' }
+      { field: 'cardCode', label: 'Mã thẻ/voucher (quét ra, có "C" đầu hay không đều được)', type: 'text' }
     ],
     columns: [
-      { key: 'BARCODE', label: 'Mã Barcode' },
+      { key: 'CARD_ID', label: 'Mã thẻ (CARD_ID)' },
       { key: 'STATUS', label: 'Trạng thái' },
       { key: 'VALUE_AMT', label: 'Giá trị' },
       { key: 'BAL_AMT', label: 'Số dư' },

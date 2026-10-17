@@ -1,11 +1,21 @@
 // scripts/seedVoucherCheckEndpoint.js — Tạo/cập nhật "Endpoint realtime" tra
-// cứu voucher (PMCRDINF theo BARCODE, CHỈ ĐỌC) trong api.RealtimeEndpointDefs
+// cứu voucher (PMCRDINF theo CARD_ID, CHỈ ĐỌC) trong api.RealtimeEndpointDefs
 // — THAY THẾ việc vào api-admin tự tay tạo Endpoint realtime (xem mục
 // "Kiểm tra voucher nội bộ" ở api-voucher-check-redeem.md +
 // hướng_dẫn_báo_cáo.md mục 3 Bước 2) bằng CHẠY SCRIPT 1 LẦN sau khi deploy.
 // Endpoint này KHÁC 2 route cố định POST /api/v1/vouchers/check|redeem
 // (lib/voucherRedeemService.js) — đây là đường "tra thủ công" dùng lại đúng
 // cơ chế Endpoint realtime chung, chỉ đọc, không đổi STATUS gì cả.
+//
+// SỬA (bản 9.62, theo yêu cầu người dùng) — TRƯỚC ĐÂY khoá theo BARCODE,
+// CÙNG LỖI đã sửa ở route /check,/redeem bản 9.19: cột BARCODE của
+// PMCRDINF THƯỜNG RỖNG trên dữ liệu thật, tra theo cột này hầu như luôn
+// "không tìm thấy". Giờ khoá theo CARD_ID + KeyStripLeadingChar='C' (mã
+// quét/gửi lên LUÔN thừa đúng 1 ký tự 'C' đầu so với CARD_ID lưu CSDL —
+// xem lib/realtimeEngine.js:stripLeadingChar(), bản TỔNG QUÁT của
+// lib/voucherRedeemService.js:normalizeCardId() cho MỌI endpoint realtime,
+// không riêng voucher) — đúng hành vi /check,/redeem đã có, CHỈ KHÁC
+// đường gọi (Endpoint realtime generic, không phải 2 route cố định).
 //
 // YÊU CẦU TRƯỚC: đã tạo "Nguồn dữ liệu" trỏ DSMART16 Live cho voucher qua
 // api-admin (trang "Nguồn dữ liệu") — script này tra theo đúng TÊN đó
@@ -31,12 +41,12 @@ const schemaBrowser = require('../lib/schemaBrowser');
 
 const SCHEMA_NAME = 'dbo';
 const TABLE_NAME = 'PMCRDINF';
-const KEY_COLUMN = 'BARCODE';
-// Cột hiển thị — khớp đúng danh sách đã xác nhận ở api-voucher-check-redeem.md
-// mục 1 (CARD_ID không đưa vào đây, voucherSerial map tạm CARD_ID chỉ dùng ở
-// 2 route check/redeem cố định, không liên quan endpoint tra thủ công này).
-const DISPLAY_COLUMNS = ['BARCODE', 'STATUS', 'VALUE_AMT', 'BAL_AMT', 'ISS_DATE', 'DUE_DATE'];
-const ORDER_COLUMN = 'BARCODE';
+const KEY_COLUMN = 'CARD_ID';
+const KEY_STRIP_LEADING_CHAR = 'C'; // mã quét/gửi lên thừa đúng 1 ký tự 'C' đầu — xem comment đầu file
+// Cột hiển thị — khớp đúng danh sách lib/voucherRedeemService.js:fetchByCardId()
+// dùng cho 2 route check/redeem cố định (trừ STK_ID, không cần cho tra thủ công).
+const DISPLAY_COLUMNS = ['CARD_ID', 'STATUS', 'VALUE_AMT', 'BAL_AMT', 'ISS_DATE', 'DUE_DATE'];
+const ORDER_COLUMN = 'CARD_ID';
 
 async function assertSchemaMatches(dataSourceId, schemaName, tableName, requiredColumns) {
   const tables = await schemaBrowser.listTables(dataSourceId);
@@ -86,13 +96,15 @@ async function main() {
       .input('keyColumn', sql.NVarChar(128), KEY_COLUMN)
       .input('columnsJson', sql.NVarChar(sql.MAX), columnsJson)
       .input('orderColumn', sql.NVarChar(128), ORDER_COLUMN)
+      .input('keyStripLeadingChar', sql.Char(1), KEY_STRIP_LEADING_CHAR)
       .query(`
         UPDATE api.RealtimeEndpointDefs SET
           Label = @label, DataSourceId = @dataSourceId, SchemaName = @schemaName,
           TableName = @tableName, KeyColumn = @keyColumn, ColumnsJson = @columnsJson,
-          OrderColumn = @orderColumn,
+          OrderColumn = @orderColumn, KeyStripLeadingChar = @keyStripLeadingChar,
           JoinSchema = NULL, JoinTable = NULL, JoinType = NULL,
           MainJoinColumn = NULL, LookupJoinColumn = NULL, JoinColumnsJson = NULL,
+          FilterColumn = NULL, FilterOperator = NULL, FilterValue = NULL,
           IsActive = 1
         WHERE Endpoint = @endpoint
       `);
@@ -107,11 +119,14 @@ async function main() {
       .input('keyColumn', sql.NVarChar(128), KEY_COLUMN)
       .input('columnsJson', sql.NVarChar(sql.MAX), columnsJson)
       .input('orderColumn', sql.NVarChar(128), ORDER_COLUMN)
+      .input('keyStripLeadingChar', sql.Char(1), KEY_STRIP_LEADING_CHAR)
       .query(`
         INSERT INTO api.RealtimeEndpointDefs (
-          Endpoint, Label, DataSourceId, SchemaName, TableName, KeyColumn, ColumnsJson, OrderColumn, IsActive
+          Endpoint, Label, DataSourceId, SchemaName, TableName, KeyColumn, ColumnsJson, OrderColumn,
+          KeyStripLeadingChar, IsActive
         ) VALUES (
-          @endpoint, @label, @dataSourceId, @schemaName, @tableName, @keyColumn, @columnsJson, @orderColumn, 1
+          @endpoint, @label, @dataSourceId, @schemaName, @tableName, @keyColumn, @columnsJson, @orderColumn,
+          @keyStripLeadingChar, 1
         )
       `);
     console.log(`✅ Đã TẠO MỚI Endpoint realtime "${endpoint}".`);
@@ -119,7 +134,7 @@ async function main() {
 
   console.log('');
   console.log(`Kiểm tra TRỰC TIẾP trên api-server (chưa cần rp-user):`);
-  console.log(`  GET /api/v1/realtime/${endpoint}/<mã-barcode>`);
+  console.log(`  GET /api/v1/realtime/${endpoint}/<mã-quét-ra, có hoặc không có 'C' đầu đều được>`);
   console.log(`  kèm header X-API-Key của 1 "Đối tác" có scope "realtime" và được tick endpoint "${endpoint}" (api-admin → Đối tác).`);
   console.log('Muốn có thêm báo cáo tra cứu trên rp-user: chạy tiếp rp-server/scripts/seedVoucherCheckReport.js (sau khi đã tạo "Kết nối API Server" ở rp-user).');
   process.exit(0);

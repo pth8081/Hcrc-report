@@ -14,6 +14,44 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 9.62 — API tra cứu voucher ĐÃ DÙNG cho đối tác ngoài (qua Endpoint realtime) + sửa lỗi khoá BARCODE còn sót
+
+**Thay đổi**: `api-db/schema.sql` thêm 4 cột NULLABLE (an toàn chạy lại
+nhiều lần, không ảnh hưởng endpoint cũ), `api-server`/`api-admin` (engine +
+route + UI), 1 script mới. KHÔNG đụng gì tới 2 route `/vouchers/check`/
+`redeem` cố định.
+
+**Các bước:**
+1. `git pull origin main`.
+2. DBA chạy lại `api-db/schema.sql` (an toàn chạy lại nhiều lần).
+3. Khởi động lại `api-server` và `api-admin`.
+4. **SỬA LỖI quan trọng** — endpoint nội bộ "voucher-check" (nhân viên tra
+   thủ công) đã khoá SAI theo `BARCODE` từ trước tới nay (hầu như luôn
+   "không tìm thấy" trên dữ liệu thật) — chạy lại:
+   ```
+   cd api-server
+   npm run seed:voucher-check-endpoint
+   ```
+5. (Nếu cần cấp cho đối tác NGOÀI tự lấy voucher đã dùng) — tạo endpoint
+   mới:
+   ```
+   cd api-server
+   npm run seed:voucher-redeemed-endpoint
+   ```
+   Sau đó vào api-admin → "Đối tác" → chọn đối tác → "Realtime được gọi"
+   → tick `voucher-redeemed` → Lưu. Gửi đối tác file
+   `api-voucher-redeemed-gui-doi-tac.md` (tài liệu riêng, đã viết sẵn).
+6. (Nếu có báo cáo "Tra cứu voucher" nội bộ trên rp-user đã tạo trước đó
+   bằng `rp-server/scripts/seedVoucherCheckReport.js`) — chạy lại script
+   đó để cập nhật đúng cột/field mới (`BARCODE`→`CARD_ID`):
+   ```
+   cd rp-server
+   node scripts/seedVoucherCheckReport.js
+   ```
+7. Gọi thử `GET /api/v1/realtime/voucher-check/<mã-quét>` (nội bộ) và/hoặc
+   `GET /api/v1/realtime/voucher-redeemed/<mã-quét>` (đối tác, nếu đã cấp)
+   với 1 mã ĐÃ dùng thật để xác nhận ra đúng dữ liệu.
+
 ## 9.61 — Bỏ hẳn script seed:voucher-datasource (chỉ dùng giao diện cho "Nguồn dữ liệu")
 
 **Thay đổi**: chỉ sửa code/doc, KHÔNG có migration CSDL mới. Nếu máy chủ
