@@ -14,6 +14,36 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 9.59 — Voucher redeem nhiều máy chủ DSMART (vd thêm chi nhánh "Fuji")
+
+**Thay đổi**: `api-db/schema.sql` (migration tự chạy, an toàn chạy lại
+nhiều lần), `api-server` (route/service/script), `api-admin` (2 trang
+UI). KHÔNG ảnh hưởng app voucher/đối tác hiện tại — API `/check`,`/redeem`
+cũ giữ nguyên hành vi.
+
+**Các bước:**
+1. `git pull origin main`.
+2. DBA chạy lại `api-db/schema.sql` (an toàn chạy lại nhiều lần — tự
+   chuyển `api.VoucherSettings` từ 1 dòng sang danh sách, giữ nguyên cấu
+   hình cũ vào dòng `default`).
+3. Khởi động lại `api-server` và `api-admin`.
+4. (Chỉ khi cần thêm máy chủ DSMART mới, vd "Fuji") — 2 cách:
+   - Script: `cd api-server`, điền `.env` các biến `VOUCHER_DSMART16_*` +
+     thêm `VOUCHER_DSMART16_CONFIG_KEY=fuji` (và đổi
+     `VOUCHER_DSMART16_NAME`), chạy `npm run seed:voucher-datasource`.
+   - Hoặc thủ công: api-admin → "Cấu hình Voucher" → "+ Tạo cấu hình
+     mới" → đặt mã (vd `fuji`) + tên (vd "Voucher redeem Fuji") + chọn
+     "Nguồn dữ liệu" (đã khai trước ở trang "Nguồn dữ liệu", trỏ đúng
+     DSMART16 của Fuji).
+5. Vào "Đối tác" → chọn đối tác sẽ gọi server mới → nút "Cấu hình Voucher
+   được gọi" → tick đúng mã (vd `fuji`) → Lưu. Thiếu bước này, đối tác
+   gọi `/vouchers/fuji/check|redeem` sẽ bị `403`.
+6. Báo đội app voucher: khi người dùng chọn "Fuji" trong app, gọi
+   `/api/v1/vouchers/fuji/check` và `/api/v1/vouchers/fuji/redeem` (thay
+   vì `/check`,`/redeem`) — request/response giữ nguyên như tài liệu cũ.
+7. Gọi thử `/vouchers/fuji/check` với 1 mã thật bên server Fuji để xác
+   nhận.
+
 ## 9.58 — XÁC ĐỊNH NGUYÊN NHÂN THẬT: khoảng trắng thừa trong mã kho (CHAR cố định độ dài từ DSMART)
 
 **Thay đổi**: `rp-server/lib/reportFactsHelpers.js` — chỉ sửa code, KHÔNG

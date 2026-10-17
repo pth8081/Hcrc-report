@@ -9,8 +9,15 @@
 // hồi) — KHÔNG cấu hình linh hoạt qua UI như RealtimeEndpointDefs/
 // RealtimeWriteEndpointDefs, vì hợp đồng JSON của app voucher đã cố định sẵn
 // theo tài liệu app đó, không cần tổng quát hoá. Chỉ CHỌN NGUỒN (api.
-// DataSources nào trỏ DSMART16 Live) là cấu hình được, qua api.VoucherSettings
-// (1 dòng, xem routes/admin/voucherSettings.js).
+// DataSources nào trỏ DSMART16 Live) là cấu hình được.
+//
+// NHIỀU cấu hình (bản 9.59, theo yêu cầu người dùng — nhiều máy chủ DSMART
+// khác nhau, vd thêm chi nhánh "Fuji") — api.VoucherSettings giờ là DANH
+// SÁCH (khoá ConfigKey, xem api-db/schema.sql + routes/admin/voucherSettings.js),
+// không còn 1 dòng duy nhất. checkVoucher()/redeemVoucher() nhận thêm
+// `configKey` (mặc định 'default' — ĐÚNG hành vi cũ, app hiện tại gọi
+// /vouchers/check|redeem KHÔNG kèm configKey không cần đổi gì) — xem
+// routes/v1/vouchers.js cho cách URL ánh xạ sang configKey.
 //
 // KHÔNG có local cache/hàng đợi retry như tài liệu app gốc mô tả (app đó có
 // DB riêng + Core API riêng) — ở đây api-server LÀ nguồn duy nhất, mỗi lượt
@@ -69,12 +76,20 @@ class RedeemAuditFailedError extends Error {
   }
 }
 
-async function loadDataSourceId() {
+// configKey (bản 9.59, theo yêu cầu người dùng — nhiều máy chủ DSMART khác
+// nhau, vd "Fuji") — mặc định 'default' (đúng cấu hình DUY NHẤT trước đây,
+// hành vi KHÔNG đổi cho đối tác hiện tại gọi /vouchers/check|redeem không
+// kèm :configKey) — xem api-db/schema.sql api.VoucherSettings.
+async function loadDataSourceId(configKey) {
   const adminPool = await getPool('ADMIN');
-  const result = await adminPool.request().query('SELECT DataSourceId FROM api.VoucherSettings WHERE Id = 1');
-  const dataSourceId = result.recordset[0]?.DataSourceId;
+  const result = await adminPool.request().input('configKey', sql.VarChar(50), configKey)
+    .query('SELECT DataSourceId FROM api.VoucherSettings WHERE ConfigKey = @configKey');
+  if (!result.recordset.length) {
+    throw new ConfigError(`Không tìm thấy cấu hình Voucher "${configKey}" — kiểm tra lại đường dẫn gọi API hoặc vào api-admin → "Cấu hình Voucher" tạo cấu hình này`);
+  }
+  const dataSourceId = result.recordset[0].DataSourceId;
   if (!dataSourceId) {
-    throw new ConfigError('Chưa cấu hình Nguồn dữ liệu cho Voucher — vào api-admin → "Cấu hình Voucher" chọn đúng Nguồn dữ liệu trỏ DSMART16 (Live)');
+    throw new ConfigError(`Chưa cấu hình Nguồn dữ liệu cho Voucher ("${configKey}") — vào api-admin → "Cấu hình Voucher" chọn đúng Nguồn dữ liệu trỏ DSMART16 (Live)`);
   }
   return dataSourceId;
 }
@@ -102,8 +117,8 @@ async function fetchByCardId(pool, cardId) {
 
 // Đọc trạng thái 1 voucher — KHÔNG làm thay đổi gì (chỉ SELECT). Trả
 // {canRedeem, status: 'UNUSED'|'USED'|'INVALID', ...}.
-async function checkVoucher(code) {
-  const dataSourceId = await loadDataSourceId();
+async function checkVoucher(code, configKey = 'default') {
+  const dataSourceId = await loadDataSourceId(configKey);
   const pool = await getPoolForDataSource(dataSourceId);
 
   const row = await fetchByCardId(pool, normalizeCardId(code));
@@ -129,8 +144,8 @@ async function checkVoucher(code) {
 // Đổi STATUS 1(chưa dùng) -> 0(đã dùng) — atomic (UPDATE...OUTPUT...WHERE,
 // cùng kỹ thuật đã kiểm chứng ở lib/realtimeWriteEngine.js:runRedeem) + ghi
 // api.VoucherRedemptions. Trả {result: 'redeemed'|'alreadyUsed'|'notFound', ...}.
-async function redeemVoucher(barcode, consumerId) {
-  const dataSourceId = await loadDataSourceId();
+async function redeemVoucher(barcode, consumerId, configKey = 'default') {
+  const dataSourceId = await loadDataSourceId(configKey);
   const pool = await getPoolForDataSource(dataSourceId);
   const cardId = normalizeCardId(barcode); // mã THẬT khớp CARD_ID — barcode gốc (có thể còn 'C' đầu) chỉ giữ lại để ghi log/đối soát
 
@@ -166,9 +181,10 @@ async function redeemVoucher(barcode, consumerId) {
           .input('valueAmt', sql.Decimal(18, 2), ValueAmt)
           .input('transNum', sql.VarChar(50), transNum)
           .input('consumerId', sql.Int, consumerId || null)
+          .input('configKey', sql.VarChar(50), configKey)
           .query(`
-            INSERT INTO api.VoucherRedemptions (Barcode, StkId, ValueAmt, TransNum, ConsumerId)
-            VALUES (@cardId, @stkId, @valueAmt, @transNum, @consumerId)
+            INSERT INTO api.VoucherRedemptions (Barcode, StkId, ValueAmt, TransNum, ConsumerId, ConfigKey)
+            VALUES (@cardId, @stkId, @valueAmt, @transNum, @consumerId, @configKey)
           `);
         return { result: 'redeemed', transNum, valueAmt: ValueAmt, redeemedAt };
       } catch (err) {

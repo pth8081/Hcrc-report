@@ -99,16 +99,20 @@ async function main() {
     console.log(`✅ Đã TẠO MỚI "Nguồn dữ liệu" #${dataSourceId} "${name}".`);
   }
 
-  // api.VoucherSettings luôn đúng 1 dòng (Id=1, CHECK constraint — xem
-  // api-db/schema.sql) — MERGE để chạy đúng cả lần đầu (chưa có dòng nào)
-  // lẫn các lần sau (đã có, chỉ cần đổi DataSourceId).
-  await pool.request().input('dataSourceId', sql.Int, dataSourceId).query(`
+  // api.VoucherSettings giờ là DANH SÁCH theo ConfigKey (bản 9.59, nhiều
+  // máy chủ DSMART) — script này CHỈ phụ trách dòng 'default' (API
+  // /vouchers/check,/redeem KHÔNG :configKey, hành vi cũ); dòng khác
+  // (vd 'fuji') tạo qua api-admin trang "Cấu hình Voucher". MERGE để chạy
+  // đúng cả lần đầu (chưa có dòng 'default') lẫn các lần sau (đã có, chỉ
+  // cần đổi DataSourceId).
+  const configKey = process.env.VOUCHER_DSMART16_CONFIG_KEY || 'default';
+  await pool.request().input('dataSourceId', sql.Int, dataSourceId).input('configKey', sql.VarChar(50), configKey).input('name', sql.NVarChar(200), name).query(`
     MERGE api.VoucherSettings AS target
-    USING (SELECT 1 AS Id) AS src ON target.Id = src.Id
+    USING (SELECT @configKey AS ConfigKey) AS src ON target.ConfigKey = src.ConfigKey
     WHEN MATCHED THEN UPDATE SET DataSourceId = @dataSourceId
-    WHEN NOT MATCHED THEN INSERT (Id, DataSourceId) VALUES (1, @dataSourceId);
+    WHEN NOT MATCHED THEN INSERT (ConfigKey, Name, DataSourceId) VALUES (@configKey, @name, @dataSourceId);
   `);
-  console.log(`✅ Đã trỏ api.VoucherSettings -> Nguồn dữ liệu #${dataSourceId}.`);
+  console.log(`✅ Đã trỏ api.VoucherSettings (ConfigKey="${configKey}") -> Nguồn dữ liệu #${dataSourceId}.`);
   console.log('Hoàn tất — thử gọi POST /api/v1/vouchers/check với 1 mã thật để xác nhận (xem api-voucher-check-redeem.md).');
   process.exit(0);
 }

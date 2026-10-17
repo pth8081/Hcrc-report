@@ -111,6 +111,10 @@ export default function ConsumersPage() {
   const [writeEndpoints, setWriteEndpoints] = useState([]);
   const [writeAccessFor, setWriteAccessFor] = useState(null); // consumer đang gán endpoint ghi, hoặc null
   const [accessWriteEndpoints, setAccessWriteEndpoints] = useState([]);
+  const [voucherConfigs, setVoucherConfigs] = useState([]);
+  const [voucherAccessFor, setVoucherAccessFor] = useState(null); // consumer đang gán cấu hình Voucher, hoặc null
+  const [accessVoucherConfigs, setAccessVoucherConfigs] = useState([]);
+  const [savingVoucherAccess, setSavingVoucherAccess] = useState(false);
   const [revealedCreds, setRevealedCreds] = useState(null); // { authMethod, ...bí mật } vừa tạo/luân chuyển
   const [error, setError] = useState('');
   const [creating, setCreating] = useState(false);
@@ -130,6 +134,7 @@ export default function ConsumersPage() {
     api.get('/report-catalog').then(setReports).catch(err => setError(err.message));
     api.get('/realtime-endpoints').then(setEndpoints).catch(err => setError(err.message));
     api.get('/realtime-write-endpoints').then(setWriteEndpoints).catch(err => setError(err.message));
+    api.get('/voucher-settings').then(list => setVoucherConfigs(list.filter(c => c.ConfigKey !== 'default'))).catch(err => setError(err.message));
   }
   useEffect(reload, []);
 
@@ -194,6 +199,27 @@ export default function ConsumersPage() {
       await api.put(`/consumers/${writeAccessFor.Id}/write-access`, { endpoints: accessWriteEndpoints });
       setWriteAccessFor(null);
     } catch (err) { setError(err.message); } finally { setSavingWriteAccess(false); }
+  }
+
+  async function openVoucherAccess(consumer) {
+    setError('');
+    try {
+      const { configKeys } = await api.get(`/consumers/${consumer.Id}/voucher-access`);
+      setAccessVoucherConfigs(configKeys);
+      setVoucherAccessFor(consumer);
+    } catch (err) { setError(err.message); }
+  }
+
+  function toggleVoucherConfigAccess(configKey) {
+    setAccessVoucherConfigs(list => (list.includes(configKey) ? list.filter(k => k !== configKey) : [...list, configKey]));
+  }
+
+  async function saveVoucherAccess() {
+    setSavingVoucherAccess(true);
+    try {
+      await api.put(`/consumers/${voucherAccessFor.Id}/voucher-access`, { configKeys: accessVoucherConfigs });
+      setVoucherAccessFor(null);
+    } catch (err) { setError(err.message); } finally { setSavingVoucherAccess(false); }
   }
 
   function toggleScope(scopeList, scope) {
@@ -353,6 +379,7 @@ export default function ConsumersPage() {
                 <button type="button" onClick={() => openReportAccess(c)}>Báo cáo được gọi</button>{' '}
                 <button type="button" onClick={() => openRealtimeAccess(c)}>Realtime được gọi</button>{' '}
                 <button type="button" onClick={() => openWriteAccess(c)}>Ghi được gọi</button>{' '}
+                <button type="button" onClick={() => openVoucherAccess(c)}>Cấu hình Voucher được gọi</button>{' '}
                 <button type="button" onClick={() => rotateSecret(c)} disabled={rotatingId === c.Id}>{rotatingId === c.Id ? 'Đang luân chuyển...' : 'Luân chuyển bí mật'}</button>{' '}
                 <button type="button" onClick={() => deleteConsumer(c)} disabled={deletingId === c.Id}>{deletingId === c.Id ? 'Đang xoá...' : 'Xoá'}</button>
               </>
@@ -503,6 +530,32 @@ export default function ConsumersPage() {
             <div className="modal-actions">
               <button type="button" onClick={saveWriteAccess} disabled={savingWriteAccess}>{savingWriteAccess ? 'Đang lưu...' : 'Lưu'}</button>
               <button type="button" onClick={() => setWriteAccessFor(null)}>Huỷ</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {voucherAccessFor && (
+        <div className="modal">
+          <div className="modal-body">
+            <h3>Cấu hình Voucher được gọi — {voucherAccessFor.Name}</h3>
+            <p>
+              Đối tác LUÔN gọi được cấu hình <code>default</code> (không cần tick, nếu có scope{' '}
+              <code>voucherCheck</code>/<code>voucherRedeem</code>) — chỉ những cấu hình tick dưới đây mới gọi
+              được qua <code>/api/v1/vouchers/:configKey/check</code>, <code>/api/v1/vouchers/:configKey/redeem</code>.
+            </p>
+            {!voucherConfigs.length && <p className="empty-message">Chưa có cấu hình Voucher nào ngoài "default" — thêm ở trang "Cấu hình Voucher" trước.</p>}
+            <div className="scope-picker">
+              {voucherConfigs.map(c => (
+                <label key={c.ConfigKey} className="checkbox-row">
+                  <input type="checkbox" checked={accessVoucherConfigs.includes(c.ConfigKey)} onChange={() => toggleVoucherConfigAccess(c.ConfigKey)} />
+                  {c.Name} ({c.ConfigKey} — {c.DataSourceName || 'chưa chọn Nguồn dữ liệu'})
+                </label>
+              ))}
+            </div>
+            <div className="modal-actions">
+              <button type="button" onClick={saveVoucherAccess} disabled={savingVoucherAccess}>{savingVoucherAccess ? 'Đang lưu...' : 'Lưu'}</button>
+              <button type="button" onClick={() => setVoucherAccessFor(null)}>Huỷ</button>
             </div>
           </div>
         </div>

@@ -603,6 +603,7 @@ BEGIN
         ValueAmt   DECIMAL(18,2) NULL,
         TransNum   VARCHAR(50)   NOT NULL,
         ConsumerId INT           NULL REFERENCES api.ApiConsumers(Id),
+        ConfigKey  VARCHAR(50)   NULL,   -- api.VoucherSettings.ConfigKey đã redeem qua (bản 9.59 — nhiều server) — NULL cho dòng CŨ trước khi có nhiều cấu hình
         RedeemedAt DATETIME2(3)  NOT NULL DEFAULT SYSUTCDATETIME()
     );
     CREATE INDEX IX_VoucherRedemptions_RedeemedAt ON api.VoucherRedemptions (RedeemedAt);
@@ -610,17 +611,77 @@ BEGIN
 END
 GO
 
--- Cấu hình DUY NHẤT (1 dòng, Id=1 — cùng khuôn app.HcrcWorkspaceSettings bên
--- rp-db) cho API check/redeem: chọn "Nguồn dữ liệu" (api.DataSources) nào
--- trỏ DSMART16 Live để đọc/ghi PMCRDINF. Bảng/cột CỐ ĐỊNH trong code
--- (voucherRedeemService.js), KHÔNG cấu hình linh hoạt như
--- RealtimeEndpointDefs/RealtimeWriteEndpointDefs — hợp đồng JSON của app
--- voucher đã cố định sẵn theo tài liệu app đó, không cần tổng quát hoá thêm.
+IF COL_LENGTH('api.VoucherRedemptions', 'ConfigKey') IS NULL
+BEGIN
+    ALTER TABLE api.VoucherRedemptions ADD ConfigKey VARCHAR(50) NULL;
+END
+GO
+
+-- DANH SÁCH cấu hình (bản 9.59, theo yêu cầu người dùng — nhiều máy chủ
+-- DSMART khác nhau, vd thêm chi nhánh "Fuji", app voucher cần tự chọn gọi
+-- đúng server nào) — TRƯỚC ĐÂY chỉ 1 dòng DUY NHẤT (Id=1, CHECK (Id=1)).
+-- ConfigKey là mã NGẮN admin tự đặt (vd 'default', 'fuji'), dùng THẲNG trên
+-- URL (POST /api/v1/vouchers/:configKey/redeem — xem routes/v1/vouchers.js)
+-- — cùng kiểu khoá chuỗi như api.RealtimeEndpointDefs.Endpoint ở trên, KHÔNG
+-- dùng Id số để URL dễ đọc/dễ đối chiếu với tài liệu gửi đối tác. ConfigKey
+-- = 'default' LUÔN tồn tại (seed bên dưới) — route KHÔNG có :configKey
+-- (POST /vouchers/redeem — hành vi CŨ, đối tác hiện tại không cần đổi gì)
+-- LUÔN trỏ vào đúng dòng này, code còn chặn CỨNG không cho xoá dòng
+-- 'default' (xem routes/admin/voucherSettings.js). Bảng/cột PMCRDINF vẫn CỐ
+-- ĐỊNH trong code — ở đây CHỈ chọn "Nguồn dữ liệu" (api.DataSources) nào
+-- trỏ đúng server DSMART16 cho TỪNG cấu hình.
+IF OBJECT_ID('api.VoucherSettings', 'U') IS NOT NULL AND COL_LENGTH('api.VoucherSettings', 'ConfigKey') IS NULL
+BEGIN
+    EXEC sp_rename 'api.VoucherSettings', 'VoucherSettings_Old_9_59';
+END
+GO
+
 IF OBJECT_ID('api.VoucherSettings', 'U') IS NULL
 BEGIN
     CREATE TABLE api.VoucherSettings (
-        Id           INT NOT NULL PRIMARY KEY CHECK (Id = 1),
-        DataSourceId INT NULL REFERENCES api.DataSources(Id)
+        ConfigKey    VARCHAR(50)   NOT NULL PRIMARY KEY,
+        Name         NVARCHAR(200) NOT NULL,
+        DataSourceId INT           NULL REFERENCES api.DataSources(Id),
+        CreatedAt    DATETIME2(3)  NOT NULL DEFAULT SYSUTCDATETIME()
+    );
+END
+GO
+
+-- Chuyển DỮ LIỆU CŨ (nếu có, bảng vừa đổi tên ở trên) sang đúng dòng
+-- 'default' của cấu trúc mới, rồi xoá bảng tạm — giữ NGUYÊN Nguồn dữ liệu
+-- đối tác hiện tại đang dùng, không gián đoạn redeem sau khi deploy.
+IF OBJECT_ID('api.VoucherSettings_Old_9_59', 'U') IS NOT NULL
+BEGIN
+    INSERT INTO api.VoucherSettings (ConfigKey, Name, DataSourceId)
+    SELECT 'default', N'Mặc định', old.DataSourceId
+    FROM api.VoucherSettings_Old_9_59 old
+    WHERE old.Id = 1 AND NOT EXISTS (SELECT 1 FROM api.VoucherSettings WHERE ConfigKey = 'default');
+    DROP TABLE api.VoucherSettings_Old_9_59;
+END
+GO
+
+-- Cài đặt LẦN ĐẦU (chưa từng có dữ liệu cũ) — vẫn cần sẵn 1 dòng 'default'
+-- để admin có ngay 1 dòng sửa (chọn Nguồn dữ liệu) thay vì phải tự "Tạo mới"
+-- trước, giữ đúng trải nghiệm "1 cấu hình sẵn có" như bản cũ.
+IF NOT EXISTS (SELECT 1 FROM api.VoucherSettings WHERE ConfigKey = 'default')
+BEGIN
+    INSERT INTO api.VoucherSettings (ConfigKey, Name, DataSourceId) VALUES ('default', N'Mặc định', NULL);
+END
+GO
+
+-- Đối tác nào được gọi CẤU HÌNH VOUCHER nào ngoài 'default' — CÙNG khuôn
+-- api.ConsumerRealtimeAccess. ConfigKey='default' KHÔNG cần dòng ở đây (vẫn
+-- gọi được chỉ cần có scope voucherCheck/voucherRedeem, giữ ĐÚNG hành vi cũ,
+-- không phải migrate quyền cho đối tác hiện tại) — bảng này CHỈ chặn các
+-- ConfigKey MỚI (vd 'fuji'): đối tác phải được gán rõ ràng mới gọi được,
+-- tránh đối tác A vô tình redeem nhầm sang server của đối tác B (xem
+-- routes/v1/vouchers.js).
+IF OBJECT_ID('api.ConsumerVoucherAccess', 'U') IS NULL
+BEGIN
+    CREATE TABLE api.ConsumerVoucherAccess (
+        ConsumerId INT         NOT NULL REFERENCES api.ApiConsumers(Id) ON DELETE CASCADE,
+        ConfigKey  VARCHAR(50) NOT NULL REFERENCES api.VoucherSettings(ConfigKey) ON DELETE CASCADE,
+        CONSTRAINT PK_ConsumerVoucherAccess PRIMARY KEY (ConsumerId, ConfigKey)
     );
 END
 GO

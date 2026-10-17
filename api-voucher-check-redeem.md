@@ -60,6 +60,17 @@ Khác 1 chỗ so với tài liệu app: đường dẫn thật là `/api/v1/vouc
 (đúng quy ước `/api/v1/*` hiện có của api-server), không phải
 `/api/vouchers/...` như bản nháp ban đầu — team app đổi base URL 1 chút.
 
+**Nhiều máy chủ DSMART (bản 9.59, theo yêu cầu người dùng — thêm chi nhánh
+"Fuji")**: `/api/v1/vouchers/check` và `/api/v1/vouchers/redeem` (KHÔNG
+kèm mã cấu hình) GIỮ NGUYÊN như cũ — đối tác hiện tại KHÔNG cần đổi gì,
+LUÔN trỏ cấu hình `default`. Có thêm 2 route MỚI
+`/api/v1/vouchers/:configKey/check` và `/api/v1/vouchers/:configKey/redeem`
+— `:configKey` là mã cấu hình (vd `fuji`) khai ở trang "Cấu hình Voucher"
+(xem Bước 4), cho phép CÙNG 1 app/API key gọi tới NHIỀU máy chủ DSMART
+khác nhau tuỳ `:configKey` trên URL. Gọi `:configKey` KHÁC `default` đòi
+hỏi đối tác đã được cấp quyền rõ ràng ở "Đối tác" → "Cấu hình Voucher được
+gọi" (xem Bước 5b) — thiếu quyền trả về `403`.
+
 **Xác thực**: dùng lại đúng model "Đối tác" (Consumer) đã có — KHÔNG xây
 hệ đăng nhập nhân viên riêng như tài liệu app mô tả (JWT theo từng nhân
 viên) — coi app voucher là 1 đối tác DUY NHẤT, dùng 1 API key/HMAC chung
@@ -204,9 +215,30 @@ khẩu/server DSMART16 sau này: sửa lại `.env` rồi chạy lại đúng l�
 
 **Cách 2 (thủ công qua giao diện, nếu muốn tự tay kiểm tra từng bước)**:
 vào trang **"Cấu hình Voucher"** (menu mới, mặc định KHÔNG vai trò nào
-tự có quyền xem — gán ở "Vai trò" như mọi trang khác) — chọn 1 "Nguồn dữ
-liệu" đã khai ở trang "Nguồn dữ liệu" (server/database DSMART16 Live).
-Chỉ có đúng 1 cấu hình cho toàn hệ thống (không phân biệt theo đối tác).
+tự có quyền xem — gán ở "Vai trò" như mọi trang khác) — giờ là 1 DANH
+SÁCH (bản 9.59, nhiều máy chủ DSMART), mỗi dòng chọn 1 "Nguồn dữ liệu" đã
+khai ở trang "Nguồn dữ liệu". Dòng `default` LUÔN có sẵn (không xoá được)
+— ứng với API `/vouchers/check`,`/vouchers/redeem` KHÔNG kèm mã, đối tác
+hiện tại không cần đổi gì. Bấm "+ Tạo cấu hình mới" để thêm 1 máy chủ
+DSMART khác (vd mã `fuji`, tên "Voucher redeem Fuji") — mã (ConfigKey)
+dùng THẲNG trên URL (`/vouchers/fuji/check`), không đổi được sau khi tạo.
+
+### Thêm 1 máy chủ DSMART mới (vd "Fuji") qua script
+
+Giống Cách 1 ở Bước 4 nhưng set thêm biến `VOUCHER_DSMART16_CONFIG_KEY`
+(và đổi `VOUCHER_DSMART16_NAME` cho dễ nhận biết) trước khi chạy, để
+script tạo/cập nhật ĐÚNG dòng cấu hình đó (KHÔNG đụng dòng `default`):
+
+```
+cd api-server
+VOUCHER_DSMART16_CONFIG_KEY=fuji \
+VOUCHER_DSMART16_NAME="DSMART16 (Live) - Fuji" \
+VOUCHER_DSMART16_SERVER=... VOUCHER_DSMART16_USER=... VOUCHER_DSMART16_PASSWORD=... \
+  npm run seed:voucher-datasource
+```
+
+Không set `VOUCHER_DSMART16_CONFIG_KEY` thì mặc định `default` — đúng
+hành vi cũ, không ảnh hưởng máy chủ/đối tác hiện tại.
 
 ## Bước 5 — Cấp quyền gọi cho đối tác (app voucher)
 
@@ -241,6 +273,20 @@ Vào "Đối tác" → tạo/sửa đối tác cho app voucher:
 2. KHÔNG cần vào "Realtime được gọi"/"Ghi được gọi" tick riêng endpoint gì
    — 2 route voucher này CỐ ĐỊNH, không đi qua danh sách "Endpoint" động
    như Endpoint realtime/ghi thường, chỉ cần đúng scope là gọi được.
+
+## Bước 5b — Cấp quyền gọi 1 máy chủ DSMART khác "default" (vd Fuji)
+
+Chỉ cần làm bước này khi đối tác cần gọi `:configKey` KHÁC `default` (vd
+`/vouchers/fuji/check`) — gọi `/vouchers/check`,`/vouchers/redeem` (không
+kèm mã) hay `/vouchers/default/check` KHÔNG cần bước này (luôn cho qua,
+đúng hành vi cũ).
+
+Vào "Đối tác" → chọn đúng đối tác → nút **"Cấu hình Voucher được gọi"** →
+tick đúng (các) mã cấu hình (vd `fuji`) đối tác đó được phép gọi → Lưu.
+Mặc định KHÔNG tick gì (default-deny) — đối tác A vô tình gọi nhầm sang
+server của đối tác B (vd Fuji) sẽ bị `403` cho tới khi được tick rõ ràng.
+1 đối tác có thể được cấp nhiều mã cấu hình cùng lúc nếu thật sự cần gọi
+tới nhiều máy chủ DSMART khác nhau.
 
 ## "Kiểm tra voucher" nội bộ (nhân viên tra thủ công) — KHÔNG cần code
 

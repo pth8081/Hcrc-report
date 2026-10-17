@@ -286,6 +286,44 @@ router.put('/:id/realtime-access', requireMenuEdit('consumers'), async (req, res
   } catch (err) { next(err); }
 });
 
+// GET/PUT /:id/voucher-access — CÙNG khuôn realtime-access, cho
+// api.ConsumerVoucherAccess (cấu hình Voucher nào ngoài 'default' đối tác
+// này được gọi — xem routes/v1/vouchers.js, bản 9.59). 'default' KHÔNG cần
+// (và KHÔNG được phép) có dòng ở đây — luôn ngầm định cho phép khi đối tác
+// có scope voucherCheck/voucherRedeem, giữ đúng hành vi cũ.
+router.get('/:id/voucher-access', async (req, res, next) => {
+  try {
+    const pool = await getPool('ADMIN');
+    const result = await pool.request().input('id', sql.Int, req.params.id)
+      .query('SELECT ConfigKey FROM api.ConsumerVoucherAccess WHERE ConsumerId = @id');
+    res.json({ configKeys: result.recordset.map(r => r.ConfigKey) });
+  } catch (err) { next(err); }
+});
+
+router.put('/:id/voucher-access', requireMenuEdit('consumers'), async (req, res, next) => {
+  try {
+    const configKeys = (req.body?.configKeys || []).filter(k => k !== 'default');
+    const pool = await getPool('ADMIN');
+    const tx = new sql.Transaction(pool);
+    await tx.begin();
+    try {
+      await new sql.Request(tx).input('id', sql.Int, req.params.id).query('DELETE FROM api.ConsumerVoucherAccess WHERE ConsumerId = @id');
+      for (const configKey of configKeys) {
+        await new sql.Request(tx)
+          .input('id', sql.Int, req.params.id)
+          .input('configKey', sql.VarChar(50), configKey)
+          .query('INSERT INTO api.ConsumerVoucherAccess (ConsumerId, ConfigKey) VALUES (@id, @configKey)');
+      }
+      await tx.commit();
+    } catch (err) {
+      await tx.rollback().catch(() => {});
+      throw err;
+    }
+    await logAction(req, { module: 'Đối tác API', actionType: 'SUA_QUYEN_VOUCHER', targetObject: req.params.id, description: `Cập nhật cấu hình Voucher đối tác #${req.params.id}: ${configKeys.join(', ') || '(rỗng)'}` });
+    res.json({ ok: true });
+  } catch (err) { next(err); }
+});
+
 // GET/PUT /:id/write-access — CÙNG khuôn với realtime-access ở trên nhưng
 // cho api.ConsumerRealtimeWriteAccess (endpoint GHI, xem
 // routes/v1/realtimeWrite.js) — BẢNG RIÊNG hoàn toàn, có quyền đọc endpoint

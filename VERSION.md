@@ -29,6 +29,54 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 9.59 — Voucher redeem nhiều máy chủ DSMART (vd thêm chi nhánh "Fuji")
+
+**Theo yêu cầu người dùng** — thêm 1 máy chủ DSMART mới ("Fuji"), app
+"HCRC Voucher Redemption" khi người dùng chọn "Fuji" trong app sẽ tự gọi
+đúng server đó, còn mặc định (đối tác hiện tại) vẫn gọi đúng server/URL
+CŨ, không cần đổi gì.
+
+**Thay đổi**:
+- `api-db/schema.sql` — `api.VoucherSettings` từ 1 dòng DUY NHẤT (Id=1)
+  thành DANH SÁCH theo `ConfigKey` (migration `sp_rename` giữ nguyên
+  `DataSourceId` cũ vào dòng `default`, an toàn chạy lại nhiều lần). Thêm
+  `api.ConsumerVoucherAccess (ConsumerId, ConfigKey)` — danh sách đối tác
+  nào được phép gọi cấu hình nào (mặc định KHÔNG ai được gọi cấu hình
+  KHÁC `default` tới khi admin tick rõ ràng). Thêm cột
+  `api.VoucherRedemptions.ConfigKey` (ghi nhận redeem qua cấu hình nào).
+- `api-server/lib/voucherRedeemService.js`, `routes/v1/vouchers.js` —
+  `checkVoucher()`/`redeemVoucher()` nhận thêm `configKey` (mặc định
+  `'default'`). Route `/check`,`/redeem` CŨ giữ nguyên hành vi (luôn
+  `default`). Thêm route MỚI `/:configKey/check`,`/:configKey/redeem` —
+  app tự gọi `/vouchers/fuji/redeem` khi chọn "Fuji". `:configKey` khác
+  `default` bắt buộc đối tác đã được cấp quyền ở
+  `api.ConsumerVoucherAccess`, thiếu quyền trả `403` NGAY TRƯỚC khi đọc dữ
+  liệu DSMART (không rò thông tin cấu hình/tồn tại voucher sang server
+  khác).
+- `routes/admin/voucherSettings.js` — đổi từ API 1 dòng (singleton) thành
+  CRUD danh sách (`GET/POST /`, `PUT/DELETE /:configKey`) — chặn cứng xoá
+  dòng `default`.
+- `routes/admin/consumers.js` — thêm `GET/PUT /:id/voucher-access` (cùng
+  mẫu transaction DELETE-rồi-INSERT như `realtime-access`/`write-access`
+  đã có).
+- `api-admin/src/pages/VoucherSettingsPage.jsx` — đổi từ 1 form thành
+  trang danh sách, có "+ Tạo cấu hình mới"/Sửa/Xoá (chặn xoá `default`).
+- `api-admin/src/pages/ConsumersPage.jsx` — thêm nút "Cấu hình Voucher
+  được gọi" trên mỗi đối tác, tick chọn (các) mã cấu hình đối tác đó được
+  phép gọi.
+- `api-server/scripts/seedVoucherDataSource.js` — cập nhật theo schema
+  mới (MERGE theo `ConfigKey` thay vì `Id=1`), thêm biến
+  `VOUCHER_DSMART16_CONFIG_KEY` để seed thêm 1 cấu hình KHÁC `default`
+  (vd `fuji`) qua script, không cần mở trình duyệt.
+- Đã kiểm chứng bằng mock test dựng app Express thật + mock DB/service
+  (KHÔNG đụng DSMART thật) — 9/9 pass: `/check`,`/redeem` cũ vẫn luôn
+  `default`; `:configKey` khác `default` cho qua đúng khi đối tác có
+  quyền, chặn `403` + KHÔNG gọi service khi chưa có quyền;
+  `redeemVoucher()` nhận đúng `configKey` truyền xuống.
+- Đã demo ảnh (mockup trang "Cấu hình Voucher" danh sách + modal "Cấu
+  hình Voucher được gọi" trên "Đối tác") và được người dùng xác nhận
+  TRƯỚC khi code.
+
 ## 9.58 — XÁC ĐỊNH NGUYÊN NHÂN THẬT: khoảng trắng thừa trong mã kho (CHAR cố định độ dài từ DSMART)
 
 **Theo báo cáo người dùng** — chọn đúng mã kho `12061`/`22061` đã xác nhận

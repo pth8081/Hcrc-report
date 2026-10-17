@@ -163,7 +163,17 @@ là NGƯỢC LẠI (không retry).
 
 ---
 
-## 3. Ghi chú tích hợp
+## 3. Nhiều máy chủ (chỉ áp dụng nếu HCRC có thông báo riêng)
+
+Phần lớn đối tác dùng ĐÚNG 2 đường dẫn ở mục 1-2 (`/check`, `/redeem`) —
+không cần đọc mục này. Nếu HCRC có thông báo riêng rằng hệ thống của quý
+đối tác dùng 1 máy chủ RIÊNG (vd mã `fuji`), thay `/check`/`/redeem` bằng
+`/api/v1/vouchers/fuji/check` và `/api/v1/vouchers/fuji/redeem` (chèn
+đúng mã HCRC cung cấp vào giữa đường dẫn) — request/response giữ NGUYÊN
+như mục 1-2, chỉ khác đường dẫn. Dùng sai mã, hoặc dùng mã chưa được HCRC
+cấp quyền cho API key của quý đối tác, trả về `403`.
+
+## 4. Ghi chú tích hợp
 
 - **Luôn gọi `/check` trước `/redeem`** để hiển thị đúng trạng thái cho người dùng trước khi xác nhận — `/redeem` tự kiểm tra lại trạng thái mới nhất ngay lúc xử lý (không dựa vào kết quả `/check` trước đó), nên vẫn an toàn nếu có độ trễ giữa 2 lần gọi.
 - **`transNum`** là mã tham chiếu HCRC tự sinh cho mỗi lượt thu hồi thành công — dùng để đối chiếu khi cần tra soát với HCRC.
