@@ -1,13 +1,15 @@
-# Hướng dẫn triển khai gộp — bản 9.59 đến 9.63 (làm 1 lần)
+# Hướng dẫn triển khai gộp — bản 9.59 đến 9.66 (làm 1 lần)
 
-**Mục đích**: gộp các bước triển khai từ bản 9.59 tới bản 9.63 hiện tại
+**Mục đích**: gộp các bước triển khai từ bản 9.59 tới bản 9.66 hiện tại
 thành **1 lượt làm duy nhất**, cho server đang chạy bản 9.58 và cần bắt
 kịp bản mới nhất — KHÔNG lặp lại toàn bộ lịch sử trước đó (xem `deploy/Hướng
 dẫn triển khai gộp — bản 8.91 đến 8.98.md` và `deploy/Hướng dẫn triển khai
 gộp — bản 8.29 đến 8.90.md` nếu cần dựng server hoàn toàn mới từ đầu; các
 bản 8.99 → 9.58 được coi là ĐÃ triển khai xong trên server này).
 
-Gồm 3 phần ĐỘC LẬP, làm phần nào cũng được, không phụ thuộc nhau:
+Gồm 4 phần ĐỘC LẬP, làm phần nào cũng được, không phụ thuộc nhau (riêng
+Phần 4 chỉ có ý nghĩa SAU KHI đã làm Phần 3 — sửa lỗi 1 công thức trong
+chính báo cáo Phần 3 dựng ra):
 
 - **Phần 1 (mục B-C)** — bản 9.59/9.60/9.61: Voucher redeem gọi được
   NHIỀU máy chủ DSMART (vd thêm chi nhánh "Fuji") — 2 bản sau (9.60/9.61)
@@ -19,10 +21,27 @@ Gồm 3 phần ĐỘC LẬP, làm phần nào cũng được, không phụ thu�
   endpoint nội bộ "voucher-check".
 - **Phần 3 (mục F-G)** — bản 9.63: Báo cáo "Doanh thu, lãi gộp theo ngành
   hàng" (BRGMART) theo mẫu Excel mới + trang khai báo "Siêu thị NSO".
+- **Phần 4 (mục H-I)** — bản 9.64: sửa lỗi công thức "Tỷ lệ" lãi gộp của
+  báo cáo BRGMART (Phần 3) — PHẢI chia cho Doanh thu cuối, không phải
+  Thực đạt thô.
+
+**Bản 9.65/9.66 — KHÔNG có bước triển khai riêng** (chỉ sửa tài liệu
+`.md`, không đụng code/schema/migration nào) — `git pull origin main` ở
+mục A dưới đây là ĐỦ, tự động có luôn, không cần làm gì thêm:
+
+- **9.65**: thêm quy ước "mỗi báo cáo phải có 1 tài liệu hướng dẫn riêng"
+  (`CLAUDE.md`) + mục "Danh mục báo cáo" tổng hợp toàn bộ 21 báo cáo
+  (`hướng_dẫn_báo_cáo.md` mục 17) + viết bù 4 file tài liệu riêng còn
+  thiếu (gồm cả tài liệu báo cáo BRGMART ở Phần 3).
+- **9.66**: xác nhận với người dùng rằng DSMART **CHƯA có nguồn dữ liệu
+  hàng hỏng hủy** (view `V_HCRC_HANGHONGHUY_NGANHHANG` ở Phần 3 KHÔNG
+  tồn tại) — cập nhật lại tài liệu BRGMART cho đúng thực tế, báo cáo vẫn
+  chạy bình thường, chỉ "Giá trị hàng hỏng hủy" ra `0` cho tới khi có
+  nguồn dữ liệu thật (xem Phần 3 mục G bên dưới).
 
 ---
 
-## Tóm tắt những gì thay đổi (9.59 → 9.63)
+## Tóm tắt những gì thay đổi (9.59 → 9.66)
 
 | Bản | Nội dung |
 |---|---|
@@ -31,6 +50,9 @@ Gồm 3 phần ĐỘC LẬP, làm phần nào cũng được, không phụ thu�
 | 9.61 | BỎ HẲN script `seed:voucher-datasource` khỏi code (không chỉ đổi hướng dẫn) — dữ liệu đã lưu trước đó GIỮ NGUYÊN |
 | 9.62 | Thêm API cho đối tác NGOÀI tự tra voucher ĐÃ DÙNG (endpoint `voucher-redeemed`, qua cơ chế Endpoint realtime có sẵn) + sửa lỗi THẬT: endpoint nội bộ "voucher-check" vẫn khoá sai theo cột `BARCODE` (thường rỗng) thay vì `CARD_ID` — cùng lỗi đã sửa ở `/check`/`/redeem` từ bản 9.19 nhưng chưa áp dụng sang endpoint này |
 | 9.63 | Báo cáo mới "Doanh thu, lãi gộp theo ngành hàng (BRGMART)" đúng mẫu Excel: 3 khối "Toàn hệ thống BRG"/"LFL"/"NSO" × 12 ngành hàng, thêm cụm Lãi gộp + "Giá trị hàng hỏng hủy"/"Doanh thu cuối" (chỉ ở khối BRG) + trang khai báo MỚI "Siêu thị NSO" |
+| 9.64 | SỬA LỖI THẬT: cột "Tỷ lệ" lãi gộp (báo cáo Phần 3) phải chia cho Doanh thu CUỐI (= Thực đạt − hàng hỏng hủy), không phải Thực đạt thô — người dùng phát hiện lúc xem demo |
+| 9.65 | CHỈ tài liệu — quy ước bắt buộc "mỗi báo cáo 1 file hướng dẫn riêng" + mục "Danh mục báo cáo" tổng hợp 21 báo cáo + viết bù 4 file còn thiếu |
+| 9.66 | CHỈ tài liệu — xác nhận DSMART CHƯA có nguồn dữ liệu hàng hỏng hủy, cập nhật lại tài liệu BRGMART cho đúng thực tế |
 
 ---
 
@@ -232,12 +254,24 @@ Không có bước nào ở Phần 2 làm mất dữ liệu đã có — 4 cột
 - [ ] **(cột hàng hỏng hủy)** "Giá trị hàng hỏng hủy"/"Doanh thu cuối"
   CHỈ hiện số ở khối "Toàn hệ thống BRG" — khối "LFL"/"NSO" để trống
   "—" (ĐÚNG THIẾT KẾ, không phải lỗi).
-- [ ] **(khớp tên ngành hàng)** Nếu TOÀN BỘ 12 dòng ở khối "Toàn hệ thống
-  BRG" đều ra "Giá trị hàng hỏng hủy" = 0 dù `V_HCRC_HANGHONGHUY_NGANHHANG`
-  chắc chắn có dữ liệu → kiểm tra lại cột `NganhHang` trong view có
-  khớp (kể cả khoảng trắng, dấu câu) đúng 12 tên hardcode ở bước F.3
-  chưa — `SELECT DISTINCT NganhHang FROM V_HCRC_HANGHONGHUY_NGANHHANG`
-  để so sánh trực tiếp.
+- [ ] **(khớp tên ngành hàng — CHỈ áp dụng SAU KHI đã có view thật, xem
+  lưu ý dưới)** Nếu TOÀN BỘ 12 dòng ở khối "Toàn hệ thống BRG" đều ra
+  "Giá trị hàng hỏng hủy" = 0 dù `V_HCRC_HANGHONGHUY_NGANHHANG` chắc
+  chắn có dữ liệu → kiểm tra lại cột `NganhHang` trong view có khớp (kể
+  cả khoảng trắng, dấu câu) đúng 12 tên hardcode ở bước F.3 chưa —
+  `SELECT DISTINCT NganhHang FROM V_HCRC_HANGHONGHUY_NGANHHANG` để so
+  sánh trực tiếp.
+
+**⚠️ Lưu ý (bản 9.66, ĐÃ XÁC NHẬN với người dùng)**: view
+`V_HCRC_HANGHONGHUY_NGANHHANG` HIỆN **KHÔNG tồn tại** — DSMART chưa lưu
+dữ liệu hàng hỏng hủy ở bất kỳ đâu (không phải chỉ thiếu VIEW gộp). Bước
+F.3/F.5 (`seedHangHongHuySync.js`) sẽ KHÔNG chạy được/không có dữ liệu
+cho tới khi xác định được bảng gốc — xem bộ SQL dò bảng gốc trong
+`báo cáo doanh thu-lãi gộp theo ngành hàng BRGMART.md` mục 2. Trong lúc
+chờ: báo cáo BRGMART vẫn chạy ĐÚNG với mọi cột khác, "Giá trị hàng hỏng
+hủy" tự ra `0` (không phải lỗi) — có thể BỎ QUA bước F.3/F.5 và dòng
+checklist "khớp tên ngành hàng" ở trên cho tới khi có view thật.
+
 - [ ] **(phân loại NSO)** Siêu thị vừa khai ở "Siêu thị NSO" → xuất hiện
   Ở ĐÚNG khối "NSO" (không còn tính vào "LFL") sau khi job đồng bộ
   doanh thu chạy lại ít nhất 1 lần.
@@ -251,3 +285,37 @@ Không có bước nào ở Phần 2 làm mất dữ liệu đã có — 4 cột
 Không có bước nào ở Phần 3 làm mất dữ liệu đã có — bảng `etl.NsoStores`
 là bảng MỚI, báo cáo `bc-doanh-thu-nganhhang-brgmart` và 2 trang admin
 mới hoàn toàn ĐỘC LẬP với mọi báo cáo/trang đã có.
+
+---
+
+# PHẦN 4 — Sửa lỗi Tỷ lệ lãi gộp báo cáo BRGMART (bản 9.64)
+
+**Điều kiện**: đã làm xong Phần 3 (báo cáo BRGMART đã seed) — nếu chưa,
+làm Phần 3 trước, Phần 4 chỉ sửa lại 1 công thức tính của CHÍNH báo cáo
+đó, không tạo gì mới.
+
+## H. Các bước triển khai
+
+1. `git pull origin main` (đã làm ở mục A — bản 9.64 nằm CÙNG nhánh
+   `main`, không cần lấy riêng).
+2. `pm2 restart hcrc-rp-server` (đổi
+   `rp-server/lib/nganhHangBrgRunner.js`).
+3. KHÔNG cần đổi gì ở CSDL, KHÔNG cần chạy lại script seed nào.
+
+## I. Kiểm tra Phần 4 sau khi triển khai
+
+- [ ] Mở báo cáo "Doanh thu, lãi gộp theo ngành hàng (BRGMART)" → cột
+  "Tỷ lệ" (cụm Lãi gộp) ở khối "Toàn hệ thống BRG" PHẢI = Giá trị lãi
+  gộp ÷ **Doanh thu cuối** × 100 (CAO HƠN 1 chút so với chia cho Thực
+  đạt — đúng nếu có hàng hỏng hủy > 0; NẾU hàng hỏng hủy đang ra `0`
+  theo lưu ý ở Phần 3 mục G thì Doanh thu cuối = Thực đạt, 2 cách tính
+  cho RA CÙNG 1 SỐ — không phân biệt được bằng mắt cho tới khi có dữ
+  liệu hàng hỏng hủy thật, đây là hành vi ĐÚNG).
+- [ ] Khối "LFL"/"NSO" — cột "Tỷ lệ" lãi gộp vẫn chia cho Thực đạt như
+  cũ, KHÔNG đổi.
+- [ ] "Giá trị" lãi gộp tuyệt đối và 2 cột "% so chỉ tiêu"/"% so cùng kỳ
+  năm trước" của Lãi gộp — giữ nguyên số như trước bản 9.64 (không liên
+  quan tới Doanh thu cuối).
+
+Không có bước nào ở Phần 4 làm mất dữ liệu đã có — chỉ sửa 1 công thức
+tính tại chỗ trong code, không đổi schema/domain/báo cáo catalog.
