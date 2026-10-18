@@ -92,14 +92,44 @@ trên DSMART16, với 3 cột:
 | `NgayGhiNhan` | Ngày ghi nhận hàng hỏng hủy |
 
 Chưa xác minh được bằng SQL thật (khác hẳn `V_HCRC_DOANHTHU_NGANHHANG` ở
-trên — đã chạy thật, có SQL đầy đủ) — nếu view này **chưa tồn tại thật**
-trên DSMART16, cần làm rõ với DBA **bảng gốc** chứa dữ liệu hao hụt/hủy
-hàng (có phải vẫn là `STRANS` với 1 `TRANS_CODE` riêng, hay 1 bảng/module
-phiếu hủy hàng tách biệt) rồi viết `CREATE OR ALTER VIEW` tương ứng — mirror
-đúng pattern VIEW ở mục 2 file `báo cáo doanh thu-nhập hàng theo ngành
-hàng.md` (GROUP BY theo ngành hàng + ngày, SUM giá trị). Cập nhật lại mục
-này + merge SQL thật vào đây ngay khi có xác nhận, theo quy ước CLAUDE.md
-"mỗi báo cáo phải có 1 tài liệu hướng dẫn riêng".
+trên — đã chạy thật, có SQL đầy đủ). **Bộ lệnh kiểm tra** (gửi DBA chạy
+trên DSMART16 trung tâm — CÙNG CSDL chứa `V_HCRC_DOANHTHU_NGANHHANG`):
+
+```sql
+-- 1) View đã tồn tại chưa?
+SELECT TABLE_NAME, TABLE_TYPE
+FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_NAME = 'V_HCRC_HANGHONGHUY_NGANHHANG';
+
+-- 2) Nếu bước 1 RA 1 DÒNG (đã có view) — xem đủ 3 cột cần dùng chưa
+SELECT COLUMN_NAME, DATA_TYPE
+FROM INFORMATION_SCHEMA.COLUMNS
+WHERE TABLE_NAME = 'V_HCRC_HANGHONGHUY_NGANHHANG'
+ORDER BY ORDINAL_POSITION;
+
+-- 3) Xem thử dữ liệu thật + đối chiếu tên ngành hàng có khớp 12 tên ở mục 1
+SELECT TOP 20 * FROM dbo.V_HCRC_HANGHONGHUY_NGANHHANG ORDER BY NgayGhiNhan DESC;
+SELECT DISTINCT NganhHang FROM dbo.V_HCRC_HANGHONGHUY_NGANHHANG;
+
+-- 4) CHỈ chạy nếu bước 1 RA RỖNG (view CHƯA có) — tìm bảng gốc khả nghi
+SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_NAME LIKE '%HONGHUY%' OR TABLE_NAME LIKE '%HUHONG%'
+   OR TABLE_NAME LIKE '%HAOHUT%' OR TABLE_NAME LIKE '%HUYHANG%'
+   OR TABLE_NAME LIKE '%DISCARD%' OR TABLE_NAME LIKE '%DAMAGE%'
+   OR TABLE_NAME LIKE '%SCRAP%' OR TABLE_NAME LIKE '%WRITEOFF%';
+```
+
+- Bước 1-3 ra kết quả hợp lý (view có sẵn, đủ cột, tên ngành hàng khớp
+  hoặc gần khớp 12 tên ở mục 1) → **GIỮ NGUYÊN, dùng thẳng view đã có**,
+  không tạo VIEW mới (đúng ý người dùng — "nếu mà có rồi thì vẫn lấy theo
+  cái cũ").
+- Bước 1 ra RỖNG (view CHƯA tồn tại) → chạy bước 4, gửi lại danh sách bảng
+  khả nghi tìm được để làm rõ bảng gốc trước khi viết `CREATE OR ALTER
+  VIEW` (mirror đúng pattern VIEW ở mục 2 file `báo cáo doanh thu-nhập
+  hàng theo ngành hàng.md` — GROUP BY theo ngành hàng + ngày, SUM giá trị).
+
+Cập nhật lại mục này + merge SQL thật vào đây ngay khi có kết quả, theo
+quy ước CLAUDE.md "mỗi báo cáo phải có 1 tài liệu hướng dẫn riêng".
 
 `etl/scripts/seedHangHongHuySync.js` đọc view này, domain
 `hanghonghuy_nganhhang`, `keyColumn: 'NganhHang'` (coi TÊN ngành hàng là
