@@ -29,7 +29,22 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
-## 9.65 — Quy ước bắt buộc: mỗi báo cáo 1 file hướng dẫn riêng + danh mục tổng hợp
+## 9.66 — Xác nhận: DSMART CHƯA có nguồn dữ liệu hàng hỏng hủy (BRGMART)
+
+**Theo xác nhận của người dùng** — view `V_HCRC_HANGHONGHUY_NGANHHANG`
+(bản 9.63) KHÔNG tồn tại, và DSMART hiện KHÔNG lưu dữ liệu hàng hỏng hủy ở
+bất kỳ đâu (không phải chỉ thiếu VIEW gộp — thiếu hẳn nguồn gốc). Người
+dùng đang tự kiểm tra bảng/nghiệp vụ nào (nếu có) ghi nhận việc này.
+
+**Thay đổi**: chỉ cập nhật tài liệu `báo cáo doanh thu-lãi gộp theo ngành
+hàng BRGMART.md` mục 2 — đánh dấu rõ BLOCKED, không còn coi view là "đã
+có sẵn" như giả định ban đầu lúc thu thập yêu cầu. KHÔNG đổi code — đã
+xác nhận hành vi hiện tại (domain `hanghonghuy_nganhhang` không có job
+đồng bộ/không có dữ liệu) tự động làm "Giá trị hàng hỏng hủy" ra `0`
+(không phải trống "—") ở khối "Toàn hệ thống BRG", "Doanh thu cuối" =
+Thực đạt, Tỷ lệ lãi gộp tự dùng đúng Thực đạt làm mẫu số — báo cáo vẫn
+chạy đúng với mọi cột khác, không cần sửa gì thêm cho tới khi có nguồn
+dữ liệu thật.
 
 **Theo yêu cầu người dùng** — "Mỗi một báo cáo phải làm một hướng dẫn
 riêng... sau này tôi còn dựa vào đấy tôi có thể thực hiện nếu là tôi

@@ -14,6 +14,17 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 9.66 — Xác nhận: DSMART CHƯA có nguồn dữ liệu hàng hỏng hủy (BRGMART)
+
+**Thay đổi**: CHỈ sửa tài liệu (`báo cáo doanh thu-lãi gộp theo ngành
+hàng BRGMART.md`) — KHÔNG đổi code, KHÔNG có migration CSDL.
+
+**Các bước:** `git pull origin main` — không cần restart service nào,
+không cần chạy script nào. Báo cáo BRGMART (nếu đã seed ở bản 9.63) tiếp
+tục chạy bình thường, chỉ "Giá trị hàng hỏng hủy" ra `0` thay vì số thật
+cho tới khi xác định được nguồn dữ liệu — xem file tài liệu mục 2 để biết
+bộ SQL dò bảng gốc đã gửi người dùng/DBA.
+
 ## 9.65 — Quy ước bắt buộc: mỗi báo cáo 1 file hướng dẫn riêng + danh mục tổng hợp
 
 **Thay đổi**: CHỈ tài liệu (`.md`) — KHÔNG đụng code/schema/migration nào,
