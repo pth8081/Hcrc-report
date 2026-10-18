@@ -29,6 +29,37 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 9.65 — Quy ước bắt buộc: mỗi báo cáo 1 file hướng dẫn riêng + danh mục tổng hợp
+
+**Theo yêu cầu người dùng** — "Mỗi một báo cáo phải làm một hướng dẫn
+riêng... sau này tôi còn dựa vào đấy tôi có thể thực hiện nếu là tôi
+chuyển server... hướng dẫn tổng hợp thì cũng có một hướng dẫn tổng hợp".
+Rà soát phát hiện 4/21 báo cáo hiện có CHƯA có file hướng dẫn riêng (dù
+quy tắc này đã nêu từ mục 12 `hướng_dẫn_báo_cáo.md` nhưng chưa được tuân
+thủ đầy đủ với các báo cáo tạo gần đây).
+
+**Thay đổi**:
+- `CLAUDE.md` — thêm quy ước BẮT BUỘC mới: mọi báo cáo (có/sẽ có) PHẢI có
+  1 file `.md` riêng (nghiệp vụ/nguồn dữ liệu/các bước triển khai/cách
+  kiểm tra) + cập nhật mục "Danh mục báo cáo" trong `hướng_dẫn_báo_cáo.md`.
+- `hướng_dẫn_báo_cáo.md` — thêm mục 17 "Danh mục báo cáo": bảng tổng hợp
+  TOÀN BỘ 21 `ReportId` hiện có, trỏ đúng file hướng dẫn riêng từng cái —
+  đây CHÍNH LÀ "hướng dẫn tổng hợp" người dùng yêu cầu.
+- 4 file hướng dẫn riêng MỚI (trước đây thiếu):
+  - `bc-doanh-thu-nganhhang-ldtd.md` — ngắn gọn, trỏ sang file ngành hàng
+    gốc cho phần dùng chung (VIEW/job), chỉ nêu điểm khác (domain Chỉ
+    tiêu riêng).
+  - `bc-canh-bao-ton.md` — ngắn gọn, trỏ sang `bc-ton-kho-0.md` cho phần
+    dùng chung (2 domain `banhang_sku`/`tonkho_sku`), nêu riêng cách khai
+    ngưỡng cảnh báo.
+  - `bc-ton-kho-nguong.md` — tương tự, nêu riêng 2 bộ lọc "Mức tồn kiểm
+    tra"/"Chi nhánh".
+  - `báo cáo doanh thu-lãi gộp theo ngành hàng BRGMART.md` — đầy đủ (yêu
+    cầu nghiệp vụ, nguồn dữ liệu, cơ chế tính, định nghĩa báo cáo, kiểm
+    tra) — mục 8 còn 1 việc CHƯA chốt (SQL thật của view
+    `V_HCRC_HANGHONGHUY_NGANHHANG`, đã hỏi lại người dùng, chưa có câu trả
+    lời) ghi rõ TRONG file, không chặn các phần còn lại.
+
 ## 9.64 — Sửa lỗi THẬT: "Tỷ lệ" lãi gộp (BRGMART) phải tính trên Doanh thu CUỐI, không phải Thực đạt thô
 
 **Theo yêu cầu người dùng** — bản 9.63 ban đầu tính cột "Tỷ lệ" trong

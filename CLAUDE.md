@@ -1,5 +1,35 @@
 # Quy ước bắt buộc cho dự án HCRC-report
 
+## Mọi báo cáo PHẢI có 1 file hướng dẫn triển khai RIÊNG + cập nhật file tổng hợp
+
+**Theo yêu cầu người dùng (bản 9.64, áp dụng cho TOÀN BỘ báo cáo đã có VÀ
+MỌI báo cáo làm thêm SAU NÀY — lý do: người dùng cần tự triển khai lại
+được nếu CHUYỂN SERVER, không muốn phải lục lại hội thoại cũ).**
+
+Bất kỳ báo cáo mới nào được tạo (1 `ReportId` mới trong `app.ReportCatalog`,
+qua `rp-server/scripts/seed*.js`) PHẢI có 1 file `.md` RIÊNG ở gốc repo (vd
+`bc-<reportId>.md`, hoặc tên tiếng Việt như các file hiện có —
+`báo cáo doanh thu cuối ngày.md`, `bc-don-dat-hang.md`), gồm tối thiểu:
+1. Báo cáo này làm gì (nghiệp vụ, công thức tính nếu có điểm dễ hiểu nhầm).
+2. Nguồn dữ liệu — VIEW/bảng cần tạo trên CSDL nguồn (SQL đầy đủ nếu có
+   VIEW mới; nếu DÙNG CHUNG domain/VIEW với báo cáo khác đã có file riêng
+   thì TRỎ THẲNG sang file đó, không chép lại).
+3. Các bước triển khai theo ĐÚNG THỨ TỰ (job đồng bộ ETL, script tạo báo
+   cáo, gán quyền xem) — đủ chi tiết để 1 người CHƯA biết gì về báo cáo này
+   làm theo được, kể cả khi dựng lại trên server hoàn toàn mới.
+4. Cách kiểm tra sau khi triển khai xong (báo cáo có đúng số liệu không).
+
+**Đồng thời cập nhật file tổng hợp `hướng_dẫn_báo_cáo.md`** — KHÔNG phải
+chép nội dung báo cáo mới vào đó (file đó là tài liệu KIẾN TRÚC/mẫu dùng
+chung, không phải danh mục từng báo cáo) — mà cập nhật mục **"Danh mục báo
+cáo"** ở cuối file đó (bảng ReportId/Tiêu đề/File hướng dẫn riêng), thêm 1
+dòng cho báo cáo mới, trỏ đúng sang file riêng vừa tạo ở trên.
+
+Nếu báo cáo mới KHÔNG có gì đặc thù (dùng lại NGUYÊN domain/VIEW của 1 báo
+cáo khác đã có file riêng, chỉ khác cách hiển thị/bộ lọc) — vẫn PHẢI có file
+riêng, nhưng được phép NGẮN GỌN, chỉ nêu điểm khác + trỏ sang file gốc cho
+phần dùng chung (không bắt buộc viết lại toàn bộ Bước 1/Bước 2 từ đầu).
+
 ## Mọi nút bấm gửi dữ liệu lên server PHẢI tự khoá + đổi màu lúc đang xử lý
 
 **Theo yêu cầu người dùng (bản 8.60, áp dụng cho TOÀN BỘ hệ thống — rp-user
@@ -233,3 +263,47 @@ Lưu ý quan trọng:
 (cùng server/database/username/password, hoặc cùng cách xác thực) — gõ lại
 thủ công vừa chậm vừa dễ gõ sai mật khẩu, mà hiện mật khẩu ra để copy thì
 lộ bí mật qua màn hình/trình duyệt không cần thiết.
+
+## Mỗi báo cáo PHẢI có 1 tài liệu hướng dẫn riêng + 1 tài liệu tổng hợp liệt kê đủ mọi báo cáo
+
+**Theo yêu cầu người dùng (bản 9.65, áp dụng cho TOÀN BỘ báo cáo đã có
+trong hệ thống VÀ MỌI báo cáo làm thêm SAU NÀY, không chỉ báo cáo mới nhất
+— lý do: "Sau này tôi còn dựa vào đấy tôi có thể thực hiện nếu là tôi
+chuyển server").**
+
+1. Mỗi báo cáo (hoặc 1 nhóm nhỏ báo cáo liên quan rất chặt, dùng chung 1
+   nguồn/1 VIEW — vd 2 báo cáo Doanh thu/Nhập hàng theo ngành hàng gốc)
+   PHẢI có 1 file `.md` RIÊNG ở gốc repo, đủ chi tiết để TỰ DỰNG LẠI báo
+   cáo đó TỪ ĐẦU trên 1 server hoàn toàn mới (không cần hỏi lại/lục code),
+   gồm: yêu cầu nghiệp vụ đã chốt với người dùng, nguồn dữ liệu DSMART
+   (kèm NGUYÊN VĂN SQL tạo VIEW nếu báo cáo cần VIEW riêng), bước đồng bộ
+   ETL, Chỉ tiêu (nếu có), định nghĩa báo cáo (ReportId/SourceType/script
+   seed), và danh sách kiểm tra sau khi triển khai — theo đúng cấu trúc đã
+   dùng ở `bc-don-dat-hang.md`/`báo cáo doanh thu-nhập hàng theo ngành
+   hàng.md`/`báo cáo doanh thu cuối ngày.md` (xem các file đó làm mẫu).
+   Đặt tên file theo 1 trong 2 mẫu đã dùng: `bc-<reportId>.md` (báo cáo
+   gắn `SourceType` riêng/kỹ thuật, vd `bc-ton-kho-0.md`) hoặc `báo cáo
+   <tên tiếng Việt>.md` (báo cáo doanh thu/nghiệp vụ chung, vd `báo cáo
+   doanh thu cuối ngày.md`) — chọn mẫu khớp với các báo cáo CÙNG HỌ đã có
+   sẵn tài liệu.
+2. Viết tài liệu riêng NGAY TRONG LƯỢT dựng/sửa báo cáo đó, KHÔNG để nợ
+   lại — 1 báo cáo mới/sửa đáng kể mà thiếu tài liệu riêng coi như CHƯA
+   xong việc (giống quy tắc VERSION.md/deploy log tự động cập nhật mỗi
+   lần merge).
+3. File `danh-muc-bao-cao.md` (gốc repo) là tài liệu TỔNG HỢP — liệt kê
+   MỌI `ReportId` đang có trong hệ thống, kèm link/tên file tài liệu riêng
+   tương ứng của báo cáo đó. Thêm 1 báo cáo mới → thêm 1 dòng vào đây
+   NGAY LƯỢT đó, trỏ đúng tới file tài liệu riêng vừa viết ở mục 1 — không
+   để người dùng phải tự dò xem báo cáo nào đã có tài liệu, báo cáo nào
+   chưa.
+
+Khác `hướng_dẫn_báo_cáo.md` (tài liệu KIẾN TRÚC — các MẪU/CÁCH cấu hình
+chung áp dụng được cho nhiều báo cáo, vd "báo cáo qua API Server",
+"báo cáo tra cứu 1 mã") — `danh-muc-bao-cao.md` + các file tài liệu riêng
+ở mục 1 là tài liệu NGHIỆP VỤ cho TỪNG báo cáo CỤ THỂ đã có tên/ReportId
+thật trong hệ thống, 2 loại tài liệu bổ sung cho nhau, không thay thế.
+
+**Lý do**: người dùng cần có khả năng tự chuyển/dựng lại toàn bộ hệ thống
+trên server khác bất cứ lúc nào, dựa thẳng vào tài liệu thay vì phải nhớ
+lại hoặc đọc lại lịch sử trò chuyện/code để hiểu từng báo cáo được dựng ra
+sao.

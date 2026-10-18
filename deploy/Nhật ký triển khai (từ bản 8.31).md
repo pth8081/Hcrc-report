@@ -14,6 +14,17 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 9.65 — Quy ước bắt buộc: mỗi báo cáo 1 file hướng dẫn riêng + danh mục tổng hợp
+
+**Thay đổi**: CHỈ tài liệu (`.md`) — KHÔNG đụng code/schema/migration nào,
+KHÔNG cần restart service nào.
+
+**Các bước:**
+1. `git pull origin main`.
+2. Không có gì khác để làm trên server — đây là tài liệu tham khảo, xem
+   mục 17 `hướng_dẫn_báo_cáo.md` ("Danh mục báo cáo") để tra cứu file
+   hướng dẫn riêng của từng báo cáo khi cần dựng lại/di chuyển server.
+
 ## 9.64 — Sửa lỗi THẬT: "Tỷ lệ" lãi gộp (BRGMART) phải tính trên Doanh thu CUỐI, không phải Thực đạt thô
 
 **Thay đổi**: chỉ sửa công thức trong `rp-server/lib/nganhHangBrgRunner.js`

@@ -1766,3 +1766,37 @@ báo cáo, 2 danh sách người xem riêng — không tự động chia sẻ ch
 hàng Core, 4 domain tuỳ chọn, tạo báo cáo, so khớp cột với file mẫu Excel
 khách hàng, hỏi & đáp). Xem file đó, không lặp lại nội dung ở đây — cùng
 quy tắc đã nêu ở mục 12 (mỗi báo cáo độc lập có 1 file hướng dẫn riêng).
+
+## 17. Danh mục báo cáo — TOÀN BỘ báo cáo đã có + file hướng dẫn riêng
+
+**Theo yêu cầu người dùng (bản 9.64)** — bảng này là "bản tổng hợp" DUY
+NHẤT liệt kê MỌI báo cáo (`ReportId`) đã có trong hệ thống, trỏ đúng sang
+file hướng dẫn triển khai RIÊNG của từng báo cáo (quy tắc bắt buộc, xem
+mục 12 ở trên + `CLAUDE.md`). Mục đích: dựng lại server mới, chỉ cần mở
+bảng này, bấm vào ĐÚNG file cần làm, không phải lục lại hội thoại cũ.
+**CẬP NHẬT bảng này mỗi khi tạo báo cáo mới** (thêm 1 dòng) — không cần
+cập nhật nếu chỉ sửa báo cáo đã có (file hướng dẫn riêng tự cập nhật).
+
+| ReportId | Tiêu đề | File hướng dẫn riêng |
+|---|---|---|
+| `bc-doanh-thu-ldtd` | Báo cáo doanh thu cuối ngày LDTD | `báo cáo doanh thu cuối ngày.md` |
+| `bc-doanh-thu-hcrc` | Báo cáo doanh thu cuối ngày HCRC | `báo cáo doanh thu cuối ngày.md` |
+| `bc-doanh-thu-ldtd-thanh-vien` | Báo cáo doanh thu cuối ngày LDTD (Thành viên) | `báo cáo doanh thu thành viên.md` |
+| `bc-doanh-thu-hcrc-thanh-vien` | Báo cáo doanh thu cuối ngày HCRC (Thành viên) | `báo cáo doanh thu thành viên.md` |
+| `bc-doanh-thu-nganhhang` | Báo cáo doanh thu theo ngành hàng | `báo cáo doanh thu-nhập hàng theo ngành hàng.md` |
+| `bc-nhap-hang-nganhhang` | Báo cáo nhập hàng theo ngành hàng | `báo cáo doanh thu-nhập hàng theo ngành hàng.md` |
+| `bc-doanh-thu-nganhhang-ldtd` | Báo cáo doanh thu theo ngành hàng (LDTD) | `bc-doanh-thu-nganhhang-ldtd.md` |
+| `bc-doanh-thu-nganhhang-brgmart` | Báo cáo doanh thu, lãi gộp theo ngành hàng (BRGMART) | `báo cáo doanh thu-lãi gộp theo ngành hàng BRGMART.md` (mục 8 còn 1 việc chưa chốt — xác nhận SQL thật view `V_HCRC_HANGHONGHUY_NGANHHANG`) |
+| `bc-don-dat-hang` | Đơn đặt hàng | `bc-don-dat-hang.md` |
+| `bc-don-nhap-hang` | Đơn nhập hàng | `bc-don-dat-hang.md` |
+| `bc-so-sanh-dat-nhan` | So sánh đặt–nhận | `bc-don-dat-hang.md` |
+| `bc-gia-tri-dat-theo-don` | Giá trị đặt hàng theo đơn | `bc-don-dat-hang.md` |
+| `bc-gia-tri-nhap-theo-don` | Giá trị nhập hàng theo đơn | `bc-don-dat-hang.md` |
+| `bc-so-sanh-gia-tri-ncc` | So sánh giá trị đặt–nhập theo NCC | `bc-don-dat-hang.md` |
+| `bc-ton-kho-0` | Top bán chạy đang tồn kho = 0 | `bc-ton-kho-0.md` |
+| `bc-core-ton-kho-0-mart` | Core stock = 0 (Mart) | `bc-core-ton-kho-0.md` |
+| `bc-core-ton-kho-0-minimart` | Core stock = 0 (Minimart) | `bc-core-ton-kho-0.md` |
+| `bc-canh-bao-ton` | Cảnh báo hàng tồn | `bc-canh-bao-ton.md` |
+| `bc-ton-kho-nguong` | Tồn kho theo ngưỡng | `bc-ton-kho-nguong.md` |
+| `bc-ton-kho-chi-tiet` | Tồn kho chi tiết theo SKU | `bc-ton-kho-chi-tiet.md` |
+| `bc-tra-cuu-voucher` | Tra cứu voucher | `api-voucher-check-redeem.md` |
