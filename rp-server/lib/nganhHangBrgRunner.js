@@ -151,14 +151,22 @@ function buildSegmentRows(khoi, currentMap, lastYearMap, targetMap, hongHuyByNam
     const lastYearThucDat = lastYear?.measures?.DoanhThu;
     const lastYearLaiGop = lastYear?.measures?.LaiGop;
 
-    const tyLeDat = (chiTieu != null && chiTieu !== 0) ? round1(thucDat / chiTieu * 100) : null;
-    const cungKyPct = (lastYearThucDat != null && lastYearThucDat !== 0) ? round1(thucDat / lastYearThucDat * 100) : null;
-    const tyLeLaiGop = thucDat ? round1(giaTriLaiGop / thucDat * 100) : null;
-    const tyLeLaiGopSoChiTieu = (chiTieuLaiGop != null && chiTieuLaiGop !== 0) ? round1(giaTriLaiGop / chiTieuLaiGop * 100) : null;
-    const laiGopCungKyPct = (lastYearLaiGop != null && lastYearLaiGop !== 0) ? round1(giaTriLaiGop / lastYearLaiGop * 100) : null;
-
     const giaTriHongHuy = includeHongHuy ? (hongHuyByName.get(item.name.trim()) || 0) : null;
     const doanhThuCuoi = includeHongHuy ? (thucDat - (giaTriHongHuy || 0)) : null;
+    // "Tỷ lệ" lãi gộp PHẢI tính trên DOANH THU CUỐI (= Thực đạt - Giá trị
+    // hàng hỏng hủy), KHÔNG tính trên Thực đạt thô (theo yêu cầu người
+    // dùng, bản 9.64 — sửa lại bản 9.63 ban đầu tính nhầm theo Thực đạt).
+    // Khối "LFL"/"NSO" KHÔNG có khái niệm "Doanh thu cuối" riêng (hàng
+    // hỏng hủy không tách được theo siêu thị, xem đầu file) — coi như
+    // hàng hỏng hủy = 0 ở 2 khối đó, dùng LẠI Thực đạt làm mẫu số (đúng
+    // bằng "Doanh thu cuối" nếu hàng hỏng hủy = 0).
+    const laiGopBase = includeHongHuy ? doanhThuCuoi : thucDat;
+
+    const tyLeDat = (chiTieu != null && chiTieu !== 0) ? round1(thucDat / chiTieu * 100) : null;
+    const cungKyPct = (lastYearThucDat != null && lastYearThucDat !== 0) ? round1(thucDat / lastYearThucDat * 100) : null;
+    const tyLeLaiGop = laiGopBase ? round1(giaTriLaiGop / laiGopBase * 100) : null;
+    const tyLeLaiGopSoChiTieu = (chiTieuLaiGop != null && chiTieuLaiGop !== 0) ? round1(giaTriLaiGop / chiTieuLaiGop * 100) : null;
+    const laiGopCungKyPct = (lastYearLaiGop != null && lastYearLaiGop !== 0) ? round1(giaTriLaiGop / lastYearLaiGop * 100) : null;
 
     rows.push({
       khoi, maNganhHang: item.code,
@@ -180,6 +188,7 @@ function buildSegmentRows(khoi, currentMap, lastYearMap, targetMap, hongHuyByNam
     }
   }
 
+  const totalLaiGopBase = includeHongHuy ? totals.doanhThuCuoi : totals.thucDat;
   rows.push({
     khoi, maNganhHang: null, tenNganhHang: `Tổng cộng ${khoi}`,
     chiTieu: totals.hasChiTieu ? totals.chiTieu : null,
@@ -188,7 +197,7 @@ function buildSegmentRows(khoi, currentMap, lastYearMap, targetMap, hongHuyByNam
     cungKyPct: (totals.hasLastYear && totals.lastYearThucDat) ? round1(totals.thucDat / totals.lastYearThucDat * 100) : null,
     giaTriHongHuy: includeHongHuy ? totals.giaTriHongHuy : null,
     doanhThuCuoi: includeHongHuy ? totals.doanhThuCuoi : null,
-    tyLeLaiGop: totals.thucDat ? round1(totals.giaTriLaiGop / totals.thucDat * 100) : null,
+    tyLeLaiGop: totalLaiGopBase ? round1(totals.giaTriLaiGop / totalLaiGopBase * 100) : null,
     giaTriLaiGop: totals.giaTriLaiGop,
     tyLeLaiGopSoChiTieu: (totals.hasChiTieuLaiGop && totals.chiTieuLaiGop) ? round1(totals.giaTriLaiGop / totals.chiTieuLaiGop * 100) : null,
     laiGopCungKyPct: (totals.hasLastYearLaiGop && totals.lastYearLaiGop) ? round1(totals.giaTriLaiGop / totals.lastYearLaiGop * 100) : null,

@@ -29,6 +29,36 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 9.64 — Sửa lỗi THẬT: "Tỷ lệ" lãi gộp (BRGMART) phải tính trên Doanh thu CUỐI, không phải Thực đạt thô
+
+**Theo yêu cầu người dùng** — bản 9.63 ban đầu tính cột "Tỷ lệ" trong
+cụm Lãi gộp bằng Giá trị lãi gộp ÷ Thực đạt (doanh thu TRƯỚC khi trừ
+hàng hỏng hủy), trong khi đúng nghiệp vụ phải chia cho Doanh thu CUỐI
+(= Thực đạt − Giá trị hàng hỏng hủy) — người dùng phát hiện ngay khi xem
+demo ("Lãi gộp bạn tính theo doanh thu cuối đúng không?" → "phải tính
+theo doanh thu cuối cùng chứ, đã trừ hàng hồng hủy đi rồi chứ").
+
+**Thay đổi**: `rp-server/lib/nganhHangBrgRunner.js`:
+- Khối "Toàn hệ thống BRG" (nơi DUY NHẤT có "Doanh thu cuối" — xem bản
+  9.63) — cột "Tỷ lệ" nay = Giá trị lãi gộp ÷ Doanh thu cuối × 100 (thay
+  vì ÷ Thực đạt). Áp dụng cho CẢ 12 dòng ngành hàng lẫn dòng "Tổng cộng
+  Toàn hệ thống BRG".
+- Khối "LFL"/"NSO" — KHÔNG có khái niệm "Doanh thu cuối" riêng (hàng
+  hỏng hủy không tách được theo siêu thị, để trống "—") — GIỮ NGUYÊN
+  chia cho Thực đạt (coi như hàng hỏng hủy = 0 ở 2 khối đó, đúng bằng
+  "Doanh thu cuối" nếu có).
+- KHÔNG đổi: "Giá trị" lãi gộp tuyệt đối (lấy thẳng từ cột `LaiGop` đã
+  đồng bộ, không liên quan Doanh thu cuối), cột "% so chỉ tiêu" và "%
+  so cùng kỳ năm trước" của Lãi gộp (so sánh GIÁ TRỊ lãi gộp, không phải
+  tỷ lệ phần trăm trên doanh thu).
+- Đã kiểm chứng bằng mock test riêng cho fix này (9 assertion pass):
+  khối BRG chia đúng cho Doanh thu cuối, khối LFL vẫn chia cho Thực đạt,
+  3 cột còn lại (Giá trị/% so chỉ tiêu/% so cùng kỳ) không bị ảnh hưởng.
+- Cập nhật lại demo đã gửi người dùng (cùng link artifact, thêm banner
+  giải thích đã sửa).
+- CHƯA cần chạy lại script seed/migration nào — chỉ sửa công thức tính
+  tại chỗ, không đổi schema/domain/báo cáo catalog.
+
 ## 9.63 — Báo cáo "Doanh thu, lãi gộp theo ngành hàng" (BRGMART) theo mẫu Excel mới + "Siêu thị NSO"
 
 **Theo yêu cầu người dùng** — sửa lại báo cáo doanh thu ngành hàng theo

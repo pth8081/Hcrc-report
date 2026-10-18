@@ -14,6 +14,26 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 9.64 — Sửa lỗi THẬT: "Tỷ lệ" lãi gộp (BRGMART) phải tính trên Doanh thu CUỐI, không phải Thực đạt thô
+
+**Thay đổi**: chỉ sửa công thức trong `rp-server/lib/nganhHangBrgRunner.js`
+— KHÔNG có migration CSDL mới, KHÔNG cần chạy lại script seed nào. Báo
+cáo `bc-doanh-thu-nganhhang-brgmart` CHƯA từng có số liệu thật (chờ view
+`V_HCRC_HANGHONGHUY_NGANHHANG` — xem bản 9.63) nên bản này KHÔNG ảnh
+hưởng số liệu đã xem/gửi cho ai.
+
+**Các bước:**
+1. `git pull origin main`.
+2. `pm2 restart hcrc-rp-server`.
+3. Nếu đang triển khai GỘP CHUNG với bản 9.63 (xem `deploy/Hướng dẫn
+   triển khai gộp — bản 9.59 đến 9.63.md`) — chỉ cần `git pull` 1 lần là
+   đã có luôn fix này (commit sau nằm trên CÙNG nhánh `main`), không cần
+   làm thêm bước riêng nào khác ngoài Phần 3 của hướng dẫn gộp đó.
+4. Kiểm tra: mở báo cáo "Doanh thu, lãi gộp theo ngành hàng (BRGMART)" →
+   cột "Tỷ lệ" (cụm Lãi gộp) ở khối "Toàn hệ thống BRG" PHẢI = Giá trị
+   lãi gộp ÷ Doanh thu cuối × 100 (cao hơn 1 chút so với chia cho Thực
+   đạt) — khối "LFL"/"NSO" vẫn chia cho Thực đạt như cũ (không đổi).
+
 ## 9.63 — Báo cáo "Doanh thu, lãi gộp theo ngành hàng" (BRGMART) theo mẫu Excel mới + "Siêu thị NSO"
 
 **Thay đổi**: thêm bảng mới `etl.NsoStores` (an toàn — `IF OBJECT_ID(...) IS NULL`,
