@@ -14,6 +14,55 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 9.63 — Báo cáo "Doanh thu, lãi gộp theo ngành hàng" (BRGMART) theo mẫu Excel mới + "Siêu thị NSO"
+
+**Thay đổi**: thêm bảng mới `etl.NsoStores` (an toàn — `IF OBJECT_ID(...) IS NULL`,
+không ảnh hưởng bảng cũ), 1 GRANT mới, báo cáo mới RIÊNG (không đụng báo
+cáo ngành hàng gốc/LDTD), 1 job đồng bộ mới, 1 trang Chỉ tiêu mới.
+
+**Các bước:**
+1. `git pull origin main`.
+2. DBA chạy lại `etl-db/schema.sql` (tạo bảng `etl.NsoStores`, an toàn
+   chạy lại nhiều lần) và `etl-db/grants.sql` (thêm GRANT SELECT cho
+   `etl_diem_stk_reader` trên bảng mới — PHẢI chạy lại, nếu không trang
+   "Siêu thị NSO" sẽ không đọc được từ `rp-server`).
+3. **CẦN DBA tạo trước** view `V_HCRC_HANGHONGHUY_NGANHHANG` trên
+   DSMART16 (cột `GiaTriHongHuy`/`NganhHang`/`NgayGhiNhan`, `NganhHang`
+   là TÊN ngành hàng — PHẢI khớp (sau khi bỏ khoảng trắng 2 đầu) đúng 1
+   trong 12 tên ngành hàng hardcode trong
+   `rp-server/lib/nganhHangBrgRunner.js` — tên không khớp sẽ ra "Giá trị
+   hàng hỏng hủy" = 0 cho ngành hàng đó mà không báo lỗi gì).
+4. Khởi động lại `etl`, `etl-admin`, `rp-server` (3 service có đổi code).
+5. Chạy job đồng bộ "Hàng hỏng hủy":
+   ```
+   cd etl
+   node scripts/seedHangHongHuySync.js
+   ```
+   (tạo Sync Job mới, cron 15 phút — vào etl-admin → "Đồng bộ" bật/kiểm
+   tra chạy thử nếu cần ngay không chờ tới chu kỳ).
+6. Tạo báo cáo mới trong danh mục:
+   ```
+   cd rp-server
+   node scripts/seedNganhHangBrgReport.js
+   ```
+7. Vào etl-admin → "Chỉ tiêu Doanh thu/Lãi gộp theo ngành hàng (BRGMART)"
+   nhập `ChiTieuDoanhThu`/`ChiTieuLaiGop` theo từng ngành hàng (để trống
+   Mã siêu thị — Chỉ tiêu nhập THEO TOÀN CÔNG TY, không tách chi nhánh).
+8. (Nếu có siêu thị mới mở trong kỳ) — vào etl-admin → "Siêu thị NSO" →
+   nhập/khai Mã Điểm siêu thị đó (mirror đúng bộ nút "Ánh xạ Điểm - STK_ID"
+   — tải file mẫu, nhập Excel, sửa/thêm 1 dòng, khoá/kích hoạt, xuất,
+   chọn nhiều + xoá hàng loạt). Mã Điểm KHÔNG khai ở đây MẶC ĐỊNH tính
+   là LFL.
+9. Vào Hệ thống → Phân quyền, gán quyền XEM báo cáo mới
+   (`bc-doanh-thu-nganhhang-brgmart`) cho đúng vai trò, và gán quyền SỬA
+   2 trang admin mới ("Siêu thị NSO", "Chỉ tiêu Doanh thu/Lãi gộp theo
+   ngành hàng (BRGMART)") cho đúng nhóm quản lý — chưa gán sẵn, mặc định
+   không ai thấy ngoài vai trò hệ thống.
+10. Mở báo cáo trên rp-user, kiểm tra: đủ 3 khối "Toàn hệ thống BRG"/
+    "LFL"/"NSO" × 12 ngành hàng, "Giá trị hàng hỏng hủy"/"Doanh thu cuối"
+    CHỈ hiện số ở khối "Toàn hệ thống BRG" (LFL/NSO để trống "—" theo
+    thiết kế, KHÔNG phải lỗi).
+
 ## 9.62 — API tra cứu voucher ĐÃ DÙNG cho đối tác ngoài (qua Endpoint realtime) + sửa lỗi khoá BARCODE còn sót
 
 **Thay đổi**: `api-db/schema.sql` thêm 4 cột NULLABLE (an toàn chạy lại

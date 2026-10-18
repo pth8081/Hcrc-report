@@ -29,6 +29,85 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 9.63 — Báo cáo "Doanh thu, lãi gộp theo ngành hàng" (BRGMART) theo mẫu Excel mới + "Siêu thị NSO"
+
+**Theo yêu cầu người dùng** — sửa lại báo cáo doanh thu ngành hàng theo
+đúng mẫu Excel BRGMART đã gửi (`MAU_BAO_CAO_THEO_NGANH_HANG.xlsx`): tách
+3 khối lặp lại "Toàn hệ thống BRG"/"LFL"/"NSO" cho CÙNG 12 ngành hàng
+(mã tăng dần), thêm cụm "Lãi gộp" và cột "Giá trị hàng hỏng hủy"/"Doanh
+thu cuối" (= Doanh thu − hàng hỏng hủy). Đã gửi demo và được xác nhận
+("Tôi xác nhận bạn làm nhé") trước khi code — xem các câu hỏi/trả lời đã
+chốt: chưa tách Bán lẻ/Bán buôn (chờ DBA), LFL/NSO phân loại qua 1 trang
+khai báo MỚI ("Siêu thị NSO", đủ bộ nút như "Ánh xạ Điểm - STK_ID"),
+"Giá trị hàng hỏng hủy" đồng bộ tự động từ DSMART
+(`V_HCRC_HANGHONGHUY_NGANHHANG`), và CHỈ hiện 2 cột hàng hỏng hủy/Doanh
+thu cuối ở khối "Toàn hệ thống BRG" (LFL/NSO để trống "—", vì hỏng hủy
+không tách được theo siêu thị).
+
+**Thay đổi**:
+- Báo cáo mới RIÊNG (`SourceType='nganhHangBrg'`, KHÔNG đụng báo cáo
+  "Doanh thu theo ngành hàng" gốc/LDTD đã có) — `rp-server/lib/nganhHangBrgRunner.js`
+  (dedicated runner, mirror `purchaseOrderRunner.js`): đọc domain
+  `doanhthu_nganhhang` (đã có `STK_ID`+`LaiGop` sẵn từ trước, không cần
+  đồng bộ mới cho phần này), phân loại từng `STK_ID` thành LFL/NSO qua
+  "Ánh xạ Điểm - STK_ID" + danh sách "Siêu thị NSO" mới (mã Điểm KHÔNG
+  khai/đang khoá ở "Siêu thị NSO" MẶC ĐỊNH là LFL), tính Chỉ tiêu/Lãi gộp/
+  % so cùng kỳ riêng từng khối, cộng dồn "Giá trị hàng hỏng hủy" theo tên
+  ngành hàng (CHỈ ở khối "Toàn hệ thống BRG").
+  `rp-server/scripts/seedNganhHangBrgReport.js` tạo bản ghi
+  `app.ReportCatalog` (`bc-doanh-thu-nganhhang-brgmart`).
+- `etl/scripts/seedHangHongHuySync.js` (MỚI) — job đồng bộ domain
+  `hanghonghuy_nganhhang` từ view `V_HCRC_HANGHONGHUY_NGANHHANG`
+  (cột `GiaTriHongHuy`/`NganhHang`/`NgayGhiNhan`, `NganhHang` là TÊN —
+  phải khớp (sau `.trim()`) đúng tên 12 ngành hàng hardcode trong
+  `nganhHangBrgRunner.js`, không khớp sẽ ra 0 thầm lặng cho ngành hàng đó).
+- Chỉ tiêu riêng cho báo cáo này — trang etl-admin MỚI "Chỉ tiêu Doanh
+  thu/Lãi gộp theo ngành hàng (BRGMART)" (`sales-targets-nganhhang-dt-brgmart`,
+  domain Chỉ tiêu RIÊNG, không đụng Chỉ tiêu báo cáo gốc/LDTD), thêm field
+  `ChiTieuLaiGop` bên cạnh `ChiTieuDoanhThu` sẵn có (dùng luôn cơ chế
+  field-động của `etl/lib/salesTargetsImport.js:parseGenericShape()`,
+  KHÔNG cần đổi schema/import code).
+- "Siêu thị NSO" (MỚI, theo yêu cầu người dùng — đủ bộ nút như "Ánh xạ
+  Điểm - STK_ID"): bảng `etl.NsoStores` (MaDiem/TenSieuThi/IsActive) +
+  `etl/lib/nsoStoresImport.js` (nhập/xuất Excel) +
+  `etl/routes/admin/nsoStores.js` (CRUD/khoá-kích hoạt/chọn nhiều-xoá
+  hàng loạt theo đúng quy ước CLAUDE.md) + trang etl-admin
+  `NsoStoresPage.jsx` + `rp-server/lib/nsoStores.js` (đọc cache 60s qua
+  pool `ETL_DIEM_STK`, lỗi kết nối trả Set rỗng — KHÔNG làm sập báo cáo).
+  `etl-db/grants.sql` thêm `GRANT SELECT ON etl.NsoStores TO etl_diem_stk_reader;`
+  (CẦN chạy lại trên CSDL thật).
+- `etl/routes/admin/roles.js` + `etl-admin` (`App.jsx`/`Layout.jsx`) —
+  thêm 2 MenuCode mới `nso-stores`/`sales-targets-nganhhang-dt-brgmart`
+  vào danh mục phân quyền + điều hướng — CHƯA gán quyền xem cho vai trò
+  nào, admin tự làm sau.
+- `rp-server/lib/compositeReportRunner.js` — lộ thêm (additive, không đổi
+  gì hành vi cũ) 3 hàm nội bộ `fetchAllReportRows`/`remapEntityCode`/
+  `aggregateDailyRowsByEntity` để runner mới tái dùng, không viết lại
+  logic đọc `dwh.ReportFacts`.
+- **Lưu ý thiết kế (khác bản demo hình ảnh ban đầu)**: bản demo trước khi
+  xác nhận có vẽ 3 khối bằng dòng tiêu đề riêng (gộp ngang/colSpan). Hạ
+  tầng hiển thị/xuất dùng chung (`DataTable.jsx`/`exportExcel.js`/
+  `exportPdf.js`) CHƯA hỗ trợ dòng tiêu đề gộp ngang trong THÂN bảng (chỉ
+  hỗ trợ gộp ở HEADER qua `columnGroups`) — để KHÔNG phải sửa 3 file dùng
+  chung cho nhiều báo cáo khác (rủi ro ảnh hưởng ngoài phạm vi), bản thật
+  dùng 1 CỘT "Khối" (Toàn hệ thống BRG/LFL/NSO) + dòng "Tổng cộng" riêng
+  từng khối (tô màu đậm, cột TT tự đếm lại từ 1) thay cho dòng tiêu đề
+  gộp ngang — cùng dữ liệu, chỉ khác cách trình bày phần phân khối.
+- Đã kiểm chứng bằng mock test gọi THẲNG `runNganhHangBrgReport()` (mock
+  DB/Ánh xạ/Chỉ tiêu/Siêu thị NSO, không đụng DSMART thật) — 24 assertion
+  pass: phân loại đúng NSO/LFL qua Ánh xạ Điểm-STK_ID (kể cả STK_ID KHÔNG
+  có ánh xạ → mặc định LFL), hàng hỏng hủy CHỈ cộng ở khối BRG (LFL/NSO
+  = trống), Chỉ tiêu thiếu → trống (không phải 0/lỗi), TT reset đúng theo
+  từng khối.
+- Build-check `etl-admin` (vite build, 83 module) pass.
+- CHƯA có số liệu THẬT cho tới khi: (1) tạo xong view
+  `V_HCRC_HANGHONGHUY_NGANHHANG` trên DSMART16 + chạy
+  `node etl/scripts/seedHangHongHuySync.js`, (2) chạy
+  `node rp-server/scripts/seedNganhHangBrgReport.js`, (3) nhập Chỉ tiêu
+  qua "Chỉ tiêu Doanh thu/Lãi gộp theo ngành hàng (BRGMART)", (4) khai
+  "Siêu thị NSO" nếu có siêu thị mới mở, (5) chạy lại `etl-db/grants.sql`
+  trên CSDL thật, (6) gán quyền xem báo cáo + 2 trang admin mới.
+
 ## 9.62 — API tra cứu voucher ĐÃ DÙNG cho đối tác ngoài (qua Endpoint realtime) + sửa lỗi khoá BARCODE còn sót
 
 **Theo yêu cầu người dùng** — đối tác cần 1 API chỉ-đọc để tự lấy thông

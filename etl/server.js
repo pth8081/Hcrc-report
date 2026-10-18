@@ -26,6 +26,7 @@ const adminAuditLogRoutes = require('./routes/admin/auditLog');
 const adminDashboardRoutes = require('./routes/admin/dashboard');
 const { createSalesTargetsRouter } = require('./routes/admin/salesTargets');
 const adminDiemStkMappingRoutes = require('./routes/admin/diemStkMapping');
+const adminNsoStoresRoutes = require('./routes/admin/nsoStores');
 const adminCoreItemListRoutes = require('./routes/admin/coreItemList');
 const adminStockAlertThresholdsRoutes = require('./routes/admin/stockAlertThresholds');
 const adminRolesRoutes = require('./routes/admin/roles');
@@ -150,7 +151,19 @@ app.use('/admin/sales-targets-nganhhang-dt-ldtd', createSalesTargetsRouter(
   'sales-targets-nganhhang-dt-ldtd', 'sales-targets-nganhhang-dt-ldtd', undefined, 'generic',
   [{ key: 'ChiTieuDoanhThu', sample: 1500000000 }]
 ));
+// Chỉ tiêu "Doanh thu, lãi gộp theo ngành hàng" (BRGMART, bản 9.63) — trang
+// RIÊNG, Domain KHOÁ CỨNG riêng (sales-targets-nganhhang-dt-brgmart) khác
+// hẳn 'sales-targets-nganhhang-dt' ở trên để không ghi đè Chỉ tiêu của báo
+// cáo gốc — báo cáo "bc-doanh-thu-nganhhang-brgmart"
+// (rp-server/scripts/seedNganhHangBrgReport.js) trỏ targetDomain tới ĐÚNG
+// domain này. Thêm sẵn cột mẫu ChiTieuLaiGop (ngoài ChiTieuDoanhThu) — cho
+// cột "% so chỉ tiêu" của Lãi gộp (xem rp-server/lib/nganhHangBrgRunner.js).
+app.use('/admin/sales-targets-nganhhang-dt-brgmart', createSalesTargetsRouter(
+  'sales-targets-nganhhang-dt-brgmart', 'sales-targets-nganhhang-dt-brgmart', undefined, 'generic',
+  [{ key: 'ChiTieuDoanhThu', sample: 1500000000 }, { key: 'ChiTieuLaiGop', sample: 250000000 }]
+));
 app.use('/admin/diem-stk-mapping', adminDiemStkMappingRoutes);
+app.use('/admin/nso-stores', adminNsoStoresRoutes);
 app.use('/admin/core-item-list', adminCoreItemListRoutes);
 app.use('/admin/stock-alert-thresholds', adminStockAlertThresholdsRoutes);
 app.use('/admin/roles', adminRolesRoutes);

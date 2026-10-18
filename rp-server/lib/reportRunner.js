@@ -14,6 +14,7 @@ const { runCoreZeroStockReport } = require('./coreZeroStockRunner');
 const { runStockThresholdReport } = require('./stockThresholdRunner');
 const { runStockAlertReport } = require('./stockAlertRunner');
 const { runPurchaseOrderReport } = require('./purchaseOrderRunner');
+const { runNganhHangBrgReport } = require('./nganhHangBrgRunner');
 const { assignSttIfPresent } = require('./reportCellFormat');
 
 async function loadDefinition(reportId) {
@@ -72,7 +73,11 @@ async function resolveFactsPool(definition) {
 // (nguồn STRANS, TRANS_CODE 133=đặt/333=nhập, MỖI LOẠI 1 DÒNG RIÊNG), tự
 // ánh xạ mã BU_ID thô sang mã Điểm chuẩn qua "Ánh xạ Điểm - STK_ID" TRƯỚC
 // khi chiếu cột, gộp SUM theo REF (mã đơn gốc) cho báo cáo so sánh — xem
-// lib/purchaseOrderRunner.js.
+// lib/purchaseOrderRunner.js. 'nganhHangBrg' (bản 9.63, theo yêu cầu người
+// dùng, theo đúng mẫu Excel BRGMART) — CHIA 3 khối lặp lại "Toàn hệ thống
+// BRG"/"LFL"/"NSO" (siêu thị mới mở, khai qua etl-admin "Siêu thị NSO")
+// cho cùng 12 ngành hàng, thêm Lãi gộp + "Giá trị hàng hỏng hủy"/"Doanh
+// thu cuối" (CHỈ ở khối BRG) — xem lib/nganhHangBrgRunner.js.
 async function runDefinition(definition, filterValues, pagination) {
   if (definition.sourceType === 'externalApi') {
     return runExternalReport(definition, filterValues);
@@ -94,6 +99,9 @@ async function runDefinition(definition, filterValues, pagination) {
   }
   if (definition.sourceType === 'purchaseOrder') {
     return runPurchaseOrderReport(definition, filterValues, pagination);
+  }
+  if (definition.sourceType === 'nganhHangBrg') {
+    return runNganhHangBrgReport(definition, filterValues);
   }
   if (definition.sourceType && definition.sourceType !== 'directDb') {
     return runApiReport(definition, filterValues, pagination);

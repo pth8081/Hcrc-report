@@ -23,6 +23,7 @@ const MENU_CATALOG = [
   { code: 'sync-jobs', label: 'Đồng bộ dữ liệu' },
   { code: 'schema-monitor', label: 'Giám sát cấu trúc CSDL' },
   { code: 'diem-stk-mapping', label: 'Ánh xạ Điểm - STK_ID' },
+  { code: 'nso-stores', label: 'Siêu thị NSO' },
   { code: 'core-item-list', label: 'Danh sách hàng Core' },
   { code: 'stock-alert-thresholds', label: 'Cảnh báo hàng tồn' },
   // Trước là 1 trang "sales-targets" chung, đổi thành 2 trang ĐỘC LẬP theo
@@ -34,6 +35,7 @@ const MENU_CATALOG = [
   { code: 'sales-targets-nganhhang-dt', label: 'Chỉ tiêu Doanh thu theo ngành hàng' },
   { code: 'sales-targets-nganhhang-nh', label: 'Chỉ tiêu Nhập hàng theo ngành hàng' },
   { code: 'sales-targets-nganhhang-dt-ldtd', label: 'Chỉ tiêu Doanh thu theo ngành hàng (LDTD)' },
+  { code: 'sales-targets-nganhhang-dt-brgmart', label: 'Chỉ tiêu Doanh thu/Lãi gộp theo ngành hàng (BRGMART)' },
   { code: 'log', label: 'Nhật ký đồng bộ' },
   { code: 'audit-log', label: 'Nhật ký thao tác' },
   { code: 'users', label: 'Phân quyền' },

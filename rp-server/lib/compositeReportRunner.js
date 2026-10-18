@@ -1005,4 +1005,11 @@ async function runCompositeReport(definition, filterValues = {}) {
   return { columns, rows, warnings, columnGroups: definition.columnGroups || null, standaloneColumnColors: definition.standaloneColumnColors || null };
 }
 
-module.exports = { runCompositeReport, resolveRequestedRange };
+// fetchAllReportRows/remapEntityCode (bản 9.63) — lộ thêm cho
+// lib/nganhHangBrgRunner.js (SourceType='nganhHangBrg', KHÔNG dùng được
+// composite thường vì cần CHIA 3 khối BRG/LFL/NSO từ CÙNG 1 lần đọc domain
+// — composite chỉ ghép 1 dòng/entityCode, không tự nhân bản theo nhóm siêu
+// thị) — TÁI DÙNG nguyên 2 hàm đọc/gộp dữ liệu domain đã có ở đây, KHÔNG
+// viết lại logic đọc dwh.ReportFacts. KHÔNG đổi hành vi của 2 hàm, chỉ
+// thêm vào module.exports.
+module.exports = { runCompositeReport, resolveRequestedRange, fetchAllReportRows, remapEntityCode, aggregateDailyRowsByEntity };

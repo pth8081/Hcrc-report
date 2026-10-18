@@ -273,6 +273,29 @@ BEGIN
 END
 GO
 
+-- Danh sách "Siêu thị NSO" (bản 9.63, theo yêu cầu người dùng) — admin tự
+-- khai/upload mã Điểm nào đang ở trạng thái NSO ("New Store Opening", mới
+-- mở) — dùng cho báo cáo "Doanh thu, lãi gộp theo ngành hàng" (BRGMART)
+-- tách riêng khối "Tổng cộng nhóm siêu thị NSO" khỏi khối "LFL" (siêu thị
+-- ổn định, "Like For Like"). Mã Điểm KHÔNG có trong bảng này (hoặc có
+-- nhưng IsActive=0) mặc định coi là LFL — KHÔNG cần khai danh sách LFL
+-- riêng. Mirror NGUYÊN cấu trúc/quy ước etl.DiemStkMapping ở trên (cùng
+-- UNIQUE theo MaDiem, cùng cột IsActive cho nút Khoá/Kích hoạt) nhưng đơn
+-- giản hơn — không có khái niệm kho cũ/mới hay BU_ID ở đây.
+IF OBJECT_ID('etl.NsoStores', 'U') IS NULL
+BEGIN
+    CREATE TABLE etl.NsoStores (
+        Id          INT           IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        MaDiem      NVARCHAR(50)  NOT NULL,
+        TenSieuThi  NVARCHAR(200) NULL,
+        IsActive    BIT           NOT NULL DEFAULT 1,
+        ImportedAt  DATETIME2(3)  NOT NULL DEFAULT SYSUTCDATETIME(),
+        ImportedBy  NVARCHAR(50)  NULL,
+        CONSTRAINT UX_NsoStores_MaDiem UNIQUE (MaDiem)
+    );
+END
+GO
+
 -- Danh sách "hàng Core" (mặt hàng BẮT BUỘC luôn phải có hàng) do admin tự
 -- khai/upload — dùng cho báo cáo "Core stock = 0" (SourceType='coreZeroStock',
 -- xem rp-server/lib/coreZeroStockRunner.js + hướng_dẫn_báo_cáo.md mục 14).

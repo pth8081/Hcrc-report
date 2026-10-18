@@ -14,6 +14,7 @@ import UsersPage from './pages/UsersPage';
 import RolesPage from './pages/RolesPage';
 import SalesTargetsPage from './pages/SalesTargetsPage';
 import DiemStkMappingPage from './pages/DiemStkMappingPage';
+import NsoStoresPage from './pages/NsoStoresPage';
 import CoreItemListPage from './pages/CoreItemListPage';
 import StockAlertThresholdsPage from './pages/StockAlertThresholdsPage';
 import TlsCertificatePage from './pages/TlsCertificatePage';
@@ -27,7 +28,7 @@ import AccountPage from './pages/AccountPage';
 // MENU_CATALOG) — trước đây thiếu roles/log/audit-log, khiến 1 tài khoản
 // CHỈ được cấp 1 trong các trang này bị điều hướng về '/dashboard' (trang
 // không thấy được) ngay sau đăng nhập thay vì vào đúng trang mình có quyền.
-const LANDING_ORDER = ['dashboard', 'sales-targets-corp', 'sales-targets-hcrc', 'sales-targets-nganhhang-dt', 'sales-targets-nganhhang-nh', 'sales-targets-nganhhang-dt-ldtd', 'data-sources', 'sync-jobs', 'diem-stk-mapping', 'core-item-list', 'stock-alert-thresholds', 'log', 'audit-log', 'users', 'roles', 'huong-dan'];
+const LANDING_ORDER = ['dashboard', 'sales-targets-corp', 'sales-targets-hcrc', 'sales-targets-nganhhang-dt', 'sales-targets-nganhhang-nh', 'sales-targets-nganhhang-dt-ldtd', 'sales-targets-nganhhang-dt-brgmart', 'data-sources', 'sync-jobs', 'diem-stk-mapping', 'nso-stores', 'core-item-list', 'stock-alert-thresholds', 'log', 'audit-log', 'users', 'roles', 'huong-dan'];
 
 function IndexRedirect() {
   const { can } = useAuth();
@@ -73,7 +74,13 @@ export default function App() {
           <Route path="/sales-targets-nganhhang-dt-ldtd" element={
             <SalesTargetsPage menuCode="sales-targets-nganhhang-dt-ldtd" apiBase="/sales-targets-nganhhang-dt-ldtd" title="Chỉ tiêu Doanh thu theo ngành hàng (LDTD)" />
           } />
+          {/* Bản 9.63 — Chỉ tiêu "Doanh thu, lãi gộp theo ngành hàng" (mẫu
+              BRGMART), trang RIÊNG (xem etl/server.js). */}
+          <Route path="/sales-targets-nganhhang-dt-brgmart" element={
+            <SalesTargetsPage menuCode="sales-targets-nganhhang-dt-brgmart" apiBase="/sales-targets-nganhhang-dt-brgmart" title="Chỉ tiêu Doanh thu/Lãi gộp theo ngành hàng (BRGMART)" />
+          } />
           <Route path="/diem-stk-mapping" element={<DiemStkMappingPage />} />
+          <Route path="/nso-stores" element={<NsoStoresPage />} />
           <Route path="/core-item-list" element={<CoreItemListPage />} />
           <Route path="/stock-alert-thresholds" element={<StockAlertThresholdsPage />} />
           <Route path="/users" element={<UsersPage />} />

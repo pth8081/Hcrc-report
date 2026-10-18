@@ -18,17 +18,19 @@
    2 tài khoản trong file này:
      - etl_admin           — tiến trình etl/ (đọc lẫn ghi cả 2 schema).
      - etl_diem_stk_reader (rp-server/.env.example ETL_DIEM_STK_USER) —
-       CHỈ ĐỌC, CHỈ ĐÚNG 3 BẢNG etl.DiemStkMapping + etl.CoreItemList +
-       etl.StockAlertThresholds (dùng CHUNG 1 login/pool — cả 3 bảng đều là
-       dữ liệu rp-server cần ĐỌC từ CSDL etl để phục vụ báo cáo, không cần
-       tách login riêng) — chiều NGƯỢC với dwh_target_importer (dwh/grants.sql:
-       etl đọc/ghi CSDL dwh) — ở đây rp-server đọc CSDL etl để lấy ánh xạ mã
-       Điểm (BU_ID) <-> nhiều mã kho STK_ID (xem rp-server/lib/diemStkMapping.js),
-       danh sách hàng Core (xem rp-server/lib/coreItemList.js), và ngưỡng
-       cảnh báo tồn kho (xem rp-server/lib/stockAlertThresholds.js). Không
-       được cấp SCHEMA::etl (sẽ lộ luôn etl.DataSources — chứa mật khẩu mã
-       hoá các nguồn dữ liệu OLTP thật) — GRANT theo TỪNG BẢNG như
-       dwh_target_importer đã làm với dwh.SalesTargets.
+       CHỈ ĐỌC, CHỈ ĐÚNG 4 BẢNG etl.DiemStkMapping + etl.CoreItemList +
+       etl.StockAlertThresholds + etl.NsoStores (dùng CHUNG 1 login/pool —
+       cả 4 bảng đều là dữ liệu rp-server cần ĐỌC từ CSDL etl để phục vụ báo
+       cáo, không cần tách login riêng) — chiều NGƯỢC với dwh_target_importer
+       (dwh/grants.sql: etl đọc/ghi CSDL dwh) — ở đây rp-server đọc CSDL etl
+       để lấy ánh xạ mã Điểm (BU_ID) <-> nhiều mã kho STK_ID (xem
+       rp-server/lib/diemStkMapping.js), danh sách hàng Core (xem
+       rp-server/lib/coreItemList.js), ngưỡng cảnh báo tồn kho (xem
+       rp-server/lib/stockAlertThresholds.js), và danh sách siêu thị NSO
+       (bản 9.63, xem rp-server/lib/nsoStores.js). Không được cấp SCHEMA::etl
+       (sẽ lộ luôn etl.DataSources — chứa mật khẩu mã hoá các nguồn dữ liệu
+       OLTP thật) — GRANT theo TỪNG BẢNG như dwh_target_importer đã làm với
+       dwh.SalesTargets.
 
    SỬA bản 9.51 (theo báo cáo người dùng — báo cáo "Core stock = 0" báo lỗi
    thật "The SELECT permission was denied on the object 'CoreItemList'"
@@ -37,10 +39,13 @@
    được thêm vào (tính năng Core thêm SAU khi login etl_diem_stk_reader đã
    tạo xong cho riêng DiemStkMapping) — NHẮC chạy lại TOÀN BỘ file này (an
    toàn chạy lại nhiều lần, idempotent) mỗi khi thêm bảng mới vào danh sách
-   3 bảng ở trên. Nhân tiện phát hiện etl.StockAlertThresholds (dùng CHUNG
-   login này từ trước, xem rp-server/lib/stockAlertThresholds.js) CHƯA TỪNG
-   có dòng GRANT trong file này — thêm luôn, tránh lặp lại đúng lỗi này cho
-   báo cáo "Cảnh báo hàng tồn". */
+   các bảng ở trên (bản 9.63 vừa thêm etl.NsoStores — NHỚ chạy lại file này
+   trên CSDL thật, không chỉ chạy etl-db/schema.sql, nếu không báo cáo mới
+   sẽ gặp đúng lỗi "SELECT permission was denied" như Core Item List trước
+   đây). Nhân tiện phát hiện etl.StockAlertThresholds (dùng CHUNG login này
+   từ trước, xem rp-server/lib/stockAlertThresholds.js) CHƯA TỪNG có dòng
+   GRANT trong file này — thêm luôn, tránh lặp lại đúng lỗi này cho báo cáo
+   "Cảnh báo hàng tồn". */
 
 USE HCRC_ETL;
 GO
@@ -78,4 +83,5 @@ GO
 GRANT SELECT ON etl.DiemStkMapping TO etl_diem_stk_reader;
 GRANT SELECT ON etl.CoreItemList TO etl_diem_stk_reader;
 GRANT SELECT ON etl.StockAlertThresholds TO etl_diem_stk_reader;
+GRANT SELECT ON etl.NsoStores TO etl_diem_stk_reader;
 GO
