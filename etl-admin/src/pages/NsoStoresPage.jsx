@@ -1,6 +1,7 @@
 // pages/NsoStoresPage.jsx — Trang "Siêu thị NSO": khai danh sách mã Điểm
-// đang ở trạng thái "New Store Opening" (mới mở) — dùng cho báo cáo "Doanh
-// thu, lãi gộp theo ngành hàng" (BRGMART, bản 9.63) tách khối "Tổng cộng
+// đang ở trạng thái "New Store Opening" (mới mở) — dùng CHUNG cho 2 báo
+// cáo "Doanh thu theo ngành hàng"/"(LDTD)" (bản 9.63/9.67, xem "báo cáo
+// doanh thu-nhập hàng theo ngành hàng.md" mục 7) tách khối "Tổng cộng
 // nhóm siêu thị NSO" khỏi khối "LFL" (siêu thị ổn định). Mirror NGUYÊN cấu
 // trúc/bộ nút pages/DiemStkMappingPage.jsx, ĐƠN GIẢN HƠN — chỉ Mã Điểm +
 // Tên siêu thị, không có khái niệm kho cũ/mới/BU_ID/LoaiChuoi, không cần

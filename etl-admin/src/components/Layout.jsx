@@ -24,7 +24,6 @@ const NAV = [
   { path: '/sales-targets-nganhhang-dt', label: 'Chỉ tiêu Doanh thu theo ngành hàng', icon: '🎯', menuCode: 'sales-targets-nganhhang-dt' },
   { path: '/sales-targets-nganhhang-nh', label: 'Chỉ tiêu Nhập hàng theo ngành hàng', icon: '🎯', menuCode: 'sales-targets-nganhhang-nh' },
   { path: '/sales-targets-nganhhang-dt-ldtd', label: 'Chỉ tiêu Doanh thu theo ngành hàng (LDTD)', icon: '🎯', menuCode: 'sales-targets-nganhhang-dt-ldtd' },
-  { path: '/sales-targets-nganhhang-dt-brgmart', label: 'Chỉ tiêu Doanh thu/Lãi gộp theo ngành hàng (BRGMART)', icon: '🎯', menuCode: 'sales-targets-nganhhang-dt-brgmart' },
   { path: '/diem-stk-mapping', label: 'Ánh xạ Điểm - STK_ID', icon: '🧩', menuCode: 'diem-stk-mapping', editOnly: true },
   { path: '/nso-stores', label: 'Siêu thị NSO', icon: '🏬', menuCode: 'nso-stores', editOnly: true },
   { path: '/core-item-list', label: 'Danh sách hàng Core', icon: '📦', menuCode: 'core-item-list', editOnly: true },

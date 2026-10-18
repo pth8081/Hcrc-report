@@ -14,6 +14,37 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 9.67 — SỬA LẠI bản 9.63: gộp định dạng ngành hàng mới vào 2 báo cáo đã có
+
+**Thay đổi**: xem chi tiết đầy đủ ở `VERSION.md` + `báo cáo doanh thu-nhập
+hàng theo ngành hàng.md` (viết lại toàn bộ). Tóm tắt: KHÔNG còn báo cáo
+thứ 3 "(BRGMART)" — định dạng mới (3 khối + Lãi gộp + hàng hỏng hủy) nay
+áp dụng TRỰC TIẾP cho `bc-doanh-thu-nganhhang`/`bc-doanh-thu-nganhhang-ldtd`.
+
+**Các bước (THAY THẾ hoàn toàn Phần 3/4 trong `deploy/Hướng dẫn triển khai
+gộp — bản 9.59 đến 9.66.md` cũ — dùng file MỚI `...đến 9.67.md`):**
+
+Xem đầy đủ ở Phần 3 (mục F-G) của `deploy/Hướng dẫn triển khai gộp — bản
+9.59 đến 9.67.md`. Tóm tắt nhanh nếu server ĐÃ LỠ chạy theo hướng dẫn
+"đến 9.66" cũ (tạo báo cáo `bc-doanh-thu-nganhhang-brgmart` + trang Chỉ
+tiêu BRGMART riêng):
+
+1. `git pull origin main`.
+2. `node rp-server/scripts/seedNganhHangReports.js` — tự động cập nhật
+   lại `bc-doanh-thu-nganhhang`/`bc-doanh-thu-nganhhang-ldtd` sang định
+   dạng mới (ghi đè `DefinitionJson`, không mất Chỉ tiêu đã nhập).
+3. Báo cáo `bc-doanh-thu-nganhhang-brgmart` (nếu đã lỡ tạo) giờ không
+   còn script nào cập nhật nữa (đã xoá `seedNganhHangBrgReport.js`) — vào
+   Hệ thống → Biểu mẫu → tab "Báo cáo", XOÁ TAY báo cáo này (không có số
+   liệu khác biệt với báo cáo gốc nữa, trùng lặp).
+4. Trang Chỉ tiêu "sales-targets-nganhhang-dt-brgmart" (nếu đã lỡ nhập
+   dữ liệu) — dữ liệu đó GIỮ NGUYÊN trong CSDL (không bị xoá), nhưng
+   KHÔNG còn trang nào đọc/ghi domain này nữa (route đã gỡ khỏi
+   `etl/server.js`) — nếu có nhập `ChiTieuLaiGop` ở đó, nhập LẠI vào 1
+   trong 2 trang Chỉ tiêu ĐÃ CÓ (`sales-targets-nganhhang-dt`/`-ldtd`).
+5. `pm2 restart hcrc-rp-server hcrc-etl` + `cd etl-admin && npm run
+   build` (route/trang Chỉ tiêu BRGMART đã gỡ khỏi menu).
+
 ## 9.66 — Xác nhận: DSMART CHƯA có nguồn dữ liệu hàng hỏng hủy (BRGMART)
 
 **Thay đổi**: CHỈ sửa tài liệu (`báo cáo doanh thu-lãi gộp theo ngành

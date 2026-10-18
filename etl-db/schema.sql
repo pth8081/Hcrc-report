@@ -275,7 +275,7 @@ GO
 
 -- Danh sách "Siêu thị NSO" (bản 9.63, theo yêu cầu người dùng) — admin tự
 -- khai/upload mã Điểm nào đang ở trạng thái NSO ("New Store Opening", mới
--- mở) — dùng cho báo cáo "Doanh thu, lãi gộp theo ngành hàng" (BRGMART)
+-- mở) — dùng CHUNG cho 2 báo cáo "Doanh thu theo ngành hàng"/"(LDTD)"
 -- tách riêng khối "Tổng cộng nhóm siêu thị NSO" khỏi khối "LFL" (siêu thị
 -- ổn định, "Like For Like"). Mã Điểm KHÔNG có trong bảng này (hoặc có
 -- nhưng IsActive=0) mặc định coi là LFL — KHÔNG cần khai danh sách LFL

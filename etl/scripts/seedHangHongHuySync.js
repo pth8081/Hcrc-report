@@ -1,6 +1,6 @@
 // scripts/seedHangHongHuySync.js — Tạo/CẬP NHẬT idempotent job đồng bộ
-// "Hàng hỏng hủy theo ngành hàng" (Live DSMART16) cho báo cáo "Doanh thu,
-// lãi gộp theo ngành hàng" (BRGMART) — bản 9.63, theo yêu cầu người dùng.
+// "Hàng hỏng hủy theo ngành hàng" (Live DSMART16) cho 2 báo cáo "Doanh thu
+// theo ngành hàng"/"(LDTD)" — bản 9.63, theo yêu cầu người dùng.
 // Tái dùng NGUYÊN VẸN "Nguồn dữ liệu" đã có sẵn từ seedLdtdHcrcSync.js
 // ("DSMART16 - Live"), KHÔNG tạo nguồn dữ liệu mới. Domain MỚI hoàn toàn
 // (`hanghonghuy_nganhhang`), độc lập với `doanhthu_nganhhang` đã có.

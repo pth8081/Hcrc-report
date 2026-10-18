@@ -133,9 +133,16 @@ app.use('/admin/sales-targets-hcrc', createSalesTargetsRouter('sales-targets-hcr
 // hẳn granularity EntityCode của chỉ tiêu (chỉ "<DEPT_ID>"), đối chiếu kiểu
 // so khớp CHÍNH XÁC chuỗi ở đây sẽ báo "không khớp" NHẦM cho MỌI dòng —
 // xem chú thích actualDataDomain đầu routes/admin/salesTargets.js.
+// ChiTieuLaiGop (bản 9.67, theo yêu cầu người dùng — "đừng tách bc") —
+// thêm cột mẫu cho "% so chỉ tiêu" của Lãi gộp trên CHÍNH báo cáo gốc
+// (xem lib/nganhHangBrgRunner.js) — KHÔNG tạo domain Chỉ tiêu riêng nào
+// khác, chỉ thêm 1 cột mẫu cho admin biết tên cột cần điền trong Excel
+// (cơ chế field-động parseGenericShape() đã tự nhận MỌI tên cột từ
+// trước, không cần đổi gì ở đây để "hoạt động" — chỉ đổi để HIỆN đúng
+// gợi ý trên giao diện).
 app.use('/admin/sales-targets-nganhhang-dt', createSalesTargetsRouter(
   'sales-targets-nganhhang-dt', 'sales-targets-nganhhang-dt', undefined, 'generic',
-  [{ key: 'ChiTieuDoanhThu', sample: 1500000000 }]
+  [{ key: 'ChiTieuDoanhThu', sample: 1500000000 }, { key: 'ChiTieuLaiGop', sample: 250000000 }]
 ));
 app.use('/admin/sales-targets-nganhhang-nh', createSalesTargetsRouter(
   'sales-targets-nganhhang-nh', 'sales-targets-nganhhang-nh', undefined, 'generic',
@@ -146,20 +153,10 @@ app.use('/admin/sales-targets-nganhhang-nh', createSalesTargetsRouter(
 // khác hẳn 'sales-targets-nganhhang-dt' ở trên để 2 đội không ghi đè Chỉ
 // tiêu của nhau (cùng lý do tách sales-targets-corp/sales-targets-hcrc) —
 // báo cáo "bc-doanh-thu-nganhhang-ldtd" (rp-server/scripts/seedNganhHangReports.js)
-// trỏ targetDomain tới ĐÚNG domain này.
+// trỏ targetDomain tới ĐÚNG domain này. ChiTieuLaiGop thêm ở bản 9.67, cùng
+// lý do như 'sales-targets-nganhhang-dt' ở trên.
 app.use('/admin/sales-targets-nganhhang-dt-ldtd', createSalesTargetsRouter(
   'sales-targets-nganhhang-dt-ldtd', 'sales-targets-nganhhang-dt-ldtd', undefined, 'generic',
-  [{ key: 'ChiTieuDoanhThu', sample: 1500000000 }]
-));
-// Chỉ tiêu "Doanh thu, lãi gộp theo ngành hàng" (BRGMART, bản 9.63) — trang
-// RIÊNG, Domain KHOÁ CỨNG riêng (sales-targets-nganhhang-dt-brgmart) khác
-// hẳn 'sales-targets-nganhhang-dt' ở trên để không ghi đè Chỉ tiêu của báo
-// cáo gốc — báo cáo "bc-doanh-thu-nganhhang-brgmart"
-// (rp-server/scripts/seedNganhHangBrgReport.js) trỏ targetDomain tới ĐÚNG
-// domain này. Thêm sẵn cột mẫu ChiTieuLaiGop (ngoài ChiTieuDoanhThu) — cho
-// cột "% so chỉ tiêu" của Lãi gộp (xem rp-server/lib/nganhHangBrgRunner.js).
-app.use('/admin/sales-targets-nganhhang-dt-brgmart', createSalesTargetsRouter(
-  'sales-targets-nganhhang-dt-brgmart', 'sales-targets-nganhhang-dt-brgmart', undefined, 'generic',
   [{ key: 'ChiTieuDoanhThu', sample: 1500000000 }, { key: 'ChiTieuLaiGop', sample: 250000000 }]
 ));
 app.use('/admin/diem-stk-mapping', adminDiemStkMappingRoutes);

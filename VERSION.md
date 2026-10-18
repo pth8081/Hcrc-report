@@ -29,6 +29,53 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 9.67 — SỬA LẠI bản 9.63: gộp định dạng ngành hàng mới vào 2 báo cáo đã có (không tách báo cáo thứ 3)
+
+**Theo yêu cầu người dùng** — bản 9.63 ban đầu dựng 1 báo cáo THỨ 3 riêng
+"(BRGMART)" cho định dạng mới (3 khối + Lãi gộp + hàng hỏng hủy). Người
+dùng yêu cầu sửa lại ngay: "Bạn đừng tách bc nhé... cần bạn cập nhật hai
+báo cáo này thôi: 1. Báo cáo doanh thu theo ngành hàng, 2. Báo cáo doanh
+thu theo ngành hàng (LDTD)... Hai báo cáo này đã có nhập chỉ tiêu riêng...
+mã NSO sẽ được cập nhật chung từ file upload vào báo cáo này".
+
+**Thay đổi**:
+- `rp-server/lib/nganhHangBrgRunner.js` — BỎ hằng số `TARGET_DOMAIN`
+  hardcode (`sales-targets-nganhhang-dt-brgmart`), đọc từ
+  `definition.targetDomain` — thiếu field này thì throw lỗi rõ ràng ngay
+  (không âm thầm chạy sai).
+- `rp-server/scripts/seedNganhHangReports.js` — VIẾT LẠI: 2 báo cáo
+  `bc-doanh-thu-nganhhang`/`bc-doanh-thu-nganhhang-ldtd` chuyển sang
+  `SourceType='nganhHangBrg'` (định dạng mới), MỖI báo cáo GIỮ NGUYÊN
+  `targetDomain` riêng đã có (`sales-targets-nganhhang-dt`/
+  `sales-targets-nganhhang-dt-ldtd` — KHÔNG gộp chung, KHÔNG tạo domain
+  Chỉ tiêu mới nào khác). `bc-nhap-hang-nganhhang` GIỮ NGUYÊN
+  `SourceType='composite'` cũ, không đổi.
+- **XOÁ** `rp-server/scripts/seedNganhHangBrgReport.js` (script tạo báo
+  cáo thứ 3 — không còn cần, chưa từng chạy trên server thật).
+- **XOÁ** trang Chỉ tiêu "BRGMART" riêng (`sales-targets-nganhhang-dt-brgmart`)
+  — `etl/server.js`/`etl-admin/src/App.jsx`/`etl-admin/src/components/Layout.jsx`/
+  `etl/routes/admin/roles.js`. Thay vào đó, thêm cột mẫu `ChiTieuLaiGop`
+  vào CHÍNH 2 trang Chỉ tiêu Doanh thu theo ngành hàng ĐÃ CÓ (không đổi
+  code — cơ chế field-động `parseGenericShape()` đã tự nhận mọi tên cột
+  từ trước, chỉ đổi cột mẫu hiển thị gợi ý trên giao diện).
+- **"Siêu thị NSO"** (bảng `etl.NsoStores`, trang etl-admin) — GIỮ
+  NGUYÊN, vẫn dùng CHUNG cho cả 2 báo cáo doanh thu (đúng yêu cầu người
+  dùng), chỉ sửa lại chú thích code (không còn gắn riêng với "BRGMART").
+- Gộp lại tài liệu: xoá `báo cáo doanh thu-lãi gộp theo ngành hàng
+  BRGMART.md` và `bc-doanh-thu-nganhhang-ldtd.md` (tách riêng không còn
+  đúng — 3 báo cáo nay lại dùng CHUNG 1 tài liệu), viết lại đầy đủ `báo
+  cáo doanh thu-nhập hàng theo ngành hàng.md` mô tả đúng cơ chế mới. Cập
+  nhật bảng "Danh mục báo cáo" (`hướng_dẫn_báo_cáo.md` mục 17).
+- Cập nhật lại `deploy/Hướng dẫn triển khai gộp — bản 9.59 đến 9.67.md`
+  (đổi tên từ "...đến 9.66", gộp Phần 3/4 cũ thành 1 Phần 3 duy nhất mô
+  tả ĐÚNG bước triển khai cuối cùng, không cần trải qua bản lỗi giữa
+  chừng).
+- Đã kiểm chứng bằng mock test riêng (4 nhóm assertion pass): `targetDomain`
+  đọc đúng từ `definition` (không hardcode), 2 báo cáo dùng CHUNG 1
+  runner nhưng ra Chỉ tiêu ĐỘC LẬP đúng domain riêng, thiếu `targetDomain`
+  báo lỗi rõ ràng thay vì âm thầm sai.
+- Build-check `etl-admin` (vite build) pass.
+
 ## 9.66 — Xác nhận: DSMART CHƯA có nguồn dữ liệu hàng hỏng hủy (BRGMART)
 
 **Theo xác nhận của người dùng** — view `V_HCRC_HANGHONGHUY_NGANHHANG`

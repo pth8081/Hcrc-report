@@ -1,13 +1,31 @@
-// lib/nganhHangBrgRunner.js — SourceType='nganhHangBrg': báo cáo "Doanh
-// thu, lãi gộp theo ngành hàng" theo ĐÚNG mẫu Excel BRGMART người dùng gửi
-// (bản 9.63, theo yêu cầu người dùng). RIÊNG so với báo cáo gốc "Doanh thu
-// theo ngành hàng" (SourceType='composite', seedNganhHangReports.js) vì
-// CHIA 3 KHỐI LẶP LẠI "Toàn hệ thống BRG" / "LFL" / "NSO" từ CÙNG 1 lần đọc
+// lib/nganhHangBrgRunner.js — SourceType='nganhHangBrg': định dạng MỚI
+// (bản 9.63, sửa lại bản 9.67 — theo yêu cầu người dùng) cho đúng 2 báo
+// cáo ĐÃ CÓ "Doanh thu theo ngành hàng" (`bc-doanh-thu-nganhhang`) và
+// "Doanh thu theo ngành hàng (LDTD)" (`bc-doanh-thu-nganhhang-ldtd") —
+// KHÔNG phải 1 báo cáo thứ 3 riêng (bản 9.63 ban đầu tạo nhầm
+// `bc-doanh-thu-nganhhang-brgmart` tách biệt, người dùng yêu cầu sửa lại
+// "đừng tách bc" — đã BỎ report thứ 3, xem `seedNganhHangReports.js`).
+// "BRGMART" trong tên file này chỉ còn ý nghĩa LỊCH SỬ (tên mẫu Excel gốc,
+// ký hiệu khối "Toàn hệ thống BRG" bên dưới), KHÔNG phải tên 1 báo cáo.
+// `targetDomain` lấy từ `definition.targetDomain` (MỖI báo cáo 1 domain
+// Chỉ tiêu RIÊNG đã có từ trước — `sales-targets-nganhhang-dt`/
+// `sales-targets-nganhhang-dt-ldtd` — KHÔNG tạo domain Chỉ tiêu BRGMART
+// riêng nữa), trường `ChiTieuLaiGop` tự nhận được nhờ cơ chế field-động
+// `etl/lib/salesTargetsImport.js:parseGenericShape()` sẵn có — admin chỉ
+// cần thêm cột `ChiTieuLaiGop` vào file Excel nhập Chỉ tiêu hiện tại, KHÔNG
+// cần đổi code/trang etl-admin nào.
+//
+// RIÊNG so với định dạng CŨ của báo cáo gốc ("Doanh thu theo ngành hàng",
+// SourceType='composite', xem `lib/compositeReportRunner.js`) vì CHIA 3
+// KHỐI LẶP LẠI "Toàn hệ thống BRG" / "LFL" / "NSO" từ CÙNG 1 lần đọc
 // domain — composite chỉ ghép ĐÚNG 1 dòng/entityCode, không tự nhân bản
 // theo nhóm siêu thị, nên viết runner RIÊNG (mirror
 // lib/purchaseOrderRunner.js: dedicated runner cho báo cáo có hình dạng
 // đặc thù, TÁI DÙNG các hàm đọc/gộp dữ liệu đã có ở
 // lib/compositeReportRunner.js, KHÔNG viết lại logic đọc dwh.ReportFacts).
+// Báo cáo "Nhập hàng theo ngành hàng" (`bc-nhap-hang-nganhhang`) KHÔNG đổi
+// — giữ nguyên SourceType='composite' cũ, không có khái niệm Lãi gộp/hàng
+// hỏng hủy cho nhập hàng.
 //
 // 3 KHỐI:
 //   - "Toàn hệ thống BRG" — CỘNG DỒN MỌI siêu thị (không lọc gì).
@@ -52,7 +70,6 @@ const { assignSttIfPresent } = require('./reportCellFormat');
 
 const DOANHTHU_DOMAIN = 'doanhthu_nganhhang';
 const HONGHUY_DOMAIN = 'hanghonghuy_nganhhang';
-const TARGET_DOMAIN = 'sales-targets-nganhhang-dt-brgmart';
 
 // Danh mục 12 ngành hàng CỐ ĐỊNH, ĐÚNG thứ tự mã tăng dần — khớp mẫu Excel
 // BRGMART người dùng gửi. Hiện ĐỦ cả 12 dòng mỗi khối dù ngành hàng đó
@@ -209,6 +226,10 @@ function buildSegmentRows(khoi, currentMap, lastYearMap, targetMap, hongHuyByNam
 }
 
 async function runNganhHangBrgReport(definition, filterValues = {}) {
+  const targetDomain = definition.targetDomain;
+  if (!targetDomain) {
+    throw new Error('Báo cáo thiếu DefinitionJson.targetDomain (vd "sales-targets-nganhhang-dt" hoặc "sales-targets-nganhhang-dt-ldtd") — SourceType=\'nganhHangBrg\' bắt buộc phải khai domain Chỉ tiêu riêng của báo cáo đó.');
+  }
   const dwhPool = await getPool('DWH');
   const range = resolveRequestedRange(filterValues);
   const lastYearRange = { from: shiftYearMinus1(range.from), to: shiftYearMinus1(range.to) };
@@ -229,7 +250,7 @@ async function runNganhHangBrgReport(definition, filterValues = {}) {
 
   const fromPeriod = firstOfMonth(range.from);
   const toPeriod = firstOfMonth(range.to);
-  const targetRows = await runSalesTargetsBlockRange(dwhPool, TARGET_DOMAIN, fromPeriod, toPeriod);
+  const targetRows = await runSalesTargetsBlockRange(dwhPool, targetDomain, fromPeriod, toPeriod);
   const targetMap = new Map(targetRows.map(t => [t.entityCode, t]));
 
   const diemMapping = await loadDiemStkMapping();
