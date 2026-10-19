@@ -12,7 +12,9 @@
 }
 
 * { box-sizing: border-box; }
-body { margin: 0; font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--ink); }
+/* Phông Inter (bản 9.69, theo yêu cầu người dùng — xem chú thích import
+   ở src/main.jsx) — fallback system-ui nếu font chưa tải kịp/lỗi mạng. */
+body { margin: 0; font-family: 'Inter', system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--ink); }
 h1 { font-size: 22px; margin: 0 0 16px; }
 h2 { font-size: 18px; margin: 0 0 12px; }
 h3 { font-size: 15px; margin: 0 0 8px; }

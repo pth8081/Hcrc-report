@@ -35,6 +35,19 @@ const THIN = { style: 'thin', color: { argb: 'FF000000' } };
 const BORDER_ALL = { top: THIN, left: THIN, bottom: THIN, right: THIN };
 function fillArgb(hex6) { return { type: 'pattern', pattern: 'solid', fgColor: { argb: `FF${hex6}` } }; }
 
+// Phông Inter (bản 9.69, theo yêu cầu người dùng — "phông này hơi xấu...
+// tham khảo phông chữ báo cáo quốc tế chuyên nghiệp hơn", demo 4 lựa chọn
+// qua Artifact, người dùng chọn Inter) — ÁP DỤNG ĐỒNG BỘ với web (xem
+// rp-user/src/main.jsx) và PDF (xem exportPdf.js). LƯU Ý khác PDF (nhúng
+// font thật vào file): Excel CHỈ ghi TÊN font vào file — máy mở file PHẢI
+// có cài Inter thì mới hiện đúng, KHÔNG có thì Excel tự thay bằng font mặc
+// định của máy đó (thường Calibri), KHÔNG lỗi/vỡ chữ, chỉ không đổi giao
+// diện. `fontName()` gộp `name: FONT_NAME` vào MỌI nơi set `cell.font =`
+// (8 nơi, xem các hàm dùng bên dưới) — tránh sót 1 nơi nào đó vẫn dùng
+// font mặc định ExcelJS.
+const FONT_NAME = 'Inter';
+function fontName(opts) { return { name: FONT_NAME, ...opts }; }
+
 // Bản 8.99 (theo yêu cầu người dùng — "chữ cách giữa dòng kẻ trên dưới quá
 // sát sẽ khó nhìn... dàn dòng ra thêm nữa... chữ nhỏ hơn một xíu") — TRƯỚC
 // ĐÂY dòng dữ liệu KHÔNG khai font/height riêng, rơi về mặc định ExcelJS
@@ -103,7 +116,7 @@ function addReportSheet(workbook, definition, rows, sheetName) {
     sheet.mergeCells(1, 1, 1, colCount);
     const titleCell = sheet.getCell(1, 1);
     titleCell.value = definition.title;
-    titleCell.font = { bold: true, size: 14 };
+    titleCell.font = fontName({ bold: true, size: 14 });
     titleCell.alignment = { horizontal: 'center' };
     sheet.getRow(1).height = 22;
 
@@ -118,7 +131,7 @@ function addReportSheet(workbook, definition, rows, sheetName) {
       sheet.mergeCells(r1, start, r1, end);
       const top = sheet.getCell(r1, start);
       top.value = g.label;
-      top.font = { bold: true };
+      top.font = fontName({ bold: true });
       top.alignment = { horizontal: 'center', vertical: 'middle' };
       for (let c = start; c <= end; c++) {
         covered.add(c);
@@ -126,7 +139,7 @@ function addReportSheet(workbook, definition, rows, sheetName) {
         const botC = sheet.getCell(r2, c);
         botC.fill = fillArgb(argb);
         botC.value = columns[c - 1].label;
-        botC.font = { bold: true };
+        botC.font = fontName({ bold: true });
         botC.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
       }
     }
@@ -136,7 +149,7 @@ function addReportSheet(workbook, definition, rows, sheetName) {
       sheet.mergeCells(r1, c, r2, c);
       const cell = sheet.getCell(r1, c);
       cell.value = col.label;
-      cell.font = { bold: true };
+      cell.font = fontName({ bold: true });
       cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
       // standaloneColumnColors (bản 8.58) — tô HEADER riêng 1 cột đơn lẻ
       // không thuộc columnGroups nào (vd "Trung bình GD"), KHÔNG thêm dòng
@@ -160,7 +173,7 @@ function addReportSheet(workbook, definition, rows, sheetName) {
     // nhánh columnGroups ở trên, nơi 4 báo cáo LDTD/HCRC đã đi qua).
     const flatHeaderFill = fillArgb(resolveGroupColor('green', GROUP_COLORS_CORPORATE));
     sheet.getRow(1).values = columns.map(c => c.label);
-    sheet.getRow(1).font = { bold: true };
+    sheet.getRow(1).font = fontName({ bold: true });
     sheet.getRow(1).eachCell({ includeEmpty: true }, (cell) => { cell.fill = flatHeaderFill; });
     dataStartRow = 2;
     sheet.views = [{ state: 'frozen', ySplit: 1 }];
@@ -181,7 +194,7 @@ function addReportSheet(workbook, definition, rows, sheetName) {
       sheet.mergeCells(dataStartRow + rIdx, 1, dataStartRow + rIdx, colCount);
       const cell = sheet.getCell(dataStartRow + rIdx, 1);
       cell.value = row.__sectionLabel;
-      cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: groups.length ? DATA_FONT_SIZE + 1 : undefined };
+      cell.font = fontName({ bold: true, color: { argb: 'FFFFFFFF' }, size: groups.length ? DATA_FONT_SIZE + 1 : undefined });
       cell.fill = fillArgb(row.__sectionColor || '2B2F38');
       cell.alignment = { horizontal: 'left', vertical: 'middle' };
       if (groups.length) excelRow.height = DATA_ROW_HEIGHT;
@@ -199,6 +212,12 @@ function addReportSheet(workbook, definition, rows, sheetName) {
       const cell = excelRow.getCell(cIdx + 1);
       const raw = cIdx === sttColIdx ? sttValues[rIdx] : row[col.key];
       cell.value = sanitizeFormulaValue(raw);
+      // Phông nền Inter (bản 9.69) — đặt TRƯỚC mọi nhánh bên dưới, để báo
+      // cáo PHẲNG (không columnGroups, trước đây KHÔNG set font cho dòng
+      // dữ liệu thường -> rơi về Calibri mặc định ExcelJS) cũng có Inter;
+      // các nhánh group/fillColor bên dưới GHI ĐÈ thêm bold/size, vẫn giữ
+      // `name` qua fontName().
+      cell.font = fontName({});
       colMaxLen[cIdx] = Math.max(colMaxLen[cIdx], estimateDisplayLength(raw, col));
       if (typeof cell.value === 'number') {
         // "[$-409]" ép định dạng số theo locale en-US (dấu phẩy phân cách
@@ -226,7 +245,7 @@ function addReportSheet(workbook, definition, rows, sheetName) {
       if (groups.length) {
         cell.alignment = { ...(cell.alignment || {}), vertical: 'middle' };
         cell.border = BORDER_ALL;
-        cell.font = { size: DATA_FONT_SIZE };
+        cell.font = fontName({ size: DATA_FONT_SIZE });
       }
       // Dòng tổng (SourceType='composite' + groupBy — xem
       // lib/compositeReportRunner.js) đánh dấu bằng __isSubtotal, không phải
@@ -241,7 +260,7 @@ function addReportSheet(workbook, definition, rows, sheetName) {
       const fillColor = resolveRowFillColor(row, col, groups, GROUP_COLORS_CORPORATE, SUBTOTAL_COLOR_CORPORATE, GRAND_TOTAL_COLOR_CORPORATE);
       if (fillColor) {
         cell.fill = fillArgb(fillColor);
-        cell.font = groups.length ? { size: DATA_FONT_SIZE, bold: true } : { bold: true };
+        cell.font = groups.length ? fontName({ size: DATA_FONT_SIZE, bold: true }) : fontName({ bold: true });
       } else if (zebraFlags[rIdx]) {
         cell.fill = fillArgb(ZEBRA_COLOR_CORPORATE);
       }

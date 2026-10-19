@@ -14,6 +14,35 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 9.69 — Đổi phông chữ báo cáo sang Inter (web + Excel + PDF)
+
+**Thay đổi**: xem chi tiết đầy đủ ở `VERSION.md`. Tóm tắt: đổi phông chữ
+báo cáo từ `system-ui`/Calibri/Noto Sans Vietnamese (không đồng nhất giữa
+web/Excel/PDF) sang **Inter** ở CẢ 3 nơi — theo yêu cầu người dùng, đã
+demo 4 lựa chọn qua Artifact trước khi chọn.
+
+**Các bước**:
+
+1. `git pull origin main`.
+2. `npm install` ở CẢ `rp-user` (thêm `@fontsource/inter`) VÀ `rp-server`
+   (đổi `@openfonts/noto-sans_vietnamese` sang `@openfonts/inter_vietnamese`
+   — `package-lock.json` đã cập nhật, `npm install` tự xử lý đúng).
+3. `cd rp-user && npm run build` (bundle tĩnh phục vụ qua pm2/nginx PHẢI
+   build lại — font + `styles.css`/`main.jsx` đổi).
+4. `pm2 restart hcrc-rp-server` (export Excel/PDF đổi font nhúng).
+5. Mở lại 1 báo cáo bất kỳ (web) — chữ đổi sang Inter, dấu tiếng Việt vẫn
+   hiển thị đúng (kiểm bằng mắt 1-2 dòng có dấu, vd tên ngành hàng).
+6. Xuất thử **Excel** VÀ **PDF** của 1 báo cáo — mở file, kiểm font tên
+   ô là "Inter" (Excel: bôi đen 1 ô, xem ô "Font" trên thanh công cụ).
+   **LƯU Ý**: Excel chỉ hiện đúng Inter nếu MÁY MỞ FILE có cài font này
+   — máy chưa cài vẫn mở được bình thường, chỉ tự thay bằng font mặc
+   định của máy đó (không lỗi, không mất dữ liệu).
+
+Không có bước nào ở bản này làm mất dữ liệu — chỉ đổi font hiển thị/xuất,
+không đụng CSDL/schema/API nào.
+
+---
+
 ## 9.68 — Bán lẻ/Bán buôn + Giá trị hàng hỏng hủy cho 2 báo cáo doanh thu theo ngành hàng
 
 **Thay đổi**: xem chi tiết đầy đủ ở `VERSION.md` + `báo cáo doanh thu-nhập

@@ -29,6 +29,45 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 9.69 — Đổi phông chữ báo cáo sang Inter (web + Excel + PDF)
+
+**Theo yêu cầu người dùng** — "Bạn xem có thể tham khảo phông chữ ở một
+báo cáo của một cái đơn vị quốc tế nào đó nó chuyên nghiệp hơn... Tôi
+thấy cái phông này nó hơi xấu." Demo 4 lựa chọn qua Artifact (phông hiện
+tại/Inter/IBM Plex Sans/Be Vietnam Pro, cùng 1 bảng mẫu báo cáo ngành
+hàng để so sánh thật) — người dùng chọn **Inter**.
+
+- **Web (rp-user)**: tự lưu trữ Inter qua gói `@fontsource/inter` (KHÔNG
+  tải từ fonts.googleapis.com lúc chạy — tránh phụ thuộc mạng ngoài,
+  nhất quán với cách PDF tự lưu trữ font), chỉ import 5 cỡ chữ thật dùng
+  (400/500/600/700/800). `styles.css` đổi `body { font-family }` từ
+  `system-ui` sang `'Inter', system-ui, ...` (fallback nếu font chưa tải
+  kịp/lỗi mạng). Kiểm tra qua Playwright: `getComputedStyle` ra đúng
+  `Inter`, trình duyệt chỉ tải ĐÚNG bộ ký tự (Latin/Latin Extended/
+  Vietnamese) thật xuất hiện trên trang (không tải thừa cyrillic/greek/…
+  dù khai đủ trong CSS), không lọt vào PWA precache (woff2 không nằm
+  trong `globPatterns` mặc định của `vite-plugin-pwa`).
+- **Excel (rp-server/lib/exportExcel.js)**: helper `fontName()` gộp
+  `name: 'Inter'` vào MỌI nơi set `cell.font =` (9 nơi, kể cả dòng dữ
+  liệu THƯỜNG ở báo cáo PHẲNG — trước đây không set font nào, rơi về
+  Calibri mặc định ExcelJS). **Lưu ý khác PDF**: Excel chỉ ghi TÊN font
+  vào file — máy mở file PHẢI có cài Inter mới hiện đúng, không có thì
+  Excel tự thay font mặc định của máy đó (không lỗi, chỉ không đổi giao
+  diện).
+- **PDF (rp-server/lib/exportPdf.js)**: đổi font nhúng từ Noto Sans
+  Vietnamese sang Inter — gói `@openfonts/inter_vietnamese` (CÙNG cách
+  tự lưu trữ, chỉ đổi tên gói/file, không đổi cơ chế nhúng qua
+  `@pdf-lib/fontkit`). Đã kiểm tra font này mã hoá đủ CẢ chữ ASCII
+  thường LẪN dấu thanh tiếng Việt trước khi đổi (script thử
+  `embedFont`/`widthOfTextAtSize` với chuỗi hỗn hợp).
+- Xoá dependency `@openfonts/noto-sans_vietnamese` (rp-server) không còn
+  dùng.
+- Build-check rp-user (`npm run build`, không lọt vào precache) +
+  syntax-check `exportExcel.js`/`exportPdf.js` + sinh thử PDF/Excel thật
+  bằng dữ liệu mẫu (kiểm `cell.font.name === 'Inter'` đọc lại qua
+  ExcelJS, render PDF qua `pdftoppm` xem ảnh) + Playwright screenshot
+  trang đăng nhập — đều PASS.
+
 ## 9.68 — Bán lẻ/Bán buôn + Giá trị hàng hỏng hủy cho 2 báo cáo doanh thu theo ngành hàng
 
 **Theo yêu cầu người dùng** — "Trong bản trans bạn đã làm doanh thu cuối

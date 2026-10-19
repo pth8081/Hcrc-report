@@ -24,8 +24,17 @@
 // cáo, tên siêu thị, ngành hàng...) đều có dấu, nên trước đây drawText() với
 // StandardFonts NÉM LỖI NGAY ("WinAnsi cannot encode...") — xuất PDF gần như
 // LUÔN lỗi 500, và lịch gửi email ExportFormat='pdf' (jobs/reportEmailScheduler.js)
-// thất bại vĩnh viễn mỗi lần chạy. Nhúng font Noto Sans Vietnamese (qua
-// @pdf-lib/fontkit, hỗ trợ Unicode đầy đủ) thay cho font chuẩn.
+// thất bại vĩnh viễn mỗi lần chạy. Nhúng font Unicode đầy đủ (qua
+// @pdf-lib/fontkit) thay cho font chuẩn.
+//
+// Bản 9.69 (theo yêu cầu người dùng — "phông này hơi xấu... tham khảo
+// phông chữ báo cáo quốc tế chuyên nghiệp hơn", demo 4 lựa chọn qua
+// Artifact, người dùng chọn Inter) — ĐỔI từ Noto Sans Vietnamese sang
+// Inter (gói `@openfonts/inter_vietnamese`, CÙNG CÁCH tự lưu trữ với gói
+// Noto Sans cũ — chỉ đổi tên gói/file, không đổi cơ chế nạp/nhúng) — ĐỒNG
+// BỘ với web (rp-user/src/main.jsx) và Excel (lib/exportExcel.js). Đã kiểm
+// tra font này mã hoá đủ CẢ chữ ASCII thường LẪN dấu thanh tiếng Việt
+// (không chỉ riêng ký tự có dấu) trước khi đổi.
 const { PDFDocument, rgb } = require('pdf-lib');
 const fontkit = require('@pdf-lib/fontkit');
 const fs = require('fs');
@@ -35,7 +44,7 @@ const {
   ZEBRA_COLOR, GROUP_COLORS_CORPORATE, SUBTOTAL_COLOR_CORPORATE, GRAND_TOTAL_COLOR_CORPORATE, ZEBRA_COLOR_CORPORATE
 } = require('./reportCellFormat');
 
-const FONT_DIR = path.join(__dirname, '..', 'node_modules', '@openfonts', 'noto-sans_vietnamese', 'files');
+const FONT_DIR = path.join(__dirname, '..', 'node_modules', '@openfonts', 'inter_vietnamese', 'files');
 
 // Nạp LAZY (trong hàm, không phải ở scope module) + cache lại sau lần đầu —
 // trước đây fs.readFileSync() chạy ngay lúc require() (module này được
@@ -51,11 +60,11 @@ function loadFontBytes() {
   if (fontBytesCache) return fontBytesCache;
   try {
     fontBytesCache = {
-      regular: fs.readFileSync(path.join(FONT_DIR, 'noto-sans-vietnamese-400.woff')),
-      bold: fs.readFileSync(path.join(FONT_DIR, 'noto-sans-vietnamese-700.woff'))
+      regular: fs.readFileSync(path.join(FONT_DIR, 'inter-vietnamese-400.woff')),
+      bold: fs.readFileSync(path.join(FONT_DIR, 'inter-vietnamese-700.woff'))
     };
   } catch (err) {
-    throw new Error(`Không nạp được font tiếng Việt cho xuất PDF (thiếu gói @openfonts/noto-sans_vietnamese — kiểm tra lại "npm install" đã chạy đủ chưa): ${err.message}`);
+    throw new Error(`Không nạp được font tiếng Việt cho xuất PDF (thiếu gói @openfonts/inter_vietnamese — kiểm tra lại "npm install" đã chạy đủ chưa): ${err.message}`);
   }
   return fontBytesCache;
 }
