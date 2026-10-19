@@ -3,9 +3,8 @@
 Tài liệu tham chiếu chính thức cho 3 báo cáo — **đọc file này TRƯỚC khi sửa
 bất kỳ logic nào liên quan** (`rp-server/scripts/seedNganhHangReports.js`,
 `rp-server/lib/nganhHangBrgRunner.js`, `etl/scripts/seedNganhHangSync.js`,
-`etl/scripts/seedHangHongHuySync.js`, `etl/lib/salesTargetsImport.js` phần
-"generic" shape), cùng quy ước với "báo cáo doanh thu cuối ngày.md"/
-"bc-don-dat-hang.md":
+`etl/lib/salesTargetsImport.js` phần "generic" shape), cùng quy ước với
+"báo cáo doanh thu cuối ngày.md"/"bc-don-dat-hang.md":
 
 | ReportId | Tiêu đề | SourceType | Domain Chỉ tiêu riêng |
 |---|---|---|---|
@@ -22,6 +21,19 @@ mỗi báo cáo GIỮ NGUYÊN domain Chỉ tiêu riêng của nó (KHÔNG gộp 
 tạo domain Chỉ tiêu "BRGMART" riêng nào khác) — xem mục 5/6. Báo cáo "Nhập
 hàng theo ngành hàng" KHÔNG đổi gì (không có khái niệm Lãi gộp/hàng hỏng
 hủy cho nhập hàng).
+
+**Lịch sử quan trọng (bản 9.68, theo yêu cầu người dùng)**: thêm Bán lẻ/
+Bán buôn (TRANS_CODE 211/212/221/222 — "Bạn xử lý tiếp báo cáo doanh thu
+theo ngành hàng ldtd và hcrc đi nhé") + "Giá trị hàng hỏng hủy" (TRANS_CODE
+318) cho 2 báo cáo DOANH THU — GIẢI QUYẾT HẲN mục 8 cũ (🔴 BLOCKED ở bản
+9.63-9.67, "chưa có nguồn dữ liệu"): hàng hỏng hủy hoá ra CÙNG nguồn
+`STRANS`/VIEW `V_HCRC_DOANHTHU_NGANHHANG` với doanh thu — KHÔNG CẦN domain/
+job riêng (`hanghonghuy_nganhhang`/`seedHangHongHuySync.js` đã XOÁ), và vì
+có `STK_ID` nên giờ hiện được ở CẢ 3 khối BRG/LFL/NSO (trước chỉ BRG). Cột
+"Khối" ĐỔI từ 1 CỘT thường sang 1 DÒNG TIÊU ĐỀ NGANG merge hết cột
+(`__isSectionHeader` — tính năng MỚI, opt-in, thêm vào DataTable.jsx/
+exportExcel.js/exportPdf.js dùng chung nhưng KHÔNG ảnh hưởng báo cáo nào
+khác chưa dùng cờ này) — theo đúng góp ý người dùng. Xem mục 1/2/5/8 MỚI.
 
 ## 1. Yêu cầu nghiệp vụ (đã chốt qua nhiều vòng trao đổi với người dùng)
 
@@ -50,15 +62,18 @@ hủy cho nhập hàng).
 
    Báo cáo "Nhập hàng theo ngành hàng" KHÔNG áp dụng danh mục cố định này —
    vẫn tự xếp theo dữ liệu thực tế như trước (không đổi).
-3. **2 báo cáo DOANH THU chia 3 KHỐI lặp lại cho CÙNG 12 ngành hàng** (bản
-   9.63/9.67): "Toàn hệ thống BRG" (cộng dồn mọi siêu thị) / "LFL" ("Like
-   For Like", siêu thị ỔN ĐỊNH) / "NSO" ("New Store Opening", siêu thị MỚI
-   MỞ — xem mục 7). Thể hiện bằng 1 CỘT "Khối" + dòng "Tổng cộng" tô đậm
-   riêng từng khối — KHÔNG phải dòng tiêu đề gộp ngang (colSpan) như ảnh
-   mẫu gốc, vì bảng/Excel/PDF dùng chung cho nhiều báo cáo khác trong hệ
-   thống hiện chưa hỗ trợ dòng tiêu đề gộp ngang trong thân bảng (xem mục 5).
-   Báo cáo "Nhập hàng theo ngành hàng" KHÔNG chia khối — vẫn 1 dòng/ngành
-   hàng phẳng như trước.
+3. **2 báo cáo DOANH THU chia 3 KHỐI lặp lại cho CÙNG 12 ngành hàng**
+   (bản 9.63/9.67): "Toàn hệ thống BRG" (cộng dồn mọi siêu thị) / "LFL"
+   ("Like For Like", siêu thị ỔN ĐỊNH) / "NSO" ("New Store Opening", siêu
+   thị MỚI MỞ — xem mục 7). Mỗi khối mở đầu bằng **1 DÒNG TIÊU ĐỀ NGANG
+   merge hết cột** (bản 9.68, theo yêu cầu người dùng — "Chỗ khối phải quy
+   ngang trên dòng đầu tiên của khối và cover all cột theo kiểu merge lại
+   thành 1 dòng") + kết bằng 1 dòng "Tổng cộng ..." tô đậm — KHÔNG CÒN là
+   1 CỘT "Khối" thường như bản 9.63/9.67 (lúc đó hạ tầng bảng/Excel/PDF
+   dùng chung chưa hỗ trợ dòng tiêu đề gộp ngang trong thân bảng — bản 9.68
+   THÊM tính năng này qua cờ `__isSectionHeader`, opt-in, không ảnh hưởng
+   báo cáo nào khác chưa dùng cờ — xem mục 5). Báo cáo "Nhập hàng theo
+   ngành hàng" KHÔNG chia khối — vẫn 1 dòng/ngành hàng phẳng như trước.
 4. **Bộ lọc "Chi nhánh" tuỳ chọn** (Báo cáo "Nhập hàng theo ngành hàng" —
    giữ nguyên cơ chế cũ) — không chọn gì = cộng dồn TOÀN HỆ THỐNG (mọi siêu
    thị); chọn 1/vài siêu thị = chỉ cộng dồn đúng (các) siêu thị đó, vẫn ra
@@ -69,21 +84,28 @@ hủy cho nhập hàng).
    Chọn bộ lọc "Chi nhánh" ở báo cáo "Nhập hàng theo ngành hàng" KHÔNG làm
    thay đổi cột "Chỉ tiêu" — chỉ thay đổi cột "Thực đạt"/"Thực nhập" (cộng
    dồn đúng phạm vi đã chọn).
-6. **2 báo cáo DOANH THU thêm cụm "Lãi gộp"** (bản 9.63/9.67) — "Giá trị"
-   (lấy thẳng từ dữ liệu đã đồng bộ, KHÔNG trừ hàng hỏng hủy), "Tỷ lệ" (=
-   Giá trị lãi gộp ÷ **Doanh thu cuối** × 100 ở khối "Toàn hệ thống BRG" —
-   bản 9.64 sửa lại, ban đầu tính nhầm theo Thực đạt thô; khối LFL/NSO vẫn
-   chia cho Thực đạt vì không có khái niệm Doanh thu cuối riêng), "% so chỉ
-   tiêu", "% so cùng kỳ năm trước" — xem công thức đầy đủ ở mục 5.
-7. **"Giá trị hàng hỏng hủy"/"Doanh thu cuối"** (= Thực đạt − Giá trị hàng
-   hỏng hủy, bản 9.63) — CHỈ hiện số ở khối "Toàn hệ thống BRG" (hàng hỏng
-   hủy không tách được theo siêu thị), khối "LFL"/"NSO" để trống "—". **Xem
-   mục 8 — nguồn dữ liệu CHƯA CÓ, đang chờ người dùng xác nhận.**
-8. **LFL/NSO** phân loại qua trang khai báo "Siêu thị NSO" (mục 7) — mã
+6. **2 báo cáo DOANH THU thêm cụm "Lãi gộp"** (bản 9.63/9.67, SỬA LẠI bản
+   9.68) — "Tỷ lệ" (= Giá trị lãi gộp ÷ **Doanh thu cuối** × 100, ÁP DỤNG
+   CẢ 3 KHỐI từ bản 9.68 — trước đây CHỈ khối "Toàn hệ thống BRG" vì hàng
+   hỏng hủy khi đó chỉ có ở khối đó), "Giá trị" (bản 9.68: ĐÃ TRỪ giá trị
+   hàng hỏng hủy — trước đây lấy thẳng KHÔNG trừ), "% so chỉ tiêu", "% so
+   cùng kỳ năm trước" — xem công thức đầy đủ ở mục 5.
+7. **Bán lẻ/Bán buôn** (bản 9.68, theo yêu cầu người dùng — TRANS_CODE
+   211/212=Bán buôn/Trả bán buôn, 221/222=Bán lẻ/Trả bán lẻ) — MỖI 1 trong
+   8 chỉ số (4 Doanh thu + 4 Lãi gộp) có 3 CỘT CON "Total"/"Bán lẻ"/"Bán
+   buôn" (đúng cấu trúc file mẫu Excel gốc) — xem mục 5 công thức đầy đủ +
+   2 giả định đã nêu với người dùng (mã 232 chỉ cộng "Total"; "Chỉ tiêu"
+   không tách kênh).
+8. **"Giá trị hàng hỏng hủy"** (TRANS_CODE 318, bản 9.63 → GIẢI QUYẾT bản
+   9.68) — hiện ở CẢ 3 khối BRG/LFL/NSO (trước đây CHỈ "Toàn hệ thống BRG",
+   vì nguồn khi đó không có `STK_ID`) — dùng để tính "Doanh thu cuối"
+   (NGẦM, không hiện cột riêng — đúng file mẫu gốc không có cột này) và trừ
+   trực tiếp vào "Lãi gộp — Giá trị" kênh "Bán lẻ" (xem mục 5/8 MỚI).
+9. **LFL/NSO** phân loại qua trang khai báo "Siêu thị NSO" (mục 7) — mã
    Điểm KHÔNG khai (hoặc đang "Khoá") MẶC ĐỊNH tính là LFL. Danh sách NÀY
    DÙNG CHUNG cho CẢ 2 báo cáo doanh thu (KHÔNG tách riêng theo báo cáo —
    theo yêu cầu người dùng bản 9.67).
-9. Phase 1 chỉ làm cho **hệ gốc/trung tâm** (domain `doanhthu_nganhhang`/
+10. Phase 1 chỉ làm cho **hệ gốc/trung tâm** (domain `doanhthu_nganhhang`/
    `nhaphang_nganhhang`, đọc trực tiếp CSDL DSMART16 trung tâm) — CHƯA làm
    bản "(Thành viên)" 34 cửa hàng riêng.
 
@@ -100,6 +122,15 @@ Xác nhận qua SQL thật (không đoán):
   View này ĐÃ sẵn `STK_ID` (dimension, cho phép tách LFL/NSO theo siêu thị
   ở 2 báo cáo doanh thu — mục 5) và `LaiGop` (giá trị lãi gộp tuyệt đối)
   ngay từ khi tạo ở bản 9.41, KHÔNG cần đồng bộ mới cho cụm Lãi gộp.
+- **Bán lẻ/Bán buôn/Hàng hỏng hủy** (bản 9.68, theo yêu cầu người dùng —
+  "Bảng trans có cột trans_code để phân biệt bán buôn và bán lẻ. Bán buôn
+  là mã 211, trả lại bán buôn 212 và bán lẻ mã 221, trả lại bán lẻ 222,
+  hỏng hủy ở giao dịch 318 cũng cột trans_code"): CÙNG `STRANS`/
+  `V_HCRC_DOANHTHU_NGANHHANG`, THÊM 5 cột `DoanhThuBanLe`/`DoanhThuBanBuon`/
+  `LaiGopBanLe`/`LaiGopBanBuon`/`GiaTriHongHuy` — xem SQL đầy đủ bên dưới.
+  GIẢI QUYẾT hẳn mục 8 cũ (trước đây 🔴 BLOCKED, tưởng cần nguồn/VIEW riêng
+  `V_HCRC_HANGHONGHUY_NGANHHANG` — hoá ra KHÔNG CẦN, cùng nguồn STRANS/
+  STK_ID với doanh thu).
 - **Nhập hàng theo ngành hàng** — nguồn là **`STRANS`** (KHÔNG phải
   `RV_ORDER`), `TRANS_CODE='333'`, `STATUS NOT IN ('D','E')` — ĐÃ XÁC NHẬN
   lại qua bc-don-dat-hang.md (từng giả định sai là `RV_ORDER` ở bản nháp
@@ -119,12 +150,29 @@ SELECT
       - SUM(CASE WHEN s.TRANS_CODE IN ('212','222') THEN s.QTY ELSE 0 END) AS SoLuongBan,
     SUM(CASE WHEN s.TRANS_CODE IN ('211','221','232') THEN s.AMOUNT + s.SURPLUS ELSE 0 END)
       - SUM(CASE WHEN s.TRANS_CODE IN ('212','222') THEN s.AMOUNT + s.SURPLUS ELSE 0 END) AS DoanhThu,
+    -- Bản 9.68 — tách riêng Bán lẻ (221/222) / Bán buôn (211/212). Mã 232
+    -- (không rõ kênh) CHỈ cộng vào "DoanhThu"/"LaiGop" (Total) ở trên,
+    -- KHÔNG cộng vào 2 cột Bán lẻ/Bán buôn dưới đây (giả định đã nêu với
+    -- người dùng, đang để ngỏ nếu 232 thực ra thuộc 1 trong 2 kênh).
+    SUM(CASE WHEN s.TRANS_CODE = '221' THEN s.AMOUNT + s.SURPLUS ELSE 0 END)
+      - SUM(CASE WHEN s.TRANS_CODE = '222' THEN s.AMOUNT + s.SURPLUS ELSE 0 END) AS DoanhThuBanLe,
+    SUM(CASE WHEN s.TRANS_CODE = '211' THEN s.AMOUNT + s.SURPLUS ELSE 0 END)
+      - SUM(CASE WHEN s.TRANS_CODE = '212' THEN s.AMOUNT + s.SURPLUS ELSE 0 END) AS DoanhThuBanBuon,
     SUM(CASE WHEN s.TRANS_CODE IN ('211','221','232') THEN s.SURPLUS ELSE 0 END)
-      - SUM(CASE WHEN s.TRANS_CODE IN ('212','222') THEN s.SURPLUS ELSE 0 END) AS LaiGop
+      - SUM(CASE WHEN s.TRANS_CODE IN ('212','222') THEN s.SURPLUS ELSE 0 END) AS LaiGop,
+    SUM(CASE WHEN s.TRANS_CODE = '221' THEN s.SURPLUS ELSE 0 END)
+      - SUM(CASE WHEN s.TRANS_CODE = '222' THEN s.SURPLUS ELSE 0 END) AS LaiGopBanLe,
+    SUM(CASE WHEN s.TRANS_CODE = '211' THEN s.SURPLUS ELSE 0 END)
+      - SUM(CASE WHEN s.TRANS_CODE = '212' THEN s.SURPLUS ELSE 0 END) AS LaiGopBanBuon,
+    -- "Giá trị hàng hỏng hủy" (TRANS_CODE 318) — KHÔNG trừ trả hàng (không
+    -- có mã "trả hàng hỏng hủy" riêng); GIẢ ĐỊNH cùng công thức AMOUNT+
+    -- SURPLUS như các mã khác (chưa có xác nhận riêng của DBA về ý nghĩa 2
+    -- cột này cho giao dịch 318 — báo lại nếu số ra sai với thực tế).
+    SUM(CASE WHEN s.TRANS_CODE = '318' THEN s.AMOUNT + s.SURPLUS ELSE 0 END) AS GiaTriHongHuy
 FROM dbo.STRANS s
 JOIN dbo.SKU_DEF d ON d.SKU_ID = s.SKU_ID
 LEFT JOIN dbo.DEPTLIST dl ON dl.DEPT_ID = d.DEPT_ID
-WHERE s.STATUS <> 'D' AND s.TRANS_CODE IN ('211','221','232','212','222')
+WHERE s.STATUS <> 'D' AND s.TRANS_CODE IN ('211','221','232','212','222','318')
 GROUP BY s.STK_ID, d.DEPT_ID, dl.DEPT_NAME_U, CAST(s.TRAN_DATE AS DATE);
 
 CREATE OR ALTER VIEW dbo.V_HCRC_NHAPHANG_NGANHHANG AS
@@ -171,9 +219,13 @@ Tái dùng NGUYÊN VẸN 2 "Nguồn dữ liệu" đã có sẵn từ
 `seedLdtdHcrcSync.js` ("DSMART16 - Live"/"DSMART16 - Lịch sử") — không tạo
 nguồn dữ liệu mới.
 
-**"Giá trị hàng hỏng hủy"** (bản 9.63, domain MỚI `hanghonghuy_nganhhang`,
-job riêng `etl/scripts/seedHangHongHuySync.js`) — xem mục 8, CHƯA triển
-khai được vì chưa xác định nguồn dữ liệu thật.
+**"Giá trị hàng hỏng hủy" + Bán lẻ/Bán buôn** (bản 9.63 → GIẢI QUYẾT bản
+9.68) — KHÔNG CÒN domain/job riêng (`hanghonghuy_nganhhang`/
+`seedHangHongHuySync.js` đã XOÁ bỏ) — GỘP LUÔN vào `measureColumns` của 2
+job doanh thu ở trên (`DoanhThuBanLe`/`DoanhThuBanBuon`/`LaiGopBanLe`/
+`LaiGopBanBuon`/`GiaTriHongHuy`, xem mục 2), vì cùng 1 VIEW nguồn — chạy
+LẠI `seedNganhHangSync.js` (không cần script riêng nào khác) sau khi VIEW
+đã có đủ cột mới là tự đồng bộ đủ cả hàng hỏng hủy lẫn Bán lẻ/Bán buôn.
 
 ## 4. Chỉ tiêu "theo toàn công ty"
 
@@ -203,7 +255,7 @@ ngành hàng (`DEPT_ID`) khác hẳn granularity entityCode của domain thực 
 (`<STK_ID>_<DEPT_ID>`), so khớp chuỗi CHÍNH XÁC ở đây sẽ báo sai cho MỌI
 dòng.
 
-## 5. Cơ chế tính — 2 báo cáo DOANH THU (`SourceType='nganhHangBrg'`, bản 9.63/9.67)
+## 5. Cơ chế tính — 2 báo cáo DOANH THU (`SourceType='nganhHangBrg'`, bản 9.63/9.67/9.68)
 
 Dedicated runner `rp-server/lib/nganhHangBrgRunner.js` (mirror
 `lib/purchaseOrderRunner.js`) — KHÔNG dùng `SourceType='composite'` vì hình
@@ -220,43 +272,72 @@ file). Thiếu `targetDomain` trong `DefinitionJson` → runner throw lỗi rõ
 ràng ngay, không âm thầm chạy sai.
 
 **Luồng xử lý mỗi lần chạy**:
+
 1. Đọc `doanhthu_nganhhang` 2 lần (kỳ hiện tại + cùng kỳ năm trước, dịch
-   đúng 1 năm) và `hanghonghuy_nganhhang` 1 lần (chỉ kỳ hiện tại).
+   đúng 1 năm) — CHỈ 1 domain, Bán lẻ/Bán buôn/hàng hỏng hủy đã nằm SẴN
+   trong đó từ bản 9.68 (KHÔNG còn fetch thêm domain `hanghonghuy_nganhhang`
+   riêng nữa như bản 9.63/9.67).
 2. Tra `targetMap` theo `MaNganhHang`, từ ĐÚNG `targetDomain` của báo cáo
    đang chạy.
 3. Với MỖI `STK_ID` xuất hiện trong dữ liệu — phân loại LFL/NSO (mục 7),
    gộp vào 1 trong 2 tập `lflStkIds`/`nsoStkIds`.
 4. Với MỖI khối (BRG = không lọc, LFL = lọc theo `lflStkIds`, NSO = lọc
-   theo `nsoStkIds`) — gộp dữ liệu theo `DEPT_ID`, build đủ 12 dòng ngành
-   hàng + 1 dòng "Tổng cộng".
+   theo `nsoStkIds`) — gộp dữ liệu theo `DEPT_ID`, PUSH 1 dòng
+   `__isSectionHeader` (tiêu đề ngang mở đầu khối) + đủ 12 dòng ngành hàng
+   + 1 dòng "Tổng cộng" (`__isSubtotal`).
 
-**Công thức từng cột** (mọi tỷ lệ làm tròn 1 chữ số thập phân; thiếu mẫu
-số → `null`, hiển thị "—", KHÔNG phải `0`/lỗi):
+**Công thức từng cột** — bản 9.68: MỖI 1 trong 8 chỉ số (4 Doanh thu + 4
+Lãi gộp) có 3 CỘT CON "Total"/"Bán lẻ"/"Bán buôn" (đúng cấu trúc file mẫu
+Excel gốc, mọi tỷ lệ làm tròn 1 chữ số thập phân; thiếu mẫu số → `null`,
+hiển thị "—", KHÔNG phải `0`/lỗi):
 
-| Cột | Công thức |
-|---|---|
-| Chỉ tiêu | `target.ChiTieuDoanhThu` (từ `targetDomain` của báo cáo) |
-| Thực đạt | `current.measures.DoanhThu` |
-| % so chỉ tiêu | Thực đạt ÷ Chỉ tiêu × 100 |
-| % so cùng kỳ năm trước | Thực đạt ÷ Thực đạt cùng kỳ × 100 |
-| Giá trị hàng hỏng hủy | *(chỉ khối BRG)* tổng `GiaTriHongHuy` theo tên ngành hàng — xem mục 8 |
-| Doanh thu cuối | *(chỉ khối BRG)* Thực đạt − Giá trị hàng hỏng hủy |
-| Lãi gộp — Tỷ lệ | Giá trị lãi gộp ÷ MẪU SỐ × 100 — mẫu số = **Doanh thu cuối** ở khối BRG (bản 9.64), = **Thực đạt** ở khối LFL/NSO |
-| Lãi gộp — Giá trị | `current.measures.LaiGop` — lấy THẲNG từ cột `LaiGop` đã đồng bộ, KHÔNG trừ hàng hỏng hủy |
-| Lãi gộp — % so chỉ tiêu | Giá trị lãi gộp ÷ `target.ChiTieuLaiGop` × 100 |
-| Lãi gộp — % so cùng kỳ năm trước | Giá trị lãi gộp ÷ Giá trị lãi gộp cùng kỳ × 100 |
+| Cột | Total | Bán lẻ | Bán buôn |
+|---|---|---|---|
+| Chỉ tiêu | `target.ChiTieuDoanhThu` | *(luôn `null` — giả định 2, hệ thống chưa có Chỉ tiêu riêng theo kênh)* | *(luôn `null`)* |
+| Thực đạt | `current.measures.DoanhThu` | `current.measures.DoanhThuBanLe` | `current.measures.DoanhThuBanBuon` |
+| % so chỉ tiêu | Thực đạt Total ÷ Chỉ tiêu × 100 | `null` | `null` |
+| % so cùng kỳ năm trước | Thực đạt Total ÷ Thực đạt Total cùng kỳ × 100 | Thực đạt Bán lẻ ÷ Thực đạt Bán lẻ cùng kỳ × 100 | tương tự, theo Bán buôn |
+| **Giá trị hàng hỏng hủy** | = Bán lẻ + Bán buôn | `current.measures.GiaTriHongHuy` TOÀN BỘ (giả định — "bán buôn thường không có hàng hỏng hủy") | luôn `0` |
+| Lãi gộp — Tỷ lệ | Lãi gộp Giá trị Total ÷ **Doanh thu cuối** (= Thực đạt Total − Giá trị hàng hỏng hủy Total) × 100 — ÁP DỤNG CẢ 3 KHỐI từ bản 9.68 | Lãi gộp Giá trị Bán lẻ ÷ Thực đạt Bán lẻ × 100 | Lãi gộp Giá trị Bán buôn ÷ Thực đạt Bán buôn × 100 |
+| Lãi gộp — Giá trị | = Bán lẻ + Bán buôn (ĐÃ trừ hàng hỏng hủy — KHÁC bản 9.63/9.67 lấy thẳng KHÔNG trừ) | `current.measures.LaiGopBanLe` − Giá trị hàng hỏng hủy Bán lẻ | `current.measures.LaiGopBanBuon` − Giá trị hàng hỏng hủy Bán buôn (= không đổi, vì luôn 0) |
+| Lãi gộp — % so chỉ tiêu | Lãi gộp Giá trị Total ÷ `target.ChiTieuLaiGop` × 100 | `null` | `null` |
+| Lãi gộp — % so cùng kỳ năm trước | Lãi gộp Giá trị Total ÷ Lãi gộp Giá trị Total cùng kỳ (đã trừ hàng hỏng hủy cùng kỳ) × 100 | tương tự, theo Bán lẻ | tương tự, theo Bán buôn |
 
-Dòng "Tổng cộng" mỗi khối: CỘNG DỒN giá trị tuyệt đối của 12 dòng rồi tính
-LẠI % từ tổng (không lấy trung bình cộng % từng dòng) — `__isSubtotal:
-true`; riêng dòng Tổng cộng khối "Toàn hệ thống BRG" thêm `__isGrandTotal:
-true` (tô màu đồng nhất, xem `lib/reportCellFormat.js`).
+Dòng "Tổng cộng" mỗi khối: CỘNG DỒN giá trị tuyệt đối của 12 dòng (bao gồm
+3 kênh) rồi tính LẠI % từ tổng (không lấy trung bình cộng % từng dòng) —
+`__isSubtotal: true`; riêng dòng Tổng cộng khối "Toàn hệ thống BRG" thêm
+`__isGrandTotal: true` (tô màu đồng nhất, xem `lib/reportCellFormat.js`).
 
-`columnGroups`: `Doanh thu` (xanh lá, 4 cột Chỉ tiêu/Thực đạt/2 cột %) +
-`Lãi gộp` (cam, 4 cột Tỷ lệ/Giá trị/2 cột %). `standaloneColumnColors`:
-`giaTriHongHuy` đỏ, `doanhThuCuoi` xanh dương (không thuộc nhóm nào).
+**Dòng tiêu đề ngang mở đầu mỗi khối** (`__isSectionHeader: true` +
+`__sectionLabel`/`__sectionColor`) — tính năng MỚI bản 9.68 (theo yêu cầu
+người dùng — "Khối phải quy ngang trên dòng đầu tiên... cover all cột
+theo kiểu merge lại thành 1 dòng"): render 1 Ô duy nhất MERGE hết số cột
+(`colSpan`/`mergeCells`/vẽ 1 hình chữ nhật trải hết bề rộng, tuỳ nơi
+render), nền màu `__sectionColor` (hex 6 ký tự), chữ trắng đậm. Đã thêm
+opt-in vào CẢ 3 nơi hiển thị/xuất dùng chung —
+`rp-user/src/components/DataTable.jsx`, `rp-server/lib/exportExcel.js`,
+`rp-server/lib/exportPdf.js` — và vào `lib/reportCellFormat.js`
+(`computeSttValues`/`computeZebraFlags` bỏ qua dòng này, không đánh STT,
+không tính vào đếm xen kẽ zebra). KHÔNG ảnh hưởng báo cáo nào khác (chỉ áp
+dụng khi `row.__isSectionHeader === true`, không báo cáo nào khác đặt cờ
+này).
 
-**Bán lẻ/Bán buôn** (cột "Total"/"Bán lẻ"/"Bán buôn" theo mẫu Excel gốc) —
-CHƯA LÀM, chờ DBA xác nhận cột/cờ phân biệt 2 kênh trong DSMART.
+`columnGroups`: 9 nhóm, mỗi nhóm 3 cột con Total/Bán lẻ/Bán buôn — 4 nhóm
+"Doanh thu — ..." (xanh lá), 1 nhóm "Giá trị hàng hỏng hủy" (đỏ), 4 nhóm
+"Lãi gộp — ..." (cam). KHÔNG còn `standaloneColumnColors` ("Doanh thu
+cuối" không còn là cột hiển thị riêng — chỉ dùng NGẦM để tính mẫu số Tỷ lệ
+lãi gộp Total, đúng file mẫu gốc không có cột này).
+
+**2 giả định đã nêu rõ với người dùng lúc demo, CHƯA có xác nhận cuối
+cùng** (nếu sai, chỉ cần sửa `rp-server/lib/nganhHangBrgRunner.js`, không
+đụng VIEW/ETL):
+
+1. Mã 232 (gộp sẵn vào Total từ trước, không rõ kênh) CHỈ cộng vào
+   "Total", KHÔNG cộng vào "Bán lẻ"/"Bán buôn" — 2 cột đó có thể KHÔNG
+   cộng đúng bằng Total nếu 232 khác 0 trong kỳ.
+2. "Giá trị hàng hỏng hủy" GÁN HẾT cho kênh "Bán lẻ" ("bán buôn thường
+   không có hàng hỏng hủy" — theo người dùng) — mã 318 không tự phân biệt
+   kênh trong `STRANS`, không có cách tách thật nếu giả định này sai.
 
 ## 5b. Cơ chế ghép trong báo cáo — "Nhập hàng theo ngành hàng" (`SourceType='composite'`, KHÔNG đổi)
 
@@ -298,6 +379,7 @@ theo báo cáo, theo yêu cầu người dùng bản 9.67 ("mã NSO sẽ đượ
 chung từ file upload vào báo cáo này").
 
 Phân loại 1 `STK_ID` cụ thể đi qua 2 bước tra cứu:
+
 1. `STK_ID` → `MaDiem` (qua "Ánh xạ Điểm - STK_ID" đã có, dùng `MaStkMoi`
    — xem `rp-server/lib/diemStkMapping.js:buildStkIdLookup()`).
 2. `MaDiem` → có trong `etl.NsoStores` (IsActive=1) không? CÓ → NSO; KHÔNG
@@ -308,49 +390,56 @@ etl_diem_stk_reader;` (đọc qua pool `ETL_DIEM_STK` của `rp-server`, cùng
 cơ chế với "Ánh xạ Điểm - STK_ID" — xem `rp-server/lib/nsoStores.js`, cache
 60s, lỗi kết nối trả `Set` rỗng, KHÔNG làm sập báo cáo).
 
-## 8. "Giá trị hàng hỏng hủy" — 🔴 BLOCKED, CHƯA có nguồn dữ liệu
+## 8. "Giá trị hàng hỏng hủy" + Bán lẻ/Bán buôn — ✅ GIẢI QUYẾT bản 9.68
 
-**ĐÃ XÁC NHẬN với người dùng (18/10/2026)**: view dự kiến
-`V_HCRC_HANGHONGHUY_NGANHHANG` KHÔNG tồn tại, và DSMART **HIỆN CHƯA LƯU dữ
-liệu hàng hỏng hủy ở bất kỳ đâu** (không phải chỉ thiếu VIEW gộp — thiếu
-hẳn nguồn gốc). Người dùng đang tự kiểm tra bảng/nghiệp vụ nào (nếu có) ghi
-nhận việc này.
+**Lịch sử**: mục này TỪNG 🔴 BLOCKED (bản 9.63-9.67) — lúc đó tưởng cần 1
+VIEW/nguồn RIÊNG `V_HCRC_HANGHONGHUY_NGANHHANG` mà DSMART không có. Người
+dùng sau đó xác nhận (18/10/2026): hàng hỏng hủy nằm NGAY TRONG `STRANS`
+(TRANS_CODE **318**, cùng bảng dùng cho doanh thu) — KHÔNG CẦN VIEW/domain
+riêng. CÙNG lúc, người dùng cũng cung cấp mã TRANS_CODE phân biệt Bán lẻ/
+Bán buôn (**211**=Bán buôn, **212**=Trả bán buôn, **221**=Bán lẻ,
+**222**=Trả bán lẻ) — gộp XỬ LÝ chung 1 lần vì cùng ảnh hưởng tới VIEW/
+runner này.
 
-Dự kiến 3 cột cần có khi tìm được nguồn (CÓ THỂ ĐỔI tuỳ cấu trúc bảng gốc
-thật):
+**Nguồn dữ liệu** — xem công thức VIEW đầy đủ ở mục 2 (`GiaTriHongHuy`,
+`DoanhThuBanLe`/`DoanhThuBanBuon`, `LaiGopBanLe`/`LaiGopBanBuon`, tất cả
+trong `V_HCRC_DOANHTHU_NGANHHANG`). KHÔNG cần `NganhHang`/`NgayGhiNhan`
+riêng như dự kiến cũ (mục này trước đây đoán sai hình dạng nguồn, do chưa
+biết nó cùng bảng `STRANS`) — `DEPT_ID`/`STK_ID`/`WORK_DATE` đã có sẵn
+trong VIEW, join/group giống hệt các cột doanh thu khác.
 
-| Cột | Ý nghĩa |
-|---|---|
-| `GiaTriHongHuy` | Giá trị hàng hỏng hủy (số tiền) |
-| `NganhHang` | **TÊN** ngành hàng (KHÔNG phải mã), PHẢI khớp (sau `.trim()`) đúng 1 trong 12 tên ở mục 1 |
-| `NgayGhiNhan` | Ngày ghi nhận hàng hỏng hủy |
+**2 giả định CHƯA xác nhận cuối cùng với DBA/người dùng** (đã nêu rõ ở
+mục 5, lặp lại ở đây để dễ tìm):
 
-**Bộ lệnh kiểm tra** (gửi DBA chạy trên DSMART16 trung tâm):
+1. Mã 232 không tách được Bán lẻ/Bán buôn — chỉ cộng vào "Total".
+2. Hàng hỏng hủy (318) gán HẾT cho kênh "Bán lẻ" (bán buôn thường không
+   có, theo người dùng) — mã 318 không tự phân biệt kênh.
 
-```sql
--- 1) View đã tồn tại chưa?
-SELECT TABLE_NAME, TABLE_TYPE FROM INFORMATION_SCHEMA.TABLES
-WHERE TABLE_NAME = 'V_HCRC_HANGHONGHUY_NGANHHANG';
+Nếu DBA xác nhận khác (vd 318 cũng có thể thuộc Bán buôn trong 1 số
+trường hợp, hoặc 232 thực ra luôn thuộc 1 kênh cố định) — CHỈ cần sửa
+`rp-server/lib/nganhHangBrgRunner.js` (hàm `computeRowFields()`), KHÔNG
+cần đổi VIEW/ETL.
 
--- 2) Tìm bảng gốc khả nghi
-SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
-WHERE TABLE_NAME LIKE '%HONGHUY%' OR TABLE_NAME LIKE '%HUHONG%'
-   OR TABLE_NAME LIKE '%HAOHUT%' OR TABLE_NAME LIKE '%HUYHANG%'
-   OR TABLE_NAME LIKE '%DISCARD%' OR TABLE_NAME LIKE '%DAMAGE%'
-   OR TABLE_NAME LIKE '%SCRAP%' OR TABLE_NAME LIKE '%WRITEOFF%'
-   OR TABLE_NAME LIKE '%ADJUST%' OR TABLE_NAME LIKE '%DIEUCHINH%';
+**Việc còn lại khi deploy** (xem `deploy/Nhật ký triển khai (từ bản
+8.31).md` mục 9.68 để biết đầy đủ các bước, kể cả cho server ĐÃ chạy bản
+9.67 trước đó):
 
--- 3) Nếu STRANS có TRANS_CODE lạ ngoài 211/221/232/212/222/333 đã biết:
-SELECT TRANS_CODE, COUNT(*) AS SoDong FROM dbo.STRANS
-WHERE TRAN_DATE >= DATEADD(day, -30, GETDATE())
-GROUP BY TRANS_CODE ORDER BY TRANS_CODE;
-```
-
-**Cho tới khi có nguồn dữ liệu**: `etl/scripts/seedHangHongHuySync.js`
-không tạo được job đồng bộ thật (domain rỗng) — 2 báo cáo doanh thu vẫn
-chạy ĐÚNG với mọi cột khác, "Giá trị hàng hỏng hủy" tự ra `0` (an toàn,
-không lỗi), "Doanh thu cuối" = Thực đạt, Tỷ lệ lãi gộp tự dùng đúng Thực
-đạt làm mẫu số (vì Doanh thu cuối = Thực đạt lúc hàng hỏng hủy = 0).
+1. Chạy lại VIEW `V_HCRC_DOANHTHU_NGANHHANG` (mục 2) trên `DSMART16` — và
+   VIEW Lịch sử (`deploy/Thiết lập VIEW Doanh thu-Nhập hàng theo Ngành
+   hàng Lịch sử (DSMART16_EOM).sql`) nếu server đã có job Lịch sử.
+2. Chạy lại `node etl/scripts/seedNganhHangSync.js` (và `--with-history`
+   nếu có job Lịch sử) — cập nhật `MeasureColumnsJson` của 2 job doanh thu
+   đã có, KHÔNG tạo job mới.
+3. KHÔNG cần chạy `etl/scripts/seedHangHongHuySync.js` nữa (đã XOÁ) — nếu
+   server trước đó ĐÃ tạo job/domain `hanghonghuy_nganhhang` (không có
+   trong thực tế vì domain đó luôn rỗng — chưa từng chạy được), không cần
+   dọn gì thêm.
+4. Vào etl-admin → Đồng bộ → "Chạy thử" 2 job Live đã cập nhật, xác nhận
+   đồng bộ xong không lỗi, kiểm tra vài dòng có số ở `DoanhThuBanLe`/
+   `DoanhThuBanBuon`/`GiaTriHongHuy`.
+5. Mở lại 2 báo cáo doanh thu — kiểm tra 24 cột giá trị mới + nhóm "Giá
+   trị hàng hỏng hủy" hiện đúng số, dòng tiêu đề ngang mỗi khối hiện đúng
+   (web/Excel/PDF).
 
 ## 9. "Cùng kỳ năm trước" — ĐÃ XÁC ĐỊNH VIEW Lịch sử chạy đúng, còn 1 bước
 

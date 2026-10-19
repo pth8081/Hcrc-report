@@ -152,13 +152,28 @@ export default function DataTable({ columns, rows, emptyMessage = 'Không có d�
         </thead>
         <tbody>
           {rows.map((row, i) => (
-            <tr key={row.id ?? i}>
-              {allColumns.map(col => (
-                <td key={col.key} className={actionsClassName(col.key)} style={cellStyle(row, col, columnGroups, zebraFlags[i])}>
-                  {col.render ? col.render(row) : String(row[col.key] ?? '')}
+            row.__isSectionHeader ? (
+              // __isSectionHeader (bản 9.68, báo cáo "Doanh thu theo ngành
+              // hàng"/"(LDTD)", xem lib/nganhHangBrgRunner.js) — dòng tiêu
+              // đề ngang MERGE hết cột (vd "Toàn hệ thống BRG"/"LFL"/"NSO"),
+              // theo yêu cầu người dùng ("Khối phải quy ngang... cover all
+              // cột theo kiểu merge lại thành 1 dòng") — opt-in qua cờ này,
+              // KHÔNG ảnh hưởng bảng nào khác (không set cờ này thì vẽ như
+              // cũ, bình thường).
+              <tr key={row.id ?? i}>
+                <td colSpan={allColumns.length} style={{ background: `#${row.__sectionColor || '2b2f38'}`, color: '#fff', fontWeight: 700, padding: '8px 10px' }}>
+                  {row.__sectionLabel}
                 </td>
-              ))}
-            </tr>
+              </tr>
+            ) : (
+              <tr key={row.id ?? i}>
+                {allColumns.map(col => (
+                  <td key={col.key} className={actionsClassName(col.key)} style={cellStyle(row, col, columnGroups, zebraFlags[i])}>
+                    {col.render ? col.render(row) : String(row[col.key] ?? '')}
+                  </td>
+                ))}
+              </tr>
+            )
           ))}
         </tbody>
       </table>

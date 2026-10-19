@@ -172,6 +172,21 @@ function addReportSheet(workbook, definition, rows, sheetName) {
 
   rows.forEach((row, rIdx) => {
     const excelRow = sheet.getRow(dataStartRow + rIdx);
+    // __isSectionHeader (bản 9.68, xem rp-server/lib/nganhHangBrgRunner.js)
+    // — dòng tiêu đề ngang MERGE hết cột (vd "Toàn hệ thống BRG"/"LFL"/
+    // "NSO"), KHÔNG phải dòng dữ liệu — ghi 1 Ô duy nhất rồi BỎ QUA toàn bộ
+    // logic tô màu/numFmt theo cột bên dưới (opt-in qua cờ này, không đổi
+    // báo cáo khác).
+    if (row.__isSectionHeader) {
+      sheet.mergeCells(dataStartRow + rIdx, 1, dataStartRow + rIdx, colCount);
+      const cell = sheet.getCell(dataStartRow + rIdx, 1);
+      cell.value = row.__sectionLabel;
+      cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: groups.length ? DATA_FONT_SIZE + 1 : undefined };
+      cell.fill = fillArgb(row.__sectionColor || '2B2F38');
+      cell.alignment = { horizontal: 'left', vertical: 'middle' };
+      if (groups.length) excelRow.height = DATA_ROW_HEIGHT;
+      return;
+    }
     // SỬA bản 8.99 (theo yêu cầu người dùng — "chữ cách giữa dòng kẻ trên
     // dưới quá sát sẽ khó nhìn... dàn dòng ra thêm nữa... chữ nhỏ hơn một
     // xíu") — TRƯỚC ĐÂY không khai `height` cho dòng dữ liệu (Excel tự co

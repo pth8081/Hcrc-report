@@ -19,6 +19,16 @@
    động thật — nếu báo lỗi "Invalid object name", 2 CSDL nằm KHÁC server,
    báo lại để đổi hướng).
 
+   BẢN 9.68 (theo yêu cầu người dùng — Bán lẻ/Bán buôn + hàng hỏng hủy):
+   thêm 5 cột `DoanhThuBanLe`/`DoanhThuBanBuon`/`LaiGopBanLe`/`LaiGopBanBuon`/
+   `GiaTriHongHuy` vào VIEW `V_HCRC_DOANHTHU_NGANHHANG` — mirror ĐÚNG công
+   thức VIEW Live (xem "báo cáo doanh thu-nhập hàng theo ngành hàng.md" mục
+   2): TRANS_CODE `211`=Bán buôn, `212`=Trả bán buôn, `221`=Bán lẻ,
+   `222`=Trả bán lẻ (đã có từ trước, gộp vào "DoanhThu"/"LaiGop" chung —
+   giờ THÊM tách riêng theo 2 kênh), `318`=Hàng hỏng hủy (MỚI, giờ mới gộp
+   vào WHERE/TRANS_CODE IN). KHÔNG đổi VIEW `V_HCRC_NHAPHANG_NGANHHANG`
+   (không có khái niệm Lãi gộp/Bán lẻ-Bán buôn cho nhập hàng).
+
    Sau khi chạy xong file này, chạy:
      node etl/scripts/seedNganhHangSync.js --with-history
    để tạo 2 job đồng bộ "Lịch sử (DSMART16_EOM)" (cùng TargetDomain
@@ -43,10 +53,11 @@ DECLARE @sqlDoanhThuSrc NVARCHAR(MAX);
 -- STRING_AGG suy luận nhầm kiểu ngắn, lỗi "aggregation result exceeded the
 -- limit of 8000 bytes" khi ghép đủ ~93 bảng. Lọc TRANS_CODE/STATUS NGAY
 -- TRONG từng bảng con — khớp ĐÚNG công thức VIEW Live
--- (V_HCRC_DOANHTHU_NGANHHANG trên DSMART16): STATUS<>'D', 5 mã bán/trả hàng.
+-- (V_HCRC_DOANHTHU_NGANHHANG trên DSMART16): STATUS<>'D', 5 mã bán/trả hàng
+-- + '318' (hàng hỏng hủy, bản 9.68).
 SELECT @sqlDoanhThuSrc = STRING_AGG(
     CAST('SELECT STK_ID, SKU_ID, TRAN_DATE, TRANS_CODE, QTY, AMOUNT, SURPLUS FROM '
-    + QUOTENAME(name) + ' WITH (NOLOCK) WHERE STATUS <> ''D'' AND TRANS_CODE IN (''211'',''221'',''232'',''212'',''222'')' AS NVARCHAR(MAX)),
+    + QUOTENAME(name) + ' WITH (NOLOCK) WHERE STATUS <> ''D'' AND TRANS_CODE IN (''211'',''221'',''232'',''212'',''222'',''318'')' AS NVARCHAR(MAX)),
     ' UNION ALL '
 )
 FROM sys.tables
@@ -64,8 +75,17 @@ SELECT
       - SUM(CASE WHEN d.TRANS_CODE IN (''212'',''222'') THEN d.QTY ELSE 0 END) AS SoLuongBan,
     SUM(CASE WHEN d.TRANS_CODE IN (''211'',''221'',''232'') THEN d.AMOUNT + d.SURPLUS ELSE 0 END)
       - SUM(CASE WHEN d.TRANS_CODE IN (''212'',''222'') THEN d.AMOUNT + d.SURPLUS ELSE 0 END) AS DoanhThu,
+    SUM(CASE WHEN d.TRANS_CODE = ''221'' THEN d.AMOUNT + d.SURPLUS ELSE 0 END)
+      - SUM(CASE WHEN d.TRANS_CODE = ''222'' THEN d.AMOUNT + d.SURPLUS ELSE 0 END) AS DoanhThuBanLe,
+    SUM(CASE WHEN d.TRANS_CODE = ''211'' THEN d.AMOUNT + d.SURPLUS ELSE 0 END)
+      - SUM(CASE WHEN d.TRANS_CODE = ''212'' THEN d.AMOUNT + d.SURPLUS ELSE 0 END) AS DoanhThuBanBuon,
     SUM(CASE WHEN d.TRANS_CODE IN (''211'',''221'',''232'') THEN d.SURPLUS ELSE 0 END)
-      - SUM(CASE WHEN d.TRANS_CODE IN (''212'',''222'') THEN d.SURPLUS ELSE 0 END) AS LaiGop
+      - SUM(CASE WHEN d.TRANS_CODE IN (''212'',''222'') THEN d.SURPLUS ELSE 0 END) AS LaiGop,
+    SUM(CASE WHEN d.TRANS_CODE = ''221'' THEN d.SURPLUS ELSE 0 END)
+      - SUM(CASE WHEN d.TRANS_CODE = ''222'' THEN d.SURPLUS ELSE 0 END) AS LaiGopBanLe,
+    SUM(CASE WHEN d.TRANS_CODE = ''211'' THEN d.SURPLUS ELSE 0 END)
+      - SUM(CASE WHEN d.TRANS_CODE = ''212'' THEN d.SURPLUS ELSE 0 END) AS LaiGopBanBuon,
+    SUM(CASE WHEN d.TRANS_CODE = ''318'' THEN d.AMOUNT + d.SURPLUS ELSE 0 END) AS GiaTriHongHuy
 FROM (' + @sqlDoanhThuSrc + N') d
 JOIN DSMART16.dbo.SKU_DEF sd ON sd.SKU_ID = d.SKU_ID
 LEFT JOIN DSMART16.dbo.DEPTLIST dl ON dl.DEPT_ID = sd.DEPT_ID
@@ -110,7 +130,8 @@ GO
 
 -- Kiểm tra nhanh sau khi chạy — phải thấy số dòng + tổng tiền hợp lý của
 -- NĂM TRƯỚC (VIEW Live không có dữ liệu xa vậy), tên ngành hàng KHÔNG lỗi
--- font (đã dùng DEPT_NAME_U):
+-- font (đã dùng DEPT_NAME_U), có cả cột DoanhThuBanLe/DoanhThuBanBuon/
+-- LaiGopBanLe/LaiGopBanBuon/GiaTriHongHuy (bản 9.68):
 SELECT TOP 20 * FROM dbo.V_HCRC_DOANHTHU_NGANHHANG ORDER BY WORK_DATE DESC;
 SELECT TOP 20 * FROM dbo.V_HCRC_NHAPHANG_NGANHHANG ORDER BY WORK_DATE DESC;
 GO
@@ -127,7 +148,7 @@ BEGIN
     DECLARE @sqlDoanhThuSrc NVARCHAR(MAX);
     SELECT @sqlDoanhThuSrc = STRING_AGG(
         CAST('SELECT STK_ID, SKU_ID, TRAN_DATE, TRANS_CODE, QTY, AMOUNT, SURPLUS FROM '
-        + QUOTENAME(name) + ' WITH (NOLOCK) WHERE STATUS <> ''D'' AND TRANS_CODE IN (''211'',''221'',''232'',''212'',''222'')' AS NVARCHAR(MAX)),
+        + QUOTENAME(name) + ' WITH (NOLOCK) WHERE STATUS <> ''D'' AND TRANS_CODE IN (''211'',''221'',''232'',''212'',''222'',''318'')' AS NVARCHAR(MAX)),
         ' UNION ALL '
     )
     FROM sys.tables
@@ -145,8 +166,17 @@ BEGIN
           - SUM(CASE WHEN d.TRANS_CODE IN (''212'',''222'') THEN d.QTY ELSE 0 END) AS SoLuongBan,
         SUM(CASE WHEN d.TRANS_CODE IN (''211'',''221'',''232'') THEN d.AMOUNT + d.SURPLUS ELSE 0 END)
           - SUM(CASE WHEN d.TRANS_CODE IN (''212'',''222'') THEN d.AMOUNT + d.SURPLUS ELSE 0 END) AS DoanhThu,
+        SUM(CASE WHEN d.TRANS_CODE = ''221'' THEN d.AMOUNT + d.SURPLUS ELSE 0 END)
+          - SUM(CASE WHEN d.TRANS_CODE = ''222'' THEN d.AMOUNT + d.SURPLUS ELSE 0 END) AS DoanhThuBanLe,
+        SUM(CASE WHEN d.TRANS_CODE = ''211'' THEN d.AMOUNT + d.SURPLUS ELSE 0 END)
+          - SUM(CASE WHEN d.TRANS_CODE = ''212'' THEN d.AMOUNT + d.SURPLUS ELSE 0 END) AS DoanhThuBanBuon,
         SUM(CASE WHEN d.TRANS_CODE IN (''211'',''221'',''232'') THEN d.SURPLUS ELSE 0 END)
-          - SUM(CASE WHEN d.TRANS_CODE IN (''212'',''222'') THEN d.SURPLUS ELSE 0 END) AS LaiGop
+          - SUM(CASE WHEN d.TRANS_CODE IN (''212'',''222'') THEN d.SURPLUS ELSE 0 END) AS LaiGop,
+        SUM(CASE WHEN d.TRANS_CODE = ''221'' THEN d.SURPLUS ELSE 0 END)
+          - SUM(CASE WHEN d.TRANS_CODE = ''222'' THEN d.SURPLUS ELSE 0 END) AS LaiGopBanLe,
+        SUM(CASE WHEN d.TRANS_CODE = ''211'' THEN d.SURPLUS ELSE 0 END)
+          - SUM(CASE WHEN d.TRANS_CODE = ''212'' THEN d.SURPLUS ELSE 0 END) AS LaiGopBanBuon,
+        SUM(CASE WHEN d.TRANS_CODE = ''318'' THEN d.AMOUNT + d.SURPLUS ELSE 0 END) AS GiaTriHongHuy
     FROM (' + @sqlDoanhThuSrc + N') d
     JOIN DSMART16.dbo.SKU_DEF sd ON sd.SKU_ID = d.SKU_ID
     LEFT JOIN DSMART16.dbo.DEPTLIST dl ON dl.DEPT_ID = sd.DEPT_ID

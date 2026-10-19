@@ -13,7 +13,14 @@
 //      LẠI báo lỗi rõ ràng nếu chưa có).
 //   2. Đã tạo xong VIEW `V_HCRC_DOANHTHU_NGANHHANG`/`V_HCRC_NHAPHANG_NGANHHANG`
 //      trên CSDL `DSMART16` (Live) — xem SQL mẫu đã gửi kèm, hoặc tài liệu
-//      báo cáo riêng khi hoàn thiện.
+//      báo cáo riêng khi hoàn thiện. Bản 9.68 (theo yêu cầu người dùng —
+//      Bán lẻ/Bán buôn + hàng hỏng hủy) — VIEW `V_HCRC_DOANHTHU_NGANHHANG`
+//      THÊM 5 cột `DoanhThuBanLe`/`DoanhThuBanBuon`/`LaiGopBanLe`/
+//      `LaiGopBanBuon`/`GiaTriHongHuy` (TRANS_CODE 211/212/221/222/318) —
+//      GỘP LUÔN hàng hỏng hủy vào domain `doanhthu_nganhhang` này, KHÔNG
+//      còn domain `hanghonghuy_nganhhang`/`seedHangHongHuySync.js` riêng
+//      nữa (đã xoá file đó — xem "báo cáo doanh thu-nhập hàng theo ngành
+//      hàng.md" mục 2/3).
 //   3. (TUỲ CHỌN, cho "Cùng kỳ năm trước") — nếu đã có VIEW tương ứng trên
 //      `DSMART16_EOM`, script này CŨNG tạo job Lịch sử đọc nguồn đó; CHƯA
 //      có thì chỉ tạo 2 job Live, "Cùng kỳ năm trước" tạm trống cho tới
@@ -125,7 +132,14 @@ async function main() {
     {
       name: 'Doanh thu theo ngành hàng - Live (DSMART16)', dataSourceId: liveId, sourceName: 'DSMART16 - Live',
       sourceTable: DOANHTHU_VIEW, keyColumn: 'MaThucThe', dateColumn: 'WORK_DATE',
-      dimensionColumns: ['STK_ID', 'DEPT_ID', 'TenNganhHang'], measureColumns: ['SoLuongBan', 'DoanhThu', 'LaiGop'],
+      dimensionColumns: ['STK_ID', 'DEPT_ID', 'TenNganhHang'],
+      // Bản 9.68 (theo yêu cầu người dùng — Bán lẻ/Bán buôn + hàng hỏng
+      // hủy) — thêm 5 cột MỚI vào VIEW (xem "báo cáo doanh thu-nhập hàng
+      // theo ngành hàng.md" mục 2), GỘP LUÔN vào domain doanhthu_nganhhang
+      // đã có — KHÔNG tạo domain/job riêng nữa (loại bỏ domain
+      // hanghonghuy_nganhhang/seedHangHongHuySync.js cũ, vì hàng hỏng hủy
+      // giờ CÙNG nguồn STRANS/STK_ID với doanh thu, không cần tách job).
+      measureColumns: ['SoLuongBan', 'DoanhThu', 'DoanhThuBanLe', 'DoanhThuBanBuon', 'LaiGop', 'LaiGopBanLe', 'LaiGopBanBuon', 'GiaTriHongHuy'],
       targetDomain: 'doanhthu_nganhhang', cronExpression: '*/15 * * * *'
     },
     {
@@ -142,7 +156,8 @@ async function main() {
       {
         name: 'Doanh thu theo ngành hàng - Lịch sử (DSMART16_EOM)', dataSourceId: eomId, sourceName: 'DSMART16 - Lịch sử',
         sourceTable: DOANHTHU_VIEW, keyColumn: 'MaThucThe', dateColumn: 'WORK_DATE',
-        dimensionColumns: ['STK_ID', 'DEPT_ID', 'TenNganhHang'], measureColumns: ['SoLuongBan', 'DoanhThu', 'LaiGop'],
+        dimensionColumns: ['STK_ID', 'DEPT_ID', 'TenNganhHang'],
+        measureColumns: ['SoLuongBan', 'DoanhThu', 'DoanhThuBanLe', 'DoanhThuBanBuon', 'LaiGop', 'LaiGopBanLe', 'LaiGopBanBuon', 'GiaTriHongHuy'],
         targetDomain: 'doanhthu_nganhhang', cronExpression: '0 3 * * *'
       },
       {

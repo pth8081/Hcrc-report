@@ -14,6 +14,54 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 9.68 — Bán lẻ/Bán buôn + Giá trị hàng hỏng hủy cho 2 báo cáo doanh thu theo ngành hàng
+
+**Thay đổi**: xem chi tiết đầy đủ ở `VERSION.md` + `báo cáo doanh thu-nhập
+hàng theo ngành hàng.md` (mục 1/2/3/5/8 viết lại). Tóm tắt: VIEW
+`V_HCRC_DOANHTHU_NGANHHANG` thêm 5 cột (Bán lẻ/Bán buôn + Giá trị hàng
+hỏng hủy); runner viết lại hoàn toàn (30 cột, dòng tiêu đề ngang mỗi
+khối thay cho cột "Khối"); XOÁ hẳn job/domain hàng hỏng hủy riêng cũ.
+
+**Các bước** (áp dụng cho CẢ 2 trường hợp — server CHƯA deploy gì từ bản
+9.63 trở đi, HOẶC đã deploy tới bản 9.67 — không có bước dọn dẹp đặc biệt,
+mọi thay đổi THÊM cột/measure, không xoá/đổi tên cột cũ nào):
+
+1. `git pull origin main`.
+2. Chạy LẠI file `deploy/Thiết lập VIEW Doanh thu-Nhập hàng theo Ngành
+   hàng Lịch sử (DSMART16_EOM).sql` trên `DSMART16_EOM` NẾU server đã có
+   job Lịch sử (`--with-history`) — file này tự `CREATE OR ALTER`, an
+   toàn chạy lại nhiều lần. Đồng thời chạy lại VIEW Live
+   `V_HCRC_DOANHTHU_NGANHHANG` trên `DSMART16` (xem SQL đầy đủ ở mục 2
+   `báo cáo doanh thu-nhập hàng theo ngành hàng.md`) — DBA tự chạy trực
+   tiếp trên server CSDL, không qua ứng dụng.
+3. `node etl/scripts/seedNganhHangSync.js` (thêm `--with-history` nếu
+   bước 2 có làm VIEW Lịch sử) — CẬP NHẬT (không tạo mới) 2 job "Doanh
+   thu theo ngành hàng" đã có, thêm 5 measureColumns mới vào
+   `MeasureColumnsJson`.
+4. KHÔNG cần chạy `node etl/scripts/seedHangHongHuySync.js` nữa (file đã
+   XOÁ khỏi repo) — nếu server trước đó NGẪU NHIÊN có tạo job/domain
+   `hanghonghuy_nganhhang` (thực tế không có, domain này luôn rỗng vì
+   chưa từng xác định được nguồn) thì không cần dọn gì, job đó (nếu có)
+   chỉ đơn giản không còn script nào cập nhật — có thể xoá tay job đó
+   trong etl-admin → Đồng bộ nếu muốn dọn cho sạch (KHÔNG BẮT BUỘC).
+5. `node rp-server/scripts/seedNganhHangReports.js` — chạy lại cho chắc
+   (idempotent, `DefinitionJson` của 2 báo cáo doanh thu không đổi ở bản
+   này, chỉ runner code đổi — bước này không bắt buộc nhưng an toàn).
+6. `pm2 restart hcrc-rp-server` (runner/export Excel/PDF đổi) +
+   `cd rp-user && npm run build` (DataTable.jsx đổi, cần build lại bundle
+   tĩnh phục vụ qua pm2/nginx).
+7. Vào etl-admin → Đồng bộ → "Chạy thử" 2 job "Doanh thu theo ngành
+   hàng - Live" — xác nhận đồng bộ xong không lỗi (lỗi "thiếu cột" nghĩa
+   là bước 2 chưa chạy xong trên đúng CSDL).
+8. Mở lại 2 báo cáo "Doanh thu theo ngành hàng"/"(LDTD)" (web + xuất
+   Excel/PDF) — kiểm tra: dòng tiêu đề ngang "Toàn hệ thống BRG"/"LFL"/
+   "NSO" hiện đúng (merge hết cột), 24 cột Total/Bán lẻ/Bán buôn có số
+   hợp lý, nhóm "Giá trị hàng hỏng hủy" (đỏ) có số (có thể = 0 nếu kỳ đó
+   không phát sinh mã 318), "Tỷ lệ" lãi gộp mọi khối chia theo Doanh thu
+   cuối (không còn chỉ riêng khối BRG).
+
+---
+
 ## 9.67 — SỬA LẠI bản 9.63: gộp định dạng ngành hàng mới vào 2 báo cáo đã có
 
 **Thay đổi**: xem chi tiết đầy đủ ở `VERSION.md` + `báo cáo doanh thu-nhập

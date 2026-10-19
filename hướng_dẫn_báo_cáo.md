@@ -1783,7 +1783,7 @@ cập nhật nếu chỉ sửa báo cáo đã có (file hướng dẫn riêng t�
 | `bc-doanh-thu-hcrc` | Báo cáo doanh thu cuối ngày HCRC | `báo cáo doanh thu cuối ngày.md` |
 | `bc-doanh-thu-ldtd-thanh-vien` | Báo cáo doanh thu cuối ngày LDTD (Thành viên) | `báo cáo doanh thu thành viên.md` |
 | `bc-doanh-thu-hcrc-thanh-vien` | Báo cáo doanh thu cuối ngày HCRC (Thành viên) | `báo cáo doanh thu thành viên.md` |
-| `bc-doanh-thu-nganhhang` | Báo cáo doanh thu theo ngành hàng | `báo cáo doanh thu-nhập hàng theo ngành hàng.md` (mục 8 còn 1 việc chưa chốt — nguồn dữ liệu hàng hỏng hủy) |
+| `bc-doanh-thu-nganhhang` | Báo cáo doanh thu theo ngành hàng | `báo cáo doanh thu-nhập hàng theo ngành hàng.md` (mục 8 — hàng hỏng hủy + Bán lẻ/Bán buôn đã giải quyết bản 9.68) |
 | `bc-nhap-hang-nganhhang` | Báo cáo nhập hàng theo ngành hàng | `báo cáo doanh thu-nhập hàng theo ngành hàng.md` |
 | `bc-doanh-thu-nganhhang-ldtd` | Báo cáo doanh thu theo ngành hàng (LDTD) | `báo cáo doanh thu-nhập hàng theo ngành hàng.md` (CÙNG định dạng/engine với báo cáo gốc ở trên, chỉ khác domain Chỉ tiêu) |
 | `bc-don-dat-hang` | Đơn đặt hàng | `bc-don-dat-hang.md` |

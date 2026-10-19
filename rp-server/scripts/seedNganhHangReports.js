@@ -176,8 +176,9 @@ async function main() {
 
   console.log('');
   console.log('✅ Xong — cả 3 báo cáo đã sẵn sàng. NHỚ:');
-  console.log('   1. Đã chạy node etl/scripts/seedNganhHangSync.js (domain Live có dữ liệu)');
-  console.log('      và node etl/scripts/seedHangHongHuySync.js (nếu đã có nguồn hàng hỏng hủy).');
+  console.log('   1. Đã chạy node etl/scripts/seedNganhHangSync.js (domain Live có dữ liệu —');
+  console.log('      bản 9.68 đã gộp "Giá trị hàng hỏng hủy" + Bán lẻ/Bán buôn vào CHÍNH domain');
+  console.log('      doanhthu_nganhhang, không cần job/domain riêng nữa).');
   console.log('   2. Đã nhập Chỉ tiêu qua etl-admin → "Chỉ tiêu Doanh thu theo ngành hàng"/');
   console.log('      "Chỉ tiêu Doanh thu theo ngành hàng (LDTD)"/"Chỉ tiêu Nhập hàng theo ngành');
   console.log('      hàng" — thêm cột ChiTieuLaiGop vào file Excel nhập Chỉ tiêu 2 trang Doanh thu');

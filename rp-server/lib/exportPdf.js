@@ -467,6 +467,17 @@ async function exportPdf(definition, rows) {
     if (y - ROW_HEIGHT < MARGIN) newPage();
     const row = rows[rIdx];
     const rowTop = y;
+    // __isSectionHeader (bản 9.68, xem rp-server/lib/nganhHangBrgRunner.js)
+    // — dòng tiêu đề ngang MERGE hết cột (vd "Toàn hệ thống BRG"/"LFL"/
+    // "NSO") — vẽ 1 hình chữ nhật trải hết bề rộng bảng + chữ trắng đậm,
+    // BỎ QUA vẽ theo từng cột bên dưới.
+    if (row.__isSectionHeader) {
+      const totalWidth = colWidths.reduce((a, b) => a + b, 0);
+      page.drawRectangle({ x: MARGIN, y: rowTop - ROW_HEIGHT, width: totalWidth, height: ROW_HEIGHT, color: hexToRgb01(row.__sectionColor || '2B2F38') });
+      page.drawText(String(row.__sectionLabel ?? ''), { x: MARGIN + 6, y: rowTop - ROW_HEIGHT + (compact ? ROW_HEIGHT * 0.28 : 4), size: CELL_FONT_SIZE, font: boldFont, color: rgb(1, 1, 1) });
+      y -= ROW_HEIGHT;
+      continue;
+    }
     columns.forEach((col, i) => {
       // Dòng Tổng cộng/Tổng cộng nhóm tô màu THEO TỪNG CỘT (bản 8.58, xem
       // resolveRowFillColor); dòng thường xen kẽ zebra nếu tới lượt.

@@ -29,6 +29,53 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 9.68 — Bán lẻ/Bán buôn + Giá trị hàng hỏng hủy cho 2 báo cáo doanh thu theo ngành hàng
+
+**Theo yêu cầu người dùng** — "Trong bản trans bạn đã làm doanh thu cuối
+ngày có tổng bán buôn và bán lẻ đó. Bảng trans có cột trans_code để phân
+biệt bán buôn và bán lẻ. Bán buôn là mã 211, trả lại bán buôn 212 và bán
+lẻ mã 221, trả lại bán lẻ 222, hỏng hủy ở giao dịch 318 cũng cột
+trans_code... Bạn xử lý tiếp báo cáo doanh thu theo ngành hàng ldtd và
+hcrc đi nhé". Demo (Artifact) 3 vòng trước khi code, sửa theo đúng góp ý:
+format phải khớp file mẫu Excel (Kênh là CỘT con từng chỉ số, không tách
+dòng), rồi thêm cột "Giá trị hàng hỏng hủy" + Lãi gộp Bán lẻ trừ hàng
+hỏng hủy, rồi đổi cột "Khối" sang dòng tiêu đề ngang merge hết cột.
+
+- **VIEW** `V_HCRC_DOANHTHU_NGANHHANG` (Live `DSMART16` + Lịch sử
+  `DSMART16_EOM`) — thêm 5 cột `DoanhThuBanLe`/`DoanhThuBanBuon`
+  (211/212, 221/222), `LaiGopBanLe`/`LaiGopBanBuon` (cùng mã), và
+  `GiaTriHongHuy` (mã 318) — GIẢI QUYẾT hẳn mục 8 "🔴 BLOCKED" của bản
+  9.63/9.66 (tưởng cần VIEW riêng, hoá ra cùng nguồn STRANS/STK_ID với
+  doanh thu).
+- **ETL** `etl/scripts/seedNganhHangSync.js` — thêm 5 measureColumns mới
+  vào domain `doanhthu_nganhhang` đã có — XOÁ hẳn
+  `etl/scripts/seedHangHongHuySync.js`/domain `hanghonghuy_nganhhang`
+  riêng (chưa từng chạy được, luôn rỗng vì thiếu nguồn).
+- **`rp-server/lib/nganhHangBrgRunner.js`** — viết lại hoàn toàn: 30 cột
+  (3 ID + 8 chỉ số × 3 kênh Total/Bán lẻ/Bán buôn + 1 nhóm "Giá trị hàng
+  hỏng hủy" × 3 kênh); hàng hỏng hủy gán hết cho kênh Bán lẻ (Bán buôn =
+  0, giả định "bán buôn thường không có hàng hỏng hủy"); mã 232 chỉ cộng
+  vào "Total" (giả định); "Lãi gộp — Giá trị" Bán lẻ/Bán buôn ĐÃ TRỪ hàng
+  hỏng hủy kênh đó, Total = Bán lẻ + Bán buôn (đã trừ); "Tỷ lệ" lãi gộp
+  Total chia theo Doanh thu cuối ở CẢ 3 khối (trước chỉ BRG); bỏ cột
+  "Khối", thay bằng dòng tiêu đề ngang `__isSectionHeader`.
+- **Hạ tầng dùng chung** (opt-in, KHÔNG ảnh hưởng báo cáo khác) —
+  `rp-server/lib/reportCellFormat.js` (`computeSttValues`/
+  `computeZebraFlags` bỏ qua dòng `__isSectionHeader`),
+  `rp-user/src/components/DataTable.jsx`/`rp-server/lib/exportExcel.js`/
+  `rp-server/lib/exportPdf.js` (vẽ dòng tiêu đề ngang merge hết cột khi
+  `row.__isSectionHeader === true`).
+- Build-check rp-user (`npm run build`) + syntax-check mọi file backend
+  đã sửa + mock test `nganhHangBrgRunner.js` (giả lập 2 STK_ID, kiểm
+  LFL/NSO/BRG, Bán lẻ/Bán buôn, hàng hỏng hủy, dòng tiêu đề ngang, STT) —
+  đều PASS.
+- Cập nhật `báo cáo doanh thu-nhập hàng theo ngành hàng.md` (mục 1/2/3/5/
+  8 viết lại, mục 8 đổi từ 🔴 BLOCKED sang ✅ GIẢI QUYẾT) +
+  `hướng_dẫn_báo_cáo.md` mục 17 (bỏ ghi chú "còn 1 việc chưa chốt").
+- **2 giả định CHƯA xác nhận cuối cùng với DBA** (đã nêu rõ với người
+  dùng lúc demo, chỉ cần sửa `nganhHangBrgRunner.js` nếu sai, không đụng
+  VIEW/ETL): (1) mã 232 không tách kênh; (2) hàng hỏng hủy gán hết Bán lẻ.
+
 ## 9.67 — SỬA LẠI bản 9.63: gộp định dạng ngành hàng mới vào 2 báo cáo đã có (không tách báo cáo thứ 3)
 
 **Theo yêu cầu người dùng** — bản 9.63 ban đầu dựng 1 báo cáo THỨ 3 riêng

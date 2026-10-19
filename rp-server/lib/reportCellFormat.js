@@ -110,7 +110,7 @@ function resolveStandaloneColumnColor(col, standaloneColumnColors, palette = GRO
 function computeZebraFlags(rows) {
   let n = 0;
   return rows.map(row => {
-    if (row.__isSubtotal) return false;
+    if (row.__isSubtotal || row.__isSectionHeader) return false;
     n += 1;
     return n % 2 === 0;
   });
@@ -125,6 +125,12 @@ function computeSttValues(rows) {
   let n = 0;
   for (const row of rows) {
     if (row.__isSubtotal) { values.push(''); n = 0; continue; }
+    // __isSectionHeader (bản 9.68) — dòng tiêu đề ngang merge hết cột (vd
+    // "Toàn hệ thống BRG"/"LFL"/"NSO" ở lib/nganhHangBrgRunner.js), KHÔNG
+    // phải dòng dữ liệu — để trống TT, KHÔNG reset n (n đã về 0 từ dòng
+    // __isSubtotal TRƯỚC NÓ, dòng này luôn đứng NGAY TRƯỚC nhóm dữ liệu
+    // mới nên không cần tự reset lại).
+    if (row.__isSectionHeader) { values.push(''); continue; }
     n += 1;
     values.push(n);
   }

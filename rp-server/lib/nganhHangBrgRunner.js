@@ -1,31 +1,20 @@
-// lib/nganhHangBrgRunner.js — SourceType='nganhHangBrg': định dạng MỚI
-// (bản 9.63, sửa lại bản 9.67 — theo yêu cầu người dùng) cho đúng 2 báo
-// cáo ĐÃ CÓ "Doanh thu theo ngành hàng" (`bc-doanh-thu-nganhhang`) và
-// "Doanh thu theo ngành hàng (LDTD)" (`bc-doanh-thu-nganhhang-ldtd") —
-// KHÔNG phải 1 báo cáo thứ 3 riêng (bản 9.63 ban đầu tạo nhầm
-// `bc-doanh-thu-nganhhang-brgmart` tách biệt, người dùng yêu cầu sửa lại
-// "đừng tách bc" — đã BỎ report thứ 3, xem `seedNganhHangReports.js`).
-// "BRGMART" trong tên file này chỉ còn ý nghĩa LỊCH SỬ (tên mẫu Excel gốc,
-// ký hiệu khối "Toàn hệ thống BRG" bên dưới), KHÔNG phải tên 1 báo cáo.
+// lib/nganhHangBrgRunner.js — SourceType='nganhHangBrg': định dạng cho 2
+// báo cáo "Doanh thu theo ngành hàng" (`bc-doanh-thu-nganhhang`) và "Doanh
+// thu theo ngành hàng (LDTD)" (`bc-doanh-thu-nganhhang-ldtd`).
 // `targetDomain` lấy từ `definition.targetDomain` (MỖI báo cáo 1 domain
-// Chỉ tiêu RIÊNG đã có từ trước — `sales-targets-nganhhang-dt`/
-// `sales-targets-nganhhang-dt-ldtd` — KHÔNG tạo domain Chỉ tiêu BRGMART
-// riêng nữa), trường `ChiTieuLaiGop` tự nhận được nhờ cơ chế field-động
-// `etl/lib/salesTargetsImport.js:parseGenericShape()` sẵn có — admin chỉ
-// cần thêm cột `ChiTieuLaiGop` vào file Excel nhập Chỉ tiêu hiện tại, KHÔNG
-// cần đổi code/trang etl-admin nào.
+// Chỉ tiêu RIÊNG — `sales-targets-nganhhang-dt`/
+// `sales-targets-nganhhang-dt-ldtd`).
 //
-// RIÊNG so với định dạng CŨ của báo cáo gốc ("Doanh thu theo ngành hàng",
-// SourceType='composite', xem `lib/compositeReportRunner.js`) vì CHIA 3
-// KHỐI LẶP LẠI "Toàn hệ thống BRG" / "LFL" / "NSO" từ CÙNG 1 lần đọc
-// domain — composite chỉ ghép ĐÚNG 1 dòng/entityCode, không tự nhân bản
-// theo nhóm siêu thị, nên viết runner RIÊNG (mirror
-// lib/purchaseOrderRunner.js: dedicated runner cho báo cáo có hình dạng
-// đặc thù, TÁI DÙNG các hàm đọc/gộp dữ liệu đã có ở
+// RIÊNG so với định dạng CŨ của báo cáo gốc (SourceType='composite', xem
+// lib/compositeReportRunner.js) vì CHIA 3 KHỐI LẶP LẠI "Toàn hệ thống BRG" /
+// "LFL" / "NSO" từ CÙNG 1 lần đọc domain — composite chỉ ghép ĐÚNG 1 dòng/
+// entityCode, không tự nhân bản theo nhóm siêu thị, nên viết runner RIÊNG
+// (mirror lib/purchaseOrderRunner.js: dedicated runner cho báo cáo có hình
+// dạng đặc thù, TÁI DÙNG các hàm đọc/gộp dữ liệu đã có ở
 // lib/compositeReportRunner.js, KHÔNG viết lại logic đọc dwh.ReportFacts).
 // Báo cáo "Nhập hàng theo ngành hàng" (`bc-nhap-hang-nganhhang`) KHÔNG đổi
 // — giữ nguyên SourceType='composite' cũ, không có khái niệm Lãi gộp/hàng
-// hỏng hủy cho nhập hàng.
+// hỏng hủy/Bán lẻ-Bán buôn cho nhập hàng.
 //
 // 3 KHỐI:
 //   - "Toàn hệ thống BRG" — CỘNG DỒN MỌI siêu thị (không lọc gì).
@@ -39,25 +28,50 @@
 // ĐỊNH rơi vào khối LFL (an toàn hơn loại hẳn khỏi cả 2 khối con, dù vẫn
 // luôn có trong khối "Toàn hệ thống BRG").
 //
-// "Giá trị hàng hỏng hủy"/"Doanh thu cuối" CHỈ hiện ở khối "Toàn hệ thống
-// BRG" (theo xác nhận của người dùng) — nguồn `hanghonghuy_nganhhang`
-// (xem etl/scripts/seedHangHongHuySync.js) KHÔNG có cột kho/siêu thị nào,
-// không tách được riêng cho khối LFL/NSO.
+// BẢN 9.68 (theo yêu cầu người dùng — "trong báo cáo doanh thu có phần bán
+// buôn ấy... bạn xử lý tiếp báo cáo doanh thu theo ngành hàng ldtd và hcrc
+// đi nhé") — 3 THAY ĐỔI LỚN so với bản 9.63/9.67:
 //
-// "Khối" là 1 CỘT THƯỜNG (không phải dòng tiêu đề colSpan riêng) — hệ
-// thống hiện CHƯA có cơ chế dòng tiêu đề nhóm (colSpan) trong phần thân
-// bảng (DataTable.jsx/exportExcel.js/exportPdf.js CHỈ hỗ trợ colSpan ở
-// HEADER qua columnGroups, xem chú thích đầu lib/compositeReportRunner.js)
-// — dùng cột "Khối" + dòng "Tổng cộng" riêng từng khối (đánh dấu
-// __isSubtotal, cột TT tự đếm lại từ 1 sau mỗi dòng đó — xem
-// lib/reportCellFormat.js:computeSttValues()) để KHÔNG phải sửa 3 file
-// hiển thị/xuất dùng chung cho nhiều báo cáo khác.
-//
-// Bán lẻ/Bán buôn (Total/Bán lẻ/Bán buôn theo mẫu gốc) TẠM CHƯA LÀM — nguồn
-// dữ liệu DSMART chưa xác nhận cột/cờ phân biệt 2 kênh này (theo người
-// dùng). Thêm sau chỉ cần sửa CHÍNH FILE NÀY (tách measures theo kênh),
-// KHÔNG cần đổi hạ tầng columnGroups (v1 chỉ cần 2 tầng tiêu đề, cơ chế đã
-// có sẵn — xem lib/reportCellFormat.js/DataTable.jsx).
+// 1. "Khối" KHÔNG còn là 1 CỘT (dòng tiêu đề colSpan riêng đã được thêm —
+//    xem `__isSectionHeader` bên dưới + rp-user/src/components/DataTable.jsx/
+//    lib/exportExcel.js/lib/exportPdf.js, mục "Dòng tiêu đề nhóm" — tính
+//    năng MỚI, opt-in qua cờ này, KHÔNG ảnh hưởng báo cáo khác nào đã có).
+//    Theo đúng góp ý người dùng ("Chỗ khối phải quy ngang trên dòng đầu
+//    tiên của khối và cover all cột theo kiểu merge lại thành 1 dòng").
+// 2. Thêm kênh "Bán lẻ"/"Bán buôn" (TRANS_CODE 221/222 và 211/212 trong
+//    VIEW V_HCRC_DOANHTHU_NGANHHANG — xem mục 2 tài liệu) dưới dạng CỘT con
+//    của TỪNG chỉ số (Chỉ tiêu/Thực đạt/%CT/%CK của Doanh thu VÀ Lãi gộp) —
+//    ĐÚNG cấu trúc file mẫu Excel gốc người dùng gửi (8 chỉ số × 3 cột con
+//    Total/Bán lẻ/Bán buôn = 24 cột) — KHÔNG tách DÒNG (bản demo lần đầu
+//    làm sai, người dùng phản hồi "Format bc bạn đang làm chưa chính xác
+//    vơi file tôi gửi" - đã sửa lại đúng kiểu cột).
+//    GIẢ ĐỊNH (đã nêu rõ trong demo, người dùng xác nhận) — TRANS_CODE 232
+//    (đã gộp sẵn trong "Total" từ trước) KHÔNG tách được 1 trong 2 kênh,
+//    nên CHỈ cộng vào cột "Total", KHÔNG cộng vào "Bán lẻ"/"Bán buôn" (2
+//    cột đó CHỈ từ 211/212 và 221/222 — có thể không cộng đúng bằng Total
+//    nếu 232 khác 0 trong kỳ).
+//    "Chỉ tiêu"/"% so chỉ tiêu" (cả Doanh thu và Lãi gộp) hệ thống CHỈ có 1
+//    số THEO TOÀN BỘ (Total) — 2 cột "Bán lẻ"/"Bán buôn" luôn `null` ("—").
+// 3. "Giá trị hàng hỏng hủy" (TRANS_CODE 318) GIỜ GỘP VÀO domain
+//    `doanhthu_nganhhang` (CÙNG VIEW/STK_ID với doanh thu — KHÔNG CÒN domain
+//    `hanghonghuy_nganhhang`/job `seedHangHongHuySync.js` riêng NỮA, đã
+//    XOÁ file đó) — vì vậy hiện được ở CẢ 3 khối BRG/LFL/NSO (trước đây
+//    CHỈ có ở BRG vì nguồn cũ không có STK_ID). Theo người dùng xác nhận
+//    ("bán buôn thường không có hàng hỏng hủy") — TOÀN BỘ giá trị hàng
+//    hỏng hủy gán cho kênh "Bán lẻ" (Bán buôn = 0 cố định, KHÔNG đọc từ
+//    nguồn nào khác — mã 318 không tự phân biệt kênh trong dữ liệu gốc).
+//    "Lãi gộp — Giá trị" cột "Bán lẻ" = margin thô (LaiGopBanLe từ VIEW)
+//    TRỪ giá trị hàng hỏng hủy của Bán lẻ; cột "Bán buôn" trừ hàng hỏng hủy
+//    Bán buôn (= 0, không đổi số); cột "Total" = Bán lẻ (đã trừ) + Bán buôn
+//    (đã trừ) — ĐẢM BẢO khớp tổng (theo yêu cầu người dùng, bản 9.68).
+//    "Tỷ lệ" Lãi gộp ở Total dùng **Doanh thu cuối** (= Thực đạt Total −
+//    Giá trị hàng hỏng hủy) làm mẫu số, ở ĐỦ CẢ 3 khối (bản 9.64 trước đây
+//    CHỈ áp dụng ở khối BRG vì hàng hỏng hủy khi đó CHỈ có ở khối đó — giờ
+//    có ở mọi khối nên áp dụng ĐỒNG NHẤT, không cần nhánh includeHongHuy
+//    riêng nữa); "Bán lẻ"/"Bán buôn" chia theo đúng Thực đạt của kênh đó
+//    (không có khái niệm "doanh thu cuối" riêng theo kênh).
+//    "Doanh thu cuối" KHÔNG còn là CỘT HIỂN THỊ riêng (đúng file mẫu gốc
+//    không có cột này) — chỉ dùng NGẦM để tính mẫu số Tỷ lệ lãi gộp Total.
 const { getPool } = require('../db');
 const {
   fetchAllReportRows, remapEntityCode, aggregateDailyRowsByEntity, resolveRequestedRange
@@ -69,13 +83,10 @@ const { describeColumns } = require('./reportEngine');
 const { assignSttIfPresent } = require('./reportCellFormat');
 
 const DOANHTHU_DOMAIN = 'doanhthu_nganhhang';
-const HONGHUY_DOMAIN = 'hanghonghuy_nganhhang';
 
 // Danh mục 12 ngành hàng CỐ ĐỊNH, ĐÚNG thứ tự mã tăng dần — khớp mẫu Excel
-// BRGMART người dùng gửi. Hiện ĐỦ cả 12 dòng mỗi khối dù ngành hàng đó
-// KHÔNG phát sinh dữ liệu trong kỳ (Thực đạt = 0), không ẩn dòng — đúng bố
-// cục mẫu gốc (danh mục ngành hàng cố định của công ty, không tự xếp theo
-// dữ liệu như đa số báo cáo khác trong hệ thống).
+// người dùng gửi. Hiện ĐỦ cả 12 dòng mỗi khối dù ngành hàng đó KHÔNG phát
+// sinh dữ liệu trong kỳ (Thực đạt = 0), không ẩn dòng.
 const NGANH_HANG_LIST = [
   { code: '1001', name: 'UltraFresh' },
   { code: '1002', name: 'Fresh' },
@@ -91,34 +102,69 @@ const NGANH_HANG_LIST = [
   { code: '3003', name: 'Other Nonfood' }
 ];
 
+// 3 khối — label dòng tiêu đề ngang (__isSectionHeader) ngắn gọn, và label
+// ĐẦY ĐỦ cho dòng "Tổng cộng ..." cuối khối (khớp ĐÚNG chữ trong file mẫu
+// Excel gốc, dòng 17/30/43).
+const SECTIONS = [
+  { key: 'brg', headerLabel: 'Toàn hệ thống BRG', totalLabel: 'Tổng cộng toàn hệ thống BRG', color: '174A7C', isGrandTotal: true, filter: null },
+  { key: 'lfl', headerLabel: 'LFL', totalLabel: 'Tổng cộng nhóm siêu thị LFL', color: '2E7D32', isGrandTotal: false, filter: 'lfl' },
+  { key: 'nso', headerLabel: 'NSO', totalLabel: 'Tổng cộng nhóm siêu thị NSO', color: 'B45309', isGrandTotal: false, filter: 'nso' }
+];
+
+// Mỗi 1 trong 8 chỉ số (4 Doanh thu + 4 Lãi gộp) có đúng 3 cột con
+// Total/Bán lẻ/Bán buôn — ĐÚNG cấu trúc file mẫu Excel gốc (24 cột giá trị).
 const COLUMNS = [
   { key: 'stt', label: 'TT' },
-  { key: 'khoi', label: 'Khối' },
   { key: 'maNganhHang', label: 'Mã ngành hàng' },
   { key: 'tenNganhHang', label: 'Ngành hàng', width: 2 },
-  { key: 'chiTieu', label: 'Chỉ tiêu', width: 1.2 },
-  { key: 'thucDat', label: 'Thực đạt', width: 1.2 },
-  { key: 'tyLeDat', label: '% so chỉ tiêu', format: 'percent', width: 0.9 },
-  { key: 'cungKyPct', label: '% so cùng kỳ năm trước', format: 'percent', width: 0.9 },
-  { key: 'giaTriHongHuy', label: 'Giá trị hàng hỏng hủy', width: 1.2 },
-  { key: 'doanhThuCuoi', label: 'Doanh thu cuối', width: 1.2 },
-  { key: 'tyLeLaiGop', label: 'Tỷ lệ', format: 'percent', width: 0.9 },
-  { key: 'giaTriLaiGop', label: 'Giá trị', width: 1.2 },
-  { key: 'tyLeLaiGopSoChiTieu', label: '% so chỉ tiêu', format: 'percent', width: 0.9 },
-  { key: 'laiGopCungKyPct', label: '% so cùng kỳ năm trước', format: 'percent', width: 0.9 }
+  { key: 'chiTieuTotal', label: 'Total', width: 1.2 },
+  { key: 'chiTieuBanLe', label: 'Bán lẻ', width: 1.2 },
+  { key: 'chiTieuBanBuon', label: 'Bán buôn', width: 1.2 },
+  { key: 'thucDatTotal', label: 'Total', width: 1.2 },
+  { key: 'thucDatBanLe', label: 'Bán lẻ', width: 1.2 },
+  { key: 'thucDatBanBuon', label: 'Bán buôn', width: 1.2 },
+  { key: 'tyLeDatTotal', label: 'Total', format: 'percent', width: 0.9 },
+  { key: 'tyLeDatBanLe', label: 'Bán lẻ', format: 'percent', width: 0.9 },
+  { key: 'tyLeDatBanBuon', label: 'Bán buôn', format: 'percent', width: 0.9 },
+  { key: 'cungKyTotal', label: 'Total', format: 'percent', width: 0.9 },
+  { key: 'cungKyBanLe', label: 'Bán lẻ', format: 'percent', width: 0.9 },
+  { key: 'cungKyBanBuon', label: 'Bán buôn', format: 'percent', width: 0.9 },
+  { key: 'giaTriHongHuyTotal', label: 'Total', width: 1.2 },
+  { key: 'giaTriHongHuyBanLe', label: 'Bán lẻ', width: 1.2 },
+  { key: 'giaTriHongHuyBanBuon', label: 'Bán buôn', width: 1.2 },
+  { key: 'tyLeLaiGopTotal', label: 'Total', format: 'percent', width: 0.9 },
+  { key: 'tyLeLaiGopBanLe', label: 'Bán lẻ', format: 'percent', width: 0.9 },
+  { key: 'tyLeLaiGopBanBuon', label: 'Bán buôn', format: 'percent', width: 0.9 },
+  { key: 'giaTriLaiGopTotal', label: 'Total', width: 1.2 },
+  { key: 'giaTriLaiGopBanLe', label: 'Bán lẻ', width: 1.2 },
+  { key: 'giaTriLaiGopBanBuon', label: 'Bán buôn', width: 1.2 },
+  { key: 'tyLeLaiGopSoChiTieuTotal', label: 'Total', format: 'percent', width: 0.9 },
+  { key: 'tyLeLaiGopSoChiTieuBanLe', label: 'Bán lẻ', format: 'percent', width: 0.9 },
+  { key: 'tyLeLaiGopSoChiTieuBanBuon', label: 'Bán buôn', format: 'percent', width: 0.9 },
+  { key: 'laiGopCungKyTotal', label: 'Total', format: 'percent', width: 0.9 },
+  { key: 'laiGopCungKyBanLe', label: 'Bán lẻ', format: 'percent', width: 0.9 },
+  { key: 'laiGopCungKyBanBuon', label: 'Bán buôn', format: 'percent', width: 0.9 }
 ];
 
 const COLUMN_GROUPS = [
-  { label: 'Doanh thu', color: 'green', keys: ['chiTieu', 'thucDat', 'tyLeDat', 'cungKyPct'] },
-  { label: 'Lãi gộp', color: 'orange', keys: ['tyLeLaiGop', 'giaTriLaiGop', 'tyLeLaiGopSoChiTieu', 'laiGopCungKyPct'] }
+  { label: 'Doanh thu — Chỉ tiêu', color: 'green', keys: ['chiTieuTotal', 'chiTieuBanLe', 'chiTieuBanBuon'] },
+  { label: 'Doanh thu — Thực đạt', color: 'green', keys: ['thucDatTotal', 'thucDatBanLe', 'thucDatBanBuon'] },
+  { label: 'Doanh thu — % so chỉ tiêu', color: 'green', keys: ['tyLeDatTotal', 'tyLeDatBanLe', 'tyLeDatBanBuon'] },
+  { label: 'Doanh thu — % so cùng kỳ năm trước', color: 'green', keys: ['cungKyTotal', 'cungKyBanLe', 'cungKyBanBuon'] },
+  { label: 'Giá trị hàng hỏng hủy', color: 'red', keys: ['giaTriHongHuyTotal', 'giaTriHongHuyBanLe', 'giaTriHongHuyBanBuon'] },
+  { label: 'Lãi gộp — Tỷ lệ', color: 'orange', keys: ['tyLeLaiGopTotal', 'tyLeLaiGopBanLe', 'tyLeLaiGopBanBuon'] },
+  { label: 'Lãi gộp — Giá trị', color: 'orange', keys: ['giaTriLaiGopTotal', 'giaTriLaiGopBanLe', 'giaTriLaiGopBanBuon'] },
+  { label: 'Lãi gộp — % so chỉ tiêu', color: 'orange', keys: ['tyLeLaiGopSoChiTieuTotal', 'tyLeLaiGopSoChiTieuBanLe', 'tyLeLaiGopSoChiTieuBanBuon'] },
+  { label: 'Lãi gộp — % so cùng kỳ năm trước', color: 'orange', keys: ['laiGopCungKyTotal', 'laiGopCungKyBanLe', 'laiGopCungKyBanBuon'] }
 ];
-// Cột đơn lẻ không thuộc nhóm nào (tô màu riêng, cùng cơ chế "Trung bình
-// GD"/"Doanh thu/m2" ở báo cáo doanh thu cuối ngày) — xem
-// lib/reportCellFormat.js:resolveStandaloneColumnColor().
-const STANDALONE_COLUMN_COLORS = { giaTriHongHuy: 'red', doanhThuCuoi: 'blue' };
 
 function round1(n) {
   return Math.round(n * 10) / 10;
+}
+
+function pctOrNull(numerator, denominator) {
+  if (denominator === null || denominator === undefined || denominator === 0) return null;
+  return round1(numerator / denominator * 100);
 }
 
 // Dịch (dateStr ISO yyyy-mm-dd, năm) -> cùng ngày/tháng năm TRƯỚC (29/02 ->
@@ -148,12 +194,70 @@ function groupByDeptId(rows, stkIdFilterSet) {
   return new Map(grouped.map(r => [r.entityCode, r]));
 }
 
-function buildSegmentRows(khoi, currentMap, lastYearMap, targetMap, hongHuyByName, includeHongHuy) {
-  const rows = [];
-  const totals = {
-    chiTieu: 0, thucDat: 0, giaTriHongHuy: 0, doanhThuCuoi: 0, giaTriLaiGop: 0,
-    hasChiTieu: false, lastYearThucDat: 0, hasLastYear: false, chiTieuLaiGop: 0, hasChiTieuLaiGop: false,
-    lastYearLaiGop: 0, hasLastYearLaiGop: false
+// Tính 1 dòng ngành hàng (hoặc dòng "Tổng cộng" — khi gọi với measures đã
+// CỘNG DỒN sẵn từ 12 ngành hàng, isTotalRow=true để biết nhãn/màu riêng).
+// `current`/`lastYear`/`target` — object measures thô đọc được (hoặc sums
+// cộng dồn khi tính dòng Tổng cộng), `hasLastYear*`/`hasChiTieu*` — cờ
+// phân biệt "KHÔNG có dữ liệu" (null, hiện "—") với "có dữ liệu = 0".
+function computeRowFields({ thucDat, lastYearThucDat, hasLastYear, giaTriHongHuy, lastYearGiaTriHongHuy, laiGopGross, lastYearLaiGopGross, hasLastYearLaiGop, chiTieuTotal, hasChiTieu, chiTieuLaiGop, hasChiTieuLaiGop }) {
+  // Hàng hỏng hủy gán HẾT cho kênh Bán lẻ (Bán buôn thường không có — theo
+  // người dùng xác nhận bản 9.68) — cả kỳ hiện tại VÀ cùng kỳ năm trước.
+  const hhTotal = giaTriHongHuy.total;
+  const hhBanLe = giaTriHongHuy.total;
+  const hhBanBuon = 0;
+  const hhTotalLY = lastYearGiaTriHongHuy.total;
+  const hhBanLeLY = lastYearGiaTriHongHuy.total;
+  const hhBanBuonLY = 0;
+
+  const doanhThuCuoiTotal = thucDat.total - hhTotal;
+
+  const giaTriLaiGopBanLe = laiGopGross.banLe - hhBanLe;
+  const giaTriLaiGopBanBuon = laiGopGross.banBuon - hhBanBuon;
+  const giaTriLaiGopTotal = giaTriLaiGopBanLe + giaTriLaiGopBanBuon;
+
+  const lastYearLaiGopBanLe = hasLastYearLaiGop ? (lastYearLaiGopGross.banLe - hhBanLeLY) : null;
+  const lastYearLaiGopBanBuon = hasLastYearLaiGop ? (lastYearLaiGopGross.banBuon - hhBanBuonLY) : null;
+  const lastYearLaiGopTotal = hasLastYearLaiGop ? (lastYearLaiGopBanLe + lastYearLaiGopBanBuon) : null;
+
+  return {
+    chiTieuTotal: hasChiTieu ? chiTieuTotal : null, chiTieuBanLe: null, chiTieuBanBuon: null,
+    thucDatTotal: thucDat.total, thucDatBanLe: thucDat.banLe, thucDatBanBuon: thucDat.banBuon,
+    tyLeDatTotal: hasChiTieu ? pctOrNull(thucDat.total, chiTieuTotal) : null, tyLeDatBanLe: null, tyLeDatBanBuon: null,
+    cungKyTotal: hasLastYear ? pctOrNull(thucDat.total, lastYearThucDat.total) : null,
+    cungKyBanLe: hasLastYear ? pctOrNull(thucDat.banLe, lastYearThucDat.banLe) : null,
+    cungKyBanBuon: hasLastYear ? pctOrNull(thucDat.banBuon, lastYearThucDat.banBuon) : null,
+    giaTriHongHuyTotal: hhTotal, giaTriHongHuyBanLe: hhBanLe, giaTriHongHuyBanBuon: hhBanBuon,
+    // "Tỷ lệ" lãi gộp Total chia theo DOANH THU CUỐI (= Thực đạt − Giá trị
+    // hàng hỏng hủy, bản 9.64) — ÁP DỤNG ĐỒNG NHẤT cả 3 khối từ bản 9.68
+    // (trước đây chỉ khối BRG, vì hàng hỏng hủy khi đó chỉ có ở khối đó).
+    // Bán lẻ/Bán buôn không có khái niệm "doanh thu cuối" riêng theo kênh
+    // — chia trực tiếp theo Thực đạt của kênh đó.
+    tyLeLaiGopTotal: pctOrNull(giaTriLaiGopTotal, doanhThuCuoiTotal),
+    tyLeLaiGopBanLe: pctOrNull(giaTriLaiGopBanLe, thucDat.banLe),
+    tyLeLaiGopBanBuon: pctOrNull(giaTriLaiGopBanBuon, thucDat.banBuon),
+    giaTriLaiGopTotal, giaTriLaiGopBanLe, giaTriLaiGopBanBuon,
+    tyLeLaiGopSoChiTieuTotal: hasChiTieuLaiGop ? pctOrNull(giaTriLaiGopTotal, chiTieuLaiGop) : null,
+    tyLeLaiGopSoChiTieuBanLe: null, tyLeLaiGopSoChiTieuBanBuon: null,
+    laiGopCungKyTotal: hasLastYearLaiGop ? pctOrNull(giaTriLaiGopTotal, lastYearLaiGopTotal) : null,
+    laiGopCungKyBanLe: hasLastYearLaiGop ? pctOrNull(giaTriLaiGopBanLe, lastYearLaiGopBanLe) : null,
+    laiGopCungKyBanBuon: hasLastYearLaiGop ? pctOrNull(giaTriLaiGopBanBuon, lastYearLaiGopBanBuon) : null,
+    // Giữ lại giá trị NET (đã trừ hàng hỏng hủy) để dòng "Tổng cộng" cộng
+    // dồn đúng — KHÔNG cộng dồn giaTriLaiGopGross (đã trừ rồi ở trên).
+    __netLaiGop: { total: giaTriLaiGopTotal, banLe: giaTriLaiGopBanLe, banBuon: giaTriLaiGopBanBuon },
+    __netLaiGopLY: hasLastYearLaiGop ? { total: lastYearLaiGopTotal, banLe: lastYearLaiGopBanLe, banBuon: lastYearLaiGopBanBuon } : null,
+    __doanhThuCuoiTotal: doanhThuCuoiTotal
+  };
+}
+
+function buildSegmentRows(section, currentMap, lastYearMap, targetMap) {
+  const rows = [{ __isSectionHeader: true, __sectionLabel: section.headerLabel, __sectionColor: section.color }];
+
+  const sums = {
+    thucDat: { total: 0, banLe: 0, banBuon: 0 },
+    lastYearThucDat: { total: 0, banLe: 0, banBuon: 0 }, hasLastYear: false,
+    giaTriHongHuy: { total: 0 }, lastYearGiaTriHongHuy: { total: 0 },
+    laiGopGross: { banLe: 0, banBuon: 0 }, lastYearLaiGopGross: { banLe: 0, banBuon: 0 }, hasLastYearLaiGop: false,
+    chiTieuTotal: 0, hasChiTieu: false, chiTieuLaiGop: 0, hasChiTieuLaiGop: false
   };
 
   for (const item of NGANH_HANG_LIST) {
@@ -161,65 +265,72 @@ function buildSegmentRows(khoi, currentMap, lastYearMap, targetMap, hongHuyByNam
     const lastYear = lastYearMap.get(item.code);
     const target = targetMap.get(item.code);
 
-    const thucDat = current?.measures?.DoanhThu || 0;
-    const giaTriLaiGop = current?.measures?.LaiGop || 0;
-    const chiTieu = target?.ChiTieuDoanhThu;
-    const chiTieuLaiGop = target?.ChiTieuLaiGop;
-    const lastYearThucDat = lastYear?.measures?.DoanhThu;
-    const lastYearLaiGop = lastYear?.measures?.LaiGop;
+    const thucDat = {
+      total: current?.measures?.DoanhThu || 0,
+      banLe: current?.measures?.DoanhThuBanLe || 0,
+      banBuon: current?.measures?.DoanhThuBanBuon || 0
+    };
+    const hasLastYear = lastYear?.measures?.DoanhThu != null;
+    const lastYearThucDat = {
+      total: lastYear?.measures?.DoanhThu || 0,
+      banLe: lastYear?.measures?.DoanhThuBanLe || 0,
+      banBuon: lastYear?.measures?.DoanhThuBanBuon || 0
+    };
+    const giaTriHongHuy = { total: current?.measures?.GiaTriHongHuy || 0 };
+    const lastYearGiaTriHongHuy = { total: lastYear?.measures?.GiaTriHongHuy || 0 };
+    const laiGopGross = { banLe: current?.measures?.LaiGopBanLe || 0, banBuon: current?.measures?.LaiGopBanBuon || 0 };
+    const hasLastYearLaiGop = lastYear?.measures?.LaiGop != null;
+    const lastYearLaiGopGross = { banLe: lastYear?.measures?.LaiGopBanLe || 0, banBuon: lastYear?.measures?.LaiGopBanBuon || 0 };
+    const hasChiTieu = target?.ChiTieuDoanhThu != null;
+    const chiTieuTotal = target?.ChiTieuDoanhThu || 0;
+    const hasChiTieuLaiGop = target?.ChiTieuLaiGop != null;
+    const chiTieuLaiGop = target?.ChiTieuLaiGop || 0;
 
-    const giaTriHongHuy = includeHongHuy ? (hongHuyByName.get(item.name.trim()) || 0) : null;
-    const doanhThuCuoi = includeHongHuy ? (thucDat - (giaTriHongHuy || 0)) : null;
-    // "Tỷ lệ" lãi gộp PHẢI tính trên DOANH THU CUỐI (= Thực đạt - Giá trị
-    // hàng hỏng hủy), KHÔNG tính trên Thực đạt thô (theo yêu cầu người
-    // dùng, bản 9.64 — sửa lại bản 9.63 ban đầu tính nhầm theo Thực đạt).
-    // Khối "LFL"/"NSO" KHÔNG có khái niệm "Doanh thu cuối" riêng (hàng
-    // hỏng hủy không tách được theo siêu thị, xem đầu file) — coi như
-    // hàng hỏng hủy = 0 ở 2 khối đó, dùng LẠI Thực đạt làm mẫu số (đúng
-    // bằng "Doanh thu cuối" nếu hàng hỏng hủy = 0).
-    const laiGopBase = includeHongHuy ? doanhThuCuoi : thucDat;
-
-    const tyLeDat = (chiTieu != null && chiTieu !== 0) ? round1(thucDat / chiTieu * 100) : null;
-    const cungKyPct = (lastYearThucDat != null && lastYearThucDat !== 0) ? round1(thucDat / lastYearThucDat * 100) : null;
-    const tyLeLaiGop = laiGopBase ? round1(giaTriLaiGop / laiGopBase * 100) : null;
-    const tyLeLaiGopSoChiTieu = (chiTieuLaiGop != null && chiTieuLaiGop !== 0) ? round1(giaTriLaiGop / chiTieuLaiGop * 100) : null;
-    const laiGopCungKyPct = (lastYearLaiGop != null && lastYearLaiGop !== 0) ? round1(giaTriLaiGop / lastYearLaiGop * 100) : null;
-
-    rows.push({
-      khoi, maNganhHang: item.code,
-      tenNganhHang: current?.dimensions?.TenNganhHang || lastYear?.dimensions?.TenNganhHang || item.name,
-      chiTieu: chiTieu ?? null, thucDat, tyLeDat, cungKyPct,
-      giaTriHongHuy, doanhThuCuoi,
-      tyLeLaiGop, giaTriLaiGop, tyLeLaiGopSoChiTieu, laiGopCungKyPct
+    const fields = computeRowFields({
+      thucDat, lastYearThucDat, hasLastYear, giaTriHongHuy, lastYearGiaTriHongHuy,
+      laiGopGross, lastYearLaiGopGross, hasLastYearLaiGop, chiTieuTotal, hasChiTieu, chiTieuLaiGop, hasChiTieuLaiGop
     });
 
-    totals.thucDat += thucDat;
-    totals.giaTriLaiGop += giaTriLaiGop;
-    if (chiTieu != null) { totals.chiTieu += chiTieu; totals.hasChiTieu = true; }
-    if (chiTieuLaiGop != null) { totals.chiTieuLaiGop += chiTieuLaiGop; totals.hasChiTieuLaiGop = true; }
-    if (lastYearThucDat != null) { totals.lastYearThucDat += lastYearThucDat; totals.hasLastYear = true; }
-    if (lastYearLaiGop != null) { totals.lastYearLaiGop += lastYearLaiGop; totals.hasLastYearLaiGop = true; }
-    if (includeHongHuy) {
-      totals.giaTriHongHuy += giaTriHongHuy || 0;
-      totals.doanhThuCuoi += doanhThuCuoi || 0;
+    rows.push({
+      maNganhHang: item.code,
+      tenNganhHang: current?.dimensions?.TenNganhHang || lastYear?.dimensions?.TenNganhHang || item.name,
+      ...fields
+    });
+
+    sums.thucDat.total += thucDat.total; sums.thucDat.banLe += thucDat.banLe; sums.thucDat.banBuon += thucDat.banBuon;
+    if (hasLastYear) {
+      sums.hasLastYear = true;
+      sums.lastYearThucDat.total += lastYearThucDat.total;
+      sums.lastYearThucDat.banLe += lastYearThucDat.banLe;
+      sums.lastYearThucDat.banBuon += lastYearThucDat.banBuon;
     }
+    sums.giaTriHongHuy.total += giaTriHongHuy.total;
+    sums.lastYearGiaTriHongHuy.total += lastYearGiaTriHongHuy.total;
+    sums.laiGopGross.banLe += laiGopGross.banLe; sums.laiGopGross.banBuon += laiGopGross.banBuon;
+    if (hasLastYearLaiGop) {
+      sums.hasLastYearLaiGop = true;
+      sums.lastYearLaiGopGross.banLe += lastYearLaiGopGross.banLe;
+      sums.lastYearLaiGopGross.banBuon += lastYearLaiGopGross.banBuon;
+    }
+    if (hasChiTieu) { sums.chiTieuTotal += chiTieuTotal; sums.hasChiTieu = true; }
+    if (hasChiTieuLaiGop) { sums.chiTieuLaiGop += chiTieuLaiGop; sums.hasChiTieuLaiGop = true; }
   }
 
-  const totalLaiGopBase = includeHongHuy ? totals.doanhThuCuoi : totals.thucDat;
+  const totalFields = computeRowFields({
+    thucDat: sums.thucDat, lastYearThucDat: sums.lastYearThucDat, hasLastYear: sums.hasLastYear,
+    giaTriHongHuy: sums.giaTriHongHuy, lastYearGiaTriHongHuy: sums.lastYearGiaTriHongHuy,
+    laiGopGross: sums.laiGopGross, lastYearLaiGopGross: sums.lastYearLaiGopGross, hasLastYearLaiGop: sums.hasLastYearLaiGop,
+    chiTieuTotal: sums.chiTieuTotal, hasChiTieu: sums.hasChiTieu, chiTieuLaiGop: sums.chiTieuLaiGop, hasChiTieuLaiGop: sums.hasChiTieuLaiGop
+  });
+  delete totalFields.__netLaiGop;
+  delete totalFields.__netLaiGopLY;
+  delete totalFields.__doanhThuCuoiTotal;
+
   rows.push({
-    khoi, maNganhHang: null, tenNganhHang: `Tổng cộng ${khoi}`,
-    chiTieu: totals.hasChiTieu ? totals.chiTieu : null,
-    thucDat: totals.thucDat,
-    tyLeDat: (totals.hasChiTieu && totals.chiTieu) ? round1(totals.thucDat / totals.chiTieu * 100) : null,
-    cungKyPct: (totals.hasLastYear && totals.lastYearThucDat) ? round1(totals.thucDat / totals.lastYearThucDat * 100) : null,
-    giaTriHongHuy: includeHongHuy ? totals.giaTriHongHuy : null,
-    doanhThuCuoi: includeHongHuy ? totals.doanhThuCuoi : null,
-    tyLeLaiGop: totalLaiGopBase ? round1(totals.giaTriLaiGop / totalLaiGopBase * 100) : null,
-    giaTriLaiGop: totals.giaTriLaiGop,
-    tyLeLaiGopSoChiTieu: (totals.hasChiTieuLaiGop && totals.chiTieuLaiGop) ? round1(totals.giaTriLaiGop / totals.chiTieuLaiGop * 100) : null,
-    laiGopCungKyPct: (totals.hasLastYearLaiGop && totals.lastYearLaiGop) ? round1(totals.giaTriLaiGop / totals.lastYearLaiGop * 100) : null,
+    maNganhHang: null, tenNganhHang: section.totalLabel,
+    ...totalFields,
     __isSubtotal: true,
-    __isGrandTotal: khoi === 'Toàn hệ thống BRG'
+    __isGrandTotal: section.isGrandTotal
   });
 
   return rows;
@@ -240,13 +351,10 @@ async function runNganhHangBrgReport(definition, filterValues = {}) {
     return aggregateDailyRowsByEntity(raw, dateRange.to);
   };
 
-  const [currentRows, lastYearRows, hongHuyRows] = await Promise.all([
+  const [currentRows, lastYearRows] = await Promise.all([
     fetchDomain(DOANHTHU_DOMAIN, range),
-    fetchDomain(DOANHTHU_DOMAIN, lastYearRange),
-    fetchDomain(HONGHUY_DOMAIN, range)
+    fetchDomain(DOANHTHU_DOMAIN, lastYearRange)
   ]);
-
-  const hongHuyByName = new Map(hongHuyRows.map(r => [String(r.entityCode).trim(), r.measures?.GiaTriHongHuy || 0]));
 
   const fromPeriod = firstOfMonth(range.from);
   const toPeriod = firstOfMonth(range.to);
@@ -261,7 +369,6 @@ async function runNganhHangBrgReport(definition, filterValues = {}) {
     return !!(info && nsoSet.has(info.maDiem));
   };
 
-  const allStkIds = null; // không lọc — "Toàn hệ thống BRG"
   const lflStkIds = new Set();
   const nsoStkIds = new Set();
   for (const r of [...currentRows, ...lastYearRows]) {
@@ -269,19 +376,15 @@ async function runNganhHangBrgReport(definition, filterValues = {}) {
     if (!stk) continue;
     if (isNsoStk(stk)) nsoStkIds.add(stk); else lflStkIds.add(stk);
   }
+  const stkFilterBySection = { brg: null, lfl: lflStkIds, nso: nsoStkIds };
 
-  const brgCurrentMap = groupByDeptId(currentRows, allStkIds);
-  const brgLastYearMap = groupByDeptId(lastYearRows, allStkIds);
-  const lflCurrentMap = groupByDeptId(currentRows, lflStkIds);
-  const lflLastYearMap = groupByDeptId(lastYearRows, lflStkIds);
-  const nsoCurrentMap = groupByDeptId(currentRows, nsoStkIds);
-  const nsoLastYearMap = groupByDeptId(lastYearRows, nsoStkIds);
-
-  let rows = [
-    ...buildSegmentRows('Toàn hệ thống BRG', brgCurrentMap, brgLastYearMap, targetMap, hongHuyByName, true),
-    ...buildSegmentRows('LFL', lflCurrentMap, lflLastYearMap, targetMap, hongHuyByName, false),
-    ...buildSegmentRows('NSO', nsoCurrentMap, nsoLastYearMap, targetMap, hongHuyByName, false)
-  ];
+  let rows = [];
+  for (const section of SECTIONS) {
+    const stkFilter = stkFilterBySection[section.key];
+    const currentMap = groupByDeptId(currentRows, stkFilter);
+    const lastYearMap = groupByDeptId(lastYearRows, stkFilter);
+    rows = rows.concat(buildSegmentRows(section, currentMap, lastYearMap, targetMap));
+  }
 
   const columns = describeColumns(COLUMNS);
   assignSttIfPresent(rows, columns);
@@ -289,8 +392,7 @@ async function runNganhHangBrgReport(definition, filterValues = {}) {
   return {
     columns,
     rows,
-    columnGroups: COLUMN_GROUPS,
-    standaloneColumnColors: STANDALONE_COLUMN_COLORS
+    columnGroups: COLUMN_GROUPS
   };
 }
 
