@@ -1,6 +1,6 @@
-# Hướng dẫn triển khai gộp — bản 9.59 đến 9.67 (làm 1 lần)
+# Hướng dẫn triển khai gộp — bản 9.59 đến 9.68 (làm 1 lần)
 
-**Mục đích**: gộp các bước triển khai từ bản 9.59 tới bản 9.67 hiện tại
+**Mục đích**: gộp các bước triển khai từ bản 9.59 tới bản 9.68 hiện tại
 thành **1 lượt làm duy nhất**, cho server đang chạy bản 9.58 và cần bắt
 kịp bản mới nhất — KHÔNG lặp lại toàn bộ lịch sử trước đó (xem `deploy/Hướng
 dẫn triển khai gộp — bản 8.91 đến 8.98.md` và `deploy/Hướng dẫn triển khai
@@ -17,13 +17,14 @@ Gồm 3 phần ĐỘC LẬP, làm phần nào cũng được, không phụ thu�
 - **Phần 2 (mục D-E)** — bản 9.62: API tra cứu voucher ĐÃ DÙNG cho đối
   tác ngoài (qua Endpoint realtime) + sửa lỗi khoá `BARCODE` còn sót ở
   endpoint nội bộ "voucher-check".
-- **Phần 3 (mục F-G)** — bản 9.63/9.64/9.67: cập nhật 2 báo cáo "Doanh
-  thu theo ngành hàng"/"(LDTD)" ĐÃ CÓ sang định dạng mới (3 khối "Toàn hệ
-  thống BRG"/"LFL"/"NSO" + cụm Lãi gộp + "Giá trị hàng hỏng hủy") + trang
-  khai báo MỚI "Siêu thị NSO" — viết THEO ĐÚNG bản CUỐI CÙNG (bản 9.63 ban
-  đầu lỡ tạo 1 báo cáo thứ 3 riêng rồi bản 9.67 sửa lại gộp vào 2 báo cáo
-  đã có, bản 9.64 sửa 1 công thức tính — bên dưới làm LUÔN đúng, không cần
-  trải qua từng bước sửa).
+- **Phần 3 (mục F-G)** — bản 9.63/9.64/9.67/9.68: cập nhật 2 báo cáo
+  "Doanh thu theo ngành hàng"/"(LDTD)" ĐÃ CÓ sang định dạng mới (3 khối
+  "Toàn hệ thống BRG"/"LFL"/"NSO" + cụm Lãi gộp + "Giá trị hàng hỏng
+  hủy" + Bán lẻ/Bán buôn) + trang khai báo MỚI "Siêu thị NSO" — viết
+  THEO ĐÚNG bản CUỐI CÙNG (bản 9.63 ban đầu lỡ tạo 1 báo cáo thứ 3 riêng
+  rồi bản 9.67 sửa lại gộp vào 2 báo cáo đã có, bản 9.64 sửa 1 công thức
+  tính, bản 9.68 thêm Bán lẻ/Bán buôn + giải quyết hẳn nguồn dữ liệu hàng
+  hỏng hủy — bên dưới làm LUÔN đúng, không cần trải qua từng bước sửa).
 
 **Bản 9.65/9.66 — KHÔNG có bước triển khai riêng** (chỉ sửa tài liệu
 `.md`, không đụng code/schema/migration nào) — `git pull origin main` ở
@@ -32,12 +33,14 @@ mục A dưới đây là ĐỦ, tự động có luôn, không cần làm gì t
 - **9.65**: thêm quy ước "mỗi báo cáo phải có 1 tài liệu hướng dẫn riêng"
   (`CLAUDE.md`) + mục "Danh mục báo cáo" tổng hợp toàn bộ báo cáo
   (`hướng_dẫn_báo_cáo.md` mục 17).
-- **9.66**: xác nhận với người dùng rằng DSMART **CHƯA có nguồn dữ liệu
-  hàng hỏng hủy** — xem lưu ý ở Phần 3 mục G bên dưới.
+- **9.66**: xác nhận với người dùng rằng DSMART CHƯA có nguồn dữ liệu
+  hàng hỏng hủy TẠI THỜI ĐIỂM ĐÓ — bản 9.68 bên dưới đã GIẢI QUYẾT HẲN
+  (hoá ra cùng nguồn `STRANS`/mã giao dịch 318 với doanh thu, không cần
+  nguồn riêng như tưởng).
 
 ---
 
-## Tóm tắt những gì thay đổi (9.59 → 9.67)
+## Tóm tắt những gì thay đổi (9.59 → 9.68)
 
 | Bản | Nội dung |
 |---|---|
@@ -50,6 +53,7 @@ mục A dưới đây là ĐỦ, tự động có luôn, không cần làm gì t
 | 9.65 | CHỈ tài liệu — quy ước bắt buộc "mỗi báo cáo 1 file hướng dẫn riêng" + mục "Danh mục báo cáo" tổng hợp |
 | 9.66 | CHỈ tài liệu — xác nhận DSMART CHƯA có nguồn dữ liệu hàng hỏng hủy |
 | 9.67 | SỬA LẠI bản 9.63 theo đúng yêu cầu người dùng ("đừng tách bc"): BỎ báo cáo thứ 3 riêng, áp dụng định dạng mới TRỰC TIẾP vào 2 báo cáo "Doanh thu theo ngành hàng"/"(LDTD)" ĐÃ CÓ, mỗi báo cáo giữ nguyên domain Chỉ tiêu riêng (không gộp chung) |
+| 9.68 | Thêm Bán lẻ/Bán buôn (TRANS_CODE 211/212/221/222) + GIẢI QUYẾT hẳn "Giá trị hàng hỏng hủy" (TRANS_CODE 318, cùng nguồn STRANS/STK_ID với doanh thu — không cần VIEW/domain riêng như tưởng ở bản 9.66) cho 2 báo cáo doanh thu; cột "Khối" đổi thành dòng tiêu đề ngang merge hết cột (`__isSectionHeader`, hạ tầng dùng chung mới, opt-in) |
 
 ---
 
@@ -187,7 +191,7 @@ Không có bước nào ở Phần 2 làm mất dữ liệu đã có — 4 cột
 
 ---
 
-# PHẦN 3 — Định dạng mới cho báo cáo "Doanh thu theo ngành hàng"/"(LDTD)" + "Siêu thị NSO" (bản 9.63/9.64/9.67)
+# PHẦN 3 — Định dạng mới cho báo cáo "Doanh thu theo ngành hàng"/"(LDTD)" + "Siêu thị NSO" + Bán lẻ/Bán buôn/hàng hỏng hủy (bản 9.63/9.64/9.67/9.68)
 
 **KHÔNG tạo báo cáo mới** — cập nhật TRỰC TIẾP 2 báo cáo ĐÃ CÓ
 (`bc-doanh-thu-nganhhang`, `bc-doanh-thu-nganhhang-ldtd`), mỗi báo cáo
@@ -204,64 +208,96 @@ hàng.md` (tài liệu riêng theo quy ước CLAUDE.md).
    `etl_diem_stk_reader` trên bảng mới — **PHẢI chạy lại**, thiếu bước
    này trang "Siêu thị NSO" tạo được nhưng `rp-server` không đọc được dữ
    liệu, báo cáo sẽ coi MỌI siêu thị là LFL).
-3. Khởi động lại `etl`, `etl-admin`, `rp-server` (3 service có đổi code
+3. DBA chạy lại VIEW `V_HCRC_DOANHTHU_NGANHHANG` trên CSDL `DSMART16`
+   (Live, SQL đầy đủ ở mục 2 `báo cáo doanh thu-nhập hàng theo ngành
+   hàng.md` — `CREATE OR ALTER`, an toàn chạy lại nhiều lần, THÊM 5 cột
+   mới `DoanhThuBanLe`/`DoanhThuBanBuon`/`LaiGopBanLe`/`LaiGopBanBuon`/
+   `GiaTriHongHuy`, bản 9.68) — và file
+   `deploy/Thiết lập VIEW Doanh thu-Nhập hàng theo Ngành hàng Lịch sử
+   (DSMART16_EOM).sql` trên `DSMART16_EOM` NẾU server đã có job Lịch sử
+   ("Cùng kỳ năm trước").
+4. Khởi động lại `etl`, `etl-admin`, `rp-server` (3 service có đổi code
    — `api-server`/`api-admin` KHÔNG liên quan Phần 3, không cần restart
    lại nếu đã restart ở Phần 2).
-4. Cập nhật lại định nghĩa 3 báo cáo ngành hàng (2 báo cáo doanh thu
+5. Cập nhật lại định nghĩa 3 báo cáo ngành hàng (2 báo cáo doanh thu
    chuyển sang định dạng mới, báo cáo nhập hàng GIỮ NGUYÊN không đổi):
    ```bash
    cd rp-server
    node scripts/seedNganhHangReports.js
    ```
-5. Vào etl-admin → **"Chỉ tiêu Doanh thu theo ngành hàng"** VÀ **"Chỉ
+6. Cập nhật lại 2 job đồng bộ "Doanh thu theo ngành hàng" (thêm 5
+   measureColumns mới vào `MeasureColumnsJson` — PHẢI làm SAU bước 3,
+   script này kiểm tra VIEW có đủ cột trước khi ghi):
+   ```bash
+   cd etl
+   node scripts/seedNganhHangSync.js                # (hoặc --with-history nếu đã có job Lịch sử)
+   ```
+   **KHÔNG** cần chạy `seedHangHongHuySync.js` — file này đã XOÁ khỏi
+   repo (domain `hanghonghuy_nganhhang` riêng trước đây CHƯA TỪNG hoạt
+   động được, luôn rỗng vì thiếu nguồn — không mất dữ liệu gì khi bỏ).
+7. Vào etl-admin → Đồng bộ → "Chạy thử" 2 job "Doanh thu theo ngành
+   hàng - Live" vừa cập nhật — xác nhận đồng bộ xong KHÔNG lỗi (lỗi
+   "thiếu cột" nghĩa là bước 3 chưa chạy xong trên đúng CSDL).
+8. Vào etl-admin → **"Chỉ tiêu Doanh thu theo ngành hàng"** VÀ **"Chỉ
    tiêu Doanh thu theo ngành hàng (LDTD)"** (2 trang ĐÃ CÓ, không phải
    trang mới) → có thể thêm cột `ChiTieuLaiGop` vào file Excel nhập Chỉ
    tiêu (ngoài `ChiTieuDoanhThu` đã có) nếu muốn có cột "% so chỉ tiêu"
    của cụm Lãi gộp — để trống MaSieuThi, điền MaNganhHang.
-6. **(Chỉ nếu có siêu thị mới mở trong kỳ)** — vào etl-admin →
+9. **(Chỉ nếu có siêu thị mới mở trong kỳ)** — vào etl-admin →
    **"Siêu thị NSO"** (trang mới) → nhập/khai Mã Điểm siêu thị đó (đủ bộ
    nút như "Ánh xạ Điểm - STK_ID": tải file mẫu, nhập Excel, sửa/thêm 1
    dòng, khoá/kích hoạt, xuất, chọn nhiều + xoá hàng loạt). Mã Điểm
    KHÔNG khai ở đây MẶC ĐỊNH tính là LFL — danh sách này DÙNG CHUNG cho
    CẢ 2 báo cáo doanh thu, không khai riêng theo từng báo cáo.
-7. Vào **Hệ thống → Phân quyền**, gán quyền SỬA trang admin mới ("Siêu
-   thị NSO", menu `nso-stores`) cho đúng nhóm quản lý — bước 4 KHÔNG tự
-   gán quyền trang này (quyền XEM 2 báo cáo doanh thu nếu server đã gán
-   từ trước thì GIỮ NGUYÊN, không cần gán lại).
+10. Vào **Hệ thống → Phân quyền**, gán quyền SỬA trang admin mới ("Siêu
+    thị NSO", menu `nso-stores`) cho đúng nhóm quản lý — bước 5 KHÔNG tự
+    gán quyền trang này (quyền XEM 2 báo cáo doanh thu nếu server đã gán
+    từ trước thì GIỮ NGUYÊN, không cần gán lại).
+11. `cd rp-user && npm run build` (bundle tĩnh của web phục vụ qua
+    pm2/nginx PHẢI build lại — `DataTable.jsx` đổi để vẽ dòng tiêu đề
+    ngang mỗi khối, bản 9.68).
 
 ## G. Kiểm tra Phần 3 sau khi triển khai
 
 - [ ] rp-user → menu "Báo cáo Mua hàng" → mở **"Báo cáo doanh thu theo
-  ngành hàng"** → đủ 3 khối "Toàn hệ thống BRG"/"LFL"/"NSO" (thể hiện qua
-  cột "Khối", KHÔNG phải dòng tiêu đề gộp ngang) × 12 ngành hàng, mỗi
-  khối có 1 dòng "Tổng cộng" tô đậm riêng — khác hẳn bố cục cũ (phẳng,
-  thiếu cột "Mã ngành hàng"/"entityCode" không có nhãn).
+  ngành hàng"** → đủ 3 khối, MỖI khối mở đầu bằng **1 dòng tiêu đề ngang
+  merge hết cột** ("Toàn hệ thống BRG"/"LFL"/"NSO" — bản 9.68, KHÔNG còn
+  là 1 cột "Khối" thường như bản 9.63/9.67) × 12 ngành hàng, mỗi khối kết
+  bằng 1 dòng "Tổng cộng ..." tô đậm riêng.
+- [ ] **(24 cột Bán lẻ/Bán buôn, bản 9.68)** MỖI 1 trong 8 chỉ số (Chỉ
+  tiêu/Thực đạt/%CT/%CK của Doanh thu VÀ Lãi gộp) có đúng 3 cột con
+  "Total"/"Bán lẻ"/"Bán buôn" — cột "Bán lẻ" + "Bán buôn" của Thực đạt
+  CỘNG LẠI xấp xỉ bằng "Total" (có thể lệch nếu mã 232 khác 0 trong kỳ —
+  xem giả định ở mục 5 tài liệu riêng).
 - [ ] Mở **"Báo cáo doanh thu theo ngành hàng (LDTD)"** → CÙNG bố cục,
   CÙNG dữ liệu Thực đạt, nhưng cột "Chỉ tiêu" ĐỘC LẬP với báo cáo gốc
   (đọc từ domain `sales-targets-nganhhang-dt-ldtd` riêng).
-- [ ] **(cột hàng hỏng hủy)** "Giá trị hàng hỏng hủy"/"Doanh thu cuối"
-  CHỈ hiện số ở khối "Toàn hệ thống BRG" — khối "LFL"/"NSO" để trống
-  "—" (ĐÚNG THIẾT KẾ, không phải lỗi).
-- [ ] **(Tỷ lệ lãi gộp, bản 9.64)** Cột "Tỷ lệ" (cụm Lãi gộp) ở khối
-  "Toàn hệ thống BRG" PHẢI = Giá trị lãi gộp ÷ **Doanh thu cuối** × 100.
-  Khối "LFL"/"NSO" vẫn chia cho Thực đạt.
-- [ ] **(hàng hỏng hủy = 0, bản 9.66)** View `V_HCRC_HANGHONGHUY_NGANHHANG`
-  **HIỆN CHƯA TỒN TẠI** (DSMART chưa lưu dữ liệu hàng hỏng hủy ở đâu —
-  đã xác nhận với người dùng 18/10/2026) — "Giá trị hàng hỏng hủy" sẽ ra
-  `0` ở MỌI ngành hàng cho tới khi có nguồn dữ liệu thật, đây là hành vi
-  AN TOÀN, KHÔNG phải lỗi; "Doanh thu cuối" = Thực đạt, Tỷ lệ lãi gộp tự
-  dùng đúng Thực đạt làm mẫu số lúc này. Xem bộ SQL dò bảng gốc trong
-  `báo cáo doanh thu-nhập hàng theo ngành hàng.md` mục 8 khi cần tìm
-  nguồn dữ liệu thật.
+- [ ] **(Giá trị hàng hỏng hủy, bản 9.68 — GIẢI QUYẾT)** Nhóm cột đỏ "Giá
+  trị hàng hỏng hủy" (3 cột Total/Bán lẻ/Bán buôn) hiện SỐ THẬT (không
+  còn `0` cố định như hướng dẫn bản 9.66 cũ) ở **CẢ 3 khối** BRG/LFL/NSO
+  (trước bản 9.68 chỉ có ở BRG) — cột "Bán buôn" của nhóm này LUÔN `0`
+  (giả định "bán buôn thường không có hàng hỏng hủy", xem mục 8 tài liệu
+  riêng nếu cần sửa).
+- [ ] **(Tỷ lệ lãi gộp, bản 9.64, ÁP DỤNG CẢ 3 KHỐI từ 9.68)** Cột "Tỷ
+  lệ" (cụm Lãi gộp) cột "Total" ở **CẢ 3 khối** PHẢI = Giá trị lãi gộp
+  Total ÷ **Doanh thu cuối** (= Thực đạt Total − Giá trị hàng hỏng hủy
+  Total) × 100 — khác bản 9.63/9.67 CHỈ áp dụng ở khối BRG.
+- [ ] **(Lãi gộp Giá trị trừ hàng hỏng hủy, bản 9.68)** Cột "Lãi gộp —
+  Giá trị" "Bán lẻ" PHẢI NHỎ HƠN margin thô (đã trừ Giá trị hàng hỏng
+  hủy Bán lẻ cùng dòng); "Bán buôn" không đổi (hàng hỏng hủy Bán buôn
+  luôn 0); "Total" = Bán lẻ + Bán buôn (2 cột đã trừ).
 - [ ] **(phân loại NSO)** Siêu thị vừa khai ở "Siêu thị NSO" → xuất hiện
   Ở ĐÚNG khối "NSO" (không còn tính vào "LFL") sau khi job đồng bộ
   doanh thu chạy lại ít nhất 1 lần — ở CẢ 2 báo cáo doanh thu (danh sách
   NSO dùng chung).
+- [ ] Xuất **Excel** VÀ **PDF** của 1 trong 2 báo cáo — dòng tiêu đề
+  ngang mỗi khối hiện ĐÚNG (merge hết cột, nền màu, chữ trắng đậm) ở CẢ
+  2 định dạng xuất, không chỉ trên web.
 - [ ] Báo cáo **"Nhập hàng theo ngành hàng"** hoạt động Y HỆT trước (bố
-  cục phẳng cũ, không có khối/Lãi gộp) — Phần 3 KHÔNG đụng/đổi gì báo
-  cáo này.
+  cục phẳng cũ, không có khối/Lãi gộp/Bán lẻ-Bán buôn) — Phần 3 KHÔNG
+  đụng/đổi gì báo cáo này.
 
 Không có bước nào ở Phần 3 làm mất dữ liệu đã có — bảng `etl.NsoStores`
-là bảng MỚI; `DefinitionJson` của 2 báo cáo doanh thu được GHI ĐÈ sang
-định dạng mới (không mất Chỉ tiêu đã nhập, vẫn đọc từ domain Chỉ tiêu cũ
-y nguyên).
+là bảng MỚI; VIEW/job đồng bộ chỉ THÊM cột, không xoá/đổi tên cột cũ;
+`DefinitionJson` của 2 báo cáo doanh thu được GHI ĐÈ sang định dạng mới
+(không mất Chỉ tiêu đã nhập, vẫn đọc từ domain Chỉ tiêu cũ y nguyên).
