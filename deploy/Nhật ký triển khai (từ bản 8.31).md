@@ -23,14 +23,27 @@ demo 4 lựa chọn qua Artifact trước khi chọn.
 
 **Các bước**:
 
+**LƯU Ý server KHÔNG có internet** (theo người dùng xác nhận — cách làm
+hiện tại: MỞ internet tạm thời trên máy chủ, cài gói xong rồi ĐÓNG lại)
+— bước 2 dưới đây là bước DUY NHẤT ở bản này cần internet (tải gói npm
+mới), mọi bước còn lại (build/restart/kiểm tra) không cần mạng ngoài.
+Font Inter TỰ ĐÓNG GÓI vào bundle/file xuất (không gọi ra ngoài lúc
+chạy) — xem `VERSION.md` — nên sau khi cài xong gói + build/restart,
+ĐÓNG internet lại bình thường, không ảnh hưởng gì tới việc hiển thị
+font sau đó.
+
 1. `git pull origin main`.
-2. `npm install` ở CẢ `rp-user` (thêm `@fontsource/inter`) VÀ `rp-server`
-   (đổi `@openfonts/noto-sans_vietnamese` sang `@openfonts/inter_vietnamese`
-   — `package-lock.json` đã cập nhật, `npm install` tự xử lý đúng).
+2. **MỞ internet tạm thời trên máy chủ**, rồi `npm install` ở CẢ
+   `rp-user` (thêm `@fontsource/inter`) VÀ `rp-server` (đổi
+   `@openfonts/noto-sans_vietnamese` sang `@openfonts/inter_vietnamese`
+   — `package-lock.json` đã cập nhật, `npm install` tự xử lý đúng). Cài
+   xong là **ĐÓNG internet lại** như thường lệ — không bước nào sau đây
+   cần mạng ngoài nữa.
 3. `cd rp-user && npm run build` (bundle tĩnh phục vụ qua pm2/nginx PHẢI
    build lại — font + `styles.css`/`main.jsx` đổi).
 4. `pm2 restart hcrc-rp-server` (export Excel/PDF đổi font nhúng).
-5. Mở lại 1 báo cáo bất kỳ (web) — chữ đổi sang Inter, dấu tiếng Việt vẫn
+5. Mở lại 1 báo cáo bất kỳ (web, qua điện thoại/máy tính trong mạng nội
+   bộ, KHÔNG cần mạng ngoài) — chữ đổi sang Inter, dấu tiếng Việt vẫn
    hiển thị đúng (kiểm bằng mắt 1-2 dòng có dấu, vd tên ngành hàng).
 6. Xuất thử **Excel** VÀ **PDF** của 1 báo cáo — mở file, kiểm font tên
    ô là "Inter" (Excel: bôi đen 1 ô, xem ô "Font" trên thanh công cụ).
@@ -39,7 +52,8 @@ demo 4 lựa chọn qua Artifact trước khi chọn.
    định của máy đó (không lỗi, không mất dữ liệu).
 
 Không có bước nào ở bản này làm mất dữ liệu — chỉ đổi font hiển thị/xuất,
-không đụng CSDL/schema/API nào.
+không đụng CSDL/schema/API nào. KHÔNG có dependency nào gọi ra internet
+LÚC CHẠY — chỉ bước 2 (cài gói) cần mạng, 1 LẦN DUY NHẤT lúc deploy.
 
 ---
 
