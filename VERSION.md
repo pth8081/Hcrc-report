@@ -29,6 +29,52 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 9.70 — Sửa lỗi "mã Điểm không ra tên" khi siêu thị chưa có doanh thu trong ngày
+
+**Theo báo cáo người dùng** (ảnh chụp email "FW: Báo cáo doanh thu LĐTĐ" —
+cột "Siêu thị/Cửa hàng" hiện mã số thay vì tên cho 1 số dòng, thỉnh thoảng
+xảy ra) — người dùng xác nhận nguyên nhân: siêu thị đang **kiểm kê, chưa
+bắt đầu bán hàng trong ngày** nên chưa có dòng doanh thu nào, nhưng TÊN
+vẫn phải hiện đúng vì đó là thông tin TĨNH (không phụ thuộc hôm đó có bán
+được gì hay chưa).
+
+**Nguyên nhân**: `remapRowsToDiem()` (`rp-server/lib/diemStkMapping.js`)
+BỎ QUA HẲN mã Điểm nào CHƯA có dòng doanh thu khớp mã kho đã khai
+(`matchedRows` rỗng) — khối `current` (hoặc `lastYear`) biến mất hoàn
+toàn cho mã Điểm đó, kéo theo cột "Siêu thị/Cửa hàng" (đọc
+`current.dimensions.tenSieuThi`) rơi về hiện MÃ ĐIỂM thô (`||` fallback
+trong formula), dù dòng đó vẫn hiện trên báo cáo (nhờ có dòng Chỉ tiêu
+riêng, không phụ thuộc `current`). Lỗi xảy ra ở CẢ 2 báo cáo
+`bc-doanh-thu-ldtd`/`bc-doanh-thu-hcrc` (dùng chung hàm này), và cả nhóm
+MART/MINIMART như nhau (đã xác nhận bằng cách đọc code, không phải do
+khác biệt cấu hình giữa 2 nhóm).
+
+**Đã loại trừ qua điều tra**: không phải lỗi tên cột Excel lúc nhập
+"Ánh xạ Điểm - STK_ID" (đã đọc trực tiếp file người dùng tải lên — header
+khớp chính xác `TenSieuThi`, dữ liệu tên/`LoaiChuoi` đã đầy đủ cho đúng
+các mã bị báo lỗi, không có xung đột STK_ID trong file đó).
+
+**Sửa**: `remapRowsToDiem()` không `continue` bỏ qua nữa khi
+`matchedRows` rỗng (mã Điểm ĐÃ khai mã kho cho kỳ này, chỉ là CHƯA có
+dòng doanh thu) — vẫn gán đúng `dimensions.tenSieuThi`/`dimensions.chain`
+từ bảng ánh xạ (dữ liệu tĩnh, không cần `matchedRows`), còn `measures`
+giữ nguyên rỗng `{}` — các cột đo lường (doanh thu, tỷ lệ đạt,...) đọc ra
+vẫn `undefined`/"không có dữ liệu" giống Y HỆT trước đây khi khối
+`current` vắng mặt hoàn toàn, KHÔNG đổi hành vi "chưa có dữ liệu ≠ số 0"
+đã làm từ bản cũ. Hiệu ứng phụ (có lợi): các dòng này trước đây có thể
+rơi vào nhóm "không khớp nhóm nào" (do `current.dimensions.chain` cũng
+vắng mặt) — giờ nhóm đúng MART/MINIMART theo `LoaiChuoi` đã khai.
+
+Hàm này dùng chung cho `bc-doanh-thu-ldtd`, `bc-doanh-thu-hcrc` và
+`bc-top5-chi-nhanh` (`useDiemStkMapping: true`) — cả 3 đều được fix.
+
+Đã viết script mô phỏng trực tiếp `remapRowsToDiem()` với 1 mã Điểm có
+dòng doanh thu và 1 mã Điểm chưa có dòng nào, xác nhận tên/chain hiện
+đúng cho cả 2 trường hợp, `measures` rỗng đúng cho mã chưa có dữ liệu.
+
+Không cần deploy thêm bước nào ngoài build/restart `rp-server` bình
+thường — không đổi schema CSDL, không đổi file cấu hình.
+
 ## 9.69 — Đổi phông chữ báo cáo sang Inter (web + Excel + PDF)
 
 **Theo yêu cầu người dùng** — "Bạn xem có thể tham khảo phông chữ ở một

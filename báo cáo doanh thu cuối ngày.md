@@ -928,8 +928,21 @@ bao giờ ghép được vào báo cáo (không có lỗi/cảnh báo gì khác 
 > **Cột "Siêu thị/Cửa hàng" hiện TÊN thay vì MÃ** — đọc
 > `current.dimensions.tenSieuThi`. Tên NÀY LẤY TỪ cột "Tên siêu thị" trong
 > **"Ánh xạ Điểm - STK_ID"** (mục 2.3) — khai cùng lúc với việc khai mã kho.
-> Chưa khai (mã Điểm đó chưa có trong "Ánh xạ Điểm - STK_ID") thì cột này
-> rơi về hiện đúng mã Điểm như trước (`||` trong formula), không để trống.
+> Chưa khai (mã Điểm đó chưa có trong "Ánh xạ Điểm - STK_ID", hoặc có dòng
+> nhưng để trống cột "Tên siêu thị") thì cột này rơi về hiện đúng mã Điểm
+> như trước (`||` trong formula), không để trống.
+>
+> **Từ bản 9.70**: Tên/`LoaiChuoi` LUÔN hiện đúng dù mã Điểm đó CHƯA có
+> dòng doanh thu nào trong ngày (vd siêu thị đang kiểm kê, chưa bắt đầu
+> bán) — TRƯỚC bản này, `remapRowsToDiem()` (`rp-server/lib/diemStkMapping.js`)
+> bỏ qua HẲN mã Điểm nào không có dòng doanh thu khớp (`matchedRows` rỗng),
+> khiến khối `current` biến mất hoàn toàn cho mã Điểm đó — cột Tên rơi về
+> hiện MÃ (do `current` không tồn tại, không phải do cột "Tên siêu thị" bị
+> bỏ trống), dù dòng đó vẫn hiện trên báo cáo (nhờ có dòng Chỉ tiêu). Giờ
+> Tên/`LoaiChuoi` (dữ liệu TĨNH từ bảng ánh xạ, không phụ thuộc hôm đó có
+> doanh thu hay chưa) luôn được gán, còn các cột đo lường (`doanhThu`,...)
+> vẫn hiện "không có dữ liệu" như cũ (không đổi hành vi "chưa có dữ liệu ≠
+> số 0").
 >
 > **Cách làm nhanh**: chạy `node rp-server/scripts/seedLdtdHcrcReports.js`
 > — script tự tạo/CẬP NHẬT đúng 2 báo cáo `bc-doanh-thu-ldtd`/

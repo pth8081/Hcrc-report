@@ -98,8 +98,16 @@ function remapRowsToDiem(rows, diemMapping, useCu) {
     const stkList = useCu ? info.maStkCu : info.maStkMoi;
     if (!stkList.length) continue;
     const matchedRows = stkList.map(stk => byStk.get(stk)).filter(Boolean);
-    if (!matchedRows.length) continue;
-
+    // KHÔNG continue nữa khi matchedRows rỗng (mã Điểm ĐÃ khai kho cho kỳ
+    // này nhưng kho đó CHƯA có dòng doanh thu — vd siêu thị đang kiểm kê,
+    // chưa mở bán trong ngày) — theo yêu cầu người dùng (báo cáo doanh thu
+    // LĐTĐ hiện mã Điểm thay vì tên khi siêu thị chưa bắt đầu ngày): TÊN
+    // siêu thị/LoaiChuoi là thông tin TĨNH của bảng ánh xạ, KHÔNG phụ thuộc
+    // hôm đó đã có doanh thu hay chưa, nên vẫn phải hiện đúng. measures giữ
+    // {} (rỗng) khi không có matchedRows — downstream (current.measures.x)
+    // vẫn đọc ra undefined giống hệt TRƯỚC ĐÂY khi cả khối "current" vắng
+    // mặt hoàn toàn, nên KHÔNG đổi hành vi "chưa có dữ liệu ≠ số 0" của các
+    // cột doanh thu/đo lường — CHỈ sửa đúng phần dimensions (tên/loại chuỗi).
     const measures = {};
     const measureKeys = new Set();
     for (const r of matchedRows) for (const k of Object.keys(r.measures || {})) measureKeys.add(k);
@@ -116,7 +124,9 @@ function remapRowsToDiem(rows, diemMapping, useCu) {
     }
     // TenSieuThi của bảng ánh xạ Điểm-STK ưu tiên hơn (nếu có) — đại diện
     // đúng cấp "mã Điểm" hiện đang dùng trên báo cáo, thay vì tên gắn theo
-    // từng kho STK_ID lẻ (etl.BranchCodeMap, phục vụ mục đích KHÁC).
+    // từng kho STK_ID lẻ (etl.BranchCodeMap, phục vụ mục đích KHÁC). LUÔN
+    // gán được dù matchedRows rỗng (xem chú thích ở trên) — tên lấy thẳng
+    // từ info, không phụ thuộc có dòng doanh thu matchedRows hay không.
     if (info.tenSieuThi) dimensions.tenSieuThi = info.tenSieuThi;
     // LoaiChuoi do admin khai tường minh LUÔN ƯU TIÊN GHI ĐÈ "chain" tự động
     // lấy từ STOCK.TYPE (đồng bộ qua domain doanhthu_chinhanh) — đáng tin
@@ -124,13 +134,15 @@ function remapRowsToDiem(rows, diemMapping, useCu) {
     // "chain" hay không, và tránh vài ngoại lệ dữ liệu DSMART đã ghi nhận
     // (TYPE='02' có dòng là "Kho hàng..." không phải MiniMart bán lẻ thật —
     // xem etl-db/schema.sql). Để trống (null) -> giữ nguyên giá trị tự động
-    // như trước, KHÔNG đổi hành vi cũ.
+    // như trước, KHÔNG đổi hành vi cũ (mã Điểm chưa có matchedRows thì cũng
+    // không có "chain" tự động nào để giữ — chain chỉ hiện khi admin khai
+    // LoaiChuoi tường minh, đúng ý nghĩa "đáng tin hơn tự động" nêu trên).
     if (info.loaiChuoi) dimensions.chain = info.loaiChuoi;
 
     out.push({
       entityCode: maDiem,
-      sourceSystem: matchedRows[0].sourceSystem,
-      eventDate: matchedRows[0].eventDate,
+      sourceSystem: matchedRows[0] ? matchedRows[0].sourceSystem : null,
+      eventDate: matchedRows[0] ? matchedRows[0].eventDate : null,
       dimensions,
       measures
     });

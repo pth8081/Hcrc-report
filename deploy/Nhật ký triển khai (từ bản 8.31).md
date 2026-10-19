@@ -14,6 +14,34 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 9.70 — Sửa lỗi "mã Điểm không ra tên" khi siêu thị chưa có doanh thu trong ngày
+
+**Thay đổi**: xem chi tiết đầy đủ ở `VERSION.md`. Tóm tắt: sửa
+`rp-server/lib/diemStkMapping.js` — cột "Siêu thị/Cửa hàng" ở báo cáo
+`bc-doanh-thu-ldtd`/`bc-doanh-thu-hcrc`/`bc-top5-chi-nhanh` giờ hiện đúng
+TÊN siêu thị dù siêu thị đó CHƯA có dòng doanh thu trong ngày (vd đang
+kiểm kê, chưa bắt đầu bán). KHÔNG đổi schema CSDL, KHÔNG đổi file cấu
+hình/biến môi trường.
+
+**Các bước**:
+
+1. Chỉ cần build/restart lại `rp-server` (file sửa chỉ ở
+   `rp-server/lib/diemStkMapping.js`, không động tới `etl`/`etl-admin`/
+   `api-server`/`rp-user`):
+   ```
+   cd rp-server
+   npm run build   # nếu có bước build riêng, theo đúng quy trình hiện tại
+   # restart tiến trình rp-server (pm2/systemd/... theo cách đang chạy)
+   ```
+2. **Không cần** mở internet (không thêm/đổi gói npm nào ở bản này).
+3. Kiểm tra: mở lại báo cáo "Doanh thu LĐTĐ"/"Doanh thu HCRC" (rp-user)
+   đúng ngày có siêu thị đang kiểm kê/chưa mở bán — cột "Siêu thị/Cửa
+   hàng" phải hiện TÊN đúng (không còn hiện mã số thô) cho các mã Điểm
+   đó, trong khi các cột doanh thu/tỷ lệ đạt của đúng dòng đó vẫn hiện
+   trống (không phải số 0) — đúng hành vi "chưa có dữ liệu" như trước.
+
+---
+
 ## 9.69 — Đổi phông chữ báo cáo sang Inter (web + Excel + PDF)
 
 **Thay đổi**: xem chi tiết đầy đủ ở `VERSION.md`. Tóm tắt: đổi phông chữ
