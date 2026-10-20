@@ -14,6 +14,22 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 9.78 — Cột "actions" tự xuống dòng khi nhiều nút, không đè lên cột ghim bên trái trên di động
+
+**Thay đổi**: xem chi tiết ở `VERSION.md`. Chỉ sửa CSS (3 file
+`styles.css`), KHÔNG đổi file `.jsx` nào, KHÔNG đổi schema CSDL.
+
+**Các bước**:
+
+1. `git pull origin main`.
+2. `cd api-admin && npm run build` rồi `pm2 restart hcrc-api-admin`.
+3. `cd etl-admin && npm run build` rồi `pm2 restart hcrc-etl-admin`.
+4. `cd rp-user && npm run build` rồi `pm2 restart hcrc-rp-user`.
+5. Kiểm tra trên điện thoại (hoặc DevTools responsive mode ~390px
+   ngang): trang "Đối tác API" (api-admin) — các nút Sửa/Nhân bản/Tắt/...
+   tự xuống dòng trong cột cuối, cột "Tên" vẫn thấy được, không bị nút
+   đè lên. Bảng khác ít nút (vd "Sửa"/"Xoá") không đổi gì — vẫn 1 dòng.
+
 ## 9.77 — Báo cáo doanh thu ngành hàng: chỉ hiện ngành hàng ĐÃ có Chỉ tiêu trong kỳ
 
 **Thay đổi**: xem chi tiết ở `VERSION.md`. Tóm tắt: `rp-server/lib/

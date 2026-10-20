@@ -29,6 +29,25 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 9.78 — Cột "actions" tự xuống dòng khi nhiều nút, không đè lên cột ghim bên trái trên di động
+
+**Theo báo cáo người dùng** (ảnh chụp trang "Đối tác API" trên di động —
+"vẫn không nhìn thấy các thông tin liên quan đến API, tên, thông tin các
+thứ... cột nó nhiều quá nên bạn phải xuống dòng"): cuộn ngang chỉ thấy
+toàn nút hành động, mất hẳn cột "Tên". Nguyên nhân: `.data-table__
+actions-cell` có `white-space: nowrap` buộc cả 9 nút (Sửa/Nhân bản/Tắt/
+Báo cáo được gọi/Realtime được gọi/Ghi được gọi/Cấu hình Voucher được
+gọi/Luân chuyển bí mật/Xoá) nằm nguyên 1 dòng — ô rộng hơn cả màn hình
+di động, lúc "dính" (position: sticky; right: 0) cạnh trái bị đẩy ra
+ngoài, đè lên cột "Tên" ghim bên trái (bản 9.73).
+
+Sửa: bỏ `white-space: nowrap`, thêm `max-width: 70vw` trên
+`.data-table__actions-cell` (cả 3 app, class dùng chung) — nút tự xuống
+dòng trong ô khi nhiều, bảng ít nút (đa số trang, vd "Sửa Xoá") vẫn vừa
+1 dòng như cũ. Verify bằng SSR (esbuild + `react-dom/server`) +
+Playwright screenshot ở độ rộng di động (393px) — bảng 9 nút giờ hiện đủ
+cột "Tên"/"Xác thực" không cần cuộn; bảng 2 nút không đổi.
+
 ## 9.77 — Báo cáo doanh thu ngành hàng: chỉ hiện ngành hàng ĐÃ có Chỉ tiêu trong kỳ
 
 **Theo yêu cầu người dùng** — "khi mình up cái chỉ tiêu lên nhé, thì up
