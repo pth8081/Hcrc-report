@@ -29,6 +29,28 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 9.81 — Chẩn đoán + tài liệu: báo cáo "Core stock = 0" bị Timeout (RCSI/khoá bảng ETL)
+
+**Theo báo cáo người dùng** (log `.pm2/logs/hcrc-*-error.log` đính kèm):
+chạy báo cáo "bc-core-ton-kho-0-minimart" bị lỗi `Timeout: Request failed
+to complete in 30000ms` (ETIMEOUT). Thuần CHẨN ĐOÁN + VIẾT TÀI LIỆU
+(`bc-core-ton-kho-0.md`, mục Hỏi & đáp) — KHÔNG đổi code lần này.
+
+2 nguyên nhân xác định qua log: (1) job đồng bộ "Tồn kho Chi tiết theo
+SKU - Live (DSMART16)" (ĐÚNG domain báo cáo này đọc) đang kẹt/lỗi
+(ECONNCLOSED) NGAY LÚC báo cáo chạy — transaction DELETE+MERGE của ETL
+(`etl/lib/upsert.js`) có thể khoá cả bảng `dwh.ReportFacts` nếu CSDL DWH
+CHƯA bật RCSI (rủi ro đã ghi chú sẵn ở đầu `dwh/schema.sql`), chặn SELECT
+của báo cáo tới hết 30s; (2) nguồn 172.16.74.45:1433 (BRG Mart L4 Sài
+Đồng + HaproFood 198 Lò Đúc, CÙNG 1 IP) không kết nối được — sự cố
+mạng/tường lửa riêng, không phải lỗi phần mềm.
+
+Khuyến nghị đã ghi vào tài liệu: `pm2 restart hcrc-etl` để gỡ job kẹt
+ngay; kiểm tra mạng tới 172.16.74.45; DBA bật RCSI (`ALTER DATABASE
+CURRENT SET READ_COMMITTED_SNAPSHOT ON WITH ROLLBACK IMMEDIATE` — vào
+khung giờ bảo trì) để xử lý TRIỆT ĐỂ; tăng `DWH_REQUEST_TIMEOUT_MS`
+trong `.env` làm giải pháp tạm nếu cần.
+
 ## 9.80 — .page--wide cho trang bảng nhiều cột — bỏ cuộn ngang thừa trên desktop
 
 **Theo báo cáo người dùng**: "Desktop vẫn chưa cải thiện mở rộng màn

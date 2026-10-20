@@ -14,6 +14,24 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 9.81 — Chẩn đoán + tài liệu: báo cáo "Core stock = 0" bị Timeout (RCSI/khoá bảng ETL)
+
+**Thay đổi**: CHỈ sửa tài liệu (`bc-core-ton-kho-0.md`, mục Hỏi & đáp) —
+KHÔNG đổi code, KHÔNG cần build/restart gì. Xem chẩn đoán đầy đủ ở
+`VERSION.md`.
+
+**Việc cần làm NGAY cho server đang gặp lỗi Timeout này** (không phải
+bước triển khai code — bước XỬ LÝ SỰ CỐ):
+
+1. `pm2 restart hcrc-etl` — gỡ job "Tồn kho Chi tiết theo SKU - Live
+   (DSMART16)" đang kẹt trạng thái "đang chạy" trong bộ nhớ.
+2. Thử chạy lại báo cáo "Core stock = 0" (Mart/Minimart).
+3. Nếu vẫn lỗi — kiểm tra mạng/VPN/tường lửa tới 172.16.74.45:1433
+   (nguồn "BRG Mart L4 Sài Đồng"/"HaproFood 198 Lò Đúc").
+4. Báo DBA kiểm tra/bật RCSI trên CSDL DWH (câu lệnh đầy đủ ở
+   `bc-core-ton-kho-0.md`) — xử lý triệt để nguyên nhân gốc (ETL ghi dữ
+   liệu khoá bảng, chặn báo cáo đọc).
+
 ## 9.80 — .page--wide cho trang bảng nhiều cột — bỏ cuộn ngang thừa trên desktop
 
 **Thay đổi**: xem chi tiết ở `VERSION.md`. Chỉ sửa CSS (2 file

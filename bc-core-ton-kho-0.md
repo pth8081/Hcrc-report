@@ -284,6 +284,53 @@ cáo vẫn chạy đúng, chỉ là không hiện Mã điểm cho kho đó).
 **Muốn đổi ngưỡng?**
 Sửa `threshold` trong `DefinitionJson` qua rp-user, không cần sửa code.
 
+**Chạy báo cáo bị lỗi Timeout (bản 9.81, theo sự cố thật người dùng gặp
+19/10/2026 — "Lỗi request POST /api/reports/bc-core-ton-kho-0-minimart/run:
+Timeout: Request failed to complete in 30000ms")?**
+2 nguyên nhân THẬT đã xác định qua log `.pm2/logs/hcrc-rp-server-error.log`
+(mã lỗi `ETIMEOUT`, đúng 30000ms = `DWH_REQUEST_TIMEOUT_MS` mặc định ở
+`rp-server/db.js`) + `.pm2/logs/hcrc-etl-error.log` cùng thời điểm:
+
+1. **Job đồng bộ "Tồn kho Chi tiết theo SKU - Live (DSMART16)"** — ĐÚNG
+   domain mà báo cáo này đọc (`stockDomain`) — đang bị kẹt/lỗi liên tục
+   ("bỏ qua lượt chạy này — lượt trước chưa xong", "Connection is closed
+   — mã lỗi: ECONNCLOSED") NGAY LÚC báo cáo chạy. `etl/lib/upsert.js` ghi
+   `dwh.ReportFacts` bằng transaction DELETE+MERGE có thể mang hàng nghìn
+   dòng — nếu CSDL DWH CHƯA bật RCSI (`READ_COMMITTED_SNAPSHOT`, xem cảnh
+   báo đầu `dwh/schema.sql`), SQL Server tự động LEO THANG khoá dòng lên
+   khoá BẢNG trong lúc ETL đang ghi, chặn/làm treo MỌI SELECT khác (kể cả
+   domain/báo cáo không liên quan) tới khi ETL ghi xong — đúng khớp báo
+   cáo bị treo tới hết 30s rồi timeout.
+2. Log cũng cho thấy 1 nguồn khác (172.16.74.45:1433, dùng chung cho
+   "BRG Mart L4 Sài Đồng" VÀ "HaproFood 198 Lò Đúc") không kết nối được
+   — đây là sự cố MẠNG/tường lửa phía server đó, KHÔNG liên quan trực
+   tiếp tới báo cáo này (domain khác), nhưng là dấu hiệu hạ tầng đang có
+   vấn đề cùng lúc — nên kiểm tra luôn.
+
+**Xử lý**:
+- Ngay lập tức (không cần DBA): `pm2 restart hcrc-etl` — thoát trạng
+  thái "đang chạy" bị kẹt trong bộ nhớ của job Tồn kho, rồi thử chạy lại
+  báo cáo.
+- Kiểm tra kết nối mạng/VPN/tường lửa tới 172.16.74.45:1433 (nếu vẫn báo
+  lỗi) — việc của team hạ tầng/mạng, không phải lỗi phần mềm HCRC.
+- **Khuyến nghị DBA (xử lý TRIỆT ĐỂ nguyên nhân gốc)** — kiểm tra CSDL
+  DWH đã bật RCSI chưa (`SELECT is_read_committed_snapshot_on FROM
+  sys.databases WHERE name = '<tên CSDL DWH>'`); nếu `0` (chưa bật), bật
+  vào khung giờ bảo trì, KHÔNG có kết nối nào khác đang mở:
+  ```sql
+  ALTER DATABASE CURRENT SET READ_COMMITTED_SNAPSHOT ON WITH ROLLBACK IMMEDIATE;
+  ```
+  (`WITH ROLLBACK IMMEDIATE` huỷ MỌI giao dịch khác đang chạy trên CSDL
+  đó — DBA tự chọn thời điểm, KHÔNG tự động chạy trong script triển khai
+  vì đây là thay đổi cấu hình CSDL sản xuất). Sau khi bật, SELECT đọc bản
+  snapshot (không chờ khoá của ETL ghi) — hết hẳn kiểu treo này.
+- Tuỳ chọn (giải pháp tạm trong lúc chờ DBA xử lý RCSI) — tăng
+  `DWH_REQUEST_TIMEOUT_MS` trong `.env` của rp-server (vd `60000`) rồi
+  `pm2 restart hcrc-rp-server`, để chịu được query chậm hơn 1 chút —
+  KHÔNG giải quyết gốc rễ nếu job ETL thật sự bị KẸT (không phải chỉ
+  chậm), chỉ hữu ích nếu CSDL chỉ chậm hơn bình thường chứ không bị khoá
+  hẳn.
+
 ## Ghi chú kỹ thuật (cho ai cần đọc code)
 
 - Bộ máy tính toán: `rp-server/lib/coreZeroStockRunner.js`
