@@ -449,19 +449,38 @@ async function exportPdf(definition, rows) {
     const colIndexByKey = new Map(columns.map((c, i) => [c.key, i]));
     const covered = new Set();
     const groupColIdxsForSuper = new Map(); // g.label -> [col idx,...] — dùng dựng dòng super-group bên dưới
+    // soloSuperGroupByLabel — mirror ĐÚNG lib/exportExcel.js (xem chú thích
+    // đầy đủ ở đó, bản 9.75) — super-group CHỈ CÓ ĐÚNG 1 nhóm con (vd "Giá
+    // trị hàng hỏng hủy" tự nó 1 super-group riêng) vẽ GỘP row0+row1 thành 1
+    // dải banner cao gấp đôi (màu/chữ trắng của chính super-group đó) thay
+    // vì vẽ 2 dải chồng nhau CÙNG 1 chữ lặp lại — dòng row2 (Total/Bán lẻ/
+    // Bán buôn) GIỮ NGUYÊN màu NHẠT của chính group (không đổi theo solo).
+    const soloSuperGroupByLabel = new Map();
+    if (hasSuper) {
+      for (const sg of superGroups) {
+        if ((sg.groupLabels || []).length === 1) soloSuperGroupByLabel.set(sg.groupLabels[0], sg);
+      }
+    }
     for (const g of groups) {
       const idxs = (g.keys || []).map(k => colIndexByKey.get(k)).filter(v => v !== undefined);
       groupColIdxsForSuper.set(g.label, idxs);
       if (!idxs.length) continue;
       const start = Math.min(...idxs), end = Math.max(...idxs);
-      const argb = resolveGroupColor(g.color, pdfGroupColorPalette);
+      const solo = soloSuperGroupByLabel.get(g.label);
+      const leafArgb = resolveGroupColor(g.color, pdfGroupColorPalette);
       const startX = colX[start];
       const spanW = colX[end] + colWidths[end] - startX;
-      drawGridRect(startX, row1Top - HEADER_ROW_HEIGHT, spanW, HEADER_ROW_HEIGHT, argb);
-      drawWrappedCenteredText(g.label, startX, spanW, row1Top, HEADER_ROW_HEIGHT, { bold: true, size: HEADER_GROUP_FONT_SIZE });
+      if (solo) {
+        const topArgb = resolveGroupColor(solo.color, pdfGroupColorPalette);
+        drawGridRect(startX, row1Top - HEADER_ROW_HEIGHT, spanW, HEADER_ROW_HEIGHT * 2, topArgb);
+        drawWrappedCenteredText(solo.label, startX, spanW, row0Top, HEADER_ROW_HEIGHT * 2, { bold: true, size: HEADER_GROUP_FONT_SIZE, color: rgb(1, 1, 1) });
+      } else {
+        drawGridRect(startX, row1Top - HEADER_ROW_HEIGHT, spanW, HEADER_ROW_HEIGHT, leafArgb);
+        drawWrappedCenteredText(g.label, startX, spanW, row1Top, HEADER_ROW_HEIGHT, { bold: true, size: HEADER_GROUP_FONT_SIZE });
+      }
       for (let i = start; i <= end; i++) {
         covered.add(i);
-        drawGridRect(colX[i], row2Top - HEADER_ROW_HEIGHT, colWidths[i], HEADER_ROW_HEIGHT, argb);
+        drawGridRect(colX[i], row2Top - HEADER_ROW_HEIGHT, colWidths[i], HEADER_ROW_HEIGHT, leafArgb);
         drawWrappedCenteredText(columns[i].label, colX[i], colWidths[i], row2Top, HEADER_ROW_HEIGHT, { bold: true, size: HEADER_SUBCOL_FONT_SIZE });
       }
     }
@@ -482,6 +501,16 @@ async function exportPdf(definition, rows) {
     if (hasSuper) {
       const coveredSuper = new Set();
       for (const sg of superGroups) {
+        // Super-group `solo` (CHỈ 1 nhóm con) đã vẽ ĐỦ cả row0+row1 gộp làm
+        // 1 ở vòng `groups` phía trên (xem soloSuperGroupByLabel) — vẽ lại ở
+        // đây sẽ chồng đè/vẽ trùng. VẪN PHẢI thêm vào `coveredSuper` (chỉ bỏ
+        // qua việc VẼ, không bỏ qua việc ĐÁNH DẤU) — thiếu bước này, vòng
+        // "tô nốt row0 cho cột chưa phủ" bên dưới sẽ tô ĐÈ màu NHẠT lên đúng
+        // banner đậm/chữ trắng vừa vẽ, xoá mất chữ.
+        if ((sg.groupLabels || []).length === 1) {
+          for (const gl of sg.groupLabels) for (const i of groupColIdxsForSuper.get(gl) || []) coveredSuper.add(i);
+          continue;
+        }
         const idxs = (sg.groupLabels || []).flatMap(gl => groupColIdxsForSuper.get(gl) || []);
         if (!idxs.length) continue;
         const start = Math.min(...idxs), end = Math.max(...idxs);

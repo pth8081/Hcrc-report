@@ -149,29 +149,52 @@ function addReportSheet(workbook, definition, rows, sheetName) {
     // r1/r2 chồng lên nhau (ExcelJS ném lỗi "Cannot merge already merged
     // cells" nếu 1 ô đã nằm trong 1 vùng merge khác rồi lại bị merge tiếp).
     const superLabelSet = new Set(superGroups.flatMap(sg => sg.groupLabels || []));
+    // soloSuperGroupByLabel (bản 9.75, theo yêu cầu người dùng — "merge cho
+    // đồng bộ liền mạch... total/bán lẻ/bán buôn merge thành 2 dòng luôn") —
+    // super-group CHỈ CÓ ĐÚNG 1 nhóm con (vd "Giá trị hàng hỏng hủy" tự nó 1
+    // super-group riêng, xem lib/nganhHangBrgRunner.js) TRƯỚC ĐÂY vẫn vẽ ĐỦ 2
+    // Ô riêng (banner r0 ở vòng dưới + nhãn group r1 ở vòng này) — CÙNG 1
+    // CHỮ lặp lại 2 lần chồng nhau, nhìn dư thừa/không giống cách "TT"/"Ngành
+    // hàng" (không thuộc nhóm nào) đã gộp liền 1 Ô duy nhất từ trước. Giờ
+    // XỬ LÝ NHƯ 1 CỘT GỘP DUY NHẤT (top = r0, merge THẲNG r0→r1 1 LẦN, màu/
+    // chữ trắng LẤY TỪ super-group — giống hệt banner Doanh thu/Lãi gộp,
+    // không phải màu nhạt + chữ đen như group thường) — vòng vẽ r0 riêng bên
+    // dưới SẼ BỎ QUA đúng super-group này (đã vẽ xong ở đây, vẽ lại sẽ lỗi
+    // "already merged").
+    const soloSuperGroupByLabel = new Map();
+    for (const sg of superGroups) {
+      if ((sg.groupLabels || []).length === 1) soloSuperGroupByLabel.set(sg.groupLabels[0], sg);
+    }
     for (const g of groups) {
       const idxs = (g.keys || []).map(k => colIndexByKey.get(k)).filter(Boolean);
       if (!idxs.length) continue;
       const start = Math.min(...idxs), end = Math.max(...idxs);
-      const argb = resolveGroupColor(g.color, GROUP_COLORS_CORPORATE);
-      const top = (r0 && !superLabelSet.has(g.label)) ? r0 : r1;
+      const solo = soloSuperGroupByLabel.get(g.label);
+      const top = (r0 && (solo || !superLabelSet.has(g.label))) ? r0 : r1;
+      // topArgb (banner gộp r0-r1 khi `solo`, màu ĐẬM của chính super-group)
+      // KHÁC `leafArgb` (dòng Total/Bán lẻ/Bán buôn ở r2, LUÔN màu NHẠT của
+      // CHÍNH group — kể cả khi `solo` — không đổi màu dòng lá, chỉ đổi màu
+      // banner gộp phía trên; dùng chung 1 màu đậm cho cả dòng lá sẽ làm chữ
+      // "Total/Bán lẻ/Bán buôn" (đen) khó đọc trên nền đỏ đậm).
+      const topArgb = resolveGroupColor(solo ? solo.color : g.color, GROUP_COLORS_CORPORATE);
+      const leafArgb = resolveGroupColor(g.color, GROUP_COLORS_CORPORATE);
       sheet.mergeCells(top, start, r1, end);
       const topCell = sheet.getCell(top, start);
-      topCell.value = g.label;
+      topCell.value = solo ? solo.label : g.label;
       // Chữ ĐEN mặc định (giống hành vi cũ khi top===r1) kể cả khi nhóm này
-      // phải "trồi" lên r0 (vd "Giá trị hàng hỏng hủy", không thuộc
-      // super-group nào) — nền của nó vẫn là màu NHẠT của chính nhóm (đỏ
-      // nhạt...), KHÁC HẲN nền ĐẬM của banner super-group thật (Doanh thu/
-      // Lãi gộp, luôn chữ trắng — xem vòng vẽ r0 riêng bên dưới).
-      topCell.font = fontName({ bold: true });
+      // phải "trồi" lên r0 vì KHÔNG thuộc super-group nào — nền của nó vẫn
+      // là màu NHẠT của chính nhóm. RIÊNG nhóm `solo` (super-group CHỈ có
+      // đúng nó) dùng màu/chữ TRẮNG ĐẬM của chính super-group đó — coi như 1
+      // banner CẤP 1 thật, chỉ khác là KHÔNG có dòng CẤP 2 riêng bên dưới.
+      topCell.font = fontName(solo ? { bold: true, color: { argb: 'FFFFFFFF' } } : { bold: true });
       topCell.alignment = { horizontal: 'center', vertical: 'middle' };
       for (let r = top; r <= r1; r++) {
-        for (let c = start; c <= end; c++) sheet.getCell(r, c).fill = fillArgb(argb);
+        for (let c = start; c <= end; c++) sheet.getCell(r, c).fill = fillArgb(topArgb);
       }
       for (let c = start; c <= end; c++) {
         covered.add(c);
         const botC = sheet.getCell(r2, c);
-        botC.fill = fillArgb(argb);
+        botC.fill = fillArgb(leafArgb);
         botC.value = columns[c - 1].label;
         botC.font = fontName({ bold: true });
         botC.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
@@ -201,6 +224,10 @@ function addReportSheet(workbook, definition, rows, sheetName) {
     // từng dải, không đụng tới các ô r1/r2 bên dưới).
     if (r0) {
       for (const sg of superGroups) {
+        // Super-group `solo` (CHỈ 1 nhóm con) đã vẽ ĐỦ cả banner lẫn merge ở
+        // vòng `groups` phía trên (xem soloSuperGroupByLabel) — vẽ lại ở đây
+        // sẽ ĐÈ merge cũ, ExcelJS ném lỗi "Cannot merge already merged cells".
+        if ((sg.groupLabels || []).length === 1) continue;
         const idxs = (sg.groupLabels || []).flatMap(gl => {
           const g = groups.find(x => x.label === gl);
           return g ? (g.keys || []).map(k => colIndexByKey.get(k)).filter(Boolean) : [];

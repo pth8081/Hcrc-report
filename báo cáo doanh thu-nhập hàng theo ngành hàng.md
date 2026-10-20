@@ -371,7 +371,15 @@ Từ bản 9.73 CÒN THÊM `columnSuperGroups` — 1 dòng tiêu đề CAO HƠN 
 "Doanh thu" (4 nhóm Doanh thu) và "Lãi gộp" (4 nhóm Lãi gộp) — bản 9.74
 THÊM "Giá trị hàng hỏng hủy" làm super-group thứ 3 (tự nó 1 nhóm, trước
 đó để trống dòng này tạo khoảng trắng đứt quãng giữa "Doanh thu"/"Lãi
-gộp", theo phản hồi người dùng "merge cho đồng bộ liền mạch"). KHÔNG còn
+gộp", theo phản hồi người dùng "merge cho đồng bộ liền mạch"). Bản 9.75
+(cùng phản hồi người dùng, ý tiếp theo — "total/bán lẻ/bán buôn merge
+thành 2 dòng luôn") sửa tiếp: super-group CHỈ CÓ ĐÚNG 1 nhóm con (như
+"Giá trị hàng hỏng hủy") GỘP LUÔN với dòng nhãn nhóm (CẤP 2) ngay bên
+dưới thành 1 Ô duy nhất cao gấp đôi (`rowSpan`/merge dọc Excel, màu/chữ
+TRẮNG của chính super-group) — TRƯỚC ĐÓ vẫn vẽ 2 Ô CHỒNG NHAU cùng 1 chữ
+lặp lại (banner CẤP 1 riêng + nhãn nhóm CẤP 2 riêng, dù cùng 1 nội dung).
+Dòng Total/Bán lẻ/Bán buôn (CẤP 3, lá) GIỮ NGUYÊN màu NHẠT của chính
+nhóm, không đổi theo màu đậm của banner gộp phía trên. KHÔNG còn
 `standaloneColumnColors` ("Doanh thu cuối" không còn là cột hiển thị
 riêng — chỉ dùng NGẦM để tính mẫu số Tỷ lệ lãi gộp Total, đúng file mẫu
 gốc không có cột này).

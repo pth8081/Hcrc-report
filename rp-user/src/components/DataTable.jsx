@@ -97,7 +97,15 @@ function buildSuperHeader(segments, columnSuperGroups) {
           colSpan += segments[i].cols.length;
           i += 1;
         }
-        cells.push({ type: 'super', superGroup: sg, colSpan });
+        // solo (bản 9.75, theo yêu cầu người dùng — "total/bán lẻ/bán buôn
+        // merge thành 2 dòng luôn") — super-group CHỈ CÓ ĐÚNG 1 nhóm con
+        // (vd "Giá trị hàng hỏng hủy" tự nó 1 super-group riêng, xem
+        // lib/nganhHangBrgRunner.js) GỘP LUÔN với dòng `group-header-row`
+        // ngay bên dưới thành 1 Ô cao gấp đôi (`rowSpan=2`), KHÔNG vẽ thêm
+        // Ô nhãn riêng ở group-header-row nữa (trùng chữ, xem renderer bên
+        // dưới bỏ qua đúng segment này) — mirror Y HỆT lib/exportExcel.js/
+        // lib/exportPdf.js.
+        cells.push({ type: 'super', superGroup: sg, colSpan, solo: sg.groupLabels.length === 1 });
         continue;
       }
     }
@@ -157,6 +165,12 @@ export default function DataTable({ columns, rows, emptyMessage = 'Không có d�
   const segments = hasGroups ? buildGroupedHeader(allColumns, columnGroups) : null;
   const hasSuperGroups = hasGroups && !!(columnSuperGroups && columnSuperGroups.length);
   const superCells = hasSuperGroups ? buildSuperHeader(segments, columnSuperGroups) : null;
+  // soloSuperGroupLabels (bản 9.75) — tên nhóm nào là super-group CHỈ CÓ
+  // ĐÚNG 1 nhóm con (xem buildSuperHeader() — `solo: true`) — dùng để
+  // group-header-row BỎ QUA đúng Ô đã vẽ rowSpan=2 ở dòng super phía trên.
+  const soloSuperGroupLabels = hasSuperGroups
+    ? new Set((columnSuperGroups || []).filter(sg => (sg.groupLabels || []).length === 1).flatMap(sg => sg.groupLabels))
+    : new Set();
   const tableClassName = segments ? 'data-table data-table--grouped' : 'data-table';
   const zebraFlags = hasGroups ? computeZebraFlags(rows) : rows.map(() => false);
 
@@ -171,7 +185,12 @@ export default function DataTable({ columns, rows, emptyMessage = 'Không có d�
                   {superCells.map((cell, idx) => {
                     if (cell.type === 'super') {
                       return (
-                        <th key={`sg-${idx}`} colSpan={cell.colSpan} style={{ background: resolveGroupColor(cell.superGroup.color), color: '#fff' }}>
+                        <th
+                          key={`sg-${idx}`}
+                          colSpan={cell.colSpan}
+                          rowSpan={cell.solo ? 2 : undefined}
+                          style={{ background: resolveGroupColor(cell.superGroup.color), color: '#fff' }}
+                        >
                           {cell.superGroup.label}
                         </th>
                       );
@@ -189,6 +208,12 @@ export default function DataTable({ columns, rows, emptyMessage = 'Không có d�
                     const standaloneColor = resolveStandaloneColumnColor(seg.col, standaloneColumnColors);
                     return <th key={seg.col.key} rowSpan={2} style={headerStyle(seg.col, standaloneColor ? { background: standaloneColor } : undefined)}>{seg.col.label}</th>;
                   }
+                  // soloSuperGroupLabels (bản 9.75) — Ô này ĐÃ vẽ xong ở dòng
+                  // group-superheader-row phía trên (rowSpan=2, xem
+                  // buildSuperHeader()) — KHÔNG vẽ lại ở đây (trùng chữ),
+                  // trình duyệt tự "dồn" các Ô sau lên đúng vị trí nhờ
+                  // rowSpan của Ô phía trên, không cần chừa Ô trống.
+                  if (soloSuperGroupLabels.has(seg.group.label)) return null;
                   return (
                     <th key={`g-${idx}`} colSpan={seg.cols.length} style={{ background: resolveGroupColor(seg.group.color) }}>
                       {seg.group.label}
