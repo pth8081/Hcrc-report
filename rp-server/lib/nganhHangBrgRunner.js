@@ -129,15 +129,9 @@ const COLUMNS = [
   { key: 'cungKyTotal', label: 'Total', format: 'percent', width: 0.9 },
   { key: 'cungKyBanLe', label: 'Bán lẻ', format: 'percent', width: 0.9 },
   { key: 'cungKyBanBuon', label: 'Bán buôn', format: 'percent', width: 0.9 },
-  // CHỈ 1 cột "Total" (bản 9.76, theo yêu cầu người dùng — "chỗ giá trị
-  // hàng hỏng hủy chỉ có 1 thôi") — KHÁC 8 chỉ số còn lại (đều có 3 cột
-  // con Total/Bán lẻ/Bán buôn) vì giá trị hàng hỏng hủy LUÔN gán hết cho
-  // Bán lẻ (Bán buôn luôn 0, xem computeRowFields() bên dưới) — Bán lẻ
-  // luôn = Total, Bán buôn luôn = 0, nên 2 cột đó không mang thêm thông
-  // tin gì, bỏ hẳn cho gọn (giữ nguyên NỘI BỘ giaTriHongHuy.banLe/banBuon
-  // trong computeRowFields() — vẫn cần để trừ đúng vào Lãi gộp Giá trị
-  // Bán lẻ/Bán buôn, CHỈ bỏ 2 cột HIỂN THỊ thôi).
   { key: 'giaTriHongHuyTotal', label: 'Total', width: 1.2 },
+  { key: 'giaTriHongHuyBanLe', label: 'Bán lẻ', width: 1.2 },
+  { key: 'giaTriHongHuyBanBuon', label: 'Bán buôn', width: 1.2 },
   { key: 'tyLeLaiGopTotal', label: 'Total', format: 'percent', width: 0.9 },
   { key: 'tyLeLaiGopBanLe', label: 'Bán lẻ', format: 'percent', width: 0.9 },
   { key: 'tyLeLaiGopBanBuon', label: 'Bán buôn', format: 'percent', width: 0.9 },
@@ -197,7 +191,7 @@ const COLUMN_GROUPS = [
   { label: 'Doanh thu — Thực đạt', color: 'green', keys: ['thucDatTotal', 'thucDatBanLe', 'thucDatBanBuon'] },
   { label: 'Doanh thu — % so chỉ tiêu', color: 'green', keys: ['tyLeDatTotal', 'tyLeDatBanLe', 'tyLeDatBanBuon'] },
   { label: 'Doanh thu — % so cùng kỳ năm trước', color: 'green', keys: ['cungKyTotal', 'cungKyBanLe', 'cungKyBanBuon'] },
-  { label: 'Giá trị hàng hỏng hủy', color: 'red', keys: ['giaTriHongHuyTotal'] },
+  { label: 'Giá trị hàng hỏng hủy', color: 'red', keys: ['giaTriHongHuyTotal', 'giaTriHongHuyBanLe', 'giaTriHongHuyBanBuon'] },
   { label: 'Lãi gộp — Tỷ lệ', color: 'orange', keys: ['tyLeLaiGopTotal', 'tyLeLaiGopBanLe', 'tyLeLaiGopBanBuon'] },
   { label: 'Lãi gộp — Giá trị', color: 'orange', keys: ['giaTriLaiGopTotal', 'giaTriLaiGopBanLe', 'giaTriLaiGopBanBuon'] },
   { label: 'Lãi gộp — % so chỉ tiêu', color: 'orange', keys: ['tyLeLaiGopSoChiTieuTotal', 'tyLeLaiGopSoChiTieuBanLe', 'tyLeLaiGopSoChiTieuBanBuon'] },
