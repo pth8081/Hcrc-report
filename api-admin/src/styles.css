@@ -59,7 +59,12 @@ button:disabled, button:disabled:hover {
 /* Cột "Sửa/Bật-Tắt/Xoá" ghim cố định bên phải khi cuộn ngang (bản 9.05,
    theo báo cáo người dùng — bảng rộng trên điện thoại, cuộn ngang khó kéo
    hết cỡ nên không bao giờ thấy được nút thao tác) — xem DataTable.jsx. */
-.data-table__actions-cell { position: sticky; right: 0; background: var(--surface); box-shadow: -2px 0 4px rgba(0, 0, 0, .08); white-space: nowrap; }
+.data-table__actions-cell { position: sticky; right: 0; background: var(--surface); box-shadow: -2px 0 4px rgba(0, 0, 0, .08); white-space: nowrap; z-index: 1; }
+/* Cột dữ liệu ĐẦU TIÊN (vd "Tên") ghim cố định bên trái khi cuộn ngang
+   (bản 9.73, theo báo cáo người dùng — bảng "Đối tác API" nhiều nút hành
+   động, cuộn sang phải để thấy nút thì mất tên đối tác đang xem) — mirror
+   .data-table__actions-cell, chỉ khác cạnh ghim — xem DataTable.jsx. */
+.data-table__sticky-start-cell { position: sticky; left: 0; background: var(--surface); box-shadow: 2px 0 4px rgba(0, 0, 0, .08); z-index: 1; }
 .empty-message { color: var(--ink-soft); font-size: 13px; }
 
 .tabs { display: flex; gap: 4px; margin-bottom: 16px; border-bottom: 1px solid var(--line); }
