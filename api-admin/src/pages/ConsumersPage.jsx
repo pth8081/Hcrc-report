@@ -366,7 +366,7 @@ export default function ConsumersPage() {
           { key: 'Name', label: 'Tên' },
           { key: 'AuthMethod', label: 'Xác thực', render: (c) => AUTH_METHOD_LABELS[c.AuthMethod] || c.AuthMethod },
           { key: 'PublicId', label: 'Định danh công khai', render: (c) => c.ClientId || c.HmacKeyId || '—' },
-          { key: 'Scopes', label: 'Phạm vi', render: (c) => c.Scopes.join(', ') },
+          { key: 'Scopes', label: 'Phạm vi', render: (c) => (c.Scopes || []).join(', ') },
           { key: 'AllowedIps', label: 'IP cho phép', render: (c) => c.AllowedIps || 'Không giới hạn' },
           { key: 'IsActive', label: 'Trạng thái', render: (c) => (c.IsActive ? 'Hoạt động' : 'Đã tắt') },
           { key: 'LastUsedAt', label: 'Dùng gần nhất', render: (c) => (c.LastUsedAt ? new Date(c.LastUsedAt).toLocaleString('vi-VN') : '—') },
@@ -407,12 +407,12 @@ export default function ConsumersPage() {
             <div className="scope-picker">
               {SCOPE_OPTIONS.map(scope => (
                 <label key={scope} className="checkbox-row">
-                  <input type="checkbox" checked={editing.Scopes.includes(scope)} onChange={() => setEditing({ ...editing, Scopes: toggleScope(editing.Scopes, scope) })} />
+                  <input type="checkbox" checked={(editing.Scopes || []).includes(scope)} onChange={() => setEditing({ ...editing, Scopes: toggleScope(editing.Scopes || [], scope) })} />
                   {scope}
                 </label>
               ))}
             </div>
-            <input type="number" value={editing.RateLimitPerMinute} onChange={(e) => setEditing({ ...editing, RateLimitPerMinute: Number(e.target.value) })} />
+            <input type="number" value={editing.RateLimitPerMinute ?? 120} onChange={(e) => setEditing({ ...editing, RateLimitPerMinute: Number(e.target.value) })} />
             <input
               placeholder="IP cho phép, phân tách dấu phẩy (để trống = không giới hạn)"
               value={editing.AllowedIps || ''}

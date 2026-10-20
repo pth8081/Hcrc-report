@@ -2,6 +2,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import App from './App';
+import ErrorBoundary from './components/ErrorBoundary';
 // Phông Inter (bản 9.69, theo yêu cầu người dùng — "phông này hơi xấu...
 // tham khảo phông chữ báo cáo quốc tế chuyên nghiệp hơn", demo 4 lựa chọn
 // qua Artifact, người dùng chọn Inter) — TỰ LƯU TRỮ qua @fontsource/inter
@@ -23,8 +24,10 @@ import './styles.css';
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <BrowserRouter>
-      <App />
-    </BrowserRouter>
+    <ErrorBoundary>
+      <BrowserRouter>
+        <App />
+      </BrowserRouter>
+    </ErrorBoundary>
   </StrictMode>
 );
