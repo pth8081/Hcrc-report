@@ -15,6 +15,16 @@ import { useAuth } from '../lib/AuthContext';
 const DEFAULT_CONFIG_KEY = 'default';
 const EMPTY_FORM = { configKey: '', name: '', dataSourceId: '' };
 
+// voucherUrls (bản 9.74, theo yêu cầu người dùng — "mình sẽ dễ bị nhầm url
+// lắm") — hiện SẴN đúng 2 đường dẫn check/redeem của TỪNG dòng ngay trong
+// bảng này, tính THẲNG từ ConfigKey (không gõ tay/không copy từ tài liệu
+// rời rạc dễ lệch khi thêm máy chủ mới) — admin copy thẳng đúng URL gửi
+// đối tác, không cần tự ghép path bằng tay (dễ gõ sai/thiếu dấu "/").
+function voucherUrls(configKey) {
+  const base = configKey === DEFAULT_CONFIG_KEY ? '/api/v1/vouchers' : `/api/v1/vouchers/${configKey}`;
+  return { check: `${base}/check`, redeem: `${base}/redeem` };
+}
+
 export default function VoucherSettingsPage() {
   const { canEdit } = useAuth();
   const editable = canEdit('voucher-settings');
@@ -101,14 +111,20 @@ export default function VoucherSettingsPage() {
 
       <table className="data-table">
         <thead>
-          <tr><th>Mã (ConfigKey)</th><th>Tên</th><th>Nguồn dữ liệu</th>{editable && <th></th>}</tr>
+          <tr><th>Mã (ConfigKey)</th><th>Tên</th><th>Nguồn dữ liệu</th><th>Đường dẫn API (gửi đối tác)</th>{editable && <th></th>}</tr>
         </thead>
         <tbody>
-          {configs.map(c => (
+          {configs.map(c => {
+            const urls = voucherUrls(c.ConfigKey);
+            return (
             <tr key={c.ConfigKey}>
               <td><code>{c.ConfigKey}</code></td>
               <td>{c.Name}</td>
               <td>{c.DataSourceName || <span className="hint">Chưa chọn</span>}</td>
+              <td>
+                <div><code>POST {urls.check}</code></div>
+                <div><code>POST {urls.redeem}</code></div>
+              </td>
               {editable && (
                 <td>
                   <button type="button" onClick={() => setEditing({ ...c })}>Sửa</button>{' '}
@@ -122,7 +138,8 @@ export default function VoucherSettingsPage() {
                 </td>
               )}
             </tr>
-          ))}
+            );
+          })}
         </tbody>
       </table>
 

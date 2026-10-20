@@ -104,11 +104,28 @@ const SECTIONS = [
             <p>
               Khác 2 mục "Endpoint" ở trên (bảng/cột admin tự chọn tuỳ ý) — <code>POST /api/v1/vouchers/check</code>/
               <code>redeem</code> là 2 API CỐ ĐỊNH (bảng/cột đã viết sẵn trong code, đúng hợp đồng của app
-              "HCRC Voucher Redemption"). Vào trang <strong>"Cấu hình Voucher"</strong> chỉ cần chọn 1 "Nguồn dữ
-              liệu" (đã khai ở "Nguồn dữ liệu") trỏ đúng CSDL vận hành có bảng voucher — không cấu hình gì
-              thêm. Cấp quyền gọi cho app voucher ở trang "Đối tác" như bình thường (scope <code>realtime</code>
-              cho check, <code>realtimeWrite</code> cho redeem). Chi tiết đầy đủ: xem
-              <code> api-voucher-check-redeem.md</code> trong repo.
+              "HCRC Voucher Redemption").
+            </p>
+            <p>
+              <strong>Nhiều máy chủ DSMART</strong> (vd nhiều chi nhánh như "Fuji", mỗi nơi 1 CSDL voucher
+              riêng) — vào trang <strong>"Cấu hình Voucher"</strong>, MỖI DÒNG là 1 máy chủ, chọn đúng
+              "Nguồn dữ liệu" (đã khai ở "Nguồn dữ liệu") trỏ CSDL vận hành có bảng voucher của máy chủ đó.
+              Dòng <code>default</code> LUÔN có sẵn, ứng với API KHÔNG kèm mã (<code>/vouchers/check</code>,{' '}
+              <code>/vouchers/redeem</code>) — đối tác hiện tại không cần đổi gì. Thêm dòng MỚI (vd mã{' '}
+              <code>fuji</code>) thì đối tác phải đổi sang gọi{' '}
+              <code>/vouchers/fuji/check</code>/<code>/vouchers/fuji/redeem</code> (chèn đúng mã vào giữa
+              đường dẫn) mới vào đúng máy chủ đó — gọi sai mã, hoặc mã chưa được cấp quyền, nhận lỗi{' '}
+              <code>403</code>. <strong>Trang "Cấu hình Voucher" tự hiện sẵn đúng 2 đường dẫn của từng
+              dòng</strong> (cột "Đường dẫn API") — copy thẳng gửi đối tác, không tự ghép tay để tránh nhầm.
+            </p>
+            <p>
+              Cấp quyền gọi cho app voucher ở trang "Đối tác" → tick scope <code>voucherCheck</code> (cho
+              check), <code>voucherRedeem</code> (cho redeem) — <strong>KHÔNG</strong> dùng chung
+              scope <code>realtime</code>/<code>realtimeWrite</code> của 2 mục "Endpoint" ở trên (2 scope
+              riêng biệt, tách từ bản Audit-Fix4 để không vô tình mở nhầm quyền). Đối tác cần gọi mã KHÁC{' '}
+              <code>default</code> (vd <code>fuji</code>) còn cần tick thêm đúng mã đó ở nút
+              "Cấu hình Voucher được gọi" trên chính dòng đối tác đó. Chi tiết đầy đủ: xem{' '}
+              <code>api-voucher-check-redeem-gui-doi-tac.md</code> trong repo.
             </p>
           </>
         )

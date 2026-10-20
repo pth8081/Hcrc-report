@@ -358,10 +358,16 @@ dụng khi `row.__isSectionHeader === true`, không báo cáo nào khác đặt 
 này).
 
 `columnGroups`: 9 nhóm, mỗi nhóm 3 cột con Total/Bán lẻ/Bán buôn — 4 nhóm
-"Doanh thu — ..." (xanh lá), 1 nhóm "Giá trị hàng hỏng hủy" (đỏ), 4 nhóm
-"Lãi gộp — ..." (cam). KHÔNG còn `standaloneColumnColors` ("Doanh thu
-cuối" không còn là cột hiển thị riêng — chỉ dùng NGẦM để tính mẫu số Tỷ lệ
-lãi gộp Total, đúng file mẫu gốc không có cột này).
+"Doanh thu — ..." (xanh lá), 1 nhóm "Hàng hỏng hủy" (đỏ — đổi tên từ
+"Giá trị hàng hỏng hủy" bản 9.74, theo yêu cầu người dùng, ngắn gọn hơn —
+field/key nội bộ `giaTriHongHuy*` GIỮ NGUYÊN, chỉ đổi nhãn hiển thị), 4
+nhóm "Lãi gộp — ..." (cam). Từ bản 9.73 CÒN THÊM `columnSuperGroups` — 1
+dòng tiêu đề CAO HƠN gộp "Doanh thu" (4 nhóm Doanh thu) và "Lãi gộp" (4
+nhóm Lãi gộp) — nhóm "Hàng hỏng hủy" CHỦ Ý đứng riêng, không thuộc
+super-group nào (đúng file mẫu gốc không gộp nhóm này vào "Doanh thu").
+KHÔNG còn `standaloneColumnColors` ("Doanh thu cuối" không còn là cột
+hiển thị riêng — chỉ dùng NGẦM để tính mẫu số Tỷ lệ lãi gộp Total, đúng
+file mẫu gốc không có cột này).
 
 **2 giả định đã nêu rõ với người dùng lúc demo, CHƯA có xác nhận cuối
 cùng** (nếu sai, chỉ cần sửa `rp-server/lib/nganhHangBrgRunner.js`, không

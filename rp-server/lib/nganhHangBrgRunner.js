@@ -174,7 +174,7 @@ const COLUMN_GROUPS = [
   { label: 'Doanh thu — Thực đạt', color: 'green', keys: ['thucDatTotal', 'thucDatBanLe', 'thucDatBanBuon'] },
   { label: 'Doanh thu — % so chỉ tiêu', color: 'green', keys: ['tyLeDatTotal', 'tyLeDatBanLe', 'tyLeDatBanBuon'] },
   { label: 'Doanh thu — % so cùng kỳ năm trước', color: 'green', keys: ['cungKyTotal', 'cungKyBanLe', 'cungKyBanBuon'] },
-  { label: 'Giá trị hàng hỏng hủy', color: 'red', keys: ['giaTriHongHuyTotal', 'giaTriHongHuyBanLe', 'giaTriHongHuyBanBuon'] },
+  { label: 'Hàng hỏng hủy', color: 'red', keys: ['giaTriHongHuyTotal', 'giaTriHongHuyBanLe', 'giaTriHongHuyBanBuon'] },
   { label: 'Lãi gộp — Tỷ lệ', color: 'orange', keys: ['tyLeLaiGopTotal', 'tyLeLaiGopBanLe', 'tyLeLaiGopBanBuon'] },
   { label: 'Lãi gộp — Giá trị', color: 'orange', keys: ['giaTriLaiGopTotal', 'giaTriLaiGopBanLe', 'giaTriLaiGopBanBuon'] },
   { label: 'Lãi gộp — % so chỉ tiêu', color: 'orange', keys: ['tyLeLaiGopSoChiTieuTotal', 'tyLeLaiGopSoChiTieuBanLe', 'tyLeLaiGopSoChiTieuBanBuon'] },
