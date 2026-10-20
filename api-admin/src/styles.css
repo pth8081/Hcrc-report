@@ -18,6 +18,15 @@ h3 { font-size: 14px; margin: 20px 0 8px; color: var(--ink-soft); }
 .app-shell { display: flex; min-height: 100vh; }
 .content { flex: 1; padding: 28px 36px; }
 .page { max-width: 1040px; }
+/* bản 9.79, theo báo cáo người dùng ("Desktop vẫn chưa cải thiện mở rộng
+   màn hình để có thể nhìn thấy tên api") — .page mặc định giới hạn
+   1040px CHO MỌI trang (hợp lý cho form/văn bản, nhưng bảng nhiều cột
+   như "Đối tác API" (7 cột dữ liệu + 9 nút hành động)/"Endpoint realtime"
+   (7 cột + 2 cột nút) bị ép cuộn ngang dù màn hình desktop còn thừa rất
+   nhiều chỗ). `.page--wide` bỏ hẳn giới hạn — CHỈ gắn thêm ở trang có
+   bảng thật sự rộng (ConsumersPage/RealtimeEndpointsPage), không đổi gì
+   các trang form/văn bản khác (vẫn giữ .page 1040px). */
+.page--wide { max-width: none; }
 .page-loading { padding: 40px; text-align: center; color: var(--ink-soft); }
 .page-header { margin-bottom: 22px; display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
 .page-header h1 { display: flex; align-items: center; gap: 10px; margin: 0 0 4px; }

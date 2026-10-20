@@ -179,7 +179,7 @@ export default function RealtimeEndpointsPage() {
   }
 
   return (
-    <div className="page">
+    <div className="page page--wide">
       <h1>Endpoint realtime</h1>
       <p>
         Mỗi dòng dưới đây là một endpoint đang phục vụ qua{' '}

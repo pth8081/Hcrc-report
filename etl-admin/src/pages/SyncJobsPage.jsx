@@ -398,7 +398,7 @@ export default function SyncJobsPage() {
   }
 
   return (
-    <div className="page">
+    <div className="page page--wide">
       <h1>Đồng bộ</h1>
       {error && <p className="form-error">{error}</p>}
 

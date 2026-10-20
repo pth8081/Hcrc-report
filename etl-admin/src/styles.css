@@ -18,6 +18,11 @@ h3 { font-size: 14px; margin: 20px 0 8px; color: var(--ink-soft); }
 .app-shell { display: flex; min-height: 100vh; }
 .content { flex: 1; padding: 28px 36px; }
 .page { max-width: 1040px; }
+/* .page--wide (bản 9.79, đồng bộ rp-user — xem chú thích đầy đủ ở đó) —
+   bỏ giới hạn 1040px cho trang có bảng nhiều cột (SyncJobsPage — nhiều
+   nút hành động/dòng), tránh cuộn ngang dù màn hình desktop còn thừa chỗ.
+   Trang khác vẫn giữ 1040px. */
+.page--wide { max-width: none; }
 .page-loading { padding: 40px; text-align: center; color: var(--ink-soft); }
 .page-header { margin-bottom: 22px; display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
 .page-header h1 { display: flex; align-items: center; gap: 10px; margin: 0 0 4px; }
