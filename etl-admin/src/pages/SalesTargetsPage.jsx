@@ -58,7 +58,29 @@ export default function SalesTargetsPage({ menuCode, apiBase, title }) {
     const qs = params.toString();
     api.get(`${apiBase}${qs ? `?${qs}` : ''}`).then(setRows).catch(err => setError(err.message));
   }
-  useEffect(reload, [filterPeriod]);
+  // Bản 9.82, theo báo cáo người dùng — bấm chuyển giữa các trang "Chỉ
+  // tiêu ..." ở sidebar (5 route KHÁC NHAU CÙNG DÙNG 1 component này, chỉ
+  // khác prop menuCode/apiBase/title — xem App.jsx) KHÔNG đổi dữ liệu hiện
+  // trên bảng, phải F5 (tải lại cả trang) mới thấy đúng chỉ tiêu vừa
+  // chuyển sang. Nguyên nhân: React Router GIỮ NGUYÊN 1 instance component
+  // khi chuyển route (cùng kiểu component tại vị trí tương ứng trong cây),
+  // KHÔNG unmount/mount lại — nhưng effect tải dữ liệu trước đây chỉ phụ
+  // thuộc `filterPeriod`, KHÔNG phụ thuộc `apiBase`, nên đổi route (= đổi
+  // prop apiBase) không kích hoạt tải lại, bảng vẫn hiện dữ liệu của trang
+  // TRƯỚC ĐÓ. Thêm `apiBase` vào mảng phụ thuộc — đổi trang giờ tự tải lại
+  // ĐÚNG dữ liệu của trang mới, không cần F5. Thêm effect riêng dọn sạch
+  // các state hiển thị khác (lọc kỳ/lỗi/kết quả nhập/form sửa) khi đổi
+  // trang — tránh còn sót lại báo lỗi/form dở của trang Chỉ tiêu trước đó.
+  useEffect(reload, [filterPeriod, apiBase]);
+  useEffect(() => {
+    setFilterPeriod('');
+    setFile(null);
+    setImportResult(null);
+    setError('');
+    setEditForm(EMPTY_EDIT_FORM);
+    setEditError('');
+    setEditResult('');
+  }, [apiBase]);
 
   // Điền sẵn dữ liệu HIỆN CÓ của dòng đó lên form — sửa xong gửi lại NGUYÊN
   // targets (route PUT `${apiBase}/one` ghi đè cả TargetsJson, không tự
