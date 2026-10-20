@@ -29,6 +29,22 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 9.85 — Đổi "Mã siêu thị" thành "Mã ngành hàng" cho 2 trang Chỉ tiêu doanh thu theo ngành hàng
+
+**Theo báo cáo người dùng**: "bc ngành hành là mã ngành hàng ko phải mã
+siêu thị nhé, bạn đổi ngay chỉ tiêu doanh thu ngành hàng và doanh thu
+ngành hàng LDTD nhé" — 2 trang "Chỉ tiêu Doanh thu theo ngành hàng"/
+"(LDTD)" (bản 9.73, mã thực thể LUÔN là `MaNganhHang` thuần, không có
+khái niệm siêu thị) vẫn hiện nhãn "Mã siêu thị" dùng chung cho cả 5
+trang Chỉ tiêu.
+
+Thêm cờ `isNganhHangOnly` (CHỈ đúng 2 trang này — "Nhập hàng theo ngành
+hàng" KHÔNG tính, vẫn hỗ trợ cả kiểu theo chi nhánh VÀ toàn công ty) —
+đổi nhãn ở cột bảng, tiêu đề "Sửa / thêm", nút thêm mới, placeholder ô
+nhập/JSON gợi ý, thông báo lỗi/cảnh báo liên quan. 3 trang còn lại giữ
+nguyên "Mã siêu thị". Verify bằng Playwright thật (2 kịch bản menuCode
+khác nhau).
+
 ## 9.84 — Thêm xoá 1 dòng + xoá hàng loạt cho bảng "Chỉ tiêu đã nhập"
 
 **Theo yêu cầu người dùng**: "chỗ nhập chỉ tiêu có cho xóa đi được

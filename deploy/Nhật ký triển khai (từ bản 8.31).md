@@ -14,6 +14,21 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 9.85 — Đổi "Mã siêu thị" thành "Mã ngành hàng" cho 2 trang Chỉ tiêu doanh thu theo ngành hàng
+
+**Thay đổi**: xem chi tiết ở `VERSION.md`. Chỉ 1 file frontend
+(`etl-admin/src/pages/SalesTargetsPage.jsx`). KHÔNG đổi schema CSDL,
+KHÔNG đổi backend.
+
+**Các bước**:
+
+1. `git pull origin main`.
+2. `cd etl-admin && npm run build` rồi `pm2 restart hcrc-etl-admin`.
+3. Kiểm tra: trang "Chỉ tiêu Doanh thu theo ngành hàng"/"(LDTD)" hiện
+   "Mã ngành hàng" (không còn "Mã siêu thị"); 3 trang Chỉ tiêu còn lại
+   (Lãnh đạo Tập đoàn/HCRC/Nhập hàng theo ngành hàng) giữ nguyên "Mã
+   siêu thị" như cũ.
+
 ## 9.84 — Thêm xoá 1 dòng + xoá hàng loạt cho bảng "Chỉ tiêu đã nhập"
 
 **Thay đổi**: xem chi tiết ở `VERSION.md`. 1 route backend
