@@ -14,6 +14,42 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 9.80 — .page--wide cho trang bảng nhiều cột — bỏ cuộn ngang thừa trên desktop
+
+**Thay đổi**: xem chi tiết ở `VERSION.md`. Chỉ sửa CSS (2 file
+`styles.css`) + gắn thêm class `page--wide` ở 3 trang (3 file `.jsx`),
+KHÔNG đổi schema CSDL.
+
+**Các bước**:
+
+1. `git pull origin main`.
+2. `cd api-admin && npm run build` rồi `pm2 restart hcrc-api-admin`.
+3. `cd etl-admin && npm run build` rồi `pm2 restart hcrc-etl-admin`.
+4. Kiểm tra trên trình duyệt desktop (màn hình rộng, vd 1600px): trang
+   "Đối tác API"/"Endpoint realtime" (api-admin), "Đồng bộ" (etl-admin)
+   — không còn cần cuộn ngang để thấy hết cột + nút hành động (trước đó
+   bị ép hẹp 1040px dù màn hình còn thừa chỗ). Trang khác (form/cài đặt)
+   không đổi gì.
+
+## 9.79 — ErrorBoundary cho cả 3 app + sửa "treo" khi Sửa đối tác API
+
+**Thay đổi**: xem chi tiết ở `VERSION.md`. Thêm `ErrorBoundary.jsx` bọc
+`<App/>` ở cả 3 app + bọc an toàn `Scopes`/`RateLimitPerMinute` trong
+`ConsumersPage.jsx`. KHÔNG đổi schema CSDL, KHÔNG đổi route backend.
+
+**Các bước**:
+
+1. `git pull origin main`.
+2. `cd api-admin && npm run build` rồi `pm2 restart hcrc-api-admin`.
+3. `cd etl-admin && npm run build` rồi `pm2 restart hcrc-etl-admin`.
+4. `cd rp-user && npm run build` rồi `pm2 restart hcrc-rp-user`.
+5. Kiểm tra: trang "Đối tác API" → bấm "Sửa" ở bất kỳ dòng nào → form
+   sửa hiện đủ (Tên/Scopes/Rate limit/IP/Hoạt động), nút "Huỷ" đóng lại
+   bình thường. Nếu bạn còn gặp lại hiện tượng "treo" ở trang BẤT KỲ sau
+   bản này — giờ sẽ hiện màn hình "Đã có lỗi xảy ra" + nút "Tải lại
+   trang" thay vì đứng yên không phản hồi; chụp lại đúng màn hình lỗi đó
+   (có dòng chữ lỗi màu xám) gửi lại để xác định tiếp nguyên nhân khác.
+
 ## 9.78 — Cột "actions" tự xuống dòng khi nhiều nút, không đè lên cột ghim bên trái trên di động
 
 **Thay đổi**: xem chi tiết ở `VERSION.md`. Chỉ sửa CSS (3 file

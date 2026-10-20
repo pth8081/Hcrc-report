@@ -29,6 +29,53 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 9.80 — .page--wide cho trang bảng nhiều cột — bỏ cuộn ngang thừa trên desktop
+
+**Theo báo cáo người dùng**: "Desktop vẫn chưa cải thiện mở rộng màn
+hình để có thể nhìn thấy tên api... bạn xử lý màn hình này với cả hai
+giao diện mobile và desktop". `.page` giới hạn `max-width: 1040px` áp
+dụng cho MỌI trang (hợp lý cho form/văn bản) nhưng ép trang có bảng
+nhiều cột ("Đối tác API" 7 cột dữ liệu + 9 nút hành động, "Endpoint
+realtime" 7 cột + 2 cột nút, "Đồng bộ" 9 cột) phải cuộn ngang dù màn
+hình desktop còn thừa rất nhiều chỗ trống bên phải.
+
+Thêm `.page--wide { max-width: none; }` cho api-admin/etl-admin — mirror
+ĐÚNG pattern đã có sẵn trong rp-user (`ReportsPage.jsx`/
+`AdhocReportPage.jsx`/`PermissionsPage.jsx`, có từ trước cho vấn đề
+tương tự với bảng báo cáo nhiều cột). Áp dụng CHỈ cho 3 trang bảng rộng
+nhất (`ConsumersPage`, `RealtimeEndpointsPage` ở api-admin;
+`SyncJobsPage` ở etl-admin) — trang form/cài đặt khác GIỮ NGUYÊN 1040px.
+Verify bằng Playwright thật (esbuild bundle + dữ liệu mẫu) ở độ rộng
+desktop 1600px: không còn cần cuộn ngang, đủ cả 7 cột dữ liệu + 9 nút
+hành động hiện cùng lúc.
+
+## 9.79 — ErrorBoundary cho cả 3 app + sửa "treo" khi Sửa đối tác API
+
+**Theo báo cáo người dùng**: "Ấn sửa còn lỗi ko thấy để sửa" + "khi ấn
+sửa treo luôn ko tắt được" — bấm "Sửa" trên trang "Đối tác API" đôi khi
+làm màn hình đứng yên, nút "Huỷ" không phản hồi.
+
+**Nguyên nhân gốc**: chưa app nào trong 3 app (api-admin/etl-admin/
+rp-user) có error boundary — 1 lỗi JS lúc render (vd trường dữ liệu
+thiếu/null) khiến React âm thầm gỡ cây giao diện mà KHÔNG nơi nào bắt
+lại, để lại màn hình "treo" không cách nào thoát ngoài F5 (người dùng
+không biết). Đã XÁC NHẬN bằng test thật (esbuild + `react-dom/client`
+trong Playwright, dữ liệu `Scopes=undefined`): đúng kiểu lỗi gây treo —
+`DataTable` crash ("Cannot read properties of undefined (reading
+'join')"), không error boundary nào bắt, nút Sửa/Huỷ không còn phản hồi.
+
+**Sửa 2 lớp**:
+1. Thêm `components/ErrorBoundary.jsx` (class component bắt lỗi render
+   chưa lường trước) ở cả 3 app, bọc quanh `<App/>` trong `main.jsx` —
+   MỌI lỗi JS không bắt được ở nơi khác giờ hiện màn hình "Đã có lỗi xảy
+   ra" + nút "Tải lại trang" thay vì treo vô hình. Verify thêm bằng kịch
+   bản lỗi KHÁC hẳn (`/consumers` trả về `null`) — ErrorBoundary bắt
+   đúng, hiện nút tải lại, không liên quan gì Scopes.
+2. `ConsumersPage.jsx` — bọc an toàn `editing.Scopes`/`c.Scopes`
+   (fallback mảng rỗng khi thiếu) + `editing.RateLimitPerMinute`
+   (fallback 120) — phòng đúng kiểu dữ liệu thiếu trường đã xác định là
+   nguyên nhân cụ thể.
+
 ## 9.78 — Cột "actions" tự xuống dòng khi nhiều nút, không đè lên cột ghim bên trái trên di động
 
 **Theo báo cáo người dùng** (ảnh chụp trang "Đối tác API" trên di động —
