@@ -73,7 +73,10 @@ legend { font-size: 12px; color: var(--ink-soft); padding: 0 6px; }
 /* Cột "Sửa/Bật-Tắt/Xoá" ghim cố định bên phải khi cuộn ngang (bản 9.05,
    theo báo cáo người dùng — bảng rộng trên điện thoại, cuộn ngang khó kéo
    hết cỡ nên không bao giờ thấy được nút thao tác) — xem DataTable.jsx. */
-.data-table__actions-cell { position: sticky; right: 0; background: var(--surface); box-shadow: -2px 0 4px rgba(0, 0, 0, .08); white-space: nowrap; z-index: 1; }
+/* bản 9.78 (đồng bộ api-admin — xem chú thích đầy đủ ở đó) — bỏ nowrap +
+   giới hạn max-width để nút tự xuống dòng trong ô khi có nhiều nút, tránh
+   ô `actions` ghim bên phải đè lên cột ghim bên trái trên di động. */
+.data-table__actions-cell { position: sticky; right: 0; background: var(--surface); box-shadow: -2px 0 4px rgba(0, 0, 0, .08); white-space: normal; max-width: 70vw; z-index: 1; }
 /* Cột dữ liệu ĐẦU TIÊN (vd "Tên") ghim cố định bên trái khi cuộn ngang
    (bản 9.73, theo báo cáo người dùng — bảng "Đối tác API" nhiều nút hành
    động, cuộn sang phải để thấy nút thì mất tên đối tác đang xem) — mirror

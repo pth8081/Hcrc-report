@@ -162,7 +162,10 @@ button:disabled, button:disabled:hover {
    hết cỡ nên không bao giờ thấy được nút thao tác) — chỉ áp dụng bảng CRUD
    phẳng (UsersPage, RolesPage...), KHÔNG xuất hiện ở bảng báo cáo
    columnGroups (không có cột actions) — xem DataTable.jsx. */
-.data-table__actions-cell { position: sticky; right: 0; background: var(--surface); box-shadow: -2px 0 4px rgba(0, 0, 0, .08); white-space: nowrap; }
+/* bản 9.78 (đồng bộ api-admin/etl-admin — xem chú thích đầy đủ ở đó) — bỏ
+   nowrap + giới hạn max-width để nút tự xuống dòng trong ô khi có nhiều
+   nút, tránh ô `actions` ghim bên phải đè lên nội dung khác trên di động. */
+.data-table__actions-cell { position: sticky; right: 0; background: var(--surface); box-shadow: -2px 0 4px rgba(0, 0, 0, .08); white-space: normal; max-width: 70vw; }
 /* .data-table--grouped (bản 8.96, theo yêu cầu người dùng: "dãn dòng cách
    ra cho rõ nhìn, font chữ cho nét hơn") — CHỈ áp dụng cho bảng có
    definition.columnGroups (hiện CHỈ 4 báo cáo "Doanh thu cuối ngày"
