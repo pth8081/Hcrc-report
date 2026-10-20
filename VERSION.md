@@ -29,6 +29,26 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 9.82 — Sửa 5 trang "Chỉ tiêu ..." không tự tải lại khi chuyển qua lại, phải F5
+
+**Theo báo cáo người dùng** (ảnh sidebar etl-admin): bấm chuyển giữa 5
+trang "Chỉ tiêu Lãnh đạo Tập đoàn"/"Chỉ tiêu HCRC"/"Chỉ tiêu Doanh thu
+theo ngành hàng"/"(LDTD)"/"Chỉ tiêu Nhập hàng theo ngành hàng" không đổi
+dữ liệu trên bảng, phải F5 mới thấy đúng chỉ tiêu vừa chuyển sang.
+
+**Nguyên nhân**: cả 5 route dùng CHUNG 1 component
+`etl-admin/src/pages/SalesTargetsPage.jsx` (chỉ khác prop
+`menuCode`/`apiBase`/`title`, xem `App.jsx`) — React Router giữ nguyên 1
+instance khi chuyển route, nhưng effect tải dữ liệu (`reload`) trước đây
+chỉ phụ thuộc `filterPeriod`, KHÔNG phụ thuộc `apiBase`, nên đổi route
+không kích hoạt tải lại.
+
+**Sửa**: thêm `apiBase` vào mảng phụ thuộc effect `reload` + effect
+riêng dọn state hiển thị khác (lọc kỳ/lỗi/kết quả nhập/form sửa) khi
+`apiBase` đổi. Verify bằng test thật (esbuild + Playwright, mô phỏng đổi
+route qua đổi prop `apiBase`) — dữ liệu đổi đúng, không còn sót dữ liệu
+trang cũ.
+
 ## 9.81 — Chẩn đoán + tài liệu: báo cáo "Core stock = 0" bị Timeout (RCSI/khoá bảng ETL)
 
 **Theo báo cáo người dùng** (log `.pm2/logs/hcrc-*-error.log` đính kèm):

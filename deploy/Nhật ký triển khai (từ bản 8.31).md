@@ -14,6 +14,21 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 9.82 — Sửa 5 trang "Chỉ tiêu ..." không tự tải lại khi chuyển qua lại, phải F5
+
+**Thay đổi**: xem chi tiết ở `VERSION.md`. Chỉ sửa 1 file
+(`etl-admin/src/pages/SalesTargetsPage.jsx`), KHÔNG đổi schema CSDL.
+
+**Các bước**:
+
+1. `git pull origin main`.
+2. `cd etl-admin && npm run build` rồi `pm2 restart hcrc-etl-admin`.
+3. Kiểm tra: vào etl-admin → bấm lần lượt qua 5 trang "Chỉ tiêu ..." ở
+   sidebar (Lãnh đạo Tập đoàn/HCRC/Doanh thu theo ngành hàng/(LDTD)/Nhập
+   hàng theo ngành hàng) — KHÔNG F5 — bảng "Chỉ tiêu đã nhập" phải đổi
+   đúng theo từng trang ngay khi bấm, không còn hiện sót dữ liệu trang
+   trước.
+
 ## 9.81 — Chẩn đoán + tài liệu: báo cáo "Core stock = 0" bị Timeout (RCSI/khoá bảng ETL)
 
 **Thay đổi**: CHỈ sửa tài liệu (`bc-core-ton-kho-0.md`, mục Hỏi & đáp) —
