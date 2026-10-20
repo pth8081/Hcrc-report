@@ -11,6 +11,19 @@ function todayUTC() {
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
 }
 
+// `daysAgoUTC(n)` (bản 9.83) — mốc ngày lùi `n` ngày trước hôm nay, dùng
+// làm `sinceDate` cho loadLatestDimensionsForDomain() ở các domain tồn
+// kho lớn (xem chú thích đầy đủ ở hàm đó) — 35 ngày đủ dư so với chu kỳ
+// đồng bộ HẰNG NGÀY thật (an toàn qua cả những đợt mất đồng bộ vài ngày
+// liên tục như sự cố mạng/ETL kẹt đã gặp), không phải con số nghiệp vụ
+// cố định, chỉ cần ĐỦ RỘNG để luôn chứa dòng GẦN NHẤT của mọi thực thể
+// còn hoạt động.
+function daysAgoUTC(n) {
+  const d = todayUTC();
+  d.setUTCDate(d.getUTCDate() - n);
+  return d;
+}
+
 // Whitelist ký tự cho measureKey/dimensionKey trước khi nội suy vào
 // JSON_VALUE(...) — phòng thủ chiều sâu THUẦN TUÝ: mọi lời gọi hiện tại đều
 // truyền literal cứng, KHÔNG có input người dùng nào chạm tới tham số này
@@ -167,17 +180,40 @@ async function loadSumOnDate(pool, domain, entityCodes, measureKey, onDate) {
 // trả về NGUYÊN dimensionKeys yêu cầu dạng object. Có thể trả nhiều dòng
 // (không giới hạn topN) — chấp nhận được vì lib/topSellingZeroStockRunner.js
 // cũng đã quét nguyên domain kiểu tương tự cho bước xếp hạng.
-async function loadLatestDimensionsForDomain(pool, domain, dimensionKeys) {
+//
+// `sinceDate` (TUỲ CHỌN, bản 9.83, theo sự cố thật người dùng gặp
+// 20/10/2026 — báo cáo "Core stock = 0" Timeout rồi hết connection pool,
+// chẩn đoán bằng SELECT Domain, COUNT(*) FROM dwh.ReportFacts GROUP BY
+// Domain: domain `tonkho_sku`/`tonkho_chitiet_sku` có 5-11 TRIỆU dòng —
+// domain này giữ lịch sử MỖI NGÀY (KeepHistory, khác domain doanh thu TV
+// chỉ 1 dòng/thực thể "cập nhật tại chỗ") — ROW_NUMBER() OVER (PARTITION
+// BY EntityCode ORDER BY EventDate DESC) phải quét/sắp xếp TOÀN BỘ hàng
+// triệu dòng đó MỖI LẦN chạy báo cáo dù chỉ cần đúng 1 dòng GẦN NHẤT/thực
+// thể — giữ connection CSDL rất lâu, vài báo cáo chạy cùng lúc là cạn hết
+// connection pool. CÓ TRUYỀN sinceDate → chỉ quét dữ liệu TỪ ngày đó trở
+// đi (đồng bộ tồn kho hằng ngày nên dòng GẦN NHẤT/thực thể LUÔN nằm trong
+// vài ngày gần đây — không mất dữ liệu đúng, chỉ bớt quét hàng chục/trăm
+// lần dữ liệu CŨ không cần) — nơi gọi (coreZeroStockRunner.js/
+// stockThresholdRunner.js/stockAlertRunner.js) truyền sinceDate cho lệnh
+// gọi quét `stockDomain` (domain lớn); KHÔNG truyền (giữ unbounded, hành
+// vi CŨ) cho lệnh gọi quét `chainDomain` (domain nhỏ hơn hẳn, không nằm
+// trong danh sách domain lớn ở trên, chưa có bằng chứng cần bound).
+async function loadLatestDimensionsForDomain(pool, domain, dimensionKeys, sinceDate = null) {
   dimensionKeys.forEach(assertSafeFieldKey);
   const selectCols = dimensionKeys.map(k => `JSON_VALUE(Dimensions, '$.${k}') AS [${k}]`).join(', ');
   const request = pool.request();
   request.input('domain', sql.VarChar(50), domain);
+  let dateFilter = '';
+  if (sinceDate) {
+    request.input('sinceDate', sql.Date, sinceDate);
+    dateFilter = 'AND EventDate >= @sinceDate';
+  }
   const result = await request.query(`
     SELECT EntityCode, EventDate, ${selectCols} FROM (
       SELECT EntityCode, EventDate, Dimensions,
         ROW_NUMBER() OVER (PARTITION BY EntityCode ORDER BY EventDate DESC) AS rn
       FROM dwh.ReportFacts
-      WHERE Domain = @domain
+      WHERE Domain = @domain ${dateFilter}
     ) latest WHERE rn = 1
   `);
   // TRIM EntityCode VÀ từng giá trị Dimensions (bản 9.58, theo báo cáo
@@ -202,7 +238,7 @@ async function loadLatestDimensionsForDomain(pool, domain, dimensionKeys) {
 }
 
 module.exports = {
-  todayUTC, assertSafeFieldKey, buildEntityCodeParams,
+  todayUTC, daysAgoUTC, assertSafeFieldKey, buildEntityCodeParams,
   loadLatestMeasureBefore, loadLatestMeasure, loadLatestMeasureWithDate, loadSumOnDate,
   loadLatestDimensionsForDomain
 };

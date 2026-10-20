@@ -301,11 +301,12 @@ Timeout: Request failed to complete in 30000ms")?**
    khoá BẢNG trong lúc ETL đang ghi, chặn/làm treo MỌI SELECT khác (kể cả
    domain/báo cáo không liên quan) tới khi ETL ghi xong — đúng khớp báo
    cáo bị treo tới hết 30s rồi timeout.
-2. Log cũng cho thấy 1 nguồn khác (172.16.74.45:1433, dùng chung cho
-   "BRG Mart L4 Sài Đồng" VÀ "HaproFood 198 Lò Đúc") không kết nối được
-   — đây là sự cố MẠNG/tường lửa phía server đó, KHÔNG liên quan trực
-   tiếp tới báo cáo này (domain khác), nhưng là dấu hiệu hạ tầng đang có
-   vấn đề cùng lúc — nên kiểm tra luôn.
+2. Log cũng cho thấy nguồn "HaproFood 198 Lò Đúc" (172.16.74.45:1433,
+   SERVER RIÊNG của đúng cửa hàng đó — KHÔNG chung với "BRG Mart L4 Sài
+   Đồng", server 172.16.74.103, đã đính chính qua ảnh người dùng gửi)
+   không kết nối được — đây là sự cố MẠNG/tường lửa phía server đó, KHÔNG
+   liên quan trực tiếp tới báo cáo này (domain khác, và sau đó đã tự kết
+   nối lại được), nhưng là dấu hiệu hạ tầng đang có vấn đề cùng lúc.
 
 **Xử lý**:
 - Ngay lập tức (không cần DBA): `pm2 restart hcrc-etl` — thoát trạng
@@ -330,6 +331,33 @@ Timeout: Request failed to complete in 30000ms")?**
   KHÔNG giải quyết gốc rễ nếu job ETL thật sự bị KẸT (không phải chỉ
   chậm), chỉ hữu ích nếu CSDL chỉ chậm hơn bình thường chứ không bị khoá
   hẳn.
+
+**Bật RCSI rồi vẫn lỗi (bản 9.83 — SỬA CODE, nguyên nhân THẬT KHÁC, nặng
+hơn RCSI)?** Người dùng bật RCSI xong báo cáo vẫn lỗi, lần này đổi sang
+`TimeoutError: operation timed out for an unknown reason` tại
+`node_modules/tarn/dist/PendingOperation.js` — hết hẳn connection pool
+(không phải khoá bảng nữa), 3 việc cùng lúc đều fail kiểu này (báo cáo
+Mart, Minimart, VÀ 1 job gửi email báo cáo theo lịch). Chẩn đoán bằng
+`SELECT Domain, COUNT(*) FROM dwh.ReportFacts GROUP BY Domain ORDER BY
+COUNT(*) DESC` — domain `tonkho_sku`/`tonkho_chitiet_sku` có
+**5-11 TRIỆU dòng** (giữ lịch sử MỖI NGÀY, khác domain doanh thu TV chỉ
+1 dòng/thực thể "cập nhật tại chỗ"). `loadLatestDimensionsForDomain()`
+(`rp-server/lib/reportFactsHelpers.js`, dùng ở Bước 3 runner này +
+`lib/stockThresholdRunner.js`/`lib/stockAlertRunner.js`) trước đây quét
+KHÔNG giới hạn ngày (`ROW_NUMBER() OVER (PARTITION BY EntityCode ORDER
+BY EventDate DESC)` trên TOÀN BỘ domain) để lấy đúng 1 dòng GẦN NHẤT/
+thực thể — với domain triệu dòng, việc này giữ connection CSDL rất lâu;
+vài báo cáo/job chạy cùng lúc là cạn hết pool (mặc định 10 connection,
+xem `DWH_POOL_MAX` trong `.env`).
+
+**Đã sửa**: thêm tham số tuỳ chọn `sinceDate` cho
+`loadLatestDimensionsForDomain()` — CHỈ quét dữ liệu từ 35 ngày gần đây
+trở lại (`daysAgoUTC(35)`, đủ dư so với chu kỳ đồng bộ hằng ngày, qua cả
+đợt mất đồng bộ vài ngày liên tục) — áp dụng cho CẢ 3 nơi gọi quét
+`stockDomain` (domain lớn); KHÔNG áp dụng cho lệnh gọi quét `chainDomain`
+(domain nhỏ hơn hẳn, không nằm trong danh sách domain triệu dòng). Không
+đổi kết quả đúng (dòng gần nhất/thực thể vẫn luôn nằm trong 35 ngày với
+dữ liệu đồng bộ bình thường), chỉ bớt quét dữ liệu CŨ không cần tới.
 
 ## Ghi chú kỹ thuật (cho ai cần đọc code)
 

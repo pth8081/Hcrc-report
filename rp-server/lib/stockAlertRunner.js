@@ -27,7 +27,7 @@
 const { getPool } = require('../db');
 const { getPoolForDataSource } = require('./dataSourcePool');
 const {
-  todayUTC, loadLatestMeasureBefore, loadSumOnDate, loadLatestDimensionsForDomain
+  todayUTC, daysAgoUTC, loadLatestMeasureBefore, loadSumOnDate, loadLatestDimensionsForDomain
 } = require('./reportFactsHelpers');
 const { loadDiemStkMapping } = require('./diemStkMapping');
 const { loadStockAlertThresholds } = require('./stockAlertThresholds');
@@ -89,9 +89,12 @@ async function runStockAlertReport(definition, filterValues = {}) {
   if (!thresholdByStkAndHang.size) return { columns: describeColumns(), rows: [] };
 
   // Bước 3 — quét toàn bộ domain tồn kho, giữ lại đúng cặp (kho, mã hàng)
-  // CÓ khai ngưỡng ở bước 2.
+  // CÓ khai ngưỡng ở bước 2. Giới hạn 35 ngày gần nhất (bản 9.83, xem chú
+  // thích đầy đủ ở loadLatestDimensionsForDomain()) — domain tồn kho giữ
+  // lịch sử hàng triệu dòng, quét không giới hạn ngày từng gây Timeout/
+  // cạn connection pool.
   const pool = await resolvePool(definition);
-  const stockDims = await loadLatestDimensionsForDomain(pool, definition.stockDomain, ['MaChiNhanh', 'TenChiNhanh', 'MaHangHienThi', 'TenHang']);
+  const stockDims = await loadLatestDimensionsForDomain(pool, definition.stockDomain, ['MaChiNhanh', 'TenChiNhanh', 'MaHangHienThi', 'TenHang'], daysAgoUTC(35));
   const candidates = [];
   for (const [entityCode, info] of stockDims) {
     const d = info.dimensions;

@@ -58,7 +58,7 @@
 const { getPool } = require('../db');
 const { getPoolForDataSource } = require('./dataSourcePool');
 const {
-  todayUTC, loadLatestMeasureBefore, loadLatestMeasure, loadLatestMeasureWithDate,
+  todayUTC, daysAgoUTC, loadLatestMeasureBefore, loadLatestMeasure, loadLatestMeasureWithDate,
   loadSumOnDate, loadLatestDimensionsForDomain
 } = require('./reportFactsHelpers');
 const { loadCoreItemListByKho, getLastLoadError } = require('./coreItemList');
@@ -246,8 +246,11 @@ async function runCoreZeroStockReport(definition, filterValues = {}) {
     return { columns: describeColumns(definition), rows: [], warnings };
   }
 
-  // Bước 3.
-  const stockDims = await loadLatestDimensionsForDomain(pool, definition.stockDomain, ['MaChiNhanh', 'TenChiNhanh', 'MaHangHienThi', 'TenHang']);
+  // Bước 3 — giới hạn quét 35 ngày gần nhất (bản 9.83, xem chú thích đầy
+  // đủ ở loadLatestDimensionsForDomain()) — domain tồn kho giữ lịch sử
+  // hàng triệu dòng, quét KHÔNG giới hạn ngày từng gây Timeout rồi cạn
+  // connection pool khi vài báo cáo chạy cùng lúc.
+  const stockDims = await loadLatestDimensionsForDomain(pool, definition.stockDomain, ['MaChiNhanh', 'TenChiNhanh', 'MaHangHienThi', 'TenHang'], daysAgoUTC(35));
   const candidates = [];
   let scannedInEligibleStk = 0;
   for (const [entityCode, info] of stockDims) {

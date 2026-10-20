@@ -28,7 +28,7 @@
 const { getPool } = require('../db');
 const { getPoolForDataSource } = require('./dataSourcePool');
 const {
-  todayUTC, loadLatestMeasureBefore, loadLatestMeasureWithDate, loadSumOnDate, loadLatestDimensionsForDomain
+  todayUTC, daysAgoUTC, loadLatestMeasureBefore, loadLatestMeasureWithDate, loadSumOnDate, loadLatestDimensionsForDomain
 } = require('./reportFactsHelpers');
 const { resolveStoreScopeStkIds } = require('./diemStkMapping');
 const { assignSttIfPresent } = require('./reportCellFormat');
@@ -77,7 +77,11 @@ async function runStockThresholdReport(definition, filterValues = {}) {
 
   // Quét toàn bộ (kho, mã hàng) đang có dữ liệu tồn kho, giữ lại đúng dòng
   // khớp phạm vi siêu thị (nếu có) VÀ bộ lọc "Chi nhánh" (nếu có chọn).
-  const stockDims = await loadLatestDimensionsForDomain(pool, definition.stockDomain, ['MaChiNhanh', 'TenChiNhanh', 'MaHangHienThi', 'TenHang']);
+  // Giới hạn 35 ngày gần nhất (bản 9.83, xem chú thích đầy đủ ở
+  // loadLatestDimensionsForDomain()) — domain tồn kho giữ lịch sử hàng
+  // triệu dòng, quét không giới hạn ngày từng gây Timeout/cạn connection
+  // pool.
+  const stockDims = await loadLatestDimensionsForDomain(pool, definition.stockDomain, ['MaChiNhanh', 'TenChiNhanh', 'MaHangHienThi', 'TenHang'], daysAgoUTC(35));
   const candidates = [];
   for (const [entityCode, info] of stockDims) {
     const d = info.dimensions;
