@@ -384,6 +384,20 @@ nhóm, không đổi theo màu đậm của banner gộp phía trên. KHÔNG cò
 riêng — chỉ dùng NGẦM để tính mẫu số Tỷ lệ lãi gộp Total, đúng file mẫu
 gốc không có cột này).
 
+Bản 9.76 (theo yêu cầu người dùng — "giá trị hàng hỏng hủy ở trên 3 cột
+này chỉ có 1 thôi"): nhóm "Giá trị hàng hỏng hủy" RÚT từ 3 cột con
+Total/Bán lẻ/Bán buôn xuống CHỈ CÒN 1 cột "Total" — vì (giả định 2 bên
+dưới) Bán lẻ LUÔN = Total và Bán buôn LUÔN = 0 cho riêng chỉ số này, nên
+2 cột đó không mang thêm thông tin. CHỈ sửa `COLUMNS`/`COLUMN_GROUPS`
+(`keys: ['giaTriHongHuyTotal']`) trong `rp-server/lib/nganhHangBrgRunner.js`
+— `computeRowFields()` vẫn tính NỘI BỘ đủ cả `giaTriHongHuy.banLe`/
+`.banBuon` (không xoá, vẫn cần để trừ đúng vào Lãi gộp Giá trị Bán
+lẻ/Bán buôn ở công thức mục 5 bên dưới), chỉ KHÔNG hiển thị 2 cột đó
+nữa. Vì nhóm "Giá trị hàng hỏng hủy" vẫn là super-group "solo" (1 nhóm
+con duy nhất, cơ chế bản 9.75) nên banner/nhãn nhóm vẫn tự gộp 1 Ô cao
+gấp đôi như cũ, không cần sửa gì thêm ở `exportExcel.js`/`exportPdf.js`/
+`DataTable.jsx`. Doanh thu/Lãi gộp (6 nhóm còn lại) GIỮ NGUYÊN không đổi.
+
 **2 giả định đã nêu rõ với người dùng lúc demo, CHƯA có xác nhận cuối
 cùng** (nếu sai, chỉ cần sửa `rp-server/lib/nganhHangBrgRunner.js`, không
 đụng VIEW/ETL):
