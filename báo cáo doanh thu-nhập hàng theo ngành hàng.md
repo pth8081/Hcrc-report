@@ -319,12 +319,18 @@ thập phân; thiếu mẫu số → `null`, hiển thị "—", KHÔNG phải `
 | Lãi gộp — % so chỉ tiêu | Lãi gộp Giá trị Total ÷ Chỉ tiêu Lãi gộp Total × 100 | Lãi gộp Giá trị Bán lẻ ÷ `target.ChiTieuLaiGopBanLe` × 100 (bản 9.73, trước đây luôn `null`) | tương tự, theo Bán buôn |
 | Lãi gộp — % so cùng kỳ năm trước | Lãi gộp Giá trị Total ÷ Lãi gộp Giá trị Total cùng kỳ (đã trừ hàng hỏng hủy cùng kỳ) × 100 | tương tự, theo Bán lẻ | tương tự, theo Bán buôn |
 
-**Cấp banner thứ 3 "Doanh thu"/"Lãi gộp"** (`definition.columnSuperGroups`,
-bản 9.73 — theo yêu cầu người dùng, khớp đúng 3 CẤP tiêu đề của file mẫu
-Excel gốc: "Doanh thu" gộp ngang 4 nhóm con Chỉ tiêu/Thực đạt/%CT/%CK,
-"Lãi gộp" gộp 4 nhóm con còn lại — "Giá trị hàng hỏng hủy" CHỦ Ý KHÔNG
-thuộc super-group nào, cột MỚI THÊM bản 9.68, không có trong file mẫu
-gốc) — cơ chế dùng chung opt-in mới ở CẢ 3 nơi xuất/hiển thị
+**Cấp banner thứ 3 "Doanh thu"/"Giá trị hàng hỏng hủy"/"Lãi gộp"**
+(`definition.columnSuperGroups`, bản 9.73 — theo yêu cầu người dùng, khớp
+đúng 3 CẤP tiêu đề của file mẫu Excel gốc: "Doanh thu" gộp ngang 4 nhóm
+con Chỉ tiêu/Thực đạt/%CT/%CK, "Lãi gộp" gộp 4 nhóm con còn lại. "Giá trị
+hàng hỏng hủy" (cột MỚI THÊM bản 9.68, không có trong file mẫu gốc) —
+bản 9.73 ban đầu để KHÔNG thuộc super-group nào, tạo khoảng trắng đứt
+quãng giữa "Doanh thu"/"Lãi gộp"; bản 9.74 (theo phản hồi người dùng —
+"merge cái dòng ở trên cho đồng bộ liền mạch... nhìn nó đẹp") đổi sang
+TỰ CÓ banner riêng (`groupLabels` chỉ 1 phần tử, tự thành 1 "super-group"
+của chính nó) — màu HEX riêng `8B2E2E` (không dùng tên màu `red` có sẵn,
+vì tên đó trùng đúng màu nhạt của dòng nhóm con bên dưới — mất phân cấp
+đậm/nhạt như 2 bên cạnh) — cơ chế dùng chung opt-in mới ở CẢ 3 nơi xuất/hiển thị
 (`rp-server/lib/exportExcel.js`/`lib/exportPdf.js`/
 `rp-user/src/components/DataTable.jsx`), thêm ĐÚNG 1 dòng tiêu đề MỚI phía
 TRÊN dòng `columnGroups` hiện có — KHÔNG đổi báo cáo nào khác (không khai
@@ -358,16 +364,17 @@ dụng khi `row.__isSectionHeader === true`, không báo cáo nào khác đặt 
 này).
 
 `columnGroups`: 9 nhóm, mỗi nhóm 3 cột con Total/Bán lẻ/Bán buôn — 4 nhóm
-"Doanh thu — ..." (xanh lá), 1 nhóm "Hàng hỏng hủy" (đỏ — đổi tên từ
-"Giá trị hàng hỏng hủy" bản 9.74, theo yêu cầu người dùng, ngắn gọn hơn —
-field/key nội bộ `giaTriHongHuy*` GIỮ NGUYÊN, chỉ đổi nhãn hiển thị), 4
-nhóm "Lãi gộp — ..." (cam). Từ bản 9.73 CÒN THÊM `columnSuperGroups` — 1
-dòng tiêu đề CAO HƠN gộp "Doanh thu" (4 nhóm Doanh thu) và "Lãi gộp" (4
-nhóm Lãi gộp) — nhóm "Hàng hỏng hủy" CHỦ Ý đứng riêng, không thuộc
-super-group nào (đúng file mẫu gốc không gộp nhóm này vào "Doanh thu").
-KHÔNG còn `standaloneColumnColors` ("Doanh thu cuối" không còn là cột
-hiển thị riêng — chỉ dùng NGẦM để tính mẫu số Tỷ lệ lãi gộp Total, đúng
-file mẫu gốc không có cột này).
+"Doanh thu — ..." (xanh lá), 1 nhóm "Giá trị hàng hỏng hủy" (đỏ — bản 9.74
+có thử đổi ngắn gọn thành "Hàng hỏng hủy" rồi ĐỔI LẠI theo yêu cầu người
+dùng, giữ nguyên "Giá trị hàng hỏng hủy"), 4 nhóm "Lãi gộp — ..." (cam).
+Từ bản 9.73 CÒN THÊM `columnSuperGroups` — 1 dòng tiêu đề CAO HƠN gộp
+"Doanh thu" (4 nhóm Doanh thu) và "Lãi gộp" (4 nhóm Lãi gộp) — bản 9.74
+THÊM "Giá trị hàng hỏng hủy" làm super-group thứ 3 (tự nó 1 nhóm, trước
+đó để trống dòng này tạo khoảng trắng đứt quãng giữa "Doanh thu"/"Lãi
+gộp", theo phản hồi người dùng "merge cho đồng bộ liền mạch"). KHÔNG còn
+`standaloneColumnColors` ("Doanh thu cuối" không còn là cột hiển thị
+riêng — chỉ dùng NGẦM để tính mẫu số Tỷ lệ lãi gộp Total, đúng file mẫu
+gốc không có cột này).
 
 **2 giả định đã nêu rõ với người dùng lúc demo, CHƯA có xác nhận cuối
 cùng** (nếu sai, chỉ cần sửa `rp-server/lib/nganhHangBrgRunner.js`, không

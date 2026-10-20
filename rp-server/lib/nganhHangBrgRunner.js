@@ -152,16 +152,33 @@ const COLUMNS = [
 // "% so chỉ tiêu"/"% so cùng kỳ năm trước") -> Total/Bán lẻ/Bán buôn (CẤP
 // 3) — trước đây CHỈ có CẤP 2+3 (COLUMN_GROUPS ở trên đã TỰ GHÉP tên CẤP 1
 // vào label, vd "Doanh thu — Chỉ tiêu", thay vì vẽ thêm 1 dòng banner
-// riêng như file mẫu). "Giá trị hàng hỏng hủy" CHỦ Ý không thuộc nhóm nào
-// ở đây — cột MỚI THÊM bản 9.68, KHÔNG có trong file mẫu Excel gốc, giữ
-// nguyên là 1 banner CẤP 2 "trôi nổi" không gộp dưới "Doanh thu"/"Lãi gộp"
-// nào, đúng ý định ban đầu (xem chú thích COLUMN_GROUPS). Cơ chế dựng dòng
-// banner mới xem lib/exportExcel.js:addReportSheet()/lib/exportPdf.js:
+// riêng như file mẫu).
+//
+// "Giá trị hàng hỏng hủy" (cột MỚI THÊM bản 9.68, KHÔNG có trong file mẫu
+// Excel gốc) — bản đầu (9.73) để "trôi nổi" không thuộc super-group nào,
+// nhưng để TRỐNG cả dòng banner CẤP 1 ngay phía trên nó tạo 1 khoảng
+// TRẮNG xen giữa "Doanh thu"/"Lãi gộp", nhìn ĐỨT QUÃNG — người dùng phản
+// hồi bản 9.74 ("merge cái dòng ở trên cho đồng bộ liền mạch... nhìn nó
+// đẹp") — giờ CŨNG có banner CẤP 1 riêng (tự nó 1 nhóm, `groupLabels` chỉ
+// có đúng 1 phần tử) để dòng banner trên cùng liền 1 dải màu không hở,
+// KHÔNG gộp chung banner với "Doanh thu"/"Lãi gộp" (vẫn là 1 cụm riêng,
+// chỉ đổi từ "không vẽ gì" sang "tự vẽ banner của chính nó"). Cơ chế dựng
+// dòng banner xem lib/exportExcel.js:addReportSheet()/lib/exportPdf.js:
 // drawHeader()/rp-user/src/components/DataTable.jsx:buildSuperHeader().
 const COLUMN_SUPER_GROUPS = [
   {
     label: 'Doanh thu', color: '1F3B57',
     groupLabels: ['Doanh thu — Chỉ tiêu', 'Doanh thu — Thực đạt', 'Doanh thu — % so chỉ tiêu', 'Doanh thu — % so cùng kỳ năm trước']
+  },
+  {
+    // Mã hex riêng (không dùng tên 'red' có sẵn) — GIỐNG CÁCH 2 super-group
+    // trên/dưới đã làm (1F3B57/7A3E13 đều là hex riêng, ĐẬM hơn hẳn màu
+    // nhóm con bên dưới để tạo phân cấp rõ "dòng trên đậm, dòng dưới nhạt")
+    // — dùng thẳng tên 'red' sẽ ra CÙNG 1 màu nhạt (E3B8B5) với dòng nhóm
+    // con ngay bên dưới, mất phân cấp, nhìn 2 dòng dính thành 1 khối không
+    // rõ ranh giới (khác hẳn 2 bên cạnh).
+    label: 'Giá trị hàng hỏng hủy', color: '8B2E2E',
+    groupLabels: ['Giá trị hàng hỏng hủy']
   },
   {
     label: 'Lãi gộp', color: '7A3E13',
@@ -174,7 +191,7 @@ const COLUMN_GROUPS = [
   { label: 'Doanh thu — Thực đạt', color: 'green', keys: ['thucDatTotal', 'thucDatBanLe', 'thucDatBanBuon'] },
   { label: 'Doanh thu — % so chỉ tiêu', color: 'green', keys: ['tyLeDatTotal', 'tyLeDatBanLe', 'tyLeDatBanBuon'] },
   { label: 'Doanh thu — % so cùng kỳ năm trước', color: 'green', keys: ['cungKyTotal', 'cungKyBanLe', 'cungKyBanBuon'] },
-  { label: 'Hàng hỏng hủy', color: 'red', keys: ['giaTriHongHuyTotal', 'giaTriHongHuyBanLe', 'giaTriHongHuyBanBuon'] },
+  { label: 'Giá trị hàng hỏng hủy', color: 'red', keys: ['giaTriHongHuyTotal', 'giaTriHongHuyBanLe', 'giaTriHongHuyBanBuon'] },
   { label: 'Lãi gộp — Tỷ lệ', color: 'orange', keys: ['tyLeLaiGopTotal', 'tyLeLaiGopBanLe', 'tyLeLaiGopBanBuon'] },
   { label: 'Lãi gộp — Giá trị', color: 'orange', keys: ['giaTriLaiGopTotal', 'giaTriLaiGopBanLe', 'giaTriLaiGopBanBuon'] },
   { label: 'Lãi gộp — % so chỉ tiêu', color: 'orange', keys: ['tyLeLaiGopSoChiTieuTotal', 'tyLeLaiGopSoChiTieuBanLe', 'tyLeLaiGopSoChiTieuBanBuon'] },
