@@ -73,7 +73,12 @@ git pull origin main
 2. DBA chạy lại NGUYÊN VĂN `api-db/schema.sql` trên CSDL API (an toàn
    chạy lại nhiều lần — tự chuyển `api.VoucherSettings` từ 1 dòng sang
    danh sách, GIỮ NGUYÊN cấu hình cũ vào dòng `default`, không mất gì).
-3. Khởi động lại `api-server` và `api-admin`.
+3. **`cd api-admin && npm run build`** (BẮT BUỘC — bản 9.59 đổi hẳn trang
+   "Cấu hình Voucher" sang danh sách nhiều dòng, `VoucherSettingsPage.jsx`
+   là file FRONTEND, chỉ restart tiến trình phục vụ `dist/` cũ KHÔNG đủ,
+   vẫn thấy giao diện 1 dòng/1 dropdown CŨ và bấm "Lưu" báo lỗi "Phản hồi
+   không phải JSON" — lỗi THẬT đã gặp, xem bản 9.72 ở `VERSION.md`), rồi
+   khởi động lại `api-server` và `api-admin`.
 4. Cấu hình máy chủ DSMART (kể cả `default` nếu server này lần đầu dùng
    tính năng voucher, hoặc muốn kiểm tra lại cấu hình sẵn có) làm ĐÚNG 1
    CÁCH DUY NHẤT — qua giao diện api-admin (lệnh `npm run
@@ -139,7 +144,9 @@ không xoá/đổi gì khác.
    `api.RealtimeEndpointDefs`: `KeyStripLeadingChar`/`FilterColumn`/
    `FilterOperator`/`FilterValue` — an toàn chạy lại nhiều lần, KHÔNG
    ảnh hưởng Endpoint realtime nào đã tạo trước đó).
-3. Khởi động lại `api-server` và `api-admin`.
+3. **`cd api-admin && npm run build`** (BẮT BUỘC — bản 9.62 cũng đổi
+   `RealtimeEndpointsPage.jsx`, cùng lý do như Phần 1 bước 3 — xem chú
+   thích ở đó), rồi khởi động lại `api-server` và `api-admin`.
 4. **SỬA LỖI quan trọng, BẮT BUỘC** — endpoint nội bộ "voucher-check"
    (nhân viên tra thủ công) đã khoá SAI theo cột `BARCODE` từ trước tới
    nay (hầu như luôn "không tìm thấy" trên dữ liệu thật vì cột này

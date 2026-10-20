@@ -14,6 +14,34 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 9.72 — Sửa thiếu bước "npm run build" cho api-admin ở hướng dẫn 9.59-9.68
+
+**Thay đổi**: xem chi tiết đầy đủ ở `VERSION.md`. Lỗi THẬT người dùng
+gặp: làm theo Phần 1 (`Hướng dẫn triển khai gộp — bản 9.59 đến 9.68.md`)
+để thêm máy chủ DSMART "Fuji" cho Voucher redeem — trang "Cấu hình
+Voucher" ở api-admin VẪN hiện giao diện CŨ (1 dropdown, không phải danh
+sách) và bấm "Lưu" báo lỗi "Phản hồi không phải JSON" — vì hướng dẫn gốc
+thiếu bước build frontend `api-admin`.
+
+**Việc cần làm NGAY cho server đang bị chặn bởi lỗi này**:
+
+```bash
+cd api-admin
+npm run build
+```
+
+rồi khởi động lại `api-server` và `api-admin` như bình thường — không
+cần làm lại bước nào khác đã làm trước đó (DBA đã chạy `api-db/schema.sql`
+rồi thì giữ nguyên, không cần chạy lại).
+
+**Tài liệu đã sửa** (bổ sung bước build còn thiếu): `Hướng dẫn triển
+khai gộp — bản 9.59 đến 9.68.md` + `.docx` tương ứng (Phần 1 VÀ Phần 2,
+cả 2 đều có đổi file frontend `api-admin`) — ai đang bắt đầu triển khai
+từ đầu 2 phần này nên dùng lại đúng 2 file đã sửa, không cần patch tay
+như trên nữa.
+
+---
+
 ## 9.71 — Sửa CHECK constraint CK_ReportCatalog_SourceType thiếu 'nganhHangBrg'
 
 **Thay đổi**: xem chi tiết đầy đủ ở `VERSION.md`. Lỗi THẬT người dùng gặp

@@ -29,6 +29,44 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 9.72 — Sửa thiếu bước "npm run build" cho api-admin ở hướng dẫn triển khai gộp 9.59-9.68
+
+**Theo lỗi thật người dùng gặp**: sau khi làm theo `Hướng dẫn triển khai
+gộp — bản 9.59 đến 9.68.md` (Phần 1 — Voucher redeem nhiều máy chủ
+DSMART, thêm chi nhánh "Fuji"), trang "Cấu hình Voucher" ở api-admin vẫn
+hiện giao diện CŨ (1 dropdown "Nguồn dữ liệu" + nút "Lưu", không phải
+danh sách nhiều dòng/ConfigKey của bản 9.59) — bấm "Lưu" báo lỗi:
+
+```
+Phản hồi không phải JSON (Content-Type: text/html; charset=utf-8) —
+kiểm tra cấu hình proxy /admin
+```
+
+**Nguyên nhân**: tài liệu hướng dẫn gốc chỉ ghi "Khởi động lại
+`api-server` và `api-admin`" — THIẾU bước `npm run build` cho
+`api-admin`. `api-admin` là ứng dụng React (SPA, build ra `dist/` tĩnh —
+giống `rp-user`), restart tiến trình phục vụ `dist/` CŨ không áp dụng
+được code frontend MỚI (`VoucherSettingsPage.jsx` bản 9.59,
+`RealtimeEndpointsPage.jsx` bản 9.62) — giao diện vẫn hiện bản CŨ, gọi
+API theo "hình dạng" cũ (route `PUT /admin/voucher-settings` không có
+`:configKey`) trong khi backend `api-server` ĐÃ đổi sang route mới
+(`PUT /admin/voucher-settings/:configKey`) — request rơi vào 404 mặc
+định của Express (trả về HTML "Cannot PUT ..."), đúng khớp lỗi "Phản hồi
+không phải JSON" (`api-admin/src/lib/api.js`, cơ chế phát hiện lỗi này
+đã thêm từ bản 8.74).
+
+**Sửa**: bổ sung bước `cd api-admin && npm run build` vào ĐÚNG TRƯỚC
+bước "Khởi động lại `api-server` và `api-admin`" ở CẢ Phần 1 (bản
+9.59-9.61) VÀ Phần 2 (bản 9.62 — `RealtimeEndpointsPage.jsx` cũng đổi,
+cùng lỗi tiềm ẩn) của `Hướng dẫn triển khai gộp — bản 9.59 đến 9.68.md`
+(và `.docx` tương ứng, đã tạo lại từ file `.md` đã sửa).
+
+**Lưu ý triển khai ngay cho server đang bị chặn bởi lỗi này**:
+```bash
+cd api-admin && npm run build
+# rồi khởi động lại api-server và api-admin như bình thường
+```
+
 ## 9.71 — Sửa CHECK constraint CK_ReportCatalog_SourceType thiếu 'nganhHangBrg'
 
 **Theo lỗi thật người dùng gặp** khi chạy `node scripts/seedNganhHangReports.js`
