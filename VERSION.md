@@ -29,6 +29,48 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 9.71 — Sửa CHECK constraint CK_ReportCatalog_SourceType thiếu 'nganhHangBrg'
+
+**Theo lỗi thật người dùng gặp** khi chạy `node scripts/seedNganhHangReports.js`
+trên server (đang triển khai Phần 3 của bản 9.63/9.67/9.68 — 2 báo cáo
+"Doanh thu theo ngành hàng"/"(LDTD)" định dạng mới 3 khối BRG/LFL/NSO):
+
+```
+Lỗi: The UPDATE statement conflicted with the CHECK constraint
+"CK_ReportCatalog_SourceType". The conflict occurred in database
+"HCRC_RP", table "app.ReportCatalog", column 'SourceType'.
+```
+
+**Nguyên nhân**: `rp-db/schema.sql` có CHECK constraint giới hạn các giá
+trị hợp lệ của cột `app.ReportCatalog.SourceType` — khi bản 9.63 thêm
+`SourceType='nganhHangBrg'` (dùng cho 2 báo cáo doanh thu theo ngành
+hàng định dạng mới), **quên cập nhật danh sách trong constraint này**
+(CÙNG LỖI đã xảy ra 1 lần ở bản 8.75 với `'stockThreshold'`/`'stockAlert'`
+— lúc đó đã rút kinh nghiệm nhưng vẫn lặp lại ở bản 9.63). Bất kỳ CSDL
+nào ĐÃ áp constraint cũ (tạo từ trước bản 9.71) sẽ bị SQL Server từ chối
+ngay khi script `seedNganhHangReports.js` cố UPDATE `SourceType` sang
+`'nganhHangBrg'`.
+
+**Sửa**: `rp-db/schema.sql` — thêm `'nganhHangBrg'` vào CHECK constraint
+`CK_ReportCatalog_SourceType` (đoạn code DROP + ADD lại constraint đã có
+sẵn từ bản 8.75, chỉ cần bổ sung đúng giá trị còn thiếu). Đã soát lại
+TOÀN BỘ danh sách `SourceType` thật đang dùng trong
+`rp-server/scripts/*.js` để xác nhận không còn giá trị nào khác bị thiếu.
+
+**Triển khai ngay** (không cần đợi `git pull` đầy đủ nếu đang bị chặn
+giữa chừng) — DBA chạy trực tiếp trên CSDL `HCRC_RP` (rp-db):
+
+```sql
+ALTER TABLE app.ReportCatalog DROP CONSTRAINT CK_ReportCatalog_SourceType;
+ALTER TABLE app.ReportCatalog ADD CONSTRAINT CK_ReportCatalog_SourceType
+    CHECK (SourceType IN ('directDb', 'apiReport', 'apiRealtime', 'externalApi', 'composite', 'topZeroStock', 'coreZeroStock', 'stockThreshold', 'stockAlert', 'purchaseOrder', 'nganhHangBrg'));
+```
+
+Sau đó chạy lại `node scripts/seedNganhHangReports.js` ở `rp-server` —
+sẽ qua được bước UPDATE. Về lâu dài nên `git pull origin main` rồi chạy
+lại NGUYÊN VĂN `rp-db/schema.sql` (idempotent, an toàn chạy lại) để CSDL
+khớp đúng repo, không chỉ patch tay đoạn constraint này.
+
 ## 9.70 — Sửa lỗi "mã Điểm không ra tên" khi siêu thị chưa có doanh thu trong ngày
 
 **Theo báo cáo người dùng** (ảnh chụp email "FW: Báo cáo doanh thu LĐTĐ" —

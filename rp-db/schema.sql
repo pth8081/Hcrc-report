@@ -476,12 +476,23 @@ END
 -- này sẽ bị SQL Server từ chối với lỗi vi phạm CHECK constraint (không rõ
 -- ràng, dễ nhầm là lỗi khác) — bổ sung đủ cả 2 cùng lúc với 'purchaseOrder'
 -- (bản 8.75, scripts/seedPurchaseOrderReports.js) ở đây.
+--
+-- Bản 9.71 — CÙNG LỖI LẶP LẠI: 'nganhHangBrg' (bản 9.63/9.67,
+-- scripts/seedNganhHangReports.js — 2 báo cáo "Doanh thu theo ngành
+-- hàng"/"(LDTD)" định dạng mới 3 khối BRG/LFL/NSO) CŨNG CHƯA từng được
+-- thêm vào đây — người dùng thật đã gặp lỗi "UPDATE statement conflicted
+-- with the CHECK constraint" khi chạy seedNganhHangReports.js trên CSDL
+-- ĐÃ áp constraint cũ (không có dòng nào trong schema.sql ĐỔI constraint
+-- này lúc thêm SourceType mới — rút kinh nghiệm: mọi lần thêm SourceType
+-- mới PHẢI đồng thời thêm vào constraint này, SOÁT LẠI toàn bộ danh sách
+-- SourceType thật đang dùng (grep "sourceType:" ở rp-server/scripts/) chứ
+-- không chỉ thêm đúng 1 giá trị mới thêm).
 IF EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = 'CK_ReportCatalog_SourceType')
 BEGIN
     ALTER TABLE app.ReportCatalog DROP CONSTRAINT CK_ReportCatalog_SourceType;
 END
 ALTER TABLE app.ReportCatalog ADD CONSTRAINT CK_ReportCatalog_SourceType
-    CHECK (SourceType IN ('directDb', 'apiReport', 'apiRealtime', 'externalApi', 'composite', 'topZeroStock', 'coreZeroStock', 'stockThreshold', 'stockAlert', 'purchaseOrder'));
+    CHECK (SourceType IN ('directDb', 'apiReport', 'apiRealtime', 'externalApi', 'composite', 'topZeroStock', 'coreZeroStock', 'stockThreshold', 'stockAlert', 'purchaseOrder', 'nganhHangBrg'));
 GO
 
 IF OBJECT_ID('app.RoleReportAccess', 'U') IS NULL

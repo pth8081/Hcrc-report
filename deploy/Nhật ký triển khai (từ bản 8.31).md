@@ -14,6 +14,35 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 9.71 — Sửa CHECK constraint CK_ReportCatalog_SourceType thiếu 'nganhHangBrg'
+
+**Thay đổi**: xem chi tiết đầy đủ ở `VERSION.md`. Lỗi THẬT người dùng gặp
+khi triển khai Phần 3 bản 9.63/9.67/9.68 (2 báo cáo "Doanh thu theo
+ngành hàng"/"(LDTD)" định dạng mới): chạy `node
+scripts/seedNganhHangReports.js` bị SQL Server từ chối vì constraint
+`CK_ReportCatalog_SourceType` ở `rp-db` (CSDL `HCRC_RP`) CHƯA có giá trị
+`'nganhHangBrg'` trong danh sách cho phép.
+
+**Các bước (làm NGAY để qua lỗi đang bị chặn)**:
+
+1. DBA chạy trực tiếp trên CSDL `HCRC_RP`:
+   ```sql
+   ALTER TABLE app.ReportCatalog DROP CONSTRAINT CK_ReportCatalog_SourceType;
+   ALTER TABLE app.ReportCatalog ADD CONSTRAINT CK_ReportCatalog_SourceType
+       CHECK (SourceType IN ('directDb', 'apiReport', 'apiRealtime', 'externalApi', 'composite', 'topZeroStock', 'coreZeroStock', 'stockThreshold', 'stockAlert', 'purchaseOrder', 'nganhHangBrg'));
+   ```
+2. `cd rp-server && node scripts/seedNganhHangReports.js` — chạy lại, giờ
+   sẽ qua được bước UPDATE `SourceType`.
+3. Tiếp tục đúng Phần 3 (mục F, bước 6 trở đi) của `Hướng dẫn triển khai
+   gộp — bản 9.59 đến 9.68.md` (`seedNganhHangSync.js`, chạy thử job
+   đồng bộ, v.v.).
+
+**Về lâu dài** (đồng bộ CSDL khớp đúng repo, không chỉ patch tay): `git
+pull origin main` rồi chạy lại NGUYÊN VĂN `rp-db/schema.sql` (idempotent
+— đã sửa đúng constraint này trong file, an toàn chạy lại nhiều lần).
+
+---
+
 ## 9.70 — Sửa lỗi "mã Điểm không ra tên" khi siêu thị chưa có doanh thu trong ngày
 
 **Thay đổi**: xem chi tiết đầy đủ ở `VERSION.md`. Tóm tắt: sửa
