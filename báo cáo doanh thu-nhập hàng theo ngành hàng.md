@@ -233,22 +233,38 @@ Khác hẳn chỉ tiêu LDTD/HCRC (theo từng siêu thị, `EntityCode = MaSieu
 — chỉ tiêu ngành hàng dùng `EntityCode = MaNganhHang` (= `DEPT_ID`),
 **KHÔNG tách chi nhánh**. Cơ chế nhập (xem
 `etl/lib/salesTargetsImport.js:parseGenericShape()`): file Excel shape
-"generic" (`MaSieuThi`+`Thang`+`MaNganhHang`+cột chỉ tiêu tuỳ ý) — để
-**TRỐNG** `MaSieuThi`, CHỈ điền `MaNganhHang` = chỉ tiêu theo toàn công ty
-cho đúng ngành hàng đó.
+"generic" — để **TRỐNG** `MaSieuThi`, CHỈ điền `MaNganhHang` = chỉ tiêu
+theo toàn công ty cho đúng ngành hàng đó.
 
-3 trang etl-admin (router `createSalesTargetsRouter(..., shape='generic', genericTargetColumns)`):
+**Bản 9.73** (theo yêu cầu người dùng — "tách chỉ tiêu bán buôn, bán lẻ
+... không cần mã siêu thị đâu") — RIÊNG 2 domain **Chỉ tiêu Doanh thu
+theo ngành hàng**/**(LDTD)** dưới đây: file mẫu/nhập/xuất **BỎ HẲN cột
+`MaSieuThi`** (không chỉ để trống — domain này LUÔN "theo toàn công ty",
+không bao giờ có khái niệm siêu thị), và `ChiTieuDoanhThu`/`ChiTieuLaiGop`
+(1 số Total duy nhất) **TÁCH thành 2 cột mỗi bên**
+(`ChiTieuDoanhThuBanLe`/`BanBuon`, `ChiTieuLaiGopBanLe`/`BanBuon`) — cột
+"Total" trên báo cáo (`lib/nganhHangBrgRunner.js`) tự CỘNG 2 cột lại,
+không nhập riêng. Cơ chế opt-in qua tham số `genericNoStoreCode=true`
+truyền vào `createSalesTargetsRouter(...)` (xem `etl/server.js`) —
+`matchShape()`/`parseGenericShape()` giờ nhận dạng ĐƯỢC CẢ file có
+`MaSieuThi` (hành vi cũ, domain Nhập hàng vẫn dùng) LẪN file CHỈ có
+`Thang`+`MaNganhHang` (domain này, không có cột `MaSieuThi` nào cả).
+Domain **Chỉ tiêu Nhập hàng theo ngành hàng** (`sales-targets-nganhhang-nh`)
+**KHÔNG đổi** — vẫn giữ cột `MaSieuThi` (để trống) + `ChiTieuGiaTriNhap`
+1 cột duy nhất như cũ, không có yêu cầu tách Bán lẻ/Bán buôn cho nhập hàng.
+
+3 trang etl-admin (router `createSalesTargetsRouter(..., shape='generic', genericTargetColumns, genericNoStoreCode)`):
 
 - **Chỉ tiêu Doanh thu theo ngành hàng** (`/sales-targets-nganhhang-dt`,
-  domain `sales-targets-nganhhang-dt`, cột `ChiTieuDoanhThu` **+
-  `ChiTieuLaiGop`** — bản 9.67, thêm cột mẫu cho cột "% so chỉ tiêu" của
-  cụm Lãi gộp; cơ chế field-động đã tự nhận MỌI tên cột từ trước, KHÔNG
-  cần đổi code để "hoạt động" — chỉ đổi cột mẫu hiển thị gợi ý).
+  domain `sales-targets-nganhhang-dt`, cột `ChiTieuDoanhThuBanLe`/
+  `ChiTieuDoanhThuBanBuon` + `ChiTieuLaiGopBanLe`/`ChiTieuLaiGopBanBuon`
+  — bản 9.73, xem trên; `genericNoStoreCode=true`).
 - **Chỉ tiêu Doanh thu theo ngành hàng (LDTD)** (`/sales-targets-nganhhang-dt-ldtd`,
-  domain `sales-targets-nganhhang-dt-ldtd`, cùng 2 cột trên — trang RIÊNG
+  domain `sales-targets-nganhhang-dt-ldtd`, cùng 4 cột trên — trang RIÊNG
   của đội Lãnh đạo Tập đoàn, KHÔNG ghi đè Chỉ tiêu của trang trên).
 - **Chỉ tiêu Nhập hàng theo ngành hàng** (`/sales-targets-nganhhang-nh`,
-  domain `sales-targets-nganhhang-nh`, cột `ChiTieuGiaTriNhap` — KHÔNG đổi).
+  domain `sales-targets-nganhhang-nh`, cột `ChiTieuGiaTriNhap` — KHÔNG đổi,
+  vẫn còn cột `MaSieuThi`, `genericNoStoreCode` mặc định `false`).
 
 KHÔNG đối chiếu `findUnknownEntityCodes` (actualDataDomain bỏ trống) — mã
 ngành hàng (`DEPT_ID`) khác hẳn granularity entityCode của domain thực đạt
@@ -286,22 +302,41 @@ ràng ngay, không âm thầm chạy sai.
    `__isSectionHeader` (tiêu đề ngang mở đầu khối) + đủ 12 dòng ngành hàng
    + 1 dòng "Tổng cộng" (`__isSubtotal`).
 
-**Công thức từng cột** — bản 9.68: MỖI 1 trong 8 chỉ số (4 Doanh thu + 4
-Lãi gộp) có 3 CỘT CON "Total"/"Bán lẻ"/"Bán buôn" (đúng cấu trúc file mẫu
-Excel gốc, mọi tỷ lệ làm tròn 1 chữ số thập phân; thiếu mẫu số → `null`,
-hiển thị "—", KHÔNG phải `0`/lỗi):
+**Công thức từng cột** — bản 9.68, SỬA LẠI cột "Chỉ tiêu" ở bản 9.73: MỖI
+1 trong 8 chỉ số (4 Doanh thu + 4 Lãi gộp) có 3 CỘT CON "Total"/"Bán lẻ"/
+"Bán buôn" (đúng cấu trúc file mẫu Excel gốc, mọi tỷ lệ làm tròn 1 chữ số
+thập phân; thiếu mẫu số → `null`, hiển thị "—", KHÔNG phải `0`/lỗi):
 
 | Cột | Total | Bán lẻ | Bán buôn |
 |---|---|---|---|
-| Chỉ tiêu | `target.ChiTieuDoanhThu` | *(luôn `null` — giả định 2, hệ thống chưa có Chỉ tiêu riêng theo kênh)* | *(luôn `null`)* |
+| Chỉ tiêu | = Bán lẻ + Bán buôn (kênh nào CHƯA nhập coi như 0 khi cộng — "có dữ liệu" khi ÍT NHẤT 1 trong 2 kênh có số, bản 9.73) | `target.ChiTieuDoanhThuBanLe` | `target.ChiTieuDoanhThuBanBuon` |
 | Thực đạt | `current.measures.DoanhThu` | `current.measures.DoanhThuBanLe` | `current.measures.DoanhThuBanBuon` |
-| % so chỉ tiêu | Thực đạt Total ÷ Chỉ tiêu × 100 | `null` | `null` |
+| % so chỉ tiêu | Thực đạt Total ÷ Chỉ tiêu Total × 100 | Thực đạt Bán lẻ ÷ Chỉ tiêu Bán lẻ × 100 (bản 9.73, trước đây luôn `null`) | tương tự, theo Bán buôn |
 | % so cùng kỳ năm trước | Thực đạt Total ÷ Thực đạt Total cùng kỳ × 100 | Thực đạt Bán lẻ ÷ Thực đạt Bán lẻ cùng kỳ × 100 | tương tự, theo Bán buôn |
 | **Giá trị hàng hỏng hủy** | = Bán lẻ + Bán buôn | `current.measures.GiaTriHongHuy` TOÀN BỘ (giả định — "bán buôn thường không có hàng hỏng hủy") | luôn `0` |
 | Lãi gộp — Tỷ lệ | Lãi gộp Giá trị Total ÷ **Doanh thu cuối** (= Thực đạt Total − Giá trị hàng hỏng hủy Total) × 100 — ÁP DỤNG CẢ 3 KHỐI từ bản 9.68 | Lãi gộp Giá trị Bán lẻ ÷ Thực đạt Bán lẻ × 100 | Lãi gộp Giá trị Bán buôn ÷ Thực đạt Bán buôn × 100 |
 | Lãi gộp — Giá trị | = Bán lẻ + Bán buôn (ĐÃ trừ hàng hỏng hủy — KHÁC bản 9.63/9.67 lấy thẳng KHÔNG trừ) | `current.measures.LaiGopBanLe` − Giá trị hàng hỏng hủy Bán lẻ | `current.measures.LaiGopBanBuon` − Giá trị hàng hỏng hủy Bán buôn (= không đổi, vì luôn 0) |
-| Lãi gộp — % so chỉ tiêu | Lãi gộp Giá trị Total ÷ `target.ChiTieuLaiGop` × 100 | `null` | `null` |
+| Lãi gộp — % so chỉ tiêu | Lãi gộp Giá trị Total ÷ Chỉ tiêu Lãi gộp Total × 100 | Lãi gộp Giá trị Bán lẻ ÷ `target.ChiTieuLaiGopBanLe` × 100 (bản 9.73, trước đây luôn `null`) | tương tự, theo Bán buôn |
 | Lãi gộp — % so cùng kỳ năm trước | Lãi gộp Giá trị Total ÷ Lãi gộp Giá trị Total cùng kỳ (đã trừ hàng hỏng hủy cùng kỳ) × 100 | tương tự, theo Bán lẻ | tương tự, theo Bán buôn |
+
+**Cấp banner thứ 3 "Doanh thu"/"Lãi gộp"** (`definition.columnSuperGroups`,
+bản 9.73 — theo yêu cầu người dùng, khớp đúng 3 CẤP tiêu đề của file mẫu
+Excel gốc: "Doanh thu" gộp ngang 4 nhóm con Chỉ tiêu/Thực đạt/%CT/%CK,
+"Lãi gộp" gộp 4 nhóm con còn lại — "Giá trị hàng hỏng hủy" CHỦ Ý KHÔNG
+thuộc super-group nào, cột MỚI THÊM bản 9.68, không có trong file mẫu
+gốc) — cơ chế dùng chung opt-in mới ở CẢ 3 nơi xuất/hiển thị
+(`rp-server/lib/exportExcel.js`/`lib/exportPdf.js`/
+`rp-user/src/components/DataTable.jsx`), thêm ĐÚNG 1 dòng tiêu đề MỚI phía
+TRÊN dòng `columnGroups` hiện có — KHÔNG đổi báo cáo nào khác (không khai
+field này thì vẽ như cũ, 2 dòng tiêu đề). `routes/reports.js`:/export VÀ
+`jobs/reportEmailScheduler.js` (gửi email tự động) TRƯỚC ĐÂY chỉ đọc
+`definition.columnGroups`/`standaloneColumnColors` TĨNH từ DefinitionJson
+— lỗi THẬT đã gặp: báo cáo này tính 2 field đó (và `columnSuperGroups`)
+ĐỘNG lúc chạy (`lib/nganhHangBrgRunner.js`, không lưu tĩnh), nên Excel/PDF
+xuất ra (cả nút "Xuất" lẫn email tự động) LUÔN mất hẳn màu/3 khối
+BRG-LFL-NSO dù xem trên web vẫn đúng — đã sửa đọc từ KẾT QUẢ
+`runDefinition()` (ưu tiên hơn `definition.*` tĩnh, AN TOÀN cho mọi báo
+cáo khác vì 2 giá trị đó LUÔN giống hệt nhau ở mọi SourceType khác).
 
 Dòng "Tổng cộng" mỗi khối: CỘNG DỒN giá trị tuyệt đối của 12 dòng (bao gồm
 3 kênh) rồi tính LẠI % từ tổng (không lấy trung bình cộng % từng dòng) —

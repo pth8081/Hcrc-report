@@ -146,6 +146,29 @@ const COLUMNS = [
   { key: 'laiGopCungKyBanBuon', label: 'Bán buôn', format: 'percent', width: 0.9 }
 ];
 
+// COLUMN_SUPER_GROUPS (bản 9.73, theo yêu cầu người dùng — gửi file mẫu
+// Excel gốc có 3 CẤP tiêu đề: "Doanh thu"/"Lãi gộp" (CẤP 1, gộp ngang 4
+// nhóm con mỗi bên) -> 4 nhóm con mỗi bên (CẤP 2, "Chỉ tiêu"/"Thực đạt"/
+// "% so chỉ tiêu"/"% so cùng kỳ năm trước") -> Total/Bán lẻ/Bán buôn (CẤP
+// 3) — trước đây CHỈ có CẤP 2+3 (COLUMN_GROUPS ở trên đã TỰ GHÉP tên CẤP 1
+// vào label, vd "Doanh thu — Chỉ tiêu", thay vì vẽ thêm 1 dòng banner
+// riêng như file mẫu). "Giá trị hàng hỏng hủy" CHỦ Ý không thuộc nhóm nào
+// ở đây — cột MỚI THÊM bản 9.68, KHÔNG có trong file mẫu Excel gốc, giữ
+// nguyên là 1 banner CẤP 2 "trôi nổi" không gộp dưới "Doanh thu"/"Lãi gộp"
+// nào, đúng ý định ban đầu (xem chú thích COLUMN_GROUPS). Cơ chế dựng dòng
+// banner mới xem lib/exportExcel.js:addReportSheet()/lib/exportPdf.js:
+// drawHeader()/rp-user/src/components/DataTable.jsx:buildSuperHeader().
+const COLUMN_SUPER_GROUPS = [
+  {
+    label: 'Doanh thu', color: '1F3B57',
+    groupLabels: ['Doanh thu — Chỉ tiêu', 'Doanh thu — Thực đạt', 'Doanh thu — % so chỉ tiêu', 'Doanh thu — % so cùng kỳ năm trước']
+  },
+  {
+    label: 'Lãi gộp', color: '7A3E13',
+    groupLabels: ['Lãi gộp — Tỷ lệ', 'Lãi gộp — Giá trị', 'Lãi gộp — % so chỉ tiêu', 'Lãi gộp — % so cùng kỳ năm trước']
+  }
+];
+
 const COLUMN_GROUPS = [
   { label: 'Doanh thu — Chỉ tiêu', color: 'green', keys: ['chiTieuTotal', 'chiTieuBanLe', 'chiTieuBanBuon'] },
   { label: 'Doanh thu — Thực đạt', color: 'green', keys: ['thucDatTotal', 'thucDatBanLe', 'thucDatBanBuon'] },
@@ -199,7 +222,20 @@ function groupByDeptId(rows, stkIdFilterSet) {
 // `current`/`lastYear`/`target` — object measures thô đọc được (hoặc sums
 // cộng dồn khi tính dòng Tổng cộng), `hasLastYear*`/`hasChiTieu*` — cờ
 // phân biệt "KHÔNG có dữ liệu" (null, hiện "—") với "có dữ liệu = 0".
-function computeRowFields({ thucDat, lastYearThucDat, hasLastYear, giaTriHongHuy, lastYearGiaTriHongHuy, laiGopGross, lastYearLaiGopGross, hasLastYearLaiGop, chiTieuTotal, hasChiTieu, chiTieuLaiGop, hasChiTieuLaiGop }) {
+function computeRowFields({ thucDat, lastYearThucDat, hasLastYear, giaTriHongHuy, lastYearGiaTriHongHuy, laiGopGross, lastYearLaiGopGross, hasLastYearLaiGop, chiTieu, hasChiTieuBanLe, hasChiTieuBanBuon, chiTieuLaiGop, hasChiTieuLaiGopBanLe, hasChiTieuLaiGopBanBuon }) {
+  // Chỉ tiêu Bán lẻ/Bán buôn (bản 9.73, theo yêu cầu người dùng — "tách chỉ
+  // tiêu bán buôn, bán lẻ") — TRƯỚC ĐÂY hệ thống chỉ có 1 số Chỉ tiêu THEO
+  // TOÀN BỘ (Total), 2 cột Bán lẻ/Bán buôn LUÔN "—" (null cố định). Giờ file
+  // nhập có 2 cột riêng (ChiTieuDoanhThuBanLe/BanBuon,
+  // ChiTieuLaiGopBanLe/BanBuon — xem etl/server.js) — "Total" = CỘNG hai cột
+  // lại (giống cách Thực đạt/Lãi gộp Total đã tính), "có dữ liệu" (khác "—")
+  // khi ÍT NHẤT 1 trong 2 kênh có số — kênh còn thiếu coi như 0 khi cộng vào
+  // Total (không phải "chưa nhập cả 2 kênh" mới tính là có dữ liệu, tránh ẩn
+  // Total chỉ vì 1 kênh ít gặp chưa kịp nhập).
+  const hasChiTieu = hasChiTieuBanLe || hasChiTieuBanBuon;
+  const chiTieuTotal = (hasChiTieuBanLe ? chiTieu.banLe : 0) + (hasChiTieuBanBuon ? chiTieu.banBuon : 0);
+  const hasChiTieuLaiGop = hasChiTieuLaiGopBanLe || hasChiTieuLaiGopBanBuon;
+  const chiTieuLaiGopTotal = (hasChiTieuLaiGopBanLe ? chiTieuLaiGop.banLe : 0) + (hasChiTieuLaiGopBanBuon ? chiTieuLaiGop.banBuon : 0);
   // Hàng hỏng hủy gán HẾT cho kênh Bán lẻ (Bán buôn thường không có — theo
   // người dùng xác nhận bản 9.68) — cả kỳ hiện tại VÀ cùng kỳ năm trước.
   const hhTotal = giaTriHongHuy.total;
@@ -220,9 +256,13 @@ function computeRowFields({ thucDat, lastYearThucDat, hasLastYear, giaTriHongHuy
   const lastYearLaiGopTotal = hasLastYearLaiGop ? (lastYearLaiGopBanLe + lastYearLaiGopBanBuon) : null;
 
   return {
-    chiTieuTotal: hasChiTieu ? chiTieuTotal : null, chiTieuBanLe: null, chiTieuBanBuon: null,
+    chiTieuTotal: hasChiTieu ? chiTieuTotal : null,
+    chiTieuBanLe: hasChiTieuBanLe ? chiTieu.banLe : null,
+    chiTieuBanBuon: hasChiTieuBanBuon ? chiTieu.banBuon : null,
     thucDatTotal: thucDat.total, thucDatBanLe: thucDat.banLe, thucDatBanBuon: thucDat.banBuon,
-    tyLeDatTotal: hasChiTieu ? pctOrNull(thucDat.total, chiTieuTotal) : null, tyLeDatBanLe: null, tyLeDatBanBuon: null,
+    tyLeDatTotal: hasChiTieu ? pctOrNull(thucDat.total, chiTieuTotal) : null,
+    tyLeDatBanLe: hasChiTieuBanLe ? pctOrNull(thucDat.banLe, chiTieu.banLe) : null,
+    tyLeDatBanBuon: hasChiTieuBanBuon ? pctOrNull(thucDat.banBuon, chiTieu.banBuon) : null,
     cungKyTotal: hasLastYear ? pctOrNull(thucDat.total, lastYearThucDat.total) : null,
     cungKyBanLe: hasLastYear ? pctOrNull(thucDat.banLe, lastYearThucDat.banLe) : null,
     cungKyBanBuon: hasLastYear ? pctOrNull(thucDat.banBuon, lastYearThucDat.banBuon) : null,
@@ -236,8 +276,9 @@ function computeRowFields({ thucDat, lastYearThucDat, hasLastYear, giaTriHongHuy
     tyLeLaiGopBanLe: pctOrNull(giaTriLaiGopBanLe, thucDat.banLe),
     tyLeLaiGopBanBuon: pctOrNull(giaTriLaiGopBanBuon, thucDat.banBuon),
     giaTriLaiGopTotal, giaTriLaiGopBanLe, giaTriLaiGopBanBuon,
-    tyLeLaiGopSoChiTieuTotal: hasChiTieuLaiGop ? pctOrNull(giaTriLaiGopTotal, chiTieuLaiGop) : null,
-    tyLeLaiGopSoChiTieuBanLe: null, tyLeLaiGopSoChiTieuBanBuon: null,
+    tyLeLaiGopSoChiTieuTotal: hasChiTieuLaiGop ? pctOrNull(giaTriLaiGopTotal, chiTieuLaiGopTotal) : null,
+    tyLeLaiGopSoChiTieuBanLe: hasChiTieuLaiGopBanLe ? pctOrNull(giaTriLaiGopBanLe, chiTieuLaiGop.banLe) : null,
+    tyLeLaiGopSoChiTieuBanBuon: hasChiTieuLaiGopBanBuon ? pctOrNull(giaTriLaiGopBanBuon, chiTieuLaiGop.banBuon) : null,
     laiGopCungKyTotal: hasLastYearLaiGop ? pctOrNull(giaTriLaiGopTotal, lastYearLaiGopTotal) : null,
     laiGopCungKyBanLe: hasLastYearLaiGop ? pctOrNull(giaTriLaiGopBanLe, lastYearLaiGopBanLe) : null,
     laiGopCungKyBanBuon: hasLastYearLaiGop ? pctOrNull(giaTriLaiGopBanBuon, lastYearLaiGopBanBuon) : null,
@@ -257,7 +298,8 @@ function buildSegmentRows(section, currentMap, lastYearMap, targetMap) {
     lastYearThucDat: { total: 0, banLe: 0, banBuon: 0 }, hasLastYear: false,
     giaTriHongHuy: { total: 0 }, lastYearGiaTriHongHuy: { total: 0 },
     laiGopGross: { banLe: 0, banBuon: 0 }, lastYearLaiGopGross: { banLe: 0, banBuon: 0 }, hasLastYearLaiGop: false,
-    chiTieuTotal: 0, hasChiTieu: false, chiTieuLaiGop: 0, hasChiTieuLaiGop: false
+    chiTieu: { banLe: 0, banBuon: 0 }, hasChiTieuBanLe: false, hasChiTieuBanBuon: false,
+    chiTieuLaiGop: { banLe: 0, banBuon: 0 }, hasChiTieuLaiGopBanLe: false, hasChiTieuLaiGopBanBuon: false
   };
 
   for (const item of NGANH_HANG_LIST) {
@@ -281,14 +323,20 @@ function buildSegmentRows(section, currentMap, lastYearMap, targetMap) {
     const laiGopGross = { banLe: current?.measures?.LaiGopBanLe || 0, banBuon: current?.measures?.LaiGopBanBuon || 0 };
     const hasLastYearLaiGop = lastYear?.measures?.LaiGop != null;
     const lastYearLaiGopGross = { banLe: lastYear?.measures?.LaiGopBanLe || 0, banBuon: lastYear?.measures?.LaiGopBanBuon || 0 };
-    const hasChiTieu = target?.ChiTieuDoanhThu != null;
-    const chiTieuTotal = target?.ChiTieuDoanhThu || 0;
-    const hasChiTieuLaiGop = target?.ChiTieuLaiGop != null;
-    const chiTieuLaiGop = target?.ChiTieuLaiGop || 0;
+    // Chỉ tiêu Bán lẻ/Bán buôn (bản 9.73) — ChiTieuDoanhThu/ChiTieuLaiGop
+    // CŨ (1 số Total duy nhất) ĐỔI thành 2 field riêng mỗi bên, xem
+    // etl/server.js + chú thích computeRowFields() ở trên.
+    const hasChiTieuBanLe = target?.ChiTieuDoanhThuBanLe != null;
+    const hasChiTieuBanBuon = target?.ChiTieuDoanhThuBanBuon != null;
+    const chiTieu = { banLe: target?.ChiTieuDoanhThuBanLe || 0, banBuon: target?.ChiTieuDoanhThuBanBuon || 0 };
+    const hasChiTieuLaiGopBanLe = target?.ChiTieuLaiGopBanLe != null;
+    const hasChiTieuLaiGopBanBuon = target?.ChiTieuLaiGopBanBuon != null;
+    const chiTieuLaiGop = { banLe: target?.ChiTieuLaiGopBanLe || 0, banBuon: target?.ChiTieuLaiGopBanBuon || 0 };
 
     const fields = computeRowFields({
       thucDat, lastYearThucDat, hasLastYear, giaTriHongHuy, lastYearGiaTriHongHuy,
-      laiGopGross, lastYearLaiGopGross, hasLastYearLaiGop, chiTieuTotal, hasChiTieu, chiTieuLaiGop, hasChiTieuLaiGop
+      laiGopGross, lastYearLaiGopGross, hasLastYearLaiGop,
+      chiTieu, hasChiTieuBanLe, hasChiTieuBanBuon, chiTieuLaiGop, hasChiTieuLaiGopBanLe, hasChiTieuLaiGopBanBuon
     });
 
     rows.push({
@@ -312,15 +360,18 @@ function buildSegmentRows(section, currentMap, lastYearMap, targetMap) {
       sums.lastYearLaiGopGross.banLe += lastYearLaiGopGross.banLe;
       sums.lastYearLaiGopGross.banBuon += lastYearLaiGopGross.banBuon;
     }
-    if (hasChiTieu) { sums.chiTieuTotal += chiTieuTotal; sums.hasChiTieu = true; }
-    if (hasChiTieuLaiGop) { sums.chiTieuLaiGop += chiTieuLaiGop; sums.hasChiTieuLaiGop = true; }
+    if (hasChiTieuBanLe) { sums.chiTieu.banLe += chiTieu.banLe; sums.hasChiTieuBanLe = true; }
+    if (hasChiTieuBanBuon) { sums.chiTieu.banBuon += chiTieu.banBuon; sums.hasChiTieuBanBuon = true; }
+    if (hasChiTieuLaiGopBanLe) { sums.chiTieuLaiGop.banLe += chiTieuLaiGop.banLe; sums.hasChiTieuLaiGopBanLe = true; }
+    if (hasChiTieuLaiGopBanBuon) { sums.chiTieuLaiGop.banBuon += chiTieuLaiGop.banBuon; sums.hasChiTieuLaiGopBanBuon = true; }
   }
 
   const totalFields = computeRowFields({
     thucDat: sums.thucDat, lastYearThucDat: sums.lastYearThucDat, hasLastYear: sums.hasLastYear,
     giaTriHongHuy: sums.giaTriHongHuy, lastYearGiaTriHongHuy: sums.lastYearGiaTriHongHuy,
     laiGopGross: sums.laiGopGross, lastYearLaiGopGross: sums.lastYearLaiGopGross, hasLastYearLaiGop: sums.hasLastYearLaiGop,
-    chiTieuTotal: sums.chiTieuTotal, hasChiTieu: sums.hasChiTieu, chiTieuLaiGop: sums.chiTieuLaiGop, hasChiTieuLaiGop: sums.hasChiTieuLaiGop
+    chiTieu: sums.chiTieu, hasChiTieuBanLe: sums.hasChiTieuBanLe, hasChiTieuBanBuon: sums.hasChiTieuBanBuon,
+    chiTieuLaiGop: sums.chiTieuLaiGop, hasChiTieuLaiGopBanLe: sums.hasChiTieuLaiGopBanLe, hasChiTieuLaiGopBanBuon: sums.hasChiTieuLaiGopBanBuon
   });
   delete totalFields.__netLaiGop;
   delete totalFields.__netLaiGopLY;
@@ -392,7 +443,8 @@ async function runNganhHangBrgReport(definition, filterValues = {}) {
   return {
     columns,
     rows,
-    columnGroups: COLUMN_GROUPS
+    columnGroups: COLUMN_GROUPS,
+    columnSuperGroups: COLUMN_SUPER_GROUPS
   };
 }
 

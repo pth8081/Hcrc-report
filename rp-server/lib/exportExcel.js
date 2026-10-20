@@ -111,6 +111,21 @@ function addReportSheet(workbook, definition, rows, sheetName) {
 
   // ---- Dòng tiêu đề (chỉ khi có columnGroups — báo cáo phẳng cũ giữ
   // nguyên hành vi cũ, KHÔNG thêm dòng tiêu đề để không đổi file đã quen) ----
+  // definition.columnSuperGroups (TUỲ CHỌN, bản 9.73 — theo yêu cầu người
+  // dùng, báo cáo "Doanh thu theo ngành hàng"/"(LDTD)" cần thêm 1 CẤP banner
+  // CAO HƠN columnGroups hiện có, vd "Doanh thu" gộp ngang 4 nhóm con "Chỉ
+  // tiêu"/"Thực đạt"/.../"% so cùng kỳ", "Lãi gộp" gộp 4 nhóm con còn lại —
+  // ĐÚNG cấu trúc 3 cấp tiêu đề của file mẫu Excel gốc người dùng gửi, xem
+  // "báo cáo doanh thu-nhập hàng theo ngành hàng.md"). KHÔNG khai (mọi báo
+  // cáo columnGroups khác, kể cả 4 báo cáo doanh thu cuối ngày LDTD/HCRC)
+  // -> `superGroups.length === 0` -> ĐÚNG hành vi 2 dòng tiêu đề như cũ,
+  // KHÔNG đổi gì. = [{label, color, groupLabels: [...g.label khớp đúng
+  // columnGroups]}] — nhóm nào trong `groups` KHÔNG được liệt kê trong bất
+  // kỳ `groupLabels` nào (vd "Giá trị hàng hỏng hủy", CHỦ Ý không thuộc
+  // "Doanh thu" hay "Lãi gộp") thì ô ở dòng banner mới MERGE DỌC xuống luôn
+  // dòng nhóm hiện có (cùng cách xử lý cột "không thuộc nhóm nào" đã có sẵn
+  // ở vòng columns.forEach bên dưới, áp dụng thêm 1 cấp).
+  const superGroups = definition.columnSuperGroups || [];
   let dataStartRow;
   if (groups.length) {
     sheet.mergeCells(1, 1, 1, colCount);
@@ -120,22 +135,41 @@ function addReportSheet(workbook, definition, rows, sheetName) {
     titleCell.alignment = { horizontal: 'center' };
     sheet.getRow(1).height = 22;
 
-    const r1 = 2, r2 = 3;
+    const r0 = superGroups.length ? 2 : null;
+    const r1 = superGroups.length ? 3 : 2;
+    const r2 = superGroups.length ? 4 : 3;
     const colIndexByKey = new Map(columns.map((c, i) => [c.key, i + 1]));
     const covered = new Set();
+    // Nhãn g.label nào đã được 1 super-group "nhận" (xem columnSuperGroups ở
+    // trên) — TÍNH TRƯỚC vòng vẽ dòng nhóm bên dưới, để biết nhóm đó cần vẽ
+    // banner RIÊNG ở r0 (vd "Doanh thu — Chỉ tiêu" đã có "Doanh thu" ở r0) hay
+    // PHẢI TỰ KÉO DÀI ô nhãn của chính nó lên luôn r0 (vd "Giá trị hàng hỏng
+    // hủy", không thuộc super-group nào) — QUAN TRỌNG: merge 1 LẦN DUY NHẤT
+    // từ `top` tới `r1` cho mỗi nhóm thay vì merge riêng r0 rồi merge riêng
+    // r1/r2 chồng lên nhau (ExcelJS ném lỗi "Cannot merge already merged
+    // cells" nếu 1 ô đã nằm trong 1 vùng merge khác rồi lại bị merge tiếp).
+    const superLabelSet = new Set(superGroups.flatMap(sg => sg.groupLabels || []));
     for (const g of groups) {
       const idxs = (g.keys || []).map(k => colIndexByKey.get(k)).filter(Boolean);
       if (!idxs.length) continue;
       const start = Math.min(...idxs), end = Math.max(...idxs);
       const argb = resolveGroupColor(g.color, GROUP_COLORS_CORPORATE);
-      sheet.mergeCells(r1, start, r1, end);
-      const top = sheet.getCell(r1, start);
-      top.value = g.label;
-      top.font = fontName({ bold: true });
-      top.alignment = { horizontal: 'center', vertical: 'middle' };
+      const top = (r0 && !superLabelSet.has(g.label)) ? r0 : r1;
+      sheet.mergeCells(top, start, r1, end);
+      const topCell = sheet.getCell(top, start);
+      topCell.value = g.label;
+      // Chữ ĐEN mặc định (giống hành vi cũ khi top===r1) kể cả khi nhóm này
+      // phải "trồi" lên r0 (vd "Giá trị hàng hỏng hủy", không thuộc
+      // super-group nào) — nền của nó vẫn là màu NHẠT của chính nhóm (đỏ
+      // nhạt...), KHÁC HẲN nền ĐẬM của banner super-group thật (Doanh thu/
+      // Lãi gộp, luôn chữ trắng — xem vòng vẽ r0 riêng bên dưới).
+      topCell.font = fontName({ bold: true });
+      topCell.alignment = { horizontal: 'center', vertical: 'middle' };
+      for (let r = top; r <= r1; r++) {
+        for (let c = start; c <= end; c++) sheet.getCell(r, c).fill = fillArgb(argb);
+      }
       for (let c = start; c <= end; c++) {
         covered.add(c);
-        sheet.getCell(r1, c).fill = fillArgb(argb);
         const botC = sheet.getCell(r2, c);
         botC.fill = fillArgb(argb);
         botC.value = columns[c - 1].label;
@@ -146,8 +180,9 @@ function addReportSheet(workbook, definition, rows, sheetName) {
     columns.forEach((col, i) => {
       const c = i + 1;
       if (covered.has(c)) return;
-      sheet.mergeCells(r1, c, r2, c);
-      const cell = sheet.getCell(r1, c);
+      const top = r0 || r1;
+      sheet.mergeCells(top, c, r2, c);
+      const cell = sheet.getCell(top, c);
       cell.value = col.label;
       cell.font = fontName({ bold: true });
       cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
@@ -157,11 +192,36 @@ function addReportSheet(workbook, definition, rows, sheetName) {
       const standaloneColor = resolveStandaloneColumnColor(col, definition.standaloneColumnColors, GROUP_COLORS_CORPORATE);
       if (standaloneColor) cell.fill = fillArgb(standaloneColor);
     });
+    // Dòng banner cấp CAO HƠN (r0) — xem chú thích columnSuperGroups ở trên.
+    // Vẽ SAU vòng groups ở trên (cần `covered`/màu nhóm đã tô sẵn) — CHỈ ghi
+    // đè nhãn/màu TRẮNG-ĐẬM cho đúng dải cột thuộc super-group, KHÔNG merge
+    // gì thêm ở đây (vùng r0 của các cột này đã được merge đúng ở vòng
+    // `groups`/`columns.forEach` phía trên rồi, vì top===r1 cho các nhóm
+    // THUỘC super-group — chỉ cần vẽ ĐÈ 1 ô banner MERGE RIÊNG phía trên
+    // từng dải, không đụng tới các ô r1/r2 bên dưới).
+    if (r0) {
+      for (const sg of superGroups) {
+        const idxs = (sg.groupLabels || []).flatMap(gl => {
+          const g = groups.find(x => x.label === gl);
+          return g ? (g.keys || []).map(k => colIndexByKey.get(k)).filter(Boolean) : [];
+        });
+        if (!idxs.length) continue;
+        const start = Math.min(...idxs), end = Math.max(...idxs);
+        const argb = resolveGroupColor(sg.color, GROUP_COLORS_CORPORATE);
+        sheet.mergeCells(r0, start, r0, end);
+        const cell = sheet.getCell(r0, start);
+        cell.value = sg.label;
+        cell.font = fontName({ bold: true, color: { argb: 'FFFFFFFF' } });
+        cell.alignment = { horizontal: 'center', vertical: 'middle' };
+        for (let c = start; c <= end; c++) sheet.getCell(r0, c).fill = fillArgb(argb);
+      }
+    }
     for (let c = 1; c <= colCount; c++) {
+      if (r0) sheet.getCell(r0, c).border = BORDER_ALL;
       sheet.getCell(r1, c).border = BORDER_ALL;
       sheet.getCell(r2, c).border = BORDER_ALL;
     }
-    dataStartRow = 4;
+    dataStartRow = r2 + 1;
     sheet.views = [{ state: 'frozen', ySplit: dataStartRow - 1 }];
   } else {
     // Bản 9.42 (theo yêu cầu người dùng — "chuyển tất cả báo cáo Mua

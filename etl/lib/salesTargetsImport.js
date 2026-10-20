@@ -61,7 +61,6 @@ const ExcelJS = require('exceljs');
 const { sql } = require('../db');
 const { guardZipBombSize } = require('./fileSignature');
 
-const REQUIRED_HEADERS = ['MaSieuThi', 'Thang'];
 const PERIOD_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
 const PERIOD_DATE_RE = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
 const TRANG_THAI_VALUES = ['HoatDong', 'DaDong'];
@@ -141,6 +140,15 @@ const MAX_UNCOMPRESSED_BYTES = 200 * 1024 * 1024;
 
 function matchShape(set) {
   if (set.has('MaSieuThi') && set.has('Thang')) return 'generic';
+  // "generic" KHÔNG CÓ MaSieuThi (bản 9.73, theo yêu cầu người dùng — file
+  // mẫu "Chỉ tiêu Doanh thu theo ngành hàng"/"(LDTD)" BỎ HẲN cột MaSieuThi,
+  // vì domain này LUÔN là "theo toàn công ty", không bao giờ tách chi nhánh
+  // — xem parseGenericShape() bên dưới, nhánh "MaSieuThi để TRỐNG + có
+  // MaNganhHang" đã có sẵn từ trước, chỉ thiếu đúng chỗ NHẬN DIỆN shape khi
+  // cột đó HOÀN TOÀN VẮNG MẶT trong file, không chỉ để trống TỪNG DÒNG) —
+  // "Thang"+"MaNganhHang" đủ đặc trưng, không trùng 2 shape "...-daily" bên
+  // dưới (không chung bất kỳ tên cột nào).
+  if (set.has('Thang') && set.has('MaNganhHang')) return 'generic';
   if (set.has('Điểm') && set.has('Doanh thu') && set.has('Bill')) return 'ldtd-daily';
   if (set.has('Kỳ') && set.has('Mã đối tượng chứa') && set.has('Mã loại chỉ tiêu') && set.has('Giá trị chỉ tiêu')) {
     return 'hcrc-daily';
@@ -192,12 +200,15 @@ function detectHeaderRow(sheet) {
 // ---- (1) Định dạng "generic" — hành vi CŨ, chỉ tiêu THEO THÁNG ----------
 function parseGenericShape(sheet, detected) {
   const { rowNumber: headerRow, headers } = detected;
-  for (const required of REQUIRED_HEADERS) {
-    if (!headers.includes(required)) {
-      throw new Error(`File thiếu cột bắt buộc "${required}"`);
-    }
+  // "Thang" LUÔN bắt buộc. "MaSieuThi" chỉ bắt buộc khi file KHÔNG có
+  // "MaNganhHang" (bản 9.73) — file "theo toàn công ty" (2 domain Chỉ tiêu
+  // Doanh thu theo ngành hàng) không còn cột MaSieuThi nữa (xem matchShape()
+  // ở trên), nhánh dưới (maSieuThiCol === -1) đã xử lý đúng "để trống" này.
+  if (!headers.includes('Thang')) throw new Error('File thiếu cột bắt buộc "Thang"');
+  if (!headers.includes('MaSieuThi') && !headers.includes('MaNganhHang')) {
+    throw new Error('File thiếu cột bắt buộc "MaSieuThi" (hoặc "MaNganhHang" nếu là chỉ tiêu theo toàn công ty, không tách chi nhánh)');
   }
-  const maSieuThiCol = headers.indexOf('MaSieuThi');
+  const maSieuThiCol = headers.indexOf('MaSieuThi'); // -1 nếu file không có cột này (hợp lệ, chỉ tiêu theo toàn công ty — bản 9.73)
   const thangCol = headers.indexOf('Thang');
   const trangThaiCol = headers.indexOf('TrangThai'); // -1 nếu file không có cột này (hợp lệ, tuỳ chọn)
   const maNganhHangCol = headers.indexOf('MaNganhHang'); // -1 nếu file không có cột này (hợp lệ, tuỳ chọn)
@@ -215,7 +226,7 @@ function parseGenericShape(sheet, detected) {
   const rowErrors = [];
   sheet.eachRow((row, rowNumber) => {
     if (rowNumber <= headerRow) return;
-    const entityCodeRaw = row.getCell(maSieuThiCol).value;
+    const entityCodeRaw = maSieuThiCol !== -1 ? row.getCell(maSieuThiCol).value : null;
     const maSieuThi = entityCodeRaw != null ? String(entityCodeRaw).trim() : '';
     const thangRaw = row.getCell(thangCol).value;
     const thang = thangRaw != null ? String(thangRaw).trim() : '';
@@ -697,13 +708,21 @@ function buildHcrcDailyExport(rows) {
 // chọn người dùng — EntityCode ghi thẳng = MaNganhHang). Điền CẢ 2 cột vẫn
 // hợp lệ (chỉ tiêu riêng 1 chi nhánh + 1 ngành hàng, hành vi ghép cũ) nếu
 // sau này cần tới, báo cáo hiện tại không dùng trường hợp này.
-function buildGenericTemplate(targetColumns, sampleTargetValues) {
-  return buildWorkbook(
-    'Chi tieu',
-    ['MaSieuThi', 'Thang', 'MaNganhHang', ...targetColumns],
-    [['', '2026-01', 'VIDU_NGANHHANG', ...sampleTargetValues]],
-    'XOÁ dòng ví dụ (mã "VIDU_NGANHHANG") trước khi nhập — để TRỐNG "MaSieuThi" + điền "MaNganhHang" = chỉ tiêu THEO TOÀN CÔNG TY cho đúng ngành hàng đó (không tách chi nhánh). "Thang" dạng YYYY-MM.'
-  );
+// noStoreCode (TUỲ CHỌN, bản 9.73 — theo yêu cầu người dùng: "không cần mã
+// siêu thị đâu nhé") — BỎ HẲN cột "MaSieuThi" khỏi file mẫu/file xuất, dùng
+// cho domain CHẮC CHẮN LUÔN "theo toàn công ty" (2 domain Chỉ tiêu Doanh
+// thu theo ngành hàng gốc/LDTD — xem server.js). KHÔNG đổi mặc định (domain
+// "Nhập hàng theo ngành hàng" vẫn giữ cột MaSieuThi như cũ, dù hiện cũng
+// luôn để trống — không có yêu cầu đổi domain đó, giữ nguyên hành vi cũ cho
+// an toàn/nhất quán tới khi có yêu cầu riêng).
+function buildGenericTemplate(targetColumns, sampleTargetValues, opts = {}) {
+  const noStoreCode = !!opts.noStoreCode;
+  const headers = noStoreCode ? ['Thang', 'MaNganhHang', ...targetColumns] : ['MaSieuThi', 'Thang', 'MaNganhHang', ...targetColumns];
+  const sampleRow = noStoreCode ? ['2026-01', 'VIDU_NGANHHANG', ...sampleTargetValues] : ['', '2026-01', 'VIDU_NGANHHANG', ...sampleTargetValues];
+  const note = noStoreCode
+    ? 'XOÁ dòng ví dụ (mã "VIDU_NGANHHANG") trước khi nhập — điền đúng "MaNganhHang" (chỉ tiêu THEO TOÀN CÔNG TY, không tách chi nhánh — domain này không có khái niệm theo siêu thị). "Thang" dạng YYYY-MM.'
+    : 'XOÁ dòng ví dụ (mã "VIDU_NGANHHANG") trước khi nhập — để TRỐNG "MaSieuThi" + điền "MaNganhHang" = chỉ tiêu THEO TOÀN CÔNG TY cho đúng ngành hàng đó (không tách chi nhánh). "Thang" dạng YYYY-MM.';
+  return buildWorkbook('Chi tieu', headers, [sampleRow], note);
 }
 
 // "Thang" ("generic" shape) đọc lại bằng PERIOD_RE (chuỗi "YYYY-MM" THUẦN
@@ -717,19 +736,25 @@ function periodDateToYYYYMM(periodMonth) {
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
 }
 
-function buildGenericExport(rows, targetColumns) {
-  const dataRows = rows.map(r => [
-    // targets.MaSieuThi/MaNganhHang CHỈ được ghi lúc nhập khi dòng gốc CÓ
-    // MaNganhHang (xem parseGenericShape() ở trên, giữ nguyên hành vi cũ) —
-    // dòng "thuần theo siêu thị" (không ngành hàng) không có field này
-    // trong TargetsJson, EntityCode CHÍNH LÀ MaSieuThi -> dùng thẳng
-    // r.entityCode làm MaSieuThi cho đúng trường hợp đó.
-    r.targets.MaNganhHang ? (r.targets.MaSieuThi || '') : r.entityCode,
-    periodDateToYYYYMM(r.periodMonth),
-    r.targets.MaNganhHang || '',
-    ...targetColumns.map(c => r.targets[c] ?? '')
-  ]);
-  return buildWorkbook('Chi tieu', ['MaSieuThi', 'Thang', 'MaNganhHang', ...targetColumns], dataRows);
+function buildGenericExport(rows, targetColumns, opts = {}) {
+  const noStoreCode = !!opts.noStoreCode; // xem chú thích buildGenericTemplate() ở trên
+  const dataRows = rows.map(r => {
+    const prefix = noStoreCode
+      ? [periodDateToYYYYMM(r.periodMonth), r.targets.MaNganhHang || '']
+      : [
+          // targets.MaSieuThi/MaNganhHang CHỈ được ghi lúc nhập khi dòng gốc CÓ
+          // MaNganhHang (xem parseGenericShape() ở trên, giữ nguyên hành vi cũ) —
+          // dòng "thuần theo siêu thị" (không ngành hàng) không có field này
+          // trong TargetsJson, EntityCode CHÍNH LÀ MaSieuThi -> dùng thẳng
+          // r.entityCode làm MaSieuThi cho đúng trường hợp đó.
+          r.targets.MaNganhHang ? (r.targets.MaSieuThi || '') : r.entityCode,
+          periodDateToYYYYMM(r.periodMonth),
+          r.targets.MaNganhHang || ''
+        ];
+    return [...prefix, ...targetColumns.map(c => r.targets[c] ?? '')];
+  });
+  const headers = noStoreCode ? ['Thang', 'MaNganhHang', ...targetColumns] : ['MaSieuThi', 'Thang', 'MaNganhHang', ...targetColumns];
+  return buildWorkbook('Chi tieu', headers, dataRows);
 }
 
 module.exports = {

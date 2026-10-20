@@ -201,6 +201,15 @@ export default function SalesTargetsPage({ menuCode, apiBase, title }) {
           lại CHÍNH LÀ <code>MaNganhHang</code> — dùng cho trang{' '}
           <strong>Chỉ tiêu Doanh thu/Nhập hàng theo ngành hàng</strong> (xem báo cáo "Doanh
           thu/Nhập hàng theo ngành hàng.md").</li>
+        <li>
+          <strong>Riêng trang "Chỉ tiêu Doanh thu theo ngành hàng"/"(LDTD)"</strong> (bản
+          9.73) — file mẫu/xuất KHÔNG CÒN cột <code>MaSieuThi</code> nữa (luôn "theo toàn
+          công ty", không có khái niệm siêu thị ở 2 trang này) — chỉ còn{' '}
+          <code>Thang</code>, <code>MaNganhHang</code>, và 4 cột chỉ tiêu tách riêng Bán
+          lẻ/Bán buôn: <code>ChiTieuDoanhThuBanLe</code>, <code>ChiTieuDoanhThuBanBuon</code>,{' '}
+          <code>ChiTieuLaiGopBanLe</code>, <code>ChiTieuLaiGopBanBuon</code> (cột "Total"
+          trên báo cáo tự cộng 2 cột Bán lẻ + Bán buôn, không cần điền riêng).
+        </li>
       </ul>
       {error && <p className="form-error">{error}</p>}
 

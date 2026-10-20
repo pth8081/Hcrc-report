@@ -140,9 +140,19 @@ app.use('/admin/sales-targets-hcrc', createSalesTargetsRouter('sales-targets-hcr
 // (cơ chế field-động parseGenericShape() đã tự nhận MỌI tên cột từ
 // trước, không cần đổi gì ở đây để "hoạt động" — chỉ đổi để HIỆN đúng
 // gợi ý trên giao diện).
+// Bản 9.73 (theo yêu cầu người dùng — "tách chỉ tiêu bán buôn, bán lẻ ...
+// không cần mã siêu thị đâu") — ChiTieuDoanhThu/ChiTieuLaiGop tách thành 2
+// cột con BanLe/BanBuon mỗi bên (KHÔNG còn cột Total riêng — báo cáo tự
+// cộng 2 cột lại, xem lib/nganhHangBrgRunner.js), BỎ HẲN cột "MaSieuThi"
+// khỏi file mẫu/nhập/xuất (genericNoStoreCode=true, xem chú thích đầy đủ ở
+// routes/admin/salesTargets.js) — domain này LUÔN "theo toàn công ty".
 app.use('/admin/sales-targets-nganhhang-dt', createSalesTargetsRouter(
   'sales-targets-nganhhang-dt', 'sales-targets-nganhhang-dt', undefined, 'generic',
-  [{ key: 'ChiTieuDoanhThu', sample: 1500000000 }, { key: 'ChiTieuLaiGop', sample: 250000000 }]
+  [
+    { key: 'ChiTieuDoanhThuBanLe', sample: 1000000000 }, { key: 'ChiTieuDoanhThuBanBuon', sample: 500000000 },
+    { key: 'ChiTieuLaiGopBanLe', sample: 180000000 }, { key: 'ChiTieuLaiGopBanBuon', sample: 70000000 }
+  ],
+  true
 ));
 app.use('/admin/sales-targets-nganhhang-nh', createSalesTargetsRouter(
   'sales-targets-nganhhang-nh', 'sales-targets-nganhhang-nh', undefined, 'generic',
@@ -155,9 +165,15 @@ app.use('/admin/sales-targets-nganhhang-nh', createSalesTargetsRouter(
 // báo cáo "bc-doanh-thu-nganhhang-ldtd" (rp-server/scripts/seedNganhHangReports.js)
 // trỏ targetDomain tới ĐÚNG domain này. ChiTieuLaiGop thêm ở bản 9.67, cùng
 // lý do như 'sales-targets-nganhhang-dt' ở trên.
+// Bản 9.73 — CÙNG thay đổi như 'sales-targets-nganhhang-dt' ở trên (tách
+// Bán lẻ/Bán buôn, bỏ MaSieuThi), xem chú thích đầy đủ ở đó.
 app.use('/admin/sales-targets-nganhhang-dt-ldtd', createSalesTargetsRouter(
   'sales-targets-nganhhang-dt-ldtd', 'sales-targets-nganhhang-dt-ldtd', undefined, 'generic',
-  [{ key: 'ChiTieuDoanhThu', sample: 1500000000 }, { key: 'ChiTieuLaiGop', sample: 250000000 }]
+  [
+    { key: 'ChiTieuDoanhThuBanLe', sample: 1000000000 }, { key: 'ChiTieuDoanhThuBanBuon', sample: 500000000 },
+    { key: 'ChiTieuLaiGopBanLe', sample: 180000000 }, { key: 'ChiTieuLaiGopBanBuon', sample: 70000000 }
+  ],
+  true
 ));
 app.use('/admin/diem-stk-mapping', adminDiemStkMappingRoutes);
 app.use('/admin/nso-stores', adminNsoStoresRoutes);

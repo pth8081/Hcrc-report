@@ -78,7 +78,14 @@ const upload = multer({
 // genericTargetColumns — BẮT BUỘC khi shape==='generic': [{ key, sample }]
 // — tên cột chỉ tiêu (ghi thẳng vào TargetsJson, khớp field công thức báo
 // cáo đọc, vd "target.ChiTieuDoanhThu") + giá trị mẫu cho file template.
-function createSalesTargetsRouter(menuCode, domain, actualDataDomain, shape, genericTargetColumns) {
+// genericNoStoreCode (TUỲ CHỌN, bản 9.73, CHỈ áp dụng khi shape==='generic'
+// — theo yêu cầu người dùng, 2 domain Chỉ tiêu Doanh thu theo ngành hàng
+// gốc/LDTD KHÔNG cần cột "MaSieuThi" trong file mẫu/nhập/xuất nữa, vì domain
+// này LUÔN là "theo toàn công ty" — xem buildGenericTemplate()/
+// buildGenericExport()/matchShape() trong lib/salesTargetsImport.js). MẶC
+// ĐỊNH false (giữ nguyên hành vi cũ, có cột MaSieuThi) — domain "Nhập hàng
+// theo ngành hàng" KHÔNG đổi, không có yêu cầu riêng cho domain đó.
+function createSalesTargetsRouter(menuCode, domain, actualDataDomain, shape, genericTargetColumns, genericNoStoreCode = false) {
 const router = express.Router();
 router.use(requireAdminAuth);
 
@@ -152,7 +159,7 @@ router.get('/template', requireMenuAccess(menuCode), async (req, res, next) => {
   try {
     const buffer = await (
       shape === 'generic'
-        ? buildGenericTemplate(genericTargetColumns.map(c => c.key), genericTargetColumns.map(c => c.sample))
+        ? buildGenericTemplate(genericTargetColumns.map(c => c.key), genericTargetColumns.map(c => c.sample), { noStoreCode: genericNoStoreCode })
         : (shape === 'hcrc-daily' ? buildHcrcDailyTemplate() : buildLdtdDailyTemplate())
     );
     sendXlsx(res, buffer, `mau-${menuCode}.xlsx`);
@@ -178,7 +185,7 @@ router.get('/export', requireMenuAccess(menuCode), async (req, res, next) => {
     const rows = result.recordset.map(r => ({ entityCode: r.EntityCode, periodMonth: r.PeriodMonth, targets: JSON.parse(r.TargetsJson) }));
     const buffer = await (
       shape === 'generic'
-        ? buildGenericExport(rows, genericTargetColumns.map(c => c.key))
+        ? buildGenericExport(rows, genericTargetColumns.map(c => c.key), { noStoreCode: genericNoStoreCode })
         : (shape === 'hcrc-daily' ? buildHcrcDailyExport(rows) : buildLdtdDailyExport(rows))
     );
     sendXlsx(res, buffer, `${menuCode}.xlsx`);

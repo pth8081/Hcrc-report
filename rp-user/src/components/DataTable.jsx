@@ -68,6 +68,45 @@ function buildGroupedHeader(columns, columnGroups) {
   return segments;
 }
 
+// columnSuperGroups (TUỲ CHỌN, bản 9.73 — mirror lib/exportExcel.js/
+// lib/exportPdf.js, xem chú thích đầy đủ ở addReportSheet()) = [{label,
+// color, groupLabels: [...g.label khớp đúng columnGroups]}] — thêm 1 dòng
+// tiêu đề CAO HƠN columnGroups hiện có (vd "Doanh thu" gộp ngang 4 nhóm
+// con). Dựng từ `segments` đã có (buildGroupedHeader) — đoạn segment nào
+// liên tiếp CÙNG 1 super-group thì gộp lại 1 ô colSpan tổng; đoạn KHÔNG
+// thuộc super-group nào (vd "Giá trị hàng hỏng hủy", hoặc cột đơn lẻ như
+// "TT"/"Ngành hàng") render 1 ô TRỐNG (không chữ) cùng màu nền của chính
+// nhóm/cột đó — rowSpan của ô "single"/"group" gốc GIỮ NGUYÊN (2), KHÔNG
+// tự mở rộng lên 3 (HTML rowSpan chỉ mở rộng XUỐNG từ nơi đặt cell, không
+// mở lên) — ô trống thêm ở dòng MỚI này đứng PHÍA TRÊN đóng vai trò "merge
+// dọc" bằng mắt thường (cùng màu, liền khối), không phải merge cell thật.
+function buildSuperHeader(segments, columnSuperGroups) {
+  const labelToSuper = new Map();
+  for (const sg of columnSuperGroups) {
+    for (const gl of sg.groupLabels || []) labelToSuper.set(gl, sg);
+  }
+  const cells = [];
+  let i = 0;
+  while (i < segments.length) {
+    const seg = segments[i];
+    if (seg.type === 'group') {
+      const sg = labelToSuper.get(seg.group.label);
+      if (sg) {
+        let colSpan = 0;
+        while (i < segments.length && segments[i].type === 'group' && labelToSuper.get(segments[i].group.label) === sg) {
+          colSpan += segments[i].cols.length;
+          i += 1;
+        }
+        cells.push({ type: 'super', superGroup: sg, colSpan });
+        continue;
+      }
+    }
+    cells.push({ type: 'blank', seg, span: seg.type === 'group' ? seg.cols.length : 1 });
+    i += 1;
+  }
+  return cells;
+}
+
 // Cột "actions" (quy ước đặt key 'actions' cho cột Sửa/Bật-Tắt/Xoá ở mọi
 // trang CRUD phẳng — luôn là cột CUỐI, KHÔNG xuất hiện ở bảng báo cáo có
 // columnGroups) ghim CỐ ĐỊNH bên phải khi cuộn ngang (bản 9.05, theo báo cáo
@@ -100,7 +139,7 @@ function selectionColumn(rows, selection) {
   };
 }
 
-export default function DataTable({ columns, rows, emptyMessage = 'Không có dữ liệu.', scrollClassName = '', columnGroups = null, standaloneColumnColors = null, selection = null, isReport = false }) {
+export default function DataTable({ columns, rows, emptyMessage = 'Không có dữ liệu.', scrollClassName = '', columnGroups = null, columnSuperGroups = null, standaloneColumnColors = null, selection = null, isReport = false }) {
   if (!rows.length) return <p className="empty-message">{emptyMessage}</p>;
 
   const allColumns = selection ? [selectionColumn(rows, selection), ...columns] : columns;
@@ -116,6 +155,8 @@ export default function DataTable({ columns, rows, emptyMessage = 'Không có d�
   // như trước, không bị ảnh hưởng.
   const flatHeaderStyle = isReport && !hasGroups ? { background: resolveGroupColor('green') } : undefined;
   const segments = hasGroups ? buildGroupedHeader(allColumns, columnGroups) : null;
+  const hasSuperGroups = hasGroups && !!(columnSuperGroups && columnSuperGroups.length);
+  const superCells = hasSuperGroups ? buildSuperHeader(segments, columnSuperGroups) : null;
   const tableClassName = segments ? 'data-table data-table--grouped' : 'data-table';
   const zebraFlags = hasGroups ? computeZebraFlags(rows) : rows.map(() => false);
 
@@ -125,6 +166,23 @@ export default function DataTable({ columns, rows, emptyMessage = 'Không có d�
         <thead>
           {segments ? (
             <>
+              {hasSuperGroups && (
+                <tr className="group-superheader-row">
+                  {superCells.map((cell, idx) => {
+                    if (cell.type === 'super') {
+                      return (
+                        <th key={`sg-${idx}`} colSpan={cell.colSpan} style={{ background: resolveGroupColor(cell.superGroup.color), color: '#fff' }}>
+                          {cell.superGroup.label}
+                        </th>
+                      );
+                    }
+                    const bg = cell.seg.type === 'group'
+                      ? resolveGroupColor(cell.seg.group.color)
+                      : resolveStandaloneColumnColor(cell.seg.col, standaloneColumnColors);
+                    return <th key={`sgblank-${idx}`} colSpan={cell.span} style={bg ? { background: bg } : undefined} />;
+                  })}
+                </tr>
+              )}
               <tr className="group-header-row">
                 {segments.map((seg, idx) => {
                   if (seg.type === 'single') {

@@ -127,13 +127,25 @@ async function runSchedule(schedule) {
   const filterValues = resolveFilterValues(schedule.FilterValuesJson, definition.filters);
   const ownerContext = schedule.CreatedBy ? await getUserContext(schedule.CreatedBy) : null;
   filterValues.__storeScope = ownerContext ? ownerContext.storeScope : null;
-  const { columns, rows } = await runDefinition(definition, filterValues, { page: 1, pageSize: 5000 });
+  const { columns, rows, columnGroups, columnSuperGroups, standaloneColumnColors } = await runDefinition(definition, filterValues, { page: 1, pageSize: 5000 });
   // exportTitle/exportFileCode — xem chú thích ở routes/reports.js
   // (cùng quy ước, dùng chung lib/reportTitleDate.js).
   const displayTitle = resolveTitleWithDate(definition.exportTitle || definition.title, filterValues, '/');
   const fallbackFileTitle = resolveTitleWithDate(definition.exportTitle || definition.title, filterValues, '-');
   const fileTitle = resolveExportFileBaseName(definition.exportFileCode, filterValues, fallbackFileTitle);
-  const exportDefinition = { ...definition, columns, title: displayTitle };
+  // columnGroups/columnSuperGroups/standaloneColumnColors LẤY TỪ KẾT QUẢ
+  // runDefinition() (lỗi THẬT, bản 9.73) — TRƯỚC ĐÂY chỉ spread `...definition`
+  // (đủ cho directDb/composite vì 2 field này LƯU TĨNH trong DefinitionJson,
+  // đã nằm sẵn trong `definition`), nhưng lib/nganhHangBrgRunner.js
+  // (SourceType='nganhHangBrg' — 2 báo cáo "Doanh thu theo ngành hàng"/
+  // "(LDTD)") tính 2 field này ĐỘNG lúc chạy, KHÔNG có trong DefinitionJson
+  // — email tự động (Excel/PDF đính kèm HOẶC HTML trong thân mail) trước
+  // đây LUÔN mất hẳn tiêu đề nhóm màu/3 khối BRG-LFL-NSO cho 2 báo cáo này,
+  // dù xem trên web (POST /:reportId/run) vẫn đúng. Ghi ĐÈ sau `...definition`
+  // nên vẫn ĐÚNG giá trị tĩnh cho mọi báo cáo khác (columnGroups/
+  // columnSuperGroups ở đây LUÔN khớp definition.columnGroups/undefined như
+  // cũ với các SourceType khác, xem lib/reportRunner.js/compositeReportRunner.js).
+  const exportDefinition = { ...definition, columns, columnGroups, columnSuperGroups, standaloneColumnColors, title: displayTitle };
   const recipients = schedule.Recipients.split(',').map(s => s.trim()).filter(Boolean);
 
   // Subject rỗng -> dùng mẫu mặc định như trước khi có tính năng này (tương

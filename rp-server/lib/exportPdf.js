@@ -126,6 +126,15 @@ async function exportPdf(definition, rows) {
   const groups = definition.columnGroups || [];
   const hasGroups = groups.length > 0;
   const compact = !!definition.compactSinglePage;
+  // columnSuperGroups (bản 9.73) CHƯA được nhánh `compact` phía dưới tính
+  // vào headerBlockHeight (giả định CỐ ĐỊNH 2 dòng tiêu đề) — báo cáo nào
+  // bật CẢ 2 cờ cùng lúc sẽ lệch chiều cao header (chữ dữ liệu có thể đè
+  // lên header). Chưa báo cáo nào thật sự cần kết hợp cả 2 (ngành hàng
+  // dùng columnSuperGroups KHÔNG bật compactSinglePage) — chặn SỚM, rõ
+  // ràng thay vì để vỡ layout âm thầm nếu sau này ai đó lỡ bật cả 2.
+  if (compact && (definition.columnSuperGroups || []).length) {
+    throw new Error('exportPdf: compactSinglePage + columnSuperGroups chưa hỗ trợ đồng thời — bỏ bớt 1 trong 2 cờ, hoặc sửa neededHeaderRowHeight()/headerBlockHeight trong nhánh compact để tính đủ 3 dòng tiêu đề trước khi dùng chung.');
+  }
   // Che BORDER_RGB_LIGHT ở scope module (xem chú thích 2 hằng số đó phía
   // trên) — mọi hàm lồng bên trong exportPdf() (drawGridRect...) tham
   // chiếu đúng biến cục bộ này theo closure.
@@ -373,7 +382,7 @@ async function exportPdf(definition, rows) {
   // Vẽ nhãn CÓ THỂ xuống nhiều dòng, canh giữa cả ngang lẫn dọc trong 1 vùng
   // (cx, cw) x (vùng cao availableHeight, đỉnh tại topY).
   function drawWrappedCenteredText(text, cx, cw, topY, availableHeight, opts = {}) {
-    const { bold = false, size = 7 } = opts;
+    const { bold = false, size = 7, color = rgb(0.1, 0.1, 0.1) } = opts;
     const f = bold ? boldFont : font;
     const lines = wrapLines(text, f, size, cw - 4);
     // Bản 8.98 (theo yêu cầu người dùng — "chữ ở giữa hai dòng cách ra
@@ -386,7 +395,7 @@ async function exportPdf(definition, rows) {
     let ly = topY - (availableHeight - blockHeight) / 2 - size;
     for (const line of lines) {
       const w = f.widthOfTextAtSize(line, size);
-      page.drawText(line, { x: cx + (cw - w) / 2, y: ly, size, font: f, color: rgb(0.1, 0.1, 0.1) });
+      page.drawText(line, { x: cx + (cw - w) / 2, y: ly, size, font: f, color });
       ly -= lineGap;
     }
   }
@@ -427,12 +436,22 @@ async function exportPdf(definition, rows) {
       y -= HEADER_ROW_HEIGHT;
       return;
     }
-    const row1Top = y;
-    const row2Top = y - HEADER_ROW_HEIGHT;
+    // columnSuperGroups (TUỲ CHỌN, bản 9.73) — xem chú thích đầy đủ ở
+    // lib/exportExcel.js:addReportSheet() (cùng thiết kế, mirror Y HỆT ở
+    // đây để Excel/PDF khớp nhau). KHÔNG khai -> hasSuper=false -> ĐÚNG
+    // hành vi 2 dòng tiêu đề cũ, không đổi gì (mọi báo cáo columnGroups
+    // khác đều rơi vào nhánh này).
+    const superGroups = definition.columnSuperGroups || [];
+    const hasSuper = superGroups.length > 0;
+    const row0Top = hasSuper ? y : null;
+    const row1Top = hasSuper ? y - HEADER_ROW_HEIGHT : y;
+    const row2Top = row1Top - HEADER_ROW_HEIGHT;
     const colIndexByKey = new Map(columns.map((c, i) => [c.key, i]));
     const covered = new Set();
+    const groupColIdxsForSuper = new Map(); // g.label -> [col idx,...] — dùng dựng dòng super-group bên dưới
     for (const g of groups) {
       const idxs = (g.keys || []).map(k => colIndexByKey.get(k)).filter(v => v !== undefined);
+      groupColIdxsForSuper.set(g.label, idxs);
       if (!idxs.length) continue;
       const start = Math.min(...idxs), end = Math.max(...idxs);
       const argb = resolveGroupColor(g.color, pdfGroupColorPalette);
@@ -455,7 +474,33 @@ async function exportPdf(definition, rows) {
       drawGridRect(colX[i], row2Top - HEADER_ROW_HEIGHT, colWidths[i], HEADER_ROW_HEIGHT * 2, standaloneColor);
       drawWrappedCenteredText(col.label, colX[i], colWidths[i], row1Top, HEADER_ROW_HEIGHT * 2, { bold: true, size: HEADER_FLAT_FONT_SIZE });
     });
-    y -= HEADER_ROW_HEIGHT * 2;
+    // Dòng banner cấp CAO HƠN (row0) — gộp ngang nhiều columnGroups liên
+    // tiếp (vd "Doanh thu" gộp 4 nhóm con). Nhóm/cột KHÔNG thuộc super-group
+    // nào (vd "Giá trị hàng hỏng hủy", hoặc "TT"/"Ngành hàng") — vẽ THÊM 1 Ô
+    // TRỐNG (không chữ) cùng màu header của cột đó ngay phía trên, tạo cảm
+    // giác merge dọc xuống (PDF không có merge cell thật như Excel).
+    if (hasSuper) {
+      const coveredSuper = new Set();
+      for (const sg of superGroups) {
+        const idxs = (sg.groupLabels || []).flatMap(gl => groupColIdxsForSuper.get(gl) || []);
+        if (!idxs.length) continue;
+        const start = Math.min(...idxs), end = Math.max(...idxs);
+        const argb = resolveGroupColor(sg.color, pdfGroupColorPalette);
+        const startX = colX[start];
+        const spanW = colX[end] + colWidths[end] - startX;
+        drawGridRect(startX, row0Top - HEADER_ROW_HEIGHT, spanW, HEADER_ROW_HEIGHT, argb);
+        drawWrappedCenteredText(sg.label, startX, spanW, row0Top, HEADER_ROW_HEIGHT, { bold: true, size: HEADER_GROUP_FONT_SIZE, color: rgb(1, 1, 1) });
+        for (let i = start; i <= end; i++) coveredSuper.add(i);
+      }
+      columns.forEach((col, i) => {
+        if (coveredSuper.has(i)) return;
+        const fillColor = covered.has(i)
+          ? resolveGroupColor(groups.find(g => (g.keys || []).includes(col.key))?.color, pdfGroupColorPalette)
+          : resolveStandaloneColumnColor(col, definition.standaloneColumnColors, pdfGroupColorPalette);
+        drawGridRect(colX[i], row0Top - HEADER_ROW_HEIGHT, colWidths[i], HEADER_ROW_HEIGHT, fillColor);
+      });
+    }
+    y -= HEADER_ROW_HEIGHT * (hasSuper ? 3 : 2);
   }
 
   function newPage() {

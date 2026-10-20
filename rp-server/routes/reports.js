@@ -312,7 +312,10 @@ router.post('/:reportId/export', async (req, res, next) => {
     // __storeScope (bản 8.51) — xem chú thích ở POST /:reportId/run phía trên.
     const { format = 'excel' } = req.body || {};
     const filters = { ...(req.body?.filters || {}), __storeScope: context.storeScope };
-    const { columns: rawColumns, rows: projected } = await runDefinition(definition, filters, { page: 1, pageSize: 5000 });
+    const {
+      columns: rawColumns, rows: projected,
+      columnGroups: runtimeColumnGroups, columnSuperGroups, standaloneColumnColors: runtimeStandaloneColumnColors
+    } = await runDefinition(definition, filters, { page: 1, pageSize: 5000 });
     // visibleColumnKeys (bản 8.97, TUỲ CHỌN — theo yêu cầu người dùng: "cho
     // phép mình chọn các trường ẩn đi khi xem báo cáo trên web hoặc xuất
     // excel/pdf") — người dùng chọn Ở TRANG XEM báo cáo (rp-user/.../
@@ -324,7 +327,21 @@ router.post('/:reportId/export', async (req, res, next) => {
     // cột gốc + tính lại colSpan nhóm màu đúng cách y hệt 3 nơi xuất khác.
     const visibleColumnKeys = Array.isArray(req.body?.visibleColumnKeys) ? req.body.visibleColumnKeys : null;
     const columns = visibleColumnKeys ? filterColumns(rawColumns, visibleColumnKeys) : rawColumns;
-    const columnGroups = visibleColumnKeys && definition.columnGroups ? filterGroups(definition.columnGroups, columns) : definition.columnGroups;
+    // Dùng columnGroups TRẢ VỀ TỪ runDefinition() (runtimeColumnGroups), KHÔNG
+    // phải definition.columnGroups tĩnh (lỗi THẬT, bản 9.73) — MỌI runner
+    // KHÁC (directDb/composite/...) luôn trả CHÍNH XÁC `definition.columnGroups`
+    // (xem lib/reportRunner.js/lib/compositeReportRunner.js, echo nguyên
+    // văn), nên đổi sang đọc runtimeColumnGroups AN TOÀN, không đổi hành vi
+    // báo cáo nào khác — NHƯNG lib/nganhHangBrgRunner.js (SourceType=
+    // 'nganhHangBrg') tính columnGroups/columnSuperGroups ĐỘNG lúc chạy
+    // (không lưu tĩnh trong DefinitionJson, vì phụ thuộc dữ liệu thật), nên
+    // trước đây dùng `definition.columnGroups` ở đây LUÔN `undefined` cho 2
+    // báo cáo "Doanh thu theo ngành hàng"/"(LDTD)" — Excel/PDF xuất ra MẤT
+    // HẲN tiêu đề nhóm màu/3 khối BRG-LFL-NSO dù xem trên web (đi qua
+    // POST /:reportId/run, trả nguyên `result` không qua nhánh này) vẫn ĐÚNG.
+    const effectiveColumnGroups = runtimeColumnGroups || definition.columnGroups;
+    const columnGroups = visibleColumnKeys && effectiveColumnGroups ? filterGroups(effectiveColumnGroups, columns) : effectiveColumnGroups;
+    const standaloneColumnColors = runtimeStandaloneColumnColors || definition.standaloneColumnColors;
     // exportTitle (TUỲ CHỌN) — tiêu đề HIỂN THỊ TRONG TÀI LIỆU, tách riêng
     // khỏi definition.title (tên trong danh mục báo cáo, tĩnh) và
     // definition.exportFileCode (tên file, mã cố định) — báo cáo không
@@ -333,7 +350,7 @@ router.post('/:reportId/export', async (req, res, next) => {
     const displayTitle = resolveTitleWithDate(definition.exportTitle || definition.title, filters, '/');
     const fallbackFileTitle = resolveTitleWithDate(definition.exportTitle || definition.title, filters, '-');
     const fileTitle = resolveExportFileBaseName(definition.exportFileCode, filters, fallbackFileTitle);
-    const exportDefinition = { ...definition, columns, columnGroups, title: displayTitle };
+    const exportDefinition = { ...definition, columns, columnGroups, columnSuperGroups, standaloneColumnColors, title: displayTitle };
 
     if (format === 'excel') {
       const buffer = await exportExcel(exportDefinition, projected);
