@@ -40,6 +40,17 @@ export default function SalesTargetsPage({ menuCode, apiBase, title }) {
   // DataSourcesPage.jsx/SyncJobsPage.jsx đã làm.
   const { canEdit } = useAuth();
   const isEditor = canEdit(menuCode);
+  // isNganhHangOnly (bản 9.85, theo báo cáo người dùng — "bc ngành hàng là
+  // mã ngành hàng ko phải mã siêu thị nhé") — CHỈ ĐÚNG 2 trang "Chỉ tiêu
+  // Doanh thu theo ngành hàng"/"(LDTD)" (bản 9.73, genericNoStoreCode=true
+  // ở server — KHÔNG CÒN khái niệm siêu thị, mã thực thể LUÔN là
+  // MaNganhHang thuần, không ghép MaSieuThi) — "Nhập hàng theo ngành hàng"
+  // KHÔNG tính (vẫn hỗ trợ CẢ 2 kiểu, theo từng chi nhánh HOẶC toàn công
+  // ty, xem chú thích trong JSX bên dưới) nên giữ nhãn "Mã siêu thị" như
+  // cũ cho đúng — chỉ 2 trang chắc chắn 100% luôn là ngành hàng mới đổi
+  // nhãn, tránh đổi nhầm trang còn lại.
+  const isNganhHangOnly = menuCode === 'sales-targets-nganhhang-dt' || menuCode === 'sales-targets-nganhhang-dt-ldtd';
+  const entityLabel = isNganhHangOnly ? 'ngành hàng' : 'siêu thị';
   const [file, setFile] = useState(null);
   const [importResult, setImportResult] = useState(null);
   const [error, setError] = useState('');
@@ -140,7 +151,7 @@ export default function SalesTargetsPage({ menuCode, apiBase, title }) {
     e.preventDefault();
     setEditError('');
     setEditResult('');
-    if (!editForm.entityCode.trim()) return setEditError('Thiếu mã siêu thị');
+    if (!editForm.entityCode.trim()) return setEditError(`Thiếu mã ${entityLabel}`);
     if (!editForm.periodMonth) return setEditError('Thiếu ngày áp dụng chỉ tiêu');
     let otherTargets;
     try {
@@ -294,9 +305,9 @@ export default function SalesTargetsPage({ menuCode, apiBase, title }) {
           {importResult.unknownEntityCodes?.length > 0 && (
             <>
               <p>
-                ⚠️ {importResult.unknownEntityCodes.length} mã KHÔNG khớp bất kỳ chi nhánh nào
+                ⚠️ {importResult.unknownEntityCodes.length} mã KHÔNG khớp bất kỳ {isNganhHangOnly ? 'ngành hàng' : 'chi nhánh'} nào
                 đang có dữ liệu thực đạt — vẫn đã nhập bình thường, nhưng kiểm tra lại chính tả
-                (nếu là siêu thị mới mở chưa kịp có dữ liệu đồng bộ thì bỏ qua cảnh báo này):
+                (nếu là {entityLabel} mới {isNganhHangOnly ? 'phát sinh' : 'mở'} chưa kịp có dữ liệu đồng bộ thì bỏ qua cảnh báo này):
               </p>
               <ul>{importResult.unknownEntityCodes.map((code, i) => <li key={i}>{code}</li>)}</ul>
             </>
@@ -314,7 +325,7 @@ export default function SalesTargetsPage({ menuCode, apiBase, title }) {
 
       <DataTable
         columns={[
-          { key: 'entityCode', label: 'Mã siêu thị' },
+          { key: 'entityCode', label: `Mã ${entityLabel}` },
           { key: 'periodMonth', label: 'Ngày áp dụng', render: (r) => String(r.periodMonth).slice(0, 10) },
           { key: 'targets', label: 'Chỉ tiêu', render: (r) => Object.entries(r.targets).map(([k, v]) => `${k}=${v}`).join(', ') },
           { key: 'importedBy', label: 'Người nhập' },
@@ -344,19 +355,18 @@ export default function SalesTargetsPage({ menuCode, apiBase, title }) {
 
       {isEditor && (
         <>
-          <h2>Sửa / thêm 1 siêu thị</h2>
+          <h2>Sửa / thêm 1 {entityLabel}</h2>
           <p>
-            Dùng khi giữa tháng có siêu thị mới mở hoặc đóng cửa — KHÔNG cần chuẩn bị lại cả file
-            Excel. Bấm "Sửa" ở 1 dòng trên để tự điền sẵn dữ liệu hiện có, hoặc "Thêm siêu thị mới"
-            cho dòng trống. Lưu sẽ GHI ĐÈ nguyên chỉ tiêu của đúng siêu thị + tháng đó — dữ liệu
-            hiện có đã tự điền sẵn nên không lo mất, chỉ cần sửa đúng phần cần đổi.
+            {isNganhHangOnly
+              ? 'Dùng khi giữa tháng phát sinh ngành hàng mới hoặc cần sửa riêng 1 ngành hàng — KHÔNG cần chuẩn bị lại cả file Excel. Bấm "Sửa" ở 1 dòng trên để tự điền sẵn dữ liệu hiện có, hoặc "Thêm ngành hàng mới" cho dòng trống. Lưu sẽ GHI ĐÈ nguyên chỉ tiêu của đúng ngành hàng + tháng đó — dữ liệu hiện có đã tự điền sẵn nên không lo mất, chỉ cần sửa đúng phần cần đổi.'
+              : 'Dùng khi giữa tháng có siêu thị mới mở hoặc đóng cửa — KHÔNG cần chuẩn bị lại cả file Excel. Bấm "Sửa" ở 1 dòng trên để tự điền sẵn dữ liệu hiện có, hoặc "Thêm siêu thị mới" cho dòng trống. Lưu sẽ GHI ĐÈ nguyên chỉ tiêu của đúng siêu thị + tháng đó — dữ liệu hiện có đã tự điền sẵn nên không lo mất, chỉ cần sửa đúng phần cần đổi.'}
           </p>
           {editError && <p className="form-error">{editError}</p>}
           {editResult && <p className="form-success">{editResult}</p>}
 
           <form className="stacked-form" onSubmit={submitEdit}>
             <input
-              placeholder="Mã thực thể — MaSieuThi (vd BRGHP), hoặc MaSieuThi_MaNganhHang cho chỉ tiêu theo ngành hàng (vd BRGHP_THUCPHAM)"
+              placeholder={isNganhHangOnly ? 'Mã ngành hàng — MaNganhHang (vd THUCPHAM)' : 'Mã thực thể — MaSieuThi (vd BRGHP), hoặc MaSieuThi_MaNganhHang cho chỉ tiêu theo ngành hàng (vd BRGHP_THUCPHAM)'}
               value={editForm.entityCode}
               onChange={(e) => setEditForm({ ...editForm, entityCode: e.target.value })}
               required
@@ -372,17 +382,19 @@ export default function SalesTargetsPage({ menuCode, apiBase, title }) {
                 checked={editForm.trangThai}
                 onChange={(e) => setEditForm({ ...editForm, trangThai: e.target.checked })}
               />
-              Đã đóng cửa (loại khỏi báo cáo tháng này)
+              {isNganhHangOnly ? `Ngừng áp dụng (loại ${entityLabel} này khỏi báo cáo tháng này)` : 'Đã đóng cửa (loại khỏi báo cáo tháng này)'}
             </label>
             <textarea
-              placeholder='Chỉ tiêu khác dạng JSON, vd {"ChiTieuDoanhThu": 150000000} — nếu Mã thực thể ở trên là dạng ghép ngành hàng, nên thêm cả {"MaSieuThi": "BRGHP", "MaNganhHang": "THUCPHAM", "ChiTieuDoanhThu": 50000000} để báo cáo đọc thẳng, không phải tự tách chuỗi'
+              placeholder={isNganhHangOnly
+                ? 'Chỉ tiêu dạng JSON, vd {"ChiTieuDoanhThuBanLe": 100000000, "ChiTieuDoanhThuBanBuon": 50000000, "ChiTieuLaiGopBanLe": 18000000, "ChiTieuLaiGopBanBuon": 5000000}'
+                : 'Chỉ tiêu khác dạng JSON, vd {"ChiTieuDoanhThu": 150000000} — nếu Mã thực thể ở trên là dạng ghép ngành hàng, nên thêm cả {"MaSieuThi": "BRGHP", "MaNganhHang": "THUCPHAM", "ChiTieuDoanhThu": 50000000} để báo cáo đọc thẳng, không phải tự tách chuỗi'}
               rows={4}
               value={editForm.otherTargetsJson}
               onChange={(e) => setEditForm({ ...editForm, otherTargetsJson: e.target.value })}
             />
             <div className="inline-actions">
               <button type="submit" disabled={savingEdit}>{savingEdit ? 'Đang lưu...' : 'Lưu'}</button>
-              <button type="button" onClick={startAdd}>Thêm siêu thị mới (form trống)</button>
+              <button type="button" onClick={startAdd}>Thêm {entityLabel} mới (form trống)</button>
             </div>
           </form>
         </>
