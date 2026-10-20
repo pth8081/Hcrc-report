@@ -29,6 +29,33 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 9.83 — Giới hạn 35 ngày khi quét domain tồn kho — sửa cạn connection pool
+
+**Theo sự cố thật người dùng gặp** tiếp sau bản 9.81 (đã bật RCSI): báo
+cáo "Core stock = 0" vẫn lỗi, đổi sang `TimeoutError: operation timed
+out for an unknown reason` tại `node_modules/tarn/dist/
+PendingOperation.js` — hết connection pool (báo cáo Mart, Minimart, VÀ 1
+job gửi email báo cáo theo lịch cùng fail).
+
+**Chẩn đoán** bằng `SELECT Domain, COUNT(*) FROM dwh.ReportFacts GROUP
+BY Domain`: domain `tonkho_sku`/`tonkho_chitiet_sku` có **5-11 TRIỆU
+dòng** (giữ lịch sử MỖI NGÀY). `loadLatestDimensionsForDomain()`
+(`rp-server/lib/reportFactsHelpers.js`) trước đây quét KHÔNG giới hạn
+ngày (`ROW_NUMBER() OVER (PARTITION BY EntityCode ORDER BY EventDate
+DESC)` trên TOÀN domain) để lấy đúng 1 dòng gần nhất/thực thể — giữ
+connection CSDL rất lâu, vài báo cáo/job chạy cùng lúc cạn hết pool.
+
+**Sửa**: thêm tham số tuỳ chọn `sinceDate` — KHÔNG truyền giữ nguyên
+hành vi cũ (lệnh gọi `chainDomain` không đổi, domain nhỏ hơn hẳn). Áp
+dụng `daysAgoUTC(35)` cho cả 3 nơi gọi quét `stockDomain`
+(`coreZeroStockRunner.js`/`stockThresholdRunner.js`/
+`stockAlertRunner.js`) — không đổi kết quả đúng (dòng gần nhất/thực thể
+luôn nằm trong 35 ngày với dữ liệu đồng bộ bình thường), chỉ bớt quét
+dữ liệu cũ không cần. Verify bằng test query construction (mock
+pool.request/query). Đính chính luôn 1 chi tiết sai ở bản 9.81 trong
+`bc-core-ton-kho-0.md` — HaproFood 198 Lò Đúc và BRG Mart L4 Sài Đồng là
+2 server KHÁC NHAU, không chung IP như ghi nhầm trước đó.
+
 ## 9.82 — Sửa 5 trang "Chỉ tiêu ..." không tự tải lại khi chuyển qua lại, phải F5
 
 **Theo báo cáo người dùng** (ảnh sidebar etl-admin): bấm chuyển giữa 5

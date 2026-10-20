@@ -14,6 +14,28 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 9.83 — Giới hạn 35 ngày khi quét domain tồn kho — sửa cạn connection pool
+
+**Thay đổi**: xem chi tiết ở `VERSION.md`. 4 file backend
+(`rp-server/lib/reportFactsHelpers.js`/`coreZeroStockRunner.js`/
+`stockThresholdRunner.js`/`stockAlertRunner.js`) + tài liệu
+`bc-core-ton-kho-0.md`. KHÔNG đổi schema CSDL.
+
+**Các bước**:
+
+1. `git pull origin main`.
+2. `pm2 restart hcrc-rp-server` (BẮT BUỘC — 4 file lib đổi, ảnh hưởng 3
+   báo cáo: "Core stock = 0" Mart/Minimart, "Tồn kho theo ngưỡng",
+   "Cảnh báo tồn kho").
+3. Kiểm tra: chạy lại báo cáo "Core stock = 0" (Mart VÀ Minimart) — phải
+   trả kết quả nhanh (không còn Timeout/"TimeoutError: operation timed
+   out"), đúng số liệu như trước (so sánh với lần chạy thành công gần
+   nhất nếu có). Thử thêm "Tồn kho theo ngưỡng"/"Cảnh báo tồn kho" nếu
+   đang dùng — cùng cơ chế, cùng cần kiểm tra lại.
+4. Nếu vẫn lỗi hết connection pool — cân nhắc tăng thêm `DWH_POOL_MAX`
+   trong `.env` (xem bản 9.81) VÀ báo lại để điều tra tiếp (có thể vẫn
+   còn nơi khác quét domain lớn chưa phát hiện).
+
 ## 9.82 — Sửa 5 trang "Chỉ tiêu ..." không tự tải lại khi chuyển qua lại, phải F5
 
 **Thay đổi**: xem chi tiết ở `VERSION.md`. Chỉ sửa 1 file
