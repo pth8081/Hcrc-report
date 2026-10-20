@@ -27,6 +27,7 @@ import { api } from '../lib/api';
 import { useAuth } from '../lib/AuthContext';
 import DataTable from '../components/DataTable';
 import DateInput from '../components/DateInput';
+import { useRowSelection } from '../lib/useRowSelection';
 
 const EMPTY_EDIT_FORM = { entityCode: '', periodMonth: '', trangThai: false, otherTargetsJson: '{}' };
 
@@ -51,6 +52,14 @@ export default function SalesTargetsPage({ menuCode, apiBase, title }) {
   const [importing, setImporting] = useState(false);
   const [downloadingTemplate, setDownloadingTemplate] = useState(false);
   const [downloadingExport, setDownloadingExport] = useState(false);
+  // Xoá chỉ tiêu (bản 9.84, theo yêu cầu người dùng — "chỗ nhập chỉ tiêu
+  // có cho xoá đi được không? Tôi muốn chọn xoá một hoặc nhiều") — mẫu
+  // chuẩn chọn nhiều + xoá hàng loạt theo CLAUDE.md (xem SyncJobsPage.jsx),
+  // getId = row.id (chữ thường — GET '/' trả `id: r.Id`, KHÁC mặc định
+  // row.Id của hook).
+  const selection = useRowSelection(row => row.id);
+  const [deletingId, setDeletingId] = useState(null);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   function reload() {
     const params = new URLSearchParams();
@@ -80,7 +89,31 @@ export default function SalesTargetsPage({ menuCode, apiBase, title }) {
     setEditForm(EMPTY_EDIT_FORM);
     setEditError('');
     setEditResult('');
+    selection.clear();
   }, [apiBase]);
+
+  async function deleteOne(row) {
+    if (!confirm(`Xoá chỉ tiêu "${row.entityCode}" ngày ${String(row.periodMonth).slice(0, 10)}?`)) return;
+    setDeletingId(row.id);
+    try {
+      await api.del(`${apiBase}/${row.id}`);
+      selection.toggle(row); // bỏ chọn nếu đang tick, tránh sót trong lần xoá hàng loạt kế tiếp
+      reload();
+    } catch (err) { setError(err.message); } finally { setDeletingId(null); }
+  }
+
+  async function deleteSelected() {
+    if (selection.selectedIds.size === 0) return;
+    if (!confirm(`Xoá ${selection.selectedIds.size} chỉ tiêu đã chọn?`)) return;
+    setBulkDeleting(true);
+    try {
+      for (const id of selection.selectedIds) {
+        await api.del(`${apiBase}/${id}`);
+      }
+      selection.clear();
+      reload();
+    } catch (err) { setError(err.message); } finally { setBulkDeleting(false); }
+  }
 
   // Điền sẵn dữ liệu HIỆN CÓ của dòng đó lên form — sửa xong gửi lại NGUYÊN
   // targets (route PUT `${apiBase}/one` ghi đè cả TargetsJson, không tự
@@ -286,10 +319,28 @@ export default function SalesTargetsPage({ menuCode, apiBase, title }) {
           { key: 'targets', label: 'Chỉ tiêu', render: (r) => Object.entries(r.targets).map(([k, v]) => `${k}=${v}`).join(', ') },
           { key: 'importedBy', label: 'Người nhập' },
           { key: 'importedAt', label: 'Lúc nhập', render: (r) => new Date(r.importedAt).toLocaleString('vi-VN') },
-          ...(isEditor ? [{ key: 'actions', label: '', render: (r) => <button type="button" onClick={() => startEdit(r)}>Sửa</button> }] : [])
+          ...(isEditor ? [{
+            key: 'actions', label: '', render: (r) => (
+              <>
+                <button type="button" onClick={() => startEdit(r)}>Sửa</button>{' '}
+                <button type="button" onClick={() => deleteOne(r)} disabled={deletingId === r.id}>
+                  {deletingId === r.id ? 'Đang xoá...' : 'Xoá'}
+                </button>
+              </>
+            )
+          }] : [])
         ]}
         rows={rows}
+        selection={isEditor ? selection : null}
       />
+
+      {isEditor && selection.selectedIds.size > 0 && (
+        <div className="inline-actions">
+          <button type="button" onClick={deleteSelected} disabled={bulkDeleting}>
+            {bulkDeleting ? 'Đang xoá...' : `Xoá ${selection.selectedIds.size} mục đã chọn`}
+          </button>
+        </div>
+      )}
 
       {isEditor && (
         <>

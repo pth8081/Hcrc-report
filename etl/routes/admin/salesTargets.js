@@ -192,6 +192,30 @@ router.get('/export', requireMenuAccess(menuCode), async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// Xoá ĐÚNG 1 dòng chỉ tiêu theo Id (bản 9.84, theo yêu cầu người dùng —
+// "chỗ nhập chỉ tiêu có cho xoá đi được không? Tôi muốn chọn xoá một
+// hoặc nhiều") — KHOÁ theo ĐÚNG `domain` của trang này (WHERE Id = @id
+// AND Domain = @domain), phòng 1 trang vô tình xoá nhầm dòng thuộc
+// domain KHÁC (dwh.SalesTargets dùng CHUNG 1 bảng cho mọi domain Chỉ
+// tiêu — xem đầu file).
+router.delete('/:id', requireMenuEdit(menuCode), async (req, res, next) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: 'Id không hợp lệ' });
+    const pool = await getPool('DWH_TARGET_IMPORTER');
+    const existing = await pool.request()
+      .input('id', sql.Int, id).input('domain', sql.VarChar(50), domain)
+      .query('SELECT EntityCode, PeriodMonth FROM dwh.SalesTargets WHERE Id = @id AND Domain = @domain');
+    if (!existing.recordset.length) return res.status(404).json({ error: 'Không tìm thấy chỉ tiêu này (hoặc không thuộc đúng domain của trang này)' });
+    const { EntityCode, PeriodMonth } = existing.recordset[0];
+    await pool.request()
+      .input('id', sql.Int, id).input('domain', sql.VarChar(50), domain)
+      .query('DELETE FROM dwh.SalesTargets WHERE Id = @id AND Domain = @domain');
+    await logAction(req, { module: 'Nhập chỉ tiêu', actionType: 'XOA_CHI_TIEU', targetObject: `${domain}/${EntityCode}/${String(PeriodMonth).slice(0, 10)}`, description: `Xoá chỉ tiêu "${EntityCode}" ngày ${String(PeriodMonth).slice(0, 10)} (domain "${domain}")` });
+    res.json({ ok: true });
+  } catch (err) { next(err); }
+});
+
 router.post('/import', requireMenuEdit(menuCode), upload.single('file'), async (req, res, next) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'Thiếu file (.xlsx)' });
