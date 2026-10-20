@@ -29,6 +29,108 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 9.77 — Báo cáo doanh thu ngành hàng: chỉ hiện ngành hàng ĐÃ có Chỉ tiêu trong kỳ
+
+**Theo yêu cầu người dùng** — "khi mình up cái chỉ tiêu lên nhé, thì up
+ngành hàng nào chỉ hiện ra được báo cáo ngành hàng đó nhé".
+`rp-server/lib/nganhHangBrgRunner.js` không còn cố định hiện đủ 12 dòng
+ngành hàng mỗi khối (BRG/LFL/NSO) nữa — lọc `NGANH_HANG_LIST` theo
+`targetMap.has(item.code)` (đã đọc đúng kỳ/khoảng ngày báo cáo đang xem
+qua `runSalesTargetsBlockRange`) TRƯỚC khi dựng dòng cho cả 2 báo cáo
+(`bc-doanh-thu-nganhhang`/`-ldtd`, dùng chung runner). Ngành hàng CHƯA
+nhập Chỉ tiêu trong kỳ đó — dù CÓ phát sinh doanh thu thật — sẽ không có
+dòng riêng VÀ không cộng vào dòng "Tổng cộng" mỗi khối (Tổng cộng = tổng
+CHỈ các dòng đang hiển thị, khớp đúng số cộng người xem thấy — KHÔNG
+còn là tổng doanh thu toàn công ty nếu có ngành hàng còn thiếu Chỉ
+tiêu). Đã kiểm tra bằng test cô lập (trích xuất `buildSegmentRows`, mock
+`targetMap` 1 phần). Cập nhật `báo cáo doanh thu-nhập hàng theo ngành
+hàng.md` mục 5.
+
+## 9.76 — Thử rút "Giá trị hàng hỏng hủy" còn 1 cột, HOÀN TÁC ngay trong cùng bản
+
+Theo yêu cầu người dùng ban đầu, rút nhóm "Giá trị hàng hỏng hủy" (báo
+cáo doanh thu theo ngành hàng) từ 3 cột con Total/Bán lẻ/Bán buôn xuống
+còn 1 cột Total — ngay sau đó người dùng xác nhận yêu cầu này là NHẦM
+("Mình làm sai rồi... để cột bán buôn, bán lẻ này và tổng ở chỗ hàng
+huỷ") và yêu cầu hoàn tác. Đã revert nguyên commit trong cùng phiên làm
+việc TRƯỚC khi merge `main` — kết quả trên `main` KHÔNG đổi gì so với
+bản 9.75 (vẫn đủ 3 cột con). Ghi lại ở đây để lịch sử merge khớp đúng số
+commit thật, không phải vì có thay đổi hành vi.
+
+## 9.75 — Super-group chỉ 1 nhóm con gộp thẳng 2 dòng tiêu đề, bỏ chữ lặp lại
+
+**Theo yêu cầu người dùng** (phản hồi demo bản 9.74) — "Chỗ cột total,
+bán lẻ, bán buôn merge thành 2 dòng luôn nhé": banner "Giá trị hàng hỏng
+hủy" (super-group CHỈ CÓ ĐÚNG 1 nhóm con, bản 9.74) trước đó vẽ 2 Ô
+CHỒNG NHAU cùng 1 chữ lặp lại (banner cấp 1 riêng + nhãn nhóm cấp 2
+riêng). Giờ GỘP LUÔN thành 1 Ô duy nhất cao gấp đôi
+(`rowSpan`/merge dọc Excel, 1 hình chữ nhật đôi cao ở PDF), dùng màu/chữ
+TRẮNG của super-group cho Ô gộp; dòng Total/Bán lẻ/Bán buôn (lá, bên
+dưới) GIỮ NGUYÊN màu nhạt của chính nhóm, không đổi theo màu đậm banner
+phía trên — sửa đồng bộ `rp-server/lib/exportExcel.js` (tách
+`topArgb`/`leafArgb`, trước đó dùng chung 1 biến khiến dòng lá bị nhuộm
+nhầm màu đậm), `rp-server/lib/exportPdf.js` (thêm solo super-group vào
+`coveredSuper` để không bị vẽ đè mất chữ trắng), `rp-user/src/components/
+DataTable.jsx` (`buildSuperHeader()` đánh dấu `solo`, bỏ render dòng
+nhãn nhóm cấp 2 khi solo, dựa vào `rowSpan` trình duyệt tự đẩy). Verify
+bằng PDF/Excel thật + script SSR (esbuild + `react-dom/server`) kiểm
+`rowspan="2"` và không còn chữ lặp.
+
+## 9.74 — Giữ nhãn "Giá trị hàng hỏng hủy", gộp banner liền mạch 3 dải màu + URL Voucher đa máy chủ
+
+- **Báo cáo ngành hàng** (phản hồi demo bản 9.73): thử đổi ngắn gọn
+  "Giá trị hàng hỏng hủy" → "Hàng hỏng hủy" rồi người dùng yêu cầu ĐỔI
+  LẠI ngay ("À không giá trị cũng được nhưng tôi muốn bạn merge cái dòng
+  ở trên cho đồng bộ liền mạch với hai dòng doanh thu và lãi gộp nhìn nó
+  đẹp") — giữ nguyên nhãn gốc, thêm "Giá trị hàng hỏng hủy" làm
+  `columnSuperGroups` thứ 3 (tự nó 1 nhóm, màu đậm riêng `8B2E2E`) thay
+  vì để trống dòng banner tạo khoảng trắng đứt quãng giữa "Doanh thu"/
+  "Lãi gộp" như bản 9.73 ban đầu.
+- **Trang "Cấu hình Voucher" (api-admin)**: thêm cột "Đường dẫn API" tự
+  tính URL theo `ConfigKey` mỗi dòng (`VoucherSettingsPage.jsx`), viết
+  lại mục Voucher trong `HuongDanPage.jsx` (đang stale từ trước khi có
+  nhiều máy chủ DSMART). Giải thích thêm với người dùng: định tuyến
+  Voucher thuần theo URL path (`:configKey`), KHÔNG phụ thuộc
+  `api.ConsumerVoucherAccess` (bảng đó chỉ phân quyền gọi, không định
+  tuyến) — ứng dụng gọi phải tự chọn đúng URL.
+- **`api-thong-bao-duong-dan-da-may-chu.md`**: tài liệu liệt kê đủ
+  đường dẫn API hiện có (theo yêu cầu người dùng — "phải có 1 thông báo
+  về đường dẫn của tất cả api... gửi cho đối tác"), kèm `.docx` đã gửi.
+- **Ghim cột đầu bên trái khi cuộn ngang** (api-admin, etl-admin
+  `DataTable.jsx`) — theo phản hồi người dùng về bảng "Đối tác API" khó
+  đọc tên khi cuộn ngang trên desktop lẫn mobile; mirror cơ chế sticky-
+  right đã có cho cột hành động.
+
+## 9.73 — Banner "Doanh thu"/"Lãi gộp" 3 cấp cho báo cáo ngành hàng + Chỉ tiêu tách Bán lẻ/Bán buôn
+
+**Theo yêu cầu người dùng** (gửi kèm `MAU_BAO_CAO_THEO_NGANH_HANG.xlsx`)
+— "Bc theo ngành hàng bạn đang thiếu các tiêu đề như file này... có việc
+nữa là bạn làm lại file mẫu import chỉ tiêu ngành hàng hcrc và ldtd tách
+chỉ tiêu bán buôn, bán lẻ nhé và ko cần mã siêu thị đâu nhé":
+
+- Thêm `definition.columnSuperGroups` — cấp tiêu đề thứ 3 (cao hơn
+  `columnGroups` đã có), gộp 4 nhóm "Doanh thu — ..." dưới 1 banner
+  "Doanh thu" và 4 nhóm "Lãi gộp — ..." dưới 1 banner "Lãi gộp" — opt-in,
+  implement đối xứng ở `rp-server/lib/exportExcel.js`
+  (`addReportSheet()`), `rp-server/lib/exportPdf.js` (`drawHeader()`),
+  `rp-user/src/components/DataTable.jsx` (`buildSuperHeader()`). Sửa kèm
+  `rp-server/routes/reports.js`/`jobs/reportEmailScheduler.js` — trước
+  đó KHÔNG forward `columnGroups`/`columnSuperGroups` tính động từ
+  runner sang bước xuất/gửi email (lỗi thật, không chỉ thiếu tính năng).
+- **Chỉ tiêu ngành hàng** (`etl/lib/salesTargetsImport.js`,
+  `etl/routes/admin/salesTargets.js`, `etl/server.js`,
+  `etl-admin/src/pages/SalesTargetsPage.jsx`): file mẫu MỚI tách riêng
+  `ChiTieuDoanhThuBanLe`/`ChiTieuDoanhThuBanBuon`/`ChiTieuLaiGopBanLe`/
+  `ChiTieuLaiGopBanBuon` (thay 2 cột `ChiTieuDoanhThu`/`ChiTieuLaiGop`
+  cũ), BỎ cột `MaSieuThi` (opt-in `genericNoStoreCode=true`, không ảnh
+  hưởng các import "theo bảng" khác dùng chung lib này).
+- **DỮ LIỆU CŨ KHÔNG TƯƠNG THÍCH** — Chỉ tiêu đã nhập theo mẫu cũ (1 cột
+  Total) CẦN NHẬP LẠI theo mẫu mới (2 cột Bán lẻ/Bán buôn riêng) mới có
+  số ở các cột "Bán lẻ"/"Bán buôn" của "% so chỉ tiêu" — người dùng CHƯA
+  xác nhận đã nhập lại.
+- Sticky cột đầu (xem mục 9.74) code ra CÙNG ngày nhưng gộp chung 1 bản
+  ở đây theo đúng thứ tự commit thật.
+
 ## 9.72 — Sửa thiếu bước "npm run build" cho api-admin ở hướng dẫn triển khai gộp 9.59-9.68
 
 **Theo lỗi thật người dùng gặp**: sau khi làm theo `Hướng dẫn triển khai

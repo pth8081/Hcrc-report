@@ -14,6 +14,109 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 9.77 — Báo cáo doanh thu ngành hàng: chỉ hiện ngành hàng ĐÃ có Chỉ tiêu trong kỳ
+
+**Thay đổi**: xem chi tiết ở `VERSION.md`. Tóm tắt: `rp-server/lib/
+nganhHangBrgRunner.js` lọc theo `targetMap` — ngành hàng chưa nhập Chỉ
+tiêu kỳ đang xem không còn hiện dòng, Tổng cộng chỉ cộng dòng hiển thị.
+KHÔNG đổi schema CSDL, KHÔNG đổi frontend.
+
+**Các bước**:
+
+1. `git pull origin main`.
+2. `pm2 restart hcrc-rp-server` (chỉ backend đổi — KHÔNG cần build lại
+   `rp-user`).
+3. Kiểm tra: mở 2 báo cáo "Doanh thu theo ngành hàng"/"(LDTD)" — ngành
+   hàng nào CHƯA nhập Chỉ tiêu tháng hiện tại (etl-admin → "Chỉ tiêu
+   theo ngành hàng") sẽ KHÔNG còn dòng riêng trong báo cáo, dòng "Tổng
+   cộng" mỗi khối (Toàn hệ thống BRG/LFL/NSO) giảm đúng theo số ngành
+   hàng còn thiếu Chỉ tiêu. Nếu người dùng muốn Tổng cộng vẫn đủ TOÀN BỘ
+   doanh thu bất kể đã nhập Chỉ tiêu hay chưa — báo lại để sửa riêng
+   cách tính Tổng cộng, KHÔNG tự ý coi đây là lỗi cần revert.
+
+## 9.76 — Thử rút "Giá trị hàng hỏng hủy" còn 1 cột, HOÀN TÁC ngay trong cùng bản
+
+KHÔNG có bước triển khai — đã revert trong cùng phiên làm việc TRƯỚC khi
+merge `main`, kết quả trên `main` giống hệt bản 9.75 (không đổi gì thêm
+so với bước triển khai bản 9.75 bên dưới). Ghi lại ở đây chỉ để khớp số
+commit thật trong lịch sử git, KHÔNG có hành động nào cần làm trên server.
+
+## 9.75 — Super-group chỉ 1 nhóm con gộp thẳng 2 dòng tiêu đề, bỏ chữ lặp lại
+
+**Thay đổi**: xem chi tiết ở `VERSION.md`. Banner "Giá trị hàng hỏng
+hủy" (1 nhóm con duy nhất) gộp thẳng 2 dòng tiêu đề thành 1 ô cao gấp
+đôi, bỏ chữ lặp lại — sửa `exportExcel.js`/`exportPdf.js`/`DataTable.jsx`.
+KHÔNG đổi schema CSDL.
+
+**Các bước**:
+
+1. `git pull origin main`.
+2. `pm2 restart hcrc-rp-server` (export Excel/PDF đổi).
+3. `cd rp-user && npm run build` rồi `pm2 restart hcrc-rp-user`
+   (DataTable.jsx đổi).
+4. Mở báo cáo "Doanh thu theo ngành hàng" (web + xuất Excel/PDF) — kiểm
+   tra banner "Giá trị hàng hỏng hủy" hiện 1 ô duy nhất cao gấp đôi
+   (không còn 2 dòng chữ trùng lặp), màu trắng/đậm cho ô banner, dòng
+   Total/Bán lẻ/Bán buôn bên dưới vẫn màu nhạt như các nhóm khác.
+
+## 9.74 — Giữ nhãn "Giá trị hàng hỏng hủy", gộp banner liền mạch 3 dải màu + URL Voucher đa máy chủ
+
+**Thay đổi**: xem chi tiết ở `VERSION.md`. `columnSuperGroups` thêm
+"Giá trị hàng hỏng hủy" làm banner thứ 3 (bản 9.73 để trống chỗ này);
+trang "Cấu hình Voucher" (api-admin) thêm cột "Đường dẫn API" + viết lại
+hướng dẫn; sticky cột đầu bên trái cho bảng api-admin/etl-admin. KHÔNG
+đổi schema CSDL.
+
+**Các bước**:
+
+1. `git pull origin main`.
+2. `pm2 restart hcrc-rp-server` (export đổi tiếp theo bản 9.73).
+3. `cd api-admin && npm run build` rồi `pm2 restart hcrc-api-admin` —
+   trang "Cấu hình Voucher"/"Hướng dẫn" + sticky cột đổi.
+4. `cd etl-admin && npm run build` rồi `pm2 restart hcrc-etl-admin` —
+   sticky cột đổi (DataTable.jsx dùng chung).
+5. `cd rp-user && npm run build` rồi `pm2 restart hcrc-rp-user` (banner
+   "Giá trị hàng hỏng hủy" đổi theo).
+6. Kiểm tra: báo cáo ngành hàng hiện ĐỦ 3 banner liền mạch "Doanh thu"/
+   "Giá trị hàng hỏng hủy"/"Lãi gộp" không còn khoảng trắng đứt quãng;
+   trang "Cấu hình Voucher" hiện cột "Đường dẫn API" đúng URL từng dòng;
+   cuộn ngang bảng "Đối tác API" (api-admin)/"Đồng bộ" (etl-admin) —
+   cột đầu (tên) dính lại bên trái, không bị trôi mất khi cuộn.
+
+## 9.73 — Banner "Doanh thu"/"Lãi gộp" 3 cấp cho báo cáo ngành hàng + Chỉ tiêu tách Bán lẻ/Bán buôn
+
+**Thay đổi**: xem chi tiết ở `VERSION.md` + `báo cáo doanh thu-nhập hàng
+theo ngành hàng.md`. `columnSuperGroups` — cấp tiêu đề thứ 3 gộp 4 nhóm
+"Doanh thu — ..."/4 nhóm "Lãi gộp — ..."; mẫu import Chỉ tiêu ngành hàng
+tách Bán lẻ/Bán buôn, bỏ cột Mã siêu thị. KHÔNG đổi schema CSDL (Chỉ
+tiêu vẫn lưu dạng JSON trong `dwh.SalesTargets.TargetsJson`, chỉ đổi
+field bên trong).
+
+**Các bước**:
+
+1. `git pull origin main`.
+2. `pm2 restart hcrc-rp-server` (runner + export Excel/PDF + gửi email
+   báo cáo đổi — `routes/reports.js`/`jobs/reportEmailScheduler.js`).
+3. `pm2 restart hcrc-etl` (`etl/server.js`/`salesTargetsImport.js`/
+   `routes/admin/salesTargets.js` đổi — mẫu import Chỉ tiêu).
+4. `cd etl-admin && npm run build` rồi `pm2 restart hcrc-etl-admin` —
+   trang "Chỉ tiêu theo ngành hàng" đổi (tải mẫu mới, không còn cột Mã
+   siêu thị).
+5. `cd rp-user && npm run build` rồi `pm2 restart hcrc-rp-user` — banner
+   3 cấp mới.
+6. **QUAN TRỌNG — báo người dùng TRƯỚC khi chạy báo cáo tháng mới**: Chỉ
+   tiêu ngành hàng đã nhập theo mẫu CŨ (1 cột Total) KHÔNG tự chuyển
+   sang mẫu mới — cần tải lại mẫu Excel mới (etl-admin → Chỉ tiêu theo
+   ngành hàng → "Tải mẫu") và NHẬP LẠI đủ 2 cột Bán lẻ/Bán buôn cho từng
+   kỳ, nếu không cột "% so chỉ tiêu" ở Bán lẻ/Bán buôn sẽ hiện "—" dù
+   Total vẫn có số bình thường (cộng dồn 2 cột cũ không tồn tại = 0 ẩn
+   "không có dữ liệu").
+7. Kiểm tra: báo cáo ngành hàng hiện 2 banner "Doanh thu"/"Lãi gộp" gộp
+   đúng 4 nhóm mỗi bên; tải mẫu Chỉ tiêu mới ở etl-admin — xác nhận
+   KHÔNG còn cột "Mã siêu thị", có đủ 4 cột Bán lẻ/Bán buôn.
+
+---
+
 ## 9.72 — Sửa thiếu bước "npm run build" cho api-admin ở hướng dẫn 9.59-9.68
 
 **Thay đổi**: xem chi tiết đầy đủ ở `VERSION.md`. Lỗi THẬT người dùng
