@@ -85,8 +85,14 @@ const { assignSttIfPresent } = require('./reportCellFormat');
 const DOANHTHU_DOMAIN = 'doanhthu_nganhhang';
 
 // Danh mục 12 ngành hàng CỐ ĐỊNH, ĐÚNG thứ tự mã tăng dần — khớp mẫu Excel
-// người dùng gửi. Hiện ĐỦ cả 12 dòng mỗi khối dù ngành hàng đó KHÔNG phát
-// sinh dữ liệu trong kỳ (Thực đạt = 0), không ẩn dòng.
+// người dùng gửi. Đây là DANH SÁCH ĐẦY ĐỦ tối đa — bản 9.77 (theo yêu cầu
+// người dùng, "up ngành hàng nào chỉ hiện ra được báo cáo ngành hàng đó")
+// CHỈ hiện dòng cho ngành hàng ĐÃ có Chỉ tiêu được nhập (targetMap, xem
+// runNganhHangBrgReport() bên dưới — lọc theo ĐÚNG kỳ/khoảng ngày báo cáo
+// đang xem, không phải "đã từng nhập bất kỳ lúc nào"); ngành hàng CHƯA có
+// Chỉ tiêu trong kỳ đó (dù có phát sinh doanh thu thật) sẽ KHÔNG hiện dòng
+// VÀ KHÔNG cộng vào dòng "Tổng cộng" mỗi khối (Tổng cộng = tổng CHỈ các
+// dòng đang hiển thị, để khớp đúng số cộng hiển thị trên báo cáo).
 const NGANH_HANG_LIST = [
   { code: '1001', name: 'UltraFresh' },
   { code: '1002', name: 'Fresh' },
@@ -307,7 +313,7 @@ function computeRowFields({ thucDat, lastYearThucDat, hasLastYear, giaTriHongHuy
   };
 }
 
-function buildSegmentRows(section, currentMap, lastYearMap, targetMap) {
+function buildSegmentRows(section, currentMap, lastYearMap, targetMap, nganhHangList) {
   const rows = [{ __isSectionHeader: true, __sectionLabel: section.headerLabel, __sectionColor: section.color }];
 
   const sums = {
@@ -319,7 +325,7 @@ function buildSegmentRows(section, currentMap, lastYearMap, targetMap) {
     chiTieuLaiGop: { banLe: 0, banBuon: 0 }, hasChiTieuLaiGopBanLe: false, hasChiTieuLaiGopBanBuon: false
   };
 
-  for (const item of NGANH_HANG_LIST) {
+  for (const item of nganhHangList) {
     const current = currentMap.get(item.code);
     const lastYear = lastYearMap.get(item.code);
     const target = targetMap.get(item.code);
@@ -446,12 +452,21 @@ async function runNganhHangBrgReport(definition, filterValues = {}) {
   }
   const stkFilterBySection = { brg: null, lfl: lflStkIds, nso: nsoStkIds };
 
+  // Bản 9.77 (theo yêu cầu người dùng — "up ngành hàng nào chỉ hiện ra
+  // được báo cáo ngành hàng đó"): CHỈ hiện ngành hàng đã có Chỉ tiêu
+  // trong ĐÚNG kỳ/khoảng ngày đang xem (targetMap — xây từ
+  // runSalesTargetsBlockRange() ở trên, đã cộng dồn theo entityCode cho
+  // khoảng [fromPeriod, toPeriod]) — ngành hàng chưa nhập Chỉ tiêu kỳ đó
+  // (dù có doanh thu thật) sẽ không có dòng riêng VÀ không cộng vào Tổng
+  // cộng (xem chú thích NGANH_HANG_LIST phía trên).
+  const nganhHangToShow = NGANH_HANG_LIST.filter(item => targetMap.has(item.code));
+
   let rows = [];
   for (const section of SECTIONS) {
     const stkFilter = stkFilterBySection[section.key];
     const currentMap = groupByDeptId(currentRows, stkFilter);
     const lastYearMap = groupByDeptId(lastYearRows, stkFilter);
-    rows = rows.concat(buildSegmentRows(section, currentMap, lastYearMap, targetMap));
+    rows = rows.concat(buildSegmentRows(section, currentMap, lastYearMap, targetMap, nganhHangToShow));
   }
 
   const columns = describeColumns(COLUMNS);

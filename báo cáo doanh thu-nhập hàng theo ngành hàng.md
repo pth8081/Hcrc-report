@@ -299,8 +299,29 @@ ràng ngay, không âm thầm chạy sai.
    gộp vào 1 trong 2 tập `lflStkIds`/`nsoStkIds`.
 4. Với MỖI khối (BRG = không lọc, LFL = lọc theo `lflStkIds`, NSO = lọc
    theo `nsoStkIds`) — gộp dữ liệu theo `DEPT_ID`, PUSH 1 dòng
-   `__isSectionHeader` (tiêu đề ngang mở đầu khối) + đủ 12 dòng ngành hàng
-   + 1 dòng "Tổng cộng" (`__isSubtotal`).
+   `__isSectionHeader` (tiêu đề ngang mở đầu khối) + 1 dòng/ngành hàng
+   ĐÃ CÓ Chỉ tiêu trong kỳ đang xem (bản 9.77, xem dưới — KHÔNG còn cố
+   định đủ 12 dòng) + 1 dòng "Tổng cộng" (`__isSubtotal`).
+
+**Bản 9.77** (theo yêu cầu người dùng — "up ngành hàng nào chỉ hiện ra
+được báo cáo ngành hàng đó"): DANH SÁCH 12 ngành hàng ở `NGANH_HANG_LIST`
+(`rp-server/lib/nganhHangBrgRunner.js`) là danh mục ĐẦY ĐỦ tối đa, nhưng
+MỖI LẦN CHẠY báo cáo chỉ hiện dòng cho ngành hàng NÀO ĐÃ CÓ Chỉ tiêu nhập
+trong ĐÚNG kỳ/khoảng ngày đang xem — lọc bằng
+`NGANH_HANG_LIST.filter(item => targetMap.has(item.code))` (`targetMap`
+dựng từ `runSalesTargetsBlockRange()`, ĐÃ cộng dồn theo `entityCode` cho
+khoảng `[fromPeriod, toPeriod]` của kỳ báo cáo). Ngành hàng CHƯA nhập
+Chỉ tiêu trong kỳ đó — dù CÓ phát sinh doanh thu thật trong
+`doanhthu_nganhhang` — sẽ KHÔNG có dòng riêng VÀ KHÔNG cộng vào dòng
+"Tổng cộng" mỗi khối (Tổng cộng = tổng CHỈ các dòng ĐANG hiển thị, để
+luôn khớp đúng số cộng người xem thấy trên báo cáo — KHÔNG phải tổng
+doanh thu toàn công ty nếu có ngành hàng còn thiếu Chỉ tiêu). Áp dụng
+ĐỒNG NHẤT cả 3 khối BRG/LFL/NSO (dùng CHUNG 1 `targetMap`, không phân
+biệt theo khối). Muốn 1 ngành hàng hiện trong báo cáo — chỉ cần nhập ÍT
+NHẤT 1 trong 4 cột Chỉ tiêu (Bán lẻ/Bán buôn của Doanh thu hoặc Lãi gộp)
+cho đúng ngành hàng đó, đúng kỳ (tháng) nằm trong khoảng ngày đang xem
+(xem `etl/lib/salesTargetsImport.js`/trang "Chỉ tiêu theo ngành hàng" ở
+etl-admin).
 
 **Công thức từng cột** — bản 9.68, SỬA LẠI cột "Chỉ tiêu" ở bản 9.73: MỖI
 1 trong 8 chỉ số (4 Doanh thu + 4 Lãi gộp) có 3 CỘT CON "Total"/"Bán lẻ"/
