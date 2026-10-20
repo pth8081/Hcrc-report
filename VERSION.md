@@ -29,6 +29,24 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 9.84 — Thêm xoá 1 dòng + xoá hàng loạt cho bảng "Chỉ tiêu đã nhập"
+
+**Theo yêu cầu người dùng**: "chỗ nhập chỉ tiêu có cho xóa đi được
+không? Tôi muốn chọn xóa một hoặc nhiều" — trước đây bảng "Chỉ tiêu đã
+nhập" (5 trang Chỉ tiêu Lãnh đạo Tập đoàn/HCRC/Doanh thu theo ngành
+hàng/(LDTD)/Nhập hàng theo ngành hàng, dùng chung
+`SalesTargetsPage.jsx`) chỉ có nút "Sửa", không có cách xoá.
+
+- Backend (`etl/routes/admin/salesTargets.js`): thêm `DELETE /:id` —
+  khoá theo ĐÚNG domain của trang đó, phòng xoá nhầm dòng domain khác.
+  Ghi audit log.
+- Frontend: thêm nút "Xoá" từng dòng + checkbox chọn nhiều + nút "Xoá N
+  mục đã chọn" — đúng mẫu chuẩn CLAUDE.md (`useRowSelection` +
+  `DataTable` selection).
+
+Verify bằng Playwright thật (esbuild bundle + mock API) — xoá 1 dòng và
+xoá hàng loạt đều hoạt động đúng.
+
 ## 9.83 — Giới hạn 35 ngày khi quét domain tồn kho — sửa cạn connection pool
 
 **Theo sự cố thật người dùng gặp** tiếp sau bản 9.81 (đã bật RCSI): báo

@@ -14,6 +14,23 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 9.84 — Thêm xoá 1 dòng + xoá hàng loạt cho bảng "Chỉ tiêu đã nhập"
+
+**Thay đổi**: xem chi tiết ở `VERSION.md`. 1 route backend
+(`etl/routes/admin/salesTargets.js`) + 1 trang frontend
+(`etl-admin/src/pages/SalesTargetsPage.jsx`, dùng chung cho cả 5 trang
+"Chỉ tiêu ..."). KHÔNG đổi schema CSDL.
+
+**Các bước**:
+
+1. `git pull origin main`.
+2. `pm2 restart hcrc-etl` (route DELETE mới).
+3. `cd etl-admin && npm run build` rồi `pm2 restart hcrc-etl-admin`.
+4. Kiểm tra: vào 1 trong 5 trang "Chỉ tiêu ..." — mỗi dòng có thêm nút
+   "Xoá" (chỉ hiện cho người có quyền sửa trang đó); tick checkbox vài
+   dòng → hiện nút "Xoá N mục đã chọn" ở dưới bảng, xoá đúng các dòng đã
+   chọn.
+
 ## 9.83 — Giới hạn 35 ngày khi quét domain tồn kho — sửa cạn connection pool
 
 **Thay đổi**: xem chi tiết ở `VERSION.md`. 4 file backend
