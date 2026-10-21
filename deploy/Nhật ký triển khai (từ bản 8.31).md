@@ -14,6 +14,31 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 9.86 — Sửa lỗi watermark job "Doanh thu theo ngành hàng - Live": Bán lẻ/Bán buôn chỉ đúng từ ngày deploy 9.68
+
+**Thay đổi**: thêm 1 script `etl/scripts/resyncDoanhThuNganhHangLive.js`
+(mirror `resyncDoanhThuChinhanhLive.js`) — chạy 1 lần để job "Live" quét
+lại toàn bộ dữ liệu, lấy đúng Bán lẻ/Bán buôn/Lãi gộp Bán lẻ/Bán buôn/
+Giá trị hàng hỏng hủy cho CẢ các ngày trước khi VIEW đổi (bản 9.68). KHÔNG
+đổi schema CSDL, KHÔNG đổi code backend đang chạy (chỉ 1 script chạy tay
+1 lần). Xem giải thích đầy đủ ở "báo cáo doanh thu-nhập hàng theo ngành
+hàng.md" mục 10.
+
+**Các bước**:
+
+1. `git pull origin main`.
+2. `cd etl && node scripts/resyncDoanhThuNganhHangLive.js` — xem trước số
+   dòng sẽ bị xoá (KHÔNG đổi gì ở bước này).
+3. `node scripts/resyncDoanhThuNganhHangLive.js --confirm` — thực sự xoá
+   dữ liệu cũ của job "Doanh thu theo ngành hàng - Live (DSMART16)" +
+   reset mốc đồng bộ về epoch.
+4. Đợi tối đa 15 phút (lịch chạy `*/15 * * * *`) hoặc vào etl-admin →
+   Đồng bộ → "Chạy thử" job đó ngay — kiểm tra Log chạy xong không lỗi.
+5. Kiểm tra: mở lại báo cáo "Doanh thu theo ngành hàng"/"(LDTD)" với
+   khoảng ngày đầu tháng 10 — cột Bán lẻ + Bán buôn phải cộng lại gần
+   khớp Total (chỉ lệch nhỏ do mã 232, đã biết từ trước), không còn gần
+   như 0 ở các ngày đầu tháng.
+
 ## 9.85 — Đổi "Mã siêu thị" thành "Mã ngành hàng" cho 2 trang Chỉ tiêu doanh thu theo ngành hàng
 
 **Thay đổi**: xem chi tiết ở `VERSION.md`. Chỉ 1 file frontend

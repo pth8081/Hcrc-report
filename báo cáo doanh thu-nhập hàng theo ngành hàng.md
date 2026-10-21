@@ -544,3 +544,70 @@ khử trùng theo (entityCode, ngày) nếu có chồng lấn. Vì vậy chỉ c
    ngày 2026-10-05 ở kết quả test trên) — xác nhận cột "% so cùng kỳ năm
    trước" đã có số.
 4. Vào Hệ thống → Phân quyền gán quyền xem 3 báo cáo cho đúng vai trò.
+
+## 10. Bán lẻ/Bán buôn chỉ đúng từ ngày deploy bản 9.68 trở đi — lỗi watermark job Live (đã có script sửa)
+
+**Hiện tượng người dùng báo cáo (bản 9.86, xem báo cáo tháng 10/2026)**:
+"Doanh thu — Thực đạt" cột **Total đúng cho CẢ THÁNG**, nhưng cột **Bán
+lẻ/Bán buôn chỉ đúng như của 1-2 NGÀY gần nhất** (những ngày job Live chạy
+SAU KHI VIEW đã có 5 cột mới) — các ngày đầu tháng Bán lẻ/Bán buôn gần như
+= 0, khiến Bán lẻ + Bán buôn lệch xa Total (vd lệch ~6 tỷ/~6,5 tỷ Total 1
+ngành hàng, không thể do riêng giả định "mã 232 không tách kênh" ở mục 8 —
+giả định đó chỉ gây lệch NHỎ, không gây lệch gần hết số).
+
+**Nguyên nhân — ĐÚNG lỗi cơ chế watermark đã gặp ở bản 8.1 cho job "Doanh
+thu chi nhánh - Live" (xem `etl/scripts/resyncDoanhThuChinhanhLive.js` —
+comment đầu file giải thích đầy đủ cơ chế, mirror y hệt ở đây)**:
+job "Doanh thu theo ngành hàng - Live (DSMART16)" dùng `WORK_DATE` làm CẢ
+`DateColumn` LẪN `UpdatedAtColumn` (xem mục 3 + `etl/scripts/seedNganhHangSync.js`),
+tức câu đồng bộ là `WHERE WORK_DATE >= mốc_đã_đồng_bộ` (mốc = watermark
+LƯU Ở LẦN CHẠY TRƯỚC, xem `etl/lib/tableSyncEngine.js`). `WORK_DATE` của 1
+dòng nguồn KHÔNG đổi theo thời gian — nên khi VIEW `V_HCRC_DOANHTHU_NGANHHANG`
+được thêm 5 cột `DoanhThuBanLe`/`DoanhThuBanBuon`/`LaiGopBanLe`/
+`LaiGopBanBuon`/`GiaTriHongHuy` ở bản 9.68, watermark của job Live **đã
+vượt qua** các ngày đầu tháng từ lâu (cột `DoanhThu`/Total đã đồng bộ
+đúng cho các ngày đó từ VIEW CŨ) — job sẽ KHÔNG BAO GIỜ tự quét lại các
+ngày đó để lấy 5 cột MỚI, dù chạy lại bao nhiêu lần/đợi bao lâu. Chỉ các
+ngày có `WORK_DATE >= watermark hiện tại` (tức từ lúc job chạy lần đầu
+SAU KHI VIEW đã đổi, ~ngày deploy bản 9.68 trở đi) mới có đủ 5 cột mới —
+khớp đúng hiện tượng "như đang lấy Bán lẻ/Bán buôn ngày today".
+
+**Cách sửa (CHẠY 1 LẦN, KHÔNG cần sửa code/VIEW gì thêm — VIEW và
+`measureColumns` đã đúng từ bản 9.68, chỉ cần BẮT JOB QUÉT LẠI)**:
+
+```bash
+cd etl
+node scripts/resyncDoanhThuNganhHangLive.js            # xem trước, KHÔNG đổi gì
+node scripts/resyncDoanhThuNganhHangLive.js --confirm  # thực sự xoá dữ liệu Live cũ + reset mốc đồng bộ về epoch
+```
+
+Script tự xoá đúng các dòng `dwh.ReportFacts` mà job "Live" (không phải
+job "Lịch sử") đã ghi (lọc theo `SourceSystem`), rồi reset mốc đồng bộ
+(`etl.SyncState.LastSyncedAt`) của job đó về `1970-01-01` — lượt chạy kế
+tiếp (tối đa 15 phút sau, theo lịch `*/15 * * * *`) sẽ tự quét lại TOÀN BỘ
+dữ liệu còn trong nguồn Live (idempotent, không tạo trùng — xem comment
+đầu file script) với đủ 8 cột đo. KHÔNG đụng tới job "Nhập hàng theo ngành
+hàng - Live" (measureColumns job đó không đổi, không có lỗi này) và KHÔNG
+đụng tới job "Lịch sử (DSMART16_EOM)" (SourceSystem khác, đang chạy dở
+kéo lịch sử nhiều năm — không bị ảnh hưởng).
+
+**Kiểm tra sau khi chạy**: etl-admin → Đồng bộ → Log, xác nhận job "Doanh
+thu theo ngành hàng - Live (DSMART16)" chạy xong không lỗi (vài phút, vì
+job Live chỉ còn dữ liệu gần đây, không phải nhiều năm). Sau đó mở lại báo
+cáo "Doanh thu theo ngành hàng"/"(LDTD)" với khoảng ngày đầu tháng — cột
+Bán lẻ + Bán buôn phải cộng lại gần khớp Total (chỉ lệch nhỏ do mã 232,
+xem mục 8), không còn gần như 0 ở các ngày đầu tháng.
+
+**Lưu ý — câu hỏi "Total có PHẢI bằng Bán lẻ + Bán buôn + hàng hỏng hủy
+không?"**: KHÔNG — theo đúng thiết kế đã xác nhận ở mục 8:
+- Doanh thu Total = Bán lẻ + Bán buôn **+ phần mã 232 không tách được
+  kênh** (232 chỉ cộng vào Total, không cộng riêng Bán lẻ/Bán buôn) — vì
+  vậy Total có thể LỚN HƠN (Bán lẻ + Bán buôn) một chút nếu mã 232 khác 0
+  trong kỳ, đây là CHÊNH LỆCH NHỎ đã biết, không phải lỗi.
+- "Giá trị hàng hỏng hủy" KHÔNG trừ vào Doanh thu Total hiển thị (cột
+  riêng) — chỉ trừ vào "Lãi gộp" (mẫu số "Tỷ lệ lãi gộp" dùng "Doanh thu
+  cuối" = Total − hàng hỏng hủy, xem mục 8), không liên quan tới công thức
+  Doanh thu Total/Bán lẻ/Bán buôn.
+- Sau khi chạy script ở trên, chênh lệch Total vs (Bán lẻ + Bán buôn) chỉ
+  còn ở mức NHỎ (do 232) — nếu vẫn lệch LỚN như trước thì có nghĩa script
+  chưa chạy/job Live chưa chạy xong lượt tiếp theo, kiểm tra lại Log.

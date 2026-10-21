@@ -29,6 +29,26 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 9.86 — Sửa lỗi watermark job "Doanh thu theo ngành hàng - Live": Bán lẻ/Bán buôn chỉ đúng từ ngày deploy 9.68
+
+**Theo báo cáo người dùng** (kèm PDF báo cáo tháng 10/2026): "Doanh thu —
+Thực đạt" cột Total đúng cả tháng, nhưng Bán lẻ/Bán buôn lệch xa Total (y
+như chỉ lấy đúng 1-2 ngày gần nhất). Nguyên nhân: ĐÚNG lỗi watermark đã
+gặp ở bản 8.1 (xem `resyncDoanhThuChinhanhLive.js`) — job "Doanh thu theo
+ngành hàng - Live" dùng `WORK_DATE` (không đổi theo thời gian) làm cả
+`UpdatedAtColumn`, nên khi VIEW thêm 5 cột `DoanhThuBanLe`/`DoanhThuBanBuon`/
+`LaiGopBanLe`/`LaiGopBanBuon`/`GiaTriHongHuy` ở bản 9.68, các ngày job đã
+đồng bộ TRƯỚC đó (watermark đã vượt qua) không bao giờ tự quét lại để lấy
+5 cột mới — chỉ ngày deploy 9.68 trở đi mới có đủ số.
+
+**Sửa**: thêm `etl/scripts/resyncDoanhThuNganhHangLive.js` (mirror đúng
+`resyncDoanhThuChinhanhLive.js`) — xoá dữ liệu Live cũ của domain
+`doanhthu_nganhhang` + reset mốc đồng bộ về epoch, KHÔNG đụng job "Nhập
+hàng theo ngành hàng - Live" (không lỗi) hay job "Lịch sử (EOM)" (đang
+chạy dở kéo lịch sử). Xem chi tiết + cách kiểm tra ở "báo cáo doanh thu-nhập
+hàng theo ngành hàng.md" mục 10 (gồm cả giải thích Total = Bán lẻ + Bán
+buôn + mã 232 không tách kênh, KHÔNG trừ hàng hỏng hủy).
+
 ## 9.85 — Đổi "Mã siêu thị" thành "Mã ngành hàng" cho 2 trang Chỉ tiêu doanh thu theo ngành hàng
 
 **Theo báo cáo người dùng**: "bc ngành hành là mã ngành hàng ko phải mã
