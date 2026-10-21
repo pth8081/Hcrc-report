@@ -277,6 +277,33 @@ kho đó có Dimension `chain` đúng loại điểm (MART/MINIMART) không; (3)
 hàng đó có bị "Khóa All"/"Khóa theo kho" không (nếu có khai Bước 4) —
 đang khoá thì LOẠI HẲN, đây là hành vi ĐÚNG THIẾT KẾ, không phải lỗi.
 
+**"Mã NCC"/"Nhà cung cấp"/"Luồng giao hàng" và "Ngày nhập cuối"/"SL đang
+đặt"/"Ngày đặt"/"Mã đang đặt" trống HẾT ở mọi dòng?** (báo cáo người dùng,
+kiểm tra file PDF xuất thật, 92 dòng đều trống cả 2 nhóm cột) — 2 NGUYÊN
+NHÂN HOÀN TOÀN KHÁC NHAU, không phải cùng 1 lỗi:
+
+1. **"Mã NCC"/"Tên NCC"/"Luồng giao hàng"** — THIẾU DỮ LIỆU KHAI BÁO, không
+   phải lỗi code. 3 cột này lấy từ chính file Excel "Danh sách hàng Core"
+   (etl-admin), 3 cột TUỲ CHỌN tên `MaNCC`/`TenNCC`/`LuongGiaoHang` (hoặc
+   `Mã NCC`/`Tên NCC`/`Luồng giao hàng` — xem `etl/lib/coreItemListImport.js`).
+   Trống HẾT ở mọi dòng nghĩa là file đang upload CHƯA điền 3 cột này cho
+   bất kỳ dòng nào. Khắc phục: bổ sung 3 cột đó vào file "Danh sách hàng
+   Core" (lấy từ báo cáo nhân viên nội bộ đang dùng), upload lại (riêng cho
+   từng loại điểm Mart/Minimart).
+2. **"Ngày nhập cuối"/"SL đang đặt"/"Ngày đặt"/"Mã đang đặt"** — TÍNH NĂNG
+   CHƯA TỪNG ĐƯỢC DỰNG XONG, không phải lỗi phát sinh mới. 4 cột này đọc từ
+   4 "nguồn dữ liệu" tuỳ chọn (`core_khoa_all`/`core_khoa_theo_kho`/
+   `core_dang_dat`/`core_ngay_nhap_cuoi`, xem Bước 4 ở trên) — nhưng xác
+   nhận qua code (`rp-server/scripts/seedCoreZeroStockReports.js`, chính
+   ghi chú lúc tạo báo cáo): **CHƯA CÓ VIEW/job thật nào cho 4 nguồn này**
+   — khung cột đã khai sẵn trên báo cáo nhưng chưa từng có dữ liệu đổ vào.
+   Khắc phục: cần DBA xác nhận lại đúng bảng/cột thật (VD mẫu SQL ở Bước 4
+   dùng `SKU_LOCK_INFO`/`RV_ORDER` CHỈ LÀ VÍ DỤ, ghi rõ trong chính SQL đó
+   — PHẢI đối chiếu lại với DBA xem đúng bảng nào mới dùng được), viết VIEW
+   thật trên DSMART16, rồi admin tạo job "Theo bảng" tương ứng ở etl-admin
+   theo đúng hướng dẫn Bước 4 — việc này CHƯA ai làm từ trước tới nay, cần
+   làm mới hoàn toàn, không phải "sửa lại" 1 cấu hình đã có.
+
 **Cột "Mã điểm" luôn trống?**
 Kho đó CHƯA khai "Ánh xạ Điểm - STK_ID" — không bắt buộc phải khai (báo
 cáo vẫn chạy đúng, chỉ là không hiện Mã điểm cho kho đó).

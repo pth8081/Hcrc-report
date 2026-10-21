@@ -14,6 +14,12 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 9.94 — Chẩn đoán (tài liệu, không đổi code): cột NCC/Luồng giao hàng/Ngày nhập cuối trống ở "Core stock = 0"
+
+**Thay đổi**: thuần tài liệu (`bc-core-ton-kho-0.md`), KHÔNG đổi code,
+KHÔNG cần deploy/restart gì. Xem chi tiết nguyên nhân + việc cần làm (bổ
+sung file Core/viết VIEW mới) ở mục "Hỏi & đáp" trong file đó.
+
 ## 9.93 — Sửa lỗi chuyển tab "Báo cáo" chậm hiện sai nhóm (race condition)
 
 **Thay đổi**: chỉ 1 file `rp-user/src/modules/reports/ReportsPage.jsx`

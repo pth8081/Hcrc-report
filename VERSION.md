@@ -29,6 +29,20 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 9.94 — Chẩn đoán (tài liệu, không đổi code): cột NCC/Luồng giao hàng/Ngày nhập cuối trống ở "Core stock = 0"
+
+**Theo báo cáo người dùng** (gửi kèm file PDF xuất thật, 92 dòng): "Mã
+NCC"/"Tên NCC"/"Luồng giao hàng" VÀ "Ngày nhập cuối"/"SL đang đặt"/"Ngày
+đặt"/"Mã đang đặt" trống 100% ở mọi dòng. Xác nhận 2 nguyên nhân khác
+nhau: (1) "Mã NCC"/"Tên NCC"/"Luồng giao hàng" — thiếu dữ liệu khai báo
+trong file "Danh sách hàng Core" (3 cột tuỳ chọn chưa từng điền), không
+phải lỗi code; (2) "Ngày nhập cuối"/"SL đang đặt"/... — 4 nguồn dữ liệu
+tuỳ chọn (`core_khoa_all`/`core_khoa_theo_kho`/`core_dang_dat`/
+`core_ngay_nhap_cuoi`) CHƯA TỪNG có VIEW/job thật từ lúc tạo báo cáo (xác
+nhận qua chính ghi chú trong `seedCoreZeroStockReports.js`) — tính năng
+còn dang dở, cần DBA viết VIEW thật + admin tạo job, không phải lỗi mới
+phát sinh. Ghi chi tiết vào `bc-core-ton-kho-0.md` mục "Hỏi & đáp".
+
 ## 9.93 — Sửa lỗi chuyển tab "Báo cáo" chậm hiện sai nhóm (race condition)
 
 **Theo báo cáo người dùng** (trên mobile): "chuyển giữa những báo cáo này
