@@ -29,6 +29,24 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 9.91 — Sửa lỗi khối NSO luôn ra 0 dù khai đủ "Siêu thị NSO" + "Ánh xạ Điểm - STK_ID"
+
+**Theo báo cáo người dùng** (sau khi khai đủ "Siêu thị NSO" + "Ánh xạ
+Điểm - STK_ID" đúng mã, đối chiếu kỹ qua SQL khớp hoàn toàn — khối NSO
+vẫn hiện Thực đạt = 0 mọi ngành hàng). Nguyên nhân: ĐÚNG lỗi đã gặp 1 lần
+ở chỗ khác (bản 9.58) — cột STK_ID nguồn DSMART là CHAR cố định độ dài,
+tự đệm khoảng trắng phía sau (SSMS không thấy được) — `nganhHangBrgRunner.js`
+đọc STK_ID từ Dimensions JSON KHÔNG qua đường đã được vá `.trim()` ở bản
+9.58 (đường khác: `reportFactsHelpers.js`), trong khi `MaStkMoi` ở "Ánh
+xạ Điểm - STK_ID" đã trim sẵn — lệch 1 khoảng trắng khiến so khớp luôn
+sai, STK_ID rơi về mặc định LFL, KHÔNG BAO GIỜ vào được NSO.
+
+**Sửa**: thêm `.trim()` ở 2 chỗ còn thiếu trong
+`rp-server/lib/nganhHangBrgRunner.js`. KHÔNG cần sửa lại dữ liệu đã khai
+ở "Siêu thị NSO"/"Ánh xạ Điểm - STK_ID" (đã đúng từ trước, chỉ là code so
+sánh sai). Đã verify qua mock test. Chi tiết ở "báo cáo doanh thu-nhập
+hàng theo ngành hàng.md" mục 14.
+
 ## 9.90 — Bộ lọc "Siêu thị" riêng theo từng khối + "Bỏ hàng hỏng hủy" (2 báo cáo Doanh thu theo ngành hàng)
 
 **Theo yêu cầu người dùng**: "3 filter theo Total: chọn siêu thị, LFL:

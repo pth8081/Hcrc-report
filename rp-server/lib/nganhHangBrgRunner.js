@@ -296,9 +296,18 @@ async function resolveNganhHangBranchOptions(definition, segment) {
 // Gộp mảng rows (đã qua aggregateDailyRowsByEntity) theo DEPT_ID, LỌC
 // TRƯỚC theo tập STK_ID cho đúng khối (null = không lọc, "Toàn hệ thống
 // BRG") — trả về Map<DEPT_ID, {dimensions, measures}>.
+// .trim() (bản 9.91, SỬA LỖI — báo cáo người dùng: khai đủ "Siêu thị NSO" +
+// "Ánh xạ Điểm - STK_ID" đúng mã, khối NSO vẫn ra 0) — STK_ID đọc thẳng từ
+// Dimensions JSON (reportEngine.js:JSON.parse(row.Dimensions), KHÔNG qua
+// loadLatestDimensionsForDomain() nên KHÔNG được trim tự động như domain
+// khác) có thể mang khoảng trắng thừa từ cột CHAR cố định độ dài ở nguồn
+// DSMART (đúng lỗi đã gặp 1 lần — xem bản 9.58, reportFactsHelpers.js) —
+// stkLookup (diemStkMapping.js:buildStkIdLookup) ĐÃ trim khi đọc MaStkMoi,
+// nên 2 bên lệch nhau 1 khoảng trắng là so sánh chuỗi luôn SAI, STK_ID rơi
+// về "không tra được mã Điểm" → mặc định LFL (không nhận ra NSO).
 function groupByDeptId(rows, stkIdFilterSet) {
   const filtered = stkIdFilterSet
-    ? rows.filter(r => stkIdFilterSet.has(String(r.dimensions?.STK_ID)))
+    ? rows.filter(r => stkIdFilterSet.has(String(r.dimensions?.STK_ID ?? '').trim()))
     : rows;
   const grouped = remapEntityCode(filtered, { field: 'DEPT_ID' }, {});
   return new Map(grouped.map(r => [r.entityCode, r]));
@@ -529,7 +538,7 @@ async function runNganhHangBrgReport(definition, filterValues = {}) {
   const lflStkIds = new Set();
   const nsoStkIds = new Set();
   for (const r of [...currentRows, ...lastYearRows]) {
-    const stk = String(r.dimensions?.STK_ID ?? '');
+    const stk = String(r.dimensions?.STK_ID ?? '').trim(); // xem chú thích .trim() ở groupByDeptId()
     if (!stk) continue;
     if (isNsoStk(stk)) nsoStkIds.add(stk); else lflStkIds.add(stk);
   }

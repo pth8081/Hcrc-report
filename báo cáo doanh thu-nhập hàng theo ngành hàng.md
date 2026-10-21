@@ -785,3 +785,44 @@ công thức cũ).
    "Không trừ" ở ô "Lãi gộp có trừ..." — số Lãi gộp (Giá trị) phải TĂNG
    lên đúng bằng Giá trị hàng hỏng hủy đang hiện, kèm 1 dòng cảnh báo phía
    trên bảng.
+
+## 14. Khối NSO ra 0 dù đã khai đủ "Siêu thị NSO" + "Ánh xạ Điểm - STK_ID" — ✅ SỬA bản 9.91
+
+**Hiện tượng người dùng báo cáo**: đã khai đủ 4 siêu thị ở "Siêu thị NSO"
+(etl.NsoStores, đúng Mã Điểm) VÀ đã có dòng tương ứng ở "Ánh xạ Điểm -
+STK_ID" (etl.DiemStkMapping, đúng `MaStkMoi` khớp mã kho THẬT đang có
+trong `dwh.ReportFacts` domain `doanhthu_nganhhang` — đã đối chiếu kỹ qua
+SQL, khớp hoàn toàn) — nhưng khối "NSO" trên báo cáo vẫn hiện Thực đạt =
+0 cho mọi ngành hàng (trong khi Chỉ tiêu vẫn hiện đúng số vì nhập trực
+tiếp, không qua chuỗi tra này).
+
+**Nguyên nhân — ĐÚNG lỗi đã gặp 1 lần trước đó ở chỗ KHÁC trong hệ thống
+(bản 9.58, xem `rp-server/lib/reportFactsHelpers.js`)**: cột `STK_ID` ở
+nguồn DSMART là kiểu CHAR cố định độ dài, SQL Server tự động đệm khoảng
+trắng phía sau cho đủ độ dài cột — mắt thường nhìn qua SSMS KHÔNG thấy
+được (SSMS hiển thị `"12782"` y hệt `"12782 "`), nhưng so sánh chuỗi
+trong JavaScript coi 2 giá trị đó KHÁC NHAU. `rp-server/lib/nganhHangBrgRunner.js`
+đọc `STK_ID` thẳng từ `JSON.parse(row.Dimensions)` (qua
+`lib/reportEngine.js`/`lib/compositeReportRunner.js`) — ĐƯỜNG DỮ LIỆU
+KHÁC với `reportFactsHelpers.js:loadLatestDimensionsForDomain()` (nơi đã
+được vá `.trim()` ở bản 9.58) — nên lỗi y hệt vẫn còn NGUYÊN ở đường này,
+chưa từng được vá. Trong khi đó `MaStkMoi` đọc từ "Ánh xạ Điểm - STK_ID"
+(`lib/diemStkMapping.js:parseStkList()`) ĐÃ trim sẵn — 2 bên lệch nhau
+đúng 1 khoảng trắng, so khớp luôn SAI, STK_ID "không tra được Mã Điểm" →
+mặc định rơi về khối LFL (xem chú thích đầu file) — ĐÚNG lý do khối NSO
+không BAO GIỜ nhận được dù khai đúng mọi thứ ở 2 trang quản trị (lỗi này
+âm thầm, không lộ ra ở khối LFL vì LFL VỐN LÀ khối "mặc định" khi tra
+không khớp — chỉ lộ rõ ở khối NSO vì khối đó bắt buộc phải tra khớp mới
+nhận được).
+
+**Đã sửa**: thêm `.trim()` khi đọc `STK_ID` từ Dimensions ở 2 chỗ còn
+thiếu trong `nganhHangBrgRunner.js` (vòng lặp phân loại LFL/NSO VÀ
+`groupByDeptId()` lọc theo khối) — khớp đúng cách `diemStkMapping.js` đã
+trim `MaStkMoi`. Đã verify qua mock test: STK_ID có khoảng trắng thừa giả
+lập vẫn khớp đúng sau khi sửa.
+
+**Việc cần làm trên server**: `git pull origin main` rồi
+`pm2 restart hcrc-rp-server` (thuần sửa code, KHÔNG cần đổi dữ liệu đã
+khai ở "Siêu thị NSO"/"Ánh xạ Điểm - STK_ID" — những gì đã nhập trước đó
+vẫn đúng, chỉ là trước đây code so sánh sai). Mở lại báo cáo, xác nhận
+khối NSO đã ra số Thực đạt > 0.

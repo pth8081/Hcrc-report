@@ -14,6 +14,20 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 9.91 — Sửa lỗi khối NSO luôn ra 0 dù khai đủ "Siêu thị NSO" + "Ánh xạ Điểm - STK_ID"
+
+**Thay đổi**: chỉ 1 file `rp-server/lib/nganhHangBrgRunner.js` (thêm
+`.trim()` khi so khớp STK_ID). KHÔNG đổi schema CSDL, KHÔNG cần sửa lại
+dữ liệu đã khai ở "Siêu thị NSO"/"Ánh xạ Điểm - STK_ID".
+
+**Các bước**:
+
+1. `git pull origin main`.
+2. `pm2 restart hcrc-rp-server`.
+3. Mở lại báo cáo "Doanh thu theo ngành hàng"/"(LDTD)" — xác nhận khối
+   NSO đã ra số Thực đạt > 0 cho các siêu thị đã khai đúng ở "Siêu thị
+   NSO".
+
 ## 9.90 — Bộ lọc "Siêu thị" riêng theo từng khối + "Bỏ hàng hỏng hủy" (2 báo cáo Doanh thu theo ngành hàng)
 
 **Thay đổi**: `rp-server/lib/nganhHangBrgRunner.js`,
