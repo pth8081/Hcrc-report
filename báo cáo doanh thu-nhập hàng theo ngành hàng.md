@@ -611,3 +611,52 @@ không?"**: KHÔNG — theo đúng thiết kế đã xác nhận ở mục 8:
 - Sau khi chạy script ở trên, chênh lệch Total vs (Bán lẻ + Bán buôn) chỉ
   còn ở mức NHỎ (do 232) — nếu vẫn lệch LỚN như trước thì có nghĩa script
   chưa chạy/job Live chưa chạy xong lượt tiếp theo, kiểm tra lại Log.
+
+## 11. Job "Lịch sử (DSMART16_EOM)" Timeout liên tục, không bao giờ kéo được dữ liệu quá khứ — ✅ ĐÃ SỬA bản 9.88
+
+**Hiện tượng người dùng báo cáo**: job "Doanh thu theo ngành hàng - Lịch
+sử (DSMART16_EOM)" chạy (tự động theo lịch `0 3 * * *`, hoặc bấm "Chạy
+thử") liên tục báo lỗi trong pm2 log (`hcrc-etl-error`):
+```
+Lỗi mạng khi trích xuất lô dữ liệu (lần 1/2): Timeout: Request failed to
+complete in 90000ms — chi tiết: mã lỗi: ETIMEOUT — làm mới kết nối, thử
+lại sau 5s...
+Lỗi đồng bộ: Timeout: Request failed to complete in 90000ms
+```
+Tìm dữ liệu quá khứ (vd năm 2019) ở báo cáo luôn KHÔNG có, dù job đã
+"Chạy thử"/tự chạy theo lịch nhiều lần.
+
+**Nguyên nhân — LỖI TRONG CHÍNH ENGINE ETL dùng chung cho MỌI job "Lịch
+sử" (`etl/jobs/runSync.js`), không riêng domain này**: engine có 2 mức
+`requestTimeout` cho mỗi câu truy vấn trích xuất 1 lô dữ liệu — DÀI (10
+phút, dành cho job "Lịch sử" đọc VIEW gộp UNION ALL hàng chục bảng lưu trữ
+nhiều năm, KHÔNG có index hỗ trợ sắp xếp/phân trang — 1 lô 5000 dòng có
+thể mất vài phút để trả về) và NGẮN (90 giây, dành cho job "Live" hằng
+ngày — phát hiện treo nhanh, không chiếm connection lâu, bản 8.86). Engine
+TRƯỚC ĐÂY chọn mức nào CHỈ dựa vào "`lastSyncedAt` (mốc đồng bộ) có đúng
+bằng epoch `1970-01-01` hay không" — coi đó là "lượt chạy đầu tiên". Nhưng
+mốc đồng bộ được LƯU TẠM SAU MỖI LÔ (bản 9.26) — nên NGAY KHI job "Lịch
+sử" xử lý xong dù chỉ 1 LÔ ĐẦU TIÊN (rất dễ xảy ra, job tự chạy mỗi đêm
+theo lịch), mốc đồng bộ không còn = epoch nữa → MỌI lượt chạy SAU ĐÓ (dù
+job vẫn còn cách "bắt kịp hiện tại" NHIỀU NĂM dữ liệu) bị coi NHẦM là
+"lượt incremental nhỏ hằng ngày" → dùng timeout NGẮN 90 giây → timeout
+ngay lô kế tiếp, vĩnh viễn không tiến xa hơn được.
+
+**Đã sửa** (`etl/jobs/runSync.js`, bản 9.88): đổi tiêu chí chọn timeout
+dài từ "mốc đồng bộ = epoch chính xác" sang "mốc đồng bộ còn cách hiện tại
+quá XA (> 365 ngày)" — job "Lịch sử" giữ được timeout dài XUYÊN SUỐT nhiều
+lượt chạy cho tới khi thật sự bắt kịp gần hiện tại (không chỉ đúng 1 lượt
+đầu tiên), job "Live" vận hành bình thường (mốc đồng bộ luôn trong vài
+ngày gần đây) không bị ảnh hưởng, giữ nguyên hành vi timeout ngắn như bản
+8.86.
+
+**Việc cần làm trên server**: `git pull origin main` rồi
+`pm2 restart hcrc-etl` (KHÔNG cần đổi CSDL/chạy script gì thêm — thuần sửa
+code). Sau đó vào etl-admin → Đồng bộ → "Chạy thử" job "Doanh thu theo
+ngành hàng - Lịch sử (DSMART16_EOM)" (và job "Nhập hàng theo ngành hàng -
+Lịch sử" nếu có) — theo dõi Log, lần này sẽ KHÔNG còn timeout ở 90 giây
+(sẽ đợi tới 10 phút/lô nếu lô đó thật sự chậm) — job có thể mất NHIỀU GIỜ
+chạy nền (không cần ngồi chờ, cron tự tiếp tục lượt sau mỗi đêm) để kéo
+hết nhiều năm lịch sử, nhưng sẽ KHÔNG còn bị "kẹt cứng" ở timeout nữa.
+Kiểm tra sau vài ngày: mở báo cáo với khoảng ngày năm trước, xác nhận đã
+có dữ liệu.

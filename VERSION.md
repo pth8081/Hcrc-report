@@ -29,6 +29,27 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 9.88 — Sửa lỗi engine ETL: job "Lịch sử" timeout liên tục, không bao giờ kéo được dữ liệu quá khứ
+
+**Theo báo cáo người dùng** (pm2 log `hcrc-etl-error`): job "Doanh thu
+theo ngành hàng - Lịch sử (DSMART16_EOM)" timeout liên tục
+(`Timeout: Request failed to complete in 90000ms`), chưa từng kéo được dữ
+liệu quá khứ (tìm năm 2019 cũng chưa có). Nguyên nhân: LỖI TRONG CHÍNH
+ENGINE ETL dùng chung mọi job "Lịch sử" (`etl/jobs/runSync.js`) — tiêu chí
+chọn `requestTimeout` dài (10 phút, cần cho job Lịch sử đọc VIEW UNION ALL
+nhiều năm) hay ngắn (90 giây, cho job Live hằng ngày) TRƯỚC ĐÂY chỉ dựa
+vào "mốc đồng bộ = epoch chính xác", nhưng mốc đồng bộ được lưu tạm SAU
+MỖI LÔ (bản 9.26) — nên job Lịch sử chỉ cần xử lý xong 1 lô đầu tiên là
+mốc không còn = epoch nữa, MỌI lượt chạy sau đó (dù còn cách hiện tại
+NHIỀU NĂM dữ liệu) bị coi nhầm là "incremental nhỏ" → timeout ngắn → kẹt
+cứng vĩnh viễn.
+
+**Sửa**: đổi tiêu chí sang "mốc đồng bộ còn cách hiện tại > 365 ngày" —
+job Lịch sử giữ timeout dài XUYÊN SUỐT nhiều lượt chạy tới khi bắt kịp gần
+hiện tại, job Live không bị ảnh hưởng. Ghi chi tiết + cách kiểm tra vào
+"báo cáo doanh thu-nhập hàng theo ngành hàng.md" mục 11 (lỗi chung của
+engine, áp dụng cho MỌI job Lịch sử, không riêng domain ngành hàng).
+
 ## 9.87 — Thêm index CSDL sửa dứt điểm Timeout "Core stock=0"/"Top bán chạy tồn kho=0"
 
 **Theo báo cáo người dùng** (vẫn lỗi `TimeoutError...tarn/PendingOperation.js`

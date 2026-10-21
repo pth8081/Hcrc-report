@@ -14,6 +14,25 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 9.88 — Sửa lỗi engine ETL: job "Lịch sử" timeout liên tục, không bao giờ kéo được dữ liệu quá khứ
+
+**Thay đổi**: chỉ 1 file `etl/jobs/runSync.js` (sửa logic chọn timeout).
+KHÔNG đổi schema CSDL, KHÔNG đổi frontend.
+
+**Các bước**:
+
+1. `git pull origin main`.
+2. `pm2 restart hcrc-etl`.
+3. Vào etl-admin → Đồng bộ → "Chạy thử" job "Doanh thu theo ngành hàng -
+   Lịch sử (DSMART16_EOM)" (và job "Nhập hàng theo ngành hàng - Lịch sử"
+   nếu có) — theo dõi Log, xác nhận KHÔNG còn lỗi `Timeout...90000ms` lặp
+   lại ngay lập tức như trước (job có thể vẫn mất nhiều phút/lô vì VIEW
+   lịch sử thật sự nặng — đó là bình thường, khác hẳn "kẹt cứng" trước
+   đây).
+4. Job sẽ tự tiếp tục kéo dữ liệu qua các đêm sau (cron `0 3 * * *`),
+   không cần ngồi canh — kiểm tra lại sau vài ngày bằng cách mở báo cáo
+   với khoảng ngày năm trước, xác nhận đã có số liệu.
+
 ## 9.87 — Thêm index CSDL sửa dứt điểm Timeout "Core stock=0"/"Top bán chạy tồn kho=0"
 
 **Thay đổi**: chỉ 1 file `dwh/schema.sql` — thêm index mới

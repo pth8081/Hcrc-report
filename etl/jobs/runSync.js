@@ -22,14 +22,33 @@ function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-// Lượt chạy ĐẦU TIÊN của 1 job (chưa có etl.SyncState, getLastSyncedAt() trả
-// về EPOCH) — job "Lịch sử" kiểu này đọc VIEW gộp hàng chục triệu dòng không
-// lọc ngày, cần giữ NGUYÊN requestTimeout dài (DATASOURCE_REQUEST_TIMEOUT_MS,
-// mặc định 10 phút — xem dbAdapters/mssql.js). Dùng cùng đối tượng EPOCH làm
-// "cột mốc" cho MỌI job Type='table', không cần biết trước job nào là job
-// "Lịch sử"/job mới tạo.
-function isFirstRun(lastSyncedAt) {
-  return lastSyncedAt.getTime() === EPOCH.getTime();
+// SỬA LỖI (bản 9.88, theo báo cáo người dùng thật — job "Doanh thu theo
+// ngành hàng - Lịch sử (DSMART16_EOM)" timeout LIÊN TỤC, không bao giờ tiến
+// được tới dữ liệu quá khứ dù chạy lại bao nhiêu lần, "tìm năm 2019 cũng
+// chưa có"): hàm này TRƯỚC ĐÂY coi "lượt chạy ĐẦU TIÊN" là
+// `lastSyncedAt === EPOCH` CHÍNH XÁC — nhưng watermark được LƯU TẠM SAU MỖI
+// LÔ (bản 9.26, xem setLastSyncedAt() ở runTableJob()), nên NGAY KHI job
+// "Lịch sử" xử lý xong DÙ CHỈ 1 LÔ ĐẦU TIÊN (rất dễ xảy ra — job tự chạy
+// theo lịch cron `0 3 * * *` mỗi đêm, không cần ai bấm "Chạy thử"),
+// `lastSyncedAt` KHÔNG còn = EPOCH nữa — MỌI lượt chạy SAU ĐÓ (dù job vẫn
+// còn cách "bắt kịp hiện tại" NHIỀU NĂM dữ liệu) đều bị coi nhầm là "lượt
+// incremental nhỏ hằng ngày" (xem requestTimeoutFor() ngay dưới) → dùng
+// timeout NGẮN 90 giây thay vì 10 phút — trong khi VIEW Lịch sử (UNION ALL
+// hàng chục bảng lưu trữ nhiều năm, KHÔNG index hỗ trợ ORDER BY/OFFSET) cần
+// nhiều phút để trả về dù chỉ 1 lô 5000 dòng (xem chú thích EXTRACT_BATCH_SIZE
+// phía dưới) — job timeout ngay từ lô kế tiếp, vĩnh viễn không tiến thêm
+// được.
+//
+// SỬA: coi "vẫn cần timeout dài" là watermark CÒN CÁCH HIỆN TẠI QUÁ XA (>
+// OLD_WATERMARK_THRESHOLD_DAYS), KHÔNG CHỈ đúng lượt chạy có watermark = EPOCH
+// — job "Lịch sử" sẽ giữ được timeout dài xuyên suốt NHIỀU lượt chạy cho tới
+// khi watermark thật sự tiến gần hiện tại (đã bắt kịp lịch sử), không chỉ 1
+// lượt đầu tiên. Job "Live" vận hành bình thường watermark LUÔN trong vài
+// ngày gần đây (không bao giờ chạm ngưỡng 1 năm này) — hành vi timeout NGẮN
+// (bản 8.86, tránh VPN chập chờn chiếm connection lâu) giữ NGUYÊN không đổi.
+const OLD_WATERMARK_THRESHOLD_MS = 365 * 24 * 60 * 60 * 1000; // 365 ngày
+function needsLongRequestTimeout(lastSyncedAt) {
+  return Date.now() - lastSyncedAt.getTime() > OLD_WATERMARK_THRESHOLD_MS;
 }
 
 // Bản 8.86 (theo yêu cầu người dùng, sau sự cố thật nhiều job "(TV)" báo lỗi
@@ -55,12 +74,12 @@ function isFirstRun(lastSyncedAt) {
 // phút), giải phóng connection sớm, và (xem extractBatch() ở runTableJob())
 // được THỬ LẠI NGAY trong lúc job đang chạy thay vì phải chờ lượt cron kế
 // tiếp — tổng thời gian tới khi có dữ liệu mới giảm đáng kể mà
-// KHÔNG đổi gì cho job "Lịch sử" (vẫn đủ 10 phút như trước, qua
-// isFirstRun() ở trên).
+// KHÔNG đổi gì cho job "Lịch sử" (vẫn đủ 10 phút cho tới khi bắt kịp hiện
+// tại, qua needsLongRequestTimeout() ở trên).
 const INCREMENTAL_REQUEST_TIMEOUT_MS = parseInt(process.env.DATASOURCE_INCREMENTAL_REQUEST_TIMEOUT_MS || '90000', 10);
 
 function requestTimeoutFor(lastSyncedAt) {
-  return isFirstRun(lastSyncedAt) ? undefined : INCREMENTAL_REQUEST_TIMEOUT_MS; // undefined = dùng mặc định dài của adapter
+  return needsLongRequestTimeout(lastSyncedAt) ? undefined : INCREMENTAL_REQUEST_TIMEOUT_MS; // undefined = dùng mặc định dài của adapter
 }
 
 // Nhận diện lỗi MẠNG TẠM THỜI (đáng thử lại) — KHÁC lỗi dữ liệu/cấu hình
