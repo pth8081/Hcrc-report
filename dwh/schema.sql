@@ -72,6 +72,37 @@ BEGIN
 END
 GO
 
+-- IX_ReportFacts_Domain_Entity_Date (bản 9.87, theo sự cố thật người dùng
+-- gặp 20-21/10/2026 — báo cáo "Core stock = 0" (Mart/Minimart) VÀ "Top bán
+-- chạy đang tồn kho = 0" VẪN Timeout/cạn connection pool (tarn/PendingOperation.js)
+-- SAU KHI đã bound quét domain lớn còn 35 ngày ở bản 9.83 — chẩn đoán lại kỹ
+-- hơn phát hiện bản 9.83 CHỈ sửa đúng 1 hàm (loadLatestDimensionsForDomain,
+-- quét TOÀN domain không lọc EntityCode), trong khi 4 hàm CÒN LẠI ở
+-- rp-server/lib/reportFactsHelpers.js (loadLatestMeasureBefore/
+-- loadLatestMeasure/loadLatestMeasureWithDate/loadSumOnDate — dùng cho CẢ
+-- "Core stock = 0" lẫn "Top bán chạy tồn kho = 0" để tra tồn kho/bán hàng
+-- theo ĐÚNG danh sách EntityCode đã biết) đều lọc
+-- "WHERE Domain = @domain AND EntityCode IN (...)" nhưng KHÔNG CÓ INDEX NÀO
+-- seek được theo cặp (Domain, EntityCode): UX_ReportFacts_Source_Domain_Entity_Date
+-- có SourceSystem làm cột ĐẦU (không xuất hiện trong WHERE của 4 hàm trên);
+-- IX_ReportFacts_Domain_Date chỉ sort theo (Domain, EventDate), EntityCode
+-- CHỈ nằm ở INCLUDE (không seek được) — SQL Server phải quét TOÀN BỘ dòng
+-- của Domain đó (lọc EventDate gần như không giảm được bao nhiêu vì
+-- "before hôm nay"/"đúng hôm nay" vẫn khớp hầu hết lịch sử) rồi mới lọc
+-- EntityCode trong bộ nhớ — với domain tồn kho 5-11 triệu dòng
+-- (tonkho_sku/tonkho_chitiet_sku, xem bc-core-ton-kho-0.md), MỖI lô tối đa
+-- 1900 EntityCode (ENTITY_CODE_CHUNK_SIZE) gọi SONG SONG (Promise.all) giữ
+-- connection CSDL rất lâu — vài báo cáo chạy cùng lúc cạn hết pool. Index
+-- MỚI cho SQL Server SEEK thẳng đúng vài trăm/nghìn EntityCode cần, INCLUDE
+-- Measures để khỏi lookup lại bảng gốc (4 hàm trên chỉ cần EntityCode/
+-- EventDate — đã là cột khoá — và Measures).
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_ReportFacts_Domain_Entity_Date' AND object_id = OBJECT_ID('dwh.ReportFacts'))
+BEGIN
+    CREATE INDEX IX_ReportFacts_Domain_Entity_Date
+        ON dwh.ReportFacts (Domain, EntityCode, EventDate DESC) INCLUDE (Measures);
+END
+GO
+
 -- Nâng cấp từ bản trước: khoá UNIQUE cũ (SourceSystem, Domain, EntityCode,
 -- KHÔNG có EventDate) khiến MỌI domain đều bị ghi đè, không job nào giữ
 -- được lịch sử dù bật KeepHistory. An toàn đổi cho job KeepHistory=0 (xem

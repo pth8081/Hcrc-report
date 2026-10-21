@@ -14,6 +14,28 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 9.87 — Thêm index CSDL sửa dứt điểm Timeout "Core stock=0"/"Top bán chạy tồn kho=0"
+
+**Thay đổi**: chỉ 1 file `dwh/schema.sql` — thêm index mới
+`IX_ReportFacts_Domain_Entity_Date`. KHÔNG đổi code backend (bất kỳ app
+nào), KHÔNG đổi dữ liệu hiện có. Xem nguyên nhân đầy đủ ở `VERSION.md` và
+`bc-core-ton-kho-0.md` mục "Hỏi & đáp".
+
+**Các bước**:
+
+1. `git pull origin main`.
+2. Chạy lại `dwh/schema.sql` trên CSDL `HCRC_DWH` (vd
+   `sqlcmd -S <server> -d HCRC_DWH -i dwh/schema.sql`, hoặc mở file trong
+   SSMS rồi Execute) — script AN TOÀN chạy lại nhiều lần, chỉ tạo thêm 1
+   index mới (`IF NOT EXISTS`), không đụng dữ liệu/cấu trúc đã có. Có thể
+   mất vài phút tuỳ dung lượng bảng `dwh.ReportFacts` (vài triệu dòng ở
+   domain tồn kho) — không cần cửa sổ bảo trì riêng (CREATE INDEX không
+   khoá đọc/ghi lâu như ALTER cấu trúc).
+3. KHÔNG cần `pm2 restart` gì — chỉ đổi CSDL, không đổi code application.
+4. Kiểm tra: chạy lại báo cáo "Core stock = 0" (Mart/Minimart) và "Top bán
+   chạy đang tồn kho = 0" — xác nhận không còn lỗi Timeout
+   (`tarn/PendingOperation.js`), tải nhanh hơn hẳn so với trước.
+
 ## 9.86 — Sửa lỗi watermark job "Doanh thu theo ngành hàng - Live": Bán lẻ/Bán buôn chỉ đúng từ ngày deploy 9.68
 
 **Thay đổi**: thêm 1 script `etl/scripts/resyncDoanhThuNganhHangLive.js`

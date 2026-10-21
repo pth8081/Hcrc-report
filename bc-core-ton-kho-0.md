@@ -359,6 +359,45 @@ trở lại (`daysAgoUTC(35)`, đủ dư so với chu kỳ đồng bộ hằng n
 đổi kết quả đúng (dòng gần nhất/thực thể vẫn luôn nằm trong 35 ngày với
 dữ liệu đồng bộ bình thường), chỉ bớt quét dữ liệu CŨ không cần tới.
 
+**Sửa bản 9.83 rồi VẪN Timeout/cạn pool (bản 9.87 — chẩn đoán lại SÂU HƠN,
+tìm ra lỗi THIẾU INDEX, không phải lỗi "quét thiếu bound" như 9.83)?**
+Người dùng chạy script `resyncDoanhThuNganhHangLive.js` (mục không liên
+quan) xong báo lại CẢ "bc-ton-kho-0" (Top bán chạy tồn kho=0) LẪN
+"bc-core-ton-kho-0-mart" (báo cáo này, khối Mart) vẫn `TimeoutError...
+tarn/PendingOperation.js` y hệt trước. Xem lại kỹ: bản 9.83 CHỈ sửa 1 hàm
+(`loadLatestDimensionsForDomain` — quét TOÀN domain không lọc EntityCode,
+dùng ở Bước 3 báo cáo này). Nhưng Bước 4 (VÀ "Top bán chạy tồn kho=0")
+còn gọi 4 hàm KHÁC trong `reportFactsHelpers.js`
+(`loadLatestMeasureBefore`/`loadLatestMeasure`/`loadLatestMeasureWithDate`/
+`loadSumOnDate`) — các hàm này lọc `WHERE Domain = @domain AND EntityCode
+IN (...)`, tưởng đã "hẹp" vì chỉ hỏi đúng vài trăm/nghìn mã hàng đang cần
+(không phải TOÀN domain) — nhưng kiểm tra `dwh/schema.sql` phát hiện
+**KHÔNG CÓ INDEX NÀO seek được theo cặp (Domain, EntityCode)**: khoá UNIQUE
+có sẵn bắt đầu bằng `SourceSystem` (không có trong WHERE của 4 hàm này);
+`IX_ReportFacts_Domain_Date` chỉ sort theo `(Domain, EventDate)`,
+`EntityCode` CHỈ nằm ở phần INCLUDE (không seek được) — SQL Server vẫn
+phải QUÉT TOÀN BỘ dòng của domain đó (lọc EventDate gần như không giảm gì
+vì "trước hôm nay"/"đúng hôm nay" khớp hầu hết lịch sử) rồi mới lọc
+EntityCode TRONG BỘ NHỚ. Với domain triệu dòng (`tonkho_sku`/
+`tonkho_chitiet_sku`), mỗi lô tối đa 1900 mã hàng (`ENTITY_CODE_CHUNK_SIZE`)
+chạy SONG SONG (`Promise.all`) — mỗi lô đều quét lại gần hết domain, giữ
+connection rất lâu — vài báo cáo/job chạy cùng lúc cạn hết pool y hệt lỗi
+9.83, dù ĐÃ bound 35 ngày ở bước khác.
+
+**Đã sửa**: thêm index MỚI `IX_ReportFacts_Domain_Entity_Date` trên
+`dwh.ReportFacts (Domain, EntityCode, EventDate DESC) INCLUDE (Measures)`
+(xem `dwh/schema.sql`) — cho SQL Server SEEK thẳng đúng vài trăm/nghìn
+EntityCode cần, không quét cả domain nữa. Áp dụng chung cho CẢ 4 hàm trên
+→ sửa luôn CẢ báo cáo "Core stock = 0" LẪN "Top bán chạy đang tồn kho = 0"
+(2 báo cáo cùng dùng chung `reportFactsHelpers.js`).
+
+**Việc cần làm trên server**: chạy lại `dwh/schema.sql` trên `HCRC_DWH`
+(script AN TOÀN chạy lại nhiều lần — mọi `CREATE`/`ALTER` đều có
+`IF NOT EXISTS`, không đụng dữ liệu, không khoá bảng lâu vì chỉ TẠO INDEX
+MỚI chứ không đổi dữ liệu hiện có). KHÔNG cần restart rp-server (chỉ đổi
+CSDL, không đổi code application) — nhưng SAU KHI tạo index xong, chạy
+lại thử báo cáo ngay để xác nhận hết Timeout.
+
 ## Ghi chú kỹ thuật (cho ai cần đọc code)
 
 - Bộ máy tính toán: `rp-server/lib/coreZeroStockRunner.js`

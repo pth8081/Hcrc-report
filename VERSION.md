@@ -29,6 +29,25 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 9.87 — Thêm index CSDL sửa dứt điểm Timeout "Core stock=0"/"Top bán chạy tồn kho=0"
+
+**Theo báo cáo người dùng** (vẫn lỗi `TimeoutError...tarn/PendingOperation.js`
+dù đã deploy bản 9.83): chẩn đoán lại sâu hơn phát hiện bản 9.83 chỉ sửa 1
+trong 5 hàm đọc `dwh.ReportFacts` theo EntityCode — 4 hàm còn lại
+(`loadLatestMeasureBefore`/`loadLatestMeasure`/`loadLatestMeasureWithDate`/
+`loadSumOnDate` ở `rp-server/lib/reportFactsHelpers.js`, dùng bởi CẢ báo
+cáo "Core stock = 0" lẫn "Top bán chạy đang tồn kho = 0") lọc
+`WHERE Domain = @domain AND EntityCode IN (...)` nhưng KHÔNG có index nào
+seek được theo cặp (Domain, EntityCode) — SQL Server phải quét gần hết
+domain triệu dòng (`tonkho_sku`/`tonkho_chitiet_sku`) mỗi lần gọi, giữ
+connection rất lâu, cạn pool khi vài báo cáo chạy cùng lúc.
+
+**Sửa**: thêm index mới `IX_ReportFacts_Domain_Entity_Date (Domain,
+EntityCode, EventDate DESC) INCLUDE (Measures)` trong `dwh/schema.sql` —
+cho seek thẳng, không quét toàn domain nữa. Việc cần làm trên server: chạy
+lại `dwh/schema.sql` trên `HCRC_DWH` (an toàn, chỉ tạo index mới, không
+đổi dữ liệu). Chi tiết ở `bc-core-ton-kho-0.md` mục "Hỏi & đáp".
+
 ## 9.86 — Sửa lỗi watermark job "Doanh thu theo ngành hàng - Live": Bán lẻ/Bán buôn chỉ đúng từ ngày deploy 9.68
 
 **Theo báo cáo người dùng** (kèm PDF báo cáo tháng 10/2026): "Doanh thu —

@@ -376,6 +376,13 @@ ngày là CỐ Ý, không phải lỗi.
 Sửa `threshold` trong `DefinitionJson` qua rp-user (Hệ thống → Biểu mẫu),
 không cần sửa code/deploy lại.
 
+**Báo cáo bị Timeout/lỗi `TimeoutError...tarn/PendingOperation.js` (cạn
+connection pool)?** Dùng CHUNG `rp-server/lib/reportFactsHelpers.js` với
+báo cáo "Core stock = 0" — xem đầy đủ nguyên nhân (thiếu index
+seek theo cặp Domain+EntityCode cho domain tồn kho triệu dòng) + cách sửa
+(index `IX_ReportFacts_Domain_Entity_Date` trong `dwh/schema.sql`, bản
+9.87) ở `bc-core-ton-kho-0.md` mục "Hỏi & đáp" — KHÔNG chép lại ở đây.
+
 ## Ghi chú kỹ thuật (cho ai cần đọc code)
 
 - Bộ máy tính toán: `rp-server/lib/topSellingZeroStockRunner.js`
