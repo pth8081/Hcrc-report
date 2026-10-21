@@ -111,10 +111,21 @@ const NGANH_HANG_LIST = [
 // 3 khối — label dòng tiêu đề ngang (__isSectionHeader) ngắn gọn, và label
 // ĐẦY ĐỦ cho dòng "Tổng cộng ..." cuối khối (khớp ĐÚNG chữ trong file mẫu
 // Excel gốc, dòng 17/30/43).
+// targetSuffix (bản 9.89, theo yêu cầu người dùng — "muốn nhập file chỉ
+// tiêu có tách doanh thu tổng, doanh thu theo LFL và doanh thu NSO, hiện
+// tại upload chỉ tiêu đang chỉ theo tổng nên số liệu tính chưa đúng") —
+// TRƯỚC ĐÂY buildSegmentRows() dùng CHUNG 1 targetMap (không hậu tố) cho
+// CẢ 3 khối, khiến "% so chỉ tiêu" của khối LFL/NSO so SAI (Thực đạt của
+// ĐÚNG khối đó / Chỉ tiêu TOÀN HỆ THỐNG, không phải chỉ tiêu riêng của khối
+// đó). Giờ mỗi khối đọc ĐÚNG bộ cột Chỉ tiêu riêng trong TargetsJson (hậu
+// tố nối vào tên field gốc — "" = Total/BRG, "_LFL", "_NSO" — xem
+// etl/server.js:NGANH_HANG_DOANH_THU_TARGET_COLUMNS) — 3 SỐ ĐỘC LẬP, KHÔNG
+// tự ràng buộc Total = LFL + NSO (người dùng xác nhận, admin tự nhập đúng
+// kế hoạch kinh doanh).
 const SECTIONS = [
-  { key: 'brg', headerLabel: 'Toàn hệ thống BRG', totalLabel: 'Tổng cộng toàn hệ thống BRG', color: '174A7C', isGrandTotal: true, filter: null },
-  { key: 'lfl', headerLabel: 'LFL', totalLabel: 'Tổng cộng nhóm siêu thị LFL', color: '2E7D32', isGrandTotal: false, filter: 'lfl' },
-  { key: 'nso', headerLabel: 'NSO', totalLabel: 'Tổng cộng nhóm siêu thị NSO', color: 'B45309', isGrandTotal: false, filter: 'nso' }
+  { key: 'brg', headerLabel: 'Toàn hệ thống BRG', totalLabel: 'Tổng cộng toàn hệ thống BRG', color: '174A7C', isGrandTotal: true, filter: null, targetSuffix: '' },
+  { key: 'lfl', headerLabel: 'LFL', totalLabel: 'Tổng cộng nhóm siêu thị LFL', color: '2E7D32', isGrandTotal: false, filter: 'lfl', targetSuffix: '_LFL' },
+  { key: 'nso', headerLabel: 'NSO', totalLabel: 'Tổng cộng nhóm siêu thị NSO', color: 'B45309', isGrandTotal: false, filter: 'nso', targetSuffix: '_NSO' }
 ];
 
 // Mỗi 1 trong 8 chỉ số (4 Doanh thu + 4 Lãi gộp) có đúng 3 cột con
@@ -325,6 +336,7 @@ function buildSegmentRows(section, currentMap, lastYearMap, targetMap, nganhHang
     chiTieuLaiGop: { banLe: 0, banBuon: 0 }, hasChiTieuLaiGopBanLe: false, hasChiTieuLaiGopBanBuon: false
   };
 
+  const suf = section.targetSuffix || '';
   for (const item of nganhHangList) {
     const current = currentMap.get(item.code);
     const lastYear = lastYearMap.get(item.code);
@@ -349,12 +361,15 @@ function buildSegmentRows(section, currentMap, lastYearMap, targetMap, nganhHang
     // Chỉ tiêu Bán lẻ/Bán buôn (bản 9.73) — ChiTieuDoanhThu/ChiTieuLaiGop
     // CŨ (1 số Total duy nhất) ĐỔI thành 2 field riêng mỗi bên, xem
     // etl/server.js + chú thích computeRowFields() ở trên.
-    const hasChiTieuBanLe = target?.ChiTieuDoanhThuBanLe != null;
-    const hasChiTieuBanBuon = target?.ChiTieuDoanhThuBanBuon != null;
-    const chiTieu = { banLe: target?.ChiTieuDoanhThuBanLe || 0, banBuon: target?.ChiTieuDoanhThuBanBuon || 0 };
-    const hasChiTieuLaiGopBanLe = target?.ChiTieuLaiGopBanLe != null;
-    const hasChiTieuLaiGopBanBuon = target?.ChiTieuLaiGopBanBuon != null;
-    const chiTieuLaiGop = { banLe: target?.ChiTieuLaiGopBanLe || 0, banBuon: target?.ChiTieuLaiGopBanBuon || 0 };
+    // Hậu tố `suf` (bản 9.89, xem chú thích SECTIONS[].targetSuffix ở trên)
+    // — ĐỌC ĐÚNG bộ cột Chỉ tiêu riêng của khối đang build (Total/LFL/NSO),
+    // KHÔNG còn dùng chung 1 bộ Total cho cả 3 khối như trước.
+    const hasChiTieuBanLe = target?.[`ChiTieuDoanhThuBanLe${suf}`] != null;
+    const hasChiTieuBanBuon = target?.[`ChiTieuDoanhThuBanBuon${suf}`] != null;
+    const chiTieu = { banLe: target?.[`ChiTieuDoanhThuBanLe${suf}`] || 0, banBuon: target?.[`ChiTieuDoanhThuBanBuon${suf}`] || 0 };
+    const hasChiTieuLaiGopBanLe = target?.[`ChiTieuLaiGopBanLe${suf}`] != null;
+    const hasChiTieuLaiGopBanBuon = target?.[`ChiTieuLaiGopBanBuon${suf}`] != null;
+    const chiTieuLaiGop = { banLe: target?.[`ChiTieuLaiGopBanLe${suf}`] || 0, banBuon: target?.[`ChiTieuLaiGopBanBuon${suf}`] || 0 };
 
     const fields = computeRowFields({
       thucDat, lastYearThucDat, hasLastYear, giaTriHongHuy, lastYearGiaTriHongHuy,

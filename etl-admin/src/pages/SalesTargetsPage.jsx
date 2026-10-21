@@ -274,7 +274,16 @@ export default function SalesTargetsPage({ menuCode, apiBase, title }) {
           <code>Thang</code>, <code>MaNganhHang</code>, và 4 cột chỉ tiêu tách riêng Bán
           lẻ/Bán buôn: <code>ChiTieuDoanhThuBanLe</code>, <code>ChiTieuDoanhThuBanBuon</code>,{' '}
           <code>ChiTieuLaiGopBanLe</code>, <code>ChiTieuLaiGopBanBuon</code> (cột "Total"
-          trên báo cáo tự cộng 2 cột Bán lẻ + Bán buôn, không cần điền riêng).
+          trên báo cáo tự cộng 2 cột Bán lẻ + Bán buôn, không cần điền riêng).{' '}
+          <strong>Bản 9.89</strong> — báo cáo có 3 khối riêng (Toàn hệ thống BRG/LFL/NSO),
+          mỗi khối cần 1 bộ chỉ tiêu RIÊNG (3 số ĐỘC LẬP, KHÔNG tự cộng Tổng = LFL + NSO) —
+          4 cột trên là chỉ tiêu khối <strong>"Toàn hệ thống BRG"</strong> (Total), thêm
+          hậu tố <code>_LFL</code>/<code>_NSO</code> cho 2 khối còn lại: {' '}
+          <code>ChiTieuDoanhThuBanLe_LFL</code>, <code>ChiTieuDoanhThuBanBuon_LFL</code>,{' '}
+          <code>ChiTieuLaiGopBanLe_LFL</code>, <code>ChiTieuLaiGopBanBuon_LFL</code> (khối
+          LFL), và tương tự đổi <code>_LFL</code> thành <code>_NSO</code> cho khối NSO — tổng
+          12 cột chỉ tiêu. Khối nào CHƯA điền đủ bộ cột riêng sẽ hiện "—" ở "% so chỉ tiêu"
+          của đúng khối đó (không còn dùng tạm số của khối khác như trước bản 9.89).
         </li>
       </ul>
       {error && <p className="form-error">{error}</p>}
@@ -386,7 +395,7 @@ export default function SalesTargetsPage({ menuCode, apiBase, title }) {
             </label>
             <textarea
               placeholder={isNganhHangOnly
-                ? 'Chỉ tiêu dạng JSON, vd {"ChiTieuDoanhThuBanLe": 100000000, "ChiTieuDoanhThuBanBuon": 50000000, "ChiTieuLaiGopBanLe": 18000000, "ChiTieuLaiGopBanBuon": 5000000}'
+                ? 'Chỉ tiêu dạng JSON — 3 khối ĐỘC LẬP (Total/LFL/NSO, bản 9.89), vd {"ChiTieuDoanhThuBanLe": 100000000, "ChiTieuDoanhThuBanBuon": 50000000, "ChiTieuLaiGopBanLe": 18000000, "ChiTieuLaiGopBanBuon": 5000000, "ChiTieuDoanhThuBanLe_LFL": 70000000, "ChiTieuDoanhThuBanBuon_LFL": 35000000, "ChiTieuLaiGopBanLe_LFL": 13000000, "ChiTieuLaiGopBanBuon_LFL": 5000000, "ChiTieuDoanhThuBanLe_NSO": 30000000, "ChiTieuDoanhThuBanBuon_NSO": 15000000, "ChiTieuLaiGopBanLe_NSO": 5000000, "ChiTieuLaiGopBanBuon_NSO": 2000000}'
                 : 'Chỉ tiêu khác dạng JSON, vd {"ChiTieuDoanhThu": 150000000} — nếu Mã thực thể ở trên là dạng ghép ngành hàng, nên thêm cả {"MaSieuThi": "BRGHP", "MaNganhHang": "THUCPHAM", "ChiTieuDoanhThu": 50000000} để báo cáo đọc thẳng, không phải tự tách chuỗi'}
               rows={4}
               value={editForm.otherTargetsJson}

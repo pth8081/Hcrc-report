@@ -146,12 +146,34 @@ app.use('/admin/sales-targets-hcrc', createSalesTargetsRouter('sales-targets-hcr
 // cộng 2 cột lại, xem lib/nganhHangBrgRunner.js), BỎ HẲN cột "MaSieuThi"
 // khỏi file mẫu/nhập/xuất (genericNoStoreCode=true, xem chú thích đầy đủ ở
 // routes/admin/salesTargets.js) — domain này LUÔN "theo toàn công ty".
+//
+// Bản 9.89 (theo yêu cầu người dùng — "muốn nhập file chỉ tiêu có tách
+// doanh thu tổng, doanh thu theo LFL và doanh thu NSO, hiện tại upload chỉ
+// tiêu đang chỉ theo tổng nên số liệu tính chưa đúng") — báo cáo có 3 khối
+// Toàn hệ thống BRG/LFL/NSO (xem lib/nganhHangBrgRunner.js:SECTIONS), nhưng
+// TRƯỚC ĐÂY chỉ có ĐÚNG 1 bộ 4 cột Chỉ tiêu (Total) áp dụng CHUNG cho CẢ 3
+// khối — "% so chỉ tiêu" của khối LFL/NSO vì vậy so SAI (lấy đúng số Thực
+// đạt của khối đó chia cho Chỉ tiêu TOÀN HỆ THỐNG, không phải chỉ tiêu
+// riêng của khối đó). Thêm 2 bộ 4 cột MỚI, hậu tố "_LFL"/"_NSO" — giữ
+// NGUYÊN 4 cột không hậu tố làm Chỉ tiêu khối "Toàn hệ thống BRG" (Total),
+// 3 bộ ĐỘC LẬP (người dùng xác nhận — KHÔNG tự cộng Tổng = LFL + NSO, admin
+// tự nhập đúng 3 số theo đúng kế hoạch kinh doanh, có thể không khớp phép
+// cộng nếu công ty có mục tiêu tổng riêng). `parseGenericShape()` không
+// cần sửa gì (đã nhận MỌI tên cột tự động) — chỉ thêm tên cột vào mảng này
+// để HIỆN đúng gợi ý trên file mẫu/giao diện. Xem
+// lib/nganhHangBrgRunner.js:SECTIONS[].targetSuffix cho cách báo cáo đọc
+// đúng bộ cột theo từng khối.
+const NGANH_HANG_DOANH_THU_TARGET_COLUMNS = [
+  { key: 'ChiTieuDoanhThuBanLe', sample: 1000000000 }, { key: 'ChiTieuDoanhThuBanBuon', sample: 500000000 },
+  { key: 'ChiTieuLaiGopBanLe', sample: 180000000 }, { key: 'ChiTieuLaiGopBanBuon', sample: 70000000 },
+  { key: 'ChiTieuDoanhThuBanLe_LFL', sample: 700000000 }, { key: 'ChiTieuDoanhThuBanBuon_LFL', sample: 350000000 },
+  { key: 'ChiTieuLaiGopBanLe_LFL', sample: 130000000 }, { key: 'ChiTieuLaiGopBanBuon_LFL', sample: 50000000 },
+  { key: 'ChiTieuDoanhThuBanLe_NSO', sample: 300000000 }, { key: 'ChiTieuDoanhThuBanBuon_NSO', sample: 150000000 },
+  { key: 'ChiTieuLaiGopBanLe_NSO', sample: 50000000 }, { key: 'ChiTieuLaiGopBanBuon_NSO', sample: 20000000 }
+];
 app.use('/admin/sales-targets-nganhhang-dt', createSalesTargetsRouter(
   'sales-targets-nganhhang-dt', 'sales-targets-nganhhang-dt', undefined, 'generic',
-  [
-    { key: 'ChiTieuDoanhThuBanLe', sample: 1000000000 }, { key: 'ChiTieuDoanhThuBanBuon', sample: 500000000 },
-    { key: 'ChiTieuLaiGopBanLe', sample: 180000000 }, { key: 'ChiTieuLaiGopBanBuon', sample: 70000000 }
-  ],
+  NGANH_HANG_DOANH_THU_TARGET_COLUMNS,
   true
 ));
 app.use('/admin/sales-targets-nganhhang-nh', createSalesTargetsRouter(
@@ -166,13 +188,12 @@ app.use('/admin/sales-targets-nganhhang-nh', createSalesTargetsRouter(
 // trỏ targetDomain tới ĐÚNG domain này. ChiTieuLaiGop thêm ở bản 9.67, cùng
 // lý do như 'sales-targets-nganhhang-dt' ở trên.
 // Bản 9.73 — CÙNG thay đổi như 'sales-targets-nganhhang-dt' ở trên (tách
-// Bán lẻ/Bán buôn, bỏ MaSieuThi), xem chú thích đầy đủ ở đó.
+// Bán lẻ/Bán buôn, bỏ MaSieuThi), xem chú thích đầy đủ ở đó. Bản 9.89 —
+// CÙNG thêm 8 cột LFL/NSO như 'sales-targets-nganhhang-dt' (dùng chung
+// NGANH_HANG_DOANH_THU_TARGET_COLUMNS, xem chú thích đầy đủ ở đó).
 app.use('/admin/sales-targets-nganhhang-dt-ldtd', createSalesTargetsRouter(
   'sales-targets-nganhhang-dt-ldtd', 'sales-targets-nganhhang-dt-ldtd', undefined, 'generic',
-  [
-    { key: 'ChiTieuDoanhThuBanLe', sample: 1000000000 }, { key: 'ChiTieuDoanhThuBanBuon', sample: 500000000 },
-    { key: 'ChiTieuLaiGopBanLe', sample: 180000000 }, { key: 'ChiTieuLaiGopBanBuon', sample: 70000000 }
-  ],
+  NGANH_HANG_DOANH_THU_TARGET_COLUMNS,
   true
 ));
 app.use('/admin/diem-stk-mapping', adminDiemStkMappingRoutes);

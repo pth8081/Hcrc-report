@@ -14,6 +14,29 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 9.89 — Chỉ tiêu riêng theo từng khối Toàn hệ thống BRG/LFL/NSO (2 báo cáo Doanh thu theo ngành hàng)
+
+**Thay đổi**: `etl/server.js` (12 cột chỉ tiêu thay vì 4),
+`rp-server/lib/nganhHangBrgRunner.js` (đọc đúng cột theo từng khối),
+`etl-admin/src/pages/SalesTargetsPage.jsx` (cập nhật hướng dẫn trên giao
+diện). KHÔNG đổi schema CSDL.
+
+**Các bước**:
+
+1. `git pull origin main`.
+2. `cd etl-admin && npm run build` rồi `pm2 restart hcrc-etl-admin`.
+3. `pm2 restart hcrc-etl` (file mẫu/xuất Excel đọc đúng 12 cột mới).
+4. `cd rp-server` (không cần build, Node thuần) rồi
+   `pm2 restart hcrc-rp-server` (báo cáo đọc đúng chỉ tiêu theo từng khối
+   lúc chạy).
+5. Kiểm tra: etl-admin → "Chỉ tiêu Doanh thu theo ngành hàng"/"(LDTD)" →
+   "Tải file mẫu" — xác nhận có đủ 12 cột chỉ tiêu (4 không hậu tố + 4
+   `_LFL` + 4 `_NSO`). Điền + nhập lại chỉ tiêu `_LFL`/`_NSO` cho các
+   ngành hàng đã có (dữ liệu "Total" cũ giữ nguyên, không mất). Mở báo
+   cáo, xác nhận "% so chỉ tiêu" của khối LFL/NSO khác số khối "Toàn hệ
+   thống BRG" — xem chi tiết ở "báo cáo doanh thu-nhập hàng theo ngành
+   hàng.md" mục 12.
+
 ## 9.88 — Sửa lỗi engine ETL: job "Lịch sử" timeout liên tục, không bao giờ kéo được dữ liệu quá khứ
 
 **Thay đổi**: chỉ 1 file `etl/jobs/runSync.js` (sửa logic chọn timeout).

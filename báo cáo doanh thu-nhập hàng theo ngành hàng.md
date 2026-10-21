@@ -253,6 +253,12 @@ Domain **Chỉ tiêu Nhập hàng theo ngành hàng** (`sales-targets-nganhhang-
 **KHÔNG đổi** — vẫn giữ cột `MaSieuThi` (để trống) + `ChiTieuGiaTriNhap`
 1 cột duy nhất như cũ, không có yêu cầu tách Bán lẻ/Bán buôn cho nhập hàng.
 
+**Bản 9.89** (theo yêu cầu người dùng — tách thêm chỉ tiêu theo khối Toàn
+hệ thống BRG/LFL/NSO, KHÔNG dùng chung 1 bộ 4 cột Total cho cả 3 khối như
+trước) — 4 cột ở trên GIỜ LÀ chỉ tiêu khối "Toàn hệ thống BRG" (Total)
+riêng, thêm 8 cột MỚI hậu tố `_LFL`/`_NSO` cho 2 khối còn lại (tổng 12
+cột) — xem mục 12 bên dưới.
+
 3 trang etl-admin (router `createSalesTargetsRouter(..., shape='generic', genericTargetColumns, genericNoStoreCode)`):
 
 - **Chỉ tiêu Doanh thu theo ngành hàng** (`/sales-targets-nganhhang-dt`,
@@ -660,3 +666,60 @@ chạy nền (không cần ngồi chờ, cron tự tiếp tục lượt sau mỗ
 hết nhiều năm lịch sử, nhưng sẽ KHÔNG còn bị "kẹt cứng" ở timeout nữa.
 Kiểm tra sau vài ngày: mở báo cáo với khoảng ngày năm trước, xác nhận đã
 có dữ liệu.
+
+## 12. Chỉ tiêu RIÊNG theo từng khối Toàn hệ thống BRG/LFL/NSO — ✅ SỬA bản 9.89
+
+**Hiện tượng người dùng báo cáo**: "Doanh thu ngành hàng HCRC và LDTD
+muốn nhập file chỉ tiêu có tách doanh thu tổng, doanh thu theo LFL và
+doanh thu NSO, hiện tại upload chỉ tiêu đang chỉ theo tổng nên số liệu
+tính chưa đúng."
+
+**Nguyên nhân**: báo cáo có 3 khối lặp lại (mục 5 — "Toàn hệ thống BRG"/
+"LFL"/"NSO", LFL/NSO là 2 TẬP CON siêu thị tách theo `etl.NsoStores`),
+nhưng TRƯỚC bản này `runNganhHangBrgReport()` chỉ đọc ĐÚNG 1 `targetMap`
+(không hậu tố) rồi dùng CHUNG cho CẢ 3 khối — "% so chỉ tiêu" của khối LFL
+và NSO vì vậy lấy đúng Thực đạt của khối đó chia cho Chỉ tiêu TOÀN HỆ
+THỐNG (sai, vì LFL/NSO chỉ là 1 phần siêu thị, không bao giờ nên so với
+chỉ tiêu của TOÀN BỘ).
+
+**Đã sửa**:
+
+1. **Nguồn dữ liệu — KHÔNG có VIEW/domain mới**, chỉ thêm CỘT vào file
+   Excel chỉ tiêu đã có (cơ chế "generic" ở `etl/lib/salesTargetsImport.js`
+   tự nhận MỌI tên cột, không cần sửa code parser). Mỗi 1 trong 4 chỉ số
+   (`ChiTieuDoanhThuBanLe`/`ChiTieuDoanhThuBanBuon`/`ChiTieuLaiGopBanLe`/
+   `ChiTieuLaiGopBanBuon`) giờ có **3 BẢN ĐỘC LẬP**:
+   - Không hậu tố — chỉ tiêu khối **"Toàn hệ thống BRG"** (Total).
+   - Hậu tố `_LFL` (vd `ChiTieuDoanhThuBanLe_LFL`) — chỉ tiêu khối **LFL**.
+   - Hậu tố `_NSO` (vd `ChiTieuDoanhThuBanLe_NSO`) — chỉ tiêu khối **NSO**.
+
+   Tổng **12 cột chỉ tiêu** (xem `etl/server.js:NGANH_HANG_DOANH_THU_TARGET_COLUMNS`,
+   dùng chung cho cả 2 trang Chỉ tiêu Doanh thu theo ngành hàng gốc/LDTD).
+   **3 số HOÀN TOÀN ĐỘC LẬP** (người dùng xác nhận khi được hỏi) — hệ
+   thống KHÔNG tự kiểm tra/ép buộc Tổng = LFL + NSO, admin tự nhập đúng 3
+   số theo kế hoạch kinh doanh thật (có thể công ty đặt mục tiêu Tổng khác
+   phép cộng đơn thuần 2 nhóm siêu thị).
+
+2. **Các bước triển khai** (ĐÚNG thứ tự):
+   1. `git pull origin main` rồi `pm2 restart hcrc-etl` (đổi
+      `etl/server.js`, cần restart để route `/template`/`/export` trả
+      đúng 12 cột mới).
+   2. `cd rp-server && pm2 restart hcrc-rp-server` (đổi
+      `lib/nganhHangBrgRunner.js` — nơi thực sự ĐỌC đúng bộ cột theo từng
+      khối lúc chạy báo cáo).
+   3. Vào etl-admin → "Chỉ tiêu Doanh thu theo ngành hàng"/"(LDTD)" → "Tải
+      file mẫu" — xác nhận file mẫu MỚI có đủ 12 cột (`Thang`,
+      `MaNganhHang`, 4 cột không hậu tố, 4 cột `_LFL`, 4 cột `_NSO`).
+   4. Điền chỉ tiêu riêng cho CẢ 3 khối (đặc biệt `_LFL`/`_NSO` — trước
+      đây CHƯA TỪNG có 2 bộ cột này, nếu bỏ trống thì khối đó hiện "—" ở
+      "% so chỉ tiêu", KHÔNG dùng tạm số của khối khác nữa) rồi nhập lại
+      file qua "Nhập chỉ tiêu" (ghi đè đúng dòng/tháng đã có — dữ liệu Chỉ
+      tiêu "Total" (không hậu tố) đã nhập từ trước vẫn giữ nguyên, không
+      mất, chỉ cần BỔ SUNG thêm 8 cột `_LFL`/`_NSO` còn thiếu).
+
+3. **Cách kiểm tra sau khi triển khai xong**: mở báo cáo (web/Excel/PDF),
+   kiểm tra cột "% so chỉ tiêu" (cả Doanh thu VÀ Lãi gộp) ở khối LFL và
+   NSO — phải khác số ở khối "Toàn hệ thống BRG" (trước đây 3 khối luôn ra
+   CÙNG 1 tỷ lệ % nếu Thực đạt mỗi khối khác nhau nhưng Chỉ tiêu lại y hệt
+   nhau — dấu hiệu rõ nhất của lỗi cũ). Khối nào CHƯA kịp nhập chỉ tiêu
+   `_LFL`/`_NSO` sẽ hiện "—" (dấu gạch ngang) thay vì 1 con số sai.

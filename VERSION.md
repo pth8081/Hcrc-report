@@ -29,6 +29,25 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 9.89 — Chỉ tiêu riêng theo từng khối Toàn hệ thống BRG/LFL/NSO (2 báo cáo Doanh thu theo ngành hàng)
+
+**Theo yêu cầu người dùng**: "doanh thu ngành hành hcrc và ldtd tôi muốn
+nhập file chỉ tiêu có tách doanh thu tổng, doanh thu theo LFL và doanh
+thu NSO, hiện tại upload chỉ tiêu đang chỉ theo tổng nên số liệu tính
+chưa đúng." Báo cáo có 3 khối lặp lại (Toàn hệ thống BRG/LFL/NSO) nhưng
+trước đây chỉ có 1 bộ 4 cột Chỉ tiêu (Total) dùng CHUNG cho cả 3 khối —
+"% so chỉ tiêu" của LFL/NSO vì vậy so SAI (Thực đạt của khối đó / Chỉ
+tiêu TOÀN HỆ THỐNG).
+
+**Sửa**: thêm 8 cột chỉ tiêu mới (hậu tố `_LFL`/`_NSO`) vào file Excel
+chỉ tiêu — tổng 12 cột (3 khối × 4 chỉ số), hoàn toàn độc lập (người dùng
+xác nhận — KHÔNG tự ràng buộc Tổng = LFL + NSO). `etl/server.js` thêm 8
+cột vào file mẫu/xuất; `rp-server/lib/nganhHangBrgRunner.js` đọc ĐÚNG bộ
+cột theo từng khối (`SECTIONS[].targetSuffix`) thay vì dùng chung. Áp
+dụng cho cả 2 trang "Chỉ tiêu Doanh thu theo ngành hàng"/"(LDTD)". Chi
+tiết + các bước triển khai ở "báo cáo doanh thu-nhập hàng theo ngành
+hàng.md" mục 12.
+
 ## 9.88 — Sửa lỗi engine ETL: job "Lịch sử" timeout liên tục, không bao giờ kéo được dữ liệu quá khứ
 
 **Theo báo cáo người dùng** (pm2 log `hcrc-etl-error`): job "Doanh thu
