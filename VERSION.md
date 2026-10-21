@@ -29,6 +29,24 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 9.93 — Sửa lỗi chuyển tab "Báo cáo" chậm hiện sai nhóm (race condition)
+
+**Theo báo cáo người dùng** (trên mobile): "chuyển giữa những báo cáo này
+rất chậm. Nó chọn mua hàng thì nó lại ra vận hành. Chọn vận hành thì nó
+lại ra doanh thu" — tức chọn 1 tab nhưng danh sách báo cáo hiện ra lại là
+của tab TRƯỚC ĐÓ, đi sau 1 bước.
+
+**Nguyên nhân**: race condition ở `rp-user/src/modules/reports/ReportsPage.jsx`
+— effect gọi `GET /reports?menuCode=...` mỗi khi đổi tab KHÔNG có gì chặn
+response TRỄ của tab đã rời đi — mạng di động chập chờn khiến 2 lượt gọi
+về KHÔNG ĐÚNG THỨ TỰ, response của tab cũ về sau đè lên danh sách của tab
+mới đang xem.
+
+**Sửa**: thêm cờ `cancelled` (đóng theo cleanup function của effect,
+chuẩn React) — response của tab đã rời đi bị bỏ qua, không còn ghi đè
+state của tab đang xem. Đã verify qua mô phỏng logic (thứ tự response
+đảo ngược vẫn ra đúng kết quả của tab đang xem).
+
 ## 9.92 — Làm rõ nhãn dropdown "Siêu thị" khi chưa khai "Ánh xạ Điểm - STK_ID"
 
 **Theo báo cáo người dùng** (nhiều mục trong dropdown "Siêu thị — khối

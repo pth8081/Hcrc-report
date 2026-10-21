@@ -14,6 +14,21 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 9.93 — Sửa lỗi chuyển tab "Báo cáo" chậm hiện sai nhóm (race condition)
+
+**Thay đổi**: chỉ 1 file `rp-user/src/modules/reports/ReportsPage.jsx`
+(thêm cờ huỷ cho effect gọi API). KHÔNG đổi backend/schema.
+
+**Các bước**:
+
+1. `git pull origin main`.
+2. `cd rp-user && npm run build` rồi `pm2 restart hcrc-rp-user` (hoặc
+   đúng tên tiến trình phục vụ rp-user/serve-static.js).
+3. Kiểm tra: trên mobile (hoặc giả lập mạng chậm — DevTools → Network →
+   Slow 3G), bấm chuyển nhanh qua lại các tab "Báo cáo kinh doanh"/"vận
+   hành"/"Mua hàng" — danh sách báo cáo hiện ra phải LUÔN đúng tab đang
+   bấm, không còn đi sau 1 bước.
+
 ## 9.92 — Làm rõ nhãn dropdown "Siêu thị" khi chưa khai "Ánh xạ Điểm - STK_ID"
 
 **Thay đổi**: `rp-server/lib/nganhHangBrgRunner.js`,

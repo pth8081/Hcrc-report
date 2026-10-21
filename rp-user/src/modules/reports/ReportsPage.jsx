@@ -63,13 +63,28 @@ export default function ReportsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [groups]);
 
+  // SỬA LỖI (bản 9.93, theo báo cáo người dùng — "chuyển tab chậm, chọn Mua
+  // hàng lại ra Vận hành, chọn Vận hành lại ra Doanh thu" — mạng di động
+  // chập chờn làm lộ rõ): race condition — chuyển tab NHANH (bấm tab B
+  // ngay sau khi vừa bấm tab A) khi lượt gọi API của tab A CHƯA VỀ kịp,
+  // 2 lượt gọi `GET /reports?menuCode=...` cùng chạy song song, không có
+  // gì đảm bảo trả về ĐÚNG THỨ TỰ — nếu lượt của tab A (đã rời khỏi) về
+  // SAU lượt của tab B (đang xem), `setReports` ghi đè danh sách báo cáo
+  // của tab B bằng danh sách của tab A đã cũ, dù `activeCode` đã đúng là B
+  // từ lâu — đúng hiện tượng "đi sau 1 bước" người dùng mô tả. `cancelled`
+  // (đóng theo ĐÚNG lượt effect đang chạy, qua cleanup function) chặn
+  // response TRỄ ghi đè state của tab đã rời đi.
   useEffect(() => {
     if (!activeCode) return;
-    api.get(`/reports?menuCode=${encodeURIComponent(activeCode)}`).then(setReports).catch(err => setError(err.message));
+    let cancelled = false;
+    api.get(`/reports?menuCode=${encodeURIComponent(activeCode)}`)
+      .then(data => { if (!cancelled) setReports(data); })
+      .catch(err => { if (!cancelled) setError(err.message); });
     setSelectedId('');
     setDefinition(null);
     setResult(null);
     setVisibleColumnKeys([]);
+    return () => { cancelled = true; };
   }, [activeCode]);
 
   // Drill-through đến (URL có ?reportId=...) — CHỌN THẲNG báo cáo đích, BỎ
