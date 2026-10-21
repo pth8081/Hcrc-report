@@ -14,6 +14,21 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 9.92 — Làm rõ nhãn dropdown "Siêu thị" khi chưa khai "Ánh xạ Điểm - STK_ID"
+
+**Thay đổi**: `rp-server/lib/nganhHangBrgRunner.js`,
+`rp-server/lib/coreZeroStockRunner.js` (thuần đổi chữ hiển thị dropdown).
+KHÔNG đổi schema CSDL, KHÔNG đổi logic lọc.
+
+**Các bước**:
+
+1. `git pull origin main`.
+2. `pm2 restart hcrc-rp-server`.
+3. Kiểm tra: mở dropdown "Siêu thị" (báo cáo ngành hàng) hoặc "Chi nhánh"
+   (Core stock=0) — mã chưa khai tên hiện dạng `<mã> (chưa khai tên)`.
+4. (Tuỳ chọn, để có tên đầy đủ) etl-admin → "Ánh xạ Điểm - STK_ID" — bổ
+   sung `TenSieuThi` cho các mã còn thiếu, không cần deploy lại gì.
+
 ## 9.91 — Sửa lỗi khối NSO luôn ra 0 dù khai đủ "Siêu thị NSO" + "Ánh xạ Điểm - STK_ID"
 
 **Thay đổi**: chỉ 1 file `rp-server/lib/nganhHangBrgRunner.js` (thêm

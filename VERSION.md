@@ -29,6 +29,23 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 9.92 — Làm rõ nhãn dropdown "Siêu thị" khi chưa khai "Ánh xạ Điểm - STK_ID"
+
+**Theo báo cáo người dùng** (nhiều mục trong dropdown "Siêu thị — khối
+..." của 2 báo cáo Doanh thu theo ngành hàng, VÀ dropdown "Chi nhánh" của
+báo cáo "Core stock = 0", hiện thẳng mã số thay vì tên siêu thị). KHÔNG
+phải lỗi — mã kho nào CHƯA khai `TenSieuThi` ở "Ánh xạ Điểm - STK_ID"
+không có tên để hiện (hành vi đã có từ bản 9.56 cho Core stock=0, nay
+mirror sang dropdown mới ở bản 9.90).
+
+**Sửa**: đổi cách hiện cho rõ nghĩa — mã chưa khai tên giờ hiện dạng
+`<mã> (chưa khai tên)` thay vì mã trần, áp dụng đồng nhất ở
+`rp-server/lib/nganhHangBrgRunner.js` VÀ `lib/coreZeroStockRunner.js`.
+KHÔNG đổi giá trị lọc, chỉ đổi chữ hiển thị. Tên đầy đủ ở mọi dropdown
+chỉ có được khi khai bổ sung "Ánh xạ Điểm - STK_ID" (việc nhập dữ liệu,
+không cần code gì thêm). Đã verify qua mock test. Chi tiết ở "báo cáo
+doanh thu-nhập hàng theo ngành hàng.md" mục 15.
+
 ## 9.91 — Sửa lỗi khối NSO luôn ra 0 dù khai đủ "Siêu thị NSO" + "Ánh xạ Điểm - STK_ID"
 
 **Theo báo cáo người dùng** (sau khi khai đủ "Siêu thị NSO" + "Ánh xạ

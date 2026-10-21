@@ -275,7 +275,13 @@ async function resolveNganhHangBranchOptions(definition, segment) {
     const stk = typeof dimensions.STK_ID === 'string' ? dimensions.STK_ID.trim() : dimensions.STK_ID;
     if (!stk) continue;
     const key = String(stk);
-    if (!stkTenChiNhanh.has(key)) stkTenChiNhanh.set(key, dimensions.TenChiNhanh || key);
+    // null (KHÔNG fallback về key ở đây) — domain `doanhthu_nganhhang` THỰC
+    // RA không có TenChiNhanh (VIEW nguồn không chọn cột này, xem mục 2 tài
+    // liệu báo cáo) nên luôn null, nhưng giữ nhánh này phòng VIEW sau này bổ
+    // sung cột — fallback về key SỚM ở đây sẽ khiến nhánh `tenChiNhanh` phía
+    // dưới LUÔN đúng (= chính mã STK) và không bao giờ rơi xuống được nhánh
+    // "chưa khai tên" rõ ràng hơn.
+    if (!stkTenChiNhanh.has(key)) stkTenChiNhanh.set(key, dimensions.TenChiNhanh || null);
   }
 
   const { diemMapping, stkLookup, isNsoStk } = await loadIsNsoStk();
@@ -286,7 +292,12 @@ async function resolveNganhHangBranchOptions(definition, segment) {
     if (segment === 'nso' && !isNso) continue;
     const info = stkLookup.get(stk);
     const diemInfo = info && diemMapping.get(info.maDiem);
-    const label = (diemInfo && diemInfo.tenSieuThi) || tenChiNhanh || stk;
+    // Chưa khai "Ánh xạ Điểm - STK_ID" cho mã này (bản 9.92, theo báo cáo
+    // người dùng — "Siêu thị — khối..." hiện toàn mã số, không ra tên") —
+    // KHÔNG bịa tên, chỉ ghi chú rõ lý do thay vì hiện trần 1 con số khó
+    // hiểu, để admin biết cần bổ sung dòng đó vào "Ánh xạ Điểm - STK_ID"
+    // (cùng nguyên tắc đã áp dụng ở coreZeroStockRunner.js bản 9.56).
+    const label = (diemInfo && diemInfo.tenSieuThi) || tenChiNhanh || `${stk} (chưa khai tên)`;
     options.push({ value: stk, label });
   }
   options.sort((a, b) => a.label.localeCompare(b.label, 'vi'));

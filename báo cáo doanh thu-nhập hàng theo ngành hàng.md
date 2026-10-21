@@ -826,3 +826,35 @@ lập vẫn khớp đúng sau khi sửa.
 khai ở "Siêu thị NSO"/"Ánh xạ Điểm - STK_ID" — những gì đã nhập trước đó
 vẫn đúng, chỉ là trước đây code so sánh sai). Mở lại báo cáo, xác nhận
 khối NSO đã ra số Thực đạt > 0.
+
+## 15. Dropdown "Siêu thị — khối ..." hiện mã số thay vì tên — bản 9.92 (làm rõ nhãn, KHÔNG phải lỗi)
+
+**Hiện tượng người dùng báo cáo**: mở 1 trong 3 dropdown "Siêu thị" mới
+(bản 9.90), nhiều mục hiện thẳng mã số (vd `20081`, `24001`) thay vì tên
+siêu thị. **Cùng hiện tượng này CŨNG gặp ở dropdown "Chi nhánh" của báo
+cáo "Core stock = 0" (Mart/Minimart)** — 2 báo cáo KHÔNG liên quan nhau
+nhưng dùng CHUNG 1 nguồn lấy tên.
+
+**Nguyên nhân — KHÔNG phải lỗi, là THIẾU DỮ LIỆU KHAI BÁO** (hành vi đã
+có từ bản 9.56 cho "Core stock = 0", nay áp dụng mirror cho dropdown mới
+ở bản 9.90): tên siêu thị hiển thị CHỈ lấy được từ cột `TenSieuThi` khai
+tay ở **"Ánh xạ Điểm - STK_ID"** — domain `doanhthu_nganhhang` (VIEW
+nguồn, xem mục 2) KHÔNG có cột tên siêu thị nào khác để dự phòng. Mã kho
+nào CHƯA được khai ở "Ánh xạ Điểm - STK_ID" thì không có tên để hiện —
+TRƯỚC bản 9.92, trường hợp này hiện THẲNG mã số (dễ hiểu nhầm là lỗi).
+
+**Đã sửa (bản 9.92)**: đổi cách hiện cho RÕ NGHĨA hơn — mã CHƯA khai tên
+giờ hiện dạng `<mã> (chưa khai tên)` (vd `20081 (chưa khai tên)`) thay vì
+`20081` trần trụi — áp dụng ĐỒNG NHẤT cho CẢ 2 nơi
+(`lib/nganhHangBrgRunner.js:resolveNganhHangBranchOptions()` VÀ
+`lib/coreZeroStockRunner.js:resolveEligibleBranchOptions()`). KHÔNG đổi
+`value` gửi lên khi lọc (vẫn đúng mã kho thật) — CHỈ đổi chữ hiển thị,
+không ảnh hưởng gì tới việc lọc báo cáo.
+
+**Cách có TÊN ĐẦY ĐỦ ở mọi dropdown**: vào etl-admin → "Ánh xạ Điểm -
+STK_ID" → bổ sung đủ dòng cho các mã kho còn thiếu (cột `TenSieuThi`) —
+đây là việc khai dữ liệu, KHÔNG cần deploy code gì thêm, tên sẽ tự hiện
+đúng ngay khi khai xong (cache 60 giây, xem `lib/diemStkMapping.js`).
+
+**Việc cần làm trên server (cho phần đổi nhãn)**: `git pull origin main`
+rồi `pm2 restart hcrc-rp-server`.

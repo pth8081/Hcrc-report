@@ -187,7 +187,11 @@ async function resolveEligibleBranchOptions(definition) {
   for (const stk of eligibleStk) {
     const maDiem = stkToDiem.get(stk);
     const diemInfo = maDiem ? diemMapping.get(maDiem) : null;
-    const label = (diemInfo && diemInfo.tenSieuThi) || stk;
+    // Chưa khai "Ánh xạ Điểm - STK_ID" cho mã này (bản 9.92, theo báo cáo
+    // người dùng — "Chi nhánh" hiện toàn mã số) — KHÔNG bịa tên, chỉ ghi
+    // chú rõ lý do thay vì hiện trần 1 con số khó hiểu (mirror đúng
+    // lib/nganhHangBrgRunner.js:resolveNganhHangBranchOptions() bản 9.92).
+    const label = (diemInfo && diemInfo.tenSieuThi) || `${stk} (chưa khai tên)`;
     options.push({ value: stk, label });
   }
   options.sort((a, b) => a.label.localeCompare(b.label, 'vi'));
