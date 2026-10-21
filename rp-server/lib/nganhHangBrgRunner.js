@@ -81,6 +81,7 @@ const { loadDiemStkMapping, buildStkIdLookup } = require('./diemStkMapping');
 const { loadNsoMaDiemSet } = require('./nsoStores');
 const { describeColumns } = require('./reportEngine');
 const { assignSttIfPresent } = require('./reportCellFormat');
+const { loadLatestDimensionsForDomain } = require('./reportFactsHelpers');
 
 const DOANHTHU_DOMAIN = 'doanhthu_nganhhang';
 
@@ -240,6 +241,58 @@ function firstOfMonth(dateStr) {
   return `${dateStr.slice(0, 7)}-01`;
 }
 
+// Dùng CHUNG cho CẢ runNganhHangBrgReport() (phân loại STK_ID thật trong dữ
+// liệu đang xem) LẪN resolveNganhHangBranchOptions() (liệt kê STK_ID cho
+// dropdown bộ lọc, bản 9.90) — tránh chép lại logic tra "chain"/NSO 2 nơi.
+async function loadIsNsoStk() {
+  const diemMapping = await loadDiemStkMapping();
+  const stkLookup = buildStkIdLookup(diemMapping);
+  const nsoSet = await loadNsoMaDiemSet();
+  return {
+    diemMapping, stkLookup, nsoSet,
+    isNsoStk: (stkId) => {
+      const info = stkLookup.get(String(stkId));
+      return !!(info && nsoSet.has(info.maDiem));
+    }
+  };
+}
+
+// Danh sách {value, label} CHO ĐÚNG 1 trong 3 bộ lọc "Siêu thị" mới (bản
+// 9.90, theo yêu cầu người dùng — "3 số độc lập... 3 filter theo Total/
+// LFL/NSO: chọn siêu thị") — segment = 'brg' (mọi STK_ID đã từng có dữ
+// liệu doanh thu ngành hàng, không lọc LFL/NSO), 'lfl' (CHỈ STK_ID không
+// thuộc NSO), 'nso' (CHỈ STK_ID thuộc NSO). Quét TOÀN BỘ domain (không
+// giới hạn khoảng ngày báo cáo đang xem — khác stkFilterBySection trong
+// runNganhHangBrgReport() CHỈ thấy STK_ID xuất hiện trong khoảng ngày đó)
+// để dropdown luôn đủ lựa chọn dù đổi khoảng ngày khác. Domain
+// `doanhthu_nganhhang` KHÔNG thuộc nhóm domain triệu dòng (xem bản 9.83/
+// 9.87) — quét không giới hạn ngày an toàn, không cần sinceDate.
+async function resolveNganhHangBranchOptions(definition, segment) {
+  const pool = await getPool('DWH');
+  const dims = await loadLatestDimensionsForDomain(pool, DOANHTHU_DOMAIN, ['STK_ID', 'TenChiNhanh']);
+  const stkTenChiNhanh = new Map();
+  for (const { dimensions } of dims.values()) {
+    const stk = typeof dimensions.STK_ID === 'string' ? dimensions.STK_ID.trim() : dimensions.STK_ID;
+    if (!stk) continue;
+    const key = String(stk);
+    if (!stkTenChiNhanh.has(key)) stkTenChiNhanh.set(key, dimensions.TenChiNhanh || key);
+  }
+
+  const { diemMapping, stkLookup, isNsoStk } = await loadIsNsoStk();
+  const options = [];
+  for (const [stk, tenChiNhanh] of stkTenChiNhanh) {
+    const isNso = isNsoStk(stk);
+    if (segment === 'lfl' && isNso) continue;
+    if (segment === 'nso' && !isNso) continue;
+    const info = stkLookup.get(stk);
+    const diemInfo = info && diemMapping.get(info.maDiem);
+    const label = (diemInfo && diemInfo.tenSieuThi) || tenChiNhanh || stk;
+    options.push({ value: stk, label });
+  }
+  options.sort((a, b) => a.label.localeCompare(b.label, 'vi'));
+  return options;
+}
+
 // Gộp mảng rows (đã qua aggregateDailyRowsByEntity) theo DEPT_ID, LỌC
 // TRƯỚC theo tập STK_ID cho đúng khối (null = không lọc, "Toàn hệ thống
 // BRG") — trả về Map<DEPT_ID, {dimensions, measures}>.
@@ -256,7 +309,17 @@ function groupByDeptId(rows, stkIdFilterSet) {
 // `current`/`lastYear`/`target` — object measures thô đọc được (hoặc sums
 // cộng dồn khi tính dòng Tổng cộng), `hasLastYear*`/`hasChiTieu*` — cờ
 // phân biệt "KHÔNG có dữ liệu" (null, hiện "—") với "có dữ liệu = 0".
-function computeRowFields({ thucDat, lastYearThucDat, hasLastYear, giaTriHongHuy, lastYearGiaTriHongHuy, laiGopGross, lastYearLaiGopGross, hasLastYearLaiGop, chiTieu, hasChiTieuBanLe, hasChiTieuBanBuon, chiTieuLaiGop, hasChiTieuLaiGopBanLe, hasChiTieuLaiGopBanBuon }) {
+// excludeHongHuy (bản 9.90, theo yêu cầu người dùng — "Bỏ Hàng hỏng hủy:
+// không đưa hàng hỏng hủy vào và lãi theo doanh thu không trừ hàng hỏng
+// hủy", bộ lọc TUỲ CHỌN trên rp-user) — khi BẬT, Giá trị hàng hỏng hủy
+// KHÔNG còn trừ vào Lãi gộp (Giá trị/Tỷ lệ, cả kỳ hiện tại LẪN cùng kỳ năm
+// trước) — Lãi gộp trở thành margin THÔ (laiGopGross), mẫu số "Tỷ lệ Lãi
+// gộp Total" dùng thẳng Thực đạt Total (không trừ gì) thay vì "Doanh thu
+// cuối". Cột "Giá trị hàng hỏng hủy" VẪN hiện đúng số THẬT (không ẩn/không
+// về 0) — CHỈ đổi cách nó ảnh hưởng tới Lãi gộp, không đổi dữ liệu hiển
+// thị của chính cột đó (minh bạch — người xem vẫn biết có bao nhiêu hàng
+// hỏng hủy, chỉ là Lãi gộp không còn trừ đi).
+function computeRowFields({ thucDat, lastYearThucDat, hasLastYear, giaTriHongHuy, lastYearGiaTriHongHuy, laiGopGross, lastYearLaiGopGross, hasLastYearLaiGop, chiTieu, hasChiTieuBanLe, hasChiTieuBanBuon, chiTieuLaiGop, hasChiTieuLaiGopBanLe, hasChiTieuLaiGopBanBuon, excludeHongHuy }) {
   // Chỉ tiêu Bán lẻ/Bán buôn (bản 9.73, theo yêu cầu người dùng — "tách chỉ
   // tiêu bán buôn, bán lẻ") — TRƯỚC ĐÂY hệ thống chỉ có 1 số Chỉ tiêu THEO
   // TOÀN BỘ (Total), 2 cột Bán lẻ/Bán buôn LUÔN "—" (null cố định). Giờ file
@@ -272,21 +335,30 @@ function computeRowFields({ thucDat, lastYearThucDat, hasLastYear, giaTriHongHuy
   const chiTieuLaiGopTotal = (hasChiTieuLaiGopBanLe ? chiTieuLaiGop.banLe : 0) + (hasChiTieuLaiGopBanBuon ? chiTieuLaiGop.banBuon : 0);
   // Hàng hỏng hủy gán HẾT cho kênh Bán lẻ (Bán buôn thường không có — theo
   // người dùng xác nhận bản 9.68) — cả kỳ hiện tại VÀ cùng kỳ năm trước.
+  // hhTotal/hhBanLe/hhBanBuon — số THẬT, LUÔN dùng để HIỂN THỊ cột "Giá trị
+  // hàng hỏng hủy" (xem cuối hàm) bất kể excludeHongHuy. calcHh* (bản 9.90)
+  // — số dùng để TRỪ vào Lãi gộp, về 0 khi excludeHongHuy bật (xem chú
+  // thích đầu hàm).
   const hhTotal = giaTriHongHuy.total;
   const hhBanLe = giaTriHongHuy.total;
   const hhBanBuon = 0;
   const hhTotalLY = lastYearGiaTriHongHuy.total;
   const hhBanLeLY = lastYearGiaTriHongHuy.total;
   const hhBanBuonLY = 0;
+  const calcHhTotal = excludeHongHuy ? 0 : hhTotal;
+  const calcHhBanLe = excludeHongHuy ? 0 : hhBanLe;
+  const calcHhBanBuon = excludeHongHuy ? 0 : hhBanBuon;
+  const calcHhBanLeLY = excludeHongHuy ? 0 : hhBanLeLY;
+  const calcHhBanBuonLY = excludeHongHuy ? 0 : hhBanBuonLY;
 
-  const doanhThuCuoiTotal = thucDat.total - hhTotal;
+  const doanhThuCuoiTotal = thucDat.total - calcHhTotal;
 
-  const giaTriLaiGopBanLe = laiGopGross.banLe - hhBanLe;
-  const giaTriLaiGopBanBuon = laiGopGross.banBuon - hhBanBuon;
+  const giaTriLaiGopBanLe = laiGopGross.banLe - calcHhBanLe;
+  const giaTriLaiGopBanBuon = laiGopGross.banBuon - calcHhBanBuon;
   const giaTriLaiGopTotal = giaTriLaiGopBanLe + giaTriLaiGopBanBuon;
 
-  const lastYearLaiGopBanLe = hasLastYearLaiGop ? (lastYearLaiGopGross.banLe - hhBanLeLY) : null;
-  const lastYearLaiGopBanBuon = hasLastYearLaiGop ? (lastYearLaiGopGross.banBuon - hhBanBuonLY) : null;
+  const lastYearLaiGopBanLe = hasLastYearLaiGop ? (lastYearLaiGopGross.banLe - calcHhBanLeLY) : null;
+  const lastYearLaiGopBanBuon = hasLastYearLaiGop ? (lastYearLaiGopGross.banBuon - calcHhBanBuonLY) : null;
   const lastYearLaiGopTotal = hasLastYearLaiGop ? (lastYearLaiGopBanLe + lastYearLaiGopBanBuon) : null;
 
   return {
@@ -324,7 +396,7 @@ function computeRowFields({ thucDat, lastYearThucDat, hasLastYear, giaTriHongHuy
   };
 }
 
-function buildSegmentRows(section, currentMap, lastYearMap, targetMap, nganhHangList) {
+function buildSegmentRows(section, currentMap, lastYearMap, targetMap, nganhHangList, excludeHongHuy) {
   const rows = [{ __isSectionHeader: true, __sectionLabel: section.headerLabel, __sectionColor: section.color }];
 
   const sums = {
@@ -374,7 +446,8 @@ function buildSegmentRows(section, currentMap, lastYearMap, targetMap, nganhHang
     const fields = computeRowFields({
       thucDat, lastYearThucDat, hasLastYear, giaTriHongHuy, lastYearGiaTriHongHuy,
       laiGopGross, lastYearLaiGopGross, hasLastYearLaiGop,
-      chiTieu, hasChiTieuBanLe, hasChiTieuBanBuon, chiTieuLaiGop, hasChiTieuLaiGopBanLe, hasChiTieuLaiGopBanBuon
+      chiTieu, hasChiTieuBanLe, hasChiTieuBanBuon, chiTieuLaiGop, hasChiTieuLaiGopBanLe, hasChiTieuLaiGopBanBuon,
+      excludeHongHuy
     });
 
     rows.push({
@@ -409,7 +482,8 @@ function buildSegmentRows(section, currentMap, lastYearMap, targetMap, nganhHang
     giaTriHongHuy: sums.giaTriHongHuy, lastYearGiaTriHongHuy: sums.lastYearGiaTriHongHuy,
     laiGopGross: sums.laiGopGross, lastYearLaiGopGross: sums.lastYearLaiGopGross, hasLastYearLaiGop: sums.hasLastYearLaiGop,
     chiTieu: sums.chiTieu, hasChiTieuBanLe: sums.hasChiTieuBanLe, hasChiTieuBanBuon: sums.hasChiTieuBanBuon,
-    chiTieuLaiGop: sums.chiTieuLaiGop, hasChiTieuLaiGopBanLe: sums.hasChiTieuLaiGopBanLe, hasChiTieuLaiGopBanBuon: sums.hasChiTieuLaiGopBanBuon
+    chiTieuLaiGop: sums.chiTieuLaiGop, hasChiTieuLaiGopBanLe: sums.hasChiTieuLaiGopBanLe, hasChiTieuLaiGopBanBuon: sums.hasChiTieuLaiGopBanBuon,
+    excludeHongHuy
   });
   delete totalFields.__netLaiGop;
   delete totalFields.__netLaiGopLY;
@@ -450,13 +524,7 @@ async function runNganhHangBrgReport(definition, filterValues = {}) {
   const targetRows = await runSalesTargetsBlockRange(dwhPool, targetDomain, fromPeriod, toPeriod);
   const targetMap = new Map(targetRows.map(t => [t.entityCode, t]));
 
-  const diemMapping = await loadDiemStkMapping();
-  const stkLookup = buildStkIdLookup(diemMapping);
-  const nsoSet = await loadNsoMaDiemSet();
-  const isNsoStk = (stkId) => {
-    const info = stkLookup.get(String(stkId));
-    return !!(info && nsoSet.has(info.maDiem));
-  };
+  const { isNsoStk } = await loadIsNsoStk();
 
   const lflStkIds = new Set();
   const nsoStkIds = new Set();
@@ -465,7 +533,39 @@ async function runNganhHangBrgReport(definition, filterValues = {}) {
     if (!stk) continue;
     if (isNsoStk(stk)) nsoStkIds.add(stk); else lflStkIds.add(stk);
   }
-  const stkFilterBySection = { brg: null, lfl: lflStkIds, nso: nsoStkIds };
+
+  // 3 bộ lọc "Siêu thị" ĐỘC LẬP theo từng khối (bản 9.90, theo yêu cầu
+  // người dùng — "3 filter theo Total/LFL/NSO: chọn siêu thị") — NGƯỜI
+  // DÙNG chọn thêm 1 TẬP CON của đúng khối đó (không chọn = giữ nguyên mặc
+  // định như trước: BRG = mọi siêu thị, LFL/NSO = đúng 2 tập đã phân loại
+  // ở trên) — khớp quy ước "rỗng = không lọc" dùng xuyên suốt hệ thống (xem
+  // lib/coreZeroStockRunner.js). Khối LFL/NSO: lựa chọn NGƯỜI DÙNG giao với
+  // đúng tập mặc định của khối đó (lỡ chọn nhầm 1 STK_ID thuộc khối kia
+  // không có tác dụng gì, luôn AN TOÀN đúng nghĩa khối). Khối BRG không có
+  // tập mặc định nào để giao (vốn "mọi siêu thị") — lựa chọn người dùng
+  // dùng THẲNG làm tập lọc.
+  const parseBranchFilter = (v) => (Array.isArray(v) ? v.filter(Boolean).map(String) : []);
+  const selectedBrg = parseBranchFilter(filterValues.branchesBrg);
+  const selectedLfl = parseBranchFilter(filterValues.branchesLfl);
+  const selectedNso = parseBranchFilter(filterValues.branchesNso);
+  const intersectSet = (baseSet, selected) => {
+    if (!selected.length) return baseSet;
+    const selectedSet = new Set(selected);
+    const out = new Set();
+    for (const v of baseSet) if (selectedSet.has(v)) out.add(v);
+    return out;
+  };
+  const stkFilterBySection = {
+    brg: selectedBrg.length ? new Set(selectedBrg) : null,
+    lfl: intersectSet(lflStkIds, selectedLfl),
+    nso: intersectSet(nsoStkIds, selectedNso)
+  };
+
+  // "Bỏ hàng hỏng hủy" (bản 9.90, theo yêu cầu người dùng) — xem chú thích
+  // đầy đủ ở computeRowFields(). filterValues.excludeHongHuy đến từ ô lọc
+  // `type:'select'` (giá trị chuỗi '1'/'' — xem seedNganhHangReports.js),
+  // chấp nhận cả boolean true cho an toàn nếu sau này đổi kiểu ô lọc.
+  const excludeHongHuy = filterValues.excludeHongHuy === '1' || filterValues.excludeHongHuy === true;
 
   // Bản 9.77 (theo yêu cầu người dùng — "up ngành hàng nào chỉ hiện ra
   // được báo cáo ngành hàng đó"): CHỈ hiện ngành hàng đã có Chỉ tiêu
@@ -481,18 +581,23 @@ async function runNganhHangBrgReport(definition, filterValues = {}) {
     const stkFilter = stkFilterBySection[section.key];
     const currentMap = groupByDeptId(currentRows, stkFilter);
     const lastYearMap = groupByDeptId(lastYearRows, stkFilter);
-    rows = rows.concat(buildSegmentRows(section, currentMap, lastYearMap, targetMap, nganhHangToShow));
+    rows = rows.concat(buildSegmentRows(section, currentMap, lastYearMap, targetMap, nganhHangToShow, excludeHongHuy));
   }
 
   const columns = describeColumns(COLUMNS);
   assignSttIfPresent(rows, columns);
 
+  const warnings = excludeHongHuy
+    ? ['Bộ lọc "Bỏ hàng hỏng hủy" đang BẬT — cột "Giá trị hàng hỏng hủy" vẫn hiện đúng số thật, nhưng Lãi gộp (Giá trị/Tỷ lệ, cả % so chỉ tiêu/% so cùng kỳ năm trước) KHÔNG trừ hàng hỏng hủy nữa (= margin thô theo doanh thu).']
+    : [];
+
   return {
     columns,
     rows,
     columnGroups: COLUMN_GROUPS,
-    columnSuperGroups: COLUMN_SUPER_GROUPS
+    columnSuperGroups: COLUMN_SUPER_GROUPS,
+    warnings
   };
 }
 
-module.exports = { runNganhHangBrgReport };
+module.exports = { runNganhHangBrgReport, resolveNganhHangBranchOptions };

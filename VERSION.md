@@ -29,6 +29,28 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 9.90 — Bộ lọc "Siêu thị" riêng theo từng khối + "Bỏ hàng hỏng hủy" (2 báo cáo Doanh thu theo ngành hàng)
+
+**Theo yêu cầu người dùng**: "3 filter theo Total: chọn siêu thị, LFL:
+Chọn siêu thị, NSO: chọn siêu thị trong NSO. Và thêm lọc Bỏ Hàng hỏng
+hủy: không đưa hàng hỏng hủy vào và lãi theo doanh thu không trừ hàng
+hỏng hủy."
+
+**Thêm 4 bộ lọc mới**: 3 ô "Siêu thị" multiSelect ĐỘC LẬP theo từng khối
+(Toàn hệ thống BRG/LFL/NSO — không chọn = giữ nguyên mặc định như trước,
+có chọn = thu hẹp đúng khối đó, không ảnh hưởng 2 khối còn lại) + 1 ô
+"Lãi gộp có trừ Giá trị hàng hỏng hủy?" (mặc định Có trừ — giữ nguyên
+công thức cũ; chọn Không trừ thì Lãi gộp = margin thô theo Doanh thu, cột
+"Giá trị hàng hỏng hủy" vẫn hiện số thật, kèm cảnh báo trên báo cáo).
+
+`rp-server/lib/nganhHangBrgRunner.js` thêm `resolveNganhHangBranchOptions()`
+(dropdown siêu thị theo khối) + áp dụng lọc theo từng khối +
+`excludeHongHuy` trong `computeRowFields()`; `routes/reports.js` wire
+`optionsSource.nganhHangBranches`; `scripts/seedNganhHangReports.js` thêm
+4 filter vào definition. Đã verify qua mock test: không chọn gì → kết quả
+y hệt trước bản 9.90 (không phá vỡ báo cáo hiện có). Chi tiết ở "báo cáo
+doanh thu-nhập hàng theo ngành hàng.md" mục 13.
+
 ## 9.89 — Chỉ tiêu riêng theo từng khối Toàn hệ thống BRG/LFL/NSO (2 báo cáo Doanh thu theo ngành hàng)
 
 **Theo yêu cầu người dùng**: "doanh thu ngành hành hcrc và ldtd tôi muốn

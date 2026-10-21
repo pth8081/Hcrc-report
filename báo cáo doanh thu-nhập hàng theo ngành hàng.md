@@ -723,3 +723,65 @@ chỉ tiêu của TOÀN BỘ).
    CÙNG 1 tỷ lệ % nếu Thực đạt mỗi khối khác nhau nhưng Chỉ tiêu lại y hệt
    nhau — dấu hiệu rõ nhất của lỗi cũ). Khối nào CHƯA kịp nhập chỉ tiêu
    `_LFL`/`_NSO` sẽ hiện "—" (dấu gạch ngang) thay vì 1 con số sai.
+
+## 13. Bộ lọc "Siêu thị" riêng theo từng khối + "Bỏ hàng hỏng hủy" — bản 9.90
+
+**Theo yêu cầu người dùng**: "3 filter theo Total: chọn siêu thị, LFL:
+Chọn siêu thị, NSO: chọn siêu thị trong NSO. Và thêm lọc Bỏ Hàng hỏng hủy:
+không đưa hàng hỏng hủy vào và lãi theo doanh thu không trừ hàng hỏng
+hủy."
+
+**4 bộ lọc mới** (áp dụng cho CẢ 2 báo cáo "Doanh thu theo ngành hàng"/
+"(LDTD)", xem `rp-server/scripts/seedNganhHangReports.js`):
+
+1. **"Siêu thị — khối Toàn hệ thống BRG"** (multiSelect) — không chọn =
+   mọi siêu thị (hành vi CŨ, không đổi); có chọn = CHỈ cộng dồn đúng (các)
+   siêu thị đã chọn vào khối này.
+2. **"Siêu thị — khối LFL"** (multiSelect, dropdown CHỈ liệt kê siêu thị
+   thuộc LFL) — không chọn = mọi siêu thị LFL (hành vi CŨ); có chọn = thu
+   hẹp xuống đúng tập đã chọn (GIAO với tập LFL thật — lỡ chọn nhầm 1 siêu
+   thị thực ra thuộc NSO sẽ KHÔNG có tác dụng gì, an toàn).
+3. **"Siêu thị — khối NSO"** (multiSelect, cùng cơ chế trên, đảo lại cho
+   NSO).
+4. **"Lãi gộp có trừ Giá trị hàng hỏng hủy?"** (select, mặc định "Có trừ"
+   — GIỮ NGUYÊN công thức cũ) — chọn "Không trừ" thì:
+   - Lãi gộp (Giá trị VÀ Tỷ lệ, cả % so chỉ tiêu/% so cùng kỳ năm trước,
+     CẢ 3 khối) = margin THÔ theo Doanh thu, KHÔNG trừ Giá trị hàng hỏng
+     hủy nữa (mẫu số "Tỷ lệ Lãi gộp Total" dùng thẳng Thực đạt Total thay
+     vì "Doanh thu cuối").
+   - Cột **"Giá trị hàng hỏng hủy" VẪN hiện đúng số THẬT** (không ẩn,
+     không về 0) — chỉ đổi cách nó ảnh hưởng Lãi gộp, không đổi số liệu
+     hiển thị của chính cột đó (minh bạch, người xem vẫn biết có bao
+     nhiêu hàng hỏng hủy).
+   - Báo cáo tự hiện 1 dòng cảnh báo (⚠️) nhắc đang bật bộ lọc này, tránh
+     hiểu nhầm số Lãi gộp cao hơn bình thường là do dữ liệu sai.
+
+**KHÔNG đổi hành vi mặc định** — không chọn bất kỳ bộ lọc nào trong 4 bộ
+lọc trên (mặc định khi mở báo cáo) cho ra **ĐÚNG Y HỆT** kết quả trước bản
+9.90 (đã verify qua mock test: không lọc → BRG/LFL/NSO ra đúng số như
+công thức cũ).
+
+**Nguồn dữ liệu — KHÔNG có VIEW/domain/cột CSDL mới**:
+- Dropdown "Siêu thị" theo từng khối đọc TRỰC TIẾP domain
+  `doanhthu_nganhhang` đã có (quét mọi STK_ID từng có dữ liệu, phân loại
+  LFL/NSO bằng ĐÚNG cơ chế "Ánh xạ Điểm - STK_ID" + "Siêu thị NSO" đã dùng
+  cho 3 khối — xem `lib/nganhHangBrgRunner.js:resolveNganhHangBranchOptions()`).
+- "Bỏ hàng hỏng hủy" THUẦN đổi công thức tính ở tầng ứng dụng
+  (`computeRowFields()`), không đụng gì tới dữ liệu đã đồng bộ.
+
+**Các bước triển khai** (ĐÚNG thứ tự):
+1. `git pull origin main` rồi `pm2 restart hcrc-rp-server` (áp dụng code
+   mới của `lib/nganhHangBrgRunner.js`/`routes/reports.js`).
+2. `cd rp-server && node scripts/seedNganhHangReports.js` — BẮT BUỘC chạy
+   lại để ghi 4 bộ lọc mới vào `DefinitionJson` của 2 báo cáo (CSDL
+   `HCRC_RP`, bảng `app.ReportCatalog`) — thiếu bước này, code đã deploy
+   nhưng giao diện/API KHÔNG hiện 4 ô lọc mới (vẫn đọc definition CŨ trong
+   CSDL).
+3. Kiểm tra: mở báo cáo "Doanh thu theo ngành hàng" — thấy đủ 4 ô lọc mới
+   dưới "Khoảng ngày báo cáo". Bấm "Lọc" KHÔNG chọn gì cả — số liệu phải
+   GIỐNG HỆT trước khi deploy (xác nhận không phá vỡ báo cáo cũ). Chọn thử
+   1-2 siêu thị ở ô "Siêu thị — khối LFL" — số Thực đạt khối LFL phải THU
+   HẸP lại đúng (các) siêu thị đã chọn, 2 khối BRG/NSO không đổi. Chọn
+   "Không trừ" ở ô "Lãi gộp có trừ..." — số Lãi gộp (Giá trị) phải TĂNG
+   lên đúng bằng Giá trị hàng hỏng hủy đang hiện, kèm 1 dòng cảnh báo phía
+   trên bảng.

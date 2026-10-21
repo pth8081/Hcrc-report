@@ -165,6 +165,21 @@ router.get('/:reportId/filter-options/:field', async (req, res, next) => {
       return res.json(options);
     }
 
+    // optionsSource.nganhHangBranches (bản 9.90, theo yêu cầu người dùng —
+    // "3 filter theo Total/LFL/NSO: chọn siêu thị") — dropdown "Siêu thị"
+    // RIÊNG cho từng khối của 2 báo cáo "Doanh thu theo ngành hàng"/
+    // "(LDTD)" (SourceType='nganhHangBrg') — giá trị 'brg'/'lfl'/'nso' khai
+    // sẵn trong DefinitionJson (seedNganhHangReports.js), KHÔNG đọc từ
+    // request — xem lib/nganhHangBrgRunner.js:resolveNganhHangBranchOptions().
+    if (filterDef.optionsSource.nganhHangBranches) {
+      const cached = reportResultCache.get(filterOptionsCacheKey);
+      if (cached) return res.json(cached);
+      const { resolveNganhHangBranchOptions } = require('../lib/nganhHangBrgRunner');
+      const options = await resolveNganhHangBranchOptions(definition, filterDef.optionsSource.nganhHangBranches);
+      reportResultCache.set(filterOptionsCacheKey, options, FILTER_OPTIONS_CACHE_TTL_MS);
+      return res.json(options);
+    }
+
     // optionsSource.storeCatalog (bản 9.13, theo yêu cầu người dùng — bộ
     // lọc "Siêu thị" cho báo cáo gộp theo NCC) — KHÁC hẳn nhánh domain/
     // JSON_VALUE bên dưới: domain `don_dat_hang` lưu Dimensions.MaDiem là

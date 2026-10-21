@@ -14,6 +14,26 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 9.90 — Bộ lọc "Siêu thị" riêng theo từng khối + "Bỏ hàng hỏng hủy" (2 báo cáo Doanh thu theo ngành hàng)
+
+**Thay đổi**: `rp-server/lib/nganhHangBrgRunner.js`,
+`rp-server/routes/reports.js`, `rp-server/scripts/seedNganhHangReports.js`.
+KHÔNG đổi schema CSDL. KHÔNG mặc định phá vỡ kết quả cũ (đã verify mock
+test).
+
+**Các bước**:
+
+1. `git pull origin main`.
+2. `pm2 restart hcrc-rp-server`.
+3. `cd rp-server && node scripts/seedNganhHangReports.js` — **BẮT BUỘC**,
+   thiếu bước này giao diện sẽ không hiện 4 ô lọc mới dù code đã deploy
+   (definition cũ còn lưu trong CSDL `HCRC_RP`).
+4. Kiểm tra: mở báo cáo "Doanh thu theo ngành hàng"/"(LDTD)" — thấy đủ 4
+   ô lọc mới. Bấm "Lọc" KHÔNG chọn gì — số liệu phải giống hệt trước khi
+   deploy. Thử chọn 1-2 siêu thị ở ô "Siêu thị — khối LFL" và thử "Không
+   trừ" ở ô hàng hỏng hủy — xem mục 13 ở "báo cáo doanh thu-nhập hàng
+   theo ngành hàng.md" để biết kết quả đúng phải ra sao.
+
 ## 9.89 — Chỉ tiêu riêng theo từng khối Toàn hệ thống BRG/LFL/NSO (2 báo cáo Doanh thu theo ngành hàng)
 
 **Thay đổi**: `etl/server.js` (12 cột chỉ tiêu thay vì 4),

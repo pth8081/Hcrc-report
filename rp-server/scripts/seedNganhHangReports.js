@@ -35,6 +35,19 @@ const EXPORT_TITLE_NHAP_HANG = 'Hệ thống siêu thị BRGMART - Báo cáo nh�
 // CHỈ cần đủ field tối thiểu để tìm đúng runner + hiện đúng tiêu đề xuất
 // file — cột/khối/công thức KHÔNG khai ở đây, runner tự khai trong code
 // (xem lib/nganhHangBrgRunner.js), không đọc từ DefinitionJson.
+//
+// 4 filter MỚI (bản 9.90, theo yêu cầu người dùng — "3 filter theo Total/
+// LFL/NSO: chọn siêu thị" + "Bỏ hàng hỏng hủy: không đưa hàng hỏng hủy vào
+// và lãi theo doanh thu không trừ hàng hỏng hủy"):
+// - branchesBrg/branchesLfl/branchesNso (multiSelect, optionsSource.
+//   nganhHangBranches='brg'/'lfl'/'nso' — mỗi ô CHỈ liệt kê đúng siêu thị
+//   thuộc khối đó, xem lib/nganhHangBrgRunner.js:resolveNganhHangBranchOptions()).
+//   Không chọn = giữ nguyên mặc định (BRG = mọi siêu thị, LFL/NSO = đúng 2
+//   tập đã phân loại tự động theo etl.NsoStores), chọn = thu hẹp lại đúng
+//   khối đó, KHÔNG ảnh hưởng 2 khối còn lại.
+// - excludeHongHuy (select tĩnh 'Có trừ'/'Không trừ') — xem
+//   lib/nganhHangBrgRunner.js:computeRowFields() để biết chính xác công
+//   thức đổi thế nào khi bật.
 function buildNganhHangBrgDefinition({ title, exportFileCode, exportTitle, domain, targetDomain }) {
   return {
     title,
@@ -43,7 +56,26 @@ function buildNganhHangBrgDefinition({ title, exportFileCode, exportTitle, domai
     domain,
     targetDomain,
     filters: [
-      { field: 'eventDate', type: 'dateRange', label: 'Khoảng ngày báo cáo' }
+      { field: 'eventDate', type: 'dateRange', label: 'Khoảng ngày báo cáo' },
+      {
+        field: 'branchesBrg', type: 'multiSelect', label: 'Siêu thị — khối Toàn hệ thống BRG (không chọn = tất cả)',
+        optionsSource: { nganhHangBranches: 'brg' }
+      },
+      {
+        field: 'branchesLfl', type: 'multiSelect', label: 'Siêu thị — khối LFL (không chọn = tất cả siêu thị LFL)',
+        optionsSource: { nganhHangBranches: 'lfl' }
+      },
+      {
+        field: 'branchesNso', type: 'multiSelect', label: 'Siêu thị — khối NSO (không chọn = tất cả siêu thị NSO)',
+        optionsSource: { nganhHangBranches: 'nso' }
+      },
+      {
+        field: 'excludeHongHuy', type: 'select', label: 'Lãi gộp có trừ Giá trị hàng hỏng hủy?',
+        options: [
+          { value: '', label: 'Có trừ (mặc định)' },
+          { value: '1', label: 'Không trừ (bỏ hàng hỏng hủy khỏi Lãi gộp)' }
+        ]
+      }
     ]
   };
 }
