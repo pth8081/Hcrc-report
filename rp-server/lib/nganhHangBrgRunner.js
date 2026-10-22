@@ -150,15 +150,20 @@ const COLUMNS = [
   { key: 'giaTriHongHuyTotal', label: 'Total', width: 1.2 },
   { key: 'giaTriHongHuyBanLe', label: 'Bán lẻ', width: 1.2 },
   { key: 'giaTriHongHuyBanBuon', label: 'Bán buôn', width: 1.2 },
+  // tyLeLaiGopSoChiTieu* (bản 9.98, theo yêu cầu người dùng — "đứng cạnh
+  // hàng hỏng hủy, đứng trước lãi gộp tỷ lệ") — ĐỔI VỊ TRÍ lên NGAY SAU
+  // "Giá trị hàng hỏng hủy", TRƯỚC "Lãi gộp — Tỷ lệ"/"Giá trị" (trước đây
+  // nằm cuối cùng, ngay trước "% so cùng kỳ năm trước") — CHỈ đổi thứ tự
+  // hiển thị, KHÔNG đổi field/công thức tính (đã có từ bản 9.73/9.74).
+  { key: 'tyLeLaiGopSoChiTieuTotal', label: 'Total', format: 'percent', width: 0.9 },
+  { key: 'tyLeLaiGopSoChiTieuBanLe', label: 'Bán lẻ', format: 'percent', width: 0.9 },
+  { key: 'tyLeLaiGopSoChiTieuBanBuon', label: 'Bán buôn', format: 'percent', width: 0.9 },
   { key: 'tyLeLaiGopTotal', label: 'Total', format: 'percent', width: 0.9 },
   { key: 'tyLeLaiGopBanLe', label: 'Bán lẻ', format: 'percent', width: 0.9 },
   { key: 'tyLeLaiGopBanBuon', label: 'Bán buôn', format: 'percent', width: 0.9 },
   { key: 'giaTriLaiGopTotal', label: 'Total', width: 1.2 },
   { key: 'giaTriLaiGopBanLe', label: 'Bán lẻ', width: 1.2 },
   { key: 'giaTriLaiGopBanBuon', label: 'Bán buôn', width: 1.2 },
-  { key: 'tyLeLaiGopSoChiTieuTotal', label: 'Total', format: 'percent', width: 0.9 },
-  { key: 'tyLeLaiGopSoChiTieuBanLe', label: 'Bán lẻ', format: 'percent', width: 0.9 },
-  { key: 'tyLeLaiGopSoChiTieuBanBuon', label: 'Bán buôn', format: 'percent', width: 0.9 },
   { key: 'laiGopCungKyTotal', label: 'Total', format: 'percent', width: 0.9 },
   { key: 'laiGopCungKyBanLe', label: 'Bán lẻ', format: 'percent', width: 0.9 },
   { key: 'laiGopCungKyBanBuon', label: 'Bán buôn', format: 'percent', width: 0.9 }
@@ -199,8 +204,10 @@ const COLUMN_SUPER_GROUPS = [
     groupLabels: ['Giá trị hàng hỏng hủy']
   },
   {
+    // bản 9.98 — "% so chỉ tiêu" chuyển LÊN ĐẦU nhóm Lãi gộp (theo yêu cầu
+    // người dùng), khớp đúng thứ tự mới trong COLUMNS/COLUMN_GROUPS.
     label: 'Lãi gộp', color: '7A3E13',
-    groupLabels: ['Lãi gộp — Tỷ lệ', 'Lãi gộp — Giá trị', 'Lãi gộp — % so chỉ tiêu', 'Lãi gộp — % so cùng kỳ năm trước']
+    groupLabels: ['Lãi gộp — % so chỉ tiêu', 'Lãi gộp — Tỷ lệ', 'Lãi gộp — Giá trị', 'Lãi gộp — % so cùng kỳ năm trước']
   }
 ];
 
@@ -210,9 +217,9 @@ const COLUMN_GROUPS = [
   { label: 'Doanh thu — % so chỉ tiêu', color: 'green', keys: ['tyLeDatTotal', 'tyLeDatBanLe', 'tyLeDatBanBuon'] },
   { label: 'Doanh thu — % so cùng kỳ năm trước', color: 'green', keys: ['cungKyTotal', 'cungKyBanLe', 'cungKyBanBuon'] },
   { label: 'Giá trị hàng hỏng hủy', color: 'red', keys: ['giaTriHongHuyTotal', 'giaTriHongHuyBanLe', 'giaTriHongHuyBanBuon'] },
+  { label: 'Lãi gộp — % so chỉ tiêu', color: 'orange', keys: ['tyLeLaiGopSoChiTieuTotal', 'tyLeLaiGopSoChiTieuBanLe', 'tyLeLaiGopSoChiTieuBanBuon'] },
   { label: 'Lãi gộp — Tỷ lệ', color: 'orange', keys: ['tyLeLaiGopTotal', 'tyLeLaiGopBanLe', 'tyLeLaiGopBanBuon'] },
   { label: 'Lãi gộp — Giá trị', color: 'orange', keys: ['giaTriLaiGopTotal', 'giaTriLaiGopBanLe', 'giaTriLaiGopBanBuon'] },
-  { label: 'Lãi gộp — % so chỉ tiêu', color: 'orange', keys: ['tyLeLaiGopSoChiTieuTotal', 'tyLeLaiGopSoChiTieuBanLe', 'tyLeLaiGopSoChiTieuBanBuon'] },
   { label: 'Lãi gộp — % so cùng kỳ năm trước', color: 'orange', keys: ['laiGopCungKyTotal', 'laiGopCungKyBanLe', 'laiGopCungKyBanBuon'] }
 ];
 

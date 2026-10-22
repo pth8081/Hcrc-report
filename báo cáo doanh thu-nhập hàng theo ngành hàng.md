@@ -913,3 +913,30 @@ cáo tự có đủ số — không cần làm gì thêm, không cần deploy l�
 
 **KHÔNG đụng tới**: job "Live" (đã đúng từ bản 9.86), job "Nhập hàng theo
 ngành hàng - Lịch sử" (measureColumns riêng, không liên quan lỗi này).
+
+## 17. "Lãi gộp — % so chỉ tiêu" đổi vị trí — bản 9.98
+
+**Theo yêu cầu người dùng**: cột "Lãi gộp — % so chỉ tiêu" (`ChiTieuLaiGopBanLe`/
+`ChiTieuLaiGopBanBuon` so với Lãi gộp thực đạt — đã có công thức từ bản
+9.73/9.74, KHÔNG phải tính năng mới) nằm Ở CUỐI nhóm "Lãi gộp" (ngay trước
+"% so cùng kỳ năm trước"), người dùng muốn nó đứng NGAY SAU "Giá trị hàng
+hỏng hủy" và TRƯỚC "Lãi gộp — Tỷ lệ" — dễ đối chiếu Lãi gộp đạt được so
+kế hoạch TRƯỚC KHI xem chi tiết Tỷ lệ/Giá trị.
+
+**Đã sửa**: đổi thứ tự trong `COLUMNS`/`COLUMN_GROUPS`/
+`COLUMN_SUPER_GROUPS` ở `rp-server/lib/nganhHangBrgRunner.js` — THUẦN đổi
+VỊ TRÍ HIỂN THỊ, KHÔNG đổi field/công thức tính nào (đã kiểm tra khớp đúng
+key giữa 3 mảng sau khi đổi). Thứ tự MỚI của nhóm "Lãi gộp": % so chỉ tiêu
+→ Tỷ lệ → Giá trị → % so cùng kỳ năm trước.
+
+**Lưu ý nếu cột vẫn hiện trống sau khi deploy**: cột này chỉ có số khi
+Chỉ tiêu Lãi gộp (`ChiTieuLaiGopBanLe`/`ChiTieuLaiGopBanBuon`, xem mục 4 —
+12 cột Chỉ tiêu bản 9.89) ĐÃ ĐƯỢC NHẬP cho đúng kỳ đang xem (qua etl-admin
+→ "Chỉ tiêu theo ngành hàng" → Nhập Excel) — nếu chưa nhập, cột hiện "—"
+(không phải lỗi, đúng hành vi "chưa có dữ liệu" của mọi cột Chỉ tiêu
+khác). Kiểm tra đã nhập đúng kỳ (`Thang` dạng `YYYY-MM`) chưa trước khi
+báo lỗi.
+
+**Việc cần làm trên server**: `git pull origin main` rồi `pm2 restart`
+đúng tiến trình `rp-server` (code nằm ở backend, KHÔNG cần build lại
+`rp-user`).

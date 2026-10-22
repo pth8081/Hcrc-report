@@ -29,6 +29,20 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 9.98 — Đổi vị trí cột "Lãi gộp — % so chỉ tiêu" theo yêu cầu người dùng
+
+**Theo yêu cầu người dùng** (gửi kèm file Chỉ tiêu Lãi gộp Total/Bán
+lẻ/Bán buôn đã nhập): cột "Lãi gộp — % so chỉ tiêu" (có công thức từ bản
+9.73/9.74, không phải tính năng mới) nằm Ở CUỐI nhóm "Lãi gộp" — muốn đổi
+sang đứng NGAY SAU "Giá trị hàng hỏng hủy", TRƯỚC "Lãi gộp — Tỷ lệ".
+
+**Đã sửa**: đổi thứ tự trong `COLUMNS`/`COLUMN_GROUPS`/
+`COLUMN_SUPER_GROUPS` ở `rp-server/lib/nganhHangBrgRunner.js` — thuần đổi
+vị trí hiển thị (đã kiểm tra khớp key giữa 3 mảng), không đổi công thức
+tính. Xem "báo cáo doanh thu-nhập hàng theo ngành hàng.md" mục 17 (gồm
+lưu ý cột vẫn hiện "—" nếu Chỉ tiêu Lãi gộp chưa được nhập cho đúng kỳ
+đang xem — không phải lỗi).
+
 ## 9.97 — Sửa lỗi thật khi chạy resync bản 9.96: DELETE 1 lệnh cho ~1,3 triệu dòng bị timeout
 
 **Theo báo cáo người dùng** (chạy thật trên server test): `node

@@ -14,6 +14,19 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 9.98 — Đổi vị trí cột "Lãi gộp — % so chỉ tiêu"
+
+**Thay đổi**: 1 file `rp-server/lib/nganhHangBrgRunner.js` (đổi thứ tự
+mảng cột, không đổi logic/công thức).
+
+**Các bước**: `git pull origin main` rồi `pm2 restart` đúng tiến trình
+`rp-server` (KHÔNG cần build lại `rp-user` — code nằm ở backend). Mở lại
+báo cáo "Doanh thu theo ngành hàng"/"(LDTD)" — cột "Lãi gộp — % so chỉ
+tiêu" phải đứng NGAY SAU "Giá trị hàng hỏng hủy", TRƯỚC "Lãi gộp — Tỷ
+lệ". Nếu cột vẫn hiện "—" cho mọi dòng, kiểm tra đã nhập Chỉ tiêu Lãi gộp
+(`ChiTieuLaiGopBanLe`/`ChiTieuLaiGopBanBuon`) cho đúng kỳ `Thang` đang
+xem chưa (etl-admin → Chỉ tiêu theo ngành hàng).
+
 ## 9.97 — Sửa lỗi thật khi chạy resync bản 9.96: DELETE 1 lệnh cho ~1,3 triệu dòng bị timeout
 
 **Thay đổi**: 1 file `etl/scripts/resyncDoanhThuNganhHangLichSu.js` (xoá
