@@ -14,6 +14,32 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 9.100 — Sửa lỗi thật: `ecosystem.config.js` khởi động sai đường dẫn
+
+**Thay đổi**: 1 file `deploy/ecosystem.config.js` (đường dẫn
+`cwd`/`script`/`STATIC_DIST_DIR` đổi sang tuyệt đối qua
+`path.join(__dirname, ...)`).
+
+**Các bước (QUAN TRỌNG — nếu đang gặp lỗi "Script not found" khi chạy
+PM2 sau khi server reboot, đây CHÍNH LÀ bản sửa cần)**:
+
+1. `git pull origin main`.
+2. Xoá sạch các tiến trình PM2 đã cố tạo lỗi trước đó (nếu có, tránh
+   trùng tên nhưng sai đường dẫn):
+   ```bash
+   sudo -u hcrc -H pm2 delete all
+   ```
+3. Chạy lại ĐÚNG TỪ THƯ MỤC GỐC REPO (dù giờ dùng `path.join(__dirname,
+   ...)` nên chạy từ đâu cũng ra đúng đường dẫn, vẫn khuyến nghị đứng ở
+   gốc repo cho nhất quán với tài liệu):
+   ```bash
+   cd /opt/Hcrc-report    # đổi đúng đường dẫn thật trên server
+   sudo -u hcrc -H env HCRC_STATIC_VIA_PM2=1 pm2 start deploy/ecosystem.config.js
+   sudo -u hcrc -H pm2 status   # phải thấy đủ 6 dòng, tất cả "online"
+   sudo -u hcrc -H pm2 save
+   sudo -u hcrc -H pm2 startup  # copy dòng lệnh PM2 in ra, chạy tiếp — để tự bật lại khi reboot máy
+   ```
+
 ## 9.99 — Thêm cột "Lãi gộp — Chỉ tiêu" (số tiền)
 
 **Thay đổi**: 1 file `rp-server/lib/nganhHangBrgRunner.js` (thêm nhóm cột

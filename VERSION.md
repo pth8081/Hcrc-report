@@ -29,6 +29,30 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 9.100 — Sửa lỗi thật: `deploy/ecosystem.config.js` khởi động sai đường dẫn tuỳ nơi gõ lệnh
+
+**Theo báo cáo người dùng** (sau khi server reboot mất hết tiến trình
+PM2, chạy lại theo hướng dẫn vẫn lỗi): `pm2 start
+/opt/hcrc-report/deploy/ecosystem.config.js` báo
+`Error: Script not found: /opt/etl/server.js` (thiếu hẳn
+`Hcrc-report/`) và `Script not found: /opt/Hcrc-report/serve-static.js`
+(thiếu `deploy/`) — dù chính file `ecosystem.config.js` VẪN được tìm
+thấy và đọc đúng.
+
+**Nguyên nhân** — `cwd`/`script` trong file cấu hình dùng chuỗi TƯƠNG ĐỐI
+(`'../etl'`, `'serve-static.js'`) — PM2 tính các đường dẫn này DỰA THEO
+nơi đang đứng lúc gõ `pm2 start` (hoặc cwd mặc định của PM2 daemon),
+KHÔNG PHẢI luôn đúng là thư mục chứa chính file cấu hình như tưởng — gõ
+lệnh từ thư mục khác gốc repo ra sai đường dẫn, dù file cấu hình đó vẫn
+nạp được bình thường (chỉ riêng `cwd`/`script` TRONG file bị tính sai).
+
+**Đã sửa**: `deploy/ecosystem.config.js` — đổi mọi `cwd`/`script`/
+`STATIC_DIST_DIR` sang `path.join(__dirname, ...)` — `__dirname` của
+Node LUÔN LÀ thư mục THẬT chứa file này (đã phân giải symlink), hoàn
+toàn độc lập với nơi gõ lệnh/user chạy — loại bỏ hẳn sự mơ hồ, chạy đúng
+dù gõ `pm2 start` từ bất kỳ thư mục nào, với đường dẫn tuyệt đối hay
+tương đối tới file cấu hình.
+
 ## 9.99 — Thêm cột "Lãi gộp — Chỉ tiêu" (số tiền) theo yêu cầu người dùng
 
 **Theo yêu cầu người dùng** (sau bản 9.98): đã xác nhận vị trí "% so chỉ

@@ -48,6 +48,20 @@
 // PHẢI đi kèm chỉnh lại *_POOL_MAX trong .env của từng service (xem chú
 // thích ở đó) — mỗi worker tự mở pool CSDL RIÊNG (không dùng chung), tổng
 // kết nối tới SQL Server = instances × tổng pool.max của 1 worker.
+// path.join(__dirname, ...) (bản 9.100, SỬA LỖI THẬT — báo cáo người
+// dùng) — TRƯỚC ĐÂY `cwd`/`script` dùng chuỗi tương đối thẳng ('../etl',
+// 'serve-static.js') — PM2 tính các đường dẫn đó DỰA THEO THƯ MỤC ĐANG
+// ĐỨNG lúc gõ `pm2 start` (hoặc cwd mặc định của PM2 daemon, KHÔNG PHẢI
+// luôn là thư mục chứa chính file ecosystem.config.js này như tưởng) —
+// gõ lệnh từ thư mục khác thư mục gốc repo ra lỗi "Script not found" ở
+// đường dẫn SAI (vd `/opt/etl/server.js` thay vì
+// `/opt/Hcrc-report/etl/server.js`), DÙ `pm2 start` vẫn tìm thấy đúng
+// chính file ecosystem.config.js này (dùng đường dẫn tuyệt đối/tương đối
+// đều load được). `__dirname` của Node LUÔN LÀ thư mục THẬT chứa file
+// này (đã phân giải symlink), KHÔNG phụ thuộc bạn gõ `pm2 start` từ đâu
+// hay dùng user nào — dùng path.join(__dirname, ...) loại bỏ hẳn sự mơ
+// hồ này.
+const path = require('path');
 const STATIC_VIA_PM2 = process.env.HCRC_STATIC_VIA_PM2 === '1';
 
 // 3 tiến trình phục vụ TĨNH cho rp-user/api-admin/etl-admin (build sẵn bằng
@@ -70,9 +84,9 @@ const STATIC_VIA_PM2 = process.env.HCRC_STATIC_VIA_PM2 === '1';
 const staticApps = STATIC_VIA_PM2 ? [
   {
     name: 'hcrc-rp-user',
-    script: 'serve-static.js',
+    script: path.join(__dirname, 'serve-static.js'),
     env: {
-      STATIC_DIST_DIR: '../rp-user/dist', PORT: 5173, NODE_ENV: 'production',
+      STATIC_DIST_DIR: path.join(__dirname, '../rp-user/dist'), PORT: 5173, NODE_ENV: 'production',
       PROXY_PREFIX: '/api', PROXY_TARGET_PORT: 4001
     },
     min_uptime: '5s',
@@ -80,9 +94,9 @@ const staticApps = STATIC_VIA_PM2 ? [
   },
   {
     name: 'hcrc-api-admin',
-    script: 'serve-static.js',
+    script: path.join(__dirname, 'serve-static.js'),
     env: {
-      STATIC_DIST_DIR: '../api-admin/dist', PORT: 5174, NODE_ENV: 'production',
+      STATIC_DIST_DIR: path.join(__dirname, '../api-admin/dist'), PORT: 5174, NODE_ENV: 'production',
       PROXY_PREFIX: '/admin', PROXY_TARGET_PORT: 4002
     },
     min_uptime: '5s',
@@ -90,9 +104,9 @@ const staticApps = STATIC_VIA_PM2 ? [
   },
   {
     name: 'hcrc-etl-admin',
-    script: 'serve-static.js',
+    script: path.join(__dirname, 'serve-static.js'),
     env: {
-      STATIC_DIST_DIR: '../etl-admin/dist', PORT: 5175, NODE_ENV: 'production',
+      STATIC_DIST_DIR: path.join(__dirname, '../etl-admin/dist'), PORT: 5175, NODE_ENV: 'production',
       PROXY_PREFIX: '/admin', PROXY_TARGET_PORT: 4003
     },
     min_uptime: '5s',
@@ -104,7 +118,7 @@ module.exports = {
   apps: [
     {
       name: 'hcrc-etl',
-      cwd: '../etl',
+      cwd: path.join(__dirname, '../etl'),
       script: 'server.js', // chạy nền theo lịch (chỉ worker #0) + phục vụ /admin/* cho etl-admin/
       exec_mode: 'cluster',
       instances: parseInt(process.env.PM2_INSTANCES_ETL || '2', 10),
@@ -114,7 +128,7 @@ module.exports = {
     },
     {
       name: 'hcrc-rp-server',
-      cwd: '../rp-server',
+      cwd: path.join(__dirname, '../rp-server'),
       script: 'server.js',
       exec_mode: 'cluster',
       instances: parseInt(process.env.PM2_INSTANCES_RP || '2', 10),
@@ -124,7 +138,7 @@ module.exports = {
     },
     {
       name: 'hcrc-api-server',
-      cwd: '../api-server',
+      cwd: path.join(__dirname, '../api-server'),
       script: 'server.js',
       exec_mode: 'cluster',
       instances: parseInt(process.env.PM2_INSTANCES_API || '2', 10),
