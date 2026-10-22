@@ -44,12 +44,21 @@ function buildDefinition() {
     title: TITLE,
     salesDomain: 'banhang_sku',
     stockDomain: 'tonkho_sku',
-    // 4 domain "Chờ nhập"/"Đã nhập" — TUỲ CHỌN, chỉ hiện cột tương ứng khi
-    // job/domain đó thật sự có dữ liệu; không tạo job nào thì cột đó luôn
-    // trống (không lỗi) — xem lib/topSellingZeroStockRunner.js.
-    pendingSupplierDomain: 'chonhap_ncc',
+    // "Chờ nhập"/"Đã nhập (NCC)" — bản 9.95, theo yêu cầu người dùng: TÁI
+    // DÙNG domain don_dat_hang đã có sẵn (6 báo cáo "Đơn đặt hàng"/...)
+    // THAY cho pendingSupplierDomain/receivedSupplierDomain (2 domain riêng
+    // "chonhap_ncc"/"danhap_ncc" CHƯA từng có job thật nào, khiến 2 cột này
+    // LUÔN TRỐNG trước bản 9.95 — đúng hiện tượng người dùng báo cáo qua
+    // PDF) — xem lib/donDatHangTonKhoHelper.js + bc-ton-kho-0.md mục "Chờ
+    // nhập/Đã nhập (NCC) — tái dùng don_dat_hang" cho đầy đủ công thức +
+    // bước triển khai (VIEW thêm cột MaHangHienThi + resync job Live).
+    useDonDatHangForNcc: true,
+    pendingWindowDays: 90,
+    // "...(Điều chuyển)" — VẪN TRỐNG, chưa có domain thật (don_dat_hang chỉ
+    // có dữ liệu NCC, KHÔNG có "điều chuyển nội bộ") — giữ nguyên tên domain
+    // CHỜ DBA xây VIEW/job riêng nếu muốn có 2 cột này, xem bc-ton-kho-0.md
+    // Bước 2b.
     pendingTransferDomain: 'chonhap_dieuchuyen',
-    receivedSupplierDomain: 'danhap_ncc',
     receivedTransferDomain: 'danhap_dieuchuyen',
     topN: 50,
     threshold: 0,
@@ -144,6 +153,10 @@ async function main() {
   console.log('      vw_TonKhoTheoSKU) trên DSMART16 + 2 job "Theo bảng" domain banhang_sku/');
   console.log('      tonkho_sku (BẬT "Giữ lịch sử theo ngày") ở etl-admin — xem');
   console.log('      bc-ton-kho-0.md, Bước 1+2.');
+  console.log('   3. (Bản 9.95) 2 cột "Chờ nhập/Đã nhập (NCC)" dùng CHUNG domain don_dat_hang —');
+  console.log('      DBA cần chạy lại VIEW vw_DonDatHangChiNhanh (thêm cột MaHangHienThi) rồi');
+  console.log('      chạy etl/scripts/resyncDonDatHangLiveForSkuCode.js --confirm, xem');
+  console.log('      bc-ton-kho-0.md mục "Chờ nhập/Đã nhập (NCC)".');
   process.exit(0);
 }
 

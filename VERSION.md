@@ -29,6 +29,45 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 9.95 — Sửa cột "Chờ nhập/Đã nhập (NCC)" trống ở "Top bán chạy đang tồn kho = 0" — tái dùng domain `don_dat_hang`
+
+**Theo báo cáo người dùng** (gửi kèm PDF xuất thật, 61 dòng): "Chờ nhập
+(NCC)"/"Chờ nhập (Điều chuyển)"/"Đã nhập hôm nay (NCC)"/"Đã nhập hôm nay
+(Điều chuyển)" trống 100% ở mọi dòng. Người dùng chỉ ra ETL đã có job
+"Đơn đặt hàng - nhập hàng (DSMART16)" (domain `don_dat_hang`) — đúng,
+nhưng 4 domain riêng báo cáo này cấu hình (`chonhap_ncc`/
+`chonhap_dieuchuyen`/`danhap_ncc`/`danhap_dieuchuyen`) CHƯA từng có job
+thật trỏ tới (xác nhận qua grep toàn repo) — 2 nguyên nhân khác nhau, 2
+cách sửa khác nhau.
+
+**Đã sửa phần NCC** (2 cột "...(NCC)") — TÁI DÙNG domain `don_dat_hang`
+sẵn có thay vì cần DBA xây VIEW mới:
+- VIEW `dbo.vw_DonDatHangChiNhanh` (Live + Lịch sử) thêm cột
+  `MaHangHienThi` (JOIN `SKU_DEF`, lấy mã hàng hiển thị khớp đúng domain
+  `banhang_sku`/`tonkho_sku`, KHÁC `MaHang`=SKU_ID thô) — thuần thêm cột,
+  6 báo cáo mua hàng cũ không ảnh hưởng.
+- `rp-server/lib/donDatHangTonKhoHelper.js` (mới) — tính "Chờ nhập (NCC)"/
+  "Đã nhập hôm nay (NCC)" bằng ĐÚNG công thức đã xác nhận ở báo cáo "So
+  sánh đặt–nhận" (`SoLuongTheoDon − SoLuongThucNhan`, clamp ≥0 theo từng
+  đơn trước khi cộng dồn), cửa sổ 90 ngày gần nhất (`pendingWindowDays`,
+  sửa được qua DefinitionJson).
+- `rp-server/lib/topSellingZeroStockRunner.js` — thêm cờ TUỲ CHỌN
+  `useDonDatHangForNcc` (mặc định tắt — KHÔNG đổi hành vi báo cáo cũ nào
+  khác đang dùng pendingSupplierDomain/receivedSupplierDomain thật), bật
+  sẵn trong `scripts/seedTopZeroStockReport.js`.
+- `etl/scripts/resyncDonDatHangLiveForSkuCode.js` (mới) — bắt job Live
+  kéo lại dữ liệu gần đây để có đủ `MaHangHienThi` (dữ liệu CŨ đã đồng bộ
+  trước khi thêm cột sẽ KHÔNG tự có, cùng lớp lỗi watermark đã gặp bản
+  9.86).
+
+**CHƯA sửa phần "Điều chuyển"** — `don_dat_hang` chỉ có dữ liệu NCC, 2 cột
+"...(Điều chuyển)" vẫn cần DBA xây VIEW/job riêng (chưa có nguồn dữ liệu
+nào xác nhận) — xem `bc-ton-kho-0.md` Bước 2b.
+
+Verify qua 2 bộ mock test (helper dịch BU_ID→STK_ID đúng/bỏ qua BU_ID
+chưa khai; runner bật cờ dùng đúng helper + KHÔNG đổi hành vi cũ khi tắt
+cờ) — xem `bc-ton-kho-0.md` mục "Bước 2c".
+
 ## 9.94 — Chẩn đoán (tài liệu, không đổi code): cột NCC/Luồng giao hàng/Ngày nhập cuối trống ở "Core stock = 0"
 
 **Theo báo cáo người dùng** (gửi kèm file PDF xuất thật, 92 dòng): "Mã

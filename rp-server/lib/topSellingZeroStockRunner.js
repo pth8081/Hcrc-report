@@ -31,13 +31,25 @@
 //      pendingTransferDomain/receivedSupplierDomain/receivedTransferDomain),
 //      KHÔNG ảnh hưởng tới việc xác định tồn=0 ở bước 3/4 — chỉ hiển thị
 //      thêm thông tin tham khảo.
+//   5b. TUỲ CHỌN RIÊNG (bản 9.95, theo yêu cầu người dùng) — cờ
+//      `useDonDatHangForNcc: true` TÁI DÙNG domain `don_dat_hang` (đã đồng
+//      bộ sẵn cho 6 báo cáo "Đơn đặt hàng"/...) để tự tính 2 cột "Chờ nhập
+//      (NCC)"/"Đã nhập hôm nay (NCC)" THAY CHO việc đọc
+//      pendingSupplierDomain/receivedSupplierDomain (2 domain đó bỏ trống
+//      khi dùng cờ này — KHÔNG cần DBA xây VIEW/job riêng mới cho 2 cột
+//      NCC) — xem lib/donDatHangTonKhoHelper.js + bc-ton-kho-0.md mục "Chờ
+//      nhập/Đã nhập (NCC) — tái dùng don_dat_hang". Cột "...(Điều chuyển)"
+//      KHÔNG áp dụng được (don_dat_hang chỉ có dữ liệu NCC) — vẫn cần
+//      pendingTransferDomain/receivedTransferDomain riêng nếu muốn 2 cột đó.
+//      `pendingWindowDays` (tuỳ chọn, mặc định 90) — số ngày tính "Chờ
+//      nhập" ngược về trước, xem lib/donDatHangTonKhoHelper.js.
 //
 // DefinitionJson bắt buộc: { salesDomain, stockDomain } — xem bc-ton-kho-0.md cho
 // mẫu VIEW + cấu hình job đầy đủ (2 job "Theo bảng", BẬT "Giữ lịch sử theo
 // ngày"). Tuỳ chọn: topN (mặc định 50), threshold (mặc định 0),
-// dataSourceId, và 4 domain "Chờ nhập"/"Đã nhập" nói trên (bỏ trống domain
+// dataSourceId, 4 domain "Chờ nhập"/"Đã nhập" nói trên (bỏ trống domain
 // nào thì cột đó không hiện trong kết quả — không bắt buộc cấu hình đủ cả
-// 4).
+// 4), và useDonDatHangForNcc/pendingWindowDays nói ở mục 5b.
 //
 // filterValues: { rankWindow: '1'|'7'|'30'|'daily' (mặc định '1'),
 //                 branches: [MaChiNhanh,...] (rỗng/bỏ trống = tất cả),
@@ -52,6 +64,7 @@ const { sql, getPool } = require('../db');
 const { getPoolForDataSource } = require('./dataSourcePool');
 const { todayUTC, loadLatestMeasureBefore, loadLatestMeasure, loadSumOnDate } = require('./reportFactsHelpers');
 const { assignSttIfPresent } = require('./reportCellFormat');
+const { loadDonDatHangPendingReceivedByEntity } = require('./donDatHangTonKhoHelper');
 
 const RANK_WINDOWS = ['1', '7', '30', 'daily'];
 
@@ -98,9 +111,9 @@ function describeColumns(definition) {
     { key: 'soLuongBanHomNay', label: 'Bán hôm nay', width: 1 },
     { key: 'tonKho', label: 'Tồn kho hiện tại', width: 1 }
   ];
-  if (definition.pendingSupplierDomain) columns.push({ key: 'choNhapNCC', label: 'Chờ nhập (NCC)', width: 1 });
+  if (definition.pendingSupplierDomain || definition.useDonDatHangForNcc) columns.push({ key: 'choNhapNCC', label: 'Chờ nhập (NCC)', width: 1 });
   if (definition.pendingTransferDomain) columns.push({ key: 'choNhapDieuChuyen', label: 'Chờ nhập (Điều chuyển)', width: 1.1 });
-  if (definition.receivedSupplierDomain) columns.push({ key: 'daNhapNCC', label: 'Đã nhập hôm nay (NCC)', width: 1.1 });
+  if (definition.receivedSupplierDomain || definition.useDonDatHangForNcc) columns.push({ key: 'daNhapNCC', label: 'Đã nhập hôm nay (NCC)', width: 1.1 });
   if (definition.receivedTransferDomain) columns.push({ key: 'daNhapDieuChuyen', label: 'Đã nhập hôm nay (Điều chuyển)', width: 1.2 });
   return columns;
 }
@@ -190,21 +203,25 @@ async function runTopZeroStockReport(definition, filterValues = {}) {
   // thực thể CÓ bán trong kỳ, không phải toàn bộ danh mục.
   const entityCodes = salesResult.recordset.map(r => r.EntityCode);
 
-  // Bước 3 — tồn kho ƯỚC TÍNH HÔM NAY = tồn "hôm qua" (dòng gần nhất TRƯỚC
-  // hôm nay trong stockDomain) − bán "hôm nay" (LUÔN đúng ngày hôm nay,
-  // KHÔNG theo rankWindow) — độc lập hàng nhập trong ngày.
-  const [yesterdayStockByEntity, todaySalesByEntity] = await Promise.all([
-    loadLatestMeasureBefore(pool, definition.stockDomain, entityCodes, 'SoLuongTon', today),
-    loadSumOnDate(pool, definition.salesDomain, entityCodes, 'SoLuongBan', today)
-  ]);
-
-  // Bước 5 (tuỳ chọn) — 4 cột thông tin thêm, chỉ query domain nào THẬT SỰ
+  // Bước 3 + Bước 5 (tuỳ chọn) — tồn kho ƯỚC TÍNH HÔM NAY = tồn "hôm qua"
+  // (dòng gần nhất TRƯỚC hôm nay trong stockDomain) − bán "hôm nay" (LUÔN
+  // đúng ngày hôm nay, KHÔNG theo rankWindow) — độc lập hàng nhập trong
+  // ngày. Cộng 4 cột thông tin thêm, chỉ query domain nào THẬT SỰ
   // được cấu hình (definition.*Domain), không ép phải khai đủ cả 4.
-  const [pendingSupplierByEntity, pendingTransferByEntity, receivedSupplierByEntity, receivedTransferByEntity] = await Promise.all([
-    definition.pendingSupplierDomain ? loadLatestMeasure(pool, definition.pendingSupplierDomain, entityCodes, 'SoLuongChoNhap') : Promise.resolve(new Map()),
+  // useDonDatHangForNcc (bản 9.95) — THAY cho pendingSupplierDomain/
+  // receivedSupplierDomain (2 domain riêng chưa từng xây), tính "Chờ
+  // nhập"/"Đã nhập" NCC từ domain don_dat_hang đã có sẵn — xem mục 5b đầu
+  // file + lib/donDatHangTonKhoHelper.js. KHÔNG gọi loadLatestMeasure/
+  // loadSumOnDate cho 2 domain NCC nữa khi cờ này bật (tránh query domain
+  // rỗng/không tồn tại vô ích).
+  const [yesterdayStockByEntity, todaySalesByEntity, pendingSupplierByEntity, pendingTransferByEntity, receivedSupplierByEntity, receivedTransferByEntity, donDatHangNcc] = await Promise.all([
+    loadLatestMeasureBefore(pool, definition.stockDomain, entityCodes, 'SoLuongTon', today),
+    loadSumOnDate(pool, definition.salesDomain, entityCodes, 'SoLuongBan', today),
+    (definition.pendingSupplierDomain && !definition.useDonDatHangForNcc) ? loadLatestMeasure(pool, definition.pendingSupplierDomain, entityCodes, 'SoLuongChoNhap') : Promise.resolve(new Map()),
     definition.pendingTransferDomain ? loadLatestMeasure(pool, definition.pendingTransferDomain, entityCodes, 'SoLuongChoNhap') : Promise.resolve(new Map()),
-    definition.receivedSupplierDomain ? loadSumOnDate(pool, definition.receivedSupplierDomain, entityCodes, 'SoLuongDaNhap', today) : Promise.resolve(new Map()),
-    definition.receivedTransferDomain ? loadSumOnDate(pool, definition.receivedTransferDomain, entityCodes, 'SoLuongDaNhap', today) : Promise.resolve(new Map())
+    (definition.receivedSupplierDomain && !definition.useDonDatHangForNcc) ? loadSumOnDate(pool, definition.receivedSupplierDomain, entityCodes, 'SoLuongDaNhap', today) : Promise.resolve(new Map()),
+    definition.receivedTransferDomain ? loadSumOnDate(pool, definition.receivedTransferDomain, entityCodes, 'SoLuongDaNhap', today) : Promise.resolve(new Map()),
+    definition.useDonDatHangForNcc ? loadDonDatHangPendingReceivedByEntity(pool, { today, pendingWindowDays: definition.pendingWindowDays }) : Promise.resolve(null)
   ]);
 
   // Bước 4 — chỉ giữ thực thể có tồn ƯỚC TÍNH <= ngưỡng. Không có dòng tồn
@@ -226,9 +243,17 @@ async function runTopZeroStockReport(definition, filterValues = {}) {
       tonKhoHomQua: yesterdayStock,
       soLuongBanHomNay: todaySales,
       tonKho: estimatedStock,
-      ...(definition.pendingSupplierDomain ? { choNhapNCC: pendingSupplierByEntity.get(row.EntityCode) ?? null } : {}),
+      ...((definition.pendingSupplierDomain || definition.useDonDatHangForNcc) ? {
+        choNhapNCC: definition.useDonDatHangForNcc
+          ? (donDatHangNcc.choNhapNccByEntity.get(row.EntityCode) ?? null)
+          : (pendingSupplierByEntity.get(row.EntityCode) ?? null)
+      } : {}),
       ...(definition.pendingTransferDomain ? { choNhapDieuChuyen: pendingTransferByEntity.get(row.EntityCode) ?? null } : {}),
-      ...(definition.receivedSupplierDomain ? { daNhapNCC: receivedSupplierByEntity.get(row.EntityCode) ?? null } : {}),
+      ...((definition.receivedSupplierDomain || definition.useDonDatHangForNcc) ? {
+        daNhapNCC: definition.useDonDatHangForNcc
+          ? (donDatHangNcc.daNhapNccByEntity.get(row.EntityCode) ?? null)
+          : (receivedSupplierByEntity.get(row.EntityCode) ?? null)
+      } : {}),
       ...(definition.receivedTransferDomain ? { daNhapDieuChuyen: receivedTransferByEntity.get(row.EntityCode) ?? null } : {})
     });
   }

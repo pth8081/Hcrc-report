@@ -59,6 +59,15 @@
 
    AN TOÀN CHẠY LẠI NHIỀU LẦN — `CREATE OR ALTER VIEW`/`PROCEDURE`, không
    lỗi nếu đã tồn tại từ lần chạy trước.
+
+   ‼️ THÊM 22/10/2026 (bản 9.95) — CỘT `MaHangHienThi` (JOIN chéo
+   `DSMART16.dbo.SKU_DEF`, cùng kỹ thuật JOIN chéo CSDL đã dùng cho
+   `SUPPLIER` ở trên) ‼️ Lý do + bối cảnh đầy đủ: xem ghi chú "THÊM
+   22/10/2026" ở file "Thiết lập VIEW Đơn đặt hàng-Nhập hàng-So sánh
+   (DSMART16 trung tâm).sql" (VIEW Live) — áp dụng Y HỆT ở đây cho VIEW
+   Lịch sử, PHẢI khớp đúng khuôn cột với VIEW Live (rp-server không phân
+   biệt dữ liệu tới từ job nào). THUẦN THÊM CỘT — không đổi `MaHang`/cột
+   nào khác, 6 báo cáo cũ không ảnh hưởng.
    ============================================================================ */
 
 USE DSMART16_EOM;
@@ -97,6 +106,7 @@ SELECT
     d.STAFF_ID                  AS NguoiDat,
     d.SKU_ID                    AS MaHang,
     NULL                        AS TenHang,
+    k.SKU_CODE                   AS MaHangHienThi,   -- THÊM bản 9.95
     d.UNIT_SYMB                 AS DVT,
     d.STATUS                    AS TrangThai,
     CASE d.STATUS
@@ -110,7 +120,8 @@ SELECT
     d.AMOUNT / NULLIF(d.QTY, 0) AS DonGia,
     d.AMOUNT                    AS ThanhTien
 FROM (' + @sql + N') d
-LEFT JOIN DSMART16.dbo.SUPPLIER s ON s.SUPP_ID = d.SUPP_ID;';
+LEFT JOIN DSMART16.dbo.SUPPLIER s ON s.SUPP_ID = d.SUPP_ID
+LEFT JOIN DSMART16.dbo.SKU_DEF k ON k.SKU_ID = d.SKU_ID;';   -- THÊM bản 9.95
 
 EXEC sp_executesql @sqlView;
 GO
@@ -149,6 +160,7 @@ BEGIN
         d.STAFF_ID                  AS NguoiDat,
         d.SKU_ID                    AS MaHang,
         NULL                        AS TenHang,
+        k.SKU_CODE                   AS MaHangHienThi,   -- THÊM bản 9.95
         d.UNIT_SYMB                 AS DVT,
         d.STATUS                    AS TrangThai,
         CASE d.STATUS
@@ -162,7 +174,8 @@ BEGIN
         d.AMOUNT / NULLIF(d.QTY, 0) AS DonGia,
         d.AMOUNT                    AS ThanhTien
     FROM (' + @sql + N') d
-    LEFT JOIN DSMART16.dbo.SUPPLIER s ON s.SUPP_ID = d.SUPP_ID;';
+    LEFT JOIN DSMART16.dbo.SUPPLIER s ON s.SUPP_ID = d.SUPP_ID
+    LEFT JOIN DSMART16.dbo.SKU_DEF k ON k.SKU_ID = d.SKU_ID;';   -- THÊM bản 9.95
 
     EXEC sp_executesql @sqlView;
 END

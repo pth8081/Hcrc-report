@@ -275,6 +275,61 @@ EntityCode = `MaThucThe`, Measures tick đúng `SoLuongChoNhap`/`SoLuongDaNhap`
 "Giữ lịch sử theo ngày" cho 2 job "Đã nhập" (cần nhiều ngày để lọc đúng
 "hôm nay"); job "Chờ nhập" bật/tắt đều được (chỉ đọc dòng mới nhất).
 
+## Bước 2c (bản 9.95) — "Chờ nhập/Đã nhập (NCC)" TÁI DÙNG domain `don_dat_hang` (KHUYẾN NGHỊ, không cần DBA xây VIEW mới)
+
+**Thay cho Bước 2b** (VIEW `vw_ChoNhapNCCTheoSKU`/`vw_DaNhapNCCTheoSKU` ở
+trên — nguồn `RV_ORDER`, **CHƯA từng xây thật**, 2 domain `chonhap_ncc`/
+`danhap_ncc` không có job nào trỏ tới, khiến 2 cột "Chờ nhập (NCC)"/"Đã
+nhập hôm nay (NCC)" LUÔN TRỐNG — đúng hiện tượng người dùng gửi ảnh PDF báo
+cáo thật, bản 9.95): hệ thống đã có job đồng bộ "Đơn đặt hàng - nhập hàng
+(DSMART16)" (domain `don_dat_hang`, dùng cho 6 báo cáo "Đơn đặt hàng"/"Đơn
+nhập hàng"/"So sánh đặt–nhận"/..., xem `bc-don-dat-hang.md`) — **TÁI DÙNG
+LUÔN domain này**, không cần DBA xây thêm VIEW `RV_ORDER` nào.
+
+**Công thức** (ĐÚNG công thức đã xác nhận, đang chạy thật ở báo cáo "So
+sánh đặt–nhận" — KHÔNG phải công thức mới, xem
+`rp-server/lib/purchaseOrderRunner.js:aggregateByOrder()`): với mỗi đơn
+(nhóm theo Siêu thị + Số đơn + Mã hàng), SoLuongTheoDon = tổng SL các dòng
+ĐẶT (133/130/330), SoLuongThucNhan = tổng SL các dòng NHẬN (333) CÙNG đơn
+đó (xử lý đúng "nhận nhiều lần"):
+- **"Chờ nhập (NCC)"** = tổng, qua MỌI đơn đặt trong **90 ngày gần nhất**
+  (đổi được qua `pendingWindowDays`), của phần DƯƠNG (SoLuongTheoDon −
+  SoLuongThucNhan) — CLAMP VỀ 0 THEO TỪNG ĐƠN TRƯỚC KHI cộng dồn (1 đơn bị
+  nhận THỪA do nhập sai KHÔNG được "bù" cho đơn khác đang thiếu).
+- **"Đã nhập hôm nay (NCC)"** = tổng SL mọi dòng `333` có ngày = đúng hôm
+  nay.
+
+Xem đầy đủ code + chú thích ở `rp-server/lib/donDatHangTonKhoHelper.js`.
+
+**GIỚI HẠN QUAN TRỌNG** — `don_dat_hang` CHỈ có dữ liệu từ NHÀ CUNG CẤP, 2
+cột "...(Điều chuyển)" (chuyển hàng nội bộ giữa chi nhánh) **VẪN CẦN** DBA
+xây VIEW/job riêng như Bước 2b nếu muốn có — KHÔNG xử lý được bằng cách
+này.
+
+**Việc cần làm (CHỈ 1 lần, đã làm sẵn ở bản 9.95 — chỉ còn phần DBA/resync
+dưới đây cần chạy trên server thật)**:
+
+| # | Việc | Ai làm |
+|---|---|---|
+| 1 | Chạy lại VIEW `dbo.vw_DonDatHangChiNhanh` (Live + Lịch sử) — đã thêm cột `MaHangHienThi` (JOIN `SKU_DEF`, lấy mã hàng HIỂN THỊ — khớp đúng domain `banhang_sku`/`tonkho_sku`, KHÁC `MaHang`=SKU_ID thô) | DBA |
+| 2 | Chạy `node scripts/resyncDonDatHangLiveForSkuCode.js --confirm` (trong `etl/`) — bắt job "Live" kéo lại dữ liệu gần đây để có đủ `MaHangHienThi` (xem lý do watermark ở đầu file script) | IT/Dev |
+| 3 | Chạy lại `node scripts/seedTopZeroStockReport.js` (trong `rp-server/`) — DefinitionJson đã bật `useDonDatHangForNcc: true` sẵn | IT/Dev |
+| 4 | Theo dõi etl-admin → Đồng bộ → Log tới khi job "Đơn đặt hàng - nhập hàng (DSMART16)" chạy xong 1 lượt | IT/Dev |
+| 5 | Mở lại báo cáo — 2 cột "Chờ nhập (NCC)"/"Đã nhập hôm nay (NCC)" phải có số cho đơn hàng trong ~90 ngày gần nhất | IT/Dev |
+
+**Bước 1 — SQL chạy lại** (an toàn, `CREATE OR ALTER`, THUẦN THÊM cột,
+không đổi `MaHang`/cột nào khác — 6 báo cáo mua hàng cũ KHÔNG ảnh hưởng):
+chạy lại nguyên văn `deploy/Thiết lập VIEW Đơn đặt hàng-Nhập hàng-So sánh
+(DSMART16 trung tâm).sql` (Live) + `deploy/Thiết lập VIEW Đơn đặt hàng
+Lịch sử (DSMART16_EOM).sql` (Lịch sử, nếu đã chạy trước đó).
+
+**Tại sao cần Bước 2 (resync) riêng** — y hệt lỗi watermark đã gặp bản
+8.1/9.68/9.86: job "Live" dùng `EventDate` làm watermark, những ngày ĐÃ
+đồng bộ TRƯỚC KHI VIEW thêm `MaHangHienThi` sẽ KHÔNG BAO GIỜ tự có cột đó
+dù job chạy lại bao nhiêu lần — PHẢI ép kéo lại. KHÔNG cần resync job
+"Lịch sử" (DSMART16_EOM) — đơn hàng quá khứ xa không còn ý nghĩa "đang chờ
+nhập" (chỉ dùng cửa sổ 90 ngày gần nhất).
+
 ## Bước 3 — Tạo báo cáo (IT/Dev)
 
 Chạy 1 lệnh — script tự tạo/cập nhật báo cáo, chạy lại nhiều lần vẫn an
@@ -376,6 +431,18 @@ ngày là CỐ Ý, không phải lỗi.
 Sửa `threshold` trong `DefinitionJson` qua rp-user (Hệ thống → Biểu mẫu),
 không cần sửa code/deploy lại.
 
+**Cột "Chờ nhập (NCC)"/"Đã nhập hôm nay (NCC)" trống trơn (bản 9.95)?**
+Kiểm tra theo đúng thứ tự: (1) đã chạy lại VIEW `vw_DonDatHangChiNhanh`
+(thêm cột `MaHangHienThi`) chưa; (2) đã chạy
+`resyncDonDatHangLiveForSkuCode.js --confirm` + đợi job "Live" chạy xong 1
+lượt chưa (dữ liệu CŨ đã đồng bộ trước đó KHÔNG tự có `MaHangHienThi`); (3)
+`DefinitionJson` có đúng `useDonDatHangForNcc: true` không (chạy lại
+`seedTopZeroStockReport.js` nếu chưa) — xem đủ ở Bước 2c.
+
+**Đổi số ngày tính "Chờ nhập" (khác 90 ngày)?**
+Sửa `pendingWindowDays` trong `DefinitionJson` qua rp-user (Hệ thống →
+Biểu mẫu), không cần sửa code/deploy lại.
+
 **Báo cáo bị Timeout/lỗi `TimeoutError...tarn/PendingOperation.js` (cạn
 connection pool)?** Dùng CHUNG `rp-server/lib/reportFactsHelpers.js` với
 báo cáo "Core stock = 0" — xem đầy đủ nguyên nhân (thiếu index
@@ -392,3 +459,6 @@ seek theo cặp Domain+EntityCode cho domain tồn kho triệu dòng) + cách s�
   `rp-server/lib/reportFactsHelpers.js`.
 - Script tạo báo cáo: `rp-server/scripts/seedTopZeroStockReport.js`.
 - Script tạo 2 job đồng bộ bắt buộc (Bước 2): `etl/scripts/seedZeroStockSkuSync.js`.
+- "Chờ nhập/Đã nhập (NCC)" tái dùng `don_dat_hang` (bản 9.95, xem Bước 2c):
+  `rp-server/lib/donDatHangTonKhoHelper.js` (aggregation SQL riêng, không
+  đụng tới `lib/purchaseOrderRunner.js`) + `etl/scripts/resyncDonDatHangLiveForSkuCode.js`.

@@ -196,7 +196,10 @@ async function main() {
   // thêm `LoaiGiaoDich` (TRANS_CODE thô) để lib/purchaseOrderRunner.js lọc/
   // gộp đúng loại; `SoLuongTheoDon`/`SoLuongThucNhan` gộp lại thành 1
   // measure `SoLuong` DUY NHẤT (ý nghĩa tuỳ theo `LoaiGiaoDich` của dòng đó).
-  const dimensionColumns = ['MaDiem', 'TenDiem', 'SoDon', 'LoaiGiaoDich', 'NgayGiao', 'MaNCC', 'TenNCC', 'NguoiDat', 'MaHang', 'TenHang', 'DVT', 'TrangThai', 'TrangThaiLabel'];
+  // MaHangHienThi (bản 9.95) — THÊM để tái dùng domain don_dat_hang cho
+  // báo cáo "Top bán chạy đang tồn kho = 0" (bc-ton-kho-0.md) — xem VIEW
+  // mẫu ở bc-don-dat-hang.md mục 2 (đã thêm JOIN SKU_DEF).
+  const dimensionColumns = ['MaDiem', 'TenDiem', 'SoDon', 'LoaiGiaoDich', 'NgayGiao', 'MaNCC', 'TenNCC', 'NguoiDat', 'MaHang', 'TenHang', 'MaHangHienThi', 'DVT', 'TrangThai', 'TrangThaiLabel'];
   const measureColumns = ['SoLuong', 'DonGia', 'ThanhTien'];
   // SỬA 06/10/2026 (theo yêu cầu người dùng, sau khi chạy thử VIEW thật):
   // cột UpdatedAt (STOPED_DT) ra NULL hết — dùng làm watermark sẽ khiến job

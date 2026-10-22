@@ -68,6 +68,18 @@
    AN TOÀN CHẠY LẠI NHIỀU LẦN — dùng `CREATE OR ALTER VIEW`, không lỗi nếu
    VIEW đã tồn tại từ lần chạy trước.
 
+   ‼️ THÊM 22/10/2026 (bản 9.95) — CỘT `MaHangHienThi` (JOIN `SKU_DEF`) ‼️
+   Thêm để tái dùng domain `don_dat_hang` cho báo cáo "Top bán chạy đang
+   tồn kho = 0" (`bc-ton-kho-0.md` mục "Chờ nhập/Đã nhập (NCC)") — domain đó
+   khoá theo `MaHangHienThi` (= `SKU_DEF.SKU_CODE`, mã hàng HIỂN THỊ), KHÁC
+   `MaHang` ở trên (= `SKU_ID` thô, khoá nội bộ DSMART16) — 2 giá trị THƯỜNG
+   KHÁC NHAU, không dùng lẫn được. Cột MỚI này THUẦN THÊM (`LEFT JOIN`),
+   KHÔNG đổi `MaHang`/bất kỳ cột nào khác — 6 báo cáo "Đơn đặt hàng"/"Đơn
+   nhập hàng"/"So sánh đặt–nhận"/... đang dùng `MaHang` KHÔNG bị ảnh hưởng.
+   Xem `bc-ton-kho-0.md` mục "Chờ nhập/Đã nhập (NCC) — tái dùng don_dat_hang"
+   để biết đủ bối cảnh + các bước triển khai còn lại (tick Dimension mới +
+   resync job Live).
+
    Nếu CSDL không đặt tên "DSMART16" (tên khác do lịch sử), sửa lại dòng
    "USE DSMART16;" ngay dưới đây cho khớp tên thật trước khi chạy.
    ============================================================================ */
@@ -90,6 +102,7 @@ SELECT
     m.STAFF_ID                  AS NguoiDat,
     m.SKU_ID                    AS MaHang,
     NULL                        AS TenHang,          -- cần JOIN bảng danh mục hàng hoá nếu muốn hiện tên (chưa có, hiện mã)
+    k.SKU_CODE                   AS MaHangHienThi,   -- THÊM bản 9.95 — mã hàng HIỂN THỊ (khớp domain banhang_sku/tonkho_sku), KHÁC MaHang (SKU_ID thô)
     m.UNIT_SYMB                 AS DVT,
     m.STATUS                    AS TrangThai,
     CASE m.STATUS
@@ -104,6 +117,7 @@ SELECT
     m.AMOUNT                    AS ThanhTien
 FROM dbo.STRANS m
 LEFT JOIN dbo.SUPPLIER s ON s.SUPP_ID = m.SUPP_ID
+LEFT JOIN dbo.SKU_DEF k ON k.SKU_ID = m.SKU_ID        -- THÊM bản 9.95 — lấy SKU_CODE (mã hàng hiển thị)
 WHERE m.TRANS_CODE IN ('133','333','130','330') AND m.STATUS NOT IN ('D','E');  -- loại hẳn đơn đã xoá/đã huỷ (theo yêu cầu người dùng); 130/330 thêm bản 9.27
 GO
 

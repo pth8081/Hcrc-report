@@ -491,6 +491,19 @@ chạy `node scripts/seedDonDatHangHistorySync.js` (trong `etl/`) → (3) theo
 dõi etl-admin → Sync Jobs → job "...Lịch sử (DSMART16_EOM)" tới khi chạy
 xong lần đầu → (4) kiểm tra lại báo cáo với khoảng ngày nhiều tháng/năm.
 
+## 6.7. Bản 9.95 — THÊM cột `MaHangHienThi` (tái dùng domain cho báo cáo `bc-ton-kho-0`)
+
+**Theo yêu cầu người dùng** — VIEW `dbo.vw_DonDatHangChiNhanh` (Live VÀ
+Lịch sử) thêm `LEFT JOIN dbo.SKU_DEF` lấy `SKU_CODE AS MaHangHienThi` —
+THUẦN THÊM CỘT, không đổi `MaHang` (vẫn = SKU_ID thô) hay bất kỳ cột nào
+khác, 6 báo cáo ở mục 5 KHÔNG bị ảnh hưởng. Mục đích: cho phép báo cáo
+"Top bán chạy đang tồn kho = 0" (`bc-ton-kho-0.md`, mục "Bước 2c") tái
+dùng domain `don_dat_hang` để tính 2 cột "Chờ nhập/Đã nhập (NCC)" — domain
+đó khoá theo `MaHangHienThi` (=`SKU_DEF.SKU_CODE`), KHÁC `MaHang` (=SKU_ID
+thô) đang dùng cho 6 báo cáo mua hàng ở đây. Xem đầy đủ công thức/bước
+triển khai (gồm resync watermark job Live) ở `bc-ton-kho-0.md`, KHÔNG chép
+lại ở đây.
+
 ## 6. Giới hạn đã biết (v1)
 
 - **ĐÃ GIẢI QUYẾT ở bản 8.92** (không còn là giới hạn): trước đây tưởng

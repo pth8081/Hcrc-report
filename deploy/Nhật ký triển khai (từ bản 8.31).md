@@ -14,6 +14,48 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 9.95 — Sửa cột "Chờ nhập/Đã nhập (NCC)" trống ở "Top bán chạy đang tồn kho = 0"
+
+**Thay đổi**: 2 file VIEW SQL deploy (`deploy/Thiết lập VIEW Đơn đặt
+hàng-Nhập hàng-So sánh (DSMART16 trung tâm).sql`, `deploy/Thiết lập VIEW
+Đơn đặt hàng Lịch sử (DSMART16_EOM).sql`), 2 script seed ETL
+(`etl/scripts/seedDonDatHangSync.js`, `seedDonDatHangHistorySync.js`),
+1 script resync mới (`etl/scripts/resyncDonDatHangLiveForSkuCode.js`), 1
+file lib mới (`rp-server/lib/donDatHangTonKhoHelper.js`),
+`rp-server/lib/topSellingZeroStockRunner.js` (cờ TUỲ CHỌN mới, mặc định
+tắt — không đổi báo cáo khác), `rp-server/scripts/seedTopZeroStockReport.js`.
+KHÔNG đụng `lib/purchaseOrderRunner.js` — 6 báo cáo "Đơn đặt hàng"/... cũ
+không ảnh hưởng.
+
+**Các bước (ĐÚNG THỨ TỰ — bỏ bước nào thì 2 cột vẫn trống)**:
+
+1. `git pull origin main`.
+2. **DBA** chạy lại NGUYÊN VĂN 2 file SQL (an toàn, `CREATE OR ALTER`,
+   thuần thêm cột):
+   - `deploy/Thiết lập VIEW Đơn đặt hàng-Nhập hàng-So sánh (DSMART16
+     trung tâm).sql` trên CSDL `DSMART16`.
+   - `deploy/Thiết lập VIEW Đơn đặt hàng Lịch sử (DSMART16_EOM).sql` trên
+     CSDL `DSMART16_EOM` (nếu đã triển khai job "Lịch sử" trước đó — bỏ
+     qua nếu chưa dùng job này).
+3. **IT/Dev**: `cd rp-server && node scripts/seedTopZeroStockReport.js`
+   (DefinitionJson báo cáo `bc-ton-kho-0` cập nhật `useDonDatHangForNcc:
+   true`).
+4. **IT/Dev**: `cd etl && node scripts/resyncDonDatHangLiveForSkuCode.js`
+   (xem trước, KHÔNG đổi gì) rồi `node
+   scripts/resyncDonDatHangLiveForSkuCode.js --confirm` (thực sự xoá +
+   reset watermark job "Đơn đặt hàng - nhập hàng (DSMART16)" — CHỈ job
+   Live, KHÔNG đụng job "Lịch sử").
+5. `pm2 restart` 2 tiến trình `etl` và `rp-server` (nạp code mới — scheduler
+   etl tự nạp lại job trong ≤60s nhưng code `tableSyncEngine.js`/runner cần
+   restart tiến trình).
+6. Theo dõi etl-admin → Đồng bộ → Log tới khi job "Đơn đặt hàng - nhập
+   hàng (DSMART16)" chạy xong 1 lượt (vài phút — job Live chỉ giữ dữ liệu
+   gần đây).
+7. Mở lại báo cáo "Top bán chạy đang tồn kho = 0" trên rp-user — 2 cột
+   "Chờ nhập (NCC)"/"Đã nhập hôm nay (NCC)" phải có số cho SKU có đơn
+   hàng trong ~90 ngày gần nhất (2 cột "...(Điều chuyển)" VẪN TRỐNG — chưa
+   có nguồn dữ liệu, xem `bc-ton-kho-0.md` Bước 2b).
+
 ## 9.94 — Chẩn đoán (tài liệu, không đổi code): cột NCC/Luồng giao hàng/Ngày nhập cuối trống ở "Core stock = 0"
 
 **Thay đổi**: thuần tài liệu (`bc-core-ton-kho-0.md`), KHÔNG đổi code,
