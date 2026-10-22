@@ -14,6 +14,26 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 9.97 — Sửa lỗi thật khi chạy resync bản 9.96: DELETE 1 lệnh cho ~1,3 triệu dòng bị timeout
+
+**Thay đổi**: 1 file `etl/scripts/resyncDoanhThuNganhHangLichSu.js` (xoá
+theo từng đợt 5.000 dòng thay vì 1 lệnh DUY NHẤT).
+
+**Các bước**:
+
+1. `git pull origin main`.
+2. Nếu bạn đang ở giữa chừng bản 9.96 (đã chạy `--confirm` và gặp lỗi
+   `Failed to cancel request in 5000ms`) — **kiểm tra trước** không còn
+   phiên SQL nào đang DELETE dở (xem SQL ở mục 9.96/hỏi lại nếu cần), rồi
+   mới chạy lại:
+   ```bash
+   cd etl
+   node scripts/resyncDoanhThuNganhHangLichSu.js            # xem trước
+   node scripts/resyncDoanhThuNganhHangLichSu.js --confirm  # chạy thật, giờ xoá theo đợt, không còn timeout
+   ```
+3. Theo dõi log — script giờ in tiến độ mỗi 100.000 dòng xoá được, dễ
+   theo dõi hơn so với trước (trước đây im lặng tới khi xong hẳn mới báo).
+
 ## 9.96 — Sửa cột "% so cùng kỳ năm trước" (Bán lẻ/Bán buôn) trống ở báo cáo Doanh thu/Lãi gộp theo ngành hàng
 
 **Thay đổi**: 1 file mới `etl/scripts/resyncDoanhThuNganhHangLichSu.js`

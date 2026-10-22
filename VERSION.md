@@ -29,6 +29,21 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 9.97 — Sửa lỗi thật khi chạy resync bản 9.96: DELETE 1 lệnh cho ~1,3 triệu dòng bị timeout
+
+**Theo báo cáo người dùng** (chạy thật trên server test): `node
+scripts/resyncDoanhThuNganhHangLichSu.js --confirm` báo lỗi `Failed to
+cancel request in 5000ms` — domain `doanhthu_nganhhang` SourceSystem
+`ds3` có tới **1.276.466 dòng** (giữ lịch sử theo ngày nhiều năm), xoá
+bằng 1 lệnh `DELETE` DUY NHẤT vượt quá request timeout mặc định (30
+giây), trình điều khiển cố huỷ request nhưng cũng thất bại.
+
+**Đã sửa**: `etl/scripts/resyncDoanhThuNganhHangLichSu.js` — xoá theo
+từng đợt 5.000 dòng (`DELETE TOP (5000) ... ` lặp lại tới khi hết), mỗi
+đợt là 1 transaction ngắn riêng, không còn vượt timeout, cũng nhả khoá
+giữa các đợt (đỡ ảnh hưởng các job ETL khác đang ghi đồng thời vào
+`dwh.ReportFacts`). In tiến độ mỗi 100.000 dòng.
+
 ## 9.96 — Sửa cột "% so cùng kỳ năm trước" (Bán lẻ/Bán buôn) trống ở báo cáo Doanh thu/Lãi gộp theo ngành hàng
 
 **Theo báo cáo người dùng** (ảnh chụp thật): "Total" của "% so cùng kỳ

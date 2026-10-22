@@ -102,11 +102,29 @@ async function main() {
     process.exit(0);
   }
 
-  await dwhPool.request()
-    .input('domain', sql.VarChar(50), DOMAIN)
-    .input('sourceSystem', sql.VarChar(50), sourceSystem)
-    .query('DELETE FROM dwh.ReportFacts WHERE Domain = @domain AND SourceSystem = @sourceSystem');
-  console.log(`✅ Đã xoá ${row.SoLuong} dòng (SourceSystem="${sourceSystem}").`);
+  // Xoá THEO TỪNG ĐỢT NHỎ (bản 9.96b, sau khi gặp lỗi thật) — domain này
+  // có "Giữ lịch sử theo ngày" (KeepHistory=1) nhiều năm, tổng số dòng có
+  // thể lên tới HÀNG TRIỆU (vd 1.276.466 dòng thực tế) — xoá 1 lệnh DUY
+  // NHẤT cho toàn bộ số đó dễ VƯỢT QUÁ request timeout (mặc định 30 giây)
+  // VÀ giữ khoá bảng quá lâu, có thể ảnh hưởng các job ETL khác đang ghi
+  // đồng thời vào dwh.ReportFacts. Xoá mỗi lượt tối đa BATCH_SIZE dòng,
+  // lặp lại tới khi hết — mỗi lượt là 1 transaction riêng, ngắn, nhả khoá
+  // giữa các lượt.
+  const BATCH_SIZE = 5000;
+  let totalDeleted = 0;
+  for (;;) {
+    const deleteResult = await dwhPool.request()
+      .input('domain', sql.VarChar(50), DOMAIN)
+      .input('sourceSystem', sql.VarChar(50), sourceSystem)
+      .query(`DELETE TOP (${BATCH_SIZE}) FROM dwh.ReportFacts WHERE Domain = @domain AND SourceSystem = @sourceSystem`);
+    const batchDeleted = deleteResult.rowsAffected[0] || 0;
+    totalDeleted += batchDeleted;
+    if (totalDeleted % (BATCH_SIZE * 20) === 0 || batchDeleted < BATCH_SIZE) {
+      console.log(`   ... đã xoá ${totalDeleted}/${row.SoLuong} dòng`);
+    }
+    if (batchDeleted < BATCH_SIZE) break; // lượt cuối, còn lại ít hơn 1 đợt -> hết
+  }
+  console.log(`✅ Đã xoá ${totalDeleted} dòng (SourceSystem="${sourceSystem}").`);
 
   await adminPool.request()
     .input('id', sql.Int, job.Id)
