@@ -14,6 +14,18 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 9.99 — Thêm cột "Lãi gộp — Chỉ tiêu" (số tiền)
+
+**Thay đổi**: 1 file `rp-server/lib/nganhHangBrgRunner.js` (thêm nhóm cột
+mới, không đổi field/công thức nào đã có).
+
+**Các bước**: `git pull origin main` rồi `pm2 restart` đúng tiến trình
+`rp-server`. Mở lại báo cáo "Doanh thu theo ngành hàng"/"(LDTD)" — nhóm
+"Lãi gộp" giờ có đủ 5 nhóm con theo đúng thứ tự: **Chỉ tiêu → % so chỉ
+tiêu → Tỷ lệ → Giá trị → % so cùng kỳ năm trước**. Nếu "Chỉ tiêu"/"% so
+chỉ tiêu" vẫn hiện "—", kiểm tra đã nhập `ChiTieuLaiGopBanLe`/
+`ChiTieuLaiGopBanBuon` cho đúng kỳ `Thang` đang xem chưa.
+
 ## 9.98 — Đổi vị trí cột "Lãi gộp — % so chỉ tiêu"
 
 **Thay đổi**: 1 file `rp-server/lib/nganhHangBrgRunner.js` (đổi thứ tự

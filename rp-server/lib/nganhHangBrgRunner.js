@@ -150,6 +150,17 @@ const COLUMNS = [
   { key: 'giaTriHongHuyTotal', label: 'Total', width: 1.2 },
   { key: 'giaTriHongHuyBanLe', label: 'Bán lẻ', width: 1.2 },
   { key: 'giaTriHongHuyBanBuon', label: 'Bán buôn', width: 1.2 },
+  // chiTieuLaiGop* (bản 9.99, theo yêu cầu người dùng — "đưa các cột lãi
+  // gộp chỉ tiêu tổng bán buôn bán lẻ") — HIỆN SỐ CHỈ TIÊU LÃI GỘP THÔ
+  // (Total/Bán lẻ/Bán buôn), KHÁC "% so chỉ tiêu" ngay sau (đó là TỶ LỆ,
+  // không phải số tiền) — mirror đúng cấu trúc "Doanh thu — Chỉ tiêu"
+  // (Chỉ tiêu số tiền đứng TRƯỚC % so chỉ tiêu). Biến chiTieuLaiGopTotal/
+  // hasChiTieuLaiGop* ĐÃ được tính sẵn trong computeRowFields() (dùng cho
+  // % so chỉ tiêu từ bản 9.73/9.74), chỉ THÊM vào object trả về, không
+  // tính lại.
+  { key: 'chiTieuLaiGopTotal', label: 'Total', width: 1.2 },
+  { key: 'chiTieuLaiGopBanLe', label: 'Bán lẻ', width: 1.2 },
+  { key: 'chiTieuLaiGopBanBuon', label: 'Bán buôn', width: 1.2 },
   // tyLeLaiGopSoChiTieu* (bản 9.98, theo yêu cầu người dùng — "đứng cạnh
   // hàng hỏng hủy, đứng trước lãi gộp tỷ lệ") — ĐỔI VỊ TRÍ lên NGAY SAU
   // "Giá trị hàng hỏng hủy", TRƯỚC "Lãi gộp — Tỷ lệ"/"Giá trị" (trước đây
@@ -204,10 +215,11 @@ const COLUMN_SUPER_GROUPS = [
     groupLabels: ['Giá trị hàng hỏng hủy']
   },
   {
-    // bản 9.98 — "% so chỉ tiêu" chuyển LÊN ĐẦU nhóm Lãi gộp (theo yêu cầu
-    // người dùng), khớp đúng thứ tự mới trong COLUMNS/COLUMN_GROUPS.
+    // bản 9.98/9.99 — "Chỉ tiêu"/"% so chỉ tiêu" chuyển LÊN ĐẦU nhóm Lãi
+    // gộp (theo yêu cầu người dùng), khớp đúng thứ tự mới trong
+    // COLUMNS/COLUMN_GROUPS.
     label: 'Lãi gộp', color: '7A3E13',
-    groupLabels: ['Lãi gộp — % so chỉ tiêu', 'Lãi gộp — Tỷ lệ', 'Lãi gộp — Giá trị', 'Lãi gộp — % so cùng kỳ năm trước']
+    groupLabels: ['Lãi gộp — Chỉ tiêu', 'Lãi gộp — % so chỉ tiêu', 'Lãi gộp — Tỷ lệ', 'Lãi gộp — Giá trị', 'Lãi gộp — % so cùng kỳ năm trước']
   }
 ];
 
@@ -217,6 +229,7 @@ const COLUMN_GROUPS = [
   { label: 'Doanh thu — % so chỉ tiêu', color: 'green', keys: ['tyLeDatTotal', 'tyLeDatBanLe', 'tyLeDatBanBuon'] },
   { label: 'Doanh thu — % so cùng kỳ năm trước', color: 'green', keys: ['cungKyTotal', 'cungKyBanLe', 'cungKyBanBuon'] },
   { label: 'Giá trị hàng hỏng hủy', color: 'red', keys: ['giaTriHongHuyTotal', 'giaTriHongHuyBanLe', 'giaTriHongHuyBanBuon'] },
+  { label: 'Lãi gộp — Chỉ tiêu', color: 'orange', keys: ['chiTieuLaiGopTotal', 'chiTieuLaiGopBanLe', 'chiTieuLaiGopBanBuon'] },
   { label: 'Lãi gộp — % so chỉ tiêu', color: 'orange', keys: ['tyLeLaiGopSoChiTieuTotal', 'tyLeLaiGopSoChiTieuBanLe', 'tyLeLaiGopSoChiTieuBanBuon'] },
   { label: 'Lãi gộp — Tỷ lệ', color: 'orange', keys: ['tyLeLaiGopTotal', 'tyLeLaiGopBanLe', 'tyLeLaiGopBanBuon'] },
   { label: 'Lãi gộp — Giá trị', color: 'orange', keys: ['giaTriLaiGopTotal', 'giaTriLaiGopBanLe', 'giaTriLaiGopBanBuon'] },
@@ -409,6 +422,14 @@ function computeRowFields({ thucDat, lastYearThucDat, hasLastYear, giaTriHongHuy
     tyLeLaiGopBanLe: pctOrNull(giaTriLaiGopBanLe, thucDat.banLe),
     tyLeLaiGopBanBuon: pctOrNull(giaTriLaiGopBanBuon, thucDat.banBuon),
     giaTriLaiGopTotal, giaTriLaiGopBanLe, giaTriLaiGopBanBuon,
+    // chiTieuLaiGop* (bản 9.99, theo yêu cầu người dùng) — HIỆN SỐ CHỈ
+    // TIÊU LÃI GỘP THÔ (Total/Bán lẻ/Bán buôn), mirror đúng cách
+    // "chiTieuTotal/BanLe/BanBuon" (Doanh thu — Chỉ tiêu) đã hiện ở trên —
+    // biến chiTieuLaiGopTotal/hasChiTieuLaiGop* đã tính sẵn ở đầu hàm (dùng
+    // chung cho tyLeLaiGopSoChiTieu* ngay dưới đây), KHÔNG tính lại.
+    chiTieuLaiGopTotal: hasChiTieuLaiGop ? chiTieuLaiGopTotal : null,
+    chiTieuLaiGopBanLe: hasChiTieuLaiGopBanLe ? chiTieuLaiGop.banLe : null,
+    chiTieuLaiGopBanBuon: hasChiTieuLaiGopBanBuon ? chiTieuLaiGop.banBuon : null,
     tyLeLaiGopSoChiTieuTotal: hasChiTieuLaiGop ? pctOrNull(giaTriLaiGopTotal, chiTieuLaiGopTotal) : null,
     tyLeLaiGopSoChiTieuBanLe: hasChiTieuLaiGopBanLe ? pctOrNull(giaTriLaiGopBanLe, chiTieuLaiGop.banLe) : null,
     tyLeLaiGopSoChiTieuBanBuon: hasChiTieuLaiGopBanBuon ? pctOrNull(giaTriLaiGopBanBuon, chiTieuLaiGop.banBuon) : null,

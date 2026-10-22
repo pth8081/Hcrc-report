@@ -940,3 +940,29 @@ báo lỗi.
 **Việc cần làm trên server**: `git pull origin main` rồi `pm2 restart`
 đúng tiến trình `rp-server` (code nằm ở backend, KHÔNG cần build lại
 `rp-user`).
+
+## 18. Thêm cột "Lãi gộp — Chỉ tiêu" (số tiền) — bản 9.99
+
+**Theo yêu cầu người dùng** (sau bản 9.98): "% so chỉ tiêu" đúng vị trí
+rồi, nhưng còn thiếu CHÍNH số tiền Chỉ tiêu Lãi gộp (Total/Bán lẻ/Bán
+buôn) — người dùng ĐÃ nhập số này vào file Chỉ tiêu (`ChiTieuLaiGopBanLe`/
+`ChiTieuLaiGopBanBuon`, xem mục 4) nhưng báo cáo chỉ hiện % so sánh, không
+hiện lại con số gốc — khác "Doanh thu — Chỉ tiêu" (ĐÃ hiện số tiền gốc từ
+trước, đứng TRƯỚC "% so chỉ tiêu" của Doanh thu).
+
+**Đã sửa**: thêm nhóm cột MỚI **"Lãi gộp — Chỉ tiêu"** (Total/Bán lẻ/Bán
+buôn) — đứng NGAY SAU "Giá trị hàng hỏng hủy", TRƯỚC "Lãi gộp — % so chỉ
+tiêu" (mirror đúng cấu trúc "Doanh thu — Chỉ tiêu" đứng trước "Doanh thu
+— % so chỉ tiêu"). Biến `chiTieuLaiGopTotal`/`hasChiTieuLaiGop*` ĐÃ được
+tính sẵn trong `computeRowFields()` từ trước (dùng cho % so chỉ tiêu, bản
+9.73/9.74) — bản 9.99 CHỈ thêm vào object trả về, không tính lại/không
+đổi công thức % so chỉ tiêu. Verify qua mock test trực tiếp
+`computeRowFields()` (có chỉ tiêu -> đúng Total=Bán lẻ+Bán buôn; chưa nhập
+chỉ tiêu -> null, không phải 0, giữ nguyên quy ước "chưa có dữ liệu" của
+mọi cột Chỉ tiêu khác trong báo cáo).
+
+Thứ tự nhóm "Lãi gộp" sau bản 9.99: **Chỉ tiêu → % so chỉ tiêu → Tỷ lệ →
+Giá trị → % so cùng kỳ năm trước**.
+
+**Việc cần làm trên server**: `git pull origin main` rồi `pm2 restart`
+đúng tiến trình `rp-server`.

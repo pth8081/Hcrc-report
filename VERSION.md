@@ -29,6 +29,22 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 9.99 — Thêm cột "Lãi gộp — Chỉ tiêu" (số tiền) theo yêu cầu người dùng
+
+**Theo yêu cầu người dùng** (sau bản 9.98): đã xác nhận vị trí "% so chỉ
+tiêu" ổn, nhưng còn thiếu CHÍNH số tiền Chỉ tiêu Lãi gộp (Total/Bán lẻ/Bán
+buôn) đã nhập vào file Chỉ tiêu — báo cáo chỉ hiện % so sánh, không hiện
+lại số tiền gốc (khác "Doanh thu — Chỉ tiêu" đã có số tiền gốc từ trước).
+
+**Đã sửa**: thêm nhóm cột MỚI "Lãi gộp — Chỉ tiêu" (Total/Bán lẻ/Bán
+buôn) ở `rp-server/lib/nganhHangBrgRunner.js`, đứng NGAY SAU "Giá trị
+hàng hỏng hủy", TRƯỚC "Lãi gộp — % so chỉ tiêu" (mirror đúng cấu trúc
+"Doanh thu — Chỉ tiêu" đứng trước "% so chỉ tiêu" của Doanh thu). Biến
+tính toán ĐÃ CÓ SẴN từ bản 9.73/9.74 (dùng cho % so chỉ tiêu), chỉ THÊM
+vào object trả về — không đổi công thức nào. Verify qua mock test trực
+tiếp `computeRowFields()`. Xem "báo cáo doanh thu-nhập hàng theo ngành
+hàng.md" mục 18.
+
 ## 9.98 — Đổi vị trí cột "Lãi gộp — % so chỉ tiêu" theo yêu cầu người dùng
 
 **Theo yêu cầu người dùng** (gửi kèm file Chỉ tiêu Lãi gộp Total/Bán
