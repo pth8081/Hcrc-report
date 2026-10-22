@@ -14,6 +14,33 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 9.96 — Sửa cột "% so cùng kỳ năm trước" (Bán lẻ/Bán buôn) trống ở báo cáo Doanh thu/Lãi gộp theo ngành hàng
+
+**Thay đổi**: 1 file mới `etl/scripts/resyncDoanhThuNganhHangLichSu.js`
+(script resync, KHÔNG đổi code backend/frontend nào khác — đây là thao
+tác dữ liệu/cấu hình, không phải lỗi logic).
+
+**Các bước (ĐÚNG THỨ TỰ — bỏ bước 1 thì bước 2 sẽ tự báo lỗi, không cho
+chạy tiếp)**:
+
+1. `git pull origin main`.
+2. `cd etl && node scripts/seedNganhHangSync.js --with-history` — cập
+   nhật `MeasureColumnsJson` của job "Doanh thu theo ngành hàng - Lịch sử
+   (DSMART16_EOM)" lên đủ 8 số đo (an toàn, chạy lại nhiều lần được).
+3. `node scripts/resyncDoanhThuNganhHangLichSu.js` (xem trước, không đổi
+   gì) rồi `node scripts/resyncDoanhThuNganhHangLichSu.js --confirm`
+   (thực sự xoá dữ liệu Lịch sử cũ + reset watermark về đầu).
+4. **‼️ CẢNH BÁO đã thống nhất với người dùng**: sau bước 3, job "Lịch
+   sử" nạp lại TỪ ĐẦU — có thể mất **NHIỀU TUẦN** (quét ~93 bảng nhiều
+   năm). Trong lúc đó, cột "% so cùng kỳ năm trước" sẽ TRỐNG HẲN (kể cả
+   Total đang có số cũng tạm mất) — KHÔNG phải lỗi, đã báo trước. Theo
+   dõi tiến độ bằng SQL ở "báo cáo doanh thu-nhập hàng theo ngành
+   hàng.md" mục 16.
+5. Khi watermark tiến đủ xa (tự kiểm tra bằng SQL ở mục 16), mở lại báo
+   cáo "Doanh thu theo ngành hàng"/"(LDTD)"/"Lãi gộp..." — cột Bán
+   lẻ/Bán buôn của "% so cùng kỳ năm trước" phải có số, không cần deploy
+   gì thêm.
+
 ## 9.95 — Sửa cột "Chờ nhập/Đã nhập (NCC)" trống ở "Top bán chạy đang tồn kho = 0"
 
 **Thay đổi**: 2 file VIEW SQL deploy (`deploy/Thiết lập VIEW Đơn đặt

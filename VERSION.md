@@ -29,6 +29,31 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 9.96 — Sửa cột "% so cùng kỳ năm trước" (Bán lẻ/Bán buôn) trống ở báo cáo Doanh thu/Lãi gộp theo ngành hàng
+
+**Theo báo cáo người dùng** (ảnh chụp thật): "Total" của "% so cùng kỳ
+năm trước" vẫn ra số, nhưng "Bán lẻ"/"Bán buôn" trống 100% (cả Doanh thu
+lẫn Lãi gộp). Xác nhận qua SQL thật (`etl.SyncJobs.MeasureColumnsJson` +
+`dwh.ReportFacts.Measures`): job "Doanh thu theo ngành hàng - Lịch sử
+(DSMART16_EOM)" vẫn chạy với cấu hình CŨ (3 số đo), **chưa từng được chạy
+lại `seedNganhHangSync.js --with-history` sau bản 9.68** (lúc bản 9.68
+thêm 5 số đo mới vào VIEW) — nên job này CHƯA BAO GIỜ lấy
+`DoanhThuBanLe`/`DoanhThuBanBuon`/`LaiGopBanLe`/`LaiGopBanBuon`/
+`GiaTriHongHuy` cho bất kỳ ngày nào, bất kể watermark đã chạy xa tới đâu.
+KHÁC lỗi watermark ở bản 9.86/9.88 (đó là job không bao giờ QUAY LẠI ngày
+cũ — ở đây job vẫn đi qua đúng ngày, chỉ chưa từng YÊU CẦU đủ cột).
+
+**Đã sửa**: thêm `etl/scripts/resyncDoanhThuNganhHangLichSu.js` (mới,
+dry-run mặc định, tự kiểm tra MeasureColumnsJson đã đủ 8 số đo chưa trước
+khi cho phép resync) — kết hợp chạy lại `seedNganhHangSync.js
+--with-history` (cập nhật cấu hình) rồi script mới (xoá dữ liệu Lịch sử
+cũ + reset watermark). Theo thống nhất với người dùng: chọn nạp lại TOÀN
+BỘ lịch sử (đơn giản, dùng lại hạ tầng đã có) thay vì xây thêm script nạp
+ưu tiên theo khoảng ngày — đánh đổi: trong lúc nạp lại (có thể NHIỀU TUẦN,
+job quét ~93 bảng), cột "% so cùng kỳ năm trước" trống HẲN (kể cả Total),
+cho tới khi quét xong tới đúng ngày cần so sánh. Xem chi tiết + SQL theo
+dõi tiến độ ở "báo cáo doanh thu-nhập hàng theo ngành hàng.md" mục 16.
+
 ## 9.95 — Sửa cột "Chờ nhập/Đã nhập (NCC)" trống ở "Top bán chạy đang tồn kho = 0" — tái dùng domain `don_dat_hang`
 
 **Theo báo cáo người dùng** (gửi kèm PDF xuất thật, 61 dòng): "Chờ nhập

@@ -858,3 +858,58 @@ STK_ID" → bổ sung đủ dòng cho các mã kho còn thiếu (cột `TenSieuT
 
 **Việc cần làm trên server (cho phần đổi nhãn)**: `git pull origin main`
 rồi `pm2 restart hcrc-rp-server`.
+
+## 16. "% so cùng kỳ năm trước" — cột Bán lẻ/Bán buôn trống, Total vẫn có số — bản 9.96
+
+**Hiện tượng người dùng báo cáo** (ảnh chụp thật): cột "Doanh thu — % so
+cùng kỳ năm trước"/"Lãi gộp — % so cùng kỳ năm trước" — `Total` vẫn ra số
+bình thường (vd 14%, 13%, 11%), nhưng `Bán lẻ`/`Bán buôn` TRỐNG 100%.
+
+**Nguyên nhân — ĐÃ XÁC NHẬN qua SQL thật (KHÔNG phải watermark/tốc độ
+đồng bộ như mục 10/11)**: job **"Doanh thu theo ngành hàng - Lịch sử
+(DSMART16_EOM)"** đang chạy với `MeasureColumnsJson =
+["SoLuongBan","DoanhThu","LaiGop"]` — cấu hình CŨ, **từ lần đầu job này
+được tạo ở mục 9, TRƯỚC KHI bản 9.68 thêm 5 cột mới vào VIEW** — và CHƯA
+BAO GIỜ được chạy lại `seedNganhHangSync.js --with-history` sau bản 9.68
+để cập nhật cấu hình. Vì vậy job này **CHƯA BAO GIỜ lấy**
+`DoanhThuBanLe`/`DoanhThuBanBuon`/`LaiGopBanLe`/`LaiGopBanBuon`/
+`GiaTriHongHuy` cho BẤT KỲ ngày nào nó đã đồng bộ — kể cả khi watermark đã
+chạy rất xa (xác nhận SQL: `LastSyncedAt` đã tới 2026-10-05, dữ liệu
+2025-10 có `DoanhThu`/`LaiGop` nhưng Measures JSON KHÔNG CÓ `DoanhThuBanLe`
+v.v.). `Total` vẫn đúng vì `DoanhThu` là field GỐC, có từ trước bản 9.68.
+
+**Khác mục 10/11 (lỗi watermark khiến job KHÔNG BAO GIỜ quay lại ngày cũ)**
+— ở đây job VẪN đi qua đúng mọi ngày, chỉ là CHƯA TỪNG yêu cầu đủ cột ngay
+từ đầu — 2 lớp lỗi khác nhau, cùng 1 hậu quả (thiếu dữ liệu), cách sửa
+khác nhau.
+
+**Cách sửa (bản 9.96, đã chốt với người dùng — nạp lại TOÀN BỘ lịch sử,
+chấp nhận chậm thay vì build thêm script nạp ưu tiên theo khoảng ngày)**:
+
+1. `cd etl && node scripts/seedNganhHangSync.js --with-history` — cập
+   nhật `MeasureColumnsJson` của job lên đủ 8 số đo (AN TOÀN, chạy lại
+   nhiều lần được, KHÔNG tự xoá dữ liệu cũ).
+2. `node scripts/resyncDoanhThuNganhHangLichSu.js` (xem trước, KHÔNG đổi
+   gì — script tự kiểm tra Bước 1 đã làm chưa, báo lỗi rõ nếu chưa đủ 8
+   số đo) rồi `node scripts/resyncDoanhThuNganhHangLichSu.js --confirm`
+   (thực sự xoá dữ liệu Lịch sử cũ + reset watermark về đầu).
+
+**‼️ CẢNH BÁO đã báo trước với người dùng, KHÔNG phải lỗi phát sinh mới**:
+job "Lịch sử" quét ~93 bảng nhiều năm — nạp lại TỪ ĐẦU có thể mất **NHIỀU
+TUẦN** (lần đầu tiên cũng mất nhiều ngày/tuần, xem mục 11). Trong lúc đang
+nạp lại: cột "% so cùng kỳ năm trước" sẽ **TRỐNG HẲN** (kể cả `Total` đang
+có số cũng tạm mất), cho tới khi job quét tới đúng ngày cần so sánh —
+XẤU HƠN tạm thời so với hiện trạng (chỉ thiếu Bán lẻ/Bán buôn), nhưng là
+đánh đổi cần thiết để có dữ liệu ĐÚNG VÀ ĐỦ lâu dài, thay vì vá tạm.
+
+**Theo dõi tiến độ**: SQL giống mục 11 —
+```sql
+SELECT j.Name, s.LastSyncedAt
+FROM etl.SyncJobs j JOIN etl.SyncState s ON s.SyncJobId = j.Id
+WHERE j.Name = N'Doanh thu theo ngành hàng - Lịch sử (DSMART16_EOM)';
+```
+Khi `LastSyncedAt` tiến tới đúng ngày "cùng kỳ năm trước" cần xem, báo
+cáo tự có đủ số — không cần làm gì thêm, không cần deploy lại.
+
+**KHÔNG đụng tới**: job "Live" (đã đúng từ bản 9.86), job "Nhập hàng theo
+ngành hàng - Lịch sử" (measureColumns riêng, không liên quan lỗi này).
