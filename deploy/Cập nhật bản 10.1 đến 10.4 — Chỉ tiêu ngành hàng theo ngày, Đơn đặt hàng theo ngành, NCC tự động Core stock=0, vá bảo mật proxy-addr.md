@@ -1,7 +1,9 @@
-# Cập nhật bản 10.1 đến 10.3 — Chỉ tiêu ngành hàng theo ngày, Ngành hàng cho Đơn đặt hàng, NCC tự động Core stock=0
+# Cập nhật bản 10.1 đến 10.4 — Chỉ tiêu ngành hàng theo ngày, Đơn đặt hàng theo ngành, NCC tự động Core stock=0, vá bảo mật proxy-addr
 
-**Mục đích**: 3 cải tiến riêng biệt nhưng đi CHUNG 1 lần pull (cùng 1
-commit), liên quan tới nhau qua domain `don_dat_hang` dùng chung:
+**Mục đích**: gộp 4 bản liên tiếp thành 1 lượt làm — 3 bản đầu đi CHUNG
+1 lần pull (cùng 1 commit, liên quan tới nhau qua domain `don_dat_hang`
+dùng chung), bản thứ 4 là vá bảo mật độc lập ở `api-server` (khác file,
+khác tiến trình, làm riêng không ảnh hưởng 3 bản trên):
 
 - **Bản 10.1** — Chỉ tiêu ngành hàng (báo cáo "Doanh thu/Nhập hàng theo
   ngành hàng" HCRC + LDTĐ) giờ CHIA THEO TỶ LỆ SỐ NGÀY đã chọn trong
@@ -15,13 +17,18 @@ commit), liên quan tới nhau qua domain `don_dat_hang` dùng chung:
 - **Bản 10.3** — Báo cáo "Core stock = 0" (Mart/Minimart) TỰ ĐỘNG lấy Mã
   NCC/Tên NCC từ domain `don_dat_hang` khi dòng Core đó CHƯA khai tay
   trong "Danh sách hàng Core" (khai tay vẫn LUÔN ưu tiên hơn).
+- **Bản 10.4** — Vá lỗ hổng bảo mật **CRITICAL** `proxy-addr` (giả mạo
+  IP qua IPv4-mapped IPv6) ở `api-server`, phát hiện qua rà soát bảo mật
+  hệ thống API theo yêu cầu người dùng — kèm vá luôn 5 lỗ hổng dependency
+  khác không cần breaking change (`qs`/`compression`/`multer`/
+  `ip-address`/`brace-expansion`).
 
 (Tách riêng từ nhật ký gộp `deploy/Nhật ký triển khai (từ bản 8.31).md`
-mục 10.1/10.2/10.3 để tiện gửi/làm theo mà không cần mở file gộp đầy đủ
-lịch sử. Lưu ý số bản đã được SỬA LẠI từ "9.101/9.102/9.103" thành
-"10.1/10.2/10.3" — xem `VERSION.md` mục "SỬA SỐ bản 9.100-9.103 →
-10.0-10.3" nếu thấy nhầm với bản cũ đã nói tới ở đâu đó — nội dung và các
-bước dưới đây KHÔNG đổi, chỉ đổi tên gọi số.)
+mục 10.1-10.4 để tiện gửi/làm theo mà không cần mở file gộp đầy đủ lịch
+sử. Lưu ý số bản 10.1/10.2/10.3 đã được SỬA LẠI từ "9.101/9.102/9.103" —
+xem `VERSION.md` mục "SỬA SỐ bản 9.100-9.103 → 10.0-10.3" nếu thấy nhầm
+với bản cũ đã nói tới ở đâu đó — nội dung và các bước dưới đây KHÔNG đổi,
+chỉ đổi tên gọi số.)
 
 ---
 
@@ -86,6 +93,22 @@ pm2 restart hcrc-rp-server
 (`hcrc-etl` KHÔNG cần restart — bước B.2 chạy script trực tiếp bằng
 `node`, không qua tiến trình PM2 của etl.)
 
+### B.4 — Vá bảo mật `api-server` (bản 10.4, ĐỘC LẬP với B.1-B.3 ở trên)
+
+Chỉ đụng tới `api-server` (khác hẳn `rp-server`/`etl` ở trên) — làm
+trước/sau/song song với B.1-B.3 đều được, không phụ thuộc nhau:
+
+```bash
+cd api-server
+npm ci          # KHÔNG dùng npm install — npm ci cài CHÍNH XÁC đúng
+                 # version đã vá trong package-lock.json, tránh lệch
+                 # version giữa máy dev và server
+pm2 restart hcrc-api-server
+```
+
+Bản này CHỈ đổi `package-lock.json` (nâng version dependency), KHÔNG đổi
+code/`package.json` — không cần build lại gì khác, không cần sửa `.env`.
+
 ## C. Kiểm tra sau khi triển khai
 
 - [ ] **Bản 10.1** — mở "Doanh thu theo ngành hàng" hoặc "(LDTD)", chọn
@@ -103,6 +126,11 @@ pm2 restart hcrc-rp-server
   sách hàng Core" (miễn mã hàng đó đã TỪNG được nhập qua NCC qua domain
   `don_dat_hang`). Dòng ĐÃ khai tay trong "Danh sách hàng Core" phải GIỮ
   NGUYÊN giá trị khai tay (không bị ghi đè bởi giá trị tự động).
+- [ ] **Bản 10.4** — `pm2 logs hcrc-api-server --lines 50` sau khi
+  restart KHÔNG có lỗi khởi động (module not found/syntax error — có lỗi
+  này nghĩa là `npm ci` ở B.4 chưa cài đúng, chạy lại). Gọi thử 1 API
+  thật (vd endpoint realtime tồn kho) từ 1 đối tác đã cấu hình
+  `allowedIps`/HMAC — vẫn chạy bình thường, không đổi hành vi.
 
 Nếu mục nào vẫn trống/sai sau khi làm đủ các bước trên — xem phần "Hỏi &
 đáp" tương ứng:
@@ -110,6 +138,9 @@ Nếu mục nào vẫn trống/sai sau khi làm đủ các bước trên — xem
   thuần tính toán, không phụ thuộc dữ liệu ngoài).
 - Bản 10.2: 6 file `bc-don-dat-hang*.md` tương ứng từng báo cáo.
 - Bản 10.3: `bc-core-ton-kho-0.md` mục **"Bản 10.3"**.
+- Bản 10.4: `VERSION.md` mục 10.4 (gồm danh sách đầy đủ lỗ hổng đã vá +
+  2 lỗ hổng CHƯA vá, cần breaking change).
 
 Không có bước nào ở trên làm mất dữ liệu đã có — mọi thay đổi CSDL chỉ
-THÊM cột/cấu hình mới, không xoá/đổi dữ liệu cũ.
+THÊM cột/cấu hình mới, không xoá/đổi dữ liệu cũ; bản 10.4 chỉ đổi version
+dependency, không đổi dữ liệu/cấu hình gì.
