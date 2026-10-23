@@ -14,6 +14,36 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.4 — Vá lỗ hổng bảo mật CRITICAL `proxy-addr` (giả mạo IP) ở `api-server`
+
+**Thay đổi**: 1 file `api-server/package-lock.json` (nâng `proxy-addr`
+1.1.0-2.0.7 → 2.0.8, kèm `express`/`qs`/`compression`/`multer`/
+`ip-address`/`brace-expansion` — KHÔNG đổi `package.json`, KHÔNG đổi
+code).
+
+**Các bước**:
+
+1. `git pull origin main`.
+2. Cài lại dependencies đúng theo lockfile mới:
+   ```bash
+   cd api-server
+   npm ci
+   ```
+   (`npm ci` — KHÔNG dùng `npm install` — để cài CHÍNH XÁC đúng version
+   trong lockfile đã vá, tránh lệch version giữa máy dev và server.)
+3. `pm2 restart hcrc-api-server`.
+4. Kiểm tra lại: gọi thử 1 API thật (vd endpoint realtime tồn kho) từ
+   đối tác đã cấu hình `allowedIps` — vẫn chạy bình thường; đồng thời
+   kiểm tra log `pm2 logs hcrc-api-server --lines 50` không có lỗi khởi
+   động (module not found/syntax error) — có lỗi này nghĩa là `npm ci`
+   chưa cài đúng, chạy lại bước 2.
+
+**CHƯA xử lý trong bản này** (cần breaking change + test riêng, không
+vá vội): lỗ hổng `uuid` (qua `exceljs`/`node-cron` ở `api-server`) và
+`react-router` (ở `api-admin`) — xem `VERSION.md` mục 10.4 để biết chi
+tiết, sẽ làm riêng sau khi đã test kỹ lịch cron/điều hướng trang quản
+trị.
+
 ## 10.3 — "Core stock = 0" tự động lấy Mã NCC/Tên NCC từ domain `don_dat_hang`
 
 **Thay đổi**: 2 file `rp-server/lib/donDatHangTonKhoHelper.js` (thêm hàm

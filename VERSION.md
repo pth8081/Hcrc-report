@@ -42,6 +42,37 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.4 — Vá lỗ hổng bảo mật CRITICAL `proxy-addr` (giả mạo IP) ở `api-server`
+
+**Theo yêu cầu người dùng** (rà soát bảo mật hệ thống API): `npm audit`
+phát hiện 11 lỗ hổng ở `api-server` (1 critical, 2 high, 8 moderate).
+Nghiêm trọng nhất: `proxy-addr` 1.1.0-2.0.7 (qua `express`) — lỗ hổng
+**giả mạo IP** khi dùng cấu hình `trust proxy` (đúng cấu hình hệ thống
+đang dùng, `server.js`) qua địa chỉ IPv4-mapped IPv6. Nguy hiểm hơn bình
+thường vì `req.ip` là nền cho NHIỀU lớp kiểm soát bảo mật khác đang có:
+`ADMIN_ALLOWED_IPS` (IP allowlist trang quản trị), `allowedIps` riêng
+từng đối tác API, và rate-limit theo IP — giả mạo được IP có thể vượt
+qua CẢ 3 lớp đó cùng lúc.
+
+**Đã sửa**: `npm audit fix` trong `api-server/` (chỉ đổi
+`package-lock.json`, không đổi `package.json` — các range `^` đã cho
+phép bản vá) — nâng `proxy-addr` 1.1.0-2.0.7 → **2.0.8**, kèm vá luôn 5
+lỗ hổng khác không cần breaking change: `express` → 4.22.3, `qs` →
+6.16.1, `compression` → 1.8.2, `multer` → 2.5.0, `ip-address` → 10.7.4,
+`brace-expansion` → 1.1.21/2.1.7. Verify: `node --check` toàn bộ
+`server.js`/`routes/`/`lib/`, khởi động thử server (dừng đúng ở bước
+kiểm tra `.env` thiếu — không có lỗi module/syntax), và test trực tiếp
+`proxy-addr@2.0.8` với địa chỉ IPv4-mapped IPv6 giả mạo — xác nhận KHÔNG
+còn bị đánh lừa coi là nằm trong subnet tin cậy.
+
+**CÒN LẠI 1 lỗ hổng CHƯA vá** (cố ý, cần breaking change): `uuid`
+(qua `exceljs`/`node-cron`, moderate) — `npm audit fix --force` sẽ nâng
+`node-cron@4.6.0`/`exceljs@3.4.0` (breaking change), cần test lại lịch
+cron thật trước khi lên production — CHƯA làm trong bản này, để riêng
+chờ xác nhận người dùng. 2 lỗ hổng khác đã phát hiện ở `api-admin`
+(`react-router`, open redirect, chỉ ảnh hưởng trang nội bộ/VPN) cũng
+CHƯA vá cùng lý do (breaking change, cần test).
+
 ## 10.3 — "Core stock = 0" tự động lấy Mã NCC/Tên NCC từ domain `don_dat_hang`
 
 **Theo yêu cầu người dùng** (mục 3/4 trong yêu cầu lớn "chỉ tiêu ngành
