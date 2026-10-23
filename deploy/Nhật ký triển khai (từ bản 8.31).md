@@ -14,7 +14,7 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
-## 9.103 — "Core stock = 0" tự động lấy Mã NCC/Tên NCC từ domain `don_dat_hang`
+## 10.3 — "Core stock = 0" tự động lấy Mã NCC/Tên NCC từ domain `don_dat_hang`
 
 **Thay đổi**: 2 file `rp-server/lib/donDatHangTonKhoHelper.js` (thêm hàm
 `loadLatestNccReceivedMapByEntity()`), `rp-server/lib/coreZeroStockRunner.js`
@@ -26,7 +26,7 @@ khai tay Mã NCC/Tên NCC) + `rp-server/scripts/seedCoreZeroStockReports.js`
 
 1. `git pull origin main` rồi `pm2 restart` đúng tiến trình `rp-server`.
 2. Nếu job "Đơn đặt hàng - nhập hàng (DSMART16)" (Live) CHƯA từng chạy
-   resync ở bản 9.95/9.102 (kiểm tra: mở báo cáo "So sánh đặt–nhận" xem
+   resync ở bản 9.95/10.2 (kiểm tra: mở báo cáo "So sánh đặt–nhận" xem
    cột "Ngành hàng" đã có dữ liệu hay chưa) — chạy:
    ```bash
    cd etl
@@ -41,9 +41,9 @@ khai tay Mã NCC/Tên NCC) + `rp-server/scripts/seedCoreZeroStockReports.js`
 4. Mở lại báo cáo "Core stock = 0 (Mart)"/"(Minimart)" — cột "Mã NCC"/
    "Nhà cung cấp" phải có số liệu cho mọi dòng CHƯA khai tay trong "Danh
    sách hàng Core" (miễn mã hàng đó đã TỪNG được nhập qua NCC — xem
-   "bc-core-ton-kho-0.md" mục "Bản 9.103" nếu vẫn trống).
+   "bc-core-ton-kho-0.md" mục "Bản 10.3" nếu vẫn trống).
 
-## 9.102 — Thêm Ngành hàng vào VIEW `don_dat_hang` + bộ lọc Ngành hàng cho 6 báo cáo mua hàng
+## 10.2 — Thêm Ngành hàng vào VIEW `don_dat_hang` + bộ lọc Ngành hàng cho 6 báo cáo mua hàng
 
 **Thay đổi**: 2 file SQL VIEW (`deploy/Thiết lập VIEW Đơn đặt hàng-Nhập
 hàng-So sánh (DSMART16 trung tâm).sql`,
@@ -83,7 +83,7 @@ code (`etl/scripts/seedDonDatHangSync.js`,
 6. `pm2 restart` đúng tiến trình `rp-server` — mở lại 6 báo cáo mua hàng,
    kiểm tra bộ lọc "Ngành hàng" đã xuất hiện và lọc đúng.
 
-## 9.101 — Chia Chỉ tiêu ngành hàng theo tỷ lệ ngày khi chọn khoảng ngày không đúng nguyên 1 tháng
+## 10.1 — Chia Chỉ tiêu ngành hàng theo tỷ lệ ngày khi chọn khoảng ngày không đúng nguyên 1 tháng
 
 **Thay đổi**: 1 file `rp-server/lib/nganhHangBrgRunner.js` (thay
 `runSalesTargetsBlockRange()` bằng hàm mới
@@ -98,7 +98,7 @@ buôn) giờ chỉ lấy ĐÚNG tỷ lệ số ngày đã chọn trong tháng đ
 lấy nguyên cả tháng. Chọn ĐÚNG nguyên 1 tháng vẫn ra số giống như trước
 (không đổi hành vi trường hợp này).
 
-## 9.100 — Sửa lỗi thật: `ecosystem.config.js` khởi động sai đường dẫn
+## 10.0 — Sửa lỗi thật: `ecosystem.config.js` khởi động sai đường dẫn
 
 **Thay đổi**: 1 file `deploy/ecosystem.config.js` (đường dẫn
 `cwd`/`script`/`STATIC_DIST_DIR` đổi sang tuyệt đối qua

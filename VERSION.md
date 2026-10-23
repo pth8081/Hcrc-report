@@ -29,7 +29,20 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
-## 9.103 — "Core stock = 0" tự động lấy Mã NCC/Tên NCC từ domain `don_dat_hang`
+**SỬA SỐ bản 9.100-9.103 → 10.0-10.3 (theo yêu cầu người dùng, phát hiện
+đánh số sai quy tắc)**: `Y` đã vô tình được đếm như số NGUYÊN không giới
+hạn (9.95 → 9.96 → ... → 9.99 → 9.100 → 9.101...) thay vì áp dụng ĐÚNG quy
+tắc tràn ở trên — mốc tràn (`Y` chạm "9" lặp lại, ở đây là `99`) phải lập
+tức tăng `X` lên `10` và `Y` VỀ `0`, giống hệt cách `4.9 → 5.0` đã làm
+trước đó. Đã đổi lại TOÀN BỘ tham chiếu "`9.100`"/"`9.101`"/"`9.102`"/
+"`9.103`" thành "`10.0`"/"`10.1`"/"`10.2`"/"`10.3`" trong file này, nhật
+ký triển khai, và mọi chú thích code/tài liệu liên quan — CHỈ sửa CÁCH
+GHI SỐ (đổi tên hiển thị), KHÔNG đổi bất kỳ nội dung/hành vi nào đã làm.
+Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.10x"
+(không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
+không phải 2 bản khác nhau.
+
+## 10.3 — "Core stock = 0" tự động lấy Mã NCC/Tên NCC từ domain `don_dat_hang`
 
 **Theo yêu cầu người dùng** (mục 3/4 trong yêu cầu lớn "chỉ tiêu ngành
 hàng theo siêu thị + tồn kho + so sánh đặt/nhập"): báo cáo "Core stock =
@@ -52,9 +65,9 @@ CHƯA khai tay Mã NCC/Tên NCC trong "Danh sách hàng Core" (khai tay LUÔN
 `rp-server/scripts/seedCoreZeroStockReports.js` cho cả 2 báo cáo Mart/
 Minimart. Verify qua mock test (9 assertion: khai tay giữ nguyên, chưa
 khai tay dùng auto, cả 2 đều thiếu thì null, cờ tắt giữ hành vi cũ). Xem
-"bc-core-ton-kho-0.md" mục "Bản 9.103".
+"bc-core-ton-kho-0.md" mục "Bản 10.3".
 
-## 9.102 — Thêm Ngành hàng vào VIEW `don_dat_hang` + bộ lọc Ngành hàng cho 6 báo cáo mua hàng
+## 10.2 — Thêm Ngành hàng vào VIEW `don_dat_hang` + bộ lọc Ngành hàng cho 6 báo cáo mua hàng
 
 **Theo yêu cầu người dùng** (mục 4 trong yêu cầu lớn): báo cáo so sánh
 đặt hàng/nhập hàng cần lọc thêm theo Ngành hàng (đã có sẵn lọc NCC/Siêu
@@ -75,7 +88,7 @@ lần thêm cột Dimension mới vào VIEW này, không riêng MaHangHienThi) �
 Lịch sử KHÔNG cần resync (dữ liệu CŨ chỉ thiếu 2 cột mới, không sai dữ
 liệu đã có, resync sẽ mất nhiều thời gian không cần thiết).
 
-## 9.101 — Chia Chỉ tiêu ngành hàng theo tỷ lệ ngày khi chọn khoảng ngày không đúng nguyên 1 tháng
+## 10.1 — Chia Chỉ tiêu ngành hàng theo tỷ lệ ngày khi chọn khoảng ngày không đúng nguyên 1 tháng
 
 **Theo yêu cầu người dùng** (mục 1 trong yêu cầu lớn): báo cáo "Doanh
 thu/Nhập hàng theo ngành hàng" (HCRC + LDTĐ) khi người dùng chọn 1 ngày
@@ -102,7 +115,7 @@ lựa chọn của người dùng ("Dừng lại, để tôi nghĩ thêm") — h
 có Chỉ tiêu Total (không có Bán lẻ/Bán buôn/Lãi gộp riêng), sẽ cần người
 dùng quyết định thêm trước khi làm.
 
-## 9.100 — Sửa lỗi thật: `deploy/ecosystem.config.js` khởi động sai đường dẫn tuỳ nơi gõ lệnh
+## 10.0 — Sửa lỗi thật: `deploy/ecosystem.config.js` khởi động sai đường dẫn tuỳ nơi gõ lệnh
 
 **Theo báo cáo người dùng** (sau khi server reboot mất hết tiến trình
 PM2, chạy lại theo hướng dẫn vẫn lỗi): `pm2 start

@@ -284,7 +284,7 @@ kiểm tra file PDF xuất thật, 92 dòng đều trống cả 2 nhóm cột) �
 NHÂN HOÀN TOÀN KHÁC NHAU, không phải cùng 1 lỗi:
 
 1. **"Mã NCC"/"Tên NCC"/"Luồng giao hàng"** — ĐÃ ĐƯỢC KHẮC PHỤC PHẦN "Mã
-   NCC"/"Tên NCC" từ bản 9.103 (xem mục riêng ngay dưới) — chỉ còn
+   NCC"/"Tên NCC" từ bản 10.3 (xem mục riêng ngay dưới) — chỉ còn
    "Luồng giao hàng" là THIẾU DỮ LIỆU KHAI BÁO thật, không phải lỗi code.
    3 cột này lấy từ chính file Excel "Danh sách hàng Core" (etl-admin), 3
    cột TUỲ CHỌN tên `MaNCC`/`TenNCC`/`LuongGiaoHang` (hoặc `Mã NCC`/`Tên
@@ -293,7 +293,7 @@ NHÂN HOÀN TOÀN KHÁC NHAU, không phải cùng 1 lỗi:
    upload chưa điền cột đó — khắc phục: bổ sung cột đó vào file "Danh sách
    hàng Core" (lấy từ báo cáo nhân viên nội bộ đang dùng), upload lại
    (riêng cho từng loại điểm Mart/Minimart). "Mã NCC"/"Tên NCC" vẫn trống
-   dù đã lên bản 9.103 → xem chẩn đoán ở mục riêng dưới đây (KHÁC nguyên
+   dù đã lên bản 10.3 → xem chẩn đoán ở mục riêng dưới đây (KHÁC nguyên
    nhân "thiếu khai báo" — domain `don_dat_hang` auto có thể chưa có dữ
    liệu đúng mã hàng/kho đó).
 2. **"Ngày nhập cuối"/"SL đang đặt"/"Ngày đặt"/"Mã đang đặt"** — TÍNH NĂNG
@@ -310,7 +310,7 @@ NHÂN HOÀN TOÀN KHÁC NHAU, không phải cùng 1 lỗi:
    theo đúng hướng dẫn Bước 4 — việc này CHƯA ai làm từ trước tới nay, cần
    làm mới hoàn toàn, không phải "sửa lại" 1 cấu hình đã có.
 
-**Bản 9.103 — "Mã NCC"/"Tên NCC" TỰ ĐỘNG lấy từ domain `don_dat_hang` khi
+**Bản 10.3 — "Mã NCC"/"Tên NCC" TỰ ĐỘNG lấy từ domain `don_dat_hang` khi
 chưa khai tay?** Theo yêu cầu người dùng: "Mã NCC"/"Tên NCC" không BẮT
 BUỘC phải khai tay trong "Danh sách hàng Core" nữa (khai tay vẫn LUÔN
 ưu tiên hơn nếu có) — khi 1 dòng Core CHƯA khai tay cả 2 cột này, báo cáo
@@ -472,7 +472,7 @@ lại thử báo cáo ngay để xác nhận hết Timeout.
   cần job/cấu hình riêng).
 - Các hàm đọc `dwh.ReportFacts` dùng chung với báo cáo "Top bán chạy tồn
   kho=0": `rp-server/lib/reportFactsHelpers.js`.
-- Mã NCC/Tên NCC tự động (bản 9.103, domain `don_dat_hang`):
+- Mã NCC/Tên NCC tự động (bản 10.3, domain `don_dat_hang`):
   `rp-server/lib/donDatHangTonKhoHelper.js` (hàm
   `loadLatestNccReceivedMapByEntity()`, dùng CHUNG với cơ chế "Chờ nhập/
   Đã nhập (NCC)" ở `bc-ton-kho-0.md`) — xem `bc-don-dat-hang.md` cho VIEW/

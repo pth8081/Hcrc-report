@@ -80,7 +80,7 @@
    để biết đủ bối cảnh + các bước triển khai còn lại (tick Dimension mới +
    resync job Live).
 
-   ‼️ THÊM 23/10/2026 (bản 9.102) — CỘT `MaNganhHang`/`TenNganhHang` (JOIN
+   ‼️ THÊM 23/10/2026 (bản 10.2) — CỘT `MaNganhHang`/`TenNganhHang` (JOIN
    thêm `DEPTLIST` qua `SKU_DEF.DEPT_ID`) ‼️ Thêm để lọc 6 báo cáo "Đơn đặt
    hàng"/"Đơn nhập hàng"/"So sánh đặt–nhận"/... theo ngành hàng (theo yêu
    cầu người dùng) — khớp ĐÚNG cách JOIN `SKU_DEF.DEPT_ID` →
@@ -112,8 +112,8 @@ SELECT
     m.SKU_ID                    AS MaHang,
     NULL                        AS TenHang,          -- cần JOIN bảng danh mục hàng hoá nếu muốn hiện tên (chưa có, hiện mã)
     k.SKU_CODE                   AS MaHangHienThi,   -- THÊM bản 9.95 — mã hàng HIỂN THỊ (khớp domain banhang_sku/tonkho_sku), KHÁC MaHang (SKU_ID thô)
-    k.DEPT_ID                    AS MaNganhHang,     -- THÊM bản 9.102
-    dl.DEPT_NAME_U                AS TenNganhHang,   -- THÊM bản 9.102 — Unicode, KHÔNG dùng DEPT_NAME (lỗi font)
+    k.DEPT_ID                    AS MaNganhHang,     -- THÊM bản 10.2
+    dl.DEPT_NAME_U                AS TenNganhHang,   -- THÊM bản 10.2 — Unicode, KHÔNG dùng DEPT_NAME (lỗi font)
     m.UNIT_SYMB                 AS DVT,
     m.STATUS                    AS TrangThai,
     CASE m.STATUS
@@ -129,7 +129,7 @@ SELECT
 FROM dbo.STRANS m
 LEFT JOIN dbo.SUPPLIER s ON s.SUPP_ID = m.SUPP_ID
 LEFT JOIN dbo.SKU_DEF k ON k.SKU_ID = m.SKU_ID        -- THÊM bản 9.95 — lấy SKU_CODE (mã hàng hiển thị)
-LEFT JOIN dbo.DEPTLIST dl ON dl.DEPT_ID = k.DEPT_ID    -- THÊM bản 9.102 — lấy tên ngành hàng
+LEFT JOIN dbo.DEPTLIST dl ON dl.DEPT_ID = k.DEPT_ID    -- THÊM bản 10.2 — lấy tên ngành hàng
 WHERE m.TRANS_CODE IN ('133','333','130','330') AND m.STATUS NOT IN ('D','E');  -- loại hẳn đơn đã xoá/đã huỷ (theo yêu cầu người dùng); 130/330 thêm bản 9.27
 GO
 

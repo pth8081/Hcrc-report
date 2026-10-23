@@ -41,7 +41,7 @@
 //      - lastReceivedDomain (measure 'SoLuongDaNhap') — hiển thị thêm
 //        "Ngày nhập cuối" (EventDate của dòng gần nhất, KHÔNG giới hạn
 //        "hôm nay" — khác 4 domain "Đã nhập hôm nay" ở topZeroStock).
-//      - useDonDatHangForNcc (bản 9.103, theo yêu cầu người dùng) — TỰ
+//      - useDonDatHangForNcc (bản 10.3, theo yêu cầu người dùng) — TỰ
 //        ĐỘNG lấy Mã NCC/Tên NCC từ domain don_dat_hang (nhà cung cấp đã
 //        TỪNG NHẬP mã hàng đó, dòng NHẬP gần nhất TRONG SỐ ĐÃ CÓ, KHÔNG
 //        giới hạn khung ngày gần đây — xem lib/donDatHangTonKhoHelper.js:
@@ -59,7 +59,7 @@
 // DefinitionJson bắt buộc: { loaiDiem: 'MART'|'MINIMART', stockDomain,
 // salesDomain, chainDomain }. Tuỳ chọn: threshold (mặc định 0), dataSourceId,
 // lockAllDomain, lockByStoreDomain, pendingOrderDomain, lastReceivedDomain,
-// useDonDatHangForNcc (bản 9.103, boolean).
+// useDonDatHangForNcc (bản 10.3, boolean).
 //
 // filterValues: { branches: [STK_ID,...] (rỗng/bỏ trống = tất cả STK_ID
 // thuộc đúng loaiDiem) }.
@@ -315,7 +315,7 @@ async function runCoreZeroStockReport(definition, filterValues = {}) {
     definition.pendingOrderDomain ? loadLatestMeasureWithDate(pool, definition.pendingOrderDomain, entityCodes, 'SoLuongDangDat') : Promise.resolve(new Map()),
     definition.lastReceivedDomain ? loadLatestMeasureWithDate(pool, definition.lastReceivedDomain, entityCodes, 'SoLuongDaNhap') : Promise.resolve(new Map()),
     loadLatestMeasureWithDate(pool, definition.salesDomain, entityCodes, 'SoLuongBan'),
-    // useDonDatHangForNcc (bản 9.103) — quét TOÀN BỘ domain don_dat_hang
+    // useDonDatHangForNcc (bản 10.3) — quét TOÀN BỘ domain don_dat_hang
     // (không theo entityCodes của báo cáo này, vì khoá nối khác nhau —
     // xem loadLatestNccReceivedMapByEntity()), chỉ gọi khi bật cờ.
     definition.useDonDatHangForNcc ? loadLatestNccReceivedMapByEntity(pool, diemMapping) : Promise.resolve(new Map())
@@ -348,7 +348,7 @@ async function runCoreZeroStockReport(definition, filterValues = {}) {
     // cáo LDTD/HCRC); KHÔNG tìm thấy (mã Điểm chưa khai ánh xạ) thì dùng lại
     // TenChiNhanh tự động như trước, không đổi hành vi cũ.
     const diemInfo = effectiveMaDiem ? diemMapping.get(effectiveMaDiem) : null;
-    // useDonDatHangForNcc (bản 9.103) — CHỈ dùng làm dự phòng khi dòng Core
+    // useDonDatHangForNcc (bản 10.3) — CHỈ dùng làm dự phòng khi dòng Core
     // đó CHƯA khai tay maNCC/tenNCC trong "Danh sách hàng Core" (khai tay
     // luôn ưu tiên hơn — xem header comment ở trên).
     const autoNcc = (!c.coreRef.maNCC && !c.coreRef.tenNCC) ? autoNccByEntity.get(c.entityCode) : null;

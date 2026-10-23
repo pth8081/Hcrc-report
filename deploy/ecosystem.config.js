@@ -48,7 +48,7 @@
 // PHẢI đi kèm chỉnh lại *_POOL_MAX trong .env của từng service (xem chú
 // thích ở đó) — mỗi worker tự mở pool CSDL RIÊNG (không dùng chung), tổng
 // kết nối tới SQL Server = instances × tổng pool.max của 1 worker.
-// path.join(__dirname, ...) (bản 9.100, SỬA LỖI THẬT — báo cáo người
+// path.join(__dirname, ...) (bản 10.0, SỬA LỖI THẬT — báo cáo người
 // dùng) — TRƯỚC ĐÂY `cwd`/`script` dùng chuỗi tương đối thẳng ('../etl',
 // 'serve-static.js') — PM2 tính các đường dẫn đó DỰA THEO THƯ MỤC ĐANG
 // ĐỨNG lúc gõ `pm2 start` (hoặc cwd mặc định của PM2 daemon, KHÔNG PHẢI

@@ -115,13 +115,13 @@ async function queryDaNhapHomNayNcc(pool, today) {
   return result.recordset;
 }
 
-// loadLatestNccReceivedByEntity (bản 9.103, theo yêu cầu người dùng —
+// loadLatestNccReceivedByEntity (bản 10.3, theo yêu cầu người dùng —
 // "Core stock = 0" thêm Mã NCC/Tên NCC TỰ ĐỘNG) — khác hẳn
 // loadDonDatHangPendingReceivedByEntity() ở trên (dùng cho "Chờ nhập/Đã
 // nhập (NCC)", có cửa sổ `pendingWindowDays`): ở đây lấy NHÀ CUNG CẤP ĐÃ
 // TỪNG NHẬP (`LoaiGiaoDich='333'`) đúng mã hàng đó, dòng GẦN NHẤT TRONG
 // SỐ ĐÃ CÓ — KHÔNG giới hạn trong khung ngày gần đây (mặt hàng Core có
-// thể tồn tại lâu, lâu chưa nhập lại — người dùng xác nhận bản 9.103
+// thể tồn tại lâu, lâu chưa nhập lại — người dùng xác nhận bản 10.3
 // "không phải NCC nhập gần nhất [trong 1 khung ngày hẹp] vì có thể mã
 // hàng tồn tại lâu rồi và lâu chưa nhập") — KHÁC "NCC đặt/mua gần đây"
 // (lọc theo dòng `133`) mà người dùng đã chỉ rõ KHÔNG phải ý muốn.

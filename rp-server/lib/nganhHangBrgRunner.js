@@ -278,7 +278,7 @@ function overlapDays(aFrom, aTo, bFrom, bTo) {
   return Math.round((parseISODateUTC(to) - parseISODateUTC(from)) / 86400000) + 1;
 }
 
-// loadNganhHangTargetsProportional (bản 9.101, theo yêu cầu người dùng —
+// loadNganhHangTargetsProportional (bản 10.1, theo yêu cầu người dùng —
 // "tự động tạo chỉ tiêu theo ngày (chia trung bình theo đúng tháng chọn)
 // nếu báo cáo chọn một ngày hoặc nhiều ngày không phải nguyên 1 tháng") —
 // THAY cho runSalesTargetsBlockRange() (lib/salesTargetsReader.js) CHỈ ở
@@ -647,7 +647,7 @@ async function runNganhHangBrgReport(definition, filterValues = {}) {
     fetchDomain(DOANHTHU_DOMAIN, lastYearRange)
   ]);
 
-  // loadNganhHangTargetsProportional (bản 9.101) THAY cho
+  // loadNganhHangTargetsProportional (bản 10.1) THAY cho
   // runSalesTargetsBlockRange() — chia chỉ tiêu theo tỷ lệ số ngày khi
   // khoảng ngày xem báo cáo không tròn 1 (hay nhiều) tháng, xem chú thích
   // đầy đủ ở định nghĩa hàm.

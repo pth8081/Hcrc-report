@@ -2,7 +2,7 @@
 // dbo.vw_DonDatHangChiNhanh thêm cột MaHangHienThi, JOIN SKU_DEF — xem
 // VERSION.md 9.95 và "bc-ton-kho-0.md" mục "Chờ nhập/Đã nhập (NCC)").
 //
-// TÁI DÙNG nguyên vẹn ở bản 9.102 (thêm cột MaNganhHang/TenNganhHang, JOIN
+// TÁI DÙNG nguyên vẹn ở bản 10.2 (thêm cột MaNganhHang/TenNganhHang, JOIN
 // DEPTLIST) — tên file còn "...ForSkuCode" (giữ nguyên, không đổi tên gây
 // nhầm lẫn lịch sử), nhưng CƠ CHẾ (xoá dữ liệu Live cũ + reset watermark,
 // ép job kéo lại với CẤU HÌNH DIMENSION MỚI NHẤT) áp dụng ĐÚNG CHO MỌI LẦN
