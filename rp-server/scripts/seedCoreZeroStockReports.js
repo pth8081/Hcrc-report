@@ -17,6 +17,11 @@
 //   4. (Tuỳ chọn) job/domain "Khóa All"/"Khóa theo kho"/"SL đang đặt"/
 //      "Ngày nhập cuối" nếu muốn loại hàng đang khoá / hiển thị thêm cột
 //      tham khảo — xem bc-core-ton-kho-0.md.
+//   5. Mã NCC/Tên NCC (bản 9.103) — TỰ ĐỘNG lấy từ domain "don_dat_hang" khi
+//      dòng Core chưa khai tay (useDonDatHangForNcc, xem bc-core-ton-kho-0.md).
+//      Domain "don_dat_hang" đã có sẵn (bc-don-dat-hang.md) — không cần job
+//      riêng, nhưng NẾU job đó chưa từng đồng bộ với cột MaHangHienThi (bản
+//      9.95) thì cần chạy etl/scripts/resyncDonDatHangLiveForSkuCode.js 1 lần.
 //
 // CHƯA gán quyền xem (Hệ thống → Phân quyền) — admin tự làm sau.
 //
@@ -49,6 +54,12 @@ function buildDefinition({ loaiDiem, title }) {
     pendingOrderDomain: 'core_dang_dat',
     lastReceivedDomain: 'core_ngay_nhap_cuoi',
     threshold: 0,
+    // useDonDatHangForNcc (bản 9.103, theo yêu cầu người dùng) — TỰ ĐỘNG lấy
+    // Mã NCC/Tên NCC từ domain "don_dat_hang" (đã đồng bộ sẵn cho 6 báo cáo
+    // "Đơn đặt hàng"/"Đơn nhập hàng") khi dòng Core đó CHƯA khai tay cột Mã
+    // NCC/Tên NCC trong "Danh sách hàng Core" — xem lib/coreZeroStockRunner.js
+    // và lib/donDatHangTonKhoHelper.js:loadLatestNccReceivedMapByEntity().
+    useDonDatHangForNcc: true,
     filters: [
       {
         // optionsSource.coreZeroStockBranches (bản 9.54, theo yêu cầu
@@ -125,6 +136,9 @@ async function main() {
   console.log('   3. Cần đã có job banhang_sku/tonkho_sku (bc-ton-kho-0.md) + doanh thu chi');
   console.log('      nhánh có Dimension "chain" (hướng_dẫn_báo_cáo.md mục 1) — xem đầy đủ ở');
   console.log('      bc-core-ton-kho-0.md.');
+  console.log('   4. Mã NCC/Tên NCC tự động (bản 9.103) dùng domain "don_dat_hang" đã có sẵn —');
+  console.log('      nếu job đó chưa đồng bộ MaHangHienThi (bản 9.95), chạy 1 lần');
+  console.log('      etl/scripts/resyncDonDatHangLiveForSkuCode.js --confirm.');
   process.exit(0);
 }
 

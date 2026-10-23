@@ -115,6 +115,73 @@ async function queryDaNhapHomNayNcc(pool, today) {
   return result.recordset;
 }
 
+// loadLatestNccReceivedByEntity (bản 9.103, theo yêu cầu người dùng —
+// "Core stock = 0" thêm Mã NCC/Tên NCC TỰ ĐỘNG) — khác hẳn
+// loadDonDatHangPendingReceivedByEntity() ở trên (dùng cho "Chờ nhập/Đã
+// nhập (NCC)", có cửa sổ `pendingWindowDays`): ở đây lấy NHÀ CUNG CẤP ĐÃ
+// TỪNG NHẬP (`LoaiGiaoDich='333'`) đúng mã hàng đó, dòng GẦN NHẤT TRONG
+// SỐ ĐÃ CÓ — KHÔNG giới hạn trong khung ngày gần đây (mặt hàng Core có
+// thể tồn tại lâu, lâu chưa nhập lại — người dùng xác nhận bản 9.103
+// "không phải NCC nhập gần nhất [trong 1 khung ngày hẹp] vì có thể mã
+// hàng tồn tại lâu rồi và lâu chưa nhập") — KHÁC "NCC đặt/mua gần đây"
+// (lọc theo dòng `133`) mà người dùng đã chỉ rõ KHÔNG phải ý muốn.
+//
+// ‼️ LƯU Ý HIỆU NĂNG ‼️ domain `don_dat_hang` có "Giữ lịch sử theo ngày"
+// (KeepHistory=1), có thể tích luỹ RẤT NHIỀU dòng qua nhiều năm — quét
+// KHÔNG giới hạn ngày (đúng yêu cầu nghiệp vụ, không bounded được) có thể
+// CHẬM trên domain lớn. CHƯA áp dụng giới hạn trước vì chưa có số liệu
+// thật để biết có cần không — nếu gặp timeout khi dùng thật, cần bổ sung
+// index/giới hạn hợp lý sau.
+async function loadLatestNccReceivedByEntity(pool) {
+  const req = pool.request();
+  req.input('domain', sql.VarChar(50), DON_DAT_HANG_DOMAIN);
+  const result = await req.query(`
+    WITH Nhap333 AS (
+      SELECT
+        JSON_VALUE(Dimensions, '$.MaDiem') AS BuId,
+        JSON_VALUE(Dimensions, '$.MaHangHienThi') AS SkuCode,
+        JSON_VALUE(Dimensions, '$.MaNCC') AS MaNCC,
+        JSON_VALUE(Dimensions, '$.TenNCC') AS TenNCC,
+        EventDate,
+        ROW_NUMBER() OVER (
+          PARTITION BY JSON_VALUE(Dimensions, '$.MaDiem'), JSON_VALUE(Dimensions, '$.MaHangHienThi')
+          ORDER BY EventDate DESC
+        ) AS rn
+      FROM dwh.ReportFacts
+      WHERE Domain = @domain
+        AND JSON_VALUE(Dimensions, '$.LoaiGiaoDich') = '333'
+        AND JSON_VALUE(Dimensions, '$.MaHangHienThi') IS NOT NULL
+    )
+    SELECT BuId, SkuCode, MaNCC, TenNCC FROM Nhap333 WHERE rn = 1
+  `);
+  return result.recordset;
+}
+
+// Dịch (BU_ID, SkuCode) -> EntityCode "<STK_ID>_<SkuCode>", trả Map thẳng
+// {maNCC, tenNCC} (KHÁC expandToEntityMap() bên dưới — đó dành cho số
+// lượng, đây là 2 trường chuỗi) — dùng CHUNG diemMapping ĐÃ NẠP SẴN từ
+// nơi gọi (coreZeroStockRunner.js đã tự nạp cho mục đích khác, tránh nạp
+// lại 2 lần/lượt chạy).
+async function loadLatestNccReceivedMapByEntity(pool, diemMapping) {
+  const rows = await loadLatestNccReceivedByEntity(pool);
+  const buIdToMaDiem = new Map();
+  for (const [maDiem, info] of diemMapping) {
+    if (info.buId) buIdToMaDiem.set(info.buId, maDiem);
+  }
+  const map = new Map();
+  for (const row of rows) {
+    if (!row.SkuCode) continue;
+    const maDiem = buIdToMaDiem.get(row.BuId);
+    if (!maDiem) continue; // BU_ID chưa khai ánh xạ — bỏ qua, không đoán bừa
+    const info = diemMapping.get(maDiem);
+    if (!info || !info.maStkMoi.length) continue;
+    for (const stk of info.maStkMoi) {
+      map.set(`${stk}_${row.SkuCode}`, { maNCC: row.MaNCC || null, tenNCC: row.TenNCC || null });
+    }
+  }
+  return map;
+}
+
 // Dịch (BU_ID, SkuCode) -> (các) EntityCode "<STK_ID>_<SkuCode>" — xem chú
 // thích "KHOÁ NỐI" ở đầu file cho lý do 1 BU_ID có thể giãn ra nhiều
 // entityCode. Dùng gán (=), KHÔNG cộng dồn (+=) — mỗi entityCode "nhân bản"
@@ -162,4 +229,4 @@ async function loadDonDatHangPendingReceivedByEntity(pool, { today, pendingWindo
   };
 }
 
-module.exports = { loadDonDatHangPendingReceivedByEntity, DEFAULT_PENDING_WINDOW_DAYS };
+module.exports = { loadDonDatHangPendingReceivedByEntity, DEFAULT_PENDING_WINDOW_DAYS, loadLatestNccReceivedMapByEntity };

@@ -2,6 +2,15 @@
 // dbo.vw_DonDatHangChiNhanh thêm cột MaHangHienThi, JOIN SKU_DEF — xem
 // VERSION.md 9.95 và "bc-ton-kho-0.md" mục "Chờ nhập/Đã nhập (NCC)").
 //
+// TÁI DÙNG nguyên vẹn ở bản 9.102 (thêm cột MaNganhHang/TenNganhHang, JOIN
+// DEPTLIST) — tên file còn "...ForSkuCode" (giữ nguyên, không đổi tên gây
+// nhầm lẫn lịch sử), nhưng CƠ CHẾ (xoá dữ liệu Live cũ + reset watermark,
+// ép job kéo lại với CẤU HÌNH DIMENSION MỚI NHẤT) áp dụng ĐÚNG CHO MỌI LẦN
+// thêm cột Dimension mới vào VIEW `vw_DonDatHangChiNhanh`, không riêng gì
+// MaHangHienThi — chạy lại script NÀY (sau khi đã chạy
+// `seedDonDatHangSync.js` để cập nhật DimensionColumnsJson) là đủ, KHÔNG
+// cần viết script resync riêng cho mỗi cột mới.
+//
 // TẠI SAO CẦN SCRIPT RIÊNG — ĐÚNG lỗi watermark đã gặp ở bản 8.1/9.68/9.86
 // (xem scripts/resyncDoanhThuChinhanhLive.js/resyncDoanhThuNganhHangLive.js,
 // mirror y hệt cơ chế): job "Đơn đặt hàng - nhập hàng (DSMART16)" dùng chính

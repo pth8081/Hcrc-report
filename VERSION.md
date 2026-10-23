@@ -29,6 +29,79 @@ riêng `deploy/Cập nhật bản X.Y — ....md` cho từng bản như trước
 gộp này ban đầu tạo ở bản 8.36 ghi "từ bản 8.34"; đã lùi mốc về đúng bản
 8.31 theo yêu cầu người dùng, đổi tên file + bổ sung đủ 3 mục 8.31-8.33.)
 
+## 9.103 — "Core stock = 0" tự động lấy Mã NCC/Tên NCC từ domain `don_dat_hang`
+
+**Theo yêu cầu người dùng** (mục 3/4 trong yêu cầu lớn "chỉ tiêu ngành
+hàng theo siêu thị + tồn kho + so sánh đặt/nhập"): báo cáo "Core stock =
+0" (Mart/Minimart) thêm cột thông tin Mã NCC/Tên NCC — KHÔNG phải NCC
+mua/đặt gần đây, mà NCC đã TỪNG NHẬP mã hàng đó — "nhà cung cấp mà mã
+hàng đó nhập không phải NCC nhập gần nhất vì có thể mã hàng tồn tại lâu
+rồi và lâu chưa nhập" (nguyên văn người dùng) — tức KHÔNG được bó trong 1
+khung ngày gần đây.
+
+**Đã làm**: tái dùng domain `don_dat_hang` (đã đồng bộ sẵn cho 6 báo cáo
+"Đơn đặt hàng"/"Đơn nhập hàng", không cần VIEW/job mới) —
+`rp-server/lib/donDatHangTonKhoHelper.js` thêm hàm MỚI
+`loadLatestNccReceivedMapByEntity()` — quét TOÀN BỘ domain (không giới
+hạn ngày, khác hẳn cửa sổ `pendingWindowDays` 90 ngày của "Chờ nhập (NCC)"
+ở bản 9.95), lấy dòng NHẬP (`LoaiGiaoDich='333'`) GẦN NHẤT trong số đã có
+cho mỗi (kho, mã hàng). `rp-server/lib/coreZeroStockRunner.js` thêm cờ
+TUỲ CHỌN `useDonDatHangForNcc` — CHỈ dùng làm DỰ PHÒNG khi dòng Core đó
+CHƯA khai tay Mã NCC/Tên NCC trong "Danh sách hàng Core" (khai tay LUÔN
+ưu tiên hơn, coi là admin chủ động ghi đè) — đã bật `true` sẵn trong
+`rp-server/scripts/seedCoreZeroStockReports.js` cho cả 2 báo cáo Mart/
+Minimart. Verify qua mock test (9 assertion: khai tay giữ nguyên, chưa
+khai tay dùng auto, cả 2 đều thiếu thì null, cờ tắt giữ hành vi cũ). Xem
+"bc-core-ton-kho-0.md" mục "Bản 9.103".
+
+## 9.102 — Thêm Ngành hàng vào VIEW `don_dat_hang` + bộ lọc Ngành hàng cho 6 báo cáo mua hàng
+
+**Theo yêu cầu người dùng** (mục 4 trong yêu cầu lớn): báo cáo so sánh
+đặt hàng/nhập hàng cần lọc thêm theo Ngành hàng (đã có sẵn lọc NCC/Siêu
+thị/Kênh mua — chỉ thiếu Ngành hàng).
+
+**Đã làm**: VIEW `dbo.vw_DonDatHangChiNhanh` (Live DSMART16 + Lịch sử
+DSMART16_EOM, cả 2 nhánh dynamic SQL) thêm `MaNganhHang`/`TenNganhHang`
+(JOIN `DEPTLIST` qua `SKU_DEF.DEPT_ID`, dùng cột Unicode `DEPT_NAME_U` —
+mirror đúng pattern đã dùng ở `V_HCRC_DOANHTHU_NGANHHANG`) — thuần thêm
+cột, 6 báo cáo cũ không ảnh hưởng. `etl/scripts/seedDonDatHangSync.js`/
+`seedDonDatHangHistorySync.js` cập nhật `dimensionColumns`.
+`rp-server/scripts/seedPurchaseOrderReports.js` thêm `NGANH_HANG_FILTER`
+(multiSelect, `optionsSource.domain` — cơ chế lọc SQL-level có sẵn, KHÔNG
+cần sửa `purchaseOrderRunner.js`) vào cả 6 báo cáo. Job Live cần resync 1
+lần (`etl/scripts/resyncDonDatHangLiveForSkuCode.js --confirm`, script
+TÁI DÙNG nguyên vẹn từ bản 9.95 — cơ chế domain-agnostic, áp dụng cho MỌI
+lần thêm cột Dimension mới vào VIEW này, không riêng MaHangHienThi) — job
+Lịch sử KHÔNG cần resync (dữ liệu CŨ chỉ thiếu 2 cột mới, không sai dữ
+liệu đã có, resync sẽ mất nhiều thời gian không cần thiết).
+
+## 9.101 — Chia Chỉ tiêu ngành hàng theo tỷ lệ ngày khi chọn khoảng ngày không đúng nguyên 1 tháng
+
+**Theo yêu cầu người dùng** (mục 1 trong yêu cầu lớn): báo cáo "Doanh
+thu/Nhập hàng theo ngành hàng" (HCRC + LDTĐ) khi người dùng chọn 1 ngày
+hoặc vài ngày KHÔNG phải nguyên 1 tháng, Chỉ tiêu vẫn lấy NGUYÊN giá trị
+cả tháng (`runSalesTargetsBlockRange()`) — sai khi so sánh với doanh thu
+thực tế của ĐÚNG số ngày đã chọn.
+
+**Đã sửa**: `rp-server/lib/nganhHangBrgRunner.js` thêm hàm MỚI
+`loadNganhHangTargetsProportional()` — với MỖI tháng trong khoảng ngày đã
+chọn, tính tỷ lệ = (số ngày của tháng đó đã chọn) ÷ (tổng số ngày của
+tháng đó), nhân tỷ lệ này vào MỌI trường số trong Chỉ tiêu rồi CỘNG DỒN
+qua các tháng — chọn ĐÚNG nguyên 1 tháng tự nhiên ra tỷ lệ 1.0 (khớp
+hành vi CŨ, không cần xử lý riêng "nguyên tháng" vs "lẻ ngày"). THAY hẳn
+`runSalesTargetsBlockRange()` cho 2 báo cáo ngành hàng (CHỈ 2 báo cáo
+này) — KHÔNG đổi hành vi báo cáo LDTD/HCRC "doanh thu cuối ngày" (vẫn
+dùng `runSalesTargetsBlockRange()` nguyên vẹn, cố ý lấy NGUYÊN tháng).
+Verify qua mock test (14 assertion: tháng thường/tháng nhuận, nguyên
+tháng = hành vi cũ, lẻ 5/31 ngày, lẻ ngày bắc cầu 2 tháng, `TrangThai`
+"Đã đóng" bị loại, thực thể không có chỉ tiêu).
+
+**LƯU Ý — mục 2 của yêu cầu lớn (chỉ tiêu theo siêu thị thay đổi nguồn
+sang hệ `sales-targets-corp`/`sales-targets-hcrc`) ĐANG TẠM DỪNG** theo
+lựa chọn của người dùng ("Dừng lại, để tôi nghĩ thêm") — hệ nguồn đó chỉ
+có Chỉ tiêu Total (không có Bán lẻ/Bán buôn/Lãi gộp riêng), sẽ cần người
+dùng quyết định thêm trước khi làm.
+
 ## 9.100 — Sửa lỗi thật: `deploy/ecosystem.config.js` khởi động sai đường dẫn tuỳ nơi gõ lệnh
 
 **Theo báo cáo người dùng** (sau khi server reboot mất hết tiến trình

@@ -72,11 +72,10 @@
 //    (không có khái niệm "doanh thu cuối" riêng theo kênh).
 //    "Doanh thu cuối" KHÔNG còn là CỘT HIỂN THỊ riêng (đúng file mẫu gốc
 //    không có cột này) — chỉ dùng NGẦM để tính mẫu số Tỷ lệ lãi gộp Total.
-const { getPool } = require('../db');
+const { sql, getPool } = require('../db');
 const {
   fetchAllReportRows, remapEntityCode, aggregateDailyRowsByEntity, resolveRequestedRange
 } = require('./compositeReportRunner');
-const { runSalesTargetsBlockRange } = require('./salesTargetsReader');
 const { loadDiemStkMapping, buildStkIdLookup } = require('./diemStkMapping');
 const { loadNsoMaDiemSet } = require('./nsoStores');
 const { describeColumns } = require('./reportEngine');
@@ -259,6 +258,87 @@ function shiftYearMinus1(dateStr) {
 
 function firstOfMonth(dateStr) {
   return `${dateStr.slice(0, 7)}-01`;
+}
+
+function daysInMonth(year, month) { // month: 1-12
+  return new Date(Date.UTC(year, month, 0)).getUTCDate();
+}
+
+function parseISODateUTC(dateStr) {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d));
+}
+
+// Số ngày giao nhau (cả 2 đầu) giữa [aFrom,aTo] và [bFrom,bTo] — tất cả ISO
+// string "YYYY-MM-DD" — trả 0 nếu không giao nhau.
+function overlapDays(aFrom, aTo, bFrom, bTo) {
+  const from = aFrom > bFrom ? aFrom : bFrom;
+  const to = aTo < bTo ? aTo : bTo;
+  if (from > to) return 0;
+  return Math.round((parseISODateUTC(to) - parseISODateUTC(from)) / 86400000) + 1;
+}
+
+// loadNganhHangTargetsProportional (bản 9.101, theo yêu cầu người dùng —
+// "tự động tạo chỉ tiêu theo ngày (chia trung bình theo đúng tháng chọn)
+// nếu báo cáo chọn một ngày hoặc nhiều ngày không phải nguyên 1 tháng") —
+// THAY cho runSalesTargetsBlockRange() (lib/salesTargetsReader.js) CHỈ ở
+// RIÊNG 2 báo cáo ngành hàng — KHÔNG sửa runSalesTargetsBlockRange() dùng
+// CHUNG cho báo cáo "doanh thu cuối ngày" LDTD/HCRC, tránh ảnh hưởng 2 báo
+// cáo đó (đang hoạt động đúng, cộng NGUYÊN chỉ tiêu cả tháng — hành vi họ
+// CẦN GIỮ, khác yêu cầu mới này chỉ áp dụng cho ngành hàng).
+//
+// CÔNG THỨC: với MỖI tháng dính khoảng ngày [range.from, range.to] đã
+// chọn, lấy (chỉ tiêu tháng đó ÷ số ngày THẬT trong tháng đó) × (số ngày
+// ĐƯỢC CHỌN nằm trong tháng đó), cộng dồn qua các tháng dính khoảng đó.
+// Chọn ĐÚNG 1 tháng trọn vẹn (vd cả tháng 10) thì công thức tự ra kết quả
+// Y HỆT trước đây (tỷ lệ = 1, không chia gì cả) — KHÔNG cần tách nhánh
+// riêng cho "chọn nguyên 1 tháng" vs "chọn lẻ ngày".
+//
+// TrangThai='DaDong' xử lý GIỐNG HỆT aggregateTargetRowsByEntity() (dùng
+// chung cho LDTD/HCRC, xem salesTargetsReader.js) — loại phần đóng góp
+// của THÁNG đã đóng cửa khỏi tổng, đánh dấu TrangThai='DaDong' cho dòng
+// kết quả CHỈ KHI MỌI tháng dính khoảng đó đều đóng (còn lại, dù 1 tháng
+// mở cũng đủ để có số, tháng đóng chỉ đơn giản không góp phần).
+async function loadNganhHangTargetsProportional(pool, domain, range) {
+  const fromMonthStart = firstOfMonth(range.from);
+  const toMonthStart = firstOfMonth(range.to);
+  const result = await pool.request()
+    .input('domain', sql.VarChar(50), domain)
+    .input('fromMonth', sql.Date, fromMonthStart)
+    .input('toMonth', sql.Date, toMonthStart)
+    .query('SELECT EntityCode, PeriodMonth, TargetsJson FROM dwh.SalesTargets WHERE Domain = @domain AND PeriodMonth BETWEEN @fromMonth AND @toMonth');
+
+  const byEntity = new Map();
+  for (const row of result.recordset) {
+    if (!byEntity.has(row.EntityCode)) byEntity.set(row.EntityCode, { sums: {}, hasAnyPeriod: false, hasOpenPeriod: false });
+    const acc = byEntity.get(row.EntityCode);
+    acc.hasAnyPeriod = true;
+
+    const periodDate = row.PeriodMonth instanceof Date ? row.PeriodMonth : new Date(row.PeriodMonth);
+    const year = periodDate.getUTCFullYear();
+    const month = periodDate.getUTCMonth() + 1;
+    const monthDays = daysInMonth(year, month);
+    const monthStart = `${year}-${String(month).padStart(2, '0')}-01`;
+    const monthEnd = `${year}-${String(month).padStart(2, '0')}-${String(monthDays).padStart(2, '0')}`;
+
+    const targets = JSON.parse(row.TargetsJson);
+    if (targets.TrangThai === 'DaDong') continue; // loại khỏi tổng, KHÔNG tính acc.hasOpenPeriod
+
+    acc.hasOpenPeriod = true;
+    const selectedDays = overlapDays(range.from, range.to, monthStart, monthEnd);
+    const weight = selectedDays / monthDays;
+    for (const [key, value] of Object.entries(targets)) {
+      if (key === 'TrangThai' || typeof value !== 'number') continue;
+      acc.sums[key] = (acc.sums[key] || 0) + value * weight;
+    }
+  }
+
+  const targetMap = new Map();
+  for (const [entityCode, acc] of byEntity) {
+    if (acc.hasOpenPeriod) targetMap.set(entityCode, { entityCode, ...acc.sums });
+    else if (acc.hasAnyPeriod) targetMap.set(entityCode, { entityCode, TrangThai: 'DaDong' });
+  }
+  return targetMap;
 }
 
 // Dùng CHUNG cho CẢ runNganhHangBrgReport() (phân loại STK_ID thật trong dữ
@@ -567,10 +647,11 @@ async function runNganhHangBrgReport(definition, filterValues = {}) {
     fetchDomain(DOANHTHU_DOMAIN, lastYearRange)
   ]);
 
-  const fromPeriod = firstOfMonth(range.from);
-  const toPeriod = firstOfMonth(range.to);
-  const targetRows = await runSalesTargetsBlockRange(dwhPool, targetDomain, fromPeriod, toPeriod);
-  const targetMap = new Map(targetRows.map(t => [t.entityCode, t]));
+  // loadNganhHangTargetsProportional (bản 9.101) THAY cho
+  // runSalesTargetsBlockRange() — chia chỉ tiêu theo tỷ lệ số ngày khi
+  // khoảng ngày xem báo cáo không tròn 1 (hay nhiều) tháng, xem chú thích
+  // đầy đủ ở định nghĩa hàm.
+  const targetMap = await loadNganhHangTargetsProportional(dwhPool, targetDomain, range);
 
   const { isNsoStk } = await loadIsNsoStk();
 
@@ -618,10 +699,10 @@ async function runNganhHangBrgReport(definition, filterValues = {}) {
   // Bản 9.77 (theo yêu cầu người dùng — "up ngành hàng nào chỉ hiện ra
   // được báo cáo ngành hàng đó"): CHỈ hiện ngành hàng đã có Chỉ tiêu
   // trong ĐÚNG kỳ/khoảng ngày đang xem (targetMap — xây từ
-  // runSalesTargetsBlockRange() ở trên, đã cộng dồn theo entityCode cho
-  // khoảng [fromPeriod, toPeriod]) — ngành hàng chưa nhập Chỉ tiêu kỳ đó
-  // (dù có doanh thu thật) sẽ không có dòng riêng VÀ không cộng vào Tổng
-  // cộng (xem chú thích NGANH_HANG_LIST phía trên).
+  // loadNganhHangTargetsProportional() ở trên, đã cộng dồn theo
+  // entityCode cho khoảng [range.from, range.to]) — ngành hàng chưa nhập
+  // Chỉ tiêu kỳ đó (dù có doanh thu thật) sẽ không có dòng riêng VÀ không
+  // cộng vào Tổng cộng (xem chú thích NGANH_HANG_LIST phía trên).
   const nganhHangToShow = NGANH_HANG_LIST.filter(item => targetMap.has(item.code));
 
   let rows = [];

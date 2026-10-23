@@ -199,7 +199,9 @@ async function main() {
   // MaHangHienThi (bản 9.95) — THÊM để tái dùng domain don_dat_hang cho
   // báo cáo "Top bán chạy đang tồn kho = 0" (bc-ton-kho-0.md) — xem VIEW
   // mẫu ở bc-don-dat-hang.md mục 2 (đã thêm JOIN SKU_DEF).
-  const dimensionColumns = ['MaDiem', 'TenDiem', 'SoDon', 'LoaiGiaoDich', 'NgayGiao', 'MaNCC', 'TenNCC', 'NguoiDat', 'MaHang', 'TenHang', 'MaHangHienThi', 'DVT', 'TrangThai', 'TrangThaiLabel'];
+  // MaNganhHang/TenNganhHang (bản 9.102) — THÊM để lọc 6 báo cáo mua hàng
+  // theo ngành hàng (JOIN thêm DEPTLIST).
+  const dimensionColumns = ['MaDiem', 'TenDiem', 'SoDon', 'LoaiGiaoDich', 'NgayGiao', 'MaNCC', 'TenNCC', 'NguoiDat', 'MaHang', 'TenHang', 'MaHangHienThi', 'MaNganhHang', 'TenNganhHang', 'DVT', 'TrangThai', 'TrangThaiLabel'];
   const measureColumns = ['SoLuong', 'DonGia', 'ThanhTien'];
   // SỬA 06/10/2026 (theo yêu cầu người dùng, sau khi chạy thử VIEW thật):
   // cột UpdatedAt (STOPED_DT) ra NULL hết — dùng làm watermark sẽ khiến job

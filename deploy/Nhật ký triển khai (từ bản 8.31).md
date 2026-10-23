@@ -14,6 +14,90 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 9.103 — "Core stock = 0" tự động lấy Mã NCC/Tên NCC từ domain `don_dat_hang`
+
+**Thay đổi**: 2 file `rp-server/lib/donDatHangTonKhoHelper.js` (thêm hàm
+`loadLatestNccReceivedMapByEntity()`), `rp-server/lib/coreZeroStockRunner.js`
+(wire cờ `useDonDatHangForNcc`, CHỈ dùng làm dự phòng khi dòng Core chưa
+khai tay Mã NCC/Tên NCC) + `rp-server/scripts/seedCoreZeroStockReports.js`
+(bật cờ `true` cho 2 báo cáo Mart/Minimart).
+
+**Các bước**:
+
+1. `git pull origin main` rồi `pm2 restart` đúng tiến trình `rp-server`.
+2. Nếu job "Đơn đặt hàng - nhập hàng (DSMART16)" (Live) CHƯA từng chạy
+   resync ở bản 9.95/9.102 (kiểm tra: mở báo cáo "So sánh đặt–nhận" xem
+   cột "Ngành hàng" đã có dữ liệu hay chưa) — chạy:
+   ```bash
+   cd etl
+   node scripts/resyncDonDatHangLiveForSkuCode.js --confirm
+   ```
+3. Chạy lại script tạo báo cáo (an toàn, idempotent — chỉ cập nhật
+   `DefinitionJson`, không tạo trùng):
+   ```bash
+   cd rp-server
+   node scripts/seedCoreZeroStockReports.js
+   ```
+4. Mở lại báo cáo "Core stock = 0 (Mart)"/"(Minimart)" — cột "Mã NCC"/
+   "Nhà cung cấp" phải có số liệu cho mọi dòng CHƯA khai tay trong "Danh
+   sách hàng Core" (miễn mã hàng đó đã TỪNG được nhập qua NCC — xem
+   "bc-core-ton-kho-0.md" mục "Bản 9.103" nếu vẫn trống).
+
+## 9.102 — Thêm Ngành hàng vào VIEW `don_dat_hang` + bộ lọc Ngành hàng cho 6 báo cáo mua hàng
+
+**Thay đổi**: 2 file SQL VIEW (`deploy/Thiết lập VIEW Đơn đặt hàng-Nhập
+hàng-So sánh (DSMART16 trung tâm).sql`,
+`deploy/Thiết lập VIEW Đơn đặt hàng Lịch sử (DSMART16_EOM).sql`) + 3 file
+code (`etl/scripts/seedDonDatHangSync.js`,
+`etl/scripts/seedDonDatHangHistorySync.js`,
+`rp-server/scripts/seedPurchaseOrderReports.js`).
+
+**Các bước**:
+
+1. DBA chạy lại 2 file SQL VIEW ở trên trên ĐÚNG server (DSMART16 trung
+   tâm + DSMART16_EOM) — AN TOÀN chạy lại (`CREATE OR ALTER VIEW`/thủ tục
+   `sp_HCRC_RebuildDonDatHangView`), không mất dữ liệu.
+2. `git pull origin main`.
+3. Chạy lại 2 script seed job (cập nhật `DimensionColumnsJson`, AN TOÀN
+   idempotent):
+   ```bash
+   cd etl
+   node scripts/seedDonDatHangSync.js
+   node scripts/seedDonDatHangHistorySync.js
+   ```
+4. Chạy lại script tạo 6 báo cáo mua hàng (cập nhật bộ lọc "Ngành hàng",
+   AN TOÀN idempotent):
+   ```bash
+   cd ../rp-server
+   node scripts/seedPurchaseOrderReports.js
+   ```
+5. Resync job Live để lấp Ngành hàng cho dữ liệu CŨ (TÁI DÙNG script bản
+   9.95, cơ chế domain-agnostic — áp dụng được cho MỌI cột Dimension mới
+   thêm vào VIEW này):
+   ```bash
+   cd ../etl
+   node scripts/resyncDonDatHangLiveForSkuCode.js --confirm
+   ```
+   (Job "Lịch sử" KHÔNG cần resync — để tự kéo dần theo lịch, dữ liệu CŨ
+   chỉ thiếu 2 cột mới, resync sẽ mất nhiều thời gian không cần thiết.)
+6. `pm2 restart` đúng tiến trình `rp-server` — mở lại 6 báo cáo mua hàng,
+   kiểm tra bộ lọc "Ngành hàng" đã xuất hiện và lọc đúng.
+
+## 9.101 — Chia Chỉ tiêu ngành hàng theo tỷ lệ ngày khi chọn khoảng ngày không đúng nguyên 1 tháng
+
+**Thay đổi**: 1 file `rp-server/lib/nganhHangBrgRunner.js` (thay
+`runSalesTargetsBlockRange()` bằng hàm mới
+`loadNganhHangTargetsProportional()` — CHỈ cho 2 báo cáo ngành hàng,
+KHÔNG đổi báo cáo LDTD/HCRC "doanh thu cuối ngày").
+
+**Các bước**: `git pull origin main` rồi `pm2 restart` đúng tiến trình
+`rp-server` (KHÔNG cần đổi gì ở CSDL/ETL). Mở lại báo cáo "Doanh thu/Nhập
+hàng theo ngành hàng" (HCRC + LDTĐ), chọn 1 ngày hoặc vài ngày KHÔNG phải
+nguyên 1 tháng — cột "Chỉ tiêu" (Doanh thu/Lãi gộp, Total/Bán lẻ/Bán
+buôn) giờ chỉ lấy ĐÚNG tỷ lệ số ngày đã chọn trong tháng đó, không còn
+lấy nguyên cả tháng. Chọn ĐÚNG nguyên 1 tháng vẫn ra số giống như trước
+(không đổi hành vi trường hợp này).
+
 ## 9.100 — Sửa lỗi thật: `ecosystem.config.js` khởi động sai đường dẫn
 
 **Thay đổi**: 1 file `deploy/ecosystem.config.js` (đường dẫn

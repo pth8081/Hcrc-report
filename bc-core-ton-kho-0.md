@@ -225,6 +225,7 @@ Script tạo báo cáo `bc-core-ton-kho-0-mart` với `DefinitionJson`:
   "pendingOrderDomain": "core_dang_dat",
   "lastReceivedDomain": "core_ngay_nhap_cuoi",
   "threshold": 0,
+  "useDonDatHangForNcc": true,
   "filters": [
     {
       "field": "branches",
@@ -282,14 +283,19 @@ hàng đó có bị "Khóa All"/"Khóa theo kho" không (nếu có khai Bước 
 kiểm tra file PDF xuất thật, 92 dòng đều trống cả 2 nhóm cột) — 2 NGUYÊN
 NHÂN HOÀN TOÀN KHÁC NHAU, không phải cùng 1 lỗi:
 
-1. **"Mã NCC"/"Tên NCC"/"Luồng giao hàng"** — THIẾU DỮ LIỆU KHAI BÁO, không
-   phải lỗi code. 3 cột này lấy từ chính file Excel "Danh sách hàng Core"
-   (etl-admin), 3 cột TUỲ CHỌN tên `MaNCC`/`TenNCC`/`LuongGiaoHang` (hoặc
-   `Mã NCC`/`Tên NCC`/`Luồng giao hàng` — xem `etl/lib/coreItemListImport.js`).
-   Trống HẾT ở mọi dòng nghĩa là file đang upload CHƯA điền 3 cột này cho
-   bất kỳ dòng nào. Khắc phục: bổ sung 3 cột đó vào file "Danh sách hàng
-   Core" (lấy từ báo cáo nhân viên nội bộ đang dùng), upload lại (riêng cho
-   từng loại điểm Mart/Minimart).
+1. **"Mã NCC"/"Tên NCC"/"Luồng giao hàng"** — ĐÃ ĐƯỢC KHẮC PHỤC PHẦN "Mã
+   NCC"/"Tên NCC" từ bản 9.103 (xem mục riêng ngay dưới) — chỉ còn
+   "Luồng giao hàng" là THIẾU DỮ LIỆU KHAI BÁO thật, không phải lỗi code.
+   3 cột này lấy từ chính file Excel "Danh sách hàng Core" (etl-admin), 3
+   cột TUỲ CHỌN tên `MaNCC`/`TenNCC`/`LuongGiaoHang` (hoặc `Mã NCC`/`Tên
+   NCC`/`Luồng giao hàng` — xem `etl/lib/coreItemListImport.js`). Trống ở
+   "Luồng giao hàng" (cột này KHÔNG có nguồn tự động) nghĩa là file đang
+   upload chưa điền cột đó — khắc phục: bổ sung cột đó vào file "Danh sách
+   hàng Core" (lấy từ báo cáo nhân viên nội bộ đang dùng), upload lại
+   (riêng cho từng loại điểm Mart/Minimart). "Mã NCC"/"Tên NCC" vẫn trống
+   dù đã lên bản 9.103 → xem chẩn đoán ở mục riêng dưới đây (KHÁC nguyên
+   nhân "thiếu khai báo" — domain `don_dat_hang` auto có thể chưa có dữ
+   liệu đúng mã hàng/kho đó).
 2. **"Ngày nhập cuối"/"SL đang đặt"/"Ngày đặt"/"Mã đang đặt"** — TÍNH NĂNG
    CHƯA TỪNG ĐƯỢC DỰNG XONG, không phải lỗi phát sinh mới. 4 cột này đọc từ
    4 "nguồn dữ liệu" tuỳ chọn (`core_khoa_all`/`core_khoa_theo_kho`/
@@ -303,6 +309,37 @@ NHÂN HOÀN TOÀN KHÁC NHAU, không phải cùng 1 lỗi:
    thật trên DSMART16, rồi admin tạo job "Theo bảng" tương ứng ở etl-admin
    theo đúng hướng dẫn Bước 4 — việc này CHƯA ai làm từ trước tới nay, cần
    làm mới hoàn toàn, không phải "sửa lại" 1 cấu hình đã có.
+
+**Bản 9.103 — "Mã NCC"/"Tên NCC" TỰ ĐỘNG lấy từ domain `don_dat_hang` khi
+chưa khai tay?** Theo yêu cầu người dùng: "Mã NCC"/"Tên NCC" không BẮT
+BUỘC phải khai tay trong "Danh sách hàng Core" nữa (khai tay vẫn LUÔN
+ưu tiên hơn nếu có) — khi 1 dòng Core CHƯA khai tay cả 2 cột này, báo cáo
+TỰ TRA ngược domain `don_dat_hang` (đã đồng bộ sẵn cho 6 báo cáo "Đơn đặt
+hàng"/"Đơn nhập hàng", xem `bc-don-dat-hang.md` — KHÔNG cần VIEW/job mới
+cho tính năng này), lấy NHÀ CUNG CẤP của dòng NHẬP (`LoaiGiaoDich='333'`)
+GẦN NHẤT **trong số đã có, KHÔNG giới hạn khung ngày gần đây** (mặt hàng
+Core có thể tồn tại lâu, lâu chưa nhập lại vẫn phải ra đúng NCC — KHÁC
+"NCC đặt/mua gần đây" bị bó trong 1 khung ngày hẹp).
+
+- Cấu hình: `useDonDatHangForNcc: true` trong `DefinitionJson` (đã có sẵn
+  trong 2 báo cáo tạo bởi `seedCoreZeroStockReports.js` — không cần khai
+  tay).
+- Công thức/khoá nối chi tiết: xem
+  `rp-server/lib/donDatHangTonKhoHelper.js` hàm
+  `loadLatestNccReceivedMapByEntity()` (dùng CHUNG khoá nối BU_ID → mã
+  Điểm → STK_ID qua "Ánh xạ Điểm - STK_ID" đã giải thích ở đầu file đó,
+  giống hệt cơ chế "Chờ nhập/Đã nhập (NCC)" ở `bc-ton-kho-0.md`).
+- Vẫn trống dù đã bật cờ? Kiểm tra theo đúng thứ tự: (1) job "Đơn đặt
+  hàng - nhập hàng (DSMART16)" đã từng đồng bộ dòng NHẬP (333) cho ĐÚNG
+  mã hàng/kho đó chưa (chưa từng nhập qua NCC thì KHÔNG có dữ liệu để
+  tra, không phải lỗi); (2) BU_ID của kho đó đã khai "Ánh xạ Điểm -
+  STK_ID" chưa (chưa khai thì bị bỏ qua, không đoán bừa — xem Bước 1 ở
+  `bc-ton-kho-0.md` mục liên quan); (3) job đó đã đồng bộ VỚI cột
+  `MaHangHienThi` (bản 9.95) chưa — job CŨ (trước 9.95) cần chạy 1 lần
+  `etl/scripts/resyncDonDatHangLiveForSkuCode.js --confirm` để kéo lại.
+- Domain `don_dat_hang` CHỈ có dữ liệu từ NHÀ CUNG CẤP (NCC) — mặt hàng
+  CHỈ từng "Điều chuyển" nội bộ (không qua NCC) sẽ KHÔNG có Mã NCC/Tên
+  NCC tự động (giới hạn đã biết, giống `bc-ton-kho-0.md`).
 
 **Cột "Mã điểm" luôn trống?**
 Kho đó CHƯA khai "Ánh xạ Điểm - STK_ID" — không bắt buộc phải khai (báo
@@ -435,6 +472,11 @@ lại thử báo cáo ngay để xác nhận hết Timeout.
   cần job/cấu hình riêng).
 - Các hàm đọc `dwh.ReportFacts` dùng chung với báo cáo "Top bán chạy tồn
   kho=0": `rp-server/lib/reportFactsHelpers.js`.
+- Mã NCC/Tên NCC tự động (bản 9.103, domain `don_dat_hang`):
+  `rp-server/lib/donDatHangTonKhoHelper.js` (hàm
+  `loadLatestNccReceivedMapByEntity()`, dùng CHUNG với cơ chế "Chờ nhập/
+  Đã nhập (NCC)" ở `bc-ton-kho-0.md`) — xem `bc-don-dat-hang.md` cho VIEW/
+  job nguồn.
 - Import/xuất danh sách Core: `etl/lib/coreItemListImport.js`,
   `etl/routes/admin/coreItemList.js`.
 - Script tạo báo cáo: `rp-server/scripts/seedCoreZeroStockReports.js`.

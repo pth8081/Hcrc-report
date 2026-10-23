@@ -132,6 +132,20 @@ const KENH_MUA_FILTER = {
   ]
 };
 
+// Bộ lọc "Ngành hàng" (bản 9.102, theo yêu cầu người dùng) — mirror ĐÚNG
+// NCC_FILTER (generic multiSelect, xuống thẳng SQL qua
+// routes/reports.js:optionsSource.domain, KHÔNG cần xử lý riêng ở JS như
+// SIEU_THI_FILTER — `MaNganhHang` trong VIEW nguồn đã là mã CUỐI CÙNG,
+// không cần dịch qua "Ánh xạ Điểm - STK_ID" như `MaDiem`/BU_ID). Cần VIEW
+// `vw_DonDatHangChiNhanh` đã JOIN thêm DEPTLIST (bản 9.102, xem
+// bc-don-dat-hang.md mục "Ngành hàng") + job đồng bộ lại (tick Dimension
+// mới + resync) mới có dữ liệu — chưa làm xong 2 bước đó thì dropdown này
+// hiện trống (không lỗi, chỉ chưa có dữ liệu).
+const NGANH_HANG_FILTER = {
+  field: 'nganhHang', type: 'multiSelect', label: 'Ngành hàng',
+  optionsSource: { domain: DOMAIN, valueField: 'MaNganhHang', labelField: 'TenNganhHang' }
+};
+
 // Trạng thái hiện trong bộ lọc — CHỈ còn C/P/F/M (bản 8.92, theo yêu cầu
 // người dùng: "loại cả đơn xóa nữa bạn chỉ lấy đơn đặt thực tế và nhập
 // thực tế") — D (Đã xoá)/E (Đã huỷ) đã bị LOẠI HẲN ngay trong VIEW
@@ -253,6 +267,8 @@ function buildDefinition(report) {
       SIEU_THI_FILTER,
       // Kênh mua (bản 9.27) — gắn cho CẢ 6 báo cáo theo yêu cầu người dùng.
       KENH_MUA_FILTER,
+      // Ngành hàng (bản 9.102) — gắn cho CẢ 6 báo cáo, theo yêu cầu người dùng.
+      NGANH_HANG_FILTER,
       ...(report.aggregateBySupplier ? [] : [TRANG_THAI_FILTER])
     ]
   };

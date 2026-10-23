@@ -68,6 +68,10 @@
    Lịch sử, PHẢI khớp đúng khuôn cột với VIEW Live (rp-server không phân
    biệt dữ liệu tới từ job nào). THUẦN THÊM CỘT — không đổi `MaHang`/cột
    nào khác, 6 báo cáo cũ không ảnh hưởng.
+
+   ‼️ THÊM 23/10/2026 (bản 9.102) — CỘT `MaNganhHang`/`TenNganhHang` (JOIN
+   chéo `DSMART16.dbo.DEPTLIST` qua `SKU_DEF.DEPT_ID`) ‼️ Xem ghi chú "THÊM
+   23/10/2026" ở VIEW Live — áp dụng Y HỆT ở đây.
    ============================================================================ */
 
 USE DSMART16_EOM;
@@ -107,6 +111,8 @@ SELECT
     d.SKU_ID                    AS MaHang,
     NULL                        AS TenHang,
     k.SKU_CODE                   AS MaHangHienThi,   -- THÊM bản 9.95
+    k.DEPT_ID                    AS MaNganhHang,     -- THÊM bản 9.102
+    dl.DEPT_NAME_U                AS TenNganhHang,   -- THÊM bản 9.102
     d.UNIT_SYMB                 AS DVT,
     d.STATUS                    AS TrangThai,
     CASE d.STATUS
@@ -121,7 +127,8 @@ SELECT
     d.AMOUNT                    AS ThanhTien
 FROM (' + @sql + N') d
 LEFT JOIN DSMART16.dbo.SUPPLIER s ON s.SUPP_ID = d.SUPP_ID
-LEFT JOIN DSMART16.dbo.SKU_DEF k ON k.SKU_ID = d.SKU_ID;';   -- THÊM bản 9.95
+LEFT JOIN DSMART16.dbo.SKU_DEF k ON k.SKU_ID = d.SKU_ID        -- THÊM bản 9.95
+LEFT JOIN DSMART16.dbo.DEPTLIST dl ON dl.DEPT_ID = k.DEPT_ID;';  -- THÊM bản 9.102
 
 EXEC sp_executesql @sqlView;
 GO

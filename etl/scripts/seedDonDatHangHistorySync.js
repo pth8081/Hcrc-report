@@ -178,8 +178,9 @@ async function main() {
 
   // CÙNG dimensionColumns/measureColumns với job "Live" (seedDonDatHangSync.js)
   // — VIEW Lịch sử (DSMART16_EOM) trả về ĐÚNG khuôn cột/alias y hệt VIEW Live.
-  // MaHangHienThi (bản 9.95) — xem seedDonDatHangSync.js.
-  const dimensionColumns = ['MaDiem', 'TenDiem', 'SoDon', 'LoaiGiaoDich', 'NgayGiao', 'MaNCC', 'TenNCC', 'NguoiDat', 'MaHang', 'TenHang', 'MaHangHienThi', 'DVT', 'TrangThai', 'TrangThaiLabel'];
+  // MaHangHienThi (bản 9.95), MaNganhHang/TenNganhHang (bản 9.102) — xem
+  // seedDonDatHangSync.js.
+  const dimensionColumns = ['MaDiem', 'TenDiem', 'SoDon', 'LoaiGiaoDich', 'NgayGiao', 'MaNCC', 'TenNCC', 'NguoiDat', 'MaHang', 'TenHang', 'MaHangHienThi', 'MaNganhHang', 'TenNganhHang', 'DVT', 'TrangThai', 'TrangThaiLabel'];
   const measureColumns = ['SoLuong', 'DonGia', 'ThanhTien'];
   const job = {
     name: JOB_NAME, sourceTable: VIEW_NAME,
