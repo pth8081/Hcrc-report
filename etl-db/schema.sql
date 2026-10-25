@@ -716,6 +716,36 @@ BEGIN
 END
 GO
 
+-- "Giám sát Log CSDL" (bản 10.5, theo yêu cầu người dùng, sau sự cố thật
+-- HCRC_DWH: transaction log phình to ~329GB chiếm gần hết ổ đĩa, không ai
+-- biết tới khi admin tình cờ phát hiện) — kết quả kiểm tra dung lượng
+-- transaction log gần nhất của MỌI kết nối SQL Server hệ thống biết tới
+-- (CSDL lõi DWH/ADMIN/RP/API + mọi etl.DataSources Engine='mssql') — job
+-- nền (etl/server.js, mỗi 15 phút, xem lib/logSpaceMonitor.js) GHI ĐÈ lại
+-- mỗi lần chạy, KHÔNG phải lịch sử (chỉ cần biết tình trạng NGAY BÂY GIỜ).
+-- ConnectionKey KHÔNG có khoá ngoại (khác DataSourceConnectionStatus ở
+-- trên) vì gồm CẢ "core:DWH"/"core:ADMIN"/... (CSDL lõi, không có dòng
+-- trong etl.DataSources) LẪN "ds:<Id>" (tham chiếu lỏng tới
+-- etl.DataSources — nguồn bị xoá thì dòng trạng thái cũ tự nhiên không còn
+-- cập nhật nữa, không cần ON DELETE CASCADE). LastAlertedAt dùng chống gửi
+-- email cảnh báo lặp lại mỗi 15 phút khi vẫn còn vượt ngưỡng (xem
+-- LOG_SPACE_ALERT_COOLDOWN_MINUTES).
+IF OBJECT_ID('etl.LogSpaceStatus', 'U') IS NULL
+BEGIN
+    CREATE TABLE etl.LogSpaceStatus (
+        ConnectionKey   NVARCHAR(100) NOT NULL PRIMARY KEY,
+        DisplayName     NVARCHAR(200) NOT NULL,
+        IsOk            BIT           NOT NULL,
+        ErrorMessage    NVARCHAR(500) NULL,
+        TotalLogSizeMB  DECIMAL(18,1) NULL,
+        UsedLogPercent  DECIMAL(5,1)  NULL,
+        IsOverThreshold BIT           NOT NULL DEFAULT 0,
+        LastCheckedAt   DATETIME2(3)  NOT NULL DEFAULT SYSUTCDATETIME(),
+        LastAlertedAt   DATETIME2(3)  NULL
+    );
+END
+GO
+
 -- Cấu trúc cột MỚI NHẤT (tên + kiểu dữ liệu) của mỗi bảng nguồn đang được
 -- giám sát (xem lib/schemaMonitor.js:collectMonitoredTables — suy ra từ
 -- etl.SyncJobs đang bật, KHÔNG phải danh sách khai tay riêng) — LUÔN GHI ĐÈ

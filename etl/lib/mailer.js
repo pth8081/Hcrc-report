@@ -95,4 +95,33 @@ async function alertSchemaChange(changedTables) {
   });
 }
 
-module.exports = { alertSyncFailure, alertSchemaChange };
+// items = [{label, totalLogSizeMb, usedLogPercent}] — xem lib/logSpaceMonitor.js
+// (bản 10.5, theo yêu cầu người dùng, sau sự cố thật log HCRC_DWH đầy ~329GB
+// chiếm hết ổ đĩa, không ai biết cho tới khi admin tình cờ phát hiện). DÙNG
+// LẠI đúng kênh SMTP_HOST/ALERT_EMAIL_TO đã có — không thêm cấu hình SMTP
+// riêng, cùng nguyên tắc alertSchemaChange() ở trên.
+async function alertLogSpaceHigh(items, thresholds) {
+  const to = process.env.ALERT_EMAIL_TO;
+  const transport = getTransport();
+  if (!transport || !to) {
+    logWarn('⚠️  Chưa cấu hình SMTP_HOST/ALERT_EMAIL_TO trong .env — bỏ qua gửi email cảnh báo dung lượng log CSDL.');
+    return;
+  }
+  const lines = items.map(it => {
+    const size = it.totalLogSizeMb != null ? `${it.totalLogSizeMb.toLocaleString('vi-VN')} MB` : '?';
+    const pct = it.usedLogPercent != null ? `${it.usedLogPercent}%` : '?';
+    return `  - ${it.label}: ${size} (${pct} đã dùng trong file log)`;
+  });
+  await transport.sendMail({
+    from: process.env.SMTP_FROM || process.env.SMTP_USER,
+    to,
+    subject: `[ETL] ⚠️ ${items.length} CSDL có log vượt ngưỡng cảnh báo`,
+    text: `Thời điểm: ${new Date().toISOString()}\n` +
+      `Ngưỡng cảnh báo: > ${thresholds.sizeThresholdMb.toLocaleString('vi-VN')} MB HOẶC > ${thresholds.percentThreshold}% đã dùng trong file log.\n\n` +
+      `${lines.join('\n')}\n\n` +
+      `Vào etl-admin → "Giám sát Log CSDL" để xem chi tiết. Xử lý nhanh (xem deploy/Nhật ký triển khai, mục sự cố log đầy): ` +
+      `ALTER DATABASE ... SET RECOVERY SIMPLE; rồi DBCC SHRINKFILE(...) để giải phóng ổ đĩa.`
+  });
+}
+
+module.exports = { alertSyncFailure, alertSchemaChange, alertLogSpaceHigh };

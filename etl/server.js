@@ -31,9 +31,11 @@ const adminCoreItemListRoutes = require('./routes/admin/coreItemList');
 const adminStockAlertThresholdsRoutes = require('./routes/admin/stockAlertThresholds');
 const adminRolesRoutes = require('./routes/admin/roles');
 const adminConnectionStatusRoutes = require('./routes/admin/connectionStatus');
+const adminLogSpaceStatusRoutes = require('./routes/admin/logSpaceStatus');
 const adminSchemaMonitorRoutes = require('./routes/admin/schemaMonitor');
 const adminTlsCertificateRoutes = require('./routes/admin/tlsCertificate');
 const { checkAllConnections } = require('./lib/connectionHealthChecker');
+const { checkAllLogSpace } = require('./lib/logSpaceMonitor');
 const { runSchemaCheck } = require('./lib/schemaMonitor');
 const { getPool, closeAll, assertConfigured } = require('./db');
 const { getSecret } = require('./lib/adminAuth');
@@ -202,6 +204,7 @@ app.use('/admin/core-item-list', adminCoreItemListRoutes);
 app.use('/admin/stock-alert-thresholds', adminStockAlertThresholdsRoutes);
 app.use('/admin/roles', adminRolesRoutes);
 app.use('/admin/connection-status', adminConnectionStatusRoutes);
+app.use('/admin/log-space-status', adminLogSpaceStatusRoutes);
 app.use('/admin/schema-monitor', adminSchemaMonitorRoutes);
 app.use('/admin/tls-certificate', adminTlsCertificateRoutes);
 
@@ -253,6 +256,15 @@ if (isSchedulerLeader()) {
   checkAllConnections().catch(err => console.error('⛔ Lỗi kiểm tra kết nối lúc khởi động:', err.message));
   cron.schedule('*/15 * * * *', () => {
     checkAllConnections().catch(err => console.error('⛔ Lỗi kiểm tra kết nối định kỳ:', err.message));
+  });
+
+  // "Giám sát Log CSDL" (bản 10.5, theo yêu cầu người dùng, sau sự cố thật
+  // HCRC_DWH log đầy chiếm hết ổ đĩa không ai biết) — cùng chu kỳ 15 phút
+  // với kiểm tra kết nối ở trên, xem lib/logSpaceMonitor.js. Chạy luôn 1
+  // lượt NGAY LÚC KHỞI ĐỘNG, cùng lý do với checkAllConnections() ở trên.
+  checkAllLogSpace().catch(err => console.error('⛔ Lỗi giám sát Log CSDL lúc khởi động:', err.message));
+  cron.schedule('*/15 * * * *', () => {
+    checkAllLogSpace().catch(err => console.error('⛔ Lỗi giám sát Log CSDL định kỳ:', err.message));
   });
 
   // "Giám sát cấu trúc CSDL" (bản 8.57) — đối chiếu cấu trúc bảng/cột mọi

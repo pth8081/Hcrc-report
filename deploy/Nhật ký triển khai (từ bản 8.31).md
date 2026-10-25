@@ -14,6 +14,65 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.5 — "Giám sát Log CSDL" + cảnh báo email khi transaction log vượt ngưỡng
+
+**Thay đổi**: 1 bảng mới `etl.LogSpaceStatus` (`etl-db/schema.sql`), 2 file
+mới (`etl/lib/logSpaceMonitor.js`, `etl/routes/admin/logSpaceStatus.js`,
+`etl-admin/src/pages/LogSpaceStatusPage.jsx`), sửa `etl/lib/mailer.js`
+(thêm `alertLogSpaceHigh`), `etl/server.js` (mount route + cron 15 phút),
+`etl/routes/admin/roles.js` + `etl-admin/src/{App.jsx,components/Layout.jsx}`
+(đăng ký trang mới).
+
+**Các bước**:
+
+1. DBA/IT chạy lại NGUYÊN VĂN `etl-db/schema.sql` trên `HCRC_ETL` (AN TOÀN
+   chạy lại nhiều lần — chỉ `CREATE TABLE IF NOT EXISTS`, không mất dữ
+   liệu) — tạo bảng `etl.LogSpaceStatus`.
+2. `git pull origin main`.
+3. (TUỲ CHỌN) Mở `.env` của `etl`, thêm/chỉnh các biến mới nếu muốn đổi
+   ngưỡng mặc định (20GB/90%/cooldown 6 tiếng — xem comment đầy đủ trong
+   `etl/.env.example`):
+   ```
+   LOG_SPACE_ALERT_SIZE_MB=20000
+   LOG_SPACE_ALERT_PERCENT=90
+   LOG_SPACE_ALERT_COOLDOWN_MINUTES=360
+   ```
+   KHÔNG bắt buộc — để trống dùng mặc định trên. `SMTP_HOST`/
+   `ALERT_EMAIL_TO` PHẢI đã cấu hình từ trước (dùng để gửi cảnh báo lỗi
+   đồng bộ) thì email cảnh báo log mới gửi được — chưa cấu hình thì chỉ
+   log cảnh báo ra console, KHÔNG lỗi.
+4. (TUỲ CHỌN — mở rộng giám sát sang HCRC_RP/HCRC_API) Thêm `RP_*`/
+   `API_*` vào `.env` của `etl` theo đúng mẫu trong `.env.example` —
+   KHUYẾN NGHỊ tạo login SQL Server RIÊNG chỉ cấp `VIEW DATABASE STATE`
+   trên đúng CSDL đó:
+   ```sql
+   -- Chạy trên ĐÚNG CSDL cần giám sát (HCRC_RP hoặc HCRC_API)
+   CREATE LOGIN etl_log_monitor WITH PASSWORD = '<đổi mật khẩu thật>';
+   CREATE USER etl_log_monitor FOR LOGIN etl_log_monitor;
+   GRANT VIEW DATABASE STATE TO etl_log_monitor;
+   ```
+   Bỏ qua bước này nếu chỉ cần giám sát DWH/ETL (đã LUÔN bật sẵn, không
+   cần làm gì thêm).
+5. `pm2 restart hcrc-etl` (áp dụng code mới + cron giám sát mới).
+6. `cd etl-admin && npm run build`, rồi khởi động lại tiến trình phục vụ
+   web tĩnh của etl-admin (pm2/nginx... theo cách đang chạy) — trang mới
+   "Giám sát Log CSDL" cần bundle build lại mới hiện.
+7. Vào etl-admin → "Vai trò", gán quyền xem MenuCode mới `log-space-status`
+   cho đúng vai trò cần xem (mặc định CHƯA vai trò nào có quyền, kể cả
+   admin cũ nếu không phải vai trò hệ thống).
+
+**Kiểm tra sau khi triển khai**:
+- [ ] Vào etl-admin → "Giám sát Log CSDL" — thấy danh sách CSDL DWH/ETL
+  (ít nhất 2 dòng) có số liệu (có thể "Chưa kiểm tra lần nào" nếu vừa
+  restart, bấm "Kiểm tra lại ngay" để có ngay).
+- [ ] Dung lượng log hiện đúng (so khớp thử với `DBCC SQLPERF(LOGSPACE)`
+  chạy tay trên SQL Server cho 1 CSDL bất kỳ).
+- [ ] (Nếu muốn test cảnh báo) tạm đổi `LOG_SPACE_ALERT_SIZE_MB` xuống
+  thấp hơn dung lượng log thật của 1 CSDL đang có, restart `hcrc-etl`,
+  bấm "Kiểm tra lại ngay" — phải nhận được email cảnh báo (nếu đã cấu
+  hình SMTP) VÀ dòng đó hiện ⚠️ "Vượt ngưỡng" trên trang. Nhớ ĐỔI LẠI
+  ngưỡng thật sau khi test xong.
+
 ## 10.4 — Vá lỗ hổng bảo mật CRITICAL `proxy-addr` (giả mạo IP) ở `api-server`
 
 **Thay đổi**: 1 file `api-server/package-lock.json` (nâng `proxy-addr`

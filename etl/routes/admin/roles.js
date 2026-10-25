@@ -20,6 +20,7 @@ const MENU_CATALOG = [
   { code: 'dashboard', label: 'Bảng điều khiển' },
   { code: 'data-sources', label: 'Nguồn dữ liệu' },
   { code: 'connection-status', label: 'Trạng thái kết nối' },
+  { code: 'log-space-status', label: 'Giám sát Log CSDL' },
   { code: 'sync-jobs', label: 'Đồng bộ dữ liệu' },
   { code: 'schema-monitor', label: 'Giám sát cấu trúc CSDL' },
   { code: 'diem-stk-mapping', label: 'Ánh xạ Điểm - STK_ID' },

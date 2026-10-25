@@ -42,6 +42,46 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.5 — "Giám sát Log CSDL" + cảnh báo email khi transaction log vượt ngưỡng
+
+**Theo yêu cầu người dùng** (sau sự cố thật bản 10.4/sự cố HCRC_DWH: transaction
+log phình to ~329GB chiếm gần hết ổ đĩa, làm MỌI job ETL ghi `dwh.ReportFacts`
+đồng loạt lỗi `EREQUEST`, mà KHÔNG AI BIẾT cho tới khi admin tình cờ phát hiện
+qua etl-admin → Log): "Tôi muốn monitor log dữ liệu của tất cả các cái database
+mà report kết nối vào... cảnh báo ngưỡng log quá lớn... có thể gửi email."
+
+**Đã làm**: `etl/lib/logSpaceMonitor.js` (mới) — kiểm tra ĐỊNH KỲ mỗi 15 phút
+(cùng chu kỳ "Trạng thái kết nối" đã có) dung lượng transaction log
+(`sys.dm_db_log_space_usage()`, chỉ cần quyền VIEW DATABASE STATE) của:
+- CSDL lõi `DWH`/`ADMIN` (HCRC_DWH/HCRC_ETL) — LUÔN kiểm tra, dùng lại
+  đúng thông tin kết nối sẵn có trong `.env` của etl, không cần cấu hình
+  thêm. `RP`/`API` (HCRC_RP/HCRC_API) TUỲ CHỌN — chỉ kiểm tra khi khai
+  thêm `RP_*`/`API_*` trong `.env` (khuyến nghị dùng login RIÊNG, chỉ
+  quyền VIEW DATABASE STATE, không dùng chung tài khoản ghi dữ liệu thật).
+- MỌI `etl.DataSources` đang bật, CHỈ `Engine='mssql'` (MySQL không có
+  khái niệm transaction log kiểu này, bỏ qua hẳn).
+
+Nguồn nào lỗi kết nối/thiếu quyền chỉ đánh dấu lỗi RÕ RÀNG cho đúng dòng
+đó, KHÔNG làm hỏng cả lượt kiểm tra. Vượt ngưỡng (`LOG_SPACE_ALERT_SIZE_MB`
+mặc định 20000MB VÀ/HOẶC `LOG_SPACE_ALERT_PERCENT` mặc định 90%) → gửi
+email cảnh báo qua `lib/mailer.js:alertLogSpaceHigh()` (DÙNG LẠI đúng
+kênh `SMTP_HOST`/`ALERT_EMAIL_TO` đã có từ trước, không thêm cấu hình SMTP
+riêng) — chống gửi lặp lại liên tục mỗi 15 phút bằng
+`LOG_SPACE_ALERT_COOLDOWN_MINUTES` (mặc định 360 = 6 tiếng, mỗi kết nối
+tính cooldown ĐỘC LẬP nhau).
+
+Kết quả lưu bảng mới `etl.LogSpaceStatus` (etl-db/schema.sql) — trang mới
+**etl-admin → "Giám sát Log CSDL"** (`LogSpaceStatusPage.jsx`, MenuCode
+`log-space-status`, CHƯA gán quyền cho vai trò nào, admin tự gán qua
+"Vai trò") đọc lại, có nút "Kiểm tra lại ngay" (mirror đúng "Trạng thái
+kết nối" bản 8.57, dùng ĐÚNG `checkAllLogSpace()` y hệt job nền).
+
+Verify: mock test `checkAllLogSpace()` (22 assertion — bỏ qua RP/API
+chưa cấu hình, vượt ngưỡng theo size HOẶC percent, lỗi kết nối không tính
+vượt ngưỡng, cooldown chặn gửi lặp lại ĐỘC LẬP theo từng kết nối, hết
+cooldown gửi lại) đều PASS; `node --check` toàn bộ file sửa; build
+etl-admin thành công.
+
 ## 10.4 — Vá lỗ hổng bảo mật CRITICAL `proxy-addr` (giả mạo IP) ở `api-server`
 
 **Theo yêu cầu người dùng** (rà soát bảo mật hệ thống API): `npm audit`

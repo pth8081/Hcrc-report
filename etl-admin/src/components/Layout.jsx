@@ -11,6 +11,7 @@ const NAV = [
   { path: '/dashboard', label: 'Dashboard', icon: '📊', menuCode: 'dashboard' },
   { path: '/data-sources', label: 'Nguồn dữ liệu', icon: '🔌', menuCode: 'data-sources' },
   { path: '/connection-status', label: 'Trạng thái kết nối', icon: '📶', menuCode: 'connection-status' },
+  { path: '/log-space-status', label: 'Giám sát Log CSDL', icon: '📈', menuCode: 'log-space-status' },
   { path: '/sync-jobs', label: 'Đồng bộ', icon: '🔄', menuCode: 'sync-jobs' },
   { path: '/schema-monitor', label: 'Giám sát cấu trúc CSDL', icon: '🧬', menuCode: 'schema-monitor' },
   { path: '/log', label: 'Log', icon: '🧾', menuCode: 'log' },
