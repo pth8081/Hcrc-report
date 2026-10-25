@@ -101,7 +101,86 @@ hiện so với lần đồng bộ trước đó.
 
 ---
 
-## 3. Ghi chú tích hợp
+## 3. `GET /api/v1/vouchers/[:configKey/]redeemed/since` — Lấy danh sách MỚI từ lần gọi trước (khuyến nghị cho job định kỳ)
+
+**Khác mục 2** — endpoint này dành riêng cho hệ thống của quý đối tác CHẠY
+MỘT JOB ĐỊNH KỲ (vd mỗi 15-30 phút) để lấy ĐÚNG những voucher MỚI thu hồi
+kể từ lần gọi gần nhất, **KHÔNG CẦN tự đối soát/so sánh danh sách đầy đủ**
+như mục 2 — hệ thống HCRC tự nhớ vị trí qua tham số `sinceId` quý đối tác
+gửi lên.
+
+**Base URL**: `/api/v1/vouchers/redeemed/since` (cấu hình mặc định) hoặc
+`/api/v1/vouchers/{configKey}/redeemed/since` (nếu HCRC đã cấp thêm cấu
+hình riêng, vd nhiều chi nhánh/máy chủ khác nhau — liên hệ HCRC nếu chưa
+rõ `configKey` của mình).
+
+**Yêu cầu quyền RIÊNG** — khác hẳn mục 1/2 (scope `voucherCheck`/
+`realtime`): cần được HCRC cấp thêm scope **`voucherRedeemedFeed`** cho
+API key của quý đối tác. Liên hệ HCRC nếu gọi bị lỗi 403.
+
+### Request (query string)
+
+| Tham số | Bắt buộc | Mặc định | Ghi chú |
+|---|---|---|---|
+| `sinceId` | Không | `0` | Giá trị `nextSinceId` nhận được ở LẦN GỌI TRƯỚC — gọi lần ĐẦU TIÊN để trống (hoặc `0`) để lấy TOÀN BỘ lịch sử từ đầu |
+| `pageSize` | Không | `200` | Tối đa `1000` dòng/trang |
+
+Ví dụ: `GET /api/v1/vouchers/redeemed/since?sinceId=1050&pageSize=200`
+
+### Response
+
+```json
+{
+  "sinceId": 1050,
+  "nextSinceId": 1200,
+  "pageSize": 200,
+  "hasMore": false,
+  "columns": [
+    { "key": "Barcode", "label": "Barcode" },
+    { "key": "ValueAmt", "label": "ValueAmt" },
+    { "key": "StkId", "label": "StkId" },
+    { "key": "TransNum", "label": "TransNum" },
+    { "key": "RedeemedAt", "label": "RedeemedAt" }
+  ],
+  "rows": [
+    { "Barcode": "E34000089260", "ValueAmt": 200000, "StkId": "10061", "TransNum": "260101103045AB12CD", "RedeemedAt": "2026-01-01T10:30:45.000Z" }
+  ]
+}
+```
+
+| Trường | Ý nghĩa |
+|---|---|
+| `Barcode` | Mã voucher CHUẨN (CARD_ID) |
+| `ValueAmt` | Giá trị voucher |
+| `StkId` | Mã chi nhánh/kho nơi voucher được thu hồi |
+| `TransNum` | Mã giao dịch thu hồi HCRC tự sinh — giá trị `RECONCILED` nghĩa là voucher được HỆ THỐNG HCRC tự phát hiện đã dùng (không qua đúng API thu hồi chuẩn, vd dữ liệu lịch sử cũ), không phải lỗi |
+| `RedeemedAt` | Thời điểm thu hồi (hoặc thời điểm HCRC PHÁT HIỆN ra, với dòng `TransNum="RECONCILED"`) |
+
+**⚠️ `columns`/`rows` chỉ gồm những trường HCRC đã CẤU HÌNH cho ĐÚNG API
+key của quý đối tác** — có thể KHÁC bảng trên nếu HCRC đã tuỳ chỉnh (ít
+trường hơn). Liên hệ HCRC nếu cần thêm trường.
+
+### Cách tích hợp (quan trọng)
+
+1. Lần gọi ĐẦU TIÊN: gọi KHÔNG kèm `sinceId` (hoặc `sinceId=0`) để lấy
+   TOÀN BỘ lịch sử từ đầu — có thể cần gọi NHIỀU LẦN nếu dữ liệu lớn (xem
+   bước 3).
+2. **LƯU LẠI** giá trị `nextSinceId` nhận được — đây là "vị trí" cần nhớ
+   cho lần gọi SAU.
+3. Nếu `hasMore: true` — CÒN DỮ LIỆU trong lần đồng bộ này, gọi NGAY lại
+   với `sinceId = nextSinceId` vừa nhận, LẶP LẠI tới khi `hasMore: false`.
+4. Khi `hasMore: false` — đã lấy hết dữ liệu MỚI tính tới thời điểm gọi.
+   Lưu `nextSinceId` cuối cùng này lại, dùng làm `sinceId` cho LẦN CHẠY
+   JOB KẾ TIẾP (vd 15-30 phút sau).
+5. Mỗi dòng trong `rows` là 1 voucher đã được thu hồi — cập nhật trạng
+   thái tương ứng vào hệ thống nội bộ của quý đối tác.
+
+**401/403/429** — giống mục 1 (403 kèm thêm trường hợp CHƯA được cấp
+scope `voucherRedeemedFeed`).
+
+---
+
+## 4. Ghi chú tích hợp
 
 - Mã voucher gửi lên (mục 1) giữ NGUYÊN định dạng máy quét/camera trả về
   — không cần tự cắt/chỉnh sửa.

@@ -42,6 +42,53 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.7 — "Danh sách voucher đã thu hồi — feed cho đối tác" (đối tác tự chạy job định kỳ, không cần tự đối soát)
+
+**Theo yêu cầu người dùng**: "đối tác có một hệ thống phần mềm họ tự chạy
+job để kiểm tra xem voucher đã thu hồi hay chưa... API gửi thông tin
+những voucher nào mà họ kiểm tra đã sử dụng rồi... thông tin nào mình trả
+về thì tôi có thể tự chọn cấu hình cho họ." Trước bản này, đối tác chỉ có
+2 lựa chọn: tra từng mã 1 (`GET .../voucher-redeemed/{maVoucher}`) hoặc
+kéo TOÀN BỘ danh sách rồi TỰ so sánh với lần trước (`GET
+.../voucher-redeemed/list`) — không có cách nào lấy ĐÚNG phần MỚI từ lần
+gọi trước mà không tự đối soát.
+
+**Đã làm**:
+- `api-server/lib/voucherRedeemedFeedService.js` (mới) — endpoint kiểu
+  con trỏ (`sinceId`, dựa trên `Id BIGINT IDENTITY` của `api.VoucherRedemptions`,
+  KHÔNG dùng mốc thời gian để tránh lỗi khi nhiều dòng cùng giờ): đối tác
+  gửi `sinceId` nhận ở lần gọi trước, nhận về đúng các dòng MỚI + `nextSinceId`
+  dùng cho lần gọi sau, `hasMore` báo còn trang tiếp không.
+- Đối soát "mồ côi" (`reconcileOrphanRedemptions`, chạy ngay lúc khởi
+  động + định kỳ mỗi 15 phút, có `isSchedulerLeader()` tránh chạy trùng
+  nhiều tiến trình) — bù các lượt thu hồi mà `api.VoucherRedemptions`
+  bị LỠ ghi do lỗi (`RedeemAuditFailedError` đã biết từ trước, STATUS đổi
+  thành công nhưng ghi nhật ký audit lỗi sau 3 lần thử lại): so khớp
+  `PMCRDINF.STATUS=0` với các `CARD_ID` đã biết, voucher nào đã dùng mà
+  CHƯA có dòng audit thì tự thêm bù, đánh dấu `TransNum='RECONCILED'` để
+  phân biệt với lượt thu hồi ghi đúng luồng.
+- Cấu hình trường dữ liệu trả về THEO TỪNG ĐỐI TÁC: cột mới
+  `api.ApiConsumers.VoucherRedeemedFeedFieldsJson` — admin (`api-admin` →
+  Đối tác → "Trường dữ liệu voucher đã thu hồi") chọn tick 1 phần trong
+  5 trường (`Barcode`/`ValueAmt`/`StkId`/`TransNum`/`RedeemedAt`), NULL =
+  trả về ĐỦ cả 5 (mặc định không cấu hình gì).
+- Route mới (`api-server/routes/v1/vouchers.js`): `GET
+  /api/v1/vouchers/redeemed/since` (cấu hình mặc định) và `GET
+  /api/v1/vouchers/:configKey/redeemed/since` (đa cấu hình, dùng chung
+  `api.VoucherSettings`/`api.ConsumerVoucherAccess` đã có từ bản 9.59) —
+  yêu cầu scope RIÊNG `voucherRedeemedFeed` (không tự động cấp qua scope
+  `voucherCheck`/`voucherRedeem` đã có).
+- Cập nhật tài liệu gửi đối tác `api-voucher-redeemed-gui-doi-tac.md` —
+  thêm mục 3 mô tả đầy đủ endpoint mới (tham số, response mẫu, bảng
+  trường, cách tích hợp vòng lặp `sinceId`/`nextSinceId`/`hasMore`).
+
+Verify: `node --check` 4 file sửa (`voucherRedeemedFeedService.js`,
+`vouchers.js`, `server.js`, `consumers.js`); `npm run build` `api-admin`
+thành công; mock test `queryRedeemedFeed`/`parseAllowedFields`/
+`reconcileOrphanRedemptions` (18 assertion: phân trang đúng cursor, lọc
+đúng trường được cấu hình, cách ly đúng theo `configKey`, phát hiện đúng
+dòng mồ côi, không ghi trùng khi chạy lại nhiều lần) — PASS.
+
 ## 10.6 — "Chỉ 1 phiên đăng nhập" — đăng nhập nơi mới tự động vô hiệu phiên cũ
 
 **Theo yêu cầu người dùng**: "khi nó in thì phiên muộn hơn sẽ giữ lại và

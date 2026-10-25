@@ -27,6 +27,7 @@ const express = require('express');
 const { requireApiKey } = require('../../lib/apiAuth');
 const { sql, getPool } = require('../../db');
 const { checkVoucher, redeemVoucher, ConfigError, RedeemAuditFailedError } = require('../../lib/voucherRedeemService');
+const { queryRedeemedFeed, parseAllowedFields } = require('../../lib/voucherRedeemedFeedService');
 const guessGuard = require('../../lib/voucherGuessGuard');
 
 const router = express.Router();
@@ -131,5 +132,44 @@ router.post('/check', requireApiKey('voucherCheck'), (req, res, next) => handleC
 router.post('/redeem', requireApiKey('voucherRedeem'), (req, res, next) => handleRedeem(req, res, next, 'default'));
 router.post('/:configKey/check', requireApiKey('voucherCheck'), (req, res, next) => handleCheck(req, res, next, req.params.configKey));
 router.post('/:configKey/redeem', requireApiKey('voucherRedeem'), (req, res, next) => handleRedeem(req, res, next, req.params.configKey));
+
+// GET .../redeemed/since?sinceId=&pageSize= — "Danh sách voucher đã thu hồi
+// (feed cho đối tác)" (bản 10.7, theo yêu cầu người dùng) — xem
+// lib/voucherRedeemedFeedService.js cho công thức + lý do KHÔNG dùng mốc
+// thời gian mà dùng con trỏ Id. Scope RIÊNG 'voucherRedeemedFeed' (KHÁC
+// 'voucherCheck'/'voucherRedeem' — đối tác chỉ cần XEM danh sách đã thu hồi
+// để đối soát KHÔNG bắt buộc cũng được cấp quyền check/redeem thật, vd 1 hệ
+// thống kế toán/đối soát riêng của đối tác, không phải app quét mã).
+const DEFAULT_PAGE_SIZE = 200;
+const MAX_PAGE_SIZE = 1000;
+
+function handleRedeemedFeed(req, res, next, configKey) {
+  (async () => {
+    if (!(await hasConfigAccess(req.consumer.id, configKey))) {
+      return res.status(403).json({ error: `Doi tac chua duoc cap quyen dung cau hinh voucher "${configKey}"` });
+    }
+    const sinceId = Number.parseInt(req.query.sinceId, 10);
+    const pageSize = Math.min(
+      Number.parseInt(req.query.pageSize, 10) || DEFAULT_PAGE_SIZE,
+      MAX_PAGE_SIZE
+    );
+
+    const pool = await getPool('ADMIN');
+    const consumerRow = (await pool.request().input('id', sql.Int, req.consumer.id)
+      .query('SELECT VoucherRedeemedFeedFieldsJson FROM api.ApiConsumers WHERE Id = @id')).recordset[0];
+    const allowedFields = parseAllowedFields(consumerRow?.VoucherRedeemedFeedFieldsJson);
+
+    const feed = await queryRedeemedFeed({
+      configKey,
+      sinceId: Number.isFinite(sinceId) && sinceId >= 0 ? sinceId : 0,
+      pageSize,
+      allowedFields
+    });
+    res.json(feed);
+  })().catch(next);
+}
+
+router.get('/redeemed/since', requireApiKey('voucherRedeemedFeed'), (req, res, next) => handleRedeemedFeed(req, res, next, 'default'));
+router.get('/:configKey/redeemed/since', requireApiKey('voucherRedeemedFeed'), (req, res, next) => handleRedeemedFeed(req, res, next, req.params.configKey));
 
 module.exports = router;

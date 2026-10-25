@@ -38,7 +38,7 @@ import { useAuth } from '../lib/AuthContext';
 import DataTable from '../components/DataTable';
 import { useRowSelection } from '../lib/useRowSelection';
 
-const SCOPE_OPTIONS = ['reports', 'realtime', 'realtimeWrite', 'voucherCheck', 'voucherRedeem'];
+const SCOPE_OPTIONS = ['reports', 'realtime', 'realtimeWrite', 'voucherCheck', 'voucherRedeem', 'voucherRedeemedFeed'];
 const EMPTY_FORM = { name: '', authMethod: 'apiKey', scopes: [], rateLimitPerMinute: 120, allowedIps: '' };
 const AUTH_METHOD_LABELS = {
   apiKey: 'API key tĩnh',
@@ -115,6 +115,13 @@ export default function ConsumersPage() {
   const [voucherAccessFor, setVoucherAccessFor] = useState(null); // consumer đang gán cấu hình Voucher, hoặc null
   const [accessVoucherConfigs, setAccessVoucherConfigs] = useState([]);
   const [savingVoucherAccess, setSavingVoucherAccess] = useState(false);
+  // "Trường dữ liệu trả về" cho API "Danh sách voucher đã thu hồi" (bản
+  // 10.7, theo yêu cầu người dùng — tự chọn cấu hình trường nào từng đối
+  // tác được lấy).
+  const [redeemedFeedFieldsFor, setRedeemedFeedFieldsFor] = useState(null); // consumer đang cấu hình, hoặc null
+  const [redeemedFeedFields, setRedeemedFeedFields] = useState([]);
+  const [redeemedFeedAllFields, setRedeemedFeedAllFields] = useState([]);
+  const [savingRedeemedFeedFields, setSavingRedeemedFeedFields] = useState(false);
   const [revealedCreds, setRevealedCreds] = useState(null); // { authMethod, ...bí mật } vừa tạo/luân chuyển
   const [error, setError] = useState('');
   const [creating, setCreating] = useState(false);
@@ -220,6 +227,28 @@ export default function ConsumersPage() {
       await api.put(`/consumers/${voucherAccessFor.Id}/voucher-access`, { configKeys: accessVoucherConfigs });
       setVoucherAccessFor(null);
     } catch (err) { setError(err.message); } finally { setSavingVoucherAccess(false); }
+  }
+
+  async function openRedeemedFeedFields(consumer) {
+    setError('');
+    try {
+      const { fields, allFields } = await api.get(`/consumers/${consumer.Id}/voucher-redeemed-fields`);
+      setRedeemedFeedFields(fields);
+      setRedeemedFeedAllFields(allFields);
+      setRedeemedFeedFieldsFor(consumer);
+    } catch (err) { setError(err.message); }
+  }
+
+  function toggleRedeemedFeedField(field) {
+    setRedeemedFeedFields(list => (list.includes(field) ? list.filter(f => f !== field) : [...list, field]));
+  }
+
+  async function saveRedeemedFeedFields() {
+    setSavingRedeemedFeedFields(true);
+    try {
+      await api.put(`/consumers/${redeemedFeedFieldsFor.Id}/voucher-redeemed-fields`, { fields: redeemedFeedFields });
+      setRedeemedFeedFieldsFor(null);
+    } catch (err) { setError(err.message); } finally { setSavingRedeemedFeedFields(false); }
   }
 
   function toggleScope(scopeList, scope) {
@@ -380,6 +409,7 @@ export default function ConsumersPage() {
                 <button type="button" onClick={() => openRealtimeAccess(c)}>Realtime được gọi</button>{' '}
                 <button type="button" onClick={() => openWriteAccess(c)}>Ghi được gọi</button>{' '}
                 <button type="button" onClick={() => openVoucherAccess(c)}>Cấu hình Voucher được gọi</button>{' '}
+                <button type="button" onClick={() => openRedeemedFeedFields(c)}>Trường dữ liệu voucher đã thu hồi</button>{' '}
                 <button type="button" onClick={() => rotateSecret(c)} disabled={rotatingId === c.Id}>{rotatingId === c.Id ? 'Đang luân chuyển...' : 'Luân chuyển bí mật'}</button>{' '}
                 <button type="button" onClick={() => deleteConsumer(c)} disabled={deletingId === c.Id}>{deletingId === c.Id ? 'Đang xoá...' : 'Xoá'}</button>
               </>
@@ -556,6 +586,31 @@ export default function ConsumersPage() {
             <div className="modal-actions">
               <button type="button" onClick={saveVoucherAccess} disabled={savingVoucherAccess}>{savingVoucherAccess ? 'Đang lưu...' : 'Lưu'}</button>
               <button type="button" onClick={() => setVoucherAccessFor(null)}>Huỷ</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {redeemedFeedFieldsFor && (
+        <div className="modal">
+          <div className="modal-body">
+            <h3>Trường dữ liệu voucher đã thu hồi — {redeemedFeedFieldsFor.Name}</h3>
+            <p>
+              Đối tác lấy qua <code>GET /api/v1/vouchers/[:configKey/]redeemed/since</code> (cần scope{' '}
+              <code>voucherRedeemedFeed</code>) — chỉ những trường tick dưới đây mới trả về. BỎ TICK HẾT
+              (hoặc tick ĐỦ cả) = trả về ĐẦY ĐỦ mặc định, không phải "không trả trường nào".
+            </p>
+            <div className="scope-picker">
+              {redeemedFeedAllFields.map(field => (
+                <label key={field} className="checkbox-row">
+                  <input type="checkbox" checked={redeemedFeedFields.includes(field)} onChange={() => toggleRedeemedFeedField(field)} />
+                  {field}
+                </label>
+              ))}
+            </div>
+            <div className="modal-actions">
+              <button type="button" onClick={saveRedeemedFeedFields} disabled={savingRedeemedFeedFields}>{savingRedeemedFeedFields ? 'Đang lưu...' : 'Lưu'}</button>
+              <button type="button" onClick={() => setRedeemedFeedFieldsFor(null)}>Huỷ</button>
             </div>
           </div>
         </div>

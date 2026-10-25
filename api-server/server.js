@@ -40,6 +40,7 @@ const adminConnectionStatusRoutes = require('./routes/admin/connectionStatus');
 const adminTlsCertificateRoutes = require('./routes/admin/tlsCertificate');
 const internalStockAlertThresholdsRoutes = require('./routes/internal/stockAlertThresholds');
 const { checkAllConnections } = require('./lib/connectionHealthChecker');
+const { reconcileOrphanRedemptions } = require('./lib/voucherRedeemedFeedService');
 const { requestLogger } = require('./lib/requestLogger');
 const { adminIpAllowlist } = require('./lib/adminIpAllowlist');
 const { corsAllowlist } = require('./lib/corsAllowlist');
@@ -217,6 +218,15 @@ if (isSchedulerLeader()) {
   checkAllConnections().catch(err => console.error('⛔ Lỗi kiểm tra kết nối lúc khởi động:', err.message));
   cron.schedule('*/15 * * * *', () => {
     checkAllConnections().catch(err => console.error('⛔ Lỗi kiểm tra kết nối định kỳ:', err.message));
+  });
+
+  // "Danh sách voucher đã thu hồi (feed cho đối tác)" (bản 10.7, theo yêu
+  // cầu người dùng) — đối soát voucher "mồ côi" (STATUS=0 ở PMCRDINF nhưng
+  // CHƯA có dòng trong api.VoucherRedemptions) mỗi 15 phút, cùng chu kỳ với
+  // "Trạng thái kết nối" ở trên — xem lib/voucherRedeemedFeedService.js.
+  reconcileOrphanRedemptions().catch(err => console.error('⛔ Lỗi đối soát voucher mồ côi lúc khởi động:', err.message));
+  cron.schedule('*/15 * * * *', () => {
+    reconcileOrphanRedemptions().catch(err => console.error('⛔ Lỗi đối soát voucher mồ côi định kỳ:', err.message));
   });
 }
 

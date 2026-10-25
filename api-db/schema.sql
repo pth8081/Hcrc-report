@@ -144,6 +144,18 @@ IF COL_LENGTH('api.ApiConsumers', 'AllowedIps') IS NULL
 BEGIN
     ALTER TABLE api.ApiConsumers ADD AllowedIps NVARCHAR(500) NULL;
 END
+-- "Danh sách voucher đã thu hồi (feed cho đối tác)" (bản 10.7, theo yêu
+-- cầu người dùng) — trường nào trả về cho ĐÚNG đối tác này ở
+-- GET /api/v1/vouchers/[:configKey/]redeemed/since (xem
+-- lib/voucherRedeemedFeedService.js) — JSON mảng tên trường, vd
+-- ["Barcode","ValueAmt","RedeemedAt"]. NULL/rỗng = TRẢ ĐỦ bộ mặc định
+-- (Barcode/ValueAmt/StkId/TransNum/RedeemedAt) — KHÔNG ảnh hưởng đối tác
+-- chưa dùng tính năng này (chỉ có hiệu lực khi đối tác CÓ scope
+-- 'voucherRedeemedFeed').
+IF COL_LENGTH('api.ApiConsumers', 'VoucherRedeemedFeedFieldsJson') IS NULL
+BEGIN
+    ALTER TABLE api.ApiConsumers ADD VoucherRedeemedFeedFieldsJson NVARCHAR(500) NULL;
+END
 IF COL_LENGTH('api.ApiConsumers', 'AuthMethod') IS NULL
 BEGIN
     ALTER TABLE api.ApiConsumers ADD AuthMethod VARCHAR(20) NOT NULL

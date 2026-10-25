@@ -21,6 +21,7 @@ const { sha256Hex } = require('../../lib/hash');
 const { encrypt } = require('../../lib/crypto');
 const { invalidate } = require('../../lib/apiConsumers');
 const { logAction } = require('../../lib/auditLog');
+const { ALL_FIELDS: VOUCHER_REDEEMED_FEED_FIELDS } = require('../../lib/voucherRedeemedFeedService');
 
 const router = express.Router();
 router.use(requireAdminAuth, requireMenuAccess('consumers'));
@@ -320,6 +321,46 @@ router.put('/:id/voucher-access', requireMenuEdit('consumers'), async (req, res,
       throw err;
     }
     await logAction(req, { module: 'Đối tác API', actionType: 'SUA_QUYEN_VOUCHER', targetObject: req.params.id, description: `Cập nhật cấu hình Voucher đối tác #${req.params.id}: ${configKeys.join(', ') || '(rỗng)'}` });
+    res.json({ ok: true });
+  } catch (err) { next(err); }
+});
+
+// GET/PUT /:id/voucher-redeemed-fields — "Danh sách voucher đã thu hồi (feed
+// cho đối tác)" (bản 10.7, theo yêu cầu người dùng — "thông tin nào mình trả
+// về cho thì tôi có thể tự chọn cấu hình cho họ"): trường nào đối tác NÀY
+// nhận được ở GET /api/v1/vouchers/[:configKey/]redeemed/since (xem
+// lib/voucherRedeemedFeedService.js). KHÁC các GET/PUT *-access ở trên (bảng
+// con riêng, dạng "có/không có dòng") — đây CHỈ 1 cột JSON NGAY TRÊN
+// api.ApiConsumers (không cần bảng phụ, mỗi đối tác đúng 1 cấu hình trường).
+// fields RỖNG/thiếu = XOÁ cấu hình riêng (NULL), quay về mặc định ĐẦY ĐỦ —
+// KHÔNG phải "không trả trường nào" (tránh hiểu lầm nguy hiểm: admin bỏ
+// trống form tưởng là "để sau", vô tình khoá hết dữ liệu đối tác đang dùng).
+router.get('/:id/voucher-redeemed-fields', async (req, res, next) => {
+  try {
+    const pool = await getPool('ADMIN');
+    const result = await pool.request().input('id', sql.Int, req.params.id)
+      .query('SELECT VoucherRedeemedFeedFieldsJson FROM api.ApiConsumers WHERE Id = @id');
+    const row = result.recordset[0];
+    if (!row) return res.status(404).json({ error: 'Không tìm thấy đối tác' });
+    const fields = row.VoucherRedeemedFeedFieldsJson ? JSON.parse(row.VoucherRedeemedFeedFieldsJson) : VOUCHER_REDEEMED_FEED_FIELDS;
+    res.json({ fields, allFields: VOUCHER_REDEEMED_FEED_FIELDS });
+  } catch (err) { next(err); }
+});
+
+router.put('/:id/voucher-redeemed-fields', requireMenuEdit('consumers'), async (req, res, next) => {
+  try {
+    const fields = (req.body?.fields || []).filter(f => VOUCHER_REDEEMED_FEED_FIELDS.includes(f));
+    // ĐỦ hết các trường hợp lệ (bằng đúng VOUCHER_REDEEMED_FEED_FIELDS) hoặc
+    // RỖNG -> lưu NULL (= mặc định đầy đủ, xem chú thích đầu block) — chỉ lưu
+    // JSON cụ thể khi admin CHỦ ĐỘNG bớt lại 1 TẬP CON thật sự.
+    const isFullOrEmpty = fields.length === 0 || fields.length === VOUCHER_REDEEMED_FEED_FIELDS.length;
+    const fieldsJson = isFullOrEmpty ? null : JSON.stringify(fields);
+    const pool = await getPool('ADMIN');
+    await pool.request()
+      .input('id', sql.Int, req.params.id)
+      .input('fieldsJson', sql.NVarChar(500), fieldsJson)
+      .query('UPDATE api.ApiConsumers SET VoucherRedeemedFeedFieldsJson = @fieldsJson WHERE Id = @id');
+    await logAction(req, { module: 'Đối tác API', actionType: 'SUA_TRUONG_VOUCHER_FEED', targetObject: req.params.id, description: `Cập nhật trường dữ liệu "Danh sách voucher đã thu hồi" đối tác #${req.params.id}: ${fieldsJson || '(mặc định đầy đủ)'}` });
     res.json({ ok: true });
   } catch (err) { next(err); }
 });

@@ -14,6 +14,44 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.7 — "Danh sách voucher đã thu hồi — feed cho đối tác"
+
+**Thay đổi**: 1 cột mới `api.ApiConsumers.VoucherRedeemedFeedFieldsJson`
+(`api-db/schema.sql`), 1 file mới `api-server/lib/voucherRedeemedFeedService.js`,
+sửa `api-server/routes/v1/vouchers.js` (route mới), `api-server/server.js`
+(cron đối soát mồ côi 15 phút), `api-server/routes/admin/consumers.js`
+(API cấu hình trường dữ liệu), `api-admin/src/pages/ConsumersPage.jsx`
+(giao diện tick trường dữ liệu), cập nhật tài liệu gửi đối tác
+`api-voucher-redeemed-gui-doi-tac.md` (mục 3 mới).
+
+**Các bước**:
+
+1. `git pull origin main` trên server chạy `api-server` và `api-admin`.
+2. Chạy lại NGUYÊN VĂN `api-db/schema.sql` trên `HCRC_API` (AN TOÀN chạy
+   lại — chỉ thêm cột mới, không mất dữ liệu).
+3. `cd api-admin && npm install && npm run build` (có sửa UI).
+4. `pm2 restart hcrc-api-server` (KHÔNG cần restart `rp-server`/`etl` —
+   bản này chỉ sửa `api-server`/`api-admin`).
+5. Vào `api-admin` → Đối tác → với từng đối tác cần dùng tính năng này:
+   - Mở modal gán quyền (scope) → tick thêm `voucherRedeemedFeed` (quyền
+     RIÊNG, KHÔNG tự động có qua `voucherCheck`/`voucherRedeem` cũ).
+   - Bấm "Trường dữ liệu voucher đã thu hồi" → tick đúng những trường
+     muốn cho đối tác đó thấy (bỏ trống/tick đủ cả 5 = trả về đủ cả 5,
+     mặc định không cần cấu hình gì).
+6. Gửi file `api-voucher-redeemed-gui-doi-tac.md` (đã cập nhật mục 3) cho
+   đối tác — đối tác tự đọc mục 3 để tích hợp job định kỳ.
+
+**Kiểm tra**: gọi `GET /api/v1/vouchers/redeemed/since?sinceId=0` với
+đúng `X-API-Key` của 1 đối tác ĐÃ được gán quyền `voucherRedeemedFeed` —
+phải trả về `200` kèm `rows` (nếu đã có voucher được thu hồi trước đó) và
+`nextSinceId`/`hasMore` hợp lý; gọi lại với `sinceId` vừa nhận — phải
+KHÔNG trả lại các dòng đã lấy ở lượt trước (`rows` rút gọn/`hasMore:
+false` nếu không có voucher mới); gọi bằng API key CHƯA được gán quyền —
+phải trả `403`; thử thu hồi 1 voucher mới qua luồng bình thường rồi gọi
+lại endpoint `since` — voucher đó phải xuất hiện ngay (không cần chờ chu
+kỳ đối soát 15 phút, vì ghi trực tiếp vào `api.VoucherRedemptions` lúc
+thu hồi thành công).
+
 ## 10.6 — "Chỉ 1 phiên đăng nhập" — đăng nhập nơi mới tự động vô hiệu phiên cũ
 
 **Thay đổi**: 18 file — 3 `schema.sql` (`rp-db`/`etl-db`/`api-db`, thêm

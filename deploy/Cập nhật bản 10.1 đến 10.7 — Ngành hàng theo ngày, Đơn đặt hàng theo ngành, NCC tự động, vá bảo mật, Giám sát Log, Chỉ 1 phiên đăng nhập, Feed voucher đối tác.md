@@ -1,12 +1,13 @@
-# Cập nhật bản 10.1 đến 10.6 — Chỉ tiêu ngành hàng theo ngày, Đơn đặt hàng theo ngành, NCC tự động Core stock=0, vá bảo mật proxy-addr, Giám sát Log CSDL, Chỉ 1 phiên đăng nhập
+# Cập nhật bản 10.1 đến 10.7 — Chỉ tiêu ngành hàng theo ngày, Đơn đặt hàng theo ngành, NCC tự động Core stock=0, vá bảo mật proxy-addr, Giám sát Log CSDL, Chỉ 1 phiên đăng nhập, Feed voucher đối tác
 
-**Mục đích**: gộp 6 bản liên tiếp thành 1 lượt làm — 3 bản đầu đi CHUNG
+**Mục đích**: gộp 7 bản liên tiếp thành 1 lượt làm — 3 bản đầu đi CHUNG
 1 lần pull (cùng 1 commit, liên quan tới nhau qua domain `don_dat_hang`
 dùng chung), bản 10.4 là vá bảo mật độc lập ở `api-server`, bản 10.5 là
 tính năng giám sát mới ở `etl`/`etl-admin`, bản 10.6 là tính năng "chỉ 1
-phiên đăng nhập" áp dụng cho CẢ 3 app — 3 bản sau (10.4/10.5/10.6) đều
-ĐỘC LẬP với 3 bản đầu VÀ với nhau (khác file/tiến trình, làm trước/sau/
-song song đều được):
+phiên đăng nhập" áp dụng cho CẢ 3 app, bản 10.7 là feed voucher đã thu
+hồi cho đối tác (chỉ `api-server`/`api-admin`) — 4 bản sau
+(10.4/10.5/10.6/10.7) đều ĐỘC LẬP với 3 bản đầu VÀ với nhau (khác file/
+tiến trình, làm trước/sau/song song đều được):
 
 - **Bản 10.1** — Chỉ tiêu ngành hàng (báo cáo "Doanh thu/Nhập hàng theo
   ngành hàng" HCRC + LDTĐ) giờ CHIA THEO TỶ LỆ SỐ NGÀY đã chọn trong
@@ -39,9 +40,16 @@ song song đều được):
   khoản đó, áp dụng cho CẢ 3 app (`rp-user`/`etl-admin`/`api-admin`).
   Theo yêu cầu người dùng — trước bản này 1 tài khoản đăng nhập được
   đồng thời nhiều nơi không giới hạn.
+- **Bản 10.7** — Tính năng mới **"Feed voucher đã thu hồi cho đối tác"**:
+  thêm endpoint `GET /api/v1/vouchers/[:configKey/]redeemed/since` kiểu
+  "con trỏ" (`sinceId`/`nextSinceId`/`hasMore`) để đối tác tự chạy job
+  định kỳ lấy ĐÚNG phần voucher MỚI thu hồi từ lần gọi trước, KHÔNG cần
+  tự đối soát toàn bộ danh sách như endpoint `list` cũ. Admin tự cấu
+  hình trường dữ liệu trả về cho từng đối tác (`api-admin` → Đối tác →
+  "Trường dữ liệu voucher đã thu hồi"). Theo yêu cầu người dùng.
 
 (Tách riêng từ nhật ký gộp `deploy/Nhật ký triển khai (từ bản 8.31).md`
-mục 10.1-10.6 để tiện gửi/làm theo mà không cần mở file gộp đầy đủ lịch
+mục 10.1-10.7 để tiện gửi/làm theo mà không cần mở file gộp đầy đủ lịch
 sử. Lưu ý số bản 10.1/10.2/10.3 đã được SỬA LẠI từ "9.101/9.102/9.103" —
 xem `VERSION.md` mục "SỬA SỐ bản 9.100-9.103 → 10.0-10.3" nếu thấy nhầm
 với bản cũ đã nói tới ở đâu đó — nội dung và các bước dưới đây KHÔNG đổi,
@@ -189,6 +197,30 @@ Tác động CẢ 3 app cùng lúc (`rp-server`, `etl`, `api-server`) — làm �
 Không có bước cấu hình `.env` nào, không có trang quản trị nào cần bật/
 tắt (tính năng LUÔN BẬT, không tuỳ chọn).
 
+### B.7 — "Feed voucher đã thu hồi cho đối tác" (bản 10.7, ĐỘC LẬP với B.1-B.6 ở trên)
+
+Chỉ đụng tới `api-server`/`api-admin` — làm trước/sau/song song với
+B.1-B.6 đều được:
+
+1. DBA/IT chạy lại NGUYÊN VĂN `api-db/schema.sql` trên `HCRC_API` (AN
+   TOÀN chạy lại nhiều lần — chỉ THÊM 1 cột mới
+   `VoucherRedeemedFeedFieldsJson`, không đụng dữ liệu/bảng khác).
+2. ```bash
+   cd api-admin
+   npm install && npm run build
+   ```
+   (có sửa UI — thêm modal "Trường dữ liệu voucher đã thu hồi").
+3. `pm2 restart hcrc-api-server` (KHÔNG cần restart `rp-server`/`etl`).
+4. Vào `api-admin` → **Đối tác** → với từng đối tác cần dùng tính năng
+   này: mở modal gán quyền (scope) → tick thêm `voucherRedeemedFeed`
+   (quyền RIÊNG, KHÔNG tự động có qua `voucherCheck`/`voucherRedeem` cũ
+   đã cấp trước đó); sau đó bấm nút "Trường dữ liệu voucher đã thu hồi"
+   → tick đúng những trường muốn cho đối tác đó thấy (bỏ trống/tick đủ
+   cả 5 = trả về đủ cả 5, mặc định không cần cấu hình gì).
+5. Gửi file `api-voucher-redeemed-gui-doi-tac.md` (đã cập nhật mục 3)
+   cho đối tác — đối tác tự đọc mục 3 để tích hợp job định kỳ, không
+   cần hỏi lại HCRC về cách dùng.
+
 ## C. Kiểm tra sau khi triển khai
 
 - [ ] **Bản 10.1** — mở "Doanh thu theo ngành hàng" hoặc "(LDTD)", chọn
@@ -226,6 +258,13 @@ tắt (tính năng LUÔN BẬT, không tuỳ chọn).
   bấm bất kỳ thao tác nào gọi API — phải bị đăng xuất, hiện thông báo
   "...hoặc đã đăng nhập ở nơi khác". Lặp lại cho CẢ 3 app (mỗi app giới
   hạn phiên ĐỘC LẬP với 2 app kia).
+- [ ] **Bản 10.7** — gọi `GET /api/v1/vouchers/redeemed/since?sinceId=0`
+  với đúng `X-API-Key` của 1 đối tác ĐÃ gán quyền `voucherRedeemedFeed`
+  — phải trả `200` kèm `rows`/`nextSinceId`/`hasMore` hợp lý; gọi lại
+  với `sinceId=<nextSinceId vừa nhận>` — KHÔNG được trả lại các dòng đã
+  lấy ở lượt trước. Gọi bằng API key CHƯA gán quyền — phải trả `403`.
+  Thu hồi 1 voucher mới qua luồng bình thường rồi gọi lại — voucher đó
+  phải xuất hiện NGAY (không cần chờ chu kỳ đối soát 15 phút).
 
 Nếu mục nào vẫn trống/sai sau khi làm đủ các bước trên — xem phần "Hỏi &
 đáp" tương ứng:
@@ -242,6 +281,9 @@ Nếu mục nào vẫn trống/sai sau khi làm đủ các bước trên — xem
   `deploy/Cập nhật bản 10.6 — Chỉ 1 phiên đăng nhập.md` (gồm phần "Lưu ý
   vận hành" — không có ngoại lệ cho tài khoản dùng chung nhiều người,
   2FA/WebAuthn đều tính là "đăng nhập").
+- Bản 10.7: `VERSION.md` mục 10.7; tài liệu gửi đối tác
+  `api-voucher-redeemed-gui-doi-tac.md` mục 3 (cách tích hợp vòng lặp
+  `sinceId`/`nextSinceId`/`hasMore`).
 
 Không có bước nào ở trên làm mất dữ liệu đã có — mọi thay đổi CSDL chỉ
 THÊM cột/cấu hình/bảng mới, không xoá/đổi dữ liệu cũ; bản 10.4 chỉ đổi
