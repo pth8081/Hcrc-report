@@ -14,6 +14,39 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.6 — "Chỉ 1 phiên đăng nhập" — đăng nhập nơi mới tự động vô hiệu phiên cũ
+
+**Thay đổi**: 18 file — 3 `schema.sql` (`rp-db`/`etl-db`/`api-db`, thêm
+cột `CurrentSessionId`) + 5 file/app × 3 app (`lib/sessionRevocation.js`,
+`lib/auth.js`/`lib/adminAuth.js`, `server.js`/`routes/admin/auth.js`,
+`routes/twoFactor.js`/`routes/admin/twoFactor.js`,
+`routes/webauthn.js`/`routes/admin/webauthn.js`).
+
+**Các bước** (áp dụng cho CẢ 3 app — `rp-server`, `etl`, `api-server`):
+
+1. `git pull origin main`.
+2. Chạy lại NGUYÊN VĂN `rp-db/schema.sql`, `etl-db/schema.sql`,
+   `api-db/schema.sql` trên ĐÚNG 3 CSDL tương ứng (AN TOÀN chạy lại —
+   `IF COL_LENGTH(...) IS NULL` — chỉ thêm cột mới, không mất dữ liệu,
+   không ép đăng xuất ai ngay lúc này).
+3. `pm2 restart hcrc-rp-server hcrc-etl hcrc-api-server` (cả 3 — code sửa
+   nằm ở cả 3 app, KHÔNG cần build lại frontend nào, thuần backend).
+4. Thông báo trước cho người dùng hệ thống (nếu cần) — SAU khi restart,
+   lần đăng nhập TIẾP THEO của mỗi tài khoản sẽ bắt đầu được theo dõi
+   "1 phiên duy nhất"; đăng nhập thêm ở thiết bị khác SAU ĐÓ sẽ tự động
+   đăng xuất phiên trước (không có cảnh báo trước khi bị đăng xuất, chỉ
+   có thông báo RÕ LÝ DO khi họ thao tác lại và bị văng ra: "... hoặc đã
+   đăng nhập ở nơi khác").
+
+**Kiểm tra**: đăng nhập 1 tài khoản trên trình duyệt A, giữ phiên đó
+đang mở; đăng nhập LẠI CHÍNH tài khoản đó trên trình duyệt B (hoặc cửa
+sổ ẩn danh) — phải vào được bình thường. Quay lại trình duyệt A, bấm bất
+kỳ thao tác nào gọi API (vd chuyển trang) — phải bị đăng xuất với thông
+báo "Phiên đăng nhập đã bị thu hồi (...hoặc đã đăng nhập ở nơi khác) —
+đăng nhập lại". Tài khoản KHÔNG đăng nhập lại (đang dùng phiên từ TRƯỚC
+khi deploy bản này) vẫn tiếp tục hoạt động bình thường cho tới khi tự
+đăng nhập lại lần nào đó (không bị ép đăng xuất ngay lúc deploy).
+
 ## 10.5 — "Giám sát Log CSDL" + cảnh báo email khi transaction log vượt ngưỡng
 
 **Thay đổi**: 1 bảng mới `etl.LogSpaceStatus` (`etl-db/schema.sql`), 2 file

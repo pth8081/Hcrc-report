@@ -482,6 +482,21 @@ BEGIN
 END
 GO
 
+-- "Chỉ 1 phiên đăng nhập" (bản 10.6, theo yêu cầu người dùng) — mỗi lần
+-- issueToken() phát hành phiên ĐẦY ĐỦ đều sinh 1 mã ngẫu nhiên MỚI (claim
+-- "sid" trong JWT) VÀ ghi đè CurrentSessionId ở đây — requireAdminAuth() so
+-- claim "sid" của token đang dùng với CurrentSessionId hiện tại: KHÁC NHAU
+-- nghĩa là đã có lượt đăng nhập MỚI HƠN ở nơi khác, coi như phiên này bị
+-- thu hồi (cùng cơ chế SessionsInvalidatedAt ở trên, xem
+-- lib/sessionRevocation.js) — "phiên muộn hơn giữ lại, phiên cũ tự động bị
+-- vô hiệu". NULL = chưa từng đăng nhập qua code có cờ này — KHÔNG ép đăng
+-- xuất ngay, chỉ bắt đầu theo dõi từ lượt đăng nhập tiếp theo.
+IF COL_LENGTH('admin.AdminUsers', 'CurrentSessionId') IS NULL
+BEGIN
+    ALTER TABLE admin.AdminUsers ADD CurrentSessionId NVARCHAR(36) NULL;
+END
+GO
+
 -- Email (bản 8.94, theo yêu cầu người dùng) — trước đây admin.AdminUsers
 -- KHÔNG có cột Email nào, nút "Sửa" chỉ sửa được FullName. Thêm cột (NULL,
 -- không ràng buộc UNIQUE — giống app.Users ở rp-db) để trang "Sửa" sửa

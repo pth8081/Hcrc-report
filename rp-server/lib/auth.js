@@ -5,10 +5,11 @@
 // báo cáo do requireMenuAccess()/lib/permissions.js đảm nhiệm riêng.
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 const { sql, getPool } = require('../db');
 const { getUserContext } = require('./permissions');
 const { verifyPassword: verifyHcrcWorkspacePassword, getFallbackMaxAgeDays } = require('./hcrcWorkspaceClient');
-const { isSessionRevoked } = require('./sessionRevocation');
+const { isSessionRevoked, setCurrentSession } = require('./sessionRevocation');
 
 const COOKIE_NAME = 'hcrc_rp_token';
 const TOKEN_TTL = '2h';
@@ -158,8 +159,19 @@ async function isSystemRoleForRateLimit(username) {
 // Token phiên ĐẦY ĐỦ (đặt vào cookie, xem requireAuth) — KHÔNG bao giờ mang
 // claim "twofa": chỉ token loại này mới qua được requireAuth, xem 3 hàm
 // issue*2FA*Token bên dưới cho các bước TRUNG GIAN trước khi tới đây.
-function issueToken(user) {
-  return jwt.sign({ sub: user.id, username: user.username }, getSecret(), {
+//
+// "sid" (bản 10.6, theo yêu cầu người dùng — "chỉ 1 phiên đăng nhập, phiên
+// muộn hơn giữ lại, phiên cũ tự động bị vô hiệu") — mã ngẫu nhiên MỚI mỗi
+// lần gọi, ghi đè app.Users.CurrentSessionId NGAY LẬP TỨC (await, TRƯỚC khi
+// ký token) — mọi token CŨ của cùng tài khoản (mang "sid" khác) sẽ bị
+// requireAuth() từ chối ở lượt gọi API kế tiếp của chúng, xem
+// lib/sessionRevocation.js. Đổi hẳn từ hàm ĐỒNG BỘ sang BẤT ĐỒNG BỘ — MỌI
+// nơi gọi issueToken() phải thêm `await` (xem server.js, routes/twoFactor.js,
+// routes/webauthn.js).
+async function issueToken(user) {
+  const sid = crypto.randomUUID();
+  await setCurrentSession(user.id, sid);
+  return jwt.sign({ sub: user.id, username: user.username, sid }, getSecret(), {
     expiresIn: TOKEN_TTL, algorithm: 'HS256', issuer: ISSUER, audience: ISSUER
   });
 }
@@ -202,11 +214,18 @@ function verifyToken(token) {
 // phiên cho token sắp bị coi là thu hồi) — payload.role không tồn tại ở
 // service này (rp-server không nhúng role vào token, xem đầu file), issueToken
 // chỉ đọc id/username nên bỏ qua an toàn.
-function maybeSlideSession(payload, res) {
+//
+// LƯU Ý (bản 10.6) — issueToken() giờ TỰ GHI ĐÈ CurrentSessionId mỗi lần
+// gọi (kể cả gọi ở ĐÂY, lúc trượt phiên) — "sid" của phiên đang trượt vẫn
+// LÀ sid mới ghi, nên chính phiên này KHÔNG tự thu hồi chính nó; nhưng nếu
+// có phiên KHÁC cùng tài khoản cũng đang trượt gần cùng lúc, phiên trượt
+// SAU sẽ thắng (đúng ý "chỉ 1 phiên") — chấp nhận được, hiếm khi xảy ra
+// (chỉ 2 tab cùng 1 phiên đã hết hạn gần giống nhau cùng request đồng thời).
+async function maybeSlideSession(payload, res) {
   if (typeof payload.exp !== 'number') return;
   const secondsLeft = payload.exp - Math.floor(Date.now() / 1000);
   if (secondsLeft > REFRESH_THRESHOLD_SECONDS) return;
-  const fresh = issueToken({ id: payload.sub, username: payload.username });
+  const fresh = await issueToken({ id: payload.sub, username: payload.username });
   setSessionCookie(res, fresh);
 }
 
@@ -224,14 +243,15 @@ async function requireAuth(req, res, next) {
   // yếu tố) — dòng này chỉ chặn trường hợp lỗi logic lỡ gán nhầm.
   if (payload.twofa) return res.status(401).json({ error: 'Phiên chưa hoàn tất xác thực hai yếu tố' });
   try {
-    // Thu hồi phiên khi đổi mật khẩu/gỡ 2FA/đổi vai trò/khoá tài khoản —
-    // JWT verify chữ ký xong không tự biết những thay đổi này, xem
-    // lib/sessionRevocation.js.
-    if (await isSessionRevoked(payload.sub, payload.iat)) {
-      return res.status(401).json({ error: 'Phiên đăng nhập đã bị thu hồi (đổi mật khẩu/2FA/vai trò, hoặc tài khoản bị khoá) — đăng nhập lại' });
+    // Thu hồi phiên khi đổi mật khẩu/gỡ 2FA/đổi vai trò/khoá tài khoản, HOẶC
+    // khi tài khoản đã đăng nhập ở nơi khác (bản 10.6, "chỉ 1 phiên đăng
+    // nhập" — payload.sid khác CurrentSessionId hiện tại) — JWT verify chữ
+    // ký xong không tự biết những thay đổi này, xem lib/sessionRevocation.js.
+    if (await isSessionRevoked(payload.sub, payload.iat, payload.sid)) {
+      return res.status(401).json({ error: 'Phiên đăng nhập đã bị thu hồi (đổi mật khẩu/2FA/vai trò, tài khoản bị khoá, hoặc đã đăng nhập ở nơi khác) — đăng nhập lại' });
     }
   } catch (err) { return next(err); }
-  maybeSlideSession(payload, res);
+  await maybeSlideSession(payload, res);
   req.user = payload;
   next();
 }

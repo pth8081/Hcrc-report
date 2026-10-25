@@ -178,7 +178,7 @@ app.post('/api/auth/login', async (req, res, next) => {
     await logAction({ ip: req.ip, user: { sub: user.id, username: user.username } }, {
       module: 'Đăng nhập', actionType: 'DANG_NHAP', description: 'Đăng nhập thành công' + fallbackNote
     });
-    setSessionCookie(res, issueToken(user));
+    setSessionCookie(res, await issueToken(user));
     res.json({ ok: true });
   } catch (err) {
     // Account AuthSource='hcrcWorkspace' nhưng dịch vụ ngoài không phản hồi

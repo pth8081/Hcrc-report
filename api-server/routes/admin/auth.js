@@ -73,7 +73,7 @@ router.post('/login', async (req, res, next) => {
     await logAction({ ip: req.ip, admin: { sub: admin.id, username: admin.username } }, {
       module: 'Đăng nhập', actionType: 'DANG_NHAP', description: 'Đăng nhập thành công'
     });
-    setSessionCookie(res, issueToken(admin));
+    setSessionCookie(res, await issueToken(admin));
     res.json({ ok: true });
   } catch (err) { next(err); }
 });

@@ -134,6 +134,23 @@ BEGIN
 END
 GO
 
+-- "Chỉ 1 phiên đăng nhập" (bản 10.6, theo yêu cầu người dùng) — mỗi lần
+-- issueToken() phát hành phiên ĐẦY ĐỦ (đăng nhập thường/2FA/WebAuthn) đều
+-- sinh 1 mã ngẫu nhiên MỚI (claim "sid" trong JWT) VÀ ghi đè CurrentSessionId
+-- ở đây — requireAuth() so claim "sid" của token đang dùng với
+-- CurrentSessionId hiện tại: KHÁC NHAU nghĩa là đã có lượt đăng nhập MỚI
+-- HƠN ở nơi khác, coi như phiên này bị thu hồi (cùng cơ chế với
+-- SessionsInvalidatedAt ở trên, xem lib/sessionRevocation.js) — "phiên
+-- muộn hơn giữ lại, phiên cũ tự động bị vô hiệu", không cần hành động gì
+-- thêm từ người dùng. NULL = chưa từng đăng nhập qua code có cờ này (tài
+-- khoản cũ trước khi nâng cấp) — KHÔNG ép đăng xuất ngay, chỉ bắt đầu theo
+-- dõi từ lượt đăng nhập tiếp theo.
+IF COL_LENGTH('app.Users', 'CurrentSessionId') IS NULL
+BEGIN
+    ALTER TABLE app.Users ADD CurrentSessionId NVARCHAR(36) NULL;
+END
+GO
+
 -- Cấu hình DUY NHẤT (Id=1) cho tích hợp "HCRC Workspace" — cùng khuôn
 -- app.EmailSettings (1 dòng, mã hoá khoá bí mật bằng lib/crypto.js). BaseUrl +
 -- 2 đường dẫn dưới đây họp thành 2 lời gọi ĐÚNG theo tài liệu API họ công bố

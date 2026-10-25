@@ -240,7 +240,7 @@ router.post('/login/verify', requireTwoFactorToken('pending'), async (req, res, 
     await logAction({ ip: req.ip, user: { sub: userId, username } }, {
       module: 'Đăng nhập', actionType: 'DANG_NHAP', description: `Đăng nhập thành công (vân tay/Face ID, thiết bị "${matched.DeviceLabel}")`
     });
-    setSessionCookie(res, issueToken({ id: userId, username }));
+    setSessionCookie(res, await issueToken({ id: userId, username }));
     res.json({ ok: true });
   } catch (err) { next(err); }
 });
@@ -365,7 +365,7 @@ router.post('/login-by-username/verify', async (req, res, next) => {
     await logAction({ ip: req.ip, user: { sub: userId, username } }, {
       module: 'Đăng nhập', actionType: 'DANG_NHAP', description: `Đăng nhập thành công (vân tay/Face ID, thiết bị "${matched.DeviceLabel}" — không cần mật khẩu)`
     });
-    setSessionCookie(res, issueToken({ id: userId, username }));
+    setSessionCookie(res, await issueToken({ id: userId, username }));
     res.json({ ok: true });
   } catch (err) { next(err); }
 });

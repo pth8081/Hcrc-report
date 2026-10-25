@@ -3,8 +3,9 @@
 // api-server: khoá bí mật riêng, cookie riêng, CSDL riêng (HCRC_ETL).
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 const { sql, getPool } = require('../db');
-const { isSessionRevoked } = require('./sessionRevocation');
+const { isSessionRevoked, setCurrentSession } = require('./sessionRevocation');
 
 const COOKIE_NAME = 'hcrc_etl_admin_token';
 const TOKEN_TTL = '2h';
@@ -82,8 +83,18 @@ async function verifyCredentials(username, password) {
 // đổi nhóm quyền/vai trò của 1 tài khoản có hiệu lực gần như ngay, không cần
 // đợi token cũ hết hạn hay gọi revokeSessions() riêng cho trường hợp này
 // (xem chú thích isSessionRevoked bên dưới).
-function issueToken(user) {
-  return jwt.sign({ sub: user.id, username: user.username }, getSecret(), {
+// "sid" (bản 10.6, theo yêu cầu người dùng — "chỉ 1 phiên đăng nhập, phiên
+// muộn hơn giữ lại, phiên cũ tự động bị vô hiệu") — mã ngẫu nhiên MỚI mỗi
+// lần gọi, ghi đè admin.AdminUsers.CurrentSessionId NGAY LẬP TỨC (await,
+// TRƯỚC khi ký token) — mọi token CŨ của cùng tài khoản (mang "sid" khác)
+// sẽ bị requireAdminAuth() từ chối ở lượt gọi API kế tiếp của chúng, xem
+// lib/sessionRevocation.js. Đổi hẳn từ hàm ĐỒNG BỘ sang BẤT ĐỒNG BỘ — MỌI
+// nơi gọi issueToken() phải thêm `await` (xem routes/admin/auth.js,
+// routes/admin/twoFactor.js, routes/admin/webauthn.js).
+async function issueToken(user) {
+  const sid = crypto.randomUUID();
+  await setCurrentSession(user.id, sid);
+  return jwt.sign({ sub: user.id, username: user.username, sid }, getSecret(), {
     expiresIn: TOKEN_TTL, algorithm: 'HS256', issuer: ISSUER, audience: ISSUER
   });
 }
@@ -125,11 +136,11 @@ function verifyToken(token) {
 // Gọi SAU khi payload đã qua verify chữ ký + isSessionRevoked — token không
 // còn mang role/quyền gì để giữ nguyên, chỉ cần phát hành lại đúng
 // sub/username với TTL mới.
-function maybeSlideSession(payload, res) {
+async function maybeSlideSession(payload, res) {
   if (typeof payload.exp !== 'number') return;
   const secondsLeft = payload.exp - Math.floor(Date.now() / 1000);
   if (secondsLeft > REFRESH_THRESHOLD_SECONDS) return;
-  const fresh = issueToken({ id: payload.sub, username: payload.username });
+  const fresh = await issueToken({ id: payload.sub, username: payload.username });
   setSessionCookie(res, fresh);
 }
 
@@ -151,11 +162,11 @@ async function requireAdminAuth(req, res, next) {
     // NHÓM QUYỀN không còn cần cơ chế này nữa (JWT không nhúng quyền, tự tra
     // tươi mỗi request qua lib/adminPermissions.js, cache tối đa 60s) — vẫn
     // giữ nguyên cho các lý do khác, xem lib/sessionRevocation.js.
-    if (await isSessionRevoked(payload.sub, payload.iat)) {
-      return res.status(401).json({ error: 'Phiên đăng nhập đã bị thu hồi (đổi mật khẩu/2FA/vai trò, hoặc tài khoản bị khoá) — đăng nhập lại' });
+    if (await isSessionRevoked(payload.sub, payload.iat, payload.sid)) {
+      return res.status(401).json({ error: 'Phiên đăng nhập đã bị thu hồi (đổi mật khẩu/2FA/vai trò, tài khoản bị khoá, hoặc đã đăng nhập ở nơi khác) — đăng nhập lại' });
     }
   } catch (err) { return next(err); }
-  maybeSlideSession(payload, res);
+  await maybeSlideSession(payload, res);
   req.admin = payload;
   next();
 }

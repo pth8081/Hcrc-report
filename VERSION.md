@@ -42,6 +42,41 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.6 — "Chỉ 1 phiên đăng nhập" — đăng nhập nơi mới tự động vô hiệu phiên cũ
+
+**Theo yêu cầu người dùng**: "khi nó in thì phiên muộn hơn sẽ giữ lại và
+phiên cũ sẽ bị tự động disable đi" — áp dụng cho CẢ 3 app (rp-user,
+etl-admin, api-admin). Trước bản này, 1 tài khoản đăng nhập được ĐỒNG THỜI
+ở nhiều thiết bị/trình duyệt — mỗi lần đăng nhập phát hành 1 JWT độc lập,
+không có cơ chế nào biết/huỷ các phiên khác đang tồn tại.
+
+**Đã làm**: thêm cột `CurrentSessionId` (`app.Users`/`admin.AdminUsers`,
+cả 3 CSDL `rp-db`/`etl-db`/`api-db`) — DÙNG CHUNG đúng cơ chế/CSDL/cache
+30 giây đã có sẵn cho "Thu hồi phiên" (`SessionsInvalidatedAt`, xem
+`lib/sessionRevocation.js` cả 3 app): mỗi lần `issueToken()` phát hành 1
+phiên ĐẦY ĐỦ (đăng nhập thường/2FA/WebAuthn) đều sinh 1 mã ngẫu nhiên MỚI
+(claim `"sid"` trong JWT) và ghi đè `CurrentSessionId` NGAY LẬP TỨC —
+`requireAuth()`/`requireAdminAuth()` so `"sid"` của token đang dùng với
+`CurrentSessionId` hiện tại, KHÁC NHAU thì coi như bị thu hồi (y hệt cơ
+chế `SessionsInvalidatedAt`, cùng 1 round-trip CSDL, không tốn thêm). Tài
+khoản CHƯA từng đăng nhập qua code có cờ này (`CurrentSessionId IS NULL`,
+trước khi nâng cấp) — KHÔNG bị ép đăng xuất ngay, chỉ bắt đầu theo dõi từ
+lượt đăng nhập tiếp theo (tránh văng toàn bộ người dùng ra khỏi hệ thống
+ngay lúc deploy).
+
+`issueToken()` đổi hẳn từ hàm ĐỒNG BỘ sang BẤT ĐỒNG BỘ (cần ghi CSDL
+trước khi ký token) — 15 nơi gọi (5 chỗ/app × 3 app: đăng nhập thường,
+2FA xác thực, 2FA setup, WebAuthn đăng nhập, WebAuthn đăng ký mới) đều đã
+thêm `await`.
+
+Verify: mock test `isSessionRevoked()`/`setCurrentSession()`/
+`revokeSessions()` (10 assertion: `CurrentSessionId` NULL không ép đăng
+xuất, sid khớp hợp lệ, sid lệch bị thu hồi, đăng nhập phiên mới làm phiên
+cũ bị thu hồi NGAY không chờ hết cache, thu hồi theo thời gian cũ vẫn
+hoạt động đúng, cache cập nhật tại chỗ không round-trip CSDL thừa) —
+PASS; `node --check` toàn bộ 18 file sửa (3 schema.sql + 5 file/app ×
+3 app).
+
 ## 10.5 — "Giám sát Log CSDL" + cảnh báo email khi transaction log vượt ngưỡng
 
 **Theo yêu cầu người dùng** (sau sự cố thật bản 10.4/sự cố HCRC_DWH: transaction

@@ -118,7 +118,7 @@ router.post('/confirm', requireTwoFactorToken('enroll'), async (req, res, next) 
       module: 'Đăng nhập', actionType: 'BAT_2FA', description: 'Bật xác thực hai yếu tố thành công'
     });
 
-    setSessionCookie(res, issueToken({ id: userId, username }));
+    setSessionCookie(res, await issueToken({ id: userId, username }));
     res.json({ ok: true, recoveryCodes });
   } catch (err) { next(err); }
 });
@@ -172,7 +172,7 @@ router.post('/verify', requireTwoFactorToken('pending'), async (req, res, next) 
     await logAction({ ip: req.ip, user: { sub: userId, username } }, {
       module: 'Đăng nhập', actionType: 'DANG_NHAP', description: 'Đăng nhập thành công (2FA)'
     });
-    setSessionCookie(res, issueToken({ id: userId, username }));
+    setSessionCookie(res, await issueToken({ id: userId, username }));
     res.json({ ok: true });
   } catch (err) { next(err); }
 });
