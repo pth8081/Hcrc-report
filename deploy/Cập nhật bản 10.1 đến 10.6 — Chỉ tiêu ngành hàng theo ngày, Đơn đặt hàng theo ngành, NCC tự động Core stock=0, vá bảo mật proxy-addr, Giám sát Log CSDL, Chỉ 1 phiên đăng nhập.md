@@ -1,11 +1,12 @@
-# Cập nhật bản 10.1 đến 10.5 — Chỉ tiêu ngành hàng theo ngày, Đơn đặt hàng theo ngành, NCC tự động Core stock=0, vá bảo mật proxy-addr, Giám sát Log CSDL
+# Cập nhật bản 10.1 đến 10.6 — Chỉ tiêu ngành hàng theo ngày, Đơn đặt hàng theo ngành, NCC tự động Core stock=0, vá bảo mật proxy-addr, Giám sát Log CSDL, Chỉ 1 phiên đăng nhập
 
-**Mục đích**: gộp 5 bản liên tiếp thành 1 lượt làm — 3 bản đầu đi CHUNG
+**Mục đích**: gộp 6 bản liên tiếp thành 1 lượt làm — 3 bản đầu đi CHUNG
 1 lần pull (cùng 1 commit, liên quan tới nhau qua domain `don_dat_hang`
 dùng chung), bản 10.4 là vá bảo mật độc lập ở `api-server`, bản 10.5 là
-tính năng giám sát mới ở `etl`/`etl-admin` — cả 2 bản sau đều ĐỘC LẬP với
-3 bản đầu và với nhau (khác file/tiến trình, làm trước/sau/song song đều
-được):
+tính năng giám sát mới ở `etl`/`etl-admin`, bản 10.6 là tính năng "chỉ 1
+phiên đăng nhập" áp dụng cho CẢ 3 app — 3 bản sau (10.4/10.5/10.6) đều
+ĐỘC LẬP với 3 bản đầu VÀ với nhau (khác file/tiến trình, làm trước/sau/
+song song đều được):
 
 - **Bản 10.1** — Chỉ tiêu ngành hàng (báo cáo "Doanh thu/Nhập hàng theo
   ngành hàng" HCRC + LDTĐ) giờ CHIA THEO TỶ LỆ SỐ NGÀY đã chọn trong
@@ -33,9 +34,14 @@ tính năng giám sát mới ở `etl`/`etl-admin` — cả 2 bản sau đều �
   không ai biết tới khi admin tình cờ phát hiện (xem mục D bên dưới cho
   cách xử lý THỦ CÔNG sự cố tương tự nếu gặp lại trước khi email cảnh báo
   kịp gửi).
+- **Bản 10.6** — Tính năng mới **"Chỉ 1 phiên đăng nhập"**: đăng nhập ở
+  thiết bị/trình duyệt MỚI sẽ tự động vô hiệu MỌI phiên CŨ của cùng tài
+  khoản đó, áp dụng cho CẢ 3 app (`rp-user`/`etl-admin`/`api-admin`).
+  Theo yêu cầu người dùng — trước bản này 1 tài khoản đăng nhập được
+  đồng thời nhiều nơi không giới hạn.
 
 (Tách riêng từ nhật ký gộp `deploy/Nhật ký triển khai (từ bản 8.31).md`
-mục 10.1-10.5 để tiện gửi/làm theo mà không cần mở file gộp đầy đủ lịch
+mục 10.1-10.6 để tiện gửi/làm theo mà không cần mở file gộp đầy đủ lịch
 sử. Lưu ý số bản 10.1/10.2/10.3 đã được SỬA LẠI từ "9.101/9.102/9.103" —
 xem `VERSION.md` mục "SỬA SỐ bản 9.100-9.103 → 10.0-10.3" nếu thấy nhầm
 với bản cũ đã nói tới ở đâu đó — nội dung và các bước dưới đây KHÔNG đổi,
@@ -166,6 +172,23 @@ Chỉ đụng tới `etl`/`etl-admin` — làm trước/sau/song song với B.1-
    tính năng vẫn chạy (vẫn xem được trên trang "Giám sát Log CSDL"), chỉ
    là KHÔNG gửi được email.
 
+### B.6 — "Chỉ 1 phiên đăng nhập" (bản 10.6, ĐỘC LẬP với B.1-B.5 ở trên)
+
+Tác động CẢ 3 app cùng lúc (`rp-server`, `etl`, `api-server`) — làm đủ cả
+2 bước dưới đây, không được bỏ sót app nào:
+
+1. DBA/IT chạy lại NGUYÊN VĂN 3 file sau trên ĐÚNG 3 CSDL tương ứng (AN
+   TOÀN chạy lại nhiều lần — chỉ THÊM 1 cột mới `CurrentSessionId`,
+   không đụng dữ liệu/bảng khác, không ép đăng xuất ai ngay lúc chạy):
+   - `rp-db/schema.sql` → trên **HCRC_RP**.
+   - `etl-db/schema.sql` → trên **HCRC_ETL**.
+   - `api-db/schema.sql` → trên **HCRC_API**.
+2. `pm2 restart hcrc-rp-server hcrc-etl hcrc-api-server` (cả 3 — KHÔNG
+   cần build lại frontend nào, thuần backend).
+
+Không có bước cấu hình `.env` nào, không có trang quản trị nào cần bật/
+tắt (tính năng LUÔN BẬT, không tuỳ chọn).
+
 ## C. Kiểm tra sau khi triển khai
 
 - [ ] **Bản 10.1** — mở "Doanh thu theo ngành hàng" hoặc "(LDTD)", chọn
@@ -197,6 +220,12 @@ Chỉ đụng tới `etl`/`etl-admin` — làm trước/sau/song song với B.1-
   ngay" — phải thấy dòng tương ứng chuyển "⚠️ Vượt ngưỡng" VÀ nhận được
   email cảnh báo (nếu đã cấu hình SMTP) — xong nhớ ĐỔI LẠI đúng ngưỡng
   thật (vd `20000`) rồi restart lại.
+- [ ] **Bản 10.6** — đăng nhập 1 tài khoản trên Trình duyệt A, giữ phiên
+  đó đang mở. Đăng nhập LẠI CHÍNH tài khoản đó trên Trình duyệt B (hoặc
+  cửa sổ ẩn danh) — phải vào được bình thường. Quay lại Trình duyệt A,
+  bấm bất kỳ thao tác nào gọi API — phải bị đăng xuất, hiện thông báo
+  "...hoặc đã đăng nhập ở nơi khác". Lặp lại cho CẢ 3 app (mỗi app giới
+  hạn phiên ĐỘC LẬP với 2 app kia).
 
 Nếu mục nào vẫn trống/sai sau khi làm đủ các bước trên — xem phần "Hỏi &
 đáp" tương ứng:
@@ -209,6 +238,10 @@ Nếu mục nào vẫn trống/sai sau khi làm đủ các bước trên — xem
 - Bản 10.5: `VERSION.md` mục 10.5; nguồn nào báo "🔴 Lỗi kiểm tra" trên
   trang "Giám sát Log CSDL" — xem cột "Lỗi" của đúng dòng đó (thường là
   thiếu quyền `VIEW DATABASE STATE` hoặc sai thông tin kết nối).
+- Bản 10.6: `VERSION.md` mục 10.6; file riêng
+  `deploy/Cập nhật bản 10.6 — Chỉ 1 phiên đăng nhập.md` (gồm phần "Lưu ý
+  vận hành" — không có ngoại lệ cho tài khoản dùng chung nhiều người,
+  2FA/WebAuthn đều tính là "đăng nhập").
 
 Không có bước nào ở trên làm mất dữ liệu đã có — mọi thay đổi CSDL chỉ
 THÊM cột/cấu hình/bảng mới, không xoá/đổi dữ liệu cũ; bản 10.4 chỉ đổi
@@ -282,3 +315,52 @@ sao lưu log (xem cột "Trạng thái" ở etl-admin → "Giám sát Log CSDL" 
 sys.databases;` để xem toàn bộ) — áp dụng tương tự D.1/D.3 cho từng CSDL
 đó (đổi tên `HCRC_DWH`/`HCRC_DWH_log` thành đúng tên CSDL/file log tương
 ứng).
+
+---
+
+## E. Kiến trúc mạng — domain nào BẮT BUỘC public ra Internet, domain nào KHÔNG cần
+
+Không phải bước deploy code — là phần giải đáp về cấu hình mạng/Nginx,
+áp dụng cho server THỰC TẾ đang chạy cả 3 hệ thống (API, ETL, Report)
+TRÊN CÙNG 1 MÁY CHỦ (đúng mô hình server của hệ thống này).
+
+**4 domain đang có, 2 nhóm hoàn toàn khác mục đích**:
+
+| Domain | Vai trò | Có BẮT BUỘC public ra Internet không? |
+|---|---|---|
+| `report.hcrc.vn` | Trang tĩnh `rp-user` + Nginx proxy `/api/` sang `rp-server` | **CÓ** (nếu muốn xem báo cáo từ ngoài văn phòng/VPN) |
+| `etl-admin.hcrc.vn` | Trang tĩnh `etl-admin` + Nginx proxy `/admin/` sang `etl` | **CÓ** (nếu muốn quản trị ETL từ ngoài văn phòng/VPN) |
+| `api.hcrc.vn` | Public API (`/api/v1/*`) cho ĐỐI TÁC bên ngoài gọi (voucher, tồn kho realtime...) | CÓ — CHỈ KHI còn đối tác cần gọi; không còn đối tác nào thì tắt luôn cũng được |
+| `rp.hcrc.vn` / `etl.hcrc.vn` | Domain "service" — KHÔNG phải nơi trình duyệt/đối tác gọi trực tiếp | **KHÔNG CẦN**, nên khoá khỏi Internet |
+
+**Vì sao `rp.hcrc.vn`/`etl.hcrc.vn` không cần public** (đã xác nhận với
+người dùng qua Q&A, server dùng CHUNG 1 máy cho cả 3 hệ thống):
+- Nginx của `report.hcrc.vn` kết nối backend `rp-server` qua
+  `127.0.0.1:4001` (xem `upstream hcrc_rp_server` trong
+  `deploy/nginx.conf`) — LOOPBACK NỘI BỘ, không tra DNS/đi ra Internet.
+  Tương tự `etl-admin.hcrc.vn` → `127.0.0.1:4003` (`hcrc_etl_server`).
+- Nếu triển khai dùng TÊN MIỀN `rp.hcrc.vn`/`etl.hcrc.vn` thay vì thẳng
+  `127.0.0.1` trong `proxy_pass` — vẫn AN TOÀN khoá khỏi DNS public,
+  MIỄN LÀ có khai trong file `/etc/hosts` của CHÍNH server đó trỏ về
+  `127.0.0.1` (hoặc IP nội bộ) — hệ thống đọc file hosts cục bộ TRƯỚC,
+  không bao giờ cần hỏi DNS công khai. Đây ĐÚNG cách server thật của hệ
+  thống này đang làm.
+- Lợi ích: giảm bề mặt tấn công — không ai ngoài Internet biết/kết nối
+  trực tiếp được vào cổng backend thô (bỏ qua hẳn lớp Nginx/đăng nhập).
+
+**Về `api.hcrc.vn` (public API cho đối tác) — tắt có ảnh hưởng gì khác
+không?** KHÔNG — các cuộc gọi NỘI BỘ giữa `rp-server`↔`api-server` (vd
+"Upload cảnh báo hàng tồn", tra cứu voucher) dùng biến riêng
+`INTERNAL_API_SERVER_URL`/`API_SERVER_BASE_URL` trong `.env` của
+`rp-server`, trỏ `http://localhost:4002` (hoặc IP nội bộ) — HOÀN TOÀN
+TÁCH BIỆT khỏi domain `api.hcrc.vn` công khai. Tắt `api.hcrc.vn` khỏi
+Internet CHỈ ảnh hưởng đối tác bên ngoài gọi `/api/v1/*`, không ảnh
+hưởng bất kỳ tính năng nội bộ nào của hệ thống.
+
+**Điều kiện áp dụng kết luận trên**: `rp-server`/`etl`/`api-server` và
+Nginx của `report.hcrc.vn`/`etl-admin.hcrc.vn`/`api.hcrc.vn` phải chạy
+**CÙNG 1 máy chủ** (đúng mô hình server hiện tại). Nếu sau này TÁCH
+backend sang máy KHÁC với máy chạy Nginx, cần đảm bảo 2 máy đó có đường
+mạng riêng (VPN nội bộ/mạng private) tới nhau — lúc đó domain
+`rp.hcrc.vn`/`etl.hcrc.vn` (hoặc IP tương ứng) vẫn KHÔNG cần public ra
+Internet rộng, chỉ cần máy Nginx tới được qua đường mạng riêng đó.
