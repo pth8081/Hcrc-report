@@ -103,6 +103,20 @@ hiện so với lần đồng bộ trước đó.
 
 ## 3. `GET /api/v1/vouchers/[:configKey/]redeemed/since` — Lấy danh sách MỚI từ lần gọi trước (khuyến nghị cho job định kỳ)
 
+> **⚠️ LƯU Ý QUAN TRỌNG — endpoint này KHÔNG dùng để thu hồi/redeem
+> voucher, và KHÔNG cho phép đối tác ghi/cập nhật bất kỳ dữ liệu gì vào
+> hệ thống nguồn (DSmart) của HCRC.** Đây là phương thức `GET` — THUẦN
+> TRUY VẤN, chỉ TRẢ VỀ thông tin những voucher ĐÃ được thu hồi từ TRƯỚC
+> (qua đúng nghiệp vụ tại cửa hàng/qua API thu hồi chuẩn), không có tác
+> dụng phụ nào, gọi lại bao nhiêu lần/bất kỳ lúc nào cũng an toàn, dữ
+> liệu phía HCRC không hề thay đổi. Việc "cập nhật trạng thái đã sử
+> dụng" ở bước 5 dưới đây là quý đối tác tự làm **TRÊN HỆ THỐNG/CSDL
+> NỘI BỘ CỦA QUÝ ĐỐI TÁC** — hoàn toàn tách biệt, không liên quan và
+> không có đường nào để tác động ngược lại CSDL của HCRC. Muốn THỰC HIỆN
+> thu hồi 1 voucher (hành động ghi dữ liệu thật), phải dùng kênh nghiệp
+> vụ redeem riêng mà HCRC đã cấp (ngoài phạm vi tài liệu này) — endpoint
+> ở mục 3 này không làm được việc đó.
+
 **Khác mục 2** — endpoint này dành riêng cho hệ thống của quý đối tác CHẠY
 MỘT JOB ĐỊNH KỲ (vd mỗi 15-30 phút) để lấy ĐÚNG những voucher MỚI thu hồi
 kể từ lần gọi gần nhất, **KHÔNG CẦN tự đối soát/so sánh danh sách đầy đủ**
@@ -184,7 +198,14 @@ scope `voucherRedeemedFeed`).
 
 - Mã voucher gửi lên (mục 1) giữ NGUYÊN định dạng máy quét/camera trả về
   — không cần tự cắt/chỉnh sửa.
-- Cả 2 API đều **CHỈ ĐỌC**, an toàn gọi lại nhiều lần, không có rủi ro làm
-  thay đổi trạng thái voucher.
-- Liên hệ HCRC để được cấp `X-API-Key` và xác nhận đã được cấp quyền gọi
-  endpoint `voucher-redeemed` trước khi tích hợp.
+- Cả 3 API ở trên (mục 1, 2, 3) đều dùng phương thức `GET` và **CHỈ ĐỌC**
+  — không có endpoint nào trong tài liệu này cho phép đối tác GHI/THU
+  HỒI/CẬP NHẬT bất kỳ dữ liệu gì vào hệ thống của HCRC. An toàn gọi lại
+  nhiều lần, bất kỳ lúc nào, không có rủi ro làm thay đổi trạng thái
+  voucher phía HCRC.
+- "Cập nhật trạng thái đã sử dụng" nói tới trong tài liệu này LUÔN có
+  nghĩa là quý đối tác tự cập nhật trên **hệ thống/CSDL nội bộ của quý
+  đối tác** — HCRC không có API nào nhận ghi từ đối tác, và các API trên
+  không tạo ra thay đổi nào ở phía HCRC.
+- Liên hệ HCRC để được cấp `X-API-Key` và xác nhận đã được cấp đúng quyền
+  (scope) cần dùng trước khi tích hợp.
