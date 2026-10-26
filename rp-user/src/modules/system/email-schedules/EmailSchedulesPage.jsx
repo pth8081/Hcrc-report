@@ -19,6 +19,7 @@ import { api } from '../../../lib/api';
 import DataTable from '../../../components/DataTable';
 import SearchableSelect from '../../../components/SearchableSelect';
 import { useRowSelection } from '../../../lib/useRowSelection';
+import Modal from '../../../components/Modal';
 
 const WEEKDAY_OPTIONS = [
   { value: 1, label: 'T2' }, { value: 2, label: 'T3' }, { value: 3, label: 'T4' },
@@ -535,7 +536,7 @@ export default function EmailSchedulesPage() {
       )}
 
       {editing && (
-        <div className="modal">
+        <Modal>
           <div className="modal-body">
             <h3>Sửa — {editing.form.name}</h3>
             <ScheduleFormFields
@@ -552,7 +553,7 @@ export default function EmailSchedulesPage() {
               <button type="button" onClick={() => setEditing(null)}>Huỷ</button>
             </div>
           </div>
-        </div>
+        </Modal>
       )}
     </div>
   );

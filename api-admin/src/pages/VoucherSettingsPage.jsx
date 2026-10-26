@@ -11,6 +11,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/AuthContext';
+import Modal from '../components/Modal';
 
 const DEFAULT_CONFIG_KEY = 'default';
 const EMPTY_FORM = { configKey: '', name: '', dataSourceId: '' };
@@ -144,7 +145,7 @@ export default function VoucherSettingsPage() {
       </table>
 
       {creating && (
-        <div className="modal">
+        <Modal>
           <div className="modal-body">
             <h3>Tạo cấu hình Voucher mới</h3>
             <form className="stacked-form" onSubmit={createConfig}>
@@ -171,11 +172,11 @@ export default function VoucherSettingsPage() {
               </div>
             </form>
           </div>
-        </div>
+        </Modal>
       )}
 
       {editing && (
-        <div className="modal">
+        <Modal>
           <div className="modal-body">
             <h3>Sửa cấu hình "{editing.ConfigKey}"</h3>
             <form className="stacked-form" onSubmit={saveEdit}>
@@ -190,7 +191,7 @@ export default function VoucherSettingsPage() {
               </div>
             </form>
           </div>
-        </div>
+        </Modal>
       )}
     </div>
   );

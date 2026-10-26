@@ -8,6 +8,7 @@ import { api } from '../lib/api';
 import { useAuth } from '../lib/AuthContext';
 import DataTable from '../components/DataTable';
 import { useRowSelection } from '../lib/useRowSelection';
+import Modal from '../components/Modal';
 
 export default function RolesPage() {
   const { isSystemRole, canEdit } = useAuth();
@@ -152,7 +153,7 @@ export default function RolesPage() {
       )}
 
       {editingAccessFor && (
-        <div className="modal">
+        <Modal>
           <div className="modal-body">
             <h3>Gán quyền — {editingAccessFor.Name}</h3>
             <table className="access-table">
@@ -179,11 +180,11 @@ export default function RolesPage() {
               <button type="button" onClick={() => setEditingAccessFor(null)}>Đóng</button>
             </div>
           </div>
-        </div>
+        </Modal>
       )}
 
       {editingNameFor && (
-        <div className="modal">
+        <Modal>
           <div className="modal-body">
             <h3>Sửa tên vai trò — {editingNameFor.Code}</h3>
             <form className="stacked-form" onSubmit={saveName}>
@@ -194,7 +195,7 @@ export default function RolesPage() {
               </div>
             </form>
           </div>
-        </div>
+        </Modal>
       )}
     </div>
   );

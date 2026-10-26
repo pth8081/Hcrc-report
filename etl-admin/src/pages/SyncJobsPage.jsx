@@ -10,6 +10,7 @@ import { api } from '../lib/api';
 import { useAuth } from '../lib/AuthContext';
 import DataTable from '../components/DataTable';
 import { useRowSelection } from '../lib/useRowSelection';
+import Modal from '../components/Modal';
 
 const EMPTY_FORM = {
   name: '', type: 'table', dataSourceId: '', targetDomain: '', cronExpression: '*/15 * * * *',
@@ -636,7 +637,7 @@ export default function SyncJobsPage() {
       )}
 
       {editingJob && editForm && (
-        <div className="modal">
+        <Modal>
           <div className="modal-body">
             <h3>Sửa job "{editingJob.Name}"</h3>
             <p className="hint">
@@ -681,11 +682,11 @@ export default function SyncJobsPage() {
               </div>
             </form>
           </div>
-        </div>
+        </Modal>
       )}
 
       {duplicatingJob && (
-        <div className="modal">
+        <Modal>
           <div className="modal-body">
             <h3>Nhân bản job "{duplicatingJob.job.Name}"</h3>
             <p className="hint">
@@ -707,7 +708,7 @@ export default function SyncJobsPage() {
               </div>
             </form>
           </div>
-        </div>
+        </Modal>
       )}
     </div>
   );

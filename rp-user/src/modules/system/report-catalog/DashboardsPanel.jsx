@@ -11,6 +11,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../../../lib/api';
 import DataTable from '../../../components/DataTable';
 import { useRowSelection } from '../../../lib/useRowSelection';
+import Modal from '../../../components/Modal';
 
 const EXAMPLE_DEFINITION = '{"tiles":[{"key":"doanhThuTheoChiNhanh","reportId":"..."},{"key":"topSanPham","reportId":"...","title":"Top sản phẩm"}]}';
 
@@ -124,7 +125,7 @@ export default function DashboardsPanel() {
       )}
 
       {editing && (
-        <div className="modal">
+        <Modal>
           <div className="modal-body">
             <h3>Sửa — {editing.form.title}</h3>
             <input placeholder="Tiêu đề" value={editing.form.title} onChange={(e) => setEditing({ ...editing, form: { ...editing.form, title: e.target.value } })} required />
@@ -142,7 +143,7 @@ export default function DashboardsPanel() {
               <button type="button" onClick={() => setEditing(null)}>Huỷ</button>
             </div>
           </div>
-        </div>
+        </Modal>
       )}
     </div>
   );

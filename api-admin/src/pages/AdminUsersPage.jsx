@@ -10,6 +10,7 @@ import { api } from '../lib/api';
 import { useAuth } from '../lib/AuthContext';
 import DataTable from '../components/DataTable';
 import PasswordInput from '../components/PasswordInput';
+import Modal from '../components/Modal';
 
 const EMPTY_FORM = { username: '', password: '', fullName: '' };
 
@@ -153,7 +154,7 @@ export default function AdminUsersPage() {
       />
 
       {editingUser && (
-        <div className="modal">
+        <Modal>
           <div className="modal-body">
             <h3>Sửa tài khoản — {editingUser.Username}</h3>
             <label>Họ tên</label>
@@ -169,11 +170,11 @@ export default function AdminUsersPage() {
               <button type="button" onClick={() => setEditingUser(null)}>Đóng</button>
             </div>
           </div>
-        </div>
+        </Modal>
       )}
 
       {assigningUser && (
-        <div className="modal">
+        <Modal>
           <div className="modal-body">
             <h3>Gán vai trò — {assigningUser.Username}</h3>
             {roles.map(r => (
@@ -193,11 +194,11 @@ export default function AdminUsersPage() {
               <button type="button" onClick={() => setAssigningUser(null)}>Đóng</button>
             </div>
           </div>
-        </div>
+        </Modal>
       )}
 
       {resettingPasswordFor && (
-        <div className="modal">
+        <Modal>
           <div className="modal-body">
             <h3>Đặt lại mật khẩu — {resettingPasswordFor.Username}</h3>
             <p className="form-hint">Admin đặt trực tiếp, không cần biết mật khẩu cũ — tài khoản này sẽ bị đăng xuất ngay và phải đăng nhập lại bằng mật khẩu mới.</p>
@@ -213,7 +214,7 @@ export default function AdminUsersPage() {
               </div>
             </form>
           </div>
-        </div>
+        </Modal>
       )}
     </div>
   );

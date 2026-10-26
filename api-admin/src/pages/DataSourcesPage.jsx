@@ -8,6 +8,7 @@ import { api } from '../lib/api';
 import { useAuth } from '../lib/AuthContext';
 import DataTable from '../components/DataTable';
 import { useRowSelection } from '../lib/useRowSelection';
+import Modal from '../components/Modal';
 
 const EMPTY_FORM = { name: '', server: '', port: 1433, databaseName: '', username: '', password: '', encrypt: true, trustServerCert: false };
 
@@ -252,7 +253,7 @@ export default function DataSourcesPage() {
       )}
 
       {editing && (
-        <div className="modal">
+        <Modal>
           <div className="modal-body">
             <h3>Sửa nguồn "{editing.Name}"</h3>
             <form className="stacked-form" onSubmit={saveEdit}>
@@ -276,11 +277,11 @@ export default function DataSourcesPage() {
               </div>
             </form>
           </div>
-        </div>
+        </Modal>
       )}
 
       {duplicating && (
-        <div className="modal">
+        <Modal>
           <div className="modal-body">
             <h3>Nhân bản "{duplicating.source.Name}"</h3>
             <p className="hint">
@@ -302,7 +303,7 @@ export default function DataSourcesPage() {
               </div>
             </form>
           </div>
-        </div>
+        </Modal>
       )}
     </div>
   );

@@ -11,6 +11,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../../../lib/api';
 import DataTable from '../../../components/DataTable';
 import { useRowSelection } from '../../../lib/useRowSelection';
+import Modal from '../../../components/Modal';
 
 const DATE_RANGE_PRESET_OPTIONS = [
   { value: '', label: '— Chọn khoảng ngày —' },
@@ -350,7 +351,7 @@ export default function AnomalyAlertsPage() {
       )}
 
       {editing && (
-        <div className="modal">
+        <Modal>
           <div className="modal-body">
             <h3>Sửa — {editing.form.name}</h3>
             <AlertFormFields form={editing.form} setForm={(f) => setEditing({ ...editing, form: f })} reports={reports} reportLocked />
@@ -362,7 +363,7 @@ export default function AnomalyAlertsPage() {
               <button type="button" onClick={() => setEditing(null)}>Huỷ</button>
             </div>
           </div>
-        </div>
+        </Modal>
       )}
     </div>
   );

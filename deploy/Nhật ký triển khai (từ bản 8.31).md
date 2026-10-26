@@ -14,6 +14,36 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.8 — Sửa lỗi modal không thao tác được trên mobile (render qua Portal)
+
+**Thay đổi**: 3 file mới `src/components/Modal.jsx` (1 file/app, nội dung
+giống hệt nhau), sửa 18 file trang ở cả 3 app (thay `<div
+className="modal">` bằng `<Modal>` — 43 chỗ), cập nhật `CLAUDE.md` (quy
+ước bắt buộc cho modal mới sau này). THUẦN frontend, KHÔNG đổi backend/CSDL.
+
+**Các bước**:
+
+1. `git pull origin main` trên server chạy cả 3 giao diện tĩnh.
+2. Build lại cả 3 ứng dụng:
+   ```bash
+   cd etl-admin && npm install && npm run build
+   cd ../rp-user && npm install && npm run build
+   cd ../api-admin && npm install && npm run build
+   ```
+3. KHÔNG cần restart `pm2` của bất kỳ backend nào (`hcrc-rp-server`/
+   `hcrc-etl`/`hcrc-api-server`) — chỉ cần Nginx/tiến trình phục vụ web
+   tĩnh đọc lại đúng thư mục `dist/` mới build (thường tự động, không cần
+   restart riêng; nếu dùng PM2 phục vụ static thì `pm2 restart` đúng tiến
+   trình static tương ứng cho chắc).
+
+**Kiểm tra**: mở etl-admin trên ĐIỆN THOẠI (khuyến khích thử cả trình
+duyệt thường VÀ trình duyệt trong app như Zalo nếu trước đây đã gặp lỗi ở
+đó) → trang "Phân quyền" → bấm "Gán vai trò" (hoặc bất kỳ nút mở modal
+nào) — hộp thoại phải hiện PHỦ KÍN toàn màn hình, nền đổ tối đều, bấm được
+mọi nút trong hộp thoại, không còn hiện tượng lệch/kẹt theo từng dòng
+bảng. Lặp lại tương tự cho rp-user (vd trang "Vai trò"/"Lịch gửi email")
+và api-admin (vd trang "Đối tác").
+
 ## 10.7 — "Danh sách voucher đã thu hồi — feed cho đối tác"
 
 **Thay đổi**: 1 cột mới `api.ApiConsumers.VoucherRedeemedFeedFieldsJson`

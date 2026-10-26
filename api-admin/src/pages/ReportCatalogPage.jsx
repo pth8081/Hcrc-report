@@ -8,6 +8,7 @@ import { api } from '../lib/api';
 import { useAuth } from '../lib/AuthContext';
 import DataTable from '../components/DataTable';
 import { useRowSelection } from '../lib/useRowSelection';
+import Modal from '../components/Modal';
 
 const EMPTY_FORM = { reportId: '', title: '', domain: '', definitionJson: '' };
 
@@ -136,7 +137,7 @@ export default function ReportCatalogPage() {
       )}
 
       {editing && (
-        <div className="modal">
+        <Modal>
           <div className="modal-body">
             <h3>Sửa báo cáo "{editing.title}"</h3>
             <p className="hint">Mã báo cáo ({editing.reportId}) không đổi được.</p>
@@ -156,7 +157,7 @@ export default function ReportCatalogPage() {
               </div>
             </form>
           </div>
-        </div>
+        </Modal>
       )}
     </div>
   );

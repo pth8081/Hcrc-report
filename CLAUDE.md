@@ -263,3 +263,66 @@ Lưu ý quan trọng:
 (cùng server/database/username/password, hoặc cùng cách xác thực) — gõ lại
 thủ công vừa chậm vừa dễ gõ sai mật khẩu, mà hiện mật khẩu ra để copy thì
 lộ bí mật qua màn hình/trình duyệt không cần thiết.
+
+## Mọi modal (hộp thoại nổi) PHẢI render qua Portal — không viết `<div className="modal">` trực tiếp trong cây trang
+
+**Theo yêu cầu người dùng (bản 10.8, phát hiện lỗi thật trên mobile — mở
+etl-admin qua trình duyệt trong app (Zalo...)/WebView di động, modal "Gán
+vai trò" hiện lệch/kẹt theo từng dòng bảng thay vì phủ toàn màn hình, không
+thao tác được gì).**
+
+**Nguyên nhân**: `.modal { position: fixed; inset: 0; }` (CSS dùng chung cả
+3 app) đúng về mặt CSS, nhưng một số trình duyệt trong app (Zalo,
+Facebook...)/WebView Android tính sai lại vị trí phần tử `position: fixed`
+khi nó nằm LỒNG bên trong 1 khối có cuộn ngang (vd bảng dữ liệu
+`.table-scroll` của `DataTable.jsx`) — dù về DOM, modal vốn chỉ là
+SIBLING chứ không phải con của bảng. Cách sửa triệt để, không phụ thuộc
+hành vi từng trình duyệt: đưa hẳn modal ra khỏi cây DOM của trang bằng
+React Portal (`ReactDOM.createPortal` thẳng vào `document.body`).
+
+Hạ tầng dùng chung đã có sẵn ở cả 3 app — `src/components/Modal.jsx`:
+
+```jsx
+import { useEffect } from 'react';
+import { createPortal } from 'react-dom';
+
+export default function Modal({ children }) {
+  useEffect(() => {
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden'; // khoá cuộn nền lúc mở modal
+    return () => { document.body.style.overflow = prevOverflow; };
+  }, []);
+  return createPortal(<div className="modal">{children}</div>, document.body);
+}
+```
+
+Mọi modal MỚI (và mọi modal cũ đã sửa ở bản 10.8) PHẢI viết theo mẫu:
+
+```jsx
+import Modal from '../components/Modal'; // sửa path tương đối đúng theo vị trí file
+...
+{editingUser && (
+  <Modal>
+    <div className="modal-body">
+      <h3>Sửa tài khoản — {editingUser.Username}</h3>
+      ...
+    </div>
+  </Modal>
+)}
+```
+
+Lưu ý:
+- KHÔNG còn viết `<div className="modal">...</div>` trực tiếp trong JSX của
+  trang — luôn thay bằng `<Modal>...</Modal>` (chỉ đổi thẻ bọc NGOÀI CÙNG,
+  `<div className="modal-body">` bên trong giữ nguyên y hệt).
+- CSS `.modal`/`.modal-body` trong `styles.css` GIỮ NGUYÊN không đổi — chỉ
+  đổi NƠI RENDER (Portal), không đổi giao diện/kích thước.
+- `document.body.style.overflow = 'hidden'` khi mở — nếu trang có NHIỀU
+  modal lồng nhau mở cùng lúc (hiếm, nhưng có thể xảy ra), mỗi `Modal` tự
+  lưu/khôi phục đúng giá trị `overflow` TRƯỚC KHI nó mở (không ghi đè nhau
+  sai khi đóng theo đúng thứ tự ngược lại khi mở).
+
+**Lý do**: tránh lặp lại đúng lỗi thật đã gặp (modal không thao tác được
+trên mobile) ở bất kỳ modal MỚI nào làm thêm sau này — xây 1 lần, dùng lại
+cho mọi modal của cả 3 app, không cần nhớ lại từng CSS quirk theo từng
+trình duyệt/WebView.

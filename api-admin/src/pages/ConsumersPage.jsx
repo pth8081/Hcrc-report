@@ -37,6 +37,7 @@ import { api } from '../lib/api';
 import { useAuth } from '../lib/AuthContext';
 import DataTable from '../components/DataTable';
 import { useRowSelection } from '../lib/useRowSelection';
+import Modal from '../components/Modal';
 
 const SCOPE_OPTIONS = ['reports', 'realtime', 'realtimeWrite', 'voucherCheck', 'voucherRedeem', 'voucherRedeemedFeed'];
 const EMPTY_FORM = { name: '', authMethod: 'apiKey', scopes: [], rateLimitPerMinute: 120, allowedIps: '' };
@@ -429,7 +430,7 @@ export default function ConsumersPage() {
       )}
 
       {editing && (
-        <div className="modal">
+        <Modal>
           <div className="modal-body">
             <h3>Sửa — {editing.Name}</h3>
             <p>Cách xác thực: <strong>{AUTH_METHOD_LABELS[editing.AuthMethod] || editing.AuthMethod}</strong> (không đổi được — tạo đối tác mới nếu cần cách khác)</p>
@@ -456,11 +457,11 @@ export default function ConsumersPage() {
               <button type="button" onClick={() => setEditing(null)}>Huỷ</button>
             </div>
           </div>
-        </div>
+        </Modal>
       )}
 
       {duplicating && (
-        <div className="modal">
+        <Modal>
           <div className="modal-body">
             <h3>Nhân bản "{duplicating.consumer.Name}"</h3>
             <p className="hint">
@@ -486,11 +487,11 @@ export default function ConsumersPage() {
               </div>
             </form>
           </div>
-        </div>
+        </Modal>
       )}
 
       {accessFor && (
-        <div className="modal">
+        <Modal>
           <div className="modal-body">
             <h3>Báo cáo được gọi — {accessFor.Name}</h3>
             <p>
@@ -511,11 +512,11 @@ export default function ConsumersPage() {
               <button type="button" onClick={() => setAccessFor(null)}>Huỷ</button>
             </div>
           </div>
-        </div>
+        </Modal>
       )}
 
       {realtimeAccessFor && (
-        <div className="modal">
+        <Modal>
           <div className="modal-body">
             <h3>Realtime được gọi — {realtimeAccessFor.Name}</h3>
             <p>
@@ -536,11 +537,11 @@ export default function ConsumersPage() {
               <button type="button" onClick={() => setRealtimeAccessFor(null)}>Huỷ</button>
             </div>
           </div>
-        </div>
+        </Modal>
       )}
 
       {writeAccessFor && (
-        <div className="modal">
+        <Modal>
           <div className="modal-body">
             <h3>Ghi được gọi — {writeAccessFor.Name}</h3>
             <p>
@@ -562,11 +563,11 @@ export default function ConsumersPage() {
               <button type="button" onClick={() => setWriteAccessFor(null)}>Huỷ</button>
             </div>
           </div>
-        </div>
+        </Modal>
       )}
 
       {voucherAccessFor && (
-        <div className="modal">
+        <Modal>
           <div className="modal-body">
             <h3>Cấu hình Voucher được gọi — {voucherAccessFor.Name}</h3>
             <p>
@@ -588,11 +589,11 @@ export default function ConsumersPage() {
               <button type="button" onClick={() => setVoucherAccessFor(null)}>Huỷ</button>
             </div>
           </div>
-        </div>
+        </Modal>
       )}
 
       {redeemedFeedFieldsFor && (
-        <div className="modal">
+        <Modal>
           <div className="modal-body">
             <h3>Trường dữ liệu voucher đã thu hồi — {redeemedFeedFieldsFor.Name}</h3>
             <p>
@@ -613,7 +614,7 @@ export default function ConsumersPage() {
               <button type="button" onClick={() => setRedeemedFeedFieldsFor(null)}>Huỷ</button>
             </div>
           </div>
-        </div>
+        </Modal>
       )}
     </div>
   );

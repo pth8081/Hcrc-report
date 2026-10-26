@@ -6,6 +6,7 @@ import { api } from '../../../lib/api';
 import { useAuth } from '../../../lib/AuthContext';
 import DataTable from '../../../components/DataTable';
 import PasswordInput from '../../../components/PasswordInput';
+import Modal from '../../../components/Modal';
 
 export default function UsersPage() {
   const { me } = useAuth();
@@ -355,7 +356,7 @@ export default function UsersPage() {
       />
 
       {editingInfoFor && (
-        <div className="modal">
+        <Modal>
           <div className="modal-body">
             <h3>Sửa thông tin — {editingInfoFor.Username}</h3>
             <form className="stacked-form" onSubmit={saveInfo}>
@@ -377,11 +378,11 @@ export default function UsersPage() {
               </div>
             </form>
           </div>
-        </div>
+        </Modal>
       )}
 
       {editingRolesFor && (
-        <div className="modal">
+        <Modal>
           <div className="modal-body">
             <h3>Gán vai trò — {editingRolesFor.Username}</h3>
             {roles.map(r => (
@@ -407,11 +408,11 @@ export default function UsersPage() {
               <button type="button" onClick={() => setEditingRolesFor(null)}>Đóng</button>
             </div>
           </div>
-        </div>
+        </Modal>
       )}
 
       {editingAccessFor && (
-        <div className="modal">
+        <Modal>
           <div className="modal-body">
             <h3>Gán quyền riêng — {editingAccessFor.Username}</h3>
             <p className="form-hint">
@@ -465,11 +466,11 @@ export default function UsersPage() {
               <button type="button" onClick={() => setEditingAccessFor(null)}>Đóng</button>
             </div>
           </div>
-        </div>
+        </Modal>
       )}
 
       {editingStoreAccessFor && (
-        <div className="modal">
+        <Modal>
           <div className="modal-body">
             <h3>Phạm vi dữ liệu — {editingStoreAccessFor.Username}</h3>
             <p className="form-hint">
@@ -497,11 +498,11 @@ export default function UsersPage() {
               <button type="button" onClick={() => setEditingStoreAccessFor(null)}>Đóng</button>
             </div>
           </div>
-        </div>
+        </Modal>
       )}
 
       {editingAuthFor && (
-        <div className="modal">
+        <Modal>
           <div className="modal-body">
             <h3>Nguồn xác thực — {editingAuthFor.Username}</h3>
             <label className="checkbox-row">
@@ -523,11 +524,11 @@ export default function UsersPage() {
               <button type="button" onClick={() => setEditingAuthFor(null)}>Huỷ</button>
             </div>
           </div>
-        </div>
+        </Modal>
       )}
 
       {resettingPasswordFor && (
-        <div className="modal">
+        <Modal>
           <div className="modal-body">
             <h3>Đặt lại mật khẩu — {resettingPasswordFor.Username}</h3>
             <p className="form-hint">Admin đặt trực tiếp, không cần biết mật khẩu cũ — tài khoản này sẽ bị đăng xuất ngay và phải đăng nhập lại bằng mật khẩu mới.</p>
@@ -554,7 +555,7 @@ export default function UsersPage() {
               </div>
             </form>
           </div>
-        </div>
+        </Modal>
       )}
     </div>
   );

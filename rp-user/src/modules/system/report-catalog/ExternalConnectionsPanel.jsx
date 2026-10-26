@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../../../lib/api';
 import DataTable from '../../../components/DataTable';
 import { useRowSelection } from '../../../lib/useRowSelection';
+import Modal from '../../../components/Modal';
 
 const EMPTY_FORM = { name: '', baseUrl: '', authType: 'none', authKeyName: '', authValue: '', authUsername: '', authPassword: '', tokenUrl: '' };
 const AUTH_TYPE_LABELS = {
@@ -224,7 +225,7 @@ export default function ExternalConnectionsPanel() {
       {testResult && <p>{testResult}</p>}
 
       {duplicating && (
-        <div className="modal">
+        <Modal>
           <div className="modal-body">
             <h3>Nhân bản "{duplicating.connection.Name}"</h3>
             <p className="hint">
@@ -246,7 +247,7 @@ export default function ExternalConnectionsPanel() {
               </div>
             </form>
           </div>
-        </div>
+        </Modal>
       )}
     </div>
   );

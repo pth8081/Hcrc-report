@@ -42,6 +42,33 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.8 — Sửa lỗi modal không thao tác được trên mobile (render qua Portal)
+
+**Theo yêu cầu người dùng**: báo lỗi thật kèm ảnh chụp màn hình — mở
+etl-admin trên điện thoại (qua trình duyệt trong app, vd Zalo), bấm "Gán
+vai trò" ở trang "Phân quyền" → hộp thoại hiện LỆCH/KẸT theo từng dòng
+bảng (nhiều mảng xám chồng lên từng dòng khác nhau) thay vì phủ kín toàn
+màn hình, không bấm được nút nào trong hộp thoại.
+
+**Nguyên nhân**: `.modal { position: fixed; inset: 0; }` (CSS dùng chung
+cả 3 app) đúng về CSS, nhưng một số trình duyệt trong app/WebView di động
+tính sai vị trí phần tử `position: fixed` khi nó NẰM TRONG cây DOM có 1
+khối cuộn ngang gần đó (bảng dữ liệu `.table-scroll`) — dù modal chỉ là
+SIBLING chứ không phải con của bảng, một số WebView vẫn định vị sai.
+
+**Đã làm**: tạo `src/components/Modal.jsx` dùng chung cả 3 app — dùng
+`ReactDOM.createPortal` đưa modal render THẲNG vào `document.body` (thoát
+hẳn khỏi cây DOM của trang, không còn phụ thuộc vị trí lồng nhau nữa), kèm
+khoá cuộn nền (`document.body.style.overflow = 'hidden'`) lúc mở. Thay
+TOÀN BỘ 43 chỗ dùng `<div className="modal">` trực tiếp (18 file, cả 3
+app) sang `<Modal>` — CSS `.modal`/`.modal-body` giữ nguyên, chỉ đổi NƠI
+RENDER. Thêm quy ước bắt buộc vào `CLAUDE.md` — mọi modal MỚI sau này đều
+phải dùng `<Modal>`, không viết `<div className="modal">` trực tiếp nữa.
+
+Verify: `npm run build` cả 3 app (`etl-admin`/`rp-user`/`api-admin`) thành
+công, rà soát xác nhận không còn `<div className="modal">` nào sót lại
+trong 18 file đã sửa, không có import trùng lặp.
+
 ## 10.7 — "Danh sách voucher đã thu hồi — feed cho đối tác" (đối tác tự chạy job định kỳ, không cần tự đối soát)
 
 **Theo yêu cầu người dùng**: "đối tác có một hệ thống phần mềm họ tự chạy

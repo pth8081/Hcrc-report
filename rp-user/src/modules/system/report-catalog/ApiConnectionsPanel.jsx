@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../../../lib/api';
 import DataTable from '../../../components/DataTable';
 import { useRowSelection } from '../../../lib/useRowSelection';
+import Modal from '../../../components/Modal';
 
 const EMPTY_FORM = { name: '', baseUrl: '', apiKey: '' };
 
@@ -160,7 +161,7 @@ export default function ApiConnectionsPanel() {
       )}
 
       {editing && (
-        <div className="modal">
+        <Modal>
           <div className="modal-body">
             <h3>Sửa kết nối "{editing.Name}"</h3>
             <form className="stacked-form" onSubmit={saveEdit}>
@@ -178,11 +179,11 @@ export default function ApiConnectionsPanel() {
               </div>
             </form>
           </div>
-        </div>
+        </Modal>
       )}
 
       {duplicating && (
-        <div className="modal">
+        <Modal>
           <div className="modal-body">
             <h3>Nhân bản "{duplicating.connection.Name}"</h3>
             <p className="hint">
@@ -204,7 +205,7 @@ export default function ApiConnectionsPanel() {
               </div>
             </form>
           </div>
-        </div>
+        </Modal>
       )}
     </div>
   );
