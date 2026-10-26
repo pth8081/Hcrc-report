@@ -14,6 +14,29 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.13 — Bỏ cột "Mã siêu thị" thừa ở trang "Chỉ tiêu Nhập hàng theo ngành hàng"
+
+**Thay đổi**: 1 file etl-admin (`src/pages/SalesTargetsPage.jsx`) + 1 file
+etl backend (`server.js`) — thuần UI/cấu hình route, KHÔNG đổi schema CSDL.
+
+**Các bước**:
+
+1. `git pull origin main`.
+2. `cd etl && npm install && pm2 restart hcrc-etl` (hoặc tên process pm2
+   thật đang dùng cho backend etl).
+3. `cd etl-admin && npm install && npm run build` — deploy lại `dist/`.
+
+**Kiểm tra**: mở etl-admin → "Chỉ tiêu Nhập hàng theo ngành hàng" → bấm
+"Tải file mẫu" — file .xlsx tải về CHỈ còn 3 cột `Thang`/`MaNganhHang`/
+`ChiTieuGiaTriNhap`, KHÔNG còn cột `MaSieuThi`. Bảng "Chỉ tiêu đã nhập"
+hiện cột "Mã ngành hàng" thay vì "Mã siêu thị".
+
+**Lưu ý**: nếu đã có dữ liệu "nh" nhập nhầm từ trước (xem VERSION.md bản
+10.13), người dùng tự xoá (chọn nhiều + "Xoá N mục đã chọn") rồi nhập lại
+bằng file mẫu mới.
+
+---
+
 ## 10.12 — Sửa lại SAI ý nghĩa mã giao dịch 130/133/330/333 (6 báo cáo Mua hàng)
 
 **Thay đổi**: 2 file rp-server (`lib/purchaseOrderRunner.js`,

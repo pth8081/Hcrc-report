@@ -42,6 +42,42 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.13 — Bỏ cột "Mã siêu thị" thừa ở trang "Chỉ tiêu Nhập hàng theo ngành hàng"
+
+**Theo yêu cầu người dùng**: "chỗ nhập chỉ tiêu ngành hàng nhập ... tôi chỉ
+cần 3 cột thôi, là mã hàng này, tháng này, mã ngành này và chỉ tiêu thôi.
+Trong file này có thêm mã siêu thị, bật bỏ đi không cần thiết mã siêu thị
+đâu. Ngành hàng làm gì có mã siêu thị."
+
+**Nguyên nhân**: trang "Chỉ tiêu Nhập hàng theo ngành hàng"
+(`sales-targets-nganhhang-nh`) dùng chung component với "Chỉ tiêu Doanh
+thu theo ngành hàng"/"(LDTD)" nhưng từ bản 9.85 CHƯA được đánh dấu
+`isNganhHangOnly` (etl-admin) và CHƯA bật `genericNoStoreCode=true` ở
+route backend (`etl/server.js`) như 2 trang kia — khiến file mẫu/xuất Excel
+vẫn còn cột `MaSieuThi` thừa, và nhãn cột trên giao diện hiện "Mã siêu
+thị" thay vì "Mã ngành hàng".
+
+**Đã sửa**: thêm `'sales-targets-nganhhang-nh'` vào `isNganhHangOnly`
+(`etl-admin/src/pages/SalesTargetsPage.jsx`) + thêm `true` (tham số
+`genericNoStoreCode`) vào route `/admin/sales-targets-nganhhang-nh`
+(`etl/server.js`). File mẫu/"Xuất Excel" giờ CHỈ còn đúng 3 cột:
+`Thang`, `MaNganhHang`, `ChiTieuGiaTriNhap`. Nhãn cột/placeholder trên
+giao diện đổi "Mã siêu thị" → "Mã ngành hàng".
+
+**Lưu ý dữ liệu đã nhập trước đây**: 1 số dòng chỉ tiêu "nh" hiện có trong
+CSDL (mã 1001/1002/2001/2002, ngày 2026-10-01) có vẻ ĐÃ bị nhập NHẦM bằng
+file mẫu của trang "Doanh thu theo ngành hàng" (có các trường
+`ChiTieuDoanhThuBanLe/BanBuon/LaiGop...` thay vì đúng `ChiTieuGiaTriNhap`)
+— do hệ thống không chặn tên cột lạ lúc nhập. Những dòng này cần người
+dùng tự xoá (đã có sẵn chọn nhiều + xoá hàng loạt trên trang) rồi nhập lại
+bằng file mẫu MỚI (bấm "Tải file mẫu" sau khi deploy bản này).
+
+Verify: gọi trực tiếp hàm sinh file mẫu thật (`buildGenericTemplate`,
+`etl/lib/salesTargetsImport.js`) với `noStoreCode: true`, đọc lại bằng
+`exceljs` — xác nhận đúng 3 cột header `Thang/MaNganhHang/ChiTieuGiaTriNhap`,
+không còn `MaSieuThi`; `node --check` + `npm run build` (etl-admin) qua
+không lỗi.
+
 ## 10.12 — Sửa lại SAI ý nghĩa mã giao dịch 130/133/330/333 (6 báo cáo Mua hàng)
 
 **Theo yêu cầu người dùng**: "Bạn xem bạn đang dùng ở bảng nào nhỉ? Bởi vì

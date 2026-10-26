@@ -178,9 +178,15 @@ app.use('/admin/sales-targets-nganhhang-dt', createSalesTargetsRouter(
   NGANH_HANG_DOANH_THU_TARGET_COLUMNS,
   true
 ));
+// genericNoStoreCode=true (bản 10.13, theo yêu cầu người dùng, 26/10/2026 —
+// "Ngành hàng làm gì có mã siêu thị") — TRƯỚC ĐÂY thiếu tham số này (mặc
+// định false), khiến file mẫu/form vẫn còn cột MaSieuThi không cần thiết —
+// giờ GIỐNG HỆT 'sales-targets-nganhhang-dt'/'...-dt-ldtd' ở trên: file
+// mẫu/xuất CHỈ còn đúng 3 cột Thang/MaNganhHang/ChiTieuGiaTriNhap.
 app.use('/admin/sales-targets-nganhhang-nh', createSalesTargetsRouter(
   'sales-targets-nganhhang-nh', 'sales-targets-nganhhang-nh', undefined, 'generic',
-  [{ key: 'ChiTieuGiaTriNhap', sample: 1000000000 }]
+  [{ key: 'ChiTieuGiaTriNhap', sample: 1000000000 }],
+  true
 ));
 // Chỉ tiêu "Doanh thu theo ngành hàng (LDTD)" (bản 9.43) — trang RIÊNG của
 // đội Lãnh đạo Tập đoàn, Domain KHOÁ CỨNG riêng (sales-targets-nganhhang-dt-ldtd)

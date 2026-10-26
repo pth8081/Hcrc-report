@@ -41,15 +41,17 @@ export default function SalesTargetsPage({ menuCode, apiBase, title }) {
   const { canEdit } = useAuth();
   const isEditor = canEdit(menuCode);
   // isNganhHangOnly (bản 9.85, theo báo cáo người dùng — "bc ngành hàng là
-  // mã ngành hàng ko phải mã siêu thị nhé") — CHỈ ĐÚNG 2 trang "Chỉ tiêu
+  // mã ngành hàng ko phải mã siêu thị nhé") — ban đầu CHỈ 2 trang "Chỉ tiêu
   // Doanh thu theo ngành hàng"/"(LDTD)" (bản 9.73, genericNoStoreCode=true
-  // ở server — KHÔNG CÒN khái niệm siêu thị, mã thực thể LUÔN là
-  // MaNganhHang thuần, không ghép MaSieuThi) — "Nhập hàng theo ngành hàng"
-  // KHÔNG tính (vẫn hỗ trợ CẢ 2 kiểu, theo từng chi nhánh HOẶC toàn công
-  // ty, xem chú thích trong JSX bên dưới) nên giữ nhãn "Mã siêu thị" như
-  // cũ cho đúng — chỉ 2 trang chắc chắn 100% luôn là ngành hàng mới đổi
-  // nhãn, tránh đổi nhầm trang còn lại.
-  const isNganhHangOnly = menuCode === 'sales-targets-nganhhang-dt' || menuCode === 'sales-targets-nganhhang-dt-ldtd';
+  // ở server), "Nhập hàng theo ngành hàng" CHƯA tính vào (lúc đó nghĩ vẫn
+  // cần hỗ trợ CẢ 2 kiểu, theo từng chi nhánh HOẶC toàn công ty).
+  //
+  // SỬA bản 10.13 (theo yêu cầu người dùng, 26/10/2026 — "Ngành hàng làm gì
+  // có mã siêu thị") — thêm 'sales-targets-nganhhang-nh' vào đây: trang
+  // này CŨNG LUÔN là "theo toàn công ty" như 2 trang kia, không còn khái
+  // niệm siêu thị — genericNoStoreCode cũng đã bật `true` tương ứng ở
+  // etl/server.js (route '/admin/sales-targets-nganhhang-nh').
+  const isNganhHangOnly = menuCode === 'sales-targets-nganhhang-dt' || menuCode === 'sales-targets-nganhhang-dt-ldtd' || menuCode === 'sales-targets-nganhhang-nh';
   const entityLabel = isNganhHangOnly ? 'ngành hàng' : 'siêu thị';
   const [file, setFile] = useState(null);
   const [importResult, setImportResult] = useState(null);
