@@ -14,6 +14,27 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.10 — "Doanh thu theo ngành hàng"/"(LDTD)" hiện doanh thu dù chưa có Chỉ tiêu
+
+**Thay đổi**: 1 file (`rp-server/lib/nganhHangBrgRunner.js`, sửa điều kiện
+lọc danh sách ngành hàng hiện báo cáo) + cập nhật tài liệu `báo cáo doanh
+thu-nhập hàng theo ngành hàng.md`. THUẦN rp-server, KHÔNG đổi CSDL.
+
+**Các bước**:
+
+1. `git pull origin main`.
+2. `pm2 restart hcrc-rp-server` — KHÔNG cần build frontend, không cần
+   chạy lại `schema.sql`.
+
+**Kiểm tra**: mở "Doanh thu theo ngành hàng" hoặc "(LDTD)" cho 1 kỳ CÓ
+doanh thu thật nhưng CHƯA nhập Chỉ tiêu cho 1 ngành hàng nào đó (hoặc
+xoá tạm Chỉ tiêu 1 ngành hàng để test) — ngành hàng đó PHẢI hiện dòng
+riêng, cột "Thực đạt" (doanh thu) hiện đúng số, cột "Chỉ tiêu"/"% so chỉ
+tiêu" hiện "—" (không phải 0/lỗi), và dòng "Tổng cộng toàn hệ thống BRG"
+(cùng LFL/NSO tương ứng) phải CỘNG ĐÚNG doanh thu ngành hàng đó vào tổng
+hiển thị. Ngành hàng không có cả Chỉ tiêu lẫn doanh thu trong kỳ vẫn
+không hiện dòng (đúng hành vi cũ, không đổi).
+
 ## 10.9 — Sửa lỗi UI mất thông tin trong modal "Đối tác" (api-admin)
 
 **Thay đổi**: 1 dòng CSS (`api-admin/src/styles.css`, `.scope-picker` thêm

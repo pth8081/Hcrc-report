@@ -42,6 +42,33 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.10 — "Doanh thu theo ngành hàng"/"(LDTD)" hiện doanh thu dù chưa có Chỉ tiêu
+
+**Theo yêu cầu người dùng**: "Tôi muốn báo cáo doanh thu ngành hàng (LĐTD)
+và doanh thu ngành hàng HCRC lấy được thông tin doanh thu ngay cả khi
+không có dữ liệu chỉ tiêu."
+
+**Quy tắc cũ (bản 9.77)**: 2 báo cáo này (`bc-doanh-thu-nganhhang`/
+`bc-doanh-thu-nganhhang-ldtd`, `lib/nganhHangBrgRunner.js`) CHỈ hiện dòng
+cho ngành hàng ĐÃ có Chỉ tiêu nhập trong đúng kỳ đang xem — ngành hàng
+chưa nhập Chỉ tiêu bị ẩn hẳn khỏi báo cáo VÀ không cộng vào "Tổng cộng",
+dù có doanh thu thật phát sinh.
+
+**Đã sửa**: mở rộng điều kiện hiện dòng thành (Chỉ tiêu CÓ) HOẶC (doanh
+thu thật CÓ, kỳ hiện tại hoặc cùng kỳ năm trước, bất kỳ siêu thị nào) —
+giữ nguyên hành vi cũ (ngành hàng có Chỉ tiêu vẫn hiện dù chưa phát sinh
+doanh thu), đồng thời đáp ứng yêu cầu mới (doanh thu luôn hiện được dù
+thiếu Chỉ tiêu, cột "Chỉ tiêu"/"% so chỉ tiêu" hiện "—"). Ngành hàng
+KHÔNG có cả 2 (Chỉ tiêu lẫn doanh thu) vẫn ẩn như cũ, tránh hiện 12 dòng
+trắng không cần thiết. "Tổng cộng" mỗi khối tự động cộng đúng doanh thu
+của dòng mới hiện thêm.
+
+Verify: mock test `rp-server/lib/nganhHangBrgRunner.js` (giả lập hoàn
+toàn không có dữ liệu Chỉ tiêu, 1 ngành hàng có doanh thu thật) — 7
+assertion: ngành hàng có doanh thu không Chỉ tiêu PHẢI hiện, Chỉ tiêu
+hiện "—", doanh thu hiện đúng số, Tổng cộng cộng đúng, ngành hàng không
+có gì cả vẫn ẩn — PASS; `node --check` qua.
+
 ## 10.9 — Sửa lỗi UI mất thông tin trong modal "Đối tác" (api-admin) — checkbox tràn khỏi khung
 
 **Theo yêu cầu người dùng** (phát hiện thật khi tự cấu hình đối tác "fuji" cho

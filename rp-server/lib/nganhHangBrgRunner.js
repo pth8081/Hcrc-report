@@ -697,13 +697,29 @@ async function runNganhHangBrgReport(definition, filterValues = {}) {
   const excludeHongHuy = filterValues.excludeHongHuy === '1' || filterValues.excludeHongHuy === true;
 
   // Bản 9.77 (theo yêu cầu người dùng — "up ngành hàng nào chỉ hiện ra
-  // được báo cáo ngành hàng đó"): CHỈ hiện ngành hàng đã có Chỉ tiêu
-  // trong ĐÚNG kỳ/khoảng ngày đang xem (targetMap — xây từ
+  // được báo cáo ngành hàng đó"): hiện ngành hàng đã có Chỉ tiêu trong
+  // ĐÚNG kỳ/khoảng ngày đang xem (targetMap — xây từ
   // loadNganhHangTargetsProportional() ở trên, đã cộng dồn theo
-  // entityCode cho khoảng [range.from, range.to]) — ngành hàng chưa nhập
-  // Chỉ tiêu kỳ đó (dù có doanh thu thật) sẽ không có dòng riêng VÀ không
-  // cộng vào Tổng cộng (xem chú thích NGANH_HANG_LIST phía trên).
-  const nganhHangToShow = NGANH_HANG_LIST.filter(item => targetMap.has(item.code));
+  // entityCode cho khoảng [range.from, range.to]).
+  //
+  // Bản 10.10 (theo yêu cầu người dùng — "lấy được thông tin doanh thu
+  // ngay cả khi không có dữ liệu chỉ tiêu"): MỞ RỘNG thêm — ngành hàng
+  // CÓ DOANH THU THẬT (kỳ hiện tại HOẶC cùng kỳ năm trước, ở BẤT KỲ
+  // STK_ID nào, không lọc theo khối/bộ lọc Siêu thị — đúng tinh thần
+  // "Toàn hệ thống BRG" nhìn thấy mọi phát sinh) CŨNG hiện dòng dù CHƯA
+  // có Chỉ tiêu kỳ đó — trước đây bị ẩn hẳn, đúng lỗi người dùng báo cáo.
+  // Dùng groupByDeptId(..., null) = không lọc STK_ID, chỉ để biết ngành
+  // hàng đó CÓ PHÁT SINH gì không, KHÔNG dùng map này để lấy số liệu hiển
+  // thị (số liệu hiển thị vẫn đọc từ currentMap/lastYearMap RIÊNG của
+  // từng khối trong buildSegmentRows() như cũ, không đổi).
+  // Ngành hàng hoàn toàn KHÔNG có Chỉ tiêu VÀ KHÔNG có doanh thu (cả 2
+  // kỳ, cả hệ thống) vẫn ẩn như cũ — tránh hiện 12 dòng trắng tinh mỗi
+  // kỳ không ai cần xem.
+  const globalCurrentMap = groupByDeptId(currentRows, null);
+  const globalLastYearMap = groupByDeptId(lastYearRows, null);
+  const nganhHangToShow = NGANH_HANG_LIST.filter(item =>
+    targetMap.has(item.code) || globalCurrentMap.has(item.code) || globalLastYearMap.has(item.code)
+  );
 
   let rows = [];
   for (const section of SECTIONS) {

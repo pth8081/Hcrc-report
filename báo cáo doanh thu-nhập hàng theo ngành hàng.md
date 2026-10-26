@@ -306,27 +306,42 @@ ràng ngay, không âm thầm chạy sai.
 4. Với MỖI khối (BRG = không lọc, LFL = lọc theo `lflStkIds`, NSO = lọc
    theo `nsoStkIds`) — gộp dữ liệu theo `DEPT_ID`, PUSH 1 dòng
    `__isSectionHeader` (tiêu đề ngang mở đầu khối) + 1 dòng/ngành hàng
-   ĐÃ CÓ Chỉ tiêu trong kỳ đang xem (bản 9.77, xem dưới — KHÔNG còn cố
-   định đủ 12 dòng) + 1 dòng "Tổng cộng" (`__isSubtotal`).
+   ĐÃ CÓ Chỉ tiêu HOẶC CÓ doanh thu thật trong kỳ đang xem (bản 9.77 +
+   10.10, xem dưới — KHÔNG còn cố định đủ 12 dòng) + 1 dòng "Tổng cộng"
+   (`__isSubtotal`).
 
 **Bản 9.77** (theo yêu cầu người dùng — "up ngành hàng nào chỉ hiện ra
 được báo cáo ngành hàng đó"): DANH SÁCH 12 ngành hàng ở `NGANH_HANG_LIST`
 (`rp-server/lib/nganhHangBrgRunner.js`) là danh mục ĐẦY ĐỦ tối đa, nhưng
 MỖI LẦN CHẠY báo cáo chỉ hiện dòng cho ngành hàng NÀO ĐÃ CÓ Chỉ tiêu nhập
-trong ĐÚNG kỳ/khoảng ngày đang xem — lọc bằng
+trong ĐÚNG kỳ/khoảng ngày đang xem — lọc ban đầu bằng
 `NGANH_HANG_LIST.filter(item => targetMap.has(item.code))` (`targetMap`
-dựng từ `runSalesTargetsBlockRange()`, ĐÃ cộng dồn theo `entityCode` cho
-khoảng `[fromPeriod, toPeriod]` của kỳ báo cáo). Ngành hàng CHƯA nhập
-Chỉ tiêu trong kỳ đó — dù CÓ phát sinh doanh thu thật trong
-`doanhthu_nganhhang` — sẽ KHÔNG có dòng riêng VÀ KHÔNG cộng vào dòng
-"Tổng cộng" mỗi khối (Tổng cộng = tổng CHỈ các dòng ĐANG hiển thị, để
-luôn khớp đúng số cộng người xem thấy trên báo cáo — KHÔNG phải tổng
-doanh thu toàn công ty nếu có ngành hàng còn thiếu Chỉ tiêu). Áp dụng
-ĐỒNG NHẤT cả 3 khối BRG/LFL/NSO (dùng CHUNG 1 `targetMap`, không phân
-biệt theo khối). Muốn 1 ngành hàng hiện trong báo cáo — chỉ cần nhập ÍT
-NHẤT 1 trong 4 cột Chỉ tiêu (Bán lẻ/Bán buôn của Doanh thu hoặc Lãi gộp)
-cho đúng ngành hàng đó, đúng kỳ (tháng) nằm trong khoảng ngày đang xem
-(xem `etl/lib/salesTargetsImport.js`/trang "Chỉ tiêu theo ngành hàng" ở
+dựng từ `loadNganhHangTargetsProportional()`, ĐÃ cộng dồn theo
+`entityCode` cho khoảng `[range.from, range.to]` của kỳ báo cáo).
+
+**Bản 10.10** (theo yêu cầu người dùng — "muốn lấy được thông tin doanh
+thu ngay cả khi không có dữ liệu chỉ tiêu"): MỞ RỘNG điều kiện trên —
+ngành hàng CÓ DOANH THU THẬT (kỳ hiện tại HOẶC cùng kỳ năm trước, ở BẤT
+KỲ `STK_ID` nào trong toàn hệ thống, không lọc theo khối) **CŨNG** hiện
+dòng dù CHƯA có Chỉ tiêu kỳ đó — trước bản này bị ẩn hẳn (dù phát sinh
+doanh thu thật). Điều kiện đầy đủ (OR):
+`targetMap.has(code) || globalCurrentMap.has(code) || globalLastYearMap.has(code)`.
+Ngành hàng CHƯA nhập Chỉ tiêu VÀ CHƯA phát sinh doanh thu (cả 2 kỳ, cả hệ
+thống) — vẫn KHÔNG có dòng riêng, tránh hiện 12 dòng trắng mỗi kỳ không
+ai cần xem. Dòng nào thiếu Chỉ tiêu, cột "Chỉ tiêu"/"% so chỉ tiêu" hiện
+"—" (`null`), cột "Thực đạt" (doanh thu) vẫn hiện ĐÚNG số thật.
+
+Cả 2 bản đều áp dụng: **"Tổng cộng" mỗi khối = tổng CHỈ các dòng ĐANG
+hiển thị**, để luôn khớp đúng số cộng người xem thấy trên báo cáo (từ
+bản 10.10, dòng doanh thu mới được hiện thêm cũng được cộng vào Tổng
+cộng — ĐÚNG ý người dùng, khác hẳn trước đây bị loại cả khỏi Tổng cộng).
+Áp dụng ĐỒNG NHẤT cả 3 khối BRG/LFL/NSO (dùng CHUNG 1 danh sách
+`nganhHangToShow`, không phân biệt theo khối — 1 khối có thể hiện
+"Thực đạt = 0" cho ngành hàng đó nếu khối đó thật sự không phát sinh gì,
+vẫn đúng số liệu thật của riêng khối). Muốn 1 ngành hàng CHẮC CHẮN hiện
+trong báo cáo dù chưa có doanh thu — vẫn nhập Chỉ tiêu như trước (ÍT
+NHẤT 1 trong 4 cột Bán lẻ/Bán buôn của Doanh thu hoặc Lãi gộp, đúng kỳ —
+xem `etl/lib/salesTargetsImport.js`/trang "Chỉ tiêu theo ngành hàng" ở
 etl-admin).
 
 **Công thức từng cột** — bản 9.68, SỬA LẠI cột "Chỉ tiêu" ở bản 9.73: MỖI
