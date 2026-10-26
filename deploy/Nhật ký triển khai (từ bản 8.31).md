@@ -14,6 +14,28 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.9 — Sửa lỗi UI mất thông tin trong modal "Đối tác" (api-admin)
+
+**Thay đổi**: 1 dòng CSS (`api-admin/src/styles.css`, `.scope-picker` thêm
+`flex-wrap: wrap`). THUẦN frontend, KHÔNG đổi backend/CSDL.
+
+**Các bước**:
+
+1. `git pull origin main`.
+2. Build lại api-admin:
+   ```bash
+   cd api-admin && npm install && npm run build
+   ```
+3. KHÔNG cần restart backend nào — chỉ cần Nginx/tiến trình web tĩnh đọc
+   lại đúng thư mục `dist/` mới build.
+
+**Kiểm tra**: vào api-admin → "Đối tác" → bấm "Sửa" trên 1 dòng bất kỳ —
+toàn bộ 6 checkbox quyền (`reports`/`realtime`/`realtimeWrite`/
+`voucherCheck`/`voucherRedeem`/`voucherRedeemedFeed`) phải hiện ĐẦY ĐỦ,
+tự xuống dòng gọn gàng, không còn mục nào bị cắt mất ở mép phải modal.
+Tương tự kiểm tra modal "Cấu hình Voucher được gọi"/"Realtime được gọi"
+(danh sách configKey/endpoint dài cũng phải hiện đủ, không bị cắt).
+
 ## 10.8 — Sửa lỗi modal không thao tác được trên mobile (render qua Portal)
 
 **Thay đổi**: 3 file mới `src/components/Modal.jsx` (1 file/app, nội dung

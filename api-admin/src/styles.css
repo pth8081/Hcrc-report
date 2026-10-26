@@ -57,7 +57,7 @@ button:disabled, button:disabled:hover {
 .inline-actions { display: flex; gap: 8px; align-items: center; }
 .stacked-form { display: flex; flex-direction: column; gap: 10px; max-width: 360px; margin-bottom: 20px; }
 .checkbox-row { flex-direction: row; align-items: center; gap: 6px; font-size: 14px; color: var(--ink); }
-.scope-picker { display: flex; gap: 16px; }
+.scope-picker { display: flex; gap: 16px; flex-wrap: wrap; }
 .form-error { color: #b3261e; font-size: 13px; }
 .hint { color: var(--ink-soft); font-size: 12.5px; margin: -4px 0 4px; }
 

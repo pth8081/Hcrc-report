@@ -42,6 +42,38 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.9 — Sửa lỗi UI mất thông tin trong modal "Đối tác" (api-admin) — checkbox tràn khỏi khung
+
+**Theo yêu cầu người dùng** (phát hiện thật khi tự cấu hình đối tác "fuji" cho
+API Voucher — ảnh chụp màn hình "Sửa — fuji" cho thấy các checkbox quyền
+(`reports`/`realtime`/.../`voucherRedeemedFeed`) bị cắt mất, chỉ thấy tới
+`voucherCheck` rồi mất chữ): "giao diện UI/UX chỗ này rất khó để cấu hình
+vì nó mất thông tin, rà soát lại xem chỗ nào bị như thế này thì xử lý giúp
+tôi luôn ở cả etl, report luôn nữa nhé."
+
+**Nguyên nhân**: CSS `.scope-picker` (`api-admin/src/styles.css`) — khung
+chứa danh sách checkbox dùng CHUNG cho mọi khung chọn nhiều mục trong
+`ConsumersPage.jsx` (quyền/scope, "Cấu hình Voucher được gọi", "Realtime
+được gọi", "Trường dữ liệu voucher đã thu hồi"...) — đặt `display: flex`
+xếp hàng NGANG nhưng THIẾU `flex-wrap: wrap`. Khi danh sách đủ dài (6
+quyền, hoặc nhãn dài như `voucherRedeemedFeed`), các mục bị đẩy tràn ra
+ngoài khung `.modal-body` hẹp (420px) và bị cắt mất hẳn khỏi tầm nhìn —
+đúng "mất thông tin" người dùng mô tả.
+
+**Đã rà soát cả 3 app** — CHỈ api-admin bị lỗi này (7 chỗ dùng
+`.scope-picker` trong `ConsumersPage.jsx`, 1 sửa CSS chung áp dụng cho cả
+7). etl-admin và rp-user dùng cách xếp từng checkbox MỘT DÒNG DỌC (bên
+trong `.modal-body` vốn `flex-direction: column`), không có khung ngang
+nào tương tự nên không gặp lỗi tràn kiểu này.
+
+**Đã sửa**: thêm `flex-wrap: wrap;` vào `.scope-picker` — các mục tự xuống
+dòng khi hết chỗ thay vì bị cắt, không đổi layout/kích thước gì khác.
+
+Verify: dựng lại đúng HTML/CSS thật của `.scope-picker` bằng Playwright,
+chụp ảnh xác nhận cả 6 mục quyền (kể cả `voucherRedeemedFeed` dài nhất)
+hiện đầy đủ, xuống dòng gọn gàng, không còn mục nào bị cắt; `npm run
+build` api-admin thành công.
+
 ## 10.8 — Sửa lỗi modal không thao tác được trên mobile (render qua Portal)
 
 **Theo yêu cầu người dùng**: báo lỗi thật kèm ảnh chụp màn hình — mở
