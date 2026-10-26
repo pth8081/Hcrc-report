@@ -384,14 +384,20 @@ chỉ thấy đúng đơn hàng của siêu thị đó.
 `aggregateOrderTotal`/`aggregateBySupplier` (SỬA bản 8.92, thêm 3 báo cáo
 giá trị ở bản 9.08)
 
+**Mã giao dịch (`LoaiGiaoDich`/`TRANS_CODE`) — SỬA LẠI bản 10.12, 26/10/2026
+(theo yêu cầu người dùng, bản 9.27 Ở DƯỚI gán sai, xem mục 5b):**
+`130`=Đặt hàng mua riêng, `133`=Nhập hàng mua riêng, `330`=Đặt hàng mua
+chung, `333`=Nhập hàng mua chung (qua Fuji) — bảng dưới đây đã cập nhật
+theo đúng mã này.
+
 | Báo cáo | ReportId | `definition` | Cột chính |
 |---|---|---|---|
-| Đơn đặt hàng | `bc-don-dat-hang` | `transCode: '133'` | Ngày đặt, Số đơn, Siêu thị, NCC, Mã/Tên hàng, SL đặt, Đơn giá, Thành tiền, Ngày giao, Trạng thái |
-| Đơn nhập hàng | `bc-don-nhap-hang` | `transCode: '333'` | Ngày đặt(*), Số đơn, Siêu thị, NCC, Mã/Tên hàng, SL nhận, Đơn giá, Thành tiền, Trạng thái |
-| So sánh đặt–nhận | `bc-so-sanh-dat-nhan` | `aggregateByOrder: true` | Ngày đặt, Siêu thị, NCC, Mã/Tên hàng, SL đặt (SUM dòng 133), SL thực nhận (SUM mọi dòng 333 CÙNG Số đơn — xử lý nhận NHIỀU LẦN), Chênh lệch SL, Tỷ lệ hoàn thành (%), Chênh lệch giá trị, Trạng thái |
-| Giá trị đặt hàng theo đơn | `bc-gia-tri-dat-theo-don` | `transCode: '133', aggregateOrderTotal: true` | Ngày đặt, Số đơn, Siêu thị, NCC, Ngày giao, Tổng SL (SUM mọi mặt hàng trong đơn), Tổng giá trị, Trạng thái — **1 dòng = 1 ĐƠN** (gộp hết mặt hàng), khác "Đơn đặt hàng" ở trên (1 dòng = 1 mặt hàng) |
-| Giá trị nhập hàng theo đơn | `bc-gia-tri-nhap-theo-don` | `transCode: '333', aggregateOrderTotal: true` | Ngày đặt, Số đơn, Siêu thị, NCC, Tổng SL, Tổng giá trị, Trạng thái — 1 dòng = 1 đơn (gộp hết mặt hàng) |
-| So sánh giá trị đặt–nhập theo NCC | `bc-so-sanh-gia-tri-ncc` | `aggregateBySupplier: true` | Mã/Tên NCC, Tổng giá trị đặt (SUM dòng 133), Tổng giá trị nhập (SUM dòng 333), Chênh lệch giá trị, Tỷ lệ giao hàng (%) — **1 dòng = 1 NCC** (theo mặc định gộp TOÀN BỘ siêu thị, hoặc CHỈ (các) siêu thị đã chọn ở bộ lọc "Siêu thị"), KHÔNG có bộ lọc Trạng thái (gộp nhiều đơn trạng thái khác nhau, lọc theo trạng thái ở cấp này không có ý nghĩa). |
+| Đơn đặt hàng | `bc-don-dat-hang` | `transCode: ['130','330']` | Ngày đặt, Số đơn, Siêu thị, NCC, Mã/Tên hàng, SL đặt, Đơn giá, Thành tiền, Ngày giao, Trạng thái |
+| Đơn nhập hàng | `bc-don-nhap-hang` | `transCode: ['133','333']` | Ngày đặt(*), Số đơn, Siêu thị, NCC, Mã/Tên hàng, SL nhận, Đơn giá, Thành tiền, Trạng thái |
+| So sánh đặt–nhận | `bc-so-sanh-dat-nhan` | `aggregateByOrder: true` | Ngày đặt, Siêu thị, NCC, Mã/Tên hàng, SL đặt (SUM dòng 130/330), SL thực nhận (SUM mọi dòng 133/333 CÙNG Số đơn — xử lý nhận NHIỀU LẦN), Chênh lệch SL, Tỷ lệ hoàn thành (%), Chênh lệch giá trị, Trạng thái |
+| Giá trị đặt hàng theo đơn | `bc-gia-tri-dat-theo-don` | `transCode: ['130','330'], aggregateOrderTotal: true` | Ngày đặt, Số đơn, Siêu thị, NCC, Ngày giao, Tổng SL (SUM mọi mặt hàng trong đơn), Tổng giá trị, Trạng thái — **1 dòng = 1 ĐƠN** (gộp hết mặt hàng), khác "Đơn đặt hàng" ở trên (1 dòng = 1 mặt hàng) |
+| Giá trị nhập hàng theo đơn | `bc-gia-tri-nhap-theo-don` | `transCode: ['133','333'], aggregateOrderTotal: true` | Ngày đặt, Số đơn, Siêu thị, NCC, Tổng SL, Tổng giá trị, Trạng thái — 1 dòng = 1 đơn (gộp hết mặt hàng) |
+| So sánh giá trị đặt–nhập theo NCC | `bc-so-sanh-gia-tri-ncc` | `aggregateBySupplier: true` | Mã/Tên NCC, Tổng giá trị đặt (SUM dòng 130/330), Tổng giá trị nhập (SUM dòng 133/333), Chênh lệch giá trị, Tỷ lệ giao hàng (%) — **1 dòng = 1 NCC** (theo mặc định gộp TOÀN BỘ siêu thị, hoặc CHỈ (các) siêu thị đã chọn ở bộ lọc "Siêu thị"), KHÔNG có bộ lọc Trạng thái (gộp nhiều đơn trạng thái khác nhau, lọc theo trạng thái ở cấp này không có ý nghĩa). |
 
 **Bản 9.13/9.14 — bộ lọc "Siêu thị"** (`field: 'maDiem'`, `optionsSource.storeCatalog`, xem `SIEU_THI_FILTER` trong `seedPurchaseOrderReports.js`): KHÔNG chọn gì = tất cả siêu thị (hành vi mặc định từ trước), chọn 1/nhiều siêu thị = CHỈ lấy đúng (các) siêu thị đó. Bản 9.13 ban đầu chỉ gắn cho báo cáo "So sánh giá trị đặt–nhập theo NCC"; bản 9.14 mở rộng ra CẢ 6 báo cáo theo yêu cầu người dùng — cùng cơ chế áp dụng cho tất cả.
 
@@ -503,6 +509,53 @@ dùng domain `don_dat_hang` để tính 2 cột "Chờ nhập/Đã nhập (NCC)"
 thô) đang dùng cho 6 báo cáo mua hàng ở đây. Xem đầy đủ công thức/bước
 triển khai (gồm resync watermark job Live) ở `bc-ton-kho-0.md`, KHÔNG chép
 lại ở đây.
+
+## 5b. Kênh mua riêng/mua chung — mã giao dịch (SỬA LẠI bản 10.12, 26/10/2026)
+
+**Bản 9.27** (trước đây, theo yêu cầu người dùng lúc đó) phát hiện VIEW
+nguồn bỏ sót 2 mã `130`/`330`, thêm vào `WHERE TRANS_CODE IN (...)`, và
+GÁN Ý NGHĨA (SAI, đã xác nhận lại ở bản 10.12):
+```
+133 = Đặt hàng, mua riêng     130 = Đặt hàng, mua riêng
+330 = Đặt hàng, mua chung     333 = Nhập hàng, mua chung (qua Fuji)
+```
+Tức bản 9.27 coi `133` VÀ `130` là 2 mã CÙNG Ý NGHĨA (đặt hàng mua riêng)
+— khiến kênh "mua riêng" KHÔNG CÓ mã nhập hàng nào, chỉ "mua chung" (qua
+Fuji) mới có đủ cặp đặt(330)/nhập(333).
+
+**Triệu chứng người dùng báo (26/10/2026)**: lấy báo cáo "Đơn đặt hàng"
+chỉ ra dữ liệu mua riêng; lấy "Đơn nhập hàng" chỉ ra dữ liệu mua chung —
+đúng hệ quả trực tiếp của lỗi gán sai ở trên (vì `transCode` của "Đơn
+nhập hàng" trước bản 10.12 CHỈ lọc `['333']`, không hề có mã nhập nào cho
+mua riêng).
+
+**ĐÃ XÁC NHẬN LẠI (26/10/2026, nguyên văn người dùng)**: *"130 là đặt hàng
+mua riêng. 133 là nhập hàng mua riêng. 330 là đặt hàng mua chung. 333 là
+nhập hàng mua chung."* — tức bản 9.27 gán NHẦM ý nghĩa `133`. Mã đúng:
+
+```
+130 = Đặt hàng, mua riêng     133 = Nhập hàng, mua riêng
+330 = Đặt hàng, mua chung     333 = Nhập hàng, mua chung (qua Fuji)
+```
+
+CẢ 2 kênh đều có ĐỦ cặp đặt/nhập, đối xứng — khác hẳn giả định sai của
+bản 9.27 ("mua riêng chỉ có mã đặt, không có mã nhập").
+
+**Đã sửa** (`rp-server/lib/purchaseOrderRunner.js`, `rp-server/scripts/
+seedPurchaseOrderReports.js`): `TRANS_CODE_DAT = ['130','330']`,
+`TRANS_CODE_NHAP = ['133','333']`, `KENH_MUA_CODES = { rieng: ['130','133'],
+chung: ['330','333'] }` — và đổi `transCode` của 4 báo cáo tương ứng (xem
+bảng ở mục 5). VIEW nguồn (`dbo.vw_DonDatHangChiNhanh`) KHÔNG cần sửa/chạy
+lại — đã `SELECT` nguyên `TRANS_CODE` thô từ trước, ý nghĩa chỉ diễn giải
+ở tầng ứng dụng.
+
+**QUAN TRỌNG — phải chạy lại 1 bước sau khi deploy code**: `DefinitionJson`
+của 4 báo cáo ("Đơn đặt hàng"/"Đơn nhập hàng"/2 báo cáo "Giá trị ... theo
+đơn") đã LƯU SẴN `transCode` CŨ (sai) trong `app.ReportCatalog` từ lần
+chạy seed trước — sửa code nguồn KHÔNG tự cập nhật lại các dòng đã lưu.
+PHẢI chạy lại `node scripts/seedPurchaseOrderReports.js` (thư mục
+rp-server/) sau khi deploy — script này idempotent (UPDATE theo ReportId),
+an toàn chạy lại nhiều lần, KHÔNG tạo trùng báo cáo.
 
 ## 6. Giới hạn đã biết (v1)
 

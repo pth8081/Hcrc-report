@@ -58,12 +58,20 @@
    Theo yêu cầu người dùng, đã xác nhận lại TỪNG MÃ MỘT (tránh lặp lại lỗi
    đoán sai nguồn dữ liệu trước đây): hệ thống trước đây CHỈ lọc `133`/`333`
    (LOẠI BỎ HẲN giao dịch mang mã `130`/`330` — không phải lỗi đồng bộ, VIEW
-   không hề lấy 2 mã này). Ý nghĩa đã xác nhận:
-     133 = Đặt hàng, kênh "mua riêng"      130 = Đặt hàng, kênh "mua riêng"
+   không hề lấy 2 mã này). Thêm `130`/`330` vào `WHERE TRANS_CODE IN (...)`
+   bên dưới — rp-server/lib/purchaseOrderRunner.js đã sửa tương ứng (bản
+   9.27) để phân loại đúng đặt/nhập + bộ lọc "Kênh mua".
+
+   ‼️ SỬA LẠI Ý NGHĨA MÃ — bản 10.12, 26/10/2026 (theo yêu cầu người dùng)
+   ‼️ Ghi chú 13/10/2026 ở trên đã GÁN SAI — `133` không phải mã "đặt
+   hàng", đã xác nhận lại đúng:
+     130 = Đặt hàng, kênh "mua riêng"      133 = Nhập hàng, kênh "mua riêng"
      330 = Đặt hàng, kênh "mua chung"      333 = Nhập hàng, kênh "mua chung" (qua Fuji)
-   ("mua riêng" CHỈ có 2 mã đặt, không có mã nhập riêng). Thêm `130`/`330`
-   vào `WHERE TRANS_CODE IN (...)` bên dưới — rp-server/lib/purchaseOrderRunner.js
-   đã sửa tương ứng (bản 9.27) để phân loại đúng đặt/nhập + bộ lọc "Kênh mua".
+   (CẢ 2 kênh đều có đủ cặp đặt/nhập — không phải "mua riêng chỉ có mã đặt"
+   như ghi nhầm trước đây). Chỉ ảnh hưởng CÁCH DIỄN GIẢI cột `LoaiGiaoDich`
+   ở tầng ứng dụng (`TRANS_CODE_DAT`/`TRANS_CODE_NHAP` trong
+   rp-server/lib/purchaseOrderRunner.js, bản 10.12) — VIEW này KHÔNG cần
+   sửa gì (đã SELECT nguyên `TRANS_CODE` thô, không tự diễn giải ý nghĩa).
 
    AN TOÀN CHẠY LẠI NHIỀU LẦN — dùng `CREATE OR ALTER VIEW`, không lỗi nếu
    VIEW đã tồn tại từ lần chạy trước.
@@ -104,7 +112,7 @@ SELECT
     m.BU_ID                     AS MaDiem,           -- ánh xạ ra mã Điểm chuẩn ở tầng rp-server (buildBuIdLookup())
     NULL                        AS TenDiem,          -- hệ thống LUÔN ưu tiên tên trong bảng Ánh xạ Điểm-STK
     m.REF                       AS SoDon,            -- MÃ ĐƠN HÀNG GỐC (đã xác nhận) — dùng nhóm nhiều lần nhận hàng
-    m.TRANS_CODE                AS LoaiGiaoDich,     -- '133'/'130'=đặt hàng, '333'=nhập hàng, '330'=đặt hàng (kênh mua chung) — đã xác nhận, xem ghi chú 13/10/2026 ở trên
+    m.TRANS_CODE                AS LoaiGiaoDich,     -- '130'/'330'=đặt hàng, '133'/'333'=nhập hàng — đã xác nhận lại, xem ghi chú 26/10/2026 (bản 10.12) ở trên
     CAST(m.DUE_DATE AS DATE)    AS NgayGiao,
     m.SUPP_ID                   AS MaNCC,
     s.SUPP_NAME_U                AS TenNCC,          -- SUPP_NAME_U (Unicode, đã xác nhận 12/10/2026 qua INFORMATION_SCHEMA.COLUMNS) — SUPP_NAME (không _U) lỗi font

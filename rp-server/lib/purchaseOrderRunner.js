@@ -16,26 +16,34 @@
 // MỞ RỘNG bản 9.27 (theo yêu cầu người dùng, đã xác nhận lại từng mã) —
 // thêm 2 mã `130`/`330` (trước đây VIEW nguồn chỉ lọc `133`/`333`, LOẠI BỎ
 // hẳn giao dịch mang 2 mã này — xem 2 file .sql ở deploy/, DBA cần chạy lại
-// để VIEW nhận đủ `TRANS_CODE IN ('133','333','130','330')`). Ý nghĩa:
-//   133 = Đặt hàng, kênh "mua riêng"     130 = Đặt hàng, kênh "mua riêng"
-//   330 = Đặt hàng, kênh "mua chung"     333 = Nhập hàng, kênh "mua chung" (qua Fuji)
-// "Mua riêng" CHỈ có 2 mã đặt, KHÔNG có mã nhập riêng. Xem TRANS_CODE_DAT/
-// TRANS_CODE_NHAP/KENH_MUA_CODES bên dưới.
+// để VIEW nhận đủ `TRANS_CODE IN ('133','333','130','330')`).
 //
-// `definition.transCode` (MẢNG mã, vd `['133','130','330']`, TUỲ CHỌN) —
-// lọc giao dịch thuộc ĐÚNG tập mã đó, dùng cho 2 báo cáo đơn lẻ "Đơn đặt
-// hàng"/"Đơn nhập hàng" (mỗi dòng = 1 lần đặt/1 lần nhận thật, hiện
-// NGUYÊN, không gộp). `filterValues.kenhMua` (TUỲ CHỌN, người dùng chủ
-// động chọn trên form — xem KENH_MUA_FILTER) lọc THÊM (AND) trong tập đó
-// theo kênh mua riêng/mua chung.
+// SỬA LẠI bản 10.12 (theo yêu cầu người dùng, 26/10/2026 — bản 9.27 Ở TRÊN
+// GÁN SAI Ý NGHĨA `133`) — người dùng xác nhận lại rõ ràng:
+//   130 = Đặt hàng, kênh "mua riêng"     133 = Nhập hàng, kênh "mua riêng"
+//   330 = Đặt hàng, kênh "mua chung"     333 = Nhập hàng, kênh "mua chung" (qua Fuji)
+// (bản 9.27 từng gán NHẦM `133` cũng là "Đặt hàng mua riêng" — trùng vai
+// trò với `130`, khiến "mua riêng" KHÔNG CÓ mã nhập hàng nào cả — ĐÚNG
+// TRIỆU CHỨNG người dùng báo: báo cáo "Đơn nhập hàng" trước bản này CHỈ ra
+// dữ liệu mua chung, không bao giờ có mua riêng). Giờ `130`/`330` LUÔN là
+// mã ĐẶT (2 kênh), `133`/`333` LUÔN là mã NHẬP (2 kênh) — đối xứng đúng
+// nghĩa. Xem TRANS_CODE_DAT/TRANS_CODE_NHAP/KENH_MUA_CODES bên dưới.
+//
+// `definition.transCode` (MẢNG mã, vd `['130','330']` cho ĐẶT hoặc
+// `['133','333']` cho NHẬP, TUỲ CHỌN) — lọc giao dịch thuộc ĐÚNG tập mã
+// đó, dùng cho 2 báo cáo đơn lẻ "Đơn đặt hàng"/"Đơn nhập hàng" (mỗi dòng =
+// 1 lần đặt/1 lần nhận thật, hiện NGUYÊN, không gộp). `filterValues.kenhMua`
+// (TUỲ CHỌN, người dùng chủ động chọn trên form — xem KENH_MUA_FILTER) lọc
+// THÊM (AND) trong tập đó theo kênh mua riêng/mua chung.
 //
 // `definition.aggregateByOrder` (`true`, TUỲ CHỌN) — dùng cho "So sánh
-// đặt–nhận": gộp CẢ 2 loại `133`+`333` theo (MaDiem + SoDon + MaHang),
-// SUM riêng `SoLuong` của từng loại thành `measures.SoLuongTheoDon`
-// (tổng các dòng `133`, thường chỉ 1 dòng) / `measures.SoLuongThucNhan`
-// (tổng các dòng `333`, CÓ THỂ nhiều dòng nếu nhận nhiều lần) — ĐÚNG công
-// thức đã chốt với người dùng. `DonGia`/các cột mô tả khác lấy từ dòng
-// `133` (đơn đặt gốc) trong nhóm, KHÔNG lấy từ dòng `333`.
+// đặt–nhận": gộp CẢ mã ĐẶT (`130`/`330`) + mã NHẬP (`133`/`333`) theo
+// (MaDiem + SoDon + MaHang), SUM riêng `SoLuong` của từng loại thành
+// `measures.SoLuongTheoDon` (tổng các dòng ĐẶT, thường chỉ 1 dòng) /
+// `measures.SoLuongThucNhan` (tổng các dòng NHẬP, CÓ THỂ nhiều dòng nếu
+// nhận nhiều lần) — ĐÚNG công thức đã chốt với người dùng. `DonGia`/các cột
+// mô tả khác lấy từ dòng ĐẶT (đơn đặt gốc) trong nhóm, KHÔNG lấy từ dòng
+// NHẬP.
 //
 // `definition.aggregateOrderTotal` (`true`, TUỲ CHỌN, dùng CÙNG với
 // `definition.transCode` — bản 9.08, theo yêu cầu người dùng) — gộp các
@@ -50,10 +58,11 @@
 //
 // `definition.aggregateBySupplier` (`true`, TUỲ CHỌN, KHÔNG dùng cùng
 // `transCode`/`aggregateByOrder`/`aggregateOrderTotal` — bản 9.08, theo yêu
-// cầu người dùng) — gộp CẢ 2 loại `133`+`333`, TOÀN BỘ chi nhánh/đơn hàng
-// trong khoảng ngày đã chọn, CHỈ theo `MaNCC` (đúng nghĩa "theo nhà cung
-// cấp", KHÔNG tách siêu thị) — ra `measures.GiaTriDat`/`measures.GiaTriNhap`.
-// Dùng cho "So sánh giá trị đặt–nhập theo NCC".
+// cầu người dùng) — gộp CẢ mã ĐẶT (`130`/`330`) + mã NHẬP (`133`/`333`),
+// TOÀN BỘ chi nhánh/đơn hàng trong khoảng ngày đã chọn, CHỈ theo `MaNCC`
+// (đúng nghĩa "theo nhà cung cấp", KHÔNG tách siêu thị) — ra
+// `measures.GiaTriDat`/`measures.GiaTriNhap`. Dùng cho "So sánh giá trị
+// đặt–nhập theo NCC".
 //
 // KHÁC `directDb` (lib/reportEngine.js) thường ở ĐÚNG 1 điểm: Dimensions.MaDiem
 // đồng bộ từ DSMART16 là mã BU_ID THÔ (CSDL trung tâm, không phải mã Điểm
@@ -82,23 +91,26 @@ const { assignSttIfPresent } = require('./reportCellFormat');
 
 const DOMAIN = 'don_dat_hang';
 // TRANS_CODE (bản 9.27, MỞ RỘNG theo yêu cầu người dùng — trước đây CHỈ có
-// 133/333, giờ thêm 130/330 cho đúng 2 KÊNH MUA khác nhau, đã xác nhận lại
-// với người dùng từng mã một (tránh lặp lại bài học bản 8.92 — từng đoán
-// sai nguồn dữ liệu):
-//   133 = Đặt hàng (kênh "mua riêng")      130 = Đặt hàng (kênh "mua riêng")
+// 133/333, giờ thêm 130/330 cho đúng 2 KÊNH MUA khác nhau).
+//
+// SỬA LẠI bản 10.12 (theo yêu cầu người dùng, 26/10/2026 — GÁN SAI Ở BẢN
+// 9.27, đã xác nhận lại đúng từng mã):
+//   130 = Đặt hàng (kênh "mua riêng")      133 = Nhập hàng (kênh "mua riêng")
 //   330 = Đặt hàng (kênh "mua chung")      333 = Nhập hàng (kênh "mua chung", qua Fuji)
-// Tức "mua riêng" CHỈ có 2 mã đặt (133/130), KHÔNG có mã nhập riêng — chỉ
-// "mua chung" (qua Fuji) mới có đủ cặp đặt(330)/nhập(333). Mảng THAY cho
-// 1 chuỗi cố định trước đây — MỌI so sánh `=== TRANS_CODE_DAT` cũ đổi thành
-// `.includes(...)`.
-const TRANS_CODE_DAT = ['133', '130', '330'];
-const TRANS_CODE_NHAP = ['333'];
+// Tức CẢ 2 kênh đều có ĐỦ cặp đặt/nhập (130/133 cho mua riêng, 330/333 cho
+// mua chung) — bản 9.27 từng gán nhầm 133 cũng là mã ĐẶT (trùng vai trò với
+// 130), khiến "mua riêng" không có mã nhập nào, đúng triệu chứng người
+// dùng báo (báo cáo "Đơn nhập hàng" trước bản 10.12 chỉ ra được mua chung).
+// Mảng THAY cho 1 chuỗi cố định trước bản 9.27 — MỌI so sánh `===
+// TRANS_CODE_DAT` cũ đổi thành `.includes(...)`.
+const TRANS_CODE_DAT = ['130', '330'];
+const TRANS_CODE_NHAP = ['133', '333'];
 // KENH_MUA_CODES — map "kênh mua" (lựa chọn người dùng chọn ở bộ lọc, xem
 // KENH_MUA_FILTER trong seedPurchaseOrderReports.js) sang đúng tập mã
 // TRANS_CODE của kênh đó — dùng để LỌC THÊM (AND) bên trong tập transCode
 // báo cáo đã xác định theo đặt/nhập ở trên, xem filterValues.kenhMua bên
 // dưới.
-const KENH_MUA_CODES = { rieng: ['133', '130'], chung: ['330', '333'] };
+const KENH_MUA_CODES = { rieng: ['130', '133'], chung: ['330', '333'] };
 
 // Phân trang lấy ĐỦ dữ liệu (bản 9.17, theo báo cáo người dùng — chọn
 // khoảng ngày rộng/cả năm ra thiếu dữ liệu) — TRƯỚC ĐÂY chỉ gọi runReport()
@@ -121,12 +133,13 @@ async function fetchAllReportRows(pool, blockDefinition, blockFilterValues) {
   return allRows;
 }
 
-// Gộp nhiều dòng (133 + 333*) của CÙNG 1 (MaDiem+SoDon+MaHang) thành 1
-// dòng duy nhất cho báo cáo "So sánh đặt–nhận" — SUM riêng SoLuong theo
-// đúng loại giao dịch, các cột mô tả khác (TenNCC/NguoiDat/NgayGiao...)
-// ưu tiên lấy từ dòng `133` (đơn đặt gốc), dự phòng dòng đầu tiên gặp nếu
-// nhóm đó THIẾU hẳn dòng `133` (dữ liệu bất thường, hiếm — vẫn hiện ra
-// thay vì loại bỏ, để admin tự nhận ra qua số liệu lệch).
+// Gộp nhiều dòng (mã ĐẶT 130/330 + mã NHẬP 133/333*) của CÙNG 1
+// (MaDiem+SoDon+MaHang) thành 1 dòng duy nhất cho báo cáo "So sánh
+// đặt–nhận" — SUM riêng SoLuong theo đúng loại giao dịch, các cột mô tả
+// khác (TenNCC/NguoiDat/NgayGiao...) ưu tiên lấy từ dòng ĐẶT (đơn đặt
+// gốc), dự phòng dòng đầu tiên gặp nếu nhóm đó THIẾU hẳn dòng ĐẶT (dữ liệu
+// bất thường, hiếm — vẫn hiện ra thay vì loại bỏ, để admin tự nhận ra qua
+// số liệu lệch).
 function aggregateByOrder(rows) {
   const groups = new Map();
   for (const row of rows) {
@@ -257,9 +270,10 @@ async function runPurchaseOrderReport(definition, filterValues = {}, pagination 
   // (dùng TrangThai của dòng ĐẠI DIỆN đã chọn trong aggregateByOrder()/
   // aggregateOrderTotal()), không ảnh hưởng gì bước gộp.
   const trangThaiFilter = Array.isArray(filterValues.trangThai) && filterValues.trangThai.length ? new Set(filterValues.trangThai) : null;
-  // Bộ lọc "Kênh mua" (bản 9.27, theo yêu cầu người dùng) — "Mua riêng"
-  // (mã 133/130) / "Mua chung qua Fuji" (mã 330/333), xem KENH_MUA_CODES ở
-  // đầu file + KENH_MUA_FILTER trong seedPurchaseOrderReports.js. Không
+  // Bộ lọc "Kênh mua" (bản 9.27, theo yêu cầu người dùng; ý nghĩa mã SỬA
+  // LẠI bản 10.12) — "Mua riêng" (mã 130/133) / "Mua chung qua Fuji" (mã
+  // 330/333), xem KENH_MUA_CODES ở đầu file + KENH_MUA_FILTER trong
+  // seedPurchaseOrderReports.js. Không
   // chọn gì = không lọc thêm (giữ nguyên tập mã đã xác định theo
   // đặt/nhập ở `definition.transCode`). Áp dụng Ở SQL-FILTER-LEVEL (JS,
   // cùng chỗ với `definition.transCode`) — TRƯỚC khi gộp, vì phân loại

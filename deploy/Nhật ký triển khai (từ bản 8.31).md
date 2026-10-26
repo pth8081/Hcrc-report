@@ -14,6 +14,32 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.12 — Sửa lại SAI ý nghĩa mã giao dịch 130/133/330/333 (6 báo cáo Mua hàng)
+
+**Thay đổi**: 2 file rp-server (`lib/purchaseOrderRunner.js`,
+`scripts/seedPurchaseOrderReports.js`) — thuần logic ứng dụng, KHÔNG đổi
+VIEW/CSDL nguồn.
+
+**Các bước** (THEO ĐÚNG THỨ TỰ — bước 3 BẮT BUỘC, thiếu bước này báo cáo
+vẫn chạy nhưng dùng `transCode` CŨ đã lưu sẵn trong CSDL):
+
+1. `git pull origin main`.
+2. `pm2 restart hcrc-rp-server`.
+3. `cd rp-server && node scripts/seedPurchaseOrderReports.js` — BẮT BUỘC,
+   script này ghi lại `transCode` ĐÚNG vào `app.ReportCatalog.DefinitionJson`
+   cho 4 báo cáo ("Đơn đặt hàng"/"Đơn nhập hàng"/"Giá trị đặt hàng theo
+   đơn"/"Giá trị nhập hàng theo đơn") — KHÔNG chạy lại bước này thì sửa code
+   không có tác dụng gì (báo cáo vẫn dùng định nghĩa cũ đã lưu). An toàn
+   chạy lại (idempotent, UPDATE theo ReportId, không tạo trùng).
+
+**Kiểm tra**: mở báo cáo "Đơn nhập hàng", lọc bộ lọc "Kênh mua" = "Mua
+riêng" cho 1 khoảng ngày CÓ dữ liệu — PHẢI ra kết quả (trước bản này sẽ
+RỖNG, vì mã `133` từng bị coi là mã đặt). Mở "Đơn đặt hàng", lọc "Kênh
+mua" = "Mua chung (qua Fuji)" — vẫn ra kết quả như trước (hành vi này
+không đổi).
+
+---
+
 ## 10.11 — ETL: gộp menu "Chỉ tiêu" + "Cấu hình khác" đóng/mở, đổi tên ngành hàng (HCRC)
 
 **Thay đổi**: 2 file frontend etl-admin (`src/components/Layout.jsx`,

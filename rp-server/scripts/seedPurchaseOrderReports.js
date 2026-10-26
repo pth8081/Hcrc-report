@@ -11,6 +11,13 @@
 // `aggregateByOrder=true` (SUM theo REF="mã đơn hàng gốc" — xử lý nhận
 // nhiều lần — xem lib/purchaseOrderRunner.js).
 //
+// SỬA LẠI bản 10.12 (theo yêu cầu người dùng, 26/10/2026) — từ khi có thêm
+// mã 130/330 (bản 9.27, phân biệt kênh "mua riêng"/"mua chung"), `133`
+// KHÔNG còn là mã "đặt hàng" nói chung nữa — ý nghĩa đúng (đã xác nhận
+// lại): `130`=Đặt hàng mua riêng, `133`=Nhập hàng mua riêng, `330`=Đặt
+// hàng mua chung, `333`=Nhập hàng mua chung. Xem TRANS_CODE_DAT/
+// TRANS_CODE_NHAP trong lib/purchaseOrderRunner.js.
+//
 // LƯU Ý QUAN TRỌNG — chạy script này KHÔNG đủ để báo cáo CÓ SỐ LIỆU: đây
 // chỉ là bước tạo "khung" 3 báo cáo trong app.ReportCatalog. Báo cáo chỉ
 // thật sự chạy được sau khi:
@@ -123,9 +130,14 @@ const SIEU_THI_FILTER = {
 // gộp chung, vd). `hint` hiện ngay dưới nhãn bộ lọc (xem
 // rp-user/src/components/FilterForm.jsx) — giải thích đúng mã nào ứng
 // với kênh nào, để người dùng tự đối chiếu nếu cần kiểm tra số liệu.
+// SỬA LẠI bản 10.12 (theo yêu cầu người dùng, 26/10/2026) — ý nghĩa mã
+// GÁN SAI ở bản 9.27 (từng ghi 133 cũng là mã ĐẶT, trùng vai trò với 130,
+// khiến "mua riêng" không có mã nhập nào) — đã xác nhận lại:
+//   130 = Đặt hàng mua riêng      133 = Nhập hàng mua riêng
+//   330 = Đặt hàng mua chung      333 = Nhập hàng mua chung (qua Fuji)
 const KENH_MUA_FILTER = {
   field: 'kenhMua', type: 'multiSelect', label: 'Kênh mua',
-  hint: 'Mã giao dịch 133 (đặt), 130 (đặt) = Mua riêng. Mã giao dịch 330 (đặt), 333 (nhập) = Mua chung (qua Fuji).',
+  hint: 'Mã giao dịch 130 (đặt), 133 (nhập) = Mua riêng. Mã giao dịch 330 (đặt), 333 (nhập) = Mua chung (qua Fuji).',
   options: [
     { value: 'rieng', label: 'Mua riêng' },
     { value: 'chung', label: 'Mua chung (qua Fuji)' }
@@ -176,7 +188,7 @@ function orderTotalHead(eventDateLabel) {
 
 const REPORTS = [
   {
-    reportId: 'bc-don-dat-hang', title: 'Đơn đặt hàng', transCode: ['133', '130', '330'],
+    reportId: 'bc-don-dat-hang', title: 'Đơn đặt hàng', transCode: ['130', '330'],
     columns: [
       ...commonHead('Ngày đặt'), NGAY_GIAO_COL,
       { key: 'soLuongDat', label: 'SL đặt', formula: 'measures.SoLuong' },
@@ -186,7 +198,7 @@ const REPORTS = [
     ]
   },
   {
-    reportId: 'bc-don-nhap-hang', title: 'Đơn nhập hàng', transCode: ['333'],
+    reportId: 'bc-don-nhap-hang', title: 'Đơn nhập hàng', transCode: ['133', '333'],
     columns: [
       ...commonHead('Ngày nhận'),
       { key: 'soLuongNhan', label: 'SL nhận', formula: 'measures.SoLuong' },
@@ -214,7 +226,7 @@ const REPORTS = [
     // cộng giá trị") — CHỈ 3 báo cáo "giá trị" (TongGiaTri/GiaTriDat/
     // GiaTriNhap, không có cột Đơn giá) mới bật, xem chú thích
     // lib/purchaseOrderRunner.js:appendGrandTotal().
-    reportId: 'bc-gia-tri-dat-theo-don', title: 'Giá trị đặt hàng theo đơn', transCode: ['133', '130', '330'], aggregateOrderTotal: true, showGrandTotal: true,
+    reportId: 'bc-gia-tri-dat-theo-don', title: 'Giá trị đặt hàng theo đơn', transCode: ['130', '330'], aggregateOrderTotal: true, showGrandTotal: true,
     columns: [
       ...orderTotalHead('Ngày đặt'), NGAY_GIAO_COL,
       { key: 'tongSoLuong', label: 'Tổng SL', formula: 'measures.TongSoLuong' },
@@ -223,7 +235,7 @@ const REPORTS = [
     ]
   },
   {
-    reportId: 'bc-gia-tri-nhap-theo-don', title: 'Giá trị nhập hàng theo đơn', transCode: ['333'], aggregateOrderTotal: true, showGrandTotal: true,
+    reportId: 'bc-gia-tri-nhap-theo-don', title: 'Giá trị nhập hàng theo đơn', transCode: ['133', '333'], aggregateOrderTotal: true, showGrandTotal: true,
     columns: [
       ...orderTotalHead('Ngày nhận'),
       { key: 'tongSoLuong', label: 'Tổng SL', formula: 'measures.TongSoLuong' },

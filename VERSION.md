@@ -42,6 +42,48 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.12 — Sửa lại SAI ý nghĩa mã giao dịch 130/133/330/333 (6 báo cáo Mua hàng)
+
+**Theo yêu cầu người dùng**: "Bạn xem bạn đang dùng ở bảng nào nhỉ? Bởi vì
+là khi tôi lấy báo cáo ấy, thì đặt hàng thì tôi chỉ lấy được đặt hàng của
+mua riêng, mà nhập hàng thì tôi chỉ lấy được nhập hàng của mua chung" →
+sau khi kiểm tra code và báo lại, người dùng xác nhận lại đúng: *"130 là
+đặt hàng mua riêng. 133 là nhập hàng mua riêng. 330 là đặt hàng mua chung.
+333 là nhập hàng mua chung."*
+
+**Lỗi cũ (bản 9.27)**: gán NHẦM `133` cũng là mã ĐẶT HÀNG (trùng vai trò
+với `130`) — khiến kênh "mua riêng" KHÔNG CÓ mã nhập hàng nào cả. Báo cáo
+"Đơn nhập hàng"/"Giá trị nhập hàng theo đơn" trước bản này chỉ lọc
+`transCode: ['333']` nên CHỈ RA được dữ liệu mua chung — đúng khớp triệu
+chứng người dùng báo.
+
+**Đã sửa**: `TRANS_CODE_DAT = ['130','330']` (mã ĐẶT, cả 2 kênh),
+`TRANS_CODE_NHAP = ['133','333']` (mã NHẬP, cả 2 kênh), `KENH_MUA_CODES =
+{ rieng: ['130','133'], chung: ['330','333'] }` (`rp-server/lib/
+purchaseOrderRunner.js`) — và đổi `transCode` của 4 báo cáo: "Đơn đặt
+hàng"/"Giá trị đặt hàng theo đơn" → `['130','330']`, "Đơn nhập hàng"/"Giá
+trị nhập hàng theo đơn" → `['133','333']` (`rp-server/scripts/
+seedPurchaseOrderReports.js`). "So sánh đặt–nhận"/"So sánh giá trị đặt–nhập
+theo NCC" KHÔNG đổi code (đã gộp cả 4 mã từ trước, chỉ đổi Ý NGHĨA phân
+loại đặt/nhận theo đúng hằng số mới ở trên). VIEW nguồn
+(`dbo.vw_DonDatHangChiNhanh`) KHÔNG cần sửa/chạy lại — đã SELECT nguyên
+`TRANS_CODE` thô từ trước, chỉ sửa cách DIỄN GIẢI ở tầng ứng dụng. Cập
+nhật lại tài liệu `bc-don-dat-hang.md` (mục 5b mới) + hint bộ lọc "Kênh
+mua".
+
+**QUAN TRỌNG**: phải chạy lại `node scripts/seedPurchaseOrderReports.js`
+sau khi deploy code — 4 báo cáo trên đã LƯU SẴN `transCode` CŨ (sai) trong
+CSDL (`app.ReportCatalog.DefinitionJson`), sửa code nguồn không tự cập
+nhật lại các dòng đã lưu; script idempotent, an toàn chạy lại.
+
+Verify: mock test `rp-server/lib/purchaseOrderRunner.js` (giả lập 4 dòng
+giao dịch 130/133/330/333 CÙNG 1 đơn) — 7 assertion: "Đơn đặt hàng" đủ 2
+dòng (130+330), "Đơn nhập hàng" đủ 2 dòng (133+333 — ĐÂY LÀ lỗi cũ: trước
+bản này chỉ 1 dòng), bộ lọc "Kênh mua=Mua riêng" ra đúng 1 dòng cho cả 2
+báo cáo (trước bản này báo "Đơn nhập hàng" lọc mua riêng sẽ RA RỖNG),
+"So sánh đặt–nhận" gộp đúng SL đặt=30/SL thực nhận=24 — PASS; `node
+--check` qua cho 2 file JS.
+
 ## 10.11 — ETL: gộp menu "Chỉ tiêu" + "Cấu hình khác" đóng/mở, đổi tên ngành hàng (HCRC)
 
 **Theo yêu cầu người dùng**: "ảnh 1 bạn sửa giúp tôi chỉ tiêu doanh thu
