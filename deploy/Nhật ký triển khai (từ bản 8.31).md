@@ -14,6 +14,28 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.11 — ETL: gộp menu "Chỉ tiêu" + "Cấu hình khác" đóng/mở, đổi tên ngành hàng (HCRC)
+
+**Thay đổi**: 2 file frontend etl-admin (`src/components/Layout.jsx`,
+`src/styles.css`) — thuần UI sidebar, KHÔNG đổi route/quyền/CSDL.
+
+**Các bước**:
+
+1. `git pull origin main`.
+2. `cd etl-admin && npm install && npm run build` (bỏ qua nếu không có
+   gói mới — chỉ cần build lại để nhúng code mới).
+3. Deploy `etl-admin/dist/` như bình thường (copy lên server / restart
+   static server tùy cấu hình hiện có) — KHÔNG cần restart backend `etl`
+   (API không đổi).
+
+**Kiểm tra**: mở etl-admin, sidebar bên trái thấy 2 mục "CHỈ TIÊU" và
+"CẤU HÌNH KHÁC" ở dạng tiêu đề đóng (mũi tên ▶); bấm vào mỗi tiêu đề thấy
+danh sách con xổ ra đúng (▼), bấm lại thu gọn. Mục "Chỉ tiêu Doanh thu theo
+ngành hàng" trong nhóm "CHỈ TIÊU" đã đổi tên hiển thị thành "...(HCRC)".
+Bấm vào từng mục con vẫn vào đúng trang như trước (route không đổi).
+
+---
+
 ## 10.10 — "Doanh thu theo ngành hàng"/"(LDTD)" hiện doanh thu dù chưa có Chỉ tiêu
 
 **Thay đổi**: 1 file (`rp-server/lib/nganhHangBrgRunner.js`, sửa điều kiện

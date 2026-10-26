@@ -183,6 +183,20 @@ legend { font-size: 12px; color: var(--ink-soft); padding: 0 6px; }
 .menu a.active, .menu a:hover { background: var(--nav-bg-soft); color: var(--nav-text-active); }
 .menu a.active { background: var(--nav-bg-active); color: #fff; box-shadow: inset 3px 0 0 0 var(--accent); }
 .nav-icon { font-size: 15px; width: 18px; text-align: center; flex-shrink: 0; }
+/* Bản 10.11 — nhóm menu đóng/mở (Chỉ tiêu / Cấu hình khác), xem Layout.jsx */
+.menu-group { margin-top: 6px; padding-top: 4px; border-top: 1px solid var(--nav-border); }
+.menu-group-toggle {
+  width: 100%; display: flex; align-items: center; justify-content: space-between;
+  gap: 8px; padding: 10px 12px; background: none; border: none; cursor: pointer;
+  color: var(--nav-text); font-size: 10.5px; text-transform: uppercase; letter-spacing: .08em;
+  font-weight: 700; opacity: .75; font-family: inherit; border-radius: 8px;
+}
+.menu-group-toggle:hover { opacity: 1; color: var(--nav-text-active); }
+.menu-group-toggle .chev { font-size: 10px; transition: transform .15s ease; }
+.menu-group.open .menu-group-toggle .chev { transform: rotate(90deg); }
+.menu-group-items { list-style: none; margin: 0; padding: 0; max-height: 0; overflow: hidden; transition: max-height .18s ease; }
+.menu-group.open .menu-group-items { max-height: 500px; }
+.menu-group-items li { margin-bottom: 2px; }
 .sidebar-footer { padding: 14px 16px; border-top: 1px solid var(--nav-border); font-size: 12.5px; }
 .user-name { margin-bottom: 6px; display: flex; align-items: center; gap: 6px; color: #fff; font-weight: 600; }
 .role-badge { font-size: 10px; text-transform: uppercase; letter-spacing: .04em; background: var(--nav-bg-active); color: #cfe0ff; padding: 1px 6px; border-radius: 3px; font-weight: 500; }

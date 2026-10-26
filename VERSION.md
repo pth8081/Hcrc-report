@@ -42,7 +42,40 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
-## 10.10 — "Doanh thu theo ngành hàng"/"(LDTD)" hiện doanh thu dù chưa có Chỉ tiêu
+## 10.11 — ETL: gộp menu "Chỉ tiêu" + "Cấu hình khác" đóng/mở, đổi tên ngành hàng (HCRC)
+
+**Theo yêu cầu người dùng**: "ảnh 1 bạn sửa giúp tôi chỉ tiêu doanh thu
+ngành hàng thành chỉ tiêu doanh thu ngành hàng (HCRC) và nhóm các chỉ tiêu
+thành một nhóm ở menu bart là 'Chỉ tiêu' và nhòm các các cái còn lại như
+ảnh 2 thành nhóm ở menu là 'Cấu hình khác'" — sau đó yêu cầu thêm: nhóm
+phải THU GỌN mặc định, bấm vào tiêu đề nhóm mới xổ danh sách con ra (dạng
+accordion), không liệt kê hết luôn.
+
+**Đã sửa** (`etl-admin/src/components/Layout.jsx` + `styles.css`):
+- Đổi nhãn hiển thị "Chỉ tiêu Doanh thu theo ngành hàng" → "Chỉ tiêu Doanh
+  thu theo ngành hàng (HCRC)" — CHỈ đổi chữ hiển thị, giữ nguyên route
+  (`/sales-targets-nganhhang-dt`) và `menuCode` (`sales-targets-nganhhang-dt`)
+  → không đổi quyền, không đổi code xử lý số liệu.
+- Gộp 5 mục "Chỉ tiêu ..." vào 1 nhóm đóng/mở "🎯 Chỉ tiêu".
+- Gộp 4 mục "Ánh xạ Điểm - STK_ID / Siêu thị NSO / Danh sách hàng Core /
+  Cảnh báo hàng tồn" vào 1 nhóm đóng/mở "⚙️ Cấu hình khác".
+- Mặc định cả 2 nhóm ĐÓNG (chỉ hiện tiêu đề + mũi tên ▶); bấm vào tiêu đề
+  thì xổ ra danh sách mục con (▼), bấm lại thì thu gọn — độc lập 2 nhóm,
+  có thể mở cùng lúc. Vào thẳng URL của 1 trang thuộc nhóm (vd theo
+  link/bookmark) thì nhóm đó tự mở sẵn.
+- Các mục không thuộc 2 nhóm trên (Dashboard, Đồng bộ, Phân quyền...) giữ
+  nguyên vị trí/hành vi như cũ, không đổi.
+
+Thuần túy sửa GIAO DIỆN sidebar (thêm state đóng/mở + 1 chuỗi nhãn) —
+không đổi route, không đổi quyền (`menuCode`), không đổi code tính
+toán/truy vấn báo cáo → không ảnh hưởng báo cáo/số liệu đang chạy.
+
+Verify: `npm run build` (etl-admin) qua không lỗi; demo thật bằng cách
+bundle `Layout.jsx` thật (esbuild, mock `useAuth`) + Playwright — ảnh chụp
+xác nhận: mặc định đóng cả 2 nhóm, bấm mở hiện đúng danh sách + nhãn mới
+"(HCRC)".
+
+
 
 **Theo yêu cầu người dùng**: "Tôi muốn báo cáo doanh thu ngành hàng (LĐTD)
 và doanh thu ngành hàng HCRC lấy được thông tin doanh thu ngay cả khi
