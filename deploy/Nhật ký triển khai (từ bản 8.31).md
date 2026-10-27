@@ -14,6 +14,30 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.16 — SỬA LỖI THẬT: "Trạng thái kết nối"/"Giám sát Log CSDL" đồng loạt báo lỗi "not a function"
+
+**Thay đổi**: 1 file etl (`lib/logSpaceMonitor.js`) — thuần code ứng dụng,
+KHÔNG cần đổi gì ở CSDL/máy chủ.
+
+**Các bước**:
+
+1. `git pull origin main`.
+2. `pm2 restart hcrc-etl` (hoặc đúng tên process pm2 đang dùng cho backend
+   etl).
+
+**Kiểm tra**: mở etl-admin → "Trạng thái kết nối" (hoặc "Giám sát Log
+CSDL") — các dòng trước đây báo "Lỗi kiểm tra" với nội dung "Parameters
+supplied for object 'sys.dm_db_log_space_usage'..." PHẢI chuyển sang ra
+số dung lượng log bình thường sau lần kiểm tra định kỳ kế tiếp (chu kỳ 15
+phút, hoặc đợi tới lượt chạy tự động).
+
+**Nếu vẫn còn dòng lỗi sau khi deploy**: lỗi lúc đó sẽ là câu RÕ RÀNG hơn
+(vd liên quan quyền `VIEW SERVER STATE`) — báo lại đúng CSDL/máy chủ nào
+còn lỗi kèm nội dung lỗi mới để xử lý tiếp (có thể cần DBA cấp thêm quyền
+cho tài khoản kết nối của đúng CSDL đó).
+
+---
+
 ## 10.15 — SỬA LỖI THẬT: thu hồi voucher Fuji luôn báo lỗi 500 ("OUTPUT clause without INTO clause")
 
 **Thay đổi**: 2 file api-server (`lib/voucherRedeemService.js`,

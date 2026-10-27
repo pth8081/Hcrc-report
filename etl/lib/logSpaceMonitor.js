@@ -67,13 +67,60 @@ const LOG_SPACE_QUERY = `
   FROM sys.dm_db_log_space_usage();
 `;
 
+// SỬA LỖI THẬT bản 10.16 (báo cáo người dùng — "Trạng thái kết nối" đồng
+// loạt báo lỗi "Parameters supplied for object 'sys.dm_db_log_space_usage'
+// which is not a function", KỂ CẢ 2 CSDL LÕI của chính hệ thống HCRC_DWH/
+// HCRC_ETL — không riêng gì vài máy chủ chi nhánh DSMART16, nên KHÔNG PHẢI
+// lỗi của 1 vài nguồn cụ thể). Nguyên nhân: `sys.dm_db_log_space_usage()`
+// CHỈ hoạt động đúng khi CSDL có COMPATIBILITY LEVEL >= 130 (SQL Server
+// 2016) — đã xác nhận với người dùng: engine SQL Server THẬT đang dùng là
+// bản 2019 (ĐỦ MỚI, không phải lỗi do bản engine cũ như suy đoán ban đầu),
+// nhưng compatibility level là cấu hình RIÊNG theo TỪNG CSDL, không tự
+// nâng theo bản engine — rất hay gặp khi CSDL được restore/migrate từ hệ
+// thống cũ sang máy chủ mới mà không đổi lại mức này. CSDL nào vẫn giữ
+// compatibility level CŨ (< 130) thì object này không được nhận diện
+// đúng là hàm dù engine thật sự hỗ trợ — khớp đúng lý do lỗi xảy ra ĐỒNG
+// LOẠT ở MỌI kết nối bất kể lõi hay chi nhánh (khả năng cao TOÀN BỘ các
+// CSDL đó đều đang giữ compatibility level cũ).
+//
+// Khắc phục: thử DMF hiện đại TRƯỚC (giữ nguyên lợi ích chỉ cần quyền VIEW
+// DATABASE STATE cho CSDL nào ĐÃ nâng compatibility level, không cần đổi
+// gì) — lỗi đúng dấu hiệu "không hỗ trợ" thì TỰ ĐỘNG CHUYỂN sang `DBCC
+// SQLPERF(LOGSPACE)` (lệnh LEGACY, hoạt động trên MỌI phiên bản/
+// compatibility level SQL Server, không bị giới hạn này) — trả về TOÀN
+// BỘ CSDL trên server đó nên phải tự lọc đúng tên CSDL đang kiểm tra ở
+// tầng JS. Đánh đổi: `DBCC SQLPERF` thường cần quyền VIEW SERVER STATE
+// (cấp instance, RỘNG hơn VIEW DATABASE STATE mà DMF cần) — máy chủ nào
+// vẫn lỗi SAU KHI đã thử cả 2 cách thường là do THIẾU quyền này, lỗi trả
+// về lúc đó sẽ rõ ràng (không còn là câu lỗi khó hiểu "not a function"
+// nữa), admin tự biết cần cấp thêm quyền gì cho đúng nguồn đó.
+function isLogSpaceDmfUnsupportedError(err) {
+  const msg = String((err && err.message) || '');
+  return /is not a function/i.test(msg) || /Invalid object name 'sys\.dm_db_log_space_usage'/i.test(msg);
+}
+
+async function runLogSpaceQueryLegacyFallback(pool, databaseName) {
+  const result = await pool.request().query('SET NOCOUNT ON; DBCC SQLPERF(LOGSPACE) WITH NO_INFOMSGS;');
+  const row = (result.recordset || []).find((r) => r['Database Name'] === databaseName);
+  if (!row) {
+    throw new Error(`DBCC SQLPERF(LOGSPACE) không trả về dòng nào cho CSDL "${databaseName}" (kiểm tra lại tên CSDL hoặc quyền VIEW SERVER STATE).`);
+  }
+  return { totalLogSizeMb: Number(row['Log Size (MB)']), usedLogPercent: Number(row['Log Space Used (%)']) };
+}
+
 async function runLogSpaceQuery(poolConfig) {
   const pool = new sql.ConnectionPool(poolConfig);
   try {
     await pool.connect();
-    const result = await pool.request().query(LOG_SPACE_QUERY);
-    const row = result.recordset[0] || {};
-    return { ok: true, totalLogSizeMb: row.TotalLogSizeMB, usedLogPercent: row.UsedLogPercent };
+    try {
+      const result = await pool.request().query(LOG_SPACE_QUERY);
+      const row = result.recordset[0] || {};
+      return { ok: true, totalLogSizeMb: row.TotalLogSizeMB, usedLogPercent: row.UsedLogPercent };
+    } catch (dmfErr) {
+      if (!isLogSpaceDmfUnsupportedError(dmfErr)) throw dmfErr;
+      const legacy = await runLogSpaceQueryLegacyFallback(pool, poolConfig.database);
+      return { ok: true, totalLogSizeMb: legacy.totalLogSizeMb, usedLogPercent: legacy.usedLogPercent };
+    }
   } catch (err) {
     return { ok: false, error: err.message };
   } finally {

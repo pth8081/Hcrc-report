@@ -42,6 +42,49 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.16 — SỬA LỖI THẬT: "Trạng thái kết nối"/"Giám sát Log CSDL" đồng loạt báo lỗi "not a function"
+
+**Theo yêu cầu người dùng**: "Tự nhiên lỗi một loạt, bạn kiểm tra giúp" —
+kèm ảnh hàng loạt dòng "Lỗi kiểm tra" cùng 1 thời điểm (15:00:07
+27/10/2026), cùng 1 nội dung lỗi, cho RẤT NHIỀU nguồn khác nhau — bao gồm
+cả 2 CSDL LÕI của chính hệ thống (`HCRC_DWH`, `HCRC_ETL`), không chỉ riêng
+vài máy chủ chi nhánh DSMART16 — xác nhận đây KHÔNG PHẢI lỗi của 1 vài
+nguồn cụ thể mà là lỗi hệ thống của tính năng "Giám sát Log CSDL" (bản
+10.5).
+
+**Nguyên nhân**: `etl/lib/logSpaceMonitor.js` dùng
+`sys.dm_db_log_space_usage()` — hàm hệ thống này chỉ hoạt động đúng khi
+CSDL có COMPATIBILITY LEVEL >= 130 (SQL Server 2016). Ban đầu nghi ngờ
+"bản SQL Server cũ" nhưng đã xác nhận lại với người dùng: engine SQL
+Server THẬT đang dùng là **bản 2019** (đủ mới) — nguyên nhân thật là
+COMPATIBILITY LEVEL (cấu hình RIÊNG theo từng CSDL, KHÔNG tự nâng theo
+bản engine — rất hay gặp khi CSDL được restore/migrate từ hệ thống cũ
+sang máy chủ mới mà không đổi lại mức này) của các CSDL đang kiểm tra
+(cả CSDL lõi lẫn máy chủ DSMART16 chi nhánh) vẫn đang giữ mức CŨ (< 130),
+khiến object này không được nhận diện đúng là hàm dù engine hỗ trợ — lỗi
+xảy ra ĐỒNG LOẠT, đúng khớp triệu chứng.
+
+**Đã sửa**: thử `sys.dm_db_log_space_usage()` TRƯỚC (giữ nguyên lợi ích
+chỉ cần quyền VIEW DATABASE STATE cho CSDL nào ĐÃ nâng compatibility
+level) — gặp đúng lỗi "not a function"/"Invalid object name" thì TỰ ĐỘNG
+chuyển sang `DBCC SQLPERF(LOGSPACE)` (lệnh LEGACY, hoạt động trên MỌI
+phiên bản/compatibility level SQL Server, không bị giới hạn này) — tự lọc
+đúng dòng của CSDL đang kiểm tra trong kết quả trả về (DBCC trả cả server,
+không riêng 1 CSDL như DMF). Lỗi KHÁC (vd sai mật khẩu, mất kết nối) vẫn
+báo nguyên như cũ, KHÔNG âm thầm chuyển sang DBCC.
+
+**Lưu ý đánh đổi quyền**: `DBCC SQLPERF(LOGSPACE)` thường cần quyền VIEW
+SERVER STATE (cấp INSTANCE, rộng hơn VIEW DATABASE STATE mà DMF cần) — máy
+chủ nào SAU KHI đã thử cả 2 cách vẫn còn lỗi, nhiều khả năng do tài khoản
+kết nối THIẾU quyền này; lỗi trả về lúc đó sẽ RÕ RÀNG (không còn câu khó
+hiểu "not a function"), admin tự biết cần cấp thêm quyền gì.
+
+Verify: mock test (giả lập `mssql.ConnectionPool` theo 3 kịch bản — DMF
+hoạt động/DMF báo "not a function"/DMF báo lỗi khác) — 8 assertion: DMF
+hoạt động bình thường thì KHÔNG gọi fallback; DMF báo đúng lỗi "not a
+function" thì TỰ ĐỘNG gọi `DBCC SQLPERF(LOGSPACE)`; lỗi KHÁC không kích
+hoạt fallback — PASS 8/8; `node --check` qua.
+
 ## 10.15 — SỬA LỖI THẬT: thu hồi voucher Fuji luôn báo lỗi 500 ("OUTPUT clause without INTO clause")
 
 **Theo yêu cầu người dùng**: "Hệ thống fuji thu hồi voucher đang báo lỗi
