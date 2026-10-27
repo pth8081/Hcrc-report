@@ -989,10 +989,14 @@ mục 2 — "chọn siêu thị thì sẽ lấy chỉ tiêu theo siêu thị ở
 doanh thu hàng ngày của siêu thị theo lãnh đạo tập đoàn và HCC"): khi
 người dùng chọn 1 hoặc nhiều siêu thị cụ thể ở bộ lọc "Siêu thị" của 1
 khối (BRG/LFL/NSO — xem mục 13), dòng "Tổng cộng" của ĐÚNG khối đó lấy
-Chỉ tiêu từ "Chỉ tiêu HCRC" (`sales-targets-hcrc`, chỉ tiêu doanh thu
-THEO TỪNG SIÊU THỊ/NGÀY, trang etl-admin "Chỉ tiêu HCRC" — khác hẳn
-`sales-targets-nganhhang-dt` theo NGÀNH HÀNG dùng cho các dòng ngành hàng
-phía trên) — thay vì cộng các dòng ngành hàng đã nhập Chỉ tiêu riêng.
+Chỉ tiêu từ Chỉ tiêu doanh thu hàng ngày THEO TỪNG SIÊU THỊ/NGÀY (khác
+hẳn `sales-targets-nganhhang-dt` theo NGÀNH HÀNG dùng cho các dòng ngành
+hàng phía trên) — thay vì cộng các dòng ngành hàng đã nhập Chỉ tiêu
+riêng. **QUAN TRỌNG (sửa ở bản 10.18, xem mục 20 bên dưới)**: báo cáo
+"Doanh thu theo ngành hàng" (HCRC) lấy đúng nguồn "Chỉ tiêu HCRC"
+(`sales-targets-hcrc`), còn "Doanh thu theo ngành hàng (LDTD)" lấy đúng
+nguồn "Chỉ tiêu Lãnh đạo Tập đoàn" (`sales-targets-ldtd`) — 2 nguồn ĐỘC
+LẬP, bản 10.17 ban đầu lỡ dùng CHUNG 1 nguồn HCRC cho cả 2 báo cáo (SAI).
 
 **Lý do cần tính năng này**: Chỉ tiêu theo ngành hàng do 1 nhóm nhập,
 theo TỪNG NGÀNH HÀNG (không theo siêu thị) — khi người dùng chỉ muốn xem
@@ -1027,21 +1031,60 @@ không còn khớp Total mới, gây hiểu lầm).
   người dùng tự biết số có thể thấp hơn thực tế.
 
 **Đã sửa**: `rp-server/lib/nganhHangBrgRunner.js` — đọc thêm Chỉ tiêu
-HCRC (`sales-targets-hcrc`) qua hàm dùng chung
+hàng ngày theo siêu thị qua hàm dùng chung
 `lib/salesTargetsReader.js:runSalesTargetsBlockRange()` (đã có sẵn, dùng
 cho báo cáo "Doanh thu hàng ngày" HCRC/Lãnh đạo Tập đoàn — tái dùng
-nguyên, không viết lại). EntityCode của domain `sales-targets-hcrc` LÀ mã
-Điểm chuẩn (MaDiem) — KHÁC STK_ID thô của domain doanh thu ngành hàng —
-nên dịch qua `stkLookup` (đã có sẵn trong file, dùng để phân loại
-LFL/NSO) trước khi so khớp. Áp dụng cho CẢ "Doanh thu theo ngành hàng
-(HCRC)" lẫn "(LDTD)" (dùng chung 1 runner).
+nguyên, không viết lại). EntityCode của domain này LÀ mã Điểm chuẩn
+(MaDiem) — KHÁC STK_ID thô của domain doanh thu ngành hàng — nên dịch
+qua `stkLookup` (đã có sẵn trong file, dùng để phân loại LFL/NSO) trước
+khi so khớp. Domain đọc (HCRC hay LDTD) được chọn đúng theo báo cáo đang
+chạy — xem SỬA ở mục 20.
 
-Verify: mock test (giả lập 2 siêu thị, 1 ngành hàng, Chỉ tiêu HCRC riêng
-cho từng siêu thị) — 9 assertion: không chọn gì giữ nguyên "—" như cũ;
-chọn 1 siêu thị ra đúng Chỉ tiêu HCRC siêu thị đó, Bán lẻ/Bán buôn về
-"—", % so chỉ tiêu tính lại đúng mẫu số mới; chọn 2 siêu thị cộng dồn
-đúng; dòng ngành hàng không bị ảnh hưởng — PASS 9/9; `node --check` qua.
+Verify: mock test (giả lập 2 siêu thị, 1 ngành hàng, Chỉ tiêu riêng cho
+từng siêu thị) — 9 assertion: không chọn gì giữ nguyên "—" như cũ; chọn 1
+siêu thị ra đúng Chỉ tiêu của siêu thị đó, Bán lẻ/Bán buôn về "—", % so
+chỉ tiêu tính lại đúng mẫu số mới; chọn 2 siêu thị cộng dồn đúng; dòng
+ngành hàng không bị ảnh hưởng — PASS 9/9; `node --check` qua.
 
 **Việc cần làm trên server**: `git pull origin main` rồi `pm2 restart`
 đúng tiến trình `rp-server`. Không cần đổi CSDL/ETL gì thêm (Chỉ tiêu
 HCRC đã đồng bộ sẵn cho báo cáo "Doanh thu hàng ngày" từ trước).
+
+## 20. SỬA mục 19: báo cáo HCRC/LDTD phải lấy đúng Chỉ tiêu hàng ngày theo TỪNG nguồn riêng — bản 10.18
+
+**Theo yêu cầu người dùng**: "Cái này phải áp dụng cho phần báo cáo doanh
+thu ngành hàng HCRC và báo cáo doanh thu ngành hàng lãnh đạo tập đoàn.
+Nếu chọn theo doanh thu ngành hàng lãnh đạo tập đoàn thì phải lấy thông
+tin từ cái chỉ tiêu doanh thu hàng ngày của lãnh đạo tập đoàn. Nếu chọn
+là doanh thu ngành hàng HCRC thì phải lấy cái chỉ tiêu doanh thu hàng
+ngày của HCRC đã nhập vào khi mà chọn từng siêu thị thôi".
+
+**Lỗi ở bản 10.17**: mục 19 ở trên lỡ đọc CỐ ĐỊNH domain "Chỉ tiêu HCRC"
+(`sales-targets-hcrc`) cho dòng "Tổng cộng" của CẢ 2 báo cáo — báo cáo
+"Doanh thu theo ngành hàng (LDTD)" chọn 1 siêu thị sẽ ra NHẦM số Chỉ tiêu
+HCRC của siêu thị đó thay vì số Chỉ tiêu Lãnh đạo Tập đoàn đúng ra phải
+có.
+
+**Đã sửa**: `rp-server/lib/nganhHangBrgRunner.js` — thêm bảng ánh xạ
+`DAILY_STORE_TARGET_DOMAIN_MAP` khớp đúng `targetDomain` của ĐỊNH NGHĨA
+báo cáo ĐANG CHẠY sang domain Chỉ tiêu hàng ngày tương ứng:
+- Báo cáo "Doanh thu theo ngành hàng" (`targetDomain='sales-targets-nganhhang-dt'`)
+  → đọc "Chỉ tiêu HCRC" (`sales-targets-hcrc`).
+- Báo cáo "Doanh thu theo ngành hàng (LDTD)" (`targetDomain='sales-targets-nganhhang-dt-ldtd'`)
+  → đọc "Chỉ tiêu Lãnh đạo Tập đoàn" (`sales-targets-ldtd`).
+
+2 nguồn này DÙNG CHUNG 1 bảng `dwh.SalesTargets`, cùng cấu trúc EntityCode
+= mã Điểm chuẩn, cùng field `ChiTieuDoanhThu` — chỉ khác `Domain` — nên
+không cần đổi gì ở `lib/salesTargetsReader.js`/ETL, chỉ cần tra đúng
+domain theo báo cáo.
+
+Verify: demo PDF (xuất bằng ĐÚNG hàm thật đã sửa + ĐÚNG `lib/exportPdf.js`
+thật, dữ liệu giả lập) — chọn CÙNG 1 siêu thị ở 2 báo cáo cho ra 2 số Chỉ
+tiêu Tổng cộng KHÁC NHAU đúng theo từng nguồn (170.000.000 ở báo cáo HCRC
+vs 200.000.000 ở báo cáo LDTD, 2 số test cố tình đặt khác nhau để lộ ngay
+nếu runner đọc nhầm domain) — đã gửi người dùng xác nhận trước khi merge.
+Mock test cập nhật thêm 2 case LDTD (chọn 1 siêu thị, chọn 2 siêu thị) —
+tổng 11/11 PASS; `node --check` qua.
+
+**Việc cần làm trên server**: `git pull origin main` rồi `pm2 restart`
+đúng tiến trình `rp-server`. Không cần đổi CSDL/ETL gì thêm.

@@ -42,6 +42,29 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.18 — SỬA bản 10.17: báo cáo HCRC/LDTD phải lấy đúng Chỉ tiêu hàng ngày theo TỪNG nguồn riêng
+
+**Theo yêu cầu người dùng**: "Cái này phải áp dụng cho phần báo cáo doanh
+thu ngành hàng HCRC và báo cáo doanh thu ngành hàng lãnh đạo tập đoàn.
+Nếu chọn theo doanh thu ngành hàng lãnh đạo tập đoàn thì phải lấy thông
+tin từ cái chỉ tiêu doanh thu hàng ngày của lãnh đạo tập đoàn. Nếu chọn
+là doanh thu ngành hàng HCRC thì phải lấy cái chỉ tiêu doanh thu hàng
+ngày của HCRC" — bản 10.17 lỡ đọc CỐ ĐỊNH domain "Chỉ tiêu HCRC" cho dòng
+"Tổng cộng" của CẢ 2 báo cáo "Doanh thu theo ngành hàng" (HCRC) và "(LDTD)",
+đúng ra mỗi báo cáo phải lấy đúng nguồn Chỉ tiêu hàng ngày RIÊNG của mình.
+
+**Đã sửa**: `rp-server/lib/nganhHangBrgRunner.js` — chọn domain Chỉ tiêu
+hàng ngày theo ĐÚNG `targetDomain` của báo cáo đang chạy: báo cáo HCRC
+(`sales-targets-nganhhang-dt`) đọc "Chỉ tiêu HCRC" (`sales-targets-hcrc`),
+báo cáo LDTD (`sales-targets-nganhhang-dt-ldtd`) đọc "Chỉ tiêu Lãnh đạo
+Tập đoàn" (`sales-targets-ldtd`) — 2 nguồn hoàn toàn độc lập, không còn
+dùng chung 1 nguồn như bản 10.17.
+
+Verify: demo PDF bằng dữ liệu giả lập, chạy ĐÚNG hàm thật đã sửa — chọn
+CÙNG 1 siêu thị ở 2 báo cáo cho ra 2 số Chỉ tiêu KHÁC NHAU đúng theo từng
+nguồn (đã gửi người dùng xác nhận trước khi merge); mock test 11/11 PASS
+(bổ sung case LDTD vào `node --check` + test cũ của bản 10.17).
+
 ## 10.17 — Doanh thu theo ngành hàng: dòng "Tổng cộng" lấy Chỉ tiêu theo "Chỉ tiêu HCRC" khi chọn siêu thị
 
 **Theo yêu cầu người dùng** (tiếp nối yêu cầu lớn tạm dừng ở bản 10.1):

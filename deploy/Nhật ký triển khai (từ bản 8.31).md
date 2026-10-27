@@ -14,6 +14,26 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.18 — SỬA bản 10.17: báo cáo HCRC/LDTD phải lấy đúng Chỉ tiêu hàng ngày theo TỪNG nguồn riêng
+
+**Thay đổi**: 1 file rp-server (`lib/nganhHangBrgRunner.js`) — thuần code
+ứng dụng, KHÔNG cần đổi gì ở CSDL/ETL (dùng lại dữ liệu Chỉ tiêu HCRC VÀ
+Chỉ tiêu Lãnh đạo Tập đoàn đã đồng bộ sẵn từ trước).
+
+**Các bước**:
+
+1. `git pull origin main`.
+2. `pm2 restart` đúng tiến trình `rp-server`.
+
+**Kiểm tra**: mở báo cáo "Doanh thu theo ngành hàng (LDTD)" → chọn ĐÚNG 1
+siêu thị ở bộ lọc "Siêu thị" của 1 khối → dòng "Tổng cộng" cột "Chỉ tiêu"
+PHẢI ra đúng số Chỉ tiêu Lãnh đạo Tập đoàn đã nhập cho siêu thị đó (trang
+etl-admin tương ứng), KHÔNG được trùng với số ở trang "Chỉ tiêu HCRC".
+Mở lại báo cáo "Doanh thu theo ngành hàng (HCRC)" gốc, chọn ĐÚNG siêu thị
+đó → PHẢI ra đúng số Chỉ tiêu HCRC (khác số LDTD vừa kiểm tra).
+
+---
+
 ## 10.17 — Doanh thu theo ngành hàng: dòng "Tổng cộng" lấy Chỉ tiêu theo "Chỉ tiêu HCRC" khi chọn siêu thị
 
 **Thay đổi**: 1 file rp-server (`lib/nganhHangBrgRunner.js`) — thuần code
