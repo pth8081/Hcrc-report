@@ -650,11 +650,35 @@ function buildSegmentRows(section, currentMap, lastYearMap, targetMap, nganhHang
   return rows;
 }
 
+// Bản 10.18 (SỬA bản 10.17, theo yêu cầu người dùng — "Nếu chọn theo
+// doanh thu ngành hàng lãnh đạo tập đoàn thì phải lấy thông tin từ cái
+// chỉ tiêu doanh thu hàng ngày của lãnh đạo tập đoàn. Nếu chọn là doanh
+// thu ngành hàng HCRC thì phải lấy cái chỉ tiêu doanh thu hàng ngày của
+// HCRC"): bản 10.17 LUÔN đọc domain `sales-targets-hcrc` cho CẢ 2 báo cáo
+// (sai — báo cáo LDTD phải đọc `sales-targets-ldtd`, chỉ tiêu RIÊNG của
+// Lãnh đạo Tập đoàn, KHÁC HCRC). Chọn domain Chỉ tiêu hàng ngày đúng báo
+// cáo qua CHÍNH `targetDomain` (định nghĩa báo cáo ngành hàng) đang chạy —
+// mỗi báo cáo ngành hàng đã có targetDomain RIÊNG (xem đầu file) nên tra
+// thẳng 1-1, không cần thêm tham số mới.
+const DAILY_STORE_TARGET_DOMAIN_MAP = {
+  'sales-targets-nganhhang-dt': 'sales-targets-hcrc',
+  'sales-targets-nganhhang-dt-ldtd': 'sales-targets-ldtd'
+};
+const DAILY_STORE_TARGET_LABEL_MAP = {
+  'sales-targets-hcrc': 'Chỉ tiêu HCRC',
+  'sales-targets-ldtd': 'Chỉ tiêu Lãnh đạo Tập đoàn'
+};
+
 async function runNganhHangBrgReport(definition, filterValues = {}) {
   const targetDomain = definition.targetDomain;
   if (!targetDomain) {
     throw new Error('Báo cáo thiếu DefinitionJson.targetDomain (vd "sales-targets-nganhhang-dt" hoặc "sales-targets-nganhhang-dt-ldtd") — SourceType=\'nganhHangBrg\' bắt buộc phải khai domain Chỉ tiêu riêng của báo cáo đó.');
   }
+  // null khi targetDomain không có trong map (hiện tại luôn có, vì runner
+  // này chỉ phục vụ đúng 2 báo cáo ngành hàng doanh thu) — khi đó BỎ QUA
+  // override hoàn toàn (giữ hành vi CŨ ở mọi trường hợp), an toàn hơn ném lỗi.
+  const dailyStoreTargetDomain = DAILY_STORE_TARGET_DOMAIN_MAP[targetDomain] || null;
+  const dailyStoreTargetLabel = DAILY_STORE_TARGET_LABEL_MAP[dailyStoreTargetDomain] || 'Chỉ tiêu doanh thu hàng ngày';
   const dwhPool = await getPool('DWH');
   const range = resolveRequestedRange(filterValues);
   const lastYearRange = { from: shiftYearMinus1(range.from), to: shiftYearMinus1(range.to) };
@@ -676,17 +700,22 @@ async function runNganhHangBrgReport(definition, filterValues = {}) {
   // đầy đủ ở định nghĩa hàm.
   const targetMap = await loadNganhHangTargetsProportional(dwhPool, targetDomain, range);
 
-  // Bản 10.17 (theo yêu cầu người dùng — "chọn siêu thị thì sẽ lấy chỉ
-  // tiêu theo siêu thị ở phần chỉ tiêu doanh thu hàng ngày ... theo
-  // HCRC") — đọc "Chỉ tiêu HCRC" (domain `sales-targets-hcrc`, CÙNG bảng
-  // `dwh.SalesTargets`, theo TỪNG SIÊU THỊ/NGÀY — xem lib/salesTargetsReader.js)
-  // 1 LẦN cho CẢ báo cáo, dùng khi tính dòng "Tổng cộng" từng khối bên
-  // dưới (xem stkFilterBySection/hcrcOverrideBySection). EntityCode của
-  // domain này LÀ mã Điểm CHUẨN (MaDiem) — KHÁC STK_ID thô của domain
-  // doanh thu ngành hàng — nên lưu vào Map khoá theo MaDiem, dịch qua
-  // stkLookup lúc dùng.
-  const hcrcStoreTargetRows = await runSalesTargetsBlockRange(dwhPool, 'sales-targets-hcrc', range.from, range.to);
-  const hcrcTargetByMaDiem = new Map(hcrcStoreTargetRows.map((r) => [r.entityCode, r.ChiTieuDoanhThu || 0]));
+  // Bản 10.17/10.18 (theo yêu cầu người dùng — "chọn siêu thị thì sẽ lấy
+  // chỉ tiêu theo siêu thị ở phần chỉ tiêu doanh thu hàng ngày... báo cáo
+  // HCRC lấy Chỉ tiêu HCRC, báo cáo LDTD lấy Chỉ tiêu Lãnh đạo Tập đoàn") —
+  // đọc Chỉ tiêu hàng ngày ĐÚNG domain của BÁO CÁO ĐANG CHẠY
+  // (dailyStoreTargetDomain, suy từ targetDomain ở trên — xem
+  // DAILY_STORE_TARGET_DOMAIN_MAP), CÙNG bảng `dwh.SalesTargets`, theo
+  // TỪNG SIÊU THỊ/NGÀY (xem lib/salesTargetsReader.js), 1 LẦN cho CẢ báo
+  // cáo, dùng khi tính dòng "Tổng cộng" từng khối bên dưới (xem
+  // stkFilterBySection/dailyStoreOverrideBySection). EntityCode của domain
+  // này LÀ mã Điểm CHUẨN (MaDiem) — KHÁC STK_ID thô của domain doanh thu
+  // ngành hàng — nên lưu vào Map khoá theo MaDiem, dịch qua stkLookup lúc
+  // dùng. dailyStoreTargetDomain = null (không có map) -> bỏ qua, Map rỗng.
+  const dailyStoreTargetRows = dailyStoreTargetDomain
+    ? await runSalesTargetsBlockRange(dwhPool, dailyStoreTargetDomain, range.from, range.to)
+    : [];
+  const dailyStoreTargetByMaDiem = new Map(dailyStoreTargetRows.map((r) => [r.entityCode, r.ChiTieuDoanhThu || 0]));
 
   const { isNsoStk, stkLookup } = await loadIsNsoStk();
 
@@ -725,34 +754,36 @@ async function runNganhHangBrgReport(definition, filterValues = {}) {
     nso: intersectSet(nsoStkIds, selectedNso)
   };
 
-  // Bản 10.17 — tính Chỉ tiêu HCRC GHI ĐÈ cho dòng "Tổng cộng" từng khối,
-  // CHỈ khi người dùng CHỦ ĐỘNG chọn ≥1 siêu thị ở ĐÚNG bộ lọc của khối đó
-  // (selectedBrg/Lfl/Nso — mảng NGƯỜI DÙNG chọn, KHÁC stkFilterBySection ở
-  // trên vốn LUÔN là 1 Set dù không chọn gì, không phân biệt được "không
-  // chọn" với "chọn đúng bằng tập mặc định"). KHÔNG chọn gì -> giữ nguyên
-  // hành vi CŨ (null, xem buildSegmentRows) — người dùng xác nhận không
-  // muốn đổi màn hình mặc định. STK_ID chưa khai "Ánh xạ Điểm - STK_ID"
-  // (không tra được mã Điểm) bị BỎ QUA khi cộng (không đóng góp gì, không
-  // chặn cả báo cáo) — cảnh báo riêng cho người dùng tự biết qua `warnings`.
-  const sumHcrcTargetForStks = (stkIds) => {
+  // Bản 10.17/10.18 — tính Chỉ tiêu hàng ngày (đúng domain báo cáo đang
+  // chạy — xem dailyStoreTargetDomain/dailyStoreTargetByMaDiem ở trên) GHI
+  // ĐÈ cho dòng "Tổng cộng" từng khối, CHỈ khi người dùng CHỦ ĐỘNG chọn ≥1
+  // siêu thị ở ĐÚNG bộ lọc của khối đó (selectedBrg/Lfl/Nso — mảng NGƯỜI
+  // DÙNG chọn, KHÁC stkFilterBySection ở trên vốn LUÔN là 1 Set dù không
+  // chọn gì, không phân biệt được "không chọn" với "chọn đúng bằng tập mặc
+  // định"). KHÔNG chọn gì -> giữ nguyên hành vi CŨ (null, xem
+  // buildSegmentRows) — người dùng xác nhận không muốn đổi màn hình mặc
+  // định. STK_ID chưa khai "Ánh xạ Điểm - STK_ID" (không tra được mã Điểm)
+  // bị BỎ QUA khi cộng (không đóng góp gì, không chặn cả báo cáo) — cảnh
+  // báo riêng cho người dùng tự biết qua `warnings`.
+  const sumDailyStoreTargetForStks = (stkIds) => {
     let sum = 0;
     let unmatched = 0;
     for (const stk of stkIds) {
       const maDiem = stkLookup.get(String(stk))?.maDiem;
       if (!maDiem) { unmatched++; continue; }
-      sum += hcrcTargetByMaDiem.get(maDiem) || 0;
+      sum += dailyStoreTargetByMaDiem.get(maDiem) || 0;
     }
     return { sum, unmatched };
   };
-  const hcrcOverrideBySection = {};
-  const hcrcOverrideWarnings = [];
+  const dailyStoreOverrideBySection = {};
+  const dailyStoreOverrideWarnings = [];
   for (const [key, selected] of [['brg', selectedBrg], ['lfl', selectedLfl], ['nso', selectedNso]]) {
-    if (!selected.length) { hcrcOverrideBySection[key] = null; continue; }
-    const { sum, unmatched } = sumHcrcTargetForStks(selected);
-    hcrcOverrideBySection[key] = sum;
+    if (!selected.length || !dailyStoreTargetDomain) { dailyStoreOverrideBySection[key] = null; continue; }
+    const { sum, unmatched } = sumDailyStoreTargetForStks(selected);
+    dailyStoreOverrideBySection[key] = sum;
     if (unmatched > 0) {
       const sectionLabel = SECTIONS.find((s) => s.key === key).headerLabel;
-      hcrcOverrideWarnings.push(`Khối "${sectionLabel}": ${unmatched} mã siêu thị đã chọn chưa khai "Ánh xạ Điểm - STK_ID", bỏ qua khi cộng Chỉ tiêu HCRC vào dòng Tổng cộng (số có thể thấp hơn thực tế).`);
+      dailyStoreOverrideWarnings.push(`Khối "${sectionLabel}": ${unmatched} mã siêu thị đã chọn chưa khai "Ánh xạ Điểm - STK_ID", bỏ qua khi cộng ${dailyStoreTargetLabel} vào dòng Tổng cộng (số có thể thấp hơn thực tế).`);
     }
   }
 
@@ -792,7 +823,7 @@ async function runNganhHangBrgReport(definition, filterValues = {}) {
     const stkFilter = stkFilterBySection[section.key];
     const currentMap = groupByDeptId(currentRows, stkFilter);
     const lastYearMap = groupByDeptId(lastYearRows, stkFilter);
-    rows = rows.concat(buildSegmentRows(section, currentMap, lastYearMap, targetMap, nganhHangToShow, excludeHongHuy, hcrcOverrideBySection[section.key]));
+    rows = rows.concat(buildSegmentRows(section, currentMap, lastYearMap, targetMap, nganhHangToShow, excludeHongHuy, dailyStoreOverrideBySection[section.key]));
   }
 
   const columns = describeColumns(COLUMNS);
@@ -802,7 +833,7 @@ async function runNganhHangBrgReport(definition, filterValues = {}) {
     ...(excludeHongHuy
       ? ['Bộ lọc "Bỏ hàng hỏng hủy" đang BẬT — cột "Giá trị hàng hỏng hủy" vẫn hiện đúng số thật, nhưng Lãi gộp (Giá trị/Tỷ lệ, cả % so chỉ tiêu/% so cùng kỳ năm trước) KHÔNG trừ hàng hỏng hủy nữa (= margin thô theo doanh thu).']
       : []),
-    ...hcrcOverrideWarnings
+    ...dailyStoreOverrideWarnings
   ];
 
   return {
