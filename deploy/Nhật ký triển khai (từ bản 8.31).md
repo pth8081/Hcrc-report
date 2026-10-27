@@ -14,6 +14,25 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.15 — SỬA LỖI THẬT: thu hồi voucher Fuji luôn báo lỗi 500 ("OUTPUT clause without INTO clause")
+
+**Thay đổi**: 2 file api-server (`lib/voucherRedeemService.js`,
+`lib/realtimeWriteEngine.js`) — thuần SQL trong code, KHÔNG đổi CSDL/bảng
+đối tác, KHÔNG cần DBA Fuji làm gì.
+
+**Các bước**:
+
+1. `git pull origin main`.
+2. `pm2 restart hcrc-api-server`.
+
+**Kiểm tra**: dùng app voucher quét 1 mã voucher Fuji CÒN HẠN và bấm thu
+hồi — PHẢI thành công (trước bản này luôn báo lỗi 500 "String or binary
+data..."/lỗi SQL trigger, xem log "Giám sát Log CSDL"/trang "Log" ở
+api-admin không còn thấy lỗi "cannot have any enabled triggers" lặp lại
+nữa sau thời điểm deploy).
+
+---
+
 ## 10.14 — ETL: 5 mục "Chỉ tiêu" bắt buộc quyền SỬA mới thấy (giống 4 mục "Cấu hình khác")
 
 **Thay đổi**: 1 file frontend etl-admin (`src/components/Layout.jsx`) —

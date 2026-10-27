@@ -42,6 +42,46 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.15 — SỬA LỖI THẬT: thu hồi voucher Fuji luôn báo lỗi 500 ("OUTPUT clause without INTO clause")
+
+**Theo yêu cầu người dùng**: "Hệ thống fuji thu hồi voucher đang báo lỗi
+ntn bạn xem điều chỉnh lại phần redeem cho fuji" — kèm ảnh log lỗi lặp lại
+liên tục (nhiều lượt trong ngày) cho `POST /api/v1/vouchers/fuji/redeem`.
+
+**Nguyên nhân (xác định được chính xác từ nguyên văn lỗi SQL Server trong
+log)**: *"The target table 'PMCRDINF' of the DML statement cannot have any
+enabled triggers if the statement contains an OUTPUT clause without INTO
+clause."* — đây là giới hạn CỦA SQL SERVER: KHÔNG được dùng `OUTPUT ...`
+(không có `INTO`) trên câu UPDATE/INSERT/DELETE nếu bảng đích đang có BẤT
+KỲ trigger nào đang BẬT, bất kể trigger đó làm gì. CSDL Fuji có bật ít
+nhất 1 trigger trên bảng `PMCRDINF` (CSDL HCRC gốc không có trigger này,
+nên trước đây chưa từng gặp lỗi) — khớp đúng thread troubleshooting lỗi
+403 trước đó (đã loại trừ hết nguyên nhân cấu hình quyền/IP, hoá ra lỗi
+nằm Ở BƯỚC SAU, lúc redeem thật chạy câu UPDATE).
+
+**Đã sửa**: đổi câu `UPDATE ... OUTPUT INSERTED.col AS alias WHERE ...`
+thành `UPDATE ... OUTPUT INSERTED.col INTO @bảng_biến_tạm WHERE ...; SELECT
+... FROM @bảng_biến_tạm;` — giới hạn trên CHỈ áp dụng khi OUTPUT trả thẳng
+ra client, KHÔNG áp dụng khi ghi vào bảng biến tạm, nên né được hoàn toàn
+mà KHÔNG cần đổi/biết gì về trigger phía Fuji. Áp dụng cho:
+- `api-server/lib/voucherRedeemService.js` (`redeemVoucher()`) — lỗi
+  người dùng báo.
+- `api-server/lib/realtimeWriteEngine.js` (`runRedeem()`, engine endpoint
+  ghi tổng quát admin tự cấu hình bảng qua api-admin) — CÙNG lỗi tiềm ẩn
+  cho BẤT KỲ bảng đối tác nào có trigger, sửa trước phòng ngừa dù chưa có
+  báo cáo lỗi (cùng kỹ thuật, cùng rủi ro).
+
+Không đổi kiểu dữ liệu trả về (`DECIMAL(18,2)`/`NVARCHAR(50)` khớp đúng
+kiểu cột đích cuối cùng ở `api.VoucherRedemptions`/kiểu tham số so khớp —
+không mất thêm độ chính xác nào so với trước). Không cần DBA/đối tác làm
+gì — sửa hoàn toàn ở tầng ứng dụng.
+
+Verify: mock test (giả lập pool trả lỗi/kết quả theo đúng câu SQL mới) —
+8 assertion: câu UPDATE không còn `OUTPUT` trần trước `WHERE`, có đúng
+`OUTPUT ... INTO @Updated` + `DECLARE @Updated TABLE`, kết quả
+`redeemVoucher()`/`runRedeem()` vẫn parse đúng y hệt trước (không đổi
+hành vi) — PASS cả 2 file; `node --check` qua.
+
 ## 10.14 — ETL: 5 mục "Chỉ tiêu" bắt buộc quyền SỬA mới thấy (giống 4 mục "Cấu hình khác")
 
 **Theo yêu cầu người dùng**: "không phải chỉ xem các mục chỉ tiêu đâu, cho

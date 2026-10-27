@@ -144,6 +144,21 @@ async function checkVoucher(code, configKey = 'default') {
 // Đổi STATUS 1(chưa dùng) -> 0(đã dùng) — atomic (UPDATE...OUTPUT...WHERE,
 // cùng kỹ thuật đã kiểm chứng ở lib/realtimeWriteEngine.js:runRedeem) + ghi
 // api.VoucherRedemptions. Trả {result: 'redeemed'|'alreadyUsed'|'notFound', ...}.
+//
+// SỬA bản 10.15 (SỬA LỖI THẬT, báo cáo người dùng — voucher Fuji thu hồi
+// LUÔN báo lỗi 500, log SQL thật: "The target table 'PMCRDINF' of the DML
+// statement cannot have any enabled triggers if the statement contains an
+// OUTPUT clause without INTO clause.") — SQL Server CẤM dùng `OUTPUT ...`
+// (không có `INTO`) trên UPDATE/INSERT/DELETE nếu bảng đích đang có BẤT KỲ
+// trigger nào đang BẬT — không liên quan tới nội dung trigger đó làm gì.
+// CSDL Fuji có bật ít nhất 1 trigger trên `PMCRDINF` (CSDL HCRC gốc không
+// có, nên trước đây chưa từng gặp lỗi này). Khắc phục: đổi sang `OUTPUT ...
+// INTO @bảng_biến_tạm` — quy tắc trên CHỈ áp dụng cho OUTPUT trả THẲNG ra
+// client, KHÔNG áp dụng khi ghi vào 1 bảng biến tạm, nên né được giới hạn
+// hoàn toàn mà KHÔNG cần biết/đổi gì về trigger phía Fuji. Kiểu dữ liệu 2
+// cột tạm (`DECIMAL(18,2)`/`NVARCHAR(50)`) khớp ĐÚNG kiểu cột đích cuối
+// cùng ở `api.VoucherRedemptions` (xem INSERT bên dưới) — không mất thêm
+// độ chính xác nào so với trước.
 async function redeemVoucher(barcode, consumerId, configKey = 'default') {
   const dataSourceId = await loadDataSourceId(configKey);
   const pool = await getPoolForDataSource(dataSourceId);
@@ -154,9 +169,11 @@ async function redeemVoucher(barcode, consumerId, configKey = 'default') {
     .input('cardId', sql.NVarChar(24), cardId)
     .input('usedValue', sql.Int, USED_VALUE)
     .query(`
+      DECLARE @Updated TABLE (ValueAmt DECIMAL(18,2), StkId NVARCHAR(50));
       UPDATE ${TABLE} SET ${STATUS_COL} = @usedValue
-      OUTPUT INSERTED.VALUE_AMT AS ValueAmt, INSERTED.STK_ID AS StkId
-      WHERE ${KEY_COL} = @cardId AND (${STATUS_COL} <> @usedValue OR ${STATUS_COL} IS NULL)
+      OUTPUT INSERTED.VALUE_AMT, INSERTED.STK_ID INTO @Updated
+      WHERE ${KEY_COL} = @cardId AND (${STATUS_COL} <> @usedValue OR ${STATUS_COL} IS NULL);
+      SELECT ValueAmt, StkId FROM @Updated;
     `);
 
   if (updateResult.recordset.length > 0) {

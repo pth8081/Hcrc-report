@@ -49,6 +49,16 @@ async function loadEndpointDef(endpoint) {
 // lại rơi vào nhánh "không đổi dòng nào" bên dưới — không có cửa sổ race
 // giữa "đọc trạng thái" và "ghi trạng thái" như cách làm SELECT rồi mới
 // UPDATE riêng 2 câu lệnh.
+//
+// SỬA bản 10.15 (cùng lỗi/cùng cách sửa đã áp dụng cho
+// lib/voucherRedeemService.js — SQL Server CẤM `OUTPUT ...` không có
+// `INTO` trên UPDATE nếu bảng đích đang có BẤT KỲ trigger nào đang BẬT, dù
+// trigger đó không liên quan gì tới cột đang đổi. Endpoint ghi này chạy
+// trên bảng CỦA ĐỐI TÁC (admin tự cấu hình qua api-admin, bất kỳ bảng
+// nào) — không cách nào biết trước bảng đó có trigger hay không, nên LUÔN
+// dùng `OUTPUT ... INTO @bảng_biến_tạm` để né giới hạn này vô điều kiện,
+// không cần đối tác xác nhận gì thêm) — `KeyValue` ép kiểu NVARCHAR(200)
+// khớp đúng kiểu tham số `@keyValue` đang dùng để so khớp.
 async function runRedeem(endpoint, keyValue) {
   const def = await loadEndpointDef(endpoint);
   const pool = await getPoolForDataSource(def.DataSourceId);
@@ -60,9 +70,11 @@ async function runRedeem(endpoint, keyValue) {
   updateRequest.input('keyValue', sql.NVarChar(200), String(keyValue));
   updateRequest.input('usedValue', sql.NVarChar(50), def.UsedValue);
   const updateResult = await updateRequest.query(`
+    DECLARE @Updated TABLE (KeyValue NVARCHAR(200));
     UPDATE ${table} SET ${statusCol} = @usedValue
-    OUTPUT INSERTED.${keyCol} AS KeyValue
-    WHERE ${keyCol} = @keyValue AND (${statusCol} <> @usedValue OR ${statusCol} IS NULL)
+    OUTPUT INSERTED.${keyCol} INTO @Updated
+    WHERE ${keyCol} = @keyValue AND (${statusCol} <> @usedValue OR ${statusCol} IS NULL);
+    SELECT KeyValue FROM @Updated;
   `);
   if (updateResult.recordset.length > 0) return { result: 'updated' };
 
