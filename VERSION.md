@@ -42,6 +42,38 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.19 — SỬA LỖI THẬT: modal (vd "Gán quyền") bị bảng dữ liệu phía sau xuyên thủng lên trên, trên mobile
+
+**Theo yêu cầu người dùng**: chụp màn hình trang "Vai trò" (etl-admin)
+trên điện thoại — modal "Gán quyền" hiện chữ/nút của BẢNG "Vai trò" phía
+sau đè chồng lộn xộn lên trên bảng quyền ("Trang"/"Xem"/"Sửa-Xoá"), không
+đọc/thao tác được. Khác HẲN lỗi đã sửa ở bản 10.8 (modal không phủ toàn
+màn hình) — modal ở đây ĐÃ render qua Portal đúng, nằm đúng vị trí cuối
+`<body>`.
+
+**Nguyên nhân thật**: `.modal` (CSS dùng chung 3 app) không khai
+`z-index` (mặc định = `auto`), trong khi 2 cột GHIM CỐ ĐỊNH của
+`DataTable` khi cuộn ngang trên mobile (nút Sửa/Xoá bên phải, checkbox
+chọn dòng bên trái — bản 9.05/8.62) có `z-index: 1` riêng. Theo đúng quy
+tắc CSS, phần tử có z-index CỤ THỂ (dù chỉ 1) LUÔN vẽ đè lên phần tử
+z-index:auto, BẤT KỂ thứ tự DOM — nên 2 cột ghim của bảng "Vai trò" phía
+sau (đang hiển thị dưới lớp nền mờ của modal) xuyên thủng lên trên modal,
+dù modal đã nằm sau nó trong DOM. Lỗi áp dụng cho MỌI modal mở trên MỌI
+trang có bảng dữ liệu cuộn ngang phía sau — không riêng trang "Vai trò".
+
+**Đã sửa**: thêm `z-index: 100` vào `.modal` (`etl-admin`/`api-admin`/
+`rp-user` — đều dùng chung 1 quy ước CSS) — cao hơn MỌI z-index khác đã
+có trong cả 3 app (cao nhất trước đó là 60). Xem chi tiết + ghi chú lâu
+dài trong `CLAUDE.md` (bổ sung vào mục quy ước modal Portal bản 10.8).
+
+Verify: dựng lại ĐÚNG trang "Vai trò" bằng dev server thật + Playwright
+(mock API, không cần CSDL) ở khung hình điện thoại 390×844, tái hiện
+ĐÚNG lỗi người dùng chụp (xác nhận bug có thật trong code, không phải do
+bản deploy cũ) — sau khi thêm `z-index: 100`, chụp lại: modal "Gán
+quyền" hiện sạch sẽ, không còn bị bảng phía sau xuyên qua; `elementFromPoint`
+xác nhận `.modal` luôn là phần tử trên cùng tại mọi điểm trong vùng modal.
+`npm run build` sạch cả 3 app.
+
 ## 10.18 — SỬA bản 10.17: báo cáo HCRC/LDTD phải lấy đúng Chỉ tiêu hàng ngày theo TỪNG nguồn riêng
 
 **Theo yêu cầu người dùng**: "Cái này phải áp dụng cho phần báo cáo doanh

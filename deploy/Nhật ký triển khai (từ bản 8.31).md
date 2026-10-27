@@ -14,6 +14,29 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.19 — SỬA LỖI THẬT: modal (vd "Gán quyền") bị bảng dữ liệu phía sau xuyên thủng lên trên, trên mobile
+
+**Thay đổi**: CSS 3 file (`etl-admin/src/styles.css`,
+`api-admin/src/styles.css`, `rp-user/src/styles.css`) — thuần CSS,
+KHÔNG đổi CSDL/ETL/backend nào.
+
+**Các bước**:
+
+1. `git pull origin main`.
+2. Build lại và deploy 3 frontend như bình thường (vd `npm run build` ở
+   từng app rồi copy `dist/` lên đúng nơi phục vụ tĩnh, hoặc đúng quy
+   trình CI/CD hiện có của server).
+
+**Kiểm tra**: mở etl-admin trên ĐIỆN THOẠI (hoặc trình duyệt thu nhỏ bề
+rộng ~390px) → trang "Vai trò" → bấm "Gán quyền" ở 1 vai trò bất kỳ (ưu
+tiên vai trò có TÊN DÀI, nằm GẦN CUỐI danh sách — dễ tái hiện lỗi nhất) →
+PHẢI thấy bảng "Trang/Xem/Sửa-Xoá" hiện SẠCH, không còn chữ/nút của bảng
+"Vai trò" phía sau xuyên qua. Kiểm tra tương tự ở BẤT KỲ modal nào khác
+mở trên trang có bảng dữ liệu cuộn ngang phía sau (api-admin/rp-user
+cũng có cùng quy ước CSS, nên cũng cần kiểm tra nhanh 1-2 modal mỗi app).
+
+---
+
 ## 10.18 — SỬA bản 10.17: báo cáo HCRC/LDTD phải lấy đúng Chỉ tiêu hàng ngày theo TỪNG nguồn riêng
 
 **Thay đổi**: 1 file rp-server (`lib/nganhHangBrgRunner.js`) — thuần code

@@ -64,7 +64,18 @@ legend { font-size: 12px; color: var(--ink-soft); padding: 0 6px; }
 .fk-suggestions button { background: var(--accent-soft); color: var(--accent); border: none; padding: 3px 8px; font-size: 11px; }
 .inline-actions { display: flex; gap: 8px; }
 
-.modal { position: fixed; inset: 0; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; }
+/* z-index: 100 (bản 10.19, theo lỗi thật người dùng chụp màn hình — modal
+   "Gán quyền" bị bảng "Vai trò" phía sau xuyên thủng lên trên): .modal
+   không có z-index trước đây (= "auto") trong khi CÁC CỘT GHIM CỐ ĐỊNH của
+   bảng dữ liệu (.data-table__actions-cell/.data-table__sticky-start-cell,
+   z-index:1 — xem DataTable.jsx) có z-index RIÊNG. Theo đúng quy tắc CSS,
+   phần tử có z-index CỤ THỂ (dù chỉ là 1) LUÔN vẽ ĐÈ LÊN phần tử z-index:
+   auto, BẤT KỂ thứ tự trong DOM/thời điểm render — nên 2 cột ghim của bảng
+   phía sau (vẫn đang hiển thị dưới modal) xuyên thủng lên trên modal, đặc
+   biệt rõ trên điện thoại (bảng nhiều dòng, modal cũng dài, 2 lớp chồng
+   nhau nhiều chỗ). 100 > mọi z-index khác đã có trong cả 3 app (cao nhất
+   trước đó là 60, xem .toast/.sidebar) — đảm bảo modal LUÔN ở trên cùng. */
+.modal { position: fixed; inset: 0; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; z-index: 100; }
 .modal-body { background: var(--surface); padding: 24px; border-radius: 6px; width: min(420px, 92vw); max-height: 80vh; overflow-y: auto; }
 .modal-actions { display: flex; gap: 8px; margin-top: 16px; align-items: center; }
 .access-table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 13.5px; }

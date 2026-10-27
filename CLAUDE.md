@@ -316,7 +316,27 @@ Lưu ý:
   trang — luôn thay bằng `<Modal>...</Modal>` (chỉ đổi thẻ bọc NGOÀI CÙNG,
   `<div className="modal-body">` bên trong giữ nguyên y hệt).
 - CSS `.modal`/`.modal-body` trong `styles.css` GIỮ NGUYÊN không đổi — chỉ
-  đổi NƠI RENDER (Portal), không đổi giao diện/kích thước.
+  đổi NƠI RENDER (Portal), không đổi giao diện/kích thước. **NGOẠI LỆ duy
+  nhất**: `.modal` PHẢI có `z-index: 100` (thêm ở bản 10.19 — xem lưu ý
+  ngay dưới đây) — nếu copy mẫu `.modal`/`.modal-body` từ bản SAU 10.19,
+  giữ nguyên dòng `z-index: 100` đó, KHÔNG xoá.
+- `.modal` PHẢI có `z-index: 100` (bản 10.19, phát hiện lỗi thật khác trên
+  mobile — modal "Gán quyền" ở trang "Vai trò" bị CHÍNH bảng dữ liệu phía
+  sau xuyên thủng lên trên, dù đã render qua Portal đúng theo mục trên).
+  Nguyên nhân KHÁC HẲN lỗi bản 10.8 (không phải do Portal) — Portal đã làm
+  đúng, modal nằm đúng ở cuối `document.body`. Lỗi THẬT SỰ: `.modal` không
+  khai `z-index` (= `auto`), trong khi 2 cột ghim cố định của `DataTable`
+  khi cuộn ngang trên mobile (`.data-table__actions-cell`/
+  `.data-table__sticky-start-cell`, xem mục "Cột ... ghim cố định bên
+  phải" ở `DataTable.jsx`/`styles.css`) có `z-index: 1` RIÊNG. Theo ĐÚNG
+  quy tắc CSS: phần tử có `z-index` CỤ THỂ (dù chỉ là số nhỏ như 1) LUÔN
+  vẽ ĐÈ LÊN phần tử `z-index: auto`, BẤT KỂ thứ tự DOM/thời điểm render —
+  nên 2 cột ghim của bảng DỮ LIỆU PHÍA SAU (vẫn đang hiển thị dưới lớp
+  nền mờ của modal) xuyên thủng lên TRÊN modal, dù modal portal đúng vào
+  cuối `<body>`. Sửa bằng cách thêm `z-index: 100` vào `.modal` (cao hơn
+  MỌI z-index khác đã dùng trong cả 3 app — cao nhất trước đó là 60, xem
+  `.toast`/`.sidebar`) — đảm bảo modal LUÔN vẽ trên cùng bất kể phần tử
+  nào khác trên trang có khai z-index riêng.
 - `document.body.style.overflow = 'hidden'` khi mở — nếu trang có NHIỀU
   modal lồng nhau mở cùng lúc (hiếm, nhưng có thể xảy ra), mỗi `Modal` tự
   lưu/khôi phục đúng giá trị `overflow` TRƯỚC KHI nó mở (không ghi đè nhau

@@ -206,7 +206,12 @@ button:disabled, button:disabled:hover {
 .pager { display: flex; align-items: center; gap: 12px; margin-top: 12px; font-size: 13px; }
 
 /* Modal */
-.modal { position: fixed; inset: 0; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; }
+/* z-index: 100 (bản 10.19) — xem chú thích đầy đủ ở etl-admin/src/styles.css:
+   không có z-index trước đây khiến các cột ghim cố định của bảng dữ liệu
+   (z-index:1/2/3) vẽ ĐÈ LÊN modal theo đúng quy tắc CSS (z-index cụ thể
+   luôn thắng z-index:auto, bất kể thứ tự DOM). 100 cao hơn mọi z-index
+   khác đã có trong cả 3 app (cao nhất trước đó 60). */
+.modal { position: fixed; inset: 0; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; z-index: 100; }
 .modal-body { background: var(--surface); padding: 24px; border-radius: 6px; width: min(420px, 92vw); max-height: 80vh; overflow-y: auto; }
 .modal-actions { display: flex; gap: 8px; margin-top: 16px; }
 
