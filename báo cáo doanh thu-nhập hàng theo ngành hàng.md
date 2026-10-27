@@ -981,3 +981,67 @@ Giá trị → % so cùng kỳ năm trước**.
 
 **Việc cần làm trên server**: `git pull origin main` rồi `pm2 restart`
 đúng tiến trình `rp-server`.
+
+## 19. Dòng "Tổng cộng" lấy Chỉ tiêu từ "Chỉ tiêu HCRC" khi chọn siêu thị — bản 10.17
+
+**Theo yêu cầu người dùng** (tiếp nối yêu cầu lớn đã tạm dừng ở bản 10.1,
+mục 2 — "chọn siêu thị thì sẽ lấy chỉ tiêu theo siêu thị ở phần chỉ tiêu
+doanh thu hàng ngày của siêu thị theo lãnh đạo tập đoàn và HCC"): khi
+người dùng chọn 1 hoặc nhiều siêu thị cụ thể ở bộ lọc "Siêu thị" của 1
+khối (BRG/LFL/NSO — xem mục 13), dòng "Tổng cộng" của ĐÚNG khối đó lấy
+Chỉ tiêu từ "Chỉ tiêu HCRC" (`sales-targets-hcrc`, chỉ tiêu doanh thu
+THEO TỪNG SIÊU THỊ/NGÀY, trang etl-admin "Chỉ tiêu HCRC" — khác hẳn
+`sales-targets-nganhhang-dt` theo NGÀNH HÀNG dùng cho các dòng ngành hàng
+phía trên) — thay vì cộng các dòng ngành hàng đã nhập Chỉ tiêu riêng.
+
+**Lý do cần tính năng này**: Chỉ tiêu theo ngành hàng do 1 nhóm nhập,
+theo TỪNG NGÀNH HÀNG (không theo siêu thị) — khi người dùng chỉ muốn xem
+1 siêu thị cụ thể, không có cách nào đối chiếu Chỉ tiêu của ĐÚNG siêu thị
+đó, vì Chỉ tiêu ngành hàng vốn là số TOÀN CÔNG TY. Chỉ tiêu HCRC (đã có
+sẵn, nhập theo từng siêu thị/ngày cho báo cáo "Doanh thu hàng ngày") cho
+phép đối chiếu đúng mục tiêu của RIÊNG siêu thị đang xem.
+
+**Giới hạn đã xác nhận với người dùng (quan trọng)**: Chỉ tiêu HCRC CHỈ
+có 1 số TỔNG doanh thu/siêu thị/ngày — KHÔNG tách Bán lẻ/Bán buôn như Chỉ
+tiêu ngành hàng. Vì vậy khi override kích hoạt, 2 cột "Chỉ tiêu — Bán lẻ"/
+"Chỉ tiêu — Bán buôn" của dòng Tổng cộng về "—" (không giữ số CŨ — sẽ
+không còn khớp Total mới, gây hiểu lầm).
+
+**Quy tắc chính xác**:
+- **KHÔNG chọn siêu thị nào** ở bộ lọc của khối đó (mặc định = toàn bộ
+  siêu thị trong khối, màn hình phổ biến nhất) — **GIỮ NGUYÊN hành vi
+  CŨ** (Chỉ tiêu Tổng cộng = cộng các dòng ngành hàng phía trên như trước
+  giờ) — người dùng xác nhận không muốn đổi số liệu màn hình mặc định.
+- **Chọn ĐÚNG 1 siêu thị** — Chỉ tiêu Tổng cộng = Chỉ tiêu HCRC của ĐÚNG
+  siêu thị đó, trong khoảng ngày đang xem.
+- **Chọn NHIỀU siêu thị** — Chỉ tiêu Tổng cộng = CỘNG DỒN Chỉ tiêu HCRC
+  của TẤT CẢ siêu thị đã chọn.
+- **Chỉ áp dụng ở dòng "Tổng cộng"** — các dòng ngành hàng phía trên
+  KHÔNG bị ảnh hưởng (giữ nguyên Chỉ tiêu đã nhập riêng cho ngành hàng
+  đó, hoặc "—" nếu chưa nhập).
+- Áp dụng **độc lập theo từng khối** — chọn siêu thị ở bộ lọc khối BRG
+  không ảnh hưởng Tổng cộng khối LFL/NSO, và ngược lại.
+- Siêu thị đã chọn nhưng CHƯA khai "Ánh xạ Điểm - STK_ID" (không tra
+  được mã Điểm chuẩn) bị BỎ QUA khi cộng (không đóng góp gì vào tổng,
+  không chặn cả báo cáo) — báo cáo hiện cảnh báo riêng (`warnings`) cho
+  người dùng tự biết số có thể thấp hơn thực tế.
+
+**Đã sửa**: `rp-server/lib/nganhHangBrgRunner.js` — đọc thêm Chỉ tiêu
+HCRC (`sales-targets-hcrc`) qua hàm dùng chung
+`lib/salesTargetsReader.js:runSalesTargetsBlockRange()` (đã có sẵn, dùng
+cho báo cáo "Doanh thu hàng ngày" HCRC/Lãnh đạo Tập đoàn — tái dùng
+nguyên, không viết lại). EntityCode của domain `sales-targets-hcrc` LÀ mã
+Điểm chuẩn (MaDiem) — KHÁC STK_ID thô của domain doanh thu ngành hàng —
+nên dịch qua `stkLookup` (đã có sẵn trong file, dùng để phân loại
+LFL/NSO) trước khi so khớp. Áp dụng cho CẢ "Doanh thu theo ngành hàng
+(HCRC)" lẫn "(LDTD)" (dùng chung 1 runner).
+
+Verify: mock test (giả lập 2 siêu thị, 1 ngành hàng, Chỉ tiêu HCRC riêng
+cho từng siêu thị) — 9 assertion: không chọn gì giữ nguyên "—" như cũ;
+chọn 1 siêu thị ra đúng Chỉ tiêu HCRC siêu thị đó, Bán lẻ/Bán buôn về
+"—", % so chỉ tiêu tính lại đúng mẫu số mới; chọn 2 siêu thị cộng dồn
+đúng; dòng ngành hàng không bị ảnh hưởng — PASS 9/9; `node --check` qua.
+
+**Việc cần làm trên server**: `git pull origin main` rồi `pm2 restart`
+đúng tiến trình `rp-server`. Không cần đổi CSDL/ETL gì thêm (Chỉ tiêu
+HCRC đã đồng bộ sẵn cho báo cáo "Doanh thu hàng ngày" từ trước).

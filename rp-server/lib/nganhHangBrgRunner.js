@@ -81,6 +81,7 @@ const { loadNsoMaDiemSet } = require('./nsoStores');
 const { describeColumns } = require('./reportEngine');
 const { assignSttIfPresent } = require('./reportCellFormat');
 const { loadLatestDimensionsForDomain } = require('./reportFactsHelpers');
+const { runSalesTargetsBlockRange } = require('./salesTargetsReader');
 
 const DOANHTHU_DOMAIN = 'doanhthu_nganhhang';
 
@@ -524,7 +525,16 @@ function computeRowFields({ thucDat, lastYearThucDat, hasLastYear, giaTriHongHuy
   };
 }
 
-function buildSegmentRows(section, currentMap, lastYearMap, targetMap, nganhHangList, excludeHongHuy) {
+// overrideChiTieuTotal (bản 10.17, theo yêu cầu người dùng — "chọn siêu
+// thị thì sẽ lấy chỉ tiêu theo siêu thị ở phần chỉ tiêu doanh thu hàng
+// ngày ... theo HCRC") — null = hành vi CŨ (Tổng cộng = cộng Chỉ tiêu của
+// các dòng ngành hàng phía trên, không đổi gì); số (kể cả 0) = GHI ĐÈ Chỉ
+// tiêu Total của dòng "Tổng cộng" đúng khối này bằng tổng "Chỉ tiêu HCRC"
+// (domain `sales-targets-hcrc`, theo TỪNG SIÊU THỊ/NGÀY) của (các) siêu
+// thị người dùng đã chọn ở bộ lọc riêng của khối đó — xem
+// runNganhHangBrgReport() nơi tính giá trị này. CHỈ áp dụng ở dòng Tổng
+// cộng, KHÔNG đụng từng dòng ngành hàng (đúng yêu cầu người dùng).
+function buildSegmentRows(section, currentMap, lastYearMap, targetMap, nganhHangList, excludeHongHuy, overrideChiTieuTotal) {
   const rows = [{ __isSectionHeader: true, __sectionLabel: section.headerLabel, __sectionColor: section.color }];
 
   const sums = {
@@ -617,6 +627,19 @@ function buildSegmentRows(section, currentMap, lastYearMap, targetMap, nganhHang
   delete totalFields.__netLaiGopLY;
   delete totalFields.__doanhThuCuoiTotal;
 
+  // Bản 10.17 — xem chú thích tham số overrideChiTieuTotal ở đầu hàm. Chỉ
+  // tiêu HCRC không tách Bán lẻ/Bán buôn nên 2 cột đó (cả Chỉ tiêu lẫn %
+  // so chỉ tiêu) về "—" thay vì giữ số CŨ (sẽ không còn khớp Total mới,
+  // gây hiểu lầm số liệu sai lệch).
+  if (overrideChiTieuTotal != null) {
+    totalFields.chiTieuTotal = overrideChiTieuTotal;
+    totalFields.chiTieuBanLe = null;
+    totalFields.chiTieuBanBuon = null;
+    totalFields.tyLeDatTotal = pctOrNull(sums.thucDat.total, overrideChiTieuTotal);
+    totalFields.tyLeDatBanLe = null;
+    totalFields.tyLeDatBanBuon = null;
+  }
+
   rows.push({
     maNganhHang: null, tenNganhHang: section.totalLabel,
     ...totalFields,
@@ -653,7 +676,19 @@ async function runNganhHangBrgReport(definition, filterValues = {}) {
   // đầy đủ ở định nghĩa hàm.
   const targetMap = await loadNganhHangTargetsProportional(dwhPool, targetDomain, range);
 
-  const { isNsoStk } = await loadIsNsoStk();
+  // Bản 10.17 (theo yêu cầu người dùng — "chọn siêu thị thì sẽ lấy chỉ
+  // tiêu theo siêu thị ở phần chỉ tiêu doanh thu hàng ngày ... theo
+  // HCRC") — đọc "Chỉ tiêu HCRC" (domain `sales-targets-hcrc`, CÙNG bảng
+  // `dwh.SalesTargets`, theo TỪNG SIÊU THỊ/NGÀY — xem lib/salesTargetsReader.js)
+  // 1 LẦN cho CẢ báo cáo, dùng khi tính dòng "Tổng cộng" từng khối bên
+  // dưới (xem stkFilterBySection/hcrcOverrideBySection). EntityCode của
+  // domain này LÀ mã Điểm CHUẨN (MaDiem) — KHÁC STK_ID thô của domain
+  // doanh thu ngành hàng — nên lưu vào Map khoá theo MaDiem, dịch qua
+  // stkLookup lúc dùng.
+  const hcrcStoreTargetRows = await runSalesTargetsBlockRange(dwhPool, 'sales-targets-hcrc', range.from, range.to);
+  const hcrcTargetByMaDiem = new Map(hcrcStoreTargetRows.map((r) => [r.entityCode, r.ChiTieuDoanhThu || 0]));
+
+  const { isNsoStk, stkLookup } = await loadIsNsoStk();
 
   const lflStkIds = new Set();
   const nsoStkIds = new Set();
@@ -689,6 +724,37 @@ async function runNganhHangBrgReport(definition, filterValues = {}) {
     lfl: intersectSet(lflStkIds, selectedLfl),
     nso: intersectSet(nsoStkIds, selectedNso)
   };
+
+  // Bản 10.17 — tính Chỉ tiêu HCRC GHI ĐÈ cho dòng "Tổng cộng" từng khối,
+  // CHỈ khi người dùng CHỦ ĐỘNG chọn ≥1 siêu thị ở ĐÚNG bộ lọc của khối đó
+  // (selectedBrg/Lfl/Nso — mảng NGƯỜI DÙNG chọn, KHÁC stkFilterBySection ở
+  // trên vốn LUÔN là 1 Set dù không chọn gì, không phân biệt được "không
+  // chọn" với "chọn đúng bằng tập mặc định"). KHÔNG chọn gì -> giữ nguyên
+  // hành vi CŨ (null, xem buildSegmentRows) — người dùng xác nhận không
+  // muốn đổi màn hình mặc định. STK_ID chưa khai "Ánh xạ Điểm - STK_ID"
+  // (không tra được mã Điểm) bị BỎ QUA khi cộng (không đóng góp gì, không
+  // chặn cả báo cáo) — cảnh báo riêng cho người dùng tự biết qua `warnings`.
+  const sumHcrcTargetForStks = (stkIds) => {
+    let sum = 0;
+    let unmatched = 0;
+    for (const stk of stkIds) {
+      const maDiem = stkLookup.get(String(stk))?.maDiem;
+      if (!maDiem) { unmatched++; continue; }
+      sum += hcrcTargetByMaDiem.get(maDiem) || 0;
+    }
+    return { sum, unmatched };
+  };
+  const hcrcOverrideBySection = {};
+  const hcrcOverrideWarnings = [];
+  for (const [key, selected] of [['brg', selectedBrg], ['lfl', selectedLfl], ['nso', selectedNso]]) {
+    if (!selected.length) { hcrcOverrideBySection[key] = null; continue; }
+    const { sum, unmatched } = sumHcrcTargetForStks(selected);
+    hcrcOverrideBySection[key] = sum;
+    if (unmatched > 0) {
+      const sectionLabel = SECTIONS.find((s) => s.key === key).headerLabel;
+      hcrcOverrideWarnings.push(`Khối "${sectionLabel}": ${unmatched} mã siêu thị đã chọn chưa khai "Ánh xạ Điểm - STK_ID", bỏ qua khi cộng Chỉ tiêu HCRC vào dòng Tổng cộng (số có thể thấp hơn thực tế).`);
+    }
+  }
 
   // "Bỏ hàng hỏng hủy" (bản 9.90, theo yêu cầu người dùng) — xem chú thích
   // đầy đủ ở computeRowFields(). filterValues.excludeHongHuy đến từ ô lọc
@@ -726,15 +792,18 @@ async function runNganhHangBrgReport(definition, filterValues = {}) {
     const stkFilter = stkFilterBySection[section.key];
     const currentMap = groupByDeptId(currentRows, stkFilter);
     const lastYearMap = groupByDeptId(lastYearRows, stkFilter);
-    rows = rows.concat(buildSegmentRows(section, currentMap, lastYearMap, targetMap, nganhHangToShow, excludeHongHuy));
+    rows = rows.concat(buildSegmentRows(section, currentMap, lastYearMap, targetMap, nganhHangToShow, excludeHongHuy, hcrcOverrideBySection[section.key]));
   }
 
   const columns = describeColumns(COLUMNS);
   assignSttIfPresent(rows, columns);
 
-  const warnings = excludeHongHuy
-    ? ['Bộ lọc "Bỏ hàng hỏng hủy" đang BẬT — cột "Giá trị hàng hỏng hủy" vẫn hiện đúng số thật, nhưng Lãi gộp (Giá trị/Tỷ lệ, cả % so chỉ tiêu/% so cùng kỳ năm trước) KHÔNG trừ hàng hỏng hủy nữa (= margin thô theo doanh thu).']
-    : [];
+  const warnings = [
+    ...(excludeHongHuy
+      ? ['Bộ lọc "Bỏ hàng hỏng hủy" đang BẬT — cột "Giá trị hàng hỏng hủy" vẫn hiện đúng số thật, nhưng Lãi gộp (Giá trị/Tỷ lệ, cả % so chỉ tiêu/% so cùng kỳ năm trước) KHÔNG trừ hàng hỏng hủy nữa (= margin thô theo doanh thu).']
+      : []),
+    ...hcrcOverrideWarnings
+  ];
 
   return {
     columns,

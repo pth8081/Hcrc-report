@@ -14,6 +14,27 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.17 — Doanh thu theo ngành hàng: dòng "Tổng cộng" lấy Chỉ tiêu theo "Chỉ tiêu HCRC" khi chọn siêu thị
+
+**Thay đổi**: 1 file rp-server (`lib/nganhHangBrgRunner.js`) — thuần code
+ứng dụng, tái dùng dữ liệu Chỉ tiêu HCRC đã đồng bộ sẵn từ trước, KHÔNG
+cần đổi gì ở CSDL/ETL.
+
+**Các bước**:
+
+1. `git pull origin main`.
+2. `pm2 restart` đúng tiến trình `rp-server`.
+
+**Kiểm tra**: mở báo cáo "Doanh thu theo ngành hàng (HCRC)" hoặc "(LDTD)"
+→ chọn ĐÚNG 1 siêu thị ở bộ lọc "Siêu thị" của 1 khối (BRG/LFL/NSO) → ở
+khối đó, dòng "Tổng cộng" cột "Chỉ tiêu" PHẢI đổi sang đúng số Chỉ tiêu
+HCRC đã nhập cho siêu thị đó (so với trang etl-admin "Chỉ tiêu HCRC"),
+cột "Chỉ tiêu — Bán lẻ"/"Bán buôn" về "—". Bỏ chọn siêu thị (để trống bộ
+lọc, về trạng thái mặc định) → Chỉ tiêu Tổng cộng PHẢI trở lại như TRƯỚC
+bản này (không đổi số liệu màn hình mặc định).
+
+---
+
 ## 10.16 — SỬA LỖI THẬT: "Trạng thái kết nối"/"Giám sát Log CSDL" đồng loạt báo lỗi "not a function"
 
 **Thay đổi**: 1 file etl (`lib/logSpaceMonitor.js`) — thuần code ứng dụng,

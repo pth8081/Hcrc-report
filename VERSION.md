@@ -42,6 +42,26 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.17 — Doanh thu theo ngành hàng: dòng "Tổng cộng" lấy Chỉ tiêu theo "Chỉ tiêu HCRC" khi chọn siêu thị
+
+**Theo yêu cầu người dùng** (tiếp nối yêu cầu lớn tạm dừng ở bản 10.1):
+"chọn siêu thị thì sẽ lấy chỉ tiêu theo siêu thị ở phần chỉ tiêu doanh
+thu hàng ngày" cho báo cáo "Doanh thu theo ngành hàng" — xác nhận dùng
+nguồn **HCRC** (không phải Lãnh đạo Tập đoàn), chỉ áp dụng ở dòng "Tổng
+cộng", và khi chọn nhiều siêu thị thì CỘNG DỒN.
+
+**Đã làm**: `rp-server/lib/nganhHangBrgRunner.js` — khi người dùng chọn 1
+hoặc nhiều siêu thị ở bộ lọc riêng của 1 khối (BRG/LFL/NSO), dòng "Tổng
+cộng" của ĐÚNG khối đó lấy Chỉ tiêu Tổng = Chỉ tiêu HCRC
+(`sales-targets-hcrc`) của (các) siêu thị đã chọn, thay cho cộng các
+dòng ngành hàng. Cột "Chỉ tiêu — Bán lẻ"/"Bán buôn" của dòng Tổng cộng về
+"—" khi override kích hoạt (nguồn HCRC không tách kênh). KHÔNG chọn siêu
+thị nào → GIỮ NGUYÊN hành vi cũ. Các dòng ngành hàng không bị ảnh hưởng.
+Áp dụng cho CẢ 2 báo cáo dùng chung runner này (HCRC lẫn LDTD).
+
+Chi tiết nghiệp vụ, verify: xem mục 19 file
+`báo cáo doanh thu-nhập hàng theo ngành hàng.md`.
+
 ## 10.16 — SỬA LỖI THẬT: "Trạng thái kết nối"/"Giám sát Log CSDL" đồng loạt báo lỗi "not a function"
 
 **Theo yêu cầu người dùng**: "Tự nhiên lỗi một loạt, bạn kiểm tra giúp" —
