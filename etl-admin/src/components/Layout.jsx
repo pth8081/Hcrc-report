@@ -29,15 +29,25 @@ const NAV = [
   // báo cáo tiêu thụ chỉ tiêu (Lãnh đạo Tập đoàn / HCRC), mỗi báo cáo do 1
   // nhóm khác nhau quản lý/nhập liệu, cần MenuCode riêng để giao quyền
   // tách bạch (xem etl/routes/admin/roles.js MENU_CATALOG).
-  { path: '/sales-targets-corp', label: 'Chỉ tiêu Lãnh đạo Tập đoàn', icon: '🎯', menuCode: 'sales-targets-corp', group: 'target' },
-  { path: '/sales-targets-hcrc', label: 'Chỉ tiêu HCRC', icon: '🎯', menuCode: 'sales-targets-hcrc', group: 'target' },
+  //
+  // editOnly (bản 10.14, theo yêu cầu người dùng — "không phải chỉ xem các
+  // mục chỉ tiêu đâu, cho phép phân quyền để up chỉ tiêu ấy. Sửa giống 4
+  // mục kia") — TRƯỚC ĐÂY dùng `can(menuCode)` như mục thường (chỉ cần
+  // quyền XEM là thấy mục trên sidebar, dù trang thật bên trong vẫn ẩn form
+  // "Nhập chỉ tiêu" nếu không có quyền SỬA — xem SalesTargetsPage.jsx
+  // `isEditor = canEdit(menuCode)`), dễ gây hiểu nhầm là cấp quyền XONG mà
+  // không nhập được gì. Giờ ĐỔI giống hệt 4 mục "Cấu hình khác" bên dưới —
+  // BẮT BUỘC quyền SỬA mới thấy mục trên sidebar, không còn mức "chỉ xem"
+  // riêng cho 5 mục chỉ tiêu này nữa.
+  { path: '/sales-targets-corp', label: 'Chỉ tiêu Lãnh đạo Tập đoàn', icon: '🎯', menuCode: 'sales-targets-corp', editOnly: true, group: 'target' },
+  { path: '/sales-targets-hcrc', label: 'Chỉ tiêu HCRC', icon: '🎯', menuCode: 'sales-targets-hcrc', editOnly: true, group: 'target' },
   // Bản 10.11 — đổi tên nhãn hiển thị thành "...(HCRC)" cho rõ đây là chỉ
   // tiêu phục vụ báo cáo "Doanh thu theo ngành hàng" bản HCRC (phân biệt với
   // mục "...(LDTD)" ngay bên dưới) — path/menuCode GIỮ NGUYÊN, không đổi gì
   // khác.
-  { path: '/sales-targets-nganhhang-dt', label: 'Chỉ tiêu Doanh thu theo ngành hàng (HCRC)', icon: '🎯', menuCode: 'sales-targets-nganhhang-dt', group: 'target' },
-  { path: '/sales-targets-nganhhang-nh', label: 'Chỉ tiêu Nhập hàng theo ngành hàng', icon: '🎯', menuCode: 'sales-targets-nganhhang-nh', group: 'target' },
-  { path: '/sales-targets-nganhhang-dt-ldtd', label: 'Chỉ tiêu Doanh thu theo ngành hàng (LDTD)', icon: '🎯', menuCode: 'sales-targets-nganhhang-dt-ldtd', group: 'target' },
+  { path: '/sales-targets-nganhhang-dt', label: 'Chỉ tiêu Doanh thu theo ngành hàng (HCRC)', icon: '🎯', menuCode: 'sales-targets-nganhhang-dt', editOnly: true, group: 'target' },
+  { path: '/sales-targets-nganhhang-nh', label: 'Chỉ tiêu Nhập hàng theo ngành hàng', icon: '🎯', menuCode: 'sales-targets-nganhhang-nh', editOnly: true, group: 'target' },
+  { path: '/sales-targets-nganhhang-dt-ldtd', label: 'Chỉ tiêu Doanh thu theo ngành hàng (LDTD)', icon: '🎯', menuCode: 'sales-targets-nganhhang-dt-ldtd', editOnly: true, group: 'target' },
   { path: '/diem-stk-mapping', label: 'Ánh xạ Điểm - STK_ID', icon: '🧩', menuCode: 'diem-stk-mapping', editOnly: true, group: 'config' },
   { path: '/nso-stores', label: 'Siêu thị NSO', icon: '🏬', menuCode: 'nso-stores', editOnly: true, group: 'config' },
   { path: '/core-item-list', label: 'Danh sách hàng Core', icon: '📦', menuCode: 'core-item-list', editOnly: true, group: 'config' },

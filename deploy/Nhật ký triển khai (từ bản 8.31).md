@@ -14,6 +14,25 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.14 — ETL: 5 mục "Chỉ tiêu" bắt buộc quyền SỬA mới thấy (giống 4 mục "Cấu hình khác")
+
+**Thay đổi**: 1 file frontend etl-admin (`src/components/Layout.jsx`) —
+thuần hiển thị sidebar theo quyền, KHÔNG đổi route/API/CSDL.
+
+**Các bước**:
+
+1. `git pull origin main`.
+2. `cd etl-admin && npm install && npm run build` — deploy lại `dist/`.
+   KHÔNG cần restart backend `etl`.
+
+**Kiểm tra**: với 1 tài khoản CHỈ được tick "Xem" (không "Sửa") cho 1 mục
+chỉ tiêu bất kỳ ở trang "Vai trò" — đăng nhập tài khoản đó, mục chỉ tiêu
+đó KHÔNG còn hiện trên sidebar (trước bản này vẫn hiện, chỉ ẩn form nhập).
+Tick thêm "Sửa" cho mục đó rồi tải lại — mục hiện ra đúng, vào được và
+thấy form "Nhập chỉ tiêu".
+
+---
+
 ## 10.13 — Bỏ cột "Mã siêu thị" thừa ở trang "Chỉ tiêu Nhập hàng theo ngành hàng"
 
 **Thay đổi**: 1 file etl-admin (`src/pages/SalesTargetsPage.jsx`) + 1 file

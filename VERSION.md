@@ -42,6 +42,35 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.14 — ETL: 5 mục "Chỉ tiêu" bắt buộc quyền SỬA mới thấy (giống 4 mục "Cấu hình khác")
+
+**Theo yêu cầu người dùng**: "không phải chỉ xem các mục chỉ tiêu đâu, cho
+phép phân quyền để up chỉ tiêu ấy. Và sửa giống 4 mục kia kìa." — sau khi
+tôi báo hạ tầng phân quyền (trang "Vai trò") đã đủ 2 cấp Xem/Sửa cho cả 9
+mục, người dùng phản hồi muốn 5 mục "Chỉ tiêu" hoạt động CHẶT giống 4 mục
+"Cấu hình khác" (Ánh xạ Điểm/Siêu thị NSO/Danh sách hàng Core/Cảnh báo
+hàng tồn): không còn mức "chỉ xem" riêng, PHẢI có quyền SỬA mới thấy mục
+đó trên sidebar — tránh hiểu nhầm cấp quyền "Xem" là đã cho nhập được.
+
+**Đã sửa** (`etl-admin/src/components/Layout.jsx`): thêm `editOnly: true`
+cho 5 mục trong nhóm "Chỉ tiêu" (`sales-targets-corp`, `sales-targets-hcrc`,
+`sales-targets-nganhhang-dt`, `sales-targets-nganhhang-nh`,
+`sales-targets-nganhhang-dt-ldtd`) — y hệt cách 4 mục "Cấu hình khác" đã
+làm từ trước. Từ bản này, admin PHẢI tick "Sửa" (không phải "Xem") ở trang
+"Vai trò" thì người được gán mới thấy đúng mục chỉ tiêu đó trên sidebar VÀ
+thấy được form "Nhập chỉ tiêu" (form upload vốn đã ẩn/hiện theo đúng quyền
+Sửa từ trước, không đổi gì ở `SalesTargetsPage.jsx`).
+
+**Lưu ý**: nếu trước đây có vai trò nào chỉ được tick "Xem" (không "Sửa")
+cho 1 trong 5 mục này, sau khi deploy họ sẽ KHÔNG còn thấy mục đó trên
+sidebar nữa — cần vào "Vai trò" tick thêm "Sửa" nếu vẫn muốn họ truy cập
+được.
+
+Verify: build thật `Layout.jsx` (esbuild, mock `useAuth` trả về role chỉ
+có quyền Xem cho 2 mục chỉ tiêu) + Playwright — xác nhận nhóm "Chỉ tiêu"
+không còn hiện trên sidebar khi role đó không có quyền Sửa; `npm run build`
+qua không lỗi.
+
 ## 10.13 — Bỏ cột "Mã siêu thị" thừa ở trang "Chỉ tiêu Nhập hàng theo ngành hàng"
 
 **Theo yêu cầu người dùng**: "chỗ nhập chỉ tiêu ngành hàng nhập ... tôi chỉ
