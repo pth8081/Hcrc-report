@@ -14,6 +14,19 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.29 — Bảng "Top 5 chi nhánh" ở Dashboard khít màn hình điện thoại
+
+**Thay đổi**: CHỈ `rp-user/src/styles.css` (CSS thuần).
+
+**Các bước**: `git pull origin main` → build lại `rp-user` → deploy như
+thường. KHÔNG cần đổi backend/CSDL, KHÔNG cần build lại `etl-admin`/
+`api-admin`.
+
+**Kiểm tra** (điện thoại thật hoặc DevTools ≤460px): mở Dashboard, xem
+tile "Top 5 chi nhánh" (hoặc tile dạng bảng khác) — bảng PHẢI hiện đủ
+tất cả cột ngay trong 1 màn hình, không cần cuộn ngang, chữ nhỏ hơn
+trước nhưng vẫn đọc được rõ, không còn chữ/số nào bị cắt mất 1 phần.
+
 ## 10.28 — Rà soát toàn diện mobile — sửa thêm 2 lỗi tràn ngang thật (rp-user)
 
 **Thay đổi**: CHỈ `rp-user/src/styles.css` (CSS thuần — 2 class

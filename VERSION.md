@@ -42,6 +42,37 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.29 — SỬA LỖI THẬT: bảng "Top 5 chi nhánh" ở Dashboard bị cuộn ngang dở dang trên điện thoại 6.7"
+
+**Theo báo cáo người dùng** (ảnh chụp thật điện thoại 6.7"): bảng "Top 5
+MART — Doanh thu cao nhất" trong Dashboard hiện lệch — cột "Doanh thu"
+chỉ thấy nửa chữ ("inh thu" thay vì "Doanh thu"), số bị thiếu chữ số đầu
+("528.780" thay vì "5.528.780"). "Bạn làm sao responsive cho nó vừa khít
+màn hình, chữ bé đi cũng được."
+
+**Nguyên nhân**: bảng Top 5 có 5 cột (TT/Siêu thị/Doanh thu/Giao dịch/
+Trung bình giao dịch), cột TT + Siêu thị/Cửa hàng GHIM CỐ ĐỊNH (sticky)
+khi cuộn ngang (`.table-scroll--report-numbered`, cơ chế có sẵn từ lâu
+cho trang "Báo cáo" nhiều cột) — ở màn hình điện thoại, bảng LUÔN rộng
+hơn màn hình (đo bằng Playwright với đúng CSS + nội dung thật: dư 8px ở
+412px, 30px ở 390px, 60px ở 360px) nên LUÔN cần cuộn; khi cuộn, 2 cột
+ghim đè lên PHẦN ĐÃ CUỘN QUA của cột "Doanh thu" kế tiếp — đúng hiện
+tượng "mất nửa chữ" người dùng thấy (không phải lỗi hiển thị số liệu,
+chỉ là 1 phần bị 2 cột ghim che mất khi đang cuộn dở).
+
+**Đã sửa** (`rp-user/src/styles.css`) — theo đúng yêu cầu người dùng
+("chữ bé đi cũng được"): thêm `@media (max-width: 460px)` giảm cỡ chữ
+(13.5px → 11px) + đệm ô (9-11px → 6px/5px) CHỈ cho bảng BÊN TRONG
+`.dashboard-tile` — KHÔNG đụng bảng ở trang "Báo cáo" (`ReportsPage`, có
+thể tới 17+ cột, cuộn ngang vẫn là thiết kế ĐÚNG/CỐ Ý ở đó).
+
+Verify: dựng lại đúng cấu trúc (`.dashboard-tile` → `.table-scroll--
+report table-scroll--report-numbered` → `.data-table`, đúng 5 cột + dữ
+liệu thật từ ảnh người dùng gửi) bằng Playwright, dùng TRỰC TIẾP file
+`styles.css` thật — sau khi sửa: `scrollWidth` = `clientWidth` (hết tràn
+hoàn toàn) ở cả 360px/390px/412px (412px ≈ bề ngang CSS thật của điện
+thoại 6.7"), chụp ảnh xác nhận cả 5 cột hiện đủ, không còn chữ/số bị cắt.
+
 ## 10.28 — Rà soát toàn diện lỗi tràn ngang mobile — sửa thêm 2 lỗi thật (rp-user)
 
 **Theo yêu cầu người dùng** (sau khi xem bản 10.26/10.27): "Bạn có thể rà

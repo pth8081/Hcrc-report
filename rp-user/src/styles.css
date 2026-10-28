@@ -387,6 +387,24 @@ button:disabled, button:disabled:hover {
   .dashboard-grid { grid-template-columns: 1fr; }
 }
 .dashboard-tile { background: var(--surface); border: 1px solid var(--line); border-top: 4px solid var(--line); border-radius: 12px; padding: 16px 20px; box-shadow: 0 2px 8px rgba(20, 30, 40, .08); overflow-x: auto; }
+/* SỬA LỖI THẬT (bản 10.29, theo ảnh chụp thật điện thoại 6.7" — bảng
+   "Top 5 MART/MINIMART" bị cuộn ngang dở dang, cột "Doanh thu" hiện nửa
+   chữ "inh thu"/thiếu số đầu ("528.780" thay vì "5.528.780") vì cột TT +
+   Siêu thị/Cửa hàng ghim cố định (sticky, xem .table-scroll--report-
+   numbered ở trên) đè lên phần đã cuộn qua của cột kế tiếp — bảng 5 cột
+   (TT/Siêu thị/Doanh thu/Giao dịch/Trung bình giao dịch) dư TỐI THIỂU
+   8-60px so với bề ngang điện thoại (412/390/360px, đo bằng Playwright
+   với đúng CSS + nội dung thật) nên LUÔN cần cuộn — theo đúng yêu cầu
+   người dùng ("chữ bé đi cũng được, làm sao cho nó khít màn hình"): giảm
+   cỡ chữ + đệm ô CHỈ cho bảng trong dashboard tile ở màn hình điện thoại
+   — khác hẳn bảng trang "Báo cáo" (`.table-scroll--report` ở trang
+   ReportsPage, có thể tới 17+ cột, cuộn ngang vẫn là thiết kế ĐÚNG, CỐ Ý
+   ở đó, KHÔNG đụng). Đã đo lại bằng Playwright (đúng cột/dữ liệu thật) —
+   hết tràn hoàn toàn ở cả 360/390/412px với cỡ chữ 11px + đệm 6px/5px. */
+@media (max-width: 460px) {
+  .dashboard-tile .data-table { font-size: 11px; }
+  .dashboard-tile .data-table th, .dashboard-tile .data-table td { padding: 6px 5px; }
+}
 /* tile.tone (TUỲ CHỌN — "high"/"low", vd Dashboard "Top 5 chi nhánh") — viền
    trên màu xanh (cao nhất)/cam (thấp nhất) để phân biệt nhanh bằng mắt,
    không cần đọc hết tiêu đề. Tile không khai tone -> viền xám trung tính
