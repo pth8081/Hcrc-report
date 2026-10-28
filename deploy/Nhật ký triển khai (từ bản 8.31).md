@@ -14,6 +14,23 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.26 — SỬA LỖI THẬT: dòng tab tràn rộng hơn màn hình điện thoại, không trượt ngang được
+
+**Thay đổi**: `rp-user/src/styles.css`, `etl-admin/src/styles.css`,
+`api-admin/src/styles.css` (CSS thuần — thêm cuộn ngang cho `.tabs`).
+
+**Các bước**:
+
+1. `git pull origin main`.
+2. Build lại CẢ 3 giao diện (`npm run build` ở `rp-user`/`etl-admin`/
+   `api-admin`) rồi deploy như thường.
+3. KHÔNG cần đổi gì ở backend/CSDL.
+
+**Kiểm tra**: mở bất kỳ trang có nhiều tab (vd "Báo cáo" ở rp-user) trên
+điện thoại (hoặc DevTools → chế độ mobile, thu nhỏ bề ngang trình duyệt)
+— nếu dòng tab rộng hơn màn hình, PHẢI vuốt/cuộn ngang được để xem hết
+các tab, không còn bị cắt mất tab nào.
+
 ## 10.25 — SỬA NGAY bản 10.24: cột "SL đặt"/"Đơn giá" ra 0 (ORD_QTY/PRICE không dùng được)
 
 **Thay đổi**: CHỈ 2 file VIEW SQL (giống bản 10.24) — KHÔNG đổi code JS.

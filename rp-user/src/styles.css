@@ -259,8 +259,19 @@ button:disabled, button:disabled:hover {
 .report-chart-unit-note { text-align: right; font-size: 12px; color: var(--ink-soft); margin: 0 0 4px; }
 
 /* Tabs */
-.tabs { display: flex; gap: 4px; margin-bottom: 16px; border-bottom: 1px solid var(--line); }
-.tabs button { background: none; border: none; color: var(--ink-soft); padding: 8px 14px; border-radius: 0; box-shadow: none; font-weight: 500; }
+/* SỬA LỖI THẬT (bản 10.26, phát hiện trên mobile) — nhiều tab (vd 4 tab
+   "Báo cáo kinh doanh"/"Báo cáo vận hành"/"Báo cáo Mua hàng"/"Báo cáo tự
+   do") tràn rộng hơn màn hình điện thoại, nhưng KHÔNG trượt ngang được và
+   các tab tràn ra bị CẮT MẤT, không bấm được — nguyên nhân: .app-shell có
+   `overflow-x: hidden` trên mobile (chặn lỗi tràn trang ngang đã sửa ở
+   bản 8.37), hệ quả PHỤ là mọi khối con tự tràn ngang (như .tabs, vốn
+   KHÔNG có cơ chế cuộn riêng) đều bị cắt theo, không trượt được dù về bản
+   chất .tabs vẫn có thể cuộn. Thêm `overflow-x: auto` CHO RIÊNG .tabs +
+   `flex-shrink: 0`/`white-space: nowrap` cho từng nút (không co chữ/không
+   xuống dòng) — dòng tab tự thành 1 khối cuộn ngang độc lập, không phụ
+   thuộc .app-shell nữa. */
+.tabs { display: flex; gap: 4px; margin-bottom: 16px; border-bottom: 1px solid var(--line); overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.tabs button { background: none; border: none; color: var(--ink-soft); padding: 8px 14px; border-radius: 0; box-shadow: none; font-weight: 500; flex-shrink: 0; white-space: nowrap; }
 .tabs button.active { color: var(--accent); border-bottom: 2px solid var(--accent); }
 
 /* Trang "Log" (app.SystemLog) — mức độ INFO/WARN/ERROR */

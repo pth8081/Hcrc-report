@@ -42,6 +42,37 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.26 — SỬA LỖI THẬT: dòng tab (vd "Báo cáo kinh doanh"/"Báo cáo vận hành"/...) tràn rộng hơn màn hình điện thoại, không trượt ngang được
+
+**Theo báo cáo người dùng** (ảnh chụp thật trên điện thoại, trang "Báo
+cáo"): "Sao cái phần báo cáo tôi không xem được nhỉ? ... không thể xem
+được báo bên cạnh, không trượt được sang luôn đấy" — dòng tab 4 mục
+("Báo cáo kinh doanh"/"Báo cáo vận hành"/"Báo cáo Mua hàng"/"Báo cáo tự
+do") rộng hơn màn hình điện thoại, phần tràn ra bị CẮT MẤT và không trượt
+ngang được để xem/bấm các tab còn lại.
+
+**Nguyên nhân**: `.tabs` (`display: flex`, dùng chung CẢ 3 app) không có
+cơ chế cuộn ngang riêng — bình thường nếu tràn thì trình duyệt vẫn cho
+cuộn cả TRANG để xem phần tràn, nhưng `.app-shell` trên mobile cố ý khoá
+`overflow-x: hidden` (chặn lỗi "trang tràn ngang" đã sửa ở bản 8.37) —
+hệ quả PHỤ ngoài ý muốn: mọi khối con tự tràn ngang (như `.tabs`) bị CẮT
+THEO, không còn cách nào cuộn để xem phần bị cắt, dù về bản chất đó là 1
+khối cuộn được bình thường.
+
+**Đã sửa** (`rp-user`/`etl-admin`/`api-admin` — `src/styles.css`, cùng 1
+class `.tabs` dùng chung): thêm `overflow-x: auto` + `-webkit-overflow-
+scrolling: touch` cho RIÊNG `.tabs` (tự thành 1 khối cuộn ngang độc lập,
+không phụ thuộc `.app-shell`), và `flex-shrink: 0` + `white-space: nowrap`
+cho từng nút tab (giữ nguyên độ rộng, không bị co chữ/xuống dòng khi
+thiếu chỗ). Không đổi gì ở `.app-shell` (vẫn giữ `overflow-x: hidden`,
+đúng mục đích ban đầu — chặn lỗi tràn trang ngang).
+
+Verify: dựng lại đúng cấu trúc `.app-shell > .tabs` ở màn hình 390px
+(Playwright headless) — dòng tab rộng 545px (tràn so với khung chứa
+366px), `overflowX` áp đúng `auto`, thử cuộn `scrollLeft = 9999` → thực
+tế dừng ở `179` (giới hạn cuộn hợp lý, xác nhận cuộn THẬT hoạt động, không
+chỉ khai báo CSS suông).
+
 ## 10.25 — SỬA NGAY bản 10.24: cột "SL đặt"/"Đơn giá" ra 0 — `ORD_QTY`/`PRICE` không dùng được, đổi sang `QTY`/`AMOUNT÷QTY`
 
 **Theo báo cáo người dùng** (ngay sau khi triển khai bản 10.24, chạy thật

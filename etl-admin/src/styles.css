@@ -164,8 +164,11 @@ legend { font-size: 12px; color: var(--ink-soft); padding: 0 6px; }
    trong sẽ ra "viền trong viền" xấu. */
 .sync-jobs-store-group .table-scroll { border: none; border-radius: 0; border-top: 1px solid var(--line); }
 
-.tabs { display: flex; gap: 4px; margin-bottom: 16px; border-bottom: 1px solid var(--line); }
-.tabs button { background: none; border: none; color: var(--ink-soft); padding: 8px 14px; border-radius: 0; box-shadow: none; font-weight: 500; }
+/* SỬA LỖI THẬT (bản 10.26) — xem chú thích đầy đủ ở rp-user/src/styles.css
+   (cùng lỗi: .app-shell overflow-x:hidden trên mobile khiến .tabs tràn
+   rộng bị cắt, không trượt được) — thêm cuộn ngang riêng cho .tabs. */
+.tabs { display: flex; gap: 4px; margin-bottom: 16px; border-bottom: 1px solid var(--line); overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.tabs button { background: none; border: none; color: var(--ink-soft); padding: 8px 14px; border-radius: 0; box-shadow: none; font-weight: 500; flex-shrink: 0; white-space: nowrap; }
 .tabs button.active { color: var(--accent); border-bottom: 2px solid var(--accent); }
 
 .twofa-qr { align-self: center; width: 180px; height: 180px; border: 1px solid var(--line); border-radius: 6px; }

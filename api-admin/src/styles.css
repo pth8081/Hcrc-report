@@ -115,8 +115,11 @@ button:disabled, button:disabled:hover {
 .data-table__sticky-start-cell { position: sticky; left: 0; background: var(--surface); box-shadow: 2px 0 4px rgba(0, 0, 0, .08); z-index: 1; }
 .empty-message { color: var(--ink-soft); font-size: 13px; }
 
-.tabs { display: flex; gap: 4px; margin-bottom: 16px; border-bottom: 1px solid var(--line); }
-.tabs button { background: none; border: none; color: var(--ink-soft); padding: 8px 14px; border-radius: 0; box-shadow: none; font-weight: 500; }
+/* SỬA LỖI THẬT (bản 10.26) — xem chú thích đầy đủ ở rp-user/src/styles.css
+   (cùng lỗi: .app-shell overflow-x:hidden trên mobile khiến .tabs tràn
+   rộng bị cắt, không trượt được) — thêm cuộn ngang riêng cho .tabs. */
+.tabs { display: flex; gap: 4px; margin-bottom: 16px; border-bottom: 1px solid var(--line); overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.tabs button { background: none; border: none; color: var(--ink-soft); padding: 8px 14px; border-radius: 0; box-shadow: none; font-weight: 500; flex-shrink: 0; white-space: nowrap; }
 .tabs button.active { color: var(--accent); border-bottom: 2px solid var(--accent); }
 
 /* z-index: 100 (bản 10.19) — xem chú thích đầy đủ ở etl-admin/src/styles.css:
