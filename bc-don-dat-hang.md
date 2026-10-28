@@ -332,6 +332,109 @@ THẬT đã đồng bộ qua `optionsSource` — đúng cơ chế đang dùng ch
 cập nhật khi có NCC mới) cho cả 3 báo cáo — xem
 `rp-server/scripts/seedPurchaseOrderReports.js`.
 
+## 2b. SỬA 28/10/2026 (bản 10.24) — "Đặt hàng" (130/330) KHÔNG nằm ở `STRANS`, chuyển nguồn sang `ON_ORDER`/`FN_ORDER`/`FN_ORDER_ARC`
+
+**Theo báo cáo người dùng**: báo cáo "Đơn đặt hàng" LUÔN trống ở CẢ 2 kênh
+mua riêng/mua chung (dù job đồng bộ chạy bình thường, "Đơn nhập hàng" vẫn
+có số). Chạy thử đếm trực tiếp trên `STRANS` (28/10/2026):
+```sql
+SELECT TRANS_CODE, COUNT(*) AS SoDong FROM STRANS
+WHERE TRANS_CODE IN ('130','133','330','333') AND TRAN_DATE >= '2026-10-01'
+GROUP BY TRANS_CODE;
+-- Kết quả thật: 133 = 23.352 dòng, 333 = 76.851 dòng, 130 = 0 dòng, 330 = 0 dòng
+```
+→ Xác nhận: giả định "đặt và nhập đều nằm chung `STRANS`" (chốt 06/10/2026,
+mục 2 ở trên) **CHỈ ĐÚNG MỘT NỬA** — `133`/`333` (nhập hàng) đúng là ở
+`STRANS`, nhưng `130`/`330` (đặt hàng) **KHÔNG BAO GIỜ** được ghi vào
+`STRANS` — đây là lý do THẬT khiến "Đơn đặt hàng" luôn trống kể từ khi có
+tính năng, không phải lỗi đồng bộ/BU_ID/mã giao dịch (đã lần lượt loại trừ
+qua kiểm tra: VIEW có dữ liệu thật hôm nay, 2 job đồng bộ domain đều
+"Bật" và chạy không lỗi, bảng Ánh xạ Điểm vẫn hoạt động bình thường).
+
+**DBA xác nhận nguồn đúng** (28/10/2026) — `130`/`330` nằm ở 2+1 bảng
+KHÁC, cùng khuôn 116 cột với `STRANS`/`ST_ORDER` (đối chiếu
+`INFORMATION_SCHEMA.COLUMNS`, giống hệt tên/kiểu — RIÊNG có thêm cột
+`PRICE` (decimal) mà `STRANS` không có):
+- **`ON_ORDER`** (CSDL `DSMART16`) — "Đơn hàng đặt CHƯA NHẬN" (đơn còn
+  mở). Đếm thật tháng 10/2026: `130`=8.147 dòng, `330`=26.911 dòng.
+- **`FN_ORDER`** (CSDL `DSMART16`) — "Đơn hàng ĐÃ NHẬN" (đơn đã đóng,
+  **tháng hiện tại**). Đếm thật: `130`=14.421 dòng, `330`=65.680 dòng.
+- **`FN_ORDER_ARC`** (CSDL `DSMART16_EOM`) — lịch sử CÁC THÁNG QUÁ KHỨ,
+  **1 BẢNG DUY NHẤT** (khác `STRANS_YYYYMM` phải tách ~93 bảng riêng theo
+  tháng — đỡ phải sinh SQL động liệt kê bảng cho nhánh này).
+- **`ON_ORDER_ARC` KHÔNG TỒN TẠI** — đơn CÒN MỞ không có khái niệm lịch
+  sử; đóng xong thì dữ liệu chuyển hẳn sang `FN_ORDER`/`FN_ORDER_ARC`.
+- **`ST_ORDER`/`ST_ORDER_ARC` CỐ Ý KHÔNG DÙNG** — DBA xác nhận nguyên văn
+  đây là "Đơn hàng đã xoá" (toàn bộ bảng, không phải lọc theo `STATUS`),
+  ngược quy tắc đã chốt từ trước ("loại cả đơn xóa... chỉ lấy đơn đặt
+  thực tế và nhập thực tế").
+
+**Kiểm tra trùng lặp giữa `ON_ORDER`/`FN_ORDER`** (lo ngại 1 đơn xuất hiện
+ở CẢ 2 bảng, gộp `UNION ALL` sẽ đếm nhân đôi):
+```sql
+-- Trùng ở cấp ĐƠN (TRANS_NUM) — ra 2.483
+SELECT COUNT(*) FROM (SELECT DISTINCT TRANS_NUM FROM ON_ORDER WHERE TRANS_CODE IN ('130','330')) a
+INNER JOIN (SELECT DISTINCT TRANS_NUM FROM FN_ORDER WHERE TRANS_CODE IN ('130','330')) b ON a.TRANS_NUM = b.TRANS_NUM;
+
+-- Trùng ở cấp DÒNG MẶT HÀNG (TRANS_NUM + IDX) — ra 0
+SELECT COUNT(*) FROM (SELECT DISTINCT TRANS_NUM, IDX FROM ON_ORDER WHERE TRANS_CODE IN ('130','330')) a
+INNER JOIN (SELECT DISTINCT TRANS_NUM, IDX FROM FN_ORDER WHERE TRANS_CODE IN ('130','330')) b
+  ON a.TRANS_NUM = b.TRANS_NUM AND a.IDX = b.IDX;
+```
+2.483 đơn trùng ở cấp TRANS_NUM nhưng **0 trùng ở cấp (TRANS_NUM, IDX)** —
+xác nhận: 1 đơn có NHIỀU mặt hàng, mặt hàng NÀY đã nhận xong (chuyển sang
+`FN_ORDER`) còn mặt hàng KHÁC CÙNG đơn vẫn mở (`ON_ORDER`) — KHÔNG phải dữ
+liệu nhân đôi. Gộp `UNION ALL` theo `(TRANS_NUM, IDX)` AN TOÀN.
+
+**Cột "SL đặt"** — DBA xác nhận `ORD_QTY` (KHÔNG phải `ORDP_QTY`, cột đó
+mang nghĩa khác — "đang mua", không liên quan).
+
+**Đã sửa** — cả 2 file VIEW cấu trúc lại thành nhiều nhánh `UNION ALL`
+(nhập hàng từ `STRANS` GIỮ NGUYÊN như cũ + đặt hàng THÊM MỚI từ
+`ON_ORDER`/`FN_ORDER`/`FN_ORDER_ARC`), JOIN `SUPPLIER`/`SKU_DEF`/`DEPTLIST`
+1 LẦN trên kết quả đã gộp (không lặp lại nhiều lần):
+- `deploy/Thiết lập VIEW Đơn đặt hàng-Nhập hàng-So sánh (DSMART16 trung
+  tâm).sql` — thêm nhánh `ON_ORDER` + `FN_ORDER`.
+- `deploy/Thiết lập VIEW Đơn đặt hàng Lịch sử (DSMART16_EOM).sql` — thêm
+  nhánh `FN_ORDER_ARC` (1 bảng, không cần sinh SQL động như STRANS_YYYYMM).
+  **Nhân tiện sửa 1 lỗi có sẵn từ bản 10.2**: đoạn stored procedure
+  `sp_HCRC_RebuildDonDatHangView` (chạy lại TỰ ĐỘNG hàng tháng) thiếu hẳn
+  JOIN `DEPTLIST`/cột `MaNganhHang`/`TenNganhHang` so với đoạn tạo VIEW lần
+  đầu phía trên cùng file — lần server tự chạy lại vào ngày 2 hàng tháng
+  (job SQL Server Agent cuối file) sẽ ÂM THẦM xoá mất 2 cột này khỏi VIEW,
+  hỏng bộ lọc "Ngành hàng" của 6 báo cáo mà không có cảnh báo gì — đã đồng
+  bộ lại 2 đoạn cho GIỐNG HỆT nhau.
+
+`DonGia` của nhánh đặt hàng lấy THẲNG từ cột `PRICE` (có thật ở
+`ON_ORDER`/`FN_ORDER`/`FN_ORDER_ARC`), KHÁC nhánh nhập hàng vẫn phải suy từ
+`AMOUNT/QTY` (vì `STRANS` không có `PRICE`). `SoDon` của nhánh đặt hàng
+dùng `ISNULL(REF, TRANS_NUM)` — phòng trường hợp `REF` để trống cho CHÍNH
+dòng đặt (dòng đặt vốn CHÍNH LÀ đơn gốc, nên dùng `TRANS_NUM` của nó khi
+không có `REF`).
+
+**`rp-server/lib/purchaseOrderRunner.js` KHÔNG cần sửa gì** — vẫn đọc
+đúng khuôn tên cột cũ (`MaDiem`/`SoDon`/`LoaiGiaoDich`/`SoLuong`/`DonGia`/
+`ThanhTien`...), chỉ khác NGUỒN (nhiều dữ liệu hơn, có thêm dòng 130/330
+thật). Code JS, 6 định nghĩa báo cáo (`seedPurchaseOrderReports.js`) đều
+GIỮ NGUYÊN.
+
+**‼️ BẮT BUỘC sau khi DBA chạy lại 2 file VIEW trên**: dữ liệu `130`/`330`
+là HOÀN TOÀN MỚI với hệ thống (trước đây VIEW không hề trả về), nên job
+đồng bộ domain `don_dat_hang` chạy theo watermark bình thường (chỉ quét
+dòng MỚI PHÁT SINH) sẽ KHÔNG tự bù lại các đơn `130`/`330` đã tồn tại
+TRONG QUÁ KHỨ — PHẢI chạy lại script đã có sẵn từ bản 9.28 để reset
+watermark, ép job quét lại TOÀN BỘ nguồn 1 lần:
+```bash
+cd etl
+node scripts/resyncDonDatHangWatermark.js           # xem trước, CHƯA đổi gì
+node scripts/resyncDonDatHangWatermark.js --confirm  # thực sự reset
+```
+Sau đó vào etl-admin → "Đồng bộ" → "Chạy thử" lại CẢ 2 job domain
+`don_dat_hang` ("...DSMART16" và "...Lịch sử DSMART16_EOM") — job Lịch sử
+quét lại toàn bộ có thể mất VÀI GIỜ tuỳ khối lượng dữ liệu `FN_ORDER_ARC`.
+Dữ liệu `133`/`333` (nhập hàng) đã đồng bộ trước đó KHÔNG bị ảnh hưởng
+(MERGE theo khoá nghiệp vụ, chỉ cập nhật no-op, không xoá/không trùng).
+
 ## 3. Thiết kế đồng bộ — domain `don_dat_hang` (SỬA bản 8.92, nguồn STRANS)
 
 **SỬA bản 8.92**: nguồn đổi sang `STRANS`, `TRANS_CODE` 133=đặt hàng/

@@ -97,6 +97,46 @@
    ngành hàng.md" mục 2). THUẦN THÊM CỘT (`LEFT JOIN`), không đổi cột nào
    khác — 6 báo cáo cũ không ảnh hưởng.
 
+   ‼️ SỬA 28/10/2026 (bản 10.24) — "ĐẶT HÀNG" (130/330) KHÔNG NẰM Ở STRANS,
+   PHẢI LẤY TỪ ON_ORDER/FN_ORDER ‼️
+   Người dùng báo cáo "Đơn đặt hàng" LUÔN trống ở CẢ 2 kênh dù job đồng bộ
+   chạy bình thường — chạy thử đếm `SELECT TRANS_CODE, COUNT(*) FROM STRANS
+   WHERE TRANS_CODE IN ('130','133','330','333') AND TRAN_DATE >=
+   '2026-10-01' GROUP BY TRANS_CODE` xác nhận THẬT: `133`/`333` có hàng chục
+   nghìn dòng, còn `130`/`330` ra ĐÚNG 0 DÒNG — tức giả định "đặt và nhập
+   đều nằm chung STRANS" (06/10/2026) chỉ ĐÚNG MỘT NỬA. DBA xác nhận lại:
+   "đặt hàng" (130/330) nằm ở 2 bảng KHÁC — `ON_ORDER` (đơn đặt CÒN MỞ,
+   8.147+26.911 dòng mã 130/330 trong tháng 10/2026) và `FN_ORDER` (đơn đặt
+   ĐÃ ĐÓNG/đã nhận xong, tháng hiện tại — 14.421+65.680 dòng). Đã kiểm tra
+   trùng lặp: 2.483 ĐƠN (`TRANS_NUM`) xuất hiện ở CẢ 2 bảng, nhưng đếm lại
+   theo CẤP DÒNG MẶT HÀNG (`TRANS_NUM`+`IDX`) thì ra ĐÚNG 0 — tức "trùng" ở
+   cấp đơn chỉ vì 1 đơn có NHIỀU mặt hàng, mặt hàng NÀY đã nhận xong (chuyển
+   sang `FN_ORDER`) còn mặt hàng KHÁC CÙNG đơn vẫn còn mở (`ON_ORDER`) —
+   KHÔNG phải dữ liệu nhân đôi, gộp `UNION ALL` theo `(TRANS_NUM, IDX)` an
+   toàn tuyệt đối.
+
+   `ST_ORDER`/`ST_ORDER_ARC` (DBA xác nhận nguyên văn: "Đơn hàng đã xóa")
+   CỐ Ý KHÔNG đưa vào VIEW — đây là đơn ĐÃ XOÁ, ngược quy tắc đã chốt từ
+   trước ("loại cả đơn xóa... chỉ lấy đơn đặt thực tế và nhập thực tế").
+
+   `ON_ORDER`/`FN_ORDER` dùng CHUNG khuôn 116 cột với `STRANS`/`ST_ORDER`
+   (đã đối chiếu INFORMATION_SCHEMA.COLUMNS, giống hệt tên/kiểu từng cột) —
+   RIÊNG có thêm cột `PRICE` (decimal) mà `STRANS` không có, nên `DonGia`
+   của nhánh đặt hàng lấy THẲNG từ `PRICE`, không cần suy từ AMOUNT/QTY như
+   nhánh nhập hàng. Cột "SL đặt" — DBA xác nhận `ORD_QTY` (KHÔNG phải
+   `ORDP_QTY`, cột đó mang nghĩa khác — "đang mua", không dùng ở đây).
+   `SoDon` của nhánh đặt hàng dùng `ISNULL(REF, TRANS_NUM)` (phòng trường
+   hợp `REF` để trống cho CHÍNH dòng đặt — khác dòng nhập ở `STRANS` LUÔN
+   có `REF` trỏ về đơn gốc) — dòng đặt vốn CHÍNH LÀ đơn gốc nên dùng
+   `TRANS_NUM` của nó làm `SoDon` khi không có `REF` là hợp lý.
+
+   Cấu trúc lại VIEW thành 3 nhánh `UNION ALL` (nhập hàng từ `STRANS`, đặt
+   hàng CÒN MỞ từ `ON_ORDER`, đặt hàng ĐÃ ĐÓNG từ `FN_ORDER`) rồi JOIN
+   `SUPPLIER`/`SKU_DEF`/`DEPTLIST` 1 LẦN DUY NHẤT trên kết quả đã gộp —
+   tránh lặp lại 3 lần JOIN giống hệt nhau cho 3 nhánh. `rp-server/lib/
+   purchaseOrderRunner.js` KHÔNG cần sửa gì — vẫn đọc đúng khuôn cột cũ,
+   chỉ khác NGUỒN dữ liệu (nhiều hơn, có thêm dòng 130/330 thật).
+
    Nếu CSDL không đặt tên "DSMART16" (tên khác do lịch sử), sửa lại dòng
    "USE DSMART16;" ngay dưới đây cho khớp tên thật trước khi chạy.
    ============================================================================ */
@@ -108,10 +148,10 @@ CREATE OR ALTER VIEW dbo.vw_DonDatHangChiNhanh AS
 SELECT
     CAST(m.TRANS_NUM AS VARCHAR(50)) + '|' + CAST(m.IDX AS VARCHAR(10)) AS MaThucThe,  -- khoá 1 dòng giao dịch (1 lần đặt HOẶC 1 lần nhận)
     CAST(m.TRAN_DATE AS DATE)   AS EventDate,
-    m.STOPED_DT                 AS UpdatedAt,        -- watermark — chưa chắc, xem cảnh báo ở trên
+    m.STOPED_DT                 AS UpdatedAt,        -- watermark — chưa chắc, xem cảnh báo ở trên (tầng ứng dụng dùng EventDate, không dùng cột này — xem seedDonDatHangSync.js)
     m.BU_ID                     AS MaDiem,           -- ánh xạ ra mã Điểm chuẩn ở tầng rp-server (buildBuIdLookup())
     NULL                        AS TenDiem,          -- hệ thống LUÔN ưu tiên tên trong bảng Ánh xạ Điểm-STK
-    m.REF                       AS SoDon,            -- MÃ ĐƠN HÀNG GỐC (đã xác nhận) — dùng nhóm nhiều lần nhận hàng
+    m.SoDonRaw                  AS SoDon,            -- MÃ ĐƠN HÀNG GỐC — xem cách tính riêng từng nhánh bên dưới
     m.TRANS_CODE                AS LoaiGiaoDich,     -- '130'/'330'=đặt hàng, '133'/'333'=nhập hàng — đã xác nhận lại, xem ghi chú 26/10/2026 (bản 10.12) ở trên
     CAST(m.DUE_DATE AS DATE)    AS NgayGiao,
     m.SUPP_ID                   AS MaNCC,
@@ -131,14 +171,48 @@ SELECT
         WHEN 'M' THEN N'Đơn sửa'
         ELSE m.STATUS
     END                         AS TrangThaiLabel,
-    m.QTY                       AS SoLuong,
-    m.AMOUNT / NULLIF(m.QTY, 0) AS DonGia,           -- STRANS không có cột PRICE — suy ra từ AMOUNT/QTY
-    m.AMOUNT                    AS ThanhTien
-FROM dbo.STRANS m
+    m.SoLuongRaw                AS SoLuong,
+    m.DonGiaRaw                 AS DonGia,
+    m.ThanhTienRaw              AS ThanhTien
+FROM (
+    -- Nhánh 1 — NHẬP HÀNG (133/333), nguồn STRANS (bản 8.92, KHÔNG đổi) —
+    -- STRANS không có cột PRICE, DonGia suy từ AMOUNT/QTY. CAST SoDonRaw về
+    -- VARCHAR(50) tường minh — ĐỒNG NHẤT kiểu với 2 nhánh dưới (tránh SQL
+    -- Server tự suy kiểu lệch giữa các nhánh UNION ALL).
+    SELECT TRANS_NUM, IDX, TRAN_DATE, STOPED_DT, BU_ID, CAST(REF AS VARCHAR(50)) AS SoDonRaw, TRANS_CODE, DUE_DATE, SUPP_ID, STAFF_ID, SKU_ID, UNIT_SYMB, STATUS,
+           QTY AS SoLuongRaw, AMOUNT / NULLIF(QTY, 0) AS DonGiaRaw, AMOUNT AS ThanhTienRaw
+    FROM dbo.STRANS
+    WHERE TRANS_CODE IN ('133','333') AND STATUS NOT IN ('D','E')
+
+    UNION ALL
+    -- Nhánh 2 — ĐẶT HÀNG (130/330) CÒN MỞ (chưa nhận xong), nguồn ON_ORDER
+    -- (THÊM 28/10/2026, bản 10.24 — xem cảnh báo ở trên). Có cột PRICE thật.
+    -- SoDonRaw: ISNULL CAST VARCHAR(50) tường minh TRƯỚC khi fallback —
+    -- tránh lỗi cắt ngắn ký tự nếu REF là char NGẮN HƠN TRANS_NUM (ISNULL
+    -- lấy độ dài theo tham số ĐẦU); NULLIF(RTRIM(REF),'') coi REF toàn dấu
+    -- cách (char rỗng kiểu cũ, không phải NULL thật) cũng là "chưa có".
+    SELECT TRANS_NUM, IDX, TRAN_DATE, STOPED_DT, BU_ID,
+           ISNULL(NULLIF(RTRIM(CAST(REF AS VARCHAR(50))), ''), CAST(TRANS_NUM AS VARCHAR(50))) AS SoDonRaw,
+           TRANS_CODE, DUE_DATE, SUPP_ID, STAFF_ID, SKU_ID, UNIT_SYMB, STATUS,
+           ORD_QTY AS SoLuongRaw, PRICE AS DonGiaRaw, AMOUNT AS ThanhTienRaw
+    FROM dbo.ON_ORDER
+    WHERE TRANS_CODE IN ('130','330') AND STATUS NOT IN ('D','E')
+
+    UNION ALL
+    -- Nhánh 3 — ĐẶT HÀNG (130/330) ĐÃ ĐÓNG (đã nhận xong, tháng hiện tại),
+    -- nguồn FN_ORDER (THÊM 28/10/2026, bản 10.24). Xác nhận bằng SQL thật:
+    -- KHÔNG trùng dòng với nhánh 2 (trùng ở cấp ĐƠN là bình thường — khác
+    -- dòng mặt hàng (IDX) của cùng 1 đơn, không trùng khi so cả TRANS_NUM+IDX).
+    SELECT TRANS_NUM, IDX, TRAN_DATE, STOPED_DT, BU_ID,
+           ISNULL(NULLIF(RTRIM(CAST(REF AS VARCHAR(50))), ''), CAST(TRANS_NUM AS VARCHAR(50))) AS SoDonRaw,
+           TRANS_CODE, DUE_DATE, SUPP_ID, STAFF_ID, SKU_ID, UNIT_SYMB, STATUS,
+           ORD_QTY AS SoLuongRaw, PRICE AS DonGiaRaw, AMOUNT AS ThanhTienRaw
+    FROM dbo.FN_ORDER
+    WHERE TRANS_CODE IN ('130','330') AND STATUS NOT IN ('D','E')
+) m
 LEFT JOIN dbo.SUPPLIER s ON s.SUPP_ID = m.SUPP_ID
 LEFT JOIN dbo.SKU_DEF k ON k.SKU_ID = m.SKU_ID        -- THÊM bản 9.95 — lấy SKU_CODE (mã hàng hiển thị)
-LEFT JOIN dbo.DEPTLIST dl ON dl.DEPT_ID = k.DEPT_ID    -- THÊM bản 10.2 — lấy tên ngành hàng
-WHERE m.TRANS_CODE IN ('133','333','130','330') AND m.STATUS NOT IN ('D','E');  -- loại hẳn đơn đã xoá/đã huỷ (theo yêu cầu người dùng); 130/330 thêm bản 9.27
+LEFT JOIN dbo.DEPTLIST dl ON dl.DEPT_ID = k.DEPT_ID;   -- THÊM bản 10.2 — lấy tên ngành hàng
 GO
 
 /* ===================== (Tuỳ chọn) Cấp quyền đọc cho tài khoản đồng bộ ===================== */

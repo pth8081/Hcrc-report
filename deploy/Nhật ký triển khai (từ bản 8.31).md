@@ -14,6 +14,50 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.24 — SỬA LỖI THẬT: báo cáo "Đơn đặt hàng" luôn trống (nguồn STRANS không có 130/330)
+
+**Thay đổi**: CHỈ 2 file VIEW SQL — KHÔNG đổi code JS, KHÔNG đổi
+`app.ReportCatalog`/`DefinitionJson` của 6 báo cáo mua hàng.
+
+**Các bước (ĐÚNG THỨ TỰ — bản này THAY ĐỔI NGUỒN DỮ LIỆU CSDL, cần DBA)**:
+
+1. DBA chạy lại NGUYÊN VĂN file `deploy/Thiết lập VIEW Đơn đặt hàng-Nhập
+   hàng-So sánh (DSMART16 trung tâm).sql` trên CSDL `DSMART16` (an toàn,
+   `CREATE OR ALTER VIEW`).
+2. DBA chạy lại NGUYÊN VĂN file `deploy/Thiết lập VIEW Đơn đặt hàng Lịch
+   sử (DSMART16_EOM).sql` trên CSDL `DSMART16_EOM` (an toàn, tạo lại VIEW
+   + stored procedure).
+3. `git pull origin main` (cập nhật repo — chủ yếu để có sẵn script
+   `resyncDonDatHangWatermark.js` nếu chưa có, KHÔNG có code backend nào
+   đổi).
+4. **BẮT BUỘC** — reset watermark để job quét lại TOÀN BỘ nguồn (dữ liệu
+   130/330 hoàn toàn MỚI, job chạy watermark bình thường sẽ KHÔNG tự bù
+   lại quá khứ):
+   ```bash
+   cd etl
+   node scripts/resyncDonDatHangWatermark.js            # xem trước, CHƯA đổi gì
+   node scripts/resyncDonDatHangWatermark.js --confirm   # thực sự reset
+   ```
+5. Vào etl-admin → "Đồng bộ" → tìm 2 job domain `don_dat_hang` ("Đơn đặt
+   hàng - nhập hàng (DSMART16)" và "...Lịch sử (DSMART16_EOM)") → bấm
+   "Chạy thử" từng job. Job "Lịch sử" quét lại TOÀN BỘ `FN_ORDER_ARC` +
+   ~93 bảng `STRANS_YYYYMM` có thể mất VÀI GIỜ tuỳ khối lượng dữ liệu —
+   theo dõi tiến độ qua etl-admin → Log, không cần ngồi chờ.
+6. KHÔNG cần restart `rp-server`/build lại `rp-user` (không đổi code,
+   chỉ đổi VIEW CSDL + dữ liệu đã đồng bộ).
+
+**Kiểm tra**:
+- Mở báo cáo "Đơn đặt hàng" (rp-user) — chọn khoảng ngày tháng 10/2026 —
+  PHẢI có số liệu ở CẢ 2 kênh "Mua riêng" và "Mua chung" (trước đây trống
+  hoàn toàn).
+- Mở báo cáo "So sánh đặt–nhận" — các đơn có đủ cặp đặt/nhận PHẢI hiện
+  đúng "Tỷ lệ hoàn thành (%)" thay vì 0%/trống như trước.
+- Báo cáo "Đơn nhập hàng" (133/333, nguồn STRANS không đổi) — số liệu
+  PHẢI giữ NGUYÊN như trước, không bị ảnh hưởng.
+- Nếu vẫn thấy thiếu dữ liệu 1 khoảng ngày cụ thể, kiểm tra etl-admin →
+  Log xem job "Lịch sử" đã quét xong tới tháng đó chưa (job chạy 1
+  lần/ngày, có thể cần vài lượt chạy mới quét hết toàn bộ lịch sử).
+
 ## 10.23 — PDF 2 báo cáo "(Thành viên)" (HCRC/LDTD) chuyển hẳn sang mẫu mới
 
 **Thay đổi**: CHỈ `rp-server/scripts/seedLdtdHcrcReports.js` (đổi

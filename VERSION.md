@@ -42,6 +42,54 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.24 — SỬA LỖI THẬT: báo cáo "Đơn đặt hàng" luôn trống — nguồn `STRANS` KHÔNG hề có dữ liệu 130/330
+
+**Theo báo cáo người dùng**: "Quay lại báo cáo nhập hàng với đặt hàng
+chưa có số ở cả mua chung và mua riêng" — qua loạt kiểm tra trực tiếp trên
+CSDL thật (VIEW có dữ liệu hôm nay, 2 job đồng bộ domain `don_dat_hang`
+đều "Bật"/chạy không lỗi, bảng Ánh xạ Điểm vẫn đúng) loại trừ dần các khả
+năng, cuối cùng đếm thẳng `SELECT TRANS_CODE, COUNT(*) FROM STRANS WHERE
+TRANS_CODE IN ('130','133','330','333') ... GROUP BY TRANS_CODE` ra kết
+quả: `133`=23.352, `333`=76.851, còn **`130`=0, `330`=0** — xác nhận
+`STRANS` (nguồn đã chốt 06/10/2026 cho CẢ đặt lẫn nhập) **CHỈ ĐÚNG cho
+"nhập hàng"**, hoàn toàn KHÔNG chứa "đặt hàng" — đây là lý do THẬT khiến
+báo cáo "Đơn đặt hàng" trống kể từ khi có tính năng (không phải lỗi gán
+sai mã 130/133/330/333 đã sửa ở bản 10.12 — mã đúng, chỉ là SAI BẢNG).
+
+**Đã làm rõ với DBA + xác nhận lại bằng SQL thật** (đếm số dòng, kiểm tra
+trùng lặp cấp dòng mặt hàng): nguồn ĐÚNG của "đặt hàng" (130/330) là
+`ON_ORDER` (đơn còn mở) + `FN_ORDER` (đơn đã đóng, tháng hiện tại) +
+`FN_ORDER_ARC` (lịch sử các tháng quá khứ, 1 bảng duy nhất) — xem đầy đủ
+quá trình điều tra + bằng chứng SQL ở `bc-don-dat-hang.md` mục "2b".
+
+**Đã sửa** — CHỈ 2 file VIEW SQL, KHÔNG đổi code JS nào (`rp-server/lib/
+purchaseOrderRunner.js` đọc đúng khuôn cột cũ, chỉ khác nguồn):
+- `deploy/Thiết lập VIEW Đơn đặt hàng-Nhập hàng-So sánh (DSMART16 trung
+  tâm).sql` — thêm 2 nhánh `UNION ALL` mới (`ON_ORDER`/`FN_ORDER`, lọc
+  `130`/`330`), giữ nguyên nhánh `STRANS` cũ (`133`/`333`).
+- `deploy/Thiết lập VIEW Đơn đặt hàng Lịch sử (DSMART16_EOM).sql` — thêm
+  nhánh `FN_ORDER_ARC`. **Nhân tiện vá 1 lỗi có sẵn từ bản 10.2**: stored
+  procedure chạy lại tự động hàng tháng (`sp_HCRC_RebuildDonDatHangView`)
+  thiếu JOIN `DEPTLIST`/cột ngành hàng so với đoạn tạo VIEW lần đầu cùng
+  file — lần tự chạy lại TIẾP THEO (ngày 2 hàng tháng) sẽ âm thầm xoá mất
+  2 cột đó, hỏng bộ lọc "Ngành hàng" không cảnh báo gì — đã đồng bộ lại.
+
+`DonGia` nhánh đặt hàng lấy thẳng cột `PRICE` (có thật ở 3 bảng mới, khác
+`STRANS` phải suy `AMOUNT/QTY`). `ST_ORDER`/`ST_ORDER_ARC` (DBA xác nhận:
+"đơn đã xoá") CỐ Ý không dùng — đúng quy tắc loại đơn xoá đã chốt từ
+trước.
+
+**‼️ BẮT BUỘC sau khi DBA chạy lại 2 file VIEW**: dữ liệu 130/330 hoàn
+toàn MỚI với hệ thống — watermark đồng bộ bình thường sẽ KHÔNG tự bù lại
+quá khứ, PHẢI chạy `node scripts/resyncDonDatHangWatermark.js --confirm`
+(script có sẵn từ bản 9.28, tái dùng nguyên) rồi "Chạy thử" lại 2 job
+domain `don_dat_hang` ở etl-admin — xem đủ bước ở Nhật ký triển khai.
+
+Verify: đối chiếu SQL thật trên CSDL production (đếm dòng, kiểm tra
+trùng lặp `(TRANS_NUM, IDX)` giữa `ON_ORDER`/`FN_ORDER` ra đúng 0) —
+KHÔNG mock test được (cần dữ liệu thật từ 3 bảng mới, không có trong môi
+trường sandbox).
+
 ## 10.23 — PDF 2 báo cáo "(Thành viên)" (HCRC/LDTD) chuyển hẳn sang mẫu mới
 
 **Theo yêu cầu người dùng**: "Bạn làm bản mới pdf HCRC (thành viên) luôn

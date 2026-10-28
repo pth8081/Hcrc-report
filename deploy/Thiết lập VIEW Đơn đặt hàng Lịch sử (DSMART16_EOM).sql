@@ -78,6 +78,31 @@
    ‼️ THÊM 23/10/2026 (bản 10.2) — CỘT `MaNganhHang`/`TenNganhHang` (JOIN
    chéo `DSMART16.dbo.DEPTLIST` qua `SKU_DEF.DEPT_ID`) ‼️ Xem ghi chú "THÊM
    23/10/2026" ở VIEW Live — áp dụng Y HỆT ở đây.
+
+   ‼️ SỬA 28/10/2026 (bản 10.24) — THÊM NGUỒN "ĐẶT HÀNG LỊCH SỬ"
+   (`FN_ORDER_ARC`) + SỬA LỖI stored procedure THIẾU DEPTLIST ‼️
+   Giống hệt phát hiện ở VIEW Live (xem ghi chú 28/10/2026 ở file "...
+   (DSMART16 trung tâm).sql") — dữ liệu "đặt hàng" (130/330) KHÔNG nằm
+   trong `STRANS`/`STRANS_YYYYMM` (0 dòng), DBA xác nhận nằm ở `ON_ORDER`/
+   `FN_ORDER` (tháng hiện tại, xem VIEW Live) VÀ `FN_ORDER_ARC` (lịch sử —
+   **1 BẢNG DUY NHẤT** chứa MỌI tháng quá khứ, KHÁC `STRANS_YYYYMM` phải
+   tách ~93 bảng riêng theo tháng — DBA xác nhận qua câu lệnh mẫu dùng
+   `DSMART16_EOM.DBO.FN_ORDER_ARC`, tức bảng này nằm Ở ĐÚNG CSDL
+   `DSMART16_EOM` mà file này đang chạy, không cần JOIN chéo CSDL cho riêng
+   bảng này). KHÔNG có `ON_ORDER_ARC` — đơn CÒN MỞ không có khái niệm lịch
+   sử (đóng xong thì dữ liệu nằm hẳn ở `FN_ORDER`/`FN_ORDER_ARC`, không ở
+   `ON_ORDER` nữa). `ST_ORDER`/`ST_ORDER_ARC` (đơn ĐÃ XOÁ) CỐ Ý không dùng,
+   giống VIEW Live.
+
+   **PHÁT HIỆN THÊM (lỗi có sẵn từ bản 10.2)**: đoạn stored procedure
+   `sp_HCRC_RebuildDonDatHangView` bên dưới (chạy lại TỰ ĐỘNG hàng tháng)
+   THIẾU JOIN `DEPTLIST`/cột `MaNganhHang`/`TenNganhHang` so với đoạn tạo
+   VIEW lần đầu ở TRÊN — bản 10.2 khi thêm ngành hàng chỉ sửa đúng 1 chỗ,
+   quên đồng bộ chỗ còn lại. Hậu quả: lần server tự chạy lại VIEW vào ngày
+   2 hàng tháng (xem job SQL Server Agent cuối file) sẽ ÂM THẦM XOÁ MẤT 2
+   cột `MaNganhHang`/`TenNganhHang` khỏi VIEW (bộ lọc "Ngành hàng" trên 6
+   báo cáo Mua hàng sẽ hỏng, không có cảnh báo gì) — ĐÃ SỬA đồng bộ lại 2
+   đoạn cho GIỐNG HỆT nhau trong lần cập nhật này.
    ============================================================================ */
 
 USE DSMART16_EOM;
@@ -89,14 +114,26 @@ DECLARE @sql NVARCHAR(MAX);
 -- kiểu này STRING_AGG suy luận nhầm kiểu ngắn, lỗi "aggregation result
 -- exceeded the limit of 8000 bytes" khi ghép đủ ~93 bảng.
 -- Lọc TRANS_CODE/STATUS NGAY TRONG từng bảng con (trước khi UNION ALL ~93
--- bảng) — tối ưu, đỡ quét thừa dữ liệu không dùng tới.
+-- bảng) — tối ưu, đỡ quét thừa dữ liệu không dùng tới. CHỈ '133'/'333'
+-- (nhập hàng) — '130'/'330' (đặt hàng) không nằm ở STRANS/STRANS_YYYYMM
+-- (đã xác nhận THẬT bằng SQL, bản 10.24), lấy riêng từ FN_ORDER_ARC bên
+-- dưới thay vì lẫn vào đây.
 SELECT @sql = STRING_AGG(
-    CAST('SELECT TRANS_NUM, IDX, TRAN_DATE, BU_ID, REF, TRANS_CODE, DUE_DATE, SUPP_ID, STAFF_ID, SKU_ID, UNIT_SYMB, STATUS, QTY, AMOUNT FROM '
-    + QUOTENAME(name) + ' WITH (NOLOCK) WHERE STATUS NOT IN (''D'',''E'') AND TRANS_CODE IN (''133'',''333'',''130'',''330'')' AS NVARCHAR(MAX)),
+    CAST('SELECT TRANS_NUM, IDX, TRAN_DATE, BU_ID, CAST(REF AS VARCHAR(50)) AS SoDonRaw, TRANS_CODE, DUE_DATE, SUPP_ID, STAFF_ID, SKU_ID, UNIT_SYMB, STATUS, QTY AS SoLuongRaw, AMOUNT / NULLIF(QTY, 0) AS DonGiaRaw, AMOUNT AS ThanhTienRaw FROM '
+    + QUOTENAME(name) + ' WITH (NOLOCK) WHERE STATUS NOT IN (''D'',''E'') AND TRANS_CODE IN (''133'',''333'')' AS NVARCHAR(MAX)),
     ' UNION ALL '
 )
 FROM sys.tables
 WHERE name LIKE 'STRANS[_][0-9][0-9][0-9][0-9][0-9][0-9]' OR name = 'STRANS_EOM';
+
+-- THÊM bản 10.24 — nhánh "đặt hàng" lịch sử (130/330), nguồn FN_ORDER_ARC
+-- (1 bảng DUY NHẤT, nằm NGAY TRONG DSMART16_EOM — không cần JOIN chéo CSDL
+-- cho riêng bảng này). ORD_QTY=SL đặt, PRICE=đơn giá thật (khác nhánh
+-- STRANS phải suy AMOUNT/QTY) — xem ghi chú đầy đủ ở VIEW Live. SoDonRaw
+-- dùng ISNULL+NULLIF+RTRIM+CAST VARCHAR(50) tường minh — tránh lỗi cắt
+-- ngắn ký tự nếu REF là char NGẮN HƠN TRANS_NUM, và coi REF toàn dấu cách
+-- (char rỗng kiểu cũ) cũng là "chưa có" — xem ghi chú đầy đủ ở VIEW Live.
+SET @sql = @sql + N' UNION ALL SELECT TRANS_NUM, IDX, TRAN_DATE, BU_ID, ISNULL(NULLIF(RTRIM(CAST(REF AS VARCHAR(50))), ''''), CAST(TRANS_NUM AS VARCHAR(50))) AS SoDonRaw, TRANS_CODE, DUE_DATE, SUPP_ID, STAFF_ID, SKU_ID, UNIT_SYMB, STATUS, ORD_QTY AS SoLuongRaw, PRICE AS DonGiaRaw, AMOUNT AS ThanhTienRaw FROM dbo.FN_ORDER_ARC WITH (NOLOCK) WHERE STATUS NOT IN (''D'',''E'') AND TRANS_CODE IN (''130'',''330'')';
 
 -- Cùng khuôn cột/alias với VIEW "Live" (dbo.vw_DonDatHangChiNhanh trên
 -- DSMART16) — rp-server/lib/purchaseOrderRunner.js không cần biết dữ liệu
@@ -108,7 +145,7 @@ SELECT
     CAST(d.TRAN_DATE AS DATE)   AS EventDate,
     d.BU_ID                     AS MaDiem,
     NULL                        AS TenDiem,
-    d.REF                       AS SoDon,
+    d.SoDonRaw                  AS SoDon,
     d.TRANS_CODE                AS LoaiGiaoDich,
     CAST(d.DUE_DATE AS DATE)    AS NgayGiao,
     d.SUPP_ID                   AS MaNCC,
@@ -128,9 +165,9 @@ SELECT
         WHEN ''M'' THEN N''Đơn sửa''
         ELSE d.STATUS
     END                         AS TrangThaiLabel,
-    d.QTY                       AS SoLuong,
-    d.AMOUNT / NULLIF(d.QTY, 0) AS DonGia,
-    d.AMOUNT                    AS ThanhTien
+    d.SoLuongRaw                AS SoLuong,
+    d.DonGiaRaw                 AS DonGia,
+    d.ThanhTienRaw              AS ThanhTien
 FROM (' + @sql + N') d
 LEFT JOIN DSMART16.dbo.SUPPLIER s ON s.SUPP_ID = d.SUPP_ID
 LEFT JOIN DSMART16.dbo.SKU_DEF k ON k.SKU_ID = d.SKU_ID        -- THÊM bản 9.95
@@ -146,17 +183,23 @@ GO
 -- sp_HCRC_RebuildDoanhThuView đã có cho báo cáo doanh thu).
 USE DSMART16_EOM;
 GO
+-- SỬA bản 10.24 — đồng bộ LẠI cho GIỐNG HỆT đoạn tạo VIEW lần đầu ở trên
+-- (trước đó THIẾU JOIN DEPTLIST/cột MaNganhHang/TenNganhHang — lỗi có sẵn
+-- từ bản 10.2, xem cảnh báo "PHÁT HIỆN THÊM" ở đầu file) — ĐỒNG THỜI thêm
+-- nhánh FN_ORDER_ARC (đặt hàng lịch sử) giống VIEW Live.
 CREATE OR ALTER PROCEDURE dbo.sp_HCRC_RebuildDonDatHangView AS
 BEGIN
     DECLARE @sql NVARCHAR(MAX);
 
     SELECT @sql = STRING_AGG(
-        CAST('SELECT TRANS_NUM, IDX, TRAN_DATE, BU_ID, REF, TRANS_CODE, DUE_DATE, SUPP_ID, STAFF_ID, SKU_ID, UNIT_SYMB, STATUS, QTY, AMOUNT FROM '
-        + QUOTENAME(name) + ' WITH (NOLOCK) WHERE STATUS NOT IN (''D'',''E'') AND TRANS_CODE IN (''133'',''333'',''130'',''330'')' AS NVARCHAR(MAX)),
+        CAST('SELECT TRANS_NUM, IDX, TRAN_DATE, BU_ID, CAST(REF AS VARCHAR(50)) AS SoDonRaw, TRANS_CODE, DUE_DATE, SUPP_ID, STAFF_ID, SKU_ID, UNIT_SYMB, STATUS, QTY AS SoLuongRaw, AMOUNT / NULLIF(QTY, 0) AS DonGiaRaw, AMOUNT AS ThanhTienRaw FROM '
+        + QUOTENAME(name) + ' WITH (NOLOCK) WHERE STATUS NOT IN (''D'',''E'') AND TRANS_CODE IN (''133'',''333'')' AS NVARCHAR(MAX)),
         ' UNION ALL '
     )
     FROM sys.tables
     WHERE name LIKE 'STRANS[_][0-9][0-9][0-9][0-9][0-9][0-9]' OR name = 'STRANS_EOM';
+
+    SET @sql = @sql + N' UNION ALL SELECT TRANS_NUM, IDX, TRAN_DATE, BU_ID, ISNULL(NULLIF(RTRIM(CAST(REF AS VARCHAR(50))), ''''), CAST(TRANS_NUM AS VARCHAR(50))) AS SoDonRaw, TRANS_CODE, DUE_DATE, SUPP_ID, STAFF_ID, SKU_ID, UNIT_SYMB, STATUS, ORD_QTY AS SoLuongRaw, PRICE AS DonGiaRaw, AMOUNT AS ThanhTienRaw FROM dbo.FN_ORDER_ARC WITH (NOLOCK) WHERE STATUS NOT IN (''D'',''E'') AND TRANS_CODE IN (''130'',''330'')';
 
     DECLARE @sqlView NVARCHAR(MAX) = N'
     CREATE OR ALTER VIEW dbo.vw_DonDatHangChiNhanh AS
@@ -165,7 +208,7 @@ BEGIN
         CAST(d.TRAN_DATE AS DATE)   AS EventDate,
         d.BU_ID                     AS MaDiem,
         NULL                        AS TenDiem,
-        d.REF                       AS SoDon,
+        d.SoDonRaw                  AS SoDon,
         d.TRANS_CODE                AS LoaiGiaoDich,
         CAST(d.DUE_DATE AS DATE)    AS NgayGiao,
         d.SUPP_ID                   AS MaNCC,
@@ -174,6 +217,8 @@ BEGIN
         d.SKU_ID                    AS MaHang,
         NULL                        AS TenHang,
         k.SKU_CODE                   AS MaHangHienThi,   -- THÊM bản 9.95
+        k.DEPT_ID                    AS MaNganhHang,     -- SỬA bản 10.24 — thiếu từ bản 10.2, bổ sung lại cho khớp VIEW Live
+        dl.DEPT_NAME_U                AS TenNganhHang,   -- SỬA bản 10.24 — thiếu từ bản 10.2, bổ sung lại cho khớp VIEW Live
         d.UNIT_SYMB                 AS DVT,
         d.STATUS                    AS TrangThai,
         CASE d.STATUS
@@ -183,12 +228,13 @@ BEGIN
             WHEN ''M'' THEN N''Đơn sửa''
             ELSE d.STATUS
         END                         AS TrangThaiLabel,
-        d.QTY                       AS SoLuong,
-        d.AMOUNT / NULLIF(d.QTY, 0) AS DonGia,
-        d.AMOUNT                    AS ThanhTien
+        d.SoLuongRaw                AS SoLuong,
+        d.DonGiaRaw                 AS DonGia,
+        d.ThanhTienRaw              AS ThanhTien
     FROM (' + @sql + N') d
     LEFT JOIN DSMART16.dbo.SUPPLIER s ON s.SUPP_ID = d.SUPP_ID
-    LEFT JOIN DSMART16.dbo.SKU_DEF k ON k.SKU_ID = d.SKU_ID;';   -- THÊM bản 9.95
+    LEFT JOIN DSMART16.dbo.SKU_DEF k ON k.SKU_ID = d.SKU_ID        -- THÊM bản 9.95
+    LEFT JOIN DSMART16.dbo.DEPTLIST dl ON dl.DEPT_ID = k.DEPT_ID;';  -- SỬA bản 10.24 — thiếu từ bản 10.2
 
     EXEC sp_executesql @sqlView;
 END
