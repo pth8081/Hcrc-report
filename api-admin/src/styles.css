@@ -122,6 +122,31 @@ button:disabled, button:disabled:hover {
 .tabs button { background: none; border: none; color: var(--ink-soft); padding: 8px 14px; border-radius: 0; box-shadow: none; font-weight: 500; flex-shrink: 0; white-space: nowrap; }
 .tabs button.active { color: var(--accent); border-bottom: 2px solid var(--accent); }
 
+/* SỬA TIẾP bản 10.27 — xem chú thích đầy đủ ở rp-user/src/styles.css
+   (theo yêu cầu người dùng — xếp lưới 2 cột gọn trong 1 màn hình điện
+   thoại thay vì phải cuộn ngang). */
+@media (max-width: 460px) {
+  .tabs {
+    overflow-x: visible;
+    flex-wrap: wrap;
+    border-bottom: none;
+    gap: 8px;
+  }
+  .tabs button {
+    flex: 1 1 calc(50% - 8px);
+    white-space: normal;
+    text-align: center;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 10px 6px;
+  }
+  .tabs button.active {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+    font-weight: 700;
+  }
+}
+
 /* z-index: 100 (bản 10.19) — xem chú thích đầy đủ ở etl-admin/src/styles.css:
    không có z-index trước đây khiến các cột ghim cố định của bảng dữ liệu
    (z-index:1) vẽ ĐÈ LÊN modal theo đúng quy tắc CSS (z-index cụ thể luôn

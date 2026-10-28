@@ -42,6 +42,33 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.27 — SỬA TIẾP bản 10.26: dòng tab trên điện thoại xếp lưới 2 cột gọn 1 màn hình, không cần cuộn ngang
+
+**Theo yêu cầu người dùng** (ngay sau khi xem bản 10.26): "Cái này chắc
+bạn phải sắp xếp theo kiểu mobile thì phải sắp xếp nó gọn là một màn
+hình ý, đỡ phải kéo sang bên trái bên phải. Nếu có sắp xếp một màn hình
+bạn có thể xếp lớp hoặc là như nào đó để cho nó căn và mình ấn nó dễ" —
+bản 10.26 (cuộn ngang) đã hết lỗi "bấm không được", nhưng người dùng
+muốn hẳn 1 màn hình, không cần kéo.
+
+**Đã làm** (`rp-user`/`etl-admin`/`api-admin` — `src/styles.css`, cùng
+class `.tabs`): thêm `@media (max-width: 460px)` (mốc "điện thoại" đã
+dùng sẵn ở `.dashboard-grid`, giữ nhất quán 1 mốc cho cả trang) — đổi
+`.tabs` từ 1 hàng cuộn ngang (bản 10.26, vẫn GIỮ NGUYÊN cho máy tính
+bảng/màn hình vừa) sang **lưới 2 cột, tự xuống hàng** nếu > 2 tab (`flex-
+wrap: wrap` + `flex: 1 1 calc(50% - gap)`) — "xếp lớp" đúng ý người dùng.
+Mỗi tab đổi từ kiểu "chữ + gạch chân dưới" (hợp 1 hàng ngang) sang **khung
+bo góc riêng** (`border` + `border-radius`), tab đang chọn tô NỀN đậm
+(`var(--accent-soft)`) thay vì chỉ gạch chân — dễ nhận biết vùng bấm hơn
+("ấn nó dễ"). Tên tab dài tự xuống dòng trong ô (`white-space: normal`)
+thay vì bị cắt chữ.
+
+Verify: dựng lại cấu trúc `.app-shell > .tabs` (4 tab, đúng tên thật) ở
+390px (Playwright headless) — `scrollWidth` = `clientWidth` = 366px
+(KHÔNG còn tràn, không cần cuộn), 4 nút tự xếp đúng lưới 2×2 (179×38px
+mỗi ô, 2 hàng) — chụp ảnh xác nhận trực quan đúng ý "gọn 1 màn hình, căn
+đều, dễ bấm".
+
 ## 10.26 — SỬA LỖI THẬT: dòng tab (vd "Báo cáo kinh doanh"/"Báo cáo vận hành"/...) tràn rộng hơn màn hình điện thoại, không trượt ngang được
 
 **Theo báo cáo người dùng** (ảnh chụp thật trên điện thoại, trang "Báo

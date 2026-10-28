@@ -269,10 +269,49 @@ button:disabled, button:disabled:hover {
    chất .tabs vẫn có thể cuộn. Thêm `overflow-x: auto` CHO RIÊNG .tabs +
    `flex-shrink: 0`/`white-space: nowrap` cho từng nút (không co chữ/không
    xuống dòng) — dòng tab tự thành 1 khối cuộn ngang độc lập, không phụ
-   thuộc .app-shell nữa. */
+   thuộc .app-shell nữa. Vẫn GIỮ NGUYÊN làm phương án dự phòng cho máy tính
+   bảng/màn hình vừa (881px tới dưới breakpoint 460px bên dưới) — chỉ màn
+   hình THẬT HẸP (điện thoại, xem media query kế tiếp) mới đổi hẳn sang
+   dạng lưới, không cần cuộn nữa. */
 .tabs { display: flex; gap: 4px; margin-bottom: 16px; border-bottom: 1px solid var(--line); overflow-x: auto; -webkit-overflow-scrolling: touch; }
 .tabs button { background: none; border: none; color: var(--ink-soft); padding: 8px 14px; border-radius: 0; box-shadow: none; font-weight: 500; flex-shrink: 0; white-space: nowrap; }
 .tabs button.active { color: var(--accent); border-bottom: 2px solid var(--accent); }
+
+/* SỬA TIẾP bản 10.27 (theo yêu cầu người dùng, sau khi xem bản 10.26 —
+   "sắp xếp theo kiểu mobile ... gọn một màn hình, đỡ phải kéo sang bên
+   trái bên phải ... xếp lớp ... căn và ấn nó dễ"): CUỘN NGANG (bản 10.26)
+   đúng là hết lỗi "bấm không được", nhưng người dùng muốn HẲN 1 MÀN HÌNH
+   không cần kéo — trên điện thoại thật hẹp (dùng LẠI đúng breakpoint
+   460px đã có ở .dashboard-grid phía trên, nhất quán 1 mốc "điện thoại"
+   cho cả trang), đổi `.tabs` từ 1 HÀNG cuộn ngang sang LƯỚI 2 CỘT (bọc
+   xuống nhiều hàng nếu > 2 tab — "xếp lớp" đúng ý người dùng), mỗi ô 1
+   KHUNG BO GÓC RIÊNG (dễ nhận biết vùng bấm hơn kiểu "chữ + gạch chân"
+   cũ, vốn hợp với 1 hàng ngang hơn là lưới nhiều hàng) — `white-space:
+   normal` cho phép tên tab dài tự xuống dòng TRONG ô thay vì bị cắt chữ
+   (khác hẳn khi còn ở dạng cuộn ngang, ở đó PHẢI giữ `nowrap` để không vỡ
+   chiều rộng từng nút). `overflow-x: visible` TẮT hẳn cuộn ngang ở mốc
+   này — không còn cần nữa vì đã xếp gọn vừa đúng 1 màn hình. */
+@media (max-width: 460px) {
+  .tabs {
+    overflow-x: visible;
+    flex-wrap: wrap;
+    border-bottom: none;
+    gap: 8px;
+  }
+  .tabs button {
+    flex: 1 1 calc(50% - 8px);
+    white-space: normal;
+    text-align: center;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 10px 6px;
+  }
+  .tabs button.active {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+    font-weight: 700;
+  }
+}
 
 /* Trang "Log" (app.SystemLog) — mức độ INFO/WARN/ERROR */
 .level-badge { font-size: 10px; text-transform: uppercase; letter-spacing: .04em; padding: 1px 6px; border-radius: 3px; font-weight: 500; }

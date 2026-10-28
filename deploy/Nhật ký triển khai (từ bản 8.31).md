@@ -14,6 +14,21 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.27 — Dòng tab trên điện thoại xếp lưới 2 cột gọn 1 màn hình (theo yêu cầu người dùng, sửa tiếp bản 10.26)
+
+**Thay đổi**: `rp-user/src/styles.css`, `etl-admin/src/styles.css`,
+`api-admin/src/styles.css` (CSS thuần).
+
+**Các bước**: `git pull origin main` → build lại CẢ 3 giao diện → deploy
+như thường. KHÔNG cần đổi backend/CSDL.
+
+**Kiểm tra**: mở trang có nhiều tab (vd "Báo cáo" ở rp-user) trên điện
+thoại thật (hoặc DevTools → chế độ mobile, bề ngang ≤ 460px) — các tab
+PHẢI xếp gọn thành lưới 2 cột (vd 4 tab = 2 hàng × 2 cột) vừa đúng 1 màn
+hình, không cần kéo/cuộn ngang, tab đang chọn có nền tô đậm dễ nhận biết.
+Màn hình rộng hơn (máy tính bảng/desktop) vẫn giữ dạng 1 hàng ngang như
+cũ.
+
 ## 10.26 — SỬA LỖI THẬT: dòng tab tràn rộng hơn màn hình điện thoại, không trượt ngang được
 
 **Thay đổi**: `rp-user/src/styles.css`, `etl-admin/src/styles.css`,
