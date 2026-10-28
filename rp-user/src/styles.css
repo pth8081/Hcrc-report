@@ -14,11 +14,11 @@
 * { box-sizing: border-box; }
 /* Phông Inter (bản 9.69, theo yêu cầu người dùng — xem chú thích import
    ở src/main.jsx) — fallback system-ui nếu font chưa tải kịp/lỗi mạng. */
-body { margin: 0; font-family: 'Inter', system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--ink); }
-h1 { font-size: 22px; margin: 0 0 16px; }
-h2 { font-size: 18px; margin: 0 0 12px; }
-h3 { font-size: 15px; margin: 0 0 8px; }
-h4 { font-size: 13px; margin: 12px 0 6px; color: var(--ink-soft); }
+body { margin: 0; font-family: 'Inter', system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--ink); line-height: 1.5; -webkit-font-smoothing: antialiased; }
+h1 { font-size: 22px; margin: 0 0 16px; font-weight: 700; letter-spacing: -.01em; }
+h2 { font-size: 18px; margin: 0 0 12px; font-weight: 600; }
+h3 { font-size: 15px; margin: 0 0 8px; font-weight: 600; }
+h4 { font-size: 13px; margin: 12px 0 6px; color: var(--ink-soft); font-weight: 600; }
 
 /* Layout */
 .app-shell { display: flex; min-height: 100vh; }
@@ -38,7 +38,16 @@ h4 { font-size: 13px; margin: 12px 0 6px; color: var(--ink-soft); }
 /* Forms */
 form label, .filter-field { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--ink-soft); }
 input, select, textarea, button { font: inherit; }
-input, select, textarea { padding: 7px 10px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); color: var(--ink); }
+/* Input/select/textarea (bản 10.20) — xem chú thích đầy đủ ở etl-admin/src/styles.css. */
+input, select, textarea {
+  padding: 9px 12px; border: 1px solid var(--line); border-radius: 8px;
+  background: var(--surface); color: var(--ink);
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+input:focus, select:focus, textarea:focus {
+  outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft);
+}
+input[type="checkbox"]:focus, input[type="radio"]:focus { box-shadow: none; }
 /* Ô nhập ngày dd/mm/yyyy (bản 9.25) — xem components/DateInput.jsx */
 .date-input-wrap { position: relative; display: inline-flex; vertical-align: middle; }
 .date-input-display { display: flex; align-items: center; gap: 6px; padding: 7px 10px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); color: var(--ink); font-size: 14px; white-space: nowrap; pointer-events: none; }
@@ -46,8 +55,15 @@ input, select, textarea { padding: 7px 10px; border: 1px solid var(--line); bord
 .date-input-icon { font-size: 12px; opacity: .7; }
 .date-input-native { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; margin: 0; padding: 0; border: none; cursor: pointer; }
 .date-input-native:disabled { cursor: default; }
-button { padding: 7px 14px; border: 1px solid var(--accent); border-radius: 4px; background: var(--accent); color: #fff; cursor: pointer; }
-button:hover { opacity: 0.9; }
+/* Nút (bản 10.20) — xem chú thích đầy đủ ở etl-admin/src/styles.css. */
+button {
+  padding: 9px 16px; border: 1px solid var(--accent); border-radius: 8px;
+  background: var(--accent); color: #fff; cursor: pointer; font-weight: 600;
+  white-space: nowrap; box-shadow: 0 1px 2px rgba(20, 30, 40, .08);
+  transition: opacity .15s ease, transform .05s ease, box-shadow .15s ease;
+}
+button:hover { opacity: 0.92; }
+button:active { transform: translateY(1px); box-shadow: none; }
 /* button[disabled] (bản 8.60, theo yêu cầu người dùng) — PHẢI đổi màu rõ
    rệt (không chỉ đổi con trỏ chuột) khi 1 nút đang chờ kết quả từ server
    (disabled={đang_xử_lý}), để người dùng KHÔNG hiểu nhầm là chưa bấm được
@@ -55,7 +71,13 @@ button:hover { opacity: 0.9; }
    Đặt SAU rule button:hover để thắng được opacity:0.9 lúc di chuột qua. */
 button:disabled, button:disabled:hover {
   background: var(--line); border-color: var(--line); color: var(--ink-soft);
-  opacity: 1; cursor: not-allowed;
+  opacity: 1; cursor: not-allowed; box-shadow: none;
+}
+/* .inline-form/.stacked-form/.filter-form card hoá (bản 10.20) — xem chú
+   thích đầy đủ ở etl-admin/src/styles.css. */
+.inline-form, .stacked-form, .filter-form {
+  background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+  padding: 16px 18px; box-shadow: 0 1px 3px rgba(20, 30, 40, .05);
 }
 .inline-form, .filter-form { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 16px; }
 .stacked-form { display: flex; flex-direction: column; gap: 10px; max-width: 420px; margin-bottom: 20px; }
@@ -69,7 +91,7 @@ button:disabled, button:disabled:hover {
 /* SearchableSelect (components/SearchableSelect.jsx) — dropdown searchable +
    multi-select dùng chung cho mọi ô chọn/lọc, xem FilterForm.jsx. */
 .searchable-select { position: relative; min-width: 220px; }
-.searchable-select-toggle { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px; background: var(--surface); color: var(--ink); border: 1px solid var(--line); text-align: left; }
+.searchable-select-toggle { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px; background: var(--surface); color: var(--ink); border: 1px solid var(--line); text-align: left; box-shadow: none; font-weight: 400; }
 .searchable-select-toggle span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .searchable-select-caret { color: var(--ink-soft); font-size: 11px; }
 .searchable-select-panel { position: absolute; z-index: 20; top: calc(100% + 4px); left: 0; min-width: 100%; width: max-content; max-width: 320px; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; box-shadow: 0 6px 18px rgba(0,0,0,0.12); padding: 8px; }
@@ -85,7 +107,7 @@ button:disabled, button:disabled:hover {
 .form-success { color: #1c7566; font-size: 13px; }
 .hint { color: var(--ink-soft); font-size: 12.5px; margin: -4px 0 4px; }
 .filter-config { border: 1px solid var(--line); border-radius: 4px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
-.inline-actions { display: flex; gap: 8px; align-items: center; }
+.inline-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .repeatable-list { display: flex; flex-direction: column; gap: 6px; }
 .repeatable-list > span { font-size: 13px; color: var(--ink-soft); }
 .times-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; font-size: 13px; }
@@ -154,9 +176,18 @@ button:disabled, button:disabled:hover {
    phần còn lại của hàng .inline-actions (cạnh nút "Chạy thử" cố định
    chiều rộng) — cùng lý do đổi từ inline style ở trên. */
 .flex-1 { flex: 1; }
+/* Bảng dữ liệu (bản 10.20) — padding rộng hơn + hàng nổi nhẹ khi di chuột,
+   xem chú thích đầy đủ ở etl-admin/src/styles.css. KHÔNG thêm border/
+   border-radius trực tiếp vào `.table-scroll` ở đây (khác etl-admin/
+   api-admin) — bảng báo cáo (`.table-scroll--report`) có toán sticky
+   header/cột phức tạp, canh khớp theo chính kích thước khung cuộn; thêm
+   viền/bo góc có thể làm lệch — card hoá RIÊNG `.table-scroll--result`
+   (khối xem trước nhỏ, không có sticky) ở dưới thay vì sửa rule chung. */
 .data-table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
-.data-table th { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); color: var(--ink-soft); font-weight: 600; }
-.data-table td { padding: 8px 10px; border-bottom: 1px solid var(--line); }
+.data-table th { text-align: left; padding: 9px 11px; border-bottom: 1px solid var(--line); color: var(--ink-soft); font-weight: 600; }
+.data-table td { padding: 9px 11px; border-bottom: 1px solid var(--line); }
+.data-table tbody tr:hover td { background: var(--bg); }
+.table-scroll--result { border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
 /* Cột "Sửa/Bật-Tắt/Xoá" ghim cố định bên phải khi cuộn ngang (bản 9.05,
    theo báo cáo người dùng — bảng rộng trên điện thoại, cuộn ngang khó kéo
    hết cỡ nên không bao giờ thấy được nút thao tác) — chỉ áp dụng bảng CRUD
@@ -195,7 +226,7 @@ button:disabled, button:disabled:hover {
 
 /* Tabs */
 .tabs { display: flex; gap: 4px; margin-bottom: 16px; border-bottom: 1px solid var(--line); }
-.tabs button { background: none; border: none; color: var(--ink-soft); padding: 8px 14px; border-radius: 0; }
+.tabs button { background: none; border: none; color: var(--ink-soft); padding: 8px 14px; border-radius: 0; box-shadow: none; font-weight: 500; }
 .tabs button.active { color: var(--accent); border-bottom: 2px solid var(--accent); }
 
 /* Trang "Log" (app.SystemLog) — mức độ INFO/WARN/ERROR */
@@ -389,15 +420,18 @@ button:disabled, button:disabled:hover {
   .app-shell { display: block; overflow-x: hidden; }
   .mobile-topbar {
     display: flex; align-items: center; gap: 10px; background: var(--nav-bg);
-    color: #fff; padding: 10px 14px; position: sticky; top: 0; z-index: 30;
+    color: #fff; padding: 12px 14px; position: sticky; top: 0; z-index: 30;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, .15);
   }
   .mobile-topbar .h-logo { width: 30px; height: 30px; font-size: 15px; }
   .mobile-topbar-title { flex: 1; font-weight: 700; font-size: 13.5px; }
+  /* Vùng chạm ~44px (bản 10.20) — xem chú thích đầy đủ ở etl-admin/src/styles.css. */
   .mobile-menu-toggle {
     background: none; border: none; color: #fff; font-size: 22px; line-height: 1;
-    padding: 4px 8px; cursor: pointer; border-radius: 6px;
+    padding: 10px 12px; cursor: pointer; border-radius: 8px; box-shadow: none;
   }
   .mobile-menu-toggle:hover { background: var(--nav-bg-soft); }
+  .mobile-menu-toggle:active { transform: none; }
   .sidebar {
     position: fixed; top: 0; left: 0; bottom: 0; z-index: 50; width: 260px;
     max-width: 82vw; transform: translateX(-100%); transition: transform .22s ease;
@@ -416,6 +450,12 @@ button:disabled, button:disabled:hover {
     display: block; position: fixed; inset: 0; background: rgba(6, 12, 22, .5); z-index: 40;
   }
   .content { padding: 16px; }
+  /* Vùng chạm tối thiểu ~44px (bản 10.20) — xem chú thích đầy đủ ở
+     etl-admin/src/styles.css. Loại trừ nút nhỏ trong panel chọn nhiều
+     (.searchable-select-actions) — ép to sẽ không vừa panel hẹp 320px. */
+  input:not([type="checkbox"]):not([type="radio"]), select, textarea, button { min-height: 42px; }
+  .searchable-select-actions button { min-height: auto; }
+  .inline-form, .stacked-form, .filter-form { padding: 14px; }
 }
 
 /* ---- login (thẻ bo tròn căn giữa trang — bản 9.26, theo yêu cầu người
@@ -516,7 +556,7 @@ button:disabled, button:disabled:hover {
 .huong-dan-section { margin-bottom: 18px; }
 .huong-dan-section-title { font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--ink-soft); margin: 0 0 6px 4px; }
 .huong-dan-nav ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
-.huong-dan-nav button { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; background: none; border: none; color: var(--ink); padding: 8px 10px; border-radius: 6px; font-size: 13.5px; cursor: pointer; }
+.huong-dan-nav button { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; background: none; border: none; color: var(--ink); padding: 8px 10px; border-radius: 6px; font-size: 13.5px; cursor: pointer; box-shadow: none; white-space: normal; font-weight: 500; }
 .huong-dan-nav button:hover { background: var(--bg); }
 .huong-dan-nav button.active { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
 .huong-dan-icon { font-size: 15px; width: 18px; text-align: center; flex: none; }
