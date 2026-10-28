@@ -42,6 +42,45 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.28 — Rà soát toàn diện lỗi tràn ngang mobile — sửa thêm 2 lỗi thật (rp-user)
+
+**Theo yêu cầu người dùng** (sau khi xem bản 10.26/10.27): "Bạn có thể rà
+soát những cái phần khác không? Có thể bị lỗi này. Vì responsive cho
+mobile thì nó phải tinh tế một chút" — cho 1 agent rà soát TOÀN BỘ 3 app
+(grep mọi rule `display:flex` thiếu `flex-wrap`/`overflow-x`, sau đó dựng
+Playwright với đúng CSS + nội dung thật để xác nhận từng ứng viên, không
+chỉ đọc code đoán).
+
+**3 ứng viên agent báo lại, tự kiểm chứng lại 1 lần nữa bằng Playwright
+(dùng ĐÚNG file `styles.css` thật + đúng cây DOM thật của từng trang) —
+loại 1, xác nhận 2**:
+- **`.captcha-row` (trang đăng nhập, cả 3 app) — KHÔNG PHẢI lỗi thật**:
+  agent test trong khung mô phỏng rời rạc, thiếu đúng ngữ cảnh `.login-
+  page > .login-shell > .login-card-wrap` (có padding thu gọn riêng ở
+  mốc `≤860px`) — dựng lại ĐÚNG cây DOM thật, `.captcha-row` đủ chỗ
+  (fit vừa 280-340px) ở CẢ 320px/360px/390px, không tràn. Không sửa gì.
+- **`.export-actions` (`AdhocReportPage.jsx`, tab "Báo cáo tự do") — LỖI
+  THẬT**: 3 nút "Chạy"/"Lưu báo cáo của tôi"/"📋 Xem bảng chi tiết" tràn
+  165-195px ở 360-390px (đo bằng `scrollWidth`/`clientWidth` thật, trong
+  đúng `.app-shell > .content`).
+- **`.dashboard-metric-tabs` (Dashboard, 4 nút chuyển chế độ xem) — LỖI
+  THẬT, NẶNG NHẤT đợt rà soát**: tràn 348-378px ở 360-390px — 2 nút cuối
+  ("Biểu đồ doanh thu"/"Biểu đồ giao dịch") bị `.app-shell` cắt mất HOÀN
+  TOÀN, không thấy/không bấm được.
+
+**Đã sửa** (`rp-user/src/styles.css`, chỉ app này — 2 class không dùng
+ở etl-admin/api-admin): thêm `flex-wrap: wrap` cho cả 2 class — đơn giản
+hơn kiểu lưới cố định 2 cột của `.tabs` (bản 10.27), vì số nút ở đây
+THAY ĐỔI tuỳ trạng thái/bộ lọc (1-4 nút), không cố định — các nút tự
+xuống hàng khi thiếu chỗ, không cần ép đúng 2 cột.
+
+Verify: dựng lại đúng cấu trúc DOM + CSS thật (Playwright headless, dùng
+TRỰC TIẾP file `styles.css`, không gõ lại tay) ở 360px/390px cho cả 3
+trường hợp — `.captcha-row` xác nhận an toàn (không đổi), `.export-
+actions`/`.dashboard-metric-tabs` sau khi sửa: `scrollWidth` = `client
+Width` (hết tràn hoàn toàn), chụp ảnh xác nhận các nút xuống hàng gọn
+gàng, không mất nút nào.
+
 ## 10.27 — SỬA TIẾP bản 10.26: dòng tab trên điện thoại xếp lưới 2 cột gọn 1 màn hình, không cần cuộn ngang
 
 **Theo yêu cầu người dùng** (ngay sau khi xem bản 10.26): "Cái này chắc

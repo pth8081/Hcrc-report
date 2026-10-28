@@ -14,6 +14,25 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.28 — Rà soát toàn diện mobile — sửa thêm 2 lỗi tràn ngang thật (rp-user)
+
+**Thay đổi**: CHỈ `rp-user/src/styles.css` (CSS thuần — 2 class
+`.export-actions`/`.dashboard-metric-tabs`).
+
+**Các bước**: `git pull origin main` → build lại `rp-user` → deploy như
+thường. KHÔNG cần đổi backend/CSDL, KHÔNG cần build lại `etl-admin`/
+`api-admin` (2 class này chỉ có ở `rp-user`).
+
+**Kiểm tra** (trên điện thoại thật hoặc DevTools ≤390px):
+- Trang "Báo cáo" → tab "Báo cáo tự do" → nút "Chạy"/"Lưu báo cáo của
+  tôi"/"📋 Xem bảng chi tiết" PHẢI thấy đủ cả 3 nút (xuống hàng nếu
+  không đủ chỗ 1 hàng), không còn nút nào bị cắt mất.
+- Trang "Dashboard" → 4 nút chuyển chế độ xem ("Xếp theo Doanh thu"/
+  "Xếp theo Giao dịch"/"Biểu đồ doanh thu"/"Biểu đồ giao dịch") PHẢI
+  thấy đủ cả 4 nút.
+- Trang đăng nhập (captcha) — ĐÃ KIỂM TRA, không cần sửa, không bị ảnh
+  hưởng gì (xác nhận không phải lỗi thật).
+
 ## 10.27 — Dòng tab trên điện thoại xếp lưới 2 cột gọn 1 màn hình (theo yêu cầu người dùng, sửa tiếp bản 10.26)
 
 **Thay đổi**: `rp-user/src/styles.css`, `etl-admin/src/styles.css`,

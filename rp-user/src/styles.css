@@ -343,7 +343,15 @@ button:disabled, button:disabled:hover {
 .link-button { background: none; border: none; color: var(--accent); padding: 0; text-decoration: underline; cursor: pointer; font-size: 13px; align-self: flex-start; }
 
 .report-picker { margin-bottom: 16px; max-width: 320px; }
-.export-actions { display: flex; gap: 8px; margin: 12px 0; }
+/* SỬA LỖI THẬT (bản 10.28, rà soát mobile theo yêu cầu người dùng sau bản
+   10.26/10.27) — 3 nút "Chạy"/"Lưu báo cáo của tôi"/"📋 Xem bảng chi tiết"
+   (AdhocReportPage.jsx, tab "Báo cáo tự do") tràn ~165-195px ở màn hình
+   điện thoại (xác nhận bằng Playwright, dựng đúng nội dung + CSS thật) —
+   KHÔNG nằm trong .tabs nên không bị bản 10.26/10.27 sửa tới. Thêm
+   `flex-wrap: wrap` — các nút tự xuống hàng khi thiếu chỗ, không cần xếp
+   lưới cố định cột như .tabs (số nút ở đây thay đổi tuỳ trạng thái, 1-3
+   nút, không cố định 2/4 như .tabs). */
+.export-actions { display: flex; gap: 8px; margin: 12px 0; flex-wrap: wrap; }
 /* AdhocReportPage.jsx — danh sách "Báo cáo tự do" người dùng tự lưu. */
 .saved-reports-panel { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; }
 .saved-reports-panel h4 { margin-top: 0; }
@@ -407,7 +415,14 @@ button:disabled, button:disabled:hover {
    tương ứng — dashboard khác không đổi giao diện). */
 .dashboard-daterange-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 0 0 16px; font-size: 13px; color: var(--ink-soft); background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; }
 .dashboard-daterange-bar button { font-size: 12px; padding: 4px 10px; border: 1px solid var(--accent); background: var(--accent-soft); color: var(--accent); border-radius: 999px; cursor: pointer; }
-.dashboard-metric-tabs { display: flex; gap: 8px; margin: 0 0 18px; }
+/* SỬA LỖI THẬT (bản 10.28, rà soát mobile) — 4 nút chuyển chế độ xem
+   Dashboard ("Xếp theo Doanh thu"/"Xếp theo Giao dịch"/"Biểu đồ doanh
+   thu"/"Biểu đồ giao dịch") tràn NẶNG NHẤT trong đợt rà soát — tới
+   348-378px ở màn hình điện thoại (xác nhận bằng Playwright) — 2 nút cuối
+   bị .app-shell cắt mất HOÀN TOÀN, không thấy/không bấm được. Thêm
+   `flex-wrap: wrap` (đơn giản hơn kiểu lưới cố định cột của .tabs — số
+   nút ở đây lọc theo `metricTabs` của từng tile, không cố định 4 nút). */
+.dashboard-metric-tabs { display: flex; gap: 8px; margin: 0 0 18px; flex-wrap: wrap; }
 .dashboard-metric-tabs button { font-size: 13px; font-weight: 600; padding: 8px 16px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--ink-soft); cursor: pointer; }
 .dashboard-metric-tabs button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
 .dashboard-group { margin-bottom: 28px; }
