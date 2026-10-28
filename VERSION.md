@@ -42,6 +42,35 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.23 — PDF 2 báo cáo "(Thành viên)" (HCRC/LDTD) chuyển hẳn sang mẫu mới
+
+**Theo yêu cầu người dùng**: "Bạn làm bản mới pdf HCRC (thành viên) luôn
+nhé" — sau đó (ngay trong lúc đang làm) — "Bạn làm luôn cho cả báo cáo
+LĐTĐ (thành viên) cũng theo mẫu mới nhé" — bật nốt mẫu PDF mới (bảng màu
+CORPORATE navy/vàng đồng + khối 3 thẻ tổng doanh thu) cho **cả 2** báo
+cáo "(Thành viên)" còn lại — bản 10.22 mới chỉ làm chữ nét hơn (font
+medium) cho 2 báo cáo này, CHƯA đổi màu bảng/chưa có khối thẻ.
+
+**Đã sửa**: `scripts/seedLdtdHcrcReports.js` — đổi `pdfSummaryCards` từ
+`false` sang `true` cho cả `bc-doanh-thu-hcrc-thanh-vien` VÀ
+`bc-doanh-thu-ldtd-thanh-vien` trong mảng `REPORTS`. Nhờ logic đã có sẵn
+từ bản 10.22 (`legacyPdfColors: !pdfSummaryCards` và
+`summaryCards.pdf: !!pdfSummaryCards` trong `buildDefinition()`), chỉ cần
+đổi đúng 1 tham số này cho mỗi báo cáo — không cần sửa thêm gì ở
+`lib/exportPdf.js`/`lib/reportCellFormat.js` (code dùng chung đã đúng từ
+trước). **Kết quả: PDF của CẢ 4 báo cáo "Doanh thu cuối ngày" giờ đều
+dùng mẫu mới** (bảng màu CORPORATE + khối thẻ), không còn báo cáo nào
+giữ mẫu cũ. Web/Excel/email không đổi gì thêm (đã đúng từ bản 10.21).
+
+Verify: mock test render PDF riêng cho `bc-doanh-thu-hcrc-thanh-vien` và
+`bc-doanh-thu-ldtd-thanh-vien` (dữ liệu thật 34 cửa hàng) — cả 2 đúng
+bảng màu navy/vàng đồng + khối 3 thẻ tổng doanh thu, vẫn gọn đúng 1 trang
+A4 (`pdfinfo` xác nhận `Pages: 1`).
+
+**LƯU Ý khi triển khai**: bắt buộc chạy lại `node
+scripts/seedLdtdHcrcReports.js` sau khi `git pull` (giống mọi lần đổi
+tham số trong `REPORTS`/`buildDefinition()`) — xem Nhật ký triển khai.
+
 ## 10.22 — SỬA bản 10.21: PDF 2 báo cáo gốc đổi hẳn màu CORPORATE + chữ nét hơn cho 2 báo cáo Thành viên
 
 **Theo yêu cầu người dùng** (phản hồi ngay sau khi xem demo bản 10.21):

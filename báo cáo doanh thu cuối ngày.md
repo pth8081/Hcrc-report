@@ -987,6 +987,15 @@ bao giờ ghép được vào báo cáo (không có lỗi/cảnh báo gì khác 
 > Không cần sửa gì ở VIEW SQL/ETL/Chỉ tiêu — tính năng này THUẦN tính lại
 > từ các dòng "Tổng cộng"/"Tổng cộng MART"/"Tổng cộng MINIMART" đã có sẵn
 > trong báo cáo (không truy vấn gì thêm).
+>
+> **Từ bản 10.23** (theo yêu cầu người dùng — bật nốt mẫu PDF mới cho 2
+> báo cáo "(Thành viên)" còn lại): `pdfSummaryCards` đổi từ `false` sang
+> `true` cho CẢ `bc-doanh-thu-hcrc-thanh-vien` VÀ
+> `bc-doanh-thu-ldtd-thanh-vien` trong `seedLdtdHcrcReports.js` — PDF cả
+> 4 báo cáo "Doanh thu cuối ngày" giờ ĐỀU dùng mẫu mới (bảng màu CORPORATE
+> navy/vàng đồng + khối 3 thẻ tổng doanh thu), không còn báo cáo nào giữ
+> mẫu cũ. Chạy lại script `seedLdtdHcrcReports.js` (như trên) là có ngay,
+> không cần sửa gì thêm ở code.
 
 Vào rp-user, menu **"Hệ thống → Biểu mẫu"**, tab **"Báo cáo"** (mặc định).
 

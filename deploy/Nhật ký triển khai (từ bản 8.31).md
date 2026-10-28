@@ -14,6 +14,29 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.23 — PDF 2 báo cáo "(Thành viên)" (HCRC/LDTD) chuyển hẳn sang mẫu mới
+
+**Thay đổi**: CHỈ `rp-server/scripts/seedLdtdHcrcReports.js` (đổi
+`pdfSummaryCards` từ `false` sang `true` cho `bc-doanh-thu-hcrc-thanh-vien`
+và `bc-doanh-thu-ldtd-thanh-vien`) — KHÔNG đổi `lib/exportPdf.js`/
+`lib/reportCellFormat.js` (code dùng chung đã đúng từ bản 10.22).
+
+**Các bước (ĐÚNG THỨ TỰ)**:
+
+1. `git pull origin main`.
+2. **BẮT BUỘC** chạy lại `node rp-server/scripts/seedLdtdHcrcReports.js`
+   — chỉ sửa tham số trong script, KHÔNG tự áp dụng nếu không seed lại.
+3. KHÔNG cần khởi động lại `rp-server`/build lại `rp-user` (bản này chỉ
+   đổi dữ liệu `DefinitionJson` lưu trong CSDL, không đổi code chạy).
+
+**Kiểm tra**:
+- Xuất PDF báo cáo "Doanh thu cuối ngày HCRC (Thành viên)" và "LDTD
+  (Thành viên)" → cả 2 PHẢI đổi sang bảng màu navy/vàng đồng (giống hệt
+  2 báo cáo gốc/web/Excel), có thêm khối 3 thẻ tổng doanh thu phía trên
+  bảng, vẫn đúng 1 trang A4.
+- Xuất PDF 2 báo cáo "Doanh thu cuối ngày HCRC"/"LDTD" (bản GỐC) và
+  Excel/web/email cả 4 báo cáo → KHÔNG đổi gì (đã đúng từ các bản trước).
+
 ## 10.22 — SỬA bản 10.21: PDF 2 báo cáo gốc đổi hẳn màu CORPORATE + chữ nét hơn cho 2 báo cáo Thành viên
 
 **Thay đổi**: `rp-server/lib/exportPdf.js` (nhúng thêm font Inter 500),

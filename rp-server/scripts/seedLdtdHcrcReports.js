@@ -292,14 +292,21 @@ function buildDefinition(title, targetDomain, exportFileCode, domains, pdfSummar
 // thay vì qua CSDL trung tâm, xem "báo cáo doanh thu thành viên.md").
 // exportFileCode thêm hậu tố "TV" — TỰ CHỌN (không phải quy tắc người dùng
 // cung cấp như 2 mã gốc), đổi lại dễ nếu người dùng muốn mã khác.
-// pdfSummaryCards: true CHỈ ở 2 báo cáo GỐC (bản 10.21, theo yêu cầu người
-// dùng — xem chú thích đầy đủ ở buildDefinition()) — 2 báo cáo "(Thành
-// viên)" cố ý KHÔNG khai (PDF giữ nguyên như cũ, để làm sau).
+// pdfSummaryCards: true ở cả 4 báo cáo (bản 10.21: 2 báo cáo GỐC; bản
+// 10.23: thêm 2 báo cáo "(Thành viên)", theo yêu cầu người dùng — xem chú
+// thích đầy đủ ở buildDefinition()) — PDF cả 4 báo cáo giờ đều dùng mẫu
+// mới (bảng màu CORPORATE + khối thẻ tổng doanh thu).
 const REPORTS = [
   { reportId: 'bc-doanh-thu-ldtd', title: 'Báo cáo doanh thu cuối ngày LDTD', targetDomain: 'sales-targets-ldtd', exportFileCode: 'BCDDTLDTD', domains: DOMAIN_GOC, pdfSummaryCards: true },
   { reportId: 'bc-doanh-thu-hcrc', title: 'Báo cáo doanh thu cuối ngày HCRC', targetDomain: 'sales-targets-hcrc', exportFileCode: 'BCDTHCRC', domains: DOMAIN_GOC, pdfSummaryCards: true },
-  { reportId: 'bc-doanh-thu-ldtd-thanh-vien', title: 'Báo cáo doanh thu cuối ngày LDTD (Thành viên)', targetDomain: 'sales-targets-ldtd', exportFileCode: 'BCDDTLDTDTV', domains: DOMAIN_THANH_VIEN, pdfSummaryCards: false },
-  { reportId: 'bc-doanh-thu-hcrc-thanh-vien', title: 'Báo cáo doanh thu cuối ngày HCRC (Thành viên)', targetDomain: 'sales-targets-hcrc', exportFileCode: 'BCDTHCRCTV', domains: DOMAIN_THANH_VIEN, pdfSummaryCards: false }
+  // pdfSummaryCards: true cho CẢ 2 báo cáo "(Thành viên)" bên dưới (bản
+  // 10.23, theo yêu cầu người dùng — "làm bản mới PDF HCRC (Thành viên)
+  // luôn", rồi ngay sau đó "làm luôn cho cả báo cáo LĐTĐ (thành viên) cũng
+  // theo mẫu mới") — PDF của cả 4 báo cáo "Doanh thu cuối ngày" giờ ĐỀU
+  // dùng mẫu mới (bảng màu CORPORATE + khối thẻ tổng), không còn báo cáo
+  // nào giữ mẫu cũ — xem VERSION.md bản 10.23.
+  { reportId: 'bc-doanh-thu-ldtd-thanh-vien', title: 'Báo cáo doanh thu cuối ngày LDTD (Thành viên)', targetDomain: 'sales-targets-ldtd', exportFileCode: 'BCDDTLDTDTV', domains: DOMAIN_THANH_VIEN, pdfSummaryCards: true },
+  { reportId: 'bc-doanh-thu-hcrc-thanh-vien', title: 'Báo cáo doanh thu cuối ngày HCRC (Thành viên)', targetDomain: 'sales-targets-hcrc', exportFileCode: 'BCDTHCRCTV', domains: DOMAIN_THANH_VIEN, pdfSummaryCards: true }
 ];
 
 async function upsertReport(pool, menuItemId, { reportId, title, targetDomain, exportFileCode, domains, pdfSummaryCards }) {
