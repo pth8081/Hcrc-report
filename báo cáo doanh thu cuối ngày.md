@@ -961,10 +961,9 @@ bao giờ ghép được vào báo cáo (không có lỗi/cảnh báo gì khác 
 > **Từ bản 10.21** — thêm khối 3 thẻ "Tổng doanh thu toàn hệ thống"/"Doanh
 > thu khối MART"/"Doanh thu khối MINIMART" (số doanh thu thực đạt to, rõ,
 > kèm % đạt chỉ tiêu + mũi tên so cùng kỳ — màu navy/vàng đồng "kiểu báo cáo
-> tài chính quốc tế", KHÁC bảng màu xanh lá/cam/vàng/tím của bảng chi tiết
-> bên dưới) phía TRÊN bảng chi tiết, để xem tổng quan không phải cộng tay
-> từng dòng "Tổng cộng MART"/"Tổng cộng MINIMART" trong bảng. Đọc trực tiếp
-> khối `summaryCards` trong `DefinitionJson` (xem
+> tài chính quốc tế") phía TRÊN bảng chi tiết, để xem tổng quan không phải
+> cộng tay từng dòng "Tổng cộng MART"/"Tổng cộng MINIMART" trong bảng. Đọc
+> trực tiếp khối `summaryCards` trong `DefinitionJson` (xem
 > `rp-server/lib/reportCellFormat.js:computeSummaryCards()`), do script
 > `seedLdtdHcrcReports.js` tự khai — chạy lại script này (như trên) là có
 > ngay, không cần sửa gì thêm. Áp dụng:
@@ -975,6 +974,15 @@ bao giờ ghép được vào báo cáo (không có lỗi/cảnh báo gì khác 
 >   khối thẻ) — theo đúng yêu cầu người dùng, sẽ làm sau. Nếu muốn bật thêm
 >   cho 2 báo cáo "(Thành viên)", đổi `pdfSummaryCards: true` ở mảng
 >   `REPORTS` trong `seedLdtdHcrcReports.js` rồi chạy lại script.
+>
+> **Từ bản 10.22** (SỬA bản 10.21 — người dùng chỉ ra PDF 2 báo cáo GỐC
+> phải đổi HẲN sang bảng màu CORPORATE giống web/Excel, không chỉ thêm
+> khối thẻ lên bảng màu cũ): `legacyPdfColors` giờ gắn liền với
+> `pdfSummaryCards` (`legacyPdfColors: !pdfSummaryCards`) — 2 báo cáo GỐC
+> PDF dùng bảng màu CORPORATE (navy/vàng đồng) y hệt web/Excel; 2 báo cáo
+> "(Thành viên)" PDF giữ NGUYÊN bảng màu cũ (xanh lá/cam/vàng/tím). Đồng
+> thời 2 báo cáo "(Thành viên)" được tăng nhẹ độ đậm chữ dữ liệu (font
+> Inter weight 500 thay vì 400) cho "nét hơn", không đổi gì khác.
 >
 > Không cần sửa gì ở VIEW SQL/ETL/Chỉ tiêu — tính năng này THUẦN tính lại
 > từ các dòng "Tổng cộng"/"Tổng cộng MART"/"Tổng cộng MINIMART" đã có sẵn

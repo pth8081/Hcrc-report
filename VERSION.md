@@ -42,6 +42,34 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.22 — SỬA bản 10.21: PDF 2 báo cáo gốc đổi hẳn màu CORPORATE + chữ nét hơn cho 2 báo cáo Thành viên
+
+**Theo yêu cầu người dùng** (phản hồi ngay sau khi xem demo bản 10.21):
+"báo cáo cuối ngày hcrc (HO) và báo cáo cuối ngày LĐTD (HO) chuyển sang
+mẫu báo cáo mới giống web và excel mà... chỉ có bản PDF báo cáo cuối ngày
+HCRC (thành viên) và LDTD (Thành viên) là không thay đổi nhưng hai báo
+cáo này làm chữ nét hơn lên nhé" — bản 10.21 mới chỉ thêm khối thẻ tổng
+doanh thu lên TRÊN bảng chi tiết, còn CHÍNH bảng chi tiết của PDF 2 báo
+cáo gốc vẫn giữ nguyên bảng màu CŨ (xanh lá/cam/vàng/tím) — **thiếu sót**,
+không khớp đúng demo đã gửi (bảng màu CORPORATE navy/vàng đồng).
+
+**Đã sửa**:
+- `scripts/seedLdtdHcrcReports.js`: `legacyPdfColors` đổi từ cứng `true`
+  cho cả 4 báo cáo sang `legacyPdfColors: !pdfSummaryCards` — 2 báo cáo
+  GỐC (`pdfSummaryCards: true`) giờ PDF dùng bảng màu CORPORATE (khớp
+  đúng web/Excel), 2 báo cáo "(Thành viên)" (`pdfSummaryCards: false`)
+  PDF giữ NGUYÊN bảng màu cũ như trước (không đổi gì thêm ngoài font).
+- `lib/exportPdf.js`: nhúng thêm font Inter weight 500 (medium, trước chỉ
+  có 400/700) — dòng dữ liệu THƯỜNG (không phải Tổng cộng, vốn đã đậm) của
+  2 báo cáo "(Thành viên)" (nhánh `useLegacyColors`) đổi từ regular sang
+  medium — "nét hơn" như yêu cầu, không đậm bằng bold để còn phân biệt rõ
+  dòng Tổng cộng.
+
+Verify: mock test lại cả 4 báo cáo PDF (render ảnh xem trực tiếp) — 2 báo
+cáo gốc đúng bảng màu navy/vàng đồng + khối thẻ, vẫn đúng 1 trang A4; 2
+báo cáo Thành viên đúng bảng màu cũ (không đổi), không có khối thẻ, chữ
+dữ liệu rõ hơn. Excel/web/email KHÔNG đổi gì thêm (đã đúng từ bản 10.21).
+
 ## 10.21 — Thêm khối "thẻ tổng doanh thu" cho 4 báo cáo Doanh thu cuối ngày
 
 **Theo yêu cầu người dùng**: "Bạn tìm cho mình một cái báo cáo nó mang

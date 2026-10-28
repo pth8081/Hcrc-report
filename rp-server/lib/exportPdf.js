@@ -62,6 +62,15 @@ function loadFontBytes() {
   try {
     fontBytesCache = {
       regular: fs.readFileSync(path.join(FONT_DIR, 'inter-vietnamese-400.woff')),
+      // medium (500) — bản 10.22, theo yêu cầu người dùng ("làm chữ nét
+      // hơn lên") cho PDF 2 báo cáo "(Thành viên)" (bảng màu cũ, xem
+      // `legacyPdfColors` ở scripts/seedLdtdHcrcReports.js) — chữ dữ liệu
+      // thường (không phải dòng Tổng cộng, vốn đã in đậm) đổi từ regular
+      // sang medium, đậm nhẹ hơn chút cho rõ, KHÔNG đậm bằng bold (giữ
+      // phân biệt rõ dòng Tổng cộng với dòng thường) — cùng tinh thần bản
+      // 8.96 đã làm cho bảng web (`.data-table--grouped td { font-weight:
+      // 500 }`).
+      medium: fs.readFileSync(path.join(FONT_DIR, 'inter-vietnamese-500.woff')),
       bold: fs.readFileSync(path.join(FONT_DIR, 'inter-vietnamese-700.woff'))
     };
   } catch (err) {
@@ -138,10 +147,11 @@ async function exportPdf(definition, rows) {
   // drawHeader() bên dưới. LUÔN dùng bảng CORPORATE (không qua
   // useLegacyColors) — nhánh phẳng không áp dụng cho 4 báo cáo LDTD/HCRC.
   const flatHeaderFill = resolveGroupColor('green', GROUP_COLORS_CORPORATE);
-  const { regular: regularBytes, bold: boldBytes } = loadFontBytes();
+  const { regular: regularBytes, medium: mediumBytes, bold: boldBytes } = loadFontBytes();
   const pdfDoc = await PDFDocument.create();
   pdfDoc.registerFontkit(fontkit);
   const font = await pdfDoc.embedFont(regularBytes, { subset: true });
+  const mediumFont = await pdfDoc.embedFont(mediumBytes, { subset: true });
   const boldFont = await pdfDoc.embedFont(boldBytes, { subset: true });
 
   const columns = definition.columns;
@@ -391,8 +401,8 @@ async function exportPdf(definition, rows) {
   }
 
   function drawCellText(text, cx, cw, cy, opts = {}) {
-    const { bold = false, size = CELL_FONT_SIZE, align = 'left' } = opts;
-    const f = bold ? boldFont : font;
+    const { bold = false, medium = false, size = CELL_FONT_SIZE, align = 'left' } = opts;
+    const f = bold ? boldFont : (medium ? mediumFont : font);
     // padding PHẢI khớp đúng totalPad/2 dùng lúc ĐO cột (đo qua CELL_SIDE_PAD
     // ở nhánh compact) — xem chú thích measureCellWidthAtSize() ở trên.
     const padding = compact ? CELL_SIDE_PAD : 3;
@@ -652,7 +662,15 @@ async function exportPdf(definition, rows) {
       // canh phải (align:'right') — đổi riêng cột này sang canh GIỮA, khớp
       // đúng cách trình bày cột TT trong file mẫu BRGMART gốc.
       const align = i === sttColIdx ? 'center' : (typeof raw === 'number' ? 'right' : 'left');
-      drawCellText(text, colX[i], colWidths[i], rowTop - ROW_HEIGHT + (compact ? ROW_HEIGHT * 0.28 : 4), { bold: !!row.__isSubtotal, align, size: CELL_FONT_SIZE });
+      // medium (bản 10.22, "chữ nét hơn") — CHỈ dòng dữ liệu THƯỜNG (không
+      // phải Tổng cộng, vốn đã in đậm riêng) của báo cáo bảng màu CŨ
+      // (useLegacyColors, nay chỉ còn đúng 2 báo cáo "(Thành viên)" — xem
+      // scripts/seedLdtdHcrcReports.js). 2 báo cáo GỐC đã chuyển bảng màu
+      // CORPORATE nên KHÔNG cần đậm thêm (giữ y hệt mọi báo cáo CORPORATE
+      // khác, không tạo thêm khác biệt không cần thiết).
+      drawCellText(text, colX[i], colWidths[i], rowTop - ROW_HEIGHT + (compact ? ROW_HEIGHT * 0.28 : 4), {
+        bold: !!row.__isSubtotal, medium: useLegacyColors && !row.__isSubtotal, align, size: CELL_FONT_SIZE
+      });
     });
     y -= ROW_HEIGHT;
   }

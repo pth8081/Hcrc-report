@@ -60,16 +60,21 @@ function buildDefinition(title, targetDomain, exportFileCode, domains, pdfSummar
     // cung cấp) — xem rp-server/lib/exportPdf.js. CHỈ 4 báo cáo doanh thu
     // này khai cờ này, không ảnh hưởng cách xuất PDF của báo cáo khác.
     compactSinglePage: true,
-    // legacyPdfColors: true (bản 9.42, theo yêu cầu người dùng — "chuyển
-    // tất cả báo cáo Mua hàng/Vận hành/Báo cáo tự do/Báo cáo kinh doanh
-    // sang màu bản 9.40, CHỈ 4 báo cáo doanh thu cuối ngày LDTD/HCRC (gốc +
-    // Thành viên) giữ PDF cũ cho đến khi xác nhận đổi") — bản 9.40 đổi
-    // Excel/web sang bảng CORPORATE cho MỌI báo cáo nhưng giữ PDF nguyên
-    // bảng gốc CHO MỌI báo cáo (mặc định an toàn lúc đó). Bản 9.42 đảo
-    // ngược mặc định PDF (CORPORATE), nên 4 báo cáo NÀY cần khai RÕ cờ
-    // này để exportPdf() rơi về bảng gốc — xem lib/exportPdf.js. Excel/web
-    // KHÔNG đọc cờ này (đã đổi hẳn từ bản 9.40, không có đường lùi).
-    legacyPdfColors: true,
+    // legacyPdfColors (bản 9.42 — xem chú thích lịch sử ở lib/exportPdf.js)
+    // — SỬA bản 10.22 (theo yêu cầu người dùng — "báo cáo cuối ngày hcrc
+    // (HO) và LDTD (HO) chuyển sang mẫu báo cáo mới giống web và excel
+    // mà... chỉ có PDF HCRC (Thành viên)/LDTD (Thành viên) là không thay
+    // đổi"): TRƯỚC ĐÂY cứng `true` cho CẢ 4 báo cáo (giữ nguyên PDF chờ
+    // xác nhận) — giờ gắn LIỀN với `pdfSummaryCards` (cùng tham số
+    // `pdfSummaryCards` truyền từ REPORTS bên dưới): 2 báo cáo GỐC
+    // (`pdfSummaryCards: true`) chuyển hẳn sang bảng màu CORPORATE (khớp
+    // đúng web/Excel, xem demo đã gửi người dùng) — `legacyPdfColors` =
+    // `false`; 2 báo cáo "(Thành viên)" (`pdfSummaryCards: false`) GIỮ
+    // NGUYÊN bảng màu cũ — `legacyPdfColors` = `true`. KHÔNG tách thành 2
+    // cờ riêng vì theo đúng yêu cầu người dùng, "đổi màu" và "có khối thẻ"
+    // LUÔN đi cùng nhau cho đúng 2 báo cáo gốc — dùng 1 tham số chung an
+    // toàn hơn, tránh lỡ tay bật lệch cờ này cờ kia sau này.
+    legacyPdfColors: !pdfSummaryCards,
     // summaryCards (bản 10.21, theo yêu cầu người dùng — xem chú thích đầy
     // đủ ở lib/reportCellFormat.js:computeSummaryCards()) — khối 3 thẻ
     // "Tổng doanh thu toàn hệ thống"/"Doanh thu khối MART"/"Doanh thu khối
