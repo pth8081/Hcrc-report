@@ -42,6 +42,48 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.20 — Nâng cấp UI/UX chuyên nghiệp hơn + rà soát responsive mobile 5.0"-6.8"
+
+**Theo yêu cầu người dùng**: "Bạn rà soát lại ba giao diện quản trị ETL
+admin, API admin và report. Xem lại UI UX và responsive đối với các màn
+hình 5.0, 6.3, 6.7 và 6.8 mobile... Nâng cấp UI UX cho chuyên nghiệp hơn
+đi."
+
+**Đã làm**: dựng cả 3 app bằng dev server thật + Playwright (mock API,
+không cần CSDL) ở 4 kích thước đại diện 360/390/414/430px CSS (tương ứng
+5.0"/6.3"/6.7"/6.8") — chụp lại login, danh sách/bảng dữ liệu, modal,
+sidebar di động của nhiều trang. Không phát hiện tràn ngang (đã sửa hết từ
+các bản trước), nhưng phát hiện giao diện NHÌN THIẾU CHUYÊN NGHIỆP — form/
+bảng nổi trần trực tiếp trên nền xám, không có ranh giới thị giác rõ ràng,
+`<h2>` ở etl-admin/api-admin rơi về kiểu mặc định trình duyệt (không khớp
+hệ thống chữ chung).
+
+Nâng cấp CSS dùng chung cho cả 3 app (giữ nguyên màu thương hiệu riêng
+từng app — tím etl-admin/xanh lá api-admin/cam rp-user):
+- Form (`.inline-form`/`.stacked-form`/`.filter-form`) và bảng dữ liệu
+  (`.table-scroll`) có khung thẻ bo tròn + viền + bóng nhẹ, thay vì nổi
+  trần trên nền trang.
+- Input/select/textarea bo tròn hơn (4px→8px), viền sáng theo màu thương
+  hiệu khi đang gõ (focus) — trước đây không phân biệt rõ ô đang focus.
+- Nút bấm bo tròn hơn, tăng vùng chạm gần mức khuyến nghị 44px (padding
+  7px 14px → 9px 16px), đổ bóng nhẹ + hiệu ứng bấm xuống.
+- Thêm `h2`/`h4` còn thiếu ở etl-admin/api-admin (rp-user đã có từ
+  trước) — đồng bộ cả 3 app.
+- **Sửa 1 lỗi thật phát sinh TRONG QUÁ TRÌNH nâng cấp**: thêm
+  `white-space: nowrap` cho nút (tránh chữ bị ngắt giữa từ, vd "Kiểm tra
+  kết nối" từng vỡ 2 dòng) để lộ ra `.inline-actions`/`.modal-actions`
+  THIẾU `flex-wrap: wrap` từ trước — khiến hàng nút TRÀN ra ngoài khung
+  trên màn hình hẹp thay vì tự xuống dòng. Đã thêm `flex-wrap: wrap`.
+- Nút ☰ mở menu di động tăng vùng chạm (padding 4px 8px → 10px 12px).
+- Hàng bảng sáng nhẹ khi rê/chạm (`tbody tr:hover`).
+- KHÔNG đổi cấu trúc bảng báo cáo chính của rp-user (`.table-scroll--report`,
+  sticky header/cột nhiều dòng tiêu đề) — rủi ro lệch dòng cao, chỉ chỉnh
+  khoảng cách/hover ở mức an toàn.
+
+Verify: build sạch cả 3 app; quét lại TOÀN BỘ 4 kích thước × nhiều trang
+bằng Playwright — không còn trang nào tràn ngang; demo ảnh gửi người dùng
+xác nhận trước khi merge.
+
 ## 10.19 — SỬA LỖI THẬT: modal (vd "Gán quyền") bị bảng dữ liệu phía sau xuyên thủng lên trên, trên mobile
 
 **Theo yêu cầu người dùng**: chụp màn hình trang "Vai trò" (etl-admin)

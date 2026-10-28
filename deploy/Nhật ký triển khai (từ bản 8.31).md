@@ -14,6 +14,27 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.20 — Nâng cấp UI/UX chuyên nghiệp hơn + rà soát responsive mobile 5.0"-6.8"
+
+**Thay đổi**: CSS 3 file (`etl-admin/src/styles.css`,
+`api-admin/src/styles.css`, `rp-user/src/styles.css`) — thuần CSS, KHÔNG
+đổi CSDL/ETL/backend nào.
+
+**Các bước**:
+
+1. `git pull origin main`.
+2. Build lại và deploy 3 frontend như bình thường (`npm run build` ở từng
+   app rồi copy `dist/` lên đúng nơi phục vụ tĩnh, hoặc đúng quy trình
+   CI/CD hiện có) — không cần restart backend.
+
+**Kiểm tra**: mở lại 1 trang quen thuộc mỗi app (vd "Nguồn dữ liệu" ở
+etl-admin/api-admin, "Hướng dẫn" ở rp-user) trên điện thoại hoặc trình
+duyệt thu hẹp bề rộng ~360-430px — form/bảng PHẢI hiện trong khung thẻ bo
+tròn rõ ràng (không còn nổi trần trên nền xám), nút bấm không còn bị ngắt
+chữ giữa dòng hay tràn ra mép màn hình.
+
+---
+
 ## 10.19 — SỬA LỖI THẬT: modal (vd "Gán quyền") bị bảng dữ liệu phía sau xuyên thủng lên trên, trên mobile
 
 **Thay đổi**: CSS 3 file (`etl-admin/src/styles.css`,
