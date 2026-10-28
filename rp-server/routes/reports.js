@@ -28,7 +28,7 @@ const { loadDefinition, runDefinition, resolveFactsPool } = require('../lib/repo
 const { resolveTitleWithDate, resolveExportFileBaseName } = require('../lib/reportTitleDate');
 const { exportExcel } = require('../lib/exportExcel');
 const { exportPdf } = require('../lib/exportPdf');
-const { filterColumns, filterGroups } = require('../lib/reportCellFormat');
+const { filterColumns, filterGroups, computeSummaryCards } = require('../lib/reportCellFormat');
 const { getUserContext } = require('../lib/permissions');
 const { loadDiemStkMapping } = require('../lib/diemStkMapping');
 const reportResultCache = require('../lib/reportResultCache');
@@ -312,6 +312,15 @@ router.post('/:reportId/run', async (req, res, next) => {
       // không ảnh hưởng gì.
       result = await runDefinition(definition, filters, { page, pageSize, capForDisplay: true });
       reportResultCache.set(cacheKey, result);
+    }
+    // summaryCards (bản 10.21) — tính LẠI mỗi lần trả response (rẻ, chỉ đọc
+    // mảng rows đã có sẵn, không truy vấn gì thêm) thay vì lưu trong cache ở
+    // trên — tránh phụ thuộc hành vi "mutate object đã cache" khó theo dõi.
+    // CHỈ gắn khi definition có khai (4 báo cáo Doanh thu cuối ngày, xem
+    // scripts/seedLdtdHcrcReports.js) — báo cáo khác result.summaryCards
+    // luôn undefined, rp-user không vẽ khối thẻ.
+    if (definition.summaryCards) {
+      result = { ...result, summaryCards: computeSummaryCards(definition, result.rows) };
     }
     res.json(result);
   } catch (err) { next(err); }

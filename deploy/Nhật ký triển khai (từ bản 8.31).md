@@ -14,6 +14,44 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.21 — Thêm khối "thẻ tổng doanh thu" cho 4 báo cáo Doanh thu cuối ngày
+
+**Thay đổi**: `rp-server/lib/reportCellFormat.js` (hàm dùng chung
+`computeSummaryCards`), `rp-server/lib/exportExcel.js`/`exportPdf.js`/
+`emailBodyRenderer.js` (vẽ khối thẻ), `rp-server/routes/reports.js` (trả
+`summaryCards` qua API), `rp-server/scripts/seedLdtdHcrcReports.js` (khai
+cấu hình `summaryCards` trong `DefinitionJson` 4 báo cáo), `rp-user`
+(component mới `ReportSummaryCards.jsx` + CSS) — KHÔNG đổi CSDL/ETL.
+
+**Các bước (ĐÚNG THỨ TỰ)**:
+
+1. `git pull origin main`.
+2. Khởi động lại `rp-server` (pm2 restart đúng tiến trình) — áp dụng code
+   mới cho web/Excel/PDF/email.
+3. **BẮT BUỘC** chạy lại `node rp-server/scripts/seedLdtdHcrcReports.js`
+   — code mới KHÔNG tự áp dụng vào 4 báo cáo đang chạy nếu không seed lại
+   (`DefinitionJson` lưu sẵn trong CSDL chưa có khối `summaryCards`).
+4. Build lại và deploy `rp-user` (`npm run build` rồi copy `dist/` lên
+   đúng nơi phục vụ tĩnh, hoặc đúng quy trình CI/CD hiện có).
+
+**Kiểm tra**:
+- Mở rp-user, chạy báo cáo "Doanh thu cuối ngày HCRC" (hoặc LDTD/2 bản
+  "(Thành viên)") → PHẢI thấy 3 thẻ "Tổng doanh thu toàn hệ thống"/"Doanh
+  thu khối MART"/"Doanh thu khối MINIMART" (nền navy/vàng đồng) ngay phía
+  trên bảng chi tiết, số liệu khớp đúng dòng "Tổng cộng"/"Tổng cộng MART"/
+  "Tổng cộng MINIMART" trong bảng bên dưới.
+- Xuất Excel/PDF/gửi thử email báo cáo đó — CẢ 3 đều PHẢI có khối thẻ
+  tương tự (Excel: ô merge đầu sheet; PDF: 3 khối màu đầu trang; email:
+  bảng HTML đầu nội dung).
+- Xuất PDF báo cáo "Doanh thu cuối ngày HCRC (Thành viên)" hoặc "LDTD
+  (Thành viên)" → PHẢI **KHÔNG** có khối thẻ (giữ nguyên PDF như trước
+  bản này) — chỉ 2 báo cáo GỐC (HCRC/LDTD, không "(Thành viên)") có khối
+  thẻ trên PDF.
+- PDF 2 báo cáo gốc vẫn PHẢI đúng 1 trang A4 như trước (không tràn sang
+  trang 2) dù đã thêm khối thẻ.
+
+---
+
 ## 10.20 — Nâng cấp UI/UX chuyên nghiệp hơn + rà soát responsive mobile 5.0"-6.8"
 
 **Thay đổi**: CSS 3 file (`etl-admin/src/styles.css`,

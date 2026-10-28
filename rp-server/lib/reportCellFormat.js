@@ -197,9 +197,70 @@ function filterGroups(groups, columns) {
   })).filter(g => g.keys.length);
 }
 
+// ===== Khối "thẻ tổng doanh thu" (bản 10.21, theo yêu cầu người dùng —
+// "nó thể hiện được cái doanh thu của tổng, doanh thu của Minimart và
+// doanh thu của Mart nó rõ ràng hơn, không phải nhìn vào một cái dòng...
+// màu sắc hiện đại, giống các cái đơn vị tổ chức quốc tế tài chính") —
+// khối 3 ô "Tổng doanh thu toàn hệ thống"/"Doanh thu khối MART"/"Doanh thu
+// khối MINIMART" vẽ phía TRÊN bảng chi tiết (không thay bảng chi tiết,
+// bảng vẫn giữ nguyên như cũ) — xem demo đã gửi người dùng qua Artifact.
+//
+// definition.summaryCards (TUỲ CHỌN) = { keys: {chiTieu, thucDat, tyLeDat,
+// lfl}, pdf: true/false } — CHỈ 4 báo cáo "Doanh thu cuối ngày" LDTD/HCRC
+// (gốc + Thành viên) khai cờ này (xem scripts/seedLdtdHcrcReports.js).
+// `keys` trỏ ĐÚNG 4 cột đã có sẵn trong definition.columns của báo cáo đó
+// (không hardcode tên cột "dt_..." ở ĐÂY để hàm này DÙNG LẠI được cho báo
+// cáo khác có groupBy tương tự nếu sau này cần, dù hiện tại chỉ 4 báo cáo
+// trên dùng). `pdf` quyết định có vẽ khối này trên PDF hay không (Excel/
+// web/email LUÔN vẽ khi summaryCards có khai, không qua cờ `pdf` — theo
+// đúng yêu cầu người dùng: "web/Excel/email cả 4 báo cáo; PDF chỉ 2 báo
+// cáo gốc, 2 báo cáo Thành viên để sau").
+//
+// Không tính lại tổng ở đây — CHỈ ĐỌC LẠI đúng các dòng __isSubtotal/
+// __isGrandTotal đã có sẵn trong `rows` (do lib/compositeReportRunner.js
+// tính theo definition.groupBy, xem chú thích đầu file đó) — tránh 2 nơi
+// tính tổng ra 2 kết quả lệch nhau nếu công thức đổi sau này.
+function computeSummaryCards(definition, rows) {
+  const cfg = definition.summaryCards;
+  const groupBy = definition.groupBy;
+  if (!cfg || !cfg.keys || !groupBy) return null;
+  const { chiTieu, thucDat, tyLeDat, lfl } = cfg.keys;
+  const labelCol = groupBy.labelColumn;
+  function pick(row, fallbackLabel) {
+    if (!row) return null;
+    return {
+      label: row[labelCol] ?? fallbackLabel,
+      chiTieu: row[chiTieu] ?? null,
+      thucDat: row[thucDat] ?? null,
+      tyLeDat: row[tyLeDat] ?? null,
+      lfl: row[lfl] ?? null
+    };
+  }
+  const grand = pick((rows || []).find(r => r.__isGrandTotal), groupBy.grandTotalLabel);
+  if (!grand) return null; // chưa có dữ liệu (vd lọc ra 0 dòng) — không vẽ khối thẻ, tránh hiện thẻ rỗng/gạch ngang vô nghĩa
+  const groups = (groupBy.groups || [])
+    .map(g => pick((rows || []).find(r => r.__isSubtotal && !r.__isGrandTotal && r[labelCol] === g.label), g.label))
+    .filter(Boolean);
+  return { grand, groups };
+}
+
+// Bảng màu khối thẻ tổng — DÙNG CHUNG cho PDF/Excel/email (web mirror lại
+// đúng các mã HEX này trong rp-user/src/lib/reportGroupColors.js, giống
+// cách GROUP_COLORS_CORPORATE đã mirror — xem chú thích ở đó). Tông navy/
+// vàng đồng "kiểu báo cáo tài chính quốc tế", tách biệt hẳn bảng màu
+// GROUP_COLORS (xanh lá/cam đất/vàng gold/tím) của BẢNG CHI TIẾT bên dưới
+// — cố ý KHÁC nhau để khối thẻ "nổi" lên trên, không lẫn vào bảng.
+const SUMMARY_CARD_COLORS = {
+  heroBg: '0B1F3A', heroLabel: 'C9D6E0', heroTarget: 'AEBDD1',
+  lightBorder: 'E3E7EE', navyInk: '0B1F3A', inkSoft: '5B6472',
+  up: '1B7A4A', upBg: 'E5F5EC', down: 'B3261E', downBg: 'FDECEA',
+  warnBg: 'FDF3E2', warnInk: '8A5A06'
+};
+
 module.exports = {
   GROUP_COLORS, SUBTOTAL_COLOR, GRAND_TOTAL_COLOR, ZEBRA_COLOR,
   GROUP_COLORS_CORPORATE, SUBTOTAL_COLOR_CORPORATE, GRAND_TOTAL_COLOR_CORPORATE, ZEBRA_COLOR_CORPORATE,
   resolveGroupColor, resolveRowFillColor, resolveStandaloneColumnColor, computeZebraFlags,
-  computeSttValues, assignSttIfPresent, formatCellText, filterColumns, filterGroups
+  computeSttValues, assignSttIfPresent, formatCellText, filterColumns, filterGroups,
+  computeSummaryCards, SUMMARY_CARD_COLORS
 };

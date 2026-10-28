@@ -11,6 +11,7 @@ import { api, downloadFile } from '../../lib/api';
 import { useAuth } from '../../lib/AuthContext';
 import FilterForm from '../../components/FilterForm';
 import ReportBody from '../../components/ReportBody';
+import ReportSummaryCards from '../../components/ReportSummaryCards';
 import SearchableSelect from '../../components/SearchableSelect';
 import { filterColumns, filterGroups } from '../../lib/reportGroupColors';
 
@@ -263,6 +264,11 @@ export default function ReportsPage() {
                   báo ở đây để người dùng biết báo cáo đang THIẾU vài dòng,
                   không phải "hết dữ liệu". */}
               {result.warnings?.map((w, i) => <p key={i} className="form-warning">⚠️ {w}</p>)}
+              {/* ReportSummaryCards (bản 10.21) — CHỈ hiện khi API trả
+                  result.summaryCards (4 báo cáo "Doanh thu cuối ngày", xem
+                  rp-server/lib/reportCellFormat.js:computeSummaryCards()) —
+                  báo cáo khác summaryCards luôn undefined, không hiện gì. */}
+              <ReportSummaryCards cards={displayResult?.summaryCards} />
               {/* result.columns đã là [{key,label}] — rp-server chuẩn hoá sẵn
                   (kể cả cột công thức), xem rp-server/lib/reportEngine.js:describeColumns(). */}
               <ReportBody

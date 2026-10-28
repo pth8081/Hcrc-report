@@ -41,7 +41,8 @@ const fs = require('fs');
 const path = require('path');
 const {
   resolveGroupColor, resolveRowFillColor, resolveStandaloneColumnColor, computeZebraFlags, computeSttValues, formatCellText,
-  ZEBRA_COLOR, GROUP_COLORS_CORPORATE, SUBTOTAL_COLOR_CORPORATE, GRAND_TOTAL_COLOR_CORPORATE, ZEBRA_COLOR_CORPORATE
+  ZEBRA_COLOR, GROUP_COLORS_CORPORATE, SUBTOTAL_COLOR_CORPORATE, GRAND_TOTAL_COLOR_CORPORATE, ZEBRA_COLOR_CORPORATE,
+  computeSummaryCards, SUMMARY_CARD_COLORS
 } = require('./reportCellFormat');
 
 const FONT_DIR = path.join(__dirname, '..', 'node_modules', '@openfonts', 'inter_vietnamese', 'files');
@@ -77,6 +78,27 @@ const COMPACT_MARGIN = 20;
 const COMPACT_TITLE_SIZE = 11;
 const COMPACT_MIN_FONT_SIZE = 4; // sàn — dưới mức này coi như không đọc được nữa, chấp nhận tràn trang
 const COMPACT_MIN_COL_WIDTH_PT = 14;
+
+// Khối "thẻ tổng doanh thu" (bản 10.21) — xem chú thích đầy đủ ở
+// lib/reportCellFormat.js:computeSummaryCards(). CHỈ vẽ khi
+// definition.summaryCards?.pdf === true (2 báo cáo GỐC — HCRC/LDTD, xem
+// scripts/seedLdtdHcrcReports.js; 2 báo cáo "(Thành viên)" giữ PDF cũ,
+// không vẽ khối này). Chiều cao CỐ ĐỊNH (không co theo cỡ chữ bảng dò được
+// bên dưới — khối thẻ cần đủ to để đọc được dù bảng chi tiết phải co rất
+// nhỏ) — TRỪ THẲNG vào usableHeight trước khi dò cỡ chữ bảng compactSinglePage
+// (xem nhánh `if (compact)` trong exportPdf()), đảm bảo vẫn vừa 1 trang.
+const CARDS_LABEL_SIZE = 7;
+const CARDS_VALUE_SIZE = 15;
+const CARDS_META_SIZE = 7;
+// 3 offset CỐ ĐỊNH (đo từ MÉP TRÊN mỗi thẻ xuống baseline từng dòng chữ) —
+// khoảng cách đã tính đủ dư để KHÔNG chồng chữ giữa 3 dòng (đã verify bằng
+// render thật + nhìn ảnh, không phải ước lượng — xem /tmp/.../test-10.21).
+const CARDS_LABEL_BASELINE_OFFSET = 14;
+const CARDS_VALUE_BASELINE_OFFSET = 32;
+const CARDS_META_BASELINE_OFFSET = 48;
+const CARDS_CONTENT_HEIGHT = 56; // chiều cao Ô thẻ — ĐỦ chứa dòng Chỉ tiêu (offset 48) + đệm đáy
+const CARDS_BLOCK_HEIGHT = CARDS_CONTENT_HEIGHT + 10; // + khoảng cách dưới trước tiêu đề bảng
+const CARDS_GAP = 8; // khoảng cách ngang giữa các thẻ
 
 function hexToRgb01(hex6) {
   return rgb(
@@ -126,6 +148,12 @@ async function exportPdf(definition, rows) {
   const groups = definition.columnGroups || [];
   const hasGroups = groups.length > 0;
   const compact = !!definition.compactSinglePage;
+  // summaryCardsData (bản 10.21) — CHỈ tính khi definition.summaryCards?.pdf
+  // === true (xem chú thích CARDS_BLOCK_HEIGHT ở trên) — null ở 2 báo cáo
+  // "(Thành viên)" (chưa khai cờ `pdf`) VÀ mọi báo cáo khác không khai
+  // summaryCards -> cardsBlockHeight = 0, KHÔNG đổi hành vi/bố cục cũ.
+  const summaryCardsData = (compact && definition.summaryCards?.pdf === true) ? computeSummaryCards(definition, rows) : null;
+  const cardsBlockHeight = summaryCardsData ? CARDS_BLOCK_HEIGHT : 0;
   // columnSuperGroups (bản 9.73) CHƯA được nhánh `compact` phía dưới tính
   // vào headerBlockHeight (giả định CỐ ĐỊNH 2 dòng tiêu đề) — báo cáo nào
   // bật CẢ 2 cờ cùng lúc sẽ lệch chiều cao header (chữ dữ liệu có thể đè
@@ -266,7 +294,7 @@ async function exportPdf(definition, rows) {
       // trên (chữ vẫn giữ nguyên 7pt từ +6 tới +12), chỉ bớt khoảng cách dư
       // so với +12.
       const rowH = Math.max(6, size + 10);
-      const neededHeight = titleBlockHeight + headerBlockHeight + rowH * rows.length;
+      const neededHeight = titleBlockHeight + cardsBlockHeight + headerBlockHeight + rowH * rows.length;
       if (neededHeight > usableHeight) continue;
 
       found = { size, widths, sidePad, rowH, headerRowH: headerBlockHeight / (hasGroups ? 2 : 1), groupFontSize, subColFontSize, flatFontSize };
@@ -415,6 +443,56 @@ async function exportPdf(definition, rows) {
     y -= (compact ? size * 1.4 : ROW_HEIGHT * 1.6);
   }
 
+  // drawSummaryCards() (bản 10.21) — vẽ khối 3 thẻ (Tổng/Mart/Minimart...)
+  // ngay dưới tiêu đề báo cáo, TRƯỚC bảng chi tiết — xem chú thích đầy đủ
+  // ở CARDS_BLOCK_HEIGHT/lib/reportCellFormat.js:computeSummaryCards(). Chỉ
+  // vẽ ở TRANG ĐẦU (newPage() không gọi lại hàm này) — khối tổng chỉ có ý
+  // nghĩa 1 lần, không lặp lại mỗi khi bảng tràn sang trang mới.
+  function drawSummaryCards(cards) {
+    const entries = [
+      { card: cards.grand, label: 'TỔNG DOANH THU TOÀN HỆ THỐNG', hero: true },
+      ...cards.groups.map(g => ({ card: g, label: `DOANH THU KHỐI ${(g.label || '').replace('Tổng cộng ', '').toUpperCase()}`, hero: false }))
+    ];
+    const totalW = PAGE_SIZE[0] - MARGIN * 2;
+    const weights = entries.map((_, i) => (i === 0 ? 1.15 : 1));
+    const totalWeight = weights.reduce((a, b) => a + b, 0);
+    const usable = totalW - CARDS_GAP * (entries.length - 1);
+    const cardH = CARDS_CONTENT_HEIGHT;
+    const top = y;
+    let cx = MARGIN;
+    entries.forEach((e, i) => {
+      const w = usable * weights[i] / totalWeight;
+      const padX = 10;
+      page.drawRectangle({
+        x: cx, y: top - cardH, width: w, height: cardH,
+        color: e.hero ? hexToRgb01(SUMMARY_CARD_COLORS.heroBg) : rgb(1, 1, 1),
+        borderColor: e.hero ? undefined : hexToRgb01(SUMMARY_CARD_COLORS.lightBorder),
+        borderWidth: e.hero ? 0 : 0.75
+      });
+      const labelColor = e.hero ? hexToRgb01(SUMMARY_CARD_COLORS.heroLabel) : hexToRgb01(SUMMARY_CARD_COLORS.inkSoft);
+      const labelStr = fitText(e.label, boldFont, CARDS_LABEL_SIZE, w - padX * 2);
+      page.drawText(labelStr, { x: cx + padX, y: top - CARDS_LABEL_BASELINE_OFFSET, size: CARDS_LABEL_SIZE, font: boldFont, color: labelColor });
+
+      const valueColor = e.hero ? rgb(1, 1, 1) : hexToRgb01(SUMMARY_CARD_COLORS.navyInk);
+      const valueStr = fitText(`${formatCellText(e.card.thucDat, {})} đ`, boldFont, CARDS_VALUE_SIZE, w - padX * 2);
+      page.drawText(valueStr, { x: cx + padX, y: top - CARDS_VALUE_BASELINE_OFFSET, size: CARDS_VALUE_SIZE, font: boldFont, color: valueColor });
+
+      if (e.card.chiTieu !== null) {
+        let meta = `Chỉ tiêu: ${formatCellText(e.card.chiTieu, {})} đ`;
+        if (e.card.tyLeDat !== null) meta += ` · ${Math.round(e.card.tyLeDat)}% chỉ tiêu`;
+        if (e.card.lfl !== null) {
+          const delta = Math.round(e.card.lfl) - 100;
+          meta += ` · ${delta >= 0 ? '▲' : '▼'} ${Math.abs(delta)}% cùng kỳ`;
+        }
+        const metaColor = e.hero ? hexToRgb01(SUMMARY_CARD_COLORS.heroTarget) : hexToRgb01(SUMMARY_CARD_COLORS.inkSoft);
+        const metaStr = fitText(meta, font, CARDS_META_SIZE, w - padX * 2);
+        page.drawText(metaStr, { x: cx + padX, y: top - CARDS_META_BASELINE_OFFSET, size: CARDS_META_SIZE, font, color: metaColor });
+      }
+      cx += w + CARDS_GAP;
+    });
+    y -= CARDS_BLOCK_HEIGHT;
+  }
+
   function drawHeader() {
     if (!hasGroups) {
       // Bọc dòng (giống nhánh columnGroups bên dưới) thay vì vẽ 1 dòng cố
@@ -539,6 +617,7 @@ async function exportPdf(definition, rows) {
   }
 
   drawTitle();
+  if (summaryCardsData) drawSummaryCards(summaryCardsData);
   drawHeader();
 
   // zebraFlags (bản 8.58) — xen kẽ màu dòng dữ liệu THƯỜNG, DÙNG CHUNG đúng

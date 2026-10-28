@@ -220,6 +220,40 @@ button:disabled, button:disabled:hover {
    dễ đọc hơn — PHẢI đo lại offset sticky header bên dưới nếu đổi số này. */
 .data-table--grouped th { line-height: 1.9; }
 .empty-message { color: var(--ink-soft); font-size: 13px; }
+
+/* ReportSummaryCards.jsx (bản 10.21, theo yêu cầu người dùng — "doanh thu
+   của tổng/Mart/Minimart rõ ràng hơn, không phải nhìn vào một cái dòng...
+   màu sắc hiện đại, giống đơn vị tổ chức quốc tế tài chính") — khối 3 thẻ
+   phía TRÊN bảng chi tiết, CHỈ hiện ở 4 báo cáo "Doanh thu cuối ngày" (xem
+   result.summaryCards). Mã màu "rsc-*" KHỚP ĐÚNG SUMMARY_CARD_COLORS ở
+   rp-server/lib/reportCellFormat.js (Excel/PDF/email dùng chung bộ màu
+   này) — đổi 1 bên PHẢI đổi bên kia để 3+1 kênh xuất không lệch màu. */
+.rsc-grid { display: grid; grid-template-columns: 1.1fr 1fr 1fr; gap: 14px; margin: 4px 0 20px; }
+@media (max-width: 880px) { .rsc-grid { grid-template-columns: 1fr; } }
+.rsc-card { border-radius: 12px; padding: 16px 18px; }
+.rsc-card--hero { background: linear-gradient(145deg, #0B1F3A, #1B3A66); color: #fff; box-shadow: 0 4px 16px rgba(11,31,58,.18); }
+.rsc-card--light { background: var(--surface); border: 1px solid var(--line); }
+.rsc-label { font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; display: flex; align-items: center; gap: 7px; margin-bottom: 8px; }
+.rsc-card--hero .rsc-label { color: #C9D6E0; }
+.rsc-card--light .rsc-label { color: var(--ink-soft); }
+.rsc-icon { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 6px; font-size: 11px; font-weight: 800; }
+.rsc-card--hero .rsc-icon { background: rgba(255,255,255,.16); color: #C9A24B; }
+.rsc-card--light .rsc-icon { background: #EFE2C3; color: #A9802F; }
+.rsc-row { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.rsc-value { font-size: 24px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.rsc-unit { font-size: 13px; font-weight: 500; opacity: .7; margin-left: 2px; }
+.rsc-target { font-size: 12px; margin-top: 10px; }
+.rsc-card--hero .rsc-target { color: #AEBDD1; }
+.rsc-card--light .rsc-target { color: var(--ink-soft); }
+.rsc-target b { color: var(--ink); }
+.rsc-card--hero .rsc-target b { color: #E7ECF2; }
+.rsc-chip { display: inline-flex; align-items: center; font-size: 11.5px; font-weight: 700; padding: 3px 9px; border-radius: 999px; white-space: nowrap; }
+.rsc-chip--warn { background: #FDF3E2; color: #8A5A06; }
+.rsc-chip--up { background: #E5F5EC; color: #1B7A4A; }
+.rsc-chip--down { background: #FDECEA; color: #B3261E; }
+.rsc-card--hero .rsc-chip--warn { background: rgba(255,255,255,.16); color: #F2DFB0; }
+.rsc-card--hero .rsc-chip--up { background: rgba(255,255,255,.16); color: #BFE8CF; }
+.rsc-card--hero .rsc-chip--down { background: rgba(255,255,255,.16); color: #F3B7B0; }
 /* ReportChart.jsx:unitNote (bản 8.29) — ghi chú "ĐVT: 1.000.000" khi biểu đồ
    quy đổi đơn vị (visualization.unitDivisor), căn phải ngay trên biểu đồ. */
 .report-chart-unit-note { text-align: right; font-size: 12px; color: var(--ink-soft); margin: 0 0 4px; }

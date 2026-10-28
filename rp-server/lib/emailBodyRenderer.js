@@ -38,7 +38,8 @@ const {
   resolveGroupColor, resolveRowFillColor, resolveStandaloneColumnColor,
   computeZebraFlags, computeSttValues, formatCellText,
   filterColumns, filterGroups,
-  GROUP_COLORS_CORPORATE, SUBTOTAL_COLOR_CORPORATE, GRAND_TOTAL_COLOR_CORPORATE, ZEBRA_COLOR_CORPORATE
+  GROUP_COLORS_CORPORATE, SUBTOTAL_COLOR_CORPORATE, GRAND_TOTAL_COLOR_CORPORATE, ZEBRA_COLOR_CORPORATE,
+  computeSummaryCards, SUMMARY_CARD_COLORS
 } = require('./reportCellFormat');
 // Bảng màu "kiểu báo cáo tài chính quốc tế" (theo yêu cầu người dùng) —
 // ÁP DỤNG CHO EMAIL luôn (cùng bộ màu với Excel/web) — xem chú thích đầy đủ
@@ -108,6 +109,51 @@ function buildGroupedHeaderRows(columns, groups, standaloneColumnColors) {
   return { topRow, bottomRow, standaloneRowSpan };
 }
 
+// Khối "thẻ tổng doanh thu" (bản 10.21) — xem chú thích đầy đủ ở
+// lib/reportCellFormat.js:computeSummaryCards(). Dựng bằng <table> (KHÔNG
+// dùng flex/grid) — email client (Outlook/Gmail...) hỗ trợ CSS hiện đại rất
+// hạn chế, <table> + style inline là cách DUY NHẤT đảm bảo hiển thị đúng ở
+// mọi client, cùng nguyên tắc đã áp dụng cho bảng chi tiết bên dưới. Tính
+// từ `rows` GỐC (trước khi lọc bodyColumnKeys) — chọn cột hiển thị không
+// ảnh hưởng tới số liệu tổng (luôn đọc đúng dòng __isSubtotal/__isGrandTotal).
+function renderSummaryCardsHtml(definition, rows) {
+  const cards = computeSummaryCards(definition, rows);
+  if (!cards) return '';
+  const n = (v) => (v === null || v === undefined ? '—' : Math.round(v).toLocaleString('en-US'));
+  const pct = (v) => (v === null || v === undefined ? '—' : `${Math.round(v)}%`);
+  const trendHtml = (lfl, hero) => {
+    if (lfl === null || lfl === undefined) return '';
+    const delta = Math.round(lfl) - 100;
+    const up = delta >= 0;
+    const color = hero ? 'rgba(255,255,255,.9)' : (up ? `#${SUMMARY_CARD_COLORS.up}` : `#${SUMMARY_CARD_COLORS.down}`);
+    const bg = hero ? 'rgba(255,255,255,.16)' : (up ? `#${SUMMARY_CARD_COLORS.upBg}` : `#${SUMMARY_CARD_COLORS.downBg}`);
+    return `<span style="display:inline-block;margin-left:6px;padding:2px 7px;border-radius:999px;font-size:11px;font-weight:bold;background:${bg};color:${color};">${up ? '▲' : '▼'} ${Math.abs(delta)}% cùng kỳ</span>`;
+  };
+  const entries = [
+    { card: cards.grand, label: 'Tổng doanh thu toàn hệ thống', hero: true },
+    ...cards.groups.map(g => ({ card: g, label: `Doanh thu khối ${(g.label || '').replace('Tổng cộng ', '')}`, hero: false }))
+  ];
+  const cells = entries.map(e => {
+    const bg = e.hero ? `background:#${SUMMARY_CARD_COLORS.heroBg};` : `background:#ffffff;border:1px solid #${SUMMARY_CARD_COLORS.lightBorder};`;
+    const labelColor = e.hero ? `#${SUMMARY_CARD_COLORS.heroLabel}` : `#${SUMMARY_CARD_COLORS.inkSoft}`;
+    const valueColor = e.hero ? '#ffffff' : `#${SUMMARY_CARD_COLORS.navyInk}`;
+    const targetColor = e.hero ? `#${SUMMARY_CARD_COLORS.heroTarget}` : `#${SUMMARY_CARD_COLORS.inkSoft}`;
+    const targetBold = e.hero ? '#e7ecf2' : '#222222';
+    const chipWarnBg = e.hero ? 'rgba(255,255,255,.16)' : `#${SUMMARY_CARD_COLORS.warnBg}`;
+    const chipWarnColor = e.hero ? '#f2dfb0' : `#${SUMMARY_CARD_COLORS.warnInk}`;
+    return `<td valign="top" style="${bg}border-radius:10px;padding:14px 16px;">
+      <div style="font-size:11px;font-weight:bold;letter-spacing:.04em;text-transform:uppercase;color:${labelColor};margin-bottom:6px;">${escapeHtml(e.label)}</div>
+      <div style="font-size:20px;font-weight:bold;color:${valueColor};">${n(e.card.thucDat)} <span style="font-size:12px;font-weight:normal;opacity:.75;">đ</span></div>
+      <div style="margin-top:6px;">
+        ${e.card.tyLeDat !== null ? `<span style="display:inline-block;padding:2px 7px;border-radius:999px;font-size:11px;font-weight:bold;background:${chipWarnBg};color:${chipWarnColor};">${pct(e.card.tyLeDat)} chỉ tiêu</span>` : ''}
+        ${trendHtml(e.card.lfl, e.hero)}
+      </div>
+      ${e.card.chiTieu !== null ? `<div style="margin-top:8px;font-size:11.5px;color:${targetColor};">Chỉ tiêu: <b style="color:${targetBold};">${n(e.card.chiTieu)} đ</b></div>` : ''}
+    </td>`;
+  }).join('<td style="width:10px;"></td>');
+  return `<table style="border-collapse:separate;border-spacing:0;width:100%;margin-bottom:16px;"><tr>${cells}</tr></table>`;
+}
+
 // definition = { title, columns: [{key, label, format}], columnGroups?,
 // standaloneColumnColors? } — xem lib/reportEngine.js:describeColumns() +
 // lib/compositeReportRunner.js (chú thích đầu file, mục "Tiêu đề nhóm cột +
@@ -169,9 +215,13 @@ function renderEmailBodyHtml(definition, rows, options = {}) {
     return `<tr>${cells}</tr>`;
   }).join('');
 
+  // summaryCardsHtml (bản 10.21) — tính từ `rows` GỐC (tham số của hàm,
+  // CHƯA lọc bodyColumnKeys) — xem renderSummaryCardsHtml() ở trên.
+  const summaryCardsHtml = renderSummaryCardsHtml(definition, rows);
   return `
     <div style="font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#222;">
       <h3 style="margin:0 0 10px 0;">${escapeHtml(definition.title)}</h3>
+      ${summaryCardsHtml}
       <table style="border-collapse:collapse;width:100%;">
         <thead>${theadHtml}</thead>
         <tbody>${bodyRows}</tbody>

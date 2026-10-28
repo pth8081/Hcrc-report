@@ -49,7 +49,7 @@ const DOMAIN_THANH_VIEN = { revenue: 'doanhthu_chinhanh_thanhvien', transaction:
 //                     theo đúng quy tắc đặt tên nội bộ, không liên quan
 //                     gì tới title/exportTitle ở trên.
 const EXPORT_TITLE = 'Hệ thống siêu thị BRGMART - Báo cáo nhanh doanh thu ngày {ngayBaoCao}';
-function buildDefinition(title, targetDomain, exportFileCode, domains) {
+function buildDefinition(title, targetDomain, exportFileCode, domains, pdfSummaryCards) {
   const { revenue: revenueDomain, transaction: transactionDomain } = domains;
   return {
     title,
@@ -70,6 +70,21 @@ function buildDefinition(title, targetDomain, exportFileCode, domains) {
     // này để exportPdf() rơi về bảng gốc — xem lib/exportPdf.js. Excel/web
     // KHÔNG đọc cờ này (đã đổi hẳn từ bản 9.40, không có đường lùi).
     legacyPdfColors: true,
+    // summaryCards (bản 10.21, theo yêu cầu người dùng — xem chú thích đầy
+    // đủ ở lib/reportCellFormat.js:computeSummaryCards()) — khối 3 thẻ
+    // "Tổng doanh thu toàn hệ thống"/"Doanh thu khối MART"/"Doanh thu khối
+    // MINIMART" vẽ phía TRÊN bảng chi tiết, KHÔNG đổi gì bảng chi tiết bên
+    // dưới. `keys` trỏ đúng 4 cột Doanh thu đã khai ở `columns` bên dưới.
+    // Web/Excel/email LUÔN vẽ khối này cho CẢ 4 báo cáo (không đọc `pdf`).
+    // PDF CHỈ vẽ khi `pdf: true` — THAM SỐ `pdfSummaryCards` truyền vào từ
+    // REPORTS bên dưới, theo đúng yêu cầu người dùng: "web/Excel/email cả 4
+    // báo cáo; PDF chỉ 2 báo cáo GỐC (HCRC/LDTD), 2 báo cáo (Thành viên) để
+    // sau" — 2 báo cáo Thành viên KHÔNG truyền cờ này (pdf: false), PDF của
+    // 2 báo cáo đó giữ NGUYÊN như cũ (chỉ có bảng, không có khối thẻ).
+    summaryCards: {
+      keys: { chiTieu: 'dt_chiTieu', thucDat: 'dt_thucDat', tyLeDat: 'dt_tyLeDat', lfl: 'dt_lfl' },
+      pdf: !!pdfSummaryCards
+    },
     domain: revenueDomain,
     filters: [
       // type: 'dateRange' (trước là 'date', chỉ chọn được 1 ngày) — chọn 1
@@ -272,15 +287,18 @@ function buildDefinition(title, targetDomain, exportFileCode, domains) {
 // thay vì qua CSDL trung tâm, xem "báo cáo doanh thu thành viên.md").
 // exportFileCode thêm hậu tố "TV" — TỰ CHỌN (không phải quy tắc người dùng
 // cung cấp như 2 mã gốc), đổi lại dễ nếu người dùng muốn mã khác.
+// pdfSummaryCards: true CHỈ ở 2 báo cáo GỐC (bản 10.21, theo yêu cầu người
+// dùng — xem chú thích đầy đủ ở buildDefinition()) — 2 báo cáo "(Thành
+// viên)" cố ý KHÔNG khai (PDF giữ nguyên như cũ, để làm sau).
 const REPORTS = [
-  { reportId: 'bc-doanh-thu-ldtd', title: 'Báo cáo doanh thu cuối ngày LDTD', targetDomain: 'sales-targets-ldtd', exportFileCode: 'BCDDTLDTD', domains: DOMAIN_GOC },
-  { reportId: 'bc-doanh-thu-hcrc', title: 'Báo cáo doanh thu cuối ngày HCRC', targetDomain: 'sales-targets-hcrc', exportFileCode: 'BCDTHCRC', domains: DOMAIN_GOC },
-  { reportId: 'bc-doanh-thu-ldtd-thanh-vien', title: 'Báo cáo doanh thu cuối ngày LDTD (Thành viên)', targetDomain: 'sales-targets-ldtd', exportFileCode: 'BCDDTLDTDTV', domains: DOMAIN_THANH_VIEN },
-  { reportId: 'bc-doanh-thu-hcrc-thanh-vien', title: 'Báo cáo doanh thu cuối ngày HCRC (Thành viên)', targetDomain: 'sales-targets-hcrc', exportFileCode: 'BCDTHCRCTV', domains: DOMAIN_THANH_VIEN }
+  { reportId: 'bc-doanh-thu-ldtd', title: 'Báo cáo doanh thu cuối ngày LDTD', targetDomain: 'sales-targets-ldtd', exportFileCode: 'BCDDTLDTD', domains: DOMAIN_GOC, pdfSummaryCards: true },
+  { reportId: 'bc-doanh-thu-hcrc', title: 'Báo cáo doanh thu cuối ngày HCRC', targetDomain: 'sales-targets-hcrc', exportFileCode: 'BCDTHCRC', domains: DOMAIN_GOC, pdfSummaryCards: true },
+  { reportId: 'bc-doanh-thu-ldtd-thanh-vien', title: 'Báo cáo doanh thu cuối ngày LDTD (Thành viên)', targetDomain: 'sales-targets-ldtd', exportFileCode: 'BCDDTLDTDTV', domains: DOMAIN_THANH_VIEN, pdfSummaryCards: false },
+  { reportId: 'bc-doanh-thu-hcrc-thanh-vien', title: 'Báo cáo doanh thu cuối ngày HCRC (Thành viên)', targetDomain: 'sales-targets-hcrc', exportFileCode: 'BCDTHCRCTV', domains: DOMAIN_THANH_VIEN, pdfSummaryCards: false }
 ];
 
-async function upsertReport(pool, menuItemId, { reportId, title, targetDomain, exportFileCode, domains }) {
-  const definitionJson = JSON.stringify(buildDefinition(title, targetDomain, exportFileCode, domains));
+async function upsertReport(pool, menuItemId, { reportId, title, targetDomain, exportFileCode, domains, pdfSummaryCards }) {
+  const definitionJson = JSON.stringify(buildDefinition(title, targetDomain, exportFileCode, domains, pdfSummaryCards));
   const existing = await pool.request().input('reportId', sql.VarChar(80), reportId)
     .query('SELECT ReportId FROM app.ReportCatalog WHERE ReportId = @reportId');
   if (existing.recordset.length) {

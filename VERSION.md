@@ -42,6 +42,46 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.21 — Thêm khối "thẻ tổng doanh thu" cho 4 báo cáo Doanh thu cuối ngày
+
+**Theo yêu cầu người dùng**: "Bạn tìm cho mình một cái báo cáo nó mang
+tính hiện đại hơn, nó thể hiện được cái doanh thu của tổng, doanh thu của
+Minimart và doanh thu của Mart nó rõ ràng hơn, không phải nhìn vào một cái
+dòng... màu sắc hiện đại, giống các cái đơn vị tổ chức quốc tế tài chính"
+— demo nhiều vòng qua Artifact (dữ liệu mẫu, rồi dữ liệu THẬT từ file PDF
+người dùng gửi — 34 cửa hàng, cả báo cáo gộp cột đo chiều rộng theo nội
+dung thật tránh cắt chữ) trước khi code.
+
+**Đã làm**: thêm khối 3 thẻ "Tổng doanh thu toàn hệ thống"/"Doanh thu khối
+MART"/"Doanh thu khối MINIMART" phía TRÊN bảng chi tiết (giữ nguyên hoàn
+toàn, không đổi gì) — mỗi thẻ hiện doanh thu thực đạt to/rõ, kèm % đạt chỉ
+tiêu, mũi tên so cùng kỳ (▲ xanh/▼ đỏ) — tông màu navy/vàng đồng "kiểu báo
+cáo tài chính quốc tế", tách biệt hẳn bảng màu xanh lá/cam/vàng/tím của
+bảng chi tiết. Hàm dùng chung `computeSummaryCards()`
+(`rp-server/lib/reportCellFormat.js`) đọc lại đúng 3 dòng "Tổng cộng"/
+"Tổng cộng MART"/"Tổng cộng MINIMART" đã có sẵn trong báo cáo (không tính
+lại/không truy vấn gì thêm) — dùng CHUNG cho cả 4 kênh xuất, tránh lệch số.
+
+Phạm vi áp dụng (theo đúng yêu cầu người dùng):
+- **Web + Excel + email** — CẢ 4 báo cáo (LDTD/HCRC gốc + "(Thành viên)").
+- **PDF** — CHỈ 2 báo cáo GỐC (`bc-doanh-thu-ldtd`/`bc-doanh-thu-hcrc`).
+  2 báo cáo "(Thành viên)" **giữ nguyên PDF như cũ** (chưa có khối thẻ),
+  để làm sau — PDF vẫn đúng 1 trang A4 (khối thẻ CÓ chiều cao cố định,
+  trừ thẳng vào ngân sách chiều cao TRƯỚC khi dò cỡ chữ bảng chi tiết ở
+  `lib/exportPdf.js`, test với đúng 34 dòng dữ liệu thật vẫn thoải mái).
+
+**Sửa 1 lỗi thật phát sinh trong lúc code** (phát hiện qua render PDF thử,
+chưa tới tay người dùng): dòng "Chỉ tiêu: ..." trong thẻ PDF ban đầu đè
+lên số doanh thu lớn phía trên (tính sai khoảng cách giữa 3 dòng chữ
+tuyệt đối theo toạ độ) — đã sửa lại offset, verify bằng render + nhìn ảnh
+thật, không còn chồng chữ.
+
+Verify: mock test (dữ liệu thật 34 cửa hàng) cho cả 4 kênh — web (dựng
+app thật + Playwright), Excel (LibreOffice render), PDF cả 2 trường hợp
+(so sánh `pdftotext` xác nhận PDF "(Thành viên)" giống hệt bản CHƯA có
+summaryCards — đúng yêu cầu "giữ nguyên"), email HTML (Playwright). Build
+sạch `rp-user`.
+
 ## 10.20 — Nâng cấp UI/UX chuyên nghiệp hơn + rà soát responsive mobile 5.0"-6.8"
 
 **Theo yêu cầu người dùng**: "Bạn rà soát lại ba giao diện quản trị ETL

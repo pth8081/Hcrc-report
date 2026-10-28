@@ -957,6 +957,28 @@ bao giờ ghép được vào báo cáo (không có lỗi/cảnh báo gì khác 
 > trên (đã cập nhật sẵn `columnGroups`/cột `stt`/`format` cho 2 báo cáo này)
 > là có ngay, không cần làm gì thêm. Bảng xem TRÊN WEB (rp-user) KHÔNG đổi
 > gì (vẫn bảng phẳng như cũ) — chỉ file xuất Excel/PDF/email mới có màu.
+>
+> **Từ bản 10.21** — thêm khối 3 thẻ "Tổng doanh thu toàn hệ thống"/"Doanh
+> thu khối MART"/"Doanh thu khối MINIMART" (số doanh thu thực đạt to, rõ,
+> kèm % đạt chỉ tiêu + mũi tên so cùng kỳ — màu navy/vàng đồng "kiểu báo cáo
+> tài chính quốc tế", KHÁC bảng màu xanh lá/cam/vàng/tím của bảng chi tiết
+> bên dưới) phía TRÊN bảng chi tiết, để xem tổng quan không phải cộng tay
+> từng dòng "Tổng cộng MART"/"Tổng cộng MINIMART" trong bảng. Đọc trực tiếp
+> khối `summaryCards` trong `DefinitionJson` (xem
+> `rp-server/lib/reportCellFormat.js:computeSummaryCards()`), do script
+> `seedLdtdHcrcReports.js` tự khai — chạy lại script này (như trên) là có
+> ngay, không cần sửa gì thêm. Áp dụng:
+> - **Web + Excel + email** — CẢ 4 báo cáo (LDTD/HCRC gốc + "(Thành viên)").
+> - **PDF** — CHỈ 2 báo cáo GỐC (`bc-doanh-thu-ldtd`/`bc-doanh-thu-hcrc`).
+>   2 báo cáo "(Thành viên)" (`bc-doanh-thu-ldtd-thanh-vien`/
+>   `bc-doanh-thu-hcrc-thanh-vien`) **CỐ Ý giữ nguyên PDF như cũ** (chưa có
+>   khối thẻ) — theo đúng yêu cầu người dùng, sẽ làm sau. Nếu muốn bật thêm
+>   cho 2 báo cáo "(Thành viên)", đổi `pdfSummaryCards: true` ở mảng
+>   `REPORTS` trong `seedLdtdHcrcReports.js` rồi chạy lại script.
+>
+> Không cần sửa gì ở VIEW SQL/ETL/Chỉ tiêu — tính năng này THUẦN tính lại
+> từ các dòng "Tổng cộng"/"Tổng cộng MART"/"Tổng cộng MINIMART" đã có sẵn
+> trong báo cáo (không truy vấn gì thêm).
 
 Vào rp-user, menu **"Hệ thống → Biểu mẫu"**, tab **"Báo cáo"** (mặc định).
 

@@ -6,7 +6,8 @@
 const ExcelJS = require('exceljs');
 const {
   resolveGroupColor, resolveRowFillColor, resolveStandaloneColumnColor, computeZebraFlags, computeSttValues,
-  GROUP_COLORS_CORPORATE, SUBTOTAL_COLOR_CORPORATE, GRAND_TOTAL_COLOR_CORPORATE, ZEBRA_COLOR_CORPORATE
+  GROUP_COLORS_CORPORATE, SUBTOTAL_COLOR_CORPORATE, GRAND_TOTAL_COLOR_CORPORATE, ZEBRA_COLOR_CORPORATE,
+  computeSummaryCards, SUMMARY_CARD_COLORS
 } = require('./reportCellFormat');
 // Bảng màu "kiểu báo cáo tài chính quốc tế" (theo yêu cầu người dùng) —
 // ÁP DỤNG CHO EXCEL (và web, xem rp-user/src/lib/reportGroupColors.js),
@@ -61,6 +62,74 @@ const DATA_ROW_HEIGHT = 20;
 
 const MIN_COL_WIDTH = 8;
 const MAX_COL_WIDTH = 40;
+
+// Khối "thẻ tổng doanh thu" (bản 10.21) — xem chú thích đầy đủ ở
+// rp-server/lib/reportCellFormat.js:computeSummaryCards(). Vẽ 3 Ô merge
+// ngang (Tổng/Mart/Minimart...) CHIẾM 3 DÒNG đầu sheet + 1 dòng đệm, TRƯỚC
+// cả dòng tiêu đề báo cáo (title) — mọi vị trí dòng CÒN LẠI của sheet (title/
+// header 2-3 dòng/dữ liệu) dồn xuống đúng SUMMARY_CARD_ROWS dòng, xem
+// `rowOffset` ở addReportSheet() bên dưới. CHỈ gọi khi `groups.length`
+// (báo cáo có columnGroups — summaryCards luôn đi kèm columnGroups ở cả 4
+// báo cáo hiện dùng, xem scripts/seedLdtdHcrcReports.js) — nhánh báo cáo
+// PHẲNG (không columnGroups) KHÔNG hỗ trợ khối này (chưa báo cáo phẳng nào
+// cần tới, thêm sau nếu phát sinh nhu cầu).
+const SUMMARY_CARD_ROWS = 4; // 3 dòng nội dung (nhãn/số/chỉ tiêu) + 1 dòng đệm
+function addSummaryCardsBlock(sheet, definition, rows, colCount) {
+  const cards = computeSummaryCards(definition, rows);
+  if (!cards) return 0;
+  const n = (v) => (v === null || v === undefined ? '—' : Math.round(v).toLocaleString('en-US'));
+  const pct = (v) => (v === null || v === undefined ? '—' : `${Math.round(v)}%`);
+  const trendText = (lfl) => {
+    if (lfl === null || lfl === undefined) return '';
+    const delta = Math.round(lfl) - 100;
+    return ` · ${delta >= 0 ? '▲' : '▼'} ${Math.abs(delta)}% cùng kỳ`;
+  };
+  const entries = [
+    { card: cards.grand, label: 'TỔNG DOANH THU TOÀN HỆ THỐNG', hero: true },
+    ...cards.groups.map(g => ({ card: g, label: `DOANH THU KHỐI ${(g.label || '').replace('Tổng cộng ', '').toUpperCase()}`, hero: false }))
+  ];
+  // Chia cột cho tối đa 3 thẻ — thẻ Tổng (hero) rộng hơn 1 chút, khớp đúng
+  // tỉ lệ 1.15fr/1fr/1fr đã dùng ở web (styles.css:.rsc-grid)/PDF.
+  const weights = entries.map((_, i) => (i === 0 ? 1.15 : 1));
+  const totalWeight = weights.reduce((a, b) => a + b, 0);
+  let cStart = 1;
+  const ranges = weights.map(w => {
+    const span = Math.max(1, Math.round(colCount * w / totalWeight));
+    const start = cStart, end = Math.min(colCount, cStart + span - 1);
+    cStart = end + 1;
+    return [start, end];
+  });
+  ranges[ranges.length - 1][1] = colCount; // phần dư do làm tròn dồn vào thẻ cuối, không để hở cột
+
+  entries.forEach((e, i) => {
+    const [start, end] = ranges[i];
+    const heroFill = fillArgb(SUMMARY_CARD_COLORS.heroBg);
+    for (let r = 1; r <= 3; r++) {
+      sheet.mergeCells(r, start, r, end);
+      const cell = sheet.getCell(r, start);
+      if (e.hero) cell.fill = heroFill;
+      cell.border = BORDER_ALL;
+    }
+    const labelCell = sheet.getCell(1, start);
+    labelCell.value = e.label;
+    labelCell.font = fontName({ bold: true, size: 9, color: { argb: e.hero ? `FF${SUMMARY_CARD_COLORS.heroLabel}` : `FF${SUMMARY_CARD_COLORS.inkSoft}` } });
+    labelCell.alignment = { vertical: 'middle' };
+
+    const valueCell = sheet.getCell(2, start);
+    valueCell.value = `${n(e.card.thucDat)} đ`;
+    valueCell.font = fontName({ bold: true, size: 16, color: { argb: e.hero ? 'FFFFFFFF' : `FF${SUMMARY_CARD_COLORS.navyInk}` } });
+    valueCell.alignment = { vertical: 'middle' };
+
+    const metaCell = sheet.getCell(3, start);
+    metaCell.value = `Chỉ tiêu: ${n(e.card.chiTieu)} đ · ${pct(e.card.tyLeDat)} chỉ tiêu${trendText(e.card.lfl)}`;
+    metaCell.font = fontName({ size: 8.5, color: { argb: e.hero ? `FF${SUMMARY_CARD_COLORS.heroTarget}` : `FF${SUMMARY_CARD_COLORS.inkSoft}` } });
+    metaCell.alignment = { vertical: 'middle' };
+  });
+  sheet.getRow(1).height = 16;
+  sheet.getRow(2).height = 26;
+  sheet.getRow(3).height = 15;
+  return SUMMARY_CARD_ROWS;
+}
 
 // Độ dài hiển thị ước lượng của 1 giá trị — CHỈ dùng để TÍNH BỀ RỘNG cột,
 // không phải giá trị ghi vào ô (numFmt thật vẫn do cell.numFmt quyết định,
@@ -128,16 +197,23 @@ function addReportSheet(workbook, definition, rows, sheetName) {
   const superGroups = definition.columnSuperGroups || [];
   let dataStartRow;
   if (groups.length) {
-    sheet.mergeCells(1, 1, 1, colCount);
-    const titleCell = sheet.getCell(1, 1);
+    // rowOffset (bản 10.21) — khối thẻ tổng doanh thu (nếu báo cáo khai
+    // definition.summaryCards) CHIẾM SUMMARY_CARD_ROWS dòng NGAY TRÊN tiêu
+    // đề — xem addSummaryCardsBlock() ở trên. Báo cáo không khai (mọi báo
+    // cáo columnGroups khác) -> rowOffset = 0, title vẫn ở dòng 1 như cũ,
+    // KHÔNG đổi hành vi.
+    const rowOffset = addSummaryCardsBlock(sheet, definition, rows, colCount);
+    const titleRow = 1 + rowOffset;
+    sheet.mergeCells(titleRow, 1, titleRow, colCount);
+    const titleCell = sheet.getCell(titleRow, 1);
     titleCell.value = definition.title;
     titleCell.font = fontName({ bold: true, size: 14 });
     titleCell.alignment = { horizontal: 'center' };
-    sheet.getRow(1).height = 22;
+    sheet.getRow(titleRow).height = 22;
 
-    const r0 = superGroups.length ? 2 : null;
-    const r1 = superGroups.length ? 3 : 2;
-    const r2 = superGroups.length ? 4 : 3;
+    const r0 = superGroups.length ? titleRow + 1 : null;
+    const r1 = superGroups.length ? titleRow + 2 : titleRow + 1;
+    const r2 = superGroups.length ? titleRow + 3 : titleRow + 2;
     const colIndexByKey = new Map(columns.map((c, i) => [c.key, i + 1]));
     const covered = new Set();
     // Nhãn g.label nào đã được 1 super-group "nhận" (xem columnSuperGroups ở
