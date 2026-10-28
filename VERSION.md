@@ -42,6 +42,45 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.30 — SỬA LỖI THẬT: khối 3 thẻ tổng doanh thu trong email lệch hẳn độ rộng so với bảng chi tiết
+
+**Theo báo cáo người dùng** (ảnh chụp thật email mở trên điện thoại):
+"3 khối ở trên nó không khớp khoảng cách của bảng? Độ rộng của bảng và
+độ rộng 3 khối phải bằng nhau mới đẹp" — khối 3 thẻ "Tổng doanh thu toàn
+hệ thống"/"Doanh thu khối MART"/"Doanh thu khối MINIMART" nhìn hẹp hơn
+hẳn bảng chi tiết bên dưới.
+
+**Nguyên nhân**: khối thẻ dùng `width:100%` — nhưng `width:100%` trên 1
+`<table>` HTML chỉ là GỢI Ý, KHÔNG BAO GIỜ co được xuống dưới độ rộng NỘI
+DUNG TỐI THIỂU của chính bảng đó (quy tắc layout bảng chuẩn). Đo bằng
+Playwright (dựng đúng HTML thật, nhiều mốc bề ngang): bảng chi tiết 17
+cột tự nhiên rộng ~1139px (không đổi dù khung hẹp hơn), khối 3 thẻ (nội
+dung ít hơn nhiều) chỉ rộng ~426-584px — 2 `width:100%` ĐỘC LẬP không hề
+biết về nhau nên không bao giờ khớp. Khi email client tự co giãn TOÀN BỘ
+nội dung cho vừa màn hình điện thoại (cùng 1 tỉ lệ), khối đã hẹp hơn
+trong HTML gốc vẫn hẹp hơn tương ứng sau khi co — đúng hiện tượng người
+dùng thấy.
+
+**Đã sửa** (`rp-server/lib/emailBodyRenderer.js`): tính TỔNG trọng số
+`width` của từng cột bảng chi tiết (ĐÃ CÓ SẴN trong `definition.columns`,
+DÙNG CHUNG đúng số liệu PDF đang dùng để chia cột theo tỷ lệ) × hằng số
+px/đơn vị (hiệu chỉnh khớp đúng độ rộng tự nhiên đo được: 16.7 đơn vị ≈
+1139px → ~68px/đơn vị) = độ rộng PX CỤ THỂ, gán thẳng cho khối thẻ thay
+vì `width:100%` — khớp sát bảng dù bảng có lọc bớt cột (bodyColumnKeys,
+bản 8.96) hay không. KHÔNG đổi bảng chi tiết (giữ nguyên `width:100%`
+đã đúng cho mọi báo cáo email khác).
+
+**Đã kiểm tra PDF/Excel** (người dùng hỏi luôn 2 định dạng này) — CẢ 2
+ĐÃ ĐÚNG TỪ TRƯỚC, không cần sửa: PDF dùng chung `PAGE_SIZE - MARGIN×2`
+cho cả khối thẻ lẫn bảng (`exportPdf.js:drawSummaryCards()`); Excel gộp
+ô khối thẻ theo đúng `colCount` của bảng (`exportExcel.js:
+addSummaryCardsBlock()`) — cả 2 dùng CHUNG lưới cột với bảng ngay từ
+thiết kế ban đầu (bản 10.21), chỉ riêng email dùng 2 `<table>` độc lập.
+
+Verify: dựng lại đúng HTML thật (Playwright) trước/sau sửa — chênh lệch
+độ rộng giảm từ ~713-1024px xuống còn **3.5px** ở độ rộng điện thoại/
+email phổ biến (375-600px); chụp ảnh xác nhận 2 khối thẳng hàng bằng mắt.
+
 ## 10.29 — SỬA LỖI THẬT: bảng "Top 5 chi nhánh" ở Dashboard bị cuộn ngang dở dang trên điện thoại 6.7"
 
 **Theo báo cáo người dùng** (ảnh chụp thật điện thoại 6.7"): bảng "Top 5

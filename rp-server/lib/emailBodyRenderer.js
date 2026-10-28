@@ -109,6 +109,38 @@ function buildGroupedHeaderRows(columns, groups, standaloneColumnColors) {
   return { topRow, bottomRow, standaloneRowSpan };
 }
 
+// SỬA LỖI THẬT (bản 10.30, theo ảnh người dùng gửi — email mở trên điện
+// thoại, khối 3 thẻ NHÌN NHỎ/LỆCH hẳn so với bảng chi tiết bên dưới, "độ
+// rộng bảng và 3 khối phải bằng nhau mới đẹp"): khối thẻ trước đây dùng
+// `width:100%` — nhưng `width:100%` trên 1 bảng HTML chỉ là GỢI Ý, KHÔNG
+// BAO GIỜ co được xuống dưới độ rộng NỘI DUNG TỐI THIỂU của chính bảng đó
+// (quy tắc layout bảng chuẩn — mỗi `<table>` tự tính độ rộng tối thiểu
+// riêng theo nội dung CỦA NÓ, không biết gì về bảng khác bên cạnh). Đo
+// bằng Playwright (dựng đúng HTML thật, nhiều mốc bề ngang màn hình):
+// bảng chi tiết 17 cột tự nhiên rộng ~1139px (không đổi dù khung chứa hẹp
+// hơn — luôn tràn ra đúng ngần đó), trong khi khối 3 thẻ (nội dung ít hơn
+// NHIỀU — chỉ vài số to) tự nhiên chỉ rộng ~426-584px tuỳ khung chứa — 2
+// `width:100%` ĐỘC LẬP không hề "biết" về nhau nên không bao giờ khớp.
+// Khi email client (Mail trên điện thoại) tự co GIÃN TOÀN BỘ nội dung
+// email cho vừa màn hình (cùng 1 tỉ lệ cho mọi phần tử), khối nào vốn ĐÃ
+// hẹp hơn trong HTML gốc thì sau khi co vẫn hẹp hơn tương ứng — đúng hiện
+// tượng "khối thẻ nhìn nhỏ/lệch" người dùng thấy.
+//
+// ĐÃ SỬA: tính TỔNG trọng số `width` của TỪNG CỘT bảng chi tiết (ĐÃ CÓ SẴN
+// trong `definition.columns`, DÙNG CHUNG đúng số liệu PDF đang dùng để
+// chia cột theo tỷ lệ — xem exportPdf.js) × hằng số px/đơn vị (hiệu chỉnh
+// khớp đúng độ rộng tự nhiên đo được ở trên: 16.7 đơn vị ≈ 1139px → ~68px/
+// đơn vị) = độ rộng PX CỤ THỂ, gán THẲNG cho khối thẻ thay vì `width:100%`
+// — khớp SÁT với độ rộng tự nhiên thật của bảng chi tiết, dù bảng đó lọc
+// bớt cột (bodyColumnKeys, bản 8.96) hay không. KHÔNG đổi `width:100%`
+// của bảng chi tiết (giữ nguyên hành vi đã đúng cho MỌI báo cáo gửi email
+// khác, kể cả báo cáo không khai `width` từng cột).
+const EMAIL_CARDS_PX_PER_WIDTH_UNIT = 68;
+function computeCardsTargetWidthPx(columns) {
+  const totalUnits = (columns || []).reduce((sum, c) => sum + (typeof c.width === 'number' ? c.width : 1), 0);
+  return Math.round(totalUnits * EMAIL_CARDS_PX_PER_WIDTH_UNIT);
+}
+
 // Khối "thẻ tổng doanh thu" (bản 10.21) — xem chú thích đầy đủ ở
 // lib/reportCellFormat.js:computeSummaryCards(). Dựng bằng <table> (KHÔNG
 // dùng flex/grid) — email client (Outlook/Gmail...) hỗ trợ CSS hiện đại rất
@@ -116,7 +148,9 @@ function buildGroupedHeaderRows(columns, groups, standaloneColumnColors) {
 // mọi client, cùng nguyên tắc đã áp dụng cho bảng chi tiết bên dưới. Tính
 // từ `rows` GỐC (trước khi lọc bodyColumnKeys) — chọn cột hiển thị không
 // ảnh hưởng tới số liệu tổng (luôn đọc đúng dòng __isSubtotal/__isGrandTotal).
-function renderSummaryCardsHtml(definition, rows) {
+// `targetWidthPx` (bản 10.30, TUỲ CHỌN) — xem computeCardsTargetWidthPx()
+// ở trên; không truyền thì giữ hành vi cũ (width:100%, dự phòng an toàn).
+function renderSummaryCardsHtml(definition, rows, targetWidthPx) {
   const cards = computeSummaryCards(definition, rows);
   if (!cards) return '';
   const n = (v) => (v === null || v === undefined ? '—' : Math.round(v).toLocaleString('en-US'));
@@ -151,7 +185,8 @@ function renderSummaryCardsHtml(definition, rows) {
       ${e.card.chiTieu !== null ? `<div style="margin-top:8px;font-size:11.5px;color:${targetColor};">Chỉ tiêu: <b style="color:${targetBold};">${n(e.card.chiTieu)} đ</b></div>` : ''}
     </td>`;
   }).join('<td style="width:10px;"></td>');
-  return `<table style="border-collapse:separate;border-spacing:0;width:100%;margin-bottom:16px;"><tr>${cells}</tr></table>`;
+  const widthStyle = targetWidthPx ? `width:${targetWidthPx}px;` : 'width:100%;';
+  return `<table width="${targetWidthPx || '100%'}" style="border-collapse:separate;border-spacing:0;${widthStyle}margin-bottom:16px;"><tr>${cells}</tr></table>`;
 }
 
 // definition = { title, columns: [{key, label, format}], columnGroups?,
@@ -217,7 +252,10 @@ function renderEmailBodyHtml(definition, rows, options = {}) {
 
   // summaryCardsHtml (bản 10.21) — tính từ `rows` GỐC (tham số của hàm,
   // CHƯA lọc bodyColumnKeys) — xem renderSummaryCardsHtml() ở trên.
-  const summaryCardsHtml = renderSummaryCardsHtml(definition, rows);
+  // targetWidthPx (bản 10.30) — tính từ `columns` ĐÃ LỌC bodyColumnKeys
+  // (biến cục bộ, đã khai ở trên) — khớp đúng độ rộng tự nhiên của CHÍNH
+  // bảng chi tiết sẽ hiện ra (sau khi lọc cột, nếu có).
+  const summaryCardsHtml = renderSummaryCardsHtml(definition, rows, computeCardsTargetWidthPx(columns));
   return `
     <div style="font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#222;">
       <h3 style="margin:0 0 10px 0;">${escapeHtml(definition.title)}</h3>

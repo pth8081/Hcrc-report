@@ -14,6 +14,19 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.30 — Khối 3 thẻ tổng doanh thu trong email khớp độ rộng bảng chi tiết
+
+**Thay đổi**: CHỈ `rp-server/lib/emailBodyRenderer.js` — KHÔNG đổi PDF/
+Excel (đã đúng từ trước, đã kiểm tra lại).
+
+**Các bước**: `git pull origin main` → khởi động lại `rp-server` (pm2
+restart) → KHÔNG cần build lại `rp-user`/chạy lại script seed.
+
+**Kiểm tra**: mở báo cáo "Doanh thu cuối ngày" (bất kỳ 1 trong 4 báo cáo
+LDTD/HCRC) gửi qua email (hoặc bấm "Gửi thử" nếu có) — khối 3 thẻ tổng
+doanh thu ở đầu email PHẢI có độ rộng khớp sát với bảng chi tiết bên
+dưới (2 đầu trái/phải thẳng hàng), không còn nhìn hẹp/lệch hẳn như trước.
+
 ## 10.29 — Bảng "Top 5 chi nhánh" ở Dashboard khít màn hình điện thoại
 
 **Thay đổi**: CHỈ `rp-user/src/styles.css` (CSS thuần).
