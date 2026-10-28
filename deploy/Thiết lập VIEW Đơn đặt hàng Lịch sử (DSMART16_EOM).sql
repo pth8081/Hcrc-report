@@ -128,12 +128,14 @@ WHERE name LIKE 'STRANS[_][0-9][0-9][0-9][0-9][0-9][0-9]' OR name = 'STRANS_EOM'
 
 -- THÊM bản 10.24 — nhánh "đặt hàng" lịch sử (130/330), nguồn FN_ORDER_ARC
 -- (1 bảng DUY NHẤT, nằm NGAY TRONG DSMART16_EOM — không cần JOIN chéo CSDL
--- cho riêng bảng này). ORD_QTY=SL đặt, PRICE=đơn giá thật (khác nhánh
--- STRANS phải suy AMOUNT/QTY) — xem ghi chú đầy đủ ở VIEW Live. SoDonRaw
--- dùng ISNULL+NULLIF+RTRIM+CAST VARCHAR(50) tường minh — tránh lỗi cắt
--- ngắn ký tự nếu REF là char NGẮN HƠN TRANS_NUM, và coi REF toàn dấu cách
--- (char rỗng kiểu cũ) cũng là "chưa có" — xem ghi chú đầy đủ ở VIEW Live.
-SET @sql = @sql + N' UNION ALL SELECT TRANS_NUM, IDX, TRAN_DATE, BU_ID, ISNULL(NULLIF(RTRIM(CAST(REF AS VARCHAR(50))), ''''), CAST(TRANS_NUM AS VARCHAR(50))) AS SoDonRaw, TRANS_CODE, DUE_DATE, SUPP_ID, STAFF_ID, SKU_ID, UNIT_SYMB, STATUS, ORD_QTY AS SoLuongRaw, PRICE AS DonGiaRaw, AMOUNT AS ThanhTienRaw FROM dbo.FN_ORDER_ARC WITH (NOLOCK) WHERE STATUS NOT IN (''D'',''E'') AND TRANS_CODE IN (''130'',''330'')';
+-- cho riêng bảng này). SoDonRaw dùng ISNULL+NULLIF+RTRIM+CAST VARCHAR(50)
+-- tường minh — tránh lỗi cắt ngắn ký tự nếu REF là char NGẮN HƠN TRANS_NUM,
+-- và coi REF toàn dấu cách (char rỗng kiểu cũ) cũng là "chưa có".
+-- SỬA NGAY TRONG NGÀY 28/10/2026 (cùng bản 10.24) — ORD_QTY/PRICE KHÔNG
+-- dùng được (kiểm tra SQL thật ra toàn 0 cho TRANS_CODE 130/330, dù DBA mô
+-- tả khác) — dùng QTY/AMOUNT÷QTY giống hệt nhánh nhập hàng — xem ghi chú
+-- đầy đủ ở VIEW Live.
+SET @sql = @sql + N' UNION ALL SELECT TRANS_NUM, IDX, TRAN_DATE, BU_ID, ISNULL(NULLIF(RTRIM(CAST(REF AS VARCHAR(50))), ''''), CAST(TRANS_NUM AS VARCHAR(50))) AS SoDonRaw, TRANS_CODE, DUE_DATE, SUPP_ID, STAFF_ID, SKU_ID, UNIT_SYMB, STATUS, QTY AS SoLuongRaw, AMOUNT / NULLIF(QTY, 0) AS DonGiaRaw, AMOUNT AS ThanhTienRaw FROM dbo.FN_ORDER_ARC WITH (NOLOCK) WHERE STATUS NOT IN (''D'',''E'') AND TRANS_CODE IN (''130'',''330'')';
 
 -- Cùng khuôn cột/alias với VIEW "Live" (dbo.vw_DonDatHangChiNhanh trên
 -- DSMART16) — rp-server/lib/purchaseOrderRunner.js không cần biết dữ liệu
@@ -199,7 +201,10 @@ BEGIN
     FROM sys.tables
     WHERE name LIKE 'STRANS[_][0-9][0-9][0-9][0-9][0-9][0-9]' OR name = 'STRANS_EOM';
 
-    SET @sql = @sql + N' UNION ALL SELECT TRANS_NUM, IDX, TRAN_DATE, BU_ID, ISNULL(NULLIF(RTRIM(CAST(REF AS VARCHAR(50))), ''''), CAST(TRANS_NUM AS VARCHAR(50))) AS SoDonRaw, TRANS_CODE, DUE_DATE, SUPP_ID, STAFF_ID, SKU_ID, UNIT_SYMB, STATUS, ORD_QTY AS SoLuongRaw, PRICE AS DonGiaRaw, AMOUNT AS ThanhTienRaw FROM dbo.FN_ORDER_ARC WITH (NOLOCK) WHERE STATUS NOT IN (''D'',''E'') AND TRANS_CODE IN (''130'',''330'')';
+    -- SỬA NGAY TRONG NGÀY 28/10/2026 (cùng bản 10.24) — QTY/AMOUNT÷QTY thay
+    -- ORD_QTY/PRICE (kiểm tra SQL thật ra toàn 0) — xem ghi chú ở đoạn tạo
+    -- VIEW lần đầu phía trên cùng file.
+    SET @sql = @sql + N' UNION ALL SELECT TRANS_NUM, IDX, TRAN_DATE, BU_ID, ISNULL(NULLIF(RTRIM(CAST(REF AS VARCHAR(50))), ''''), CAST(TRANS_NUM AS VARCHAR(50))) AS SoDonRaw, TRANS_CODE, DUE_DATE, SUPP_ID, STAFF_ID, SKU_ID, UNIT_SYMB, STATUS, QTY AS SoLuongRaw, AMOUNT / NULLIF(QTY, 0) AS DonGiaRaw, AMOUNT AS ThanhTienRaw FROM dbo.FN_ORDER_ARC WITH (NOLOCK) WHERE STATUS NOT IN (''D'',''E'') AND TRANS_CODE IN (''130'',''330'')';
 
     DECLARE @sqlView NVARCHAR(MAX) = N'
     CREATE OR ALTER VIEW dbo.vw_DonDatHangChiNhanh AS

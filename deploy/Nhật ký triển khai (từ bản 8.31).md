@@ -14,6 +14,33 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.25 — SỬA NGAY bản 10.24: cột "SL đặt"/"Đơn giá" ra 0 (ORD_QTY/PRICE không dùng được)
+
+**Thay đổi**: CHỈ 2 file VIEW SQL (giống bản 10.24) — KHÔNG đổi code JS.
+
+**Các bước (ĐÚNG THỨ TỰ)**:
+
+1. DBA chạy lại NGUYÊN VĂN file `deploy/Thiết lập VIEW Đơn đặt hàng-Nhập
+   hàng-So sánh (DSMART16 trung tâm).sql` trên CSDL `DSMART16`.
+2. DBA chạy lại NGUYÊN VĂN file `deploy/Thiết lập VIEW Đơn đặt hàng Lịch
+   sử (DSMART16_EOM).sql` trên CSDL `DSMART16_EOM`.
+3. `git pull origin main`.
+4. **BẮT BUỘC** — dữ liệu 130/330 đã đồng bộ ở bản 10.24 có SL đặt/đơn giá
+   SAI (toàn 0), cần quét lại để SỬA ĐÈ (không phải thêm mới — idempotent,
+   an toàn chạy lại):
+   ```bash
+   cd etl
+   node scripts/resyncDonDatHangWatermark.js --confirm
+   ```
+5. Vào etl-admin → "Đồng bộ" → "Chạy thử" lại 2 job domain `don_dat_hang`.
+   Job "Lịch sử" có thể mất vài giờ — theo dõi qua etl-admin → Log.
+6. KHÔNG cần restart `rp-server`/build lại `rp-user`.
+
+**Kiểm tra**:
+- Mở báo cáo "Đơn đặt hàng" — cột "SL đặt" và "Đơn giá" PHẢI có số > 0
+  (khớp với "Thành tiền" đã có từ trước, SL × Đơn giá ≈ Thành tiền).
+- Báo cáo "Đơn nhập hàng" (133/333) — không bị ảnh hưởng, giữ nguyên.
+
 ## 10.24 — SỬA LỖI THẬT: báo cáo "Đơn đặt hàng" luôn trống (nguồn STRANS không có 130/330)
 
 **Thay đổi**: CHỈ 2 file VIEW SQL — KHÔNG đổi code JS, KHÔNG đổi

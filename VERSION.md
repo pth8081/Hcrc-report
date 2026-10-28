@@ -42,6 +42,39 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.25 — SỬA NGAY bản 10.24: cột "SL đặt"/"Đơn giá" ra 0 — `ORD_QTY`/`PRICE` không dùng được, đổi sang `QTY`/`AMOUNT÷QTY`
+
+**Theo báo cáo người dùng** (ngay sau khi triển khai bản 10.24, chạy thật
+ra ảnh): báo cáo "Đơn đặt hàng" ĐÃ CÓ dữ liệu (21.844 dòng, đúng mục tiêu
+bản 10.24), nhưng 2 cột "SL đặt" và "Đơn giá" ra **0 HẾT** trong khi
+"Thành tiền" vẫn có số thật — vô lý về số học (SL × đơn giá không thể =
+0 mà thành tiền khác 0).
+
+**Nguyên nhân**: bản 10.24 dùng `ORD_QTY`/`PRICE` theo lời DBA xác nhận
+("ORD_QTY là đặt"). Kiểm tra lại bằng SQL THẬT (2 dòng cùng mã hàng/ngày,
+1 "Đã nhập 1 phần" 1 "Đã nhập hết"): `ORD_QTY`=0 VÀ `PRICE`=0 cho CẢ 2
+dòng — 2 cột này KHÔNG hề được DSmart16 ghi dữ liệu cho `TRANS_CODE`
+130/330 (luôn ra 0). Dữ liệu thật nằm ở cột `QTY` (=2, khớp ĐÚNG `DLV_QTY`
+của dòng đã nhận xong) — đúng cột y hệt `STRANS` đang dùng cho nhập hàng.
+
+**Đã sửa** — CHỈ 2 file VIEW SQL (giống bản 10.24, không đổi code JS):
+đổi `ORD_QTY AS SoLuongRaw, PRICE AS DonGiaRaw` thành `QTY AS SoLuongRaw,
+AMOUNT / NULLIF(QTY, 0) AS DonGiaRaw` cho cả 2 nhánh ĐẶT HÀNG (`ON_ORDER`/
+`FN_ORDER`) ở VIEW Live, và nhánh `FN_ORDER_ARC` ở VIEW Lịch sử (cả đoạn
+tạo lần đầu lẫn stored procedure) — công thức GIỐNG HỆT nhánh nhập hàng
+đã dùng từ trước (bản 8.92).
+
+**‼️ BẮT BUỘC sau khi DBA chạy lại 2 file VIEW**: dữ liệu `130`/`330` ĐÃ
+đồng bộ ở bản 10.24 có SL đặt/đơn giá SAI (toàn 0), cần đồng bộ LẠI —
+chạy lại `node scripts/resyncDonDatHangWatermark.js --confirm` (idempotent,
+MERGE sẽ tự CẬP NHẬT đè lên dữ liệu sai cũ, không tạo trùng) rồi "Chạy
+thử" lại 2 job domain `don_dat_hang` ở etl-admin — xem đủ bước ở Nhật ký
+triển khai.
+
+Verify: đối chiếu SQL thật trên CSDL production (2 dòng cùng mã hàng/
+ngày, so `QTY` với `DLV_QTY`/`AMOUNT`) — KHÔNG mock test được (cần dữ
+liệu thật từ `ON_ORDER`/`FN_ORDER`, không có trong môi trường sandbox).
+
 ## 10.24 — SỬA LỖI THẬT: báo cáo "Đơn đặt hàng" luôn trống — nguồn `STRANS` KHÔNG hề có dữ liệu 130/330
 
 **Theo báo cáo người dùng**: "Quay lại báo cáo nhập hàng với đặt hàng

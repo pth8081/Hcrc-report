@@ -389,6 +389,35 @@ liệu nhân đôi. Gộp `UNION ALL` theo `(TRANS_NUM, IDX)` AN TOÀN.
 **Cột "SL đặt"** — DBA xác nhận `ORD_QTY` (KHÔNG phải `ORDP_QTY`, cột đó
 mang nghĩa khác — "đang mua", không liên quan).
 
+**‼️ SỬA NGAY TRONG NGÀY 28/10/2026 — `ORD_QTY`/`PRICE` KHÔNG DÙNG ĐƯỢC,
+DÙNG `QTY`/`AMOUNT÷QTY` GIỐNG NHẬP HÀNG ‼️** Bản đầu tiên của bản 10.24
+lên production dùng thẳng `ORD_QTY`/`PRICE` theo lời DBA — nhưng người
+dùng báo cáo thật ngay sau khi chạy: báo cáo "Đơn đặt hàng" đã CÓ dữ liệu
+(đúng), nhưng cột "SL đặt"/"Đơn giá" ra **0 HẾT** trong khi "Thành tiền"
+vẫn có số thật (vô lý về số học — SL × đơn giá không thể = 0 mà thành
+tiền khác 0). Kiểm tra bằng SQL thật (2 dòng CÙNG `SKU_ID`/`TRAN_DATE`,
+1 dòng "Đã nhập 1 phần" 1 dòng "Đã nhập hết"):
+```sql
+SELECT TRANS_NUM, IDX, TRAN_DATE, TRANS_CODE, STATUS, SKU_ID,
+       ORD_QTY, ORDP_QTY, DLV_QTY, PRICE, AMOUNT, QTY
+FROM ON_ORDER WHERE SKU_ID = '<mã hàng>' AND TRAN_DATE >= '<ngày>' AND TRAN_DATE < '<ngày+1>'
+UNION ALL
+SELECT TRANS_NUM, IDX, TRAN_DATE, TRANS_CODE, STATUS, SKU_ID,
+       ORD_QTY, ORDP_QTY, DLV_QTY, PRICE, AMOUNT, QTY
+FROM FN_ORDER WHERE SKU_ID = '<mã hàng>' AND TRAN_DATE >= '<ngày>' AND TRAN_DATE < '<ngày+1>';
+-- Kết quả thật: ORD_QTY=0, PRICE=0 CẢ 2 dòng; QTY=2 khớp ĐÚNG DLV_QTY=2
+-- của dòng đã nhận xong (DLV_QTY=0 ở dòng chưa xong — đúng nghĩa "đã
+-- giao"); AMOUNT/QTY=68.880/2=34.440 là đơn giá hợp lý.
+```
+→ `ORD_QTY`/`PRICE` KHÔNG hề được DSmart16 ghi dữ liệu cho `TRANS_CODE`
+130/330 (luôn ra 0 trong dữ liệu thật đã kiểm tra) — SL đặt thật nằm ở
+cột **`QTY`**, ĐÚNG Y HỆT cách `STRANS` đang dùng cho nhập hàng. Tin SQL
+THẬT hơn lời mô tả (bài học lặp lại từ lần gán nhầm `133`="đặt hàng" ở
+bản 9.27) — **ĐÃ SỬA** cả 2 nhánh `ON_ORDER`/`FN_ORDER` (và `FN_ORDER_ARC`
+ở VIEW Lịch sử) dùng `QTY AS SoLuongRaw`/`AMOUNT / NULLIF(QTY, 0) AS
+DonGiaRaw`, giống hệt công thức nhánh nhập hàng — xem VERSION.md bản
+10.25.
+
 **Đã sửa** — cả 2 file VIEW cấu trúc lại thành nhiều nhánh `UNION ALL`
 (nhập hàng từ `STRANS` GIỮ NGUYÊN như cũ + đặt hàng THÊM MỚI từ
 `ON_ORDER`/`FN_ORDER`/`FN_ORDER_ARC`), JOIN `SUPPLIER`/`SKU_DEF`/`DEPTLIST`

@@ -120,11 +120,29 @@
    trước ("loại cả đơn xóa... chỉ lấy đơn đặt thực tế và nhập thực tế").
 
    `ON_ORDER`/`FN_ORDER` dùng CHUNG khuôn 116 cột với `STRANS`/`ST_ORDER`
-   (đã đối chiếu INFORMATION_SCHEMA.COLUMNS, giống hệt tên/kiểu từng cột) —
-   RIÊNG có thêm cột `PRICE` (decimal) mà `STRANS` không có, nên `DonGia`
-   của nhánh đặt hàng lấy THẲNG từ `PRICE`, không cần suy từ AMOUNT/QTY như
-   nhánh nhập hàng. Cột "SL đặt" — DBA xác nhận `ORD_QTY` (KHÔNG phải
-   `ORDP_QTY`, cột đó mang nghĩa khác — "đang mua", không dùng ở đây).
+   (đã đối chiếu INFORMATION_SCHEMA.COLUMNS, giống hệt tên/kiểu từng cột).
+
+   ‼️ SỬA NGAY TRONG NGÀY 28/10/2026 — `ORD_QTY`/`PRICE` KHÔNG DÙNG ĐƯỢC,
+   DÙNG `QTY`/`AMOUNT÷QTY` GIỐNG NHẬP HÀNG ‼️ Bản đầu tiên của bản 10.24
+   (lên production cùng ngày) DÙNG THẲNG `ORD_QTY` (SL đặt) và `PRICE`
+   (đơn giá) theo lời DBA xác nhận — nhưng người dùng báo cáo thật ngay sau
+   khi chạy: báo cáo "Đơn đặt hàng" đã CÓ dữ liệu (đúng), nhưng cột "SL
+   đặt"/"Đơn giá" ra 0 HẾT trong khi "Thành tiền" vẫn có số thật (vô lý về
+   số học). Kiểm tra lại bằng SQL THẬT (2 dòng CÙNG `SKU_ID`/`TRAN_DATE`, 1
+   dòng "Đã nhập 1 phần" 1 dòng "Đã nhập hết"):
+   `ORD_QTY`=0 VÀ `PRICE`=0 cho CẢ 2 dòng — không dùng được, trong khi
+   `QTY`=2 khớp ĐÚNG với `DLV_QTY`=2 của dòng đã nhận xong (và `DLV_QTY`=0
+   ở dòng chưa nhận xong — đúng ý nghĩa "số đã giao"), còn
+   `AMOUNT/QTY`=68.880/2=34.440 là đơn giá hợp lý. Kết luận: `ORD_QTY`/
+   `PRICE` KHÔNG hề được DSmart16 ghi dữ liệu cho `TRANS_CODE` 130/330 (ít
+   nhất ở dữ liệu thật đã kiểm tra — luôn ra 0), SL đặt thật nằm ở cột
+   `QTY` — ĐÚNG Y HỆT cách `STRANS` đang dùng cho nhập hàng (nhánh 1 bên
+   dưới). Tin SQL THẬT hơn lời mô tả (giống bài học lần gán nhầm `133` =
+   "đặt hàng" trước đây — luôn kiểm chứng lại bằng dữ liệu thật trước khi
+   tin tưởng tuyệt đối mô tả bằng lời) — ĐÃ SỬA cả 2 nhánh ĐẶT HÀNG dùng
+   `QTY AS SoLuongRaw`/`AMOUNT / NULLIF(QTY, 0) AS DonGiaRaw`, giống hệt
+   công thức nhánh NHẬP HÀNG.
+
    `SoDon` của nhánh đặt hàng dùng `ISNULL(REF, TRANS_NUM)` (phòng trường
    hợp `REF` để trống cho CHÍNH dòng đặt — khác dòng nhập ở `STRANS` LUÔN
    có `REF` trỏ về đơn gốc) — dòng đặt vốn CHÍNH LÀ đơn gốc nên dùng
@@ -186,7 +204,16 @@ FROM (
 
     UNION ALL
     -- Nhánh 2 — ĐẶT HÀNG (130/330) CÒN MỞ (chưa nhận xong), nguồn ON_ORDER
-    -- (THÊM 28/10/2026, bản 10.24 — xem cảnh báo ở trên). Có cột PRICE thật.
+    -- (THÊM 28/10/2026, bản 10.24 — xem cảnh báo ở trên).
+    -- SỬA 28/10/2026 (cùng bản 10.24, phát hiện ngay sau khi lên production
+    -- lần đầu): DBA nói ORD_QTY/PRICE là cột đúng, nhưng kiểm tra SQL THẬT
+    -- (2 dòng cùng SKU_ID/TRAN_DATE, 1 "Đã nhập 1 phần" 1 "Đã nhập hết") lại
+    -- ra ORD_QTY=0 VÀ PRICE=0 cho CẢ 2 dòng, trong khi QTY=2 khớp ĐÚNG
+    -- DLV_QTY=2 của dòng đã nhận xong, và AMOUNT/QTY=34.440 hợp lý — tức
+    -- ORD_QTY/PRICE KHÔNG hề được ghi dữ liệu cho TRANS_CODE 130/330 (luôn
+    -- 0), SL đặt thật nằm ở QTY — giống HỆT cách STRANS dùng cho nhập hàng
+    -- (nhánh 1). Tin SQL THẬT hơn lời mô tả (bài học từ lần gán nhầm mã
+    -- 133="đặt hàng" trước đây) — đổi lại dùng QTY + AMOUNT/NULLIF(QTY,0).
     -- SoDonRaw: ISNULL CAST VARCHAR(50) tường minh TRƯỚC khi fallback —
     -- tránh lỗi cắt ngắn ký tự nếu REF là char NGẮN HƠN TRANS_NUM (ISNULL
     -- lấy độ dài theo tham số ĐẦU); NULLIF(RTRIM(REF),'') coi REF toàn dấu
@@ -194,7 +221,7 @@ FROM (
     SELECT TRANS_NUM, IDX, TRAN_DATE, STOPED_DT, BU_ID,
            ISNULL(NULLIF(RTRIM(CAST(REF AS VARCHAR(50))), ''), CAST(TRANS_NUM AS VARCHAR(50))) AS SoDonRaw,
            TRANS_CODE, DUE_DATE, SUPP_ID, STAFF_ID, SKU_ID, UNIT_SYMB, STATUS,
-           ORD_QTY AS SoLuongRaw, PRICE AS DonGiaRaw, AMOUNT AS ThanhTienRaw
+           QTY AS SoLuongRaw, AMOUNT / NULLIF(QTY, 0) AS DonGiaRaw, AMOUNT AS ThanhTienRaw
     FROM dbo.ON_ORDER
     WHERE TRANS_CODE IN ('130','330') AND STATUS NOT IN ('D','E')
 
@@ -203,10 +230,11 @@ FROM (
     -- nguồn FN_ORDER (THÊM 28/10/2026, bản 10.24). Xác nhận bằng SQL thật:
     -- KHÔNG trùng dòng với nhánh 2 (trùng ở cấp ĐƠN là bình thường — khác
     -- dòng mặt hàng (IDX) của cùng 1 đơn, không trùng khi so cả TRANS_NUM+IDX).
+    -- SoLuongRaw/DonGiaRaw: dùng QTY/AMOUNT giống nhánh 2 — xem ghi chú ở trên.
     SELECT TRANS_NUM, IDX, TRAN_DATE, STOPED_DT, BU_ID,
            ISNULL(NULLIF(RTRIM(CAST(REF AS VARCHAR(50))), ''), CAST(TRANS_NUM AS VARCHAR(50))) AS SoDonRaw,
            TRANS_CODE, DUE_DATE, SUPP_ID, STAFF_ID, SKU_ID, UNIT_SYMB, STATUS,
-           ORD_QTY AS SoLuongRaw, PRICE AS DonGiaRaw, AMOUNT AS ThanhTienRaw
+           QTY AS SoLuongRaw, AMOUNT / NULLIF(QTY, 0) AS DonGiaRaw, AMOUNT AS ThanhTienRaw
     FROM dbo.FN_ORDER
     WHERE TRANS_CODE IN ('130','330') AND STATUS NOT IN ('D','E')
 ) m
