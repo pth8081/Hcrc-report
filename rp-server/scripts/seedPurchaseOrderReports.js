@@ -158,6 +158,20 @@ const NGANH_HANG_FILTER = {
   optionsSource: { domain: DOMAIN, valueField: 'MaNganhHang', labelField: 'TenNganhHang' }
 };
 
+// Bộ lọc "Mã hàng" (bản 10.31, theo yêu cầu người dùng — lọc/tính theo
+// từng mã hàng cụ thể) — mirror ĐÚNG NCC_FILTER/NGANH_HANG_FILTER (generic
+// multiSelect, đọc DISTINCT MaHang/TenHang thật từ dữ liệu đã đồng bộ qua
+// optionsSource.domain, KHÔNG phải danh sách gõ tay). Gắn cho CẢ 6 báo cáo
+// — kể cả 3 báo cáo "giá trị theo đơn/theo NCC" (đã gộp dòng, KHÔNG còn
+// hiện cột Mã hàng) vẫn lọc được ĐÚNG Ở TẦNG DỮ LIỆU GỐC trước khi gộp
+// (vd "tổng giá trị đặt/nhập CHỈ của 1 mã hàng, theo NCC") — xem sqlFilters
+// ở lib/purchaseOrderRunner.js (maHang không nằm trong danh sách field xử
+// lý riêng ở JS, nên tự đi qua nhánh SQL chung, giống maNCC/nganhHang).
+const MA_HANG_FILTER = {
+  field: 'maHang', type: 'multiSelect', label: 'Mã hàng',
+  optionsSource: { domain: DOMAIN, valueField: 'MaHang', labelField: 'TenHang' }
+};
+
 // Trạng thái hiện trong bộ lọc — CHỈ còn C/P/F/M (bản 8.92, theo yêu cầu
 // người dùng: "loại cả đơn xóa nữa bạn chỉ lấy đơn đặt thực tế và nhập
 // thực tế") — D (Đã xoá)/E (Đã huỷ) đã bị LOẠI HẲN ngay trong VIEW
@@ -281,6 +295,8 @@ function buildDefinition(report) {
       KENH_MUA_FILTER,
       // Ngành hàng (bản 10.2) — gắn cho CẢ 6 báo cáo, theo yêu cầu người dùng.
       NGANH_HANG_FILTER,
+      // Mã hàng (bản 10.31) — gắn cho CẢ 6 báo cáo, theo yêu cầu người dùng.
+      MA_HANG_FILTER,
       ...(report.aggregateBySupplier ? [] : [TRANG_THAI_FILTER])
     ]
   };

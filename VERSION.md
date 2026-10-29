@@ -42,6 +42,59 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.31 — Chọn "Người nhận" email qua dropdown tìm kiếm + chọn nhiều; thêm bộ lọc "Mã hàng" cho 6 báo cáo mua hàng
+
+**Theo yêu cầu người dùng** (2 ảnh chụp thật):
+1. Trang "Lịch gửi email báo cáo" > ô "Người nhận" — "tôi muốn người nhận
+   chọn được từ danh sách người dùng để gửi email, tôi có thể tìm kiếm
+   theo dropdown + searchable và multi choice nhé" (trước đây phải tự gõ
+   tay từng địa chỉ email, phân tách dấu phẩy).
+2. 6 báo cáo nhóm "Mua hàng" (Đơn đặt hàng/Đơn nhập hàng/Giá trị đặt hàng
+   theo đơn/Giá trị nhập hàng theo đơn/So sánh đặt-nhận/So sánh giá trị
+   đặt-nhập theo NCC) — "tôi muốn có phần lọc mã hàng để tính theo mã
+   hàng nhé".
+
+**Sửa (1) — Người nhận**: thêm route `GET /system/report-email-schedules/
+recipients-catalog` (`rp-server/routes/reportEmailSchedules.js`) trả về
+Username/FullName/Email của mọi tài khoản đang hoạt động (`IsActive=1`)
+có khai Email — route nằm sau `requireMenuAccess('system-email-schedules')`
+sẵn có, không cần quyền "Phân quyền" riêng như trang Users. Frontend
+(`EmailSchedulesPage.jsx`) đổi ô "Người nhận" từ 1 `<input>` gõ tay thành
+2 phần: `SearchableSelect` (component dùng chung, đã có sẵn searchable +
+multi — xem `components/SearchableSelect.jsx`) chọn từ danh sách người
+dùng hệ thống, CỘNG 1 ô nhập tay riêng "Email khác (ngoài hệ thống)" cho
+địa chỉ KHÔNG phải tài khoản trong hệ thống (vd đối tác ngoài) — gộp 2
+nguồn lại thành đúng 1 chuỗi phân tách dấu phẩy khi gửi lên server
+(`buildRecipientsString()`), KHÔNG đổi format lưu `app.ReportEmailSchedules.
+Recipients`/API validate phía server — tương thích ngược hoàn toàn với
+lịch đã tạo trước đó (đọc lại qua `splitRecipientsForForm()`: email nào
+khớp 1 tài khoản hệ thống xếp vào ô chọn, còn lại xếp vào ô "email khác").
+
+**Sửa (2) — Lọc Mã hàng**: thêm `MA_HANG_FILTER` (mirror đúng `NCC_FILTER`/
+`NGANH_HANG_FILTER` đã có — multiSelect, đọc DISTINCT `MaHang`/`TenHang`
+thật từ dữ liệu đã đồng bộ domain `don_dat_hang` qua `optionsSource`,
+KHÔNG phải danh sách gõ tay) trong `rp-server/scripts/seedPurchaseOrderReports.js`,
+gắn cho CẢ 6 báo cáo — kể cả 3 báo cáo "giá trị theo đơn/theo NCC" (đã gộp
+dòng, không còn hiện cột Mã hàng) vẫn lọc đúng Ở TẦNG DỮ LIỆU GỐC trước
+khi gộp (vd xem tổng giá trị đặt/nhập CHỈ của 1 mã hàng, theo NCC).
+`maHang` KHÔNG nằm trong danh sách field xử lý riêng ở JS
+(`lib/purchaseOrderRunner.js`:`sqlFilters` loại trừ `maDiem`/`trangThai`/
+`kenhMua`) nên tự đi qua đúng nhánh SQL chung sẵn có, không cần sửa logic
+runner.
+
+**TRIỂN KHAI**: (1) không cần đổi gì ở CSDL/ETL, chỉ deploy code mới
+(rp-server + rp-user) là có hiệu lực ngay. (2) PHẢI chạy lại
+`node scripts/seedPurchaseOrderReports.js` (thư mục `rp-server/`) trên
+server để đẩy `MA_HANG_FILTER` mới vào `DefinitionJson` của 6 báo cáo đã
+có sẵn trong `app.ReportCatalog` (script idempotent, khớp theo `ReportId`
+để UPDATE, không tạo trùng).
+
+**Kiểm tra**: build `rp-user` qua `npx vite build` — không lỗi; vào trang
+"Lịch gửi email báo cáo" thấy ô "Người nhận" là dropdown tìm kiếm + chọn
+nhiều từ danh sách người dùng, cộng 1 ô "Email khác" riêng; vào 1 trong 6
+báo cáo mua hàng (sau khi chạy lại seed script) thấy thêm bộ lọc "Mã
+hàng" cạnh "Ngành hàng", chọn 1 mã hàng ra đúng số liệu chỉ của mã đó.
+
 ## 10.30 — SỬA LỖI THẬT: khối 3 thẻ tổng doanh thu trong email lệch hẳn độ rộng so với bảng chi tiết
 
 **Theo báo cáo người dùng** (ảnh chụp thật email mở trên điện thoại):

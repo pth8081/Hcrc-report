@@ -533,6 +533,18 @@ theo đúng mã này.
 
 **Bản 9.13/9.14 — bộ lọc "Siêu thị"** (`field: 'maDiem'`, `optionsSource.storeCatalog`, xem `SIEU_THI_FILTER` trong `seedPurchaseOrderReports.js`): KHÔNG chọn gì = tất cả siêu thị (hành vi mặc định từ trước), chọn 1/nhiều siêu thị = CHỈ lấy đúng (các) siêu thị đó. Bản 9.13 ban đầu chỉ gắn cho báo cáo "So sánh giá trị đặt–nhập theo NCC"; bản 9.14 mở rộng ra CẢ 6 báo cáo theo yêu cầu người dùng — cùng cơ chế áp dụng cho tất cả.
 
+**Bản 10.31 — bộ lọc "Mã hàng"** (`field: 'maHang'`, `optionsSource.domain/
+valueField/labelField` — mirror đúng `NCC_FILTER`/`NGANH_HANG_FILTER`,
+xem `MA_HANG_FILTER` trong `seedPurchaseOrderReports.js`): theo yêu cầu
+người dùng ("tôi muốn có phần lọc mã hàng để tính theo mã hàng"), gắn cho
+CẢ 6 báo cáo — kể cả 3 báo cáo "giá trị theo đơn/theo NCC" (đã gộp dòng,
+không còn hiện cột Mã hàng) vẫn lọc đúng Ở TẦNG DỮ LIỆU GỐC trước khi gộp.
+`maHang` không nằm trong danh sách field xử lý riêng ở JS
+(`lib/purchaseOrderRunner.js`:`sqlFilters` chỉ loại trừ `maDiem`/
+`trangThai`/`kenhMua`) nên tự đi qua nhánh SQL chung sẵn có, không cần
+sửa logic runner. Cần chạy lại `node scripts/seedPurchaseOrderReports.js`
+để áp dụng cho 6 báo cáo đã có sẵn trong `app.ReportCatalog`.
+
 **Bản 9.15 — dòng "Tổng cộng"** (`definition.showGrandTotal`, xem `appendGrandTotal()` trong `lib/purchaseOrderRunner.js`): theo yêu cầu người dùng ("phải có tổng cộng giá trị để phần so sánh giá nhập và đặt chính xác hơn") — CHỈ bật cho đúng 3 báo cáo "giá trị" ở trên (`bc-gia-tri-dat-theo-don`/`bc-gia-tri-nhap-theo-don`/`bc-so-sanh-gia-tri-ncc`), KHÔNG bật cho "Đơn đặt hàng"/"Đơn nhập hàng"/"So sánh đặt–nhận" (có cột `DonGia` — đơn giá/1 đơn vị, cộng dồn đơn giá nhiều mặt hàng khác nhau ra số vô nghĩa). Dòng Tổng cộng tô màu xanh đậm (web/Excel/PDF), nằm ở cuối bảng, nhãn "Tổng cộng" đặt ở cột TenNCC.
 
 3 báo cáo mới (bản 9.08) dùng CHUNG VIEW/đồng bộ với 3 báo cáo cũ (mục 1-4

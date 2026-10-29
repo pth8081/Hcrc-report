@@ -14,7 +14,7 @@
 // không cho ngày cố định, vì báo cáo gửi lặp lại hàng ngày cần dữ liệu tính
 // lại mỗi lần chạy, không phải cùng 1 khoảng ngày mãi mãi (xem
 // rp-server/lib/reportEmailFilters.js).
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { api } from '../../../lib/api';
 import DataTable from '../../../components/DataTable';
 import SearchableSelect from '../../../components/SearchableSelect';
@@ -38,6 +38,32 @@ const DATE_RANGE_PRESET_OPTIONS = [
 ];
 
 function pad2(n) { return String(n).padStart(2, '0'); }
+
+// Tách danh sách email phân tách dấu phẩy thành mảng (client-side, chỉ
+// cắt/trim, KHÔNG validate định dạng — validate thật nằm ở server, xem
+// routes/reportEmailSchedules.js:validateRecipients()).
+function splitEmails(raw) {
+  return String(raw || '').split(',').map(s => s.trim()).filter(Boolean);
+}
+
+// Gộp "Người nhận" (bản 10.31) = chọn từ danh sách người dùng hệ thống
+// (SearchableSelect, searchable + multi) + email khác ngoài hệ thống (ô
+// nhập tay riêng, phân tách dấu phẩy) — gộp lại thành 1 chuỗi phân tách
+// dấu phẩy để gửi lên server giống định dạng cũ (KHÔNG đổi schema/API
+// validate phía server).
+function buildRecipientsString(form) {
+  return [...form.recipientUserEmails, ...splitEmails(form.recipientExtra)].join(', ');
+}
+
+// Đọc ngược 1 chuỗi Recipients đã lưu -> {recipientUserEmails, recipientExtra}
+// — email nào khớp (không phân biệt hoa/thường) 1 người dùng hệ thống CÒN
+// trong danh mục thì xếp vào ô chọn dropdown, còn lại xếp vào ô "email khác".
+function splitRecipientsForForm(raw, userEmailSet) {
+  const all = splitEmails(raw);
+  const recipientUserEmails = all.filter(e => userEmailSet.has(e.toLowerCase()));
+  const extra = all.filter(e => !userEmailSet.has(e.toLowerCase()));
+  return { recipientUserEmails, recipientExtra: extra.join(', ') };
+}
 
 function buildCron({ frequency, time, weekdays }) {
   const [hh, mm] = (time || '07:00').split(':').map(Number);
@@ -71,7 +97,7 @@ function cronToLabel(cronExpr) {
 
 function emptyScheduleForm() {
   return {
-    name: '', reportId: '', recipients: '', exportFormat: 'excel',
+    name: '', reportId: '', recipientUserEmails: [], recipientExtra: '', exportFormat: 'excel',
     cronMode: 'simple', frequency: 'daily', weekdays: [1],
     times: ['07:00'], rawCrons: [''],
     filterValues: {},
@@ -90,14 +116,14 @@ function buildCronList(form) {
 // Suy ra state form từ 1 dòng lịch đã có (mở modal Sửa) — cronMode 'simple'
 // chỉ khi TẤT CẢ giờ gửi đọc ngược được VÀ cùng tần suất/thứ trong tuần
 // (khác thời gian nhau) — ngược lại 'advanced' hiện nguyên danh sách cron.
-function scheduleToForm(row) {
+function scheduleToForm(row, userEmailSet = new Set()) {
   const crons = (row.Times || []).map(t => t.CronExpression);
   const parsed = crons.map(parseCronToSimple);
   const allSimple = crons.length > 0 && parsed.every(Boolean);
   const sameShape = allSimple && parsed.every(p => p.frequency === parsed[0].frequency && JSON.stringify(p.weekdays) === JSON.stringify(parsed[0].weekdays));
 
   const base = {
-    name: row.Name, reportId: row.ReportId, recipients: row.Recipients, exportFormat: row.ExportFormat, filterValues: row.FilterValues || {},
+    name: row.Name, reportId: row.ReportId, ...splitRecipientsForForm(row.Recipients, userEmailSet), exportFormat: row.ExportFormat, filterValues: row.FilterValues || {},
     subject: row.Subject || '', deliveryMode: row.DeliveryMode || 'attachment',
     highlightColumnKey: row.HighlightColumnKey || '', highlightThreshold: row.HighlightThreshold ?? '',
     bodyColumnKeys: row.BodyColumnKeys || []
@@ -208,7 +234,7 @@ function FilterConfigFields({ filters, filterValues, onChange }) {
 
 // Nhóm field dùng chung cho form Tạo + modal Sửa (khác nhau ở chỗ Sửa khoá
 // chọn báo cáo — xem prop reportLocked).
-function ScheduleFormFields({ form, setForm, reports, reportLocked }) {
+function ScheduleFormFields({ form, setForm, reports, reportLocked, userRecipientOptions }) {
   const selectedReport = reports.find(r => r.reportId === form.reportId);
   return (
     <>
@@ -272,8 +298,23 @@ function ScheduleFormFields({ form, setForm, reports, reportLocked }) {
       )}
 
       <label>
-        Người nhận (phân tách dấu phẩy)
-        <input value={form.recipients} onChange={(e) => setForm({ ...form, recipients: e.target.value })} placeholder="a@congty.vn, b@congty.vn" required />
+        Người nhận (chọn người dùng hệ thống — tìm kiếm + chọn nhiều)
+        <SearchableSelect
+          multi
+          options={userRecipientOptions}
+          value={form.recipientUserEmails}
+          onChange={(recipientUserEmails) => setForm({ ...form, recipientUserEmails })}
+          placeholder="Chọn người nhận..."
+        />
+      </label>
+
+      <label>
+        Email khác (ngoài hệ thống, phân tách dấu phẩy)
+        <input
+          value={form.recipientExtra}
+          onChange={(e) => setForm({ ...form, recipientExtra: e.target.value })}
+          placeholder="vd doitac@congty.vn (để trống nếu chỉ gửi người dùng hệ thống ở trên)"
+        />
       </label>
 
       <label>
@@ -368,6 +409,8 @@ function TimesStatusList({ times }) {
 
 export default function EmailSchedulesPage() {
   const [reports, setReports] = useState([]);
+  const [userRecipientOptions, setUserRecipientOptions] = useState([]);
+  const userEmailSet = useMemo(() => new Set(userRecipientOptions.map(o => o.value.toLowerCase())), [userRecipientOptions]);
   const [rows, setRows] = useState([]);
   const [form, setForm] = useState(emptyScheduleForm());
   const [editing, setEditing] = useState(null); // {id, form}
@@ -385,6 +428,7 @@ export default function EmailSchedulesPage() {
   function reload() {
     api.get('/system/report-email-schedules').then(setRows).catch(err => setError(err.message));
     api.get('/system/report-email-schedules/reports').then(setReports).catch(err => setError(err.message));
+    api.get('/system/report-email-schedules/recipients-catalog').then(setUserRecipientOptions).catch(err => setError(err.message));
   }
   useEffect(reload, []);
 
@@ -395,7 +439,7 @@ export default function EmailSchedulesPage() {
     try {
       await api.post('/system/report-email-schedules', {
         name: form.name, reportId: form.reportId, cronExpressions: buildCronList(form),
-        recipients: form.recipients, exportFormat: form.exportFormat, filterValues: form.filterValues,
+        recipients: buildRecipientsString(form), exportFormat: form.exportFormat, filterValues: form.filterValues,
         subject: form.subject, deliveryMode: form.deliveryMode,
         highlightColumnKey: form.deliveryMode === 'body' ? form.highlightColumnKey : '',
         highlightThreshold: form.deliveryMode === 'body' && form.highlightColumnKey ? form.highlightThreshold : '',
@@ -412,7 +456,7 @@ export default function EmailSchedulesPage() {
     try {
       const f = editing.form;
       await api.put(`/system/report-email-schedules/${editing.id}`, {
-        name: f.name, cronExpressions: buildCronList(f), recipients: f.recipients,
+        name: f.name, cronExpressions: buildCronList(f), recipients: buildRecipientsString(f),
         exportFormat: f.exportFormat, filterValues: f.filterValues, isActive: f.isActive,
         subject: f.subject, deliveryMode: f.deliveryMode,
         highlightColumnKey: f.deliveryMode === 'body' ? f.highlightColumnKey : '',
@@ -428,9 +472,9 @@ export default function EmailSchedulesPage() {
     setError('');
     setTogglingId(row.Id);
     try {
-      const f = scheduleToForm(row);
+      const f = scheduleToForm(row, userEmailSet);
       await api.put(`/system/report-email-schedules/${row.Id}`, {
-        name: f.name, cronExpressions: buildCronList(f), recipients: f.recipients,
+        name: f.name, cronExpressions: buildCronList(f), recipients: buildRecipientsString(f),
         exportFormat: f.exportFormat, filterValues: f.filterValues, isActive: !row.IsActive,
         subject: f.subject, deliveryMode: f.deliveryMode,
         highlightColumnKey: f.deliveryMode === 'body' ? f.highlightColumnKey : '',
@@ -488,7 +532,7 @@ export default function EmailSchedulesPage() {
       {message && <p className="form-success">{message}</p>}
 
       <form className="stacked-form" onSubmit={createSchedule}>
-        <ScheduleFormFields form={form} setForm={setForm} reports={reports} reportLocked={false} />
+        <ScheduleFormFields form={form} setForm={setForm} reports={reports} reportLocked={false} userRecipientOptions={userRecipientOptions} />
         <button type="submit" disabled={creating}>{creating ? 'Đang tạo...' : 'Tạo lịch'}</button>
       </form>
 
@@ -515,7 +559,7 @@ export default function EmailSchedulesPage() {
           {
             key: 'actions', label: '', render: (r) => (
               <>
-                <button type="button" onClick={() => setEditing({ id: r.Id, form: { ...scheduleToForm(r), isActive: r.IsActive } })}>Sửa</button>{' '}
+                <button type="button" onClick={() => setEditing({ id: r.Id, form: { ...scheduleToForm(r, userEmailSet), isActive: r.IsActive } })}>Sửa</button>{' '}
                 <button type="button" onClick={() => runNow(r)} disabled={runningId === r.Id}>{runningId === r.Id ? 'Đang gửi...' : 'Gửi ngay'}</button>{' '}
                 <button type="button" onClick={() => toggleActive(r)} disabled={togglingId === r.Id}>{togglingId === r.Id ? 'Đang xử lý...' : (r.IsActive ? 'Tắt' : 'Bật')}</button>{' '}
                 <button type="button" onClick={() => deleteSchedule(r)} disabled={deletingId === r.Id}>{deletingId === r.Id ? 'Đang xoá...' : 'Xoá'}</button>
@@ -544,6 +588,7 @@ export default function EmailSchedulesPage() {
               setForm={(f) => setEditing({ ...editing, form: f })}
               reports={reports}
               reportLocked
+              userRecipientOptions={userRecipientOptions}
             />
             <label className="checkbox-row">
               <input type="checkbox" checked={editing.form.isActive} onChange={(e) => setEditing({ ...editing, form: { ...editing.form, isActive: e.target.checked } })} /> Hoạt động

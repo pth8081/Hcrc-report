@@ -14,6 +14,37 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.31 — Chọn "Người nhận" email qua dropdown; thêm bộ lọc "Mã hàng" cho 6 báo cáo mua hàng
+
+**Thay đổi**: `rp-server/routes/reportEmailSchedules.js` (route mới
+`GET /recipients-catalog`), `rp-user/src/modules/system/email-schedules/
+EmailSchedulesPage.jsx` (UI ô "Người nhận"), `rp-server/scripts/
+seedPurchaseOrderReports.js` (thêm `MA_HANG_FILTER` vào 6 báo cáo). KHÔNG
+đổi CSDL/schema, KHÔNG đổi ETL.
+
+**Các bước**:
+1. `git pull origin main`.
+2. Khởi động lại `rp-server` (pm2 restart) — áp dụng route
+   `recipients-catalog` mới.
+3. Build lại `rp-user` (`npm run build`), deploy như thường — áp dụng UI
+   "Người nhận" mới.
+4. Chạy `node scripts/seedPurchaseOrderReports.js` (thư mục `rp-server/`)
+   trên server — đẩy bộ lọc "Mã hàng" mới vào `DefinitionJson` của 6 báo
+   cáo mua hàng ĐÃ CÓ SẴN trong `app.ReportCatalog` (script idempotent,
+   an toàn chạy lại nhiều lần, khớp theo `ReportId` để UPDATE).
+
+**Kiểm tra**:
+- Trang "Lịch gửi email báo cáo" > "Tạo lịch" — ô "Người nhận" hiện dropdown
+  tìm kiếm + chọn nhiều (danh sách lấy từ Người dùng hệ thống có khai
+  Email), cộng 1 ô "Email khác" riêng cho địa chỉ ngoài hệ thống. Mở 1
+  lịch ĐÃ TẠO TỪ TRƯỚC (bản cũ) để Sửa — người nhận cũ phải tự hiện đúng
+  lại vào 2 ô (ai khớp tài khoản hệ thống vào ô chọn, còn lại vào ô "Email
+  khác"), không mất dữ liệu.
+- Vào 1 trong 6 báo cáo "Mua hàng" (Đơn đặt hàng/Đơn nhập hàng/Giá trị đặt
+  hàng theo đơn/Giá trị nhập hàng theo đơn/So sánh đặt-nhận/So sánh giá
+  trị đặt-nhập theo NCC) — thấy thêm bộ lọc "Mã hàng" (cạnh "Ngành hàng"),
+  chọn 1 mã hàng ra đúng số liệu chỉ của mã đó.
+
 ## 10.30 — Khối 3 thẻ tổng doanh thu trong email khớp độ rộng bảng chi tiết
 
 **Thay đổi**: CHỈ `rp-server/lib/emailBodyRenderer.js` — KHÔNG đổi PDF/

@@ -74,6 +74,24 @@ router.get('/reports', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// Danh sách người dùng hệ thống CÓ Email khai báo — cho ô "Người nhận"
+// chọn qua dropdown tìm kiếm + chọn nhiều (bản 10.31, theo yêu cầu người
+// dùng — trước đây phải tự gõ tay từng địa chỉ, dễ gõ sai). CHỈ trả về
+// Email/Họ tên/Username (không lộ field nhạy cảm nào) — route này đã nằm
+// sau requireMenuAccess('system-email-schedules') ở router.use() trên,
+// không cần quyền 'system-permissions' riêng như trang "Phân quyền".
+router.get('/recipients-catalog', async (req, res, next) => {
+  try {
+    const pool = await getPool('RP');
+    const result = await pool.request().query(`
+      SELECT Username, FullName, Email FROM app.Users
+      WHERE IsActive = 1 AND Email IS NOT NULL AND LTRIM(RTRIM(Email)) <> ''
+      ORDER BY FullName
+    `);
+    res.json(result.recordset.map(u => ({ value: u.Email.trim(), label: `${u.FullName} <${u.Email.trim()}>` })));
+  } catch (err) { next(err); }
+});
+
 router.get('/', async (req, res, next) => {
   try {
     const pool = await getPool('RP');
