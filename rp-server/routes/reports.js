@@ -30,7 +30,7 @@ const { exportExcel } = require('../lib/exportExcel');
 const { exportPdf } = require('../lib/exportPdf');
 const { filterColumns, filterGroups, computeSummaryCards } = require('../lib/reportCellFormat');
 const { getUserContext } = require('../lib/permissions');
-const { loadDiemStkMapping } = require('../lib/diemStkMapping');
+const { loadDiemStkMapping, buildStkIdLookup } = require('../lib/diemStkMapping');
 const reportResultCache = require('../lib/reportResultCache');
 const { logAction } = require('../lib/auditLog');
 
@@ -295,8 +295,30 @@ router.get('/:reportId/filter-options/:field', async (req, res, next) => {
       }
     }
 
-    reportResultCache.set(filterOptionsCacheKey, result.recordset, FILTER_OPTIONS_CACHE_TTL_MS);
-    res.json(result.recordset);
+    // optionsSource.translateStkViaDiemStkMapping (bản 10.39, theo báo cáo
+    // người dùng — bộ lọc "Chi nhánh" của "Báo cáo nhập hàng theo ngành
+    // hàng" hiện thẳng STK_ID trần làm NHÃN, vì khai `valueField: 'STK_ID'`
+    // mà KHÔNG khai `labelField` — domain `nhaphang_nganhhang` cũng KHÔNG
+    // có cột tên chi nhánh nào để JOIN (VIEW nguồn không JOIN STOCK, xem
+    // "báo cáo doanh thu-nhập hàng theo ngành hàng.md" mục 2). Đúng quy
+    // ước đã thêm ở CLAUDE.md (bản 10.37) — Siêu thị PHẢI lấy tên từ "Ánh
+    // xạ Điểm - STK_ID", KHÔNG JOIN thẳng STOCK vào VIEW (tên kho có thể
+    // đổi qua các kỳ, chỉ bảng ánh xạ biết tên CHUẨN hiện tại) — dịch
+    // NHÃN qua `buildStkIdLookup()` (MIRROR đúng cách
+    // lib/coreZeroStockRunner.js/lib/nganhHangBrgRunner.js đã làm), GIỮ
+    // NGUYÊN `value` = STK_ID thô (báo cáo lọc theo đúng STK_ID này ở
+    // tầng dưới, KHÔNG dịch qua Mã Điểm như domain đơn đặt hàng).
+    let options = result.recordset;
+    if (filterDef.optionsSource.translateStkViaDiemStkMapping) {
+      const diemMapping = await loadDiemStkMapping();
+      const stkLookup = buildStkIdLookup(diemMapping);
+      options = options
+        .map((r) => ({ value: r.value, label: stkLookup.get(r.value)?.tenSieuThi || `${r.value} (chưa khai tên)` }))
+        .sort((a, b) => a.label.localeCompare(b.label, 'vi'));
+    }
+
+    reportResultCache.set(filterOptionsCacheKey, options, FILTER_OPTIONS_CACHE_TTL_MS);
+    res.json(options);
   } catch (err) { next(err); }
 });
 

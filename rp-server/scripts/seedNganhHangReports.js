@@ -91,8 +91,14 @@ function buildCompositeDefinition({ title, domain, targetDomain, exportFileCode,
     filters: [
       { field: 'eventDate', type: 'dateRange', label: 'Khoảng ngày báo cáo' },
       {
+        // Bản 10.39 (theo báo cáo người dùng — dropdown hiện thẳng STK_ID
+        // trần, vd "12441", thay vì tên siêu thị): thêm
+        // `translateStkViaDiemStkMapping: true` — dịch nhãn qua "Ánh xạ
+        // Điểm - STK_ID" (xem routes/reports.js), GIỮ NGUYÊN `value` vẫn
+        // là STK_ID thô (khớp đúng `remapEntityCode.filterField: 'STK_ID'`
+        // ở block bên dưới, KHÔNG đổi sang Mã Điểm).
         field: 'branches', type: 'multiSelect', label: 'Chi nhánh (không chọn = toàn hệ thống)',
-        optionsSource: { domain, valueField: 'STK_ID' }
+        optionsSource: { domain, valueField: 'STK_ID', translateStkViaDiemStkMapping: true }
       }
     ],
     blocks: [

@@ -14,6 +14,18 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.39 — Bộ lọc "Chi nhánh" ở "Báo cáo nhập hàng theo ngành hàng" hiện tên thật
+
+**Thay đổi**: `rp-server/routes/reports.js` (nhánh mới
+`translateStkViaDiemStkMapping`), `rp-server/scripts/seedNganhHangReports.js`
+(bật cờ cho filter "Chi nhánh"). KHÔNG đổi CSDL/schema.
+
+**Các bước**: `git pull origin main` → khởi động lại `rp-server` → chạy
+lại `node scripts/seedNganhHangReports.js` (thư mục `rp-server/`).
+
+**Kiểm tra**: mở "Báo cáo nhập hàng theo ngành hàng" → bộ lọc "Chi nhánh"
+→ hiện tên siêu thị thật thay vì số trần.
+
 ## 10.38 — Tự động quét lại ~40 ngày cho mọi job "Lịch sử (DSMART16_EOM)"
 
 **Thay đổi**: `etl/scripts/seedLdtdHcrcSync.js`, `etl/scripts/seedNganhHangSync.js`,

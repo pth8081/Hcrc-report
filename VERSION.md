@@ -42,6 +42,34 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.39 — SỬA LỖI THẬT: bộ lọc "Chi nhánh" ở "Báo cáo nhập hàng theo ngành hàng" hiện STK_ID trần
+
+**Theo báo cáo người dùng** (ảnh chụp thật — dropdown "Chi nhánh" hiện
+toàn số "12441"/"12481"/"12551"...): xác nhận lỗi thật, khác hẳn kiểu lỗi
+bản 10.36 — filter này khai `optionsSource: { domain, valueField: 'STK_ID'
+}` KHÔNG kèm `labelField`, nên NHÃN tự fallback về CHÍNH `STK_ID` (không
+phải "thiếu tên trong ánh xạ" như bản 10.36 — filter này chưa hề dùng
+"Ánh xạ Điểm - STK_ID" chút nào). Domain `nhaphang_nganhhang` cũng KHÔNG
+có cột tên chi nhánh nào để làm `labelField` (VIEW nguồn không JOIN
+`STOCK`) — và theo đúng quy ước mới thêm ở `CLAUDE.md` (bản 10.37), KHÔNG
+nên JOIN thẳng `STOCK` vào VIEW để lấy tên (tên kho có thể đổi qua các
+kỳ) mà phải dịch qua "Ánh xạ Điểm - STK_ID".
+
+**Sửa**: thêm nhánh mới `optionsSource.translateStkViaDiemStkMapping` ở
+`routes/reports.js` — dịch NHÃN qua `lib/diemStkMapping.js:buildStkIdLookup()`
+(hàm CÓ SẴN, đã dùng cho `coreZeroStockRunner.js`/`nganhHangBrgRunner.js`),
+GIỮ NGUYÊN `value` = STK_ID thô (báo cáo vẫn lọc đúng theo STK_ID, không
+đổi sang Mã Điểm). Bật cờ này cho filter "Chi nhánh" của "Báo cáo nhập
+hàng theo ngành hàng" (`seedNganhHangReports.js`).
+
+**TRIỂN KHAI**: khởi động lại `rp-server` → chạy lại
+`node scripts/seedNganhHangReports.js` (thư mục `rp-server/`).
+
+**Kiểm tra**: mở "Báo cáo nhập hàng theo ngành hàng" → bộ lọc "Chi
+nhánh" → PHẢI hiện tên siêu thị thật thay vì số trần (dòng nào chưa khai
+"Tên siêu thị" trong ánh xạ thì hiện `"<mã> (chưa khai tên)"`, giống bản
+10.36).
+
 ## 10.38 — Tự động quét lại ~40 ngày gần nhất cho MỌI job "Lịch sử (DSMART16_EOM)"
 
 **Theo yêu cầu người dùng**: "sau khi hết tháng ấy, thì dữ liệu sẽ chuyển
