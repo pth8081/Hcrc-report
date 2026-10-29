@@ -42,6 +42,23 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.44 — PDF "Doanh thu cuối ngày" (2 báo cáo GỐC) chữ nét hơn
+
+**Theo báo cáo người dùng** (ảnh chụp thật PDF xuất ra — "chữ có vẻ hơi
+mảnh"): `lib/exportPdf.js` từ bản 10.22 đã đổi font chữ dữ liệu thường
+(không phải dòng Tổng cộng) từ `regular` (400) sang `medium` (500) đậm
+hơn — nhưng CHỈ áp dụng cho 2 báo cáo "(Thành viên)" (`useLegacyColors`).
+2 báo cáo GỐC (LDTD/HCRC, bảng màu CORPORATE) khi đó CỐ Ý giữ nguyên
+`regular` để "khớp mọi báo cáo CORPORATE khác" — nhưng người dùng giờ xác
+nhận PDF gốc cũng cần đậm hơn.
+
+**Sửa**: đổi điều kiện bật `medium` từ `useLegacyColors` sang `compact`
+(= `definition.compactSinglePage`, cờ CHỈ đúng 4 báo cáo "Doanh thu cuối
+ngày" LDTD/HCRC gốc + Thành viên khai — xem `scripts/seedLdtdHcrcReports.js`)
+— bao trọn cả 4 báo cáo, KHÔNG ảnh hưởng PDF bất kỳ báo cáo nào khác
+trong hệ thống (Mua hàng/Vận hành/Kinh doanh/Báo cáo tự do... vẫn giữ
+nguyên `regular` như trước).
+
 ## 10.43 — Chuyển 2 báo cáo "Doanh thu theo ngành hàng - theo mã hàng" sang menu "Báo cáo Mua hàng"
 
 **Theo yêu cầu người dùng**: đổi menu mặc định của

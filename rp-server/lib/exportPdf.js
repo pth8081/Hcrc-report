@@ -663,13 +663,20 @@ async function exportPdf(definition, rows) {
       // đúng cách trình bày cột TT trong file mẫu BRGMART gốc.
       const align = i === sttColIdx ? 'center' : (typeof raw === 'number' ? 'right' : 'left');
       // medium (bản 10.22, "chữ nét hơn") — CHỈ dòng dữ liệu THƯỜNG (không
-      // phải Tổng cộng, vốn đã in đậm riêng) của báo cáo bảng màu CŨ
-      // (useLegacyColors, nay chỉ còn đúng 2 báo cáo "(Thành viên)" — xem
-      // scripts/seedLdtdHcrcReports.js). 2 báo cáo GỐC đã chuyển bảng màu
-      // CORPORATE nên KHÔNG cần đậm thêm (giữ y hệt mọi báo cáo CORPORATE
-      // khác, không tạo thêm khác biệt không cần thiết).
+      // phải Tổng cộng, vốn đã in đậm riêng). TRƯỚC ĐÂY chỉ bật cho báo cáo
+      // bảng màu CŨ (useLegacyColors, 2 báo cáo "(Thành viên)") — 2 báo cáo
+      // GỐC (bảng màu CORPORATE) cố ý giữ regular, "khớp mọi báo cáo
+      // CORPORATE khác". Bản 10.44 (theo báo cáo người dùng — PDF "doanh
+      // thu cuối ngày" vẫn "hơi mảnh", xem ảnh chụp thật) ĐỔI điều kiện
+      // sang `compact` (= definition.compactSinglePage, CHỈ đúng 4 báo cáo
+      // doanh thu cuối ngày LDTD/HCRC gốc + Thành viên khai cờ này — xem
+      // scripts/seedLdtdHcrcReports.js) thay vì `useLegacyColors` — bao
+      // trọn CẢ 4 báo cáo (useLegacyColors vốn chỉ là tập con của compact),
+      // KHÔNG ảnh hưởng PDF của bất kỳ báo cáo nào khác trong hệ thống
+      // (mua hàng/vận hành/kinh doanh/báo cáo tự do... vẫn giữ nguyên
+      // regular như trước).
       drawCellText(text, colX[i], colWidths[i], rowTop - ROW_HEIGHT + (compact ? ROW_HEIGHT * 0.28 : 4), {
-        bold: !!row.__isSubtotal, medium: useLegacyColors && !row.__isSubtotal, align, size: CELL_FONT_SIZE
+        bold: !!row.__isSubtotal, medium: compact && !row.__isSubtotal, align, size: CELL_FONT_SIZE
       });
     });
     y -= ROW_HEIGHT;

@@ -14,6 +14,17 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.44 — PDF "Doanh thu cuối ngày" (2 báo cáo gốc) chữ nét hơn
+
+**Thay đổi**: CHỈ `rp-server/lib/exportPdf.js` (1 điều kiện boolean). KHÔNG
+đổi CSDL/schema.
+
+**Các bước**: `git pull origin main` → `pm2 restart hcrc-rp-server`.
+
+**Kiểm tra**: xuất PDF 2 báo cáo "Doanh thu cuối ngày" LDTD/HCRC (bản gốc,
+không phải "(Thành viên)") → chữ dòng dữ liệu phải đậm/nét hơn trước (dòng
+"Tổng cộng" vẫn in đậm nhất như cũ, không đổi).
+
 ## 10.43 — Chuyển 2 báo cáo "Doanh thu theo ngành hàng - theo mã hàng" sang "Báo cáo Mua hàng"
 
 **Thay đổi**: CHỈ đổi mặc định `menuCode` trong
