@@ -14,6 +14,18 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.43 — Chuyển 2 báo cáo "Doanh thu theo ngành hàng - theo mã hàng" sang "Báo cáo Mua hàng"
+
+**Thay đổi**: CHỈ đổi mặc định `menuCode` trong
+`rp-server/scripts/seedDoanhThuSkuNganhHangReports.js`. KHÔNG đổi CSDL/
+schema/dữ liệu/VIEW/job đồng bộ.
+
+**Các bước**: `git pull origin main` → chạy lại (thư mục `rp-server/`):
+`node scripts/seedDoanhThuSkuNganhHangReports.js` (không cần tham số).
+
+**Kiểm tra**: 2 báo cáo chuyển từ "Báo cáo kinh doanh" sang "Báo cáo Mua
+hàng".
+
 ## 10.42 — Hiện rõ lỗi timeout/mất kết nối đọc Ánh xạ Điểm - STK_ID lên trang Log
 
 **Thay đổi**: CHỈ `rp-server/lib/diemStkMapping.js` (thêm `logWarn()` ghi

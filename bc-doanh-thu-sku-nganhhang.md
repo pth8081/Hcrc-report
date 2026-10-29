@@ -43,11 +43,12 @@ ngày, tuỳ số mã hàng đang hoạt động.
 lọc theo mã chỉ là `<select multiple>` đơn giản, KHÔNG hỗ trợ
 SearchableSelect tìm kiếm+dán danh sách) — KHÔNG đặt được 1 báo cáo
 admin-định-nghĩa (`app.ReportCatalog`, có bộ lọc Mã hàng kiểu
-SearchableSelect) vào đó. Đã tạm đặt 2 báo cáo này ở menu **"Báo cáo
-kinh doanh"** (`reports-kinh-doanh`, cạnh 2 báo cáo "Doanh thu theo ngành
-hàng" gốc, cùng chủ đề) — đổi tham số `menuCode` khi chạy
-`seedDoanhThuSkuNganhHangReports.js` nếu muốn đặt ở menu khác
-(`reports-mua-hang`/`reports-van-hanh`).
+SearchableSelect) vào đó. Ban đầu tạm đặt ở "Báo cáo kinh doanh" (bản
+10.41), người dùng xác nhận chuyển hẳn sang menu **"Báo cáo Mua hàng"**
+(`reports-mua-hang`, bản 10.43 — mặc định hiện tại của
+`seedDoanhThuSkuNganhHangReports.js`) — đổi tham số `menuCode` khi chạy
+lại script nếu muốn đặt ở menu khác (`reports-kinh-doanh`/
+`reports-van-hanh`).
 
 ## 2. Nguồn dữ liệu
 

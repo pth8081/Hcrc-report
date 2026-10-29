@@ -42,6 +42,25 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.43 — Chuyển 2 báo cáo "Doanh thu theo ngành hàng - theo mã hàng" sang menu "Báo cáo Mua hàng"
+
+**Theo yêu cầu người dùng**: đổi menu mặc định của
+`rp-server/scripts/seedDoanhThuSkuNganhHangReports.js` từ "Báo cáo kinh
+doanh" (`reports-kinh-doanh`, bản 10.41) sang **"Báo cáo Mua hàng"**
+(`reports-mua-hang`). Script vẫn idempotent — chạy lại CHỈ cập nhật
+`MenuItemId` của 2 báo cáo đã có (theo đúng `ReportId`), KHÔNG tạo báo
+cáo trùng, KHÔNG đổi dữ liệu/VIEW/job đồng bộ.
+
+**Các bước**: `git pull origin main` → chạy lại (thư mục `rp-server/`):
+```
+node scripts/seedDoanhThuSkuNganhHangReports.js
+```
+(không cần tham số nữa — mặc định giờ là `reports-mua-hang`).
+
+**Kiểm tra**: 2 báo cáo "Doanh thu theo ngành hàng - theo mã hàng"/"(LDTD)
+- theo mã hàng" biến mất khỏi "Báo cáo kinh doanh", xuất hiện ở "Báo cáo
+Mua hàng".
+
 ## 10.42 — Hiện rõ lỗi "timeout/mất kết nối" đọc Ánh xạ Điểm - STK_ID lên trang Log
 
 **Theo báo cáo người dùng** (ảnh chụp thật, bản 10.41 vẫn còn "(chưa khai

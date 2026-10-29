@@ -18,9 +18,11 @@
 // cùng ReportsPage.jsx + "Chọn báo cáo") — nó route sang HẲN 1 trang khác
 // (AdhocReportPage.jsx, self-service, không hỗ trợ bộ lọc Mã hàng tìm
 // kiếm+dán như yêu cầu) — KHÔNG đặt báo cáo admin-định-nghĩa vào đó được
-// về mặt kỹ thuật. Tạm đặt ở "Báo cáo kinh doanh" (cạnh 2 báo cáo gốc,
-// cùng chủ đề) — đổi `menuCode` tham số dòng lệnh nếu người dùng muốn vị
-// trí khác.
+// về mặt kỹ thuật. Ban đầu tạm đặt ở "Báo cáo kinh doanh" (bản 10.41),
+// sau đó người dùng xác nhận chuyển hẳn sang **"Báo cáo Mua hàng"**
+// (`reports-mua-hang`, bản 10.43) — đổi `menuCode` tham số dòng lệnh nếu
+// muốn chuyển sang vị trí khác (script idempotent, chạy lại an toàn, chỉ
+// cập nhật MenuItemId của 2 báo cáo đã có, không tạo trùng).
 //
 // LƯU Ý QUAN TRỌNG — chạy script này KHÔNG đủ để báo cáo CÓ SỐ LIỆU:
 //   1. DBA chạy "deploy/Thiết lập VIEW Doanh thu theo Mã hàng-Ngành hàng
@@ -132,7 +134,7 @@ async function upsertReport(pool, menuItemId, report) {
 }
 
 async function main() {
-  const menuCode = process.argv[2] || 'reports-kinh-doanh';
+  const menuCode = process.argv[2] || 'reports-mua-hang';
   const pool = await getPool('RP');
 
   const menuRow = await pool.request().input('code', sql.VarChar(50), menuCode)
