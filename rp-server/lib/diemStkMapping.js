@@ -65,7 +65,22 @@ async function loadDiemStkMapping() {
     cache = { expiresAt: Date.now() + CACHE_TTL_MS, mapping };
     return mapping;
   } catch (err) {
-    console.warn(`⚠️  [diemStkMapping] Không đọc được etl.DiemStkMapping (kiểm tra ETL_DIEM_STK_* trong .env) — báo cáo bật useDiemStkMapping sẽ tạm KHÔNG có dữ liệu cho tới khi kết nối lại được: ${err.message}`);
+    // ghi thêm vào app.SystemLog (bản 10.42, theo báo cáo người dùng — dropdown
+    // "Siêu thị"/"Chi nhánh" hiện "(chưa khai tên)" hàng loạt nhưng trang Hệ
+    // thống → Log KHÔNG có dòng nào nhắc tới ETL_DIEM_STK, vì TRƯỚC ĐÂY nhánh
+    // catch này CHỈ console.warn (chỉ xem được qua SSH/pm2 log) — che mất đúng
+    // lúc cần tra cứu nhất. Lỗi ở đây gồm CẢ lỗi kết nối (đã log riêng ở
+    // db.js:getPool() khi pool CHƯA từng kết nối được) LẪN lỗi TRUY VẤN timeout
+    // (KHÔNG qua db.js:getPool(), vì pool ĐÃ kết nối xong từ trước — SELECT
+    // quá 30 giây do CSDL nguồn chậm/quá tải, cùng loại lỗi timeout đã thấy ở
+    // dropdown "Mã hàng"/"Mã NCC" của domain don_dat_hang) — trước đây loại
+    // lỗi TRUY VẤN timeout này hoàn toàn VÔ HÌNH trên trang Log. require() TRỄ
+    // (trong hàm) — tránh vòng lặp require với lib/systemLog.js, cùng lý do db.js
+    // đã ghi chú.
+    const { logWarn } = require('./systemLog');
+    const message = `⚠️  [diemStkMapping] Không đọc được etl.DiemStkMapping (kiểm tra ETL_DIEM_STK_* trong .env, hoặc CSDL nguồn đang chậm/quá tải — xem thời gian lỗi) — báo cáo bật useDiemStkMapping sẽ tạm KHÔNG có dữ liệu cho tới khi đọc lại được: ${err.message}`;
+    console.warn(message);
+    logWarn(message);
     return new Map();
   }
 }

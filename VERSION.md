@@ -42,6 +42,36 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.42 — Hiện rõ lỗi "timeout/mất kết nối" đọc Ánh xạ Điểm - STK_ID lên trang Log
+
+**Theo báo cáo người dùng** (ảnh chụp thật, bản 10.41 vẫn còn "(chưa khai
+tên)" ở mọi dropdown Siêu thị/Chi nhánh/Ngành hàng): kiểm tra "Hệ thống →
+Log" lọc "Lỗi" KHÔNG thấy dòng nào nhắc tới `ETL_DIEM_STK` — CHỈ thấy nhiều
+dòng `Timeout: Request failed to complete in 30000ms` ở dropdown "Mã
+hàng"/"Mã NCC"/"Ngành hàng" của báo cáo "Đơn đặt hàng"/"So sánh giá trị
+đặt–nhập theo NCC" (domain `don_dat_hang`, CSDL `dwh`).
+
+**Nguyên nhân thật**: `lib/diemStkMapping.js:loadDiemStkMapping()` CÓ bắt
+lỗi (cả lỗi kết nối LẪN lỗi TRUY VẤN timeout khi CSDL nguồn `ETL_DIEM_STK`
+chậm/quá tải — RẤT CÓ THỂ đang xảy ra CÙNG LÚC với timeout của domain
+`don_dat_hang` ở trên, cùng dấu hiệu CSDL nguồn đang chậm) — nhưng TRƯỚC
+ĐÂY nhánh bắt lỗi này CHỈ `console.warn` (chỉ xem được qua SSH + `pm2
+logs`), KHÔNG ghi vào `app.SystemLog` như phần lớn lỗi khác trong hệ
+thống — nên hoàn toàn VÔ HÌNH trên trang "Hệ thống → Log" mà người dùng
+tự kiểm tra được. Giờ ghi thêm qua `logWarn()` — lỗi loại này (nếu đang
+xảy ra) sẽ HIỆN RA ở "Hệ thống → Log" (mức "Cảnh báo"), kèm đúng thông
+điệp lỗi SQL thật (vd "Login failed"/"timeout"/tên lỗi cụ thể) để chẩn
+đoán tiếp.
+
+⚠️ Bản này CHƯA SỬA ĐƯỢC nguyên nhân gốc (CSDL nguồn chậm/quá tải gây
+timeout 30 giây cho các truy vấn quét toàn bộ domain lớn) — chỉ làm lỗi
+HIỆN RA được để chẩn đoán đúng hướng. Giải pháp tạm thời (không cần đổi
+code, đổi ngay được): tăng `DWH_REQUEST_TIMEOUT_MS`/`ETL_DIEM_STK_REQUEST_TIMEOUT_MS`
+trong `.env` (mặc định 30000 = 30 giây) lên vd 90000 (90 giây), rồi `pm2
+restart hcrc-rp-server`. Giải pháp triệt để (cần DBA đo tải thật trước khi
+làm, rủi ro cao hơn vì đổi schema bảng dùng chung mọi domain — xem "giá
+vốn dsmart.md"/VERSION.md bản 9.24/10.35) để sau.
+
 ## 10.41 — Thêm 2 báo cáo MỚI "Doanh thu theo ngành hàng - theo mã hàng" (HCRC/LDTD)
 
 **Theo yêu cầu người dùng**: 2 báo cáo "Doanh thu theo ngành hàng"

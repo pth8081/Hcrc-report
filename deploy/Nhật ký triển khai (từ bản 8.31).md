@@ -14,6 +14,25 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.42 — Hiện rõ lỗi timeout/mất kết nối đọc Ánh xạ Điểm - STK_ID lên trang Log
+
+**Thay đổi**: CHỈ `rp-server/lib/diemStkMapping.js` (thêm `logWarn()` ghi
+vào `app.SystemLog`). KHÔNG đổi CSDL/schema, KHÔNG sửa được nguyên nhân
+gốc (CSDL nguồn chậm gây timeout) — chỉ làm lỗi HIỆN RA trên trang Log.
+
+**Các bước**: `git pull origin main` → `pm2 restart hcrc-rp-server`.
+
+**Nên làm thêm NGAY (không cần code, sửa `.env` + restart)**: nếu "Hệ
+thống → Log" đang có nhiều dòng `Timeout: ... 30000ms`, tăng
+`DWH_REQUEST_TIMEOUT_MS=90000` và `ETL_DIEM_STK_REQUEST_TIMEOUT_MS=90000`
+trong `.env` của `rp-server` → `pm2 restart hcrc-rp-server` — giảm khả
+năng truy vấn chậm bị huỷ giữa chừng, dù KHÔNG tự làm truy vấn nhanh hơn.
+
+**Kiểm tra**: vào lại "Hệ thống → Log" → lọc "Lỗi"/"Cảnh báo" → nếu dropdown
+Siêu thị/Chi nhánh vẫn hiện "(chưa khai tên)" hàng loạt, giờ PHẢI thấy
+dòng mới nhắc `[diemStkMapping]` ghi rõ lỗi SQL thật — gửi đúng dòng đó
+để chẩn đoán bước tiếp theo.
+
 ## 10.41 — 2 báo cáo MỚI "Doanh thu theo ngành hàng - theo mã hàng" (HCRC/LDTD)
 
 **Thay đổi**: domain MỚI `doanhthu_sku_nganhhang` (job đồng bộ
