@@ -42,6 +42,51 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.35 — Dán danh sách để tự chọn trong MỌI bộ lọc nhiều lựa chọn; sửa bộ lọc tải chậm
+
+**Theo yêu cầu người dùng**: "cho phép tôi có thể là chọn đồng multi chọn
+và có thể copy paste dán vào cái ô chọn, tự động nó sẽ select theo đúng
+cái điều kiện mà tôi dán vào" (áp dụng cho MỌI bộ lọc nhiều lựa chọn trong
+hệ thống — Mã hàng, Siêu thị, Nhà cung cấp...). Đồng thời báo cáo thêm:
+"khi mà chọn báo cáo ấy, thì những phần lọc ấy nó tải hơi bị chậm ấy".
+
+**Sửa (1) — Dán danh sách để tự chọn**: `rp-user/src/components/SearchableSelect.jsx`
+(component DÙNG CHUNG cho MỌI bộ lọc nhiều lựa chọn trong toàn hệ thống,
+nên sửa 1 nơi áp dụng khắp nơi, không cần sửa riêng từng báo cáo) — thêm
+xử lý sự kiện dán (`onPaste`) vào ô tìm kiếm: nội dung dán có TỪ 2 MÃ TRỞ
+LÊN (phân tách bằng xuống dòng/dấu phẩy/chấm phẩy/Tab — đúng kiểu copy từ
+Excel/Google Sheets) sẽ tự động khớp với `value` (mã) HOẶC `label` (tên)
+của từng lựa chọn (không phân biệt hoa/thường/dấu tiếng Việt), THAY THẾ
+hẳn lựa chọn hiện có bằng đúng tập mã khớp được, kèm 1 dòng thông báo số
+mã khớp/không khớp. Dán ĐÚNG 1 từ vẫn giữ nguyên hành vi TÌM KIẾM bình
+thường như trước (không đổi gì) — tránh can thiệp bất ngờ khi người dùng
+chỉ paste 1 từ khoá để lọc nhìn bằng mắt.
+
+**Sửa (2) — Bộ lọc tải chậm**: `rp-server/routes/reports.js` — nguyên
+nhân THẬT (đã biết từ bản 9.24, chưa sửa dứt điểm): câu truy vấn dựng
+danh sách lựa chọn động (`optionsSource.domain`) dùng `JSON_VALUE()` +
+`ROW_NUMBER()` quét TOÀN BỘ domain mỗi lần cache hết hạn — domain
+`don_dat_hang` (dùng cho 6 báo cáo Mua hàng, trong đó có "Mã hàng" mới
+thêm ở bản 10.31) giờ CÀNG LỚN hơn sau bản 9.21/9.22 (Lịch sử nhiều năm)
++ bản 10.24/10.25 (thêm nhánh ON_ORDER/FN_ORDER). Cache này ở TRONG BỘ
+NHỚ (mất khi `rp-server` restart, vd sau mỗi lần deploy) với TTL cũ chỉ
+10 phút — tăng lên **2 giờ** (các danh sách này gần như không đổi phút-
+qua-phút) để giảm hẳn tần suất người dùng gặp truy vấn chậm. KHÔNG sửa
+tận gốc độ chậm của bản thân câu truy vấn (cần thêm cột tính sẵn + index
+riêng cho TỪNG field trên `dwh.ReportFacts` — đổi schema bảng dùng
+chung cho MỌI domain, cần đo tải thật với DBA trước khi làm).
+
+**LƯU Ý QUAN TRỌNG — bộ lọc "Mã hàng" hiện trống (ảnh chụp thật người
+dùng gửi)**: rất có thể do SERVER CHƯA CHẠY LẠI `node scripts/seedPurchaseOrderReports.js`
+(bước triển khai bắt buộc của bản 10.31, thêm bộ lọc "Mã hàng") — nếu
+chưa chạy, bộ lọc này chưa có `optionsSource` thật trong CSDL nên LUÔN
+trống bất kể đợi bao lâu (khác hẳn vấn đề "chậm" ở trên, vốn vẫn RA kết
+quả sau khi đợi). Kiểm tra lại đã chạy script này trên server CHƯA.
+
+**TRIỂN KHAI**: xem file hướng dẫn gộp riêng
+`deploy/Hướng dẫn triển khai gộp — bản 10.33 đến 10.35.md` (gộp đủ cả 3
+bản 10.33/10.34/10.35 theo yêu cầu người dùng).
+
 ## 10.34 — SỬA LỖI THẬT: rút ngắn chu kỳ đồng bộ gốc xuống 2 phút — Lãi gộp lệch NGAY TRONG NGÀY, không cần đợi qua hôm sau
 
 **Theo báo cáo người dùng**: "Doanh thu cuối ngày ngày hôm qua, lúc 22:30,

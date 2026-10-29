@@ -29,10 +29,29 @@ function normalizeVN(str) {
     .toLowerCase();
 }
 
+// Tách danh sách dán vào thành từng mã riêng — chấp nhận xuống dòng, dấu
+// phẩy, chấm phẩy, Tab (đúng các kiểu phân tách phổ biến khi copy từ Excel/
+// Google Sheets: 1 cột nhiều dòng -> xuống dòng; nhiều ô cùng dòng -> Tab;
+// hoặc người dùng tự gõ tay cách nhau dấu phẩy/chấm phẩy).
+const PASTE_SPLIT_RE = /[,;\n\t]+/;
+
+function splitPastedTokens(text) {
+  return String(text || '').split(PASTE_SPLIT_RE).map(s => s.trim()).filter(Boolean);
+}
+
 export default function SearchableSelect({ options, multi = false, value, onChange, placeholder = 'Chọn...', loading = false }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
+  // Kết quả lần dán gần nhất (bản 10.35, theo yêu cầu người dùng — "copy
+  // paste dán vào ô chọn, tự động select theo đúng điều kiện dán vào") —
+  // hiện 1 dòng tóm tắt khớp/không khớp bao nhiêu mã ngay dưới ô tìm kiếm,
+  // tự ẩn khi đóng dropdown hoặc gõ/dán lần khác.
+  const [pasteResult, setPasteResult] = useState(null);
   const rootRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) setPasteResult(null);
+  }, [open]);
 
   useEffect(() => {
     function handleOutside(e) {
@@ -71,6 +90,37 @@ export default function SearchableSelect({ options, multi = false, value, onChan
   function selectAll() { onChange(options.map(o => o.value)); }
   function clearAll() { onChange([]); }
 
+  // Dán danh sách để tự chọn (bản 10.35, theo yêu cầu người dùng — "copy
+  // paste dán vào cái ô chọn, tự động nó sẽ select theo đúng cái điều kiện
+  // mà tôi dán vào") — CHỈ can thiệp khi nội dung dán có từ 2 mã trở lên
+  // (có dấu phân tách xuống dòng/phẩy/chấm phẩy/Tab); dán đúng 1 từ vẫn rơi
+  // về hành vi TÌM KIẾM bình thường như trước (không đổi gì), tránh can
+  // thiệp bất ngờ khi người dùng chỉ paste 1 từ khoá để lọc danh sách nhìn
+  // bằng mắt. Khớp theo cả `value` (mã) LẪN `label` (tên hiển thị, phòng
+  // khi người dùng copy nguyên cột TÊN thay vì MÃ từ Excel), không phân
+  // biệt hoa/thường/dấu tiếng Việt (dùng lại normalizeVN ở trên). Danh
+  // sách chọn được THAY THẾ hẳn bằng đúng tập mã khớp được dán vào (không
+  // cộng dồn với lựa chọn cũ) — đúng yêu cầu "select theo đúng điều kiện
+  // dán vào".
+  function handlePaste(e) {
+    if (!multi) return;
+    const text = e.clipboardData?.getData('text') || '';
+    const tokens = splitPastedTokens(text);
+    if (tokens.length < 2) { setPasteResult(null); return; }
+    e.preventDefault();
+    const matched = [];
+    let unmatchedCount = 0;
+    for (const t of tokens) {
+      const nt = normalizeVN(t);
+      const found = options.find(o => normalizeVN(String(o.value)) === nt || normalizeVN(o.label) === nt);
+      if (found) matched.push(found.value); else unmatchedCount++;
+    }
+    const uniqueMatched = [...new Set(matched)];
+    onChange(uniqueMatched);
+    setSearch('');
+    setPasteResult({ matched: uniqueMatched.length, total: tokens.length, unmatched: unmatchedCount });
+  }
+
   const summary = useMemo(() => {
     if (multi) {
       const count = (value || []).length;
@@ -96,11 +146,19 @@ export default function SearchableSelect({ options, multi = false, value, onChan
           <input
             type="text"
             className="searchable-select-search"
-            placeholder="Tìm kiếm..."
+            placeholder={multi ? 'Tìm kiếm, hoặc dán cả danh sách (mỗi mã 1 dòng/phẩy)...' : 'Tìm kiếm...'}
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => { setSearch(e.target.value); setPasteResult(null); }}
+            onPaste={handlePaste}
             autoFocus
           />
+          {pasteResult && (
+            <div className={`searchable-select-paste-feedback${pasteResult.unmatched > 0 ? ' searchable-select-paste-feedback--warn' : ''}`}>
+              {pasteResult.unmatched > 0
+                ? `Đã chọn ${pasteResult.matched}/${pasteResult.total} mã khớp — ${pasteResult.unmatched} mã không có trong danh sách.`
+                : `Đã chọn đúng ${pasteResult.matched} mã khớp từ danh sách vừa dán.`}
+            </div>
+          )}
           {multi && (
             <div className="searchable-select-actions">
               <button type="button" onClick={selectAll}>Chọn tất cả</button>

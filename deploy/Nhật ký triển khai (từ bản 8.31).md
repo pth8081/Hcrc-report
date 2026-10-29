@@ -14,6 +14,26 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.35 — Dán danh sách để tự chọn + sửa bộ lọc tải chậm
+
+**Thay đổi**: `rp-user/src/components/SearchableSelect.jsx` (dùng CHUNG
+cho MỌI bộ lọc nhiều lựa chọn toàn hệ thống), `rp-user/src/styles.css`,
+`rp-server/routes/reports.js` (TTL cache bộ lọc động 10 phút → 2 giờ).
+KHÔNG đổi CSDL/schema.
+
+**Các bước**: `git pull origin main` → khởi động lại `rp-server` (áp dụng
+TTL mới) → build lại `rp-user` (hoặc build chung cả 3 app, tính năng dán
+danh sách dùng được ở cả `etl-admin`/`api-admin` vì cùng component dùng
+chung), deploy.
+
+Xem file hướng dẫn gộp đầy đủ (gộp cả 10.33/10.34/10.35 theo yêu cầu
+người dùng): `deploy/Hướng dẫn triển khai gộp — bản 10.33 đến 10.35.md`.
+
+**Kiểm tra**: mở 1 bộ lọc nhiều lựa chọn bất kỳ (vd "Mã hàng") → dán 1
+danh sách mã (nhiều dòng/phẩy) vào ô tìm kiếm → tự động tick đúng mã khớp
++ hiện dòng thông báo số mã khớp/không khớp. Mở lại bộ lọc đã tải 1 lần
+trong vòng 2 giờ → ra ngay, không phải đợi.
+
 ## 10.34 — Rút chu kỳ đồng bộ gốc xuống 2 phút — lệch Lãi gộp NGAY TRONG NGÀY
 
 **Thay đổi**: CHỈ `etl/scripts/seedLdtdHcrcSync.js` (cronExpression của

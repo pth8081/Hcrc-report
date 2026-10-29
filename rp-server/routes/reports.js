@@ -142,7 +142,24 @@ router.get('/:reportId/filter-options/:field', async (req, res, next) => {
     // xem giải thích đầy đủ ở nhánh domain/JSON_VALUE phía dưới). Khai SỚM
     // ở đây để nhánh coreZeroStockBranches (bản 9.54) cũng dùng được, không
     // phải khai riêng.
-    const FILTER_OPTIONS_CACHE_TTL_MS = parseInt(process.env.REPORT_FILTER_OPTIONS_CACHE_TTL_MS, 10) || 10 * 60 * 1000;
+    // TTL TĂNG 10 phút -> 2 giờ (bản 10.35, theo báo cáo người dùng: mở
+    // bộ lọc "Mã hàng"/"Nhà cung cấp" ở báo cáo Mua hàng bị chậm) — nguyên
+    // nhân THẬT không đổi so với bản 9.24 (truy vấn JSON_VALUE()+ROW_NUMBER()
+    // quét TOÀN BỘ domain, domain `don_dat_hang` giờ CÒN LỚN HƠN nữa sau
+    // bản 9.21/9.22 (Lịch sử nhiều năm) + bản 10.24/10.25 (thêm nhánh
+    // ON_ORDER/FN_ORDER) + bản 10.31 (thêm chính bộ lọc "Mã hàng" này) —
+    // cache 10 phút cũ nghĩa là CHỈ CẦN 10 phút không ai mở dropdown đó là
+    // lượt tiếp theo lại phải chạy lại truy vấn chậm từ đầu, CHƯA KỂ cache
+    // này là cache TRONG BỘ NHỚ (mất sạch mỗi lần restart `rp-server`, vd
+    // sau mỗi lần deploy) — danh sách Mã hàng/NCC/chi nhánh gần như KHÔNG
+    // đổi phút-qua-phút hay thậm chí giờ-qua-giờ (chỉ đổi khi phát sinh mã
+    // hàng/NCC MỚI lần đầu), nên giữ cache lâu hơn hẳn là an toàn, giảm hẳn
+    // tần suất người dùng phải chờ truy vấn chậm. KHÔNG sửa được tận gốc độ
+    // chậm của bản thân câu truy vấn ở đây (cần thêm computed+index theo
+    // TỪNG field cụ thể trên dwh.ReportFacts — đổi schema bảng dùng chung
+    // cho MỌI domain, rủi ro cao hơn, cần đo tải thật với DBA trước khi làm
+    // — xem "giá vốn dsmart.md"/VERSION.md bản 10.35 để biết thêm).
+    const FILTER_OPTIONS_CACHE_TTL_MS = parseInt(process.env.REPORT_FILTER_OPTIONS_CACHE_TTL_MS, 10) || 2 * 60 * 60 * 1000;
     const filterOptionsCacheKey = ['filter-options', req.params.reportId, req.params.field];
 
     // optionsSource.coreZeroStockBranches (bản 9.54, theo yêu cầu người
