@@ -42,6 +42,30 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.41 — Thêm 2 báo cáo MỚI "Doanh thu theo ngành hàng - theo mã hàng" (HCRC/LDTD)
+
+**Theo yêu cầu người dùng**: 2 báo cáo "Doanh thu theo ngành hàng"
+(HCRC/LDTD) hiện có KHÔNG lọc được theo Mã hàng (VIEW nguồn cộng gộp sẵn
+theo siêu thị+ngành hàng+ngày, không còn giữ mã hàng). Người dùng đồng ý
+tạo VIEW + domain + 2 báo cáo MỚI HOÀN TOÀN (không sửa 2 báo cáo hiện
+có) — cùng công thức Doanh thu/Lãi gộp, CHỈ khác giữ lại từng mã hàng 1
+dòng riêng, cho phép lọc "Mã hàng" (đa chọn + tìm kiếm + dán danh sách,
+giống báo cáo mua hàng).
+
+**Vị trí menu — khác yêu cầu ban đầu ("Báo cáo tự do")**: đã kiểm tra kỹ
+thuật, `reports-adhoc` route sang 1 trang self-service riêng
+(`AdhocReportPage.jsx`) không hỗ trợ bộ lọc Mã hàng tìm kiếm+dán — không
+đặt được báo cáo admin-định-nghĩa vào đó. Tạm đặt ở "Báo cáo kinh doanh"
+(cạnh 2 báo cáo gốc) — xem `bc-doanh-thu-sku-nganhhang.md` mục 1 (có thể
+đổi menu qua tham số dòng lệnh).
+
+VIEW nguồn `dbo.V_HCRC_DOANHTHU_SKU_NGANHHANG` (DSMART16 trung tâm) đã
+tạo sẵn từ bản 10.40 (gộp chung lúc soát "Tên hiển thị") — bản này tạo
+job đồng bộ (domain mới `doanhthu_sku_nganhhang`) + 2 báo cáo dùng domain
+đó. CHỈ "Phase 1 — hệ gốc/trung tâm", chưa có bản Lịch sử/Thành viên.
+
+Chi tiết đầy đủ: `bc-doanh-thu-sku-nganhhang.md`.
+
 ## 10.40 — SỬA LỖI THẬT: cache "đóng băng" nhầm kết quả rỗng tới 2 giờ cho dropdown Siêu thị/Chi nhánh
 
 **Theo báo cáo người dùng** (ảnh chụp thật, SAU KHI đã deploy bản 10.39):

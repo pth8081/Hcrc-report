@@ -1786,6 +1786,8 @@ cập nhật nếu chỉ sửa báo cáo đã có (file hướng dẫn riêng t�
 | `bc-doanh-thu-nganhhang` | Báo cáo doanh thu theo ngành hàng | `báo cáo doanh thu-nhập hàng theo ngành hàng.md` (mục 8 — hàng hỏng hủy + Bán lẻ/Bán buôn đã giải quyết bản 9.68) |
 | `bc-nhap-hang-nganhhang` | Báo cáo nhập hàng theo ngành hàng | `báo cáo doanh thu-nhập hàng theo ngành hàng.md` |
 | `bc-doanh-thu-nganhhang-ldtd` | Báo cáo doanh thu theo ngành hàng (LDTD) | `báo cáo doanh thu-nhập hàng theo ngành hàng.md` (CÙNG định dạng/engine với báo cáo gốc ở trên, chỉ khác domain Chỉ tiêu) |
+| `bc-doanh-thu-sku-nganhhang` | Báo cáo doanh thu theo ngành hàng - theo mã hàng | `bc-doanh-thu-sku-nganhhang.md` |
+| `bc-doanh-thu-sku-nganhhang-ldtd` | Báo cáo doanh thu theo ngành hàng (LDTD) - theo mã hàng | `bc-doanh-thu-sku-nganhhang.md` |
 | `bc-don-dat-hang` | Đơn đặt hàng | `bc-don-dat-hang.md` |
 | `bc-don-nhap-hang` | Đơn nhập hàng | `bc-don-dat-hang.md` |
 | `bc-so-sanh-dat-nhan` | So sánh đặt–nhận | `bc-don-dat-hang.md` |

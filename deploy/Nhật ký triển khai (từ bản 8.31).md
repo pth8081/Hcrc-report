@@ -14,6 +14,31 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.41 — 2 báo cáo MỚI "Doanh thu theo ngành hàng - theo mã hàng" (HCRC/LDTD)
+
+**Thay đổi**: domain MỚI `doanhthu_sku_nganhhang` (job đồng bộ
+`etl/scripts/seedDoanhThuSkuNganhHangSync.js`, VIEW nguồn
+`V_HCRC_DOANHTHU_SKU_NGANHHANG` đã tạo sẵn ở bản 10.40) + 2 báo cáo mới
+(`rp-server/scripts/seedDoanhThuSkuNganhHangReports.js`) — KHÔNG đụng
+VIEW/domain/báo cáo "Doanh thu theo ngành hàng" hiện có.
+
+**Các bước**:
+1. `git pull origin main`.
+2. Nếu CHƯA chạy SQL "Thiết lập VIEW Doanh thu theo Mã hàng-Ngành hàng
+   (DSMART16 trung tâm).sql" (bản 10.40) — DBA chạy trước trên `DSMART16`.
+3. `node etl/scripts/seedDoanhThuSkuNganhHangSync.js` (thư mục `etl/`) —
+   tạo job đồng bộ (scheduler tự nạp trong ≤60 giây, không cần restart).
+4. Chờ job chạy ít nhất 1 lượt (etl-admin → Đồng bộ).
+5. `node rp-server/scripts/seedDoanhThuSkuNganhHangReports.js` (thư mục
+   `rp-server/`, mặc định tạo ở menu "Báo cáo kinh doanh") — tạo 2 báo
+   cáo.
+6. Gán quyền xem 2 báo cáo mới (Hệ thống → Phân quyền).
+
+**Kiểm tra**: "Báo cáo kinh doanh" → 2 báo cáo mới xuất hiện → bộ lọc "Mã
+hàng" dán được danh sách nhiều mã → số liệu Doanh thu/Lãi gộp khớp báo
+cáo gốc khi cộng lại đúng ngành hàng/siêu thị/ngày. Chi tiết:
+`bc-doanh-thu-sku-nganhhang.md`.
+
 ## 10.40 — Chống cache "đóng băng" nhầm kết quả rỗng (dropdown Siêu thị/Chi nhánh) tới 2 giờ
 
 **Thay đổi**: CHỈ `rp-server/routes/reports.js` (hàm
