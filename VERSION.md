@@ -42,6 +42,28 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.32 — Đồng bộ thêm Email từ HCRC Workspace
+
+**Theo yêu cầu người dùng**: sau khi được giải thích lý do trước đây
+"Đồng bộ tài khoản" KHÔNG cập nhật Email (API HCRC Workspace trước đây
+chỉ trả 6 field, không có email), người dùng xác nhận API ĐÃ bổ sung
+field `email` (field chữ thường, cùng quy ước username/name/dept/
+jobTitle/phone/position) và yêu cầu đồng bộ thêm.
+
+**Sửa**: `rp-server/lib/hcrcWorkspaceClient.js:fetchDirectory()` — đọc
+thêm `email: item.email` từ response thật. `rp-server/routes/users.js`
+POST `/sync` — tài khoản MỚI: thêm `Email` vào INSERT; tài khoản ĐÃ đồng
+bộ trước đó: thêm `Email` vào UPDATE, CHỈ ghi đè khi API trả về giá trị
+KHÁC RỖNG (`item.email || existing.Email`) — tránh trường hợp 1 lần đồng
+bộ nào đó API trả rỗng/thiếu field cho 1 người cụ thể sẽ xoá mất Email
+admin đã nhập tay trước đó (cùng kiểu xử lý thận trọng đã áp dụng cho
+`fullName || existing.Username`).
+
+**Kiểm tra**: Hệ thống → Phân quyền → "Đồng bộ tài khoản" — tài khoản có
+Email ở HCRC Workspace phải tự điền đúng Email sau khi đồng bộ (không cần
+sửa tay nữa); tài khoản admin ĐÃ tự nhập Email tay trước đó, nếu lần đồng
+bộ sau API vẫn trả đúng email đó thì giữ nguyên không đổi gì.
+
 ## 10.31 — Chọn "Người nhận" email qua dropdown tìm kiếm + chọn nhiều; thêm bộ lọc "Mã hàng" cho 6 báo cáo mua hàng
 
 **Theo yêu cầu người dùng** (2 ảnh chụp thật):

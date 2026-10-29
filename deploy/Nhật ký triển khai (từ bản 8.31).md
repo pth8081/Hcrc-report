@@ -14,6 +14,21 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.32 — Đồng bộ thêm Email từ HCRC Workspace
+
+**Thay đổi**: CHỈ `rp-server/lib/hcrcWorkspaceClient.js` +
+`rp-server/routes/users.js` (route `POST /sync`). KHÔNG đổi CSDL/schema
+(cột `app.Users.Email` đã có sẵn từ trước).
+
+**Các bước**: `git pull origin main` → khởi động lại `rp-server` (pm2
+restart) → KHÔNG cần build lại `rp-user`/chạy lại script seed.
+
+**Kiểm tra**: Hệ thống → Phân quyền → bấm "Đồng bộ tài khoản" — tài khoản
+nào HCRC Workspace có khai email phải tự điền đúng vào cột Email (không
+cần admin sửa tay); tài khoản admin đã tự nhập Email tay từ trước, nếu
+API không trả về email cho đúng người đó ở lần đồng bộ này thì Email vẫn
+GIỮ NGUYÊN, không bị xoá về rỗng.
+
 ## 10.31 — Chọn "Người nhận" email qua dropdown; thêm bộ lọc "Mã hàng" cho 6 báo cáo mua hàng
 
 **Thay đổi**: `rp-server/routes/reportEmailSchedules.js` (route mới

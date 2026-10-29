@@ -13,15 +13,18 @@
 //     cấu hình vào brute-force của người dùng.
 //   fetchDirectory() — lấy TOÀN BỘ danh bạ (GET không kèm ?account=) cho
 //     "Đồng bộ tài khoản" (routes/users.js POST /sync), bấm tay, KHÔNG tự
-//     chạy theo giờ. Response thật CHỈ có đúng 6 field: username (mã nhân
-//     viên — định danh duy nhất/KHÔNG đổi, tài liệu HCRC Workspace xác nhận
-//     rõ), name, dept, jobTitle (chức danh), phone, position ("Văn phòng"|
-//     "Siêu Thị" — nơi làm việc, KHÁC "vị trí/chức danh" thường hiểu — đặt
-//     tên lại "workLocation" ở đây cho khỏi lẫn với cột Position/jobTitle).
-//     KHÔNG có email/trạng thái hoạt động (active) — tài liệu ghi rõ chỉ
-//     đúng 6 field này, không field nào khác. Chuẩn hoá field response thật
-//     sang tên nội bộ report server dùng NGAY Ở ĐÂY — chỉ 1 chỗ biết hình
-//     dạng response thật của HCRC Workspace, routes/users.js không cần biết.
+//     chạy theo giờ. Response thật có 7 field: username (mã nhân viên —
+//     định danh duy nhất/KHÔNG đổi, tài liệu HCRC Workspace xác nhận rõ),
+//     name, dept, jobTitle (chức danh), phone, position ("Văn phòng"|"Siêu
+//     Thị" — nơi làm việc, KHÁC "vị trí/chức danh" thường hiểu — đặt tên
+//     lại "workLocation" ở đây cho khỏi lẫn với cột Position/jobTitle), và
+//     email (bản 10.32, theo yêu cầu người dùng — API HCRC Workspace ĐÃ
+//     bổ sung field này, trước đây tài liệu chỉ có 6 field không có email,
+//     xem lịch sử ở VERSION.md bản 10.31/10.32). KHÔNG có trạng thái hoạt
+//     động (active) — tài liệu không ghi field nào khác ngoài 7 field
+//     trên. Chuẩn hoá field response thật sang tên nội bộ report server
+//     dùng NGAY Ở ĐÂY — chỉ 1 chỗ biết hình dạng response thật của HCRC
+//     Workspace, routes/users.js không cần biết.
 //
 // KHÔNG áp lib/urlSafety.js (assertPublicUrl) ở đây như
 // lib/externalReportClient.js — khác ExternalApiConnections (BaseUrl trỏ
@@ -134,7 +137,8 @@ async function fetchDirectory() {
     department: item.dept,
     position: item.jobTitle,
     workLocation: item.position,
-    phone: item.phone
+    phone: item.phone,
+    email: item.email
   }));
 }
 

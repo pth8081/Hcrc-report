@@ -458,15 +458,18 @@ router.post('/:id/clear-fallback-password', requireSystemRoleActor, async (req, 
 // tài liệu HCRC Workspace) -> khớp trực tiếp theo Username trong tập
 // account AuthSource='hcrcWorkspace'. Username trùng với 1 account KHÁC đã
 // có (vd account AuthSource='local' như Admin) -> BỎ QUA, không tự gộp —
-// admin tự xử lý tay nếu đúng là cùng 1 người. KHÔNG đồng bộ Email — API
-// không cung cấp field này (chỉ có 6 field: username/name/dept/jobTitle/
-// phone/position) — cột Email vẫn giữ, chỉ còn sửa được bằng tay, sync
-// KHÔNG đụng vào (tránh xoá mất email admin đã nhập tay). Tài khoản MỚI:
+// admin tự xử lý tay nếu đúng là cùng 1 người. ĐỒNG BỘ CẢ Email (bản
+// 10.32, theo yêu cầu người dùng — API HCRC Workspace ĐÃ bổ sung field
+// "email", xem lib/hcrcWorkspaceClient.js) — giống cách xử lý fullName ở
+// dưới (`item.fullName || existing.Username`), CHỈ ghi đè khi API trả về
+// email KHÁC RỖNG (`item.email || existing.Email` khi cập nhật), KHÔNG tự
+// xoá email admin đã nhập tay nếu lần đồng bộ này API trả rỗng/thiếu field
+// cho đúng người đó. Tài khoản MỚI:
 // AuthSource='hcrcWorkspace', PasswordHash=NULL, IsActive=0 (CHƯA cho phép
 // kết nối — admin phải bấm "Mở khoá" tay). Tài khoản ĐÃ đồng bộ trước đó
-// chỉ cập nhật FullName/Department/Position/WorkLocation/Phone — KHÔNG
-// đụng AuthSource/IsActive/PasswordHash/Email (giữ nguyên lựa chọn admin
-// đã đổi tay, vd đã chuyển sang local). Tài khoản đã đồng bộ trước nhưng
+// cập nhật FullName/Department/Position/WorkLocation/Phone/Email — KHÔNG
+// đụng AuthSource/IsActive/PasswordHash (giữ nguyên lựa chọn admin đã đổi
+// tay, vd đã chuyển sang local). Tài khoản đã đồng bộ trước nhưng
 // LẦN NÀY không còn thấy trong danh bạ (nghỉ việc/đổi username) -> tự khoá
 // (IsActive=0) — API không có field trạng thái hoạt động riêng, chỉ dựa
 // vào "còn xuất hiện trong danh bạ hay không" — an toàn hơn để hở quyền
@@ -479,7 +482,7 @@ router.post('/sync', requireSystemRoleActor, async (req, res, next) => {
 
     const pool = await getPool('RP');
     const existingResult = await pool.request().query(`
-      SELECT Id, Username, IsActive FROM app.Users WHERE AuthSource = 'hcrcWorkspace'
+      SELECT Id, Username, IsActive, Email FROM app.Users WHERE AuthSource = 'hcrcWorkspace'
     `);
     const byUsername = new Map(existingResult.recordset.map(r => [r.Username, r]));
     const usernamesInUse = new Set();
@@ -498,7 +501,8 @@ router.post('/sync', requireSystemRoleActor, async (req, res, next) => {
           .input('position', sql.NVarChar(200), item.position || null)
           .input('workLocation', sql.NVarChar(50), item.workLocation || null)
           .input('phone', sql.NVarChar(50), item.phone || null)
-          .query('UPDATE app.Users SET FullName = @fullName, Department = @department, Position = @position, WorkLocation = @workLocation, Phone = @phone, LastSyncedAt = SYSUTCDATETIME() WHERE Id = @id');
+          .input('email', sql.NVarChar(200), item.email || existing.Email || null)
+          .query('UPDATE app.Users SET FullName = @fullName, Department = @department, Position = @position, WorkLocation = @workLocation, Phone = @phone, Email = @email, LastSyncedAt = SYSUTCDATETIME() WHERE Id = @id');
         invalidateUser(existing.Id);
         updated++;
       } else if (usernamesInUse.has(item.username)) {
@@ -511,9 +515,10 @@ router.post('/sync', requireSystemRoleActor, async (req, res, next) => {
           .input('position', sql.NVarChar(200), item.position || null)
           .input('workLocation', sql.NVarChar(50), item.workLocation || null)
           .input('phone', sql.NVarChar(50), item.phone || null)
+          .input('email', sql.NVarChar(200), item.email || null)
           .query(`
-            INSERT INTO app.Users (Username, PasswordHash, FullName, Department, Position, WorkLocation, Phone, AuthSource, IsActive, LastSyncedAt)
-            VALUES (@username, NULL, @fullName, @department, @position, @workLocation, @phone, 'hcrcWorkspace', 0, SYSUTCDATETIME())
+            INSERT INTO app.Users (Username, PasswordHash, FullName, Department, Position, WorkLocation, Phone, Email, AuthSource, IsActive, LastSyncedAt)
+            VALUES (@username, NULL, @fullName, @department, @position, @workLocation, @phone, @email, 'hcrcWorkspace', 0, SYSUTCDATETIME())
           `);
         usernamesInUse.add(item.username);
         added++;
