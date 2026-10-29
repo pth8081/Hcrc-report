@@ -118,6 +118,31 @@ router.get('/:reportId', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// cacheFilterOptionsUnlessSuspicious (bản 10.40, SỬA LỖI THẬT phát hiện
+// qua báo cáo người dùng — dropdown "Chi nhánh" hiện "<mã> (chưa khai
+// tên)" cho TOÀN BỘ mã, dù người dùng xác nhận các mã đó ĐÃ khai tên
+// trong "Ánh xạ Điểm - STK_ID") — NGUYÊN NHÂN THẬT: lib/diemStkMapping.js:
+// loadDiemStkMapping() có thể trả về Map RỖNG tạm thời (lỗi kết nối
+// thoáng qua tới CSDL ETL_DIEM_STK, vd ngay sau khi restart `rp-server`
+// trong lúc pool kết nối chưa kịp sẵn sàng — xem chú thích đầu file đó),
+// khiến TOÀN BỘ nhãn rơi về "(chưa khai tên)" — nếu CACHE NGUYÊN kết quả
+// SAI này với TTL 2 GIỜ (bản 10.35) thì lỗi THOÁNG QUA biến thành lỗi
+// "đóng băng" treo tới 2 giờ, dù gọi lại ngay sau đó sẽ ra đúng. Áp dụng
+// CHO CẢ 4 nhánh optionsSource cần dịch tên qua "Ánh xạ Điểm - STK_ID"
+// (coreZeroStockBranches/nganhHangBranches/storeCatalog/
+// translateStkViaDiemStkMapping) — nếu TOÀN BỘ nhãn trả về đều mang hậu
+// tố "(chưa khai tên)" (dấu hiệu nghi ngờ diemMapping rỗng do lỗi thoáng
+// qua, KHÁC hẳn trường hợp bình thường chỉ VÀI dòng thiếu tên lẫn trong
+// nhiều dòng CÓ tên), chỉ cache NGẮN (30 giây) thay vì TTL đầy đủ — tự
+// "lành" sau tối đa 30 giây thay vì treo sai tới 2 giờ, không ảnh hưởng gì
+// tới trường hợp bình thường (TTL đầy đủ vẫn áp dụng khi có ít nhất 1 nhãn
+// hợp lệ xen giữa).
+const SUSPICIOUS_EMPTY_RETRY_TTL_MS = 30 * 1000;
+function cacheFilterOptionsUnlessSuspicious(cacheKey, options, normalTtlMs) {
+  const allUnnamed = options.length > 0 && options.every(o => /\(chưa khai tên\)$/.test(o.label || ''));
+  reportResultCache.set(cacheKey, options, allUnnamed ? SUSPICIOUS_EMPTY_RETRY_TTL_MS : normalTtlMs);
+}
+
 // Lấy danh sách lựa chọn THẬT cho 1 ô lọc select/multiSelect (yêu cầu:
 // "tất cả kiểu chọn và lọc trong report" phải là dropdown searchable +
 // multi-select nối dữ liệu thật, không gõ tay) — chỉ áp dụng cho filter có
@@ -178,7 +203,7 @@ router.get('/:reportId/filter-options/:field', async (req, res, next) => {
       if (cached) return res.json(cached);
       const { resolveEligibleBranchOptions } = require('../lib/coreZeroStockRunner');
       const options = await resolveEligibleBranchOptions(definition);
-      reportResultCache.set(filterOptionsCacheKey, options, FILTER_OPTIONS_CACHE_TTL_MS);
+      cacheFilterOptionsUnlessSuspicious(filterOptionsCacheKey, options, FILTER_OPTIONS_CACHE_TTL_MS);
       return res.json(options);
     }
 
@@ -193,7 +218,7 @@ router.get('/:reportId/filter-options/:field', async (req, res, next) => {
       if (cached) return res.json(cached);
       const { resolveNganhHangBranchOptions } = require('../lib/nganhHangBrgRunner');
       const options = await resolveNganhHangBranchOptions(definition, filterDef.optionsSource.nganhHangBranches);
-      reportResultCache.set(filterOptionsCacheKey, options, FILTER_OPTIONS_CACHE_TTL_MS);
+      cacheFilterOptionsUnlessSuspicious(filterOptionsCacheKey, options, FILTER_OPTIONS_CACHE_TTL_MS);
       return res.json(options);
     }
 
@@ -317,7 +342,7 @@ router.get('/:reportId/filter-options/:field', async (req, res, next) => {
         .sort((a, b) => a.label.localeCompare(b.label, 'vi'));
     }
 
-    reportResultCache.set(filterOptionsCacheKey, options, FILTER_OPTIONS_CACHE_TTL_MS);
+    cacheFilterOptionsUnlessSuspicious(filterOptionsCacheKey, options, FILTER_OPTIONS_CACHE_TTL_MS);
     res.json(options);
   } catch (err) { next(err); }
 });

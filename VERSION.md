@@ -42,6 +42,44 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.40 — SỬA LỖI THẬT: cache "đóng băng" nhầm kết quả rỗng tới 2 giờ cho dropdown Siêu thị/Chi nhánh
+
+**Theo báo cáo người dùng** (ảnh chụp thật, SAU KHI đã deploy bản 10.39):
+TẤT CẢ mã trong dropdown "Chi nhánh" của "Báo cáo nhập hàng theo ngành
+hàng" đều hiện `"<mã> (chưa khai tên)"` — kể cả mã `10041` mà người dùng
+xác nhận ĐÃ khai tên "ST Hải Dương" trong "Ánh xạ Điểm - STK_ID" (đối
+chiếu lại đúng ảnh chụp "Ánh xạ đã khai" trước đó trong hội thoại — mã
+Điểm "004", STK_ID kỳ mới "10041,20041,20042").
+
+**Nguyên nhân thật (hệ quả ngoài ý muốn của chính bản 10.35)**:
+`lib/diemStkMapping.js:loadDiemStkMapping()` có thể trả về Map RỖNG TẠM
+THỜI (lỗi kết nối thoáng qua tới CSDL `ETL_DIEM_STK`, dễ xảy ra NGAY SAU
+khi `rp-server` vừa restart — đúng lúc người dùng vừa làm theo hướng dẫn
+triển khai) — khi đó TOÀN BỘ nhãn rơi về `"(chưa khai tên)"`. Bản 10.35
+(tăng TTL cache bộ lọc động 10 phút → 2 giờ) vô tình khiến lỗi THOÁNG QUA
+này bị **CACHE ĐÓNG BĂNG LẠI TỚI 2 GIỜ** — dù gọi lại ngay sau đó (chỉ
+vài giây sau, khi pool kết nối đã sẵn sàng) sẽ ra đúng kết quả, nhưng
+không ai gọi lại vì trình duyệt vẫn nhận "kết quả hợp lệ" (200, có mảng
+dữ liệu, không phải lỗi) từ cache.
+
+**Sửa**: thêm `cacheFilterOptionsUnlessSuspicious()` — nếu TOÀN BỘ nhãn
+trả về đều mang hậu tố `"(chưa khai tên)"` (dấu hiệu nghi ngờ
+`diemMapping` rỗng do lỗi thoáng qua, KHÁC trường hợp bình thường chỉ
+VÀI dòng thiếu tên lẫn trong nhiều dòng có tên), chỉ cache NGẮN (30 giây)
+thay vì TTL đầy đủ — tự "lành" trong tối đa 30 giây. Áp dụng cho CẢ 3
+nhánh dùng chung cache (`coreZeroStockBranches`/`nganhHangBranches`/
+`translateStkViaDiemStkMapping`+domain chung) — đúng yêu cầu người dùng
+"rà soát lại tất cả các báo cáo có kiểu lọc siêu thị như này" (nhánh
+`storeCatalog` của bản 10.36 KHÔNG cache gì cả nên không bị ảnh hưởng).
+
+**TRIỂN KHAI**: khởi động lại `rp-server` MỘT LẦN NỮA (xoá cache sai đang
+"đóng băng" hiện có — cache trong bộ nhớ, mất khi restart) → áp dụng
+luôn code chống lặp lại lỗi này cho các lần sau.
+
+**Kiểm tra**: mở lại "Báo cáo nhập hàng theo ngành hàng" → bộ lọc "Chi
+nhánh" → PHẢI hiện tên thật (vd "10041" → "ST Hải Dương"), không còn
+`"(chưa khai tên)"` cho TOÀN BỘ danh sách.
+
 ## 10.39 — SỬA LỖI THẬT: bộ lọc "Chi nhánh" ở "Báo cáo nhập hàng theo ngành hàng" hiện STK_ID trần
 
 **Theo báo cáo người dùng** (ảnh chụp thật — dropdown "Chi nhánh" hiện

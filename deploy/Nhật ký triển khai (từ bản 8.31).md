@@ -14,6 +14,18 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.40 — Chống cache "đóng băng" nhầm kết quả rỗng (dropdown Siêu thị/Chi nhánh) tới 2 giờ
+
+**Thay đổi**: CHỈ `rp-server/routes/reports.js` (hàm
+`cacheFilterOptionsUnlessSuspicious()` mới). KHÔNG đổi CSDL/schema.
+
+**Các bước**: `git pull origin main` → khởi động lại `rp-server` (BẮT
+BUỘC — vừa xoá cache sai đang "đóng băng" hiện có, vừa áp dụng code mới).
+
+**Kiểm tra**: mở lại dropdown "Chi nhánh"/"Siêu thị" ở báo cáo vừa gặp
+lỗi (vd "Báo cáo nhập hàng theo ngành hàng") → PHẢI hiện tên thật, không
+còn `"(chưa khai tên)"` cho toàn bộ danh sách.
+
 ## 10.39 — Bộ lọc "Chi nhánh" ở "Báo cáo nhập hàng theo ngành hàng" hiện tên thật
 
 **Thay đổi**: `rp-server/routes/reports.js` (nhánh mới
