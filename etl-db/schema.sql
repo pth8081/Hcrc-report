@@ -124,6 +124,17 @@ BEGIN
 
         TargetDomain               VARCHAR(50)   NOT NULL,   -- dwh.ReportFacts.Domain
         CronExpression             VARCHAR(50)   NOT NULL DEFAULT '*/15 * * * *',
+        -- Số NGÀY quét lại thêm mỗi lượt chạy, TÍNH LÙI từ ngày watermark
+        -- hiện tại (bản 10.33, theo yêu cầu người dùng — phát hiện thật
+        -- 28-29/10/2026: STRANS.SURPLUS của 1 ngày ĐÃ ĐÓNG vẫn tiếp tục bị
+        -- DSMART điều chỉnh sau đó, nhưng job chỉ quét lại ĐÚNG ngày
+        -- watermark hiện tại — ngày cũ bị "đóng băng" vĩnh viễn ngay khi
+        -- watermark nhảy sang ngày mới, dù dữ liệu gốc vẫn còn đổi). 0 (mặc
+        -- định, tương thích ngược) = hành vi CŨ, chỉ quét đúng ngày watermark.
+        -- KHÔNG ảnh hưởng watermark LƯU LẠI (vẫn tiến bình thường theo
+        -- updatedCol lớn nhất của dòng đã quét) — chỉ MỞ RỘNG biên dưới của
+        -- câu quét, xem etl/lib/tableSyncEngine.js:extractTable().
+        RescanLookbackDays         INT           NOT NULL DEFAULT 0,
         IsActive                   BIT           NOT NULL DEFAULT 1,
         -- TẮT mặc định — dwh.ReportFacts vẫn ghi đè (1 dòng/thực thể) y hệt
         -- trước đây. BẬT khi domain này cần giữ lịch sử nhiều ngày (vd báo
@@ -141,6 +152,15 @@ GO
 IF COL_LENGTH('etl.SyncJobs', 'KeepHistory') IS NULL
 BEGIN
     ALTER TABLE etl.SyncJobs ADD KeepHistory BIT NOT NULL DEFAULT 0;
+END
+GO
+
+-- Nâng cấp từ bản trước (bảng đã tồn tại nhưng thiếu cột RescanLookbackDays,
+-- bản 10.33) — an toàn chạy lại nhiều lần, DEFAULT 0 giữ nguyên hành vi cũ
+-- cho mọi job đã có sẵn.
+IF COL_LENGTH('etl.SyncJobs', 'RescanLookbackDays') IS NULL
+BEGIN
+    ALTER TABLE etl.SyncJobs ADD RescanLookbackDays INT NOT NULL DEFAULT 0;
 END
 GO
 

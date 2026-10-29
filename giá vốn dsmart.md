@@ -351,3 +351,76 @@ dịch khớp TUYỆT ĐỐI từng siêu thị ở cả 2 bản, CHỈ Lãi g�
    được ở tầng báo cáo nếu đây là hành vi gốc của DSMART, mà chỉ có thể
    LƯU Ý/thông báo cho bên kinh doanh biết số có thể còn thay đổi sau khi
    ngày đã "chốt" ban đầu).
+
+## 10. KẾT LUẬN + ĐÃ SỬA (bản 10.33, 29/10/2026) — SURPLUS vẫn đổi SAU khi
+ngày đã đóng; ETL trước đây "đóng băng" vĩnh viễn, giờ quét lại thêm
+
+**ĐÃ XÁC NHẬN bằng SQL thật** (tiếp nối mục 9) — người dùng chạy lại đúng
+câu tổng hợp SURPLUS/AMOUNT cho "ST 120 Hàng Trống" (đủ cả 4 mã kho
+`10011,20011,20012,20013`) ở 2 THỜI ĐIỂM CÁCH NHAU ĐÚNG 1 NGÀY (28/10 và
+29/10), CÙNG 1 điều kiện lọc (`TRAN_DATE='2026-10-28'`), trên CẢ 2 bên
+(trung tâm/local):
+- `SoDong` = 4,358 ở CẢ 4 lần đo (không đổi) — xác nhận không có giao
+  dịch mới phát sinh, không phải do thiếu/thừa dòng.
+- Local (120 Hàng Trống): `TongAmount` đổi từ 198,723,430.26 (đo 29/10, chỉ
+  lọc `10011`) → 201,937,176.31 (đo SAU ĐÓ, lọc đủ 4 mã kho — 3 mã còn lại
+  xác nhận 0 dòng nên không phải nguyên nhân) — **tăng 3,213,746đ dù
+  KHÔNG có giao dịch mới**. `TongSurplus` giảm tương ứng.
+- Trung tâm (HO): giữ NGUYÊN không đổi giữa 2 lần đo (202,120,757.23 cả 2
+  lần) — ngược hẳn với local.
+- Sau khi gộp đủ 4 mã kho, chênh lệch SURPLUS giữa HO/local tại THỜI ĐIỂM
+  ĐO CUỐI chỉ còn **183,581đ** (trước đó tưởng lệch 3,4 triệu do đo thiếu
+  3 mã kho phụ) — nhưng điều quan trọng hơn không phải con số chênh cuối
+  cùng, mà là **SURPLUS của 1 ngày ĐÃ QUA 1+ NGÀY vẫn đang tự thay đổi**.
+
+**NGUYÊN NHÂN GỐC (xác nhận qua đọc code `etl/lib/tableSyncEngine.js`)**:
+Job đồng bộ domain `doanhthu_chinhanh`(`_thanhvien`) dùng watermark theo
+NGÀY (`floorToDay`) — mỗi lượt chạy chỉ quét lại ĐÚNG ngày đang ở mốc
+watermark hiện tại (cố ý, từ bản 8.24, để không phải quét lại toàn bộ
+lịch sử mỗi lần chạy). Một khi watermark NHẢY SANG NGÀY MỚI (có dòng dữ
+liệu ngày mới xuất hiện), **ngày CŨ bị loại khỏi phạm vi quét mãi mãi** —
+dù `STRANS.SURPLUS` của ngày đó ở NGUỒN vẫn tiếp tục bị DSMART điều chỉnh
+sau đó (đã quan sát: vẫn đổi sau 1+ ngày, có thể do giá vốn hàng nhập
+được cập nhật muộn/trả hàng/điều chỉnh nội bộ — CHƯA xác định chính xác
+cơ chế DSMART, không cần biết để xử lý). Vì gốc (đồng bộ mỗi 15 phút) và
+Thành viên (đồng bộ mỗi 1-2 phút) "chốt" giá trị cuối cùng của 1 ngày ở
+2 THỜI ĐIỂM KHÁC NHAU (ngay trước lúc watermark của MỖI BÊN nhảy sang
+ngày mới, độc lập nhau) → 2 báo cáo lệch nhau ở đúng `laiGop`/Lãi gộp
+(phần SURPLUS), trong khi `doanhThu` (=`AMOUNT+SURPLUS`, tổng không đổi
+dù SURPLUS tách ra sao) khớp tuyệt đối — ĐÚNG KHỚP triệu chứng thật đã
+quan sát trên 2 PDF ban đầu (lệch 18,7 triệu Lãi gộp, Doanh thu/Giao dịch
+khớp tuyệt đối).
+
+**KHÔNG phải lỗi code báo cáo** (công thức VIEW 2 bên giống hệt nhau,
+mục 9 đã xác nhận) — là hệ quả của (a) DSMART tiếp tục điều chỉnh SURPLUS
+sau khi ngày đóng, kết hợp (b) kiến trúc watermark-theo-ngày "đóng băng"
+vĩnh viễn ngay khi qua ngày mới.
+
+**ĐÃ SỬA (bản 10.33)**: thêm cột `etl.SyncJobs.RescanLookbackDays` (mặc
+định 0 = hành vi cũ) — mỗi lượt chạy MỞ RỘNG biên dưới câu quét lùi thêm
+N ngày so với watermark (xem `tableSyncEngine.js:extractTable()`), KHÔNG
+lùi watermark lưu lại (vẫn tiến bình thường) — `upsertReportFacts()` là
+MERGE idempotent nên quét lại ngày cũ không tạo trùng/sai, chỉ "chốt lại"
+đúng giá trị SURPLUS mới nhất. Đã đặt `RescanLookbackDays=7` cho 2 job
+"Doanh thu chi nhánh - Live (DSMART16)" (gốc, `seedLdtdHcrcSync.js`) và
+"Doanh thu (TV) - <từng siêu thị>" (Thành viên, `seedThanhVienLiveSync.js`,
+cả 35 job) — KHÔNG áp dụng job "Lịch sử (DSMART16_EOM)" (dữ liệu tháng đã
+đóng từ lâu) hay domain `giaodich_chinhanh(_thanhvien)` (không có lãi gộp).
+Admin chỉnh được số ngày này qua trang "Đồng bộ" (etl-admin) bất kỳ lúc
+nào, không cần sửa code/deploy lại.
+
+**⚠️ LƯU Ý HIỆU NĂNG CHƯA KIỂM CHỨNG THỰC TẾ** — job Thành viên chạy MỖI
+1-2 PHÚT (gấp ~10-15 lần tần suất gốc), giờ mỗi lượt quét thêm 7 NGÀY dữ
+liệu thay vì 1 ngày — tăng đáng kể số dòng phải quét MỖI LẦN CHẠY trên
+CSDL LOCAL của từng siêu thị (35 siêu thị độc lập). CHƯA đo tải thật trên
+server nguồn — khuyến nghị triển khai THÍ ĐIỂM 1-2 siêu thị trước, theo
+dõi tải CSDL/log lỗi vài ngày, rồi mới bật rộng cho cả 35 siêu thị; nếu
+tải quá nặng, hạ `RescanLookbackDays` xuống thấp hơn (vd 2-3) ngay trên
+giao diện "Đồng bộ", không cần sửa code.
+
+**Việc còn lại (không bắt buộc)**: chưa xác định chính xác cơ chế/khoảng
+thời gian DSMART cần để SURPLUS "ổn định hẳn" (quan sát được: vẫn đổi sau
+1+ ngày, chưa rõ có tiếp tục đổi sau 7 ngày hay không) — 7 ngày là mốc
+ước lượng hợp lý ban đầu theo yêu cầu người dùng, có thể cần điều chỉnh
+lại sau khi quan sát thêm số liệu thật (so sánh lại Lãi gộp 2 báo cáo cho
+cùng 1 ngày, vài ngày sau khi bản 10.33 chạy đủ 1 chu kỳ 7 ngày).

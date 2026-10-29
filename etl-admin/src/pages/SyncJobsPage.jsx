@@ -18,7 +18,7 @@ const EMPTY_FORM = {
   dimensionColumns: [], measureColumns: [],
   useJoin: false, joinSchema: '', joinTable: '', joinType: 'LEFT',
   mainJoinColumn: '', lookupJoinColumn: '', lookupDimensionColumns: [],
-  customConnectorKey: '', keepHistory: false
+  customConnectorKey: '', keepHistory: false, rescanLookbackDays: 0
 };
 
 function toggleInList(list, value) {
@@ -84,6 +84,7 @@ export default function SyncJobsPage() {
     setEditForm({
       name: job.Name, cronExpression: job.CronExpression, targetDomain: job.TargetDomain,
       keepHistory: !!job.KeepHistory,
+      rescanLookbackDays: Number(job.RescanLookbackDays) || 0,
       dimensionColumns: JSON.parse(job.DimensionColumnsJson || '[]'),
       measureColumns: JSON.parse(job.MeasureColumnsJson || '[]')
     });
@@ -199,6 +200,7 @@ export default function SyncJobsPage() {
         dimensionColumns: JSON.parse(job.DimensionColumnsJson || '[]'),
         measureColumns: JSON.parse(job.MeasureColumnsJson || '[]'),
         keepHistory: !!job.KeepHistory,
+        rescanLookbackDays: Number(job.RescanLookbackDays) || 0,
         isActive: !job.IsActive
       });
       reload();
@@ -271,6 +273,7 @@ export default function SyncJobsPage() {
             dimensionColumns: JSON.parse(job.DimensionColumnsJson || '[]'),
             measureColumns: JSON.parse(job.MeasureColumnsJson || '[]'),
             keepHistory: !!job.KeepHistory,
+            rescanLookbackDays: Number(job.RescanLookbackDays) || 0,
             isActive: forceActive
           });
         } catch (err) {
@@ -331,6 +334,7 @@ export default function SyncJobsPage() {
       { key: 'TargetDomain', label: 'Domain' },
       { key: 'CronExpression', label: 'Lịch chạy' },
       { key: 'KeepHistory', label: 'Giữ lịch sử', render: (j) => (j.KeepHistory ? 'Có' : 'Không') },
+      { key: 'RescanLookbackDays', label: 'Quét lại (ngày)', render: (j) => (Number(j.RescanLookbackDays) || 0) || '—' },
       { key: 'IsActive', label: 'Trạng thái', render: (j) => (j.IsActive ? 'Bật' : 'Tắt') },
       {
         key: 'checkSchema', label: '', render: (j) => (
@@ -586,6 +590,20 @@ export default function SyncJobsPage() {
               <input type="checkbox" checked={form.keepHistory} onChange={(e) => setForm({ ...form, keepHistory: e.target.checked })} />
               Giữ lịch sử theo ngày (mỗi EventDate 1 dòng riêng, không ghi đè — bật cho domain cần so cùng kỳ năm trước)
             </label>
+            <label>
+              Quét lại thêm (số ngày gần nhất)
+              <input
+                type="number" min="0"
+                value={form.rescanLookbackDays}
+                onChange={(e) => setForm({ ...form, rescanLookbackDays: Math.max(0, Number(e.target.value) || 0) })}
+              />
+            </label>
+            <p className="hint">
+              0 (mặc định) = chỉ quét đúng ngày hiện tại (hành vi cũ). Đặt &gt; 0 (vd 7) nếu dữ
+              liệu nguồn vẫn còn bị điều chỉnh SAU KHI ngày đó đã "đóng" (vd giá vốn/lãi gộp
+              DSMART tính lại muộn) — mỗi lượt chạy sẽ quét lại thêm N ngày gần nhất để bắt kịp,
+              không chỉ đúng 1 ngày hiện tại.
+            </p>
             <button type="submit" disabled={creating}>{creating ? 'Đang tạo...' : 'Tạo job đồng bộ'}</button>
           </form>
 
@@ -651,6 +669,14 @@ export default function SyncJobsPage() {
               <label className="checkbox-row">
                 <input type="checkbox" checked={editForm.keepHistory} onChange={(e) => setEditForm({ ...editForm, keepHistory: e.target.checked })} />
                 Giữ lịch sử theo ngày
+              </label>
+              <label>
+                Quét lại thêm (số ngày gần nhất)
+                <input
+                  type="number" min="0"
+                  value={editForm.rescanLookbackDays}
+                  onChange={(e) => setEditForm({ ...editForm, rescanLookbackDays: Math.max(0, Number(e.target.value) || 0) })}
+                />
               </label>
 
               {editingJob.Type === 'table' && editColumns.length > 0 && (

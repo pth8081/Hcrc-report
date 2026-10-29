@@ -171,13 +171,15 @@ async function upsertSyncJob(pool, job) {
       .input('measureColumnsJson', sql.NVarChar(sql.MAX), measureColumnsJson)
       .input('targetDomain', sql.VarChar(50), job.targetDomain)
       .input('cronExpression', sql.VarChar(50), job.cronExpression)
+      .input('rescanLookbackDays', sql.Int, job.rescanLookbackDays || 0)
       .query(`
         UPDATE etl.SyncJobs SET
           Type = 'table', DataSourceId = @dataSourceId, SourceSchema = @sourceSchema, SourceTable = @sourceTable,
           KeyColumn = @keyColumn, DateColumn = @dateColumn, UpdatedAtColumn = @updatedAtColumn,
           DimensionColumnsJson = @dimensionColumnsJson, MeasureColumnsJson = @measureColumnsJson,
           JoinSchema = NULL, JoinTable = NULL, JoinType = NULL, MainJoinColumn = NULL, LookupJoinColumn = NULL,
-          TargetDomain = @targetDomain, CronExpression = @cronExpression, KeepHistory = 1, IsActive = 1
+          TargetDomain = @targetDomain, CronExpression = @cronExpression, KeepHistory = 1, IsActive = 1,
+          RescanLookbackDays = @rescanLookbackDays
         WHERE Id = @id
       `);
     return { id, created: false };
@@ -194,15 +196,16 @@ async function upsertSyncJob(pool, job) {
     .input('measureColumnsJson', sql.NVarChar(sql.MAX), measureColumnsJson)
     .input('targetDomain', sql.VarChar(50), job.targetDomain)
     .input('cronExpression', sql.VarChar(50), job.cronExpression)
+    .input('rescanLookbackDays', sql.Int, job.rescanLookbackDays || 0)
     .query(`
       INSERT INTO etl.SyncJobs (
         Name, Type, DataSourceId, SourceSchema, SourceTable, KeyColumn, DateColumn, UpdatedAtColumn,
-        DimensionColumnsJson, MeasureColumnsJson, TargetDomain, CronExpression, KeepHistory
+        DimensionColumnsJson, MeasureColumnsJson, TargetDomain, CronExpression, KeepHistory, RescanLookbackDays
       )
       OUTPUT INSERTED.Id
       VALUES (
         @name, 'table', @dataSourceId, @sourceSchema, @sourceTable, @keyColumn, @dateColumn, @updatedAtColumn,
-        @dimensionColumnsJson, @measureColumnsJson, @targetDomain, @cronExpression, 1
+        @dimensionColumnsJson, @measureColumnsJson, @targetDomain, @cronExpression, 1, @rescanLookbackDays
       )
     `);
   return { id: result.recordset[0].Id, created: true };
@@ -214,7 +217,16 @@ function buildJobsForStore(store, dataSourceId) {
       name: `Doanh thu (TV) - ${store.name}`, dataSourceId,
       sourceTable: DOANHTHU_VIEW, keyColumn: 'STK_ID', dateColumn: 'WORK_DATE',
       dimensionColumns: ['dienTich', 'chain'], measureColumns: ['doanhThu', 'laiGop'],
-      targetDomain: 'doanhthu_chinhanh_thanhvien', cronExpression: LIVE_CRON
+      targetDomain: 'doanhthu_chinhanh_thanhvien', cronExpression: LIVE_CRON,
+      // RescanLookbackDays=7 (bản 10.33, theo yêu cầu người dùng — phát
+      // hiện thật 28-29/10/2026: STRANS.SURPLUS/laiGop của 1 ngày ĐÃ ĐÓNG
+      // vẫn tiếp tục bị DSMART điều chỉnh, nhưng job trước đây chỉ quét
+      // đúng ngày watermark hiện tại nên "đóng băng" vĩnh viễn giá trị lần
+      // đầu — xem etl/lib/tableSyncEngine.js). CHỈ áp dụng domain
+      // doanhthu_chinhanh(_thanhvien) (có laiGop) — KHÔNG áp dụng
+      // giaodich_chinhanh_thanhvien bên dưới (chỉ đếm SoGiaoDich, không có
+      // lãi gộp, không cần quét lại).
+      rescanLookbackDays: 7
     },
     {
       name: `Giao dịch (TV) - ${store.name}`, dataSourceId,

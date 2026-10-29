@@ -14,6 +14,40 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.33 — SURPLUS/Lãi gộp vẫn đổi sau khi ngày đóng — job quét lại thêm 7 ngày
+
+**Thay đổi**: `etl-db/schema.sql` (cột mới `etl.SyncJobs.RescanLookbackDays`),
+`etl/lib/tableSyncEngine.js` (dùng cột mới khi dựng câu quét),
+`etl/routes/admin/syncJobs.js` + `etl-admin/src/pages/SyncJobsPage.jsx`
+(form Tạo/Sửa job có thêm field), `etl/scripts/seedLdtdHcrcSync.js` +
+`etl/scripts/seedThanhVienLiveSync.js` (đặt `RescanLookbackDays=7` cho
+job "Doanh thu" Live/Thành viên).
+
+**Các bước (THEO ĐÚNG THỨ TỰ)**:
+1. `git pull origin main`.
+2. Chạy lại `etl-db/schema.sql` trên CSDL ETL admin (thêm cột mới, an
+   toàn chạy lại nhiều lần — script có `IF COL_LENGTH(...) IS NULL`).
+3. Khởi động lại `etl` (pm2 restart) — áp dụng logic quét lại N ngày mới
+   (mặc định N=0 cho MỌI job hiện có — KHÔNG đổi hành vi cho tới bước 5).
+4. Build lại `etl-admin`, deploy — hiện field "Quét lại thêm (số ngày gần
+   nhất)" ở form Tạo job VÀ modal Sửa job.
+5. Chạy `node scripts/seedLdtdHcrcSync.js` (đặt N=7 cho job "Doanh thu
+   chi nhánh - Live") VÀ `node scripts/seedThanhVienLiveSync.js` (đặt N=7
+   cho cả 35 job "Doanh thu (TV) - <siêu thị>") trong thư mục `etl/` —
+   CẢ 2 SCRIPT ĐỀU IDEMPOTENT, an toàn chạy lại.
+
+**⚠️ Khuyến nghị triển khai THÍ ĐIỂM trước bước 5 cho Thành viên**: job
+Thành viên chạy mỗi 1-2 phút — quét thêm 7 ngày/lượt có thể tăng tải CSDL
+local từng siêu thị. Có thể sửa tay `seedThanhVienLiveSync.js` để test
+trên 1-2 siêu thị trước (hoặc chạy xong rồi hạ `RescanLookbackDays` qua
+giao diện "Đồng bộ" cho các siêu thị còn lại nếu thấy tải nặng, không cần
+sửa code/deploy lại — field này điều chỉnh được trực tiếp trên UI).
+
+**Kiểm tra**: "Đồng bộ" (etl-admin) → cột "Quét lại (ngày)" của job "Doanh
+thu chi nhánh - Live" và các job "Doanh thu (TV) - ..." hiện đúng `7`.
+Theo dõi vài ngày, so lại Lãi gộp 2 báo cáo LDTD gốc/Thành viên cùng 1
+ngày — mức lệch phải giảm dần qua các lần quét lại.
+
 ## 10.32 — Đồng bộ thêm Email từ HCRC Workspace
 
 **Thay đổi**: CHỈ `rp-server/lib/hcrcWorkspaceClient.js` +

@@ -170,17 +170,20 @@ router.post('/', requireMenuEdit('sync-jobs'), async (req, res, next) => {
       .input('targetDomain', sql.VarChar(50), b.targetDomain)
       .input('cronExpression', sql.VarChar(50), b.cronExpression || '*/15 * * * *')
       .input('keepHistory', sql.Bit, b.keepHistory ? 1 : 0)
+      .input('rescanLookbackDays', sql.Int, Number(b.rescanLookbackDays) || 0)
       .query(`
         INSERT INTO etl.SyncJobs (
           Name, Type, DataSourceId, SourceSchema, SourceTable, KeyColumn, DateColumn, UpdatedAtColumn,
           DimensionColumnsJson, MeasureColumnsJson, JoinSchema, JoinTable, JoinType, MainJoinColumn,
-          LookupJoinColumn, LookupDimensionColumnsJson, CustomConnectorKey, TargetDomain, CronExpression, KeepHistory
+          LookupJoinColumn, LookupDimensionColumnsJson, CustomConnectorKey, TargetDomain, CronExpression, KeepHistory,
+          RescanLookbackDays
         )
         OUTPUT INSERTED.Id
         VALUES (
           @name, @type, @dataSourceId, @sourceSchema, @sourceTable, @keyColumn, @dateColumn, @updatedAtColumn,
           @dimensionColumnsJson, @measureColumnsJson, @joinSchema, @joinTable, @joinType, @mainJoinColumn,
-          @lookupJoinColumn, @lookupDimensionColumnsJson, @customConnectorKey, @targetDomain, @cronExpression, @keepHistory
+          @lookupJoinColumn, @lookupDimensionColumnsJson, @customConnectorKey, @targetDomain, @cronExpression, @keepHistory,
+          @rescanLookbackDays
         )
       `);
     const id = result.recordset[0].Id;
@@ -235,11 +238,12 @@ router.put('/:id', requireMenuEdit('sync-jobs'), async (req, res, next) => {
       .input('dimensionColumnsJson', sql.NVarChar(sql.MAX), JSON.stringify(b.dimensionColumns || []))
       .input('measureColumnsJson', sql.NVarChar(sql.MAX), JSON.stringify(b.measureColumns || []))
       .input('keepHistory', sql.Bit, b.keepHistory ? 1 : 0)
+      .input('rescanLookbackDays', sql.Int, Number(b.rescanLookbackDays) || 0)
       .query(`
         UPDATE etl.SyncJobs
         SET Name = @name, CronExpression = @cronExpression, IsActive = @isActive, TargetDomain = @targetDomain,
             DimensionColumnsJson = @dimensionColumnsJson, MeasureColumnsJson = @measureColumnsJson,
-            KeepHistory = @keepHistory
+            KeepHistory = @keepHistory, RescanLookbackDays = @rescanLookbackDays
         WHERE Id = @id
       `);
     await rescheduleJob(parseInt(req.params.id, 10));
@@ -286,19 +290,20 @@ router.post('/:id/duplicate', requireMenuEdit('sync-jobs'), async (req, res, nex
       .input('cronExpression', sql.VarChar(50), src.CronExpression)
       .input('keepHistory', sql.Bit, src.KeepHistory)
       .input('branchCodeMapType', sql.VarChar(50), src.BranchCodeMapType)
+      .input('rescanLookbackDays', sql.Int, src.RescanLookbackDays)
       .query(`
         INSERT INTO etl.SyncJobs (
           Name, Type, DataSourceId, SourceSchema, SourceTable, KeyColumn, DateColumn, UpdatedAtColumn,
           DimensionColumnsJson, MeasureColumnsJson, JoinSchema, JoinTable, JoinType, MainJoinColumn,
           LookupJoinColumn, LookupDimensionColumnsJson, CustomConnectorKey, TargetDomain, CronExpression,
-          KeepHistory, BranchCodeMapType, IsActive
+          KeepHistory, BranchCodeMapType, RescanLookbackDays, IsActive
         )
         OUTPUT INSERTED.Id
         VALUES (
           @name, @type, @dataSourceId, @sourceSchema, @sourceTable, @keyColumn, @dateColumn, @updatedAtColumn,
           @dimensionColumnsJson, @measureColumnsJson, @joinSchema, @joinTable, @joinType, @mainJoinColumn,
           @lookupJoinColumn, @lookupDimensionColumnsJson, @customConnectorKey, @targetDomain, @cronExpression,
-          @keepHistory, @branchCodeMapType, 0
+          @keepHistory, @branchCodeMapType, @rescanLookbackDays, 0
         )
       `);
     const id = result.recordset[0].Id;

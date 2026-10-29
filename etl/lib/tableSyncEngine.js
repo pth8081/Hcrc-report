@@ -85,7 +85,26 @@ async function extractTable(connection, job, lastSyncedAt, pagination) {
     joinClause = `${joinType} JOIN ${q(joinSchema)}.${q(joinTable)} j ON m.${q(mainJoinCol)} = j.${q(lookupJoinCol)}`;
   }
 
-  const params = { lastSyncedAt: floorToDay(lastSyncedAt) };
+  // RescanLookbackDays (bản 10.33, theo yêu cầu người dùng) — MỞ RỘNG biên
+  // dưới của câu quét lùi thêm N ngày so với watermark hiện tại, để BẮT
+  // LẠI những điều chỉnh dữ liệu nguồn PHÁT SINH SAU khi 1 ngày đã "đóng"
+  // (watermark đã nhảy qua ngày mới) — ví dụ thật: STRANS.SURPLUS (lãi gộp
+  // từng dòng, domain doanhthu_chinhanh) vẫn tiếp tục bị DSMART điều chỉnh
+  // 1+ ngày SAU khi ngày đã đóng, nhưng hành vi watermark CŨ (chỉ quét
+  // đúng ngày hiện tại — xem floorToDay() ở trên) sẽ "đóng băng" vĩnh viễn
+  // giá trị đã quét lần đầu, không bao giờ bắt lại điều chỉnh về sau. CHỈ
+  // mở rộng PHẠM VI QUÉT (WHERE), KHÔNG lùi watermark LƯU LẠI (vẫn tiến
+  // bình thường theo updatedCol lớn nhất của dòng đã quét — xem
+  // jobs/runSync.js:runTableJob(), rawMaxUpdatedAt chỉ tăng). 0 (mặc định)
+  // = hành vi cũ, không đổi gì — chỉ job nào admin chủ động đặt > 0 mới bị
+  // ảnh hưởng. upsertReportFacts() là MERGE idempotent nên quét lại dòng
+  // đã có không tạo trùng/sai, chỉ tốn thêm thời gian quét N ngày/lượt.
+  const lookbackDays = Number(job.RescanLookbackDays) || 0;
+  const scanFloor = floorToDay(lastSyncedAt);
+  const scanFrom = lookbackDays > 0
+    ? new Date(scanFloor.getTime() - lookbackDays * 24 * 60 * 60 * 1000)
+    : scanFloor;
+  const params = { lastSyncedAt: scanFrom };
   let paginationClause = '';
   if (pagination) {
     paginationClause = adapter.paginate(p('offset'), p('limit'));

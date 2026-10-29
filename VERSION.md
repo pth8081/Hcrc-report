@@ -42,6 +42,54 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.33 — SỬA LỖI THẬT: SURPLUS (lãi gộp) vẫn đổi sau khi ngày đã đóng, ETL "đóng băng" vĩnh viễn giá trị cũ
+
+**Theo báo cáo người dùng + điều tra SQL thật** (2 PDF "Doanh thu cuối
+ngày LDTD" gốc/Thành viên 28/10/2026, lệch Lãi gộp ~18,7 triệu dù Doanh
+thu/Giao dịch khớp tuyệt đối — xem toàn bộ quá trình điều tra ở "giá vốn
+dsmart.md" mục 9-10): xác nhận bằng SQL thật trên CSDL trung tâm VÀ local
+của siêu thị "120 Hàng Trống" — `STRANS.SURPLUS` của ngày 28/10 **vẫn tiếp
+tục thay đổi** khi truy vấn lại 1 ngày sau (29/10), dù không có giao dịch
+mới (`COUNT(*)` không đổi). CSDL trung tâm thì GIỮ NGUYÊN không đổi.
+
+**Nguyên nhân**: job đồng bộ domain `doanhthu_chinhanh`(`_thanhvien`)
+dùng watermark THEO NGÀY — mỗi lượt chỉ quét lại ĐÚNG ngày đang ở mốc
+watermark hiện tại; khi watermark nhảy sang ngày mới, ngày CŨ bị loại
+khỏi phạm vi quét VĨNH VIỄN, dù SURPLUS nguồn vẫn còn đổi. Vì gốc (đồng
+bộ mỗi 15 phút) và Thành viên (mỗi 1-2 phút) "chốt" giá trị cuối cùng ở 2
+thời điểm khác nhau → 2 báo cáo lệch nhau đúng ở Lãi gộp, trong khi
+Doanh thu (`AMOUNT+SURPLUS`, tổng không đổi) khớp tuyệt đối — đúng khớp
+triệu chứng thật quan sát được. KHÔNG phải lỗi code báo cáo (công thức 2
+bên giống hệt nhau).
+
+**Sửa**: thêm cột `etl.SyncJobs.RescanLookbackDays` (mặc định 0, tương
+thích ngược) — mỗi lượt chạy MỞ RỘNG biên dưới câu quét lùi thêm N ngày
+so với watermark (`etl/lib/tableSyncEngine.js`), KHÔNG lùi watermark lưu
+lại — an toàn vì MERGE idempotent. Đặt `RescanLookbackDays=7` cho job
+"Doanh thu chi nhánh - Live" (gốc) và "Doanh thu (TV) - <từng siêu thị>"
+(Thành viên, cả 35 job) qua `seedLdtdHcrcSync.js`/`seedThanhVienLiveSync.js`.
+Admin chỉnh được số ngày này trực tiếp trên trang "Đồng bộ" (etl-admin),
+không cần sửa code/deploy lại.
+
+**⚠️ Rủi ro hiệu năng chưa kiểm chứng**: job Thành viên chạy mỗi 1-2 phút
+— quét thêm 7 ngày/lượt có thể tăng tải CSDL local từng siêu thị đáng kể.
+Khuyến nghị triển khai thí điểm 1-2 siêu thị, theo dõi tải trước khi bật
+rộng cho cả 35 siêu thị.
+
+**TRIỂN KHAI**: (1) chạy lại `rp-db`/`etl-db` schema update (cột mới, an
+toàn chạy lại) — thực chất chỉ cần chạy `etl-db/schema.sql` trên CSDL ETL
+admin. (2) Khởi động lại `etl` (pm2 restart) — áp dụng logic quét lại mới.
+(3) Build lại `etl-admin`, deploy — hiện field "Quét lại thêm (số ngày gần
+nhất)" trong form Tạo/Sửa job. (4) Chạy lại `node scripts/seedLdtdHcrcSync.js`
+VÀ `node scripts/seedThanhVienLiveSync.js` (thư mục `etl/`) để đặt
+`RescanLookbackDays=7` cho đúng các job liên quan (script idempotent).
+
+**Kiểm tra**: sau khi deploy + chạy đủ seed script, vào "Đồng bộ" (etl-admin)
+xem cột "Quét lại (ngày)" của job "Doanh thu chi nhánh - Live" VÀ các job
+"Doanh thu (TV) - ..." đều hiện `7`. Theo dõi vài ngày tới, so sánh lại
+Lãi gộp 2 báo cáo LDTD gốc/Thành viên cho cùng 1 ngày — mức lệch phải
+GIẢM DẦN qua các lần quét lại (không còn "đóng băng" vĩnh viễn như trước).
+
 ## 10.32 — Đồng bộ thêm Email từ HCRC Workspace
 
 **Theo yêu cầu người dùng**: sau khi được giải thích lý do trước đây
