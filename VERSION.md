@@ -42,6 +42,45 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.36 — SỬA LỖI THẬT: dropdown "Siêu thị" hiện mã Điểm trần khi chưa khai "Tên siêu thị"
+
+**Theo báo cáo người dùng**: "tại sao là có những siêu thị không hiện ra
+cái tên chính xác nhưng mà hiện ra cái mã siêu thị... Tôi tưởng phải dựa
+vào mã BU_ID và mã BU_ID đã match với... mã STK mới... và match cái tên
+theo cái mã ánh xạ STK tôi đã up vào phần ETL rồi đấy. Có phải bạn đang
+lấy từ đấy không?" — xác nhận qua câu hỏi làm rõ: lỗi xảy ra ở DROPDOWN
+BỘ LỌC "Siêu thị" (lúc chọn để lọc báo cáo).
+
+**Xác nhận**: hệ thống VẪN đọc đúng từ bảng "Ánh xạ Điểm - STK_ID"
+(`etl.DiemStkMapping`) như thiết kế — KHÔNG đọc sai nguồn. Nguyên nhân
+thật: `routes/reports.js` (nhánh `optionsSource.storeCatalog`) có fallback
+`info.tenSieuThi || maDiem` — khi 1 dòng ánh xạ có cột "Tên siêu thị" bị
+ĐỂ TRỐNG (cột này không bắt buộc khi tạo/sửa, xem `etl/routes/admin/diemStkMapping.js`),
+dropdown âm thầm hiện MÃ ĐIỂM TRẦN (vd "005") thay vì báo rõ là thiếu tên
+— trông như đang lấy sai dữ liệu, trong khi thực ra chỉ là THIẾU DỮ LIỆU
+ở đúng dòng đó. CÙNG lỗi (fallback âm thầm) phát hiện thêm ở 3 chỗ khác:
+cột "Siêu thị" trong dữ liệu báo cáo Mua hàng (`lib/purchaseOrderRunner.js`),
+trang tải lên ngưỡng tồn kho (`routes/stockAlertThresholdsUpload.js`), và
+trang "Phạm vi dữ liệu" (`routes/users.js`). Đáng chú ý: lỗi NÀY đã từng
+được sửa đúng kiểu này ở 2 CHỖ KHÁC từ bản 9.92
+(`lib/coreZeroStockRunner.js`/`lib/nganhHangBrgRunner.js`) nhưng CHƯA áp
+dụng đồng bộ cho 4 chỗ còn lại.
+
+**Sửa**: cả 4 chỗ đổi fallback thành `` `${maDiem} (chưa khai tên)` ``
+(mirror đúng cách đã làm ở `coreZeroStockRunner.js`/`nganhHangBrgRunner.js`)
+— hiện rõ đây là THIẾU DỮ LIỆU cần bổ sung ở "Ánh xạ Điểm - STK_ID", thay
+vì trông giống 1 giá trị hợp lệ gây hiểu nhầm.
+
+**Việc người dùng cần làm thêm**: sau khi deploy, mở trang "Ánh xạ Điểm -
+STK_ID" (etl-admin), tìm các dòng hiện `"<mã> (chưa khai tên)"` ở báo cáo
+→ bổ sung cột "Tên siêu thị" cho đúng dòng đó — đây là bước admin tự làm,
+không sửa được bằng code (hệ thống không tự "đoán" tên).
+
+**Kiểm tra**: mở bộ lọc "Siêu thị" ở bất kỳ báo cáo nào dùng
+`optionsSource.storeCatalog` (vd nhóm báo cáo Mua hàng) — dòng nào có Mã
+Điểm chưa khai tên PHẢI hiện rõ `"<mã> (chưa khai tên)"`, không còn hiện
+mã trần gây hiểu nhầm.
+
 ## 10.35 — Dán danh sách để tự chọn trong MỌI bộ lọc nhiều lựa chọn; sửa bộ lọc tải chậm
 
 **Theo yêu cầu người dùng**: "cho phép tôi có thể là chọn đồng multi chọn

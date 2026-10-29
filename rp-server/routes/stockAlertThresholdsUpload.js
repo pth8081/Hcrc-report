@@ -41,7 +41,10 @@ router.get('/', async (req, res, next) => {
     if (!context) return res.status(401).json({ error: 'Tài khoản không còn hoạt động' });
     const diemMapping = await loadDiemStkMapping();
     const stores = context.storeScope
-      ? context.storeScope.map(maDiem => ({ maDiem, tenSieuThi: diemMapping.get(maDiem)?.tenSieuThi || maDiem }))
+      // Chưa khai "Tên siêu thị" (bản 10.36, cùng lý do sửa ở
+      // routes/reports.js:optionsSource.storeCatalog) — ghi chú rõ thay
+      // vì hiện mã Điểm trần.
+      ? context.storeScope.map(maDiem => ({ maDiem, tenSieuThi: diemMapping.get(maDiem)?.tenSieuThi || `${maDiem} (chưa khai tên)` }))
       : null; // null = Toàn bộ (không giới hạn)
     res.json({ stores });
   } catch (err) { next(err); }

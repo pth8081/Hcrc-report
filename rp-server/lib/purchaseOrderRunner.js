@@ -297,9 +297,16 @@ async function runPurchaseOrderReport(definition, filterValues = {}, pagination 
       const maDiem = buIdLookup.get(buId);
       if (!maDiem) return null; // BU_ID chưa khai tường minh trong bảng Ánh xạ Điểm-STK_ID — loại khỏi báo cáo, xem chú thích đầu file
       const info = diemMapping.get(maDiem);
+      // Chưa khai "Tên siêu thị" cho mã Điểm này (bản 10.36, cùng lý do
+      // sửa ở routes/reports.js:optionsSource.storeCatalog) — VIEW nguồn
+      // (vw_DonDatHangChiNhanh) LUÔN để TenDiem = NULL có chủ đích (hệ
+      // thống ưu tiên tên trong bảng Ánh xạ Điểm-STK), nên
+      // `row.dimensions.TenDiem` ở đây gần như luôn rỗng khi info.tenSieuThi
+      // cũng rỗng — ghi chú rõ thay vì hiện giá trị rỗng/gây hiểu nhầm.
+      const tenDiem = info?.tenSieuThi || row.dimensions.TenDiem || `${maDiem} (chưa khai tên)`;
       return {
         ...row,
-        dimensions: { ...row.dimensions, MaDiem: maDiem, TenDiem: info?.tenSieuThi || row.dimensions.TenDiem }
+        dimensions: { ...row.dimensions, MaDiem: maDiem, TenDiem: tenDiem }
       };
     })
     .filter(Boolean)

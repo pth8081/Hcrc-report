@@ -60,7 +60,10 @@ router.get('/', async (req, res, next) => {
 router.get('/store-catalog', async (req, res, next) => {
   try {
     const diemMapping = await loadDiemStkMapping();
-    const list = [...diemMapping.entries()].map(([maDiem, info]) => ({ maDiem, tenSieuThi: info.tenSieuThi || maDiem }));
+    // Chưa khai "Tên siêu thị" (bản 10.36, cùng lý do sửa ở
+    // routes/reports.js:optionsSource.storeCatalog) — ghi chú rõ thay vì
+    // hiện mã Điểm trần.
+    const list = [...diemMapping.entries()].map(([maDiem, info]) => ({ maDiem, tenSieuThi: info.tenSieuThi || `${maDiem} (chưa khai tên)` }));
     list.sort((a, b) => a.tenSieuThi.localeCompare(b.tenSieuThi, 'vi'));
     res.json(list);
   } catch (err) { next(err); }

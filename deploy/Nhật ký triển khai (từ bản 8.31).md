@@ -14,6 +14,22 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.36 — Dropdown "Siêu thị" hiện rõ "(chưa khai tên)" thay vì mã trần
+
+**Thay đổi**: `rp-server/routes/reports.js`, `rp-server/lib/purchaseOrderRunner.js`,
+`rp-server/routes/stockAlertThresholdsUpload.js`, `rp-server/routes/users.js`
+— đổi fallback tên siêu thị thiếu. KHÔNG đổi CSDL/schema.
+
+**Các bước**: `git pull origin main` → khởi động lại `rp-server` (pm2
+restart). KHÔNG cần build lại frontend nào, KHÔNG cần động tới `etl`/`api-server`.
+
+**Việc làm thêm (không phải bước deploy, là việc admin)**: mở "Ánh xạ
+Điểm - STK_ID" (etl-admin), bổ sung cột "Tên siêu thị" cho các dòng đang
+hiện `"<mã> (chưa khai tên)"` ở báo cáo.
+
+**Kiểm tra**: mở bộ lọc "Siêu thị" ở báo cáo nhóm Mua hàng — dòng thiếu
+tên PHẢI hiện `"<mã> (chưa khai tên)"`, không còn mã trần.
+
 ## 10.35 — Dán danh sách để tự chọn + sửa bộ lọc tải chậm
 
 **Thay đổi**: `rp-user/src/components/SearchableSelect.jsx` (dùng CHUNG

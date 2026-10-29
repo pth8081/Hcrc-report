@@ -208,8 +208,15 @@ router.get('/:reportId/filter-options/:field', async (req, res, next) => {
     // chuẩn đang hiển thị trên toàn hệ thống.
     if (filterDef.optionsSource.storeCatalog) {
       const diemMapping = await loadDiemStkMapping();
+      // Chưa khai "Tên siêu thị" cho mã Điểm này trong "Ánh xạ Điểm -
+      // STK_ID" (bản 10.36, theo báo cáo người dùng — dropdown "Siêu thị"
+      // hiện mã Điểm trần thay vì tên, TƯỞNG là đọc sai nguồn nhưng thực
+      // ra VẪN đọc đúng bảng ánh xạ, chỉ là dòng đó bị để trống cột "Tên
+      // siêu thị") — KHÔNG bịa tên, ghi chú rõ lý do thay vì hiện trần mã
+      // Điểm khó hiểu (mirror đúng lib/coreZeroStockRunner.js/
+      // lib/nganhHangBrgRunner.js đã sửa cùng kiểu này từ bản 9.92).
       const list = [...diemMapping.entries()]
-        .map(([maDiem, info]) => ({ value: maDiem, label: info.tenSieuThi || maDiem }))
+        .map(([maDiem, info]) => ({ value: maDiem, label: info.tenSieuThi || `${maDiem} (chưa khai tên)` }))
         .sort((a, b) => a.label.localeCompare(b.label, 'vi'));
       return res.json(list);
     }
