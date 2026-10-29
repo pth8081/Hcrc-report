@@ -42,6 +42,56 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.37 — SỬA LỖI THẬT: "Tên hàng"/bộ lọc "Mã hàng" hiện mã trần; thêm quy ước bắt buộc về nguồn tên hiển thị
+
+**Theo yêu cầu người dùng**: "Mã hàng thì tôi hiểu là bạn có thể là lọc
+được, bạn có thể tìm kiếm. Nhưng cái ngành hàng ấy, thì tôi đã có import
+mã ngành hàng trong ETL rồi... lấy tên mã hàng cũng có trong cấu hình ETL
+rồi. Sao bạn không lấy từ đấy cho nhanh nhỉ?... Tôi nghĩ bạn phải đưa vào
+một cái quy tắc ấy."
+
+**Xác nhận**: KHÔNG có bảng "danh mục Mã hàng"/"danh mục Ngành hàng"
+riêng nào trong ETL mà hệ thống bỏ qua không dùng — dữ liệu đi qua ĐÚNG 1
+đường: VIEW nguồn `vw_DonDatHangChiNhanh` (DSMART16). Kiểm tra lại VIEW
+này phát hiện lỗi THẬT: cột `TenHang` (tên mặt hàng) bị để CỨNG `NULL`
+("cần JOIN bảng danh mục hàng hoá nếu muốn hiện tên — chưa có") — TRONG
+KHI `dbo.SKU_DEF` ĐÃ ĐƯỢC JOIN SẴN từ bản 9.95 (để lấy `SKU_CODE`), chỉ
+thiếu CHỌN THÊM đúng cột tên (`FULL_NAME_U`, đã xác nhận là cột tên thật
+từ bản 8.9 — xem "giá vốn dsmart.md"). Đúng như người dùng nói — dữ liệu
+"đã có sẵn", chỉ là VIEW chưa lấy ra.
+
+**Ngành hàng** (`TenNganhHang`) thì NGƯỢC LẠI — đã đúng từ bản 10.2 (JOIN
+`DEPTLIST` qua `SKU_DEF.DEPT_ID`, không phải NULL) — nếu bộ lọc "Ngành
+hàng" vẫn trống/thiếu tên, nhiều khả năng do CHƯA chạy đủ 2 bước triển
+khai bắt buộc của bản 10.2 (tick thêm Dimension `MaNganhHang`/`TenNganhHang`
++ resync), không phải lỗi mới.
+
+**Sửa**: `deploy/Thiết lập VIEW Đơn đặt hàng-Nhập hàng-So sánh (DSMART16
+trung tâm).sql` + `deploy/Thiết lập VIEW Đơn đặt hàng Lịch sử (DSMART16_EOM).sql`
+— đổi `NULL AS TenHang` thành `k.FULL_NAME_U AS TenHang` (cả VIEW Live lẫn
+2 chỗ ở VIEW Lịch sử — tạo lần đầu + stored procedure rebuild hàng tháng).
+KHÔNG cần sửa code `rp-server` (`TenHang`/bộ lọc "Mã hàng" đã khai đúng
+field từ trước, chỉ thiếu dữ liệu nguồn).
+
+**Thêm quy ước bắt buộc mới vào `CLAUDE.md`** (theo yêu cầu người dùng —
+"đưa vào 1 quy tắc"): mọi VIEW nguồn báo cáo MỚI có cột tên đi kèm mã
+(siêu thị/mã hàng/ngành hàng/NCC...) PHẢI JOIN đúng bảng danh mục thật
+và CHỌN đúng cột tên Unicode (`_U`) — liệt kê rõ bảng/cột chuẩn cho từng
+loại (Siêu thị → `etl.DiemStkMapping`, Mã hàng → `SKU_DEF.FULL_NAME_U`,
+Ngành hàng → `DEPTLIST.DEPT_NAME_U`, NCC → `SUPPLIER.SUPP_NAME_U`) —
+kiểm tra bảng danh mục đã JOIN SẴN cho cột khác chưa trước khi JOIN
+thêm/tạo bảng mới.
+
+**TRIỂN KHAI**: chạy lại CẢ 2 file VIEW SQL trên DSMART16 (trung tâm +
+EOM) → chạy `node scripts/resyncDonDatHangWatermark.js --confirm` (thư
+mục `etl/`) để backfill tên hàng cho dữ liệu lịch sử đã đồng bộ trước đó.
+Không cần deploy code/build lại frontend nào.
+
+**Kiểm tra**: mở báo cáo "Đơn đặt hàng"/"Đơn nhập hàng" (hoặc bất kỳ báo
+cáo nào trong 6 báo cáo Mua hàng có cột "Tên hàng") → cột "Tên hàng" PHẢI
+hiện tên thật (không còn trống); bộ lọc "Mã hàng" PHẢI hiện tên thật kèm
+mã trong dropdown (không còn chỉ mã).
+
 ## 10.36 — SỬA LỖI THẬT: dropdown "Siêu thị" hiện mã Điểm trần khi chưa khai "Tên siêu thị"
 
 **Theo báo cáo người dùng**: "tại sao là có những siêu thị không hiện ra

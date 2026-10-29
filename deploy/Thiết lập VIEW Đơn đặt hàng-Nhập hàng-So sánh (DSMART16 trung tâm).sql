@@ -176,7 +176,7 @@ SELECT
     s.SUPP_NAME_U                AS TenNCC,          -- SUPP_NAME_U (Unicode, đã xác nhận 12/10/2026 qua INFORMATION_SCHEMA.COLUMNS) — SUPP_NAME (không _U) lỗi font
     m.STAFF_ID                  AS NguoiDat,
     m.SKU_ID                    AS MaHang,
-    NULL                        AS TenHang,          -- cần JOIN bảng danh mục hàng hoá nếu muốn hiện tên (chưa có, hiện mã)
+    k.FULL_NAME_U                AS TenHang,         -- SỬA bản 10.37 — trước là NULL ("cần JOIN bảng danh mục hàng hoá"), SKU_DEF ĐÃ JOIN SẴN từ bản 9.95 (chỉ thiếu chọn đúng cột FULL_NAME_U — tên thật, Unicode, xem "giá vốn dsmart.md" mục 5 bản 8.9)
     k.SKU_CODE                   AS MaHangHienThi,   -- THÊM bản 9.95 — mã hàng HIỂN THỊ (khớp domain banhang_sku/tonkho_sku), KHÁC MaHang (SKU_ID thô)
     k.DEPT_ID                    AS MaNganhHang,     -- THÊM bản 10.2
     dl.DEPT_NAME_U                AS TenNganhHang,   -- THÊM bản 10.2 — Unicode, KHÔNG dùng DEPT_NAME (lỗi font)

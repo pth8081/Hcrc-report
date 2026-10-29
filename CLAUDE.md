@@ -346,3 +346,45 @@ Lưu ý:
 trên mobile) ở bất kỳ modal MỚI nào làm thêm sau này — xây 1 lần, dùng lại
 cho mọi modal của cả 3 app, không cần nhớ lại từng CSS quirk theo từng
 trình duyệt/WebView.
+
+## Tên hiển thị (siêu thị/mã hàng/ngành hàng/NCC...) PHẢI lấy từ đúng bảng danh mục nguồn — KHÔNG để NULL/mã trần
+
+**Theo yêu cầu người dùng (bản 10.37, phát hiện lỗi thật — VIEW
+`vw_DonDatHangChiNhanh` đã JOIN SẴN `dbo.SKU_DEF` từ bản 9.95 để lấy
+`SKU_CODE`, nhưng cột `TenHang` vẫn để cứng `NULL` thay vì chọn luôn
+`SKU_DEF.FULL_NAME_U` — ĐÃ CÓ SẴN trong bảng vừa JOIN, chỉ thiếu 1 dòng
+SELECT. "Tên hiện mã trần" KHÔNG phải do tầng báo cáo đọc sai nguồn —
+luôn do VIEW nguồn chưa JOIN/CHƯA CHỌN đúng cột tên từ bảng danh mục
+thật, dù bảng đó NHIỀU KHI ĐÃ JOIN SẴN cho mục đích khác).
+
+Khi viết/sửa VIEW nguồn (trên DSmart16) cho BẤT KỲ domain báo cáo mới
+nào có cột hiển thị TÊN đi kèm MÃ (siêu thị, mã hàng, ngành hàng, nhà
+cung cấp, kho...), PHẢI JOIN đúng bảng danh mục THẬT của DSMART và CHỌN
+đúng cột tên Unicode (hậu tố `_U`, vd `FULL_NAME_U`/`DEPT_NAME_U`/
+`SUPP_NAME_U` — cột KHÔNG `_U` thường lỗi font, xem các VIEW đã có) —
+KHÔNG để NULL hay "tính sau ở tầng ứng dụng", theo đúng bảng tương ứng
+đã xác nhận trong dự án:
+- Siêu thị → bảng `etl.DiemStkMapping` ("Ánh xạ Điểm - STK_ID", quản lý
+  qua etl-admin) — KHÔNG đọc tên thẳng từ VIEW/STOCK (mỗi mã kho có thể
+  đổi qua các kỳ, chỉ bảng ánh xạ này biết tên CHUẨN hiện tại — xem
+  `rp-server/lib/diemStkMapping.js`). Thiếu tên ở ĐÚNG 1 dòng ánh xạ
+  (admin để trống "Tên siêu thị") → hiện rõ `"<mã> (chưa khai tên)"`
+  (bản 10.36), KHÔNG hiện mã trần gây hiểu nhầm là lỗi đọc sai nguồn.
+- Mã hàng → `dbo.SKU_DEF.FULL_NAME_U` (JOIN theo `SKU_ID`).
+- Ngành hàng → `dbo.DEPTLIST.DEPT_NAME_U` (JOIN theo `DEPT_ID`, thường
+  qua `SKU_DEF.DEPT_ID` vì `DEPT_ID` không có sẵn trực tiếp ở bảng giao
+  dịch).
+- Nhà cung cấp → `dbo.SUPPLIER.SUPP_NAME_U` (JOIN theo `SUPP_ID`).
+
+Trước khi thêm 1 cột "Mã X"/"Tên X" mới vào VIEW, kiểm tra xem bảng danh
+mục tương ứng ĐÃ JOIN SẴN trong VIEW đó chưa (rất có thể đã JOIN cho 1
+cột KHÁC, như trường hợp `SKU_DEF` ở trên) — nếu đã JOIN, chỉ cần CHỌN
+THÊM đúng cột tên, không JOIN lại/không cần bảng mới. Sau khi sửa VIEW,
+LUÔN cần chạy lại script resync đầy đủ (đổi `UpdatedAtColumn`/watermark
+về EPOCH cho đúng domain, vd `resyncDonDatHangWatermark.js --confirm`)
+để dữ liệu LỊCH SỬ đã đồng bộ trước đó cũng được backfill tên mới — sửa
+VIEW không tự cập nhật lại dữ liệu CŨ đã nằm trong `dwh.ReportFacts`.
+
+**Lý do**: tránh lặp lại đúng lỗi thật đã gặp (tưởng là lỗi code đọc sai
+nguồn, nhưng thực ra là VIEW nguồn bỏ sót 1 cột tên dù bảng danh mục đã
+JOIN sẵn) ở bất kỳ domain/báo cáo MỚI nào làm thêm sau này.

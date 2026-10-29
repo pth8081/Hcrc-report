@@ -261,7 +261,7 @@ SELECT
     s.SUPP_NAME_U                AS TenNCC,          -- SUPP_NAME_U (Unicode, xác nhận 12/10/2026) — SUPP_NAME (không _U) lỗi font
     m.STAFF_ID                  AS NguoiDat,
     m.SKU_ID                    AS MaHang,
-    NULL                        AS TenHang,          -- cần JOIN bảng danh mục hàng hoá nếu muốn hiện tên (chưa có, hiện mã)
+    k.FULL_NAME_U                AS TenHang,         -- SỬA bản 10.37 — trước NULL, SKU_DEF đã JOIN sẵn từ bản 9.95 (chỉ thiếu chọn cột)
     m.UNIT_SYMB                 AS DVT,
     m.STATUS                    AS TrangThai,
     CASE m.STATUS
@@ -532,6 +532,18 @@ theo đúng mã này.
 | So sánh giá trị đặt–nhập theo NCC | `bc-so-sanh-gia-tri-ncc` | `aggregateBySupplier: true` | Mã/Tên NCC, Tổng giá trị đặt (SUM dòng 130/330), Tổng giá trị nhập (SUM dòng 133/333), Chênh lệch giá trị, Tỷ lệ giao hàng (%) — **1 dòng = 1 NCC** (theo mặc định gộp TOÀN BỘ siêu thị, hoặc CHỈ (các) siêu thị đã chọn ở bộ lọc "Siêu thị"), KHÔNG có bộ lọc Trạng thái (gộp nhiều đơn trạng thái khác nhau, lọc theo trạng thái ở cấp này không có ý nghĩa). |
 
 **Bản 9.13/9.14 — bộ lọc "Siêu thị"** (`field: 'maDiem'`, `optionsSource.storeCatalog`, xem `SIEU_THI_FILTER` trong `seedPurchaseOrderReports.js`): KHÔNG chọn gì = tất cả siêu thị (hành vi mặc định từ trước), chọn 1/nhiều siêu thị = CHỈ lấy đúng (các) siêu thị đó. Bản 9.13 ban đầu chỉ gắn cho báo cáo "So sánh giá trị đặt–nhập theo NCC"; bản 9.14 mở rộng ra CẢ 6 báo cáo theo yêu cầu người dùng — cùng cơ chế áp dụng cho tất cả.
+
+**Bản 10.37 — SỬA LỖI THẬT: cột "Tên hàng"/bộ lọc "Mã hàng" hiện mã trần
+thay vì tên** (theo báo cáo người dùng — "Mã hàng thì tôi hiểu là bạn có
+thể lọc được... lấy tên mã hàng cũng có trong cấu hình ETL rồi. Sao bạn
+không lấy từ đấy?"): VIEW nguồn (`dbo.SKU_DEF k` đã JOIN SẴN từ bản 9.95
+để lấy `k.SKU_CODE`) nhưng cột `TenHang` vẫn để cứng `NULL` — ĐÃ SỬA
+thành `k.FULL_NAME_U` (tên thật, Unicode — xem "giá vốn dsmart.md" mục 5
+bản 8.9, đã xác nhận bằng SQL thật trước đó cho mục đích khác). KHÔNG cần
+sửa code `rp-server` (cột `TenHang`/`MA_HANG_FILTER.optionsSource.labelField`
+đã khai đúng từ trước, chỉ thiếu dữ liệu nguồn) — CHỈ cần sửa VIEW + chạy
+lại `node scripts/resyncDonDatHangWatermark.js --confirm` (thư mục `etl/`)
+để backfill tên cho dữ liệu LỊCH SỬ đã đồng bộ trước đó.
 
 **Bản 10.31 — bộ lọc "Mã hàng"** (`field: 'maHang'`, `optionsSource.domain/
 valueField/labelField` — mirror đúng `NCC_FILTER`/`NGANH_HANG_FILTER`,

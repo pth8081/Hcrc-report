@@ -154,7 +154,7 @@ SELECT
     s.SUPP_NAME_U                AS TenNCC,
     d.STAFF_ID                  AS NguoiDat,
     d.SKU_ID                    AS MaHang,
-    NULL                        AS TenHang,
+    k.FULL_NAME_U                AS TenHang,         -- SỬA bản 10.37 — trước là NULL, SKU_DEF đã JOIN sẵn từ bản 9.95
     k.SKU_CODE                   AS MaHangHienThi,   -- THÊM bản 9.95
     k.DEPT_ID                    AS MaNganhHang,     -- THÊM bản 10.2
     dl.DEPT_NAME_U                AS TenNganhHang,   -- THÊM bản 10.2
@@ -220,7 +220,7 @@ BEGIN
         s.SUPP_NAME_U                AS TenNCC,
         d.STAFF_ID                  AS NguoiDat,
         d.SKU_ID                    AS MaHang,
-        NULL                        AS TenHang,
+        k.FULL_NAME_U                AS TenHang,         -- SỬA bản 10.37 — trước là NULL, SKU_DEF đã JOIN sẵn từ bản 9.95
         k.SKU_CODE                   AS MaHangHienThi,   -- THÊM bản 9.95
         k.DEPT_ID                    AS MaNganhHang,     -- SỬA bản 10.24 — thiếu từ bản 10.2, bổ sung lại cho khớp VIEW Live
         dl.DEPT_NAME_U                AS TenNganhHang,   -- SỬA bản 10.24 — thiếu từ bản 10.2, bổ sung lại cho khớp VIEW Live

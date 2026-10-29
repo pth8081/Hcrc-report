@@ -14,6 +14,27 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.37 — "Tên hàng"/bộ lọc "Mã hàng" hiện tên thật thay vì mã trần
+
+**Thay đổi**: CHỈ 2 file VIEW SQL (chạy tay trên DSMART16, KHÔNG phải
+code deploy) — `deploy/Thiết lập VIEW Đơn đặt hàng-Nhập hàng-So sánh
+(DSMART16 trung tâm).sql` và `deploy/Thiết lập VIEW Đơn đặt hàng Lịch sử
+(DSMART16_EOM).sql`. KHÔNG đổi code `rp-server`/`rp-user`.
+
+**Các bước**:
+1. Chạy lại `deploy/Thiết lập VIEW Đơn đặt hàng-Nhập hàng-So sánh
+   (DSMART16 trung tâm).sql` trên DSMART16.
+2. Chạy lại `deploy/Thiết lập VIEW Đơn đặt hàng Lịch sử (DSMART16_EOM).sql`
+   trên DSMART16_EOM.
+3. Chạy `node scripts/resyncDonDatHangWatermark.js --confirm` (thư mục
+   `etl/`) để backfill "Tên hàng" cho dữ liệu LỊCH SỬ đã đồng bộ trước đó
+   (sửa VIEW không tự cập nhật dữ liệu cũ đã nằm trong `dwh.ReportFacts`).
+
+Không cần restart `rp-server`/build lại frontend nào.
+
+**Kiểm tra**: mở 1 trong 6 báo cáo Mua hàng có cột "Tên hàng" → cột này
+PHẢI hiện tên thật; bộ lọc "Mã hàng" PHẢI hiện tên kèm mã trong dropdown.
+
 ## 10.36 — Dropdown "Siêu thị" hiện rõ "(chưa khai tên)" thay vì mã trần
 
 **Thay đổi**: `rp-server/routes/reports.js`, `rp-server/lib/purchaseOrderRunner.js`,
