@@ -14,6 +14,26 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.34 — Rút chu kỳ đồng bộ gốc xuống 2 phút — lệch Lãi gộp NGAY TRONG NGÀY
+
+**Thay đổi**: CHỈ `etl/scripts/seedLdtdHcrcSync.js` (cronExpression của
+job "Doanh thu chi nhánh - Live" đổi từ 15 phút xuống 2 phút). KHÔNG đổi
+CSDL/schema, KHÔNG đổi `etl-admin`/code chạy job.
+
+**Các bước**: `git pull origin main` → khởi động lại `etl` (pm2 restart)
+→ chạy lại `node scripts/seedLdtdHcrcSync.js` (thư mục `etl/`, idempotent)
+để áp dụng lịch chạy mới cho job này.
+
+**⚠️ Theo dõi sau deploy**: job này đọc CSDL TRUNG TÂM (phục vụ tất cả
+siêu thị) — tần suất tăng gấp 7.5 lần, CHƯA đo tải thật. Theo dõi log
+lỗi/hiệu năng vài ngày đầu; nếu CSDL trung tâm bị chậm/nghẽn, hạ lại lịch
+chạy qua giao diện "Đồng bộ" (etl-admin) ngay, không cần sửa code.
+
+**Kiểm tra**: "Đồng bộ" → job "Doanh thu chi nhánh - Live (DSMART16)" cột
+"Lịch chạy" hiện `*/2 * * * *`. Theo dõi báo cáo cuối ngày vài hôm tới —
+Lãi gộp gốc/Thành viên lúc xuất báo cáo (không chỉ hôm sau) phải khớp
+nhau sát hơn hẳn so với trước.
+
 ## 10.33 — SURPLUS/Lãi gộp vẫn đổi sau khi ngày đóng — job quét lại thêm 7 ngày
 
 **Thay đổi**: `etl-db/schema.sql` (cột mới `etl.SyncJobs.RescanLookbackDays`),

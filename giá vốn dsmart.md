@@ -435,6 +435,18 @@ qua ngày mới mới lệch. Hướng sửa `RescanLookbackDays` (bản 10.33) 
 lý đúng trường hợp này (quét lại nhiều lần trong 7 ngày giúp SURPLUS dần
 "đuổi kịp" giá trị cuối), không cần sửa thêm.
 
+**ĐÃ SỬA THÊM (bản 10.34)** — bản 10.33 (quét lại 7 ngày) KHÔNG xử lý
+đúng trường hợp lệch NGAY TRONG NGÀY ở trên (bản 10.33 chỉ sửa việc "ngày
+ĐÃ ĐÓNG bị đóng băng vĩnh viễn" — ngày HIỆN TẠI vốn đã được quét lại toàn
+bộ mỗi lần chạy từ trước, không đổi gì thêm). Nguyên nhân riêng của lệch
+trong ngày: job "Doanh thu chi nhánh - Live" (gốc) đồng bộ mỗi 15 PHÚT,
+Thành viên mỗi 2 PHÚT — 2 bên "chụp" SURPLUS ở 2 thời điểm cách nhau tới
+15 phút trong lúc nó còn đang biến động, đúng lúc báo cáo cuối ngày xuất
+ra (vd 22:30) có thể rơi vào khoảng gốc vừa "lỡ" 1 lần chụp. Đã rút
+`cronExpression` của job gốc xuống `*/2 * * * *` (khớp Thành viên) — xem
+`seedLdtdHcrcSync.js`. CHƯA đo tải thật trên CSDL trung tâm (phục vụ tất
+cả siêu thị cùng lúc) sau khi tăng tần suất gấp 7.5 lần — cần theo dõi.
+
 **Đã xác nhận: "Hàng hỏng huỷ" (TRANS_CODE `318`) ĐÃ LOẠI TRỪ KHỎI "Doanh
 thu cuối ngày"** — người dùng hỏi lại để chắc chắn. VIEW
 `V_HCRC_DOANHTHU_CHINHANH` (mục 8) có `WHERE d.TRANS_CODE IN

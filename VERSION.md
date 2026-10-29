@@ -42,6 +42,53 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.34 — SỬA LỖI THẬT: rút ngắn chu kỳ đồng bộ gốc xuống 2 phút — Lãi gộp lệch NGAY TRONG NGÀY, không cần đợi qua hôm sau
+
+**Theo báo cáo người dùng**: "Doanh thu cuối ngày ngày hôm qua, lúc 22:30,
+thì lãi gộp giữa HO và thành viên đã bị lệch nhau rồi, mặc dù doanh thu
+giống hệt nhau... Vì báo cáo cuối ngày đã lệch về lãi gộp giữa HO và
+thành viên rồi đấy. Không đợi ngày hôm sau." — bản 10.33 (quét lại 7
+ngày) KHÔNG xử lý đúng trường hợp này (bản 10.33 chỉ sửa việc "ngày ĐÃ
+ĐÓNG bị đóng băng vĩnh viễn" — ngày HIỆN TẠI vốn đã được quét lại toàn
+bộ mỗi lần chạy từ trước, bản 10.33 không đổi gì thêm ở điểm này).
+
+**Nguyên nhân THẬT của lệch trong ngày**: job "Doanh thu chi nhánh - Live"
+(gốc, đọc CSDL trung tâm) đồng bộ mỗi **15 PHÚT**, trong khi job Thành
+viên đồng bộ mỗi **2 PHÚT** (`LIVE_CRON` ở `seedThanhVienLiveSync.js`).
+Vì `STRANS.SURPLUS` biến động LIÊN TỤC trong ngày (xác nhận ở bản 10.33),
+2 bên "chụp" giá trị ở 2 THỜI ĐIỂM CÁCH NHAU TỚI 15 PHÚT — đúng lúc báo
+cáo cuối ngày xuất ra (vd 22:30) có thể rơi vào khoảng gốc vừa "lỡ" 1 lần
+chụp so với Thành viên, ra 2 số Lãi gộp khác nhau NGAY TRONG NGÀY.
+
+**Đã xác nhận riêng**: "Hàng hỏng huỷ" (TRANS_CODE 318) không liên quan
+— đã loại trừ HOÀN TOÀN khỏi "Doanh thu cuối ngày" ngay từ câu `WHERE`
+của VIEW (chỉ chọn đúng 5 mã 211/221/232/212/222), KHÔNG phụ thuộc thời
+điểm quét — "quét sớm hơn" không giúp gì cho việc này vì nó đã bị loại từ
+đầu rồi.
+
+**Sửa**: rút ngắn `cronExpression` của job "Doanh thu chi nhánh - Live
+(DSMART16)" (gốc, `seedLdtdHcrcSync.js`) từ `*/15 * * * *` xuống
+`*/2 * * * *` — khớp đúng chu kỳ Thành viên, giảm khoảng lệch thời điểm
+chụp tối đa từ ~15 phút xuống còn ~2 phút. KHÔNG đổi job "Giao dịch chi
+nhánh - Live" (không có Lãi gộp, không cần).
+
+**⚠️ Rủi ro hiệu năng chưa kiểm chứng**: job gốc đọc CSDL TRUNG TÂM (phục
+vụ TẤT CẢ siêu thị cùng lúc, khác Thành viên mỗi job chỉ tải 1 server nhỏ
+riêng của 1 siêu thị) — tăng tần suất gấp 7.5 lần có thể tăng tải server
+trung tâm đáng kể hơn. Theo dõi log/hiệu năng sau khi deploy; có thể hạ
+lại qua giao diện "Đồng bộ" (etl-admin) bất kỳ lúc nào, không cần sửa
+code/deploy lại.
+
+**TRIỂN KHAI**: `git pull origin main` → khởi động lại `etl` (pm2 restart,
+KHÔNG đổi gì tới khi chạy bước sau) → chạy lại
+`node scripts/seedLdtdHcrcSync.js` (thư mục `etl/`, idempotent) để áp
+dụng lịch chạy 2 phút mới cho job "Doanh thu chi nhánh - Live".
+
+**Kiểm tra**: "Đồng bộ" (etl-admin) → job "Doanh thu chi nhánh - Live
+(DSMART16)" cột "Lịch chạy" hiện `*/2 * * * *`. Theo dõi báo cáo cuối
+ngày vài hôm tới — mức lệch Lãi gộp giữa gốc/Thành viên LÚC XUẤT BÁO CÁO
+(không chỉ hôm sau) phải giảm rõ rệt so với trước.
+
 ## 10.33 — SỬA LỖI THẬT: SURPLUS (lãi gộp) vẫn đổi sau khi ngày đã đóng, ETL "đóng băng" vĩnh viễn giá trị cũ
 
 **Theo báo cáo người dùng + điều tra SQL thật** (2 PDF "Doanh thu cuối

@@ -211,7 +211,23 @@ async function main() {
       name: 'Doanh thu chi nhánh - Live (DSMART16)', dataSourceId: liveId, sourceName: config.live.name,
       sourceTable: DOANHTHU_VIEW, keyColumn: 'STK_ID', dateColumn: 'WORK_DATE',
       dimensionColumns: ['dienTich', 'chain'], measureColumns: ['doanhThu', 'laiGop'],
-      targetDomain: 'doanhthu_chinhanh', cronExpression: '*/15 * * * *',
+      targetDomain: 'doanhthu_chinhanh',
+      // cronExpression RÚT XUỐNG 2 phút (bản 10.34, theo yêu cầu người
+      // dùng — phát hiện thật 29/10/2026: Lãi gộp gốc/Thành viên ĐÃ lệch
+      // nhau NGAY LÚC 22:30 CÙNG NGÀY, không cần đợi qua hôm sau — khác
+      // hẳn vấn đề "đóng băng sau khi đóng ngày" đã sửa ở bản 10.33).
+      // Trước đây 15 phút/lần (gấp 7.5 lần chu kỳ Thành viên 2 phút/lần,
+      // xem seedThanhVienLiveSync.js:LIVE_CRON) — vì SURPLUS biến động
+      // LIÊN TỤC trong ngày (đã xác nhận ở "giá vốn dsmart.md" mục 10),
+      // 2 bên "chụp" giá trị ở 2 thời điểm lệch nhau TỚI 15 PHÚT, đúng lúc
+      // báo cáo cuối ngày xuất ra (vd 22:30) có thể rơi vào khoảng gốc vừa
+      // "lỡ" 1 lần chụp. Rút xuống 2 phút khớp đúng chu kỳ Thành viên,
+      // giảm khoảng lệch thời điểm chụp tối đa xuống còn ~2 phút. CHƯA đo
+      // tải thật trên CSDL trung tâm (phục vụ TẤT CẢ siêu thị, khác Thành
+      // viên mỗi job chỉ tải 1 server nhỏ riêng của 1 siêu thị) — theo dõi
+      // log/hiệu năng sau khi đổi, hạ lại nếu cần (sửa trực tiếp trên
+      // giao diện "Đồng bộ", không cần deploy lại).
+      cronExpression: '*/2 * * * *',
       // RescanLookbackDays=7 (bản 10.33, theo yêu cầu người dùng — xem chú
       // thích đầy đủ ở seedThanhVienLiveSync.js, cùng lý do/cùng mốc N
       // ngày) — chỉ áp dụng job "Live" (dữ liệu gần, còn khả năng bị DSMART
