@@ -273,3 +273,81 @@ thu lẫn VIEW Giao dịch (Giao dịch cũng chuyển hẳn từ `TRANSHDR` san
       đổi hướng theo đúng dữ liệu `SURPLUS` sẵn có.
 - [ ] Viết hướng dẫn triển khai riêng cho báo cáo mới (theo đúng quy ước
       mỗi báo cáo lớn có 1 file `.md` riêng, xem `bc-ton-kho-0.md` làm mẫu).
+
+## 9. ĐANG ĐIỀU TRA (28-29/10/2026) — Lãi gộp HO lệch Lãi gộp Thành viên ~18,7 triệu/ngày
+
+**CHƯA GIẢI QUYẾT — tạm dừng giữa chừng, tiếp tục từ đây khi có thêm dữ
+liệu.** Không phải lỗi code báo cáo (công thức VIEW 2 bên — gốc
+`V_HCRC_DOANHTHU_CHINHANH` và Thành viên — đã đối chiếu GIỐNG HỆT NHAU
+từng dòng SQL, không lệch).
+
+**Khởi nguồn**: Bên kinh doanh thắc mắc Lãi gộp báo cáo HO và báo cáo
+Thành viên chênh nhau. Người dùng gửi 2 PDF thật "Báo cáo doanh thu cuối
+ngày LDTD" ngày 28/10/2026 (bản gốc/HO và bản Thành viên) — Doanh thu/Giao
+dịch khớp TUYỆT ĐỐI từng siêu thị ở cả 2 bản, CHỈ Lãi gộp lệch:
+- Tổng Lãi gộp gốc: 389,539,609đ · Thành viên: 370,855,633đ · **lệch
+  18,683,976đ**.
+- Khối MINIMART gần như không lệch (−123,145đ, có 1 siêu thị khớp TUYỆT
+  ĐỐI tới từng đồng — "SK Tô Ngọc Vân 1").
+- Khối MART lệch +18,807,121đ, và riêng **1 siêu thị "ST 120 Hàng Trống"
+  (Mã Điểm 001) chênh 11,572,547đ — chiếm 62% tổng chênh lệch cả hệ
+  thống**. Các siêu thị MART khác lệch rải rác, có cả chiều ngược lại
+  (Thành viên cao hơn gốc).
+
+**Đã kiểm tra bằng SQL thật** (người dùng tự chạy, DBA xác nhận số liệu):
+- `etl.DiemStkMapping` — Mã Điểm `001` ("ST 120 HÀNG TRỐNG") có
+  `MaStkMoi` = **4 mã kho**: `10011, 20011, 20012, 20013` (không phải 1
+  mã như ban đầu tưởng — `10011` = Siêu thị, `20011/20012/20013` nghi là
+  kho phụ/kho trung chuyển).
+- Trên CSDL TRUNG TÂM (DSMART16, nguồn báo cáo gốc), ngày 28/10/2026,
+  `STK_ID IN ('10011','20011','20012','20013')`, `TRANS_CODE IN
+  ('211','221','232','212','222')`, `STATUS <> 'D'`:
+  `SoDong=4358, TongAmount=202,120,757.23, TongSurplus=46,121,779.80,
+  TongDoanhThu=248,242,537.03`. Lọc riêng `10011` ra kết quả Y HỆT →
+  3 kho `20011/20012/20013` KHÔNG có giao dịch nào ngày này (không phải
+  do thiếu kho).
+- Trên server LOCAL của chính siêu thị 120 Hàng Trống (172.16.74.11),
+  CÙNG điều kiện nhưng chỉ `STK_ID = '10011'` (chưa test đủ 4 mã ở local):
+  `SoDong=4358` (khớp TUYỆT ĐỐI với trung tâm — không thiếu/trùng giao
+  dịch), `TongAmount=198,723,430.26, TongSurplus=49,519,106.74,
+  TongDoanhThu=248,242,537.00` (TongDoanhThu khớp gần tuyệt đối, lệch 3
+  xu do làm tròn) — nhưng **TongAmount/TongSurplus bị "đảo" ngược chiều
+  nhau đúng ~3,397,327đ** giữa trung tâm và local (trung tâm ghi nhiều
+  AMOUNT hơn/ít SURPLUS hơn; local thì ngược lại). Xác nhận: CÙNG 1 lượng
+  tiền, nhưng DSMART chia AMOUNT/SURPLUS khác nhau giữa 2 nơi lưu — không
+  phải do thiếu/trùng dòng.
+
+**Vấn đề CHƯA GIẢI THÍCH được (bế tắc hiện tại)**:
+1. Số 3,4 triệu lệch đo được ở `10011` (local) KHÔNG đủ giải thích 11,57
+   triệu lệch của "ST 120 Hàng Trống" trên 2 PDF — cần test thêm
+   `20011/20012/20013` ở LOCAL (đã hỏi người dùng, CHƯA có kết quả — lưu
+   ý: các kho phụ này rất có thể KHÔNG tồn tại ở CSDL local, chỉ ở trung
+   tâm, nếu vậy local sẽ báo lỗi/không ra dòng nào cho mấy mã đó).
+2. PHÁT HIỆN MỚI, có thể QUAN TRỌNG HƠN cả câu hỏi gốc: `TongSurplus`
+   truy vấn TRỰC TIẾP trên CSDL TRUNG TÂM (46,121,779.80, truy vấn lúc
+   29/10) **cũng KHÔNG khớp** với số Lãi gộp 60,746,087đ in trên CHÍNH
+   PDF báo cáo gốc cho "ST 120 Hàng Trống" ngày 28/10 — lệch tới 14,6
+   triệu, dù cùng đọc 1 CSDL trung tâm. Nghi vấn: `STRANS.SURPLUS` có thể
+   bị DSMART TỰ ĐỘNG TÍNH LẠI/ĐIỀU CHỈNH sau khi ngày đã đóng sổ (vd bước
+   "chốt giá vốn" qua đêm) — nên dữ liệu truy vấn HÔM SAU đã khác dữ liệu
+   TẠI THỜI ĐIỂM báo cáo PDF được tạo ra cuối ngày 28/10. Nếu đúng, đây
+   không chỉ là câu chuyện "gốc vs thành viên" mà là `SURPLUS` NÓI CHUNG
+   không ổn định theo thời gian cho 1 giao dịch đã đóng — ảnh hưởng tới
+   MỌI báo cáo dùng công thức này (cả Script A/B ở mục 8), cần làm rõ
+   TRƯỚC KHI kết luận nguyên nhân chênh HO/Thành viên.
+
+**Việc cần làm tiếp khi quay lại** (đã hỏi người dùng, đang đợi phản hồi):
+1. Kết quả câu SQL gộp đủ 4 mã kho (`10011,20011,20012,20013`) chạy trên
+   server LOCAL của 120 Hàng Trống (đối chiếu với kết quả trung tâm ở
+   trên).
+2. Báo cáo PDF (cả 2 bản) được tạo/gửi vào LÚC MẤY GIỜ trong ngày 28/10 —
+   để kiểm tra giả thuyết "chốt giá vốn qua đêm" ở câu 2 trên (nếu đúng,
+   cần hỏi thêm DBA DSMART xem có job nào tính lại `SURPLUS` sau khi
+   ngày đóng sổ không, và CHỐT ở mốc giờ nào thì `SURPLUS` mới "ổn định"
+   — ảnh hưởng tới việc nên đồng bộ báo cáo Lãi gộp vào giờ nào trong
+   ngày để số liệu không bị "nhảy" sau này).
+3. Sau khi có đủ 2 ý trên, đối chiếu lại số liệu đầy đủ và kết luận
+   nguyên nhân chính xác trước khi đề xuất hướng xử lý (có thể KHÔNG sửa
+   được ở tầng báo cáo nếu đây là hành vi gốc của DSMART, mà chỉ có thể
+   LƯU Ý/thông báo cho bên kinh doanh biết số có thể còn thay đổi sau khi
+   ngày đã "chốt" ban đầu).
