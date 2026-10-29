@@ -1,21 +1,22 @@
-# Hướng dẫn triển khai gộp — bản 10.33 đến 10.37 (làm 1 lần)
+# Hướng dẫn triển khai gộp — bản 10.33 đến 10.38 (làm 1 lần)
 
-**Mục đích**: gộp các bước triển khai từ bản 10.33 tới bản 10.37 hiện tại
+**Mục đích**: gộp các bước triển khai từ bản 10.33 tới bản 10.38 hiện tại
 thành **1 lượt làm duy nhất**, cho server đang chạy bản 10.32 hoặc cũ hơn
 và cần bắt kịp bản mới nhất. Theo yêu cầu người dùng (gộp hướng dẫn thay
 vì làm riêng từng bản).
 
-Cả 5 bản đều xuất phát từ CÙNG 1 chuỗi điều tra/trao đổi thật: "Lãi gộp"
+Cả 6 bản đều xuất phát từ CÙNG 1 chuỗi điều tra/trao đổi thật: "Lãi gộp"
 giữa báo cáo "Doanh thu cuối ngày" gốc (HO) và Thành viên lệch nhau (bản
-10.33/10.34), cộng thêm cải tiến giao diện lọc báo cáo (bản 10.35/10.36)
-và sửa "Tên hàng" hiện mã trần ở nhóm báo cáo Mua hàng (bản 10.37). Xem
-đầy đủ lý do/chi tiết kỹ thuật từng bản ở `VERSION.md`, `deploy/Nhật ký
-triển khai (từ bản 8.31).md`, và "giá vốn dsmart.md" mục 9-10 (toàn bộ
-quá trình điều tra Lãi gộp lệch).
+10.33/10.34), cộng thêm cải tiến giao diện lọc báo cáo (bản 10.35/10.36),
+sửa "Tên hàng" hiện mã trần ở nhóm báo cáo Mua hàng (bản 10.37), và tự
+động quét lại dữ liệu "Lịch sử" đã chuyển sang DSMART16_EOM nhưng vẫn có
+thể bị sửa sau đó (bản 10.38). Xem đầy đủ lý do/chi tiết kỹ thuật từng
+bản ở `VERSION.md`, `deploy/Nhật ký triển khai (từ bản 8.31).md`, và "giá
+vốn dsmart.md" mục 9-10 (toàn bộ quá trình điều tra Lãi gộp lệch).
 
 ---
 
-## Tóm tắt những gì thay đổi (10.33 → 10.37)
+## Tóm tắt những gì thay đổi (10.33 → 10.38)
 
 | Bản | Nội dung |
 |---|---|
@@ -24,6 +25,7 @@ quá trình điều tra Lãi gộp lệch).
 | 10.35 | Thêm tính năng **dán danh sách để tự chọn** cho MỌI bộ lọc nhiều lựa chọn trong toàn hệ thống (`SearchableSelect.jsx` — component dùng chung); sửa bộ lọc động (vd "Mã hàng"/"Nhà cung cấp") tải chậm — tăng TTL cache từ 10 phút lên 2 giờ. |
 | 10.36 | **SỬA LỖI THẬT**: dropdown "Siêu thị" hiện mã Điểm TRẦN (vd "005") thay vì tên, ở các dòng chưa khai "Tên siêu thị" trong "Ánh xạ Điểm - STK_ID" — hệ thống VẪN đọc đúng nguồn, chỉ là fallback âm thầm che mất việc thiếu dữ liệu. Sửa hiện rõ `"<mã> (chưa khai tên)"` ở 4 chỗ liên quan. |
 | 10.37 | **SỬA LỖI THẬT**: cột "Tên hàng"/bộ lọc "Mã hàng" (nhóm báo cáo Mua hàng) hiện mã trần — VIEW nguồn để cứng `NULL` dù bảng `SKU_DEF` ĐÃ JOIN SẴN (từ bản 9.95) cho mục đích khác, chỉ thiếu chọn đúng cột `FULL_NAME_U`. Thêm quy ước bắt buộc mới vào `CLAUDE.md`: mọi VIEW nguồn báo cáo MỚI phải JOIN đúng bảng danh mục + chọn đúng cột tên Unicode, không để NULL/mã trần. |
+| 10.38 | Dữ liệu đã chuyển sang DSMART16_EOM cuối tháng VẪN có thể bị sửa ngày quá khứ/huỷ đơn sau đó — đặt `RescanLookbackDays=40` (cơ chế đã xây ở bản 10.33) cho CẢ 6 job "... - Lịch sử (DSMART16_EOM)" trong hệ thống, tự động quét lại ~40 ngày gần nhất MỖI ĐÊM thay vì phải nhớ chạy tay đầu mỗi tháng. |
 
 ---
 
@@ -89,6 +91,22 @@ tăng gấp 7.5 lần (15 phút → 2 phút), CHƯA đo tải thật. Theo dõi 
 lỗi/hiệu năng server trung tâm vài ngày đầu; hạ lại lịch chạy qua giao
 diện "Đồng bộ" ngay nếu cần, không cần sửa code.
 
+### B4b. Chạy thêm 2 script đồng bộ (bản 10.38 — quét lại "Lịch sử")
+
+```bash
+node scripts/seedNganhHangSync.js
+node scripts/seedDonDatHangHistorySync.js
+node scripts/seedThanhVienHistorySync.js
+```
+
+(`seedLdtdHcrcSync.js` đã chạy ở B4 rồi — bản này cùng đặt
+`RescanLookbackDays=40` cho job "Lịch sử" của nó luôn, không cần chạy
+lại.) Đặt `RescanLookbackDays=40` cho ĐỦ 6 job "... - Lịch sử
+(DSMART16_EOM)" còn lại trong hệ thống — mỗi đêm (job này đã chạy sẵn 1
+lần/ngày, 3h sáng) tự quét lại ~40 ngày gần nhất, bắt kịp dữ liệu bị sửa
+sau khi đã chuyển sang DSMART16_EOM (ngày quá khứ/đơn bị sửa/huỷ), không
+cần chạy tay đầu mỗi tháng.
+
 ### B5. Khởi động lại `rp-server`
 
 Khởi động lại `rp-server` (pm2 restart) — áp dụng bản 10.35 (tăng TTL
@@ -153,8 +171,12 @@ Không cần động tới `api-server` ở cả 5 bản này.
   mã trong dropdown.
 - [ ] **(10.31, nếu làm bổ sung ở B7)** Bộ lọc "Mã hàng" ở 6 báo cáo Mua
   hàng phải HIỆN RA danh sách (không còn "Không có lựa chọn nào").
+- [ ] **(10.38)** "Đồng bộ" (etl-admin) → 6 job tên có "... - Lịch sử
+  (DSMART16_EOM)" (Doanh thu chi nhánh, Giao dịch chi nhánh, Doanh thu
+  theo ngành hàng, Nhập hàng theo ngành hàng, Đơn đặt hàng, và 2 job gộp
+  "(Thành viên)") → cột "Quét lại (ngày)" PHẢI hiện `40` ở TẤT CẢ.
 
-Không có bước nào ở 5 bản này làm mất dữ liệu đã có — bản 10.33/10.34
+Không có bước nào ở 6 bản này làm mất dữ liệu đã có — bản 10.33/10.34/10.38
 thuần đổi CẤU HÌNH job đồng bộ, bản 10.35/10.36 thuần sửa giao diện lọc,
 bản 10.37 chỉ bổ sung 1 cột tên còn thiếu (resync ghi đè đúng dữ liệu cũ
 bằng MERGE idempotent, không xoá/nhân đôi gì).

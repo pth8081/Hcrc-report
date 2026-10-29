@@ -14,6 +14,21 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.38 — Tự động quét lại ~40 ngày cho mọi job "Lịch sử (DSMART16_EOM)"
+
+**Thay đổi**: `etl/scripts/seedLdtdHcrcSync.js`, `etl/scripts/seedNganhHangSync.js`,
+`etl/scripts/seedDonDatHangHistorySync.js`, `etl/scripts/seedThanhVienHistorySync.js`
+— đặt `RescanLookbackDays=40` cho 6 job "... - Lịch sử (DSMART16_EOM)".
+KHÔNG đổi CSDL/schema (cột `RescanLookbackDays` đã có từ bản 10.33).
+
+**Các bước**: `git pull origin main` → chạy 4 script trên (thư mục `etl/`,
+idempotent, an toàn chạy lại nhiều lần) → KHÔNG cần restart `etl`/`rp-server`
+riêng cho bản này (scheduler tự nạp lại cấu hình job trong tối đa 60 giây
+sau khi script chạy xong).
+
+**Kiểm tra**: "Đồng bộ" (etl-admin) → 6 job "... - Lịch sử (DSMART16_EOM)"
+→ cột "Quét lại (ngày)" hiện `40`.
+
 ## 10.37 — "Tên hàng"/bộ lọc "Mã hàng" hiện tên thật thay vì mã trần
 
 **Thay đổi**: CHỈ 2 file VIEW SQL (chạy tay trên DSMART16, KHÔNG phải

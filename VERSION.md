@@ -42,6 +42,55 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.38 — Tự động quét lại ~40 ngày gần nhất cho MỌI job "Lịch sử (DSMART16_EOM)"
+
+**Theo yêu cầu người dùng**: "sau khi hết tháng ấy, thì dữ liệu sẽ chuyển
+về DSMART16 EOM. Tuy nhiên thì dữ liệu này cũng sẽ bị sửa ngày quá khứ,
+sửa đơn giao dịch, hủy đơn giao dịch, nên là bạn có thể là mỗi tháng,
+ngay đầu tháng sau khi chuyển thì bạn làm một cái job để scan lại và
+đồng bộ lại tháng trước, đảm bảo dữ liệu đúng không?"
+
+**Bối cảnh**: mọi job "Lịch sử (DSMART16_EOM)" trước đây (kể cả sau bản
+10.33) chỉ quét lại ĐÚNG "hôm nay" mỗi lượt chạy (1 lần/ngày, 3h sáng) —
+dữ liệu tháng đã đóng, 1 khi đã đồng bộ xong thì KHÔNG bao giờ được quét
+lại nữa, dù DSMART vẫn có thể sửa/huỷ đơn cho dữ liệu đã nằm ở EOM (đúng
+như chú thích CŨ đã có sẵn ở `seedDonDatHangHistorySync.js`: "dữ liệu
+lịch sử gần như không đổi, TRỪ KHI DBA sửa/thêm dữ liệu cũ" — trường hợp
+"trừ khi" đó chưa từng được tự động xử lý).
+
+**Sửa**: áp dụng ĐÚNG cơ chế `RescanLookbackDays` đã xây ở bản 10.33 (quét
+lại thêm N ngày gần nhất mỗi lượt chạy, KHÔNG lùi watermark lưu lại) cho
+TẤT CẢ job "Lịch sử (DSMART16_EOM)" trong hệ thống, đặt N=40 (phủ trọn 1
+tháng + vài ngày đệm đầu tháng mới) — do job này đã chạy sẵn 1 lần/ngày,
+nay mỗi đêm sẽ tự quét lại ~40 ngày gần nhất, KHÔNG cần đợi "đầu tháng"
+mới chạy tay 1 lần như yêu cầu ban đầu — tự động bắt kịp liên tục, không
+phụ thuộc ai nhớ lịch chạy tay. Áp dụng cho 6 job: "Doanh thu chi nhánh -
+Lịch sử" + "Giao dịch chi nhánh - Lịch sử" (gốc, `seedLdtdHcrcSync.js`),
+"Doanh thu theo ngành hàng - Lịch sử" + "Nhập hàng theo ngành hàng - Lịch
+sử" (`seedNganhHangSync.js`), "Đơn đặt hàng - Lịch sử" (`seedDonDatHangHistorySync.js`),
+và 2 job gộp "(Thành viên) - Lịch sử" (`seedThanhVienHistorySync.js`).
+
+**KHÔNG dùng cách "chạy tay script resync đầu mỗi tháng"** như người dùng
+đề xuất ban đầu (dễ quên, phụ thuộc con người) — cũng KHÔNG dùng các
+script resync TOÀN BỘ lịch sử có sẵn (vd `resyncDoanhThuChinhanhHistory.js`
+— reset ~93 tháng về EPOCH, quá nặng để chạy định kỳ, chỉ phù hợp chạy
+TAY 1 lần khi đổi công thức/cấu trúc lớn) — cơ chế `RescanLookbackDays`
+nhẹ hơn nhiều (chỉ ~40 ngày/lượt) và chạy TỰ ĐỘNG mỗi đêm.
+
+**TRIỂN KHAI**: chạy lại 4 script (thư mục `etl/`, đều idempotent):
+```bash
+node scripts/seedLdtdHcrcSync.js
+node scripts/seedNganhHangSync.js
+node scripts/seedDonDatHangHistorySync.js
+node scripts/seedThanhVienHistorySync.js
+```
+(2 script đầu/cuối CÙNG lúc áp dụng luôn các bản liên quan khác nếu chưa
+chạy — xem file hướng dẫn gộp.) KHÔNG cần đổi gì ở `rp-server`/frontend.
+
+**Kiểm tra**: "Đồng bộ" (etl-admin) → lọc các job có tên "... - Lịch sử
+(DSMART16_EOM)" → cột "Quét lại (ngày)" PHẢI hiện `40` ở cả 6 job liệt kê
+ở trên.
+
 ## 10.37 — SỬA LỖI THẬT: "Tên hàng"/bộ lọc "Mã hàng" hiện mã trần; thêm quy ước bắt buộc về nguồn tên hiển thị
 
 **Theo yêu cầu người dùng**: "Mã hàng thì tôi hiểu là bạn có thể là lọc

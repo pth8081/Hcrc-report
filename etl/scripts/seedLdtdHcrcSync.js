@@ -230,16 +230,31 @@ async function main() {
       cronExpression: '*/2 * * * *',
       // RescanLookbackDays=7 (bản 10.33, theo yêu cầu người dùng — xem chú
       // thích đầy đủ ở seedThanhVienLiveSync.js, cùng lý do/cùng mốc N
-      // ngày) — chỉ áp dụng job "Live" (dữ liệu gần, còn khả năng bị DSMART
-      // điều chỉnh muộn); job "Lịch sử (DSMART16_EOM)" bên dưới KHÔNG cần
-      // (dữ liệu tháng đã đóng từ lâu, chạy 1 lần/ngày lúc 3h sáng).
+      // ngày) — áp dụng job "Live" (dữ liệu gần, còn khả năng bị DSMART
+      // điều chỉnh muộn). Job "Lịch sử (DSMART16_EOM)" bên dưới dùng mốc
+      // N RIÊNG, LỚN HƠN (40 ngày) — xem chú thích ở đó (bản 10.38, SỬA
+      // LẠI giả định sai ở bản 10.33 rằng "dữ liệu tháng đã đóng không
+      // cần quét lại" — người dùng xác nhận dữ liệu ĐÃ chuyển sang
+      // DSMART16_EOM vẫn có thể bị sửa ngày quá khứ/huỷ đơn SAU đó).
       rescanLookbackDays: 7
     },
     {
       name: 'Doanh thu chi nhánh - Lịch sử (DSMART16_EOM)', dataSourceId: eomId, sourceName: config.eom.name,
       sourceTable: DOANHTHU_VIEW, keyColumn: 'STK_ID', dateColumn: 'WORK_DATE',
       dimensionColumns: ['dienTich', 'chain'], measureColumns: ['doanhThu', 'laiGop'],
-      targetDomain: 'doanhthu_chinhanh', cronExpression: '0 3 * * *'
+      targetDomain: 'doanhthu_chinhanh', cronExpression: '0 3 * * *',
+      // RescanLookbackDays=40 (bản 10.38, theo yêu cầu người dùng — "sau
+      // khi hết tháng dữ liệu chuyển về DSMART16_EOM, nhưng dữ liệu này
+      // cũng sẽ bị sửa ngày quá khứ, sửa đơn giao dịch, huỷ đơn giao
+      // dịch") — job này đã chạy sẵn 1 lần/ngày lúc 3h sáng; quét lại ~40
+      // ngày gần nhất MỖI ĐÊM thay vì chỉ đúng "hôm nay" — đủ phủ TRỌN
+      // tháng vừa đóng (tối đa 31 ngày) + vài ngày đầu tháng mới, tự động
+      // bắt kịp dần mỗi đêm thay vì phải nhớ chạy tay script resync đầu
+      // mỗi tháng. KHÔNG dùng script resync riêng (vd kiểu
+      // resyncDoanhThuChinhanhHistory.js — reset TOÀN BỘ ~93 tháng về
+      // EPOCH) vì quá nặng để chạy ĐỊNH KỲ hàng tháng, chỉ phù hợp chạy
+      // TAY 1 lần khi có thay đổi công thức/cấu trúc lớn.
+      rescanLookbackDays: 40
     },
     // keyColumn: 'BU_ID' — GIỮ NGUYÊN làm entityCode, KHÔNG dịch qua
     // etl.BranchCodeMap nữa (bỏ hẳn tính năng đó — xem VERSION.md): BU_ID
@@ -254,7 +269,8 @@ async function main() {
       name: 'Giao dịch chi nhánh - Lịch sử (DSMART16_EOM)', dataSourceId: eomId, sourceName: config.eom.name,
       sourceTable: GIAODICH_VIEW, keyColumn: 'BU_ID', dateColumn: 'TRAN_DATE',
       dimensionColumns: [], measureColumns: ['SoGiaoDich'],
-      targetDomain: 'giaodich_chinhanh', cronExpression: '0 3 * * *'
+      targetDomain: 'giaodich_chinhanh', cronExpression: '0 3 * * *',
+      rescanLookbackDays: 40 // bản 10.38 — cùng lý do job "Doanh thu chi nhánh - Lịch sử" ở trên
     }
   ];
 

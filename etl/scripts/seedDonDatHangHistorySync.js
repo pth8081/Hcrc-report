@@ -130,6 +130,7 @@ async function upsertSyncJob(pool, job) {
       .input('measureColumnsJson', sql.NVarChar(sql.MAX), measureColumnsJson)
       .input('targetDomain', sql.VarChar(50), job.targetDomain)
       .input('cronExpression', sql.VarChar(50), job.cronExpression)
+      .input('rescanLookbackDays', sql.Int, job.rescanLookbackDays || 0)
       .query(`
         UPDATE etl.SyncJobs SET
           Type = 'table', DataSourceId = @dataSourceId, SourceSchema = @sourceSchema, SourceTable = @sourceTable,
@@ -137,7 +138,7 @@ async function upsertSyncJob(pool, job) {
           DimensionColumnsJson = @dimensionColumnsJson, MeasureColumnsJson = @measureColumnsJson,
           JoinSchema = NULL, JoinTable = NULL, JoinType = NULL, MainJoinColumn = NULL, LookupJoinColumn = NULL,
           TargetDomain = @targetDomain, CronExpression = @cronExpression, KeepHistory = 1,
-          BranchCodeMapType = NULL, IsActive = 1
+          BranchCodeMapType = NULL, IsActive = 1, RescanLookbackDays = @rescanLookbackDays
         WHERE Id = @id
       `);
     console.log(`↻ Đã cập nhật job "${job.name}" (Id ${id}).`);
@@ -155,15 +156,16 @@ async function upsertSyncJob(pool, job) {
     .input('measureColumnsJson', sql.NVarChar(sql.MAX), measureColumnsJson)
     .input('targetDomain', sql.VarChar(50), job.targetDomain)
     .input('cronExpression', sql.VarChar(50), job.cronExpression)
+    .input('rescanLookbackDays', sql.Int, job.rescanLookbackDays || 0)
     .query(`
       INSERT INTO etl.SyncJobs (
         Name, Type, DataSourceId, SourceSchema, SourceTable, KeyColumn, DateColumn, UpdatedAtColumn,
-        DimensionColumnsJson, MeasureColumnsJson, TargetDomain, CronExpression, KeepHistory
+        DimensionColumnsJson, MeasureColumnsJson, TargetDomain, CronExpression, KeepHistory, RescanLookbackDays
       )
       OUTPUT INSERTED.Id
       VALUES (
         @name, 'table', @dataSourceId, @sourceSchema, @sourceTable, @keyColumn, @dateColumn, @updatedAtColumn,
-        @dimensionColumnsJson, @measureColumnsJson, @targetDomain, @cronExpression, 1
+        @dimensionColumnsJson, @measureColumnsJson, @targetDomain, @cronExpression, 1, @rescanLookbackDays
       )
     `);
   const id = result.recordset[0].Id;
@@ -187,9 +189,16 @@ async function main() {
     keyColumn: 'MaThucThe', dateColumn: 'EventDate', updatedAtColumn: 'EventDate',
     dimensionColumns, measureColumns, targetDomain: TARGET_DOMAIN,
     // Job "Lịch sử" quét ~93 tháng dữ liệu mỗi lượt đầy đủ, KHÔNG cần chạy
-    // mỗi 15 phút như job "Live" — 1 lần/ngày lúc 3h sáng là đủ (dữ liệu
-    // lịch sử gần như không đổi, trừ khi DBA sửa/thêm dữ liệu cũ).
-    cronExpression: '0 3 * * *'
+    // mỗi 15 phút như job "Live" — 1 lần/ngày lúc 3h sáng là đủ.
+    cronExpression: '0 3 * * *',
+    // RescanLookbackDays=40 (bản 10.38, theo yêu cầu người dùng — đúng
+    // trường hợp chú thích CŨ ở trên từng nhắc "trừ khi DBA sửa/thêm dữ
+    // liệu cũ": đặt đơn/huỷ đơn VẪN có thể bị sửa/huỷ SAU KHI dữ liệu đã
+    // chuyển sang DSMART16_EOM cuối tháng) — quét lại ~40 ngày gần nhất
+    // MỖI ĐÊM thay vì chỉ "hôm nay", đủ phủ trọn tháng vừa đóng, không
+    // cần chạy tay script resync đầu mỗi tháng. Xem chú thích đầy đủ ở
+    // seedLdtdHcrcSync.js (cùng cơ chế, cùng mốc N).
+    rescanLookbackDays: 40
   };
 
   const requiredColumns = [job.keyColumn, job.dateColumn, job.updatedAtColumn, ...job.dimensionColumns, ...job.measureColumns];

@@ -647,6 +647,11 @@ KHÔNG CÓ dữ liệu đó.
   TỰ ĐỘNG cho CẢ 6 báo cáo mua hàng ngay khi job Lịch sử đồng bộ xong.
 - Job Lịch sử chạy 1 lần/ngày (3h sáng, không cần mỗi 15 phút như Live) —
   lần chạy ĐẦU TIÊN quét ~93 tháng dữ liệu, có thể mất VÀI GIỜ.
+- **Bản 10.38** (theo yêu cầu người dùng — dữ liệu đã chuyển sang
+  DSMART16_EOM cuối tháng vẫn có thể bị sửa ngày quá khứ/huỷ đơn sau đó):
+  job này đặt `RescanLookbackDays=40` — mỗi lượt chạy (mỗi đêm) quét lại
+  thêm ~40 ngày gần nhất thay vì chỉ đúng "hôm nay", tự bắt kịp các thay
+  đổi muộn mà không cần chạy tay script resync đầu mỗi tháng.
 
 **Thứ tự triển khai**: (1) DBA chạy file `.sql` trên `DSMART16_EOM` → (2)
 chạy `node scripts/seedDonDatHangHistorySync.js` (trong `etl/`) → (3) theo

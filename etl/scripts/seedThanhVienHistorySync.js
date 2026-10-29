@@ -74,13 +74,15 @@ async function upsertSyncJob(pool, job) {
       .input('measureColumnsJson', sql.NVarChar(sql.MAX), measureColumnsJson)
       .input('targetDomain', sql.VarChar(50), job.targetDomain)
       .input('cronExpression', sql.VarChar(50), job.cronExpression)
+      .input('rescanLookbackDays', sql.Int, job.rescanLookbackDays || 0)
       .query(`
         UPDATE etl.SyncJobs SET
           Type = 'table', DataSourceId = @dataSourceId, SourceSchema = @sourceSchema, SourceTable = @sourceTable,
           KeyColumn = @keyColumn, DateColumn = @dateColumn, UpdatedAtColumn = @updatedAtColumn,
           DimensionColumnsJson = @dimensionColumnsJson, MeasureColumnsJson = @measureColumnsJson,
           JoinSchema = NULL, JoinTable = NULL, JoinType = NULL, MainJoinColumn = NULL, LookupJoinColumn = NULL,
-          TargetDomain = @targetDomain, CronExpression = @cronExpression, KeepHistory = 1, IsActive = 1
+          TargetDomain = @targetDomain, CronExpression = @cronExpression, KeepHistory = 1, IsActive = 1,
+          RescanLookbackDays = @rescanLookbackDays
         WHERE Id = @id
       `);
     console.log(`↻ Đã cập nhật job "${job.name}" (Id ${id}).`);
@@ -98,15 +100,16 @@ async function upsertSyncJob(pool, job) {
     .input('measureColumnsJson', sql.NVarChar(sql.MAX), measureColumnsJson)
     .input('targetDomain', sql.VarChar(50), job.targetDomain)
     .input('cronExpression', sql.VarChar(50), job.cronExpression)
+    .input('rescanLookbackDays', sql.Int, job.rescanLookbackDays || 0)
     .query(`
       INSERT INTO etl.SyncJobs (
         Name, Type, DataSourceId, SourceSchema, SourceTable, KeyColumn, DateColumn, UpdatedAtColumn,
-        DimensionColumnsJson, MeasureColumnsJson, TargetDomain, CronExpression, KeepHistory
+        DimensionColumnsJson, MeasureColumnsJson, TargetDomain, CronExpression, KeepHistory, RescanLookbackDays
       )
       OUTPUT INSERTED.Id
       VALUES (
         @name, 'table', @dataSourceId, @sourceSchema, @sourceTable, @keyColumn, @dateColumn, @updatedAtColumn,
-        @dimensionColumnsJson, @measureColumnsJson, @targetDomain, @cronExpression, 1
+        @dimensionColumnsJson, @measureColumnsJson, @targetDomain, @cronExpression, 1, @rescanLookbackDays
       )
     `);
   const id = result.recordset[0].Id;
@@ -133,13 +136,15 @@ async function main() {
       name: 'Doanh thu chi nhánh (Thành viên) - Lịch sử (DSMART16_EOM)', dataSourceId: eomId,
       sourceTable: DOANHTHU_VIEW, keyColumn: 'STK_ID', dateColumn: 'WORK_DATE',
       dimensionColumns: ['dienTich', 'chain'], measureColumns: ['doanhThu', 'laiGop'],
-      targetDomain: 'doanhthu_chinhanh_thanhvien', cronExpression: '0 3 * * *'
+      targetDomain: 'doanhthu_chinhanh_thanhvien', cronExpression: '0 3 * * *',
+      rescanLookbackDays: 40 // bản 10.38 — xem chú thích đầy đủ ở seedLdtdHcrcSync.js (job gốc tương ứng)
     },
     {
       name: 'Giao dịch chi nhánh (Thành viên) - Lịch sử (DSMART16_EOM)', dataSourceId: eomId,
       sourceTable: GIAODICH_VIEW, keyColumn: 'BU_ID', dateColumn: 'TRAN_DATE',
       dimensionColumns: [], measureColumns: ['SoGiaoDich'],
-      targetDomain: 'giaodich_chinhanh_thanhvien', cronExpression: '0 3 * * *'
+      targetDomain: 'giaodich_chinhanh_thanhvien', cronExpression: '0 3 * * *',
+      rescanLookbackDays: 40 // bản 10.38
     }
   ];
 

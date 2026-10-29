@@ -457,3 +457,19 @@ cáo doanh thu-nhập hàng theo ngành hàng.md" — có CỘNG riêng `318` v�
 cột "Giá trị hàng hỏng huỷ" rồi TRỪ RA khỏi "Doanh thu cuối" ở báo cáo
 ĐÓ, khác domain/VIEW với "Doanh thu cuối ngày" LDTD/HCRC đang điều tra ở
 đây). KHÔNG liên quan tới nguyên nhân lệch 18,7 triệu đang điều tra.
+
+**BỔ SUNG (bản 10.38, theo người dùng)** — mở rộng phát hiện ở mục 10
+(SURPLUS vẫn đổi sau khi ngày đã đóng) sang CẢ dữ liệu đã chuyển hẳn sang
+DSMART16_EOM cuối tháng: "dữ liệu này cũng sẽ bị sửa ngày quá khứ, sửa
+đơn giao dịch, hủy đơn giao dịch" — tức không chỉ vài ngày đầu sau khi
+đóng ngày, mà CẢ SAU KHI đã đóng hẳn 1 THÁNG, dữ liệu vẫn có thể bị DBA
+sửa/huỷ. Đã áp dụng ĐÚNG cơ chế `RescanLookbackDays` (bản 10.33) cho MỌI
+job "Lịch sử (DSMART16_EOM)" trong hệ thống (không chỉ domain
+`doanhthu_chinhanh` đang điều tra — áp dụng luôn `doanhthu_nganhhang`/
+`nhaphang_nganhhang`/`don_dat_hang`/`giaodich_chinhanh`(`_thanhvien`)),
+đặt N=40 ngày — mỗi đêm (job này đã chạy sẵn 1 lần/ngày, 3h sáng) tự quét
+lại ~40 ngày gần nhất, phủ trọn 1 tháng vừa đóng, không cần chạy tay
+script resync riêng (vd `resyncDoanhThuChinhanhHistory.js` — quá nặng,
+reset ~93 tháng về EPOCH, chỉ phù hợp chạy 1 lần khi đổi công thức lớn).
+Xem `VERSION.md` bản 10.38 và `deploy/Hướng dẫn triển khai gộp — bản
+10.33 đến 10.38.md`.
