@@ -424,3 +424,24 @@ thời gian DSMART cần để SURPLUS "ổn định hẳn" (quan sát được:
 ước lượng hợp lý ban đầu theo yêu cầu người dùng, có thể cần điều chỉnh
 lại sau khi quan sát thêm số liệu thật (so sánh lại Lãi gộp 2 báo cáo cho
 cùng 1 ngày, vài ngày sau khi bản 10.33 chạy đủ 1 chu kỳ 7 ngày).
+
+**BỔ SUNG (29/10/2026, theo người dùng)** — lệch Lãi gộp gốc/Thành viên
+ĐÃ CÓ TỪ LÚC 22:30 TỐI 28/10 (cùng ngày, CHƯA cần đợi qua ngày hôm sau) —
+củng cố thêm giả thuyết SURPLUS bị DSMART điều chỉnh LIÊN TỤC TRONG NGÀY
+(không chỉ "sau khi đóng sổ"): 2 job (gốc 15 phút/lần, Thành viên 1-2
+phút/lần) "chụp" SURPLUS tại 2 thời điểm KHÁC NHAU trong lúc nó còn đang
+trôi, ra 2 số khác nhau NGAY TRONG NGÀY — không cần đợi watermark nhảy
+qua ngày mới mới lệch. Hướng sửa `RescanLookbackDays` (bản 10.33) vẫn xử
+lý đúng trường hợp này (quét lại nhiều lần trong 7 ngày giúp SURPLUS dần
+"đuổi kịp" giá trị cuối), không cần sửa thêm.
+
+**Đã xác nhận: "Hàng hỏng huỷ" (TRANS_CODE `318`) ĐÃ LOẠI TRỪ KHỎI "Doanh
+thu cuối ngày"** — người dùng hỏi lại để chắc chắn. VIEW
+`V_HCRC_DOANHTHU_CHINHANH` (mục 8) có `WHERE d.TRANS_CODE IN
+('211','221','232','212','222')` — CHỈ liệt kê đúng 5 mã này, `318` KHÔNG
+nằm trong danh sách nên KHÔNG BAO GIỜ được gộp vào `doanhThu`/`laiGop`
+của báo cáo này (khác với báo cáo "Doanh thu theo ngành hàng" — xem "báo
+cáo doanh thu-nhập hàng theo ngành hàng.md" — có CỘNG riêng `318` vào 1
+cột "Giá trị hàng hỏng huỷ" rồi TRỪ RA khỏi "Doanh thu cuối" ở báo cáo
+ĐÓ, khác domain/VIEW với "Doanh thu cuối ngày" LDTD/HCRC đang điều tra ở
+đây). KHÔNG liên quan tới nguyên nhân lệch 18,7 triệu đang điều tra.
