@@ -42,6 +42,15 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.53 — Mở rộng hướng dẫn triển khai gộp sang bản 10.52
+
+**Theo yêu cầu người dùng**: đổi tên file `deploy/Hướng dẫn triển khai
+gộp — bản 10.46 đến 10.50.md` thành `... bản 10.46 đến 10.52.md`, bổ
+sung bản 10.51/10.52 vào bảng tóm tắt + thêm hẳn mục B2 RIÊNG cho bản
+10.52 (SỬA LỖI THẬT ở báo cáo "Doanh thu theo ngành hàng - theo mã
+hàng", KHÔNG liên quan tính năng API Tồn kho của mục B1 — đổi tên mục B
+cũ thành B1 để tách rõ 2 nhóm). KHÔNG đổi code/API.
+
 ## 10.52 — Sửa dropdown "Siêu thị" (báo cáo doanh thu theo mã hàng) hiện "(chưa khai tên)" dù đã khai đủ
 
 **SỬA LỖI THẬT (theo báo cáo người dùng)**: bộ lọc "Siêu thị" của 2 báo

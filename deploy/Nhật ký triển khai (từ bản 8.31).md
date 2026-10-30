@@ -14,6 +14,16 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.53 — Mở rộng hướng dẫn triển khai gộp sang bản 10.52
+
+**Thay đổi**: đổi tên + cập nhật nội dung file `deploy/Hướng dẫn triển
+khai gộp — bản 10.46 đến 10.52.md` (trước là "... đến 10.50.md") — thêm
+mục B2 RIÊNG cho bước triển khai bản 10.52 (chỉ `pm2 restart rp-server`,
+không liên quan mục B1 — API Tồn kho). KHÔNG đổi code/API.
+
+**Triển khai**: KHÔNG cần làm gì thêm trên server — `git pull` để lấy
+tài liệu mới.
+
 ## 10.52 — Sửa dropdown "Siêu thị" (báo cáo doanh thu theo mã hàng) hiện "(chưa khai tên)"
 
 **Thay đổi**: `rp-server/routes/reports.js` — thêm `.trim()` giá trị
