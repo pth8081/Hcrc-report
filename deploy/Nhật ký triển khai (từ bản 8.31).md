@@ -14,6 +14,31 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.50 — Thêm mã vạch (maVach) vào API Tồn kho toàn hệ thống
+
+**Thay đổi**: VIEW `vw_TonKhoChiTietTheoSKU` thêm cột `MaVach`
+(`SKU_DEF.BARCODE`, đã JOIN sẵn) — ETL job + báo cáo `ton-kho` cập nhật
+theo. API `GET /api/v1/reports/ton-kho/run` trả thêm trường `maVach`.
+
+**Triển khai (theo đúng thứ tự)**:
+1. Chạy lại `deploy/Thiết lập VIEW Tồn kho Chi tiết theo SKU
+   (DSMART16).sql` trên `DSMART16` (AN TOÀN chạy lại nhiều lần).
+2. `node etl/scripts/seedTonKhoChiTietSync.js` (thư mục `etl/`).
+3. `node scripts/seedTonKhoReport.js` (thư mục `api-server/`) — BẮT BUỘC,
+   nếu không `maVach` luôn trả về `null` dù VIEW đã có dữ liệu.
+4. Không cần restart `api-server`/`rp-server` (không đổi code đọc dữ
+   liệu, chỉ đổi định nghĩa cột đọc qua `DimensionColumnsJson`/
+   `DefinitionJson`, 2 job/báo cáo tự đọc lại ở lượt chạy/gọi API kế
+   tiếp).
+
+**Kiểm tra**:
+```bash
+curl "http://localhost:<port>/api/v1/reports/ton-kho/run?pageSize=5" \
+  -H "X-API-Key: <api key thật>"
+```
+Phải thấy trường `maVach` — có giá trị (mã 13 số) ở mặt hàng đã khai mã
+vạch, `null` ở mặt hàng chưa khai (bình thường).
+
 ## 10.49 — Hướng dẫn triển khai gộp bản 10.46-10.48
 
 **Thay đổi**: thêm file mới `deploy/Hướng dẫn triển khai gộp — bản 10.46

@@ -1,6 +1,6 @@
 # Tài liệu API — Tồn kho toàn hệ thống (dành cho đối tác)
 
-Phiên bản: 1.1 · Ngày phát hành: 30/10/2026
+Phiên bản: 1.3 · Ngày phát hành: 30/10/2026
 Liên hệ kỹ thuật: đội IT BRGMART
 
 ## 1. Tổng quan
@@ -60,6 +60,7 @@ về **CÓ PHÂN TRANG** — 1 lần gọi KHÔNG trả hết toàn bộ dữ li
     { "key": "tenNganhHang", "label": "Tên ngành hàng" },
     { "key": "maHang", "label": "Mã mặt hàng" },
     { "key": "tenHang", "label": "Tên mặt hàng" },
+    { "key": "maVach", "label": "Mã vạch" },
     { "key": "soLuongTon", "label": "Số lượng tồn" },
     { "key": "maKho", "label": "Mã kho" },
     { "key": "maDiem", "label": "Mã Điểm (siêu thị)" },
@@ -74,6 +75,7 @@ về **CÓ PHÂN TRANG** — 1 lần gọi KHÔNG trả hết toàn bộ dữ li
       "tenNganhHang": "Sữa & Đồ uống",
       "maHang": "2003330491",
       "tenHang": "Sữa tươi TH True Milk 1L",
+      "maVach": "8934696001589",
       "soLuongTon": 186,
       "maKho": "10041",
       "maDiem": "004",
@@ -87,6 +89,7 @@ về **CÓ PHÂN TRANG** — 1 lần gọi KHÔNG trả hết toàn bộ dữ li
       "tenNganhHang": "Đồ khô & Gia vị",
       "maHang": "2003290553",
       "tenHang": "Dầu ăn Simply 1L",
+      "maVach": null,
       "soLuongTon": 86,
       "maKho": "10011",
       "maDiem": "001",
@@ -105,8 +108,9 @@ về **CÓ PHÂN TRANG** — 1 lần gọi KHÔNG trả hết toàn bộ dữ li
 |---|---|---|
 | `maNganhHang` | chuỗi | Mã ngành hàng |
 | `tenNganhHang` | chuỗi | Tên ngành hàng |
-| `maHang` | chuỗi (10 chữ số) | Mã mặt hàng (SKU nội bộ) — **dùng làm mã định danh chính, tạm thay cho mã vạch** (đã xác nhận với đối tác — xem lưu ý dưới) |
+| `maHang` | chuỗi (10 chữ số) | Mã mặt hàng (SKU nội bộ) — **dùng làm mã định danh chính** |
 | `tenHang` | chuỗi | Tên mặt hàng |
+| `maVach` | chuỗi (thường 13 chữ số, chuẩn EAN-13) hoặc `null` | Mã vạch sản phẩm thật — `null` nếu mặt hàng đó chưa khai mã vạch trong hệ thống nguồn (không phải lỗi) |
 | `soLuongTon` | số | Số lượng tồn kho hiện tại |
 | `maKho` | chuỗi | Mã kho vật lý (có thể nhiều mã kho cùng thuộc 1 siêu thị, có thể đổi theo thời gian) |
 | `maDiem` | chuỗi | **Mã Điểm** — mã định danh SIÊU THỊ, ỔN ĐỊNH lâu dài (không đổi dù siêu thị đổi/thêm mã kho) — **khuyến nghị dùng trường này làm khoá chính khi lưu trữ/đối chiếu dữ liệu phía đối tác**, không nên dùng `maKho` làm khoá cố định |
@@ -122,11 +126,11 @@ về **CÓ PHÂN TRANG** — 1 lần gọi KHÔNG trả hết toàn bộ dữ li
 > trữ/liên kết dữ liệu lâu dài theo siêu thị, dùng `maDiem`, không dùng
 > `maKho`.
 
-> **Về mã vạch**: API này hiện CHƯA có mã vạch (mã 12 số) riêng — đã xác
-> nhận với đối tác dùng TẠM `maHang` (mã 10 số) làm mã định danh thay thế.
-> Nếu sau này xác định được đúng cột nguồn chứa mã 12 số, BRGMART sẽ bổ
-> sung thêm 1 trường mã vạch riêng và cập nhật lại tài liệu — `maHang`
-> vẫn giữ nguyên, không đổi.
+> **Về mã vạch**: `maVach` là mã vạch THẬT lấy từ hệ thống nguồn (không
+> phải mã 10 số `maHang`). Không phải mặt hàng nào cũng có — mặt hàng
+> chưa khai mã vạch sẽ trả về `null` ở trường này, hệ thống đối tác nên
+> dùng `maHang` làm khoá định danh chính (LUÔN có), coi `maVach` là
+> trường bổ sung để đối chiếu/quét mã khi có.
 
 > **Về Đơn vị tính (ĐVT)**: hiện CHƯA có trong API này — đang chờ DBA xác
 > nhận có cột cố định theo mã hàng hay không. Sẽ cập nhật sau.
@@ -177,12 +181,18 @@ dập** — khuyến nghị đồng bộ định kỳ **mỗi 15-30 phút/lần*
 `dbo.vw_TonKhoChiTietTheoSKU`, CSDL `DSMART16`, job đồng bộ "Tồn kho Chi
 tiết theo SKU - Live (DSMART16)") — KHÔNG tạo nguồn mới. Xem
 `bc-ton-kho-chi-tiet.md` cho phần dùng chung (VIEW gốc, job đồng bộ).
+`maVach` (bản 10.50) lấy từ `dbo.SKU_DEF.BARCODE` — bảng `SKU_DEF` ĐÃ JOIN
+SẴN trong VIEW (dùng chung cho `maHang`/`tenHang`), không JOIN thêm bảng
+nào — đã xác nhận bằng dữ liệu thật (DBA chạy `SELECT TOP 5 * FROM
+dbo.SKU_DEF`) là mã EAN-13 hợp lệ (cột `UPC_CODE` cùng bảng rỗng ở mọi
+dòng mẫu nên KHÔNG dùng).
 
 **Các bước triển khai (theo đúng thứ tự):**
 
 1. Chạy lại "deploy/Thiết lập VIEW Tồn kho Chi tiết theo SKU (DSMART16).sql"
-   trên CSDL `DSMART16` (bản 10.46 — thêm cột `NgayNhapGanNhat`, AN TOÀN
-   chạy lại nhiều lần).
+   trên CSDL `DSMART16` (bản 10.46 — thêm cột `NgayNhapGanNhat`; bản
+   10.50 — thêm cột `MaVach` từ `SKU_DEF.BARCODE`; AN TOÀN chạy lại nhiều
+   lần).
 2. Chạy lại `node etl/scripts/seedTonKhoChiTietSync.js` (thư mục `etl/`)
    — cập nhật job đồng bộ, thêm cột mới vào danh sách đồng bộ.
 3. Chạy `etl-db/grants.sql` trên SQL Server chứa `etl.DiemStkMapping`
@@ -193,8 +203,10 @@ tiết theo SKU - Live (DSMART16)") — KHÔNG tạo nguồn mới. Xem
    `api-server/.env.example`) — trỏ ĐÚNG server/database chứa
    `etl.DiemStkMapping`.
 5. `pm2 restart` đúng tiến trình `api-server`.
-6. Chạy `node scripts/seedTonKhoReport.js` (thư mục `api-server/`) — tạo
-   báo cáo `ton-kho` trong `api.ReportCatalog`.
+6. Chạy `node scripts/seedTonKhoReport.js` (thư mục `api-server/`) — tạo/
+   cập nhật báo cáo `ton-kho` trong `api.ReportCatalog` (bản 10.50 đã
+   thêm cột `maVach` vào định nghĩa báo cáo — BẮT BUỘC chạy lại script
+   này sau bước 1-2, nếu không `maVach` sẽ luôn trả về `null`).
 7. Vào `api-admin` → "Đối tác" → đúng đối tác cần dùng → "Báo cáo được
    gọi" → tick "Tồn kho toàn hệ thống" — mặc định KHÔNG đối tác nào gọi
    được dù có scope `reports` hợp lệ.
@@ -204,17 +216,14 @@ tiết theo SKU - Live (DSMART16)") — KHÔNG tạo nguồn mới. Xem
 curl "http://localhost:<port>/api/v1/reports/ton-kho/run?pageSize=5" \
   -H "X-API-Key: <api key thật của đối tác>"
 ```
-Phải thấy đủ 11 cột, `tenSieuThi` hiện tên THẬT (không phải mã kho trần/
+Phải thấy đủ 12 cột, `tenSieuThi` hiện tên THẬT (không phải mã kho trần/
 "(chưa khai tên)" — nếu hiện "(chưa khai tên)" cho MỌI dòng, kiểm tra lại
 bước 3-4, xem "Hệ thống → Log" bên rp-server để biết cách chẩn đoán kiểu
 lỗi tương tự nếu `api-server` cũng áp dụng cơ chế ghi log này sau).
+`maVach` phải có giá trị (mã 13 số) ở các mặt hàng đã khai mã vạch trong
+`SKU_DEF.BARCODE` — `null` ở mặt hàng chưa khai là bình thường.
 
 **Việc CÒN THIẾU, cần bổ sung sau**:
-- Mã vạch sản phẩm (mã 12 số) — **đã xác nhận với người dùng (30/10/2026):
-  TẠM dùng `maHang` (mã 10 số) thay mã vạch, KHÔNG chặn triển khai** — khi
-  nào DBA xác nhận được đúng bảng/cột nguồn trong DSMART16 chứa mã 12 số
-  (đã gửi sẵn script kiểm tra cho DBA — xem ghi chú này trong hội thoại
-  triển khai) thì thêm 1 trường mã vạch riêng, KHÔNG đổi/xoá `maHang`.
 - Đơn vị tính (ĐVT) — cần DBA xác nhận `SKU_DEF` có cột cố định theo mã
   hàng hay chỉ có theo từng giao dịch (`STRANS.UNIT_SYMB`).
 - Endpoint "realtime" tra 1 mã tức thời (`GET /api/v1/realtime/ton-kho/{maHang}`)

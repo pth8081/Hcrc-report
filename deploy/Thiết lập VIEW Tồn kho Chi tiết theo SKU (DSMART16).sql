@@ -39,6 +39,16 @@
    ĐẶT HÀNG (130/330) nếu đặt mới hơn lần nhập gần nhất — SAI Ý "ngày
    NHẬP". `latestNhap` dưới đây CHỈ xét `133`/`333` (đúng 2 mã "nhập hàng",
    xem "bc-don-dat-hang.md" mục "KẾT LUẬN THIẾT KẾ").
+
+   SỬA bản 10.50 (theo yêu cầu người dùng — API "Tồn kho" cho đối tác cần
+   thêm mã vạch) — thêm CỘT MỚI `MaVach`, lấy từ `SKU_DEF.BARCODE` (bảng
+   `k` ĐÃ JOIN SẴN từ trước, không JOIN thêm bảng nào). Đã xác nhận bằng
+   dữ liệu thật (DBA chạy `SELECT TOP 5 * FROM dbo.SKU_DEF`) — cột
+   `BARCODE` char(20) có giá trị mã vạch chuẩn EAN-13 thật (vd
+   "8934696001589"), cột `UPC_CODE` char(20) RỖNG ở mọi dòng mẫu nên
+   KHÔNG dùng. `BARCODE` là cột CHAR cố định độ dài, cần `RTRIM` bỏ
+   khoảng trắng đệm bên phải, và `NULLIF(..., '')` để trả `NULL` (không
+   phải chuỗi rỗng) cho mã hàng chưa khai mã vạch.
    ============================================================================ */
 
 USE DSMART16;
@@ -51,6 +61,7 @@ SELECT
     st.STK_NAME_U                AS TenChiNhanh,
     k.SKU_CODE                  AS MaHangHienThi,
     k.FULL_NAME_U                AS TenHang,
+    NULLIF(RTRIM(k.BARCODE), '') AS MaVach,  -- bản 10.50 — mã vạch thật (EAN-13), SKU_DEF đã JOIN sẵn
     k.DEPT_ID                   AS MaNganhHang,
     dl.DEPT_NAME_U                AS TenNganhHang,
     latest.SUPP_ID               AS MaNCC,
@@ -95,3 +106,6 @@ SELECT TOP 20 * FROM dbo.vw_TonKhoChiTietTheoSKU WHERE MaNCC IS NOT NULL;
 -- (mã hàng có lịch sử nhập hàng thật), 1 vài dòng NULL (chưa từng nhập) —
 -- bình thường, không phải lỗi:
 SELECT TOP 20 MaHangHienThi, TenHang, NgayNhapGanNhat FROM dbo.vw_TonKhoChiTietTheoSKU WHERE NgayNhapGanNhat IS NOT NULL;
+-- bản 10.50 — kiểm tra cột MaVach, phải thấy mã vạch 13 số thật (vd
+-- "8934696001589"), không còn khoảng trắng đệm ở cuối:
+SELECT TOP 20 MaHangHienThi, TenHang, MaVach FROM dbo.vw_TonKhoChiTietTheoSKU WHERE MaVach IS NOT NULL;

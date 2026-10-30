@@ -1,7 +1,12 @@
 // scripts/seedTonKhoReport.js — Tạo/CẬP NHẬT idempotent báo cáo "ton-kho"
 // (api.ReportCatalog) — bản 10.46, theo yêu cầu người dùng: cung cấp tồn
 // kho LIVE toàn hệ thống (mọi siêu thị) cho đối tác ngoài qua
-// `GET /api/v1/reports/ton-kho/run` — xem "Tai-lieu-API-Ton-kho-cho-doi-tac.md".
+// `GET /api/v1/reports/ton-kho/run` — xem "api-ton-kho-cho-doi-tac.md".
+//
+// SỬA bản 10.50 — thêm trường maVach (SKU_DEF.BARCODE, đã JOIN sẵn trong
+// VIEW nguồn, xác nhận bằng dữ liệu thật là mã EAN-13) — chạy lại script
+// này SAU KHI đã chạy lại VIEW + "etl/scripts/seedTonKhoChiTietSync.js"
+// bản 10.50 (thêm cột MaVach), nếu không cột maVach sẽ luôn NULL.
 //
 // Đọc domain `tonkho_chitiet_sku` ĐÃ CÓ SẴN (dùng chung VIEW/job đồng bộ
 // với báo cáo "Tồn kho chi tiết" nội bộ rp-server — xem
@@ -35,6 +40,7 @@ const DEFINITION = {
     { key: 'tenNganhHang', label: 'Tên ngành hàng', formula: 'TenNganhHang' },
     { key: 'maHang', label: 'Mã mặt hàng', formula: 'MaHangHienThi' },
     { key: 'tenHang', label: 'Tên mặt hàng', formula: 'TenHang' },
+    { key: 'maVach', label: 'Mã vạch', formula: 'MaVach' },
     { key: 'soLuongTon', label: 'Số lượng tồn', formula: 'measures.SoLuongTon' },
     { key: 'maKho', label: 'Mã kho', formula: 'MaChiNhanh' },
     // maDiem/tenSieuThi — formula CHỈ LÀ GIÁ TRỊ TẠM (placeholder, bắt

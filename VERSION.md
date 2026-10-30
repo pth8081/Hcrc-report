@@ -42,6 +42,30 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.50 — Thêm mã vạch (maVach) vào API Tồn kho toàn hệ thống
+
+**Theo yêu cầu người dùng**: thêm mã vạch THẬT vào API "Tồn kho toàn hệ
+thống" (bản 10.46) — xác nhận bằng dữ liệu thật (DBA chạy
+`INFORMATION_SCHEMA.COLUMNS` + `SELECT TOP 5 * FROM dbo.SKU_DEF`) rằng
+`SKU_DEF.BARCODE` (char(20)) là mã EAN-13 thật, `SKU_DEF.UPC_CODE` rỗng ở
+mọi dòng mẫu nên không dùng.
+
+**Thay đổi**:
+- VIEW `dbo.vw_TonKhoChiTietTheoSKU` (DSMART16) thêm cột `MaVach` =
+  `NULLIF(RTRIM(k.BARCODE), '')` — `SKU_DEF` (alias `k`) đã JOIN sẵn
+  trong VIEW, không JOIN thêm bảng nào.
+- `etl/scripts/seedTonKhoChiTietSync.js` thêm `MaVach` vào
+  `dimensionColumns` của job "Tồn kho Chi tiết theo SKU - Live
+  (DSMART16)".
+- `api-server/scripts/seedTonKhoReport.js` thêm cột `maVach` vào định
+  nghĩa báo cáo `ton-kho` — API trả thêm trường `maVach` (chuỗi EAN-13
+  hoặc `null` nếu mặt hàng chưa khai mã vạch).
+- Cập nhật `api-ton-kho-cho-doi-tac.md` (cả phần gửi đối tác lẫn mục nội
+  bộ 9) — `maHang` không còn ghi "tạm thay mã vạch" nữa, `maVach` là
+  trường mã vạch thật riêng.
+
+Chi tiết đầy đủ: `api-ton-kho-cho-doi-tac.md`.
+
 ## 10.49 — Hướng dẫn triển khai gộp bản 10.46-10.48
 
 **Theo yêu cầu người dùng**: gộp các bước triển khai của bản 10.46-10.48
