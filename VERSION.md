@@ -42,6 +42,14 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.48 — Bổ sung báo cáo "ton-kho" vào Danh mục báo cáo (thiếu sót bản 10.46)
+
+**Sửa lỗi quy trình**: bản 10.46 (API "Tồn kho toàn hệ thống") đã có file
+hướng dẫn riêng `api-ton-kho-cho-doi-tac.md` nhưng QUÊN cập nhật mục
+"Danh mục báo cáo" ở cuối `hướng_dẫn_báo_cáo.md` (quy ước bắt buộc, xem
+`CLAUDE.md`) — đã bổ sung dòng `ton-kho` trỏ sang đúng file đó. KHÔNG đổi
+code/API.
+
 ## 10.47 — Chốt dùng tạm mã 10 số thay mã vạch (API Tồn kho)
 
 **Theo yêu cầu người dùng**: xác nhận API "Tồn kho toàn hệ thống" (bản

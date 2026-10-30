@@ -1801,3 +1801,4 @@ cập nhật nếu chỉ sửa báo cáo đã có (file hướng dẫn riêng t�
 | `bc-ton-kho-nguong` | Tồn kho theo ngưỡng | `bc-ton-kho-nguong.md` |
 | `bc-ton-kho-chi-tiet` | Tồn kho chi tiết theo SKU | `bc-ton-kho-chi-tiet.md` |
 | `bc-tra-cuu-voucher` | Tra cứu voucher | `api-voucher-check-redeem.md` |
+| `ton-kho` | Tồn kho toàn hệ thống (API cho đối tác ngoài, api-server) | `api-ton-kho-cho-doi-tac.md` |

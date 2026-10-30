@@ -14,6 +14,14 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.48 — Bổ sung báo cáo "ton-kho" vào Danh mục báo cáo (thiếu sót bản 10.46)
+
+**Thay đổi**: chỉ thêm 1 dòng vào bảng "Danh mục báo cáo" trong
+`hướng_dẫn_báo_cáo.md` — KHÔNG đổi code/API.
+
+**Triển khai**: KHÔNG cần làm gì thêm trên server — `git pull` để lấy tài
+liệu mới.
+
 ## 10.47 — Chốt dùng tạm mã 10 số thay mã vạch (API Tồn kho)
 
 **Thay đổi**: CHỈ cập nhật tài liệu `api-ton-kho-cho-doi-tac.md` (mục 4 +
