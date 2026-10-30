@@ -33,6 +33,9 @@ function Card({ hero, icon, label, card, extra }) {
       {card.chiTieu !== null && (
         <div className="rsc-target">Chỉ tiêu: <b>{formatCellValue(card.chiTieu)} đ</b>{extra ? ` · ${extra}` : ''}</div>
       )}
+      {card.laiGop !== null && (
+        <div className="rsc-target">Lãi gộp: <b>{formatCellValue(card.laiGop)} đ</b>{card.tyLeLaiGop !== null ? ` (${formatCellValue(card.tyLeLaiGop, { format: 'percent' })})` : ''}</div>
+      )}
     </div>
   );
 }

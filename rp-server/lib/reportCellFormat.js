@@ -224,7 +224,12 @@ function computeSummaryCards(definition, rows) {
   const cfg = definition.summaryCards;
   const groupBy = definition.groupBy;
   if (!cfg || !cfg.keys || !groupBy) return null;
-  const { chiTieu, thucDat, tyLeDat, lfl } = cfg.keys;
+  // laiGop/tyLeLaiGop (bản 10.45, "thêm tỷ lệ lãi gộp và lãi gộp" vào khối
+  // thẻ) — TUỲ CHỌN, `cfg.keys` không khai 2 trường này (báo cáo cũ hơn
+  // chưa cập nhật) thì `laiGop`/`tyLeLaiGop` đọc undefined, `row[undefined]`
+  // luôn ra undefined -> `?? null` -> giữ nguyên hành vi cũ (không hiện
+  // dòng Lãi gộp), không lỗi.
+  const { chiTieu, thucDat, tyLeDat, lfl, laiGop, tyLeLaiGop } = cfg.keys;
   const labelCol = groupBy.labelColumn;
   function pick(row, fallbackLabel) {
     if (!row) return null;
@@ -233,7 +238,9 @@ function computeSummaryCards(definition, rows) {
       chiTieu: row[chiTieu] ?? null,
       thucDat: row[thucDat] ?? null,
       tyLeDat: row[tyLeDat] ?? null,
-      lfl: row[lfl] ?? null
+      lfl: row[lfl] ?? null,
+      laiGop: row[laiGop] ?? null,
+      tyLeLaiGop: row[tyLeLaiGop] ?? null
     };
   }
   const grand = pick((rows || []).find(r => r.__isGrandTotal), groupBy.grandTotalLabel);

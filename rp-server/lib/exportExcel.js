@@ -73,7 +73,10 @@ const MAX_COL_WIDTH = 40;
 // báo cáo hiện dùng, xem scripts/seedLdtdHcrcReports.js) — nhánh báo cáo
 // PHẲNG (không columnGroups) KHÔNG hỗ trợ khối này (chưa báo cáo phẳng nào
 // cần tới, thêm sau nếu phát sinh nhu cầu).
-const SUMMARY_CARD_ROWS = 4; // 3 dòng nội dung (nhãn/số/chỉ tiêu) + 1 dòng đệm
+// SỬA bản 10.45 (theo yêu cầu người dùng — "thêm tỷ lệ lãi gộp và lãi gộp
+// nữa" vào khối thẻ) — THÊM 1 dòng nội dung (Lãi gộp, dòng 4), từ 4 lên 5
+// dòng (3 dòng cũ + 1 dòng Lãi gộp + 1 dòng đệm).
+const SUMMARY_CARD_ROWS = 5; // 4 dòng nội dung (nhãn/số/chỉ tiêu/lãi gộp) + 1 dòng đệm
 function addSummaryCardsBlock(sheet, definition, rows, colCount) {
   const cards = computeSummaryCards(definition, rows);
   if (!cards) return 0;
@@ -104,7 +107,7 @@ function addSummaryCardsBlock(sheet, definition, rows, colCount) {
   entries.forEach((e, i) => {
     const [start, end] = ranges[i];
     const heroFill = fillArgb(SUMMARY_CARD_COLORS.heroBg);
-    for (let r = 1; r <= 3; r++) {
+    for (let r = 1; r <= 4; r++) {
       sheet.mergeCells(r, start, r, end);
       const cell = sheet.getCell(r, start);
       if (e.hero) cell.fill = heroFill;
@@ -124,10 +127,22 @@ function addSummaryCardsBlock(sheet, definition, rows, colCount) {
     metaCell.value = `Chỉ tiêu: ${n(e.card.chiTieu)} đ · ${pct(e.card.tyLeDat)} chỉ tiêu${trendText(e.card.lfl)}`;
     metaCell.font = fontName({ size: 8.5, color: { argb: e.hero ? `FF${SUMMARY_CARD_COLORS.heroTarget}` : `FF${SUMMARY_CARD_COLORS.inkSoft}` } });
     metaCell.alignment = { vertical: 'middle' };
+
+    // Dòng 4 — Lãi gộp (bản 10.45) — CHỈ vẽ khi báo cáo có khai (xem
+    // reportCellFormat.js:computeSummaryCards(), `laiGop`/`tyLeLaiGop` tuỳ
+    // chọn) — báo cáo khác dùng chung hàm này mà chưa khai 2 khoá đó ra
+    // `null`, bỏ qua, GIỮ NGUYÊN hành vi cũ (dòng trống).
+    if (e.card.laiGop !== null) {
+      const laiGopCell = sheet.getCell(4, start);
+      laiGopCell.value = `Lãi gộp: ${n(e.card.laiGop)} đ${e.card.tyLeLaiGop !== null ? ` (${pct(e.card.tyLeLaiGop)})` : ''}`;
+      laiGopCell.font = fontName({ size: 8.5, color: { argb: e.hero ? `FF${SUMMARY_CARD_COLORS.heroTarget}` : `FF${SUMMARY_CARD_COLORS.inkSoft}` } });
+      laiGopCell.alignment = { vertical: 'middle' };
+    }
   });
   sheet.getRow(1).height = 16;
   sheet.getRow(2).height = 26;
   sheet.getRow(3).height = 15;
+  sheet.getRow(4).height = 15;
   return SUMMARY_CARD_ROWS;
 }
 

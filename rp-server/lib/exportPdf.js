@@ -99,13 +99,18 @@ const COMPACT_MIN_COL_WIDTH_PT = 14;
 const CARDS_LABEL_SIZE = 7;
 const CARDS_VALUE_SIZE = 15;
 const CARDS_META_SIZE = 7;
-// 3 offset CỐ ĐỊNH (đo từ MÉP TRÊN mỗi thẻ xuống baseline từng dòng chữ) —
-// khoảng cách đã tính đủ dư để KHÔNG chồng chữ giữa 3 dòng (đã verify bằng
-// render thật + nhìn ảnh, không phải ước lượng — xem /tmp/.../test-10.21).
+const CARDS_LAIGOP_SIZE = 7;
+// 4 offset CỐ ĐỊNH (đo từ MÉP TRÊN mỗi thẻ xuống baseline từng dòng chữ) —
+// khoảng cách đã tính đủ dư để KHÔNG chồng chữ giữa các dòng (đã verify
+// bằng render thật + nhìn ảnh, không phải ước lượng — xem
+// /tmp/.../test-10.21). CARDS_LAIGOP_BASELINE_OFFSET (bản 10.45, "thêm tỷ
+// lệ lãi gộp và lãi gộp") — dòng MỚI, cách đều dòng Chỉ tiêu đúng 14pt
+// (giống khoảng cách giữa các dòng trước đó).
 const CARDS_LABEL_BASELINE_OFFSET = 14;
 const CARDS_VALUE_BASELINE_OFFSET = 32;
 const CARDS_META_BASELINE_OFFSET = 48;
-const CARDS_CONTENT_HEIGHT = 56; // chiều cao Ô thẻ — ĐỦ chứa dòng Chỉ tiêu (offset 48) + đệm đáy
+const CARDS_LAIGOP_BASELINE_OFFSET = 62;
+const CARDS_CONTENT_HEIGHT = 70; // chiều cao Ô thẻ — ĐỦ chứa dòng Lãi gộp (offset 62) + đệm đáy
 const CARDS_BLOCK_HEIGHT = CARDS_CONTENT_HEIGHT + 10; // + khoảng cách dưới trước tiêu đề bảng
 const CARDS_GAP = 8; // khoảng cách ngang giữa các thẻ
 
@@ -497,6 +502,16 @@ async function exportPdf(definition, rows) {
         const metaColor = e.hero ? hexToRgb01(SUMMARY_CARD_COLORS.heroTarget) : hexToRgb01(SUMMARY_CARD_COLORS.inkSoft);
         const metaStr = fitText(meta, font, CARDS_META_SIZE, w - padX * 2);
         page.drawText(metaStr, { x: cx + padX, y: top - CARDS_META_BASELINE_OFFSET, size: CARDS_META_SIZE, font, color: metaColor });
+      }
+
+      // Dòng Lãi gộp (bản 10.45) — CHỈ vẽ khi báo cáo có khai (tuỳ chọn,
+      // xem reportCellFormat.js:computeSummaryCards()).
+      if (e.card.laiGop !== null) {
+        let laiGopLine = `Lãi gộp: ${formatCellText(e.card.laiGop, {})} đ`;
+        if (e.card.tyLeLaiGop !== null) laiGopLine += ` (${Math.round(e.card.tyLeLaiGop)}%)`;
+        const laiGopColor = e.hero ? hexToRgb01(SUMMARY_CARD_COLORS.heroTarget) : hexToRgb01(SUMMARY_CARD_COLORS.inkSoft);
+        const laiGopStr = fitText(laiGopLine, font, CARDS_LAIGOP_SIZE, w - padX * 2);
+        page.drawText(laiGopStr, { x: cx + padX, y: top - CARDS_LAIGOP_BASELINE_OFFSET, size: CARDS_LAIGOP_SIZE, font, color: laiGopColor });
       }
       cx += w + CARDS_GAP;
     });

@@ -14,6 +14,26 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.45 — Khối "thẻ tổng" (4 báo cáo Doanh thu cuối ngày) thêm Lãi gộp + tỷ lệ Lãi gộp
+
+**Thay đổi**: `rp-server/lib/reportCellFormat.js`, `rp-server/lib/exportExcel.js`,
+`rp-server/lib/exportPdf.js`, `rp-server/lib/emailBodyRenderer.js`,
+`rp-server/scripts/seedLdtdHcrcReports.js`, `rp-user/src/components/ReportSummaryCards.jsx`.
+KHÔNG đổi CSDL/schema.
+
+**Các bước**:
+1. `git pull origin main`.
+2. `pm2 restart hcrc-rp-server` (bắt buộc — đổi logic tính/vẽ khối thẻ).
+3. Chạy lại (thư mục `rp-server/`): `node scripts/seedLdtdHcrcReports.js`
+   (cập nhật `summaryCards.keys` cho 4 báo cáo — idempotent, an toàn chạy
+   lại).
+4. Build lại `rp-user` (đổi file React) theo quy trình deploy frontend
+   thường dùng.
+
+**Kiểm tra**: mở 1 trong 4 báo cáo "Doanh thu cuối ngày" (web) → khối 3
+thẻ phải thêm dòng "Lãi gộp: ... đ (x%)" dưới dòng "Chỉ tiêu"; xuất thử
+Excel/PDF → cùng thông tin xuất hiện trong khối thẻ.
+
 ## 10.44 — PDF "Doanh thu cuối ngày" (2 báo cáo gốc) chữ nét hơn
 
 **Thay đổi**: CHỈ `rp-server/lib/exportPdf.js` (1 điều kiện boolean). KHÔNG

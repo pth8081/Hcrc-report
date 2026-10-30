@@ -42,6 +42,24 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.45 — Khối "thẻ tổng" thêm Lãi gộp + tỷ lệ Lãi gộp
+
+**Theo yêu cầu người dùng** (ảnh chụp thật khối 3 thẻ "Tổng doanh thu toàn
+hệ thống"/"Doanh thu khối MART"/"Doanh thu khối MINIMART") — "thêm tỷ lệ
+lãi gộp và lãi gộp nữa".
+
+**Thay đổi**: `lib/reportCellFormat.js:computeSummaryCards()` đọc thêm 2
+khoá TUỲ CHỌN `laiGop`/`tyLeLaiGop` (không khai thì bỏ qua, không ảnh
+hưởng báo cáo khác dùng chung hàm) — `scripts/seedLdtdHcrcReports.js` trỏ
+2 khoá này sang đúng 2 cột đã có sẵn (`lg_giaTri`/`lg_tyLe`, không thêm
+công thức mới). Cả 4 nơi hiển thị khối thẻ đều thêm dòng "Lãi gộp: ... đ
+(x%)" — web (`ReportSummaryCards.jsx`), Excel (`exportExcel.js`, khối thẻ
+từ 4→5 dòng), PDF (`exportPdf.js`, tăng chiều cao Ô thẻ), email
+(`emailBodyRenderer.js`).
+
+**Phạm vi**: CHỈ 4 báo cáo "Doanh thu cuối ngày" LDTD/HCRC (gốc + Thành
+viên) — các báo cáo khác không khai `summaryCards` không bị ảnh hưởng.
+
 ## 10.44 — PDF "Doanh thu cuối ngày" (2 báo cáo GỐC) chữ nét hơn
 
 **Theo báo cáo người dùng** (ảnh chụp thật PDF xuất ra — "chữ có vẻ hơi

@@ -183,6 +183,7 @@ function renderSummaryCardsHtml(definition, rows, targetWidthPx) {
         ${trendHtml(e.card.lfl, e.hero)}
       </div>
       ${e.card.chiTieu !== null ? `<div style="margin-top:8px;font-size:11.5px;color:${targetColor};">Chỉ tiêu: <b style="color:${targetBold};">${n(e.card.chiTieu)} đ</b></div>` : ''}
+      ${e.card.laiGop !== null ? `<div style="margin-top:4px;font-size:11.5px;color:${targetColor};">Lãi gộp: <b style="color:${targetBold};">${n(e.card.laiGop)} đ</b>${e.card.tyLeLaiGop !== null ? ` (${pct(e.card.tyLeLaiGop)})` : ''}</div>` : ''}
     </td>`;
   }).join('<td style="width:10px;"></td>');
   const widthStyle = targetWidthPx ? `width:${targetWidthPx}px;` : 'width:100%;';

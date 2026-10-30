@@ -86,8 +86,14 @@ function buildDefinition(title, targetDomain, exportFileCode, domains, pdfSummar
     // báo cáo; PDF chỉ 2 báo cáo GỐC (HCRC/LDTD), 2 báo cáo (Thành viên) để
     // sau" — 2 báo cáo Thành viên KHÔNG truyền cờ này (pdf: false), PDF của
     // 2 báo cáo đó giữ NGUYÊN như cũ (chỉ có bảng, không có khối thẻ).
+    // laiGop/tyLeLaiGop (bản 10.45, theo yêu cầu người dùng — "thêm tỷ lệ
+    // lãi gộp và lãi gộp nữa" vào khối 3 thẻ) — trỏ đúng 2 cột `lg_giaTri`/
+    // `lg_tyLe` đã có sẵn ở `columns` bên dưới, KHÔNG thêm cột/công thức
+    // mới. TUỲ CHỌN (computeSummaryCards() tự bỏ qua nếu báo cáo khác không
+    // khai 2 khoá này), không ảnh hưởng báo cáo nào khác ngoài 4 báo cáo ở
+    // đây.
     summaryCards: {
-      keys: { chiTieu: 'dt_chiTieu', thucDat: 'dt_thucDat', tyLeDat: 'dt_tyLeDat', lfl: 'dt_lfl' },
+      keys: { chiTieu: 'dt_chiTieu', thucDat: 'dt_thucDat', tyLeDat: 'dt_tyLeDat', lfl: 'dt_lfl', laiGop: 'lg_giaTri', tyLeLaiGop: 'lg_tyLe' },
       pdf: !!pdfSummaryCards
     },
     domain: revenueDomain,
