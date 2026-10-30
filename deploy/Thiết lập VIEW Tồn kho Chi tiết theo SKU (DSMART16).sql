@@ -30,6 +30,15 @@
    TRAN_DATE) nếu chưa có).
 
    AN TOÀN CHẠY LẠI NHIỀU LẦN — `CREATE OR ALTER VIEW`.
+
+   SỬA bản 10.46 (theo yêu cầu người dùng — API "Tồn kho" cho đối tác cần
+   thêm "ngày nhập hàng gần nhất") — thêm CỘT MỚI `NgayNhapGanNhat`, qua 1
+   OUTER APPLY THỨ 2, RIÊNG BIỆT với `latest` đã có ở trên. KHÔNG dùng
+   chung `latest` được — `latest` lấy GẦN NHẤT trong CẢ 4 mã (130/133 =
+   mua riêng ĐẶT/NHẬP, 330/333 = mua chung ĐẶT/NHẬP), nên có thể ra NGÀY
+   ĐẶT HÀNG (130/330) nếu đặt mới hơn lần nhập gần nhất — SAI Ý "ngày
+   NHẬP". `latestNhap` dưới đây CHỈ xét `133`/`333` (đúng 2 mã "nhập hàng",
+   xem "bc-don-dat-hang.md" mục "KẾT LUẬN THIẾT KẾ").
    ============================================================================ */
 
 USE DSMART16;
@@ -51,6 +60,7 @@ SELECT
          ELSE NULL END           AS KenhMua,
     CAST(GETDATE() AS DATE)      AS EventDate,
     (d.M_BEGIN + d.M_IMP - d.M_EXP) AS SoLuongTon,  -- DBA xác nhận: SL tồn cuối (xem bc-ton-kho-0.md)
+    latestNhap.TRAN_DATE          AS NgayNhapGanNhat,  -- bản 10.46 — CHỈ 133/333 (nhập hàng thật), KHÔNG lẫn ngày đặt
     GETDATE()                    AS UpdatedAt
 FROM dbo.STK_INFO d
 JOIN dbo.SKU_DEF k ON k.SKU_ID = d.SKU_ID
@@ -64,7 +74,15 @@ OUTER APPLY (
       AND x.STATUS NOT IN ('D','E')
     ORDER BY x.TRAN_DATE DESC
 ) latest
-LEFT JOIN dbo.SUPPLIER s ON s.SUPP_ID = latest.SUPP_ID;
+LEFT JOIN dbo.SUPPLIER s ON s.SUPP_ID = latest.SUPP_ID
+OUTER APPLY (
+    SELECT TOP 1 CAST(y.TRAN_DATE AS DATE) AS TRAN_DATE
+    FROM dbo.STRANS y
+    WHERE y.STK_ID = d.STK_ID AND y.SKU_ID = d.SKU_ID
+      AND y.TRANS_CODE IN ('133','333')
+      AND y.STATUS NOT IN ('D','E')
+    ORDER BY y.TRAN_DATE DESC
+) latestNhap;
 GO
 
 -- Kiểm tra nhanh sau khi tạo — phải thấy đủ cột, tên ngành hàng/NCC KHÔNG
@@ -73,3 +91,7 @@ GO
 -- bình thường, không phải lỗi):
 SELECT TOP 20 * FROM dbo.vw_TonKhoChiTietTheoSKU ORDER BY SoLuongTon DESC;
 SELECT TOP 20 * FROM dbo.vw_TonKhoChiTietTheoSKU WHERE MaNCC IS NOT NULL;
+-- bản 10.46 — kiểm tra riêng cột mới, phải thấy 1 vài dòng CÓ NgayNhapGanNhat
+-- (mã hàng có lịch sử nhập hàng thật), 1 vài dòng NULL (chưa từng nhập) —
+-- bình thường, không phải lỗi:
+SELECT TOP 20 MaHangHienThi, TenHang, NgayNhapGanNhat FROM dbo.vw_TonKhoChiTietTheoSKU WHERE NgayNhapGanNhat IS NOT NULL;

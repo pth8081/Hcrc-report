@@ -115,7 +115,10 @@ async function main() {
   const job = {
     name: 'Tồn kho Chi tiết theo SKU - Live (DSMART16)', dataSourceId: liveId, sourceName: 'DSMART16 - Live',
     sourceTable: VIEW_NAME, keyColumn: 'MaThucThe', dateColumn: 'EventDate',
-    dimensionColumns: ['MaChiNhanh', 'TenChiNhanh', 'MaHangHienThi', 'TenHang', 'MaNganhHang', 'TenNganhHang', 'MaNCC', 'TenNCC', 'KenhMua'],
+    // NgayNhapGanNhat (bản 10.46, theo yêu cầu người dùng — API "Tồn kho"
+    // cho đối tác cần thêm "ngày nhập hàng gần nhất") — cột MỚI thêm vào
+    // VIEW, xem "deploy/Thiết lập VIEW Tồn kho Chi tiết theo SKU (DSMART16).sql".
+    dimensionColumns: ['MaChiNhanh', 'TenChiNhanh', 'MaHangHienThi', 'TenHang', 'MaNganhHang', 'TenNganhHang', 'MaNCC', 'TenNCC', 'KenhMua', 'NgayNhapGanNhat'],
     measureColumns: ['SoLuongTon'],
     targetDomain: DOMAIN, cronExpression: '*/15 * * * *'
   };

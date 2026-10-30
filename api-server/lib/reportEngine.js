@@ -63,6 +63,12 @@ function resolveField(row, path) {
     if (head === 'entityCode') return row.entityCode;
     if (head === 'eventDate') return row.eventDate;
     if (head === 'sourceSystem') return row.sourceSystem;
+    // syncedAt (bản 10.46, theo yêu cầu người dùng — API Tồn kho cho đối
+    // tác cần hiện "Tồn kho cập nhật lúc HH:mm") — cột hệ thống ĐÃ CÓ SẴN
+    // trên mọi dòng (parseRow() đã gán), chỉ CHƯA từng expose được qua
+    // columns/formula trước bản này. Thuần tuý ĐỌC THÊM, không đổi hành vi
+    // field nào khác. Mirror đúng rp-server/lib/reportEngine.js.
+    if (head === 'syncedAt') return row.syncedAt;
     return row.dimensions ? row.dimensions[head] : undefined;
   }
   if (head === 'measures' && rest.length === 1) return row.measures ? row.measures[rest[0]] : undefined;
@@ -79,6 +85,7 @@ function projectColumns(row, columns) {
     if (col === 'entityCode') out[col] = row.entityCode;
     else if (col === 'eventDate') out[col] = row.eventDate;
     else if (col === 'sourceSystem') out[col] = row.sourceSystem;
+    else if (col === 'syncedAt') out[col] = row.syncedAt; // bản 10.46, xem resolveField()
     else if (col.startsWith('measures.')) out[col] = row.measures[col.slice('measures.'.length)];
     else out[col] = row.dimensions[col];
   }

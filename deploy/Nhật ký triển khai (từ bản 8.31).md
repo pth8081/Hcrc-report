@@ -14,6 +14,34 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.46 — API "Tồn kho toàn hệ thống" cho đối tác ngoài (api-server)
+
+**Thay đổi**: `deploy/Thiết lập VIEW Tồn kho Chi tiết theo SKU (DSMART16).sql`
+(thêm cột), `etl/scripts/seedTonKhoChiTietSync.js`,
+`api-server/lib/diemStkMapping.js` (MỚI), `api-server/.env.example`,
+`api-server/routes/v1/reports.js`, `api-server/lib/reportEngine.js`,
+`rp-server/lib/reportEngine.js` (mirror), `api-server/scripts/seedTonKhoReport.js`
+(MỚI), `etl-db/grants.sql`. KHÔNG đổi schema CSDL nào.
+
+**Các bước (theo đúng thứ tự)**:
+1. `git pull origin main`.
+2. Chạy lại VIEW "deploy/Thiết lập VIEW Tồn kho Chi tiết theo SKU (DSMART16).sql"
+   trên `DSMART16`.
+3. `node etl/scripts/seedTonKhoChiTietSync.js` (thư mục `etl/`).
+4. Điền `ETL_DIEM_STK_*` trong `.env` của `api-server` (xem
+   `api-server/.env.example`) — dùng CHUNG được login `etl_diem_stk_reader`
+   đã tạo cho rp-server nếu cùng SQL Server instance (xem `etl-db/grants.sql`).
+5. `pm2 restart` tiến trình `api-server` (BẮT BUỘC — route/reportEngine
+   đổi logic).
+6. `node scripts/seedTonKhoReport.js` (thư mục `api-server/`).
+7. `api-admin` → "Đối tác" → gán "Báo cáo được gọi" cho đúng đối tác cần
+   dùng — tick "Tồn kho toàn hệ thống".
+
+**Kiểm tra**: `GET /api/v1/reports/ton-kho/run?pageSize=5` (kèm
+`X-API-Key` đúng của đối tác) → đủ 11 cột, `tenSieuThi` hiện tên thật.
+
+Chi tiết đầy đủ (tài liệu API gửi được cho đối tác): `api-ton-kho-cho-doi-tac.md`.
+
 ## 10.45 — Khối "thẻ tổng" (4 báo cáo Doanh thu cuối ngày) thêm Lãi gộp + tỷ lệ Lãi gộp
 
 **Thay đổi**: `rp-server/lib/reportCellFormat.js`, `rp-server/lib/exportExcel.js`,

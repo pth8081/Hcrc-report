@@ -64,9 +64,13 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON SCHEMA::admin TO etl_admin;
 GRANT SELECT, INSERT, UPDATE, DELETE ON SCHEMA::etl TO etl_admin;
 GO
 
--- ===== etl_diem_stk_reader — rp-server CHỈ đọc etl.DiemStkMapping (TUỲ CHỌN,
---       chỉ cần tạo nếu có báo cáo composite bật block.useDiemStkMapping —
---       xem rp-server/.env.example ETL_DIEM_STK_*) =====
+-- ===== etl_diem_stk_reader — CHỈ đọc etl.DiemStkMapping (TUỲ CHỌN, chỉ cần
+--       tạo nếu có báo cáo composite bật block.useDiemStkMapping — xem
+--       rp-server/.env.example ETL_DIEM_STK_*). DÙNG CHUNG login này CHO
+--       CẢ api-server (bản 10.46, xem api-server/.env.example cùng mục +
+--       api-server/lib/diemStkMapping.js) — login CHỈ ĐỌC, cả 2 service
+--       kết nối ĐỘC LẬP (mỗi bên tự pool riêng), không ảnh hưởng lẫn nhau
+--       dù dùng chung 1 login SQL =====
 IF NOT EXISTS (SELECT 1 FROM sys.server_principals WHERE name = 'etl_diem_stk_reader')
 BEGIN
     CREATE LOGIN etl_diem_stk_reader WITH PASSWORD = 'DOI-MAT-KHAU-NAY-THANH-GIA-TRI-NGAU-NHIEN-THAT';

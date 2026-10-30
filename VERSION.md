@@ -42,6 +42,32 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.46 — API "Tồn kho toàn hệ thống" cho đối tác ngoài
+
+**Theo yêu cầu người dùng**: 1 hệ thống đối tác cần lấy tồn kho của TẤT
+CẢ siêu thị (ngành hàng, mã/tên mặt hàng, số lượng tồn, siêu thị, ngày
+nhập gần nhất) — phía đối tác tự lọc theo đúng siêu thị người dùng của
+họ, không cần giới hạn riêng từng đối tác ở tầng API.
+
+**Thay đổi**:
+- Dùng CHUNG domain `tonkho_chitiet_sku` đã có (không tạo domain/job mới)
+  — thêm cột `NgayNhapGanNhat` vào VIEW nguồn (OUTER APPLY RIÊNG, CHỈ
+  TRANS_CODE `133`/`333` — đúng "nhập hàng", không lẫn "đặt hàng").
+- `api-server` có thêm **kết nối đọc RIÊNG, ĐỘC LẬP** tới "Ánh xạ Điểm -
+  STK_ID" (mirror đúng `rp-server`, KHÔNG đi vòng qua rp-server) — dịch
+  `maKho` (STK_ID thô) sang Mã Điểm/Tên siêu thị CHUẨN.
+- `lib/reportEngine.js` (CẢ 2 bản sao, rp-server lẫn api-server) đọc thêm
+  được cột hệ thống `syncedAt` qua `columns`/`formula` — phục vụ trường
+  "Cập nhật lúc" (giờ:phút).
+- Báo cáo mới `ton-kho` trong `api.ReportCatalog` — endpoint
+  `GET /api/v1/reports/ton-kho/run` (có phân trang, tối đa 1000 dòng/lần).
+
+**Việc CÒN THIẾU, bổ sung sau** (theo yêu cầu người dùng — "thiếu mã
+barcode thì cập nhật sau"): mã vạch sản phẩm, đơn vị tính — cần DBA xác
+nhận nguồn dữ liệu trước khi thêm.
+
+Chi tiết đầy đủ (gồm tài liệu API gửi được cho đối tác): `api-ton-kho-cho-doi-tac.md`.
+
 ## 10.45 — Khối "thẻ tổng" thêm Lãi gộp + tỷ lệ Lãi gộp
 
 **Theo yêu cầu người dùng** (ảnh chụp thật khối 3 thẻ "Tổng doanh thu toàn

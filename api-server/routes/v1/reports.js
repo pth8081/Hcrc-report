@@ -99,12 +99,39 @@ router.get('/:reportId/run', async (req, res, next) => {
     if (!payload) {
       const dwhPool = await getPool('DWH');
       const rows = await runReport(dwhPool, definition, filters, { page, pageSize });
+      let projected = rows.map(r => projectColumns(r, columns));
+      // translateStkToStore (bản 10.46, theo yêu cầu người dùng — API "Tồn
+      // kho" cho đối tác cần tên siêu thị CHUẨN, không phải tên kho gốc
+      // DSMART/mã kho trần) — TUỲ CHỌN, CHỈ áp dụng khi definition khai rõ
+      // (vd báo cáo "ton-kho"), KHÔNG ảnh hưởng báo cáo khác. Dịch SAU KHI
+      // đã projectColumns (cần giá trị maKho THẬT của từng dòng để tra) —
+      // cột đích (vd "maDiem"/"tenSieuThi") PHẢI khai formula trỏ tạm vào
+      // đúng field nguồn trong definition.columns (projectColumns() yêu
+      // cầu MỌI cột object phải có formula — xem lib/reportEngine.js), giá
+      // trị đó bị GHI ĐÈ ở đây. Bỏ qua nếu cột đích bị loại bởi ?fields=
+      // (đối tác không xin thì không cần tính).
+      const t = definition.translateStkToStore;
+      if (t) {
+        const requestedKeys = new Set(columns.map(c => (c && typeof c === 'object' ? c.key : c)));
+        if (requestedKeys.has(t.maDiemField) || requestedKeys.has(t.tenField)) {
+          const { loadDiemStkMapping, buildStkIdLookup } = require('../../lib/diemStkMapping');
+          const diemMapping = await loadDiemStkMapping();
+          const stkLookup = buildStkIdLookup(diemMapping);
+          projected = projected.map((row) => {
+            const info = stkLookup.get(row[t.stkField]);
+            const out = { ...row };
+            if (requestedKeys.has(t.maDiemField)) out[t.maDiemField] = info ? info.maDiem : null;
+            if (requestedKeys.has(t.tenField)) out[t.tenField] = (info && info.tenSieuThi) || `${row[t.stkField]} (chưa khai tên)`;
+            return out;
+          });
+        }
+      }
       payload = {
         reportId: req.params.reportId,
         page,
         pageSize,
         columns: describeColumns(columns),
-        rows: rows.map(r => projectColumns(r, columns))
+        rows: projected
       };
       reportResultCache.set(cacheKey, payload);
     }
