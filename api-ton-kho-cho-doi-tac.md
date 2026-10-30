@@ -105,7 +105,7 @@ về **CÓ PHÂN TRANG** — 1 lần gọi KHÔNG trả hết toàn bộ dữ li
 |---|---|---|
 | `maNganhHang` | chuỗi | Mã ngành hàng |
 | `tenNganhHang` | chuỗi | Tên ngành hàng |
-| `maHang` | chuỗi (10 chữ số) | Mã mặt hàng (SKU nội bộ) — **tạm dùng làm mã định danh chính**, chưa có mã vạch riêng (sẽ cập nhật sau nếu cần) |
+| `maHang` | chuỗi (10 chữ số) | Mã mặt hàng (SKU nội bộ) — **dùng làm mã định danh chính, tạm thay cho mã vạch** (đã xác nhận với đối tác — xem lưu ý dưới) |
 | `tenHang` | chuỗi | Tên mặt hàng |
 | `soLuongTon` | số | Số lượng tồn kho hiện tại |
 | `maKho` | chuỗi | Mã kho vật lý (có thể nhiều mã kho cùng thuộc 1 siêu thị, có thể đổi theo thời gian) |
@@ -122,9 +122,11 @@ về **CÓ PHÂN TRANG** — 1 lần gọi KHÔNG trả hết toàn bộ dữ li
 > trữ/liên kết dữ liệu lâu dài theo siêu thị, dùng `maDiem`, không dùng
 > `maKho`.
 
-> **Về mã vạch/mã nhà cung cấp**: hiện CHƯA có trong API này (cần DBA xác
-> nhận cấu trúc dữ liệu nguồn trước khi thêm) — tạm dùng `maHang` làm định
-> danh. Sẽ cập nhật tài liệu khi bổ sung.
+> **Về mã vạch**: API này hiện CHƯA có mã vạch (mã 12 số) riêng — đã xác
+> nhận với đối tác dùng TẠM `maHang` (mã 10 số) làm mã định danh thay thế.
+> Nếu sau này xác định được đúng cột nguồn chứa mã 12 số, BRGMART sẽ bổ
+> sung thêm 1 trường mã vạch riêng và cập nhật lại tài liệu — `maHang`
+> vẫn giữ nguyên, không đổi.
 
 > **Về Đơn vị tính (ĐVT)**: hiện CHƯA có trong API này — đang chờ DBA xác
 > nhận có cột cố định theo mã hàng hay không. Sẽ cập nhật sau.
@@ -208,7 +210,11 @@ bước 3-4, xem "Hệ thống → Log" bên rp-server để biết cách chẩn
 lỗi tương tự nếu `api-server` cũng áp dụng cơ chế ghi log này sau).
 
 **Việc CÒN THIẾU, cần bổ sung sau**:
-- Mã vạch sản phẩm — cần DBA xác nhận bảng/cột nguồn trong DSMART16.
+- Mã vạch sản phẩm (mã 12 số) — **đã xác nhận với người dùng (30/10/2026):
+  TẠM dùng `maHang` (mã 10 số) thay mã vạch, KHÔNG chặn triển khai** — khi
+  nào DBA xác nhận được đúng bảng/cột nguồn trong DSMART16 chứa mã 12 số
+  (đã gửi sẵn script kiểm tra cho DBA — xem ghi chú này trong hội thoại
+  triển khai) thì thêm 1 trường mã vạch riêng, KHÔNG đổi/xoá `maHang`.
 - Đơn vị tính (ĐVT) — cần DBA xác nhận `SKU_DEF` có cột cố định theo mã
   hàng hay chỉ có theo từng giao dịch (`STRANS.UNIT_SYMB`).
 - Endpoint "realtime" tra 1 mã tức thời (`GET /api/v1/realtime/ton-kho/{maHang}`)

@@ -14,6 +14,16 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.47 — Chốt dùng tạm mã 10 số thay mã vạch (API Tồn kho)
+
+**Thay đổi**: CHỈ cập nhật tài liệu `api-ton-kho-cho-doi-tac.md` (mục 4 +
+mục nội bộ 9), KHÔNG đổi code/API — xác nhận dùng `maHang` (mã 10 số)
+tạm thay mã vạch, không chặn triển khai chờ DBA.
+
+**Triển khai**: KHÔNG cần làm gì thêm trên server (không có thay đổi
+code/DB/cấu hình) — chỉ cần `git pull` để lấy tài liệu mới nếu muốn gửi
+lại bản cập nhật cho đối tác.
+
 ## 10.46 — API "Tồn kho toàn hệ thống" cho đối tác ngoài (api-server)
 
 **Thay đổi**: `deploy/Thiết lập VIEW Tồn kho Chi tiết theo SKU (DSMART16).sql`

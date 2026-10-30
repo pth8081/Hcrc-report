@@ -42,6 +42,18 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.47 — Chốt dùng tạm mã 10 số thay mã vạch (API Tồn kho)
+
+**Theo yêu cầu người dùng**: xác nhận API "Tồn kho toàn hệ thống" (bản
+10.46) dùng TẠM `maHang` (mã 10 số, SKU_CODE) thay cho mã vạch (mã 12 số)
+— KHÔNG cần chờ DBA xác nhận cột mã 12 số mới triển khai cho đối tác.
+
+**Thay đổi**: chỉ cập nhật tài liệu `api-ton-kho-cho-doi-tac.md` (mục 4 +
+mục nội bộ 9) cho đúng quyết định này — KHÔNG đổi code/API (API vẫn trả
+về nguyên `maHang`, không có trường mã vạch riêng). Khi DBA xác nhận được
+cột nguồn chứa mã 12 số, sẽ thêm 1 trường mã vạch RIÊNG ở bản sau, không
+đổi/xoá `maHang`.
+
 ## 10.46 — API "Tồn kho toàn hệ thống" cho đối tác ngoài
 
 **Theo yêu cầu người dùng**: 1 hệ thống đối tác cần lấy tồn kho của TẤT
