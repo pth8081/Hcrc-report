@@ -337,8 +337,24 @@ router.get('/:reportId/filter-options/:field', async (req, res, next) => {
     if (filterDef.optionsSource.translateStkViaDiemStkMapping) {
       const diemMapping = await loadDiemStkMapping();
       const stkLookup = buildStkIdLookup(diemMapping);
+      // SỬA bản 10.52 (báo cáo người dùng — dropdown "Siêu thị" của báo cáo
+      // "Doanh thu theo ngành hàng - theo mã hàng" hiện "(chưa khai tên)"
+      // cho MỌI mã, dù "Ánh xạ Điểm - STK_ID" đã khai đủ) — `r.value` đọc
+      // qua JSON_VALUE() có thể mang khoảng trắng đệm ở cuối (STK_ID trong
+      // DSMART thường là CHAR cố định độ dài) nên KHÔNG khớp tuyệt đối với
+      // key đã `.trim()` sẵn của `stkLookup` (`buildStkIdLookup()` dựng từ
+      // `parseStkList()` — luôn trim). CÙNG lỗi đã vá ở
+      // lib/nganhHangBrgRunner.js:resolveNganhHangBranchOptions() (dòng
+      // `dimensions.STK_ID.trim()`) nhưng CHƯA áp dụng ở nhánh này — so
+      // sánh bằng (`=`) trong SQL Server không phân biệt khoảng trắng đệm
+      // cuối chuỗi, nên trim ở đây KHÔNG ảnh hưởng tới việc lọc báo cáo
+      // sau khi chọn.
+      const trim = (v) => (typeof v === 'string' ? v.trim() : v);
       options = options
-        .map((r) => ({ value: r.value, label: stkLookup.get(r.value)?.tenSieuThi || `${r.value} (chưa khai tên)` }))
+        .map((r) => {
+          const value = trim(r.value);
+          return { value, label: stkLookup.get(value)?.tenSieuThi || `${value} (chưa khai tên)` };
+        })
         .sort((a, b) => a.label.localeCompare(b.label, 'vi'));
     }
 

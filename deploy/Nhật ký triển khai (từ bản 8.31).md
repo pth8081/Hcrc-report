@@ -14,6 +14,30 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.52 — Sửa dropdown "Siêu thị" (báo cáo doanh thu theo mã hàng) hiện "(chưa khai tên)"
+
+**Thay đổi**: `rp-server/routes/reports.js` — thêm `.trim()` giá trị
+STK_ID trước khi tra "Ánh xạ Điểm - STK_ID" ở nhánh
+`translateStkViaDiemStkMapping` (chỉ 1 chỗ, không đổi gì khác).
+
+**Triển khai**:
+```bash
+git pull origin main
+pm2 restart rp-server   # đúng tên tiến trình thật trên server
+```
+Không cần đổi gì ở CSDL/ETL.
+
+**Kiểm tra**: mở "Báo cáo doanh thu theo ngành hàng (LDTD) - theo mã
+hàng" (hoặc bản HCRC) → bộ lọc "Siêu thị" → PHẢI hiện tên thật (không
+còn `"(chưa khai tên)"` cho các mã đã khai tên trong "Ánh xạ Điểm -
+STK_ID"). Đợi tối đa 2 giờ nếu kết quả cũ đang cache (hoặc restart
+`rp-server` để xoá cache trong bộ nhớ ngay).
+
+**CHƯA xử lý ở bản này**: báo cáo "- theo mã hàng" hiện "Không có dữ
+liệu" dù chọn khoảng ngày rộng — xem VERSION.md bản 10.52, cần kiểm tra
+thêm job đồng bộ `doanhthu_sku_nganhhang` trên server thật trước khi sửa
+tiếp.
+
 ## 10.51 — Mở rộng hướng dẫn triển khai gộp sang bản 10.50
 
 **Thay đổi**: đổi tên + cập nhật nội dung file `deploy/Hướng dẫn triển

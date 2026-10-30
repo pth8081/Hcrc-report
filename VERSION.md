@@ -42,6 +42,39 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.52 — Sửa dropdown "Siêu thị" (báo cáo doanh thu theo mã hàng) hiện "(chưa khai tên)" dù đã khai đủ
+
+**SỬA LỖI THẬT (theo báo cáo người dùng)**: bộ lọc "Siêu thị" của 2 báo
+cáo mới "Doanh thu theo ngành hàng (HCRC/LDTD) - theo mã hàng" (bản
+10.41) hiện `"<mã> (chưa khai tên)"` cho MỌI mã STK, dù "Ánh xạ Điểm -
+STK_ID" đã khai đủ Tên siêu thị cho các mã đó.
+
+**Nguyên nhân thật**: `routes/reports.js` (nhánh
+`optionsSource.translateStkViaDiemStkMapping`, dùng cho bộ lọc "Siêu thị"
+của 2 báo cáo trên) đọc `STK_ID` qua `JSON_VALUE()` — giá trị này có thể
+mang khoảng trắng đệm ở cuối (STK_ID trong DSMART thường là kiểu CHAR cố
+định độ dài) nên KHÔNG khớp tuyệt đối (`Map.get()` so sánh CHÍNH XÁC
+từng ký tự trong JS) với key đã `.trim()` sẵn trong bảng tra "Ánh xạ Điểm
+- STK_ID". CÙNG LỖI đã được vá ở `lib/nganhHangBrgRunner.js` (báo cáo
+"Doanh thu theo ngành hàng" gốc, dùng domain khác) nhưng CHƯA áp dụng
+sang nhánh này (dùng cho domain `doanhthu_sku_nganhhang` mới hơn, bản
+10.41).
+
+**Thay đổi**: thêm `.trim()` giá trị STK_ID trước khi tra "Ánh xạ Điểm -
+STK_ID" — mirror đúng cách `lib/nganhHangBrgRunner.js` đã làm. KHÔNG ảnh
+hưởng việc lọc báo cáo sau khi chọn (so sánh `=` trong SQL Server không
+phân biệt khoảng trắng đệm cuối chuỗi).
+
+**Lưu ý riêng**: người dùng còn báo cáo thêm — báo cáo "- theo mã hàng"
+**KHÔNG CÓ DỮ LIỆU** (kể cả khi bỏ trống mọi bộ lọc, chọn đủ khoảng ngày),
+trong khi báo cáo gốc "Doanh thu theo ngành hàng (LDTD)" vẫn có số liệu
+bình thường — đây là vấn đề RIÊNG, KHÁC HẲN lỗi dropdown ở trên (dropdown
+có options nghĩa là domain CÓ dữ liệu, chỉ là tên hiện sai do lỗi trên).
+CHƯA xác định được nguyên nhân (cần kiểm tra qua etl-admin → Đồng bộ →
+job "Doanh thu theo Mã hàng-Ngành hàng" xem đã tồn tại/đã chạy/có lỗi hay
+chưa) — sẽ xử lý tiếp khi có thêm thông tin, KHÔNG sửa gì ở bản này cho
+vấn đề đó.
+
 ## 10.51 — Mở rộng hướng dẫn triển khai gộp sang bản 10.50
 
 **Theo yêu cầu người dùng**: đổi tên file `deploy/Hướng dẫn triển khai
