@@ -14,6 +14,16 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.51 — Mở rộng hướng dẫn triển khai gộp sang bản 10.50
+
+**Thay đổi**: đổi tên + cập nhật nội dung file `deploy/Hướng dẫn triển
+khai gộp — bản 10.46 đến 10.50.md` (trước là "... đến 10.48.md") — gộp
+bước triển khai `MaVach` (bản 10.50) vào đúng B1/B2/B6 đã có, không thêm
+bước riêng. KHÔNG đổi code/API.
+
+**Triển khai**: KHÔNG cần làm gì thêm trên server — `git pull` để lấy
+tài liệu mới.
+
 ## 10.50 — Thêm mã vạch (maVach) vào API Tồn kho toàn hệ thống
 
 **Thay đổi**: VIEW `vw_TonKhoChiTietTheoSKU` thêm cột `MaVach`

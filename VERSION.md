@@ -42,6 +42,15 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.51 — Mở rộng hướng dẫn triển khai gộp sang bản 10.50
+
+**Theo yêu cầu người dùng**: đổi tên file `deploy/Hướng dẫn triển khai
+gộp — bản 10.46 đến 10.48.md` thành `... bản 10.46 đến 10.50.md`, bổ
+sung bản 10.49/10.50 vào bảng tóm tắt + gộp bước triển khai `MaVach`
+(bản 10.50) trực tiếp vào đúng 3 bước B1/B2/B6 đã có của bản 10.46 (cùng
+file/script, không thêm bước riêng), cập nhật checklist kiểm tra. KHÔNG
+đổi code/API.
+
 ## 10.50 — Thêm mã vạch (maVach) vào API Tồn kho toàn hệ thống
 
 **Theo yêu cầu người dùng**: thêm mã vạch THẬT vào API "Tồn kho toàn hệ
