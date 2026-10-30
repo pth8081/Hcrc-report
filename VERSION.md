@@ -42,6 +42,13 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.49 — Hướng dẫn triển khai gộp bản 10.46-10.48
+
+**Theo yêu cầu người dùng**: gộp các bước triển khai của bản 10.46-10.48
+(API "Tồn kho toàn hệ thống") thành 1 file duy nhất, cho server chưa bắt
+kịp làm 1 lượt — `deploy/Hướng dẫn triển khai gộp — bản 10.46 đến
+10.48.md`. KHÔNG đổi code/API.
+
 ## 10.48 — Bổ sung báo cáo "ton-kho" vào Danh mục báo cáo (thiếu sót bản 10.46)
 
 **Sửa lỗi quy trình**: bản 10.46 (API "Tồn kho toàn hệ thống") đã có file

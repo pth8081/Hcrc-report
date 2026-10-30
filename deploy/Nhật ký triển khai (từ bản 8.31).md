@@ -14,6 +14,15 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.49 — Hướng dẫn triển khai gộp bản 10.46-10.48
+
+**Thay đổi**: thêm file mới `deploy/Hướng dẫn triển khai gộp — bản 10.46
+đến 10.48.md`, gộp các bước triển khai thật của 3 bản trên thành 1 lượt
+làm duy nhất — KHÔNG đổi code/API.
+
+**Triển khai**: KHÔNG cần làm gì thêm trên server ngoài những gì file
+hướng dẫn gộp đó đã nêu (chính là các bước của bản 10.46).
+
 ## 10.48 — Bổ sung báo cáo "ton-kho" vào Danh mục báo cáo (thiếu sót bản 10.46)
 
 **Thay đổi**: chỉ thêm 1 dòng vào bảng "Danh mục báo cáo" trong
