@@ -68,6 +68,20 @@ function CopyableSecret({ value, label }) {
   );
 }
 
+// reportRunUrl (bản 10.59, theo yêu cầu người dùng — "khi mà tạo một cái
+// key... tôi có cái chỗ mà copy URL để tôi gửi cho đối tác, không phải nhớ
+// là nó đang kết nối với link nào") — hiện NGAY tại đây (modal "Báo cáo
+// được gọi", đúng lúc admin đang tick báo cáo cho đối tác) thay vì chỉ ở
+// trang "Báo cáo" riêng (bản 10.58) — admin không phải rời màn hình đang
+// làm để tra URL. Mirror ĐÚNG công thức ở ReportCatalogPage.jsx (route cố
+// định `GET /api/v1/reports/:reportId/run`, ghép domain thật qua
+// `me.publicApiBaseUrl`, đọc từ .env `PUBLIC_API_BASE_URL` — null thì chỉ
+// hiện đường dẫn, không bịa domain).
+function reportRunUrl(reportId, publicApiBaseUrl) {
+  const path = `/api/v1/reports/${reportId}/run`;
+  return publicApiBaseUrl ? `${publicApiBaseUrl}${path}` : path;
+}
+
 // Hiện đúng bí mật vừa được cấp — hình dạng response khác nhau theo authMethod.
 // CHỈ hiện đúng 1 lần lúc này — hệ thống lưu bí mật dưới dạng BĂM (SHA-256/
 // bcrypt/mã hoá 1 chiều tương đương), không có cách nào đọc lại bí mật CŨ sau
@@ -97,7 +111,7 @@ function RevealedCredentials({ creds, onClose }) {
 }
 
 export default function ConsumersPage() {
-  const { canEdit } = useAuth();
+  const { canEdit, me } = useAuth();
   const isAdmin = canEdit('consumers');
   const [consumers, setConsumers] = useState([]);
   const [reports, setReports] = useState([]);
@@ -526,15 +540,26 @@ export default function ConsumersPage() {
             <h3>Báo cáo được gọi — {accessFor.Name}</h3>
             <p>
               Mặc định đối tác KHÔNG gọi được báo cáo nào dù có scope <code>reports</code> — chỉ những
-              báo cáo tick dưới đây mới gọi được qua <code>GET /api/v1/reports/:reportId/run</code>.
+              báo cáo tick dưới đây mới gọi được. Báo cáo nào ĐÃ TICK sẽ hiện sẵn URL để copy gửi đối tác.
             </p>
+            {!me?.publicApiBaseUrl && (
+              <p className="hint">
+                Chưa khai <code>PUBLIC_API_BASE_URL</code> trong <code>.env</code> của api-server — URL dưới đây
+                tạm chỉ hiện đường dẫn (không domain). Xem trang "Báo cáo" để biết cách khai.
+              </p>
+            )}
             {!reports.length && <p className="empty-message">Chưa có báo cáo nào trong danh mục — thêm ở trang "Báo cáo" trước.</p>}
             <div className="scope-picker">
               {reports.map(r => (
-                <label key={r.ReportId} className="checkbox-row">
-                  <input type="checkbox" checked={accessReportIds.includes(r.ReportId)} onChange={() => toggleReportAccess(r.ReportId)} />
-                  {r.Title} ({r.ReportId})
-                </label>
+                <div key={r.ReportId}>
+                  <label className="checkbox-row">
+                    <input type="checkbox" checked={accessReportIds.includes(r.ReportId)} onChange={() => toggleReportAccess(r.ReportId)} />
+                    {r.Title} ({r.ReportId})
+                  </label>
+                  {accessReportIds.includes(r.ReportId) && (
+                    <CopyableSecret value={reportRunUrl(r.ReportId, me?.publicApiBaseUrl)} label="Endpoint API" />
+                  )}
+                </div>
               ))}
             </div>
             <div className="modal-actions">

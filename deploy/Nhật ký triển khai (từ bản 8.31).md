@@ -14,6 +14,24 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.59 — Hiện sẵn URL ngay tại trang "Đối tác" (lúc gán báo cáo)
+
+**Thay đổi**: `ConsumersPage.jsx` — modal "Báo cáo được gọi" hiện URL +
+nút "Sao chép" ngay dưới mỗi báo cáo đã tick. Dùng chung
+`PUBLIC_API_BASE_URL` đã khai ở bản 10.58 — không cần cấu hình thêm gì
+mới nếu đã làm bản 10.58.
+
+**Triển khai**:
+```bash
+git pull origin main
+cd api-admin && npm run build
+```
+Deploy lại `dist/`. Không cần đổi gì ở `api-server`/CSDL.
+
+**Kiểm tra**: api-admin → "Đối tác" → đúng đối tác → "Báo cáo được gọi"
+→ tick 1 báo cáo bất kỳ → phải thấy URL hiện ngay bên dưới kèm nút "Sao
+chép".
+
 ## 10.58 — Hiện sẵn link URL đầy đủ gửi đối tác (trang "Báo cáo"/"Cấu hình Voucher")
 
 **Thay đổi**: `api-server` thêm biến `.env` MỚI `PUBLIC_API_BASE_URL` +

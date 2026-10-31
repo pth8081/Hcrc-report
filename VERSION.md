@@ -42,6 +42,21 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.59 — Hiện sẵn URL NGAY TẠI trang "Đối tác" (lúc gán báo cáo)
+
+**Theo yêu cầu người dùng**: "khi mà tạo một cái key... cho đối tác ấy,
+tôi có cái chỗ mà copy URL để tôi gửi cho đối tác, không phải nhớ là nó
+đang kết nối với link nào" — bản 10.58 mới hiện URL ở trang "Báo cáo"
+RIÊNG, admin vẫn phải rời màn hình "Đối tác" đang làm để tra — bản này
+hiện NGAY tại chỗ đang thao tác.
+
+**Thay đổi**: `ConsumersPage.jsx` (trang "Đối tác") → modal **"Báo cáo
+được gọi"** — báo cáo nào ĐÃ TICK sẽ hiện sẵn URL đầy đủ (dùng chung
+`publicApiBaseUrl` từ bản 10.58) + nút "Sao chép" NGAY DƯỚI dòng đó —
+admin tick xong là copy được luôn, không cần rời khỏi modal đang mở.
+
+KHÔNG đổi backend/API — thuần giao diện.
+
 ## 10.58 — Hiện sẵn link URL đầy đủ gửi đối tác (trang "Báo cáo"/"Cấu hình Voucher")
 
 **Theo yêu cầu người dùng**: "phải hiện ra cái phần hiện link URL để gửi
