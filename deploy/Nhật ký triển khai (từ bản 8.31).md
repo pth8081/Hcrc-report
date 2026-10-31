@@ -14,6 +14,32 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.54 — Admin tự giới hạn đối tác CHỈ lấy tồn kho của 1 vài siêu thị
+
+**Thay đổi**: bảng mới `api.ConsumerStoreAccess` + route admin
+`GET/PUT /consumers/:id/store-access`, `GET /consumers/store-options`
+(`api-server`) + nút "Siêu thị được lấy" (`api-admin` → "Đối tác"). Áp
+dụng cho báo cáo `ton-kho` qua lọc SQL bắt buộc trước phân trang
+(`lib/reportEngine.js:forcedConditions`).
+
+**Triển khai (theo đúng thứ tự)**:
+1. Chạy lại `api-db/schema.sql` trên CSDL `HCRC_API` — tạo bảng
+   `api.ConsumerStoreAccess` (an toàn chạy lại nhiều lần).
+2. `node scripts/seedTonKhoReport.js` (thư mục `api-server/`) — cập nhật
+   định nghĩa báo cáo `ton-kho` (thêm `rawStkField`).
+3. `pm2 restart api-server` — nạp route admin mới.
+4. `cd api-admin && npm run build` rồi deploy `dist/` — nạp nút "Siêu thị
+   được lấy".
+
+**KHÔNG cần làm gì thêm cho đối tác hiện tại** — mặc định KHÔNG giới hạn
+(rỗng = thấy toàn bộ siêu thị như trước), chỉ áp dụng khi admin chủ động
+tick siêu thị cho 1 đối tác cụ thể.
+
+**Kiểm tra**: vào api-admin → "Đối tác" → đúng đối tác → "Siêu thị được
+lấy" → tick 1-2 siêu thị → Lưu → gọi `GET /api/v1/reports/ton-kho/run`
+bằng key đối tác đó → `rows` CHỈ còn đúng các siêu thị đã tick (kể cả khi
+tăng `page`, không sót dòng nào ngoài phạm vi ở trang sau).
+
 ## 10.53 — Mở rộng hướng dẫn triển khai gộp sang bản 10.52
 
 **Thay đổi**: đổi tên + cập nhật nội dung file `deploy/Hướng dẫn triển

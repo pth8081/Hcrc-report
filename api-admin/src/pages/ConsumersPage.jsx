@@ -100,6 +100,7 @@ export default function ConsumersPage() {
   const isAdmin = canEdit('consumers');
   const [consumers, setConsumers] = useState([]);
   const [reports, setReports] = useState([]);
+  const [stores, setStores] = useState([]); // {maDiem, tenSieuThi} — bản 10.54, "Siêu thị được lấy"
   const [endpoints, setEndpoints] = useState([]);
   const [form, setForm] = useState(EMPTY_FORM);
   const [editing, setEditing] = useState(null); // consumer đang sửa, hoặc null
@@ -107,6 +108,9 @@ export default function ConsumersPage() {
   const [savingDuplicate, setSavingDuplicate] = useState(false);
   const [accessFor, setAccessFor] = useState(null); // consumer đang gán báo cáo, hoặc null
   const [accessReportIds, setAccessReportIds] = useState([]);
+  const [storeAccessFor, setStoreAccessFor] = useState(null); // consumer đang gán giới hạn siêu thị, hoặc null
+  const [accessMaDiems, setAccessMaDiems] = useState([]);
+  const [storeSearch, setStoreSearch] = useState(''); // ô tìm kiếm trong modal "Siêu thị được lấy"
   const [realtimeAccessFor, setRealtimeAccessFor] = useState(null); // consumer đang gán endpoint realtime, hoặc null
   const [accessEndpoints, setAccessEndpoints] = useState([]);
   const [writeEndpoints, setWriteEndpoints] = useState([]);
@@ -131,6 +135,7 @@ export default function ConsumersPage() {
   const [rotatingId, setRotatingId] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
   const [savingReportAccess, setSavingReportAccess] = useState(false);
+  const [savingStoreAccess, setSavingStoreAccess] = useState(false);
   const [savingRealtimeAccess, setSavingRealtimeAccess] = useState(false);
   const [savingWriteAccess, setSavingWriteAccess] = useState(false);
   // Chọn nhiều + xoá hàng loạt (bản 8.62).
@@ -140,6 +145,7 @@ export default function ConsumersPage() {
   function reload() {
     api.get('/consumers').then(setConsumers).catch(err => setError(err.message));
     api.get('/report-catalog').then(setReports).catch(err => setError(err.message));
+    api.get('/consumers/store-options').then(setStores).catch(err => setError(err.message));
     api.get('/realtime-endpoints').then(setEndpoints).catch(err => setError(err.message));
     api.get('/realtime-write-endpoints').then(setWriteEndpoints).catch(err => setError(err.message));
     api.get('/voucher-settings').then(list => setVoucherConfigs(list.filter(c => c.ConfigKey !== 'default'))).catch(err => setError(err.message));
@@ -157,6 +163,34 @@ export default function ConsumersPage() {
 
   function toggleReportAccess(reportId) {
     setAccessReportIds(list => (list.includes(reportId) ? list.filter(r => r !== reportId) : [...list, reportId]));
+  }
+
+  // "Siêu thị được lấy" (bản 10.54, theo yêu cầu người dùng — đối tác CHỈ
+  // được lấy tồn kho của NHỮNG siêu thị cụ thể, "tích chọn tìm kiếm... hiển
+  // thị tên siêu thị") — CÙNG khuôn openReportAccess/saveReportAccess ở
+  // trên, khác Ở Ý NGHĨA RỖNG: không tick gì = KHÔNG giới hạn (thấy TOÀN
+  // BỘ), tick cụ thể = RÚT LẠI còn đúng các siêu thị đó (xem
+  // api-server/routes/admin/consumers.js).
+  async function openStoreAccess(consumer) {
+    setError('');
+    try {
+      const { maDiems } = await api.get(`/consumers/${consumer.Id}/store-access`);
+      setAccessMaDiems(maDiems);
+      setStoreSearch('');
+      setStoreAccessFor(consumer);
+    } catch (err) { setError(err.message); }
+  }
+
+  function toggleStoreAccess(maDiem) {
+    setAccessMaDiems(list => (list.includes(maDiem) ? list.filter(m => m !== maDiem) : [...list, maDiem]));
+  }
+
+  async function saveStoreAccess() {
+    setSavingStoreAccess(true);
+    try {
+      await api.put(`/consumers/${storeAccessFor.Id}/store-access`, { maDiems: accessMaDiems });
+      setStoreAccessFor(null);
+    } catch (err) { setError(err.message); } finally { setSavingStoreAccess(false); }
   }
 
   async function saveReportAccess() {
@@ -407,6 +441,7 @@ export default function ConsumersPage() {
                 <button type="button" onClick={() => openDuplicate(c)}>Nhân bản</button>{' '}
                 <button type="button" onClick={() => toggleActive(c)} disabled={togglingId === c.Id}>{togglingId === c.Id ? 'Đang lưu...' : (c.IsActive ? 'Tắt' : 'Bật')}</button>{' '}
                 <button type="button" onClick={() => openReportAccess(c)}>Báo cáo được gọi</button>{' '}
+                <button type="button" onClick={() => openStoreAccess(c)}>Siêu thị được lấy</button>{' '}
                 <button type="button" onClick={() => openRealtimeAccess(c)}>Realtime được gọi</button>{' '}
                 <button type="button" onClick={() => openWriteAccess(c)}>Ghi được gọi</button>{' '}
                 <button type="button" onClick={() => openVoucherAccess(c)}>Cấu hình Voucher được gọi</button>{' '}
@@ -510,6 +545,47 @@ export default function ConsumersPage() {
             <div className="modal-actions">
               <button type="button" onClick={saveReportAccess} disabled={savingReportAccess}>{savingReportAccess ? 'Đang lưu...' : 'Lưu'}</button>
               <button type="button" onClick={() => setAccessFor(null)}>Huỷ</button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {storeAccessFor && (
+        <Modal>
+          <div className="modal-body">
+            <h3>Siêu thị được lấy — {storeAccessFor.Name}</h3>
+            <p>
+              KHÔNG tick gì = đối tác thấy TOÀN BỘ siêu thị (mặc định) — chỉ khi tick ít nhất 1 siêu thị
+              thì đối tác mới bị GIỚI HẠN CHỈ còn đúng những siêu thị đã tick, ở các báo cáo có khái niệm
+              "siêu thị" (hiện là "Tồn kho toàn hệ thống").
+            </p>
+            {!stores.length && <p className="empty-message">Chưa có siêu thị nào trong "Ánh xạ Điểm - STK_ID" — khai ở etl-admin trước.</p>}
+            {accessMaDiems.length > 0 && (
+              <p className="hint">Đang giới hạn còn {accessMaDiems.length} siêu thị. Bỏ tick hết để trả về "không giới hạn".</p>
+            )}
+            <input
+              type="text"
+              placeholder="Tìm kiếm tên/mã siêu thị..."
+              value={storeSearch}
+              onChange={(e) => setStoreSearch(e.target.value)}
+            />
+            <div className="scope-picker">
+              {stores
+                .filter((s) => {
+                  const q = storeSearch.trim().toLowerCase();
+                  if (!q) return true;
+                  return s.tenSieuThi.toLowerCase().includes(q) || s.maDiem.toLowerCase().includes(q);
+                })
+                .map((s) => (
+                  <label key={s.maDiem} className="checkbox-row">
+                    <input type="checkbox" checked={accessMaDiems.includes(s.maDiem)} onChange={() => toggleStoreAccess(s.maDiem)} />
+                    {s.tenSieuThi} ({s.maDiem})
+                  </label>
+                ))}
+            </div>
+            <div className="modal-actions">
+              <button type="button" onClick={saveStoreAccess} disabled={savingStoreAccess}>{savingStoreAccess ? 'Đang lưu...' : 'Lưu'}</button>
+              <button type="button" onClick={() => setStoreAccessFor(null)}>Huỷ</button>
             </div>
           </div>
         </Modal>

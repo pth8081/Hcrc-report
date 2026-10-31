@@ -56,7 +56,15 @@ const DEFINITION = {
   // translateStkToStore (bản 10.46) — xem routes/v1/reports.js: sau khi
   // chạy xong báo cáo, dịch `maKho` (STK_ID thô) sang Mã Điểm/Tên siêu thị
   // CHUẨN qua "Ánh xạ Điểm - STK_ID", GHI ĐÈ 2 cột placeholder ở trên.
-  translateStkToStore: { stkField: 'maKho', maDiemField: 'maDiem', tenField: 'tenSieuThi' }
+  // rawStkField (bản 10.54) — tên cột STK_ID THÔ trong Dimensions (khác
+  // `stkField` ở trên — đó là KEY CỘT ĐẦU RA sau projectColumns(), dùng để
+  // dịch nhãn; cái này là tên field THẬT trong Dimensions JSON, dùng để lọc
+  // NGAY TRONG SQL — xem forcedConditions ở lib/reportEngine.js và nhánh
+  // api.ConsumerStoreAccess ở routes/v1/reports.js — BẮT BUỘC lọc Ở SQL,
+  // TRƯỚC khi phân trang, không lọc sau projectColumns() như maDiem/
+  // tenSieuThi, nếu không đối tác bị giới hạn siêu thị có thể nhận 1 trang
+  // ÍT HƠN pageSize dù CÒN dữ liệu ở trang sau, hiểu lầm là đã hết).
+  translateStkToStore: { stkField: 'maKho', maDiemField: 'maDiem', tenField: 'tenSieuThi', rawStkField: 'MaChiNhanh' }
 };
 
 async function main() {

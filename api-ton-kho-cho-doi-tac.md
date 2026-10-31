@@ -210,6 +210,31 @@ dòng mẫu nên KHÔNG dùng).
 7. Vào `api-admin` → "Đối tác" → đúng đối tác cần dùng → "Báo cáo được
    gọi" → tick "Tồn kho toàn hệ thống" — mặc định KHÔNG đối tác nào gọi
    được dù có scope `reports` hợp lệ.
+8. (bản 10.54, TUỲ CHỌN) Chạy lại `api-db/schema.sql` trên CSDL `HCRC_API`
+   (an toàn chạy lại nhiều lần) — tạo bảng `api.ConsumerStoreAccess` nếu
+   muốn dùng tính năng **giới hạn đối tác CHỈ lấy đúng 1 vài siêu thị**
+   (xem mục dưới) — KHÔNG bắt buộc, báo cáo vẫn chạy bình thường (trả về
+   toàn bộ siêu thị) nếu bỏ qua bước này.
+
+### Giới hạn đối tác CHỈ lấy tồn kho của 1 vài siêu thị (bản 10.54)
+
+Theo yêu cầu người dùng — vd đối tác thương mại điện tử chỉ cần tra tồn
+kho để đặt hàng, KHÔNG nên thấy được TẤT CẢ siêu thị trong hệ thống.
+
+Vào `api-admin` → "Đối tác" → đúng đối tác → nút **"Siêu thị được lấy"**
+→ hộp thoại hiện danh sách siêu thị THẬT (tên + mã Điểm, đọc từ "Ánh xạ
+Điểm - STK_ID", có ô tìm kiếm) → tick đúng các siêu thị muốn cho phép →
+Lưu.
+
+- **KHÔNG tick gì (mặc định)** = đối tác thấy **TOÀN BỘ** siêu thị — ĐÚNG
+  hành vi hiện tại, không ai bị ảnh hưởng nếu không dùng tính năng này.
+- **Tick ít nhất 1 siêu thị** = đối tác bị **GIỚI HẠN CHỈ CÒN ĐÚNG** các
+  siêu thị đã tick — gọi API vẫn y hệt (không có tham số gì thêm), server
+  tự lọc trước khi trả về, đối tác KHÔNG có cách nào xin thêm siêu thị
+  khác qua tham số request.
+- Giới hạn này nằm ở CSDL (`api.ConsumerStoreAccess`), KHÔNG cần deploy
+  lại code mỗi khi đổi — sửa qua UI có hiệu lực ngay (tối đa 30 giây do
+  cache ngắn của API, không cần restart `api-server`).
 
 **Kiểm tra sau khi triển khai**:
 ```bash
@@ -222,6 +247,11 @@ bước 3-4, xem "Hệ thống → Log" bên rp-server để biết cách chẩn
 lỗi tương tự nếu `api-server` cũng áp dụng cơ chế ghi log này sau).
 `maVach` phải có giá trị (mã 13 số) ở các mặt hàng đã khai mã vạch trong
 `SKU_DEF.BARCODE` — `null` ở mặt hàng chưa khai là bình thường.
+
+Nếu đã dùng bước 8 (giới hạn siêu thị): gọi lại API với CÙNG key của đối
+tác đã bị giới hạn — `maDiem`/`tenSieuThi` trong `rows` trả về PHẢI chỉ
+nằm trong đúng danh sách đã tick, không có dòng nào ngoài phạm vi, dù
+tăng `page` lên hết dữ liệu.
 
 **Việc CÒN THIẾU, cần bổ sung sau**:
 - Đơn vị tính (ĐVT) — cần DBA xác nhận `SKU_DEF` có cột cố định theo mã

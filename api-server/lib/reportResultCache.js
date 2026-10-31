@@ -18,6 +18,13 @@
 // dữ liệu cho đối tác không có quyền, chỉ tiết kiệm việc CHẠY LẠI truy vấn
 // khi 2 đối tác CÙNG được phép và CÙNG hỏi y hệt tham số).
 //
+// NGOẠI LỆ (bản 10.54) — báo cáo có `translateStkToStore` (vd "ton-kho")
+// CÓ THỂ phụ thuộc danh tính đối tác nữa (xem api.ConsumerStoreAccess) —
+// module này KHÔNG tự biết điều đó (chỉ hash đúng nguyên `keyParts` được
+// truyền vào), nơi gọi (routes/v1/reports.js) TỰ chịu trách nhiệm đưa thêm
+// phạm vi siêu thị của đối tác vào `keyParts` cho đúng report loại này,
+// nếu không 2 đối tác khác phạm vi siêu thị có thể đọc nhầm cache của nhau.
+//
 // Bản sao CÙNG NỘI DUNG cũng có ở rp-server/lib/ — cố ý trùng lặp, theo
 // đúng nguyên tắc "mỗi server tự chứa đủ code" đã áp dụng xuyên suốt dự án.
 const DEFAULT_TTL_MS = 30 * 1000;

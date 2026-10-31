@@ -12,10 +12,16 @@
 // một báo cáo của rp-server cấu hình SourceType='apiReport' — cùng 1 đường,
 // phân biệt bằng scope của API key (xem lib/apiAuth.js).
 //
-// 2 lớp tuỳ biến CHO TỪNG ĐỐI TÁC (không đổi được nhau, bổ sung nhau):
+// 3 lớp tuỳ biến CHO TỪNG ĐỐI TÁC (không đổi được nhau, bổ sung nhau):
 //   - api.ConsumerReportAccess — ai được gọi report nào (mặc định KHÔNG được
 //     gọi report nào cho tới khi admin gán rõ ràng qua api-admin/, xem
 //     routes/admin/consumers.js).
+//   - api.ConsumerStoreAccess (bản 10.54) — CHỈ áp dụng cho report có khai
+//     `translateStkToStore` (có khái niệm "siêu thị") — đối tác được gọi
+//     report rồi CÒN bị giới hạn CHỈ thấy đúng những siêu thị nào (mặc định
+//     NGƯỢC LẠI 2 lớp còn lại: rỗng = KHÔNG giới hạn/thấy TOÀN BỘ, xem
+//     api-db/schema.sql — lý do khác nhau vì đây là ràng buộc THÊM lên 1
+//     tính năng đã chạy thật, không phải gate 1 tính năng mới).
 //   - ?fields=a,b,c — trong report họ ĐƯỢC gọi, chỉ lấy đúng cột cần, không
 //     bắt phải nhận hết cột đã định nghĩa. Xin cột không có trong định nghĩa
 //     -> 400 rõ ràng, không âm thầm bỏ qua.
@@ -89,16 +95,52 @@ router.get('/:reportId/run', async (req, res, next) => {
       if (req.query[f.field] !== undefined) filters[f.field] = req.query[f.field];
     }
 
+    // api.ConsumerStoreAccess (bản 10.54, theo yêu cầu người dùng — "tôi
+    // muốn đối tác chỉ được lấy một tồn kho của một siêu thị") — CHỈ áp
+    // dụng cho báo cáo có khai `translateStkToStore` (có khái niệm "siêu
+    // thị" — hiện là "ton-kho"). Tính TRƯỚC khi gọi runReport() — PHẢI lọc
+    // NGAY TRONG SQL (forcedConditions, xem lib/reportEngine.js), KHÔNG lọc
+    // SAU khi đã phân trang, nếu không 1 trang có thể ra ÍT HƠN pageSize dù
+    // CÒN dữ liệu ở trang sau (đối tác hiểu lầm là đã hết, dừng gọi tiếp
+    // sớm, thiếu dữ liệu mà không biết).
+    const t = definition.translateStkToStore;
+    let diemMapping = null; // tái dùng cho CẢ forcedConditions lẫn dịch nhãn maDiem/tenSieuThi bên dưới — chỉ đọc "Ánh xạ Điểm - STK_ID" ĐÚNG 1 LẦN/request
+    let forcedConditions = [];
+    let storeScopeCacheKeyPart = null; // chỉ khác null khi ĐANG bị giới hạn — xem cacheKey bên dưới
+    if (t) {
+      const storeAccess = await adminPool.request().input('consumerId', sql.Int, req.consumer.id)
+        .query('SELECT MaDiem FROM api.ConsumerStoreAccess WHERE ConsumerId = @consumerId');
+      if (storeAccess.recordset.length) {
+        const { loadDiemStkMapping } = require('../../lib/diemStkMapping');
+        diemMapping = await loadDiemStkMapping();
+        const maDiemList = storeAccess.recordset.map(r => r.MaDiem).sort();
+        const stkIds = [];
+        for (const maDiem of maDiemList) {
+          const info = diemMapping.get(maDiem);
+          if (info) stkIds.push(...info.maStkMoi);
+        }
+        forcedConditions = [{ field: t.rawStkField, values: stkIds }];
+        storeScopeCacheKeyPart = maDiemList; // đã sort() ở trên — khoá cache ổn định bất kể thứ tự ghi trong CSDL
+      }
+    }
+
     // Cache TTL ngắn (lib/reportResultCache.js) — đối tác/hệ thống ngoài
     // thường gọi lại CÙNG báo cáo + CÙNG tham số nhiều lần liên tiếp (polling
     // định kỳ, dashboard), không cần chạy lại truy vấn dwh.ReportFacts mỗi
     // lần. Khoá cache gồm cả `fields` (cột yêu cầu) — khác cột trả về khác
-    // response, không được dùng chung.
-    const cacheKey = [req.params.reportId, filters, page, pageSize, req.query.fields || ''];
+    // response, không được dùng chung. `storeScopeCacheKeyPart` (bản 10.54)
+    // — BẮT BUỘC đưa vào khoá khi báo cáo có giới hạn siêu thị theo đối
+    // tác (khác NULL) — nếu không, đối tác A (bị giới hạn) và đối tác B
+    // (không giới hạn, hoặc giới hạn khác) gọi CÙNG reportId/filters/trang
+    // có thể ĐỌC NHẦM kết quả đã cache của nhau (rò rỉ dữ liệu siêu thị
+    // ngoài phạm vi được cấp) — cache này vốn dùng CHUNG cho mọi đối tác
+    // (xem lib/reportResultCache.js), chỉ an toàn khi kết quả KHÔNG phụ
+    // thuộc danh tính đối tác, điều đó KHÔNG còn đúng với báo cáo loại này.
+    const cacheKey = [req.params.reportId, filters, page, pageSize, req.query.fields || '', storeScopeCacheKeyPart];
     let payload = reportResultCache.get(cacheKey);
     if (!payload) {
       const dwhPool = await getPool('DWH');
-      const rows = await runReport(dwhPool, definition, filters, { page, pageSize });
+      const rows = await runReport(dwhPool, definition, filters, { page, pageSize }, forcedConditions);
       let projected = rows.map(r => projectColumns(r, columns));
       // translateStkToStore (bản 10.46, theo yêu cầu người dùng — API "Tồn
       // kho" cho đối tác cần tên siêu thị CHUẨN, không phải tên kho gốc
@@ -110,12 +152,11 @@ router.get('/:reportId/run', async (req, res, next) => {
       // cầu MỌI cột object phải có formula — xem lib/reportEngine.js), giá
       // trị đó bị GHI ĐÈ ở đây. Bỏ qua nếu cột đích bị loại bởi ?fields=
       // (đối tác không xin thì không cần tính).
-      const t = definition.translateStkToStore;
       if (t) {
         const requestedKeys = new Set(columns.map(c => (c && typeof c === 'object' ? c.key : c)));
         if (requestedKeys.has(t.maDiemField) || requestedKeys.has(t.tenField)) {
           const { loadDiemStkMapping, buildStkIdLookup } = require('../../lib/diemStkMapping');
-          const diemMapping = await loadDiemStkMapping();
+          if (!diemMapping) diemMapping = await loadDiemStkMapping(); // có thể đã đọc sẵn ở nhánh forcedConditions phía trên, không đọc lại
           const stkLookup = buildStkIdLookup(diemMapping);
           projected = projected.map((row) => {
             const info = stkLookup.get(row[t.stkField]);

@@ -104,10 +104,38 @@ function describeColumns(columns) {
   ));
 }
 
-async function runReport(pool, definition, filterValues = {}, { page = 1, pageSize = 200 } = {}) {
+// forcedConditions (bản 10.54, theo yêu cầu người dùng — đối tác CHỈ được
+// lấy tồn kho của NHỮNG SIÊU THỊ cụ thể, xem api.ConsumerStoreAccess) —
+// [{ field, values: [...] }], ÁP DỤNG BẮT BUỘC, HOÀN TOÀN TÁCH BIỆT khỏi
+// `filterValues`/`definition.filters` ở trên. KHÔNG được gộp chung cơ chế
+// với `filterValues` — nhánh đó dựng TỪ `req.query` (xem routes/v1/
+// reports.js), nếu forcedConditions cũng đi qua field do CLIENT khai trong
+// `definition.filters` thì 1 đối tác tò mò có thể tự truyền `?<field>=...`
+// GHI ĐÈ đúng field đó, VÔ HIỆU HOÁ giới hạn siêu thị — forcedConditions
+// CHẠY RIÊNG, route gọi KHÔNG lấy field/values này từ bất kỳ input nào của
+// client, luôn tự tính từ CSDL (api.ConsumerStoreAccess + "Ánh xạ Điểm -
+// STK_ID") ở tầng server. values RỖNG (đối tác bị giới hạn nhưng danh sách
+// siêu thị KHÔNG dịch ra được mã kho thật nào) -> ép `1 = 0` (không dòng
+// nào khớp), KHÔNG được bỏ qua điều kiện (bỏ qua = coi như KHÔNG giới hạn,
+// sai hẳn ý "giới hạn nhưng rỗng").
+async function runReport(pool, definition, filterValues = {}, { page = 1, pageSize = 200 } = {}, forcedConditions = []) {
   const request = pool.request();
   const conditions = ['Domain = @domain'];
   request.input('domain', sql.VarChar(50), definition.domain);
+
+  forcedConditions.forEach((fc, idx) => {
+    const column = resolveColumn(fc.field);
+    if (!fc.values || !fc.values.length) {
+      conditions.push('1 = 0');
+      return;
+    }
+    const paramNames = fc.values.map((v, i) => {
+      const name = `forced${idx}_${i}`;
+      request.input(name, sql.NVarChar(200), String(v));
+      return `@${name}`;
+    });
+    conditions.push(`${column} IN (${paramNames.join(', ')})`);
+  });
 
   (definition.filters || []).forEach((filterDef, idx) => {
     const value = filterValues[filterDef.field];

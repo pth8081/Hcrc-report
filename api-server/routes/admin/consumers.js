@@ -254,6 +254,68 @@ router.put('/:id/report-access', requireMenuEdit('consumers'), async (req, res, 
   } catch (err) { next(err); }
 });
 
+// GET /store-options (bản 10.54, theo yêu cầu người dùng — "tôi muốn đối
+// tác chỉ được lấy một tồn kho của một siêu thị... tích chọn tìm kiếm...
+// hiển thị tên siêu thị") — danh sách {maDiem, tenSieuThi} THẬT từ "Ánh xạ
+// Điểm - STK_ID" để trang "Đối tác" vẽ bộ tích chọn, KHÔNG để admin gõ tay
+// mã Điểm (dễ gõ sai, không hiện tên). Đặt TRƯỚC mọi route "/:id/..." bên
+// dưới — dù hình dạng path không trùng (route này chỉ 1 đoạn, các route
+// kia 2 đoạn) nên thứ tự không thực sự quan trọng, đặt ở đây cho dễ thấy
+// cùng nhóm với report-access/store-access.
+router.get('/store-options', async (req, res, next) => {
+  try {
+    const { loadDiemStkMapping } = require('../../lib/diemStkMapping');
+    const diemMapping = await loadDiemStkMapping();
+    const options = [...diemMapping.entries()]
+      .map(([maDiem, info]) => ({ maDiem, tenSieuThi: info.tenSieuThi || `${maDiem} (chưa khai tên)` }))
+      .sort((a, b) => a.tenSieuThi.localeCompare(b.tenSieuThi, 'vi'));
+    res.json(options);
+  } catch (err) { next(err); }
+});
+
+// GET/PUT /:id/store-access — đối tác này CHỈ được lấy tồn kho của NHỮNG
+// SIÊU THỊ nào (api.ConsumerStoreAccess, bản 10.54) — CÙNG khuôn XOÁ HẾT +
+// GÁN LẠI với report-access/realtime-access ở trên, nhưng MẶC ĐỊNH NGƯỢC
+// LẠI: rỗng = KHÔNG giới hạn (thấy TOÀN BỘ siêu thị), admin tick cụ thể
+// mới RÚT LẠI còn đúng các siêu thị đó — xem giải thích đầy đủ lý do khác
+// 2 bảng Access kia ở api-db/schema.sql (CREATE TABLE api.ConsumerStoreAccess).
+// CHỈ có ý nghĩa với báo cáo có khai `translateStkToStore` trong
+// DefinitionJson (xem routes/v1/reports.js) — admin tick cho đối tác CHƯA
+// được cấp báo cáo loại đó cũng không sao, không ảnh hưởng gì (đơn giản là
+// chưa dùng tới).
+router.get('/:id/store-access', async (req, res, next) => {
+  try {
+    const pool = await getPool('ADMIN');
+    const result = await pool.request().input('id', sql.Int, req.params.id)
+      .query('SELECT MaDiem FROM api.ConsumerStoreAccess WHERE ConsumerId = @id');
+    res.json({ maDiems: result.recordset.map(r => r.MaDiem) });
+  } catch (err) { next(err); }
+});
+
+router.put('/:id/store-access', requireMenuEdit('consumers'), async (req, res, next) => {
+  try {
+    const { maDiems = [] } = req.body || {};
+    const pool = await getPool('ADMIN');
+    const tx = new sql.Transaction(pool);
+    await tx.begin();
+    try {
+      await new sql.Request(tx).input('id', sql.Int, req.params.id).query('DELETE FROM api.ConsumerStoreAccess WHERE ConsumerId = @id');
+      for (const maDiem of maDiems) {
+        await new sql.Request(tx)
+          .input('id', sql.Int, req.params.id)
+          .input('maDiem', sql.VarChar(20), maDiem)
+          .query('INSERT INTO api.ConsumerStoreAccess (ConsumerId, MaDiem) VALUES (@id, @maDiem)');
+      }
+      await tx.commit();
+    } catch (err) {
+      await tx.rollback().catch(() => {});
+      throw err;
+    }
+    await logAction(req, { module: 'Đối tác API', actionType: 'SUA_QUYEN_SIEU_THI', targetObject: req.params.id, description: `Cập nhật giới hạn siêu thị đối tác #${req.params.id}: ${maDiems.join(', ') || '(không giới hạn)'}` });
+    res.json({ ok: true });
+  } catch (err) { next(err); }
+});
+
 router.get('/:id/realtime-access', async (req, res, next) => {
   try {
     const pool = await getPool('ADMIN');

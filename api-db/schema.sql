@@ -368,6 +368,40 @@ BEGIN
 END
 GO
 
+-- Đối tác nào CHỈ được lấy dữ liệu của NHỮNG SIÊU THỊ nào (bản 10.54, theo
+-- yêu cầu người dùng — "tôi muốn đối tác chỉ được lấy một tồn kho của một
+-- siêu thị") — ÁP DỤNG CHO báo cáo nào đã khai `translateStkToStore` trong
+-- DefinitionJson (hiện tại là "ton-kho", xem routes/v1/reports.js) — KHÔNG
+-- có khái niệm "siêu thị" ở các báo cáo khác nên bảng này không áp dụng.
+-- MaDiem tham chiếu `etl.DiemStkMapping` ("Ánh xạ Điểm - STK_ID") — nằm ở
+-- CSDL KHÁC (CSDL ETL), KHÔNG tạo FOREIGN KEY xuyên CSDL được (SQL Server
+-- không hỗ trợ) — admin tick chọn từ danh sách THẬT lấy qua
+-- GET /admin/consumers/store-options (đọc `etl.DiemStkMapping` qua pool
+-- `ETL_DIEM_STK`, xem lib/diemStkMapping.js), không gõ tay nên khó sai mã.
+--
+-- ‼️ KHÁC HẲN api.ConsumerReportAccess/RealtimeAccess ở trên về MẶC ĐỊNH ‼️
+-- — những bảng đó "rỗng = KHÔNG được gọi gì" (gate 1 TÍNH NĂNG hoàn toàn
+-- MỚI, chưa ai từng dùng trước khi có bảng). Bảng NÀY ngược lại — "rỗng =
+-- TOÀN BỘ siêu thị" (KHÔNG giới hạn) — vì đây là lớp RÀNG BUỘC THÊM lên 1
+-- tính năng ĐÃ CHẠY THẬT từ bản 10.46 (API "ton-kho" đã trả đủ mọi siêu
+-- thị cho đối tác đã được cấp quyền gọi báo cáo) — nếu đổi mặc định thành
+-- "rỗng = chặn hết" thì NGAY LÚC TRIỂN KHAI bảng này, đối tác ĐANG DÙNG
+-- THẬT sẽ đột ngột mất hết dữ liệu dù admin chưa làm gì — SAI nguyên tắc
+-- "không phá vỡ hành vi đang chạy". Mirror đúng quy ước `app.UserStoreAccess`
+-- bên rp-server (Report Server, cho NGƯỜI DÙNG nội bộ — xem
+-- rp-server/lib/diemStkMapping.js:resolveStoreScopeStkIds(), "storeScope...
+-- null = Toàn bộ") — CÙNG Ý NGHĨA, chỉ khác CHỦ THỂ (đối tác API thay vì
+-- người dùng nội bộ).
+IF OBJECT_ID('api.ConsumerStoreAccess', 'U') IS NULL
+BEGIN
+    CREATE TABLE api.ConsumerStoreAccess (
+        ConsumerId INT         NOT NULL REFERENCES api.ApiConsumers(Id) ON DELETE CASCADE,
+        MaDiem     VARCHAR(20) NOT NULL,
+        CONSTRAINT PK_ConsumerStoreAccess PRIMARY KEY (ConsumerId, MaDiem)
+    );
+END
+GO
+
 -- Đối tác nào được gọi ENDPOINT REALTIME nào — CÙNG khuôn với
 -- api.ConsumerReportAccess ở trên, áp cho /api/v1/realtime/* thay vì
 -- /api/v1/reports/*. Trước đây scope 'realtime' hợp lệ là gọi được MỌI

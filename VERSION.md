@@ -42,6 +42,44 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.54 — Admin tự giới hạn đối tác CHỈ lấy tồn kho của 1 vài siêu thị
+
+**Theo yêu cầu người dùng**: "tôi muốn đối tác chỉ được lấy một tồn kho
+của một siêu thị... tôi có thể tự cấu hình được... tích chọn tìm kiếm...
+hiển thị tên siêu thị" — thêm khả năng tự cấu hình (không cần sửa code)
+để GIỚI HẠN 1 đối tác CHỈ thấy đúng 1 vài siêu thị khi gọi API "Tồn kho
+toàn hệ thống", qua giao diện api-admin.
+
+**Thay đổi**:
+- Bảng mới `api.ConsumerStoreAccess` (CSDL HCRC_API) — rỗng = KHÔNG giới
+  hạn (thấy TOÀN BỘ, giữ ĐÚNG hành vi hiện tại cho mọi đối tác đang dùng),
+  admin tick cụ thể = RÚT LẠI còn đúng các siêu thị đó. Mặc định NGƯỢC
+  LẠI với `ConsumerReportAccess`/`ConsumerRealtimeAccess` (rỗng = CHẶN) —
+  vì đây là ràng buộc THÊM lên 1 tính năng đã chạy thật (bản 10.46), đổi
+  mặc định thành "chặn" sẽ làm đối tác đang dùng thật mất dữ liệu ngay khi
+  triển khai, dù admin chưa làm gì.
+- `api-server`: route admin mới `GET/PUT /consumers/:id/store-access` +
+  `GET /consumers/store-options` (danh sách {maDiem, tenSieuThi} thật từ
+  "Ánh xạ Điểm - STK_ID", phục vụ bộ tích chọn trên UI).
+- `lib/reportEngine.js` — thêm `forcedConditions` (lọc SQL BẮT BUỘC,
+  TRƯỚC khi phân trang, hoàn toàn tách biệt khỏi `filterValues` do CLIENT
+  truyền qua query string — tránh đối tác tự ghi đè được giới hạn bằng
+  cách truyền query param trùng tên field).
+- `routes/v1/reports.js` — áp dụng giới hạn cho báo cáo có khai
+  `translateStkToStore` (hiện là "ton-kho"); SỬA THÊM lỗ hổng cache phát
+  hiện khi làm bản này — khoá cache (`lib/reportResultCache.js`, vốn dùng
+  CHUNG cho mọi đối tác) giờ có thêm phạm vi siêu thị của đối tác cho
+  đúng nhóm báo cáo này, tránh đối tác A đọc nhầm cache của đối tác B
+  (khác phạm vi siêu thị) khi gọi trùng tham số.
+- `scripts/seedTonKhoReport.js` — thêm `rawStkField` vào định nghĩa
+  `translateStkToStore` (tên cột STK_ID thô, dùng để lọc SQL — khác
+  `stkField` là tên cột ĐẦU RA dùng để dịch nhãn).
+- `api-admin`: nút mới "Siêu thị được lấy" ở trang "Đối tác" — hộp thoại
+  tích chọn có ô tìm kiếm, hiện tên siêu thị thật (không gõ tay mã Điểm).
+
+Chi tiết đầy đủ (cách dùng + câu kiểm tra): `api-ton-kho-cho-doi-tac.md`
+mục 9.
+
 ## 10.53 — Mở rộng hướng dẫn triển khai gộp sang bản 10.52
 
 **Theo yêu cầu người dùng**: đổi tên file `deploy/Hướng dẫn triển khai
