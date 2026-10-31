@@ -42,6 +42,25 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.55 — Đổi "Siêu thị được lấy" sang dropdown tìm kiếm + chọn nhiều
+
+**Theo yêu cầu người dùng**: ô chọn siêu thị (bản 10.54) đang là list
+checkbox phẳng, lo ngại danh sách siêu thị dài sẽ kéo tràn màn hình —
+đổi sang dropdown gõ tìm kiếm + chọn nhiều, đã có sẵn demo xác nhận.
+
+**Thay đổi**:
+- `api-admin/src/components/SearchableSelect.jsx` (file MỚI) — port
+  NGUYÊN VẸN từ `rp-user/src/components/SearchableSelect.jsx` (dropdown
+  tìm kiếm + multi-select + "Chọn tất cả"/"Bỏ chọn tất cả" + dán danh
+  sách — đã chạy ổn định cho mọi bộ lọc nhiều lựa chọn bên rp-user). CSS
+  tương ứng (`.searchable-select*`) cũng port sang `styles.css`.
+- `ConsumersPage.jsx` ("Siêu thị được lấy") — thay list checkbox phẳng +
+  ô tìm kiếm tự viết bằng `<SearchableSelect multi .../>` — khung danh
+  sách cố định chiều cao (~220px, cuộn riêng bên trong), không tràn màn
+  hình dù nhiều siêu thị.
+
+KHÔNG đổi gì ở backend (API/DB) — thuần giao diện.
+
 ## 10.54 — Admin tự giới hạn đối tác CHỈ lấy tồn kho của 1 vài siêu thị
 
 **Theo yêu cầu người dùng**: "tôi muốn đối tác chỉ được lấy một tồn kho

@@ -38,6 +38,7 @@ import { useAuth } from '../lib/AuthContext';
 import DataTable from '../components/DataTable';
 import { useRowSelection } from '../lib/useRowSelection';
 import Modal from '../components/Modal';
+import SearchableSelect from '../components/SearchableSelect';
 
 const SCOPE_OPTIONS = ['reports', 'realtime', 'realtimeWrite', 'voucherCheck', 'voucherRedeem', 'voucherRedeemedFeed'];
 const EMPTY_FORM = { name: '', authMethod: 'apiKey', scopes: [], rateLimitPerMinute: 120, allowedIps: '' };
@@ -110,7 +111,6 @@ export default function ConsumersPage() {
   const [accessReportIds, setAccessReportIds] = useState([]);
   const [storeAccessFor, setStoreAccessFor] = useState(null); // consumer đang gán giới hạn siêu thị, hoặc null
   const [accessMaDiems, setAccessMaDiems] = useState([]);
-  const [storeSearch, setStoreSearch] = useState(''); // ô tìm kiếm trong modal "Siêu thị được lấy"
   const [realtimeAccessFor, setRealtimeAccessFor] = useState(null); // consumer đang gán endpoint realtime, hoặc null
   const [accessEndpoints, setAccessEndpoints] = useState([]);
   const [writeEndpoints, setWriteEndpoints] = useState([]);
@@ -176,13 +176,8 @@ export default function ConsumersPage() {
     try {
       const { maDiems } = await api.get(`/consumers/${consumer.Id}/store-access`);
       setAccessMaDiems(maDiems);
-      setStoreSearch('');
       setStoreAccessFor(consumer);
     } catch (err) { setError(err.message); }
-  }
-
-  function toggleStoreAccess(maDiem) {
-    setAccessMaDiems(list => (list.includes(maDiem) ? list.filter(m => m !== maDiem) : [...list, maDiem]));
   }
 
   async function saveStoreAccess() {
@@ -559,30 +554,16 @@ export default function ConsumersPage() {
               thì đối tác mới bị GIỚI HẠN CHỈ còn đúng những siêu thị đã tick, ở các báo cáo có khái niệm
               "siêu thị" (hiện là "Tồn kho toàn hệ thống").
             </p>
-            {!stores.length && <p className="empty-message">Chưa có siêu thị nào trong "Ánh xạ Điểm - STK_ID" — khai ở etl-admin trước.</p>}
+            {!stores.length && <p className="empty-message">Chưa có siêu thị nào trong "Ánh xạ Điểm - STK_ID" — khai ở etl-admin trước (hoặc kiểm tra lại cấu hình kết nối ETL_DIEM_STK_* trong .env của api-server).</p>}
             {accessMaDiems.length > 0 && (
-              <p className="hint">Đang giới hạn còn {accessMaDiems.length} siêu thị. Bỏ tick hết để trả về "không giới hạn".</p>
+              <p className="hint">Đang giới hạn còn {accessMaDiems.length} siêu thị. Bỏ chọn hết để trả về "không giới hạn".</p>
             )}
-            <input
-              type="text"
-              placeholder="Tìm kiếm tên/mã siêu thị..."
-              value={storeSearch}
-              onChange={(e) => setStoreSearch(e.target.value)}
+            <SearchableSelect
+              multi
+              options={stores.map((s) => ({ value: s.maDiem, label: `${s.tenSieuThi} (${s.maDiem})` }))}
+              value={accessMaDiems}
+              onChange={setAccessMaDiems}
             />
-            <div className="scope-picker">
-              {stores
-                .filter((s) => {
-                  const q = storeSearch.trim().toLowerCase();
-                  if (!q) return true;
-                  return s.tenSieuThi.toLowerCase().includes(q) || s.maDiem.toLowerCase().includes(q);
-                })
-                .map((s) => (
-                  <label key={s.maDiem} className="checkbox-row">
-                    <input type="checkbox" checked={accessMaDiems.includes(s.maDiem)} onChange={() => toggleStoreAccess(s.maDiem)} />
-                    {s.tenSieuThi} ({s.maDiem})
-                  </label>
-                ))}
-            </div>
             <div className="modal-actions">
               <button type="button" onClick={saveStoreAccess} disabled={savingStoreAccess}>{savingStoreAccess ? 'Đang lưu...' : 'Lưu'}</button>
               <button type="button" onClick={() => setStoreAccessFor(null)}>Huỷ</button>

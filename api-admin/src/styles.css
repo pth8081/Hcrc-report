@@ -87,6 +87,23 @@ button:disabled, button:disabled:hover {
 .form-error { color: #b3261e; font-size: 13px; }
 .hint { color: var(--ink-soft); font-size: 12.5px; margin: -4px 0 4px; }
 
+/* SearchableSelect (bản 10.55) — port NGUYÊN VẸN từ rp-user/src/styles.css,
+   xem components/SearchableSelect.jsx. */
+.searchable-select { position: relative; min-width: 220px; }
+.searchable-select-toggle { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px; background: var(--surface); color: var(--ink); border: 1px solid var(--line); text-align: left; box-shadow: none; font-weight: 400; }
+.searchable-select-toggle span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.searchable-select-caret { color: var(--ink-soft); font-size: 11px; }
+.searchable-select-panel { position: absolute; z-index: 20; top: calc(100% + 4px); left: 0; min-width: 100%; width: max-content; max-width: 320px; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; box-shadow: 0 6px 18px rgba(0,0,0,0.12); padding: 8px; }
+.searchable-select-search { width: 100%; margin-bottom: 6px; }
+.searchable-select-actions { display: flex; gap: 6px; margin-bottom: 6px; }
+.searchable-select-actions button { padding: 4px 8px; font-size: 12px; background: var(--accent-soft); border-color: var(--accent-soft); color: var(--ink); }
+.searchable-select-list { max-height: 220px; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
+.searchable-select-option { flex-direction: row; align-items: center; gap: 6px; font-size: 13px; color: var(--ink); padding: 3px 4px; border-radius: 4px; cursor: pointer; }
+.searchable-select-option:hover { background: var(--bg); }
+.searchable-select-empty { color: var(--ink-soft); font-size: 12.5px; padding: 6px 4px; }
+.searchable-select-paste-feedback { font-size: 12px; padding: 5px 7px; border-radius: 4px; margin-bottom: 6px; background: var(--accent-soft); color: var(--ink); }
+.searchable-select-paste-feedback--warn { background: #fff4e5; color: #8a5a00; }
+
 /* Bảng dữ liệu (bản 10.20) — card hoá, xem chú thích đầy đủ ở
    etl-admin/src/styles.css. */
 .table-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
@@ -289,6 +306,9 @@ button:disabled, button:disabled:hover {
      etl-admin/src/styles.css. */
   input:not([type="checkbox"]):not([type="radio"]), select, textarea, button { min-height: 42px; }
   .link-button { min-height: auto; }
+  /* Loại trừ nút nhỏ trong panel SearchableSelect (bản 10.55) — ép to sẽ
+     không vừa panel hẹp 320px, mirror đúng rp-user/src/styles.css. */
+  .searchable-select-actions button { min-height: auto; }
   .inline-form, .stacked-form { padding: 14px; }
 }
 

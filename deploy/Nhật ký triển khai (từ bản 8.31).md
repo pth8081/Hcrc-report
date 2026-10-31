@@ -14,6 +14,23 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.55 — Đổi "Siêu thị được lấy" sang dropdown tìm kiếm + chọn nhiều
+
+**Thay đổi**: `api-admin` — file mới `SearchableSelect.jsx` (port từ
+rp-user) + CSS tương ứng, dùng cho ô chọn siêu thị ở trang "Đối tác".
+KHÔNG đổi backend.
+
+**Triển khai**:
+```bash
+git pull origin main
+cd api-admin && npm run build
+```
+Deploy lại `dist/`. Không cần đổi gì ở `api-server`/CSDL/ETL.
+
+**Kiểm tra**: api-admin → "Đối tác" → đúng đối tác → "Siêu thị được lấy"
+→ phải thấy ô dropdown (không còn list checkbox phẳng), gõ lọc được,
+tick nhiều được, có "Chọn tất cả"/"Bỏ chọn tất cả".
+
 ## 10.54 — Admin tự giới hạn đối tác CHỈ lấy tồn kho của 1 vài siêu thị
 
 **Thay đổi**: bảng mới `api.ConsumerStoreAccess` + route admin
