@@ -14,6 +14,31 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.56 — Đổi NỐT 2 ô chọn siêu thị còn lại sang dropdown tìm kiếm
+
+**Thay đổi**: `rp-user` → modal "Phạm vi dữ liệu" (trang Người dùng) và
+`etl-admin` → modal "Gán siêu thị" (trang Người dùng) — đổi list
+checkbox phẳng sang `SearchableSelect`. `etl-admin` có thêm file MỚI
+`src/components/SearchableSelect.jsx` + CSS. KHÔNG đổi backend.
+
+**Triển khai**:
+```bash
+git pull origin main
+cd rp-user && npm run build && cd ..
+cd etl-admin && npm run build
+```
+Deploy lại `dist/` của CẢ 2 app. Không cần đổi gì ở `rp-server`/
+`etl`/CSDL/`api-server`/`api-admin` (api-admin đã làm xong ở bản 10.55).
+
+**Kiểm tra**:
+- `rp-user` → "Phân quyền" → "Người dùng" → 1 user bất kỳ → "Phạm vi dữ
+  liệu" → phải thấy dropdown gõ tìm kiếm (không còn checkbox phẳng).
+- `etl-admin` → "Phân quyền" → "Người dùng" → 1 user bất kỳ → "Gán siêu
+  thị" → tương tự.
+- Lưu thử 1-2 lượt ở cả 2 trang, tải lại trang, mở modal lại → phải thấy
+  ĐÚNG các siêu thị đã lưu lần trước (xác nhận format dữ liệu gửi/nhận
+  không đổi).
+
 ## 10.55 — Đổi "Siêu thị được lấy" sang dropdown tìm kiếm + chọn nhiều
 
 **Thay đổi**: `api-admin` — file mới `SearchableSelect.jsx` (port từ

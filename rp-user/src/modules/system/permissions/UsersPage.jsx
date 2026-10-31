@@ -7,6 +7,7 @@ import { useAuth } from '../../../lib/AuthContext';
 import DataTable from '../../../components/DataTable';
 import PasswordInput from '../../../components/PasswordInput';
 import Modal from '../../../components/Modal';
+import SearchableSelect from '../../../components/SearchableSelect';
 
 export default function UsersPage() {
   const { me } = useAuth();
@@ -204,10 +205,6 @@ export default function UsersPage() {
       setSelectedMaDiems(maDiems);
       setSuggestedMaDiem(suggestion);
     } catch (err) { setError(err.message); }
-  }
-
-  function toggleMaDiem(maDiem) {
-    setSelectedMaDiems(prev => prev.includes(maDiem) ? prev.filter(m => m !== maDiem) : [...prev, maDiem]);
   }
 
   function applySuggestion() {
@@ -485,12 +482,12 @@ export default function UsersPage() {
                 <button type="button" onClick={applySuggestion}>Dùng gợi ý này</button>
               </p>
             )}
-            {storeCatalog.map(s => (
-              <label key={s.maDiem} className="checkbox-row">
-                <input type="checkbox" checked={selectedMaDiems.includes(s.maDiem)} onChange={() => toggleMaDiem(s.maDiem)} />
-                {s.tenSieuThi}
-              </label>
-            ))}
+            <SearchableSelect
+              multi
+              options={storeCatalog.map(s => ({ value: s.maDiem, label: s.tenSieuThi }))}
+              value={selectedMaDiems}
+              onChange={setSelectedMaDiems}
+            />
             <div className="modal-actions">
               {me?.isSystemRole
                 ? <button type="button" onClick={saveStoreAccess} disabled={savingStoreAccess}>{savingStoreAccess ? 'Đang lưu...' : 'Lưu'}</button>

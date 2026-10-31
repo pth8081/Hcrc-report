@@ -42,6 +42,37 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.56 — Đổi NỐT 2 ô chọn siêu thị còn lại sang dropdown tìm kiếm
+
+**Theo yêu cầu người dùng**: "xem luôn cho tôi bộ lọc của TẤT CẢ các siêu
+thị trong báo cáo... đổi lại hết luôn toàn bộ" — rà soát lại CẢ 3 app
+(rp-user/etl-admin/api-admin) tìm hết nơi còn chọn siêu thị kiểu checkbox
+phẳng.
+
+**Kết quả rà soát**:
+- `rp-user` — bộ lọc "Siêu thị" của MỌI báo cáo (chạy báo cáo, qua
+  `FilterForm.jsx`) đã dùng `SearchableSelect` cho 100% trường hợp
+  `type: 'multiSelect'`/`'select'` TỪ TRƯỚC (không phải bản này) — KHÔNG
+  cần sửa gì ở tầng chạy báo cáo.
+- `api-admin` — "Siêu thị được lấy" đã đổi ở bản 10.55.
+- **2 chỗ còn sót, ĐÃ ĐỔI ở bản này** (đều là trang ADMIN gán phạm vi
+  siêu thị cho NGƯỜI DÙNG NỘI BỘ, khác hẳn bộ lọc báo cáo):
+  - `rp-user` → "Phân quyền" → "Người dùng" → modal "Phạm vi dữ liệu"
+    (`app.UserStoreAccess`) — rp-user ĐÃ CÓ sẵn `SearchableSelect.jsx`,
+    chỉ cần đổi JSX.
+  - `etl-admin` → "Phân quyền" → "Người dùng" → modal "Gán siêu thị"
+    (etl user store access) — etl-admin CHƯA CÓ `SearchableSelect.jsx`,
+    đã PORT thêm 1 bản (giống hệt bản rp-user/api-admin) + CSS tương ứng.
+
+**KHÔNG đổi gì ở backend/API** — thuần giao diện, format dữ liệu gửi lên
+(`maDiems: [...]`) giữ NGUYÊN y hệt trước, chỉ đổi cách người dùng CHỌN.
+
+**Đã kiểm tra KHÔNG ảnh hưởng gì khác** — rà soát lại TOÀN BỘ
+`checkbox-row`/`scope-picker` còn lại trong cả 3 app (hơn 40 chỗ), xác
+nhận KHÔNG còn chỗ nào khác liên quan chọn siêu thị/chi nhánh (còn lại
+đều là cấu hình boolean, chọn cột DB, chọn Report/Menu/Dashboard-group,
+chọn thứ trong tuần — không phải mã siêu thị).
+
 ## 10.55 — Đổi "Siêu thị được lấy" sang dropdown tìm kiếm + chọn nhiều
 
 **Theo yêu cầu người dùng**: ô chọn siêu thị (bản 10.54) đang là list

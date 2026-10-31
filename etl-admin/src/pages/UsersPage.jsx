@@ -10,6 +10,7 @@ import { useAuth } from '../lib/AuthContext';
 import DataTable from '../components/DataTable';
 import PasswordInput from '../components/PasswordInput';
 import Modal from '../components/Modal';
+import SearchableSelect from '../components/SearchableSelect';
 
 const EMPTY_FORM = { username: '', password: '', fullName: '' };
 
@@ -234,18 +235,12 @@ export default function UsersPage() {
               Chọn 1 (vài) siêu thị = CHỈ xem/sửa/upload được đúng dữ liệu (các) siêu thị đó
               (áp dụng ở trang "Cảnh báo hàng tồn").
             </p>
-            {storeOptions.map(s => (
-              <label key={s.maDiem} className="checkbox-row">
-                <input
-                  type="checkbox"
-                  checked={selectedMaDiems.includes(s.maDiem)}
-                  onChange={(e) => setSelectedMaDiems(e.target.checked
-                    ? [...selectedMaDiems, s.maDiem]
-                    : selectedMaDiems.filter(m => m !== s.maDiem))}
-                />
-                {s.maDiem}{s.tenSieuThi ? ` — ${s.tenSieuThi}` : ''}
-              </label>
-            ))}
+            <SearchableSelect
+              multi
+              options={storeOptions.map(s => ({ value: s.maDiem, label: s.tenSieuThi ? `${s.tenSieuThi} (${s.maDiem})` : s.maDiem }))}
+              value={selectedMaDiems}
+              onChange={setSelectedMaDiems}
+            />
             <div className="modal-actions">
               <button type="button" onClick={saveStores} disabled={savingStores}>{savingStores ? 'Đang lưu...' : 'Lưu'}</button>
               <button type="button" onClick={() => setAssigningStoresUser(null)}>Đóng</button>
