@@ -14,6 +14,31 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.58 — Hiện sẵn link URL đầy đủ gửi đối tác (trang "Báo cáo"/"Cấu hình Voucher")
+
+**Thay đổi**: `api-server` thêm biến `.env` MỚI `PUBLIC_API_BASE_URL` +
+`GET /admin/me` trả thêm `publicApiBaseUrl`. `api-admin` thêm component
+`CopyableText.jsx` + cột "Endpoint gọi API" (trang "Báo cáo") + nâng cấp
+cột "Đường dẫn API" (trang "Cấu hình Voucher") hiện ĐẦY ĐỦ domain, có nút
+"Sao chép".
+
+**Triển khai (theo đúng thứ tự)**:
+1. Thêm vào `.env` của `api-server`:
+   ```
+   PUBLIC_API_BASE_URL=https://<domain-thật-đối-tác-gọi-vào>
+   ```
+   (ĐÚNG domain đối tác đang dùng để gọi `/api/v1/*` — xem lại tài liệu
+   `api-ton-kho-cho-doi-tac.md` đã gửi đối tác trước đây để lấy đúng
+   domain, hoặc hỏi IT đang quản lý Nginx).
+2. `pm2 restart api-server`.
+3. `cd api-admin && npm run build`, deploy lại `dist/`.
+
+**Kiểm tra**: vào api-admin → "Báo cáo" → phải thấy cột "Endpoint gọi
+API" hiện link ĐẦY ĐỦ (có domain) + nút "Sao chép" cho từng báo cáo (kể
+cả "Tồn kho toàn hệ thống"). Vào "Cấu hình Voucher" → cột "Đường dẫn
+API" cũng phải hiện đủ domain. Nếu chưa thấy domain (chỉ thấy đường dẫn
+`/api/v1/...`), kiểm tra lại bước 1 + đã restart `api-server` chưa.
+
 ## 10.57 — Giả soát responsive mobile/tablet/desktop toàn hệ thống
 
 **Thay đổi**: `rp-user`/`etl-admin`/`api-admin` — sửa CSS `.searchable-select-panel`

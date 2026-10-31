@@ -90,7 +90,12 @@ router.get('/me', requireAdminAuth, async (req, res, next) => {
     res.json({
       username: req.admin.username,
       isSystemRole: context.isSystemRole,
-      menuAccess: Object.fromEntries(context.menuAccess)
+      menuAccess: Object.fromEntries(context.menuAccess),
+      // publicApiBaseUrl (bản 10.58, theo yêu cầu người dùng — hiện sẵn
+      // link URL đầy đủ gửi đối tác, xem .env.example) — null nếu admin
+      // chưa khai PUBLIC_API_BASE_URL, trang gọi chỗ này tự hiện CHỈ
+      // đường dẫn (không domain) khi null, KHÔNG suy đoán/bịa domain.
+      publicApiBaseUrl: process.env.PUBLIC_API_BASE_URL || null
     });
   } catch (err) { next(err); }
 });

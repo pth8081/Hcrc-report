@@ -42,6 +42,37 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.58 — Hiện sẵn link URL đầy đủ gửi đối tác (trang "Báo cáo"/"Cấu hình Voucher")
+
+**Theo yêu cầu người dùng**: "phải hiện ra cái phần hiện link URL để gửi
+đối tác... mà nhớ được link" — giống cách trang "Cấu hình Voucher" đã
+hiện sẵn đường dẫn API (bản 9.74), nhưng mở rộng thêm: ghép ĐÚNG domain
+thật (trước đây CẢ voucher lẫn báo cáo mới đều chưa hiện domain, chỉ có
+đường dẫn, admin vẫn phải tự ghép tay).
+
+**Thay đổi**:
+- `api-server/.env.example` — thêm biến MỚI `PUBLIC_API_BASE_URL` (domain
+  công khai đối tác gọi `/api/v1/*`, vd `https://api.hcrc.vidu.vn`) — để
+  trống thì hành vi y hệt trước bản này (chỉ hiện đường dẫn, không domain).
+  KHÔNG tự suy từ domain đang xem api-admin được — nhiều cách triển khai
+  dùng domain KHÁC NHAU cho api-admin và cho đối tác ngoài (xem ví dụ
+  "nginx.conf" trong repo, 2 domain riêng `api-admin.hcrc.vidu.vn`/
+  `api.hcrc.vidu.vn`).
+- `GET /admin/me` (dùng chung mọi trang qua `AuthContext`) — trả thêm
+  `publicApiBaseUrl` (đọc từ biến trên).
+- `api-admin`: component mới `CopyableText.jsx` (hiện chuỗi + nút "Sao
+  chép", mirror đúng cơ chế đã có ở trang "Đối tác" cho API key).
+  - Trang **"Báo cáo"** (`ReportCatalogPage.jsx`) — thêm cột "Endpoint
+    gọi API (gửi đối tác)" cho MỖI báo cáo (kể cả "Tồn kho toàn hệ
+    thống") — link đầy đủ `<domain>/api/v1/reports/<reportId>/run`, có
+    nút "Sao chép".
+  - Trang **"Cấu hình Voucher"** (`VoucherSettingsPage.jsx`) — nâng cấp
+    cột "Đường dẫn API" đã có (bản 9.74) để hiện ĐẦY ĐỦ domain + nút
+    "Sao chép" (trước chỉ có đường dẫn, không domain).
+  - Cả 2 trang hiện ghi chú rõ nếu `.env` chưa khai `PUBLIC_API_BASE_URL`.
+
+KHÔNG đổi API key/scope/quyền gì — thuần hiện thêm thông tin tiện copy.
+
 ## 10.57 — Giả soát responsive mobile/tablet/desktop toàn hệ thống
 
 **Theo yêu cầu người dùng**: "giả soát chuyên sâu, tìm kỹ, kiểm tra thật

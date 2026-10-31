@@ -9,11 +9,23 @@ import { useAuth } from '../lib/AuthContext';
 import DataTable from '../components/DataTable';
 import { useRowSelection } from '../lib/useRowSelection';
 import Modal from '../components/Modal';
+import CopyableText from '../components/CopyableText';
 
 const EMPTY_FORM = { reportId: '', title: '', domain: '', definitionJson: '' };
 
+// reportRunUrl (bản 10.58, theo yêu cầu người dùng — "hiện ra cái phần hiện
+// link URL để gửi đối tác... mà nhớ được link", giống cột "Đường dẫn API"
+// của trang "Cấu hình Voucher") — ghép domain thật (publicApiBaseUrl, đọc từ
+// .env PUBLIC_API_BASE_URL qua GET /auth/me) với đường dẫn CỐ ĐỊNH của route
+// GET /api/v1/reports/:reportId/run (routes/v1/reports.js) — KHÔNG tự bịa
+// domain khi publicApiBaseUrl chưa khai, chỉ hiện đường dẫn.
+function reportRunUrl(reportId, publicApiBaseUrl) {
+  const path = `/api/v1/reports/${reportId}/run`;
+  return publicApiBaseUrl ? `${publicApiBaseUrl}${path}` : path;
+}
+
 export default function ReportCatalogPage() {
-  const { canEdit } = useAuth();
+  const { canEdit, me } = useAuth();
   const isAdmin = canEdit('report-catalog');
   const [reports, setReports] = useState([]);
   const [form, setForm] = useState(EMPTY_FORM);
@@ -107,11 +119,18 @@ export default function ReportCatalogPage() {
         </form>
       )}
 
+      {!me?.publicApiBaseUrl && (
+        <p className="hint">
+          Chưa khai <code>PUBLIC_API_BASE_URL</code> trong <code>.env</code> của api-server — cột "Endpoint gọi API"
+          dưới đây tạm chỉ hiện đường dẫn (không domain). Khai xong, restart api-server để hiện đủ link gửi đối tác.
+        </p>
+      )}
       <DataTable
         columns={[
           { key: 'Title', label: 'Tiêu đề' },
           { key: 'ReportId', label: 'Mã' },
           { key: 'Domain', label: 'Domain' },
+          { key: 'url', label: 'Endpoint gọi API (gửi đối tác)', render: (r) => <CopyableText value={reportRunUrl(r.ReportId, me?.publicApiBaseUrl)} label="Endpoint API" /> },
           { key: 'IsActive', label: 'Trạng thái', render: (r) => (r.IsActive ? 'Hoạt động' : 'Tắt') },
           isAdmin && {
             key: 'actions', label: '', render: (r) => (

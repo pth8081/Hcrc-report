@@ -12,6 +12,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/AuthContext';
 import Modal from '../components/Modal';
+import CopyableText from '../components/CopyableText';
 
 const DEFAULT_CONFIG_KEY = 'default';
 const EMPTY_FORM = { configKey: '', name: '', dataSourceId: '' };
@@ -21,13 +22,18 @@ const EMPTY_FORM = { configKey: '', name: '', dataSourceId: '' };
 // bảng này, tính THẲNG từ ConfigKey (không gõ tay/không copy từ tài liệu
 // rời rạc dễ lệch khi thêm máy chủ mới) — admin copy thẳng đúng URL gửi
 // đối tác, không cần tự ghép path bằng tay (dễ gõ sai/thiếu dấu "/").
-function voucherUrls(configKey) {
+// SỬA bản 10.58 (theo yêu cầu người dùng — "hiện link URL để gửi đối tác...
+// mà nhớ được link") — ghép thêm domain thật (publicApiBaseUrl) khi đã khai
+// PUBLIC_API_BASE_URL, trước đây CHỈ hiện đường dẫn (thiếu domain, vẫn phải
+// tự ghép tay).
+function voucherUrls(configKey, publicApiBaseUrl) {
   const base = configKey === DEFAULT_CONFIG_KEY ? '/api/v1/vouchers' : `/api/v1/vouchers/${configKey}`;
-  return { check: `${base}/check`, redeem: `${base}/redeem` };
+  const prefix = publicApiBaseUrl || '';
+  return { check: `${prefix}${base}/check`, redeem: `${prefix}${base}/redeem` };
 }
 
 export default function VoucherSettingsPage() {
-  const { canEdit } = useAuth();
+  const { canEdit, me } = useAuth();
   const editable = canEdit('voucher-settings');
   const [configs, setConfigs] = useState([]);
   const [dataSources, setDataSources] = useState([]);
@@ -103,6 +109,12 @@ export default function VoucherSettingsPage() {
         <code>/vouchers/redeem</code> — đối tác hiện tại không cần đổi gì), không xoá được.
       </p>
       {error && <p className="form-error">{error}</p>}
+      {!me?.publicApiBaseUrl && (
+        <p className="hint">
+          Chưa khai <code>PUBLIC_API_BASE_URL</code> trong <code>.env</code> của api-server — cột "Đường dẫn API"
+          dưới đây tạm chỉ hiện đường dẫn (không domain). Khai xong, restart api-server để hiện đủ link gửi đối tác.
+        </p>
+      )}
 
       {editable && (
         <div className="inline-actions">
@@ -117,15 +129,15 @@ export default function VoucherSettingsPage() {
           </thead>
           <tbody>
             {configs.map(c => {
-              const urls = voucherUrls(c.ConfigKey);
+              const urls = voucherUrls(c.ConfigKey, me?.publicApiBaseUrl);
               return (
               <tr key={c.ConfigKey}>
                 <td><code>{c.ConfigKey}</code></td>
                 <td>{c.Name}</td>
                 <td>{c.DataSourceName || <span className="hint">Chưa chọn</span>}</td>
                 <td>
-                  <div><code>POST {urls.check}</code></div>
-                  <div><code>POST {urls.redeem}</code></div>
+                  <div>POST <CopyableText value={urls.check} label="Endpoint check" /></div>
+                  <div>POST <CopyableText value={urls.redeem} label="Endpoint redeem" /></div>
                 </td>
                 {editable && (
                   <td>

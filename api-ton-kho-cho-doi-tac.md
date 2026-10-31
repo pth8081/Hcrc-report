@@ -216,6 +216,14 @@ dòng mẫu nên KHÔNG dùng).
    (xem mục dưới) — KHÔNG bắt buộc, báo cáo vẫn chạy bình thường (trả về
    toàn bộ siêu thị) nếu bỏ qua bước này.
 
+### Lấy sẵn link URL đầy đủ để gửi đối tác (bản 10.58)
+
+Khai `PUBLIC_API_BASE_URL=https://<domain-thật-đối-tác-gọi-vào>` trong
+`.env` của `api-server` (vd `https://api.hcrc.vidu.vn`) rồi `pm2 restart
+api-server` — vào `api-admin` → **"Báo cáo"** → cột **"Endpoint gọi API
+(gửi đối tác)"** sẽ hiện ĐẦY ĐỦ link (`<domain>/api/v1/reports/ton-kho/run`),
+có nút **"Sao chép"** — không cần tự ghép domain bằng tay/nhớ link nữa.
+
 ### Giới hạn đối tác CHỈ lấy tồn kho của 1 vài siêu thị (bản 10.54)
 
 Theo yêu cầu người dùng — vd đối tác thương mại điện tử chỉ cần tra tồn
