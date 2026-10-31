@@ -14,6 +14,31 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.57 — Giả soát responsive mobile/tablet/desktop toàn hệ thống
+
+**Thay đổi**: `rp-user`/`etl-admin`/`api-admin` — sửa CSS `.searchable-select-panel`
+(giới hạn `max-width` theo viewport, tránh tràn mép trên điện thoại hẹp)
++ bọc 4 bảng `<table>` thô còn thiếu (`table-scroll`): "CA tin cậy"
+(rp-user), "Cấu hình Voucher" (api-admin), "Gán quyền" (etl-admin VÀ
+api-admin). KHÔNG đổi backend.
+
+**Triển khai**:
+```bash
+git pull origin main
+cd rp-user && npm run build && cd ..
+cd etl-admin && npm run build && cd ..
+cd api-admin && npm run build
+```
+Deploy lại `dist/` của CẢ 3 app. Không cần đổi gì ở `rp-server`/`etl`/
+`api-server`/CSDL.
+
+**Kiểm tra**: thử mở bất kỳ bộ lọc "Siêu thị"/"Mã hàng" nào trên điện
+thoại thật (hoặc DevTools responsive, bề rộng ~360-375px) → dropdown
+phải nằm GỌN trong màn hình, không bị cắt mép phải. Mở "Chứng chỉ TLS"
+(rp-user)/"Cấu hình Voucher" (api-admin)/"Vai trò → Gán quyền" (cả 2
+app) trên mobile → bảng phải cuộn ngang được (vuốt trái/phải trong
+bảng), KHÔNG kéo tràn cả trang.
+
 ## 10.56 — Đổi NỐT 2 ô chọn siêu thị còn lại sang dropdown tìm kiếm
 
 **Thay đổi**: `rp-user` → modal "Phạm vi dữ liệu" (trang Người dùng) và

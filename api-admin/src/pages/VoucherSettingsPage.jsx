@@ -110,39 +110,41 @@ export default function VoucherSettingsPage() {
         </div>
       )}
 
-      <table className="data-table">
-        <thead>
-          <tr><th>Mã (ConfigKey)</th><th>Tên</th><th>Nguồn dữ liệu</th><th>Đường dẫn API (gửi đối tác)</th>{editable && <th></th>}</tr>
-        </thead>
-        <tbody>
-          {configs.map(c => {
-            const urls = voucherUrls(c.ConfigKey);
-            return (
-            <tr key={c.ConfigKey}>
-              <td><code>{c.ConfigKey}</code></td>
-              <td>{c.Name}</td>
-              <td>{c.DataSourceName || <span className="hint">Chưa chọn</span>}</td>
-              <td>
-                <div><code>POST {urls.check}</code></div>
-                <div><code>POST {urls.redeem}</code></div>
-              </td>
-              {editable && (
+      <div className="table-scroll">
+        <table className="data-table">
+          <thead>
+            <tr><th>Mã (ConfigKey)</th><th>Tên</th><th>Nguồn dữ liệu</th><th>Đường dẫn API (gửi đối tác)</th>{editable && <th></th>}</tr>
+          </thead>
+          <tbody>
+            {configs.map(c => {
+              const urls = voucherUrls(c.ConfigKey);
+              return (
+              <tr key={c.ConfigKey}>
+                <td><code>{c.ConfigKey}</code></td>
+                <td>{c.Name}</td>
+                <td>{c.DataSourceName || <span className="hint">Chưa chọn</span>}</td>
                 <td>
-                  <button type="button" onClick={() => setEditing({ ...c })}>Sửa</button>{' '}
-                  <button
-                    type="button"
-                    onClick={() => deleteConfig(c.ConfigKey)}
-                    disabled={c.ConfigKey === DEFAULT_CONFIG_KEY || deletingKey === c.ConfigKey}
-                  >
-                    {deletingKey === c.ConfigKey ? 'Đang xoá...' : 'Xoá'}
-                  </button>
+                  <div><code>POST {urls.check}</code></div>
+                  <div><code>POST {urls.redeem}</code></div>
                 </td>
-              )}
-            </tr>
-            );
-          })}
-        </tbody>
-      </table>
+                {editable && (
+                  <td>
+                    <button type="button" onClick={() => setEditing({ ...c })}>Sửa</button>{' '}
+                    <button
+                      type="button"
+                      onClick={() => deleteConfig(c.ConfigKey)}
+                      disabled={c.ConfigKey === DEFAULT_CONFIG_KEY || deletingKey === c.ConfigKey}
+                    >
+                      {deletingKey === c.ConfigKey ? 'Đang xoá...' : 'Xoá'}
+                    </button>
+                  </td>
+                )}
+              </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
 
       {creating && (
         <Modal>

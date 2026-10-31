@@ -94,7 +94,13 @@ button:disabled, button:disabled:hover {
 .searchable-select-toggle { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px; background: var(--surface); color: var(--ink); border: 1px solid var(--line); text-align: left; box-shadow: none; font-weight: 400; }
 .searchable-select-toggle span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .searchable-select-caret { color: var(--ink-soft); font-size: 11px; }
-.searchable-select-panel { position: absolute; z-index: 20; top: calc(100% + 4px); left: 0; min-width: 100%; width: max-content; max-width: 320px; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; box-shadow: 0 6px 18px rgba(0,0,0,0.12); padding: 8px; }
+/* max-width dùng min(320px, calc(100vw - 64px)) (bản 10.57, phát hiện qua
+   giả soát responsive — panel neo trái (left:0) không tự lật hướng, nếu
+   nội dung chạm trần 320px trong khung hẹp (vd modal trên điện thoại rất
+   nhỏ ≤360px) có thể tràn ra ngoài viewport — giới hạn thêm theo chiều
+   rộng màn hình thật để KHÔNG BAO GIỜ vượt viewport, không đổi gì ở màn
+   hình rộng bình thường (100vw - 64px luôn > 320px từ ~384px trở lên). */
+.searchable-select-panel { position: absolute; z-index: 20; top: calc(100% + 4px); left: 0; min-width: 100%; width: max-content; max-width: min(320px, calc(100vw - 64px)); background: var(--surface); border: 1px solid var(--line); border-radius: 6px; box-shadow: 0 6px 18px rgba(0,0,0,0.12); padding: 8px; }
 .searchable-select-search { width: 100%; margin-bottom: 6px; }
 .searchable-select-actions { display: flex; gap: 6px; margin-bottom: 6px; }
 .searchable-select-actions button { padding: 4px 8px; font-size: 12px; background: var(--accent-soft); border-color: var(--accent-soft); color: var(--ink); }

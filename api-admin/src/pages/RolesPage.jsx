@@ -156,18 +156,20 @@ export default function RolesPage() {
         <Modal>
           <div className="modal-body">
             <h3>Gán quyền — {editingAccessFor.Name}</h3>
-            <table className="access-table">
-              <thead><tr><th>Trang</th><th>Xem</th><th>Sửa/Xoá</th></tr></thead>
-              <tbody>
-                {menuCatalog.map(m => (
-                  <tr key={m.code}>
-                    <td>{m.label}</td>
-                    <td><input type="checkbox" checked={!!access[m.code]?.checked} onChange={(e) => setChecked(m.code, e.target.checked)} /></td>
-                    <td><input type="checkbox" checked={!!access[m.code]?.canEdit} onChange={(e) => setCanEdit(m.code, e.target.checked)} /></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <div className="table-scroll">
+              <table className="access-table">
+                <thead><tr><th>Trang</th><th>Xem</th><th>Sửa/Xoá</th></tr></thead>
+                <tbody>
+                  {menuCatalog.map(m => (
+                    <tr key={m.code}>
+                      <td>{m.label}</td>
+                      <td><input type="checkbox" checked={!!access[m.code]?.checked} onChange={(e) => setChecked(m.code, e.target.checked)} /></td>
+                      <td><input type="checkbox" checked={!!access[m.code]?.canEdit} onChange={(e) => setCanEdit(m.code, e.target.checked)} /></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
 
             {/* Sửa quyền menu của 1 vai trò chỉ Admin hệ thống thật mới làm được
                 (server đã chặn — xem lib/adminPermissions.js requireSystemRoleActor,

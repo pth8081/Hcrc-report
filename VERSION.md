@@ -42,6 +42,49 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.57 — Giả soát responsive mobile/tablet/desktop toàn hệ thống
+
+**Theo yêu cầu người dùng**: "giả soát chuyên sâu, tìm kỹ, kiểm tra thật
+kỹ" toàn bộ 3 app (rp-user/etl-admin/api-admin) đối chiếu tiêu chuẩn
+responsive ĐÃ CÓ sẵn trong hệ thống (breakpoint 460/720/860/880px, vùng
+chạm 42-44px, modal qua Portal, bảng cuộn ngang `.table-scroll`).
+
+**Phương pháp**: 3 agent soát song song, mỗi agent 1 app — đọc toàn bộ
+CSS + mọi trang `.jsx`, đối chiếu đúng quy ước đã có (không tự đặt tiêu
+chuẩn mới). Sau đó tự kiểm tra chéo bằng Playwright (dựng lại đúng CSS
+thật, đo toạ độ phần tử ở nhiều viewport 320/360/375/414px) trước khi
+sửa.
+
+**Kết luận chung**: hệ thống responsive đã khá trưởng thành (nhiều bản
+sửa lỗi thật trước đó: 9.73/9.78/10.8/10.19/10.20/10.26/10.27...) — CHỈ
+tìm thêm được few lỗi/latent-risk sau:
+
+1. **`SearchableSelect.jsx` — panel dropdown có thể tràn mép viewport**
+   (mức CAO, ảnh hưởng RỘNG — component dùng cho MỌI bộ lọc "Siêu thị"/
+   "Mã hàng"/"NCC" của MỌI báo cáo + các modal gán siêu thị vừa thêm bản
+   10.54-10.56). Panel neo trái (`left: 0`) không tự lật hướng, CSS
+   `max-width: 320px` không giới hạn theo viewport — trên điện thoại rất
+   hẹp (≤375px) kèm label dài, trong ngữ cảnh modal (bớt chỗ do padding),
+   panel có thể vươn ra ngoài khung nhìn. ĐÃ XÁC NHẬN BẰNG ĐO THẬT qua
+   Playwright (viewport 320px: tràn 5px trước khi sửa). Sửa: đổi
+   `max-width: 320px` → `max-width: min(320px, calc(100vw - 64px))` ở
+   CẢ 3 file `styles.css` (rp-user/etl-admin/api-admin, cùng 1 component
+   port 3 nơi) — đã đo lại, HẾT tràn ở mọi viewport 320-414px, KHÔNG đổi
+   gì ở màn hình rộng bình thường (≥384px, đa số trường hợp thực tế).
+
+2. **3 bảng dùng `<table>` thô, thiếu khung `.table-scroll`** (khác với
+   quy ước MỌI bảng khác trong hệ thống):
+   - `rp-user` → "Chứng chỉ TLS/HTTPS" → bảng "CA tin cậy" (cột "Chủ thể"
+     chứa chuỗi DN chứng chỉ có thể dài).
+   - `api-admin` → "Cấu hình Voucher" (mức CAO — cột "Đường dẫn API" có
+     `POST /api/v1/vouchers/<mã>/check`/`/redeem`, đủ dài để ép TRÀN
+     NGANG TOÀN TRANG trên mobile, không chỉ riêng bảng).
+   - `etl-admin` VÀ `api-admin` → modal "Gán quyền" (trang "Vai trò", cả
+     2 app) → bảng `access-table`.
+   Sửa: bọc cả 4 bảng trong `<div className="table-scroll">`.
+
+KHÔNG đổi gì ở backend/API — thuần giao diện. Format dữ liệu không đổi.
+
 ## 10.56 — Đổi NỐT 2 ô chọn siêu thị còn lại sang dropdown tìm kiếm
 
 **Theo yêu cầu người dùng**: "xem luôn cho tôi bộ lọc của TẤT CẢ các siêu

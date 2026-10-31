@@ -160,22 +160,24 @@ export default function RolesPage() {
         <Modal>
           <div className="modal-body">
             <h3>Gán quyền — {editingAccessFor.Name}</h3>
-            <table className="access-table">
-              <thead><tr><th>Trang</th><th>Xem</th><th>Sửa/Xoá</th></tr></thead>
-              <tbody>
-                {menuCatalog.map(m => (
-                  <tr key={m.code}>
-                    <td>{m.label}</td>
-                    <td>
-                      {m.code === 'diem-stk-mapping' || m.code === 'core-item-list'
-                        ? <span title="Trang này yêu cầu quyền Sửa cho MỌI thao tác kể cả xem — không có mức chỉ-xem riêng">—</span>
-                        : <input type="checkbox" checked={!!access[m.code]?.checked} onChange={(e) => setChecked(m.code, e.target.checked)} />}
-                    </td>
-                    <td><input type="checkbox" checked={!!access[m.code]?.canEdit} onChange={(e) => setCanEdit(m.code, e.target.checked)} /></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <div className="table-scroll">
+              <table className="access-table">
+                <thead><tr><th>Trang</th><th>Xem</th><th>Sửa/Xoá</th></tr></thead>
+                <tbody>
+                  {menuCatalog.map(m => (
+                    <tr key={m.code}>
+                      <td>{m.label}</td>
+                      <td>
+                        {m.code === 'diem-stk-mapping' || m.code === 'core-item-list'
+                          ? <span title="Trang này yêu cầu quyền Sửa cho MỌI thao tác kể cả xem — không có mức chỉ-xem riêng">—</span>
+                          : <input type="checkbox" checked={!!access[m.code]?.checked} onChange={(e) => setChecked(m.code, e.target.checked)} />}
+                      </td>
+                      <td><input type="checkbox" checked={!!access[m.code]?.canEdit} onChange={(e) => setCanEdit(m.code, e.target.checked)} /></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
             <p className="form-hint">
               Riêng "Ánh xạ Điểm - STK_ID" không có mức "chỉ xem" — phải tick "Sửa/Xoá" mới vào được trang này (kể cả để xem).
             </p>

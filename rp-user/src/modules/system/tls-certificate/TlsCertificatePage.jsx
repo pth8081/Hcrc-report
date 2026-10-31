@@ -178,27 +178,29 @@ export default function TlsCertificatePage() {
       </p>
       {trustedCaError && <p className="form-error">{trustedCaError}</p>}
 
-      <table className="data-table">
-        <thead>
-          <tr><th>Nhãn</th><th>Chủ thể</th><th>Hiệu lực</th><th></th></tr>
-        </thead>
-        <tbody>
-          {trustedCas.length === 0 ? (
-            <tr><td colSpan={4}>Chưa thêm CA tin cậy nào.</td></tr>
-          ) : trustedCas.map(ca => (
-            <tr key={ca.id}>
-              <td>{ca.label}</td>
-              <td>{ca.subject || '(không đọc được)'}</td>
-              <td>{ca.validTo ? `${ca.validFrom} — ${ca.validTo}` : '—'}</td>
-              <td>
-                <button type="button" onClick={() => removeCa(ca)} disabled={deletingCaId === ca.id}>
-                  {deletingCaId === ca.id ? 'Đang xoá...' : 'Xoá'}
-                </button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <div className="table-scroll">
+        <table className="data-table">
+          <thead>
+            <tr><th>Nhãn</th><th>Chủ thể</th><th>Hiệu lực</th><th></th></tr>
+          </thead>
+          <tbody>
+            {trustedCas.length === 0 ? (
+              <tr><td colSpan={4}>Chưa thêm CA tin cậy nào.</td></tr>
+            ) : trustedCas.map(ca => (
+              <tr key={ca.id}>
+                <td>{ca.label}</td>
+                <td>{ca.subject || '(không đọc được)'}</td>
+                <td>{ca.validTo ? `${ca.validFrom} — ${ca.validTo}` : '—'}</td>
+                <td>
+                  <button type="button" onClick={() => removeCa(ca)} disabled={deletingCaId === ca.id}>
+                    {deletingCaId === ca.id ? 'Đang xoá...' : 'Xoá'}
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
 
       <h3>Thêm CA tin cậy mới</h3>
       <form className="stacked-form" onSubmit={submitAddCa}>
