@@ -118,10 +118,31 @@ function describeColumns(columns) {
 // siêu thị KHÔNG dịch ra được mã kho thật nào) -> ép `1 = 0` (không dòng
 // nào khớp), KHÔNG được bỏ qua điều kiện (bỏ qua = coi như KHÔNG giới hạn,
 // sai hẳn ý "giới hạn nhưng rỗng").
+// latestEventDateOnly (bản 10.60, theo sự cố thật — đối tác gọi API "Tồn
+// kho toàn hệ thống" (ton-kho) báo "Failed to fetch"/HTTP 500, đo được qua
+// api-admin "Lịch sử" mỗi lần gọi mất 7-16 GIÂY, có lần vượt timeout SQL
+// 15s (api-server/db.js REQUEST_TIMEOUT_MS) -> 500. Nguyên nhân: domain
+// `tonkho_chitiet_sku` GIỮ LỊCH SỬ MỖI NGÀY, 5-11 TRIỆU dòng (xem
+// dwh/schema.sql/bc-core-ton-kho-0.md — ĐÚNG domain từng gây sự cố thật
+// tương tự ở bản 9.87, lúc đó là báo cáo NỘI BỘ, lần này là API đối tác),
+// nhưng definition CŨ không giới hạn EventDate — ORDER BY EventDate DESC,
+// Id DESC + OFFSET/FETCH phải cân nhắc XUYÊN SUỐT lịch sử nhiều ngày của
+// domain mỗi lần gọi dù nghiệp vụ "tồn kho LIVE" chỉ cần ĐÚNG 1 NGÀY gần
+// nhất. Cờ này (definition.latestEventDateOnly=true, xem
+// scripts/seedTonKhoReport.js) thu hẹp WHERE về đúng ngày đồng bộ gần nhất
+// của domain đó — seek qua ĐÚNG index đã có sẵn (IX_ReportFacts_Domain_Date
+// trên (Domain, EventDate DESC)), KHÔNG cần tạo index mới. Mặc định
+// false/không khai — KHÔNG đổi hành vi báo cáo nào khác đang chạy ổn định
+// (báo cáo nào thật sự cần đọc nhiều ngày, vd xuất lịch sử, KHÔNG được bật
+// cờ này).
 async function runReport(pool, definition, filterValues = {}, { page = 1, pageSize = 200 } = {}, forcedConditions = []) {
   const request = pool.request();
   const conditions = ['Domain = @domain'];
   request.input('domain', sql.VarChar(50), definition.domain);
+
+  if (definition.latestEventDateOnly) {
+    conditions.push('EventDate = (SELECT MAX(EventDate) FROM dwh.ReportFacts WHERE Domain = @domain)');
+  }
 
   forcedConditions.forEach((fc, idx) => {
     const column = resolveColumn(fc.field);

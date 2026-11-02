@@ -14,6 +14,35 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.60 — Sửa API "Tồn kho toàn hệ thống" chậm 7-16 giây/lần, có lần timeout -> 500
+
+**Sự cố thật**: đối tác (HCRC Workspace) gọi API tồn kho báo "Failed to
+fetch" rồi HTTP 500. Soi "Lịch sử" (api-admin) xác nhận mỗi lần gọi mất
+7.5-9.6 giây (vẫn 200), có lần 15.875 giây và lỗi 500 (vượt
+`REQUEST_TIMEOUT_MS` 15s của `api-server/db.js`).
+
+**Nguyên nhân**: domain `tonkho_chitiet_sku` giữ lịch sử MỖI NGÀY (5-11
+triệu dòng) nhưng định nghĩa báo cáo không giới hạn `EventDate` — mỗi lần
+gọi phải phân trang xuyên suốt toàn bộ lịch sử domain thay vì đúng 1
+ngày gần nhất.
+
+**Thay đổi**: `api-server/lib/reportEngine.js` (mirror
+`rp-server/lib/reportEngine.js`) thêm cờ `definition.latestEventDateOnly`
+— bật cho báo cáo `ton-kho`
+(`api-server/scripts/seedTonKhoReport.js`). KHÔNG đổi schema CSDL, KHÔNG
+ảnh hưởng báo cáo khác (mặc định tắt).
+
+**Triển khai (theo đúng thứ tự)**:
+```bash
+git pull origin main
+pm2 restart api-server        # đổi logic lib/reportEngine.js
+cd api-server && node scripts/seedTonKhoReport.js   # đẩy cờ mới vào DefinitionJson đã lưu trong CSDL
+```
+
+**Kiểm tra**: gọi lại `GET /api/v1/reports/ton-kho/run` (hoặc "Đồng Bộ
+Ngay" bên HCRC Workspace) → xem lại "Lịch sử" (api-admin) → thời gian xử
+lý phải giảm mạnh (dưới 1-2 giây), không còn mã 500.
+
 ## 10.59 — Hiện sẵn URL ngay tại trang "Đối tác" (lúc gán báo cáo)
 
 **Thay đổi**: `ConsumersPage.jsx` — modal "Báo cáo được gọi" hiện URL +

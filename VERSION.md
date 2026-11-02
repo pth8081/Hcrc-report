@@ -42,6 +42,42 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.60 — Sửa API "Tồn kho toàn hệ thống" chậm (7-16 giây/lần, có lần timeout -> 500)
+
+**Sự cố thật người dùng báo**: đối tác (HCRC Workspace) gọi
+`GET /api/v1/reports/ton-kho/run` báo "Failed to fetch" (trình duyệt/hệ
+đối tác không nhận được phản hồi) rồi tiếp tục báo HTTP 500. Soi "Lịch sử"
+(api-admin) xác nhận: mỗi lần gọi mất **7.5-9.6 giây** dù thành công
+(200), có lần mất **15.875 giây** và lỗi 500.
+
+**Nguyên nhân**: domain `tonkho_chitiet_sku` (bảng `dwh.ReportFacts`) GIỮ
+LỊCH SỬ MỖI NGÀY, **5-11 TRIỆU dòng** (đúng domain từng gây sự cố thật
+tương tự ở bản 9.87 — lúc đó là báo cáo NỘI BỘ, lần này là API đối tác) —
+nhưng định nghĩa báo cáo "ton-kho" (bản 10.46) KHÔNG giới hạn `EventDate`,
+nên mỗi lần gọi phải sắp xếp/phân trang (`ORDER BY EventDate DESC, Id
+DESC`) XUYÊN SUỐT toàn bộ lịch sử nhiều ngày của domain, dù nghiệp vụ "tồn
+kho LIVE" chỉ cần đúng 1 ngày gần nhất. 15.875 giây vượt quá
+`REQUEST_TIMEOUT_MS` mặc định (15.000ms, `api-server/db.js`) → SQL Server
+huỷ truy vấn → lỗi 500.
+
+**Sửa**: thêm cờ `definition.latestEventDateOnly` cho `runReport()`
+(`api-server/lib/reportEngine.js`, mirror `rp-server/lib/reportEngine.js`)
+— khi bật, thu hẹp `WHERE` về đúng `EventDate = (ngày đồng bộ gần nhất của
+domain đó)`, seek qua ĐÚNG index đã có sẵn
+(`IX_ReportFacts_Domain_Date` trên `(Domain, EventDate DESC)`), KHÔNG cần
+tạo index/đổi schema CSDL. Bật cờ này cho báo cáo `ton-kho`
+(`api-server/scripts/seedTonKhoReport.js`). Mặc định cờ là `false`/không
+khai — KHÔNG đổi hành vi bất kỳ báo cáo nào khác đang chạy ổn định.
+
+**Triển khai**: `git pull` + `pm2 restart hcrc-api-server` (đổi logic
+`reportEngine.js`) + chạy lại `node scripts/seedTonKhoReport.js` (thư mục
+`api-server/`, đẩy `latestEventDateOnly: true` vào `DefinitionJson` đã lưu
+trong CSDL — KHÔNG tự cập nhật nếu chỉ pull code).
+
+**Kiểm tra**: gọi lại `GET /api/v1/reports/ton-kho/run` (hoặc bấm "Đồng Bộ
+Ngay" bên HCRC Workspace) → xem lại "Lịch sử" (api-admin) → thời gian xử
+lý phải giảm mạnh (dưới 1-2 giây), không còn mã 500.
+
 ## 10.59 — Hiện sẵn URL NGAY TẠI trang "Đối tác" (lúc gán báo cáo)
 
 **Theo yêu cầu người dùng**: "khi mà tạo một cái key... cho đối tác ấy,

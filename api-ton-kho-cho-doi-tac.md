@@ -216,6 +216,21 @@ dòng mẫu nên KHÔNG dùng).
    (xem mục dưới) — KHÔNG bắt buộc, báo cáo vẫn chạy bình thường (trả về
    toàn bộ siêu thị) nếu bỏ qua bước này.
 
+### Sửa API chậm 7-16 giây/lần, có lần timeout -> 500 (bản 10.60)
+
+Sự cố thật: đối tác gọi API báo "Failed to fetch"/HTTP 500 — soi "Lịch
+sử" (api-admin) xác nhận mỗi lần gọi mất 7.5-9.6 giây (vẫn 200), có lần
+15.875 giây và lỗi 500 (vượt `REQUEST_TIMEOUT_MS` 15s của
+`api-server/db.js`). Nguyên nhân: domain `tonkho_chitiet_sku` giữ lịch sử
+MỖI NGÀY (5-11 triệu dòng) nhưng định nghĩa báo cáo không giới hạn
+`EventDate`, phải phân trang xuyên suốt toàn bộ lịch sử domain mỗi lần
+gọi. Đã thêm cờ `latestEventDateOnly: true` vào định nghĩa báo cáo
+`ton-kho` (`api-server/scripts/seedTonKhoReport.js`) — thu hẹp về đúng
+ngày đồng bộ gần nhất, KHÔNG đổi schema CSDL. BẮT BUỘC chạy lại
+`node scripts/seedTonKhoReport.js` SAU KHI `pm2 restart api-server` để cờ
+này có hiệu lực (chỉ pull code + restart KHÔNG tự cập nhật
+`DefinitionJson` đã lưu sẵn trong CSDL).
+
 ### Lấy sẵn link URL đầy đủ để gửi đối tác (bản 10.58)
 
 Khai `PUBLIC_API_BASE_URL=https://<domain-thật-đối-tác-gọi-vào>` trong

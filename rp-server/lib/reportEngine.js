@@ -125,10 +125,19 @@ function describeColumns(columns) {
   ));
 }
 
+// latestEventDateOnly (bản 10.60) — mirror ĐÚNG api-server/lib/reportEngine.js
+// (xem chú thích đầy đủ ở đó, tìm sự cố thật ton-kho/run 7-16s/lần, có lần
+// timeout -> 500) — domain GIỮ LỊCH SỬ MỖI NGÀY, triệu dòng, chỉ bật cho
+// báo cáo nào thật sự cần ĐÚNG ngày gần nhất (vd "tồn kho LIVE"), KHÔNG đổi
+// hành vi mặc định (false) của bất kỳ báo cáo nào khác.
 async function runReport(pool, definition, filterValues = {}, { page = 1, pageSize = 200 } = {}) {
   const request = pool.request();
   const conditions = ['Domain = @domain'];
   request.input('domain', sql.VarChar(50), definition.domain);
+
+  if (definition.latestEventDateOnly) {
+    conditions.push('EventDate = (SELECT MAX(EventDate) FROM dwh.ReportFacts WHERE Domain = @domain)');
+  }
 
   (definition.filters || []).forEach((filterDef, idx) => {
     const value = filterValues[filterDef.field];

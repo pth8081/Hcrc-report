@@ -34,6 +34,15 @@ const DOMAIN = 'tonkho_chitiet_sku';
 const DEFINITION = {
   title: 'Tồn kho toàn hệ thống',
   domain: DOMAIN,
+  // latestEventDateOnly (bản 10.60) — domain `tonkho_chitiet_sku` GIỮ LỊCH
+  // SỬ MỖI NGÀY (5-11 TRIỆU dòng, xem dwh/schema.sql/bc-core-ton-kho-0.md),
+  // nhưng báo cáo này là "tồn kho LIVE" — chỉ cần ĐÚNG ngày đồng bộ gần
+  // nhất, không cần/không nên lẫn dữ liệu nhiều ngày. Thiếu dòng này khiến
+  // mỗi lần gọi phải cân nhắc phân trang XUYÊN SUỐT lịch sử nhiều ngày của
+  // domain — đo thật qua api-admin "Lịch sử": 7-16 giây/lần, có lần vượt
+  // timeout SQL 15s -> HTTP 500 (sự cố thật đối tác báo "Failed to fetch").
+  // Xem lib/reportEngine.js.
+  latestEventDateOnly: true,
   filters: [],
   columns: [
     { key: 'maNganhHang', label: 'Mã ngành hàng', formula: 'MaNganhHang' },
