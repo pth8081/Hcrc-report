@@ -58,6 +58,11 @@ export default function RealtimeCompareTile({ reportId, dashboardId, title }) {
   const [selected, setSelected] = useState(() => new Set());
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  // showValueLabels (bản 10.63, theo yêu cầu người dùng — "cho tôi optional
+  // là chọn hiển thị doanh thu hoặc không") — mặc định TẮT (nhiều siêu thị x
+  // nhiều mốc thời gian cùng hiện số sẽ rối, di chuột vào biểu đồ vẫn xem
+  // được số chính xác qua Tooltip) — người xem tự bật khi cần.
+  const [showValueLabels, setShowValueLabels] = useState(false);
 
   function changeGranularity(g) {
     setGranularity(g);
@@ -106,6 +111,7 @@ export default function RealtimeCompareTile({ reportId, dashboardId, title }) {
   const chartVisualization = {
     type: 'line', xField: '_bucket', valueFields: selectedStores,
     unitDivisor: 1_000_000, unitNote: 'ĐVT: 1.000.000', rotateXLabels: true,
+    showValueLabels,
     seriesColors: Object.fromEntries(selectedStores.map(name => [name, colorFor(name)]))
   };
 
@@ -157,6 +163,10 @@ export default function RealtimeCompareTile({ reportId, dashboardId, title }) {
 
       {!loading && selectedStores.length > 0 && (
         <>
+          <label className="checkbox-row realtime-compare-showvalues">
+            <input type="checkbox" checked={showValueLabels} onChange={(e) => setShowValueLabels(e.target.checked)} />
+            Hiện số liệu trên từng điểm biểu đồ
+          </label>
           <Suspense fallback={<p>Đang tải biểu đồ...</p>}>
             <ReportChart columns={chartColumns} rows={chartRows} visualization={chartVisualization} onPointClick={() => {}} />
           </Suspense>
