@@ -42,6 +42,24 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.63 — Tuỳ chọn hiện số liệu trên biểu đồ "So sánh siêu thị theo thời gian"
+
+**Theo yêu cầu người dùng**: "biểu đồ cho tôi optional là chọn hiển thị
+doanh thu hoặc không". Thêm checkbox "Hiện số liệu trên từng điểm biểu
+đồ" ở tab "🔀 So sánh siêu thị" (bản 10.62) — bật
+`visualization.showValueLabels` đã có sẵn ở `ReportChart.jsx` (không cần
+sửa gì thêm ở component đó). Mặc định TẮT (nhiều siêu thị/nhiều mốc thời
+gian cùng hiện số sẽ rối — di chuột vào biểu đồ vẫn xem được số chính xác
+qua Tooltip) — người xem tự bật khi cần.
+
+**Triển khai**: `git pull origin main` → `cd rp-user && npm run build` →
+deploy lại `dist/`. Không cần restart `rp-server`/script gì (thuần giao
+diện).
+
+**Kiểm tra**: Dashboard → tab "🔀 So sánh siêu thị" → tick checkbox "Hiện
+số liệu trên từng điểm biểu đồ" → mỗi điểm trên biểu đồ đường phải hiện
+số doanh thu ngay trên đó; bỏ tick → ẩn đi, biểu đồ gọn lại như trước.
+
 ## 10.62 — Dashboard "Doanh thu Realtime": nhãn siêu thị xoay dọc + "So sánh siêu thị theo thời gian"
 
 **Theo yêu cầu người dùng**: (1) "tôi muốn tên siêu thị xoay dọc theo cột

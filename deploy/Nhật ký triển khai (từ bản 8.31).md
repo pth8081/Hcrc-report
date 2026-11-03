@@ -14,6 +14,22 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.63 — Tuỳ chọn hiện số liệu trên biểu đồ "So sánh siêu thị theo thời gian"
+
+**Thay đổi**: checkbox "Hiện số liệu trên từng điểm biểu đồ" ở tab
+"🔀 So sánh siêu thị" — mặc định TẮT, tự bật khi cần xem số cụ thể trên
+từng điểm.
+
+**Triển khai**:
+```bash
+git pull origin main
+cd rp-user && npm run build
+```
+Deploy lại `dist/`. Không cần restart `rp-server`, không có thay đổi CSDL.
+
+**Kiểm tra**: tab "🔀 So sánh siêu thị" → tick checkbox → số doanh thu
+hiện ngay trên từng điểm biểu đồ; bỏ tick → ẩn đi.
+
 ## 10.62 — Dashboard "Doanh thu Realtime": nhãn siêu thị xoay dọc + "So sánh siêu thị theo thời gian"
 
 **Thay đổi**: biểu đồ Realtime (Theo ngày/Theo tháng) nhãn siêu thị xoay
