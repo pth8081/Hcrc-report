@@ -42,6 +42,44 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.64 — Xuất Excel/PDF + chọn kiểu biểu đồ cho "So sánh siêu thị"
+
+**Theo yêu cầu người dùng**: "cho tôi xuất ra file Excel và PDF"; "cho
+mình thêm một cái lựa chọn nữa là có thể chọn cái biểu đồ theo hình cột
+này, theo hình hiện tại này... mà theo hình tròn này, để cho chọn mấy
+cái loại biểu đồ... mình muốn phong phú với cái phần biểu đồ ấy". Đã gửi
+demo (ảnh chụp thật từ component) xác nhận trước khi merge.
+
+**Thay đổi 1 — Xuất Excel/PDF**: nút "Xuất Excel"/"Xuất PDF" ở tab
+"🔀 So sánh siêu thị" — xuất ĐÚNG bảng pivot đang xem (mỗi dòng 1 ngày/
+tháng, mỗi cột 1 siêu thị đã chọn), KHÔNG xuất ảnh biểu đồ (đúng quy ước
+mọi nút Xuất khác trong hệ thống). API mới
+`POST /dashboards/:dashboardId/realtime-compare/export`
+(`rp-server/routes/dashboards.js`) — tách logic tính buckets/series
+thành hàm dùng chung `computeCompareSeries()` với `/realtime-compare`
+(JSON cho web) để không lặp code.
+
+**Thay đổi 2 — Chọn kiểu biểu đồ Đường/Cột/Tròn**: tái dùng
+`ReportChart.jsx` (đã hỗ trợ sẵn cả 3 kiểu, không cần viết thêm logic vẽ
+mới). Biểu đồ **Tròn** có ý nghĩa KHÁC 2 kiểu kia — không thể hiện
+"theo thời gian" được nên hiện **tỷ trọng % TỔNG CỘNG DỒN cả khoảng đã
+chọn** (có ghi chú rõ trên giao diện để không nhầm). Mở rộng
+`visualization.seriesColors` (đã có từ bản 10.62) sang cả `type:'pie'`
+để màu mỗi siêu thị nhất quán khi chuyển qua lại giữa 3 kiểu biểu đồ.
+
+**Triển khai**:
+```bash
+git pull origin main
+pm2 restart rp-server     # route mới /realtime-compare/export
+cd rp-user && npm run build   # rồi deploy lại dist/ như thường lệ
+```
+Không có thay đổi CSDL/script seed nào cần chạy lại.
+
+**Kiểm tra**: tab "🔀 So sánh siêu thị" → chọn vài siêu thị → bấm lần
+lượt "Đường"/"Cột"/"Tròn" → biểu đồ phải đổi đúng kiểu, màu mỗi siêu thị
+giữ nguyên giữa các kiểu → bấm "Xuất Excel"/"Xuất PDF" → file tải về phải
+đúng bảng số liệu đang xem.
+
 ## 10.63 — Tuỳ chọn hiện số liệu trên biểu đồ "So sánh siêu thị theo thời gian"
 
 **Theo yêu cầu người dùng**: "biểu đồ cho tôi optional là chọn hiển thị

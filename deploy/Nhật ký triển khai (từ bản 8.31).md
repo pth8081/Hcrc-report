@@ -14,6 +14,25 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.64 — Xuất Excel/PDF + chọn kiểu biểu đồ cho "So sánh siêu thị"
+
+**Thay đổi**: tab "🔀 So sánh siêu thị" thêm nút "Xuất Excel"/"Xuất PDF"
+(xuất đúng bảng pivot đang xem) + bộ chọn kiểu biểu đồ Đường/Cột/Tròn
+(Tròn hiện tỷ trọng % tổng cộng dồn cả khoảng đã chọn, khác Đường/Cột
+theo từng mốc). API mới `POST /dashboards/:dashboardId/realtime-compare/export`.
+
+**Triển khai**:
+```bash
+git pull origin main
+pm2 restart rp-server
+cd rp-user && npm run build
+```
+Deploy lại `dist/`. Không có thay đổi CSDL.
+
+**Kiểm tra**: tab "🔀 So sánh siêu thị" → chọn vài siêu thị → đổi
+Đường/Cột/Tròn → màu mỗi siêu thị giữ nguyên qua 3 kiểu; bấm "Xuất Excel"/
+"Xuất PDF" → file đúng bảng số liệu đang xem.
+
 ## 10.63 — Tuỳ chọn hiện số liệu trên biểu đồ "So sánh siêu thị theo thời gian"
 
 **Thay đổi**: checkbox "Hiện số liệu trên từng điểm biểu đồ" ở tab
