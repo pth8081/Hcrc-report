@@ -26,7 +26,7 @@
 // màu từng siêu thị ỔN ĐỊNH theo danh tính (xem chú thích ở ReportChart.jsx)
 // khi đổi lựa chọn.
 import { lazy, Suspense, useEffect, useState } from 'react';
-import { api } from '../../lib/api';
+import { api, downloadFile } from '../../lib/api';
 import { formatCellValue } from '../../lib/formatCell';
 import { addDaysISO, addMonthsISO, todayISO } from '../../lib/dateRange';
 import DateInput from '../../components/DateInput';
@@ -63,6 +63,18 @@ export default function RealtimeCompareTile({ reportId, dashboardId, title }) {
   // nhiều mốc thời gian cùng hiện số sẽ rối, di chuột vào biểu đồ vẫn xem
   // được số chính xác qua Tooltip) — người xem tự bật khi cần.
   const [showValueLabels, setShowValueLabels] = useState(false);
+  // chartType (bản 10.64, theo yêu cầu người dùng — "phong phú với phần
+  // biểu đồ... cho chọn mấy cái loại biểu đồ") — 'line' (xu hướng theo thời
+  // gian, mặc định) / 'bar' (so sánh trực tiếp từng mốc) / 'pie' (tỷ trọng
+  // TỔNG CỘNG DỒN cả khoảng đã chọn — xem pieRows bên dưới, KHÁC hẳn 2 kiểu
+  // kia vì pie không thể hiện "theo thời gian" được, chỉ hiện đúng 1 lát
+  // cắt tổng).
+  const [chartType, setChartType] = useState('line');
+  // exportingFormat (thay vì 1 boolean DÙNG CHUNG) — "Xuất Excel"/"Xuất PDF"
+  // là 2 HÀNH ĐỘNG khác nhau trên CÙNG 1 khối — bấm Excel không được khoá
+  // nhầm nút PDF và ngược lại (đúng quy ước CLAUDE.md "nhiều nút hành động
+  // khác nhau, mỗi hành động 1 biến riêng").
+  const [exportingFormat, setExportingFormat] = useState(null);
 
   function changeGranularity(g) {
     setGranularity(g);
@@ -103,22 +115,61 @@ export default function RealtimeCompareTile({ reportId, dashboardId, title }) {
   const colorFor = (name) => SERIES_PALETTE[stores.indexOf(name) % SERIES_PALETTE.length];
   const selectedStores = stores.filter(s => selected.has(s));
 
-  const chartColumns = selectedStores.map(name => ({ key: name, label: name }));
-  const chartRows = data ? data.buckets.map((b, i) => ({
+  const seriesColors = Object.fromEntries(selectedStores.map(name => [name, colorFor(name)]));
+
+  // pie: KHÔNG có trục thời gian — mỗi siêu thị đã chọn thành 1 LÁT, giá
+  // trị = TỔNG CỘNG DỒN doanh thu của siêu thị đó trên TOÀN BỘ khoảng ngày/
+  // tháng đang xem (không phải 1 mốc riêng lẻ) — trả lời câu hỏi "trong cả
+  // khoảng này, siêu thị nào đóng góp bao nhiêu %", khác hẳn line/bar (xem
+  // xu hướng TỪNG mốc).
+  const pieRows = selectedStores.map(name => ({
+    _store: name, tong: (data?.series[name] || []).reduce((sum, v) => sum + (v || 0), 0)
+  }));
+  const pieColumns = [{ key: '_store', label: 'Siêu thị' }, { key: 'tong', label: 'Tổng doanh thu' }];
+  const pieVisualization = {
+    type: 'pie', xField: '_store', valueFields: ['tong'],
+    unitDivisor: 1_000_000, unitNote: 'ĐVT: 1.000.000 — tổng cộng dồn cả khoảng đã chọn',
+    seriesColors
+  };
+
+  const chartColumns = chartType === 'pie' ? pieColumns : selectedStores.map(name => ({ key: name, label: name }));
+  const chartRows = chartType === 'pie' ? pieRows : (data ? data.buckets.map((b, i) => ({
     _bucket: b.label,
     ...Object.fromEntries(selectedStores.map(name => [name, data.series[name]?.[i] ?? 0]))
-  })) : [];
-  const chartVisualization = {
-    type: 'line', xField: '_bucket', valueFields: selectedStores,
+  })) : []);
+  const chartVisualization = chartType === 'pie' ? pieVisualization : {
+    type: chartType, xField: '_bucket', valueFields: selectedStores,
     unitDivisor: 1_000_000, unitNote: 'ĐVT: 1.000.000', rotateXLabels: true,
     showValueLabels,
-    seriesColors: Object.fromEntries(selectedStores.map(name => [name, colorFor(name)]))
+    seriesColors
   };
+
+  async function exportAs(format) {
+    setExportingFormat(format);
+    setError('');
+    try {
+      await downloadFile(
+        `/dashboards/${dashboardId}/realtime-compare/export`,
+        { reportId, dateMode: granularity, fromDate, toDate, stores: selectedStores, format },
+        `so-sanh-sieu-thi.${format === 'excel' ? 'xlsx' : 'pdf'}`
+      );
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setExportingFormat(null);
+    }
+  }
 
   return (
     <div className="dashboard-tile dashboard-tile--wide">
       <div className="dashboard-tile-header">
         <h3 className="dashboard-tile-title">{title} — So sánh siêu thị theo thời gian</h3>
+        {selectedStores.length > 0 && (
+          <div className="export-actions">
+            <button type="button" disabled={exportingFormat === 'excel'} onClick={() => exportAs('excel')}>{exportingFormat === 'excel' ? 'Đang xuất...' : 'Xuất Excel'}</button>
+            <button type="button" disabled={exportingFormat === 'pdf'} onClick={() => exportAs('pdf')}>{exportingFormat === 'pdf' ? 'Đang xuất...' : 'Xuất PDF'}</button>
+          </div>
+        )}
       </div>
 
       <div className="realtime-compare-controls">
@@ -163,10 +214,25 @@ export default function RealtimeCompareTile({ reportId, dashboardId, title }) {
 
       {!loading && selectedStores.length > 0 && (
         <>
-          <label className="checkbox-row realtime-compare-showvalues">
-            <input type="checkbox" checked={showValueLabels} onChange={(e) => setShowValueLabels(e.target.checked)} />
-            Hiện số liệu trên từng điểm biểu đồ
-          </label>
+          <div className="realtime-compare-chart-options">
+            <div className="realtime-compare-field">
+              <span className="realtime-compare-field-label">Kiểu biểu đồ</span>
+              <div className="seg">
+                <button type="button" className={chartType === 'line' ? 'active' : ''} onClick={() => setChartType('line')}>📈 Đường</button>
+                <button type="button" className={chartType === 'bar' ? 'active' : ''} onClick={() => setChartType('bar')}>📊 Cột</button>
+                <button type="button" className={chartType === 'pie' ? 'active' : ''} onClick={() => setChartType('pie')}>🥧 Tròn</button>
+              </div>
+            </div>
+            {chartType !== 'pie' && (
+              <label className="checkbox-row realtime-compare-showvalues">
+                <input type="checkbox" checked={showValueLabels} onChange={(e) => setShowValueLabels(e.target.checked)} />
+                Hiện số liệu trên từng điểm biểu đồ
+              </label>
+            )}
+          </div>
+          {chartType === 'pie' && (
+            <p className="form-hint">Biểu đồ tròn hiện tỷ trọng TỔNG CỘNG DỒN cả khoảng đã chọn ({granularity === 'day' ? `${data.buckets.length} ngày` : `${data.buckets.length} tháng`}), không theo từng mốc riêng — muốn xem xu hướng từng ngày/tháng, chọn "Đường" hoặc "Cột".</p>
+          )}
           <Suspense fallback={<p>Đang tải biểu đồ...</p>}>
             <ReportChart columns={chartColumns} rows={chartRows} visualization={chartVisualization} onPointClick={() => {}} />
           </Suspense>

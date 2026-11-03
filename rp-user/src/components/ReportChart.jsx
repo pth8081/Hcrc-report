@@ -62,7 +62,14 @@ function scaledNumberFmt(divisor) {
 // valueFields đổi động theo lựa chọn người dùng (vd RealtimeCompareTile.jsx
 // — bỏ chọn 1 siêu thị không được làm đổi màu các siêu thị CÒN LẠI đang
 // hiện, nếu màu gán theo index sẽ bị "trôi" mỗi lần đổi lựa chọn). KHÔNG
-// khai -> hành vi CŨ giữ nguyên (PALETTE theo index như trước).
+// khai -> hành vi CŨ giữ nguyên (PALETTE theo index như trước). Riêng
+// type:'pie' (bản 10.64) tra theo `row[xField]` (tên DANH MỤC của lát đó)
+// thay vì theo field — pie chỉ có ĐÚNG 1 valueFields, không có khái niệm
+// "field key" để tô theo như bar/line, nên dùng chung đúng 1 key danh
+// tính duy nhất có sẵn: tên siêu thị — khớp ĐÚNG field key bar/line đang
+// dùng trong RealtimeCompareTile.jsx (field=tên siêu thị=xField của dòng
+// pie tương ứng), nên 1 object seriesColors DÙNG CHUNG được cho cả 3 kiểu
+// biểu đồ không cần build riêng.
 function labelFor(columns, key) {
   return columns.find(c => c.key === key)?.label || key;
 }
@@ -126,7 +133,7 @@ export default function ReportChart({ columns, rows, visualization, onPointClick
             isAnimationActive={false}
             onClick={handleClick}
           >
-            {chartRows.map((_, i) => <Cell key={i} fill={PALETTE[i % PALETTE.length]} />)}
+            {chartRows.map((row, i) => <Cell key={i} fill={seriesColors?.[row[xField]] || PALETTE[i % PALETTE.length]} />)}
           </Pie>
           <Tooltip formatter={numberFmt} />
           <Legend />

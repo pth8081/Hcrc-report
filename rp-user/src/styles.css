@@ -484,7 +484,9 @@ button:disabled, button:disabled:hover {
 .realtime-compare-chip-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--line); flex: none; }
 .realtime-compare-chip.checked { color: var(--ink); border-color: transparent; background: var(--bg); }
 .realtime-compare-chip.checked .realtime-compare-chip-dot { background: var(--chip-color, var(--accent)); }
-.realtime-compare-showvalues { margin: 0 0 8px; }
+.dashboard-tile-header .export-actions { margin: 0; }
+.realtime-compare-chart-options { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; margin: 0 0 8px; }
+.realtime-compare-showvalues { margin: 0; }
 @media (max-width: 460px) {
   .realtime-compare-controls { gap: 10px; }
 }

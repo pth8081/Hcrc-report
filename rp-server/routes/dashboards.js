@@ -9,7 +9,7 @@ const express = require('express');
 const { sql, getPool } = require('../db');
 const { requireAuth, requireMenuAccess } = require('../lib/auth');
 const { loadDefinition, runDefinition } = require('../lib/reportRunner');
-const { exportMultiSheetExcel } = require('../lib/exportExcel');
+const { exportExcel, exportMultiSheetExcel } = require('../lib/exportExcel');
 const { exportPdf, mergePdfBuffers } = require('../lib/exportPdf');
 const { logAction } = require('../lib/auditLog');
 const { resolveTitleWithDate } = require('../lib/reportTitleDate');
@@ -338,44 +338,114 @@ function enumerateMonthBuckets(fromDate, toDate, todayStr) {
   return buckets;
 }
 
+// Tách riêng để /realtime-compare (JSON cho biểu đồ/bảng web) VÀ
+// /realtime-compare/export (Excel/PDF, bản 10.64) dùng CHUNG đúng 1 logic
+// tính buckets/series — tránh lặp lại vòng lặp runDefinition() ở 2 nơi,
+// dễ lệch nhau khi sửa sau này. Ném lỗi { status, message } khi body sai/
+// vượt giới hạn — nơi gọi (route) tự bắt và trả đúng mã lỗi HTTP.
+async function computeCompareSeries(req) {
+  const { reportId, dateMode, fromDate, toDate } = req.body || {};
+  if (!reportId || !req.userContext.isSystemRole && !req.userContext.reportIds.has(reportId)) {
+    throw Object.assign(new Error('Bạn không có quyền xem báo cáo này'), { status: 403 });
+  }
+  if (!['day', 'month'].includes(dateMode)) throw Object.assign(new Error('dateMode phải là "day" hoặc "month"'), { status: 400 });
+  if (!fromDate || !toDate || fromDate > toDate) throw Object.assign(new Error('Thiếu hoặc sai khoảng fromDate/toDate'), { status: 400 });
+
+  const definition = await loadDefinition(reportId);
+  if (!definition || !definition.isActive) throw Object.assign(new Error('Không tìm thấy báo cáo'), { status: 404 });
+
+  const today = vietnamTodayISO();
+  const buckets = dateMode === 'day' ? enumerateDayBuckets(fromDate, toDate) : enumerateMonthBuckets(fromDate, toDate, today);
+  const maxBuckets = dateMode === 'day' ? MAX_COMPARE_DAYS : MAX_COMPARE_MONTHS;
+  if (buckets.length > maxBuckets) {
+    throw Object.assign(new Error(`Khoảng đã chọn có ${buckets.length} ${dateMode === 'day' ? 'ngày' : 'tháng'}, vượt quá tối đa ${maxBuckets} — thu hẹp khoảng ngày lại.`), { status: 400 });
+  }
+
+  const series = {}; // { tenCuaHang: [giá trị theo đúng thứ tự buckets] }
+  for (let i = 0; i < buckets.length; i++) {
+    const bucket = buckets[i];
+    const filters = { eventDate: { from: bucket.from, to: bucket.to }, cheDoSoSanh: 'past', __storeScope: req.userContext.storeScope };
+    // eslint-disable-next-line no-await-in-loop
+    const { rows } = await runDefinition(definition, filters, { page: 1, pageSize: 1000 });
+    for (const row of rows) {
+      if (row.__isSubtotal || row.__isGrandTotal || !row.tenCuaHang) continue;
+      if (!series[row.tenCuaHang]) series[row.tenCuaHang] = new Array(buckets.length).fill(0);
+      series[row.tenCuaHang][i] = typeof row.dt_thucDat === 'number' ? row.dt_thucDat : 0;
+    }
+  }
+
+  return {
+    dateMode, fromDate, toDate, reportTitle: definition.title,
+    buckets: buckets.map(b => ({ key: b.key, label: b.label })),
+    stores: Object.keys(series).sort((a, b) => a.localeCompare(b, 'vi')),
+    series
+  };
+}
+
 router.post('/:dashboardId/realtime-compare', async (req, res, next) => {
   try {
-    const { reportId, dateMode, fromDate, toDate } = req.body || {};
-    if (!reportId || !req.userContext.isSystemRole && !req.userContext.reportIds.has(reportId)) {
-      return res.status(403).json({ error: 'Bạn không có quyền xem báo cáo này' });
+    const result = await computeCompareSeries(req);
+    res.json(result);
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    next(err);
+  }
+});
+
+// POST /:dashboardId/realtime-compare/export (bản 10.64, theo yêu cầu người
+// dùng — "cho tôi xuất ra file Excel và PDF" cho phần So sánh siêu thị) —
+// LUÔN xuất ĐÚNG bảng pivot (mỗi dòng 1 mốc thời gian, mỗi cột 1 siêu thị
+// đã CHỌN) — giống quy ước MỌI nút "Xuất" khác trong hệ thống (xem chú
+// thích POST /:dashboardId/export phía trên): xuất bảng số liệu đầy đủ,
+// KHÔNG xuất ảnh biểu đồ (đường/cột/tròn người xem đang chọn trên web).
+// body.stores (TUỲ CHỌN) — đúng danh sách siêu thị người dùng đã TICK trên
+// web lúc bấm Xuất; rỗng/không gửi -> xuất ĐỦ mọi siêu thị trả về.
+router.post('/:dashboardId/realtime-compare/export', async (req, res, next) => {
+  try {
+    const { format = 'excel', stores: requestedStores } = req.body || {};
+    if (!['excel', 'pdf'].includes(format)) return res.status(400).json({ error: `Định dạng xuất "${format}" chưa được hỗ trợ` });
+
+    const result = await computeCompareSeries(req);
+    const stores = Array.isArray(requestedStores) && requestedStores.length
+      ? result.stores.filter(s => requestedStores.includes(s))
+      : result.stores;
+    if (!stores.length) return res.status(400).json({ error: 'Không có siêu thị nào để xuất — chọn ít nhất 1 siêu thị trên web rồi xuất lại.' });
+
+    // KHÔNG dùng periodLabelFor() ở trên — hàm đó cho 'month' chỉ tính 1
+    // THÁNG DUY NHẤT (chứa toDate, đúng nghĩa vụ cũ "cộng dồn 1 tháng"), ở
+    // đây fromDate/toDate là khoảng NHIỀU mốc (ngày hoặc tháng) nên luôn
+    // hiện ĐÚNG khoảng ngày gốc người dùng đã chọn, cho cả 2 chế độ.
+    const periodLabel = result.fromDate === result.toDate ? formatDateVN(result.fromDate) : `${formatDateVN(result.fromDate)} - ${formatDateVN(result.toDate)}`;
+    const title = `${result.reportTitle} — So sánh siêu thị theo thời gian (${periodLabel})`;
+    const exportDefinition = {
+      title,
+      columns: [
+        { key: 'bucket', label: result.dateMode === 'day' ? 'Ngày' : 'Tháng' },
+        ...stores.map(name => ({ key: name, label: name }))
+      ]
+    };
+    const rows = result.buckets.map((b, i) => ({
+      bucket: b.label,
+      ...Object.fromEntries(stores.map(name => [name, result.series[name]?.[i] ?? 0]))
+    }));
+
+    const fileBase = `So sanh sieu thi - ${result.toDate.split('-').reverse().join('')}`;
+    if (format === 'excel') {
+      const buffer = await exportExcel(exportDefinition, rows);
+      await logAction(req, { module: 'Dashboard', actionType: 'XUAT_DASHBOARD', targetObject: req.params.dashboardId, description: `Xuất Excel "So sánh siêu thị" (${stores.length} siêu thị, ${rows.length} mốc)` });
+      res.attachment(`${fileBase}.xlsx`);
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      return res.send(buffer);
     }
-    if (!['day', 'month'].includes(dateMode)) return res.status(400).json({ error: 'dateMode phải là "day" hoặc "month"' });
-    if (!fromDate || !toDate || fromDate > toDate) return res.status(400).json({ error: 'Thiếu hoặc sai khoảng fromDate/toDate' });
-
-    const definition = await loadDefinition(reportId);
-    if (!definition || !definition.isActive) return res.status(404).json({ error: 'Không tìm thấy báo cáo' });
-
-    const today = vietnamTodayISO();
-    const buckets = dateMode === 'day' ? enumerateDayBuckets(fromDate, toDate) : enumerateMonthBuckets(fromDate, toDate, today);
-    const maxBuckets = dateMode === 'day' ? MAX_COMPARE_DAYS : MAX_COMPARE_MONTHS;
-    if (buckets.length > maxBuckets) {
-      return res.status(400).json({ error: `Khoảng đã chọn có ${buckets.length} ${dateMode === 'day' ? 'ngày' : 'tháng'}, vượt quá tối đa ${maxBuckets} — thu hẹp khoảng ngày lại.` });
-    }
-
-    const series = {}; // { tenCuaHang: [giá trị theo đúng thứ tự buckets] }
-    for (let i = 0; i < buckets.length; i++) {
-      const bucket = buckets[i];
-      const filters = { eventDate: { from: bucket.from, to: bucket.to }, cheDoSoSanh: 'past', __storeScope: req.userContext.storeScope };
-      // eslint-disable-next-line no-await-in-loop
-      const { rows } = await runDefinition(definition, filters, { page: 1, pageSize: 1000 });
-      for (const row of rows) {
-        if (row.__isSubtotal || row.__isGrandTotal || !row.tenCuaHang) continue;
-        if (!series[row.tenCuaHang]) series[row.tenCuaHang] = new Array(buckets.length).fill(0);
-        series[row.tenCuaHang][i] = typeof row.dt_thucDat === 'number' ? row.dt_thucDat : 0;
-      }
-    }
-
-    res.json({
-      buckets: buckets.map(b => ({ key: b.key, label: b.label })),
-      stores: Object.keys(series).sort((a, b) => a.localeCompare(b, 'vi')),
-      series
-    });
-  } catch (err) { next(err); }
+    const buffer = await exportPdf(exportDefinition, rows);
+    await logAction(req, { module: 'Dashboard', actionType: 'XUAT_DASHBOARD', targetObject: req.params.dashboardId, description: `Xuất PDF "So sánh siêu thị" (${stores.length} siêu thị, ${rows.length} mốc)` });
+    res.attachment(`${fileBase}.pdf`);
+    res.setHeader('Content-Type', 'application/pdf');
+    return res.send(buffer);
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    next(err);
+  }
 });
 
 module.exports = router;
