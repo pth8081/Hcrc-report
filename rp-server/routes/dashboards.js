@@ -118,6 +118,13 @@ function lastOfMonth(dateStr) {
   const [y, m] = dateStr.split('-').map(Number);
   return new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10);
 }
+function firstOfMonth(dateStr) {
+  return `${dateStr.slice(0, 7)}-01`;
+}
+function addDaysISO(dateStr, days) {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
+}
 function computeEventDateRange(dateMode, fromDate, toDate) {
   if (dateMode === 'month') return { from: `${toDate.slice(0, 7)}-01`, to: lastOfMonth(toDate) };
   return { from: fromDate, to: toDate };
@@ -135,6 +142,10 @@ function formatDateVN(iso) {
 }
 // Nhãn động "(15/09/2026)"/"(Tháng 9/2026)" ghép vào tiêu đề báo cáo lúc
 // xuất — MIRROR đúng rp-user/src/lib/dateRange.js:periodLabelFor().
+function formatMonthLabel(dateStr) {
+  const [y, m] = dateStr.split('-');
+  return `T${Number(m)}/${y}`;
+}
 function periodLabelFor(dateMode, fromDate, toDate) {
   if (dateMode === 'month') {
     const [y, m] = toDate.split('-');
@@ -281,6 +292,89 @@ router.post('/:dashboardId/export', async (req, res, next) => {
     res.attachment(`${fileBase}.pdf`);
     res.setHeader('Content-Type', 'application/pdf');
     return res.send(merged);
+  } catch (err) { next(err); }
+});
+
+// POST /:dashboardId/realtime-compare (bản 10.62, theo yêu cầu người dùng —
+// "so sánh các siêu thị dạng lên xuống theo thời gian") — CHỈ dành cho tile
+// kind==='realtime' (vd "Doanh thu Realtime HCRC (Thành viên)") — trả
+// doanh thu (dt_thucDat) của MỌI siêu thị theo TỪNG mốc thời gian (ngày/
+// tháng) trong khoảng đã chọn, để rp-user tự vẽ biểu đồ đường + bảng pivot
+// (mỗi dòng 1 mốc thời gian, mỗi cột 1 siêu thị) — rp-user lọc ra đúng các
+// siêu thị người dùng CHỌN để hiển thị (API trả ĐỦ mọi siêu thị, không lọc
+// ở tầng server, để đổi lựa chọn trên UI không cần gọi lại API).
+//
+// Chạy LẶP LẠI runDefinition() cho TỪNG mốc (mỗi mốc 1 truy vấn composite
+// riêng, giống hệt cách POST /:dashboardId/export hiện dùng cho 1 mốc) —
+// CHẶN TRÊN số mốc tối đa (31 ngày/12 tháng) để KHÔNG lặp hàng trăm lần mỗi
+// request (composite report đọc nhiều khối nguồn + tra "Ánh xạ Điểm -
+// STK_ID", không rẻ). CHẠY TUẦN TỰ (không Promise.all) — tránh N request
+// cùng tranh connection pool DWH/RP cùng lúc (xem cảnh báo tương tự ở
+// etl/jobs/scheduler.js:MAX_CONCURRENT_JOBS) — chấp nhận chậm hơn để an
+// toàn pool, vì tính năng này KHÔNG tự refresh mỗi 30s như Ô Realtime
+// thường (rp-user chỉ gọi lại khi người dùng đổi bộ lọc — xem
+// RealtimeCompareTile.jsx).
+const MAX_COMPARE_DAYS = 31;
+const MAX_COMPARE_MONTHS = 12;
+
+function enumerateDayBuckets(fromDate, toDate) {
+  const buckets = [];
+  for (let d = fromDate; d <= toDate; d = addDaysISO(d, 1)) {
+    buckets.push({ key: d, label: formatDateVN(d), from: d, to: d });
+  }
+  return buckets;
+}
+
+function enumerateMonthBuckets(fromDate, toDate, todayStr) {
+  const buckets = [];
+  let cursor = firstOfMonth(fromDate);
+  const endCursor = firstOfMonth(toDate);
+  while (cursor <= endCursor) {
+    const to = lastOfMonth(cursor) < todayStr ? lastOfMonth(cursor) : todayStr;
+    buckets.push({ key: cursor.slice(0, 7), label: formatMonthLabel(cursor), from: cursor, to });
+    const [y, m] = cursor.split('-').map(Number);
+    cursor = `${m === 12 ? y + 1 : y}-${String(m === 12 ? 1 : m + 1).padStart(2, '0')}-01`;
+  }
+  return buckets;
+}
+
+router.post('/:dashboardId/realtime-compare', async (req, res, next) => {
+  try {
+    const { reportId, dateMode, fromDate, toDate } = req.body || {};
+    if (!reportId || !req.userContext.isSystemRole && !req.userContext.reportIds.has(reportId)) {
+      return res.status(403).json({ error: 'Bạn không có quyền xem báo cáo này' });
+    }
+    if (!['day', 'month'].includes(dateMode)) return res.status(400).json({ error: 'dateMode phải là "day" hoặc "month"' });
+    if (!fromDate || !toDate || fromDate > toDate) return res.status(400).json({ error: 'Thiếu hoặc sai khoảng fromDate/toDate' });
+
+    const definition = await loadDefinition(reportId);
+    if (!definition || !definition.isActive) return res.status(404).json({ error: 'Không tìm thấy báo cáo' });
+
+    const today = vietnamTodayISO();
+    const buckets = dateMode === 'day' ? enumerateDayBuckets(fromDate, toDate) : enumerateMonthBuckets(fromDate, toDate, today);
+    const maxBuckets = dateMode === 'day' ? MAX_COMPARE_DAYS : MAX_COMPARE_MONTHS;
+    if (buckets.length > maxBuckets) {
+      return res.status(400).json({ error: `Khoảng đã chọn có ${buckets.length} ${dateMode === 'day' ? 'ngày' : 'tháng'}, vượt quá tối đa ${maxBuckets} — thu hẹp khoảng ngày lại.` });
+    }
+
+    const series = {}; // { tenCuaHang: [giá trị theo đúng thứ tự buckets] }
+    for (let i = 0; i < buckets.length; i++) {
+      const bucket = buckets[i];
+      const filters = { eventDate: { from: bucket.from, to: bucket.to }, cheDoSoSanh: 'past', __storeScope: req.userContext.storeScope };
+      // eslint-disable-next-line no-await-in-loop
+      const { rows } = await runDefinition(definition, filters, { page: 1, pageSize: 1000 });
+      for (const row of rows) {
+        if (row.__isSubtotal || row.__isGrandTotal || !row.tenCuaHang) continue;
+        if (!series[row.tenCuaHang]) series[row.tenCuaHang] = new Array(buckets.length).fill(0);
+        series[row.tenCuaHang][i] = typeof row.dt_thucDat === 'number' ? row.dt_thucDat : 0;
+      }
+    }
+
+    res.json({
+      buckets: buckets.map(b => ({ key: b.key, label: b.label })),
+      stores: Object.keys(series).sort((a, b) => a.localeCompare(b, 'vi')),
+      series
+    });
   } catch (err) { next(err); }
 });
 

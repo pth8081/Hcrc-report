@@ -467,6 +467,27 @@ button:disabled, button:disabled:hover {
 .dashboard-customize-tile-move button:disabled { opacity: .3; cursor: default; }
 .dashboard-customize-actions { display: flex; gap: 8px; justify-content: flex-end; }
 
+/* RealtimeCompareTile.jsx (bản 10.62) — bộ lọc "So sánh siêu thị theo thời
+   gian": đơn vị thời gian (.seg, DÙNG CHUNG được cho mọi công tắc 2-3 lựa
+   chọn khác sau này nếu cần, không riêng gì trang này), khoảng ngày, chip
+   chọn nhiều siêu thị (màu chấm theo --chip-color gán riêng từng chip, xem
+   component). */
+.realtime-compare-controls { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 16px; margin: 4px 0 2px; }
+.realtime-compare-field { display: flex; flex-direction: column; gap: 4px; }
+.realtime-compare-field-label { font-size: 11.5px; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; color: var(--ink-soft); }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.seg button { font: inherit; font-size: 13px; padding: 7px 14px; border: none; background: var(--surface); color: var(--ink-soft); cursor: pointer; }
+.seg button.active { background: var(--accent); color: #fff; }
+.realtime-compare-picker { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 16px; }
+.realtime-compare-chip { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; padding: 5px 10px 5px 8px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); cursor: pointer; color: var(--ink-soft); user-select: none; }
+.realtime-compare-chip input { display: none; }
+.realtime-compare-chip-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--line); flex: none; }
+.realtime-compare-chip.checked { color: var(--ink); border-color: transparent; background: var(--bg); }
+.realtime-compare-chip.checked .realtime-compare-chip-dot { background: var(--chip-color, var(--accent)); }
+@media (max-width: 460px) {
+  .realtime-compare-controls { gap: 10px; }
+}
+
 .muted { color: var(--ink-soft); }
 
 .home-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 14px; margin-bottom: 24px; }

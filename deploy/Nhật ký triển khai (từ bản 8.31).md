@@ -14,6 +14,27 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.62 — Dashboard "Doanh thu Realtime": nhãn siêu thị xoay dọc + "So sánh siêu thị theo thời gian"
+
+**Thay đổi**: biểu đồ Realtime (Theo ngày/Theo tháng) nhãn siêu thị xoay
+dọc, chữ nhỏ (đọc đủ tên, không bị Recharts tự bỏ bớt). Thêm tab mới
+"🔀 So sánh siêu thị" — chọn nhiều siêu thị + khoảng ngày/tháng tự do →
+biểu đồ đường so sánh xu hướng + bảng pivot. API mới
+`POST /dashboards/:dashboardId/realtime-compare`.
+
+**Triển khai**:
+```bash
+git pull origin main
+pm2 restart rp-server
+cd rp-user && npm run build
+```
+Deploy lại `dist/` như thường lệ. Không có thay đổi CSDL.
+
+**Kiểm tra**: Dashboard → Ô "Doanh thu Realtime HCRC (Thành viên)" → 2 tab
+biểu đồ phải hiện tên siêu thị xoay dọc. Tab "🔀 So sánh siêu thị" → tích
+vài siêu thị → biểu đồ đường + bảng đúng số liệu, đổi đơn vị thời gian/
+khoảng ngày cập nhật đúng.
+
 ## 10.61 — Sửa job đồng bộ Tồn kho Chi tiết sai KeepHistory (giữ lịch sử thay vì ghi đè)
 
 **Thay đổi**: job "Tồn kho Chi tiết theo SKU - Live (DSMART16)" bị khai sai

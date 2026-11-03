@@ -29,6 +29,15 @@ export function addDaysISO(dateStr, days) {
   return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
 }
 
+// addMonthsISO (bản 10.62 — RealtimeCompareTile.jsx, mặc định "6 tháng gần
+// nhất") — LUÔN trả về ngày 1 của tháng kết quả (không giữ nguyên ngày
+// trong tháng như addDaysISO) — dùng để tính MỐC BẮT ĐẦU của 1 khoảng N
+// tháng gần nhất, không phải để cộng/trừ ngày cụ thể.
+export function addMonthsISO(dateStr, months) {
+  const [y, m] = dateStr.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1 + months, 1)).toISOString().slice(0, 10);
+}
+
 export function lastOfMonth(dateStr) {
   const [y, m] = dateStr.split('-').map(Number);
   return new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10);

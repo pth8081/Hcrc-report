@@ -36,6 +36,7 @@ import { lazy, Suspense, useEffect, useState } from 'react';
 import { api, downloadFile } from '../../lib/api';
 import DashboardTile from './DashboardTile';
 import RealtimeReportTile from './RealtimeReportTile';
+import RealtimeCompareTile from './RealtimeCompareTile';
 import DateInput from '../../components/DateInput';
 import { addDaysISO, periodLabelFor, todayISO } from '../../lib/dateRange';
 
@@ -140,6 +141,11 @@ export default function DashboardPage() {
   // buildRealtimeTabs() ở trên); null = đang xem Top 5 (bảng/biểu đồ) như
   // trước, khác hẳn khối viewMode/metricTab (Top 5) để không trộn lẫn logic.
   const [activeRealtimeKey, setActiveRealtimeKey] = useState(null);
+  // compareMode (bản 10.62, theo yêu cầu người dùng) — tab "So sánh siêu
+  // thị" RIÊNG, độc lập với activeRealtimeKey (không map tới 1 tile.kind=
+  // 'realtime' cụ thể nào — xem RealtimeCompareTile.jsx). Reset giống hệt
+  // activeRealtimeKey ở mọi chỗ đổi dashboard/nhóm/tab khác.
+  const [compareMode, setCompareMode] = useState(false);
   // refreshTick — tăng dần mỗi 30s, CHỈ dùng làm dependency ép các tile gọi
   // lại /run (không tự mang dữ liệu gì) — xem chú thích đầu file.
   const [refreshTick, setRefreshTick] = useState(0);
@@ -170,6 +176,7 @@ export default function DashboardPage() {
     if (!selectedId) return;
     setCrossFilters({});
     setActiveRealtimeKey(null);
+    setCompareMode(false);
     setCustomizing(false);
     Promise.all([
       api.get(`/dashboards/${selectedId}`),
@@ -222,6 +229,7 @@ export default function DashboardPage() {
   function selectGroup(groupKey) {
     setActiveGroup(groupKey);
     setActiveRealtimeKey(null);
+    setCompareMode(false);
     // Tính lại ĐÚNG như allTiles ở dưới (đã bỏ Ô ẩn) — không lấy thẳng
     // dashboard.tiles, tránh gợi ý sai tab cho 1 Ô người dùng đã tự ẩn.
     const tiles = applyTileOrder(dashboard?.tiles || [], preferences.tileOrder).filter(t => !(preferences.hiddenTileKeys || []).includes(t.key));
@@ -436,7 +444,7 @@ export default function DashboardPage() {
                 đúng exportTitle/columnGroups màu của báo cáo gốc) — hiện 2
                 nút này cả ở tab Realtime, xuất đúng Ô "bảng" của giai đoạn
                 đang xem (xem realtimeExportTile ở trên). */}
-            {(realtimeExportTile || (!activeRealtimeTab && visibleTiles.length > 0)) && (
+            {!compareMode && (realtimeExportTile || (!activeRealtimeTab && visibleTiles.length > 0)) && (
               <div className="export-actions">
                 <button type="button" disabled={exporting} onClick={() => exportAs('excel')}>Xuất Excel</button>
                 <button type="button" disabled={exporting} onClick={() => exportAs('pdf')}>Xuất PDF</button>
@@ -491,7 +499,7 @@ export default function DashboardPage() {
                   type="button"
                   className={!activeRealtimeTab && t.metricTab === metricTab && t.mode === viewMode ? 'active' : ''}
                   onClick={() => {
-                    setMetricTab(t.metricTab); setViewMode(t.mode); setActiveRealtimeKey(null);
+                    setMetricTab(t.metricTab); setViewMode(t.mode); setActiveRealtimeKey(null); setCompareMode(false);
                     savePreferences({ lastMetricTab: t.metricTab, lastViewMode: t.mode, lastRealtimeKey: null });
                   }}
                 >
@@ -502,16 +510,37 @@ export default function DashboardPage() {
                 <button
                   key={t.key}
                   type="button"
-                  className={activeRealtimeKey === t.key ? 'active' : ''}
-                  onClick={() => { setActiveRealtimeKey(t.key); savePreferences({ lastRealtimeKey: t.key }); }}
+                  className={!compareMode && activeRealtimeKey === t.key ? 'active' : ''}
+                  onClick={() => { setActiveRealtimeKey(t.key); setCompareMode(false); savePreferences({ lastRealtimeKey: t.key }); }}
                 >
                   {t.label}
                 </button>
               ))}
+              {/* "So sánh siêu thị" (bản 10.62) — chỉ hiện khi dashboard có
+                  Ô Realtime (cùng điều kiện realtimeTabs.length > 0 ở
+                  trên) — dùng CHUNG đúng 1 reportId với 4 tab Realtime kia
+                  (realtimeTabs[0], mọi tab đều trỏ CÙNG 1 báo cáo gốc, chỉ
+                  khác dateMode/realtimeMode — xem seedTop5ChiNhanhReports.js). */}
+              {realtimeTabs.length > 0 && (
+                <button
+                  type="button"
+                  className={compareMode ? 'active' : ''}
+                  onClick={() => { setCompareMode(true); setActiveRealtimeKey(null); savePreferences({ lastRealtimeKey: null }); }}
+                >
+                  🔀 So sánh siêu thị
+                </button>
+              )}
             </div>
           )}
 
-          {activeRealtimeTab ? (
+          {compareMode ? (
+            <RealtimeCompareTile
+              key={`${selectedId}-compare`}
+              reportId={realtimeTabs[0].tile.reportId}
+              dashboardId={selectedId}
+              title={realtimeTabs[0].tile.title}
+            />
+          ) : activeRealtimeTab ? (
             <RealtimeReportTile
               key={activeRealtimeTab.key}
               reportId={activeRealtimeTab.tile.reportId}

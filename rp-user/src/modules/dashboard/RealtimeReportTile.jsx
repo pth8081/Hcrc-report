@@ -21,7 +21,10 @@ import { computeEventDateRange } from '../../lib/dateRange';
 
 const CHART_VISUALIZATION = {
   type: 'bar', xField: 'tenCuaHang', valueFields: ['dt_thucDat'],
-  unitDivisor: 1_000_000, showValueLabels: true, unitNote: 'ĐVT: 1.000.000'
+  unitDivisor: 1_000_000, showValueLabels: true, unitNote: 'ĐVT: 1.000.000',
+  // rotateXLabels (bản 10.62, theo yêu cầu người dùng) — nhiều siêu thị
+  // khiến Recharts tự bỏ bớt nhãn trục X, xem ReportChart.jsx.
+  rotateXLabels: true
 };
 
 export default function RealtimeReportTile({ reportId, title, dateMode, mode, fromDate, toDate, refreshTick }) {

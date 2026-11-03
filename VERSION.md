@@ -42,6 +42,51 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.62 — Dashboard "Doanh thu Realtime": nhãn siêu thị xoay dọc + "So sánh siêu thị theo thời gian"
+
+**Theo yêu cầu người dùng**: (1) "tôi muốn tên siêu thị xoay dọc theo cột
+để có thể thấy tên siêu thị (cho chữ nhỏ lại)"; (2) "cho thêm bộ lọc siêu
+thị... biểu đồ sẽ so sánh các siêu thị dạng lên xuống để so sánh được
+doanh thu từng ngày/tháng của siêu thị... bảng chỉ hiển thị siêu thị đã
+chọn, số liệu từng ngày/tháng"; (3) "cho tôi thêm chọn từ ngày đến ngày
+nữa cho linh động". Đã gửi demo (Artifact) xác nhận trước khi làm.
+
+**Thay đổi 1 — nhãn trục X xoay dọc**: `ReportChart.jsx` thêm cờ TUỲ CHỌN
+`visualization.rotateXLabels` (xoay ~60°, chữ 10px, `interval={0}` ép hiện
+ĐỦ mọi nhãn, không tự bỏ bớt) — bật cho biểu đồ Realtime
+(`RealtimeReportTile.jsx`, áp dụng CHUNG cho cả "Theo ngày"/"Theo tháng").
+Không khai cờ này -> mọi báo cáo khác KHÔNG đổi gì.
+
+**Thay đổi 2 — tab mới "🔀 So sánh siêu thị"**: cạnh 4 tab Realtime cũ
+(`DashboardPage.jsx`) — chọn nhiều siêu thị (chip màu ổn định theo danh
+tính) + đơn vị thời gian (Theo ngày/Theo tháng) + khoảng "Từ ngày — đến
+ngày" TỰ DO (tối đa 31 ngày/12 tháng mỗi lần) → vẽ biểu đồ ĐƯỜNG (mỗi siêu
+thị 1 màu, so sánh xu hướng) + bảng pivot (mỗi dòng 1 ngày/tháng, mỗi cột
+đúng siêu thị đã chọn). KHÔNG tự làm mới mỗi 30s như Ô Realtime thường
+(dữ liệu xu hướng không cần mới theo giây).
+
+API mới `POST /dashboards/:dashboardId/realtime-compare`
+(`rp-server/routes/dashboards.js`) — chạy lặp lại báo cáo gốc cho TỪNG
+mốc thời gian trong khoảng đã chọn (tuần tự, không song song — tránh tranh
+pool CSDL), trả doanh thu MỌI siêu thị theo từng mốc, rp-user tự lọc ra
+đúng siêu thị đã chọn. Thêm `visualization.seriesColors` (TUỲ CHỌN) vào
+`ReportChart.jsx` để màu từng siêu thị ổn định theo danh tính khi đổi lựa
+chọn (không bị "trôi màu").
+
+**Triển khai**:
+```bash
+git pull origin main
+pm2 restart rp-server     # route mới /dashboards/:id/realtime-compare
+cd rp-user && npm run build   # rồi deploy lại dist/ như thường lệ
+```
+Không có thay đổi CSDL/script seed nào cần chạy lại.
+
+**Kiểm tra**: Dashboard → nhóm có Ô "Doanh thu Realtime HCRC (Thành viên)"
+→ 2 tab "Biểu đồ Realtime..." phải hiện tên siêu thị xoay dọc, đọc đủ tên.
+Tab mới "🔀 So sánh siêu thị" → tích vài siêu thị → biểu đồ đường + bảng
+hiện đúng số liệu, đổi "Theo ngày"/"Theo tháng" và khoảng ngày phải cập
+nhật lại đúng.
+
 ## 10.61 — Sửa job đồng bộ Tồn kho Chi tiết sai KeepHistory (giữ lịch sử thay vì ghi đè)
 
 **Theo yêu cầu người dùng**: "hàng tồn thì tính tại thời điểm nó phải luôn

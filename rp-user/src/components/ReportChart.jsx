@@ -56,8 +56,30 @@ function scaledNumberFmt(divisor) {
   return (v) => (typeof v === 'number' ? (v / divisor).toLocaleString('vi-VN', { maximumFractionDigits: 1 }) : v);
 }
 
+// visualization.seriesColors (TUỲ CHỌN, bản 10.62 — {fieldKey: '#hex'}) —
+// GHI ĐÈ màu PALETTE[i % length] mặc định cho ĐÚNG field đó, theo DANH
+// TÍNH (field key) thay vì theo VỊ TRÍ trong valueFields — dùng khi
+// valueFields đổi động theo lựa chọn người dùng (vd RealtimeCompareTile.jsx
+// — bỏ chọn 1 siêu thị không được làm đổi màu các siêu thị CÒN LẠI đang
+// hiện, nếu màu gán theo index sẽ bị "trôi" mỗi lần đổi lựa chọn). KHÔNG
+// khai -> hành vi CŨ giữ nguyên (PALETTE theo index như trước).
 function labelFor(columns, key) {
   return columns.find(c => c.key === key)?.label || key;
+}
+
+// visualization.rotateXLabels (TUỲ CHỌN, bản 10.62 — theo yêu cầu người
+// dùng, Dashboard "Doanh thu Realtime" nhiều siêu thị khiến Recharts tự BỎ
+// BỚT nhãn trục X nằm ngang vì không đủ chỗ, chỉ còn vài tên đọc được) —
+// xoay nhãn ~60° + chữ nhỏ lại (10px) để hiện ĐỦ tên mọi cột, kèm
+// `interval={0}` ép Recharts KHÔNG tự bỏ bớt nhãn nào (xem ReportChart bên
+// dưới). KHÔNG khai -> hành vi CŨ giữ nguyên y hệt (mọi báo cáo khác dùng
+// ReportChart không đổi gì).
+function RotatedTick({ x, y, payload }) {
+  return (
+    <text x={x} y={y} dy={9} dx={-4} textAnchor="end" fontSize={10} fill="#5a6672" transform={`rotate(-60, ${x}, ${y})`}>
+      {payload.value}
+    </text>
+  );
 }
 
 function sumField(rows, field) {
@@ -80,7 +102,7 @@ function KpiTiles({ columns, rows, visualization }) {
 }
 
 export default function ReportChart({ columns, rows, visualization, onPointClick }) {
-  const { type, xField, valueFields = [], unitDivisor, showValueLabels, unitNote } = visualization;
+  const { type, xField, valueFields = [], unitDivisor, showValueLabels, unitNote, rotateXLabels, seriesColors } = visualization;
   if (type === 'kpi') return <KpiTiles columns={columns} rows={rows} visualization={visualization} />;
 
   // Dòng "Tổng cộng"/"Tổng nhóm" (__isSubtotal) chỉ có ý nghĩa trong bảng số
@@ -132,7 +154,7 @@ export default function ReportChart({ columns, rows, visualization, onPointClick
       <ResponsiveContainer width="100%" height={360}>
         <ChartComponent data={chartRows} margin={{ left: 12, right: 12, top: showValueLabels ? 24 : 8, bottom: 8 }}>
           <CartesianGrid strokeDasharray="3 3" />
-          <XAxis dataKey={xField} />
+          <XAxis dataKey={xField} interval={rotateXLabels ? 0 : undefined} height={rotateXLabels ? 90 : 30} tick={rotateXLabels ? <RotatedTick /> : undefined} />
           <YAxis tickFormatter={yTickFmt} width={56} />
           <Tooltip formatter={tooltipFmt} />
           <Legend />
@@ -141,8 +163,8 @@ export default function ReportChart({ columns, rows, visualization, onPointClick
               key={field}
               dataKey={field}
               name={labelFor(columns, field)}
-              fill={PALETTE[i % PALETTE.length]}
-              stroke={PALETTE[i % PALETTE.length]}
+              fill={seriesColors?.[field] || PALETTE[i % PALETTE.length]}
+              stroke={seriesColors?.[field] || PALETTE[i % PALETTE.length]}
               isAnimationActive={false}
               cursor={onPointClick ? 'pointer' : undefined}
               onClick={handleClick}
