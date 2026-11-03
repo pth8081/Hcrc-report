@@ -216,6 +216,17 @@ dòng mẫu nên KHÔNG dùng).
    (xem mục dưới) — KHÔNG bắt buộc, báo cáo vẫn chạy bình thường (trả về
    toàn bộ siêu thị) nếu bỏ qua bước này.
 
+### Sửa job đồng bộ sai KeepHistory — ghi đè thay vì giữ lịch sử (bản 10.61)
+
+Job đồng bộ nguồn (`Tồn kho Chi tiết theo SKU - Live (DSMART16)`, dùng
+CHUNG cho domain này — xem `bc-ton-kho-chi-tiet.md` mục 6) từng bị khai
+SAI `KeepHistory = 1`, khiến mỗi lần đồng bộ SINH THÊM dòng mới thay vì
+GHI ĐÈ — đây chính là nguyên nhân domain phình lên 5-11 triệu dòng (gốc
+rễ của sự cố chậm bản 10.60). Đã sửa về `KeepHistory = 0` (đúng nghiệp vụ
+"tồn kho tính tại thời điểm, luôn ghi đè") + dọn 1 lần lịch sử cũ đã tích
+luỹ. Xem `etl/scripts/seedTonKhoChiTietSync.js` +
+`etl/scripts/cleanupTonKhoChiTietHistory.js`.
+
 ### Sửa API chậm 7-16 giây/lần, có lần timeout -> 500 (bản 10.60)
 
 Sự cố thật: đối tác gọi API báo "Failed to fetch"/HTTP 500 — soi "Lịch

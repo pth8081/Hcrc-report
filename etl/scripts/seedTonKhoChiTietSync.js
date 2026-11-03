@@ -6,6 +6,21 @@
 // `tonkho_sku` đã có (báo cáo "Top bán chạy đang tồn kho = 0"/"Tồn kho
 // theo ngưỡng" không bị đụng tới).
 //
+// SỬA bản 10.61 — KeepHistory 1 -> 0 (theo yêu cầu người dùng: "hàng tồn
+// thì tính tại thời điểm, nó phải luôn luôn ghi đè, không cần lịch sử").
+// Domain này VỐN bị khai SAI `KeepHistory = 1` (giữ lịch sử MỖI NGÀY) từ
+// lúc tạo job — không có báo cáo nào (cả nội bộ "Tồn kho chi tiết" lẫn API
+// đối tác "ton-kho") thực sự cần xem lịch sử nhiều ngày, nghiệp vụ CHỈ cần
+// "tồn kho hiện tại". Đây chính là lý do domain phình lên 5-11 TRIỆU dòng
+// và gây chậm (sự cố thật sửa ở bản 10.60 — thêm `latestEventDateOnly` chỉ
+// là giảm nhẹ triệu chứng, KHÔNG sửa tận gốc việc dữ liệu cứ tích luỹ mãi).
+// `KeepHistory = 0` (mặc định hệ thống, xem etl/lib/upsert.js) để lần đồng
+// bộ TIẾP THEO tự GHI ĐÈ đúng — mỗi mã hàng/chi nhánh chỉ còn 1 dòng. CHẠY
+// LẠI script này KHÔNG tự xoá dữ liệu lịch sử CŨ đã tích luỹ trước đó (chỉ
+// đổi cấu hình cho LẦN SAU) — chạy thêm
+// `node scripts/cleanupTonKhoChiTietHistory.js --confirm` MỘT LẦN để dọn
+// sạch phần lịch sử cũ đã tích luỹ (xem file đó).
+//
 // ĐIỀU KIỆN TRƯỚC KHI CHẠY:
 //   1. Đã chạy xong `seedLdtdHcrcSync.js` ít nhất 1 lần (cần sẵn Nguồn dữ
 //      liệu "DSMART16 - Live" — script này DỪNG LẠI báo lỗi rõ ràng nếu
@@ -73,7 +88,7 @@ async function upsertSyncJob(pool, job) {
           KeyColumn = @keyColumn, DateColumn = @dateColumn, UpdatedAtColumn = @updatedAtColumn,
           DimensionColumnsJson = @dimensionColumnsJson, MeasureColumnsJson = @measureColumnsJson,
           JoinSchema = NULL, JoinTable = NULL, JoinType = NULL, MainJoinColumn = NULL, LookupJoinColumn = NULL,
-          TargetDomain = @targetDomain, CronExpression = @cronExpression, KeepHistory = 1,
+          TargetDomain = @targetDomain, CronExpression = @cronExpression, KeepHistory = 0,
           BranchCodeMapType = NULL, IsActive = 1
         WHERE Id = @id
       `);
@@ -100,7 +115,7 @@ async function upsertSyncJob(pool, job) {
       OUTPUT INSERTED.Id
       VALUES (
         @name, 'table', @dataSourceId, @sourceSchema, @sourceTable, @keyColumn, @dateColumn, @updatedAtColumn,
-        @dimensionColumnsJson, @measureColumnsJson, @targetDomain, @cronExpression, 1
+        @dimensionColumnsJson, @measureColumnsJson, @targetDomain, @cronExpression, 0
       )
     `);
   const id = result.recordset[0].Id;

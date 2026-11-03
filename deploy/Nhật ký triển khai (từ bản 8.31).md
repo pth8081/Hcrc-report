@@ -14,6 +14,26 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.61 — Sửa job đồng bộ Tồn kho Chi tiết sai KeepHistory (giữ lịch sử thay vì ghi đè)
+
+**Thay đổi**: job "Tồn kho Chi tiết theo SKU - Live (DSMART16)" bị khai sai
+`KeepHistory = 1` từ lúc tạo — đổi về `0` (ghi đè, đúng mặc định hệ
+thống) + script mới `cleanupTonKhoChiTietHistory.js` dọn 1 lần phần lịch
+sử cũ đã tích luỹ (5-11 triệu dòng).
+
+**Triển khai (theo đúng thứ tự)**:
+```bash
+cd etl
+node scripts/seedTonKhoChiTietSync.js              # đổi KeepHistory 1 -> 0
+node scripts/cleanupTonKhoChiTietHistory.js         # xem trước (dry-run) — đọc kỹ số dòng sẽ xoá
+node scripts/cleanupTonKhoChiTietHistory.js --confirm   # thực sự xoá lịch sử thừa
+```
+Không cần restart tiến trình nào, không đụng watermark/đồng bộ gia tăng.
+
+**Kiểm tra**: báo cáo "Tồn kho" (rp-server) + API "Tồn kho toàn hệ thống"
+(api-server) vẫn ra đúng số liệu hiện tại như trước khi dọn. Đếm lại số
+dòng domain `tonkho_chitiet_sku` trong `dwh.ReportFacts` — phải giảm mạnh.
+
 ## 10.60 — Sửa API "Tồn kho toàn hệ thống" chậm 7-16 giây/lần, có lần timeout -> 500
 
 **Sự cố thật**: đối tác (HCRC Workspace) gọi API tồn kho báo "Failed to

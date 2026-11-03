@@ -42,6 +42,44 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.61 — Sửa job đồng bộ Tồn kho Chi tiết sai KeepHistory (giữ lịch sử thay vì ghi đè)
+
+**Theo yêu cầu người dùng**: "hàng tồn thì tính tại thời điểm nó phải luôn
+luôn ghi đè, bạn nó không cần phải lịch sử đúng không?" — ĐÚNG theo nghiệp
+vụ, nhưng job đồng bộ lại đang làm NGƯỢC LẠI.
+
+**Nguyên nhân**: hệ thống đã có sẵn cơ chế "ghi đè" làm MẶC ĐỊNH
+(`etl/lib/upsert.js` — trước mỗi lần MERGE tự dọn dòng cũ khác ngày của
+cùng 1 thực thể, giữ đúng 1 dòng/thực thể) — nhưng job "Tồn kho Chi tiết
+theo SKU - Live (DSMART16)" lại bị khai CỨNG `KeepHistory = 1` (giữ lịch
+sử) ngay từ lúc tạo (`etl/scripts/seedTonKhoChiTietSync.js`) — cấu hình
+SAI, không phải cố ý. Đây chính là nguyên nhân domain `tonkho_chitiet_sku`
+phình lên 5-11 triệu dòng, gây chậm API "Tồn kho toàn hệ thống" (bản
+10.60 chỉ giảm nhẹ triệu chứng, chưa sửa tận gốc việc dữ liệu cứ tích luỹ
+mãi).
+
+**Sửa**: đổi `KeepHistory` của job về `0` (đúng mặc định hệ thống) +
+script MỚI `etl/scripts/cleanupTonKhoChiTietHistory.js` dọn 1 LẦN phần
+lịch sử cũ đã tích luỹ trước đó (mặc định dry-run, cần `--confirm` mới
+thực sự xoá; xoá theo từng đợt 5.000 dòng, không reset watermark/không
+đụng tới đồng bộ gia tăng).
+
+**Triển khai (theo đúng thứ tự)**:
+```bash
+cd etl
+node scripts/seedTonKhoChiTietSync.js              # đổi KeepHistory 1 -> 0
+node scripts/cleanupTonKhoChiTietHistory.js         # xem trước (dry-run)
+node scripts/cleanupTonKhoChiTietHistory.js --confirm   # thực sự xoá lịch sử thừa
+```
+KHÔNG cần restart tiến trình nào (đổi `KeepHistory` có hiệu lực ngay từ
+lượt đồng bộ kế tiếp — tối đa 15 phút, theo lịch job).
+
+**Kiểm tra**: sau khi `--confirm` xong, báo cáo "Tồn kho" (rp-server) và
+API "Tồn kho toàn hệ thống" (api-server) vẫn ra ĐÚNG số liệu hiện tại
+(không đổi). Chạy lại SQL đếm dòng domain `tonkho_chitiet_sku` trong
+`dwh.ReportFacts` — số dòng phải giảm mạnh, còn đúng 1 dòng/mã hàng+chi
+nhánh.
+
 ## 10.60 — Sửa API "Tồn kho toàn hệ thống" chậm (7-16 giây/lần, có lần timeout -> 500)
 
 **Sự cố thật người dùng báo**: đối tác (HCRC Workspace) gọi

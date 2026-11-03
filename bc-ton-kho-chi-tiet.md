@@ -71,7 +71,17 @@ identical trước khi merge):
 `rp-user/src/components/FilterForm.jsx` thêm `<input type="number">` cho
 2 type này.
 
-## 6. Lưu ý khi sửa `columns` trong DefinitionJson
+## 6. Cơ chế lưu trữ — GHI ĐÈ, không giữ lịch sử (bản 10.61)
+
+Domain `tonkho_chitiet_sku` lưu **đúng 1 dòng/mã hàng+chi nhánh**, mỗi lần
+đồng bộ (mỗi 15 phút) GHI ĐÈ lên dòng cũ — ĐÚNG nghiệp vụ "tồn kho tính
+tại thời điểm", không giữ lịch sử theo ngày. Job đồng bộ từng bị khai SAI
+`KeepHistory = 1` (giữ lịch sử) lúc tạo — đã sửa ở bản 10.61, xem
+`etl/scripts/seedTonKhoChiTietSync.js` + `cleanupTonKhoChiTietHistory.js`
+(dọn 1 lần phần lịch sử cũ đã tích luỹ). Domain `api-ton-kho-cho-doi-tac.md`
+dùng CHUNG domain này — xem file đó cho phần API đối tác.
+
+## 7. Lưu ý khi sửa `columns` trong DefinitionJson
 
 `lib/reportEngine.js:projectColumns()` CHỈ đọc đúng field khi cột khai
 dạng **công thức** (`{ key, label, formula }`) — cột object KHÔNG có
