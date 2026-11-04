@@ -487,6 +487,7 @@ button:disabled, button:disabled:hover {
 .dashboard-tile-header .export-actions { margin: 0; }
 .realtime-compare-chart-options { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; margin: 0 0 8px; }
 .realtime-compare-showvalues { margin: 0; }
+.realtime-compare-scope-field { margin-bottom: 14px; }
 @media (max-width: 460px) {
   .realtime-compare-controls { gap: 10px; }
 }

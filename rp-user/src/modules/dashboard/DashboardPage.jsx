@@ -516,18 +516,23 @@ export default function DashboardPage() {
                   {t.label}
                 </button>
               ))}
-              {/* "So sánh siêu thị" (bản 10.62) — chỉ hiện khi dashboard có
-                  Ô Realtime (cùng điều kiện realtimeTabs.length > 0 ở
-                  trên) — dùng CHUNG đúng 1 reportId với 4 tab Realtime kia
-                  (realtimeTabs[0], mọi tab đều trỏ CÙNG 1 báo cáo gốc, chỉ
-                  khác dateMode/realtimeMode — xem seedTop5ChiNhanhReports.js). */}
+              {/* "So sánh" (bản 10.62, ĐỔI NHÃN bản 10.65 — trước là "So sánh
+                  siêu thị", giờ gộp CHUNG cả so sánh từng siêu thị LẪN so
+                  sánh theo nhóm MART/MINIMART/Toàn hệ thống, chọn ở công
+                  tắc "Phạm vi so sánh" NGAY TRONG RealtimeCompareTile.jsx,
+                  mặc định vẫn mở vào đúng "So sánh siêu thị") — chỉ hiện
+                  khi dashboard có Ô Realtime (cùng điều kiện
+                  realtimeTabs.length > 0 ở trên) — dùng CHUNG đúng 1
+                  reportId với 4 tab Realtime kia (realtimeTabs[0], mọi tab
+                  đều trỏ CÙNG 1 báo cáo gốc, chỉ khác dateMode/
+                  realtimeMode — xem seedTop5ChiNhanhReports.js). */}
               {realtimeTabs.length > 0 && (
                 <button
                   type="button"
                   className={compareMode ? 'active' : ''}
                   onClick={() => { setCompareMode(true); setActiveRealtimeKey(null); savePreferences({ lastRealtimeKey: null }); }}
                 >
-                  🔀 So sánh siêu thị
+                  🔀 So sánh
                 </button>
               )}
             </div>

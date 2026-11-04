@@ -316,6 +316,18 @@ router.post('/:dashboardId/export', async (req, res, next) => {
 // RealtimeCompareTile.jsx).
 const MAX_COMPARE_DAYS = 31;
 const MAX_COMPARE_MONTHS = 12;
+// GROUP_ENTITY_LABELS (bản 10.65, theo yêu cầu người dùng — "so sánh theo
+// MINIMART, so sánh theo MART, so sánh theo [Tổng]") — ĐÚNG 3 nhãn
+// `tenCuaHang` của dòng "Tổng cộng"/"Tổng cộng <nhóm>" mà
+// lib/compositeReportRunner.js TỰ SINH SẴN khi definition.groupBy có khai
+// (xem scripts/seedLdtdHcrcReports.js:groupBy — field 'current.dimensions.
+// chain', groups MART/MINIMART, grandTotalLabel 'Tổng cộng') — KHÔNG tính
+// lại gì cả, chỉ đọc ĐÚNG 3 dòng đã có sẵn trong mỗi lần chạy báo cáo (dòng
+// __isSubtotal/__isGrandTotal mà computeCompareSeries() TRƯỚC ĐÂY (bản
+// 10.62) đang BỎ QUA hẳn — giờ giữ lại, tách riêng vào `groups` thay vì lẫn
+// vào `stores`). Thứ tự CỐ ĐỊNH (không sort theo alphabet) — khớp đúng thứ
+// tự MART/MINIMART/Tổng người dùng liệt kê.
+const GROUP_ENTITY_LABELS = ['Tổng cộng MART', 'Tổng cộng MINIMART', 'Tổng cộng'];
 
 function enumerateDayBuckets(fromDate, toDate) {
   const buckets = [];
@@ -343,8 +355,17 @@ function enumerateMonthBuckets(fromDate, toDate, todayStr) {
 // tính buckets/series — tránh lặp lại vòng lặp runDefinition() ở 2 nơi,
 // dễ lệch nhau khi sửa sau này. Ném lỗi { status, message } khi body sai/
 // vượt giới hạn — nơi gọi (route) tự bắt và trả đúng mã lỗi HTTP.
+// includeLastYear (bản 10.65, theo yêu cầu người dùng — "so sánh ... theo
+// ngày, theo tháng và so với năm cùng kỳ") — BẬT thì đổi filters.cheDoSoSanh
+// từ 'past' (mặc định mọi Ô Realtime, ẩn hẳn khối Cùng kỳ/LFL để khỏi tốn
+// thêm 1 truy vấn domain GỐC mỗi mốc — xem RealtimeReportTile.jsx) sang
+// 'full' để composite report TỰ chạy thêm khối `lastYear`/`lastYearGD`
+// (dateOffsetYears:-1, xem seedLdtdHcrcReports.js) — ĐỌC THẲNG cột có sẵn
+// `dt_cungKy` (= lastYear.measures.doanhThu), KHÔNG tự tính/gọi thêm API
+// nào khác. CHỈ bật khi người dùng THỰC SỰ cần (mặc định false) vì tốn
+// thêm đúng 1 truy vấn domain GỐC/mốc — đắt hơn hẳn so với mặc định 'past'.
 async function computeCompareSeries(req) {
-  const { reportId, dateMode, fromDate, toDate } = req.body || {};
+  const { reportId, dateMode, fromDate, toDate, includeLastYear } = req.body || {};
   if (!reportId || !req.userContext.isSystemRole && !req.userContext.reportIds.has(reportId)) {
     throw Object.assign(new Error('Bạn không có quyền xem báo cáo này'), { status: 403 });
   }
@@ -361,24 +382,41 @@ async function computeCompareSeries(req) {
     throw Object.assign(new Error(`Khoảng đã chọn có ${buckets.length} ${dateMode === 'day' ? 'ngày' : 'tháng'}, vượt quá tối đa ${maxBuckets} — thu hẹp khoảng ngày lại.`), { status: 400 });
   }
 
-  const series = {}; // { tenCuaHang: [giá trị theo đúng thứ tự buckets] }
+  const series = {}; // { tenCuaHang: [giá trị theo đúng thứ tự buckets] } — CẢ siêu thị LẪN 3 dòng nhóm
+  const seriesLastYear = includeLastYear ? {} : null;
+  const storeNames = new Set();
+  const groupNames = new Set();
   for (let i = 0; i < buckets.length; i++) {
     const bucket = buckets[i];
-    const filters = { eventDate: { from: bucket.from, to: bucket.to }, cheDoSoSanh: 'past', __storeScope: req.userContext.storeScope };
+    const filters = {
+      eventDate: { from: bucket.from, to: bucket.to },
+      cheDoSoSanh: includeLastYear ? 'full' : 'past',
+      __storeScope: req.userContext.storeScope
+    };
     // eslint-disable-next-line no-await-in-loop
     const { rows } = await runDefinition(definition, filters, { page: 1, pageSize: 1000 });
     for (const row of rows) {
-      if (row.__isSubtotal || row.__isGrandTotal || !row.tenCuaHang) continue;
+      if (!row.tenCuaHang) continue;
+      // __isSubtotal (KHÔNG riêng __isGrandTotal) — đúng CẢ 3 dòng nhóm
+      // (2 "Tổng cộng MART"/"Tổng cộng MINIMART" lẫn 1 "Tổng cộng" cuối
+      // cùng đều mang __isSubtotal=true, xem lib/compositeReportRunner.js).
+      (row.__isSubtotal ? groupNames : storeNames).add(row.tenCuaHang);
       if (!series[row.tenCuaHang]) series[row.tenCuaHang] = new Array(buckets.length).fill(0);
       series[row.tenCuaHang][i] = typeof row.dt_thucDat === 'number' ? row.dt_thucDat : 0;
+      if (seriesLastYear) {
+        if (!seriesLastYear[row.tenCuaHang]) seriesLastYear[row.tenCuaHang] = new Array(buckets.length).fill(0);
+        seriesLastYear[row.tenCuaHang][i] = typeof row.dt_cungKy === 'number' ? row.dt_cungKy : 0;
+      }
     }
   }
 
   return {
     dateMode, fromDate, toDate, reportTitle: definition.title,
     buckets: buckets.map(b => ({ key: b.key, label: b.label })),
-    stores: Object.keys(series).sort((a, b) => a.localeCompare(b, 'vi')),
-    series
+    stores: [...storeNames].sort((a, b) => a.localeCompare(b, 'vi')),
+    groups: GROUP_ENTITY_LABELS.filter(label => groupNames.has(label)),
+    series,
+    ...(seriesLastYear ? { seriesLastYear } : {})
   };
 }
 
@@ -400,45 +438,56 @@ router.post('/:dashboardId/realtime-compare', async (req, res, next) => {
 // KHÔNG xuất ảnh biểu đồ (đường/cột/tròn người xem đang chọn trên web).
 // body.stores (TUỲ CHỌN) — đúng danh sách siêu thị người dùng đã TICK trên
 // web lúc bấm Xuất; rỗng/không gửi -> xuất ĐỦ mọi siêu thị trả về.
+// body.entities (bản 10.65, THAY cho body.stores cũ — vẫn đọc được
+// body.stores để không vỡ client cũ) — danh sách TÊN đã chọn trên web,
+// CÓ THỂ LÀ siêu thị HOẶC 1 trong 3 nhãn nhóm (GROUP_ENTITY_LABELS) — xuất
+// ĐÚNG những entity đã tick, không quan tâm là siêu thị hay nhóm (đều nằm
+// chung trong result.series). includeLastYear BẬT -> mỗi entity xuất
+// THÊM 1 cột "<tên> (Cùng kỳ)" ngay cạnh cột "<tên> (Năm nay)".
 router.post('/:dashboardId/realtime-compare/export', async (req, res, next) => {
   try {
-    const { format = 'excel', stores: requestedStores } = req.body || {};
+    const { format = 'excel', entities: requestedEntities, stores: requestedStores, scopeLabel } = req.body || {};
     if (!['excel', 'pdf'].includes(format)) return res.status(400).json({ error: `Định dạng xuất "${format}" chưa được hỗ trợ` });
 
     const result = await computeCompareSeries(req);
-    const stores = Array.isArray(requestedStores) && requestedStores.length
-      ? result.stores.filter(s => requestedStores.includes(s))
-      : result.stores;
-    if (!stores.length) return res.status(400).json({ error: 'Không có siêu thị nào để xuất — chọn ít nhất 1 siêu thị trên web rồi xuất lại.' });
+    const allEntities = [...result.stores, ...result.groups];
+    const requested = Array.isArray(requestedEntities) && requestedEntities.length ? requestedEntities
+      : (Array.isArray(requestedStores) && requestedStores.length ? requestedStores : null);
+    const entities = requested ? allEntities.filter(name => requested.includes(name)) : allEntities;
+    if (!entities.length) return res.status(400).json({ error: 'Không có mục nào để xuất — chọn ít nhất 1 siêu thị/nhóm trên web rồi xuất lại.' });
 
     // KHÔNG dùng periodLabelFor() ở trên — hàm đó cho 'month' chỉ tính 1
     // THÁNG DUY NHẤT (chứa toDate, đúng nghĩa vụ cũ "cộng dồn 1 tháng"), ở
     // đây fromDate/toDate là khoảng NHIỀU mốc (ngày hoặc tháng) nên luôn
     // hiện ĐÚNG khoảng ngày gốc người dùng đã chọn, cho cả 2 chế độ.
     const periodLabel = result.fromDate === result.toDate ? formatDateVN(result.fromDate) : `${formatDateVN(result.fromDate)} - ${formatDateVN(result.toDate)}`;
-    const title = `${result.reportTitle} — So sánh siêu thị theo thời gian (${periodLabel})`;
-    const exportDefinition = {
-      title,
-      columns: [
-        { key: 'bucket', label: result.dateMode === 'day' ? 'Ngày' : 'Tháng' },
-        ...stores.map(name => ({ key: name, label: name }))
-      ]
-    };
-    const rows = result.buckets.map((b, i) => ({
-      bucket: b.label,
-      ...Object.fromEntries(stores.map(name => [name, result.series[name]?.[i] ?? 0]))
-    }));
+    const title = `${result.reportTitle} — ${scopeLabel || 'So sánh siêu thị'} theo thời gian (${periodLabel})`;
+    const entityColumnKey = (name, suffix) => suffix ? `${name}__${suffix}` : name;
+    const columns = [{ key: 'bucket', label: result.dateMode === 'day' ? 'Ngày' : 'Tháng' }];
+    entities.forEach(name => {
+      columns.push({ key: entityColumnKey(name), label: result.seriesLastYear ? `${name} (Năm nay)` : name });
+      if (result.seriesLastYear) columns.push({ key: entityColumnKey(name, 'cungky'), label: `${name} (Cùng kỳ)` });
+    });
+    const exportDefinition = { title, columns };
+    const rows = result.buckets.map((b, i) => {
+      const row = { bucket: b.label };
+      entities.forEach(name => {
+        row[entityColumnKey(name)] = result.series[name]?.[i] ?? 0;
+        if (result.seriesLastYear) row[entityColumnKey(name, 'cungky')] = result.seriesLastYear[name]?.[i] ?? 0;
+      });
+      return row;
+    });
 
-    const fileBase = `So sanh sieu thi - ${result.toDate.split('-').reverse().join('')}`;
+    const fileBase = `${scopeLabel || 'So sanh sieu thi'} - ${result.toDate.split('-').reverse().join('')}`;
     if (format === 'excel') {
       const buffer = await exportExcel(exportDefinition, rows);
-      await logAction(req, { module: 'Dashboard', actionType: 'XUAT_DASHBOARD', targetObject: req.params.dashboardId, description: `Xuất Excel "So sánh siêu thị" (${stores.length} siêu thị, ${rows.length} mốc)` });
+      await logAction(req, { module: 'Dashboard', actionType: 'XUAT_DASHBOARD', targetObject: req.params.dashboardId, description: `Xuất Excel "${scopeLabel || 'So sánh siêu thị'}" (${entities.length} mục, ${rows.length} mốc)` });
       res.attachment(`${fileBase}.xlsx`);
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
       return res.send(buffer);
     }
     const buffer = await exportPdf(exportDefinition, rows);
-    await logAction(req, { module: 'Dashboard', actionType: 'XUAT_DASHBOARD', targetObject: req.params.dashboardId, description: `Xuất PDF "So sánh siêu thị" (${stores.length} siêu thị, ${rows.length} mốc)` });
+    await logAction(req, { module: 'Dashboard', actionType: 'XUAT_DASHBOARD', targetObject: req.params.dashboardId, description: `Xuất PDF "${scopeLabel || 'So sánh siêu thị'}" (${entities.length} mục, ${rows.length} mốc)` });
     res.attachment(`${fileBase}.pdf`);
     res.setHeader('Content-Type', 'application/pdf');
     return res.send(buffer);
