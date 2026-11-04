@@ -40,7 +40,19 @@ function resolveColumn(field) {
   if (!FIELD_NAME_RE.test(field)) {
     throw new Error(`Tên field không hợp lệ trong định nghĩa báo cáo: "${field}"`);
   }
-  return `JSON_VALUE(Dimensions, '$.${field}')`;
+  // RTRIM (bản 10.67, SỬA LỖI THẬT — đối tác "ton-kho" báo mã Điểm luôn
+  // null dù "Ánh xạ Điểm - STK_ID" đã khai đúng, kiểm tra log thật cho
+  // thấy field `MaChiNhanh` (nguồn `STK_ID AS MaChiNhanh` trong
+  // "bc-ton-kho-0.md" — STK_ID là CHAR CÓ ĐỘ DÀI CỐ ĐỊNH ở DSMART16, không
+  // RTRIM khi SELECT) mang theo DẤU CÁCH THỪA phía sau khi lưu vào
+  // Dimensions JSON, trong khi giá trị STK_ID admin gõ tay vào "Ánh xạ
+  // Điểm - STK_ID" (etl.DiemStkMapping.MaStkMoi) KHÔNG có dấu cách thừa —
+  // so khớp (`stkLookup.get()` ở routes/v1/reports.js, VÀ điều kiện
+  // forcedConditions ở đây) LUÔN trượt. RTRIM ở ĐÂY xử lý ĐƯỢC NGAY cho
+  // mọi dữ liệu ĐÃ đồng bộ (không cần resync lại), nhưng gốc rễ vẫn nên
+  // sửa VIEW nguồn (`RTRIM(STK_ID) AS MaChiNhanh`) khi DBA rảnh — xem
+  // "bc-ton-kho-0.md"/"bc-ton-kho-chi-tiet.md".
+  return `RTRIM(JSON_VALUE(Dimensions, '$.${field}'))`;
 }
 
 function parseRow(row) {

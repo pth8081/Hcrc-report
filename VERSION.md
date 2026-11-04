@@ -42,6 +42,55 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.67 — Sửa lỗi thật: API "Tồn kho" (`ton-kho`) luôn trả `maDiem: null` cho đối tác
+
+**Theo báo cáo đối tác BRGMART/HCRC Workspace** (kèm log quét TOÀN BỘ
+835.111 dòng, xác nhận 0 dòng có `maDiem` khác null) — người dùng chuyển
+tiếp bằng chứng, yêu cầu kiểm tra lại (KHÔNG phải lỗi cấu hình phía đối
+tác như kết luận ban đầu).
+
+**Nguyên nhân THẬT**: VIEW nguồn `vw_TonKhoTheoSKU`/`vw_TonKhoChiTietTheoSKU`
+(DSMART16) chọn `STK_ID AS MaChiNhanh` — `STK_ID` ở bảng `STOCK` là kiểu
+`CHAR` ĐỘ DÀI CỐ ĐỊNH, mang theo DẤU CÁCH THỪA phía sau khi không `RTRIM`
+lúc SELECT — dấu cách này lưu nguyên vào `Dimensions` JSON qua ETL. Trong
+khi đó, mã kho admin gõ tay vào "Ánh xạ Điểm - STK_ID" (etl.DiemStkMapping)
+ĐÃ được `.trim()` (lib/diemStkMapping.js:parseStkList()) — so khớp 2 giá
+trị này (1 có dấu cách thừa, 1 không) LUÔN trượt, dù ánh xạ khai đúng.
+Domain `doanhthu_chinhanh` (báo cáo doanh thu LDTD/HCRC) KHÔNG dính lỗi
+này vì đọc `STK_ID` từ bảng `STRANS` (kiểu dữ liệu khác, không padding).
+
+- **`api-server/lib/reportEngine.js`**: `resolveColumn()` bọc thêm
+  `RTRIM(...)` quanh mọi `JSON_VALUE(Dimensions, '$.<field>')` — sửa ĐÚNG
+  cả 2 chỗ dùng: lọc `forcedConditions` (giới hạn siêu thị theo đối tác,
+  bản 10.54) VÀ `definition.filters` thường.
+- **`api-server/routes/v1/reports.js`**: thêm `.trim()` cho `row[t.stkField]`
+  (`maKho`) TRƯỚC khi tra `stkLookup` — sửa đúng nguyên nhân khiến
+  `maDiem`/`tenSieuThi` luôn null/"(chưa khai tên)"; gán lại giá trị đã
+  trim vào chính cột `maKho` trả về (dữ liệu sạch cho đối tác, không còn
+  dấu cách thừa).
+- Đã mô phỏng lại ĐÚNG tình huống lỗi (Map lookup với khoá có/không dấu
+  cách thừa) — xác nhận sửa đúng, không cần sửa VIEW/resync ngay (áp dụng
+  được cho dữ liệu ĐÃ đồng bộ sẵn).
+- **Khuyến nghị thêm (không bắt buộc, DBA làm khi rảnh)**: sửa VIEW nguồn
+  thêm `RTRIM(STK_ID) AS MaChiNhanh` tận gốc — xem "bc-ton-kho-0.md"/
+  "bc-ton-kho-chi-tiet.md".
+
+**Triển khai**:
+```bash
+git pull origin main
+pm2 restart api-server
+```
+Không cần sửa VIEW/resync ETL — dữ liệu `dwh.ReportFacts` đã đồng bộ
+trước đó không cần đụng tới, lỗi nằm ở tầng ĐỌC (API), không phải tầng
+GHI.
+
+**Kiểm tra**: `GET /api/v1/reports/ton-kho/run?pageSize=20` (API Key đối
+tác) → mọi dòng phải có `maDiem` khác null (đúng mã Điểm 3 số) và
+`tenSieuThi` là tên siêu thị thật, không còn `"<mã kho> (chưa khai tên)"`
+cho những kho ĐÃ khai trong "Ánh xạ Điểm - STK_ID". Đối tác chạy lại
+script quét toàn bộ của họ để xác nhận số dòng có `maDiem` tăng từ 0 lên
+đúng số dòng tương ứng các kho đã ánh xạ.
+
 ## 10.66 — Thêm "Theo năm" cho "So sánh" (cả siêu thị lẫn theo nhóm)
 
 **Theo yêu cầu người dùng**: "Bạn thêm theo năm (tính tổng năm ko phải

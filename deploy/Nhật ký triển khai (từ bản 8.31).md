@@ -14,6 +14,26 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.67 — Sửa lỗi thật: API "Tồn kho" luôn trả `maDiem: null` cho đối tác
+
+**Thay đổi**: `api-server/lib/reportEngine.js` + `routes/v1/reports.js` —
+`RTRIM`/`.trim()` giá trị `maKho` (STK_ID, mang dấu cách thừa từ nguồn
+DSMART16) TRƯỚC khi so khớp với "Ánh xạ Điểm - STK_ID" — trước đây so
+khớp luôn trượt do lệch khoảng trắng, khiến `maDiem`/`tenSieuThi` luôn
+null/"(chưa khai tên)" dù ánh xạ đã khai đúng.
+
+**Triển khai**:
+```bash
+git pull origin main
+pm2 restart api-server
+```
+Không cần sửa VIEW/resync ETL — chỉ sửa tầng đọc (API), dữ liệu
+`dwh.ReportFacts` đã đồng bộ trước đó giữ nguyên, không cần đụng tới.
+
+**Kiểm tra**: `GET /api/v1/reports/ton-kho/run?pageSize=20` (API Key đối
+tác thật) → mọi dòng của kho đã khai trong "Ánh xạ Điểm - STK_ID" phải có
+`maDiem` khác null. Đối tác chạy lại script quét toàn bộ để xác nhận.
+
 ## 10.66 — Thêm "Theo năm" cho "So sánh" (cả siêu thị lẫn theo nhóm)
 
 **Thay đổi**: tab "🔀 So sánh" thêm nút "Theo năm" (bên cạnh Theo ngày/

@@ -159,10 +159,22 @@ router.get('/:reportId/run', async (req, res, next) => {
           if (!diemMapping) diemMapping = await loadDiemStkMapping(); // có thể đã đọc sẵn ở nhánh forcedConditions phía trên, không đọc lại
           const stkLookup = buildStkIdLookup(diemMapping);
           projected = projected.map((row) => {
-            const info = stkLookup.get(row[t.stkField]);
-            const out = { ...row };
+            // .trim() (bản 10.67, SỬA LỖI THẬT — xem chú thích đầy đủ ở
+            // lib/reportEngine.js:resolveColumn()) — `row[t.stkField]`
+            // (maKho) đọc THẲNG từ Dimensions JSON, có thể mang dấu cách
+            // thừa phía sau (STK_ID là CHAR cố định độ dài ở nguồn DSMART16)
+            // trong khi khoá trong `stkLookup` (từ "Ánh xạ Điểm - STK_ID",
+            // đã .trim() ở lib/diemStkMapping.js:parseStkList()) thì KHÔNG
+            // — thiếu .trim() ở đây khiến MỌI dòng không khớp được, dù ánh
+            // xạ đã khai đúng (đối tác xác nhận quét 835.111 dòng, 0 dòng
+            // khớp). Gán lại vào `out[t.stkField]` LUÔN (không chỉ dùng để
+            // tra) để chính cột "maKho" trả về cho đối tác cũng sạch dấu
+            // cách thừa.
+            const stkRaw = typeof row[t.stkField] === 'string' ? row[t.stkField].trim() : row[t.stkField];
+            const info = stkLookup.get(stkRaw);
+            const out = { ...row, [t.stkField]: stkRaw };
             if (requestedKeys.has(t.maDiemField)) out[t.maDiemField] = info ? info.maDiem : null;
-            if (requestedKeys.has(t.tenField)) out[t.tenField] = (info && info.tenSieuThi) || `${row[t.stkField]} (chưa khai tên)`;
+            if (requestedKeys.has(t.tenField)) out[t.tenField] = (info && info.tenSieuThi) || `${stkRaw} (chưa khai tên)`;
             return out;
           });
         }
