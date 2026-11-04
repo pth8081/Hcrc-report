@@ -316,6 +316,7 @@ router.post('/:dashboardId/export', async (req, res, next) => {
 // RealtimeCompareTile.jsx).
 const MAX_COMPARE_DAYS = 31;
 const MAX_COMPARE_MONTHS = 12;
+const MAX_COMPARE_YEARS = 5;
 // GROUP_ENTITY_LABELS (bản 10.65, theo yêu cầu người dùng — "so sánh theo
 // MINIMART, so sánh theo MART, so sánh theo [Tổng]") — ĐÚNG 3 nhãn
 // `tenCuaHang` của dòng "Tổng cộng"/"Tổng cộng <nhóm>" mà
@@ -350,6 +351,30 @@ function enumerateMonthBuckets(fromDate, toDate, todayStr) {
   return buckets;
 }
 
+// enumerateYearBuckets (bản 10.66, theo yêu cầu người dùng — "thêm theo năm
+// (tính tổng năm ko phải tháng)") — mỗi bucket = CẢ 1 năm dương lịch (01/01
+// -> 31/12), giống enumerateMonthBuckets nhưng gộp theo năm; năm hiện tại
+// (chưa hết) bị CẮT ở todayStr, giống cách enumerateMonthBuckets cắt tháng
+// hiện tại — không đếm những ngày "chưa tới" là doanh thu 0 làm méo cột.
+function firstOfYear(dateStr) {
+  return `${dateStr.slice(0, 4)}-01-01`;
+}
+function lastOfYear(dateStr) {
+  return `${dateStr.slice(0, 4)}-12-31`;
+}
+function enumerateYearBuckets(fromDate, toDate, todayStr) {
+  const buckets = [];
+  let cursor = firstOfYear(fromDate);
+  const endCursor = firstOfYear(toDate);
+  while (cursor <= endCursor) {
+    const to = lastOfYear(cursor) < todayStr ? lastOfYear(cursor) : todayStr;
+    buckets.push({ key: cursor.slice(0, 4), label: cursor.slice(0, 4), from: cursor, to });
+    const y = Number(cursor.slice(0, 4));
+    cursor = `${y + 1}-01-01`;
+  }
+  return buckets;
+}
+
 // Tách riêng để /realtime-compare (JSON cho biểu đồ/bảng web) VÀ
 // /realtime-compare/export (Excel/PDF, bản 10.64) dùng CHUNG đúng 1 logic
 // tính buckets/series — tránh lặp lại vòng lặp runDefinition() ở 2 nơi,
@@ -369,17 +394,20 @@ async function computeCompareSeries(req) {
   if (!reportId || !req.userContext.isSystemRole && !req.userContext.reportIds.has(reportId)) {
     throw Object.assign(new Error('Bạn không có quyền xem báo cáo này'), { status: 403 });
   }
-  if (!['day', 'month'].includes(dateMode)) throw Object.assign(new Error('dateMode phải là "day" hoặc "month"'), { status: 400 });
+  if (!['day', 'month', 'year'].includes(dateMode)) throw Object.assign(new Error('dateMode phải là "day", "month" hoặc "year"'), { status: 400 });
   if (!fromDate || !toDate || fromDate > toDate) throw Object.assign(new Error('Thiếu hoặc sai khoảng fromDate/toDate'), { status: 400 });
 
   const definition = await loadDefinition(reportId);
   if (!definition || !definition.isActive) throw Object.assign(new Error('Không tìm thấy báo cáo'), { status: 404 });
 
   const today = vietnamTodayISO();
-  const buckets = dateMode === 'day' ? enumerateDayBuckets(fromDate, toDate) : enumerateMonthBuckets(fromDate, toDate, today);
-  const maxBuckets = dateMode === 'day' ? MAX_COMPARE_DAYS : MAX_COMPARE_MONTHS;
+  const buckets = dateMode === 'day' ? enumerateDayBuckets(fromDate, toDate)
+    : dateMode === 'month' ? enumerateMonthBuckets(fromDate, toDate, today)
+    : enumerateYearBuckets(fromDate, toDate, today);
+  const maxBuckets = dateMode === 'day' ? MAX_COMPARE_DAYS : dateMode === 'month' ? MAX_COMPARE_MONTHS : MAX_COMPARE_YEARS;
   if (buckets.length > maxBuckets) {
-    throw Object.assign(new Error(`Khoảng đã chọn có ${buckets.length} ${dateMode === 'day' ? 'ngày' : 'tháng'}, vượt quá tối đa ${maxBuckets} — thu hẹp khoảng ngày lại.`), { status: 400 });
+    const unit = dateMode === 'day' ? 'ngày' : dateMode === 'month' ? 'tháng' : 'năm';
+    throw Object.assign(new Error(`Khoảng đã chọn có ${buckets.length} ${unit}, vượt quá tối đa ${maxBuckets} — thu hẹp khoảng ngày lại.`), { status: 400 });
   }
 
   const series = {}; // { tenCuaHang: [giá trị theo đúng thứ tự buckets] } — CẢ siêu thị LẪN 3 dòng nhóm
@@ -463,7 +491,7 @@ router.post('/:dashboardId/realtime-compare/export', async (req, res, next) => {
     const periodLabel = result.fromDate === result.toDate ? formatDateVN(result.fromDate) : `${formatDateVN(result.fromDate)} - ${formatDateVN(result.toDate)}`;
     const title = `${result.reportTitle} — ${scopeLabel || 'So sánh siêu thị'} theo thời gian (${periodLabel})`;
     const entityColumnKey = (name, suffix) => suffix ? `${name}__${suffix}` : name;
-    const columns = [{ key: 'bucket', label: result.dateMode === 'day' ? 'Ngày' : 'Tháng' }];
+    const columns = [{ key: 'bucket', label: result.dateMode === 'day' ? 'Ngày' : result.dateMode === 'month' ? 'Tháng' : 'Năm' }];
     entities.forEach(name => {
       columns.push({ key: entityColumnKey(name), label: result.seriesLastYear ? `${name} (Năm nay)` : name });
       if (result.seriesLastYear) columns.push({ key: entityColumnKey(name, 'cungky'), label: `${name} (Cùng kỳ)` });

@@ -38,6 +38,14 @@ export function addMonthsISO(dateStr, months) {
   return new Date(Date.UTC(y, m - 1 + months, 1)).toISOString().slice(0, 10);
 }
 
+// addYearsISO (bản 10.66 — RealtimeCompareTile.jsx, mặc định "N năm gần
+// nhất" cho "Theo năm") — LUÔN trả về ngày 01/01 của năm kết quả, giống
+// addMonthsISO ở trên nhưng theo năm.
+export function addYearsISO(dateStr, years) {
+  const y = Number(dateStr.slice(0, 4));
+  return new Date(Date.UTC(y + years, 0, 1)).toISOString().slice(0, 10);
+}
+
 export function lastOfMonth(dateStr) {
   const [y, m] = dateStr.split('-').map(Number);
   return new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10);

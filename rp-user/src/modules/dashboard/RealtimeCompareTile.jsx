@@ -43,7 +43,7 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { api, downloadFile } from '../../lib/api';
 import { formatCellValue } from '../../lib/formatCell';
-import { addDaysISO, addMonthsISO, todayISO } from '../../lib/dateRange';
+import { addDaysISO, addMonthsISO, addYearsISO, todayISO } from '../../lib/dateRange';
 import DateInput from '../../components/DateInput';
 // lazy() — ReportChart.jsx import tĩnh recharts, GIỐNG HỆT lý do
 // ReportBody.jsx/DashboardPage.jsx:Top5ChartTile đã lazy (xem chú thích ở
@@ -55,6 +55,7 @@ const ReportChart = lazy(() => import('../../components/ReportChart'));
 
 const MAX_DAYS = 31;
 const MAX_MONTHS = 12;
+const MAX_YEARS = 5;
 
 // Bảng màu phân loại đã kiểm định (dataviz skill — thứ tự CỐ ĐỊNH, không
 // được xáo trộn/xoay vòng, xem rp-user tổng quan thiết kế biểu đồ nội bộ).
@@ -69,7 +70,9 @@ const GROUP_CHIP_LABELS = { 'Tổng cộng MART': 'MART', 'Tổng cộng MINIMAR
 
 function defaultRangeFor(granularity) {
   const to = todayISO();
-  const from = granularity === 'month' ? addMonthsISO(to, -5) : addDaysISO(to, -13);
+  const from = granularity === 'year' ? addYearsISO(to, -4)
+    : granularity === 'month' ? addMonthsISO(to, -5)
+    : addDaysISO(to, -13);
   return { from, to };
 }
 
@@ -118,7 +121,12 @@ export default function RealtimeCompareTile({ reportId, dashboardId, title }) {
   // khác nhau, mỗi hành động 1 biến riêng").
   const [exportingFormat, setExportingFormat] = useState(null);
 
-  const effectiveIncludeLastYear = scope === 'group' && includeLastYear;
+  // granularity==='year' (bản 10.66): "So với năm cùng kỳ" KHÔNG áp dụng —
+  // mỗi bucket đã LÀ 1 năm, "cùng kỳ năm trước" chẳng khác gì bucket năm
+  // trước đó đã tự hiện sẵn trên biểu đồ nhiều-năm — ẩn hẳn checkbox (giống
+  // cách ẩn nút "Tròn" khi includeLastYear) thay vì để người xem bật 1 tuỳ
+  // chọn vô nghĩa.
+  const effectiveIncludeLastYear = scope === 'group' && granularity !== 'year' && includeLastYear;
 
   function changeGranularity(g) {
     setGranularity(g);
@@ -254,6 +262,7 @@ export default function RealtimeCompareTile({ reportId, dashboardId, title }) {
           <div className="seg">
             <button type="button" className={granularity === 'day' ? 'active' : ''} onClick={() => changeGranularity('day')}>Theo ngày</button>
             <button type="button" className={granularity === 'month' ? 'active' : ''} onClick={() => changeGranularity('month')}>Theo tháng</button>
+            <button type="button" className={granularity === 'year' ? 'active' : ''} onClick={() => changeGranularity('year')}>Theo năm</button>
           </div>
         </div>
         <div className="realtime-compare-field">
@@ -264,7 +273,7 @@ export default function RealtimeCompareTile({ reportId, dashboardId, title }) {
           <span className="realtime-compare-field-label">đến ngày</span>
           <DateInput value={toDate} max={todayISO()} onChange={(e) => changeToDate(e.target.value)} />
         </div>
-        {scope === 'group' && (
+        {scope === 'group' && granularity !== 'year' && (
           <label className="checkbox-row realtime-compare-showvalues">
             <input type="checkbox" checked={includeLastYear} onChange={(e) => setIncludeLastYear(e.target.checked)} />
             So với năm cùng kỳ
@@ -274,7 +283,9 @@ export default function RealtimeCompareTile({ reportId, dashboardId, title }) {
       <p className="form-hint">
         {granularity === 'day'
           ? `Xem theo từng ngày trong khoảng đã chọn (tối đa ${MAX_DAYS} ngày/lần).`
-          : `Xem theo từng tháng (cộng dồn từ đầu tháng) trong khoảng đã chọn (tối đa ${MAX_MONTHS} tháng/lần).`}
+          : granularity === 'month'
+          ? `Xem theo từng tháng (cộng dồn từ đầu tháng) trong khoảng đã chọn (tối đa ${MAX_MONTHS} tháng/lần).`
+          : `Xem theo từng năm (cộng dồn cả năm, năm hiện tại tính đến hôm nay) trong khoảng đã chọn (tối đa ${MAX_YEARS} năm/lần).`}
         {effectiveIncludeLastYear && ' Mỗi mốc hiện thêm giá trị cùng kỳ năm trước (cùng màu, nhạt hơn) để so sánh.'}
       </p>
 
@@ -314,7 +325,7 @@ export default function RealtimeCompareTile({ reportId, dashboardId, title }) {
             )}
           </div>
           {effectiveChartType === 'pie' && (
-            <p className="form-hint">Biểu đồ tròn hiện tỷ trọng TỔNG CỘNG DỒN cả khoảng đã chọn ({granularity === 'day' ? `${data.buckets.length} ngày` : `${data.buckets.length} tháng`}), không theo từng mốc riêng — muốn xem xu hướng từng ngày/tháng, chọn "Đường" hoặc "Cột".</p>
+            <p className="form-hint">Biểu đồ tròn hiện tỷ trọng TỔNG CỘNG DỒN cả khoảng đã chọn ({data.buckets.length} {granularity === 'day' ? 'ngày' : granularity === 'month' ? 'tháng' : 'năm'}), không theo từng mốc riêng — muốn xem xu hướng từng mốc, chọn "Đường" hoặc "Cột".</p>
           )}
           <Suspense fallback={<p>Đang tải biểu đồ...</p>}>
             <ReportChart columns={chartColumns} rows={chartRows} visualization={chartVisualization} onPointClick={() => {}} />
@@ -324,7 +335,7 @@ export default function RealtimeCompareTile({ reportId, dashboardId, title }) {
             <table className="data-table">
               <thead>
                 <tr>
-                  <th>{granularity === 'day' ? 'Ngày' : 'Tháng'}</th>
+                  <th>{granularity === 'day' ? 'Ngày' : granularity === 'month' ? 'Tháng' : 'Năm'}</th>
                   {effectiveIncludeLastYear
                     ? selectedEntities.flatMap(name => [
                         <th key={`${name}-cur`}>{name} (Năm nay)</th>,
