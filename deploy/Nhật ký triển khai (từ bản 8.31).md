@@ -14,6 +14,27 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.65 — So sánh theo MART/MINIMART/Toàn hệ thống + so với năm cùng kỳ
+
+**Thay đổi**: tab "🔀 So sánh" (đổi nhãn từ "🔀 So sánh siêu thị") thêm
+công tắc "Phạm vi so sánh": So sánh siêu thị (như cũ) / So sánh theo
+nhóm (MART/MINIMART/Toàn hệ thống — chọn riêng lẻ 1/2/3 nhóm tuỳ ý).
+Thêm "So với năm cùng kỳ" (chỉ ở phạm vi nhóm, dùng chung được với cả
+Theo ngày/Theo tháng). Xuất Excel/PDF + hiện số liệu trên biểu đồ áp
+dụng cho cả 2 phạm vi.
+
+**Triển khai**:
+```bash
+git pull origin main
+pm2 restart rp-server
+cd rp-user && npm run build
+```
+Deploy lại `dist/`. Không có thay đổi CSDL.
+
+**Kiểm tra**: tab "🔀 So sánh" → "So sánh theo nhóm" → tick 1/2/3 nhóm
+bất kỳ → đúng số lượng đã chọn; tick "So với năm cùng kỳ" → mỗi nhóm
+hiện cặp Năm nay/Cùng kỳ; Xuất Excel/PDF đúng bảng đang xem.
+
 ## 10.64 — Xuất Excel/PDF + chọn kiểu biểu đồ cho "So sánh siêu thị"
 
 **Thay đổi**: tab "🔀 So sánh siêu thị" thêm nút "Xuất Excel"/"Xuất PDF"

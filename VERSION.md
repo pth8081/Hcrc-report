@@ -42,6 +42,55 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.65 — So sánh theo MART/MINIMART/Toàn hệ thống + so với năm cùng kỳ
+
+**Theo yêu cầu người dùng**: "cho tôi thêm 3 cái so sánh nữa... so sánh
+theo minimart, mart, tổng... theo ngày, theo tháng và so với năm cùng
+kỳ... cho tôi tuỳ chọn được, chọn hiển thị số tiền tắt bật như so sánh
+theo siêu thị... các nhóm cho tôi được phép chọn riêng lẻ từng hạng mục,
+đừng cố định cả ba vào một... xuất ra Excel/PDF hết". Đã gửi demo (ảnh
+chụp thật từ component) xác nhận trước khi merge.
+
+**Thay đổi 1 — Phạm vi so sánh**: thêm công tắc "So sánh siêu thị" (như
+cũ) / "So sánh theo nhóm" ở tab "🔀 So sánh" (đổi nhãn từ "🔀 So sánh
+siêu thị" — gộp chung cả 2 phạm vi, mặc định mở vào "So sánh siêu thị"
+như trước). "So sánh theo nhóm" — 3 nhóm **MART/MINIMART/Toàn hệ thống**,
+đọc THẲNG 3 dòng "Tổng cộng"/"Tổng cộng MART"/"Tổng cộng MINIMART" đã có
+sẵn trong báo cáo composite gốc (KHÔNG tính lại gì) — chọn riêng lẻ từng
+nhóm (1, 2, hay cả 3), không bị ép chọn chung. Cả 2 phạm vi dùng CHUNG 1
+API response (`/realtime-compare` đã trả cả `stores` lẫn `groups`), đổi
+phạm vi KHÔNG cần gọi lại API.
+
+**Thay đổi 2 — So với năm cùng kỳ**: checkbox mới (CHỈ ở phạm vi "So sánh
+theo nhóm", theo đúng yêu cầu) — ĐỘC LẬP với "Theo ngày"/"Theo tháng"
+(dùng chung được với cả 2, không phải chọn 1-trong-3). Bật
+`filters.cheDoSoSanh = 'full'` thay vì `'past'` mặc định để composite
+report tự tính thêm cột `dt_cungKy` ĐÃ CÓ SẴN trong định nghĩa báo cáo —
+không gọi thêm API nào khác. Mỗi nhóm hiện 2 giá trị: Năm nay (màu đậm)
+và Cùng kỳ năm trước (CÙNG màu, nhạt hơn — xem `lighten()` trong
+`RealtimeCompareTile.jsx`) — giữ đúng nguyên tắc "màu theo danh tính".
+Biểu đồ "Tròn" tự ẩn ở chế độ này (không có ý nghĩa khi so 2 năm).
+
+**Thay đổi 3 — Xuất Excel/PDF + hiện số liệu**: áp dụng cho CẢ 2 phạm vi
+và CẢ chế độ "cùng kỳ" (bảng xuất tách 2 cột Năm nay/Cùng kỳ mỗi nhóm khi
+bật). Checkbox "Hiện số liệu trên từng điểm biểu đồ" (bản 10.63) dùng
+CHUNG cho cả "So sánh siêu thị" lẫn "So sánh theo nhóm" — không cần làm
+riêng.
+
+**Triển khai**:
+```bash
+git pull origin main
+pm2 restart rp-server     # cheDoSoSanh='full' khi includeLastYear, groups trong /realtime-compare
+cd rp-user && npm run build   # rồi deploy lại dist/ như thường lệ
+```
+Không có thay đổi CSDL/script seed nào cần chạy lại.
+
+**Kiểm tra**: Dashboard → tab "🔀 So sánh" → công tắc "Phạm vi so sánh" →
+"So sánh theo nhóm" → tick 1/2/3 nhóm bất kỳ (MART/MINIMART/Toàn hệ
+thống) → biểu đồ + bảng phải đúng số lượng đã chọn. Tick "So với năm
+cùng kỳ" → mỗi nhóm hiện cặp Năm nay/Cùng kỳ (nhạt hơn). Bấm "Xuất
+Excel"/"Xuất PDF" ở cả 2 phạm vi → file đúng bảng đang xem.
+
 ## 10.64 — Xuất Excel/PDF + chọn kiểu biểu đồ cho "So sánh siêu thị"
 
 **Theo yêu cầu người dùng**: "cho tôi xuất ra file Excel và PDF"; "cho
