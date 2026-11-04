@@ -156,6 +156,14 @@ có ai đó chủ động chạy `DROP VIEW <tên>`. Cần lưu ý 2 điều:
 --      so với công thức cũ (vd 1 ngày mẫu: giảm từ 364 triệu còn 164 triệu,
 --      ~55%) — ĐÃ CẢNH BÁO người dùng trước khi deploy, người dùng xác nhận
 --      dùng đúng công thức này.
+--
+--      **XÁC NHẬN THÊM nghĩa từng mã** (nguồn: anh Dương, Brg Retail,
+--      04/11/2026, qua Zalo): `211` = **bán buôn**, `221` = **bán lẻ**,
+--      `222` = **trả lại bán lẻ**, `212` = **trả lại bán buôn**. Vậy VIEW
+--      hiện ĐANG tính CẢ bán buôn (211/212) LẪN bán lẻ (221/222) vào
+--      "Doanh thu" — ĐÚNG ý đồ ban đầu (gộp chung mọi kênh bán), không cần
+--      sửa gì. `232` vẫn CHƯA xác nhận nghĩa cụ thể (có thể 1 kênh bán
+--      khác — chưa hỏi).
 --   4. `STATUS` đọc THẲNG từ `STRANS` (bảng này tự có cột `STATUS`, không
 --      cần JOIN `TRANSHDR` nữa) — cùng áp dụng cho VIEW 2 bên dưới.
 CREATE OR ALTER VIEW V_HCRC_DOANHTHU_CHINHANH AS
@@ -216,6 +224,32 @@ GO
 > (xem lịch sử đầy đủ ở "giá vốn dsmart.md" mục 6-8). Vài ngày cá biệt ra
 > Lãi ÂM kèm doanh thu tăng vọt bất thường (nghi giao dịch điều chỉnh/đặc
 > biệt) — chưa điều tra sâu, không chặn việc áp dụng công thức chung.
+>
+> **ĐÃ ĐIỀU TRA (04/11/2026, theo yêu cầu người dùng — "tháng 8 doanh số
+> đột biến")**: đúng là hiện tượng này — rà `STRANS_202608` (DSMART16_EOM)
+> cho 7 cặp chi nhánh/ngày "Lãi gộp ÂM nặng" của tháng 8/2026, tìm ra 2
+> nguyên nhân ĐỘC LẬP:
+> 1. **Giao dịch bán buôn (mã `211`, số lượng RẤT lớn — hàng trăm/nghìn
+>    đơn vị/lần) tính giá vốn SAI** → `SURPLUS` ra âm nặng (vd 1 đơn
+>    184.662.000đ/1000 đơn vị ra Lãi gộp -34.662.000đ) — NGƯỜI DÙNG ĐÃ XÁC
+>    NHẬN đây LÀ DOANH THU THẬT (bán buôn thật), chỉ riêng cách tính GIÁ
+>    VỐN cho loại bán buôn này bị sai ở nguồn — KHÔNG ảnh hưởng số
+>    "Doanh thu", chỉ ảnh hưởng "Lãi gộp"/"Tỷ lệ lãi gộp" hiển thị. DBA
+>    DSMART16 cần xem lại cách tính giá vốn riêng cho giao dịch bán buôn
+>    (SURPLUS) — không cần sửa VIEW/code báo cáo.
+> 2. **Giao dịch bị ghi "song sinh" dưới 2 mã khác nhau** (cùng STK_ID+
+>    ngày+QTY+AMOUNT, 1 lần mã `211`/`221`/`232` kèm SURPLUS âm TÍNH vào
+>    Doanh thu, 1 lần mã `333` SURPLUS=0 KHÔNG tính) — lỗi dữ liệu nguồn
+>    thật (đúng kiểu "giao dịch bị sửa ghi thêm dòng mới thay vì UPDATE"
+>    đã xác nhận ở bản 9.29 VERSION.md cho domain khác). Quét CẢ tháng
+>    8/2026, TOÀN hệ thống: chỉ 657 giao dịch, tổng ~179 triệu đồng doanh
+>    thu bị cộng khống — so với tổng doanh thu tháng (126,4 tỷ) là
+>    **~0,14%, không đáng kể** — và gần như TOÀN BỘ (~87%, 155/179 triệu)
+>    dồn vào ĐÚNG 1 trường hợp: chi nhánh `10021`, ngày 17/08/2026 (2 giao
+>    dịch TRANS_NUM `002002112608000006`). Quyết định: KHÔNG sửa VIEW (ảnh
+>    hưởng quá nhỏ, rủi ro sửa sai lớn hơn lợi ích) — để DBA tự xử lý
+>    riêng dữ liệu nguồn của ca 10021/17-08 nếu muốn, không chặn gì ở
+>    tầng báo cáo.
 
 **Mã `STATUS` đã xác nhận với người quản trị DSMART16** (bảng `TRANSHDR`,
 áp dụng chung cho cả `STRANS`/`STRANS_EOM`/`TRANSHDR_ARC`): `N` = Mới,
