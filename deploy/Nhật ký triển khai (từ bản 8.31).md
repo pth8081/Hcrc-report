@@ -14,6 +14,28 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.66 — Thêm "Theo năm" cho "So sánh" (cả siêu thị lẫn theo nhóm)
+
+**Thay đổi**: tab "🔀 So sánh" thêm nút "Theo năm" (bên cạnh Theo ngày/
+Theo tháng) ở "Đơn vị thời gian" — áp dụng CẢ 2 phạm vi (siêu thị/theo
+nhóm). Mỗi mốc = tổng cộng cả 1 năm dương lịch, năm hiện tại cắt tới
+hôm nay. Tối đa 5 năm/lần. Ở phạm vi "So sánh theo nhóm", chọn "Theo
+năm" tự ẩn checkbox "So với năm cùng kỳ" (không còn ý nghĩa khi mốc đã
+là 1 năm).
+
+**Triển khai**:
+```bash
+git pull origin main
+pm2 restart rp-server
+cd rp-user && npm run build
+```
+Deploy lại `dist/`. Không có thay đổi CSDL.
+
+**Kiểm tra**: tab "🔀 So sánh" → "Theo năm" → thử cả 2 phạm vi → biểu đồ/
+bảng hiện đúng theo từng năm; phạm vi nhóm + "Theo năm" → checkbox "So
+với năm cùng kỳ" biến mất; chọn khoảng > 5 năm → báo lỗi rõ ràng; Xuất
+Excel/PDF → cột đầu ghi "Năm".
+
 ## 10.65 — So sánh theo MART/MINIMART/Toàn hệ thống + so với năm cùng kỳ
 
 **Thay đổi**: tab "🔀 So sánh" (đổi nhãn từ "🔀 So sánh siêu thị") thêm

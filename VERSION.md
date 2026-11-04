@@ -42,6 +42,43 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.66 — Thêm "Theo năm" cho "So sánh" (cả siêu thị lẫn theo nhóm)
+
+**Theo yêu cầu người dùng**: "Bạn thêm theo năm (tính tổng năm ko phải
+tháng) cho cả so sánh siêu thị và so sánh mart, mini mart và toàn hệ
+thống nhé." Đã gửi demo (ảnh chụp thật từ component) xác nhận trước khi
+merge.
+
+Thêm nút thứ 3 **"Theo năm"** bên cạnh "Theo ngày"/"Theo tháng" ở ô
+"Đơn vị thời gian" (tab "🔀 So sánh") — áp dụng CẢ 2 phạm vi "So sánh
+siêu thị" lẫn "So sánh theo nhóm". Mỗi mốc = TỔNG CỘNG CẢ 1 năm dương
+lịch (01/01 → 31/12), năm hiện tại (chưa hết) cắt tới hôm nay — giống
+hệt cách "Theo tháng" cắt tháng hiện tại, không đếm những ngày "chưa
+tới" làm méo cột. Tối đa 5 năm/lần (hằng số `MAX_COMPARE_YEARS`, mirror
+`MAX_YEARS` ở frontend). Khoảng mặc định khi bấm "Theo năm": 5 năm gần
+nhất (`addYearsISO`, mirror `addMonthsISO`).
+
+Khi chọn "Theo năm" ở phạm vi "So sánh theo nhóm", tự ẩn checkbox "So
+với năm cùng kỳ" — mỗi mốc đã LÀ 1 năm nên "cùng kỳ năm trước" không còn
+ý nghĩa riêng (đã thấy ngay trên biểu đồ nhiều-năm), tương tự cách ẩn
+nút biểu đồ "Tròn" khi bật "So với năm cùng kỳ" ở bản 10.65.
+
+**Triển khai**:
+```bash
+git pull origin main
+pm2 restart rp-server     # dateMode='year' mới ở POST /dashboards/:id/realtime-compare(/export)
+cd rp-user && npm run build   # rồi deploy lại dist/ như thường lệ
+```
+Không có thay đổi CSDL/script seed nào cần chạy lại.
+
+**Kiểm tra**: Dashboard → tab "🔀 So sánh" → "Đơn vị thời gian" → "Theo
+năm" → thử cả 2 phạm vi (siêu thị / theo nhóm) → biểu đồ + bảng hiện
+đúng theo từng năm (nhãn trục X là "2024"/"2025"...), chọn khoảng quá 5
+năm phải báo lỗi rõ ràng. Ở phạm vi "So sánh theo nhóm", chọn "Theo
+năm" → checkbox "So với năm cùng kỳ" phải biến mất; đổi lại "Theo
+ngày"/"Theo tháng" → checkbox hiện lại bình thường. Xuất Excel/PDF ở chế
+độ "Theo năm" → cột đầu bảng ghi "Năm".
+
 ## 10.65 — So sánh theo MART/MINIMART/Toàn hệ thống + so với năm cùng kỳ
 
 **Theo yêu cầu người dùng**: "cho tôi thêm 3 cái so sánh nữa... so sánh
