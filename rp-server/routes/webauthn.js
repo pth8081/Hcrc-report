@@ -34,7 +34,10 @@ const {
   generateAuthenticationOptions, verifyAuthenticationResponse
 } = require('@simplewebauthn/server');
 const { sql, getPool } = require('../db');
-const { requireAuth, requireTwoFactorToken, setSessionCookie, issueToken, isSystemRoleForRateLimit } = require('../lib/auth');
+const {
+  requireAuth, requireTwoFactorToken, setSessionCookie, issueToken, isSystemRoleForRateLimit,
+  SessionConflictError, issueSessionOverrideToken
+} = require('../lib/auth');
 const { isBlocked, recordFailure, recordSuccess, ADMIN_PROFILE, DEFAULT_PROFILE } = require('../lib/loginRateLimit');
 const { logAction } = require('../lib/auditLog');
 
@@ -240,8 +243,13 @@ router.post('/login/verify', requireTwoFactorToken('pending'), async (req, res, 
     await logAction({ ip: req.ip, user: { sub: userId, username } }, {
       module: 'Đăng nhập', actionType: 'DANG_NHAP', description: `Đăng nhập thành công (vân tay/Face ID, thiết bị "${matched.DeviceLabel}")`
     });
-    setSessionCookie(res, await issueToken({ id: userId, username }));
-    res.json({ ok: true });
+    try {
+      setSessionCookie(res, await issueToken({ id: userId, username }, { checkConflict: true }));
+      res.json({ ok: true });
+    } catch (conflictErr) {
+      if (!(conflictErr instanceof SessionConflictError)) throw conflictErr;
+      res.status(409).json({ error: conflictErr.message, sessionConflict: true, overrideToken: issueSessionOverrideToken({ id: userId, username }) });
+    }
   } catch (err) { next(err); }
 });
 
@@ -365,8 +373,13 @@ router.post('/login-by-username/verify', async (req, res, next) => {
     await logAction({ ip: req.ip, user: { sub: userId, username } }, {
       module: 'Đăng nhập', actionType: 'DANG_NHAP', description: `Đăng nhập thành công (vân tay/Face ID, thiết bị "${matched.DeviceLabel}" — không cần mật khẩu)`
     });
-    setSessionCookie(res, await issueToken({ id: userId, username }));
-    res.json({ ok: true });
+    try {
+      setSessionCookie(res, await issueToken({ id: userId, username }, { checkConflict: true }));
+      res.json({ ok: true });
+    } catch (conflictErr) {
+      if (!(conflictErr instanceof SessionConflictError)) throw conflictErr;
+      res.status(409).json({ error: conflictErr.message, sessionConflict: true, overrideToken: issueSessionOverrideToken({ id: userId, username }) });
+    }
   } catch (err) { next(err); }
 });
 

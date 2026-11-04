@@ -511,6 +511,14 @@ BEGIN
 END
 GO
 
+-- "Hỏi xác nhận trước khi ghi đè phiên" (bản 10.68) — mirror rp-db/schema.sql,
+-- xem chú thích đầy đủ ở đó.
+IF COL_LENGTH('admin.AdminUsers', 'LastLoginAt') IS NULL
+BEGIN
+    ALTER TABLE admin.AdminUsers ADD LastLoginAt DATETIME2(3) NULL;
+END
+GO
+
 -- Email (bản 8.94, theo yêu cầu người dùng) — trước đây admin.AdminUsers
 -- KHÔNG có cột Email nào, nút "Sửa" chỉ sửa được FullName. Thêm cột (NULL,
 -- không ràng buộc UNIQUE — giống app.Users ở rp-db) để trang "Sửa" sửa

@@ -14,6 +14,29 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.68 — Hỏi xác nhận trước khi ghi đè phiên đăng nhập (cả 3 app)
+
+**Thay đổi**: đăng nhập tài khoản đang có phiên trong 8h gần đây (ở nơi
+khác) → hiện hộp thoại "có thể đang đăng nhập ở nơi khác" (Huỷ/OK) thay
+vì ghi đè âm thầm như bản 10.6. Bấm OK mới cấp phiên thật (không cần
+nhập lại mật khẩu/2FA/vân tay), phiên cũ bị từ chối ngay ở lượt gọi API
+kế tiếp. Áp dụng cả 3 app (rp-user/etl-admin/api-admin).
+
+**Triển khai**:
+```bash
+git pull origin main
+pm2 restart rp-server etl api-server
+cd rp-user && npm run build
+cd ../etl-admin && npm run build
+cd ../api-admin && npm run build
+```
+Deploy lại `dist/` cả 3 app. Cột `LastLoginAt` tự thêm qua schema.sql khi
+server khởi động, không cần script riêng.
+
+**Kiểm tra**: đăng nhập cùng 1 tài khoản ở 2 trình duyệt (trong vòng 8h)
+→ trình duyệt thứ 2 hiện hộp thoại xác nhận; Huỷ → không đổi gì; OK →
+đăng nhập được, trình duyệt thứ 1 bị văng (401) ở lượt gọi API kế tiếp.
+
 ## 10.67 — Sửa lỗi thật: API "Tồn kho" luôn trả `maDiem: null` cho đối tác
 
 **Thay đổi**: `api-server/lib/reportEngine.js` + `routes/v1/reports.js` —

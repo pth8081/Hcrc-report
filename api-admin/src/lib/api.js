@@ -23,6 +23,14 @@ async function request(path, { method = 'GET', body, isFormData = false } = {}) 
   if (!res.ok) {
     const err = new Error(data?.error || `Lỗi ${res.status}`);
     err.status = res.status;
+    // sessionConflict/overrideToken (bản 10.68) — POST /auth/login (và
+    // 2fa/verify, webauthn/*/verify) có thể trả 409 kèm 2 field này khi
+    // tài khoản vừa đăng nhập nơi khác trong 8h gần đây — lib/AuthContext.jsx
+    // đọc đúng 2 field này để hỏi xác nhận thay vì hiện lỗi đỏ.
+    if (data?.sessionConflict) {
+      err.sessionConflict = true;
+      err.overrideToken = data.overrideToken;
+    }
     throw err;
   }
   return data;

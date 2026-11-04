@@ -22,16 +22,21 @@
 const { sql, getPool } = require('../db');
 
 const CACHE_TTL_MS = 30 * 1000;
-const cache = new Map(); // userId -> { expiresAt, invalidatedAtMs, currentSessionId }
+const cache = new Map(); // userId -> { expiresAt, invalidatedAtMs, currentSessionId, lastLoginAtMs }
+
+// LAST_LOGIN_WINDOW_MS (bản 10.68) — xem chú thích đầy đủ ở
+// rp-db/schema.sql:LastLoginAt.
+const LAST_LOGIN_WINDOW_MS = 8 * 60 * 60 * 1000;
 
 async function loadSessionState(userId) {
   const pool = await getPool('RP');
   const result = await pool.request().input('id', sql.Int, userId)
-    .query('SELECT SessionsInvalidatedAt, CurrentSessionId FROM app.Users WHERE Id = @id');
+    .query('SELECT SessionsInvalidatedAt, CurrentSessionId, LastLoginAt FROM app.Users WHERE Id = @id');
   const row = result.recordset[0];
   return {
     invalidatedAtMs: row?.SessionsInvalidatedAt ? new Date(row.SessionsInvalidatedAt).getTime() : null,
-    currentSessionId: row?.CurrentSessionId || null
+    currentSessionId: row?.CurrentSessionId || null,
+    lastLoginAtMs: row?.LastLoginAt ? new Date(row.LastLoginAt).getTime() : null
   };
 }
 
@@ -90,10 +95,36 @@ async function revokeSessions(userId) {
 async function setCurrentSession(userId, sessionId) {
   const pool = await getPool('RP');
   const result = await pool.request().input('id', sql.Int, userId).input('sid', sql.NVarChar(36), sessionId)
-    .query('UPDATE app.Users SET CurrentSessionId = @sid OUTPUT INSERTED.SessionsInvalidatedAt WHERE Id = @id');
-  const invalidatedAtMs = result.recordset[0]?.SessionsInvalidatedAt
-    ? new Date(result.recordset[0].SessionsInvalidatedAt).getTime() : null;
-  cache.set(userId, { expiresAt: Date.now() + CACHE_TTL_MS, invalidatedAtMs, currentSessionId: sessionId });
+    .query(`
+      UPDATE app.Users SET CurrentSessionId = @sid, LastLoginAt = SYSUTCDATETIME()
+      OUTPUT INSERTED.SessionsInvalidatedAt, INSERTED.LastLoginAt WHERE Id = @id
+    `);
+  const row = result.recordset[0];
+  const invalidatedAtMs = row?.SessionsInvalidatedAt ? new Date(row.SessionsInvalidatedAt).getTime() : null;
+  const lastLoginAtMs = row?.LastLoginAt ? new Date(row.LastLoginAt).getTime() : null;
+  cache.set(userId, { expiresAt: Date.now() + CACHE_TTL_MS, invalidatedAtMs, currentSessionId: sessionId, lastLoginAtMs });
 }
 
-module.exports = { isSessionRevoked, revokeSessions, setCurrentSession };
+// wasRecentlyLoggedIn (bản 10.68) — gọi TRƯỚC khi issueToken() thật sự cấp
+// phiên (xem lib/auth.js) — true nghĩa là tài khoản đã phát hành phiên đầy
+// đủ trong vòng LAST_LOGIN_WINDOW_MS gần đây, lib/auth.js dừng lại hỏi xác
+// nhận thay vì cấp phiên ngay. Dùng CHUNG cache 30 giây với
+// isSessionRevoked() ở trên (không tốn round-trip CSDL riêng khi gọi liền
+// nhau trong cùng 1 lượt đăng nhập).
+async function wasRecentlyLoggedIn(userId) {
+  let entry = cache.get(userId);
+  if (!entry || entry.expiresAt <= Date.now()) {
+    let state;
+    try {
+      state = await loadSessionState(userId);
+    } catch (err) {
+      console.warn(`⚠️  [sessionRevocation] không tra được LastLoginAt cho user #${userId} (CSDL tạm gián đoạn?) — fail-open, coi như CHƯA có phiên gần đây: ${err.message}`);
+      return false;
+    }
+    entry = { expiresAt: Date.now() + CACHE_TTL_MS, ...state };
+    cache.set(userId, entry);
+  }
+  return !!(entry.lastLoginAtMs && Date.now() - entry.lastLoginAtMs < LAST_LOGIN_WINDOW_MS);
+}
+
+module.exports = { isSessionRevoked, revokeSessions, setCurrentSession, wasRecentlyLoggedIn };

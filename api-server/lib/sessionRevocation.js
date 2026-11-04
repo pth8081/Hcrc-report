@@ -21,16 +21,21 @@
 const { sql, getPool } = require('../db');
 
 const CACHE_TTL_MS = 30 * 1000;
-const cache = new Map(); // adminId -> { expiresAt, invalidatedAtMs, currentSessionId }
+const cache = new Map(); // adminId -> { expiresAt, invalidatedAtMs, currentSessionId, lastLoginAtMs }
+
+// LAST_LOGIN_WINDOW_MS (bản 10.68) — xem chú thích đầy đủ ở
+// api-db/schema.sql:LastLoginAt (mirror rp-db/etl-db, chỉ khác tên bảng).
+const LAST_LOGIN_WINDOW_MS = 8 * 60 * 60 * 1000;
 
 async function loadSessionState(adminId) {
   const pool = await getPool('ADMIN');
   const result = await pool.request().input('id', sql.Int, adminId)
-    .query('SELECT SessionsInvalidatedAt, CurrentSessionId FROM admin.AdminUsers WHERE Id = @id');
+    .query('SELECT SessionsInvalidatedAt, CurrentSessionId, LastLoginAt FROM admin.AdminUsers WHERE Id = @id');
   const row = result.recordset[0];
   return {
     invalidatedAtMs: row?.SessionsInvalidatedAt ? new Date(row.SessionsInvalidatedAt).getTime() : null,
-    currentSessionId: row?.CurrentSessionId || null
+    currentSessionId: row?.CurrentSessionId || null,
+    lastLoginAtMs: row?.LastLoginAt ? new Date(row.LastLoginAt).getTime() : null
   };
 }
 
@@ -87,10 +92,32 @@ async function revokeSessions(adminId) {
 async function setCurrentSession(adminId, sessionId) {
   const pool = await getPool('ADMIN');
   const result = await pool.request().input('id', sql.Int, adminId).input('sid', sql.NVarChar(36), sessionId)
-    .query('UPDATE admin.AdminUsers SET CurrentSessionId = @sid OUTPUT INSERTED.SessionsInvalidatedAt WHERE Id = @id');
-  const invalidatedAtMs = result.recordset[0]?.SessionsInvalidatedAt
-    ? new Date(result.recordset[0].SessionsInvalidatedAt).getTime() : null;
-  cache.set(adminId, { expiresAt: Date.now() + CACHE_TTL_MS, invalidatedAtMs, currentSessionId: sessionId });
+    .query(`
+      UPDATE admin.AdminUsers SET CurrentSessionId = @sid, LastLoginAt = SYSUTCDATETIME()
+      OUTPUT INSERTED.SessionsInvalidatedAt, INSERTED.LastLoginAt WHERE Id = @id
+    `);
+  const row = result.recordset[0];
+  const invalidatedAtMs = row?.SessionsInvalidatedAt ? new Date(row.SessionsInvalidatedAt).getTime() : null;
+  const lastLoginAtMs = row?.LastLoginAt ? new Date(row.LastLoginAt).getTime() : null;
+  cache.set(adminId, { expiresAt: Date.now() + CACHE_TTL_MS, invalidatedAtMs, currentSessionId: sessionId, lastLoginAtMs });
 }
 
-module.exports = { isSessionRevoked, revokeSessions, setCurrentSession };
+// wasRecentlyLoggedIn (bản 10.68) — mirror rp-server/lib/sessionRevocation.js,
+// xem chú thích đầy đủ ở đó.
+async function wasRecentlyLoggedIn(adminId) {
+  let entry = cache.get(adminId);
+  if (!entry || entry.expiresAt <= Date.now()) {
+    let state;
+    try {
+      state = await loadSessionState(adminId);
+    } catch (err) {
+      console.warn(`⚠️  [sessionRevocation] không tra được LastLoginAt cho admin #${adminId} (CSDL tạm gián đoạn?) — fail-open, coi như CHƯA có phiên gần đây: ${err.message}`);
+      return false;
+    }
+    entry = { expiresAt: Date.now() + CACHE_TTL_MS, ...state };
+    cache.set(adminId, entry);
+  }
+  return !!(entry.lastLoginAtMs && Date.now() - entry.lastLoginAtMs < LAST_LOGIN_WINDOW_MS);
+}
+
+module.exports = { isSessionRevoked, revokeSessions, setCurrentSession, wasRecentlyLoggedIn };

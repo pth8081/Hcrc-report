@@ -151,6 +151,25 @@ BEGIN
 END
 GO
 
+-- "Hỏi xác nhận trước khi ghi đè phiên" (bản 10.68, theo yêu cầu người
+-- dùng — xem ảnh HCRC Workspace minh hoạ: "Tài khoản này có thể đang đăng
+-- nhập ở nơi khác... Tiếp tục đăng nhập ở đây sẽ ĐĂNG XUẤT phiên đó ngay.
+-- Bạn có muốn tiếp tục?") — ghi lại THỜI ĐIỂM issueToken() phát hành phiên
+-- ĐẦY ĐỦ gần nhất (CÙNG lúc với CurrentSessionId ở trên, xem
+-- lib/sessionRevocation.js:setCurrentSession()). Lượt đăng nhập MỚI kiểm
+-- tra cột này TRƯỚC khi cấp phiên — còn TRONG vòng 8 giờ kể từ lần ghi
+-- gần nhất thì DỪNG LẠI, hỏi xác nhận (KHÔNG cấp phiên/KHÔNG đăng xuất
+-- phiên cũ ngay) thay vì ghi đè âm thầm như trước (bản 10.6). Đăng xuất
+-- thường (nút "Đăng xuất") KHÔNG xoá cột này (JWT tự chứa, không thu hồi
+-- được qua logout) — nên hộp thoại CÓ THỂ hiện ra dù phiên cũ đã đăng xuất
+-- sạch, CHẤP NHẬN ĐƯỢC (đúng tinh thần "có thể" — không khẳng định chắc
+-- chắn còn phiên khác, giống cách HCRC Workspace diễn đạt).
+IF COL_LENGTH('app.Users', 'LastLoginAt') IS NULL
+BEGIN
+    ALTER TABLE app.Users ADD LastLoginAt DATETIME2(3) NULL;
+END
+GO
+
 -- Cấu hình DUY NHẤT (Id=1) cho tích hợp "HCRC Workspace" — cùng khuôn
 -- app.EmailSettings (1 dòng, mã hoá khoá bí mật bằng lib/crypto.js). BaseUrl +
 -- 2 đường dẫn dưới đây họp thành 2 lời gọi ĐÚNG theo tài liệu API họ công bố

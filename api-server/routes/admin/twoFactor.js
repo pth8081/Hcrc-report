@@ -15,7 +15,8 @@
 const express = require('express');
 const { sql, getPool } = require('../../db');
 const {
-  COOKIE_NAME, verifyToken, requireTwoFactorToken, issueEnrollToken, issueToken, setSessionCookie
+  COOKIE_NAME, verifyToken, requireTwoFactorToken, issueEnrollToken, issueToken, setSessionCookie,
+  SessionConflictError, issueSessionOverrideToken
 } = require('../../lib/adminAuth');
 const {
   newSecret, encryptSecret, qrDataUrl, verifyTotp,
@@ -174,8 +175,13 @@ router.post('/verify', requireTwoFactorToken('pending'), async (req, res, next) 
     await logAction({ ip: req.ip, admin: { sub: userId, username } }, {
       module: 'Đăng nhập', actionType: 'DANG_NHAP', description: 'Đăng nhập thành công (2FA)'
     });
-    setSessionCookie(res, await issueToken({ id: userId, username }));
-    res.json({ ok: true });
+    try {
+      setSessionCookie(res, await issueToken({ id: userId, username }, { checkConflict: true }));
+      res.json({ ok: true });
+    } catch (conflictErr) {
+      if (!(conflictErr instanceof SessionConflictError)) throw conflictErr;
+      res.status(409).json({ error: conflictErr.message, sessionConflict: true, overrideToken: issueSessionOverrideToken({ id: userId, username }) });
+    }
   } catch (err) { next(err); }
 });
 

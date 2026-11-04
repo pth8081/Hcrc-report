@@ -9,7 +9,7 @@ const crypto = require('crypto');
 const { sql, getPool } = require('../db');
 const { getUserContext } = require('./permissions');
 const { verifyPassword: verifyHcrcWorkspacePassword, getFallbackMaxAgeDays } = require('./hcrcWorkspaceClient');
-const { isSessionRevoked, setCurrentSession } = require('./sessionRevocation');
+const { isSessionRevoked, setCurrentSession, wasRecentlyLoggedIn } = require('./sessionRevocation');
 
 const COOKIE_NAME = 'hcrc_rp_token';
 const TOKEN_TTL = '2h';
@@ -168,7 +168,30 @@ async function isSystemRoleForRateLimit(username) {
 // lib/sessionRevocation.js. Đổi hẳn từ hàm ĐỒNG BỘ sang BẤT ĐỒNG BỘ — MỌI
 // nơi gọi issueToken() phải thêm `await` (xem server.js, routes/twoFactor.js,
 // routes/webauthn.js).
-async function issueToken(user) {
+// SessionConflictError (bản 10.68) — issueToken() ném lỗi này THAY VÌ cấp
+// phiên khi checkConflict=true VÀ tài khoản vừa phát hành phiên đầy đủ
+// trong 8 giờ gần đây (xem lib/sessionRevocation.js:wasRecentlyLoggedIn())
+// — route gọi tự bắt lỗi này, trả 409 kèm overrideToken (xem
+// issueSessionOverrideToken() bên dưới) thay vì đăng nhập luôn, để
+// frontend hỏi xác nhận TRƯỚC khi ghi đè phiên cũ (giống HCRC Workspace).
+class SessionConflictError extends Error {
+  constructor(user) {
+    super('Tài khoản này có thể đang đăng nhập ở nơi khác');
+    this.user = user;
+  }
+}
+
+// checkConflict (bản 10.68, mặc định false — KHÔNG đổi hành vi
+// maybeSlideSession() bên dưới, hàm đó gọi issueToken() để "trượt phiên"
+// CHO CHÍNH phiên đang hoạt động, không phải 1 lượt đăng nhập mới, không
+// bao giờ cần hỏi xác nhận) — CHỈ 1 trong 5 điểm gọi/app (routes
+// đăng nhập mật khẩu/2FA xác thực/vân tay) truyền true. force=true bỏ qua
+// hẳn bước kiểm tra — dùng SAU KHI người dùng đã xác nhận "đồng ý ghi đè"
+// qua route /auth/confirm-session (xem server.js).
+async function issueToken(user, { force = false, checkConflict = false } = {}) {
+  if (checkConflict && !force && await wasRecentlyLoggedIn(user.id)) {
+    throw new SessionConflictError(user);
+  }
   const sid = crypto.randomUUID();
   await setCurrentSession(user.id, sid);
   return jwt.sign({ sub: user.id, username: user.username, sid }, getSecret(), {
@@ -177,6 +200,34 @@ async function issueToken(user) {
 }
 
 const TWOFA_TOKEN_TTL = '10m';
+const SESSION_OVERRIDE_TOKEN_TTL = '5m';
+
+// issueSessionOverrideToken (bản 10.68) — cấp SAU KHI đã xác thực ĐÚNG mật
+// khẩu/2FA/vân tay (SessionConflictError chỉ ném RA ở bước issueToken(),
+// LUÔN sau khi mọi yếu tố xác thực đã đúng) — token NGẮN HẠN (5 phút,
+// KHÔNG đặt vào cookie, trả trong JSON y hệt issuePending2FAToken() ở
+// dưới) để route /auth/confirm-session (server.js) cấp phiên thật mà
+// KHÔNG bắt người dùng nhập lại mật khẩu/mã 2FA/quét vân tay lần nữa.
+function issueSessionOverrideToken(user) {
+  return jwt.sign({ sub: user.id, username: user.username, sessionOverride: true }, getSecret(), {
+    expiresIn: SESSION_OVERRIDE_TOKEN_TTL, algorithm: 'HS256', issuer: ISSUER, audience: ISSUER
+  });
+}
+
+// Dùng ở route /auth/confirm-session (server.js) — mirror đúng khuôn
+// requireTwoFactorToken() bên dưới.
+function requireSessionOverrideToken(req, res, next) {
+  const token = req.body?.overrideToken;
+  if (!token) return res.status(401).json({ error: 'Thiếu overrideToken' });
+  try {
+    const payload = verifyToken(token);
+    if (payload.sessionOverride !== true) return res.status(401).json({ error: 'Token không đúng loại hoặc đã hết hạn' });
+    req.sessionOverridePayload = payload;
+    next();
+  } catch {
+    res.status(401).json({ error: 'Token hết hạn hoặc không hợp lệ — tải lại trang và đăng nhập lại' });
+  }
+}
 
 // Sau khi ĐÚNG mật khẩu, tài khoản có vai trò IsSystemRole=1 ("Admin") ĐÃ bật
 // 2FA — token này KHÔNG đặt vào cookie (trả trong JSON, xem server.js), client
@@ -342,6 +393,9 @@ module.exports = {
   verifyCredentials,
   isSystemRoleForRateLimit,
   issueToken,
+  SessionConflictError,
+  issueSessionOverrideToken,
+  requireSessionOverrideToken,
   verifyToken,
   requireSystemRoleActor,
   requireAuth,

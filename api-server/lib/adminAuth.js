@@ -6,7 +6,7 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const { sql, getPool } = require('../db');
-const { isSessionRevoked, setCurrentSession } = require('./sessionRevocation');
+const { isSessionRevoked, setCurrentSession, wasRecentlyLoggedIn } = require('./sessionRevocation');
 
 const COOKIE_NAME = 'hcrc_api_admin_token';
 const TOKEN_TTL = '2h';
@@ -92,7 +92,20 @@ async function verifyCredentials(username, password) {
 // lib/sessionRevocation.js. Đổi hẳn từ hàm ĐỒNG BỘ sang BẤT ĐỒNG BỘ — MỌI
 // nơi gọi issueToken() phải thêm `await` (xem routes/admin/auth.js,
 // routes/admin/twoFactor.js, routes/admin/webauthn.js).
-async function issueToken(user) {
+// SessionConflictError/checkConflict/issueSessionOverrideToken/
+// requireSessionOverrideToken (bản 10.68) — mirror rp-server/lib/auth.js,
+// xem chú thích đầy đủ ở đó.
+class SessionConflictError extends Error {
+  constructor(user) {
+    super('Tài khoản này có thể đang đăng nhập ở nơi khác');
+    this.user = user;
+  }
+}
+
+async function issueToken(user, { force = false, checkConflict = false } = {}) {
+  if (checkConflict && !force && await wasRecentlyLoggedIn(user.id)) {
+    throw new SessionConflictError(user);
+  }
   const sid = crypto.randomUUID();
   await setCurrentSession(user.id, sid);
   return jwt.sign({ sub: user.id, username: user.username, sid }, getSecret(), {
@@ -101,6 +114,26 @@ async function issueToken(user) {
 }
 
 const TWOFA_TOKEN_TTL = '10m';
+const SESSION_OVERRIDE_TOKEN_TTL = '5m';
+
+function issueSessionOverrideToken(user) {
+  return jwt.sign({ sub: user.id, username: user.username, sessionOverride: true }, getSecret(), {
+    expiresIn: SESSION_OVERRIDE_TOKEN_TTL, algorithm: 'HS256', issuer: ISSUER, audience: ISSUER
+  });
+}
+
+function requireSessionOverrideToken(req, res, next) {
+  const token = req.body?.overrideToken;
+  if (!token) return res.status(401).json({ error: 'Thiếu overrideToken' });
+  try {
+    const payload = verifyToken(token);
+    if (payload.sessionOverride !== true) return res.status(401).json({ error: 'Token không đúng loại hoặc đã hết hạn' });
+    req.sessionOverridePayload = payload;
+    next();
+  } catch {
+    res.status(401).json({ error: 'Token hết hạn hoặc không hợp lệ — tải lại trang và đăng nhập lại' });
+  }
+}
 
 // Sau khi ĐÚNG mật khẩu, tài khoản Role='admin' ĐÃ bật 2FA — token này KHÔNG
 // đặt vào cookie (trả trong JSON, xem routes/admin/auth.js), client tự giữ
@@ -223,5 +256,6 @@ function requireTwoFactorToken(expectedPurpose) {
 // chú thích tương tự trong rp-server/lib/auth.js.
 module.exports = {
   COOKIE_NAME, verifyCredentials, issueToken, verifyToken, requireAdminAuth, getSecret,
-  issuePending2FAToken, issueSetupRequiredToken, issueEnrollToken, requireTwoFactorToken, setSessionCookie
+  issuePending2FAToken, issueSetupRequiredToken, issueEnrollToken, requireTwoFactorToken, setSessionCookie,
+  SessionConflictError, issueSessionOverrideToken, requireSessionOverrideToken
 };

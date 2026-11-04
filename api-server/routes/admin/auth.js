@@ -3,7 +3,8 @@ const bcrypt = require('bcryptjs');
 const { sql, getPool } = require('../../db');
 const {
   verifyCredentials, issueToken, requireAdminAuth, COOKIE_NAME, setSessionCookie,
-  issuePending2FAToken, issueSetupRequiredToken
+  issuePending2FAToken, issueSetupRequiredToken, SessionConflictError, issueSessionOverrideToken,
+  requireSessionOverrideToken
 } = require('../../lib/adminAuth');
 const { getAdminContext, isSystemRoleForRateLimit } = require('../../lib/adminPermissions');
 const { isBlocked, recordFailure, recordSuccess, DEFAULT_PROFILE, ADMIN_PROFILE } = require('../../lib/loginRateLimit');
@@ -73,7 +74,25 @@ router.post('/login', async (req, res, next) => {
     await logAction({ ip: req.ip, admin: { sub: admin.id, username: admin.username } }, {
       module: 'Đăng nhập', actionType: 'DANG_NHAP', description: 'Đăng nhập thành công'
     });
-    setSessionCookie(res, await issueToken(admin));
+    try {
+      setSessionCookie(res, await issueToken(admin, { checkConflict: true }));
+      res.json({ ok: true });
+    } catch (conflictErr) {
+      if (!(conflictErr instanceof SessionConflictError)) throw conflictErr;
+      res.status(409).json({ error: conflictErr.message, sessionConflict: true, overrideToken: issueSessionOverrideToken(admin) });
+    }
+  } catch (err) { next(err); }
+});
+
+// POST /admin/auth/confirm-session (bản 10.68) — mirror rp-server/server.js,
+// xem chú thích đầy đủ ở đó.
+router.post('/confirm-session', requireSessionOverrideToken, async (req, res, next) => {
+  try {
+    const { sub: adminId, username } = req.sessionOverridePayload;
+    await logAction({ ip: req.ip, admin: { sub: adminId, username } }, {
+      module: 'Đăng nhập', actionType: 'DANG_NHAP', description: 'Đăng nhập thành công (đã xác nhận ghi đè phiên cũ)'
+    });
+    setSessionCookie(res, await issueToken({ id: adminId, username }, { force: true }));
     res.json({ ok: true });
   } catch (err) { next(err); }
 });

@@ -42,6 +42,67 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.68 — Hỏi xác nhận trước khi ghi đè phiên đăng nhập (cả 3 app)
+
+**Theo yêu cầu người dùng** (kèm ảnh HCRC Workspace minh hoạ): "khi đăng
+nhập mà tài khoản đang đăng nhập ở thiết bị khác sẽ hiện lên thông báo và
+logout tài khoản ở thiết bị đó ra được không? Làm ở cả 3 trang nhé." Sau
+khi trao đổi, chốt thiết kế: thêm `LastLoginAt`, đăng nhập mới kiểm tra
+"đã đăng nhập trong 8 giờ gần đây chưa" — có thì dừng lại hỏi xác nhận
+(Huỷ/OK) thay vì ghi đè âm thầm như bản 10.6; bấm OK mới thật sự cấp
+phiên (không cần nhập lại mật khẩu/2FA/vân tay).
+
+**Khác bản 10.6** (vẫn GIỮ NGUYÊN cơ chế đó — phiên cũ bị từ chối NGAY ở
+lượt gọi API kế tiếp của nó): bản 10.6 ghi đè NGAY, ÂM THẦM; bản này thêm
+1 bước HỎI TRƯỚC khi ghi đè, chỉ khi phát hiện khả năng trùng phiên.
+
+**Đã làm** (cả 3 app rp-user/etl-admin/api-admin, dùng chung 1 kiến trúc):
+- Cột `LastLoginAt` (`app.Users`/`admin.AdminUsers`, cả 3 CSDL) — ghi
+  CÙNG LÚC với `CurrentSessionId` mỗi lần `issueToken()` cấp phiên đầy đủ.
+- `issueToken(user, { checkConflict, force })` — `checkConflict=true` (CHỈ
+  4/5 điểm gọi/app: đăng nhập mật khẩu, 2FA verify, vân tay sau mật khẩu,
+  vân tay đăng nhập thẳng — KHÔNG áp cho bước "Đăng ký 2FA lần đầu" vì
+  route đó còn phải trả 10 mã khôi phục chỉ hiện đúng 1 lần, thêm bước hỏi
+  xác nhận ở đó sẽ làm mất mã) kiểm tra `LastLoginAt` còn trong 8h không —
+  có thì ném `SessionConflictError` thay vì cấp phiên, route bắt lỗi này
+  trả 409 kèm `overrideToken` (JWT ngắn hạn 5 phút, mirror
+  `issuePending2FAToken`). `maybeSlideSession()` (trượt phiên nền) KHÔNG
+  truyền `checkConflict` — mặc định false, không bao giờ bị hỏi xác nhận
+  (đó không phải 1 lượt đăng nhập mới).
+- Route mới `POST /auth/confirm-session` (`requireSessionOverrideToken`)
+  — xác thực `overrideToken`, cấp phiên thật với `force:true`.
+- Frontend (`lib/AuthContext.jsx`) — `withSessionConflict()` BỌC quanh cả
+  4 hàm đăng nhập, hiện 1 hộp thoại DÙNG CHUNG (qua Portal, `components/
+  Modal.jsx`) khi gặp lỗi `sessionConflict` — nút OK tự khoá "Đang xử
+  lý..." lúc gọi `/auth/confirm-session`; Huỷ ném lỗi `{cancelled:true}`
+  để `LoginPage.jsx` biết KHÔNG hiện chữ đỏ (giống cách đã xử lý huỷ hộp
+  thoại vân tay của trình duyệt).
+
+**Lưu ý đã biết trước**: đăng xuất bình thường KHÔNG xoá `LastLoginAt`
+(JWT không thu hồi được qua logout) — hộp thoại CÓ THỂ hiện ra dù phiên
+cũ đã đăng xuất sạch trong vòng 8h, CHẤP NHẬN ĐƯỢC (đúng tinh thần "có
+thể" — người dùng đã xác nhận phương án này, đánh đổi lấy việc không cần
+xây thêm cơ chế theo dõi "đang hoạt động thật" phức tạp hơn).
+
+**Triển khai**:
+```bash
+git pull origin main
+pm2 restart rp-server etl api-server
+cd rp-user && npm run build      # rồi deploy lại dist/
+cd ../etl-admin && npm run build
+cd ../api-admin && npm run build
+```
+Không cần chạy script resync nào — cột mới tự thêm qua schema.sql khi
+server khởi động (CREATE OR ALTER quen thuộc).
+
+**Kiểm tra**: đăng nhập 1 tài khoản ở trình duyệt A, rồi đăng nhập LẠI
+đúng tài khoản đó ở trình duyệt B (trong vòng 8h) — trình duyệt B phải
+hiện hộp thoại "có thể đang đăng nhập ở nơi khác". Bấm Huỷ → B ở lại
+trang đăng nhập, A vẫn dùng được bình thường. Thử lại, bấm OK → B đăng
+nhập thành công, A bị văng ra (gọi API bất kỳ ở A nhận lỗi 401 "đã đăng
+nhập ở nơi khác"). Lặp lại cho cả 3 app và cả 2FA/vân tay (tài khoản
+Admin hệ thống).
+
 ## 10.67 — Sửa lỗi thật: API "Tồn kho" (`ton-kho`) luôn trả `maDiem: null` cho đối tác
 
 **Theo báo cáo đối tác BRGMART/HCRC Workspace** (kèm log quét TOÀN BỘ

@@ -36,7 +36,8 @@ const tlsCertificateRoutes = require('./routes/tlsCertificate');
 const trustedCaRoutes = require('./routes/trustedCa');
 const {
   verifyCredentials, isSystemRoleForRateLimit, issueToken, COOKIE_NAME, getSecret, setSessionCookie,
-  issuePending2FAToken, issueSetupRequiredToken
+  issuePending2FAToken, issueSetupRequiredToken, SessionConflictError, issueSessionOverrideToken,
+  requireSessionOverrideToken
 } = require('./lib/auth');
 const { getUserContext } = require('./lib/permissions');
 const reportEmailScheduler = require('./jobs/reportEmailScheduler');
@@ -178,8 +179,13 @@ app.post('/api/auth/login', async (req, res, next) => {
     await logAction({ ip: req.ip, user: { sub: user.id, username: user.username } }, {
       module: 'Đăng nhập', actionType: 'DANG_NHAP', description: 'Đăng nhập thành công' + fallbackNote
     });
-    setSessionCookie(res, await issueToken(user));
-    res.json({ ok: true });
+    try {
+      setSessionCookie(res, await issueToken(user, { checkConflict: true }));
+      res.json({ ok: true });
+    } catch (conflictErr) {
+      if (!(conflictErr instanceof SessionConflictError)) throw conflictErr;
+      res.status(409).json({ error: conflictErr.message, sessionConflict: true, overrideToken: issueSessionOverrideToken(user) });
+    }
   } catch (err) {
     // Account AuthSource='hcrcWorkspace' nhưng dịch vụ ngoài không phản hồi
     // được (mạng/timeout/HTTP lỗi, xem lib/hcrcWorkspaceClient.js) — KHÁC
@@ -190,6 +196,24 @@ app.post('/api/auth/login', async (req, res, next) => {
     }
     next(err);
   }
+});
+
+// POST /api/auth/confirm-session (bản 10.68) — gọi SAU KHI người dùng bấm
+// "OK" ở hộp thoại "có thể đang đăng nhập ở nơi khác" (xem SessionConflictError
+// ở trên) — KHÔNG bắt nhập lại mật khẩu/2FA/vân tay, chỉ cần overrideToken
+// đã cấp kèm lỗi 409 lúc trước (requireSessionOverrideToken xác thực token
+// đó). force:true bỏ qua hẳn bước kiểm tra "đã đăng nhập trong 8h gần đây",
+// cấp phiên thật NGAY — phiên cũ (nếu còn) bị từ chối ở lượt gọi API kế
+// tiếp của nó, đúng cơ chế "chỉ 1 phiên đăng nhập" đã có từ bản 10.6.
+app.post('/api/auth/confirm-session', requireSessionOverrideToken, async (req, res, next) => {
+  try {
+    const { sub: userId, username } = req.sessionOverridePayload;
+    await logAction({ ip: req.ip, user: { sub: userId, username } }, {
+      module: 'Đăng nhập', actionType: 'DANG_NHAP', description: 'Đăng nhập thành công (đã xác nhận ghi đè phiên cũ)'
+    });
+    setSessionCookie(res, await issueToken({ id: userId, username }, { force: true }));
+    res.json({ ok: true });
+  } catch (err) { next(err); }
 });
 
 app.post('/api/auth/logout', (req, res) => {

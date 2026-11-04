@@ -27,7 +27,9 @@ function TwoFactorVerifyStep({ token, onDone }) {
       await verifyTwoFactor(token, useRecovery ? { recoveryCode: code } : { code });
       onDone();
     } catch (err) {
-      setError(err.message);
+      // err.cancelled (bản 10.68) — người dùng tự bấm "Huỷ" ở hộp thoại
+      // "có thể đang đăng nhập ở nơi khác" (xem lib/AuthContext.jsx).
+      if (!err.cancelled) setError(err.message);
     } finally {
       setSubmitting(false);
     }
@@ -48,7 +50,8 @@ function TwoFactorVerifyStep({ token, onDone }) {
     } catch (err) {
       // Người dùng tự bấm Huỷ ở hộp thoại trình duyệt -> không phải lỗi
       // thật, không cần hiện thông báo đỏ (vẫn còn cách nhập mã 6 số).
-      if (err?.name !== 'NotAllowedError') setError(err.message);
+      // err.cancelled (bản 10.68) — xem chú thích ở handleSubmit() trên.
+      if (err?.name !== 'NotAllowedError' && !err.cancelled) setError(err.message);
     } finally {
       setWebauthnBusy(false);
     }
@@ -194,7 +197,8 @@ export default function LoginPage() {
       if (result?.twofa) setTwofa(result);
       else rememberUsername(username);
     } catch (err) {
-      setError(err.message);
+      // err.cancelled (bản 10.68) — xem chú thích ở TwoFactorVerifyStep.
+      if (!err.cancelled) setError(err.message);
     } finally {
       setCaptchaAnswer('');
       captchaRef.current?.refresh();
@@ -214,7 +218,8 @@ export default function LoginPage() {
       rememberUsername(username);
       setDone(true);
     } catch (err) {
-      if (err?.name !== 'NotAllowedError') setError(err.message);
+      // err.cancelled (bản 10.68) — xem chú thích ở TwoFactorVerifyStep.
+      if (err?.name !== 'NotAllowedError' && !err.cancelled) setError(err.message);
     } finally {
       setWebauthnBusy(false);
     }
