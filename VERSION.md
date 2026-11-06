@@ -42,6 +42,43 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.69 — Sửa lỗi thật: PDF báo cáo doanh thu "mất chữ" ở khối 3 thẻ tổng
+
+**Theo báo cáo người dùng** (kèm ảnh chụp PDF thật): khối 3 thẻ "Tổng
+doanh thu toàn hệ thống/Khối MART/Khối MINIMART" trong PDF xuất ra hiện
+chữ vỡ/bị cắt giữa chừng (vd "93% chi tiêu▌5% cùn...").
+
+**Nguyên nhân THẬT (đã nhúng font thật qua fontkit để kiểm chứng, không
+đoán)** — 2 lỗi độc lập cộng dồn:
+1. Ký tự `▲`/`▼` (dùng để chỉ tăng/giảm so với cùng kỳ) **không có trong
+   bộ glyph của font Inter Vietnamese** đang nhúng cho PDF
+   (`font.glyphForCodePoint()` trả `glyphId=0` — `.notdef`) — PDF vẽ ra 1
+   khối gạch sọc ("tofu") thay vì mũi tên, đúng hình người dùng chụp.
+2. Dòng gộp "Chi tiêu: ... · X% chỉ tiêu · ▲ Y% cùng kỳ" **quá dài** so
+   với bề rộng 2 thẻ MART/MINIMART (hẹp hơn thẻ Tổng) — `fitText()` tự cắt
+   bớt kèm "…", cắt ngay giữa từ ("cùn…").
+
+**Đã sửa** (`rp-server/lib/exportPdf.js`, hàm `drawSummaryCards()`):
+- Đổi ký tự `▲`/`▼` sang CHỮ "Tăng"/"Giảm" — font đã xác nhận mã hoá đủ
+  bảng chữ Việt thường (đồng nhất với `DashboardPage.jsx` đã đổi "Lên"/
+  "Xuống" thay ▲▼ trước đó).
+- TÁCH dòng "cùng kỳ" ra RIÊNG 1 dòng (không gộp chung dòng "Chi tiêu"
+  nữa) — đã đo lại bằng font thật, cả 2 dòng đều THỪA chỗ dù số liệu lớn
+  tới hàng tỷ đồng. Thẻ cao thêm 12pt (82pt thay vì 70pt) để đủ chỗ.
+
+**Triển khai**:
+```bash
+git pull origin main
+pm2 restart rp-server
+```
+Không cần build lại frontend nào (chỉ đổi PDF xuất từ rp-server), không
+cần resync ETL.
+
+**Kiểm tra**: xuất PDF 1 trong 4 báo cáo "Báo cáo nhanh doanh thu" (LDTD/
+HCRC gốc hoặc Thành viên) → khối 3 thẻ đầu trang phải hiện ĐỦ chữ, không
+còn ký tự lạ/chữ bị cắt — dòng "Tăng X%/Giảm X% so với cùng kỳ" tách
+riêng, rõ ràng.
+
 ## 10.68 — Hỏi xác nhận trước khi ghi đè phiên đăng nhập (cả 3 app)
 
 **Theo yêu cầu người dùng** (kèm ảnh HCRC Workspace minh hoạ): "khi đăng

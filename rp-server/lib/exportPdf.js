@@ -109,8 +109,28 @@ const CARDS_LAIGOP_SIZE = 7;
 const CARDS_LABEL_BASELINE_OFFSET = 14;
 const CARDS_VALUE_BASELINE_OFFSET = 32;
 const CARDS_META_BASELINE_OFFSET = 48;
-const CARDS_LAIGOP_BASELINE_OFFSET = 62;
-const CARDS_CONTENT_HEIGHT = 70; // chiều cao Ô thẻ — ĐỦ chứa dòng Lãi gộp (offset 62) + đệm đáy
+// CARDS_META2_BASELINE_OFFSET (bản 10.69, SỬA LỖI THẬT — người dùng báo
+// "PDF 4 báo cáo doanh thu bị mất chữ") — TÁCH phần "cùng kỳ" ra DÒNG
+// RIÊNG thay vì nhồi chung 1 dòng với "Chi tiêu: ... · X% chỉ tiêu" như
+// trước. 2 nguyên nhân ĐỘC LẬP gộp lại gây đúng hiện tượng người dùng thấy
+// (đối chiếu bằng cách nhúng thật font Inter Vietnamese qua fontkit rồi
+// render thử — xem /tmp/test-arrow.pdf lúc điều tra):
+//   1. Ký tự "▲"/"▼" KHÔNG có trong bộ glyph của font Inter Vietnamese
+//      (`font.glyphForCodePoint()` trả glyphId=0 — .notdef) — PDF vẽ ra 1
+//      khối gạch sọc ("tổu"/tofu glyph) thay vì mũi tên, ĐÚNG hình người
+//      dùng chụp gửi. Đổi hẳn sang CHỮ "Tăng"/"Giảm" (font đã xác nhận mã
+//      hoá đủ bảng chữ Việt thường, xem chú thích đầu file) — bỏ hẳn ký tự
+//      mũi tên, không chỉ riêng ở PDF (đồng nhất với DashboardPage.jsx đã
+//      đổi "Lên"/"Xuống" thay ▲▼ vì "rõ nghĩa hơn").
+//   2. Dòng gộp "Chi tiêu: 2.119.492.874 đ · 93% chỉ tiêu · ▲ 5% cùng kỳ"
+//      QUÁ DÀI so với bề rộng thẻ MART/MINIMART (hẹp hơn thẻ Tổng) —
+//      fitText() tự cắt bớt kèm "…" ở BẤT KỲ ĐÂU vừa đủ, cắt ngay giữa từ
+//      ("cùn…") — không phải lỗi hiển thị, chỉ là KHÔNG ĐỦ CHỖ 1 dòng. Tách
+//      "cùng kỳ" ra dòng riêng (đã đo bằng font thật — cả 2 dòng đều THỪA
+//      chỗ dù số liệu lớn tới hàng tỷ, xem chú thích ở drawSummaryCards()).
+const CARDS_META2_BASELINE_OFFSET = 59;
+const CARDS_LAIGOP_BASELINE_OFFSET = 73; // lùi xuống 11pt (62->73) nhường chỗ dòng "cùng kỳ" mới
+const CARDS_CONTENT_HEIGHT = 82; // chiều cao Ô thẻ — ĐỦ chứa dòng Lãi gộp (offset 73) + đệm đáy
 const CARDS_BLOCK_HEIGHT = CARDS_CONTENT_HEIGHT + 10; // + khoảng cách dưới trước tiêu đề bảng
 const CARDS_GAP = 8; // khoảng cách ngang giữa các thẻ
 
@@ -492,16 +512,22 @@ async function exportPdf(definition, rows) {
       const valueStr = fitText(`${formatCellText(e.card.thucDat, {})} đ`, boldFont, CARDS_VALUE_SIZE, w - padX * 2);
       page.drawText(valueStr, { x: cx + padX, y: top - CARDS_VALUE_BASELINE_OFFSET, size: CARDS_VALUE_SIZE, font: boldFont, color: valueColor });
 
+      const metaColor = e.hero ? hexToRgb01(SUMMARY_CARD_COLORS.heroTarget) : hexToRgb01(SUMMARY_CARD_COLORS.inkSoft);
       if (e.card.chiTieu !== null) {
         let meta = `Chỉ tiêu: ${formatCellText(e.card.chiTieu, {})} đ`;
         if (e.card.tyLeDat !== null) meta += ` · ${Math.round(e.card.tyLeDat)}% chỉ tiêu`;
-        if (e.card.lfl !== null) {
-          const delta = Math.round(e.card.lfl) - 100;
-          meta += ` · ${delta >= 0 ? '▲' : '▼'} ${Math.abs(delta)}% cùng kỳ`;
-        }
-        const metaColor = e.hero ? hexToRgb01(SUMMARY_CARD_COLORS.heroTarget) : hexToRgb01(SUMMARY_CARD_COLORS.inkSoft);
         const metaStr = fitText(meta, font, CARDS_META_SIZE, w - padX * 2);
         page.drawText(metaStr, { x: cx + padX, y: top - CARDS_META_BASELINE_OFFSET, size: CARDS_META_SIZE, font, color: metaColor });
+      }
+      // Dòng "cùng kỳ" (bản 10.69) — TÁCH RIÊNG khỏi dòng Chỉ tiêu ở trên
+      // (xem chú thích CARDS_META2_BASELINE_OFFSET) — chữ "Tăng"/"Giảm"
+      // thay ký tự "▲"/"▼" (font Inter Vietnamese không có glyph 2 ký tự
+      // đó, vẽ ra ô gạch sọc thay vì mũi tên).
+      if (e.card.lfl !== null) {
+        const delta = Math.round(e.card.lfl) - 100;
+        const meta2 = `${delta >= 0 ? 'Tăng' : 'Giảm'} ${Math.abs(delta)}% so với cùng kỳ`;
+        const meta2Str = fitText(meta2, font, CARDS_META_SIZE, w - padX * 2);
+        page.drawText(meta2Str, { x: cx + padX, y: top - CARDS_META2_BASELINE_OFFSET, size: CARDS_META_SIZE, font, color: metaColor });
       }
 
       // Dòng Lãi gộp (bản 10.45) — CHỈ vẽ khi báo cáo có khai (tuỳ chọn,

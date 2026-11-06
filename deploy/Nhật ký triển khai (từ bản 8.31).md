@@ -14,6 +14,23 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.69 — Sửa lỗi thật: PDF báo cáo doanh thu "mất chữ" ở khối 3 thẻ tổng
+
+**Thay đổi**: `rp-server/lib/exportPdf.js` — đổi ký tự `▲`/`▼` (không có
+trong font PDF, vẽ ra ô gạch sọc) sang chữ "Tăng"/"Giảm"; tách dòng
+"cùng kỳ" ra riêng (trước gộp chung dòng "Chi tiêu" nên quá dài, bị cắt
+chữ giữa chừng ở thẻ MART/MINIMART).
+
+**Triển khai**:
+```bash
+git pull origin main
+pm2 restart rp-server
+```
+Không build lại frontend, không resync ETL.
+
+**Kiểm tra**: xuất PDF 1 trong 4 báo cáo "Báo cáo nhanh doanh thu" →
+khối 3 thẻ đầu trang hiện đủ chữ, không còn ký tự vỡ/chữ bị cắt.
+
 ## 10.68 — Hỏi xác nhận trước khi ghi đè phiên đăng nhập (cả 3 app)
 
 **Thay đổi**: đăng nhập tài khoản đang có phiên trong 8h gần đây (ở nơi
