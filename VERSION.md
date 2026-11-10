@@ -42,6 +42,47 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.71 — Thêm API "Giá bán theo mã hàng" cho đối tác ngoài
+
+**Theo yêu cầu người dùng** — cung cấp API tra giá thường + giá khuyến
+mại theo mã hàng tại từng siêu thị, dùng cho ứng dụng BRG Scan and
+Checkout (và các app khác sau này cần check giá) khi khách tự quét mã
+thanh toán. Tra ĐÚNG 1 mã khi quét (khác hẳn API "Tồn kho toàn hệ thống"
+tải trọn gói cả danh mục) — hợp usage "quét tới đâu, hỏi giá tới đó".
+
+**Nguồn dữ liệu** (xác nhận bằng dữ liệu thật trên DSMART16, không đoán):
+`dbo.RTPRICE` (khoá `ZONE_CODE`+`SKU_ID`, đã có sẵn cột `DISC_RTPR` = giá
+ĐÃ TÍNH SẴN sau khuyến mại đang hiệu lực khi `DISC_CODE` khác rỗng — DSMART
+tự cập nhật liên tục, không cần tự viết lại luật khuyến mại phức tạp ở
+`dbo.RDISCINF`) + `dbo.SKU_DEF` (tên hàng/mã vạch) + `dbo.STOCK.ZONE_CODE`
+(siêu thị thuộc vùng giá nào).
+
+**Đã thêm**:
+- VIEW `dbo.vw_GiaBanTheoSKU` trên DSMART16.
+- 2 job đồng bộ ETL mới: "Vùng giá theo siêu thị" (domain `vung_gia_stk`,
+  ~34 dòng) + "Giá bán theo SKU" (domain `giaban_zone_sku`, đồng bộ TĂNG
+  DẦN thật — chỉ lấy giá VỪA ĐỔI nhờ cột `MODI_DATE` có giờ thật của
+  `RTPRICE`, khác "Tồn kho" phải quét lại nguyên domain mỗi lượt).
+- Báo cáo `gia-ban` (`api.ReportCatalog`) kiểu MỚI `singleLookup` — trả
+  ĐÚNG 1 kết quả (không phân trang), route riêng
+  `GET /api/v1/reports/gia-ban/run?maHang=...&maDiem=...`.
+
+**Triển khai**:
+```bash
+git pull origin main
+cd deploy && # chạy "Thiết lập VIEW Giá bán theo SKU (DSMART16).sql" trên CSDL DSMART16
+cd ../etl && node scripts/seedVungGiaSync.js && node scripts/seedGiaBanSync.js
+cd ../api-server && node scripts/seedGiaBanReport.js
+pm2 restart etl api-server
+```
+Sau đó vào api-admin → "Đối tác" → đúng đối tác cần dùng → "Báo cáo được
+gọi" → tick "Giá bán theo mã hàng" (mặc định KHÔNG đối tác nào gọi được).
+
+**Kiểm tra**: xem `api-gia-ban-cho-doi-tac.md` mục 7 — phải thấy
+`coKhuyenMai=true` cho mã đang có khuyến mại, `false`/`giaKhuyenMai=null`
+cho mã không có; thiếu `maHang`/`maDiem` → `400`; `maDiem` không tồn tại
+→ `404`.
+
 ## 10.70 — Sửa lỗi thật: job đồng bộ "Tồn kho" lỗi `#Staging` mọi lượt chạy
 
 **Theo báo cáo đối tác** HCRC Workspace (dùng API `ton-kho`) — tồn kho

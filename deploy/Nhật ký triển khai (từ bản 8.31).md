@@ -14,6 +14,28 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.71 — Thêm API "Giá bán theo mã hàng" cho đối tác ngoài
+
+**Thay đổi**: API mới `GET /api/v1/reports/gia-ban/run?maHang=...&maDiem=...`
+(tra giá thường + giá khuyến mại 1 mã hàng tại 1 siêu thị, không phân
+trang) — nguồn `dbo.RTPRICE`/`dbo.SKU_DEF`/`dbo.STOCK.ZONE_CODE` trên
+DSMART16, xem chi tiết `api-gia-ban-cho-doi-tac.md`.
+
+**Triển khai**:
+```bash
+git pull origin main
+# Chạy "deploy/Thiết lập VIEW Giá bán theo SKU (DSMART16).sql" trên CSDL DSMART16
+cd etl && node scripts/seedVungGiaSync.js && node scripts/seedGiaBanSync.js
+cd ../api-server && node scripts/seedGiaBanReport.js
+pm2 restart etl api-server
+```
+Rồi vào api-admin → "Đối tác" → đúng đối tác → "Báo cáo được gọi" → tick
+"Giá bán theo mã hàng".
+
+**Kiểm tra**: gọi thử API với 1 mã hàng đang có khuyến mại (tra qua
+`SELECT TOP 5 * FROM dbo.RTPRICE WHERE DISC_CODE <> ''`) — `coKhuyenMai`
+phải là `true`; với mã không có khuyến mại — `false`.
+
 ## 10.70 — Sửa lỗi thật: job đồng bộ "Tồn kho" lỗi `#Staging` mọi lượt chạy
 
 **Thay đổi**: `etl/lib/upsert.js` — nhánh KeepHistory=0 (job "Tồn kho Chi
