@@ -29,16 +29,20 @@ X-API-Key: <api key được cấp>
 
 ```
 GET /api/v1/reports/gia-ban/run?maHang=<mã hàng>&maDiem=<mã Điểm>
+GET /api/v1/reports/gia-ban/run?maVach=<mã vạch>&maDiem=<mã Điểm>
 ```
 
-**Tham số (BẮT BUỘC cả 2):**
+**Tham số:**
 
-| Tham số | Mô tả |
-|---|---|
-| `maHang` | Mã mặt hàng (SKU nội bộ, 10 chữ số — giống `maHang` ở API Tồn kho) |
-| `maDiem` | Mã Điểm (siêu thị) — giống `maDiem` ở API Tồn kho |
+| Tham số | Bắt buộc? | Mô tả |
+|---|---|---|
+| `maDiem` | BẮT BUỘC | Mã Điểm (siêu thị) — giống `maDiem` ở API Tồn kho |
+| `maHang` | 1 trong 2 | Mã mặt hàng (SKU nội bộ, 10 chữ số — giống `maHang` ở API Tồn kho) |
+| `maVach` | 1 trong 2 | Mã vạch THẬT in trên sản phẩm (EAN-13) — dùng khi app quét mã vạch ở quầy, KHÔNG có sẵn mã nội bộ |
 
-Thiếu 1 trong 2 tham số → lỗi `400`.
+Gửi `maDiem` + ÍT NHẤT 1 trong 2 (`maHang` hoặc `maVach`) — gửi cả 2 thì
+ưu tiên `maHang`. Thiếu `maDiem`, hoặc thiếu cả `maHang` lẫn `maVach` →
+lỗi `400`.
 
 ## 4. Cấu trúc phản hồi
 
@@ -78,13 +82,17 @@ Thiếu 1 trong 2 tham số → lỗi `400`.
 ```bash
 curl "https://api.brgmart.vn/api/v1/reports/gia-ban/run?maHang=2003330491&maDiem=001" \
   -H "X-API-Key: <api key được cấp>"
+
+# Hoặc tra bằng mã vạch quét được ở quầy:
+curl "https://api.brgmart.vn/api/v1/reports/gia-ban/run?maVach=8934696001589&maDiem=001" \
+  -H "X-API-Key: <api key được cấp>"
 ```
 
 ## 6. Mã lỗi
 
 | Mã | Ý nghĩa | Xử lý |
 |---|---|---|
-| `400` | Thiếu `maHang` hoặc `maDiem` | Kiểm tra lại tham số |
+| `400` | Thiếu `maDiem`, hoặc thiếu cả `maHang` lẫn `maVach` | Kiểm tra lại tham số |
 | `401` | Thiếu/sai `X-API-Key` | Kiểm tra lại header |
 | `403` | API key hợp lệ nhưng chưa được cấp quyền gọi báo cáo này | Liên hệ IT BRGMART xác nhận quyền |
 | `404` | Không tìm thấy mã Điểm, không xác định được vùng giá cho siêu thị đó, hoặc không có giá cho đúng mã hàng này | Kiểm tra lại `maHang`/`maDiem`, hoặc mã hàng chưa khai giá ở vùng này |
@@ -146,8 +154,11 @@ biết mã nào) — `coKhuyenMai` phải là `true` và `giaKhuyenMai` có giá
 nhỏ hơn `giaThuong`. Thử tiếp với 1 mã hàng KHÔNG có khuyến mại —
 `coKhuyenMai` phải là `false`, `giaKhuyenMai` là `null`.
 
+Thử lại CÙNG mã hàng đó bằng `maVach` thay vì `maHang` (lấy mã vạch THẬT
+từ chính kết quả vừa trả về ở trên) → phải ra ĐÚNG kết quả giống hệt.
+
 Thử `maDiem` không tồn tại → phải trả `404` (không phải `500`). Thử thiếu
-`maHang` hoặc `maDiem` → phải trả `400`.
+`maDiem`, hoặc thiếu cả `maHang` lẫn `maVach` → phải trả `400`.
 
 **Phụ thuộc dùng chung với API `ton-kho`** (KHÔNG tạo lại): "Ánh xạ Điểm -
 STK_ID" (`etl.DiemStkMapping`, `api-server/lib/diemStkMapping.js`), cơ chế

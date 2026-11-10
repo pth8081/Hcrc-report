@@ -33,7 +33,10 @@ const DOMAIN = 'giaban_zone_sku';
 const DEFINITION = {
   title: 'Giá bán theo mã hàng',
   domain: DOMAIN,
-  singleLookup: { maHangField: 'MaHangHienThi', zoneField: 'MaVungGia' },
+  // maVachField (bản 10.72) — cho phép tra bằng mã vạch THẬT (app quét ở
+  // quầy đọc được mã vạch in trên sản phẩm, không phải mã hàng nội bộ) —
+  // xem handleSingleLookup() ở routes/v1/reports.js.
+  singleLookup: { maHangField: 'MaHangHienThi', maVachField: 'MaVach', zoneField: 'MaVungGia' },
   columns: [
     { key: 'maHang', label: 'Mã mặt hàng', formula: 'MaHangHienThi' },
     { key: 'tenHang', label: 'Tên mặt hàng', formula: 'TenHang' },

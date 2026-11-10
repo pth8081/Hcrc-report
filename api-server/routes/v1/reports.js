@@ -42,13 +42,23 @@ router.use(requireApiKey('reports'));
 // TÁCH RIÊNG khỏi nhánh phân trang bên dưới (không dùng chung
 // definition.filters/forcedConditions/translateStkToStore, để không đụng
 // hành vi của các báo cáo khác đang chạy ổn định). `definition.singleLookup`
-// = { maHangField, zoneField } — tên field THÔ trong Dimensions JSON (khác
-// `columns[].key`, giống quy ước rawStkField ở translateStkToStore).
+// = { maHangField, maVachField, zoneField } — tên field THÔ trong
+// Dimensions JSON (khác `columns[].key`, giống quy ước rawStkField ở
+// translateStkToStore).
+//
+// maHang HOẶC maVach (bản 10.72, SỬA theo yêu cầu người dùng — máy quét ở
+// quầy đọc MÃ VẠCH in trên sản phẩm, KHÔNG phải mã hàng nội bộ; bắt app
+// phải tự tra trước mã nội bộ từ mã vạch rồi mới gọi được API là vô lý,
+// quay lại đúng vấn đề API này sinh ra để giải quyết) — CHO PHÉP tra bằng
+// BẤT KỲ cái nào app đang có trong tay, không bắt buộc đúng 1 cái. Có CẢ
+// HAI thì ưu tiên `maHang` (đáng tin hơn — mã vạch có thể trùng/thiếu ở 1
+// số mã hàng tự dán nhãn nội bộ).
 async function handleSingleLookup(req, res, definition, columns) {
   const maHang = req.query.maHang;
+  const maVach = req.query.maVach;
   const maDiem = req.query.maDiem;
-  if (!maHang || !maDiem) {
-    return res.status(400).json({ error: 'Thiếu tham số bắt buộc: maHang, maDiem' });
+  if (!maDiem || (!maHang && !maVach)) {
+    return res.status(400).json({ error: 'Thiếu tham số bắt buộc: maDiem, và ít nhất 1 trong 2 tham số maHang hoặc maVach' });
   }
 
   const diemMapping = await loadDiemStkMapping();
@@ -63,23 +73,26 @@ async function handleSingleLookup(req, res, definition, columns) {
     return res.status(404).json({ error: `Chưa xác định được vùng giá cho siêu thị với mã Điểm "${maDiem}" — kiểm tra lại job đồng bộ "Vùng giá theo siêu thị"` });
   }
 
-  const cacheKey = ['gia-ban-singleLookup', req.params.reportId, maHang, zones.sort(), req.query.fields || ''];
+  const t = definition.singleLookup;
+  const matchField = maHang ? t.maHangField : t.maVachField;
+  const matchValue = maHang || maVach;
+
+  const cacheKey = ['gia-ban-singleLookup', req.params.reportId, matchField, matchValue, zones.sort(), req.query.fields || ''];
   let payload = reportResultCache.get(cacheKey);
   if (!payload) {
-    const t = definition.singleLookup;
     const dwhPool = await getPool('DWH');
-    const request = dwhPool.request().input('domain', sql.VarChar(50), definition.domain).input('maHang', sql.NVarChar(200), maHang);
+    const request = dwhPool.request().input('domain', sql.VarChar(50), definition.domain).input('matchValue', sql.NVarChar(200), matchValue);
     const zoneParams = zones.map((z, i) => { request.input(`zone${i}`, sql.NVarChar(50), z); return `@zone${i}`; });
     const result = await request.query(`
       SELECT TOP 1 Id, SourceSystem, EntityCode, EventDate, Dimensions, Measures, SyncedAt
       FROM dwh.ReportFacts
       WHERE Domain = @domain
-        AND RTRIM(JSON_VALUE(Dimensions, '$.${t.maHangField}')) = @maHang
+        AND RTRIM(JSON_VALUE(Dimensions, '$.${matchField}')) = @matchValue
         AND RTRIM(JSON_VALUE(Dimensions, '$.${t.zoneField}')) IN (${zoneParams.join(', ')})
       ORDER BY EventDate DESC, Id DESC
     `);
     if (!result.recordset.length) {
-      return res.status(404).json({ error: `Không tìm thấy giá cho mã hàng "${maHang}" ở vùng giá của siêu thị "${maDiem}"` });
+      return res.status(404).json({ error: `Không tìm thấy giá cho ${maHang ? 'mã hàng' : 'mã vạch'} "${matchValue}" ở vùng giá của siêu thị "${maDiem}"` });
     }
     const row = { id: result.recordset[0].Id, sourceSystem: result.recordset[0].SourceSystem, entityCode: result.recordset[0].EntityCode, eventDate: result.recordset[0].EventDate, dimensions: JSON.parse(result.recordset[0].Dimensions || '{}'), measures: result.recordset[0].Measures ? JSON.parse(result.recordset[0].Measures) : {}, syncedAt: result.recordset[0].SyncedAt };
     payload = { reportId: req.params.reportId, ...projectColumns(row, columns) };
