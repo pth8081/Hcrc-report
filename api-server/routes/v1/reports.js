@@ -30,9 +30,63 @@ const { sql, getPool } = require('../../db');
 const { requireApiKey } = require('../../lib/apiAuth');
 const { runReport, projectColumns, describeColumns } = require('../../lib/reportEngine');
 const reportResultCache = require('../../lib/reportResultCache');
+const { loadDiemStkMapping } = require('../../lib/diemStkMapping');
+const { loadZoneLookup } = require('../../lib/zoneLookup');
 
 const router = express.Router();
 router.use(requireApiKey('reports'));
+
+// singleLookup (bản 10.71+, theo yêu cầu người dùng — API "Giá bán" tra
+// ĐÚNG 1 mã hàng tại ĐÚNG 1 siêu thị mỗi lần quét, KHÔNG phân trang/tải
+// trọn gói như "ton-kho" — xem "api-gia-ban-cho-doi-tac.md") — HOÀN TOÀN
+// TÁCH RIÊNG khỏi nhánh phân trang bên dưới (không dùng chung
+// definition.filters/forcedConditions/translateStkToStore, để không đụng
+// hành vi của các báo cáo khác đang chạy ổn định). `definition.singleLookup`
+// = { maHangField, zoneField } — tên field THÔ trong Dimensions JSON (khác
+// `columns[].key`, giống quy ước rawStkField ở translateStkToStore).
+async function handleSingleLookup(req, res, definition, columns) {
+  const maHang = req.query.maHang;
+  const maDiem = req.query.maDiem;
+  if (!maHang || !maDiem) {
+    return res.status(400).json({ error: 'Thiếu tham số bắt buộc: maHang, maDiem' });
+  }
+
+  const diemMapping = await loadDiemStkMapping();
+  const diemInfo = diemMapping.get(maDiem);
+  if (!diemInfo || !diemInfo.maStkMoi.length) {
+    return res.status(404).json({ error: `Không tìm thấy siêu thị với mã Điểm "${maDiem}"` });
+  }
+
+  const zoneLookup = await loadZoneLookup();
+  const zones = [...new Set(diemInfo.maStkMoi.map(stk => zoneLookup.get(stk)).filter(Boolean))];
+  if (!zones.length) {
+    return res.status(404).json({ error: `Chưa xác định được vùng giá cho siêu thị với mã Điểm "${maDiem}" — kiểm tra lại job đồng bộ "Vùng giá theo siêu thị"` });
+  }
+
+  const cacheKey = ['gia-ban-singleLookup', req.params.reportId, maHang, zones.sort(), req.query.fields || ''];
+  let payload = reportResultCache.get(cacheKey);
+  if (!payload) {
+    const t = definition.singleLookup;
+    const dwhPool = await getPool('DWH');
+    const request = dwhPool.request().input('domain', sql.VarChar(50), definition.domain).input('maHang', sql.NVarChar(200), maHang);
+    const zoneParams = zones.map((z, i) => { request.input(`zone${i}`, sql.NVarChar(50), z); return `@zone${i}`; });
+    const result = await request.query(`
+      SELECT TOP 1 Id, SourceSystem, EntityCode, EventDate, Dimensions, Measures, SyncedAt
+      FROM dwh.ReportFacts
+      WHERE Domain = @domain
+        AND RTRIM(JSON_VALUE(Dimensions, '$.${t.maHangField}')) = @maHang
+        AND RTRIM(JSON_VALUE(Dimensions, '$.${t.zoneField}')) IN (${zoneParams.join(', ')})
+      ORDER BY EventDate DESC, Id DESC
+    `);
+    if (!result.recordset.length) {
+      return res.status(404).json({ error: `Không tìm thấy giá cho mã hàng "${maHang}" ở vùng giá của siêu thị "${maDiem}"` });
+    }
+    const row = { id: result.recordset[0].Id, sourceSystem: result.recordset[0].SourceSystem, entityCode: result.recordset[0].EntityCode, eventDate: result.recordset[0].EventDate, dimensions: JSON.parse(result.recordset[0].Dimensions || '{}'), measures: result.recordset[0].Measures ? JSON.parse(result.recordset[0].Measures) : {}, syncedAt: result.recordset[0].SyncedAt };
+    payload = { reportId: req.params.reportId, ...projectColumns(row, columns) };
+    reportResultCache.set(cacheKey, payload);
+  }
+  res.json(payload);
+}
 
 async function assertConsumerCanAccessReport(consumerId, reportId) {
   const adminPool = await getPool('ADMIN');
@@ -81,6 +135,10 @@ router.get('/:reportId/run', async (req, res, next) => {
 
     const { columns, error } = filterColumnsByFields(definition.columns, req.query.fields);
     if (error) return res.status(400).json({ error });
+
+    if (definition.singleLookup) {
+      return handleSingleLookup(req, res, definition, columns);
+    }
 
     // parseInt(...) || fallback (không phải "|| '1'" TRƯỚC KHI parseInt) —
     // giá trị không phải số (vd "abc") cho NaN, "NaN || fallback" mới đúng
