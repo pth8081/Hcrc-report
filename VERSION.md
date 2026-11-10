@@ -44,9 +44,9 @@ không phải 2 bản khác nhau.
 
 ## 10.70 — Sửa lỗi thật: job đồng bộ "Tồn kho" lỗi `#Staging` mọi lượt chạy
 
-**Theo báo cáo đối tác** BRG Scan and Checkout (HWS HCCU Space, dùng API
-`ton-kho`) — tồn kho trả về toàn 0, nhiều mã hàng quét trên kệ thấy có
-hàng nhưng API báo không tồn tại.
+**Theo báo cáo đối tác** HCRC Workspace (dùng API `ton-kho`) — tồn kho
+trả về toàn 0, nhiều mã hàng quét trên kệ thấy có hàng nhưng API báo
+không tồn tại.
 
 **Nguyên nhân THẬT (đã điều tra trực tiếp trên server thật, không đoán)**:
 job "Tồn kho Chi tiết theo SKU - Live (DSMART16)" (KeepHistory=0) lỗi
