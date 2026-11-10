@@ -27,6 +27,26 @@
 // do đã né ở bản 6.63 cho #StagingTargets — xem lib/salesTargetsImport.js)
 // — mọi giá trị đều escape thủ công thành literal T-SQL.
 //
+// SỬA TIẾP bản 10.70 — SỬA LỖI THẬT: dòng trên ("TỐI ĐA 2 lượt .query()")
+// hoá ra VẪN CHƯA đủ an toàn. Job "Tồn kho Chi tiết theo SKU - Live
+// (DSMART16)" (KeepHistory=0, đi nhánh "không giữ lịch sử" bên dưới) lỗi
+// "Invalid object name '#Staging'" ở MỌI lượt chạy — đã điều tra trực tiếp
+// trên server thật (brserv-report-vc), tái hiện và XÁC NHẬN CHẮC CHẮN:
+// Request THỨ 2 (`new sql.Request(tx)` của round-trip "dọn dòng cũ + MERGE"
+// bên dưới) — dù tạo trên CÙNG 1 Transaction với Request thứ 1 (tạo
+// #Staging) — KHÔNG thấy được #Staging mà Request thứ 1 vừa tạo, trên
+// chính driver/môi trường này. Gộp thành 1 .query() DUY NHẤT (SQL thuần,
+// không transaction) chạy ĐÚNG — xác nhận vấn đề KHÔNG nằm ở nội dung SQL,
+// mà ở việc có 2 Request RIÊNG trên transaction, dù giữ nguyên 1 Transaction
+// object. SỬA TẬN GỐC: nhánh "không giữ lịch sử" bên dưới KHÔNG CÒN đọc kết
+// quả dò lịch sử ở tầng JS để quyết định có DELETE hay không nữa (cách đó
+// BẮT BUỘC phải tách 2 Request vì JS cần thấy kết quả round-trip 1 trước
+// khi quyết định round-trip 2) — chuyển toàn bộ quyết định "chặn vì xoá quá
+// nhiều lịch sử" (shouldBlockHistoryWipe cũ) vào NGAY TRONG T-SQL bằng
+// IF...RAISERROR...RETURN (xem STALE_GUARD_AND_DELETE_SQL), để CẢ HÀM chỉ
+// còn ĐÚNG 1 lượt .query() DUY NHẤT cho MỌI trường hợp (keepHistory lẫn
+// không), không còn Request thứ 2 nào trên transaction nữa.
+//
 // CHIA LÔ THEO TRANSACTION (ROWS_PER_TRANSACTION, xem bên dưới) — gộp batch
 // ở trên (bản 6.68) chỉ đúng cho lượng dòng VỪA PHẢI (job "Live" ~600 dòng
 // chạy ổn): job "Lịch sử" backfill nhiều tháng/năm dữ liệu (có thể hàng
@@ -40,7 +60,7 @@
 // chỉ thấy được dữ liệu của ĐÚNG lô đang xử lý — 1 thực thể có dữ liệu trải
 // trên NHIỀU lô có thể bị dọn "nhầm" ở lô này rồi được lô sau ghi lại đúng
 // ngay sau đó (tự sửa trong cùng 1 lượt chạy job, không lộ ra ngoài); lưới
-// an toàn shouldBlockHistoryWipe() cũng chỉ đánh giá theo từng lô — chấp
+// an toàn STALE_GUARD_AND_DELETE_SQL (bên dưới) cũng chỉ đánh giá theo từng lô — chấp
 // nhận được vì chia lô chỉ kích hoạt với dữ liệu backfill bất thường lớn,
 // không phải job hàng ngày thông thường.
 const ROWS_PER_TRANSACTION = 2000;
@@ -54,22 +74,20 @@ const ROWS_PER_TRANSACTION = 2000;
 // mới ghi đè (đồng bộ nhiều lần TRONG CÙNG 1 ngày vẫn update đúng dòng của
 // ngày đó, do EventDate đó không đổi giữa các lần chạy).
 //
-// LƯỚI AN TOÀN chống quên tích "Giữ lịch sử" (shouldBlockHistoryWipe, xem
-// bên dưới): domain lịch sử nhiều ngày (vd đối chiếu doanh thu — mỗi ngày 1
-// dòng/chi nhánh trong THỜI GIAN DÀI) mà lỡ tạo job với KeepHistory=false
-// thì lượt đồng bộ tăng dần (chỉ mang về đúng 1 ngày mới) sẽ khiến bước dọn
-// ở trên XOÁ SẠCH mọi ngày cũ đã backfill trước đó — im lặng mất dữ liệu.
-// Trước khi DELETE, đo khoảng cách ngày (span) của các dòng SẮP bị xoá —
-// span lớn bất thường (> STALE_HISTORY_SPAN_DAYS ngày) là dấu hiệu rõ ràng
-// của lỗi cấu hình này (đồng bộ "chốt số mới nhất" bình thường chỉ dọn đúng
-// 1-2 ngày gần nhau, vd hôm qua -> hôm nay). Gặp trường hợp đó thì CHẶN
-// CỨNG — không xoá, không MERGE, ném lỗi để lượt chạy hiện LỖI rõ ràng trên
-// Dashboard/Log, admin vào bật lại "Giữ lịch sử" rồi chạy lại — dữ liệu cũ
-// không đụng gì trong lúc chờ sửa. Vì cần ĐỌC kết quả đo (Cnt/MinDate/
-// MaxDate) ở tầng JS TRƯỚC KHI quyết định có DELETE hay không, bước này bắt
-// buộc phải là 1 round-trip riêng — không gộp được vào batch tạo bảng/nạp
-// dữ liệu (không có gì để gộp SỚM hơn) lẫn batch DELETE+MERGE (phụ thuộc
-// kết quả của chính SELECT này).
+// LƯỚI AN TOÀN chống quên tích "Giữ lịch sử" (STALE_GUARD_AND_DELETE_SQL,
+// xem bên dưới): domain lịch sử nhiều ngày (vd đối chiếu doanh thu — mỗi
+// ngày 1 dòng/chi nhánh trong THỜI GIAN DÀI) mà lỡ tạo job với
+// KeepHistory=false thì lượt đồng bộ tăng dần (chỉ mang về đúng 1 ngày mới)
+// sẽ khiến bước dọn ở trên XOÁ SẠCH mọi ngày cũ đã backfill trước đó — im
+// lặng mất dữ liệu. Trước khi DELETE, đo khoảng cách ngày (span) của các
+// dòng SẮP bị xoá — span lớn bất thường (> STALE_HISTORY_SPAN_DAYS ngày) là
+// dấu hiệu rõ ràng của lỗi cấu hình này (đồng bộ "chốt số mới nhất" bình
+// thường chỉ dọn đúng 1-2 ngày gần nhau, vd hôm qua -> hôm nay). Gặp trường
+// hợp đó thì CHẶN CỨNG — không xoá, không MERGE, ném lỗi để lượt chạy hiện
+// LỖI rõ ràng trên Dashboard/Log, admin vào bật lại "Giữ lịch sử" rồi chạy
+// lại — dữ liệu cũ không đụng gì trong lúc chờ sửa. (bản 10.70 — việc ĐO +
+// QUYẾT ĐỊNH này nay chạy NGAY TRONG T-SQL, không còn đọc kết quả đo ở tầng
+// JS giữa chừng nữa, xem chú thích đầu file.)
 const { sql } = require('../db');
 
 const STALE_HISTORY_SPAN_DAYS = 3;
@@ -144,8 +162,16 @@ WHEN NOT MATCHED THEN
   VALUES (src.SourceSystem, src.Domain, src.EntityCode, src.EventDate, src.Dimensions, src.Measures, SYSUTCDATETIME())
 OUTPUT $action AS Action;`;
 
-const STALE_CHECK_SQL = `
-SELECT COUNT(*) AS Cnt, MIN(EventDate) AS MinDate, MAX(EventDate) AS MaxDate
+// STALE_GUARD_AND_DELETE_SQL (bản 10.70, thay STALE_CHECK_SQL + DELETE_STALE_SQL
+// cũ — xem chú thích đầy đủ ở đầu file) — ĐO + QUYẾT ĐỊNH + XOÁ gộp NGUYÊN
+// trong T-SQL, không còn cần đọc kết quả đo ở tầng JS giữa chừng (lý do
+// buộc phải tách 2 Request trước đây). RAISERROR + RETURN khi phát hiện sắp
+// xoá lịch sử trải dài bất thường — JS bắt lỗi này qua
+// parseStaleHistoryGuardError() bên dưới, KHÔNG xoá/MERGE gì (RETURN thoát
+// batch trước khi chạy tới DELETE/MERGE, xem upsertReportFactsChunk()).
+const STALE_GUARD_AND_DELETE_SQL = `
+DECLARE @StaleCnt INT, @StaleMinDate DATE, @StaleMaxDate DATE;
+SELECT @StaleCnt = COUNT(*), @StaleMinDate = MIN(EventDate), @StaleMaxDate = MAX(EventDate)
 FROM dwh.ReportFacts
 WHERE EXISTS (
   SELECT 1 FROM #Staging s
@@ -159,9 +185,15 @@ AND NOT EXISTS (
     AND s.Domain = dwh.ReportFacts.Domain
     AND (s.EntityCode = dwh.ReportFacts.EntityCode OR (s.EntityCode IS NULL AND dwh.ReportFacts.EntityCode IS NULL))
     AND s.EventDate = dwh.ReportFacts.EventDate
-);`;
+);
 
-const DELETE_STALE_SQL = `
+IF @StaleCnt > 0 AND DATEDIFF(DAY, @StaleMinDate, @StaleMaxDate) > ${STALE_HISTORY_SPAN_DAYS}
+BEGIN
+  DECLARE @StaleGuardMsg NVARCHAR(400) = N'STALE_HISTORY_GUARD|' + CAST(@StaleCnt AS NVARCHAR(20)) + '|' + CONVERT(NVARCHAR(10), @StaleMinDate, 23) + '|' + CONVERT(NVARCHAR(10), @StaleMaxDate, 23);
+  RAISERROR(@StaleGuardMsg, 16, 1);
+  RETURN;
+END
+
 DELETE FROM dwh.ReportFacts
 WHERE EXISTS (
   SELECT 1 FROM #Staging s
@@ -177,14 +209,15 @@ AND NOT EXISTS (
     AND s.EventDate = dwh.ReportFacts.EventDate
 );`;
 
-// Hàm THUẦN (không đụng CSDL) — tách riêng để test được không cần SQL Server
-// thật. { count, minDate, maxDate } là kết quả đo trước của TẬP DÒNG SẮP bị
-// DELETE (cùng predicate với DELETE_STALE_SQL ở trên).
-function shouldBlockHistoryWipe({ count, minDate, maxDate }) {
-  if (!count) return false;
-  if (!minDate || !maxDate) return false;
-  const spanDays = Math.round((new Date(maxDate).getTime() - new Date(minDate).getTime()) / 86400000);
-  return spanDays > STALE_HISTORY_SPAN_DAYS;
+// Nhận ra lỗi RAISERROR 'STALE_HISTORY_GUARD|...' từ STALE_GUARD_AND_DELETE_SQL
+// ở trên (số 50000 — mã lỗi RAISERROR không khai @@ERROR cụ thể thì SQL
+// Server trả 50000 mặc định) và dựng lại ĐÚNG thông điệp tiếng Việt như bản
+// cũ (shouldBlockHistoryWipe + throw thủ công ở JS) từ 3 phần đã gói trong
+// message, phân cách bởi "|".
+function parseStaleHistoryGuardError(err) {
+  if (!err || typeof err.message !== 'string' || !err.message.startsWith('STALE_HISTORY_GUARD|')) return null;
+  const [, cnt, minDate, maxDate] = err.message.split('|');
+  return { count: Number(cnt), minDate, maxDate };
 }
 
 // Loại trùng khoá nghiệp vụ TRƯỚC khi ghi (bản 9.26, SỬA LỖI THẬT — báo cáo
@@ -267,29 +300,16 @@ async function upsertReportFactsChunk(pool, rows, { keepHistory = false, retried
   const tx = new sql.Transaction(pool);
   await tx.begin();
   try {
-    let mergeResult;
-    if (keepHistory) {
-      // 1 round-trip DUY NHẤT: tạo bảng tạm + nạp dữ liệu + MERGE, tất cả
-      // trong CÙNG 1 batch/1 lượt .query() — xem giải thích ở đầu file.
-      mergeResult = await new sql.Request(tx).query([setupSql, MERGE_SQL].join('\n'));
-    } else {
-      // Round-trip 1: tạo bảng tạm + nạp dữ liệu + đo span lịch sử sắp xoá
-      // (SELECT cuối cùng của batch quyết định .recordset trả về — xem
-      // buildInsertBatches, các câu CREATE TABLE/INSERT không tạo recordset).
-      const setupResult = await new sql.Request(tx).query([setupSql, STALE_CHECK_SQL].join('\n'));
-      const { Cnt, MinDate, MaxDate } = setupResult.recordset[0];
-      if (shouldBlockHistoryWipe({ count: Cnt, minDate: MinDate, maxDate: MaxDate })) {
-        throw Object.assign(
-          new Error(
-            `Chặn đồng bộ: sắp xoá ${Cnt} dòng dữ liệu trải dài hơn ${STALE_HISTORY_SPAN_DAYS} ngày (từ ${new Date(MinDate).toLocaleDateString('vi-VN')} đến ${new Date(MaxDate).toLocaleDateString('vi-VN')}) trong khi job đang TẮT "Giữ lịch sử" — có vẻ domain này cần giữ lịch sử nhiều ngày. Vào "Đồng bộ" bật "Giữ lịch sử theo ngày" cho job này rồi chạy lại; KHÔNG dòng nào bị xoá do lượt chạy này bị chặn.`
-          ),
-          { isHistoryGuard: true }
-        );
-      }
-
-      // Round-trip 2: dọn dòng cũ + MERGE, gộp chung 1 batch.
-      mergeResult = await new sql.Request(tx).query([DELETE_STALE_SQL, MERGE_SQL].join('\n'));
-    }
+    // ĐÚNG 1 round-trip/.query() DUY NHẤT cho CẢ 2 trường hợp (bản 10.70,
+    // xem chú thích đầy đủ ở đầu file) — keepHistory bỏ qua hẳn bước
+    // dò+xoá lịch sử (giữ nguyên mọi EventDate); không keepHistory gộp thêm
+    // STALE_GUARD_AND_DELETE_SQL (tự RAISERROR+RETURN nếu phát hiện sắp xoá
+    // lịch sử trải dài bất thường, xem parseStaleHistoryGuardError()) VẪN
+    // trong CÙNG batch này, không tách Request thứ 2 nào nữa.
+    const batchSql = keepHistory
+      ? [setupSql, MERGE_SQL].join('\n')
+      : [setupSql, STALE_GUARD_AND_DELETE_SQL, MERGE_SQL].join('\n');
+    const mergeResult = await new sql.Request(tx).query(batchSql);
 
     await tx.commit();
     const actions = mergeResult.recordset.map(r => r.Action);
@@ -299,6 +319,15 @@ async function upsertReportFactsChunk(pool, rows, { keepHistory = false, retried
     };
   } catch (err) {
     await tx.rollback().catch(() => {});
+    const staleGuard = parseStaleHistoryGuardError(err);
+    if (staleGuard) {
+      throw Object.assign(
+        new Error(
+          `Chặn đồng bộ: sắp xoá ${staleGuard.count} dòng dữ liệu trải dài hơn ${STALE_HISTORY_SPAN_DAYS} ngày (từ ${new Date(staleGuard.minDate).toLocaleDateString('vi-VN')} đến ${new Date(staleGuard.maxDate).toLocaleDateString('vi-VN')}) trong khi job đang TẮT "Giữ lịch sử" — có vẻ domain này cần giữ lịch sử nhiều ngày. Vào "Đồng bộ" bật "Giữ lịch sử theo ngày" cho job này rồi chạy lại; KHÔNG dòng nào bị xoá do lượt chạy này bị chặn.`
+        ),
+        { isHistoryGuard: true }
+      );
+    }
     // Chia đôi + thử lại riêng từng nửa khi lỗi trùng khoá UNIQUE — xem chú
     // thích đầy đủ ở isDuplicateKeyError() phía trên.
     if (isDuplicateKeyError(err) && rows.length > 1) {
@@ -324,4 +353,4 @@ async function upsertReportFactsChunk(pool, rows, { keepHistory = false, retried
   }
 }
 
-module.exports = { upsertReportFacts, shouldBlockHistoryWipe, STALE_HISTORY_SPAN_DAYS, buildStagingInsertBatches, ROWS_PER_TRANSACTION, dedupeByBusinessKey, isDuplicateKeyError };
+module.exports = { upsertReportFacts, parseStaleHistoryGuardError, STALE_HISTORY_SPAN_DAYS, buildStagingInsertBatches, ROWS_PER_TRANSACTION, dedupeByBusinessKey, isDuplicateKeyError };
