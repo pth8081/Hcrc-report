@@ -14,6 +14,28 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.70 — Sửa lỗi thật: job đồng bộ "Tồn kho" lỗi `#Staging` mọi lượt chạy
+
+**Thay đổi**: `etl/lib/upsert.js` — nhánh KeepHistory=0 (job "Tồn kho Chi
+tiết theo SKU - Live (DSMART16)", nuôi API `ton-kho` cho đối tác) tách 2
+`Request` riêng trên cùng 1 Transaction, Request thứ 2 không thấy `#Staging`
+do Request thứ 1 tạo (xác nhận trực tiếp trên server thật) — gộp lại còn
+đúng 1 round-trip `.query()` duy nhất, chuyển bước "chặn xoá lịch sử trải
+dài bất thường" vào thẳng T-SQL (`IF...RAISERROR...RETURN`).
+
+**Triển khai**:
+```bash
+git pull origin main
+pm2 restart etl
+```
+Không đổi schema CSDL, không cần resync lại dữ liệu cũ.
+
+**Kiểm tra**: etl-admin → Job đồng bộ → "Tồn kho Chi tiết theo SKU - Live
+(DSMART16)" → "Chạy thử" → hết lỗi đỏ; "Hệ thống → Log" hết lặp lại lỗi
+`#Staging`. Sau vài lượt chạy (mỗi 15 phút), gọi lại API `ton-kho` cho
+đối tác, kiểm tra vài mã hàng đối tác từng báo sai — phải thấy số tồn
+đúng, không còn thiếu hẳn mã hàng nào đã có trên kệ.
+
 ## 10.69 — Sửa lỗi thật: PDF báo cáo doanh thu "mất chữ" ở khối 3 thẻ tổng
 
 **Thay đổi**: `rp-server/lib/exportPdf.js` — đổi ký tự `▲`/`▼` (không có

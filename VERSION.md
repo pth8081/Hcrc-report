@@ -42,6 +42,39 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.70 — Sửa lỗi thật: job đồng bộ "Tồn kho" lỗi `#Staging` mọi lượt chạy
+
+**Theo báo cáo đối tác** BRG Scan and Checkout (HWS HCCU Space, dùng API
+`ton-kho`) — tồn kho trả về toàn 0, nhiều mã hàng quét trên kệ thấy có
+hàng nhưng API báo không tồn tại.
+
+**Nguyên nhân THẬT (đã điều tra trực tiếp trên server thật, không đoán)**:
+job "Tồn kho Chi tiết theo SKU - Live (DSMART16)" (KeepHistory=0) lỗi
+`Invalid object name '#Staging'.` ở MỌI lượt chạy → `dwh.ReportFacts`
+không được cập nhật, giải thích đúng cả 2 hiện tượng đối tác báo. Tái
+hiện xác nhận: nhánh KeepHistory=0 của `upsertReportFactsChunk()` tách 2
+`Request` RIÊNG trên CÙNG 1 Transaction (round-trip đo lịch sử, rồi
+round-trip dọn+ghi) — Request thứ 2 không thấy được bảng tạm `#Staging`
+do Request thứ 1 tạo, trên chính driver/môi trường server này.
+
+**Đã sửa** (`etl/lib/upsert.js`): gộp bước đo + quyết định "chặn xoá lịch
+sử trải dài bất thường" vào NGAY TRONG T-SQL (`IF...RAISERROR...RETURN`)
+thay vì đọc kết quả ở tầng JS giữa 2 round-trip — cả hàm giờ chỉ còn ĐÚNG
+1 round-trip/`.query()` duy nhất, không còn Request thứ 2 nào trên
+transaction nữa.
+
+**Triển khai**:
+```bash
+git pull origin main
+pm2 restart etl
+```
+Không đổi schema CSDL, không cần resync lại dữ liệu cũ (job tự chạy đúng
+từ lượt tiếp theo).
+
+**Kiểm tra**: etl-admin → Job đồng bộ → "Tồn kho Chi tiết theo SKU - Live
+(DSMART16)" → "Chạy thử" → không còn lỗi đỏ; "Hệ thống → Log" không còn
+lặp lại lỗi `#Staging`.
+
 ## 10.69 — Sửa lỗi thật: PDF báo cáo doanh thu "mất chữ" ở khối 3 thẻ tổng
 
 **Theo báo cáo người dùng** (kèm ảnh chụp PDF thật): khối 3 thẻ "Tổng
