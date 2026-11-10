@@ -14,6 +14,22 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.72 — Sửa API "Giá bán": cho phép tra bằng mã vạch
+
+**Thay đổi**: `GET /api/v1/reports/gia-ban/run` nay nhận `maHang` HOẶC
+`maVach` (mã vạch thật in trên sản phẩm), không chỉ mã nội bộ.
+
+**Triển khai**:
+```bash
+git pull origin main
+cd api-server && node scripts/seedGiaBanReport.js
+pm2 restart api-server
+```
+(KHÔNG cần sửa VIEW/resync ETL — chỉ đổi cách tra, dữ liệu đã có sẵn.)
+
+**Kiểm tra**: gọi lại bằng `maVach` (lấy từ kết quả `maHang` đã tra trước
+đó) → phải ra đúng kết quả giống hệt.
+
 ## 10.71 — Thêm API "Giá bán theo mã hàng" cho đối tác ngoài
 
 **Thay đổi**: API mới `GET /api/v1/reports/gia-ban/run?maHang=...&maDiem=...`

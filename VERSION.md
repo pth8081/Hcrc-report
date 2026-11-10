@@ -42,6 +42,28 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.72 — Sửa API "Giá bán": cho phép tra bằng mã vạch
+
+**Theo phản hồi người dùng** — API `gia-ban` (bản 10.71) chỉ cho tra theo
+`maHang` (mã nội bộ), nhưng máy quét ở quầy đọc được **mã vạch THẬT** in
+trên sản phẩm, không phải mã nội bộ — bắt app tự tra mã nội bộ từ mã vạch
+trước rồi mới gọi được API là vô lý, đi ngược chính lý do API này sinh ra.
+
+**Đã sửa**: `GET /api/v1/reports/gia-ban/run` nay nhận `maHang` HOẶC
+`maVach` (ít nhất 1 trong 2, cùng `maDiem` bắt buộc) — gửi cả 2 thì ưu
+tiên `maHang`. Xem `api-gia-ban-cho-doi-tac.md`.
+
+**Triển khai**:
+```bash
+git pull origin main
+cd api-server && node scripts/seedGiaBanReport.js
+pm2 restart api-server
+```
+
+**Kiểm tra**: gọi lại bằng `maVach` (lấy từ kết quả `maHang` đã tra trước
+đó) → phải ra đúng kết quả giống hệt. Thiếu cả `maHang` lẫn `maVach` →
+`400`.
+
 ## 10.71 — Thêm API "Giá bán theo mã hàng" cho đối tác ngoài
 
 **Theo yêu cầu người dùng** — cung cấp API tra giá thường + giá khuyến
