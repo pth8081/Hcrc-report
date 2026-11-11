@@ -21,8 +21,8 @@
 //      liệu "DSMART16 - Live" — script này DỪNG LẠI báo lỗi rõ ràng nếu
 //      chưa có).
 //   2. Đã tạo xong VIEW `V_HCRC_DOANHTHU_SKU_NGANHHANG` trên CSDL
-//      `DSMART16` — xem "deploy/Thiết lập VIEW Doanh thu theo Mã hàng-Ngành
-//      hàng (DSMART16 trung tâm).sql".
+//      `DSMART16` — xem "deploy/VIEW DSMART16 (trung tâm)/Thiết lập VIEW
+//      Doanh thu theo Mã hàng-Ngành hàng (DSMART16 trung tâm).sql".
 //
 // Cách dùng:
 //   node scripts/seedDoanhThuSkuNganhHangSync.js
@@ -49,7 +49,7 @@ async function assertViewReady(dataSourceId, sourceName, tableName, requiredColu
   const tables = await schemaBrowser.listTables(dataSourceId);
   const exists = tables.some(t => t.schemaName === 'dbo' && t.tableName === tableName);
   if (!exists) {
-    throw new Error(`Không tìm thấy VIEW "dbo.${tableName}" trên nguồn "${sourceName}" — tạo VIEW này trước (xem "deploy/Thiết lập VIEW Doanh thu theo Mã hàng-Ngành hàng (DSMART16 trung tâm).sql") rồi chạy lại script.`);
+    throw new Error(`Không tìm thấy VIEW "dbo.${tableName}" trên nguồn "${sourceName}" — tạo VIEW này trước (xem "deploy/VIEW DSMART16 (trung tâm)/Thiết lập VIEW Doanh thu theo Mã hàng-Ngành hàng (DSMART16 trung tâm).sql") rồi chạy lại script.`);
   }
   const cols = await schemaBrowser.listColumns(dataSourceId, 'dbo', tableName);
   const colNames = new Set(cols.map(c => c.columnName));

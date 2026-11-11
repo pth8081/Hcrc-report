@@ -319,9 +319,7 @@ dưới đây cần chạy trên server thật)**:
 
 **Bước 1 — SQL chạy lại** (an toàn, `CREATE OR ALTER`, THUẦN THÊM cột,
 không đổi `MaHang`/cột nào khác — 6 báo cáo mua hàng cũ KHÔNG ảnh hưởng):
-chạy lại nguyên văn `deploy/Thiết lập VIEW Đơn đặt hàng-Nhập hàng-So sánh
-(DSMART16 trung tâm).sql` (Live) + `deploy/Thiết lập VIEW Đơn đặt hàng
-Lịch sử (DSMART16_EOM).sql` (Lịch sử, nếu đã chạy trước đó).
+chạy lại nguyên văn `deploy/VIEW DSMART16 (trung tâm)/Thiết lập VIEW Đơn đặt hàng-Nhập hàng-So sánh (DSMART16 trung tâm).sql` (Live) + `deploy/VIEW DSMART16_EOM/Thiết lập VIEW Đơn đặt hàng Lịch sử (DSMART16_EOM).sql` (Lịch sử, nếu đã chạy trước đó).
 
 **Tại sao cần Bước 2 (resync) riêng** — y hệt lỗi watermark đã gặp bản
 8.1/9.68/9.86: job "Live" dùng `EventDate` làm watermark, những ngày ĐÃ

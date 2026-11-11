@@ -53,8 +53,8 @@ lại script nếu muốn đặt ở menu khác (`reports-kinh-doanh`/
 ## 2. Nguồn dữ liệu
 
 VIEW MỚI `dbo.V_HCRC_DOANHTHU_SKU_NGANHHANG` trên CSDL `DSMART16` — xem
-SQL đầy đủ tại "deploy/Thiết lập VIEW Doanh thu theo Mã hàng-Ngành hàng
-(DSMART16 trung tâm).sql" (đã tạo + merge ở bản 10.40 cùng lúc với fix
+SQL đầy đủ tại "deploy/VIEW DSMART16 (trung tâm)/Thiết lập VIEW Doanh thu
+theo Mã hàng-Ngành hàng (DSMART16 trung tâm).sql" (đã tạo + merge ở bản 10.40 cùng lúc với fix
 khác — file SQL có từ bản đó, báo cáo dùng nó mới thêm ở bản 10.41).
 
 Cột quan trọng: `MaThucThe` (khoá, `STK_ID + '_' + SKU_ID`), `STK_ID`,
@@ -75,7 +75,7 @@ hàng theo ngành hàng.md"), KHÔNG lặp lại giải thích ở đây.
 
 | # | Việc | Ai làm |
 |---|---|---|
-| 1 | Chạy "deploy/Thiết lập VIEW Doanh thu theo Mã hàng-Ngành hàng (DSMART16 trung tâm).sql" trên CSDL `DSMART16` | DBA |
+| 1 | Chạy "deploy/VIEW DSMART16 (trung tâm)/Thiết lập VIEW Doanh thu theo Mã hàng-Ngành hàng (DSMART16 trung tâm).sql" trên CSDL `DSMART16` | DBA |
 | 2 | Chạy `node etl/scripts/seedDoanhThuSkuNganhHangSync.js` (thư mục `etl/`) — tạo job đồng bộ `doanhthu_sku_nganhhang`, tái dùng Nguồn dữ liệu "DSMART16 - Live" đã có | Admin etl-admin / IT-Dev |
 | 3 | Chờ job đồng bộ chạy xong ít nhất 1 lượt (etl-admin → Đồng bộ → xem "Lần chạy gần nhất") | IT/Dev |
 | 4 | Chạy `node rp-server/scripts/seedDoanhThuSkuNganhHangReports.js [menuCode]` (thư mục `rp-server/`, mặc định `reports-kinh-doanh` nếu không truyền tham số) — tạo 2 báo cáo | IT/Dev |

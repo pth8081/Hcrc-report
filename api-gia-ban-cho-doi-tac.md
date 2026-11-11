@@ -114,12 +114,12 @@ curl "https://api.brgmart.vn/api/v1/reports/gia-ban/run?maVach=8934696001589&maD
   điều tra sâu).
 - Giá áp theo VÙNG (`ZONE_CODE`), KHÔNG áp riêng từng siêu thị — 1 siêu
   thị thuộc đúng 1 vùng qua `dbo.STOCK.ZONE_CODE`.
-- VIEW gộp: `deploy/Thiết lập VIEW Giá bán theo SKU (DSMART16).sql` (tạo
+- VIEW gộp: `deploy/VIEW DSMART16 (trung tâm)/Thiết lập VIEW Giá bán theo SKU (DSMART16).sql` (tạo
   `dbo.vw_GiaBanTheoSKU`, nối `RTPRICE` + `SKU_DEF`).
 
 **Các bước triển khai (theo đúng thứ tự):**
 
-1. Chạy `deploy/Thiết lập VIEW Giá bán theo SKU (DSMART16).sql` trên CSDL
+1. Chạy `deploy/VIEW DSMART16 (trung tâm)/Thiết lập VIEW Giá bán theo SKU (DSMART16).sql` trên CSDL
    `DSMART16` (AN TOÀN chạy lại nhiều lần).
 2. Chạy `node etl/scripts/seedVungGiaSync.js` (thư mục `etl/`) — tạo job
    đồng bộ nhỏ "Vùng giá theo siêu thị" (domain `vung_gia_stk`, đọc trực

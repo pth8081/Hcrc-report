@@ -40,7 +40,7 @@ DSMART16, xem chi tiết `api-gia-ban-cho-doi-tac.md`.
 **Triển khai**:
 ```bash
 git pull origin main
-# Chạy "deploy/Thiết lập VIEW Giá bán theo SKU (DSMART16).sql" trên CSDL DSMART16
+# Chạy "deploy/VIEW DSMART16 (trung tâm)/Thiết lập VIEW Giá bán theo SKU (DSMART16).sql" trên CSDL DSMART16
 cd etl && node scripts/seedVungGiaSync.js && node scripts/seedGiaBanSync.js
 cd ../api-server && node scripts/seedGiaBanReport.js
 pm2 restart etl api-server

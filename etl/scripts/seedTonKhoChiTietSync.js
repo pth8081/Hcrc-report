@@ -26,7 +26,7 @@
 //      liệu "DSMART16 - Live" — script này DỪNG LẠI báo lỗi rõ ràng nếu
 //      chưa có).
 //   2. Đã tạo xong VIEW `vw_TonKhoChiTietTheoSKU` trên CSDL `DSMART16` —
-//      xem `deploy/Thiết lập VIEW Tồn kho Chi tiết theo SKU (DSMART16).sql`.
+//      xem `deploy/VIEW DSMART16 (trung tâm)/Thiết lập VIEW Tồn kho Chi tiết theo SKU (DSMART16).sql`.
 //
 // Cách dùng:
 //   node scripts/seedTonKhoChiTietSync.js
@@ -132,8 +132,8 @@ async function main() {
     sourceTable: VIEW_NAME, keyColumn: 'MaThucThe', dateColumn: 'EventDate',
     // NgayNhapGanNhat (bản 10.46)/MaVach (bản 10.50) — theo yêu cầu người
     // dùng, API "Tồn kho" cho đối tác cần "ngày nhập hàng gần nhất" và mã
-    // vạch — cả 2 cột MỚI thêm vào VIEW, xem "deploy/Thiết lập VIEW Tồn
-    // kho Chi tiết theo SKU (DSMART16).sql".
+    // vạch — cả 2 cột MỚI thêm vào VIEW, xem "deploy/VIEW DSMART16 (trung
+    // tâm)/Thiết lập VIEW Tồn kho Chi tiết theo SKU (DSMART16).sql".
     dimensionColumns: ['MaChiNhanh', 'TenChiNhanh', 'MaHangHienThi', 'TenHang', 'MaNganhHang', 'TenNganhHang', 'MaNCC', 'TenNCC', 'KenhMua', 'NgayNhapGanNhat', 'MaVach'],
     measureColumns: ['SoLuongTon'],
     targetDomain: DOMAIN, cronExpression: '*/15 * * * *'

@@ -114,7 +114,7 @@ dùng gửi (xem câu hỏi ở cuối mục "MÂU THUẪN MỚI" phía trên).
 
 DBA gửi ảnh chụp SQL thật: `SELECT * FROM STRANS WHERE TRANS_CODE IN
 ('333','133')` — `STRANS` là bảng ĐÃ BIẾT TRƯỚC (dùng cho báo cáo doanh
-thu cuối ngày, xem `deploy/Thiết lập VIEW ... Thành viên.sql`), cùng cấu
+thu cuối ngày, xem `deploy/VIEW DSMART16 (từng siêu thị)/Thiết lập VIEW ... Thành viên.sql`), cùng cấu
 trúc cột với `ST_ORDER`/`ON_ORDER`/`FN_ORDER` (`TRANS_NUM`, `TRANS_CODE`,
 `TRAN_DATE`, `BU_ID`...). Tài liệu doanh thu cũ từng ghi "mã `333` bị
 LOẠI HẲN khỏi Doanh thu" mà không giải thích rõ — giờ có khả năng **`333`
@@ -236,8 +236,7 @@ VIEW trừ khi DBA xác nhận cần dùng cho mục đích khác.
 nhận là `STRANS` (bảng ĐÃ dùng cho báo cáo doanh thu cuối ngày),
 `TRANS_CODE IN ('133','333')` (133=đặt hàng, 333=nhập hàng, MỖI LOẠI 1
 DÒNG RIÊNG), `REF`=mã đơn hàng gốc (dùng gộp nhiều lần nhận ở tầng ứng
-dụng, KHÔNG gộp trong VIEW). Xem `deploy/Thiết lập VIEW Đơn đặt hàng-Nhập
-hàng-So sánh (DSMART16 trung tâm).sql` — VIEW thật chạy trên server, nội
+dụng, KHÔNG gộp trong VIEW). Xem `deploy/VIEW DSMART16 (trung tâm)/Thiết lập VIEW Đơn đặt hàng-Nhập hàng-So sánh (DSMART16 trung tâm).sql` — VIEW thật chạy trên server, nội
 dung dưới đây PHẢI khớp y hệt file đó, đừng sửa lệch 2 nơi.
 
 **SỬA 06/10/2026 (sau khi chạy thật)**: `STRANS` KHÔNG có cột `PRICE`
@@ -319,8 +318,7 @@ dòng nào trong `SUPPLIER` vẫn hiện ra, chỉ tên NCC để trống.
 người dùng báo cáo tên NCC ra chữ lỗi font trên báo cáo thật — chạy lại
 `INFORMATION_SCHEMA.COLUMNS` xác nhận `SUPPLIER` có CẢ 2 cột, `SUPP_NAME`
 (bảng mã cũ, lỗi font) VÀ `SUPP_NAME_U` (Unicode, ĐÚNG) — VIEW đã đổi dùng
-`SUPP_NAME_U` (xem `deploy/Thiết lập VIEW Đơn đặt hàng-Nhập hàng-So sánh
-(DSMART16 trung tâm).sql`). Nếu VIEW đã chạy trước 12/10/2026, PHẢI chạy
+`SUPP_NAME_U` (xem `deploy/VIEW DSMART16 (trung tâm)/Thiết lập VIEW Đơn đặt hàng-Nhập hàng-So sánh (DSMART16 trung tâm).sql`). Nếu VIEW đã chạy trước 12/10/2026, PHẢI chạy
 lại nguyên file đó (an toàn, `CREATE OR ALTER`) rồi đồng bộ lại job
 `don_dat_hang` mới hết lỗi font dữ liệu CŨ đã lưu.
 
@@ -422,9 +420,8 @@ DonGiaRaw`, giống hệt công thức nhánh nhập hàng — xem VERSION.md b�
 (nhập hàng từ `STRANS` GIỮ NGUYÊN như cũ + đặt hàng THÊM MỚI từ
 `ON_ORDER`/`FN_ORDER`/`FN_ORDER_ARC`), JOIN `SUPPLIER`/`SKU_DEF`/`DEPTLIST`
 1 LẦN trên kết quả đã gộp (không lặp lại nhiều lần):
-- `deploy/Thiết lập VIEW Đơn đặt hàng-Nhập hàng-So sánh (DSMART16 trung
-  tâm).sql` — thêm nhánh `ON_ORDER` + `FN_ORDER`.
-- `deploy/Thiết lập VIEW Đơn đặt hàng Lịch sử (DSMART16_EOM).sql` — thêm
+- `deploy/VIEW DSMART16 (trung tâm)/Thiết lập VIEW Đơn đặt hàng-Nhập hàng-So sánh (DSMART16 trung tâm).sql` — thêm nhánh `ON_ORDER` + `FN_ORDER`.
+- `deploy/VIEW DSMART16_EOM/Thiết lập VIEW Đơn đặt hàng Lịch sử (DSMART16_EOM).sql` — thêm
   nhánh `FN_ORDER_ARC` (1 bảng, không cần sinh SQL động như STRANS_YYYYMM).
   **Nhân tiện sửa 1 lỗi có sẵn từ bản 10.2**: đoạn stored procedure
   `sp_HCRC_RebuildDonDatHangView` (chạy lại TỰ ĐỘNG hàng tháng) thiếu hẳn
@@ -631,7 +628,7 @@ khi ép đồng bộ lại từ đầu (xoá `etl.SyncState`), vì nguồn nó �
 KHÔNG CÓ dữ liệu đó.
 
 **Đã sửa — thêm nguồn "Lịch sử" THỨ 2, mirror đúng domain doanh thu**:
-- `deploy/Thiết lập VIEW Đơn đặt hàng Lịch sử (DSMART16_EOM).sql` — VIEW
+- `deploy/VIEW DSMART16_EOM/Thiết lập VIEW Đơn đặt hàng Lịch sử (DSMART16_EOM).sql` — VIEW
   CÙNG TÊN (`vw_DonDatHangChiNhanh`) nhưng chạy trên `DSMART16_EOM`, UNION
   ALL toàn bộ bảng `STRANS_YYYYMM`/`STRANS_EOM` (sinh SQL tự động, không gõ
   tay ~93 tên bảng) + stored procedure `sp_HCRC_RebuildDonDatHangView` để

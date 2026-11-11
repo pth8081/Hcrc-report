@@ -92,7 +92,7 @@ tự cập nhật liên tục, không cần tự viết lại luật khuyến m�
 **Triển khai**:
 ```bash
 git pull origin main
-cd deploy && # chạy "Thiết lập VIEW Giá bán theo SKU (DSMART16).sql" trên CSDL DSMART16
+cd deploy && # chạy "VIEW DSMART16 (trung tâm)/Thiết lập VIEW Giá bán theo SKU (DSMART16).sql" trên CSDL DSMART16
 cd ../etl && node scripts/seedVungGiaSync.js && node scripts/seedGiaBanSync.js
 cd ../api-server && node scripts/seedGiaBanReport.js
 pm2 restart etl api-server

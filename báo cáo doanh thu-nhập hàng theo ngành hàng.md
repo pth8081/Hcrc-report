@@ -200,8 +200,7 @@ sinh, Nông sản, Gia dụng, Thời trang, Phi thực phẩm khác, Vận chuy
 toàn bộ bảng `STRANS_YYYYMM`/`STRANS_EOM` (sinh SQL tự động từ
 `sys.tables`), JOIN CHÉO `DSMART16.dbo.SKU_DEF`/`DEPTLIST` (cùng 1 SQL
 Server instance, có tiền lệ hoạt động thật với `STOCK`/`SUPPLIER`). Xem
-file đầy đủ: `deploy/Thiết lập VIEW Doanh thu-Nhập hàng theo Ngành hàng
-Lịch sử (DSMART16_EOM).sql`.
+file đầy đủ: `deploy/VIEW DSMART16_EOM/Thiết lập VIEW Doanh thu-Nhập hàng theo Ngành hàng Lịch sử (DSMART16_EOM).sql`.
 
 ## 3. Đồng bộ (ETL)
 
@@ -523,8 +522,7 @@ cần đổi VIEW/ETL.
 9.67 trước đó):
 
 1. Chạy lại VIEW `V_HCRC_DOANHTHU_NGANHHANG` (mục 2) trên `DSMART16` — và
-   VIEW Lịch sử (`deploy/Thiết lập VIEW Doanh thu-Nhập hàng theo Ngành
-   hàng Lịch sử (DSMART16_EOM).sql`) nếu server đã có job Lịch sử.
+   VIEW Lịch sử (`deploy/VIEW DSMART16_EOM/Thiết lập VIEW Doanh thu-Nhập hàng theo Ngành hàng Lịch sử (DSMART16_EOM).sql`) nếu server đã có job Lịch sử.
 2. Chạy lại `node etl/scripts/seedNganhHangSync.js` (và `--with-history`
    nếu có job Lịch sử) — cập nhật `MeasureColumnsJson` của 2 job doanh thu
    đã có, KHÔNG tạo job mới.

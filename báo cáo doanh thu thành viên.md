@@ -56,8 +56,7 @@ thật dạng chữ thường) — admin tự lưu trữ/xoá theo đúng khuy�
 2+3 bên dưới. Việc còn lại để CÓ dữ liệu thật chảy vào báo cáo, làm đúng
 thứ tự:
 
-1. Chạy file `deploy/Thiết lập VIEW + tài khoản etl_reader tại mỗi siêu thị
-   Thành viên.sql` tại CẢ 34 siêu thị (xem Bước 1 ngay dưới đây) — BẮT BUỘC
+1. Chạy file `deploy/VIEW DSMART16 (từng siêu thị)/Thiết lập VIEW + tài khoản etl_reader tại mỗi siêu thị Thành viên.sql` tại CẢ 34 siêu thị (xem Bước 1 ngay dưới đây) — BẮT BUỘC
    làm TRƯỚC, vì Nhập Sync Job (bước 3) tự đối chiếu VIEW thật qua mạng,
    chưa có VIEW thì nhập sẽ báo lỗi dòng tương ứng.
 2. etl-admin → **Nguồn dữ liệu** → **Nhập Excel** → chọn file Nguồn dữ liệu

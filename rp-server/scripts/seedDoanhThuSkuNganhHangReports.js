@@ -25,8 +25,8 @@
 // cập nhật MenuItemId của 2 báo cáo đã có, không tạo trùng).
 //
 // LƯU Ý QUAN TRỌNG — chạy script này KHÔNG đủ để báo cáo CÓ SỐ LIỆU:
-//   1. DBA chạy "deploy/Thiết lập VIEW Doanh thu theo Mã hàng-Ngành hàng
-//      (DSMART16 trung tâm).sql".
+//   1. DBA chạy "deploy/VIEW DSMART16 (trung tâm)/Thiết lập VIEW Doanh thu
+//      theo Mã hàng-Ngành hàng (DSMART16 trung tâm).sql".
 //   2. Chạy `node etl/scripts/seedDoanhThuSkuNganhHangSync.js` (tạo job
 //      đồng bộ).
 // Không làm đủ 2 bước trên, báo cáo luôn trả về rỗng (không lỗi).

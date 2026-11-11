@@ -11,8 +11,9 @@
 // CHẠY FILE NÀY THAY CHO CÁCH NHẬP EXCEL 2 LẦN (Nguồn dữ liệu rồi Sync Job)
 // Ở ETL-ADMIN — làm đúng cả 2 việc trong 1 lệnh. VẪN PHẢI hoàn tất "Bước 1"
 // ("báo cáo doanh thu thành viên.md" — chạy file
-// `deploy/Thiết lập VIEW + tài khoản etl_reader tại mỗi siêu thị Thành
-// viên.sql` tại CẢ 34 máy chủ SQL Server của từng siêu thị) TRƯỚC khi chạy
+// `deploy/VIEW DSMART16 (từng siêu thị)/Thiết lập VIEW + tài khoản
+// etl_reader tại mỗi siêu thị Thành viên.sql` tại CẢ 34 máy chủ SQL Server
+// của từng siêu thị) TRƯỚC khi chạy
 // file này — thiếu VIEW thì Nguồn dữ liệu vẫn được tạo nhưng Sync Job của
 // đúng siêu thị đó sẽ bị BỎ QUA (xem log khi chạy), tự chạy lại file này
 // sau khi tạo xong VIEW (an toàn chạy lại nhiều lần, không tạo trùng).

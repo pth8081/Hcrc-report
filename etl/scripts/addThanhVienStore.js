@@ -10,8 +10,9 @@
 //
 // ĐIỀU KIỆN TRƯỚC KHI CHẠY (giống hệt 34 siêu thị cũ — xem "báo cáo doanh
 // thu thành viên.md" Bước 1): đã chạy file
-// `deploy/Thiết lập VIEW + tài khoản etl_reader tại mỗi siêu thị Thành
-// viên.sql` TRÊN ĐÚNG MÁY CHỦ SQL Server của siêu thị mới này — thiếu VIEW
+// `deploy/VIEW DSMART16 (từng siêu thị)/Thiết lập VIEW + tài khoản
+// etl_reader tại mỗi siêu thị Thành viên.sql` TRÊN ĐÚNG MÁY CHỦ SQL Server
+// của siêu thị mới này — thiếu VIEW
 // thì Nguồn dữ liệu vẫn được tạo nhưng 2 Sync Job sẽ bị BỎ QUA (báo lỗi rõ
 // trong log), chạy lại script này sau khi tạo xong VIEW là được (an toàn
 // chạy lại nhiều lần, không tạo trùng).
@@ -121,7 +122,7 @@ async function assertViewReady(dataSourceId, tableName, requiredColumns) {
   const tables = await schemaBrowser.listTables(dataSourceId);
   const exists = tables.some(t => t.schemaName === 'dbo' && t.tableName === tableName);
   if (!exists) {
-    throw new Error(`không tìm thấy VIEW "dbo.${tableName}" — chạy "deploy/Thiết lập VIEW + tài khoản etl_reader tại mỗi siêu thị Thành viên.sql" tại cửa hàng này trước.`);
+    throw new Error(`không tìm thấy VIEW "dbo.${tableName}" — chạy "deploy/VIEW DSMART16 (từng siêu thị)/Thiết lập VIEW + tài khoản etl_reader tại mỗi siêu thị Thành viên.sql" tại cửa hàng này trước.`);
   }
   const cols = await schemaBrowser.listColumns(dataSourceId, 'dbo', tableName);
   const colNames = new Set(cols.map(c => c.columnName));

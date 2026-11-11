@@ -11,7 +11,7 @@
 // chuyển sang CSDL RIÊNG DSMART16_EOM. Script này tạo job THỨ 2 đọc VIEW
 // CÙNG TÊN (vw_DonDatHangChiNhanh) nhưng trên DSMART16_EOM (UNION ALL toàn
 // bộ bảng STRANS_YYYYMM/STRANS_EOM — xem
-// "deploy/Thiết lập VIEW Đơn đặt hàng Lịch sử (DSMART16_EOM).sql").
+// "deploy/VIEW DSMART16_EOM/Thiết lập VIEW Đơn đặt hàng Lịch sử (DSMART16_EOM).sql").
 //
 // ĐIỀU KIỆN TRƯỚC KHI CHẠY: đã chạy xong file SQL trên để tạo VIEW trên
 // DSMART16_EOM. Script TỰ KIỂM TRA lại bằng cách duyệt schema thật, báo lỗi
@@ -100,7 +100,7 @@ async function assertViewReady(dataSourceId, requiredColumns) {
   if (!exists) {
     throw new Error(
       `Không tìm thấy VIEW "dbo.${VIEW_NAME}" trên nguồn "${EOM_DATASOURCE_NAME}" — chạy file ` +
-      `"deploy/Thiết lập VIEW Đơn đặt hàng Lịch sử (DSMART16_EOM).sql" trước rồi chạy lại script này.`
+      `"deploy/VIEW DSMART16_EOM/Thiết lập VIEW Đơn đặt hàng Lịch sử (DSMART16_EOM).sql" trước rồi chạy lại script này.`
     );
   }
   const cols = await schemaBrowser.listColumns(dataSourceId, 'dbo', VIEW_NAME);

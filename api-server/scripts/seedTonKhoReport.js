@@ -16,8 +16,9 @@
 //   1. Domain `tonkho_chitiet_sku` đã có dữ liệu (job "Tồn kho Chi tiết
 //      theo SKU - Live (DSMART16)" đã chạy ít nhất 1 lần — xem
 //      "etl/scripts/seedTonKhoChiTietSync.js").
-//   2. Đã chạy lại VIEW "deploy/Thiết lập VIEW Tồn kho Chi tiết theo SKU
-//      (DSMART16).sql" bản 10.46 (thêm cột `NgayNhapGanNhat`) + chạy lại
+//   2. Đã chạy lại VIEW "deploy/VIEW DSMART16 (trung tâm)/Thiết lập VIEW
+//      Tồn kho Chi tiết theo SKU (DSMART16).sql" bản 10.46 (thêm cột
+//      `NgayNhapGanNhat`) + chạy lại
 //      "etl/scripts/seedTonKhoChiTietSync.js" để đồng bộ thêm cột đó.
 //   3. `.env` của api-server đã điền đủ `ETL_DIEM_STK_*` (xem
 //      api-server/.env.example) — thiếu thì cột `tenSieuThi` sẽ hiện

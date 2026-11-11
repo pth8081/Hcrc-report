@@ -1,8 +1,9 @@
 // scripts/seedGiaBanSync.js — Tạo/CẬP NHẬT idempotent job đồng bộ "Giá bán
 // theo SKU" (bản 10.71+, theo yêu cầu người dùng — API tra giá thường +
 // giá khuyến mại theo mã hàng cho nhiều app đối tác, vd BRG Scan and
-// Checkout) — đọc VIEW `vw_GiaBanTheoSKU` (xem "deploy/Thiết lập VIEW Giá
-// bán theo SKU (DSMART16).sql"), ghi vào domain MỚI `giaban_zone_sku`.
+// Checkout) — đọc VIEW `vw_GiaBanTheoSKU` (xem "deploy/VIEW DSMART16
+// (trung tâm)/Thiết lập VIEW Giá bán theo SKU (DSMART16).sql"), ghi vào
+// domain MỚI `giaban_zone_sku`.
 //
 // UpdatedAtColumn = CapNhatNguon (p.MODI_DATE thật của dbo.RTPRICE, CÓ GIỜ
 // PHÚT GIÂY — khác EventDate chỉ có ngày) — cho đồng bộ TĂNG DẦN thật sự
@@ -15,7 +16,7 @@
 // ĐIỀU KIỆN TRƯỚC KHI CHẠY:
 //   1. Đã chạy xong `seedLdtdHcrcSync.js` ít nhất 1 lần.
 //   2. Đã tạo xong VIEW `vw_GiaBanTheoSKU` trên CSDL `DSMART16` — xem
-//      "deploy/Thiết lập VIEW Giá bán theo SKU (DSMART16).sql".
+//      "deploy/VIEW DSMART16 (trung tâm)/Thiết lập VIEW Giá bán theo SKU (DSMART16).sql".
 //
 // Cách dùng:
 //   node scripts/seedGiaBanSync.js
@@ -40,7 +41,7 @@ async function assertViewReady(dataSourceId, sourceName, tableName, requiredColu
   const tables = await schemaBrowser.listTables(dataSourceId);
   const exists = tables.some(t => t.schemaName === 'dbo' && t.tableName === tableName);
   if (!exists) {
-    throw new Error(`Không tìm thấy VIEW "dbo.${tableName}" trên nguồn "${sourceName}" — tạo VIEW này trước rồi chạy lại script (xem "deploy/Thiết lập VIEW Giá bán theo SKU (DSMART16).sql").`);
+    throw new Error(`Không tìm thấy VIEW "dbo.${tableName}" trên nguồn "${sourceName}" — tạo VIEW này trước rồi chạy lại script (xem "deploy/VIEW DSMART16 (trung tâm)/Thiết lập VIEW Giá bán theo SKU (DSMART16).sql").`);
   }
   const cols = await schemaBrowser.listColumns(dataSourceId, 'dbo', tableName);
   const colNames = new Set(cols.map(c => c.columnName));

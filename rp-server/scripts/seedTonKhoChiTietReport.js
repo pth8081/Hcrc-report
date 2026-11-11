@@ -11,7 +11,7 @@
 // DSMART16 không có khái niệm này, xem VIEW nguồn).
 //
 // LƯU Ý QUAN TRỌNG — chạy script này KHÔNG đủ để báo cáo CÓ SỐ LIỆU:
-//   1. DBA chạy `deploy/Thiết lập VIEW Tồn kho Chi tiết theo SKU (DSMART16).sql`.
+//   1. DBA chạy `deploy/VIEW DSMART16 (trung tâm)/Thiết lập VIEW Tồn kho Chi tiết theo SKU (DSMART16).sql`.
 //   2. Chạy `node etl/scripts/seedTonKhoChiTietSync.js` (tạo job đồng bộ).
 // Không làm đủ 2 bước trên, báo cáo luôn trả về rỗng (không lỗi).
 //

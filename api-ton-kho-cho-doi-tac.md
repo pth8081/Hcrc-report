@@ -189,7 +189,7 @@ dòng mẫu nên KHÔNG dùng).
 
 **Các bước triển khai (theo đúng thứ tự):**
 
-1. Chạy lại "deploy/Thiết lập VIEW Tồn kho Chi tiết theo SKU (DSMART16).sql"
+1. Chạy lại "deploy/VIEW DSMART16 (trung tâm)/Thiết lập VIEW Tồn kho Chi tiết theo SKU (DSMART16).sql"
    trên CSDL `DSMART16` (bản 10.46 — thêm cột `NgayNhapGanNhat`; bản
    10.50 — thêm cột `MaVach` từ `SKU_DEF.BARCODE`; AN TOÀN chạy lại nhiều
    lần).

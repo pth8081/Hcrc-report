@@ -20,7 +20,7 @@ tồn tại trên bảng giao dịch mua hàng `STRANS`, không có trên `SKU_D
 
 | # | Việc | Ai làm |
 |---|---|---|
-| 1 | Chạy `deploy/Thiết lập VIEW Tồn kho Chi tiết theo SKU (DSMART16).sql` | DBA |
+| 1 | Chạy `deploy/VIEW DSMART16 (trung tâm)/Thiết lập VIEW Tồn kho Chi tiết theo SKU (DSMART16).sql` | DBA |
 | 2 | Chạy `node etl/scripts/seedTonKhoChiTietSync.js` | Admin etl-admin / IT-Dev |
 | 3 | Chạy `node rp-server/scripts/seedTonKhoChiTietReport.js` | IT/Dev |
 | 4 | Gán quyền xem báo cáo (Hệ thống → Phân quyền) | Admin rp-user |
