@@ -42,6 +42,45 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.73 — Sửa lỗi thật: job "Vùng giá theo siêu thị" bỏ sót vĩnh viễn siêu thị có `MODI_DATE` NULL
+
+**Theo báo cáo đối tác HCRC Workspace** (kèm ảnh chụp thật) — API "Giá
+bán" báo lỗi "Chưa xác định được vùng giá" cho mã Điểm "267" ("Cửa hàng
+HaproFood Ecohome3").
+
+**Nguyên nhân THẬT (điều tra trực tiếp, không đoán)**: job "Vùng giá theo
+siêu thị" (bản 10.71) đồng bộ TRỰC TIẾP từ `dbo.STOCK`, dùng `MODI_DATE`
+làm `UpdatedAtColumn` — STK_ID `12671` (mã Điểm 267) có `MODI_DATE = NULL`
+trên DSMART16 → điều kiện `WHERE MODI_DATE >= @lastSyncedAt` luôn
+UNKNOWN với NULL (không phải TRUE), dòng này KHÔNG BAO GIỜ được chọn đồng
+bộ dù đã có sẵn trong `STOCK`. Cùng loại lỗi đã ghi nhận ở bản 8.24.
+
+**Đã sửa**: VIEW mới `dbo.vw_VungGiaTheoSieuThi` (xem `deploy/VIEW
+DSMART16 (trung tâm)/Thiết lập VIEW Vùng giá theo siêu thị
+(DSMART16).sql`) — cột `CapNhatHoacMo = COALESCE(MODI_DATE, OPEN_DATE,
+'1900-01-01')`, KHÔNG BAO GIỜ NULL. `etl/scripts/seedVungGiaSync.js` đổi
+nguồn sang VIEW này, TỰ reset watermark mỗi lần chạy.
+
+**LƯU Ý — siêu thị mã Điểm 267 vẫn CÓ THỂ chưa tra được giá sau khi sửa**:
+`ZONE_CODE` của STK_ID `12671` trên DSMART16 hiện ĐANG RỖNG (chưa khai
+vùng giá) — đây là THIẾU DỮ LIỆU NGHIỆP VỤ thật ở nguồn (có thể do siêu
+thị mới mở chưa gán vùng giá), KHÔNG PHẢI lỗi phần mềm — cần DBA/nghiệp
+vụ khai bổ sung `ZONE_CODE` cho đúng siêu thị này trên `STOCK`.
+
+**Triển khai**:
+```bash
+git pull origin main
+# Chạy "deploy/VIEW DSMART16 (trung tâm)/Thiết lập VIEW Vùng giá theo
+# siêu thị (DSMART16).sql" trên CSDL DSMART16
+cd etl && node scripts/seedVungGiaSync.js
+pm2 restart etl
+```
+
+**Kiểm tra**: sau khi job chạy xong 1 lượt, gọi lại API Giá bán cho mã
+Điểm 267 — nếu DSMART16 đã khai `ZONE_CODE` cho siêu thị này, phải ra giá
+bình thường; nếu `ZONE_CODE` vẫn rỗng, lỗi 404 vẫn còn NHƯNG đúng nguyên
+nhân (thiếu dữ liệu nguồn), không còn là lỗi đồng bộ.
+
 ## 10.72 — Sửa API "Giá bán": cho phép tra bằng mã vạch
 
 **Theo phản hồi người dùng** — API `gia-ban` (bản 10.71) chỉ cho tra theo

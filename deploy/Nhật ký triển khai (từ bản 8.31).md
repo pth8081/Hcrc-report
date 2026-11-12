@@ -14,6 +14,26 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.73 — Sửa lỗi thật: job "Vùng giá theo siêu thị" bỏ sót siêu thị có `MODI_DATE` NULL
+
+**Thay đổi**: VIEW mới `dbo.vw_VungGiaTheoSieuThi` (COALESCE MODI_DATE/
+OPEN_DATE, không bao giờ NULL) thay cho đọc trực tiếp `dbo.STOCK` —
+`etl/scripts/seedVungGiaSync.js` tự reset watermark khi chạy lại.
+
+**Triển khai**:
+```bash
+git pull origin main
+# Chạy "deploy/VIEW DSMART16 (trung tâm)/Thiết lập VIEW Vùng giá theo
+# siêu thị (DSMART16).sql" trên CSDL DSMART16
+cd etl && node scripts/seedVungGiaSync.js
+pm2 restart etl
+```
+
+**Kiểm tra**: gọi lại API Giá bán cho mã Điểm từng bị lỗi "Chưa xác định
+được vùng giá" — hết lỗi nếu DSMART16 đã có `ZONE_CODE` cho siêu thị đó
+(nếu `ZONE_CODE` vẫn rỗng trên nguồn thì vẫn lỗi 404, nhưng đúng nguyên
+nhân thiếu dữ liệu nghiệp vụ, không phải lỗi đồng bộ).
+
 ## 10.72 — Sửa API "Giá bán": cho phép tra bằng mã vạch
 
 **Thay đổi**: `GET /api/v1/reports/gia-ban/run` nay nhận `maHang` HOẶC

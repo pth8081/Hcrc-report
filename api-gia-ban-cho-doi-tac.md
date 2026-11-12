@@ -119,11 +119,15 @@ curl "https://api.brgmart.vn/api/v1/reports/gia-ban/run?maVach=8934696001589&maD
 
 **Các bước triển khai (theo đúng thứ tự):**
 
-1. Chạy `deploy/VIEW DSMART16 (trung tâm)/Thiết lập VIEW Giá bán theo SKU (DSMART16).sql` trên CSDL
-   `DSMART16` (AN TOÀN chạy lại nhiều lần).
+1. Chạy `deploy/VIEW DSMART16 (trung tâm)/Thiết lập VIEW Giá bán theo SKU (DSMART16).sql`
+   VÀ `deploy/VIEW DSMART16 (trung tâm)/Thiết lập VIEW Vùng giá theo siêu
+   thị (DSMART16).sql` trên CSDL `DSMART16` (AN TOÀN chạy lại nhiều lần).
 2. Chạy `node etl/scripts/seedVungGiaSync.js` (thư mục `etl/`) — tạo job
-   đồng bộ nhỏ "Vùng giá theo siêu thị" (domain `vung_gia_stk`, đọc trực
-   tiếp `dbo.STOCK`, ~34 dòng).
+   đồng bộ nhỏ "Vùng giá theo siêu thị" (domain `vung_gia_stk`, đọc VIEW
+   `vw_VungGiaTheoSieuThi` ở bước 1, ~34 dòng — KHÔNG đọc trực tiếp bảng
+   `STOCK` nữa, xem bản 10.73: `STOCK.MODI_DATE` NULL ở 1 số siêu thị
+   khiến đồng bộ trực tiếp bỏ sót vĩnh viễn, VIEW đã tự xử lý bằng
+   `COALESCE`). Script TỰ reset watermark mỗi lần chạy — an toàn chạy lại.
 3. Chạy `node etl/scripts/seedGiaBanSync.js` (thư mục `etl/`) — tạo job
    đồng bộ chính "Giá bán theo SKU" (domain `giaban_zone_sku`, đọc VIEW ở
    bước 1). **Lượt chạy ĐẦU TIÊN quét toàn bộ `RTPRICE`** (~1 triệu dòng

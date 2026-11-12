@@ -4,13 +4,26 @@
 // xem dbo.RTPRICE/dbo.STOCK) để tra đúng giá, KHÔNG được chạm DSMART16
 // trực tiếp mỗi lần đối tác gọi API — xem "api-gia-ban-cho-doi-tac.md").
 //
-// Đồng bộ TRỰC TIẾP từ dbo.STOCK (bảng gốc đã dùng ở VIEW Tồn kho —
-// STK_NAME_U), KHÔNG cần tạo VIEW riêng (chỉ cần đúng 2 cột STK_ID,
-// ZONE_CODE, không JOIN gì thêm). Bảng nhỏ (~34 dòng, xem hội thoại điều
-// tra), đồng bộ NHANH mỗi lượt.
+// SỬA bản 10.73 — SỬA LỖI THẬT: bản 10.71 đồng bộ TRỰC TIẾP từ bảng
+// `STOCK`, dùng `MODI_DATE` làm UpdatedAtColumn — xác nhận bằng dữ liệu
+// thật: siêu thị mã Điểm "267" ("Cửa hàng HaproFood Ecohome3", STK_ID
+// '12671') có `STOCK.MODI_DATE = NULL`, khiến điều kiện
+// `WHERE MODI_DATE >= @lastSyncedAt` LUÔN là UNKNOWN (không phải TRUE) —
+// dòng này KHÔNG BAO GIỜ được đồng bộ, dù đã có sẵn trong STOCK, API "Giá
+// bán" báo "Chưa xác định được vùng giá" cho đúng siêu thị này. Đây CÙNG
+// LOẠI lỗi đã ghi nhận bản 8.24 ("cột cập nhật lúc NULL khiến watermark bỏ
+// sót dòng vĩnh viễn"). SỬA: đồng bộ qua VIEW MỚI `vw_VungGiaTheoSieuThi`
+// (xem "deploy/VIEW DSMART16 (trung tâm)/Thiết lập VIEW Vùng giá theo
+// siêu thị (DSMART16).sql") — cột `CapNhatHoacMo` = COALESCE(MODI_DATE,
+// OPEN_DATE, '1900-01-01'), KHÔNG BAO GIỜ NULL, đảm bảo mọi siêu thị đều
+// được chọn đồng bộ bất kể STOCK có ghi MODI_DATE hay không.
 //
-// ĐIỀU KIỆN TRƯỚC KHI CHẠY: đã chạy xong `seedLdtdHcrcSync.js` ít nhất 1
-// lần (cần sẵn Nguồn dữ liệu "DSMART16 - Live").
+// ĐIỀU KIỆN TRƯỚC KHI CHẠY:
+//   1. Đã chạy xong `seedLdtdHcrcSync.js` ít nhất 1 lần (cần sẵn Nguồn dữ
+//      liệu "DSMART16 - Live").
+//   2. Đã tạo xong VIEW `vw_VungGiaTheoSieuThi` trên CSDL `DSMART16` —
+//      xem "deploy/VIEW DSMART16 (trung tâm)/Thiết lập VIEW Vùng giá theo
+//      siêu thị (DSMART16).sql".
 //
 // Cách dùng:
 //   node scripts/seedVungGiaSync.js
@@ -18,7 +31,7 @@ require('dotenv').config();
 const { sql, getPool } = require('../db');
 const schemaBrowser = require('../lib/schemaBrowser');
 
-const TABLE_NAME = 'STOCK';
+const VIEW_NAME = 'vw_VungGiaTheoSieuThi';
 const DOMAIN = 'vung_gia_stk';
 
 async function findDataSourceId(pool, name) {
@@ -31,17 +44,17 @@ async function findDataSourceId(pool, name) {
   return result.recordset[0].Id;
 }
 
-async function assertTableReady(dataSourceId, sourceName, tableName, requiredColumns) {
+async function assertViewReady(dataSourceId, sourceName, tableName, requiredColumns) {
   const tables = await schemaBrowser.listTables(dataSourceId);
   const exists = tables.some(t => t.schemaName === 'dbo' && t.tableName === tableName);
   if (!exists) {
-    throw new Error(`Không tìm thấy bảng "dbo.${tableName}" trên nguồn "${sourceName}".`);
+    throw new Error(`Không tìm thấy VIEW "dbo.${tableName}" trên nguồn "${sourceName}" — tạo VIEW này trước rồi chạy lại script (xem "deploy/VIEW DSMART16 (trung tâm)/Thiết lập VIEW Vùng giá theo siêu thị (DSMART16).sql").`);
   }
   const cols = await schemaBrowser.listColumns(dataSourceId, 'dbo', tableName);
   const colNames = new Set(cols.map(c => c.columnName));
   const missing = requiredColumns.filter(c => !colNames.has(c));
   if (missing.length) {
-    throw new Error(`Bảng "dbo.${tableName}" trên nguồn "${sourceName}" thiếu cột: ${missing.join(', ')}.`);
+    throw new Error(`VIEW "dbo.${tableName}" trên nguồn "${sourceName}" thiếu cột: ${missing.join(', ')} — đối chiếu lại câu CREATE VIEW.`);
   }
 }
 
@@ -105,27 +118,43 @@ async function upsertSyncJob(pool, job) {
   return id;
 }
 
+async function resetWatermark(pool, jobName) {
+  const result = await pool.request().input('name', sql.NVarChar(200), jobName)
+    .query('SELECT Id FROM etl.SyncJobs WHERE Name = @name');
+  if (!result.recordset.length) return;
+  await pool.request().input('id', sql.Int, result.recordset[0].Id)
+    .query('DELETE FROM etl.SyncState WHERE SyncJobId = @id');
+}
+
 async function main() {
   const pool = await getPool('ADMIN');
   const liveId = await findDataSourceId(pool, 'DSMART16 - Live');
 
   const job = {
     name: 'Vùng giá theo siêu thị - Live (DSMART16)', dataSourceId: liveId, sourceName: 'DSMART16 - Live',
-    sourceTable: TABLE_NAME, keyColumn: 'STK_ID', dateColumn: 'MODI_DATE',
-    dimensionColumns: ['ZONE_CODE'],
+    sourceTable: VIEW_NAME, keyColumn: 'STK_ID', dateColumn: 'CapNhatHoacMo',
+    dimensionColumns: ['ZONE_CODE', 'TenSieuThi'],
     measureColumns: [],
     targetDomain: DOMAIN, cronExpression: '*/15 * * * *'
   };
 
   const requiredColumns = [job.keyColumn, job.dateColumn, ...job.dimensionColumns];
   try {
-    await assertTableReady(job.dataSourceId, job.sourceName, job.sourceTable, requiredColumns);
+    await assertViewReady(job.dataSourceId, job.sourceName, job.sourceTable, requiredColumns);
   } catch (err) {
     console.error(`⛔ ${err.message}`);
     process.exit(1);
     return;
   }
   await upsertSyncJob(pool, job);
+
+  // SỬA bản 10.73 — đổi nguồn từ bảng STOCK sang VIEW mới, BẮT BUỘC reset
+  // watermark về đầu (EPOCH) để lượt chạy TIẾP THEO quét lại TOÀN BỘ siêu
+  // thị (bắt được cả những siêu thị MODI_DATE=NULL từng bị bỏ sót vĩnh
+  // viễn) — không reset thì watermark cũ (tính theo MODI_DATE) có thể vẫn
+  // che mất các dòng CapNhatHoacMo cũ hơn watermark đó.
+  await resetWatermark(pool, job.name);
+  console.log('↻ Đã reset watermark job này về đầu — lượt chạy tiếp theo quét lại TOÀN BỘ siêu thị.');
 
   console.log('');
   console.log('✅ Xong — job đồng bộ "Vùng giá theo siêu thị" đã sẵn sàng.');
