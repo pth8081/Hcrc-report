@@ -42,6 +42,46 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.75 — Sửa lỗi thật: API "Giá bán" tra `maVach` bỏ sót mọi mã vạch PHỤ
+
+**Theo báo cáo thật** — đối tác quét 1 mã vạch hợp lệ (in trên sản phẩm
+G7 Cà phê 3in1) vẫn bị báo "Không tìm thấy giá", dù đã xác nhận siêu thị
+có vùng giá đúng và mã hàng có giá ở `RTPRICE`.
+
+**Nguyên nhân THẬT**: 1 mã hàng trên DSMART16 CÓ THỂ có NHIỀU mã vạch
+đăng ký trong `dbo.BARCODE` (xác nhận dữ liệu thật — mã hàng ví dụ có 3
+mã vạch, cột `ISDEFAULT` đánh dấu đúng 1 mã MẶC ĐỊNH). API "Giá bán" (bản
+10.72) lại khớp `maVach` TRỰC TIẾP trên domain giá `giaban_zone_sku` —
+domain đó chỉ mang ĐÚNG mã vạch mặc định (từ `SKU_DEF.BARCODE`, cũng
+chính là nguồn VIEW `vw_GiaBanTheoSKU` đang dùng) — mã vạch PHỤ không
+khớp được dù hợp lệ 100%.
+
+**Đã sửa**: tách riêng domain `mavach_mahang` (VIEW mới `vw_MaVachTheoSKU`,
+nối `dbo.BARCODE` + `SKU_DEF`, mang ĐỦ mọi mã vạch — ~91.260 dòng) —
+`maVach` nay được DỊCH sang `maHang` qua domain này TRƯỚC (xem
+`lib/barcodeLookup.js`), rồi mới tra giá theo `maHang` như cũ.
+
+**Đã thêm**:
+- `deploy/VIEW DSMART16 (trung tâm)/Thiết lập VIEW Mã vạch theo SKU (DSMART16).sql`.
+- `etl/scripts/seedMaVachSync.js` — job đồng bộ domain `mavach_mahang`
+  (quét lại toàn bộ mỗi lượt, nguồn không có cột ngày giờ).
+- `api-server/lib/barcodeLookup.js` — dịch mã vạch bất kỳ -> mã hàng.
+- `api-server/routes/v1/reports.js` — `handleSingleLookup()` dịch `maVach`
+  trước khi tra giá.
+
+**Triển khai**:
+```bash
+git pull origin main
+# Chạy "deploy/VIEW DSMART16 (trung tâm)/Thiết lập VIEW Mã vạch theo SKU
+# (DSMART16).sql" trên CSDL DSMART16
+cd etl && node scripts/seedMaVachSync.js
+pm2 restart etl api-server
+```
+
+**Kiểm tra**: xem `api-gia-ban-cho-doi-tac.md` mục 7 — thử API bằng 1 mã
+vạch PHỤ (KHÔNG mặc định, `dbo.BARCODE.ISDEFAULT = 0`) của 1 mã hàng bất
+kỳ — phải ra giá đúng, không còn báo "Không tìm thấy giá".
+
 ## 10.74 — Sửa lỗi thật: job "Giá bán theo SKU" bỏ sót mã hàng có `RTPRICE.MODI_DATE` NULL
 
 **Theo báo cáo thật** — siêu thị "301" (ST Phạm Ngọc Thạch, vùng giá

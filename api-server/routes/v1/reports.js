@@ -32,6 +32,7 @@ const { runReport, projectColumns, describeColumns } = require('../../lib/report
 const reportResultCache = require('../../lib/reportResultCache');
 const { loadDiemStkMapping } = require('../../lib/diemStkMapping');
 const { loadZoneLookup } = require('../../lib/zoneLookup');
+const { loadBarcodeLookup } = require('../../lib/barcodeLookup');
 
 const router = express.Router();
 router.use(requireApiKey('reports'));
@@ -42,23 +43,34 @@ router.use(requireApiKey('reports'));
 // TÁCH RIÊNG khỏi nhánh phân trang bên dưới (không dùng chung
 // definition.filters/forcedConditions/translateStkToStore, để không đụng
 // hành vi của các báo cáo khác đang chạy ổn định). `definition.singleLookup`
-// = { maHangField, maVachField, zoneField } — tên field THÔ trong
-// Dimensions JSON (khác `columns[].key`, giống quy ước rawStkField ở
-// translateStkToStore).
+// = { maHangField, zoneField } — tên field THÔ trong Dimensions JSON
+// (khác `columns[].key`, giống quy ước rawStkField ở translateStkToStore).
 //
-// maHang HOẶC maVach (bản 10.72, SỬA theo yêu cầu người dùng — máy quét ở
-// quầy đọc MÃ VẠCH in trên sản phẩm, KHÔNG phải mã hàng nội bộ; bắt app
-// phải tự tra trước mã nội bộ từ mã vạch rồi mới gọi được API là vô lý,
-// quay lại đúng vấn đề API này sinh ra để giải quyết) — CHO PHÉP tra bằng
-// BẤT KỲ cái nào app đang có trong tay, không bắt buộc đúng 1 cái. Có CẢ
-// HAI thì ưu tiên `maHang` (đáng tin hơn — mã vạch có thể trùng/thiếu ở 1
-// số mã hàng tự dán nhãn nội bộ).
+// maHang HOẶC maVach (bản 10.72/10.75) — CHO PHÉP tra bằng BẤT KỲ cái nào
+// app đang có trong tay. SỬA bản 10.75, SỬA LỖI THẬT: trước đây `maVach`
+// được khớp TRỰC TIẾP trên domain `giaban_zone_sku` — domain đó chỉ mang
+// ĐÚNG 1 mã vạch MẶC ĐỊNH mỗi SKU (từ `SKU_DEF.BARCODE`), trong khi 1 mã
+// hàng THẬT có thể có 2-3 mã vạch đăng ký trong `dbo.BARCODE` (xác nhận
+// bằng dữ liệu thật — đối tác quét đúng 1 mã vạch PHỤ hợp lệ vẫn bị báo
+// "Không tìm thấy giá"). SỬA: dịch `maVach` -> `maHang` TRƯỚC qua domain
+// RIÊNG `mavach_mahang` (mang ĐỦ mọi mã vạch, xem lib/barcodeLookup.js),
+// rồi LUÔN tra theo `maHang` ở domain giá — không còn khớp trực tiếp
+// `maVach` trên domain giá nữa.
 async function handleSingleLookup(req, res, definition, columns) {
-  const maHang = req.query.maHang;
+  let maHang = req.query.maHang;
   const maVach = req.query.maVach;
   const maDiem = req.query.maDiem;
+  const inputLabel = maHang ? 'mã hàng' : 'mã vạch'; // nhãn lỗi theo ĐÚNG tham số đối tác đã gửi lên, không đổi sau khi dịch maVach -> maHang bên dưới
   if (!maDiem || (!maHang && !maVach)) {
     return res.status(400).json({ error: 'Thiếu tham số bắt buộc: maDiem, và ít nhất 1 trong 2 tham số maHang hoặc maVach' });
+  }
+
+  if (!maHang) {
+    const barcodeLookup = await loadBarcodeLookup();
+    maHang = barcodeLookup.get(maVach);
+    if (!maHang) {
+      return res.status(404).json({ error: `Không tìm thấy mã hàng nào khớp mã vạch "${maVach}"` });
+    }
   }
 
   const diemMapping = await loadDiemStkMapping();
@@ -74,8 +86,8 @@ async function handleSingleLookup(req, res, definition, columns) {
   }
 
   const t = definition.singleLookup;
-  const matchField = maHang ? t.maHangField : t.maVachField;
-  const matchValue = maHang || maVach;
+  const matchField = t.maHangField;
+  const matchValue = maHang;
 
   const cacheKey = ['gia-ban-singleLookup', req.params.reportId, matchField, matchValue, zones.sort(), req.query.fields || ''];
   let payload = reportResultCache.get(cacheKey);
@@ -92,7 +104,7 @@ async function handleSingleLookup(req, res, definition, columns) {
       ORDER BY EventDate DESC, Id DESC
     `);
     if (!result.recordset.length) {
-      return res.status(404).json({ error: `Không tìm thấy giá cho ${maHang ? 'mã hàng' : 'mã vạch'} "${matchValue}" ở vùng giá của siêu thị "${maDiem}"` });
+      return res.status(404).json({ error: `Không tìm thấy giá cho ${inputLabel} "${maVach || matchValue}" ở vùng giá của siêu thị "${maDiem}"` });
     }
     const row = { id: result.recordset[0].Id, sourceSystem: result.recordset[0].SourceSystem, entityCode: result.recordset[0].EntityCode, eventDate: result.recordset[0].EventDate, dimensions: JSON.parse(result.recordset[0].Dimensions || '{}'), measures: result.recordset[0].Measures ? JSON.parse(result.recordset[0].Measures) : {}, syncedAt: result.recordset[0].SyncedAt };
     payload = { reportId: req.params.reportId, ...projectColumns(row, columns) };

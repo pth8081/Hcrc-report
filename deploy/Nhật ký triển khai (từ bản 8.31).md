@@ -14,6 +14,24 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.75 — Sửa lỗi thật: API "Giá bán" tra `maVach` bỏ sót mọi mã vạch PHỤ
+
+**Thay đổi**: 1 mã hàng CÓ THỂ có nhiều mã vạch (`dbo.BARCODE`), API
+trước đây chỉ khớp đúng mã vạch mặc định. Thêm domain `mavach_mahang`
+(VIEW `vw_MaVachTheoSKU`) dịch MỌI mã vạch -> mã hàng TRƯỚC khi tra giá.
+
+**Triển khai**:
+```bash
+git pull origin main
+# Chạy "deploy/VIEW DSMART16 (trung tâm)/Thiết lập VIEW Mã vạch theo SKU
+# (DSMART16).sql" trên CSDL DSMART16
+cd etl && node scripts/seedMaVachSync.js
+pm2 restart etl api-server
+```
+
+**Kiểm tra**: gọi API Giá bán bằng 1 mã vạch PHỤ (không mặc định) của 1
+mã hàng có nhiều mã vạch — phải ra giá đúng.
+
 ## 10.74 — Sửa lỗi thật: job "Giá bán theo SKU" bỏ sót mã hàng có `RTPRICE.MODI_DATE` NULL
 
 **Thay đổi**: VIEW `vw_GiaBanTheoSKU` bọc `COALESCE(MODI_DATE, OPEN_DATE,

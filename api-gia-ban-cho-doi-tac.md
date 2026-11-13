@@ -116,12 +116,18 @@ curl "https://api.brgmart.vn/api/v1/reports/gia-ban/run?maVach=8934696001589&maD
   thị thuộc đúng 1 vùng qua `dbo.STOCK.ZONE_CODE`.
 - VIEW gộp: `deploy/VIEW DSMART16 (trung tâm)/Thiết lập VIEW Giá bán theo SKU (DSMART16).sql` (tạo
   `dbo.vw_GiaBanTheoSKU`, nối `RTPRICE` + `SKU_DEF`).
+- `dbo.BARCODE` (bản 10.75) — 1 mã hàng CÓ THỂ có NHIỀU mã vạch (cột
+  `ISDEFAULT` đánh dấu mã mặc định, trùng `SKU_DEF.BARCODE`) — API tra
+  theo `maVach` PHẢI dịch qua domain riêng `mavach_mahang` (xem VIEW
+  `vw_MaVachTheoSKU`), KHÔNG được khớp trực tiếp cột `maVach` của domain
+  giá (domain đó chỉ mang đúng 1 mã vạch mặc định mỗi SKU).
 
 **Các bước triển khai (theo đúng thứ tự):**
 
-1. Chạy `deploy/VIEW DSMART16 (trung tâm)/Thiết lập VIEW Giá bán theo SKU (DSMART16).sql`
-   VÀ `deploy/VIEW DSMART16 (trung tâm)/Thiết lập VIEW Vùng giá theo siêu
-   thị (DSMART16).sql` trên CSDL `DSMART16` (AN TOÀN chạy lại nhiều lần).
+1. Chạy cả 3 VIEW trên CSDL `DSMART16` (AN TOÀN chạy lại nhiều lần):
+   `deploy/VIEW DSMART16 (trung tâm)/Thiết lập VIEW Giá bán theo SKU (DSMART16).sql`,
+   `deploy/VIEW DSMART16 (trung tâm)/Thiết lập VIEW Vùng giá theo siêu thị (DSMART16).sql`,
+   `deploy/VIEW DSMART16 (trung tâm)/Thiết lập VIEW Mã vạch theo SKU (DSMART16).sql`.
 2. Chạy `node etl/scripts/seedVungGiaSync.js` (thư mục `etl/`) — tạo job
    đồng bộ nhỏ "Vùng giá theo siêu thị" (domain `vung_gia_stk`, đọc VIEW
    `vw_VungGiaTheoSieuThi` ở bước 1, ~34 dòng — KHÔNG đọc trực tiếp bảng
@@ -132,18 +138,22 @@ curl "https://api.brgmart.vn/api/v1/reports/gia-ban/run?maVach=8934696001589&maD
    đồng bộ chính "Giá bán theo SKU" (domain `giaban_zone_sku`, đọc VIEW ở
    bước 1). **Lượt chạy ĐẦU TIÊN quét toàn bộ `RTPRICE`** (~1 triệu dòng
    sau khi lọc vùng hợp lệ) — có thể mất vài phút; các lượt sau chỉ lấy
-   giá VỪA ĐỔI (nhờ `UpdatedAtColumn = CapNhatNguon`, có giờ phút giây
-   thật, khác hẳn cột `EventDate` chỉ có ngày của domain "Tồn kho").
-4. Chạy `node api-server/scripts/seedGiaBanReport.js` (thư mục
+   giá VỪA ĐỔI (nhờ `UpdatedAtColumn = CapNhatNguon`, bọc `COALESCE` từ
+   bản 10.74). Script TỰ reset watermark mỗi lần chạy.
+4. Chạy `node etl/scripts/seedMaVachSync.js` (thư mục `etl/`, bản 10.75) —
+   tạo job đồng bộ "Mã vạch theo SKU" (domain `mavach_mahang`, ~91.260
+   dòng, quét lại toàn bộ mỗi lượt vì `dbo.BARCODE` không có cột ngày).
+5. Chạy `node api-server/scripts/seedGiaBanReport.js` (thư mục
    `api-server/`) — tạo/cập nhật báo cáo `gia-ban` trong
    `api.ReportCatalog`.
-5. `.env` của `api-server` đã có `ETL_DIEM_STK_*` (dùng lại cấu hình đã
+6. `.env` của `api-server` đã có `ETL_DIEM_STK_*` (dùng lại cấu hình đã
    điền cho API `ton-kho` — xem `api-server/.env.example`) — KHÔNG cần
-   thêm biến môi trường mới (`lib/zoneLookup.js` đọc thẳng `dwh.ReportFacts`
-   qua pool `DWH` đã có sẵn, không mở kết nối mới).
-6. `pm2 restart` đúng tiến trình `api-server` (route mới
+   thêm biến môi trường mới (`lib/zoneLookup.js`/`lib/barcodeLookup.js`
+   đọc thẳng `dwh.ReportFacts` qua pool `DWH` đã có sẵn, không mở kết nối
+   mới).
+7. `pm2 restart` đúng tiến trình `api-server` (route mới
    `handleSingleLookup` nằm trong `routes/v1/reports.js` đã sửa).
-7. Vào `api-admin` → "Đối tác" → đúng đối tác cần dùng (vd BRG Scan and
+8. Vào `api-admin` → "Đối tác" → đúng đối tác cần dùng (vd BRG Scan and
    Checkout) → "Báo cáo được gọi" → tick "Giá bán theo mã hàng" — mặc định
    KHÔNG đối tác nào gọi được dù có scope `reports` hợp lệ.
 
@@ -160,6 +170,12 @@ nhỏ hơn `giaThuong`. Thử tiếp với 1 mã hàng KHÔNG có khuyến mại
 
 Thử lại CÙNG mã hàng đó bằng `maVach` thay vì `maHang` (lấy mã vạch THẬT
 từ chính kết quả vừa trả về ở trên) → phải ra ĐÚNG kết quả giống hệt.
+
+**Quan trọng (bản 10.75)** — thử THÊM bằng 1 mã vạch PHỤ (KHÔNG mặc định)
+của CÙNG mã hàng đó: `SELECT * FROM dbo.BARCODE WHERE SKU_ID = '<SKU_ID
+thật>'` để lấy mã vạch nào có `ISDEFAULT = 0` → gọi API với mã vạch đó →
+PHẢI ra ĐÚNG kết quả giống hệt (trước bản 10.75, trường hợp này sẽ báo
+sai "Không tìm thấy giá" dù mã vạch hợp lệ).
 
 Thử `maDiem` không tồn tại → phải trả `404` (không phải `500`). Thử thiếu
 `maDiem`, hoặc thiếu cả `maHang` lẫn `maVach` → phải trả `400`.
