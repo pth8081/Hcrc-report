@@ -61,6 +61,7 @@ về **CÓ PHÂN TRANG** — 1 lần gọi KHÔNG trả hết toàn bộ dữ li
     { "key": "maHang", "label": "Mã mặt hàng" },
     { "key": "tenHang", "label": "Tên mặt hàng" },
     { "key": "maVach", "label": "Mã vạch" },
+    { "key": "dsMaVach", "label": "Danh sách mã vạch (đầy đủ, gồm mã mặc định)" },
     { "key": "soLuongTon", "label": "Số lượng tồn" },
     { "key": "maKho", "label": "Mã kho" },
     { "key": "maDiem", "label": "Mã Điểm (siêu thị)" },
@@ -76,6 +77,7 @@ về **CÓ PHÂN TRANG** — 1 lần gọi KHÔNG trả hết toàn bộ dữ li
       "maHang": "2003330491",
       "tenHang": "Sữa tươi TH True Milk 1L",
       "maVach": "8934696001589",
+      "dsMaVach": ["8934696001589", "8934696001596"],
       "soLuongTon": 186,
       "maKho": "10041",
       "maDiem": "004",
@@ -90,6 +92,7 @@ về **CÓ PHÂN TRANG** — 1 lần gọi KHÔNG trả hết toàn bộ dữ li
       "maHang": "2003290553",
       "tenHang": "Dầu ăn Simply 1L",
       "maVach": null,
+      "dsMaVach": [],
       "soLuongTon": 86,
       "maKho": "10011",
       "maDiem": "001",
@@ -110,7 +113,8 @@ về **CÓ PHÂN TRANG** — 1 lần gọi KHÔNG trả hết toàn bộ dữ li
 | `tenNganhHang` | chuỗi | Tên ngành hàng |
 | `maHang` | chuỗi (10 chữ số) | Mã mặt hàng (SKU nội bộ) — **dùng làm mã định danh chính** |
 | `tenHang` | chuỗi | Tên mặt hàng |
-| `maVach` | chuỗi (thường 13 chữ số, chuẩn EAN-13) hoặc `null` | Mã vạch sản phẩm thật — `null` nếu mặt hàng đó chưa khai mã vạch trong hệ thống nguồn (không phải lỗi) |
+| `maVach` | chuỗi (thường 13 chữ số, chuẩn EAN-13) hoặc `null` | Mã vạch MẶC ĐỊNH — `null` nếu mặt hàng đó chưa khai mã vạch trong hệ thống nguồn (không phải lỗi) |
+| `dsMaVach` | mảng chuỗi (có thể rỗng `[]`) | **TOÀN BỘ** mã vạch đã đăng ký của mặt hàng này (gồm cả giá trị ở `maVach`) — 1 mặt hàng có thể có NHIỀU mã vạch (vd đóng gói khác nhau/mã vạch cũ còn hiệu lực). **Khi đối chiếu mã vạch người dùng quét/nhập, PHẢI kiểm tra khớp với BẤT KỲ phần tử nào trong `dsMaVach`, KHÔNG chỉ so với `maVach`** — nếu chỉ so với `maVach` sẽ báo sai "không khớp" với các mã vạch phụ hợp lệ khác (bản 10.76) |
 | `soLuongTon` | số | Số lượng tồn kho hiện tại |
 | `maKho` | chuỗi | Mã kho vật lý (có thể nhiều mã kho cùng thuộc 1 siêu thị, có thể đổi theo thời gian) |
 | `maDiem` | chuỗi | **Mã Điểm** — mã định danh SIÊU THỊ, ỔN ĐỊNH lâu dài (không đổi dù siêu thị đổi/thêm mã kho) — **khuyến nghị dùng trường này làm khoá chính khi lưu trữ/đối chiếu dữ liệu phía đối tác**, không nên dùng `maKho` làm khoá cố định |
@@ -131,6 +135,13 @@ về **CÓ PHÂN TRANG** — 1 lần gọi KHÔNG trả hết toàn bộ dữ li
 > chưa khai mã vạch sẽ trả về `null` ở trường này, hệ thống đối tác nên
 > dùng `maHang` làm khoá định danh chính (LUÔN có), coi `maVach` là
 > trường bổ sung để đối chiếu/quét mã khi có.
+>
+> **QUAN TRỌNG (bản 10.76)**: 1 mặt hàng có thể có NHIỀU mã vạch hợp lệ
+> (không chỉ đúng 1 mã trong `maVach`). Tính năng nào đối chiếu mã vạch
+> người dùng quét/nhập với dữ liệu API này **PHẢI dùng `dsMaVach`** (kiểm
+> tra mã quét được có nằm trong mảng này không), **KHÔNG được chỉ so sánh
+> với `maVach`** — nếu chỉ so với `maVach`, mã vạch phụ hợp lệ sẽ bị báo
+> sai là "không tìm thấy"/"không khớp".
 
 > **Về Đơn vị tính (ĐVT)**: hiện CHƯA có trong API này — đang chờ DBA xác
 > nhận có cột cố định theo mã hàng hay không. Sẽ cập nhật sau.
@@ -294,3 +305,52 @@ tăng `page` lên hết dữ liệu.
   — dành riêng cho tính năng "Ghi nhận trên kệ" (PWA, quét 1 mã cần trả
   lời ngay, khác hẳn nhu cầu tải hàng loạt của đối tác ngoài) — CHƯA làm ở
   bản này, chờ xác nhận phạm vi.
+
+### Thêm `dsMaVach` — mã vạch PHỤ (bản 10.76)
+
+**SỬA LỖI THẬT**: màn "Ghi Nhận" (HCRC Workspace, dùng dữ liệu từ API này
+để đối chiếu mã vạch quét) báo sai "không khớp" khi nhân viên quét đúng
+mã vạch PHỤ của 1 mặt hàng (mặt hàng đó có nhiều hơn 1 mã vạch đăng ký
+trong `dbo.BARCODE` — xác nhận bằng dữ liệu thật, vd 1 mã hàng có tới 3 mã
+vạch, chỉ 1 là mã mặc định) — API "Tồn kho" trước đây chỉ có `maVach` (1
+mã mặc định) nên hệ thống đối tác không có cách nào biết các mã vạch phụ
+hợp lệ khác. ĐÚNG lỗi đã sửa cho API "Giá bán" ở bản 10.75 — xem
+`api-gia-ban-cho-doi-tac.md` mục 9 để hiểu nguồn gốc `dbo.BARCODE`/domain
+`mavach_mahang`.
+
+**Nguồn dữ liệu**: dùng chung domain `mavach_mahang` ĐÃ CÓ SẴN (VIEW
+`dbo.vw_MaVachTheoSKU`, CSDL `DSMART16`, job đồng bộ "Mã vạch theo SKU -
+Live (DSMART16)") — xem "deploy/VIEW DSMART16 (trung tâm)/Thiết lập VIEW
+Mã vạch theo SKU (DSMART16).sql" + `etl/scripts/seedMaVachSync.js`. KHÔNG
+tạo VIEW/job đồng bộ mới cho báo cáo này — tái dùng NGUYÊN domain đã dựng
+cho API "Giá bán".
+
+**Các bước triển khai (theo đúng thứ tự)**:
+1. Đảm bảo domain `mavach_mahang` đã có dữ liệu — nếu CHƯA triển khai API
+   "Giá bán" (bản 10.75) trên server này, làm theo mục 9 của
+   `api-gia-ban-cho-doi-tac.md` TRƯỚC (tạo VIEW `vw_MaVachTheoSKU` +
+   chạy `node etl/scripts/seedMaVachSync.js`). Nếu ĐÃ làm rồi (đang dùng
+   API "Giá bán"), bỏ qua bước này — domain đã có sẵn, dùng lại luôn.
+2. `pm2 restart` đúng tiến trình `api-server` (nạp code mới:
+   `lib/barcodeLookup.js:loadAltBarcodesBySku()` +
+   `routes/v1/reports.js:definition.attachAltBarcodes`).
+3. Chạy `node scripts/seedTonKhoReport.js` (thư mục `api-server/`) — cập
+   nhật định nghĩa báo cáo `ton-kho`, thêm cột `dsMaVach` + cờ
+   `attachAltBarcodes`. BẮT BUỘC chạy lại script này sau bước 2, nếu
+   không `dsMaVach` sẽ không xuất hiện trong response.
+
+**Kiểm tra sau khi triển khai**:
+```bash
+curl "http://localhost:<port>/api/v1/reports/ton-kho/run?pageSize=5" \
+  -H "X-API-Key: <api key thật>"
+```
+Mỗi dòng phải có thêm trường `dsMaVach` (mảng). Lấy 1 mã hàng đã biết có
+NHIỀU mã vạch (vd dùng chính mã hàng đã test ở `api-gia-ban-cho-doi-tac.md`,
+290926750000/G7 Cà phê 3in1) — lọc `fields=maHang,maVach,dsMaVach` rồi đối
+chiếu: `dsMaVach` phải chứa ĐỦ cả 3 mã vạch (8935024122310, 8935024123096,
+8935024912607), không chỉ 1 mã mặc định trong `maVach`.
+
+Sau khi xác nhận đúng, gửi phần cập nhật mục 4 ở trên (trường `dsMaVach`
+mới) cho đối tác/đội HCRC Workspace để họ sửa lại logic đối chiếu mã vạch
+ở màn "Ghi Nhận" — chuyển từ so khớp với `maVach` sang so khớp với BẤT KỲ
+phần tử nào trong `dsMaVach`.

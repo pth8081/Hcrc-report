@@ -262,6 +262,29 @@ router.get('/:reportId/run', async (req, res, next) => {
           });
         }
       }
+      // attachAltBarcodes (bản 10.76, theo yêu cầu người dùng — SỬA LỖI
+      // THẬT: màn "Ghi Nhận" HCRC Workspace đối chiếu mã vạch quét dựa trên
+      // dữ liệu API "Tồn kho", vốn chỉ có 1 mã vạch MẶC ĐỊNH/mã hàng, trong
+      // khi 1 mã hàng có thể có 2-3 mã vạch đăng ký thật trong
+      // `dbo.BARCODE` — quét đúng mã vạch PHỤ bị báo sai "không khớp", GIỐNG
+      // ĐÚNG lỗi đã sửa cho API "Giá bán" ở bản 10.75) — TUỲ CHỌN, CHỈ áp
+      // dụng khi definition khai rõ (vd báo cáo "ton-kho"). Bỏ qua nếu cột
+      // đích bị loại bởi ?fields= (đối tác không xin thì không cần tính).
+      const altB = definition.attachAltBarcodes;
+      if (altB) {
+        const requestedKeys = new Set(columns.map(c => (c && typeof c === 'object' ? c.key : c)));
+        if (requestedKeys.has(altB.targetField)) {
+          const { loadAltBarcodesBySku } = require('../../lib/barcodeLookup');
+          const bySku = await loadAltBarcodesBySku();
+          projected = projected.map((row) => {
+            const maHang = row[altB.maHangField];
+            let allBarcodes = (maHang && bySku.get(maHang)) || [];
+            if (!allBarcodes.length && row[altB.fallbackVachField]) allBarcodes = [row[altB.fallbackVachField]];
+            return { ...row, [altB.targetField]: allBarcodes };
+          });
+        }
+      }
+
       payload = {
         reportId: req.params.reportId,
         page,

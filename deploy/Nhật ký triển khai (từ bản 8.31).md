@@ -14,6 +14,26 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.76 — Sửa lỗi thật: API "Tồn kho" cũng bỏ sót mọi mã vạch PHỤ (như bản 10.75)
+
+**Thay đổi**: thêm cột `dsMaVach` (mảng, TOÀN BỘ mã vạch của 1 mã hàng)
+vào API "Tồn kho" — tái dùng domain `mavach_mahang` đã có từ bản 10.75,
+KHÔNG tạo VIEW/job đồng bộ mới. `maVach` (mã mặc định) giữ nguyên.
+
+**Triển khai**:
+```bash
+git pull origin main
+# KHÔNG cần VIEW/job đồng bộ mới nếu server đã làm bản 10.75 (domain
+# mavach_mahang đã có sẵn) — nếu CHƯA, làm theo bước ETL ở mục 10.75 dưới
+# đây TRƯỚC.
+cd api-server && node scripts/seedTonKhoReport.js
+pm2 restart api-server
+```
+
+**Kiểm tra**: gọi API Tồn kho với `fields=maHang,maVach,dsMaVach` cho 1
+mã hàng có nhiều mã vạch — `dsMaVach` phải ra đủ mọi mã vạch, không chỉ 1
+mã mặc định ở `maVach`.
+
 ## 10.75 — Sửa lỗi thật: API "Giá bán" tra `maVach` bỏ sót mọi mã vạch PHỤ
 
 **Thay đổi**: 1 mã hàng CÓ THỂ có nhiều mã vạch (`dbo.BARCODE`), API

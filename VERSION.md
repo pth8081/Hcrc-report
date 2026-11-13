@@ -42,6 +42,49 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.76 — Sửa lỗi thật: API "Tồn kho" cũng bỏ sót mọi mã vạch PHỤ (như bản 10.75)
+
+**Theo báo cáo thật** — người dùng phát hiện ĐÚNG lỗi lớp tương tự bản
+10.75 ở màn "Ghi Nhận" (HCRC Workspace, dùng dữ liệu từ API "Tồn kho"):
+quét đúng 1 mã vạch PHỤ hợp lệ của 1 mặt hàng vẫn bị báo "không khớp",
+trong khi mã vạch đó đã xác nhận có thật trong `dbo.BARCODE`.
+
+**Nguyên nhân THẬT**: API "Tồn kho" (`ton-kho`) trước đây chỉ có cột
+`maVach` — lấy TRỰC TIẾP từ `SKU_DEF.BARCODE` (1 mã mặc định/mã hàng,
+xem bản 10.50) — không hề biết các mã vạch PHỤ khác đăng ký trong
+`dbo.BARCODE` của cùng mã hàng đó.
+
+**Đã sửa**: tái dùng NGUYÊN domain `mavach_mahang` đã dựng ở bản 10.75
+(không tạo VIEW/job đồng bộ mới) — thêm `lib/barcodeLookup.js:loadAltBarcodesBySku()`
+(chiều NGƯỢC: mã hàng -> toàn bộ mã vạch) + cột mới `dsMaVach` (mảng,
+GHI ĐÈ sau `projectColumns()` qua `definition.attachAltBarcodes`, giống
+đúng khuôn mẫu `translateStkToStore`) — `maVach` (mã mặc định) GIỮ NGUYÊN
+không đổi để KHÔNG ảnh hưởng đối tác đang dùng, `dsMaVach` là trường BỔ
+SUNG mang đủ mọi mã vạch.
+
+**Đã thêm/sửa**:
+- `api-server/lib/barcodeLookup.js` — thêm `loadAltBarcodesBySku()`.
+- `api-server/scripts/seedTonKhoReport.js` — thêm cột `dsMaVach` +
+  `definition.attachAltBarcodes`.
+- `api-server/routes/v1/reports.js` — bước GHI ĐÈ `dsMaVach` sau khi
+  chạy báo cáo (nhánh phân trang, áp dụng cho `ton-kho`).
+- `api-ton-kho-cho-doi-tac.md` — cập nhật mục 4 (trường mới `dsMaVach`) +
+  thêm mục triển khai/kiểm tra ở mục 9.
+
+**Triển khai**:
+```bash
+git pull origin main
+# KHÔNG cần VIEW/job đồng bộ mới — nếu server đã triển khai bản 10.75
+# (API "Giá bán") thì domain mavach_mahang đã có sẵn, bỏ qua bước ETL.
+cd api-server && node scripts/seedTonKhoReport.js
+pm2 restart api-server
+```
+
+**Kiểm tra**: xem `api-ton-kho-cho-doi-tac.md` mục 9 ("Thêm `dsMaVach`") —
+gọi API `ton-kho` với `fields=maHang,maVach,dsMaVach` cho 1 mã hàng đã
+biết có nhiều mã vạch (vd mã hàng test ở bản 10.75) — `dsMaVach` phải ra
+ĐỦ mọi mã vạch, không chỉ 1 mã mặc định ở `maVach`.
+
 ## 10.75 — Sửa lỗi thật: API "Giá bán" tra `maVach` bỏ sót mọi mã vạch PHỤ
 
 **Theo báo cáo thật** — đối tác quét 1 mã vạch hợp lệ (in trên sản phẩm

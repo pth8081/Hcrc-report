@@ -8,6 +8,16 @@
 // này SAU KHI đã chạy lại VIEW + "etl/scripts/seedTonKhoChiTietSync.js"
 // bản 10.50 (thêm cột MaVach), nếu không cột maVach sẽ luôn NULL.
 //
+// SỬA bản 10.76 — thêm trường `dsMaVach` (TOÀN BỘ mã vạch đã đăng ký của 1
+// mã hàng, không chỉ mã mặc định trong `maVach`) — SỬA LỖI THẬT: màn "Ghi
+// Nhận" (HCRC Workspace) dùng dữ liệu API này để đối chiếu mã vạch quét,
+// trước đây chỉ có `maVach` (1 mã mặc định) nên quét đúng mã vạch PHỤ của
+// mã hàng (1 mã hàng có thể có 2-3 mã vạch đăng ký trong `dbo.BARCODE`, xem
+// "api-gia-ban-cho-doi-tac.md") bị báo sai "không khớp". Đọc domain
+// `mavach_mahang` ĐÃ CÓ SẴN (job "Mã vạch theo SKU - Live (DSMART16)", xem
+// etl/scripts/seedMaVachSync.js) qua `definition.attachAltBarcodes` —
+// KHÔNG cần VIEW/job đồng bộ mới.
+//
 // Đọc domain `tonkho_chitiet_sku` ĐÃ CÓ SẴN (dùng chung VIEW/job đồng bộ
 // với báo cáo "Tồn kho chi tiết" nội bộ rp-server — xem
 // "bc-ton-kho-chi-tiet.md") — KHÔNG tạo domain/VIEW/job đồng bộ mới.
@@ -51,6 +61,11 @@ const DEFINITION = {
     { key: 'maHang', label: 'Mã mặt hàng', formula: 'MaHangHienThi' },
     { key: 'tenHang', label: 'Tên mặt hàng', formula: 'TenHang' },
     { key: 'maVach', label: 'Mã vạch', formula: 'MaVach' },
+    // dsMaVach — formula CHỈ LÀ GIÁ TRỊ TẠM (placeholder, xem chú thích ở
+    // maDiem/tenSieuThi bên dưới) — GIÁ TRỊ THẬT (mảng TOÀN BỘ mã vạch của
+    // mã hàng này) được GHI ĐÈ sau, qua definition.attachAltBarcodes bên
+    // dưới (routes/v1/reports.js) — bản 10.76.
+    { key: 'dsMaVach', label: 'Danh sách mã vạch (đầy đủ, gồm mã mặc định)', formula: 'MaVach' },
     { key: 'soLuongTon', label: 'Số lượng tồn', formula: 'measures.SoLuongTon' },
     { key: 'maKho', label: 'Mã kho', formula: 'MaChiNhanh' },
     // maDiem/tenSieuThi — formula CHỈ LÀ GIÁ TRỊ TẠM (placeholder, bắt
@@ -74,7 +89,15 @@ const DEFINITION = {
   // TRƯỚC khi phân trang, không lọc sau projectColumns() như maDiem/
   // tenSieuThi, nếu không đối tác bị giới hạn siêu thị có thể nhận 1 trang
   // ÍT HƠN pageSize dù CÒN dữ liệu ở trang sau, hiểu lầm là đã hết).
-  translateStkToStore: { stkField: 'maKho', maDiemField: 'maDiem', tenField: 'tenSieuThi', rawStkField: 'MaChiNhanh' }
+  translateStkToStore: { stkField: 'maKho', maDiemField: 'maDiem', tenField: 'tenSieuThi', rawStkField: 'MaChiNhanh' },
+  // attachAltBarcodes (bản 10.76) — xem routes/v1/reports.js: sau khi chạy
+  // xong báo cáo, tra TOÀN BỘ mã vạch của `maHang` qua domain `mavach_mahang`
+  // (lib/barcodeLookup.js:loadAltBarcodesBySku()), GHI ĐÈ cột placeholder
+  // `dsMaVach` ở trên. `fallbackVachField` — nếu mã hàng đó CHƯA có dòng
+  // nào trong `dbo.BARCODE` (vd dữ liệu domain `mavach_mahang` chưa đồng bộ
+  // kịp) thì dùng tạm đúng giá trị cột `maVach` (mã mặc định) làm 1 phần tử
+  // duy nhất, KHÔNG trả mảng rỗng khi đã biết ít nhất 1 mã vạch.
+  attachAltBarcodes: { maHangField: 'maHang', fallbackVachField: 'maVach', targetField: 'dsMaVach' }
 };
 
 async function main() {
