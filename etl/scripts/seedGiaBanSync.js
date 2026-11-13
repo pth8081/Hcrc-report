@@ -18,6 +18,12 @@
 //   2. Đã tạo xong VIEW `vw_GiaBanTheoSKU` trên CSDL `DSMART16` — xem
 //      "deploy/VIEW DSMART16 (trung tâm)/Thiết lập VIEW Giá bán theo SKU (DSMART16).sql".
 //
+// SỬA bản 10.74 — SỬA LỖI THẬT: VIEW nguồn (xem trên) đã bọc
+// COALESCE(MODI_DATE, OPEN_DATE, '1900-01-01') để KHÔNG BAO GIỜ bỏ sót
+// mã hàng có MODI_DATE rỗng (cùng loại lỗi bản 10.73 ở job "Vùng giá
+// theo siêu thị") — script này giờ TỰ reset watermark mỗi lần chạy để
+// bắt lại các mã hàng từng bị bỏ sót, giống seedVungGiaSync.js.
+//
 // Cách dùng:
 //   node scripts/seedGiaBanSync.js
 require('dotenv').config();
@@ -111,6 +117,14 @@ async function upsertSyncJob(pool, job) {
   return id;
 }
 
+async function resetWatermark(pool, jobName) {
+  const result = await pool.request().input('name', sql.NVarChar(200), jobName)
+    .query('SELECT Id FROM etl.SyncJobs WHERE Name = @name');
+  if (!result.recordset.length) return;
+  await pool.request().input('id', sql.Int, result.recordset[0].Id)
+    .query('DELETE FROM etl.SyncState WHERE SyncJobId = @id');
+}
+
 async function main() {
   const pool = await getPool('ADMIN');
   const liveId = await findDataSourceId(pool, 'DSMART16 - Live');
@@ -132,6 +146,11 @@ async function main() {
     return;
   }
   await upsertSyncJob(pool, job);
+
+  // bản 10.74 — reset watermark mỗi lần chạy script này, để bắt lại mọi mã
+  // hàng từng bị bỏ sót do MODI_DATE rỗng trước khi VIEW được sửa.
+  await resetWatermark(pool, job.name);
+  console.log('↻ Đã reset watermark job này về đầu — lượt chạy tiếp theo quét lại TOÀN BỘ RTPRICE.');
 
   console.log('');
   console.log('✅ Xong — job đồng bộ "Giá bán theo SKU" đã sẵn sàng.');

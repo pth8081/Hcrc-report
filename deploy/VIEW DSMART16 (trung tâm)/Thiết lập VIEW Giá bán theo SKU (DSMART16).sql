@@ -20,6 +20,15 @@
        `etl/scripts/seedZoneStkSync.js` — KHÔNG gộp vào VIEW này).
 
    AN TOÀN CHẠY LẠI NHIỀU LẦN — `CREATE OR ALTER VIEW`.
+
+   SỬA bản 10.74 — SỬA LỖI THẬT (cùng loại lỗi bản 10.73 ở VIEW "Vùng giá
+   theo siêu thị"): cột `CapNhatNguon` lấy thẳng `RTPRICE.MODI_DATE` —
+   mã hàng nào CHƯA TỪNG được sửa giá từ lúc tạo (`MODI_DATE` rỗng) sẽ bị
+   job đồng bộ BỎ SÓT VĨNH VIỄN (điều kiện watermark
+   `WHERE CapNhatNguon >= @lastSyncedAt` luôn UNKNOWN với NULL) — xác nhận
+   qua báo cáo thật: siêu thị "301" (Phạm Ngọc Thạch, vùng giá `002` ĐÃ
+   đúng) vẫn báo "Không tìm thấy giá" cho 1 mã vạch cụ thể. SỬA: bọc
+   `COALESCE(MODI_DATE, OPEN_DATE, '1900-01-01')`, KHÔNG BAO GIỜ NULL.
    ============================================================================ */
 
 USE DSMART16;
@@ -36,7 +45,7 @@ SELECT
     CASE WHEN RTRIM(p.DISC_CODE) <> '' THEN p.DISC_RTPR ELSE NULL END AS GiaKhuyenMai,
     CASE WHEN RTRIM(p.DISC_CODE) <> '' THEN 1 ELSE 0 END AS CoKhuyenMai,
     CAST(GETDATE() AS DATE)         AS EventDate,
-    p.MODI_DATE                     AS CapNhatNguon
+    COALESCE(p.MODI_DATE, p.OPEN_DATE, '1900-01-01') AS CapNhatNguon
 FROM dbo.RTPRICE p
 JOIN dbo.SKU_DEF k ON k.SKU_ID = p.SKU_ID
 WHERE RTRIM(p.ZONE_CODE) <> '';  -- bỏ dòng ZONE_CODE rỗng (9 dòng thấy ở mẫu — dữ liệu lỗi/chưa gán vùng, không tra được giá theo siêu thị nào)

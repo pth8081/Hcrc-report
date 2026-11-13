@@ -42,6 +42,40 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.74 — Sửa lỗi thật: job "Giá bán theo SKU" bỏ sót mã hàng có `RTPRICE.MODI_DATE` NULL
+
+**Theo báo cáo thật** — siêu thị "301" (ST Phạm Ngọc Thạch, vùng giá
+`002` ĐÃ đúng, xác nhận qua bản 10.73) vẫn báo "Không tìm thấy giá" cho
+1 mã vạch cụ thể khi quét.
+
+**Nguyên nhân — CÙNG LOẠI lỗi bản 10.73**, lần này ở chính VIEW
+`vw_GiaBanTheoSKU`: cột `CapNhatNguon` lấy thẳng `RTPRICE.MODI_DATE`
+không bọc an toàn — mã hàng nào CHƯA TỪNG được sửa giá từ lúc tạo
+(`MODI_DATE` rỗng) bị job đồng bộ bỏ sót vĩnh viễn, dù giá THẬT vẫn có
+sẵn trong `RTPRICE`.
+
+**Đã sửa**: `deploy/VIEW DSMART16 (trung tâm)/Thiết lập VIEW Giá bán
+theo SKU (DSMART16).sql` — bọc `COALESCE(MODI_DATE, OPEN_DATE,
+'1900-01-01')`. `etl/scripts/seedGiaBanSync.js` tự reset watermark mỗi
+lần chạy (bắt lại TOÀN BỘ mã hàng từng bị bỏ sót).
+
+**Triển khai**:
+```bash
+git pull origin main
+# Chạy lại "deploy/VIEW DSMART16 (trung tâm)/Thiết lập VIEW Giá bán theo
+# SKU (DSMART16).sql" trên CSDL DSMART16
+cd etl && node scripts/seedGiaBanSync.js
+pm2 restart etl
+```
+Lượt chạy tiếp theo quét lại TOÀN BỘ RTPRICE (~1 triệu dòng, có thể mất
+vài phút) — không cần chạy thêm script nào khác.
+
+**Kiểm tra**: gọi lại API Giá bán cho đúng mã vạch từng báo lỗi "Không
+tìm thấy giá" — phải ra giá bình thường nếu RTPRICE thật sự có giá ở
+đúng vùng đó (nếu vẫn lỗi, kiểm tra tiếp bằng script
+`dieu-tra-mavach-khong-co-gia.js` — có thể mã vạch sai hoặc SKU chưa
+từng khai giá ở vùng này, không phải lỗi đồng bộ).
+
 ## 10.73 — Sửa lỗi thật: job "Vùng giá theo siêu thị" bỏ sót vĩnh viễn siêu thị có `MODI_DATE` NULL
 
 **Theo báo cáo đối tác HCRC Workspace** (kèm ảnh chụp thật) — API "Giá

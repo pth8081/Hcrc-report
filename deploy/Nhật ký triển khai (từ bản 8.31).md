@@ -14,6 +14,24 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.74 — Sửa lỗi thật: job "Giá bán theo SKU" bỏ sót mã hàng có `RTPRICE.MODI_DATE` NULL
+
+**Thay đổi**: VIEW `vw_GiaBanTheoSKU` bọc `COALESCE(MODI_DATE, OPEN_DATE,
+'1900-01-01')` cho cột watermark — `etl/scripts/seedGiaBanSync.js` tự
+reset watermark khi chạy lại.
+
+**Triển khai**:
+```bash
+git pull origin main
+# Chạy lại "deploy/VIEW DSMART16 (trung tâm)/Thiết lập VIEW Giá bán theo
+# SKU (DSMART16).sql" trên CSDL DSMART16
+cd etl && node scripts/seedGiaBanSync.js
+pm2 restart etl
+```
+
+**Kiểm tra**: gọi lại API Giá bán cho mã vạch từng báo "Không tìm thấy
+giá" dù siêu thị đã có vùng giá đúng — phải hết lỗi.
+
 ## 10.73 — Sửa lỗi thật: job "Vùng giá theo siêu thị" bỏ sót siêu thị có `MODI_DATE` NULL
 
 **Thay đổi**: VIEW mới `dbo.vw_VungGiaTheoSieuThi` (COALESCE MODI_DATE/
