@@ -42,11 +42,24 @@ const DEFINITION = {
     { key: 'maHang', label: 'Mã mặt hàng', formula: 'MaHangHienThi' },
     { key: 'tenHang', label: 'Tên mặt hàng', formula: 'TenHang' },
     { key: 'maVach', label: 'Mã vạch', formula: 'MaVach' },
+    // dsMaVach — formula CHỈ LÀ GIÁ TRỊ TẠM (placeholder, bắt buộc phải có
+    // vì projectColumns() yêu cầu mọi cột object có formula) — GIÁ TRỊ THẬT
+    // (mảng TOÀN BỘ mã vạch của mã hàng này) được GHI ĐÈ sau, qua
+    // definition.attachAltBarcodes bên dưới (routes/v1/reports.js) — bản
+    // 10.78, theo yêu cầu người dùng: app đối tác cần ĐỦ cả 3 mã (maHang,
+    // maVach mặc định, dsMaVach đầy đủ) để tự xử lý đối chiếu phía họ,
+    // giống đúng field đã thêm cho API "Tồn kho" ở bản 10.76.
+    { key: 'dsMaVach', label: 'Danh sách mã vạch (đầy đủ, gồm mã mặc định)', formula: 'MaVach' },
     { key: 'giaThuong', label: 'Giá thường', formula: 'measures.GiaThuong' },
     { key: 'giaKhuyenMai', label: 'Giá khuyến mại', formula: 'measures.GiaKhuyenMai' },
     { key: 'coKhuyenMai', label: 'Đang có khuyến mại', formula: 'CoKhuyenMai' },
     { key: 'capNhatLuc', label: 'Cập nhật lúc', formula: 'syncedAt' }
-  ]
+  ],
+  // attachAltBarcodes (bản 10.78) — xem routes/v1/reports.js: sau khi tra
+  // xong giá, tra TOÀN BỘ mã vạch của `maHang` qua domain `mavach_mahang`
+  // (lib/barcodeLookup.js:loadAltBarcodesBySku()), GHI ĐÈ cột placeholder
+  // `dsMaVach` ở trên — cùng khuôn mẫu đã dùng cho báo cáo "ton-kho".
+  attachAltBarcodes: { maHangField: 'maHang', fallbackVachField: 'maVach', targetField: 'dsMaVach' }
 };
 
 async function main() {

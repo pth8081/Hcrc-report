@@ -42,6 +42,26 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.78 — API "Giá bán" trả thêm `dsMaVach` (đủ mọi mã vạch), giống "Tồn kho"
+
+**Theo yêu cầu người dùng** — app đối tác tự lưu/đối chiếu dữ liệu phía họ
+cần ĐỦ cả 3 mã (`maHang`, `maVach` mặc định, TOÀN BỘ mã vạch) để tự xử lý,
+tránh lặp lại đúng lớp lỗi đã gặp ở "Tồn kho" (bản 10.76).
+
+**Đã thêm**: cột `dsMaVach` (mảng, TOÀN BỘ mã vạch của mã hàng) vào API
+"Giá bán" — tái dùng domain `mavach_mahang` + `attachAltBarcodes`, áp dụng
+cho nhánh `handleSingleLookup()`. `maVach` giữ nguyên không đổi.
+
+**Triển khai**:
+```bash
+git pull origin main
+cd api-server && node scripts/seedGiaBanReport.js
+pm2 restart api-server
+```
+
+**Kiểm tra**: gọi API Giá bán cho mã hàng có nhiều mã vạch — `dsMaVach`
+phải ra đủ mọi mã vạch.
+
 ## 10.77 — API "Giá bán" tự nhận diện mã hàng/mã vạch dù app gửi nhầm tham số
 
 **Theo báo cáo thật** — app "Giỏ hàng" (BRG Scan and Checkout) báo "chưa

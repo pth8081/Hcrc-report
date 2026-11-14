@@ -32,7 +32,7 @@ const { runReport, projectColumns, describeColumns } = require('../../lib/report
 const reportResultCache = require('../../lib/reportResultCache');
 const { loadDiemStkMapping } = require('../../lib/diemStkMapping');
 const { loadZoneLookup } = require('../../lib/zoneLookup');
-const { loadBarcodeLookup } = require('../../lib/barcodeLookup');
+const { loadBarcodeLookup, loadAltBarcodesBySku } = require('../../lib/barcodeLookup');
 
 const router = express.Router();
 router.use(requireApiKey('reports'));
@@ -120,6 +120,26 @@ async function handleSingleLookup(req, res, definition, columns) {
     }
     const row = { id: result.recordset[0].Id, sourceSystem: result.recordset[0].SourceSystem, entityCode: result.recordset[0].EntityCode, eventDate: result.recordset[0].EventDate, dimensions: JSON.parse(result.recordset[0].Dimensions || '{}'), measures: result.recordset[0].Measures ? JSON.parse(result.recordset[0].Measures) : {}, syncedAt: result.recordset[0].SyncedAt };
     payload = { reportId: req.params.reportId, ...projectColumns(row, columns) };
+
+    // attachAltBarcodes (bản 10.78, theo yêu cầu người dùng — "gửi cả 3 mã
+    // để app xử lý được") — ÁP DỤNG TƯƠNG TỰ nhánh phân trang (xem chú
+    // thích đầy đủ ở router.get('/:reportId/run') bên dưới): app đối tác
+    // (vd "Giỏ hàng"/BRG Scan and Checkout) tự lưu/đối chiếu dữ liệu phía
+    // họ, cần ĐỦ cả 3: `maHang`, `maVach` (mặc định), VÀ `dsMaVach` (TOÀN
+    // BỘ mã vạch) để không lặp lại đúng lớp lỗi đã gặp ở "Tồn kho" (bản
+    // 10.76) — chỉ gắn thêm khi definition khai rõ VÀ cột đó được xin qua
+    // ?fields=, dùng CHUNG domain mavach_mahang, không ảnh hưởng gì khác.
+    const altB = definition.attachAltBarcodes;
+    if (altB) {
+      const requestedKeys = new Set(columns.map(c => (c && typeof c === 'object' ? c.key : c)));
+      if (requestedKeys.has(altB.targetField)) {
+        const bySku = await loadAltBarcodesBySku();
+        let allBarcodes = bySku.get(maHang) || [];
+        if (!allBarcodes.length && payload[altB.fallbackVachField]) allBarcodes = [payload[altB.fallbackVachField]];
+        payload[altB.targetField] = allBarcodes;
+      }
+    }
+
     reportResultCache.set(cacheKey, payload);
   }
   res.json(payload);
@@ -286,7 +306,6 @@ router.get('/:reportId/run', async (req, res, next) => {
       if (altB) {
         const requestedKeys = new Set(columns.map(c => (c && typeof c === 'object' ? c.key : c)));
         if (requestedKeys.has(altB.targetField)) {
-          const { loadAltBarcodesBySku } = require('../../lib/barcodeLookup');
           const bySku = await loadAltBarcodesBySku();
           projected = projected.map((row) => {
             const maHang = row[altB.maHangField];

@@ -61,6 +61,7 @@ lỗi `400`.
   "maHang": "2003330491",
   "tenHang": "Sữa tươi TH True Milk 1L",
   "maVach": "8934696001589",
+  "dsMaVach": ["8934696001589", "8934696001596"],
   "giaThuong": 24000,
   "giaKhuyenMai": 21500,
   "coKhuyenMai": true,
@@ -74,7 +75,8 @@ lỗi `400`.
 |---|---|---|
 | `maHang` | chuỗi | Mã mặt hàng (đúng mã đã gửi lên) |
 | `tenHang` | chuỗi | Tên mặt hàng |
-| `maVach` | chuỗi hoặc `null` | Mã vạch thật (EAN-13) — `null` nếu chưa khai |
+| `maVach` | chuỗi hoặc `null` | Mã vạch MẶC ĐỊNH (EAN-13) — `null` nếu chưa khai |
+| `dsMaVach` | mảng chuỗi (có thể rỗng `[]`) | **TOÀN BỘ** mã vạch đã đăng ký của mặt hàng này (gồm cả `maVach`) — 1 mặt hàng có thể có NHIỀU mã vạch. Nếu hệ thống đối tác tự lưu/đối chiếu mã vạch phía mình, dùng `dsMaVach` (không chỉ `maVach`) để tránh bỏ sót mã vạch phụ hợp lệ (bản 10.78) |
 | `giaThuong` | số | Giá bán thường (chưa áp khuyến mại) |
 | `giaKhuyenMai` | số hoặc `null` | Giá SAU khi áp khuyến mại đang hiệu lực — `null` nếu KHÔNG có khuyến mại nào đang áp dụng (dùng `giaThuong`) |
 | `coKhuyenMai` | boolean | `true` nếu `giaKhuyenMai` đang có giá trị |
@@ -212,3 +214,29 @@ script seed nào, không đổi `DefinitionJson`).
 **Kiểm tra**: gọi API với 1 mã hàng thật nhưng CỐ Ý gửi qua tham số
 `maVach` (vd `?maVach=2003320425&maDiem=...`) — phải RA ĐÚNG GIÁ, không
 còn báo "Không tìm thấy giá".
+
+### Thêm `dsMaVach` vào phản hồi (bản 10.78)
+
+**Theo yêu cầu người dùng**: app đối tác tự lưu/đối chiếu dữ liệu phía họ
+cần ĐỦ cả 3 mã (`maHang`, `maVach` mặc định, VÀ TOÀN BỘ mã vạch) để không
+lặp lại đúng lớp lỗi đã gặp ở API "Tồn kho" (bản 10.76 — màn "Ghi Nhận"
+HCRC Workspace trước đây chỉ có 1 mã vạch mặc định nên quét mã vạch phụ bị
+báo sai "không khớp").
+
+**Đã sửa**: thêm cột `dsMaVach` vào `DEFINITION.columns`
+(`api-server/scripts/seedGiaBanReport.js`) + `definition.attachAltBarcodes`
+— áp dụng ĐÚNG khuôn mẫu đã dùng cho "Tồn kho", nhưng cho nhánh
+`handleSingleLookup()` (xem `routes/v1/reports.js`). `maVach` GIỮ NGUYÊN
+(vẫn là mã mặc định) — `dsMaVach` là trường BỔ SUNG, không đối tác nào bị
+ảnh hưởng nếu không dùng trường mới này.
+
+**Triển khai**:
+```bash
+git pull origin main
+cd api-server && node scripts/seedGiaBanReport.js
+pm2 restart api-server
+```
+
+**Kiểm tra**: gọi lại API Giá bán cho 1 mã hàng có nhiều mã vạch (vd
+290926750000/G7 Cà phê 3in1 đã dùng test trước đây) — phản hồi phải có
+thêm trường `dsMaVach` với ĐỦ 3 mã vạch, không chỉ 1 mã mặc định ở `maVach`.

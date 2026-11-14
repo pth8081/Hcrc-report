@@ -14,6 +14,22 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.78 — API "Giá bán" trả thêm `dsMaVach` (đủ mọi mã vạch), giống "Tồn kho"
+
+**Thay đổi**: thêm cột `dsMaVach` (mảng, toàn bộ mã vạch) vào API "Giá
+bán" — tái dùng domain `mavach_mahang` đã có, áp dụng cho nhánh
+`handleSingleLookup()`. `maVach` giữ nguyên.
+
+**Triển khai**:
+```bash
+git pull origin main
+cd api-server && node scripts/seedGiaBanReport.js
+pm2 restart api-server
+```
+
+**Kiểm tra**: gọi API Giá bán cho mã hàng có nhiều mã vạch — `dsMaVach`
+phải ra đủ mọi mã vạch.
+
 ## 10.77 — API "Giá bán" tự nhận diện mã hàng/mã vạch dù app gửi nhầm tham số
 
 **Thay đổi**: app "Giỏ hàng" gửi mã hàng thật qua tham số `maVach` (nhầm
