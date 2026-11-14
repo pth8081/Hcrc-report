@@ -42,6 +42,28 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.77 — API "Giá bán" tự nhận diện mã hàng/mã vạch dù app gửi nhầm tham số
+
+**Theo báo cáo thật** — app "Giỏ hàng" (BRG Scan and Checkout) báo "chưa
+có giá" cho nhiều mã hàng (vd "2003320425"). Xác nhận bằng dữ liệu thật
+(DSMART16) các mã này ĐỀU LÀ MÃ HÀNG THẬT, có giá đầy đủ ở MỌI vùng giá —
+KHÔNG thiếu giá, chỉ do app gửi nhầm các mã này qua tham số `maVach` thay
+vì `maHang`, nên không dịch được qua domain mã vạch.
+
+**Đã sửa**: `handleSingleLookup()` — khi `maVach` không khớp mã vạch nào,
+THỬ LẠI coi nguyên giá trị như 1 `maHang` trước khi báo lỗi. Đối tác gửi
+đúng hay nhầm loại tham số đều ra giá như nhau. KHÔNG cần VIEW/job đồng bộ
+mới, chỉ sửa code trong `api-server/routes/v1/reports.js`.
+
+**Triển khai**:
+```bash
+git pull origin main
+pm2 restart api-server
+```
+
+**Kiểm tra**: gọi API Giá bán, CỐ Ý gửi 1 mã hàng thật qua tham số
+`maVach` — phải ra đúng giá, không còn báo "Không tìm thấy giá".
+
 ## 10.76 — Sửa lỗi thật: API "Tồn kho" cũng bỏ sót mọi mã vạch PHỤ (như bản 10.75)
 
 **Theo báo cáo thật** — người dùng phát hiện ĐÚNG lỗi lớp tương tự bản

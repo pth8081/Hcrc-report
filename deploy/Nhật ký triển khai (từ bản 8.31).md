@@ -14,6 +14,22 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.77 — API "Giá bán" tự nhận diện mã hàng/mã vạch dù app gửi nhầm tham số
+
+**Thay đổi**: app "Giỏ hàng" gửi mã hàng thật qua tham số `maVach` (nhầm
+loại) khiến API báo sai "chưa có giá" dù mã hàng có giá đầy đủ. Sửa
+`handleSingleLookup()`: khi `maVach` không khớp mã vạch, thử lại coi giá
+trị đó như `maHang`. Chỉ sửa code, không có VIEW/job đồng bộ mới.
+
+**Triển khai**:
+```bash
+git pull origin main
+pm2 restart api-server
+```
+
+**Kiểm tra**: gọi API Giá bán, gửi 1 mã hàng thật qua tham số `maVach` —
+phải ra đúng giá.
+
 ## 10.76 — Sửa lỗi thật: API "Tồn kho" cũng bỏ sót mọi mã vạch PHỤ (như bản 10.75)
 
 **Thay đổi**: thêm cột `dsMaVach` (mảng, TOÀN BỘ mã vạch của 1 mã hàng)

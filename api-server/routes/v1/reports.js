@@ -56,6 +56,17 @@ router.use(requireApiKey('reports'));
 // RIÊNG `mavach_mahang` (mang ĐỦ mọi mã vạch, xem lib/barcodeLookup.js),
 // rồi LUÔN tra theo `maHang` ở domain giá — không còn khớp trực tiếp
 // `maVach` trên domain giá nữa.
+//
+// SỬA bản 10.77, theo yêu cầu người dùng ("tra bằng mã hàng, mã barcode,
+// mã vạch đều phải ra giá") — SỬA LỖI THẬT: app "Giỏ hàng" (BRG Scan and
+// Checkout) báo "chưa có giá" cho 5 mã dạng "200xxxxxxx" — xác nhận bằng
+// dữ liệu thật CẢ 5 mã đều LÀ MÃ HÀNG THẬT, có giá đầy đủ ở MỌI vùng giá
+// trên DSMART16 — không thiếu giá, chỉ do app gửi các mã này lên dưới tham
+// số `maVach` (không phải `maHang`) nên `loadBarcodeLookup()` không dịch
+// được (giá trị đó không phải mã vạch đăng ký trong dbo.BARCODE). THÊM lớp
+// dự phòng: khi `maVach` KHÔNG khớp được mã vạch nào, THỬ LẠI coi nguyên
+// giá trị đó NHƯ 1 `maHang` trước khi báo lỗi — đối tác gọi đúng HAY nhầm
+// loại tham số vẫn ra giá như nhau, không cần tự phân biệt mã hàng/mã vạch.
 async function handleSingleLookup(req, res, definition, columns) {
   let maHang = req.query.maHang;
   const maVach = req.query.maVach;
@@ -67,10 +78,11 @@ async function handleSingleLookup(req, res, definition, columns) {
 
   if (!maHang) {
     const barcodeLookup = await loadBarcodeLookup();
-    maHang = barcodeLookup.get(maVach);
-    if (!maHang) {
-      return res.status(404).json({ error: `Không tìm thấy mã hàng nào khớp mã vạch "${maVach}"` });
-    }
+    // Không khớp được mã vạch nào -> THỬ LẠI coi nguyên giá trị như 1
+    // maHang (bản 10.77, xem chú thích đầy đủ ở trên hàm) — nếu maHang đó
+    // cũng không tồn tại, nhánh tra giá bên dưới vẫn báo lỗi 404 "Không tìm
+    // thấy giá..." như cũ, không im lặng bỏ qua lỗi thật.
+    maHang = barcodeLookup.get(maVach) || maVach;
   }
 
   const diemMapping = await loadDiemStkMapping();

@@ -44,6 +44,12 @@ Gửi `maDiem` + ÍT NHẤT 1 trong 2 (`maHang` hoặc `maVach`) — gửi cả 
 ưu tiên `maHang`. Thiếu `maDiem`, hoặc thiếu cả `maHang` lẫn `maVach` →
 lỗi `400`.
 
+> **Không chắc giá trị đang có trong tay là mã hàng hay mã vạch?** Không
+> sao — gửi lên bằng tham số NÀO CŨNG ĐƯỢC, API tự nhận diện: nếu gửi dưới
+> `maVach` mà giá trị đó hoá ra lại là mã hàng (không phải mã vạch đã đăng
+> ký), hệ thống tự thử lại coi nó như `maHang` trước khi báo lỗi — chỉ cần
+> gửi đúng GIÁ TRỊ, không cần tự phân biệt loại mã (bản 10.77).
+
 ## 4. Cấu trúc phản hồi
 
 **Khác API Tồn kho** — API này trả **TRỰC TIẾP 1 object** (không có
@@ -184,3 +190,25 @@ Thử `maDiem` không tồn tại → phải trả `404` (không phải `500`). 
 STK_ID" (`etl.DiemStkMapping`, `api-server/lib/diemStkMapping.js`), cơ chế
 xác thực/giới hạn tần suất/phân quyền đối tác (`api.ApiConsumers`,
 `api.ConsumerReportAccess`).
+
+### Tự nhận diện mã hàng/mã vạch dù gửi nhầm tham số (bản 10.77)
+
+**SỬA LỖI THẬT**: app "Giỏ hàng" (BRG Scan and Checkout) báo "chưa có giá"
+cho nhiều mã hàng — xác nhận bằng dữ liệu thật (DSMART16) các mã này ĐỀU
+LÀ MÃ HÀNG THẬT, có giá đầy đủ ở MỌI vùng giá, KHÔNG thiếu giá gì — nguyên
+nhân THẬT là app gửi các mã này lên dưới tham số `maVach` (không phải
+`maHang`), nên `lib/barcodeLookup.js:loadBarcodeLookup()` không dịch được
+(giá trị đó không phải mã vạch đã đăng ký trong `dbo.BARCODE`).
+
+**Đã sửa**: `routes/v1/reports.js:handleSingleLookup()` — khi `maVach`
+KHÔNG khớp được mã vạch nào qua `loadBarcodeLookup()`, THỬ LẠI coi nguyên
+giá trị đó NHƯ 1 `maHang` trước khi báo lỗi 404 (`maHang = barcodeLookup.get(maVach) || maVach`)
+— đối tác gửi ĐÚNG hay NHẦM loại tham số đều ra giá như nhau, không cần tự
+phân biệt mã hàng/mã vạch. KHÔNG cần VIEW/job đồng bộ mới — chỉ sửa code.
+
+**Triển khai**: `git pull` + `pm2 restart api-server` (không cần chạy lại
+script seed nào, không đổi `DefinitionJson`).
+
+**Kiểm tra**: gọi API với 1 mã hàng thật nhưng CỐ Ý gửi qua tham số
+`maVach` (vd `?maVach=2003320425&maDiem=...`) — phải RA ĐÚNG GIÁ, không
+còn báo "Không tìm thấy giá".
