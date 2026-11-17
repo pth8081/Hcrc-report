@@ -15,6 +15,17 @@
    11:39:20, vùng 001: LASTRTPR=399000 -> RTPRICE=409000. Khớp đúng dữ liệu
    người dùng gửi.
 
+   BẢN 10.84 — thêm `MaNhomHang` (theo yêu cầu người dùng, kèm ảnh mẫu
+   khoanh đỏ cột "Mã nhóm hàng"/"Đơn vị") + `DonVi`. ĐÃ XÁC NHẬN BẰNG DỮ
+   LIỆU THẬT (17/11/2026, SQL trực tiếp qua đúng tài khoản ETL đang đọc
+   nguồn "DSMART16 - Live") — `dbo.SKU_DEF` (bảng ĐÃ JOIN SẴN trong VIEW
+   này từ bản 10.79, alias `k`) có sẵn cột `GRP_ID` (varchar) — KHÔNG cần
+   bảng `SKU_REF` nào khác (bảng đó chỉ là nhầm lẫn kiểm tra ban đầu,
+   SKU_DEF đã có đủ). `DonVi` lấy từ `HISRTPR.UNIT_SYMB` (cùng dòng log
+   giá, không cần JOIN thêm). `MaNganhHang` (DEPT_ID) đã có sẵn từ bản
+   10.79 (chỉ chưa hiện ra cột báo cáo, nay bổ sung ở
+   rp-server/scripts/seedThayDoiGiaReports.js).
+
    AN TOÀN CHẠY LẠI NHIỀU LẦN — `CREATE OR ALTER VIEW`.
    ============================================================================ */
 
@@ -31,6 +42,8 @@ SELECT
     k.FULL_NAME_U                AS TenHang,
     k.DEPT_ID                   AS MaNganhHang,
     dl.DEPT_NAME_U                AS TenNganhHang,
+    RTRIM(k.GRP_ID)              AS MaNhomHang,
+    RTRIM(h.UNIT_SYMB)           AS DonVi,
     h.LASTRTPR                  AS GiaCu,
     h.RTPRICE                   AS GiaMoi
 FROM dbo.HISRTPR h

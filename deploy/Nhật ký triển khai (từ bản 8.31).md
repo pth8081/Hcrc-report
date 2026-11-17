@@ -14,6 +14,28 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.84 — Thêm cột "Mã nhóm hàng"/"Mã ngành hàng"/"Đơn vị" cho báo cáo "Thay đổi giá bán tức thời"
+
+**Thay đổi**: VIEW `vw_ThayDoiGiaTucThoi` bổ sung `MaNhomHang`
+(`dbo.SKU_DEF.GRP_ID`) và `DonVi` (`dbo.HISRTPR.UNIT_SYMB`); báo cáo hiện
+thêm 3 cột "Mã nhóm hàng"/"Mã ngành hàng"/"Đơn vị" (Mã ngành hàng đã có
+sẵn dữ liệu từ bản 10.79, chỉ nay mới hiện cột). Chỉ áp dụng báo cáo
+"Thay đổi giá bán tức thời", không đổi "Thay đổi giá từ thời điểm".
+
+**Triển khai**:
+```bash
+git pull origin main
+# DBA chạy lại file VIEW (an toàn CREATE OR ALTER):
+#   "deploy/VIEW DSMART16 (trung tâm)/Thiết lập VIEW Thay đổi giá bán
+#   tức thời (DSMART16 trung tâm).sql"
+cd etl && node scripts/seedThayDoiGiaSync.js
+cd ../rp-server && node scripts/seedThayDoiGiaReports.js
+cd ../rp-user && npm run build
+```
+
+**Kiểm tra**: mở báo cáo "Thay đổi giá bán tức thời", phải thấy đủ 3 cột
+mới có số liệu (không rỗng).
+
 ## 10.83 — Thêm nút lọc nhanh "Ngày hôm trước/Trong ngày/Trong tháng" cho 3 báo cáo
 
 **Thay đổi**: `quickPresets: true` trên filter `eventDate` của 3 báo cáo

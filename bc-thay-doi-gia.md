@@ -23,6 +23,18 @@ hàng + vùng giá — 2 báo cáo RIÊNG vì 2 nghiệp vụ khác nhau:
 **KHÔNG có công thức tính phức tạp** — chỉ hiển thị lại đúng 2 giá trị cũ/
 mới đã ghi nhận sẵn trên DSMART16, không tự tính toán gì thêm.
 
+**Bản 10.84** — "Thay đổi giá bán tức thời" bổ sung 3 cột (theo yêu cầu
+người dùng, kèm ảnh mẫu): **Mã nhóm hàng** (`dbo.SKU_DEF.GRP_ID` — bảng
+SKU_DEF đã JOIN sẵn từ bản 10.79, chỉ cần chọn thêm cột, không JOIN mới;
+LƯU Ý: người dùng ban đầu chỉ ra bảng `SKU_REF` qua SSMS nhưng đó là
+nhầm lẫn kết nối sai cửa sổ/CSDL — đã xác nhận bằng SQL thật là
+`SKU_DEF` đã có sẵn cột `GRP_ID`/`GRP_NAME`, không cần `SKU_REF`), **Mã
+ngành hàng** (= `DEPT_ID`, đã có sẵn trong VIEW/domain từ bản 10.79 dưới
+tên `MaNganhHang`, chỉ chưa hiện cột báo cáo), và **Đơn vị**
+(`dbo.HISRTPR.UNIT_SYMB`, cùng dòng log giá, không cần JOIN gì thêm).
+Chỉ áp dụng cho "Thay đổi giá bán tức thời" — "Thay đổi giá từ thời
+điểm" KHÔNG đổi gì ở bản này.
+
 ## 2. Nguồn dữ liệu
 
 2 VIEW MỚI trên CSDL `DSMART16`:
@@ -47,6 +59,13 @@ khác (`giaban_zone_sku`/`vung_gia_stk`/`mavach_mahang` ở api-server — xem
 hẳn mục đích LỊCH SỬ THAY ĐỔI của 2 domain này).
 
 ## 3. Các bước triển khai (theo đúng thứ tự)
+
+⚠️ **Nếu chỉ cập nhật lên bản 10.84 (đã triển khai sẵn từ 10.79-10.83)**
+— chỉ cần làm lại bước 1 (chạy lại file VIEW "Thay đổi giá bán tức
+thời", an toàn `CREATE OR ALTER`), bước 2 (chạy lại
+`seedThayDoiGiaSync.js` để job đồng bộ nhận thêm 2 cột dimension mới), và
+bước 4 (chạy lại `seedThayDoiGiaReports.js` để báo cáo nhận cột mới) —
+KHÔNG cần làm lại bước 3/5.
 
 | # | Việc | Ai làm |
 |---|---|---|

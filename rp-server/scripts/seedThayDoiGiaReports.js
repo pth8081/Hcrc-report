@@ -38,7 +38,13 @@ const REPORTS = [
       { key: 'maVungGia', label: 'Vùng giá', formula: 'MaVungGia' },
       { key: 'maHang', label: 'Mã hàng', formula: 'MaHangHienThi' },
       { key: 'tenHang', label: 'Tên hàng', formula: 'TenHang' },
+      // maNhomHang/maNganhHang/donVi thêm bản 10.84 (theo yêu cầu người
+      // dùng, kèm ảnh mẫu) — maNganhHang đã có sẵn trong domain từ bản
+      // 10.79 (chỉ chưa hiện cột), maNhomHang/donVi mới thêm ở VIEW.
+      { key: 'maNhomHang', label: 'Mã nhóm hàng', formula: 'MaNhomHang' },
+      { key: 'maNganhHang', label: 'Mã ngành hàng', formula: 'MaNganhHang' },
       { key: 'tenNganhHang', label: 'Ngành hàng', formula: 'TenNganhHang' },
+      { key: 'donVi', label: 'Đơn vị', formula: 'DonVi' },
       { key: 'giaCu', label: 'Giá cũ', formula: 'measures.GiaCu' },
       { key: 'giaMoi', label: 'Giá mới', formula: 'measures.GiaMoi' }
     ]

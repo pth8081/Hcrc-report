@@ -42,6 +42,32 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.84 — Thêm cột "Mã nhóm hàng"/"Mã ngành hàng"/"Đơn vị" cho báo cáo "Thay đổi giá bán tức thời"
+
+**Theo yêu cầu người dùng** (kèm ảnh mẫu khoanh đỏ 2 cột "Mã nhóm hàng"/
+"Đơn vị") — VIEW `vw_ThayDoiGiaTucThoi` bổ sung `MaNhomHang`
+(`dbo.SKU_DEF.GRP_ID`, bảng đã JOIN sẵn từ bản 10.79) và `DonVi`
+(`dbo.HISRTPR.UNIT_SYMB`); `MaNganhHang` (DEPT_ID) đã có sẵn từ bản 10.79,
+chỉ nay mới hiện ra cột báo cáo. Điều tra ban đầu đi theo hướng bảng
+`SKU_REF` (người dùng chỉ qua ảnh SSMS) nhưng xác nhận đó là nhầm lẫn kết
+nối sai CSDL/cửa sổ SSMS — `SKU_DEF` đã có sẵn đủ cột cần, không cần
+SKU_REF. Chỉ áp dụng báo cáo "Thay đổi giá bán tức thời"
+(`bc-thay-doi-gia-tuc-thoi`), KHÔNG đổi "Thay đổi giá từ thời điểm".
+
+**Triển khai**:
+```bash
+git pull origin main
+# DBA chạy lại file VIEW (an toàn CREATE OR ALTER):
+#   "deploy/VIEW DSMART16 (trung tâm)/Thiết lập VIEW Thay đổi giá bán
+#   tức thời (DSMART16 trung tâm).sql"
+cd etl && node scripts/seedThayDoiGiaSync.js
+cd ../rp-server && node scripts/seedThayDoiGiaReports.js
+cd ../rp-user && npm run build
+```
+
+**Kiểm tra**: mở báo cáo "Thay đổi giá bán tức thời", phải thấy đủ 3 cột
+mới "Mã nhóm hàng"/"Mã ngành hàng"/"Đơn vị" có số liệu (không rỗng).
+
 ## 10.83 — Thêm nút lọc nhanh "Ngày hôm trước/Trong ngày/Trong tháng" cho 3 báo cáo
 
 **Theo yêu cầu người dùng** — 3 báo cáo "Thay đổi giá bán tức thời"/"Thay

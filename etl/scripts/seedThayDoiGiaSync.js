@@ -107,7 +107,8 @@ const JOBS = [
   {
     name: 'Thay đổi giá bán tức thời - Live (DSMART16)', sourceTable: 'vw_ThayDoiGiaTucThoi',
     keyColumn: 'MaThucThe', dateColumn: 'EventDate', updatedAtColumn: 'ThoiDiemThayDoi',
-    dimensionColumns: ['MaVungGia', 'MaHangHienThi', 'TenHang', 'MaNganhHang', 'TenNganhHang'],
+    // MaNhomHang/DonVi thêm bản 10.84 (theo yêu cầu người dùng).
+    dimensionColumns: ['MaVungGia', 'MaHangHienThi', 'TenHang', 'MaNganhHang', 'TenNganhHang', 'MaNhomHang', 'DonVi'],
     measureColumns: ['GiaCu', 'GiaMoi'],
     targetDomain: 'thaydoigia_tucthoi', cronExpression: '*/15 * * * *'
   },
