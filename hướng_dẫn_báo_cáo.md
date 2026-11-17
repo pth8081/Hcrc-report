@@ -1803,3 +1803,5 @@ cập nhật nếu chỉ sửa báo cáo đã có (file hướng dẫn riêng t�
 | `bc-tra-cuu-voucher` | Tra cứu voucher | `api-voucher-check-redeem.md` |
 | `ton-kho` | Tồn kho toàn hệ thống (API cho đối tác ngoài, api-server) | `api-ton-kho-cho-doi-tac.md` |
 | `gia-ban` | Giá bán theo mã hàng (API tra 1 mã khi quét, cho đối tác ngoài, api-server) | `api-gia-ban-cho-doi-tac.md` |
+| `bc-thay-doi-gia-tuc-thoi` | Thay đổi giá bán tức thời | `bc-thay-doi-gia.md` |
+| `bc-thay-doi-gia-tu-thoi-diem` | Thay đổi giá từ thời điểm | `bc-thay-doi-gia.md` |

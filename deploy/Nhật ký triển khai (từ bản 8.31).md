@@ -14,6 +14,22 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.79 — Thêm 2 báo cáo MỚI "Thay đổi giá bán tức thời"/"Thay đổi giá từ thời điểm"
+
+**Thay đổi**: 2 VIEW mới (`vw_ThayDoiGiaTucThoi` từ `HISRTPR`,
+`vw_ThayDoiGiaTuThoiDiem` từ `RTPRPRG`) + 2 job đồng bộ + 2 báo cáo mới.
+Xem `bc-thay-doi-gia.md`.
+
+**Triển khai**:
+```bash
+git pull origin main
+# Chạy CẢ 2 file VIEW "Thay đổi giá bán tức thời"/"... từ thời điểm" trên DSMART16
+cd etl && node scripts/seedThayDoiGiaSync.js
+cd ../rp-server && node scripts/seedThayDoiGiaReports.js
+```
+
+**Kiểm tra**: xem `bc-thay-doi-gia.md` mục 4.
+
 ## 10.78 — API "Giá bán" trả thêm `dsMaVach` (đủ mọi mã vạch), giống "Tồn kho"
 
 **Thay đổi**: thêm cột `dsMaVach` (mảng, toàn bộ mã vạch) vào API "Giá

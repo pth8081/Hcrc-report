@@ -42,6 +42,45 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.79 — Thêm 2 báo cáo MỚI "Thay đổi giá bán tức thời"/"Thay đổi giá từ thời điểm"
+
+**Theo yêu cầu người dùng** — dựa trên file mẫu thật đội vận hành đang tự
+xuất tay (`Price_Changes_...xlsx`, có ghi chú ngay trong file chỉ rõ
+nguồn). Đã xác nhận bằng dữ liệu thật (17/11/2026) 2 bảng nguồn hoàn toàn
+khác nhau:
+- `dbo.HISRTPR` — log thay đổi giá bán lẻ NGAY LÚC xảy ra (cột `[DATE]`
+  là thời điểm thật, không rủi ro NULL watermark).
+- `dbo.RTPRPRG` — các ĐỢT thay đổi giá LÊN LỊCH TRƯỚC, áp dụng vào 1 ngày
+  tương lai (`A_DATE`), watermark `MODI_DATE`.
+
+**Đã thêm**:
+- 2 VIEW mới trên DSMART16: `vw_ThayDoiGiaTucThoi`/`vw_ThayDoiGiaTuThoiDiem`.
+- `etl/scripts/seedThayDoiGiaSync.js` — 2 job đồng bộ, domain
+  `thaydoigia_tucthoi`/`thaydoigia_tuthoidiem`.
+- `rp-server/scripts/seedThayDoiGiaReports.js` — 2 báo cáo
+  `bc-thay-doi-gia-tuc-thoi`/`bc-thay-doi-gia-tu-thoi-diem`.
+- `bc-thay-doi-gia.md` — hướng dẫn triển khai riêng.
+
+**Triển khai**:
+```bash
+git pull origin main
+# Chạy CẢ 2 file "deploy/VIEW DSMART16 (trung tâm)/Thiết lập VIEW Thay đổi
+# giá bán tức thời (DSMART16 trung tâm).sql" và "... từ thời điểm ..." trên DSMART16
+cd etl && node scripts/seedThayDoiGiaSync.js
+cd ../rp-server && node scripts/seedThayDoiGiaReports.js
+```
+
+**Kiểm tra**: xem `bc-thay-doi-gia.md` mục 4.
+
+**Lưu ý**: 2 báo cáo "Bán buôn chi tiết theo khách hàng" và "Check
+RV_ORDER" (lệch mã NCC) NGƯỜI DÙNG CŨNG đã yêu cầu làm, nhưng CHƯA triển
+khai được ở bản này — cần DBA xác nhận thêm: (1) bảng nào lưu khách hàng
+DOANH NGHIỆP/bán buôn (bảng `CUSTOMER` đã xác nhận CHỈ chứa khách lẻ/
+thành viên cá nhân, không có mã khách buôn dạng "24..."); (2) nguồn 2 cột
+"mã NCC nội bộ"/"mã NCC thực giao" lấy từ đâu (`RV_ORDER` chỉ có đúng 1
+cột `SUPP_ID`, cột `REF` rỗng nên không nối được qua đơn gốc như giả
+thuyết ban đầu).
+
 ## 10.78 — API "Giá bán" trả thêm `dsMaVach` (đủ mọi mã vạch), giống "Tồn kho"
 
 **Theo yêu cầu người dùng** — app đối tác tự lưu/đối chiếu dữ liệu phía họ
