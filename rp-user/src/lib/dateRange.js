@@ -78,6 +78,36 @@ export function computeEventDateRange(dateMode, fromDate, toDate) {
   return { from: fromDate, to: toDate };
 }
 
+// resolveQuickDatePreset — nút lọc nhanh cho filter kiểu 'dateRange' (bản
+// 10.83, theo yêu cầu người dùng — 3 báo cáo "Thay đổi giá"/"Check lệch
+// thuế" cần sẵn 3 lựa chọn "Ngày hôm trước"/"Trong ngày"/"Trong tháng",
+// xem components/FilterForm.jsx: definition.filters[].quickPresets).
+// MIRROR ĐÚNG 3 preset cùng tên trong
+// rp-server/lib/reportEmailFilters.js:resolvePreset() (dùng cho lịch gửi
+// email báo cáo này) — giữ tên preset GIỐNG HỆT 2 nơi để không nhầm lẫn,
+// dù đây là 2 hàm tính ĐỘC LẬP (1 chạy trình duyệt, 1 chạy Node, không
+// dùng chung file được) — "today"/"yesterday"/"thisMonth" PHẢI tính ra
+// cùng kết quả ở cả 2 nơi cho cùng 1 thời điểm thật.
+const QUICK_PRESET_OPTIONS = [
+  { value: 'yesterday', label: 'Ngày hôm trước' },
+  { value: 'today', label: 'Trong ngày' },
+  { value: 'thisMonth', label: 'Trong tháng' }
+];
+
+export function resolveQuickDatePreset(preset) {
+  const today = todayISO();
+  switch (preset) {
+    case 'today': return { from: today, to: today };
+    case 'yesterday': { const y = addDaysISO(today, -1); return { from: y, to: y }; }
+    case 'thisMonth': return { from: firstOfMonth(today), to: today };
+    default: return null;
+  }
+}
+
+export function quickDatePresetOptions() {
+  return QUICK_PRESET_OPTIONS;
+}
+
 // Nhãn hiển thị động thay cho "(Trong ngày)"/"(Trong tháng)" tĩnh — 'day'
 // hiện đúng ngày/khoảng ngày đã chọn, 'month' hiện đúng tháng/năm (suy từ
 // toDate, khớp đúng tháng mà computeEventDateRange() ở trên tính cho khối

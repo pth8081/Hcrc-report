@@ -15,6 +15,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
 import SearchableSelect from './SearchableSelect';
 import DateInput from './DateInput';
+import { resolveQuickDatePreset, quickDatePresetOptions } from '../lib/dateRange';
 
 export default function FilterForm({ reportId, filters, values, onChange, onSubmit, loading }) {
   const [dynamicOptions, setDynamicOptions] = useState({});
@@ -58,17 +59,37 @@ export default function FilterForm({ reportId, filters, values, onChange, onSubm
               onChange={(e) => setValue(f.field, e.target.value)}
             />
           ) : f.type === 'dateRange' ? (
-            <span className="date-range">
-              <DateInput
-                value={values[f.field]?.from || ''}
-                onChange={(e) => setValue(f.field, { ...values[f.field], from: e.target.value })}
-              />
-              <span>—</span>
-              <DateInput
-                value={values[f.field]?.to || ''}
-                onChange={(e) => setValue(f.field, { ...values[f.field], to: e.target.value })}
-              />
-            </span>
+            <>
+              {/* quickPresets (bản 10.83, theo yêu cầu người dùng) — nút
+                  lọc nhanh "Ngày hôm trước"/"Trong ngày"/"Trong tháng",
+                  CHỈ hiện khi definition.filters[].quickPresets = true
+                  (báo cáo khác không đổi gì) — bấm 1 nút tự điền ĐỦ 2 ô
+                  ngày bên dưới, vẫn sửa tay lại được như cũ sau khi bấm. */}
+              {f.quickPresets && (
+                <span className="inline-actions">
+                  {quickDatePresetOptions().map(opt => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => setValue(f.field, resolveQuickDatePreset(opt.value))}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </span>
+              )}
+              <span className="date-range">
+                <DateInput
+                  value={values[f.field]?.from || ''}
+                  onChange={(e) => setValue(f.field, { ...values[f.field], from: e.target.value })}
+                />
+                <span>—</span>
+                <DateInput
+                  value={values[f.field]?.to || ''}
+                  onChange={(e) => setValue(f.field, { ...values[f.field], to: e.target.value })}
+                />
+              </span>
+            </>
           ) : f.type === 'multiSelect' ? (
             <SearchableSelect
               multi

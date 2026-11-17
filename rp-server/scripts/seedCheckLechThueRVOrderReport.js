@@ -25,7 +25,9 @@ const DEFINITION = {
   title: TITLE,
   domain: DOMAIN,
   filters: [
-    { field: 'eventDate', type: 'dateRange', label: 'Khoảng ngày báo cáo' },
+    // quickPresets (bản 10.83, theo yêu cầu người dùng) — xem chú thích
+    // đầy đủ ở seedThayDoiGiaReports.js (cùng tính năng, áp dụng chung).
+    { field: 'eventDate', type: 'dateRange', label: 'Khoảng ngày báo cáo', quickPresets: true },
     { field: 'MaNccThucGiao', type: 'multiSelect', label: 'Nhà cung cấp thực giao', optionsSource: { domain: DOMAIN, valueField: 'MaNccThucGiao', labelField: 'TenNccThucGiao' } },
     { field: 'MaHangHienThi', type: 'multiSelect', label: 'Mã hàng', optionsSource: { domain: DOMAIN, valueField: 'MaHangHienThi', labelField: 'TenHang' } }
   ],

@@ -14,6 +14,24 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.83 — Thêm nút lọc nhanh "Ngày hôm trước/Trong ngày/Trong tháng" cho 3 báo cáo
+
+**Thay đổi**: `quickPresets: true` trên filter `eventDate` của 3 báo cáo
+"Thay đổi giá bán tức thời"/"Thay đổi giá từ thời điểm"/"Check lệch thuế
+RV_ORDER" — `FilterForm.jsx` hiện thêm 3 nút lọc nhanh. Lịch gửi email
+không cần sửa (cơ chế đã có sẵn cho mọi filter `dateRange`).
+
+**Triển khai**:
+```bash
+git pull origin main
+cd rp-server && node scripts/seedThayDoiGiaReports.js
+node scripts/seedCheckLechThueRVOrderReport.js
+cd ../rp-user && npm run build
+```
+
+**Kiểm tra**: mở 1 trong 3 báo cáo, bấm nút "Trong tháng" — 2 ô ngày tự
+điền đúng.
+
 ## 10.82 — Thêm báo cáo MỚI "Báo cáo tổng hợp doanh thu siêu thị hàng ngày" (Phase 1 — xem web)
 
 **Thay đổi**: thêm cột `MaQLKV` vào `etl.DiemStkMapping`, VIEW mới

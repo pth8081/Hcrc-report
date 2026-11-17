@@ -42,6 +42,35 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.83 — Thêm nút lọc nhanh "Ngày hôm trước/Trong ngày/Trong tháng" cho 3 báo cáo
+
+**Theo yêu cầu người dùng** — 3 báo cáo "Thay đổi giá bán tức thời"/"Thay
+đổi giá từ thời điểm"/"Check lệch thuế RV_ORDER" (bản 10.79/10.80) cần
+sẵn 3 nút lọc nhanh thay vì phải tự gõ ngày.
+
+**Đã thêm**: `definition.filters[].quickPresets = true` (3 báo cáo trên)
+— `FilterForm.jsx` hiện thêm 3 nút ngay trên ô chọn khoảng ngày, bấm 1
+nút tự điền đủ `from`/`to` (vẫn sửa tay lại được sau đó). Công thức tính
+(`rp-user/src/lib/dateRange.js:resolveQuickDatePreset()`) mirror ĐÚNG 3
+preset `today`/`yesterday`/`thisMonth` đã có sẵn ở
+`rp-server/lib/reportEmailFilters.js` (dùng cho lịch gửi email).
+
+**Lịch gửi email**: KHÔNG cần sửa gì — cơ chế preset cho `dateRange` đã
+có sẵn TỪ TRƯỚC cho MỌI báo cáo (EmailSchedulesPage.jsx), 3 báo cáo trên
+đã dùng `dateRange` nên admin chọn "Hôm nay"/"Hôm qua"/"Tháng này" khi
+đặt lịch gửi được LUÔN, không cần chờ bản này.
+
+**Triển khai**:
+```bash
+git pull origin main
+cd rp-server && node scripts/seedThayDoiGiaReports.js
+node scripts/seedCheckLechThueRVOrderReport.js
+cd ../rp-user && npm run build
+```
+
+**Kiểm tra**: mở 1 trong 3 báo cáo trên, bấm nút "Trong tháng" — 2 ô ngày
+phải tự điền từ ngày 1 đầu tháng tới hôm nay.
+
 ## 10.82 — Thêm báo cáo MỚI "Báo cáo tổng hợp doanh thu siêu thị hàng ngày" (Phase 1 — xem web)
 
 **Theo yêu cầu người dùng** — dựa trên file mẫu thật đội vận hành đang tự

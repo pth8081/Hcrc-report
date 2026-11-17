@@ -68,7 +68,13 @@ function buildDefinition(report) {
     title: report.title,
     domain: report.domain,
     filters: [
-      { field: 'eventDate', type: 'dateRange', label: 'Khoảng ngày báo cáo' },
+      // quickPresets (bản 10.83, theo yêu cầu người dùng) — hiện sẵn 3 nút
+      // "Ngày hôm trước"/"Trong ngày"/"Trong tháng" ngay trên form lọc,
+      // xem rp-user/src/components/FilterForm.jsx. KHÔNG ảnh hưởng cách
+      // lưu lịch gửi email (dùng CHUNG đúng field 'eventDate' kiểu
+      // 'dateRange' này, cơ chế preset riêng đã có sẵn từ trước — xem
+      // lib/reportEmailFilters.js, không cần sửa gì thêm).
+      { field: 'eventDate', type: 'dateRange', label: 'Khoảng ngày báo cáo', quickPresets: true },
       nganhHangFilter(report.domain),
       maHangFilter(report.domain),
       vungGiaFilter(report.domain)
