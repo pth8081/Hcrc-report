@@ -14,6 +14,26 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.82 — Thêm báo cáo MỚI "Báo cáo tổng hợp doanh thu siêu thị hàng ngày" (Phase 1 — xem web)
+
+**Thay đổi**: thêm cột `MaQLKV` vào `etl.DiemStkMapping`, VIEW mới
+`vw_DoanhThuTongHopHCRC` (domain `doanhthu_tonghop_hcrc`), job đồng bộ,
+SourceType mới `doanhThuTongHopHcrc` (3 khối Ngày/Tháng/Năm + Chỉ tiêu +
+số nhân sự), báo cáo mới `bc-doanh-thu-tong-hop-hcrc`. CHƯA làm phần xuất
+Excel nhiều sheet/tháng. Xem `bc-doanh-thu-tong-hop-hcrc.md`.
+
+**Triển khai**:
+```bash
+git pull origin main
+# Chạy etl-db/schema.sql trên CSDL ETL (thêm cột MaQLKV)
+# Chạy "deploy/VIEW DSMART16 (trung tâm)/Thiết lập VIEW Doanh thu tổng
+# hợp theo siêu thị HCRC (DSMART16 trung tâm).sql" trên DSMART16
+cd etl && node scripts/seedDoanhThuTongHopHcrcSync.js
+cd ../rp-server && node scripts/seedDoanhThuTongHopHcrcReport.js
+```
+
+**Kiểm tra**: xem `bc-doanh-thu-tong-hop-hcrc.md` mục 4.
+
 ## 10.81 — Thêm báo cáo MỚI "Bán buôn chi tiết theo khách hàng"
 
 **Thay đổi**: VIEW mới `vw_BanBuonChiTiet` (STRANS TRANS_CODE 211/212,

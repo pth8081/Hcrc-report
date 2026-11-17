@@ -277,6 +277,18 @@ BEGIN
 END
 GO
 
+-- MaQLKV (TUỲ CHỌN) — mã quản lý khu vực, phục vụ 1 báo cáo doanh thu cuối
+-- ngày tổng hợp (composite) MỚI đang làm thêm, cần nhóm/hiện theo khu vực
+-- quản lý. Admin TỰ KHAI ở đây (giống TenSieuThi/LoaiChuoi phía trên) —
+-- KHÔNG đọc từ DSMART16 (CSDL nguồn KHÔNG có khái niệm "khu vực quản lý",
+-- đây là cách tổ chức nội bộ riêng của HCRC/LDTD, không phải dữ liệu
+-- DSMART). Để trống = mã Điểm đó chưa gán khu vực.
+IF COL_LENGTH('etl.DiemStkMapping', 'MaQLKV') IS NULL
+BEGIN
+    ALTER TABLE etl.DiemStkMapping ADD MaQLKV NVARCHAR(50) NULL;
+END
+GO
+
 -- IsActive (theo yêu cầu người dùng) — nút "Khoá"/"Kích hoạt" 1 dòng ánh xạ
 -- mà KHÔNG xoá hẳn (khác nút "Xoá" sẵn có) — dùng khi admin TẠM MUỐN ẨN 1
 -- mã Điểm khỏi báo cáo (vd cấu hình trước nhưng chưa dùng ngay) nhưng vẫn

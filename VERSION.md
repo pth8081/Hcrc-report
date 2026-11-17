@@ -42,6 +42,56 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.82 — Thêm báo cáo MỚI "Báo cáo tổng hợp doanh thu siêu thị hàng ngày" (Phase 1 — xem web)
+
+**Theo yêu cầu người dùng** — dựa trên file mẫu thật đội vận hành đang tự
+tổng hợp tay (`Bao_cao_ban_Doanh_thu_hang_ngay_he_thong_HCRC_T11.2026.xlsx`,
+mỗi sheet 1 ngày/tháng). Mỗi dòng/siêu thị hiển thị 3 KHỐI SỐ LIỆU CÙNG
+LÚC (Ngày/Tháng luỹ kế/Năm luỹ kế) + Chỉ tiêu + Số lượng nhân sự.
+
+**Đã xác nhận với người dùng**:
+- Số lượng nhân sự = đếm số tài khoản gán quyền xem theo siêu thị
+  (`app.UserStoreAccess`, KHÔNG phải dữ liệu DSMART16).
+- Kế hoạch DT/Bill dùng chung domain `sales-targets-hcrc` đã có.
+- "Kế hoạch DT"/"Kế hoạch Bill" hiện ở khối Ngày thực ra là kế hoạch CẢ
+  THÁNG (khớp đúng số liệu mẫu).
+- "Dự kiến hoàn thành kế hoạch" tính theo tốc độ bán hiện tại: (DT luỹ
+  kế tháng / số ngày đã qua) × tổng số ngày trong tháng.
+
+**Đã thêm**:
+- Cột MỚI `MaQLKV` vào `etl.DiemStkMapping` ("Ánh xạ Điểm - STK_ID") —
+  admin tự khai, giống cách `TenSieuThi`/`LoaiChuoi` đã làm.
+- VIEW mới `vw_DoanhThuTongHopHCRC` trên DSMART16 (domain
+  `doanhthu_tonghop_hcrc`) — gộp (STK_ID, ngày) giống `doanhthu_chinhanh`
+  đã có (KHÔNG sửa VIEW đó), thêm tách Bán buôn/Bán lẻ + cột `DiaDiem`
+  (STOCK.PLACE).
+- `etl/scripts/seedDoanhThuTongHopHcrcSync.js` — job đồng bộ.
+- `rp-server/lib/doanhThuTongHopHcrcRunner.js` — SourceType MỚI
+  `'doanhThuTongHopHcrc'` (đăng ký ở `lib/reportRunner.js`), tự tính 3
+  khối Ngày/Tháng/Năm từ 1 ngày neo — KHÔNG dùng
+  `lib/compositeReportRunner.js` (chỉ hiểu 1 khối/1 khoảng ngày), nhưng
+  tái dùng tối đa hàm phụ trợ của file đó + `lib/diemStkMapping.js`.
+- `rp-server/scripts/seedDoanhThuTongHopHcrcReport.js` — báo cáo
+  `bc-doanh-thu-tong-hop-hcrc`.
+- `bc-doanh-thu-tong-hop-hcrc.md` — hướng dẫn triển khai riêng.
+
+**⚠️ PHẠM VI — CHỈ Phase 1 (xem trên web)**: CHƯA làm tính năng xuất
+Excel 1 sheet/ngày cho cả tháng đúng layout mẫu gốc (kể cả dòng tiêu đề
+nhóm "I. CHUỖI MART"...) — làm Ở BẢN SAU, sau khi người dùng xác nhận số
+liệu hiển thị trên web đã đúng.
+
+**Triển khai**:
+```bash
+git pull origin main
+# Chạy etl-db/schema.sql trên CSDL ETL (thêm cột MaQLKV)
+# Chạy "deploy/VIEW DSMART16 (trung tâm)/Thiết lập VIEW Doanh thu tổng
+# hợp theo siêu thị HCRC (DSMART16 trung tâm).sql" trên DSMART16
+cd etl && node scripts/seedDoanhThuTongHopHcrcSync.js
+cd ../rp-server && node scripts/seedDoanhThuTongHopHcrcReport.js
+```
+
+**Kiểm tra**: xem `bc-doanh-thu-tong-hop-hcrc.md` mục 4.
+
 ## 10.81 — Thêm báo cáo MỚI "Bán buôn chi tiết theo khách hàng"
 
 **Theo yêu cầu người dùng** — dựa trên file mẫu thật đội vận hành đang tự

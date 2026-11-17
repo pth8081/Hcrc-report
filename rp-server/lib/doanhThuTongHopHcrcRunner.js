@@ -1,0 +1,313 @@
+// lib/doanhThuTongHopHcrcRunner.js — SourceType='doanhThuTongHopHcrc' (bản
+// 10.82, theo yêu cầu người dùng — "Báo cáo tổng hợp doanh thu siêu thị
+// hàng ngày", dựa trên file mẫu thật đội vận hành đang tự tổng hợp tay).
+//
+// MỖI DÒNG = 1 mã Điểm, với 3 KHỐI SỐ LIỆU tính SONG SONG cho CÙNG 1 ngày
+// được chọn: Ngày (đúng ngày đó), Tháng (từ đầu tháng tới ngày đó), Năm
+// (từ đầu năm tới ngày đó) — KHÁC các báo cáo composite khác (chỉ 1 khối
+// "khoảng ngày" người dùng tự chọn) — đây là lý do viết RUNNER RIÊNG thay
+// vì dùng lib/compositeReportRunner.js (definition không có khái niệm "3
+// khối cùng lúc, mỗi khối 1 khoảng ngày khác nhau tính từ 1 ngày neo").
+//
+// TÁI DÙNG tối đa hạ tầng đã có (không viết lại):
+//   - fetchAllReportRows/aggregateDailyRowsByEntity (compositeReportRunner.js)
+//     — gọi domain qua lib/reportEngine.js, cộng dồn nhiều ngày về 1 dòng.
+//   - remapRowsToDiem (lib/diemStkMapping.js) — dịch STK_ID -> mã Điểm,
+//     CỘNG DỒN đúng theo danh sách MaStkMoi của từng mã Điểm.
+//   - buildBuIdLookup (lib/diemStkMapping.js) — dịch BU_ID -> mã Điểm cho
+//     domain `giaodich_chinhanh` (khác hẳn STK, chỉ 1-1 không phải danh
+//     sách, nên dịch tay ở allocateByBuId() dưới đây, không qua
+//     remapRowsToDiem — hàm đó CHỈ xử lý đúng kiểu danh sách STK).
+//   - runSalesTargetsBlockRange (lib/salesTargetsReader.js) — Chỉ tiêu,
+//     DÙNG CHUNG domain `sales-targets-hcrc` đã có cho "Doanh thu cuối
+//     ngày" (theo yêu cầu người dùng, KHÔNG tạo Chỉ tiêu riêng).
+//
+// Số nhân sự: đếm SỐ TÀI KHOẢN được gán quyền xem đúng mã Điểm đó
+// (app.UserStoreAccess, CSDL RP — theo yêu cầu người dùng "lấy từ phân
+// quyền đã có nhân viên thuộc siêu thị nào là chuẩn nhất") — KHÔNG phải dữ
+// liệu DSMART16, đọc THẲNG bằng SQL riêng (không qua domain/dwh.ReportFacts).
+//
+// "Kế hoạch DT"/"Kế hoạch Bill" hiện trong khối NGÀY thực ra là kế hoạch
+// CỦA CẢ THÁNG (đã xác nhận với người dùng, khớp đúng số liệu mẫu — kế
+// hoạch ngày không có ý nghĩa tách rời theo từng ngày trong hệ Chỉ tiêu
+// hiện có) — dùng CHUNG đúng số đã tính cho khối Tháng, không tính lại.
+//
+// "Dự kiến hoàn thành kế hoạch" (bản dự báo, theo yêu cầu người dùng) =
+// (Doanh thu luỹ kế tháng / số ngày đã qua trong tháng) × tổng số ngày
+// trong tháng, so với Kế hoạch DT (cả tháng).
+const { sql, getPool } = require('../db');
+const { fetchAllReportRows, aggregateDailyRowsByEntity } = require('./compositeReportRunner');
+const { runSalesTargetsBlockRange } = require('./salesTargetsReader');
+const { loadDiemStkMapping, remapRowsToDiem, buildBuIdLookup } = require('./diemStkMapping');
+const { describeColumns } = require('./reportEngine');
+const { assignSttIfPresent } = require('./reportCellFormat');
+
+const REVENUE_DOMAIN = 'doanhthu_tonghop_hcrc';
+const TRANSACTION_DOMAIN = 'giaodich_chinhanh';
+const TARGET_DOMAIN = 'sales-targets-hcrc';
+
+// vietnamTodayISO/firstOfMonth — COPY nguyên từ compositeReportRunner.js
+// (hàm đó KHÔNG export, xem chú thích bản 8.26 ở file gốc giải thích lý do
+// PHẢI cố định múi giờ Việt Nam, không phụ thuộc múi giờ máy chủ).
+function vietnamTodayISO() {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date());
+}
+function firstOfMonth(dateStr) { return `${dateStr.slice(0, 7)}-01`; }
+function firstOfYear(dateStr) { return `${dateStr.slice(0, 4)}-01-01`; }
+function daysInMonth(dateStr) {
+  const [y, m] = dateStr.split('-').map(Number);
+  return new Date(Date.UTC(y, m, 0)).getUTCDate();
+}
+function dayOfMonth(dateStr) { return Number(dateStr.slice(8, 10)); }
+
+function divOrNull(numerator, denominator) {
+  if (!denominator) return null;
+  return numerator / denominator;
+}
+function pctOrNull(numerator, denominator) {
+  const v = divOrNull(numerator, denominator);
+  return v === null ? null : v * 100;
+}
+
+async function fetchRevenueByMaDiem(pool, diemMapping, from, to) {
+  const definition = { domain: REVENUE_DOMAIN, filters: [{ field: 'eventDate', type: 'dateRange' }] };
+  const rawRows = await fetchAllReportRows(pool, definition, { eventDate: { from, to } });
+  const aggregated = aggregateDailyRowsByEntity(rawRows, to);
+  const diemRows = remapRowsToDiem(aggregated, diemMapping, false);
+  const byMaDiem = new Map();
+  for (const row of diemRows) byMaDiem.set(row.entityCode, row);
+  return byMaDiem;
+}
+
+// giaodich_chinhanh khoá BU_ID (1 mã Điểm = ĐÚNG 1 BU_ID, khác STK_ID có
+// thể nhiều mã/mã Điểm) — dịch tay, KHÔNG qua remapRowsToDiem (hàm đó chỉ
+// hiểu đúng kiểu danh sách STK cũ/mới).
+async function fetchTransactionsByMaDiem(pool, buIdLookup, from, to) {
+  const definition = { domain: TRANSACTION_DOMAIN, filters: [{ field: 'eventDate', type: 'dateRange' }] };
+  const rawRows = await fetchAllReportRows(pool, definition, { eventDate: { from, to } });
+  const aggregated = aggregateDailyRowsByEntity(rawRows, to);
+  const byMaDiem = new Map();
+  for (const row of aggregated) {
+    const maDiem = buIdLookup.get(row.entityCode);
+    if (!maDiem) continue;
+    byMaDiem.set(maDiem, row.measures || {});
+  }
+  return byMaDiem;
+}
+
+async function fetchTargetsByMaDiem(pool, fromPeriod, toPeriod) {
+  const rows = await runSalesTargetsBlockRange(pool, TARGET_DOMAIN, fromPeriod, toPeriod);
+  const byMaDiem = new Map();
+  for (const row of rows) byMaDiem.set(row.entityCode, row);
+  return byMaDiem;
+}
+
+async function fetchStaffCountByMaDiem() {
+  const rpPool = await getPool('RP');
+  const result = await rpPool.request().query(`
+    SELECT MaDiem, COUNT(DISTINCT UserId) AS SoLuong FROM app.UserStoreAccess GROUP BY MaDiem
+  `);
+  const byMaDiem = new Map();
+  for (const r of result.recordset) byMaDiem.set(r.MaDiem, r.SoLuong);
+  return byMaDiem;
+}
+
+function buildColumns(labels) {
+  return [
+    { key: 'stt', label: 'TT' },
+    { key: 'maQLKV', label: 'Mã QLKV' },
+    { key: 'maDiem', label: 'Mã điểm' },
+    { key: 'stkId', label: 'Mã ST/CH' },
+    { key: 'tenSieuThi', label: 'Tên siêu thị/cửa hàng' },
+    { key: 'chain', label: 'Nhóm chuỗi' },
+    { key: 'dienTich', label: 'Diện tích (m2)' },
+    { key: 'diaDiem', label: 'Địa điểm' },
+    { key: 'nhanSu', label: 'Số lượng nhân sự' },
+
+    { key: 'soBillDay', label: 'Số Bill' },
+    { key: 'dtBanBuonDay', label: 'DT bán buôn' },
+    { key: 'dtBanLeDay', label: 'DT bán lẻ' },
+    { key: 'tongCongDay', label: 'Tổng cộng' },
+    { key: 'laiGopDay', label: 'Lãi gộp' },
+    { key: 'tyLeLaiGopDay', label: 'Tỉ lệ lãi gộp/DT', format: 'percent' },
+    { key: 'dtBqBillDay', label: 'DT bán lẻ BQ/Bill' },
+    { key: 'dtBqM2Day', label: 'DT bán lẻ BQ/m2' },
+    { key: 'khDoanhThuThang', label: 'Kế hoạch DT (tháng)' },
+    { key: 'khBillThang', label: 'Kế hoạch Bill (tháng)' },
+    { key: 'khTbGioHangThang', label: 'Kế hoạch TB giỏ hàng (tháng)' },
+    { key: 'hoanThanhDTLuyKeThang', label: 'Hoàn thành DT luỹ kế (tháng)', format: 'percent' },
+    { key: 'duKienHoanThanh', label: 'Dự kiến hoàn thành kế hoạch (tháng)', format: 'percent' },
+
+    { key: 'soBillMonth', label: 'Số Bill' },
+    { key: 'dtBanBuonMonth', label: 'DT bán buôn' },
+    { key: 'dtBanLeMonth', label: 'DT bán lẻ' },
+    { key: 'tongCongMonth', label: 'Tổng cộng' },
+    { key: 'laiGopMonth', label: 'Lãi gộp' },
+    { key: 'tyLeLaiGopMonth', label: 'Tỉ lệ lãi gộp/DT', format: 'percent' },
+    { key: 'dtBqBillMonth', label: 'DT bán lẻ BQ/Bill' },
+    { key: 'dtBqM2Month', label: 'DT bán lẻ BQ/m2' },
+
+    { key: 'soBillYear', label: 'Số Bill' },
+    { key: 'dtBanBuonYear', label: 'DT bán buôn' },
+    { key: 'dtBanLeYear', label: 'DT bán lẻ' },
+    { key: 'tongCongYear', label: 'Tổng cộng' },
+    { key: 'dtBqBillYear', label: 'DT bán lẻ BQ/Bill' },
+    { key: 'dtBqM2Year', label: 'DT bán lẻ BQ/m2' },
+
+    { key: 'khDoanhThuNam', label: 'KH doanh thu' },
+    { key: 'tyLeHoanThanhNam', label: '% hoàn thành', format: 'percent' }
+  ];
+}
+
+function buildColumnGroups(labels) {
+  return [
+    {
+      label: `Ngày ${labels.day}`, color: 'green',
+      keys: ['soBillDay', 'dtBanBuonDay', 'dtBanLeDay', 'tongCongDay', 'laiGopDay', 'tyLeLaiGopDay', 'dtBqBillDay', 'dtBqM2Day',
+        'khDoanhThuThang', 'khBillThang', 'khTbGioHangThang', 'hoanThanhDTLuyKeThang', 'duKienHoanThanh']
+    },
+    {
+      label: `Tháng ${labels.month}`, color: 'blue',
+      keys: ['soBillMonth', 'dtBanBuonMonth', 'dtBanLeMonth', 'tongCongMonth', 'laiGopMonth', 'tyLeLaiGopMonth', 'dtBqBillMonth', 'dtBqM2Month']
+    },
+    {
+      label: `Năm ${labels.year}`, color: 'orange',
+      keys: ['soBillYear', 'dtBanBuonYear', 'dtBanLeYear', 'tongCongYear', 'dtBqBillYear', 'dtBqM2Year']
+    },
+    { label: 'KH luỹ kế năm', color: 'red', keys: ['khDoanhThuNam', 'tyLeHoanThanhNam'] }
+  ];
+}
+
+async function runDoanhThuTongHopHcrcReport(definition, filterValues) {
+  const today = (filterValues && filterValues.eventDate) || vietnamTodayISO();
+
+  const dayFrom = today, dayTo = today;
+  const monthFrom = firstOfMonth(today), monthTo = today;
+  const yearFrom = firstOfYear(today), yearTo = today;
+
+  const dwhPool = await getPool('DWH');
+  const diemMapping = await loadDiemStkMapping();
+  const buIdLookup = buildBuIdLookup(diemMapping);
+
+  const [dayRev, monthRev, yearRev] = await Promise.all([
+    fetchRevenueByMaDiem(dwhPool, diemMapping, dayFrom, dayTo),
+    fetchRevenueByMaDiem(dwhPool, diemMapping, monthFrom, monthTo),
+    fetchRevenueByMaDiem(dwhPool, diemMapping, yearFrom, yearTo)
+  ]);
+  const [dayTx, monthTx, yearTx] = await Promise.all([
+    fetchTransactionsByMaDiem(dwhPool, buIdLookup, dayFrom, dayTo),
+    fetchTransactionsByMaDiem(dwhPool, buIdLookup, monthFrom, monthTo),
+    fetchTransactionsByMaDiem(dwhPool, buIdLookup, yearFrom, yearTo)
+  ]);
+  // Kế hoạch DT/Bill hiện ở khối Ngày = kế hoạch CẢ THÁNG (đã xác nhận với
+  // người dùng) -> CHỈ cần 2 khối: tháng (dùng chung cho cả "Ngày" lẫn
+  // "Tháng") và năm (KH luỹ kế năm).
+  const [monthTarget, yearTarget] = await Promise.all([
+    fetchTargetsByMaDiem(dwhPool, firstOfMonth(today), firstOfMonth(today)),
+    fetchTargetsByMaDiem(dwhPool, firstOfYear(today), firstOfYear(today))
+  ]);
+  const staffCount = await fetchStaffCountByMaDiem();
+
+  // __storeScope (bản 8.51, app.UserStoreAccess — mảng MaDiem, hoặc null =
+  // "Toàn bộ") — SERVER tự gắn theo người đang gọi (xem routes/reports.js),
+  // GHI ĐÈ bất kỳ giá trị client gửi lên — mirror ĐÚNG cách
+  // lib/compositeReportRunner.js áp dụng, báo cáo này đọc entityCode =
+  // ĐÚNG mã Điểm (không qua BU_ID/STK_ID thô) nên áp thẳng không cần dò
+  // kiểu entity như compositeReportRunner.js phải làm (báo cáo đó dùng
+  // chung code cho nhiều domain có entityCode khác kiểu).
+  const storeScope = Array.isArray(filterValues && filterValues.__storeScope) ? new Set(filterValues.__storeScope) : null;
+
+  const rows = [];
+  for (const [maDiem, info] of diemMapping) {
+    if (storeScope && !storeScope.has(maDiem)) continue;
+    const dR = dayRev.get(maDiem) || { dimensions: {}, measures: {} };
+    const mR = monthRev.get(maDiem) || { dimensions: {}, measures: {} };
+    const yR = yearRev.get(maDiem) || { dimensions: {}, measures: {} };
+    const dT = dayTx.get(maDiem) || {};
+    const mT = monthTx.get(maDiem) || {};
+    const yT = yearTx.get(maDiem) || {};
+    const mTarget = monthTarget.get(maDiem) || {};
+    const yTarget = yearTarget.get(maDiem) || {};
+
+    // Casing của measures/dimensions PHẢI khớp CHÍNH XÁC đúng chuỗi trong
+    // measureColumns/dimensionColumns lúc tạo job đồng bộ (JSON lưu
+    // nguyên văn chuỗi đó làm key — xem etl/scripts/seedDoanhThuTongHopHcrcSync.js
+    // dùng PascalCase 'DoanhThu'/'DienTich'..., KHÁC domain giaodich_chinhanh/
+    // doanhthu_chinhanh có SẴN TỪ TRƯỚC cũng PascalCase 'SoGiaoDich' —
+    // KHÔNG tự ý đổi sang camelCase ở đây dù phần lớn code khác trong file
+    // này dùng camelCase cho biến JS thường.
+    const dienTich = dR.dimensions.DienTich || mR.dimensions.DienTich || yR.dimensions.DienTich || null;
+    const diaDiem = dR.dimensions.DiaDiem || mR.dimensions.DiaDiem || yR.dimensions.DiaDiem || null;
+    const chain = info.loaiChuoi || dR.dimensions.Chain || mR.dimensions.Chain || yR.dimensions.Chain || null;
+
+    const dtBanLeDay = dR.measures.DoanhThuBanLe || 0;
+    const dtBanBuonDay = dR.measures.DoanhThuBanBuon || 0;
+    const tongCongDay = dR.measures.DoanhThu || 0;
+    const laiGopDay = dR.measures.LaiGop || 0;
+    const soBillDay = dT.SoGiaoDich || 0;
+
+    const dtBanLeMonth = mR.measures.DoanhThuBanLe || 0;
+    const dtBanBuonMonth = mR.measures.DoanhThuBanBuon || 0;
+    const tongCongMonth = mR.measures.DoanhThu || 0;
+    const laiGopMonth = mR.measures.LaiGop || 0;
+    const soBillMonth = mT.SoGiaoDich || 0;
+
+    const dtBanLeYear = yR.measures.DoanhThuBanLe || 0;
+    const dtBanBuonYear = yR.measures.DoanhThuBanBuon || 0;
+    const tongCongYear = yR.measures.DoanhThu || 0;
+    const soBillYear = yT.SoGiaoDich || 0;
+
+    const khDoanhThuThang = typeof mTarget.ChiTieuDoanhThu === 'number' ? mTarget.ChiTieuDoanhThu : null;
+    const khBillThang = typeof mTarget.ChiTieuGiaoDich === 'number' ? mTarget.ChiTieuGiaoDich : null;
+    const khDoanhThuNam = typeof yTarget.ChiTieuDoanhThu === 'number' ? yTarget.ChiTieuDoanhThu : null;
+
+    const elapsedDays = dayOfMonth(today);
+    const totalDaysInMonth = daysInMonth(today);
+    const projectedMonthRevenue = elapsedDays > 0 ? (tongCongMonth / elapsedDays) * totalDaysInMonth : null;
+
+    rows.push({
+      maQLKV: info.maQLKV || null,
+      maDiem,
+      stkId: (info.maStkMoi || []).join(', ') || null,
+      tenSieuThi: info.tenSieuThi || null,
+      chain,
+      dienTich,
+      diaDiem,
+      nhanSu: staffCount.get(maDiem) || 0,
+
+      soBillDay, dtBanBuonDay, dtBanLeDay, tongCongDay, laiGopDay,
+      tyLeLaiGopDay: pctOrNull(laiGopDay, tongCongDay),
+      dtBqBillDay: divOrNull(dtBanLeDay, soBillDay),
+      dtBqM2Day: divOrNull(dtBanLeDay, dienTich),
+      khDoanhThuThang, khBillThang,
+      khTbGioHangThang: divOrNull(khDoanhThuThang, khBillThang),
+      hoanThanhDTLuyKeThang: pctOrNull(tongCongMonth, khDoanhThuThang),
+      duKienHoanThanh: projectedMonthRevenue === null ? null : pctOrNull(projectedMonthRevenue, khDoanhThuThang),
+
+      soBillMonth, dtBanBuonMonth, dtBanLeMonth, tongCongMonth, laiGopMonth,
+      tyLeLaiGopMonth: pctOrNull(laiGopMonth, tongCongMonth),
+      dtBqBillMonth: divOrNull(dtBanLeMonth, soBillMonth),
+      dtBqM2Month: divOrNull(dtBanLeMonth, dienTich),
+
+      soBillYear, dtBanBuonYear, dtBanLeYear, tongCongYear,
+      dtBqBillYear: divOrNull(dtBanLeYear, soBillYear),
+      dtBqM2Year: divOrNull(dtBanLeYear, dienTich),
+
+      khDoanhThuNam,
+      tyLeHoanThanhNam: pctOrNull(tongCongYear, khDoanhThuNam)
+    });
+  }
+
+  const labels = { day: today, month: today.slice(0, 7), year: today.slice(0, 4) };
+  const columns = describeColumns(buildColumns(labels));
+  assignSttIfPresent(rows, columns);
+
+  return {
+    columns,
+    rows,
+    columnGroups: buildColumnGroups(labels),
+    columnSuperGroups: null
+  };
+}
+
+module.exports = { runDoanhThuTongHopHcrcReport };

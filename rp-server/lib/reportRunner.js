@@ -15,6 +15,7 @@ const { runStockThresholdReport } = require('./stockThresholdRunner');
 const { runStockAlertReport } = require('./stockAlertRunner');
 const { runPurchaseOrderReport } = require('./purchaseOrderRunner');
 const { runNganhHangBrgReport } = require('./nganhHangBrgRunner');
+const { runDoanhThuTongHopHcrcReport } = require('./doanhThuTongHopHcrcRunner');
 const { assignSttIfPresent } = require('./reportCellFormat');
 
 async function loadDefinition(reportId) {
@@ -102,6 +103,14 @@ async function runDefinition(definition, filterValues, pagination) {
   }
   if (definition.sourceType === 'nganhHangBrg') {
     return runNganhHangBrgReport(definition, filterValues);
+  }
+  // 'doanhThuTongHopHcrc' (bản 10.82, theo yêu cầu người dùng — "Báo cáo
+  // tổng hợp doanh thu siêu thị hàng ngày") — MỖI DÒNG/mã Điểm, 3 khối
+  // Ngày/Tháng/Năm tính SONG SONG từ 1 ngày neo (filterValues.eventDate,
+  // kiểu 'date' đơn — KHÁC 'dateRange' các composite khác) + Chỉ tiêu +
+  // số nhân sự (app.UserStoreAccess) — xem lib/doanhThuTongHopHcrcRunner.js.
+  if (definition.sourceType === 'doanhThuTongHopHcrc') {
+    return runDoanhThuTongHopHcrcReport(definition, filterValues);
   }
   if (definition.sourceType && definition.sourceType !== 'directDb') {
     return runApiReport(definition, filterValues, pagination);

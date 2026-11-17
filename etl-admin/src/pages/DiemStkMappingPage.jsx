@@ -23,7 +23,7 @@ import { api } from '../lib/api';
 import DataTable from '../components/DataTable';
 import { useRowSelection } from '../lib/useRowSelection';
 
-const EMPTY_EDIT_FORM = { maDiem: '', maStkCu: '', maStkMoi: '', tenSieuThi: '', buId: '', loaiChuoi: '' };
+const EMPTY_EDIT_FORM = { maDiem: '', maStkCu: '', maStkMoi: '', tenSieuThi: '', buId: '', loaiChuoi: '', maQLKV: '' };
 
 export default function DiemStkMappingPage() {
   const [file, setFile] = useState(null);
@@ -62,7 +62,8 @@ export default function DiemStkMappingPage() {
       maStkMoi: row.maStkMoi.join(','),
       tenSieuThi: row.tenSieuThi || '',
       buId: row.buId || '',
-      loaiChuoi: row.loaiChuoi || ''
+      loaiChuoi: row.loaiChuoi || '',
+      maQLKV: row.maQLKV || ''
     });
     setEditError('');
     setEditConflicts([]);
@@ -90,7 +91,8 @@ export default function DiemStkMappingPage() {
         maStkMoi: editForm.maStkMoi.split(',').map(s => s.trim()).filter(Boolean),
         tenSieuThi: editForm.tenSieuThi.trim() || null,
         buId: editForm.buId.trim() || null,
-        loaiChuoi: editForm.loaiChuoi || null
+        loaiChuoi: editForm.loaiChuoi || null,
+        maQLKV: editForm.maQLKV.trim() || null
       });
       setEditResult('✅ Đã lưu.');
       setEditForm(EMPTY_EDIT_FORM);
@@ -228,6 +230,10 @@ export default function DiemStkMappingPage() {
         tự động như trước.
       </p>
       <p>
+        <code>MaQLKV</code> (tuỳ chọn) — mã quản lý khu vực, admin tự khai, dùng cho báo cáo doanh
+        thu cuối ngày tổng hợp theo khu vực. Để trống nếu mã Điểm chưa gán khu vực.
+      </p>
+      <p>
         <strong>Ràng buộc quan trọng</strong>: 1 mã STK_ID chỉ được thuộc ĐÚNG 1 mã Điểm — hệ
         thống tự kiểm tra, phát hiện trùng (kể cả trùng với dữ liệu đã lưu của mã Điểm khác) sẽ
         <strong> HUỶ TOÀN BỘ lượt nhập</strong>, không lưu dòng nào, để tránh cộng trùng doanh thu.
@@ -284,6 +290,7 @@ export default function DiemStkMappingPage() {
           { key: 'tenSieuThi', label: 'Tên siêu thị' },
           { key: 'buId', label: 'BU_ID', render: (r) => r.buId || '(chưa khai — Giao dịch trống)' },
           { key: 'loaiChuoi', label: 'Loại chuỗi', render: (r) => r.loaiChuoi || '(tự động theo STOCK.TYPE)' },
+          { key: 'maQLKV', label: 'Mã QLKV', render: (r) => r.maQLKV || '—' },
           { key: 'isActive', label: 'Trạng thái', render: (r) => (r.isActive ? 'Đang hoạt động' : 'Đang khoá') },
           { key: 'importedBy', label: 'Người nhập' },
           { key: 'importedAt', label: 'Lúc nhập', render: (r) => new Date(r.importedAt).toLocaleString('vi-VN') },
@@ -361,6 +368,11 @@ export default function DiemStkMappingPage() {
           <option value="MART">MART</option>
           <option value="MINIMART">MINIMART</option>
         </select>
+        <input
+          placeholder="Mã QLKV (mã quản lý khu vực, tuỳ chọn)"
+          value={editForm.maQLKV}
+          onChange={(e) => setEditForm({ ...editForm, maQLKV: e.target.value })}
+        />
         <div className="inline-actions">
           <button type="submit" disabled={savingEdit}>{savingEdit ? 'Đang lưu...' : 'Lưu'}</button>
           <button type="button" onClick={startAdd}>Thêm dòng mới (form trống)</button>

@@ -20,7 +20,7 @@ const { requireAdminAuth } = require('../../lib/adminAuth');
 const { requireMenuEdit } = require('../../lib/adminPermissions');
 const {
   parseDiemStkMappingFile, findDuplicateStkIds, upsertDiemStkMapping, parseStkList,
-  buildDiemStkMappingTemplate, buildDiemStkMappingExport, normalizeLoaiChuoi
+  buildDiemStkMappingTemplate, buildDiemStkMappingExport, normalizeLoaiChuoi, normalizeMaQLKV
 } = require('../../lib/diemStkMappingImport');
 const { logAction } = require('../../lib/auditLog');
 const { hasZipSignature } = require('../../lib/fileSignature');
@@ -42,13 +42,13 @@ router.get('/', requireMenuEdit('diem-stk-mapping'), async (req, res, next) => {
   try {
     const pool = await getPool('ADMIN');
     const result = await pool.request().query(`
-      SELECT Id, MaDiem, MaStkCu, MaStkMoi, TenSieuThi, BuId, LoaiChuoi, IsActive, ImportedAt, ImportedBy
+      SELECT Id, MaDiem, MaStkCu, MaStkMoi, TenSieuThi, BuId, LoaiChuoi, MaQLKV, IsActive, ImportedAt, ImportedBy
       FROM etl.DiemStkMapping
       ORDER BY MaDiem
     `);
     res.json(result.recordset.map(r => ({
       id: r.Id, maDiem: r.MaDiem, maStkCu: parseStkList(r.MaStkCu), maStkMoi: parseStkList(r.MaStkMoi),
-      tenSieuThi: r.TenSieuThi, buId: r.BuId, loaiChuoi: r.LoaiChuoi, isActive: !!r.IsActive,
+      tenSieuThi: r.TenSieuThi, buId: r.BuId, loaiChuoi: r.LoaiChuoi, maQLKV: r.MaQLKV, isActive: !!r.IsActive,
       importedAt: r.ImportedAt, importedBy: r.ImportedBy
     })));
   } catch (err) { next(err); }
@@ -81,11 +81,12 @@ router.put('/:id/active', requireMenuEdit('diem-stk-mapping'), async (req, res, 
 // bị lại cả file Excel (cùng tinh thần routes/admin/branchCodeMap.js PUT /one).
 router.put('/one', requireMenuEdit('diem-stk-mapping'), async (req, res, next) => {
   try {
-    const { maDiem, maStkCu, maStkMoi, tenSieuThi, buId, loaiChuoi } = req.body || {};
+    const { maDiem, maStkCu, maStkMoi, tenSieuThi, buId, loaiChuoi, maQLKV } = req.body || {};
     if (!maDiem || !String(maDiem).trim()) return res.status(400).json({ error: 'Thiếu maDiem' });
 
     const { value: loaiChuoiValue, error: loaiChuoiError } = normalizeLoaiChuoi(loaiChuoi);
     if (loaiChuoiError) return res.status(400).json({ error: loaiChuoiError });
+    const { value: maQLKVValue } = normalizeMaQLKV(maQLKV);
 
     const row = {
       maDiem: String(maDiem).trim(),
@@ -93,7 +94,8 @@ router.put('/one', requireMenuEdit('diem-stk-mapping'), async (req, res, next) =
       maStkMoi: Array.isArray(maStkMoi) ? maStkMoi.map(s => String(s).trim()).filter(Boolean) : parseStkList(maStkMoi),
       tenSieuThi: tenSieuThi ? String(tenSieuThi).trim() : null,
       buId: buId ? String(buId).trim() : null,
-      loaiChuoi: loaiChuoiValue
+      loaiChuoi: loaiChuoiValue,
+      maQLKV: maQLKVValue
     };
 
     const pool = await getPool('ADMIN');
@@ -132,13 +134,13 @@ router.get('/export', requireMenuEdit('diem-stk-mapping'), async (req, res, next
   try {
     const pool = await getPool('ADMIN');
     const result = await pool.request().query(`
-      SELECT MaDiem, MaStkCu, MaStkMoi, TenSieuThi, BuId, LoaiChuoi
+      SELECT MaDiem, MaStkCu, MaStkMoi, TenSieuThi, BuId, LoaiChuoi, MaQLKV
       FROM etl.DiemStkMapping
       ORDER BY MaDiem
     `);
     const rows = result.recordset.map(r => ({
       maDiem: r.MaDiem, maStkCu: parseStkList(r.MaStkCu), maStkMoi: parseStkList(r.MaStkMoi), tenSieuThi: r.TenSieuThi,
-      buId: r.BuId, loaiChuoi: r.LoaiChuoi
+      buId: r.BuId, loaiChuoi: r.LoaiChuoi, maQLKV: r.MaQLKV
     }));
     const buffer = await buildDiemStkMappingExport(rows);
     sendXlsx(res, buffer, 'anh-xa-diem-stk.xlsx');
