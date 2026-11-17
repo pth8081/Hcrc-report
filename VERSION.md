@@ -42,6 +42,41 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.81 — Thêm báo cáo MỚI "Bán buôn chi tiết theo khách hàng"
+
+**Theo yêu cầu người dùng** — dựa trên file mẫu thật đội vận hành đang tự
+xuất tay (`Ban_buon_chi_tiet_ngay_...xlsx`). Đã xác nhận với DBA DSMART16
+(17/11/2026): giao dịch bán buôn = `STRANS.TRANS_CODE IN ('211','212')`,
+nối sang khách hàng BUÔN qua cặp cột `OSTK_ID`/`OSTK_TYPE='04'`, bảng
+khách hàng doanh nghiệp là `dbo.DEALER` (KHÁC `dbo.CUSTOMER` — bảng đó
+chỉ có khách lẻ/thành viên cá nhân) — đã test khớp CHÍNH XÁC mã khách mẫu
+"240000000018" ra đúng "Công ty TNHH Maersk", mã số thuế "0303728327".
+
+**Đã thêm**:
+- VIEW mới `vw_BanBuonChiTiet` trên DSMART16 — 1 dòng/(siêu thị, khách
+  hàng, mã hàng, ngày), thêm measure MỚI "Doanh số" (gồm VAT, khác
+  "Doanh thu" không gồm VAT — đã xác nhận công thức khớp dữ liệu thật).
+- `etl/scripts/seedBanBuonChiTietSync.js` — job đồng bộ, domain
+  `banbuon_chitiet`.
+- `rp-server/scripts/seedBanBuonChiTietReport.js` — báo cáo
+  `bc-ban-buon-chi-tiet`.
+- `bc-ban-buon-chi-tiet.md` — hướng dẫn triển khai riêng.
+
+**Triển khai**:
+```bash
+git pull origin main
+# Chạy "deploy/VIEW DSMART16 (trung tâm)/Thiết lập VIEW Bán buôn chi tiết
+# theo khách hàng (DSMART16 trung tâm).sql" trên DSMART16
+cd etl && node scripts/seedBanBuonChiTietSync.js
+cd ../rp-server && node scripts/seedBanBuonChiTietReport.js
+```
+
+**Kiểm tra**: xem `bc-ban-buon-chi-tiet.md` mục 4.
+
+**Hoàn tất đủ 4 báo cáo mới** từ 5 file Excel mẫu người dùng gửi (bản
+10.79/10.80/10.81) — file thứ 3 (doanh thu STARGETS) người dùng chọn giữ
+nguyên quy trình nhập tay hiện tại, không tự động hoá.
+
 ## 10.80 — Thêm báo cáo MỚI "Check lệch thuế RV_ORDER"
 
 **Theo yêu cầu người dùng** — dựa trên file mẫu thật đội vận hành đang tự

@@ -1806,3 +1806,4 @@ cập nhật nếu chỉ sửa báo cáo đã có (file hướng dẫn riêng t�
 | `bc-thay-doi-gia-tuc-thoi` | Thay đổi giá bán tức thời | `bc-thay-doi-gia.md` |
 | `bc-thay-doi-gia-tu-thoi-diem` | Thay đổi giá từ thời điểm | `bc-thay-doi-gia.md` |
 | `bc-check-lech-thue-rvorder` | Check lệch thuế RV_ORDER | `bc-check-lech-thue-rvorder.md` |
+| `bc-ban-buon-chi-tiet` | Bán buôn chi tiết theo khách hàng | `bc-ban-buon-chi-tiet.md` |

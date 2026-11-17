@@ -14,6 +14,21 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.81 — Thêm báo cáo MỚI "Bán buôn chi tiết theo khách hàng"
+
+**Thay đổi**: VIEW mới `vw_BanBuonChiTiet` (STRANS TRANS_CODE 211/212,
+nối khách buôn qua OSTK_ID/OSTK_TYPE='04' sang bảng DEALER) + job đồng bộ
++ báo cáo mới. Xem `bc-ban-buon-chi-tiet.md`.
+
+**Triển khai**:
+```bash
+git pull origin main
+cd etl && node scripts/seedBanBuonChiTietSync.js
+cd ../rp-server && node scripts/seedBanBuonChiTietReport.js
+```
+
+**Kiểm tra**: xem `bc-ban-buon-chi-tiet.md` mục 4.
+
 ## 10.80 — Thêm báo cáo MỚI "Check lệch thuế RV_ORDER"
 
 **Thay đổi**: VIEW mới `vw_CheckLechThueRVOrder` (lọc sẵn chứng từ
