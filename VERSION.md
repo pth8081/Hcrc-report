@@ -42,6 +42,42 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.80 — Thêm báo cáo MỚI "Check lệch thuế RV_ORDER"
+
+**Theo yêu cầu người dùng** — dựa trên file mẫu thật đội vận hành đang tự
+xuất tay (`Check_RV_ORDER_...xlsx`). Đã xác nhận với DBA DSMART16
+(17/11/2026): `RV_ORDER.OSTK_ID` = mã NCC nội bộ (mua chung với FJ),
+`RV_ORDER.SUPP_ID` = mã NCC thực giao; "lệch" = `TAX_CODE` khác miễn thuế
+nhưng `TAX_AMT` = 0 — xác nhận bằng dữ liệu thật: GẦN NHƯ TOÀN BỘ chứng từ
+`TRANS_CODE='315'` hiện đang ở tình trạng này.
+
+**Đã thêm**:
+- VIEW mới `vw_CheckLechThueRVOrder` trên DSMART16 — lọc SẴN đúng các
+  dòng lệch (giống kiểu VIEW cảnh báo, không phải dữ liệu gốc đầy đủ).
+- `etl/scripts/seedCheckLechThueRVOrderSync.js` — job đồng bộ, domain
+  `check_lech_thue_rvorder`. Watermark dùng `EventDate` (không dùng
+  `STOPED_DT` — đã xác nhận ra NULL hết ở domain `don_dat_hang` cùng
+  nguồn RV_ORDER).
+- `rp-server/scripts/seedCheckLechThueRVOrderReport.js` — báo cáo
+  `bc-check-lech-thue-rvorder`.
+- `bc-check-lech-thue-rvorder.md` — hướng dẫn triển khai riêng.
+
+**Triển khai**:
+```bash
+git pull origin main
+# Chạy "deploy/VIEW DSMART16 (trung tâm)/Thiết lập VIEW Check lệch thuế
+# RV_ORDER (DSMART16 trung tâm).sql" trên DSMART16
+cd etl && node scripts/seedCheckLechThueRVOrderSync.js
+cd ../rp-server && node scripts/seedCheckLechThueRVOrderReport.js
+```
+
+**Kiểm tra**: xem `bc-check-lech-thue-rvorder.md` mục 4.
+
+**Lưu ý**: báo cáo "Bán buôn chi tiết theo khách hàng" — DBA đã xác nhận
+nguồn là bảng `DEALER` (mã khách/tên/mã số thuế, cột `TAX_ID`) — ĐANG CHỜ
+xác nhận bằng dữ liệu thật (chạy script điều tra) trước khi viết VIEW,
+CHƯA triển khai ở bản này.
+
 ## 10.79 — Thêm 2 báo cáo MỚI "Thay đổi giá bán tức thời"/"Thay đổi giá từ thời điểm"
 
 **Theo yêu cầu người dùng** — dựa trên file mẫu thật đội vận hành đang tự

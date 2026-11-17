@@ -14,6 +14,21 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.80 — Thêm báo cáo MỚI "Check lệch thuế RV_ORDER"
+
+**Thay đổi**: VIEW mới `vw_CheckLechThueRVOrder` (lọc sẵn chứng từ
+`RV_ORDER` TRANS_CODE=315 có TAX_CODE khác miễn thuế nhưng TAX_AMT=0) +
+job đồng bộ + báo cáo mới. Xem `bc-check-lech-thue-rvorder.md`.
+
+**Triển khai**:
+```bash
+git pull origin main
+cd etl && node scripts/seedCheckLechThueRVOrderSync.js
+cd ../rp-server && node scripts/seedCheckLechThueRVOrderReport.js
+```
+
+**Kiểm tra**: xem `bc-check-lech-thue-rvorder.md` mục 4.
+
 ## 10.79 — Thêm 2 báo cáo MỚI "Thay đổi giá bán tức thời"/"Thay đổi giá từ thời điểm"
 
 **Thay đổi**: 2 VIEW mới (`vw_ThayDoiGiaTucThoi` từ `HISRTPR`,
