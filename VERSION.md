@@ -42,6 +42,30 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.91 — SỬA LỖI: "Mã NCC"/"Nhà cung cấp" luôn rỗng ở báo cáo "Bán buôn chi tiết theo khách hàng"
+
+**Lỗi thật người dùng gặp trên server** (ảnh chụp màn hình) — cột "Mã
+NCC"/"Nhà cung cấp" thêm ở bản 10.88 luôn rỗng. Nguyên nhân: VIEW lấy
+`SUPP_ID` từ CHÍNH dòng giao dịch BÁN (TRANS_CODE 211/212) — nhưng
+DSMART16 KHÔNG ghi nhận nhà cung cấp trên giao dịch bán (chỉ có ý nghĩa
+trên giao dịch MUA/nhập hàng — đúng nguyên nhân đã ghi chú từ trước ở
+VIEW "Tồn kho Chi tiết theo SKU"). Sửa VIEW `vw_BanBuonChiTiet` theo ĐÚNG
+mẫu VIEW đó — `OUTER APPLY` tìm NCC của ĐƠN NHẬP HÀNG GẦN NHẤT cùng
+(STK_ID, SKU_ID) (`TRANS_CODE IN ('130','133','330','333')`).
+
+**Triển khai**:
+```bash
+git pull origin main
+# DBA chạy lại file VIEW (an toàn CREATE OR ALTER):
+#   "deploy/VIEW DSMART16 (trung tâm)/Thiết lập VIEW Bán buôn chi tiết
+#   theo khách hàng (DSMART16 trung tâm).sql"
+```
+(Không cần sửa job đồng bộ/báo cáo — tên cột VIEW không đổi, chỉ đổi
+logic SQL lấy SUPP_ID.)
+
+**Kiểm tra**: mở báo cáo "Bán buôn chi tiết theo khách hàng", cột "Mã
+NCC"/"Nhà cung cấp" phải ra tên thật (không còn rỗng).
+
 ## 10.90 — Tách 2 báo cáo "Doanh thu tổng hợp siêu thị (HCRC)"/"(LĐTĐ)" + sửa công thức "Tổng cộng"
 
 **Theo yêu cầu người dùng** — báo cáo "Doanh thu tổng hợp siêu thị" cần

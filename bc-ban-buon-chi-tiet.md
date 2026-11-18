@@ -31,6 +31,18 @@ JOIN `DEPTLIST`/`SUPPLIER` để lấy TÊN, chỉ chưa hiện cột MÃ ở b�
 bản 10.81 (alias `k`), chỉ cần chọn thêm 1 cột, không JOIN mới (giống hệt
 cách đã làm cho VIEW "Thay đổi giá bán tức thời" ở bản 10.84).
 
+⚠️ **BẢN 10.91 — SỬA LỖI: "Mã NCC"/"Nhà cung cấp" luôn rỗng** (phát hiện
+trên server thật, ảnh chụp màn hình người dùng gửi). Nguyên nhân: lấy
+`SUPP_ID` từ CHÍNH dòng giao dịch BÁN (TRANS_CODE 211/212) — nhưng
+DSMART16 **KHÔNG ghi nhận nhà cung cấp trên giao dịch BÁN**, cột này chỉ
+có ý nghĩa trên giao dịch MUA/nhập hàng (đúng nguyên nhân đã ghi chú ở
+VIEW "Tồn kho Chi tiết theo SKU": *"DSMART16 không có khái niệm nhà cung
+cấp MẶC ĐỊNH của mã hàng — SUPP_ID chỉ tồn tại trên bảng giao dịch mua
+hàng"*). Sửa theo ĐÚNG mẫu VIEW đó — `OUTER APPLY` tìm NCC của **ĐƠN NHẬP
+HÀNG GẦN NHẤT** cùng (STK_ID, SKU_ID) (`TRANS_CODE IN
+('130','133','330','333')`, sắp xếp `TRAN_DATE DESC`), KHÔNG dùng
+`SUPP_ID` của dòng bán nữa.
+
 ## 2. Nguồn dữ liệu
 
 VIEW MỚI `dbo.vw_BanBuonChiTiet` trên CSDL `DSMART16` — xem SQL đầy đủ
@@ -47,7 +59,12 @@ theo khách hàng (DSMART16 trung tâm).sql".
   trong file mẫu), `CS_LEVEL` = cấp khách (`cs_level`).
 - Mã hàng/Tên hàng/Mã vạch/Ngành hàng: JOIN `dbo.SKU_DEF`/`dbo.DEPTLIST`
   (theo đúng quy ước bắt buộc ở `CLAUDE.md`).
-- Nhà cung cấp mặt hàng: `STRANS.SUPP_ID` JOIN `dbo.SUPPLIER.SUPP_NAME_U`.
+- Nhà cung cấp mặt hàng (SỬA bản 10.91): NCC của **đơn nhập hàng gần
+  nhất** cùng (STK_ID, SKU_ID) — `OUTER APPLY` trên `STRANS` với
+  `TRANS_CODE IN ('130','133','330','333')` (130/133=mua riêng ĐẶT/NHẬP,
+  330/333=mua chung ĐẶT/NHẬP), `ORDER BY TRAN_DATE DESC`, JOIN
+  `dbo.SUPPLIER.SUPP_NAME_U` — **KHÔNG** dùng `SUPP_ID` của dòng bán (211/
+  212) vì DSMART16 không ghi nhận NCC trên giao dịch bán.
 
 **Tên siêu thị**: VIEW chỉ trả `STK_ID` thô. Báo cáo dùng
 `translateStkViaDiemStkMapping` cho bộ lọc "Siêu thị" (dropdown hiện tên

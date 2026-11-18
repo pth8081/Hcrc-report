@@ -35,6 +35,20 @@
    `MaNganhHang`/`MaNCC` đã có SẴN từ bản 10.81 (chỉ chưa hiện cột báo
    cáo, bổ sung ở rp-server/scripts/seedBanBuonChiTietReport.js).
 
+   SỬA bản 10.91 — LỖI THẬT phát hiện trên server (người dùng chụp màn
+   hình: cột "Mã NCC"/"Nhà cung cấp" LUÔN RỖNG dù đã thêm ở bản 10.88).
+   NGUYÊN NHÂN: `s.SUPP_ID` lấy từ CHÍNH dòng giao dịch BÁN (TRANS_CODE
+   211/212) — nhưng DSMART16 KHÔNG ghi nhận "nhà cung cấp" trên giao dịch
+   BÁN (chỉ có ý nghĩa trên giao dịch MUA/nhập hàng), nên cột này LUÔN
+   NULL/rỗng ở mọi dòng bán — ĐÚNG NGUYÊN NHÂN đã ghi chú rõ ở VIEW "Tồn
+   kho Chi tiết theo SKU" (bc-ton-kho-0.md/"Thiết lập VIEW Tồn kho Chi
+   tiết theo SKU (DSMART16).sql"): "DSMART16 không có khái niệm nhà cung
+   cấp MẶC ĐỊNH của mã hàng — SUPP_ID chỉ tồn tại trên bảng giao dịch MUA
+   HÀNG". SỬA theo ĐÚNG mẫu đã dùng ở VIEW đó — OUTER APPLY tìm NCC của
+   ĐƠN NHẬP HÀNG GẦN NHẤT (TRANS_CODE IN ('130','133','330','333') — 130/
+   133=mua riêng ĐẶT/NHẬP, 330/333=mua chung ĐẶT/NHẬP) cùng (STK_ID,
+   SKU_ID), KHÔNG dùng SUPP_ID của dòng bán nữa.
+
    AN TOÀN CHẠY LẠI NHIỀU LẦN — `CREATE OR ALTER VIEW`.
    ============================================================================ */
 
@@ -59,7 +73,7 @@ SELECT
     MAX(dl.DEPT_NAME_U)           AS TenNganhHang,
     MAX(RTRIM(k.GRP_ID))         AS MaNhomHang,
     MAX(RTRIM(s.TAX_CODE))      AS MaThueMatHang,
-    MAX(RTRIM(s.SUPP_ID))       AS MaNCC,
+    MAX(latestNhap.SUPP_ID)      AS MaNCC,
     MAX(sup.SUPP_NAME_U)         AS TenNCC,
     SUM(CASE WHEN s.TRANS_CODE = '211' THEN s.QTY ELSE 0 END)
       - SUM(CASE WHEN s.TRANS_CODE = '212' THEN s.QTY ELSE 0 END) AS SoLuongBan,
@@ -71,7 +85,17 @@ FROM dbo.STRANS s
 JOIN dbo.DEALER cu ON cu.CUST_ID = s.OSTK_ID
 JOIN dbo.SKU_DEF k ON k.SKU_ID = s.SKU_ID
 LEFT JOIN dbo.DEPTLIST dl ON dl.DEPT_ID = k.DEPT_ID
-LEFT JOIN dbo.SUPPLIER sup ON sup.SUPP_ID = s.SUPP_ID
+-- Bản 10.91 — NCC của ĐƠN NHẬP HÀNG GẦN NHẤT cùng (STK_ID, SKU_ID), ĐÚNG
+-- mẫu đã dùng ở "Thiết lập VIEW Tồn kho Chi tiết theo SKU (DSMART16).sql".
+OUTER APPLY (
+    SELECT TOP 1 x.SUPP_ID
+    FROM dbo.STRANS x
+    WHERE x.STK_ID = s.STK_ID AND x.SKU_ID = s.SKU_ID
+      AND x.TRANS_CODE IN ('130', '133', '330', '333')
+      AND x.STATUS NOT IN ('D', 'E')
+    ORDER BY x.TRAN_DATE DESC
+) latestNhap
+LEFT JOIN dbo.SUPPLIER sup ON sup.SUPP_ID = latestNhap.SUPP_ID
 WHERE s.TRANS_CODE IN ('211', '212') AND s.OSTK_TYPE = '04' AND RTRIM(s.OSTK_ID) <> ''
 GROUP BY s.STK_ID, s.OSTK_ID, s.SKU_ID, CAST(s.TRAN_DATE AS DATE);
 GO

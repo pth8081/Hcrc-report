@@ -14,6 +14,21 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.91 — SỬA LỖI: "Mã NCC"/"Nhà cung cấp" luôn rỗng ở báo cáo "Bán buôn chi tiết theo khách hàng"
+
+**Thay đổi**: VIEW `vw_BanBuonChiTiet` — SUPP_ID lấy từ dòng giao dịch
+BÁN (211/212) luôn rỗng (DSMART16 không ghi nhận NCC trên giao dịch bán);
+sửa dùng `OUTER APPLY` tìm NCC của đơn nhập hàng gần nhất cùng (STK_ID,
+SKU_ID), đúng mẫu VIEW "Tồn kho Chi tiết theo SKU".
+
+**Triển khai**:
+```bash
+git pull origin main
+# DBA chạy lại file VIEW (an toàn CREATE OR ALTER)
+```
+
+**Kiểm tra**: mở báo cáo, cột "Mã NCC"/"Nhà cung cấp" phải ra tên thật.
+
 ## 10.90 — Tách 2 báo cáo "Doanh thu tổng hợp siêu thị (HCRC)"/"(LĐTĐ)" + sửa công thức "Tổng cộng"
 
 **Thay đổi**: Tách báo cáo "Doanh thu tổng hợp siêu thị" thành 2
