@@ -523,12 +523,20 @@ END
 -- mới PHẢI đồng thời thêm vào constraint này, SOÁT LẠI toàn bộ danh sách
 -- SourceType thật đang dùng (grep "sourceType:" ở rp-server/scripts/) chứ
 -- không chỉ thêm đúng 1 giá trị mới thêm).
+--
+-- Bản 10.85 — LẠI LẶP LẠI LẦN THỨ 3 (lỗi thật người dùng gặp khi triển
+-- khai bản 10.82 trên server thật): 'doanhThuTongHopHcrc' (bản 10.82,
+-- scripts/seedDoanhThuTongHopHcrcReport.js — báo cáo "Báo cáo tổng hợp
+-- doanh thu siêu thị hàng ngày") CŨNG CHƯA được thêm vào đây. Đã soát
+-- lại TOÀN BỘ danh sách SourceType thật đang dùng (grep "sourceType ===" ở
+-- rp-server/lib/reportRunner.js — nơi DUY NHẤT phân nhánh theo SourceType
+-- — đáng tin hơn soát từng script seed riêng lẻ) để bổ sung đủ 1 lần.
 IF EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = 'CK_ReportCatalog_SourceType')
 BEGIN
     ALTER TABLE app.ReportCatalog DROP CONSTRAINT CK_ReportCatalog_SourceType;
 END
 ALTER TABLE app.ReportCatalog ADD CONSTRAINT CK_ReportCatalog_SourceType
-    CHECK (SourceType IN ('directDb', 'apiReport', 'apiRealtime', 'externalApi', 'composite', 'topZeroStock', 'coreZeroStock', 'stockThreshold', 'stockAlert', 'purchaseOrder', 'nganhHangBrg'));
+    CHECK (SourceType IN ('directDb', 'apiReport', 'apiRealtime', 'externalApi', 'composite', 'topZeroStock', 'coreZeroStock', 'stockThreshold', 'stockAlert', 'purchaseOrder', 'nganhHangBrg', 'doanhThuTongHopHcrc'));
 GO
 
 IF OBJECT_ID('app.RoleReportAccess', 'U') IS NULL

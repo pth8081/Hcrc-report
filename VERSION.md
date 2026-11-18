@@ -42,6 +42,35 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.85 — SỬA LỖI: thiếu `doanhThuTongHopHcrc` trong CHECK constraint `CK_ReportCatalog_SourceType`
+
+**Lỗi thật người dùng gặp khi triển khai bản 10.82 trên server thật**:
+chạy `node scripts/seedDoanhThuTongHopHcrcReport.js` báo lỗi "The INSERT
+statement conflicted with the CHECK constraint
+'CK_ReportCatalog_SourceType'" — y hệt lỗi đã gặp 2 lần trước (bản
+8.75/9.71, xem ghi chú trong `rp-db/schema.sql`): thêm `SourceType` mới
+(`doanhThuTongHopHcrc`, bản 10.82) nhưng quên cập nhật constraint này.
+Đã soát lại TOÀN BỘ danh sách `SourceType` thật đang dùng (qua
+`rp-server/lib/reportRunner.js`, nơi duy nhất phân nhánh theo
+`SourceType`) và bổ sung đủ vào `rp-db/schema.sql`.
+
+**Triển khai** (BẮT BUỘC trước khi chạy lại
+`seedDoanhThuTongHopHcrcReport.js`):
+```bash
+git pull origin main
+cd rp-db && sqlcmd -S <server> -d HCRC_RP -i schema.sql
+# hoặc chạy trực tiếp 2 câu dưới trên CSDL HCRC_RP:
+#   ALTER TABLE app.ReportCatalog DROP CONSTRAINT CK_ReportCatalog_SourceType;
+#   ALTER TABLE app.ReportCatalog ADD CONSTRAINT CK_ReportCatalog_SourceType
+#     CHECK (SourceType IN ('directDb','apiReport','apiRealtime','externalApi',
+#     'composite','topZeroStock','coreZeroStock','stockThreshold','stockAlert',
+#     'purchaseOrder','nganhHangBrg','doanhThuTongHopHcrc'));
+cd ../rp-server && node scripts/seedDoanhThuTongHopHcrcReport.js
+```
+
+**Kiểm tra**: chạy lại `seedDoanhThuTongHopHcrcReport.js` không còn báo
+lỗi CHECK constraint, báo cáo xuất hiện trong danh mục.
+
 ## 10.84 — Thêm cột "Mã nhóm hàng"/"Mã ngành hàng"/"Đơn vị" cho báo cáo "Thay đổi giá bán tức thời"
 
 **Theo yêu cầu người dùng** (kèm ảnh mẫu khoanh đỏ 2 cột "Mã nhóm hàng"/

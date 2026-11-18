@@ -14,6 +14,24 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.85 — SỬA LỖI: thiếu `doanhThuTongHopHcrc` trong CHECK constraint `CK_ReportCatalog_SourceType`
+
+**Thay đổi**: `rp-db/schema.sql` — bổ sung `'doanhThuTongHopHcrc'` vào
+constraint `CK_ReportCatalog_SourceType` (bị bỏ sót ở bản 10.82, lỗi thật
+người dùng gặp khi chạy `seedDoanhThuTongHopHcrcReport.js` trên server —
+"INSERT statement conflicted with the CHECK constraint"). Lặp lại y hệt
+lỗi đã gặp ở bản 8.75/9.71.
+
+**Triển khai**:
+```bash
+git pull origin main
+cd rp-db && sqlcmd -S <server> -d HCRC_RP -i schema.sql
+cd ../rp-server && node scripts/seedDoanhThuTongHopHcrcReport.js
+```
+
+**Kiểm tra**: chạy lại `seedDoanhThuTongHopHcrcReport.js` không còn báo
+lỗi CHECK constraint.
+
 ## 10.84 — Thêm cột "Mã nhóm hàng"/"Mã ngành hàng"/"Đơn vị" cho báo cáo "Thay đổi giá bán tức thời"
 
 **Thay đổi**: VIEW `vw_ThayDoiGiaTucThoi` bổ sung `MaNhomHang`
