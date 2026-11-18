@@ -42,6 +42,29 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.95 — SỬA LẦN 2 lỗi "Số lượng nhân sự" = 0 — bỏ phụ thuộc `IsActive`
+
+**Theo xác nhận trực tiếp của người dùng** — *"ai tôi cho xem báo cáo
+tôi mới active rồi, nên mặc định tài khoản chưa active"*. Bản 10.93 sửa
+sai nguồn (đổi sang `app.Users.Department`) nhưng vẫn lọc
+`WHERE IsActive = 1` — cờ này chỉ nghĩa "được cấp quyền đăng nhập xem
+báo cáo", KHÔNG phải "đang làm việc" — tài khoản mới đồng bộ từ HWS luôn
+mặc định `IsActive = 0`, nên tuyệt đại đa số nhân viên siêu thị (không
+cần đăng nhập xem báo cáo) vẫn bị lọc loại hết, ra 0.
+
+**Sửa**: đếm theo "còn xuất hiện trong danh bạ HWS ở lần đồng bộ GẦN
+NHẤT" (`LastSyncedAt` so với `MAX(LastSyncedAt)`) thay vì `IsActive` —
+`LastSyncedAt` được ghi lại cho MỌI tài khoản còn thấy trong danh bạ ở
+mỗi lần đồng bộ, không phân biệt đã mở khoá hay chưa.
+
+**Triển khai**: `git pull origin main` rồi khởi động lại `rp-server`.
+Admin cần: (1) đã "Đồng bộ tài khoản" ở trang "Người dùng" ít nhất 1
+lần, (2) khai "Ánh xạ Phòng ban → Siêu thị" cho các Department không
+khớp thẳng tên siêu thị (bản 10.93).
+
+**Kiểm tra**: "Số lượng nhân sự" ra số thật, không cần tài khoản đã được
+"Mở khoá" (IsActive).
+
 ## 10.94 — SỬA bản 10.92: "KH doanh thu" khối năm = cộng dồn Chỉ tiêu tháng, bỏ chỗ nhập Chỉ tiêu cả năm riêng
 
 **Theo yêu cầu người dùng** — *"chỗ KH doanh thu thì bạn cộng dồn theo

@@ -27,18 +27,29 @@ từ ĐÚNG 1 ngày được chọn ("ngày neo"):
 
 Kèm thông tin tĩnh mỗi siêu thị: Mã QLKV, Mã điểm, Mã ST/CH (STK_ID),
 Tên siêu thị, Nhóm chuỗi (MART/MINIMART), Diện tích, Địa điểm, **Số lượng
-nhân sự** (xem công thức ĐÃ SỬA ở bản 10.93 ngay dưới đây).
+nhân sự** (xem công thức ĐÃ SỬA ở bản 10.95 ngay dưới đây).
 
-⚠️ **BẢN 10.93 — SỬA LỖI "Số lượng nhân sự" luôn = 0** (ảnh người dùng
-gửi). Nguyên nhân: TRƯỚC ĐÂY đếm theo `app.UserStoreAccess` — bảng này
-CHỈ có dòng khi Admin CHỦ ĐỘNG giới hạn phạm vi xem dữ liệu của 1 người
-(mặc định MỌI tài khoản "xem được toàn bộ", không có dòng nào ở bảng
-này) — gần như luôn RỖNG trong thực tế. Đổi sang đếm theo
-`app.Users.Department` (đồng bộ TỰ ĐỘNG từ VPDT/HCRC Workspace, LUÔN có
-dữ liệu) + suy ra Mã Điểm qua `resolveMaDiemForDepartment()` — ĐÚNG nguồn
-người dùng chỉ ra ("lấy trong phần phân quyền đã có người nào thuộc siêu
-thị nào"), ĐÃ DÙNG SẴN cho gợi ý phạm vi ở trang "Người dùng"
-(`rp-server/routes/users.js`), không cần thêm thông tin/bảng gì mới.
+⚠️ **BẢN 10.93 — SỬA LỖI "Số lượng nhân sự" luôn = 0 (lần 1)**. Nguyên
+nhân: TRƯỚC ĐÂY đếm theo `app.UserStoreAccess` — bảng này CHỈ có dòng
+khi Admin CHỦ ĐỘNG giới hạn phạm vi xem dữ liệu của 1 người (mặc định
+MỌI tài khoản "xem được toàn bộ", không có dòng nào ở bảng này) — gần
+như luôn RỖNG trong thực tế. Đổi sang đếm theo `app.Users.Department`
+(đồng bộ từ HCRC Workspace) + suy ra Mã Điểm qua
+`resolveMaDiemForDepartment()` + bảng "Ánh xạ Phòng ban → Siêu thị"
+(`rp-server/routes/users.js`, `/system-department-mapping`) — admin tự
+khai các Department không khớp thẳng tên siêu thị.
+
+⚠️ **BẢN 10.95 — SỬA LỖI "Số lượng nhân sự" vẫn = 0 (lần 2)**, theo xác
+nhận trực tiếp của người dùng: *"ai tôi cho xem báo cáo tôi mới active
+rồi, nên mặc định tài khoản chưa active"*. Nguyên nhân: bản 10.93 vẫn
+lọc `WHERE IsActive = 1` — nhưng `IsActive` CHỈ có nghĩa "được admin cấp
+quyền ĐĂNG NHẬP xem báo cáo", HOÀN TOÀN KHÁC "đang làm việc hay không" —
+tài khoản mới đồng bộ từ HWS luôn mặc định `IsActive = 0` (admin phải tự
+bấm "Mở khoá"), nên TUYỆT ĐẠI ĐA SỐ nhân viên siêu thị (không cần đăng
+nhập xem báo cáo) MÃI MÃI bị lọc loại, dù đang làm việc bình thường. Sửa
+sang đếm theo "còn xuất hiện trong danh bạ HWS ở **lần đồng bộ gần
+nhất**" (`LastSyncedAt` so với `MAX(LastSyncedAt)`, xem chú thích đầy đủ
+ở `lib/doanhThuTongHopHcrcRunner.js`) — KHÔNG còn phụ thuộc `IsActive`.
 
 ⚠️ **Phạm vi bản 10.82 — CHỈ phần XEM TRÊN WEB** (bảng số liệu, không
 phân trang, có nhóm cột màu Ngày/Tháng/Năm/KH luỹ kế giống Excel/PDF).

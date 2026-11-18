@@ -173,10 +173,33 @@ async function fetchTargetsByMaDiem(pool, fromPeriod, toPeriod, targetDomain = T
 // dữ liệu, không phụ thuộc Admin có giới hạn quyền hay chưa) + suy ra Mã
 // Điểm qua `resolveMaDiemForDepartment()` (lib/departmentStoreMapping.js
 // — ĐÃ DÙNG SẴN cho gợi ý phạm vi ở trang "Người dùng", rp-server/routes/users.js).
+// Bản 10.95 — SỬA LỖI THẬT (người dùng xác nhận trực tiếp): TRƯỚC ĐÂY lọc
+// `IsActive = 1` — SAI Ý NGHĨA. `IsActive` chỉ là "có được CẤP QUYỀN ĐĂNG
+// NHẬP xem báo cáo hay không" (admin bấm "Mở khoá" tay — xem
+// routes/users.js:POST /sync) — HOÀN TOÀN KHÁC "có đang làm việc hay
+// không". Theo xác nhận của người dùng: "ai tôi cho xem báo cáo tôi mới
+// active, mặc định tài khoản CHƯA active" — nghĩa là TUYỆT ĐẠI ĐA SỐ nhân
+// viên siêu thị (không cần đăng nhập xem báo cáo) sẽ MÃI MÃI
+// `IsActive = 0` dù vẫn đang làm việc bình thường — lọc theo cờ này sẽ
+// luôn đếm ra GẦN NHƯ 0.
+//
+// SỬA: đổi sang lọc theo "còn xuất hiện trong danh bạ HWS ở LẦN ĐỒNG BỘ
+// GẦN NHẤT" — `LastSyncedAt` được ghi lại đúng SYSUTCDATETIME() cho MỌI
+// tài khoản còn thấy trong danh bạ ở MỖI lần đồng bộ (xem routes/users.js
+// :POST /sync, vòng lặp `activeItems` — chạy trước mọi kiểm tra IsActive,
+// không phân biệt đã mở khoá hay chưa). Tài khoản đã nghỉ việc (không còn
+// trong danh bạ ở lần đồng bộ gần nhất) sẽ KHÔNG được cập nhật
+// LastSyncedAt nữa -> tự động loại khỏi phép đếm này mà không cần đụng gì
+// tới IsActive. So sánh với MAX(LastSyncedAt) thay vì hardcode "trong N
+// ngày gần đây" — đồng bộ ở trang "Người dùng" là BẤM TAY, không chạy
+// định kỳ cố định (xem lib/hcrcWorkspaceClient.js), nên không có chu kỳ
+// thời gian cố định nào để giả định.
 async function fetchStaffCountByMaDiem() {
   const rpPool = await getPool('RP');
   const result = await rpPool.request().query(`
-    SELECT Id, Department FROM app.Users WHERE IsActive = 1
+    SELECT Id, Department FROM app.Users
+    WHERE AuthSource = 'hcrcWorkspace'
+      AND LastSyncedAt >= DATEADD(MINUTE, -5, (SELECT MAX(LastSyncedAt) FROM app.Users WHERE AuthSource = 'hcrcWorkspace'))
   `);
   const byMaDiem = new Map();
   for (const r of result.recordset) {

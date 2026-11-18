@@ -14,6 +14,18 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.95 — SỬA LẦN 2 lỗi "Số lượng nhân sự" = 0 — bỏ phụ thuộc `IsActive`
+
+**Thay đổi**: `fetchStaffCountByMaDiem()` bỏ điều kiện `WHERE IsActive = 1`
+(sai ý nghĩa — cờ đó chỉ là "được cấp quyền đăng nhập", không phải "đang
+làm việc", theo xác nhận người dùng tài khoản nhân viên siêu thị mặc
+định không active) — đổi sang so `LastSyncedAt` với `MAX(LastSyncedAt)`
+(còn trong danh bạ HWS ở lần đồng bộ gần nhất).
+
+**Triển khai**: `git pull origin main` rồi khởi động lại `rp-server`.
+
+**Kiểm tra**: "Số lượng nhân sự" ra số thật.
+
 ## 10.94 — SỬA bản 10.92: "KH doanh thu" khối năm = cộng dồn Chỉ tiêu tháng, bỏ chỗ nhập Chỉ tiêu cả năm riêng
 
 **Thay đổi**: Bỏ hẳn 2 trang/2 domain Chỉ tiêu CẢ NĂM của bản 10.92
