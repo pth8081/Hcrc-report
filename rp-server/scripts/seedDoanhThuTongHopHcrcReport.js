@@ -1,49 +1,103 @@
-// scripts/seedDoanhThuTongHopHcrcReport.js — Tạo/CẬP NHẬT idempotent báo
-// cáo MỚI "Báo cáo tổng hợp doanh thu siêu thị hàng ngày" (bản 10.82, theo
-// yêu cầu người dùng, dựa trên file mẫu thật đội vận hành đang tự tổng hợp
-// tay) — xem "bc-doanh-thu-tong-hop-hcrc.md".
+// scripts/seedDoanhThuTongHopHcrcReport.js — Tạo/CẬP NHẬT idempotent 2 báo
+// cáo "Báo cáo tổng hợp doanh thu siêu thị (HCRC)"/"(LĐTĐ)" — bản 10.82
+// (báo cáo gốc, chỉ có HCRC) + bản 10.90 (theo yêu cầu người dùng — tách
+// thêm biến thể LĐTĐ, CÙNG dữ liệu doanh thu/siêu thị, CHỈ khác nguồn Chỉ
+// tiêu: HCRC đọc domain `sales-targets-hcrc`, LĐTĐ đọc
+// `sales-targets-ldtd` — giống đúng cách đã tách 2 báo cáo "Doanh thu
+// theo ngành hàng"/"(LDTD)" trước đó, xem lib/nganhHangBrgRunner.js) —
+// xem "bc-doanh-thu-tong-hop-hcrc.md".
 //
 // SourceType='doanhThuTongHopHcrc' (xem lib/doanhThuTongHopHcrcRunner.js) —
 // cột hiển thị CỐ ĐỊNH trong code runner (giống 'topZeroStock'/'coreZeroStock'),
-// DefinitionJson ở đây CHỈ cần đủ field tối thiểu (title/domain/filters) —
-// không khai `columns` (runner tự định nghĩa, bỏ qua nếu có khai ở đây).
+// DefinitionJson ở đây CHỈ cần đủ field tối thiểu (title/domain/filters/
+// targetDomain) — không khai `columns` (runner tự định nghĩa).
 //
 // LƯU Ý QUAN TRỌNG — chạy script này KHÔNG đủ để báo cáo CÓ SỐ LIỆU:
-//   1. DBA chạy "deploy/VIEW DSMART16 (trung tâm)/Thiết lập VIEW Doanh thu
-//      tổng hợp theo siêu thị HCRC (DSMART16 trung tâm).sql".
-//   2. Chạy `node etl/scripts/seedDoanhThuTongHopHcrcSync.js` (tạo job
-//      đồng bộ domain `doanhthu_tonghop_hcrc`).
-//   3. Domain `giaodich_chinhanh` + `sales-targets-hcrc` ĐÃ CÓ SẴN (dùng
-//      chung với "Doanh thu cuối ngày") — không cần làm gì thêm cho 2 cái
-//      này, NHƯNG báo cáo sẽ CHƯA ra số Bill/Chỉ tiêu nếu 2 domain đó chưa
-//      từng được đồng bộ/nhập trên server này.
-//   4. Đã khai cột `MaQLKV`/`LoaiChuoi` cho đúng mã Điểm ở etl-admin →
+//   1. Domain `doanhthu_nganhhang`/`doanhthu_chinhanh`/`giaodich_chinhanh`
+//      ĐÃ CÓ SẴN (dùng chung, xem bản 10.86) — không cần tạo gì mới.
+//   2. Domain Chỉ tiêu ĐÃ CÓ SẴN: `sales-targets-hcrc` (báo cáo HCRC) và
+//      `sales-targets-ldtd` (báo cáo LĐTĐ) — báo cáo sẽ CHƯA ra số Chỉ
+//      tiêu nếu đúng domain đó chưa từng được nhập trên server này.
+//   3. Đã khai cột `MaQLKV`/`LoaiChuoi` cho đúng mã Điểm ở etl-admin →
 //      "Ánh xạ Điểm - STK_ID" (TUỲ CHỌN — để trống vẫn chạy được, chỉ
 //      thiếu đúng 2 cột đó).
 //
-// CHƯA gán quyền xem (Hệ thống → Phân quyền) — admin tự làm sau.
+// CHƯA gán quyền xem (Hệ thống → Phân quyền) — admin tự làm sau, RIÊNG
+// cho từng báo cáo (2 báo cáo có thể cấp quyền KHÁC NHAU — vd chỉ lãnh
+// đạo tập đoàn xem được báo cáo LĐTĐ).
 //
 // Cách dùng:
 //   node scripts/seedDoanhThuTongHopHcrcReport.js [menuCode]
 require('dotenv').config();
 const { sql, getPool } = require('../db');
 
-const REPORT_ID = 'bc-doanh-thu-tong-hop-hcrc';
-const TITLE = 'Báo cáo tổng hợp doanh thu siêu thị hàng ngày';
-const DOMAIN = 'doanhthu_tonghop_hcrc';
 const SOURCE_TYPE = 'doanhThuTongHopHcrc';
+// type: 'date' (1 ngày DUY NHẤT, KHÁC 'dateRange' các composite khác) —
+// ngày được chọn là "ngày neo" cho CẢ 3 khối Ngày/Tháng/Năm cùng lúc, xem
+// lib/doanhThuTongHopHcrcRunner.js. Không chọn -> mặc định hôm nay (giờ
+// Việt Nam). DÙNG CHUNG cho cả 2 báo cáo.
+const FILTERS = [{ field: 'eventDate', type: 'date', label: 'Ngày báo cáo' }];
 
-const DEFINITION = {
-  title: TITLE,
-  domain: DOMAIN,
-  // type: 'date' (1 ngày DUY NHẤT, KHÁC 'dateRange' các composite khác) —
-  // ngày được chọn là "ngày neo" cho CẢ 3 khối Ngày/Tháng/Năm cùng lúc,
-  // xem lib/doanhThuTongHopHcrcRunner.js. Không chọn -> mặc định hôm nay
-  // (giờ Việt Nam).
-  filters: [
-    { field: 'eventDate', type: 'date', label: 'Ngày báo cáo' }
-  ]
-};
+const REPORTS = [
+  {
+    reportId: 'bc-doanh-thu-tong-hop-hcrc',
+    title: 'Báo cáo tổng hợp doanh thu siêu thị (HCRC)',
+    domain: 'doanhthu_tonghop_hcrc',
+    targetDomain: 'sales-targets-hcrc'
+  },
+  {
+    reportId: 'bc-doanh-thu-tong-hop-ldtd',
+    title: 'Báo cáo tổng hợp doanh thu siêu thị (LĐTĐ)',
+    domain: 'doanhthu_tonghop_ldtd',
+    targetDomain: 'sales-targets-ldtd'
+  }
+];
+
+function buildDefinition(report) {
+  return {
+    title: report.title,
+    domain: report.domain,
+    targetDomain: report.targetDomain,
+    filters: FILTERS
+  };
+}
+
+async function upsertReport(pool, menuItemId, report) {
+  const definitionJson = JSON.stringify(buildDefinition(report));
+  const existing = await pool.request().input('reportId', sql.VarChar(80), report.reportId)
+    .query('SELECT ReportId FROM app.ReportCatalog WHERE ReportId = @reportId');
+
+  if (existing.recordset.length) {
+    await pool.request()
+      .input('reportId', sql.VarChar(80), report.reportId)
+      .input('title', sql.NVarChar(200), report.title)
+      .input('domain', sql.VarChar(50), report.domain)
+      .input('sourceType', sql.VarChar(30), SOURCE_TYPE)
+      .input('menuItemId', sql.Int, menuItemId)
+      .input('definitionJson', sql.NVarChar(sql.MAX), definitionJson)
+      .query(`
+        UPDATE app.ReportCatalog SET
+          Title = @title, Domain = @domain, MenuItemId = @menuItemId, DataSourceId = NULL,
+          SourceType = @sourceType, ApiConnectionId = NULL, ApiTarget = NULL, ExternalConnectionId = NULL,
+          DefinitionJson = @definitionJson, IsActive = 1
+        WHERE ReportId = @reportId
+      `);
+    console.log(`↻ Đã cập nhật báo cáo "${report.title}" (${report.reportId}).`);
+  } else {
+    await pool.request()
+      .input('reportId', sql.VarChar(80), report.reportId)
+      .input('title', sql.NVarChar(200), report.title)
+      .input('domain', sql.VarChar(50), report.domain)
+      .input('sourceType', sql.VarChar(30), SOURCE_TYPE)
+      .input('menuItemId', sql.Int, menuItemId)
+      .input('definitionJson', sql.NVarChar(sql.MAX), definitionJson)
+      .query(`
+        INSERT INTO app.ReportCatalog (ReportId, Title, Domain, MenuItemId, SourceType, DefinitionJson)
+        VALUES (@reportId, @title, @domain, @menuItemId, @sourceType, @definitionJson)
+      `);
+    console.log(`✅ Đã tạo báo cáo "${report.title}" (${report.reportId}).`);
+  }
+}
 
 async function main() {
   const menuCode = process.argv[2] || 'reports-kinh-doanh';
@@ -56,49 +110,19 @@ async function main() {
     process.exit(1);
   }
   const menuItemId = menuRow.recordset[0].Id;
-  const definitionJson = JSON.stringify(DEFINITION);
 
-  const existing = await pool.request().input('reportId', sql.VarChar(80), REPORT_ID)
-    .query('SELECT ReportId FROM app.ReportCatalog WHERE ReportId = @reportId');
-
-  if (existing.recordset.length) {
-    await pool.request()
-      .input('reportId', sql.VarChar(80), REPORT_ID)
-      .input('title', sql.NVarChar(200), TITLE)
-      .input('domain', sql.VarChar(50), DOMAIN)
-      .input('sourceType', sql.VarChar(30), SOURCE_TYPE)
-      .input('menuItemId', sql.Int, menuItemId)
-      .input('definitionJson', sql.NVarChar(sql.MAX), definitionJson)
-      .query(`
-        UPDATE app.ReportCatalog SET
-          Title = @title, Domain = @domain, MenuItemId = @menuItemId, DataSourceId = NULL,
-          SourceType = @sourceType, ApiConnectionId = NULL, ApiTarget = NULL, ExternalConnectionId = NULL,
-          DefinitionJson = @definitionJson, IsActive = 1
-        WHERE ReportId = @reportId
-      `);
-    console.log(`↻ Đã cập nhật báo cáo "${TITLE}" (${REPORT_ID}).`);
-  } else {
-    await pool.request()
-      .input('reportId', sql.VarChar(80), REPORT_ID)
-      .input('title', sql.NVarChar(200), TITLE)
-      .input('domain', sql.VarChar(50), DOMAIN)
-      .input('sourceType', sql.VarChar(30), SOURCE_TYPE)
-      .input('menuItemId', sql.Int, menuItemId)
-      .input('definitionJson', sql.NVarChar(sql.MAX), definitionJson)
-      .query(`
-        INSERT INTO app.ReportCatalog (ReportId, Title, Domain, MenuItemId, SourceType, DefinitionJson)
-        VALUES (@reportId, @title, @domain, @menuItemId, @sourceType, @definitionJson)
-      `);
-    console.log(`✅ Đã tạo báo cáo "${TITLE}" (${REPORT_ID}).`);
+  for (const report of REPORTS) {
+    await upsertReport(pool, menuItemId, report);
   }
 
   console.log('');
   console.log('✅ Xong. NHỚ:');
-  console.log(`   1. Vào Hệ thống → Phân quyền, gán quyền xem ${REPORT_ID} — mặc định`);
+  console.log('   1. Vào Hệ thống → Phân quyền, gán quyền xem RIÊNG cho từng báo cáo');
+  console.log('      (bc-doanh-thu-tong-hop-hcrc/bc-doanh-thu-tong-hop-ldtd) — mặc định');
   console.log('      KHÔNG ai xem được, kể cả admin.');
-  console.log('   2. Báo cáo CHƯA CÓ SỐ LIỆU DOANH THU cho tới khi tạo xong VIEW');
-  console.log('      vw_DoanhThuTongHopHCRC trên DSMART16 + chạy');
-  console.log('      node scripts/seedDoanhThuTongHopHcrcSync.js (thư mục etl/).');
+  console.log('   2. Báo cáo "(LĐTĐ)" CHƯA CÓ SỐ Chỉ tiêu nếu domain');
+  console.log('      `sales-targets-ldtd` chưa từng được nhập (etl-admin →');
+  console.log('      "Chỉ tiêu Lãnh đạo Tập đoàn") trên server này.');
   process.exit(0);
 }
 

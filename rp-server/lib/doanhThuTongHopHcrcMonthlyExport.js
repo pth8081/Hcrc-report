@@ -190,7 +190,11 @@ function buildGroupedSheetRows(storeRows, elapsedDays, totalDaysInMonth) {
 // chứa anchorDate) LẪN số sheet (= dayOfMonth(anchorDate), xem ghi chú đầu
 // file). storeScope — Set<MaDiem> hoặc null (= toàn bộ, admin/không giới
 // hạn theo chi nhánh).
-async function buildDoanhThuTongHopHcrcMonthlyWorkbook({ anchorDate, storeScope }) {
+// targetDomain (bản 10.90, theo yêu cầu người dùng) — truyền
+// 'sales-targets-ldtd' từ route export-month của báo cáo
+// bc-doanh-thu-tong-hop-ldtd; không truyền thì mặc định HCRC.
+async function buildDoanhThuTongHopHcrcMonthlyWorkbook({ anchorDate, storeScope, targetDomain, titlePrefix }) {
+  const reportTitle = (titlePrefix || 'BÁO CÁO TỔNG HỢP DOANH THU SIÊU THỊ HÀNG NGÀY').toUpperCase();
   const anchor = anchorDate || vietnamTodayISO();
   const month = anchor.slice(0, 7);
   const lastDay = dayOfMonth(anchor);
@@ -205,8 +209,8 @@ async function buildDoanhThuTongHopHcrcMonthlyWorkbook({ anchorDate, storeScope 
     fetchRawRows(dwhPool, AREA_DOMAIN, yearStart, anchor),
     fetchRawRows(dwhPool, NGANHHANG_DOMAIN, yearStart, anchor),
     fetchRawRows(dwhPool, TRANSACTION_DOMAIN, yearStart, anchor),
-    fetchTargetsByMaDiem(dwhPool, monthStart, monthStart),
-    fetchTargetsByMaDiem(dwhPool, yearStart, yearStart),
+    fetchTargetsByMaDiem(dwhPool, monthStart, monthStart, targetDomain),
+    fetchTargetsByMaDiem(dwhPool, yearStart, yearStart, targetDomain),
     fetchStaffCountByMaDiem()
   ]);
 
@@ -242,21 +246,24 @@ async function buildDoanhThuTongHopHcrcMonthlyWorkbook({ anchorDate, storeScope 
       const dR = dayRevByMaDiem.get(maDiem) || {};
       const mR = monthRevByMaDiem.get(maDiem) || {};
       const yR = yearRevByMaDiem.get(maDiem) || {};
+      // Tổng cộng (bản 10.90, theo ảnh mẫu người dùng gửi — công thức
+      // "5=3+4") — TÍNH TRỰC TIẾP = DT bán buôn + DT bán lẻ, khớp đúng
+      // lib/doanhThuTongHopHcrcRunner.js (Phase 1).
       const dtBanLeDay = dR.DoanhThuBanLe || 0;
       const dtBanBuonDay = dR.DoanhThuBanBuon || 0;
-      const tongCongDay = dR.DoanhThu || 0;
+      const tongCongDay = dtBanBuonDay + dtBanLeDay;
       const laiGopDay = dR.LaiGop || 0;
       const soBillDay = dayTxByMaDiem.get(maDiem) || 0;
 
       const dtBanLeMonth = mR.DoanhThuBanLe || 0;
       const dtBanBuonMonth = mR.DoanhThuBanBuon || 0;
-      const tongCongMonth = mR.DoanhThu || 0;
+      const tongCongMonth = dtBanBuonMonth + dtBanLeMonth;
       const laiGopMonth = mR.LaiGop || 0;
       const soBillMonth = monthTxByMaDiem.get(maDiem) || 0;
 
       const dtBanLeYear = yR.DoanhThuBanLe || 0;
       const dtBanBuonYear = yR.DoanhThuBanBuon || 0;
-      const tongCongYear = yR.DoanhThu || 0;
+      const tongCongYear = dtBanBuonYear + dtBanLeYear;
       const soBillYear = yearTxByMaDiem.get(maDiem) || 0;
 
       const mTarget = monthTarget.get(maDiem) || {};
@@ -306,7 +313,7 @@ async function buildDoanhThuTongHopHcrcMonthlyWorkbook({ anchorDate, storeScope 
     const [y, m, dd] = dayDate.split('-');
     sheets.push({
       definition: {
-        title: `BÁO CÁO TỔNG HỢP DOANH THU SIÊU THỊ HÀNG NGÀY — ${dd}/${m}/${y}`,
+        title: `${reportTitle} — ${dd}/${m}/${y}`,
         columns, columnGroups: buildColumnGroups(labels)
       },
       rows: groupedRows,

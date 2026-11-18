@@ -42,6 +42,35 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.90 — Tách 2 báo cáo "Doanh thu tổng hợp siêu thị (HCRC)"/"(LĐTĐ)" + sửa công thức "Tổng cộng"
+
+**Theo yêu cầu người dùng** — báo cáo "Doanh thu tổng hợp siêu thị" cần
+lấy Chỉ tiêu đúng theo 2 nguồn khác nhau: HCRC tự đặt (`sales-targets-hcrc`,
+như cũ) và Lãnh đạo Tập đoàn (`sales-targets-ldtd`, MỚI) — tách thành 2
+báo cáo RIÊNG (`bc-doanh-thu-tong-hop-hcrc`/`bc-doanh-thu-tong-hop-ldtd`),
+CÙNG dữ liệu doanh thu/siêu thị, chỉ khác `definition.targetDomain` (y
+hệt cách đã tách "Doanh thu theo ngành hàng"/"(LDTD)" trước đó). Route
+`export-month` (Phase 2) đổi sang kiểm tra theo `SourceType` thay vì
+hardcode 1 ReportId, nên cả 2 báo cáo đều xuất Excel theo tháng được.
+
+**Đồng thời sửa công thức "Tổng cộng"** (theo ảnh mẫu người dùng gửi,
+công thức ghi rõ "5=3+4") — đổi sang TÍNH TRỰC TIẾP `DT bán buôn + DT bán
+lẻ` thay vì lấy thẳng `measures.DoanhThu`, áp dụng cả 3 khối Ngày/Tháng/
+Năm, cả Phase 1 (xem web) lẫn Phase 2 (xuất Excel theo tháng).
+
+**Triển khai**:
+```bash
+git pull origin main
+cd rp-server && node scripts/seedDoanhThuTongHopHcrcReport.js
+cd ../rp-user && npm run build
+pm2 restart rp-server   # hoặc đúng lệnh khởi động lại thật đang dùng
+```
+Rồi vào Hệ thống → Phân quyền, gán quyền xem RIÊNG cho `bc-doanh-thu-tong-hop-ldtd`
+(báo cáo mới, mặc định chưa ai xem được).
+
+**Kiểm tra**: mở cả 2 báo cáo cùng 1 ngày — mọi cột DOANH THU phải ra Y
+HỆT NHAU, chỉ khác cột Kế hoạch/% hoàn thành.
+
 ## 10.89 — SỬA LỖI: DT bán buôn/bán lẻ luôn ra 0 ở "Báo cáo tổng hợp doanh thu siêu thị hàng ngày" (cả Phase 1 lẫn Phase 2)
 
 **Lỗi thật người dùng gặp trên server** — sau khi đổi nguồn sang domain

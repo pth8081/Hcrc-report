@@ -14,6 +14,24 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.90 — Tách 2 báo cáo "Doanh thu tổng hợp siêu thị (HCRC)"/"(LĐTĐ)" + sửa công thức "Tổng cộng"
+
+**Thay đổi**: Tách báo cáo "Doanh thu tổng hợp siêu thị" thành 2
+(`bc-doanh-thu-tong-hop-hcrc`/`-ldtd`), chỉ khác `definition.targetDomain`
+(`sales-targets-hcrc`/`sales-targets-ldtd`). Sửa công thức "Tổng cộng" =
+DT bán buôn + DT bán lẻ (trước lấy thẳng measures.DoanhThu).
+
+**Triển khai**:
+```bash
+git pull origin main
+cd rp-server && node scripts/seedDoanhThuTongHopHcrcReport.js
+cd ../rp-user && npm run build
+pm2 restart rp-server
+```
+Gán quyền xem cho `bc-doanh-thu-tong-hop-ldtd` ở Hệ thống → Phân quyền.
+
+**Kiểm tra**: 2 báo cáo ra số doanh thu giống hệt nhau, chỉ khác Kế hoạch.
+
 ## 10.89 — SỬA LỖI: DT bán buôn/bán lẻ luôn ra 0 ở "Báo cáo tổng hợp doanh thu siêu thị hàng ngày"
 
 **Thay đổi**: `STK_ID` trong `Dimensions` của VIEW nguồn

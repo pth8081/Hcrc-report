@@ -15,6 +15,11 @@ import ReportSummaryCards from '../../components/ReportSummaryCards';
 import SearchableSelect from '../../components/SearchableSelect';
 import { filterColumns, filterGroups } from '../../lib/reportGroupColors';
 
+// Bản 10.87/10.90 — 2 báo cáo CÓ nút "Xuất Excel theo tháng (1 sheet/ngày)"
+// riêng (xem routes/reports.js:POST /:reportId/export-month) — HCRC +
+// LĐTĐ, cùng SourceType 'doanhThuTongHopHcrc', chỉ khác nguồn Chỉ tiêu.
+const MONTHLY_EXPORT_REPORT_IDS = ['bc-doanh-thu-tong-hop-hcrc', 'bc-doanh-thu-tong-hop-ldtd'];
+
 export default function ReportsPage() {
   const { me } = useAuth();
   const groups = useMemo(
@@ -248,11 +253,12 @@ export default function ReportsPage() {
               <div className="export-actions">
                 <button type="button" onClick={() => exportAs('excel')} disabled={!!exportingFormat}>{exportingFormat === 'excel' ? 'Đang xuất...' : 'Xuất Excel'}</button>
                 <button type="button" onClick={() => exportAs('pdf')} disabled={!!exportingFormat}>{exportingFormat === 'pdf' ? 'Đang xuất...' : 'Xuất PDF'}</button>
-                {/* Bản 10.87 — nút RIÊNG chỉ cho đúng báo cáo "Báo cáo tổng
-                    hợp doanh thu siêu thị hàng ngày" (Phase 2, theo yêu cầu
-                    người dùng) — xuất 1 sheet/ngày cho cả tháng chứa ngày
-                    đang chọn ở bộ lọc, KHÁC hẳn "Xuất Excel" (1 sheet) ở trên. */}
-                {selectedId === 'bc-doanh-thu-tong-hop-hcrc' && (
+                {/* Bản 10.87 — nút RIÊNG chỉ cho 2 báo cáo "Báo cáo tổng hợp
+                    doanh thu siêu thị (HCRC)"/"(LĐTĐ)" (Phase 2, theo yêu
+                    cầu người dùng; bản 10.90 tách thêm biến thể LĐTĐ) —
+                    xuất 1 sheet/ngày cho cả tháng chứa ngày đang chọn ở bộ
+                    lọc, KHÁC hẳn "Xuất Excel" (1 sheet) ở trên. */}
+                {MONTHLY_EXPORT_REPORT_IDS.includes(selectedId) && (
                   <button type="button" onClick={exportMonth} disabled={exportingMonth}>
                     {exportingMonth ? 'Đang xuất...' : 'Xuất Excel theo tháng (1 sheet/ngày)'}
                   </button>

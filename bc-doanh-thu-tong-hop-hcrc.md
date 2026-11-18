@@ -1,4 +1,4 @@
-# Báo cáo `bc-doanh-thu-tong-hop-hcrc` — "Báo cáo tổng hợp doanh thu siêu thị hàng ngày"
+# Báo cáo `bc-doanh-thu-tong-hop-hcrc`/`bc-doanh-thu-tong-hop-ldtd` — "Báo cáo tổng hợp doanh thu siêu thị (HCRC)/(LĐTĐ)"
 
 Tài liệu triển khai riêng cho báo cáo MỚI (bản 10.82, theo yêu cầu người
 dùng, dựa trên file mẫu thật đội vận hành đang tự tổng hợp tay —
@@ -35,6 +35,29 @@ liệu DSMART16).
 phân trang, có nhóm cột màu Ngày/Tháng/Năm/KH luỹ kế giống Excel/PDF).
 **Phase 2 — xuất Excel 1 sheet/ngày — đã làm ở BẢN 10.87**, xem mục ghi
 chú riêng bên dưới.
+
+⚠️ **BẢN 10.90 — TÁCH 2 BÁO CÁO HCRC/LĐTĐ + sửa công thức "Tổng cộng"**
+(theo yêu cầu người dùng, kèm ảnh mẫu đối chiếu công thức). **2 báo cáo
+RIÊNG, CÙNG dữ liệu doanh thu/siêu thị, CHỈ khác nguồn Chỉ tiêu** (giống
+hệt cách đã tách "Doanh thu theo ngành hàng"/"(LDTD)" trước đó):
+- `bc-doanh-thu-tong-hop-hcrc` — "Báo cáo tổng hợp doanh thu siêu thị
+  (HCRC)" — Chỉ tiêu đọc domain `sales-targets-hcrc` (như cũ).
+- `bc-doanh-thu-tong-hop-ldtd` (MỚI) — "Báo cáo tổng hợp doanh thu siêu
+  thị (LĐTĐ)" — Chỉ tiêu đọc domain `sales-targets-ldtd` (Chỉ tiêu của
+  Lãnh đạo Tập đoàn, nhập ở etl-admin → "Chỉ tiêu Lãnh đạo Tập đoàn").
+
+`definition.targetDomain` (DefinitionJson) quyết định domain Chỉ tiêu nào
+được đọc — `lib/doanhThuTongHopHcrcRunner.js`/`doanhThuTongHopHcrcMonthlyExport.js`
+đều nhận tham số này (mặc định `sales-targets-hcrc` nếu không khai, giữ
+đúng hành vi báo cáo HCRC cũ). Route `export-month` cũng đổi sang kiểm
+tra theo `SourceType='doanhThuTongHopHcrc'` (không hardcode 1 ReportId cố
+định nữa) để cả 2 báo cáo đều xuất được.
+
+**Cột "Tổng cộng"** — đối chiếu ảnh mẫu người dùng gửi (công thức ghi rõ
+"5=3+4") — đổi sang TÍNH TRỰC TIẾP `DT bán buôn + DT bán lẻ` (trước đây
+lấy thẳng `measures.DoanhThu` từ domain, có thể lệch nếu domain tính
+thêm thành phần khác ngoài buôn/lẻ) — áp dụng cả 3 khối Ngày/Tháng/Năm, cả
+Phase 1 lẫn Phase 2.
 
 ⚠️ **BẢN 10.86 — ĐỔI NGUỒN DOANH THU** (theo đề xuất người dùng, triển
 khai thật trên server phát hiện vẫn CHƯA có số liệu cho tới khi làm thêm
@@ -136,9 +159,10 @@ bản 10.82 (file vẫn còn trong repo để tham khảo nếu sau này cần l
 |---|---|---|
 | 1 | Chạy `etl-db/schema.sql` trên CSDL ETL (an toàn chạy lại nhiều lần) — thêm cột `MaQLKV` vào `etl.DiemStkMapping` | DBA/IT |
 | 2 | `git pull origin main` — lấy code mới nhất (`doanhThuTongHopHcrcRunner.js` bản 10.86) | IT/Dev |
-| 3 | Chạy `node rp-server/scripts/seedDoanhThuTongHopHcrcReport.js [menuCode]` (thư mục `rp-server/`) — mặc định đặt ở menu `reports-kinh-doanh` | Admin rp-user / IT-Dev |
-| 4 | Vào Hệ thống → Phân quyền, gán quyền xem `bc-doanh-thu-tong-hop-hcrc` cho đúng vai trò cần dùng | Admin rp-user |
+| 3 | Chạy `node rp-server/scripts/seedDoanhThuTongHopHcrcReport.js [menuCode]` (thư mục `rp-server/`) — **TẠO CẢ 2 báo cáo** (HCRC + LĐTĐ), mặc định đặt ở menu `reports-kinh-doanh` | Admin rp-user / IT-Dev |
+| 4 | Vào Hệ thống → Phân quyền, gán quyền xem RIÊNG cho `bc-doanh-thu-tong-hop-hcrc` VÀ `bc-doanh-thu-tong-hop-ldtd` (có thể cấp khác nhau — vd chỉ lãnh đạo tập đoàn xem được báo cáo LĐTĐ) | Admin rp-user |
 | 5 | (TUỲ CHỌN, khuyến nghị) Vào etl-admin → "Ánh xạ Điểm - STK_ID" → điền cột "Mã QLKV" cho các mã Điểm cần nhóm theo khu vực quản lý | Admin etl-admin |
+| 6 | Báo cáo "(LĐTĐ)" cần domain `sales-targets-ldtd` ĐÃ ĐƯỢC NHẬP (etl-admin → "Chỉ tiêu Lãnh đạo Tập đoàn") — nếu chưa nhập, cột Kế hoạch/% hoàn thành của báo cáo này hiện rỗng (không phải lỗi) | Admin etl-admin |
 
 ## 4. Cách kiểm tra sau khi triển khai xong
 
@@ -150,3 +174,10 @@ nhập (KHÔNG rỗng) và "% Hoàn thành DT luỹ kế" phải tính được.
 
 Nếu CHƯA khai `MaQLKV`/`LoaiChuoi` cho 1 mã Điểm, 2 cột đó hiện rỗng —
 bình thường, không phải lỗi.
+
+**Riêng cho bản 10.90**: mở CẢ 2 báo cáo "(HCRC)"/"(LĐTĐ)" cùng 1 ngày —
+mọi cột DOANH THU (Số Bill/DT bán buôn/bán lẻ/Tổng cộng/Lãi gộp...) phải
+RA Y HỆT NHAU ở cả 2 báo cáo (cùng nguồn dữ liệu siêu thị); CHỈ cột
+"Kế hoạch DT"/"Kế hoạch Bill"/"KH doanh thu"/"% hoàn thành" được PHÉP
+khác nhau (2 nguồn Chỉ tiêu riêng biệt) — nếu 2 báo cáo ra SỐ DOANH THU
+khác nhau là có lỗi, báo lại ngay.

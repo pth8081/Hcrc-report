@@ -150,8 +150,12 @@ async function fetchTransactionsByMaDiem(pool, buIdLookup, from, to) {
   return byMaDiem;
 }
 
-async function fetchTargetsByMaDiem(pool, fromPeriod, toPeriod) {
-  const rows = await runSalesTargetsBlockRange(pool, TARGET_DOMAIN, fromPeriod, toPeriod);
+// targetDomain (bản 10.90, THAM SỐ thay vì hằng số cố định — theo yêu cầu
+// người dùng, tách 2 báo cáo HCRC/LĐTĐ dùng CHUNG runner này, chỉ khác
+// nguồn Chỉ tiêu) — mặc định TARGET_DOMAIN ('sales-targets-hcrc') nếu gọi
+// không truyền (KHÔNG đổi hành vi nơi khác chưa cập nhật lời gọi).
+async function fetchTargetsByMaDiem(pool, fromPeriod, toPeriod, targetDomain = TARGET_DOMAIN) {
+  const rows = await runSalesTargetsBlockRange(pool, targetDomain, fromPeriod, toPeriod);
   const byMaDiem = new Map();
   for (const row of rows) byMaDiem.set(row.entityCode, row);
   return byMaDiem;
@@ -243,6 +247,12 @@ async function runDoanhThuTongHopHcrcReport(definition, filterValues) {
   const dwhPool = await getPool('DWH');
   const diemMapping = await loadDiemStkMapping();
   const buIdLookup = buildBuIdLookup(diemMapping);
+  // targetDomain (bản 10.90, theo yêu cầu người dùng) — báo cáo
+  // bc-doanh-thu-tong-hop-ldtd khai definition.targetDomain =
+  // 'sales-targets-ldtd' (Chỉ tiêu CỦA LÃNH ĐẠO TẬP ĐOÀN, khác HCRC tự
+  // đặt) — không khai thì mặc định TARGET_DOMAIN ('sales-targets-hcrc'),
+  // giữ đúng hành vi cũ cho bc-doanh-thu-tong-hop-hcrc.
+  const targetDomain = definition.targetDomain || TARGET_DOMAIN;
 
   // Diện tích/Nhóm chuỗi là thông tin TĨNH (không đổi theo ngày) — chỉ cần
   // lấy 1 lần, dùng khoảng rộng nhất (cả năm) để tối đa khả năng có dữ liệu.
@@ -261,8 +271,8 @@ async function runDoanhThuTongHopHcrcReport(definition, filterValues) {
   // người dùng) -> CHỈ cần 2 khối: tháng (dùng chung cho cả "Ngày" lẫn
   // "Tháng") và năm (KH luỹ kế năm).
   const [monthTarget, yearTarget] = await Promise.all([
-    fetchTargetsByMaDiem(dwhPool, firstOfMonth(today), firstOfMonth(today)),
-    fetchTargetsByMaDiem(dwhPool, firstOfYear(today), firstOfYear(today))
+    fetchTargetsByMaDiem(dwhPool, firstOfMonth(today), firstOfMonth(today), targetDomain),
+    fetchTargetsByMaDiem(dwhPool, firstOfYear(today), firstOfYear(today), targetDomain)
   ]);
   const staffCount = await fetchStaffCountByMaDiem();
 
@@ -301,21 +311,26 @@ async function runDoanhThuTongHopHcrcReport(definition, filterValues) {
     const diaDiem = null;
     const chain = info.loaiChuoi || aR.dimensions.chain || null;
 
+    // Tổng cộng (bản 10.90, theo ảnh mẫu người dùng gửi — công thức ghi rõ
+    // "5=3+4") — TÍNH TRỰC TIẾP = DT bán buôn + DT bán lẻ, KHÔNG lấy
+    // thẳng measures.DoanhThu nữa (đảm bảo luôn khớp tuyệt đối theo đúng
+    // công thức, dù DoanhThu nguồn có thể lệch nếu domain tính thêm
+    // thành phần khác ngoài buôn/lẻ).
     const dtBanLeDay = dR.measures.DoanhThuBanLe || 0;
     const dtBanBuonDay = dR.measures.DoanhThuBanBuon || 0;
-    const tongCongDay = dR.measures.DoanhThu || 0;
+    const tongCongDay = dtBanBuonDay + dtBanLeDay;
     const laiGopDay = dR.measures.LaiGop || 0;
     const soBillDay = dT.SoGiaoDich || 0;
 
     const dtBanLeMonth = mR.measures.DoanhThuBanLe || 0;
     const dtBanBuonMonth = mR.measures.DoanhThuBanBuon || 0;
-    const tongCongMonth = mR.measures.DoanhThu || 0;
+    const tongCongMonth = dtBanBuonMonth + dtBanLeMonth;
     const laiGopMonth = mR.measures.LaiGop || 0;
     const soBillMonth = mT.SoGiaoDich || 0;
 
     const dtBanLeYear = yR.measures.DoanhThuBanLe || 0;
     const dtBanBuonYear = yR.measures.DoanhThuBanBuon || 0;
-    const tongCongYear = yR.measures.DoanhThu || 0;
+    const tongCongYear = dtBanBuonYear + dtBanLeYear;
     const soBillYear = yT.SoGiaoDich || 0;
 
     const khDoanhThuThang = typeof mTarget.ChiTieuDoanhThu === 'number' ? mTarget.ChiTieuDoanhThu : null;

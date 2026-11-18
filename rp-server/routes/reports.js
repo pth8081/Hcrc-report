@@ -494,20 +494,25 @@ router.post('/:reportId/export', async (req, res, next) => {
 // dùng route này, xem lib/doanhThuTongHopHcrcMonthlyExport.js.
 router.post('/:reportId/export-month', async (req, res, next) => {
   try {
-    if (req.params.reportId !== 'bc-doanh-thu-tong-hop-hcrc') {
-      return res.status(400).json({ error: 'Báo cáo này không hỗ trợ xuất theo tháng (1 sheet/ngày)' });
-    }
     const context = await requireReportAccess(req, res, req.params.reportId);
     if (!context) return;
+    const definition = await loadDefinition(req.params.reportId);
+    // Bản 10.90 — kiểm tra theo ĐÚNG SourceType (KHÔNG hardcode 1 reportId
+    // cố định nữa) — từ bản này có 2 báo cáo CÙNG SourceType
+    // 'doanhThuTongHopHcrc' (bc-doanh-thu-tong-hop-hcrc/-ldtd, chỉ khác
+    // definition.targetDomain), cả 2 đều dùng route xuất theo tháng này.
+    if (!definition || !definition.isActive || definition.sourceType !== 'doanhThuTongHopHcrc') {
+      return res.status(400).json({ error: 'Báo cáo này không hỗ trợ xuất theo tháng (1 sheet/ngày)' });
+    }
     const { eventDate } = req.body || {};
     const storeScope = Array.isArray(context.storeScope) ? new Set(context.storeScope) : null;
-    const buffer = await buildDoanhThuTongHopHcrcMonthlyWorkbook({ anchorDate: eventDate, storeScope });
+    const buffer = await buildDoanhThuTongHopHcrcMonthlyWorkbook({ anchorDate: eventDate, storeScope, targetDomain: definition.targetDomain, titlePrefix: definition.title });
     const fileLabel = (eventDate || '').slice(0, 7) || 'thang-nay';
     await logAction(req, {
       module: 'Báo cáo', actionType: 'XUAT_BAO_CAO', targetObject: req.params.reportId,
-      description: `Xuất Excel theo tháng (1 sheet/ngày) báo cáo "Báo cáo tổng hợp doanh thu siêu thị hàng ngày" tới ngày ${eventDate || '(hôm nay)'}`
+      description: `Xuất Excel theo tháng (1 sheet/ngày) báo cáo "${definition.title}" tới ngày ${eventDate || '(hôm nay)'}`
     });
-    res.attachment(`Bao-cao-tong-hop-doanh-thu-HCRC-${fileLabel}.xlsx`);
+    res.attachment(`${definition.title}-${fileLabel}.xlsx`);
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     return res.send(buffer);
   } catch (err) { next(err); }
