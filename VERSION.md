@@ -42,6 +42,33 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.86 — Đổi nguồn doanh thu báo cáo "Doanh thu tổng hợp HCRC": tái dùng domain `doanhthu_nganhhang`/`doanhthu_chinhanh` đã có, bỏ VIEW mới
+
+**Theo đề xuất người dùng** — sau khi sửa lỗi constraint (bản 10.85), báo
+cáo "Báo cáo tổng hợp doanh thu siêu thị hàng ngày" vẫn chưa có số liệu
+Doanh thu (chỉ "Số Bill"/"Kế hoạch" có số, do domain `doanhthu_tonghop_hcrc`
+mới cần VIEW/job riêng chưa triển khai). Người dùng chỉ ra domain
+`doanhthu_nganhhang` ĐÃ CÓ SẴN, đang chạy thật, đã tách Bán buôn/Bán lẻ
+(dùng cho báo cáo "Doanh thu theo ngành hàng") — **BỎ HẲN** VIEW
+`vw_DoanhThuTongHopHCRC`/domain `doanhthu_tonghop_hcrc` của bản 10.82,
+`doanhThuTongHopHcrcRunner.js` đổi sang tái dùng `doanhthu_nganhhang`
+(Doanh thu/Bán buôn/Bán lẻ/Lãi gộp, cộng dồn bỏ chiều ngành hàng) +
+`doanhthu_chinhanh` (Diện tích/Nhóm chuỗi) — **KHÔNG CẦN VIEW/job mới
+nào nữa**. Cột "Địa điểm" chưa có domain nào cung cấp, tạm để trống.
+
+**Triển khai**:
+```bash
+git pull origin main
+cd rp-server && node scripts/seedDoanhThuTongHopHcrcReport.js
+```
+(KHÔNG cần chạy lại VIEW SQL hay job đồng bộ của bản 10.82 nữa — nếu đã
+lỡ tạo job "Doanh thu tổng hợp HCRC - Live (DSMART16)" ở etl-admin, xoá
+đi cho gọn, không bắt buộc.)
+
+**Kiểm tra**: mở báo cáo, cột DT bán buôn/bán lẻ/Tổng cộng/Lãi gộp phải
+ra số thật (khớp số liệu báo cáo "Doanh thu theo ngành hàng" cộng dồn
+theo từng siêu thị/ngày).
+
 ## 10.85 — SỬA LỖI: thiếu `doanhThuTongHopHcrc` trong CHECK constraint `CK_ReportCatalog_SourceType`
 
 **Lỗi thật người dùng gặp khi triển khai bản 10.82 trên server thật**:

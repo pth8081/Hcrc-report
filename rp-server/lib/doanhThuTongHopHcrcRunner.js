@@ -9,6 +9,18 @@
 // vì dùng lib/compositeReportRunner.js (definition không có khái niệm "3
 // khối cùng lúc, mỗi khối 1 khoảng ngày khác nhau tính từ 1 ngày neo").
 //
+// BẢN 10.86 — BỎ VIEW MỚI `vw_DoanhThuTongHopHCRC`/domain
+// `doanhthu_tonghop_hcrc` (bản 10.82), TÁI DÙNG domain `doanhthu_nganhhang`
+// ĐÃ CÓ SẴN + ĐANG CHẠY THẬT (theo đề xuất người dùng — domain đó ĐÃ tách
+// sẵn Bán buôn/Bán lẻ cho báo cáo "Doanh thu theo ngành hàng" đang hiển thị
+// đúng số) thay vì chờ tạo VIEW/job đồng bộ MỚI. `doanhthu_nganhhang` gộp
+// theo (STK_ID, DEPT_ID, ngày) — mỗi siêu thị có NHIỀU dòng (1 dòng/ngành
+// hàng) — CỘNG DỒN thêm 1 bước theo STK_ID (bỏ DEPT_ID) ở
+// `fetchNganhHangRevenueByMaDiem()` dưới đây để ra đúng 1 dòng/siêu thị.
+// LƯU Ý: cột "Địa điểm" (STOCK.PLACE) KHÔNG có trong bất kỳ domain đã có
+// nào — TẠM ĐỂ TRỐNG (null) ở bản này, chưa lấy ra được — xem
+// "bc-doanh-thu-tong-hop-hcrc.md" mục ghi chú bản 10.86.
+//
 // TÁI DÙNG tối đa hạ tầng đã có (không viết lại):
 //   - fetchAllReportRows/aggregateDailyRowsByEntity (compositeReportRunner.js)
 //     — gọi domain qua lib/reportEngine.js, cộng dồn nhiều ngày về 1 dòng.
@@ -42,9 +54,12 @@ const { loadDiemStkMapping, remapRowsToDiem, buildBuIdLookup } = require('./diem
 const { describeColumns } = require('./reportEngine');
 const { assignSttIfPresent } = require('./reportCellFormat');
 
-const REVENUE_DOMAIN = 'doanhthu_tonghop_hcrc';
+// Bản 10.86 — 2 domain ĐÃ CÓ SẴN, KHÔNG dùng domain mới doanhthu_tonghop_hcrc.
+const AREA_DOMAIN = 'doanhthu_chinhanh'; // chỉ lấy dienTich/chain (dimensions, camelCase)
+const NGANHHANG_DOMAIN = 'doanhthu_nganhhang'; // DoanhThu/DoanhThuBanLe/DoanhThuBanBuon/LaiGop (PascalCase), gộp theo (STK_ID, DEPT_ID, ngày)
 const TRANSACTION_DOMAIN = 'giaodich_chinhanh';
 const TARGET_DOMAIN = 'sales-targets-hcrc';
+const NGANHHANG_MEASURE_KEYS = ['DoanhThu', 'DoanhThuBanLe', 'DoanhThuBanBuon', 'LaiGop'];
 
 // vietnamTodayISO/firstOfMonth — COPY nguyên từ compositeReportRunner.js
 // (hàm đó KHÔNG export, xem chú thích bản 8.26 ở file gốc giải thích lý do
@@ -69,11 +84,42 @@ function pctOrNull(numerator, denominator) {
   return v === null ? null : v * 100;
 }
 
-async function fetchRevenueByMaDiem(pool, diemMapping, from, to) {
-  const definition = { domain: REVENUE_DOMAIN, filters: [{ field: 'eventDate', type: 'dateRange' }] };
+// Diện tích/Nhóm chuỗi — domain `doanhthu_chinhanh` khoá STK_ID trực tiếp
+// (1 dòng/siêu thị/ngày) nên remapRowsToDiem dùng được NGUYÊN, không cần
+// cộng dồn thêm bước nào.
+async function fetchAreaByMaDiem(pool, diemMapping, from, to) {
+  const definition = { domain: AREA_DOMAIN, filters: [{ field: 'eventDate', type: 'dateRange' }] };
   const rawRows = await fetchAllReportRows(pool, definition, { eventDate: { from, to } });
   const aggregated = aggregateDailyRowsByEntity(rawRows, to);
   const diemRows = remapRowsToDiem(aggregated, diemMapping, false);
+  const byMaDiem = new Map();
+  for (const row of diemRows) byMaDiem.set(row.entityCode, row);
+  return byMaDiem;
+}
+
+// Doanh thu Bán buôn/Bán lẻ/Lãi gộp — domain `doanhthu_nganhhang` khoá
+// MaThucThe (1 dòng/siêu thị/NGÀNH HÀNG/ngày, KHÔNG phải 1 dòng/siêu thị)
+// — aggregateDailyRowsByEntity cộng dồn theo entityCode (= MaThucThe) nên
+// CHỈ gộp được nhiều NGÀY về 1 dòng/(STK_ID,DEPT_ID), còn phải cộng dồn
+// THÊM 1 bước theo STK_ID (bỏ DEPT_ID) ở đây mới ra đúng 1 dòng/siêu thị.
+async function fetchNganhHangRevenueByMaDiem(pool, diemMapping, from, to) {
+  const definition = { domain: NGANHHANG_DOMAIN, filters: [{ field: 'eventDate', type: 'dateRange' }] };
+  const rawRows = await fetchAllReportRows(pool, definition, { eventDate: { from, to } });
+  const aggregated = aggregateDailyRowsByEntity(rawRows, to); // 1 dòng / (STK_ID, DEPT_ID)
+
+  const byStkId = new Map();
+  for (const row of aggregated) {
+    const stkId = row.dimensions && row.dimensions.STK_ID;
+    if (!stkId) continue;
+    let acc = byStkId.get(stkId);
+    if (!acc) { acc = { entityCode: stkId, dimensions: {}, measures: {} }; byStkId.set(stkId, acc); }
+    const m = row.measures || {};
+    for (const key of NGANHHANG_MEASURE_KEYS) {
+      acc.measures[key] = (acc.measures[key] || 0) + (m[key] || 0);
+    }
+  }
+
+  const diemRows = remapRowsToDiem([...byStkId.values()], diemMapping, false);
   const byMaDiem = new Map();
   for (const row of diemRows) byMaDiem.set(row.entityCode, row);
   return byMaDiem;
@@ -189,10 +235,13 @@ async function runDoanhThuTongHopHcrcReport(definition, filterValues) {
   const diemMapping = await loadDiemStkMapping();
   const buIdLookup = buildBuIdLookup(diemMapping);
 
+  // Diện tích/Nhóm chuỗi là thông tin TĨNH (không đổi theo ngày) — chỉ cần
+  // lấy 1 lần, dùng khoảng rộng nhất (cả năm) để tối đa khả năng có dữ liệu.
+  const areaInfo = await fetchAreaByMaDiem(dwhPool, diemMapping, yearFrom, yearTo);
   const [dayRev, monthRev, yearRev] = await Promise.all([
-    fetchRevenueByMaDiem(dwhPool, diemMapping, dayFrom, dayTo),
-    fetchRevenueByMaDiem(dwhPool, diemMapping, monthFrom, monthTo),
-    fetchRevenueByMaDiem(dwhPool, diemMapping, yearFrom, yearTo)
+    fetchNganhHangRevenueByMaDiem(dwhPool, diemMapping, dayFrom, dayTo),
+    fetchNganhHangRevenueByMaDiem(dwhPool, diemMapping, monthFrom, monthTo),
+    fetchNganhHangRevenueByMaDiem(dwhPool, diemMapping, yearFrom, yearTo)
   ]);
   const [dayTx, monthTx, yearTx] = await Promise.all([
     fetchTransactionsByMaDiem(dwhPool, buIdLookup, dayFrom, dayTo),
@@ -223,6 +272,7 @@ async function runDoanhThuTongHopHcrcReport(definition, filterValues) {
     const dR = dayRev.get(maDiem) || { dimensions: {}, measures: {} };
     const mR = monthRev.get(maDiem) || { dimensions: {}, measures: {} };
     const yR = yearRev.get(maDiem) || { dimensions: {}, measures: {} };
+    const aR = areaInfo.get(maDiem) || { dimensions: {} };
     const dT = dayTx.get(maDiem) || {};
     const mT = monthTx.get(maDiem) || {};
     const yT = yearTx.get(maDiem) || {};
@@ -230,15 +280,17 @@ async function runDoanhThuTongHopHcrcReport(definition, filterValues) {
     const yTarget = yearTarget.get(maDiem) || {};
 
     // Casing của measures/dimensions PHẢI khớp CHÍNH XÁC đúng chuỗi trong
-    // measureColumns/dimensionColumns lúc tạo job đồng bộ (JSON lưu
-    // nguyên văn chuỗi đó làm key — xem etl/scripts/seedDoanhThuTongHopHcrcSync.js
-    // dùng PascalCase 'DoanhThu'/'DienTich'..., KHÁC domain giaodich_chinhanh/
-    // doanhthu_chinhanh có SẴN TỪ TRƯỚC cũng PascalCase 'SoGiaoDich' —
-    // KHÔNG tự ý đổi sang camelCase ở đây dù phần lớn code khác trong file
-    // này dùng camelCase cho biến JS thường.
-    const dienTich = dR.dimensions.DienTich || mR.dimensions.DienTich || yR.dimensions.DienTich || null;
-    const diaDiem = dR.dimensions.DiaDiem || mR.dimensions.DiaDiem || yR.dimensions.DiaDiem || null;
-    const chain = info.loaiChuoi || dR.dimensions.Chain || mR.dimensions.Chain || yR.dimensions.Chain || null;
+    // measureColumns/dimensionColumns lúc tạo job đồng bộ — domain
+    // `doanhthu_chinhanh` dùng camelCase ('dienTich'/'chain', xem
+    // etl/scripts/seedLdtdHcrcSync.js), domain `doanhthu_nganhhang` dùng
+    // PascalCase ('DoanhThu'/'DoanhThuBanLe'/..., xem
+    // etl/scripts/seedNganhHangSync.js) — 2 domain KHÁC NHAU, KHÔNG tự ý
+    // đổi casing cho giống nhau.
+    const dienTich = aR.dimensions.dienTich || null;
+    // Bản 10.86 — "Địa điểm" CHƯA có domain nào cung cấp (bỏ VIEW mới
+    // doanhthu_tonghop_hcrc), TẠM để trống — xem ghi chú đầu file.
+    const diaDiem = null;
+    const chain = info.loaiChuoi || aR.dimensions.chain || null;
 
     const dtBanLeDay = dR.measures.DoanhThuBanLe || 0;
     const dtBanBuonDay = dR.measures.DoanhThuBanBuon || 0;

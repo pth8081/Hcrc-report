@@ -14,6 +14,25 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.86 — Đổi nguồn doanh thu báo cáo "Doanh thu tổng hợp HCRC": tái dùng domain `doanhthu_nganhhang`/`doanhthu_chinhanh` đã có, bỏ VIEW mới
+
+**Thay đổi**: `doanhThuTongHopHcrcRunner.js` bỏ domain
+`doanhthu_tonghop_hcrc` (VIEW `vw_DoanhThuTongHopHCRC`, bản 10.82, chưa
+triển khai xong trên server), đổi sang tái dùng domain `doanhthu_nganhhang`
+(Bán buôn/Bán lẻ/Lãi gộp, cộng dồn bỏ chiều ngành hàng) + `doanhthu_chinhanh`
+(Diện tích/Nhóm chuỗi) — cả 2 ĐÃ CÓ SẴN, đang chạy thật. Theo đề xuất
+người dùng khi thấy báo cáo vẫn trống số liệu Doanh thu sau khi sửa lỗi
+10.85. Cột "Địa điểm" chưa có domain nào cung cấp, tạm để trống.
+
+**Triển khai**:
+```bash
+git pull origin main
+cd rp-server && node scripts/seedDoanhThuTongHopHcrcReport.js
+```
+
+**Kiểm tra**: mở báo cáo, cột DT bán buôn/bán lẻ/Tổng cộng/Lãi gộp phải
+ra số thật.
+
 ## 10.85 — SỬA LỖI: thiếu `doanhThuTongHopHcrc` trong CHECK constraint `CK_ReportCatalog_SourceType`
 
 **Thay đổi**: `rp-db/schema.sql` — bổ sung `'doanhThuTongHopHcrc'` vào

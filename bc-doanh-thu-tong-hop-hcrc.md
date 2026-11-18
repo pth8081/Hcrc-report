@@ -37,15 +37,29 @@ phân trang, có nhóm cột màu Ngày/Tháng/Năm/KH luỹ kế giống Excel/
 layout mẫu gốc (kể cả dòng tiêu đề nhóm "I. CHUỖI MART"...) — sẽ làm ở
 bản sau, sau khi người dùng xác nhận SỐ LIỆU hiển thị trên web đã đúng.
 
+⚠️ **BẢN 10.86 — ĐỔI NGUỒN DOANH THU** (theo đề xuất người dùng, triển
+khai thật trên server phát hiện vẫn CHƯA có số liệu cho tới khi làm thêm
+VIEW/job mới — người dùng chỉ ra domain `doanhthu_nganhhang` ĐÃ CÓ SẴN và
+ĐANG CHẠY thật sự tách Bán buôn/Bán lẻ rồi, dùng luôn cho nhanh): **BỎ**
+VIEW `vw_DoanhThuTongHopHCRC`/domain `doanhthu_tonghop_hcrc` — báo cáo
+GIỜ ĐÂY tái dùng 2 domain ĐÃ CÓ SẴN (`doanhthu_chinhanh` cho Diện
+tích/Nhóm chuỗi, `doanhthu_nganhhang` cho Bán buôn/Bán lẻ/Lãi gộp, cộng
+dồn bỏ chiều ngành hàng). **KHÔNG CẦN tạo VIEW mới/job đồng bộ mới nữa**
+— xem lại mục 2/3 bên dưới. Cột "Địa điểm" (STOCK.PLACE) CHƯA có domain
+nào cung cấp, TẠM để trống (null) — sẽ bổ sung sau nếu người dùng cần,
+không chặn số liệu Doanh thu/Lãi gộp/Bán buôn-lẻ chính.
+
 ## 2. Nguồn dữ liệu
 
-- **Doanh thu/Lãi gộp/Bán buôn-lẻ**: VIEW MỚI `dbo.vw_DoanhThuTongHopHCRC`
-  trên CSDL `DSMART16` — xem "deploy/VIEW DSMART16 (trung tâm)/Thiết lập
-  VIEW Doanh thu tổng hợp theo siêu thị HCRC (DSMART16 trung tâm).sql".
-  Domain MỚI `doanhthu_tonghop_hcrc` — GỘP theo (STK_ID, ngày) giống hệt
-  `doanhthu_chinhanh` đã có (KHÔNG sửa/đụng VIEW đó), chỉ thêm tách Bán
-  buôn/Bán lẻ (công thức đã chốt ở domain `doanhthu_nganhhang`) + cột
-  `DiaDiem` (STOCK.PLACE, mới lấy ra lần đầu).
+- **Doanh thu/Lãi gộp/Bán buôn-lẻ** (từ bản 10.86): dùng lại NGUYÊN domain
+  `doanhthu_nganhhang` ĐÃ CÓ SẴN (đang chạy thật, dùng cho báo cáo "Doanh
+  thu theo ngành hàng") — gộp theo (STK_ID, DEPT_ID, ngày), bộ máy báo cáo
+  (`doanhThuTongHopHcrcRunner.js`) CỘNG DỒN THÊM 1 bước bỏ chiều DEPT_ID
+  để ra đúng 1 dòng/siêu thị. KHÔNG tạo VIEW/job mới (ĐÃ BỎ VIEW
+  `vw_DoanhThuTongHopHCRC`/domain `doanhthu_tonghop_hcrc` của bản 10.82).
+- **Diện tích/Nhóm chuỗi**: dùng lại NGUYÊN domain `doanhthu_chinhanh` đã
+  có (chỉ lấy dimension `dienTich`/`chain`, không lấy đo lường doanh thu
+  của domain này — số doanh thu lấy từ `doanhthu_nganhhang` ở trên).
 - **Số Bill**: dùng lại NGUYÊN domain `giaodich_chinhanh` đã có (KHÔNG
   tạo gì mới).
 - **Chỉ tiêu (Kế hoạch DT/Bill)**: dùng lại NGUYÊN domain `sales-targets-hcrc`
@@ -55,11 +69,9 @@ bản sau, sau khi người dùng xác nhận SỐ LIỆU hiển thị trên web
   KHÔNG qua ETL/DSMART16) — số tài khoản được gán quyền xem mỗi mã Điểm.
 - **Mã QLKV**: cột MỚI admin tự khai ở etl-admin → "Ánh xạ Điểm - STK_ID"
   (`etl.DiemStkMapping.MaQLKV`, giống cách `TenSieuThi`/`LoaiChuoi` đã
-  được khai tay ở đó — KHÔNG đọc từ DSMART16).
-- **Diện tích/Nhóm chuỗi**: lấy từ VIEW mới (STOCK.DIMENSION/TYPE) nếu
-  siêu thị có dữ liệu doanh thu trong khoảng đã chọn; `LoaiChuoi` đã khai
-  tay ở "Ánh xạ Điểm - STK_ID" LUÔN ưu tiên ghi đè (theo đúng quy ước có
-  sẵn của `lib/diemStkMapping.js`).
+  được khai tay ở đó — KHÔNG đọc từ DSMART16). `LoaiChuoi` đã khai tay ở
+  đó LUÔN ưu tiên ghi đè cột "Nhóm chuỗi" lấy từ `doanhthu_chinhanh` (theo
+  đúng quy ước có sẵn của `lib/diemStkMapping.js`).
 
 **Bộ máy chạy báo cáo**: `rp-server/lib/doanhThuTongHopHcrcRunner.js`
 (SourceType MỚI `'doanhThuTongHopHcrc'`, đăng ký ở `lib/reportRunner.js`)
@@ -71,15 +83,21 @@ và của `lib/diemStkMapping.js` (`remapRowsToDiem`/`buildBuIdLookup`).
 
 ## 3. Các bước triển khai (theo đúng thứ tự)
 
+⚠️ **Từ bản 10.86** — 2 bước "tạo VIEW mới"/"tạo job đồng bộ mới" của bản
+10.82 KHÔNG CÒN CẦN NỮA (đã đổi sang tái dùng domain `doanhthu_nganhhang`/
+`doanhthu_chinhanh` có sẵn, đang chạy thật) — CHỈ cần cập nhật code +
+chạy lại bước tạo báo cáo. Nếu bạn ĐÃ LỠ tạo job "Doanh thu tổng hợp
+HCRC - Live (DSMART16)" ở etl-admin (bản 10.82) thì XOÁ job đó đi (không
+dùng tới nữa, để tránh nhầm lẫn job thừa), KHÔNG cần chạy VIEW SQL của
+bản 10.82 (file vẫn còn trong repo để tham khảo nếu sau này cần lại).
+
 | # | Việc | Ai làm |
 |---|---|---|
 | 1 | Chạy `etl-db/schema.sql` trên CSDL ETL (an toàn chạy lại nhiều lần) — thêm cột `MaQLKV` vào `etl.DiemStkMapping` | DBA/IT |
-| 2 | Chạy "deploy/VIEW DSMART16 (trung tâm)/Thiết lập VIEW Doanh thu tổng hợp theo siêu thị HCRC (DSMART16 trung tâm).sql" trên CSDL `DSMART16` | DBA |
-| 3 | Chạy `node etl/scripts/seedDoanhThuTongHopHcrcSync.js` (thư mục `etl/`) — tạo job đồng bộ | Admin etl-admin / IT-Dev |
-| 4 | Chờ job đồng bộ chạy xong ít nhất 1 lượt | IT/Dev |
-| 5 | Chạy `node rp-server/scripts/seedDoanhThuTongHopHcrcReport.js [menuCode]` (thư mục `rp-server/`) — mặc định đặt ở menu `reports-kinh-doanh` | Admin rp-user / IT-Dev |
-| 6 | Vào Hệ thống → Phân quyền, gán quyền xem `bc-doanh-thu-tong-hop-hcrc` cho đúng vai trò cần dùng | Admin rp-user |
-| 7 | (TUỲ CHỌN, khuyến nghị) Vào etl-admin → "Ánh xạ Điểm - STK_ID" → điền cột "Mã QLKV" cho các mã Điểm cần nhóm theo khu vực quản lý | Admin etl-admin |
+| 2 | `git pull origin main` — lấy code mới nhất (`doanhThuTongHopHcrcRunner.js` bản 10.86) | IT/Dev |
+| 3 | Chạy `node rp-server/scripts/seedDoanhThuTongHopHcrcReport.js [menuCode]` (thư mục `rp-server/`) — mặc định đặt ở menu `reports-kinh-doanh` | Admin rp-user / IT-Dev |
+| 4 | Vào Hệ thống → Phân quyền, gán quyền xem `bc-doanh-thu-tong-hop-hcrc` cho đúng vai trò cần dùng | Admin rp-user |
+| 5 | (TUỲ CHỌN, khuyến nghị) Vào etl-admin → "Ánh xạ Điểm - STK_ID" → điền cột "Mã QLKV" cho các mã Điểm cần nhóm theo khu vực quản lý | Admin etl-admin |
 
 ## 4. Cách kiểm tra sau khi triển khai xong
 

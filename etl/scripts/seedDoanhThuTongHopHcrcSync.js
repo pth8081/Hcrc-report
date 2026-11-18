@@ -3,6 +3,14 @@
 // 10.82, theo yêu cầu người dùng, dựa trên file mẫu thật đội vận hành đang
 // tự tổng hợp tay) — xem "bc-doanh-thu-tong-hop-hcrc.md".
 //
+// ⚠️ KHÔNG CÒN DÙNG TỪ BẢN 10.86 — báo cáo đã đổi sang tái dùng domain
+// `doanhthu_nganhhang`/`doanhthu_chinhanh` có sẵn thay vì domain
+// `doanhthu_tonghop_hcrc` job này tạo ra (xem "bc-doanh-thu-tong-hop-hcrc.md"
+// mục ghi chú bản 10.86). GIỮ LẠI file này chỉ để tham khảo — KHÔNG chạy
+// nữa; nếu đã lỡ chạy ở bản 10.82, vào etl-admin xoá job "Doanh thu tổng
+// hợp HCRC - Live (DSMART16)" đi (không ảnh hưởng gì nếu không xoá, chỉ
+// là job thừa không ai đọc dữ liệu).
+//
 // ⚠️ CHỈ "Phase 1 — hệ gốc/trung tâm" (domain mới `doanhthu_tonghop_hcrc`,
 // đọc DSMART16 trung tâm Live) — CHƯA làm bản "Lịch sử (DSMART16_EOM)" ở
 // bản này (có thể thêm sau nếu cần, mirror seedLdtdHcrcSync.js, vì báo cáo

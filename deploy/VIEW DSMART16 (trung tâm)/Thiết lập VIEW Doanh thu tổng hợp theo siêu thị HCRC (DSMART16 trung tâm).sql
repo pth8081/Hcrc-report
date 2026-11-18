@@ -1,5 +1,10 @@
 /* deploy/VIEW DSMART16 (trung tâm)/Thiết lập VIEW Doanh thu tổng hợp theo siêu thị HCRC (DSMART16 trung tâm).sql
    ============================================================================
+   ⚠️ KHÔNG CÒN DÙNG TỪ BẢN 10.86 — báo cáo đã đổi sang tái dùng domain
+   `doanhthu_nganhhang`/`doanhthu_chinhanh` có sẵn thay vì VIEW này (xem
+   "bc-doanh-thu-tong-hop-hcrc.md" mục ghi chú bản 10.86). GIỮ LẠI file
+   này chỉ để tham khảo — KHÔNG CẦN chạy nữa.
+
    BẢN 10.82 — Báo cáo MỚI "Báo cáo tổng hợp doanh thu siêu thị hàng ngày"
    (theo yêu cầu người dùng, dựa trên file mẫu thật đội vận hành đang tự
    tổng hợp tay — "Bao_cao_ban_Doanh_thu_hang_ngay_he_thong_HCRC_T11.2026.xlsx",
