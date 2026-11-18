@@ -28,6 +28,7 @@ const { loadDefinition, runDefinition, resolveFactsPool } = require('../lib/repo
 const { resolveTitleWithDate, resolveExportFileBaseName } = require('../lib/reportTitleDate');
 const { exportExcel } = require('../lib/exportExcel');
 const { exportPdf } = require('../lib/exportPdf');
+const { buildDoanhThuTongHopHcrcMonthlyWorkbook } = require('../lib/doanhThuTongHopHcrcMonthlyExport');
 const { filterColumns, filterGroups, computeSummaryCards } = require('../lib/reportCellFormat');
 const { getUserContext } = require('../lib/permissions');
 const { loadDiemStkMapping, buildStkIdLookup } = require('../lib/diemStkMapping');
@@ -483,6 +484,32 @@ router.post('/:reportId/export', async (req, res, next) => {
       return res.send(buffer);
     }
     return res.status(400).json({ error: `Định dạng xuất "${format}" chưa được hỗ trợ` });
+  } catch (err) { next(err); }
+});
+
+// Bản 10.87 (theo yêu cầu người dùng, Phase 2 báo cáo "Báo cáo tổng hợp
+// doanh thu siêu thị hàng ngày") — xuất Excel RIÊNG 1 SHEET/NGÀY cho cả
+// tháng chứa "ngày neo" (eventDate) — KHÁC HẲN /export ở trên (1 sheet duy
+// nhất, đúng filter đang xem) — chỉ báo cáo bc-doanh-thu-tong-hop-hcrc
+// dùng route này, xem lib/doanhThuTongHopHcrcMonthlyExport.js.
+router.post('/:reportId/export-month', async (req, res, next) => {
+  try {
+    if (req.params.reportId !== 'bc-doanh-thu-tong-hop-hcrc') {
+      return res.status(400).json({ error: 'Báo cáo này không hỗ trợ xuất theo tháng (1 sheet/ngày)' });
+    }
+    const context = await requireReportAccess(req, res, req.params.reportId);
+    if (!context) return;
+    const { eventDate } = req.body || {};
+    const storeScope = Array.isArray(context.storeScope) ? new Set(context.storeScope) : null;
+    const buffer = await buildDoanhThuTongHopHcrcMonthlyWorkbook({ anchorDate: eventDate, storeScope });
+    const fileLabel = (eventDate || '').slice(0, 7) || 'thang-nay';
+    await logAction(req, {
+      module: 'Báo cáo', actionType: 'XUAT_BAO_CAO', targetObject: req.params.reportId,
+      description: `Xuất Excel theo tháng (1 sheet/ngày) báo cáo "Báo cáo tổng hợp doanh thu siêu thị hàng ngày" tới ngày ${eventDate || '(hôm nay)'}`
+    });
+    res.attachment(`Bao-cao-tong-hop-doanh-thu-HCRC-${fileLabel}.xlsx`);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    return res.send(buffer);
   } catch (err) { next(err); }
 });
 

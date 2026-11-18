@@ -36,6 +36,12 @@ export default function ReportsPage() {
   // bảng, không có nút chuyển (không có gì để chuyển sang).
   const [showTable, setShowTable] = useState(false);
   const [exportingFormat, setExportingFormat] = useState(null);
+  // exportingMonth (bản 10.87, theo yêu cầu người dùng) — nút RIÊNG "Xuất
+  // Excel theo tháng (1 sheet/ngày)", CHỈ hiện cho đúng 1 báo cáo
+  // bc-doanh-thu-tong-hop-hcrc (xem điều kiện render bên dưới) — biến
+  // trạng thái TÁCH RIÊNG khỏi exportingFormat (nút khác, không khoá nhầm
+  // nhau theo đúng quy ước khoá nút của dự án).
+  const [exportingMonth, setExportingMonth] = useState(false);
   // visibleColumnKeys (bản 8.97, theo yêu cầu người dùng: "cho phép mình
   // chọn các trường ẩn đi khi xem báo cáo trên web hoặc xuất excel/pdf") —
   // CHỈ áp dụng cho báo cáo có columnGroups (hiện 4 báo cáo "Doanh thu cuối
@@ -167,6 +173,25 @@ export default function ReportsPage() {
     }
   }
 
+  // exportMonth (bản 10.87, theo yêu cầu người dùng — "mỗi sheet 1 ngày
+  // trong tháng... ngày 17/11 thì 17 sheet") — dùng ĐÚNG eventDate đang
+  // chọn trên bộ lọc ("ngày neo") làm mốc tháng/số sheet, xem
+  // routes/reports.js:POST /:reportId/export-month.
+  async function exportMonth() {
+    setExportingMonth(true);
+    try {
+      await downloadFile(
+        `/reports/${selectedId}/export-month`,
+        { eventDate: filterValues.eventDate },
+        `${definition?.title || 'bao-cao'}-theo-thang.xlsx`
+      );
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setExportingMonth(false);
+    }
+  }
+
   // displayResult (bản 8.97) — result đã lọc theo visibleColumnKeys để vẽ
   // bảng trên web (xem chú thích state ở trên) — KHÔNG đụng result.rows
   // (DataTable chỉ vẽ theo đúng mảng columns truyền vào, field thừa trên
@@ -223,6 +248,15 @@ export default function ReportsPage() {
               <div className="export-actions">
                 <button type="button" onClick={() => exportAs('excel')} disabled={!!exportingFormat}>{exportingFormat === 'excel' ? 'Đang xuất...' : 'Xuất Excel'}</button>
                 <button type="button" onClick={() => exportAs('pdf')} disabled={!!exportingFormat}>{exportingFormat === 'pdf' ? 'Đang xuất...' : 'Xuất PDF'}</button>
+                {/* Bản 10.87 — nút RIÊNG chỉ cho đúng báo cáo "Báo cáo tổng
+                    hợp doanh thu siêu thị hàng ngày" (Phase 2, theo yêu cầu
+                    người dùng) — xuất 1 sheet/ngày cho cả tháng chứa ngày
+                    đang chọn ở bộ lọc, KHÁC hẳn "Xuất Excel" (1 sheet) ở trên. */}
+                {selectedId === 'bc-doanh-thu-tong-hop-hcrc' && (
+                  <button type="button" onClick={exportMonth} disabled={exportingMonth}>
+                    {exportingMonth ? 'Đang xuất...' : 'Xuất Excel theo tháng (1 sheet/ngày)'}
+                  </button>
+                )}
                 {/* Chỉ hiện nút chuyển đổi khi báo cáo THẬT SỰ có biểu đồ để
                     chuyển sang/về — báo cáo không khai visualization luôn ở
                     dạng bảng, không có gì để bấm. */}

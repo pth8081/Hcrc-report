@@ -42,6 +42,33 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.87 — Thêm "Xuất Excel theo tháng (1 sheet/ngày)" cho "Báo cáo tổng hợp doanh thu siêu thị hàng ngày" (Phase 2)
+
+**Theo yêu cầu người dùng** — "tháng nào 29 thì 29 sheet, tháng nào 30
+thì 30 sheet... ngày 17/11 thì 17 sheet". Nút MỚI ở trang báo cáo này —
+xuất 1 file .xlsx, số sheet = đúng số ngày từ đầu tháng tới "ngày neo"
+đang chọn ở bộ lọc, mỗi sheet tên `DD.MM`, nhóm "I. CHUỖI MART"/"II.
+CHUỖI MINIMART" + dòng "TỔNG MART"/"TỔNG MINIMART"/"TỔNG HCRC" (đúng
+layout file mẫu gốc, trừ 3 dòng "KHO INTIMEX"/"KHO ĐTT"/"TỔNG KHO" luôn
+=0 trong file mẫu — không có nguồn dữ liệu nào biết các dòng này, không
+đưa vào). Tái dùng đúng nguồn dữ liệu bản 10.86 (`doanhthu_nganhhang`/
+`doanhthu_chinhanh`), KHÔNG cần VIEW/job mới — chỉ gọi Data Warehouse 1
+lần/domain (khoảng cả năm), gộp theo ngày trong bộ nhớ để tránh hàng chục
+lượt gọi/lần xuất.
+
+**Triển khai**:
+```bash
+git pull origin main
+cd rp-user && npm run build
+```
+(backend route mới tự có hiệu lực ngay khi rp-server khởi động lại/deploy
+code mới — không cần script seed nào.)
+
+**Kiểm tra**: mở báo cáo, bấm "Xuất Excel theo tháng (1 sheet/ngày)" ở
+ngày neo bất kỳ (vd 17/11) — file tải về phải có đúng 17 sheet `01.11`
+tới `17.11`, số liệu từng sheet khớp đúng số xem trên web khi đổi "Ngày
+báo cáo" sang ngày tương ứng.
+
 ## 10.86 — Đổi nguồn doanh thu báo cáo "Doanh thu tổng hợp HCRC": tái dùng domain `doanhthu_nganhhang`/`doanhthu_chinhanh` đã có, bỏ VIEW mới
 
 **Theo đề xuất người dùng** — sau khi sửa lỗi constraint (bản 10.85), báo

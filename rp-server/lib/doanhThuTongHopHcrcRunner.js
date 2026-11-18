@@ -362,4 +362,14 @@ async function runDoanhThuTongHopHcrcReport(definition, filterValues) {
   };
 }
 
-module.exports = { runDoanhThuTongHopHcrcReport };
+// Xuất lại các hằng số/hàm phụ trợ (bản 10.87) — dùng CHUNG ở
+// lib/doanhThuTongHopHcrcMonthlyExport.js (xuất Excel 1 sheet/ngày cho cả
+// tháng) để KHÔNG chép lại logic domain/công thức tính (dễ lệch số nếu
+// sửa 1 nơi quên sửa nơi kia).
+module.exports = {
+  runDoanhThuTongHopHcrcReport,
+  AREA_DOMAIN, NGANHHANG_DOMAIN, TRANSACTION_DOMAIN, TARGET_DOMAIN, NGANHHANG_MEASURE_KEYS,
+  vietnamTodayISO, firstOfMonth, firstOfYear, daysInMonth, dayOfMonth, divOrNull, pctOrNull,
+  buildColumns, buildColumnGroups,
+  fetchTargetsByMaDiem, fetchStaffCountByMaDiem
+};

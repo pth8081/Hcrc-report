@@ -33,9 +33,8 @@ liệu DSMART16).
 
 ⚠️ **Phạm vi bản 10.82 — CHỈ phần XEM TRÊN WEB** (bảng số liệu, không
 phân trang, có nhóm cột màu Ngày/Tháng/Năm/KH luỹ kế giống Excel/PDF).
-**CHƯA làm** tính năng xuất file Excel **1 sheet/ngày cho cả tháng** đúng
-layout mẫu gốc (kể cả dòng tiêu đề nhóm "I. CHUỖI MART"...) — sẽ làm ở
-bản sau, sau khi người dùng xác nhận SỐ LIỆU hiển thị trên web đã đúng.
+**Phase 2 — xuất Excel 1 sheet/ngày — đã làm ở BẢN 10.87**, xem mục ghi
+chú riêng bên dưới.
 
 ⚠️ **BẢN 10.86 — ĐỔI NGUỒN DOANH THU** (theo đề xuất người dùng, triển
 khai thật trên server phát hiện vẫn CHƯA có số liệu cho tới khi làm thêm
@@ -48,6 +47,48 @@ dồn bỏ chiều ngành hàng). **KHÔNG CẦN tạo VIEW mới/job đồng b�
 — xem lại mục 2/3 bên dưới. Cột "Địa điểm" (STOCK.PLACE) CHƯA có domain
 nào cung cấp, TẠM để trống (null) — sẽ bổ sung sau nếu người dùng cần,
 không chặn số liệu Doanh thu/Lãi gộp/Bán buôn-lẻ chính.
+
+⚠️ **BẢN 10.87 — THÊM "Xuất Excel theo tháng (1 sheet/ngày)"** (Phase 2,
+theo yêu cầu người dùng — "tháng nào 29 thì 29 sheet, tháng nào 30 thì 30
+sheet... ngày 17/11 thì 17 sheet"). Nút MỚI "Xuất Excel theo tháng (1
+sheet/ngày)" chỉ hiện ở trang xem báo cáo này — bấm ra 1 file .xlsx,
+**số SHEET = đúng số ngày từ đầu tháng tới "ngày neo"** (giá trị đang chọn
+ở bộ lọc "Ngày báo cáo", mặc định hôm nay) — KHÔNG cố định 31 sheet như
+file mẫu gốc người dùng gửi (file mẫu có cả sheet "31.11" dù tháng 11 chỉ
+30 ngày, toàn bộ số liệu dòng đó = 0 — là sheet THỪA giữ lại khi người
+dùng tự copy từ 1 tháng 31 ngày trước đó, không phải dữ liệu thật — bản
+này KHÔNG lặp lại lỗi/phần thừa đó).
+
+Mỗi sheet tên `DD.MM` (vd `17.11`), đúng cấu trúc file mẫu:
+- Nhóm **"I. CHUỖI MART"** — các siêu thị `Nhóm chuỗi = MART` — dòng
+  **"TỔNG MART"** (cộng dồn đúng các đo lường thô rồi TÍNH LẠI tỉ lệ/bình
+  quân từ tổng đó, KHÔNG lấy trung bình cộng các tỉ lệ từng dòng).
+- Nhóm **"II. CHUỖI MINIMART"** tương tự — dòng **"TỔNG MINIMART"**.
+- Dòng **"TỔNG HCRC"** (cộng cả 2 nhóm).
+- Cột "TT" đánh số LẠI từ 1 ở mỗi nhóm (khớp đúng file mẫu).
+
+**KHÔNG đưa vào** 3 dòng "KHO INTIMEX"/"KHO ĐTT"/"TỔNG KHO" có trong file
+mẫu gốc — kiểm tra kỹ file mẫu thấy CẢ 3 dòng này LUÔN = 0 ở MỌI cột MỌI
+ngày (không có domain/bảng dữ liệu nào trong hệ thống biết tới các dòng
+"kho" này — người dùng tự gõ tay/giữ chỗ trong file thủ công trước đây).
+Nếu cần thêm lại, báo lại để bổ sung (vd luôn ghi 0 cứng, hoặc đọc từ 1
+nguồn dữ liệu cụ thể nếu có).
+
+**Hiệu năng**: KHÔNG gọi lại Data Warehouse riêng cho từng ngày (tránh
+hàng chục lượt gọi/lần xuất) — chỉ gọi 1 LẦN cho mỗi domain (khoảng rộng
+nhất: đầu năm → ngày neo), gộp nhóm theo ngày NGAY TRONG BỘ NHỚ rồi tính
+từng sheet — xem `rp-server/lib/doanhThuTongHopHcrcMonthlyExport.js`.
+
+**Triển khai**: không cần VIEW/job gì thêm (tái dùng đúng nguồn dữ liệu
+bản 10.86) — chỉ cần `git pull` + build lại `rp-user` (route mới
+`POST /api/reports/bc-doanh-thu-tong-hop-hcrc/export-month`, không cần
+chạy script seed nào).
+
+**Kiểm tra**: bấm nút "Xuất Excel theo tháng (1 sheet/ngày)" ở ngày neo
+bất kỳ (vd 17/11) — file tải về phải có ĐÚNG 17 sheet tên `01.11` tới
+`17.11`, mỗi sheet có đủ nhóm MART/MINIMART + dòng Tổng, số liệu khớp
+đúng số xem được trên web (Phase 1) khi đổi "Ngày báo cáo" sang ngày
+tương ứng từng sheet.
 
 ## 2. Nguồn dữ liệu
 

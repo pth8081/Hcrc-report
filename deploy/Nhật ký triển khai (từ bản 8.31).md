@@ -14,6 +14,22 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.87 — Thêm "Xuất Excel theo tháng (1 sheet/ngày)" cho "Báo cáo tổng hợp doanh thu siêu thị hàng ngày" (Phase 2)
+
+**Thay đổi**: `rp-server/lib/doanhThuTongHopHcrcMonthlyExport.js` (mới) +
+route `POST /api/reports/bc-doanh-thu-tong-hop-hcrc/export-month` + nút
+"Xuất Excel theo tháng (1 sheet/ngày)" ở `ReportsPage.jsx` — xuất 1 file
+.xlsx, số sheet = số ngày từ đầu tháng tới "ngày neo" đang chọn, mỗi sheet
+`DD.MM`, nhóm MART/MINIMART + dòng Tổng, tái dùng nguồn dữ liệu bản 10.86.
+
+**Triển khai**:
+```bash
+git pull origin main
+cd rp-user && npm run build
+```
+
+**Kiểm tra**: bấm nút xuất ở ngày neo 17/11 — file phải có đúng 17 sheet.
+
 ## 10.86 — Đổi nguồn doanh thu báo cáo "Doanh thu tổng hợp HCRC": tái dùng domain `doanhthu_nganhhang`/`doanhthu_chinhanh` đã có, bỏ VIEW mới
 
 **Thay đổi**: `doanhThuTongHopHcrcRunner.js` bỏ domain
