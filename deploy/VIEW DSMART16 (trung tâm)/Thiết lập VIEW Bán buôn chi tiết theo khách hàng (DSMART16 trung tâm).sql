@@ -27,6 +27,14 @@
    tầng báo cáo qua "Ánh xạ Điểm - STK_ID" (bắt buộc theo `CLAUDE.md`),
    KHÔNG JOIN thẳng `dbo.STOCK` ở đây.
 
+   BẢN 10.88 — thêm `MaNhomHang` (theo yêu cầu người dùng — "Mã ngành
+   hàng, Nhóm hàng và mã NCC... mấy cái này đã có thông tin ở báo cáo
+   trước rồi") — `dbo.SKU_DEF` (alias `k`) ĐÃ JOIN SẴN từ bản 10.81, chỉ
+   cần chọn thêm cột `GRP_ID` (giống đúng cách đã làm cho VIEW "Thay đổi
+   giá bán tức thời" ở bản 10.84) — KHÔNG JOIN thêm bảng nào.
+   `MaNganhHang`/`MaNCC` đã có SẴN từ bản 10.81 (chỉ chưa hiện cột báo
+   cáo, bổ sung ở rp-server/scripts/seedBanBuonChiTietReport.js).
+
    AN TOÀN CHẠY LẠI NHIỀU LẦN — `CREATE OR ALTER VIEW`.
    ============================================================================ */
 
@@ -49,6 +57,7 @@ SELECT
     MAX(NULLIF(RTRIM(k.BARCODE), '')) AS MaVach,
     MAX(k.DEPT_ID)               AS MaNganhHang,
     MAX(dl.DEPT_NAME_U)           AS TenNganhHang,
+    MAX(RTRIM(k.GRP_ID))         AS MaNhomHang,
     MAX(RTRIM(s.TAX_CODE))      AS MaThueMatHang,
     MAX(RTRIM(s.SUPP_ID))       AS MaNCC,
     MAX(sup.SUPP_NAME_U)         AS TenNCC,

@@ -69,8 +69,14 @@ const DEFINITION = {
     { key: 'maHang', label: 'Mã hàng', formula: 'MaHangHienThi' },
     { key: 'tenHang', label: 'Tên hàng', formula: 'TenHang' },
     { key: 'maVach', label: 'Mã vạch', formula: 'MaVach' },
+    // maNganhHang/maNhomHang/maNCC thêm bản 10.88 (theo yêu cầu người
+    // dùng) — maNganhHang/maNCC đã có sẵn trong domain từ bản 10.81 (chỉ
+    // chưa hiện cột), maNhomHang mới thêm ở VIEW.
+    { key: 'maNganhHang', label: 'Mã ngành hàng', formula: 'MaNganhHang' },
     { key: 'tenNganhHang', label: 'Ngành hàng', formula: 'TenNganhHang' },
+    { key: 'maNhomHang', label: 'Mã nhóm hàng', formula: 'MaNhomHang' },
     { key: 'maThueMatHang', label: 'Mã thuế', formula: 'MaThueMatHang' },
+    { key: 'maNCC', label: 'Mã NCC', formula: 'MaNCC' },
     { key: 'tenNCC', label: 'Nhà cung cấp', formula: 'TenNCC' },
     { key: 'soLuongBan', label: 'SL bán', formula: 'measures.SoLuongBan' },
     { key: 'doanhSo', label: 'Doanh số', formula: 'measures.DoanhSo' },

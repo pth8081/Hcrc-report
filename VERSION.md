@@ -42,6 +42,28 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.88 — Thêm cột "Mã ngành hàng"/"Mã nhóm hàng"/"Mã NCC" cho báo cáo "Bán buôn chi tiết theo khách hàng"
+
+**Theo yêu cầu người dùng** — "Mã ngành hàng, Nhóm hàng và mã NCC... mấy
+cái này đã có thông tin ở báo cáo trước rồi". `MaNganhHang`/`MaNCC` đã có
+sẵn dữ liệu từ bản 10.81 (VIEW đã JOIN DEPTLIST/SUPPLIER để lấy TÊN, chỉ
+chưa hiện cột MÃ). `MaNhomHang` (`SKU_DEF.GRP_ID`) mới thêm vào VIEW —
+bảng SKU_DEF đã JOIN sẵn từ bản 10.81, chỉ cần chọn thêm 1 cột.
+
+**Triển khai**:
+```bash
+git pull origin main
+# DBA chạy lại file VIEW (an toàn CREATE OR ALTER):
+#   "deploy/VIEW DSMART16 (trung tâm)/Thiết lập VIEW Bán buôn chi tiết
+#   theo khách hàng (DSMART16 trung tâm).sql"
+cd etl && node scripts/seedBanBuonChiTietSync.js
+cd ../rp-server && node scripts/seedBanBuonChiTietReport.js
+cd ../rp-user && npm run build
+```
+
+**Kiểm tra**: mở báo cáo "Bán buôn chi tiết theo khách hàng", phải thấy
+đủ 3 cột mới "Mã ngành hàng"/"Mã nhóm hàng"/"Mã NCC" có số liệu.
+
 ## 10.87 — Thêm "Xuất Excel theo tháng (1 sheet/ngày)" cho "Báo cáo tổng hợp doanh thu siêu thị hàng ngày" (Phase 2)
 
 **Theo yêu cầu người dùng** — "tháng nào 29 thì 29 sheet, tháng nào 30

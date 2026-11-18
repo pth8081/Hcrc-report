@@ -14,6 +14,24 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.88 — Thêm cột "Mã ngành hàng"/"Mã nhóm hàng"/"Mã NCC" cho báo cáo "Bán buôn chi tiết theo khách hàng"
+
+**Thay đổi**: VIEW `vw_BanBuonChiTiet` bổ sung `MaNhomHang`
+(`SKU_DEF.GRP_ID`); báo cáo hiện thêm 3 cột "Mã ngành hàng"/"Mã nhóm
+hàng"/"Mã NCC" (2 cột đầu đã có sẵn dữ liệu từ bản 10.81, chỉ nay mới
+hiện cột).
+
+**Triển khai**:
+```bash
+git pull origin main
+# DBA chạy lại file VIEW (an toàn CREATE OR ALTER)
+cd etl && node scripts/seedBanBuonChiTietSync.js
+cd ../rp-server && node scripts/seedBanBuonChiTietReport.js
+cd ../rp-user && npm run build
+```
+
+**Kiểm tra**: mở báo cáo, phải thấy đủ 3 cột mới có số liệu.
+
 ## 10.87 — Thêm "Xuất Excel theo tháng (1 sheet/ngày)" cho "Báo cáo tổng hợp doanh thu siêu thị hàng ngày" (Phase 2)
 
 **Thay đổi**: `rp-server/lib/doanhThuTongHopHcrcMonthlyExport.js` (mới) +

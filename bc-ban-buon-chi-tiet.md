@@ -23,6 +23,14 @@ hàng, không có khái niệm khách hàng).
   THUẾ (cột MỚI, chưa có domain nào khác dùng) — đã xác nhận khớp CHÍNH
   XÁC với số liệu thật trong file Excel mẫu.
 
+**Bản 10.88** — bổ sung 3 cột (theo yêu cầu người dùng — "Mã ngành hàng,
+Nhóm hàng và mã NCC... mấy cái này đã có thông tin ở báo cáo trước rồi"):
+**Mã ngành hàng** và **Mã NCC** đã CÓ SẴN dữ liệu từ bản 10.81 (VIEW đã
+JOIN `DEPTLIST`/`SUPPLIER` để lấy TÊN, chỉ chưa hiện cột MÃ ở báo cáo).
+**Mã nhóm hàng** (`dbo.SKU_DEF.GRP_ID`) MỚI — bảng SKU_DEF đã JOIN sẵn từ
+bản 10.81 (alias `k`), chỉ cần chọn thêm 1 cột, không JOIN mới (giống hệt
+cách đã làm cho VIEW "Thay đổi giá bán tức thời" ở bản 10.84).
+
 ## 2. Nguồn dữ liệu
 
 VIEW MỚI `dbo.vw_BanBuonChiTiet` trên CSDL `DSMART16` — xem SQL đầy đủ
@@ -49,6 +57,12 @@ api-server — xem `rp-server/scripts/seedDoanhThuSkuNganhHangReports.js`
 cũng làm y hệt vậy, KHÔNG phải thiếu sót riêng của báo cáo này).
 
 ## 3. Các bước triển khai (theo đúng thứ tự)
+
+⚠️ **Nếu chỉ cập nhật lên bản 10.88 (đã triển khai sẵn từ 10.81)** — chỉ
+cần làm lại bước 1 (chạy lại VIEW, an toàn `CREATE OR ALTER`), bước 2
+(chạy lại `seedBanBuonChiTietSync.js` để job nhận thêm cột `MaNhomHang`),
+và bước 4 (chạy lại `seedBanBuonChiTietReport.js` để báo cáo nhận cột
+mới) — KHÔNG cần làm lại bước 3/5.
 
 | # | Việc | Ai làm |
 |---|---|---|

@@ -108,7 +108,8 @@ async function main() {
   const job = {
     name: 'Bán buôn chi tiết theo khách hàng - Live (DSMART16)', dataSourceId: liveId,
     sourceTable: VIEW_NAME, keyColumn: 'MaThucThe', dateColumn: 'WORK_DATE',
-    dimensionColumns: ['STK_ID', 'MaKhach', 'TenKhach', 'NhomKhach', 'CapKhach', 'MaSoThueKhach', 'MaHang', 'MaHangHienThi', 'TenHang', 'MaVach', 'MaNganhHang', 'TenNganhHang', 'MaThueMatHang', 'MaNCC', 'TenNCC'],
+    // MaNhomHang thêm bản 10.88 (theo yêu cầu người dùng).
+    dimensionColumns: ['STK_ID', 'MaKhach', 'TenKhach', 'NhomKhach', 'CapKhach', 'MaSoThueKhach', 'MaHang', 'MaHangHienThi', 'TenHang', 'MaVach', 'MaNganhHang', 'TenNganhHang', 'MaNhomHang', 'MaThueMatHang', 'MaNCC', 'TenNCC'],
     measureColumns: ['SoLuongBan', 'DoanhThu', 'DoanhSo'],
     targetDomain: TARGET_DOMAIN, cronExpression: '*/15 * * * *'
   };
