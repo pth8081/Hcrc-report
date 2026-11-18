@@ -38,25 +38,25 @@ const SOURCE_TYPE = 'doanhThuTongHopHcrc';
 // Việt Nam). DÙNG CHUNG cho cả 2 báo cáo.
 const FILTERS = [{ field: 'eventDate', type: 'date', label: 'Ngày báo cáo' }];
 
-// yearTargetDomain (bản 10.92, SỬA LỖI THẬT — "KH luỹ kế năm" trước đây
-// tra NHẦM domain THÁNG, ra "% hoàn thành" vô lý vd 33828% — xem chú
-// thích đầy đủ ở lib/doanhThuTongHopHcrcRunner.js) — domain Chỉ tiêu CẢ
-// NĂM RIÊNG, admin tự nhập ở etl-admin → "Chỉ tiêu cả năm HCRC"/"...Lãnh
-// đạo Tập đoàn" (xem etl/server.js).
+// "KH doanh thu" (khối năm) = CỘNG DỒN Chỉ tiêu THÁNG đã có (ĐÚNG
+// targetDomain dưới đây, domain TUẦN NHẤT — bản 10.94, SỬA bản 10.92,
+// theo yêu cầu người dùng: "cộng dồn theo tháng đã có target doanh thu
+// tháng LĐTĐ và HCRC cho từng ST/CH rồi nên không cần thêm phần upload
+// mới" — KHÔNG CÒN domain/trang nhập Chỉ tiêu CẢ NĂM riêng nữa, xem chú
+// thích đầy đủ ở lib/doanhThuTongHopHcrcRunner.js) từ đầu năm tới đúng
+// tháng hiện tại.
 const REPORTS = [
   {
     reportId: 'bc-doanh-thu-tong-hop-hcrc',
     title: 'Báo cáo tổng hợp doanh thu siêu thị (HCRC)',
     domain: 'doanhthu_tonghop_hcrc',
-    targetDomain: 'sales-targets-hcrc',
-    yearTargetDomain: 'sales-targets-hcrc-year'
+    targetDomain: 'sales-targets-hcrc'
   },
   {
     reportId: 'bc-doanh-thu-tong-hop-ldtd',
     title: 'Báo cáo tổng hợp doanh thu siêu thị (LĐTĐ)',
     domain: 'doanhthu_tonghop_ldtd',
-    targetDomain: 'sales-targets-ldtd',
-    yearTargetDomain: 'sales-targets-ldtd-year'
+    targetDomain: 'sales-targets-ldtd'
   }
 ];
 
@@ -65,7 +65,6 @@ function buildDefinition(report) {
     title: report.title,
     domain: report.domain,
     targetDomain: report.targetDomain,
-    yearTargetDomain: report.yearTargetDomain,
     filters: FILTERS
   };
 }

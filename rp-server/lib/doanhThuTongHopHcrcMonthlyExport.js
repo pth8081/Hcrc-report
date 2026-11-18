@@ -193,18 +193,18 @@ function buildGroupedSheetRows(storeRows, elapsedDays, totalDaysInMonth) {
 // targetDomain (bản 10.90, theo yêu cầu người dùng) — truyền
 // 'sales-targets-ldtd' từ route export-month của báo cáo
 // bc-doanh-thu-tong-hop-ldtd; không truyền thì mặc định HCRC.
-// yearTargetDomain (bản 10.92, SỬA LỖI THẬT — xem chú thích đầy đủ ở
-// doanhThuTongHopHcrcRunner.js) — domain Chỉ tiêu CẢ NĂM, TÁCH RIÊNG khỏi
-// targetDomain (domain THÁNG) — không truyền thì rơi về targetDomain
-// (hành vi cũ).
-async function buildDoanhThuTongHopHcrcMonthlyWorkbook({ anchorDate, storeScope, targetDomain, yearTargetDomain, titlePrefix }) {
+// Bản 10.94 (SỬA bản 10.92, theo yêu cầu người dùng — xem chú thích đầy
+// đủ ở doanhThuTongHopHcrcRunner.js) — BỎ domain Chỉ tiêu CẢ NĂM riêng,
+// "KH doanh thu" (khối năm) giờ CỘNG DỒN Chỉ tiêu THÁNG đã có (đúng
+// targetDomain) từ đầu năm tới ĐÚNG THÁNG của anchorDate (mọi sheet
+// trong 1 lần xuất luôn CÙNG 1 tháng, nên chỉ cần tính 1 lần ở đây).
+async function buildDoanhThuTongHopHcrcMonthlyWorkbook({ anchorDate, storeScope, targetDomain, titlePrefix }) {
   const reportTitle = (titlePrefix || 'BÁO CÁO TỔNG HỢP DOANH THU SIÊU THỊ HÀNG NGÀY').toUpperCase();
   const anchor = anchorDate || vietnamTodayISO();
   const month = anchor.slice(0, 7);
   const lastDay = dayOfMonth(anchor);
   const monthStart = firstOfMonth(anchor);
   const yearStart = firstOfYear(anchor);
-  const effectiveYearTargetDomain = yearTargetDomain || targetDomain;
 
   const dwhPool = await getPool('DWH');
   const diemMapping = await loadDiemStkMapping();
@@ -215,7 +215,7 @@ async function buildDoanhThuTongHopHcrcMonthlyWorkbook({ anchorDate, storeScope,
     fetchRawRows(dwhPool, NGANHHANG_DOMAIN, yearStart, anchor),
     fetchRawRows(dwhPool, TRANSACTION_DOMAIN, yearStart, anchor),
     fetchTargetsByMaDiem(dwhPool, monthStart, monthStart, targetDomain),
-    fetchTargetsByMaDiem(dwhPool, yearStart, yearStart, effectiveYearTargetDomain),
+    fetchTargetsByMaDiem(dwhPool, yearStart, monthStart, targetDomain),
     fetchStaffCountByMaDiem()
   ]);
 

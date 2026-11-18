@@ -739,20 +739,13 @@ BEGIN
 END
 GO
 
--- Bản 10.92 — Chỉ tiêu DOANH THU CẢ NĂM, 2 trang MỚI (sales-targets-hcrc-year/
--- sales-targets-ldtd-year) — cấp THÊM cho ĐÚNG 2 vai trò nhập chỉ tiêu
--- THÁNG đã có ở trên (cùng nhóm nghiệp vụ phụ trách, hợp lý nhập luôn cả
--- năm), KHÔNG tạo vai trò mới.
-IF NOT EXISTS (SELECT 1 FROM admin.RoleMenuAccess rma JOIN admin.Roles r ON rma.RoleId = r.Id WHERE r.Code = 'target_importer_LDTD' AND rma.MenuCode = 'sales-targets-ldtd-year')
-BEGIN
-    DECLARE @targetImporterLDTDRoleId2 INT = (SELECT Id FROM admin.Roles WHERE Code = 'target_importer_LDTD');
-    INSERT INTO admin.RoleMenuAccess (RoleId, MenuCode, CanEdit) VALUES (@targetImporterLDTDRoleId2, 'sales-targets-ldtd-year', 1);
-END
-IF NOT EXISTS (SELECT 1 FROM admin.RoleMenuAccess rma JOIN admin.Roles r ON rma.RoleId = r.Id WHERE r.Code = 'target_importer_hcrc' AND rma.MenuCode = 'sales-targets-hcrc-year')
-BEGIN
-    DECLARE @targetImporterHcrcRoleId2 INT = (SELECT Id FROM admin.Roles WHERE Code = 'target_importer_hcrc');
-    INSERT INTO admin.RoleMenuAccess (RoleId, MenuCode, CanEdit) VALUES (@targetImporterHcrcRoleId2, 'sales-targets-hcrc-year', 1);
-END
+-- Bản 10.92 từng thêm 2 trang "Chỉ tiêu cả năm" (sales-targets-hcrc-year/
+-- sales-targets-ldtd-year), cấp quyền cho 2 vai trò ở trên — ĐÃ BỎ Ở BẢN
+-- 10.94 (theo yêu cầu người dùng, "KH doanh thu" khối năm giờ cộng dồn
+-- Chỉ tiêu THÁNG đã có, không cần trang riêng nữa) — dọn sạch 2 dòng
+-- quyền thừa nếu server ĐÃ chạy qua bản 10.92 (an toàn chạy lại nhiều lần,
+-- DELETE không lỗi nếu chưa từng có dòng nào).
+DELETE FROM admin.RoleMenuAccess WHERE MenuCode IN ('sales-targets-hcrc-year', 'sales-targets-ldtd-year');
 GO
 
 -- Migrate dữ liệu CŨ: mỗi tài khoản admin.AdminUsers đã có -> gán đúng nhóm

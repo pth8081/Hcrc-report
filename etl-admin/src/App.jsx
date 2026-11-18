@@ -29,7 +29,7 @@ import AccountPage from './pages/AccountPage';
 // MENU_CATALOG) — trước đây thiếu roles/log/audit-log, khiến 1 tài khoản
 // CHỈ được cấp 1 trong các trang này bị điều hướng về '/dashboard' (trang
 // không thấy được) ngay sau đăng nhập thay vì vào đúng trang mình có quyền.
-const LANDING_ORDER = ['dashboard', 'sales-targets-corp', 'sales-targets-hcrc', 'sales-targets-hcrc-year', 'sales-targets-ldtd-year', 'sales-targets-nganhhang-dt', 'sales-targets-nganhhang-nh', 'sales-targets-nganhhang-dt-ldtd', 'data-sources', 'sync-jobs', 'diem-stk-mapping', 'nso-stores', 'core-item-list', 'stock-alert-thresholds', 'log', 'audit-log', 'users', 'roles', 'huong-dan'];
+const LANDING_ORDER = ['dashboard', 'sales-targets-corp', 'sales-targets-hcrc', 'sales-targets-nganhhang-dt', 'sales-targets-nganhhang-nh', 'sales-targets-nganhhang-dt-ldtd', 'data-sources', 'sync-jobs', 'diem-stk-mapping', 'nso-stores', 'core-item-list', 'stock-alert-thresholds', 'log', 'audit-log', 'users', 'roles', 'huong-dan'];
 
 function IndexRedirect() {
   const { can } = useAuth();
@@ -62,23 +62,10 @@ export default function App() {
           <Route path="/sales-targets-hcrc" element={
             <SalesTargetsPage menuCode="sales-targets-hcrc" apiBase="/sales-targets-hcrc" title="Chỉ tiêu HCRC" />
           } />
-          {/* Bản 10.92 — Chỉ tiêu DOANH THU CẢ NĂM (dùng cho "KH luỹ kế
-              năm" ở báo cáo "Doanh thu tổng hợp siêu thị") — DÙNG LẠI
-              nguyên component/shape 'generic' như 2 trang theo ngành hàng
-              bên dưới, chỉ khác domain + cột "Thang" nhập "YYYY-01" (tháng
-              01 của năm đó) để đại diện cho CẢ NĂM đó. */}
-          <Route path="/sales-targets-hcrc-year" element={
-            <SalesTargetsPage
-              menuCode="sales-targets-hcrc-year" apiBase="/sales-targets-hcrc-year" title="Chỉ tiêu cả năm HCRC"
-              description={'Lưu ý: cột "Thang" nhập dạng "YYYY-01" (tháng 01 của năm đó, vd "2026-01" cho năm 2026) — số ở cột "ChiTieuDoanhThu" dòng đó là CHỈ TIÊU CỦA CẢ NĂM đó, không phải riêng tháng 1. Dùng cho "KH luỹ kế năm" ở báo cáo "Doanh thu tổng hợp siêu thị (HCRC)".'}
-            />
-          } />
-          <Route path="/sales-targets-ldtd-year" element={
-            <SalesTargetsPage
-              menuCode="sales-targets-ldtd-year" apiBase="/sales-targets-ldtd-year" title="Chỉ tiêu cả năm Lãnh đạo Tập đoàn"
-              description={'Lưu ý: cột "Thang" nhập dạng "YYYY-01" (tháng 01 của năm đó, vd "2026-01" cho năm 2026) — số ở cột "ChiTieuDoanhThu" dòng đó là CHỈ TIÊU CỦA CẢ NĂM đó, không phải riêng tháng 1. Dùng cho "KH luỹ kế năm" ở báo cáo "Doanh thu tổng hợp siêu thị (LĐTĐ)".'}
-            />
-          } />
+          {/* Bản 10.92 từng thêm 2 trang "Chỉ tiêu cả năm HCRC"/"...LĐTĐ" —
+              ĐÃ BỎ Ở BẢN 10.94 (theo yêu cầu người dùng: "KH doanh thu"
+              khối năm giờ cộng dồn Chỉ tiêu THÁNG đã có ở 2 trang trên,
+              không cần chỗ nhập riêng). */}
           {/* Bản 9.41+ — Chỉ tiêu "theo ngành hàng", THEO TOÀN CÔNG TY (để
               trống MaSieuThi + điền MaNganhHang trong file nhập, xem
               etl/lib/salesTargetsImport.js:parseGenericShape()). */}

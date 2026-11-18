@@ -36,10 +36,6 @@ const MENU_CATALOG = [
   { code: 'sales-targets-nganhhang-dt', label: 'Chỉ tiêu Doanh thu theo ngành hàng' },
   { code: 'sales-targets-nganhhang-nh', label: 'Chỉ tiêu Nhập hàng theo ngành hàng' },
   { code: 'sales-targets-nganhhang-dt-ldtd', label: 'Chỉ tiêu Doanh thu theo ngành hàng (LDTD)' },
-  // Bản 10.92 — Chỉ tiêu DOANH THU CẢ NĂM, 2 trang RIÊNG HCRC/LĐTĐ (dùng
-  // cho "KH luỹ kế năm" ở báo cáo "Doanh thu tổng hợp siêu thị").
-  { code: 'sales-targets-hcrc-year', label: 'Chỉ tiêu cả năm HCRC' },
-  { code: 'sales-targets-ldtd-year', label: 'Chỉ tiêu cả năm Lãnh đạo Tập đoàn' },
   { code: 'log', label: 'Nhật ký đồng bộ' },
   { code: 'audit-log', label: 'Nhật ký thao tác' },
   { code: 'users', label: 'Phân quyền' },

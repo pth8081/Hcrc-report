@@ -508,7 +508,7 @@ router.post('/:reportId/export-month', async (req, res, next) => {
     const storeScope = Array.isArray(context.storeScope) ? new Set(context.storeScope) : null;
     const buffer = await buildDoanhThuTongHopHcrcMonthlyWorkbook({
       anchorDate: eventDate, storeScope,
-      targetDomain: definition.targetDomain, yearTargetDomain: definition.yearTargetDomain,
+      targetDomain: definition.targetDomain,
       titlePrefix: definition.title
     });
     const fileLabel = (eventDate || '').slice(0, 7) || 'thang-nay';

@@ -269,17 +269,6 @@ async function runDoanhThuTongHopHcrcReport(definition, filterValues) {
   // đặt) — không khai thì mặc định TARGET_DOMAIN ('sales-targets-hcrc'),
   // giữ đúng hành vi cũ cho bc-doanh-thu-tong-hop-hcrc.
   const targetDomain = definition.targetDomain || TARGET_DOMAIN;
-  // yearTargetDomain (bản 10.92, SỬA LỖI THẬT — "KH luỹ kế năm" trước đây
-  // tra NHẦM domain THÁNG (targetDomain ở trên) với fromPeriod=toPeriod=
-  // firstOfYear(ngày neo) — domain đó CHỈ CÓ DỮ LIỆU THÁNG (vd tháng 1),
-  // không có dòng nào đúng kỳ "năm" nên ra số SAI/thiếu (ảnh người dùng
-  // gửi: "% hoàn thành" = 33828%, vì so DT LUỸ KẾ CẢ NĂM với 1 THÁNG CHỈ
-  // TIÊU). Domain Chỉ tiêu CẢ NĂM giờ TÁCH RIÊNG hẳn (xem etl/server.js —
-  // 'sales-targets-hcrc-year'/'sales-targets-ldtd-year', admin tự nhập ở
-  // etl-admin). Không khai definition.yearTargetDomain -> rơi về
-  // targetDomain (hành vi CŨ, để không vỡ báo cáo nào khác lỡ dùng chung
-  // runner này mà chưa kịp cấu hình domain năm riêng).
-  const yearTargetDomain = definition.yearTargetDomain || targetDomain;
 
   // Diện tích/Nhóm chuỗi là thông tin TĨNH (không đổi theo ngày) — chỉ cần
   // lấy 1 lần, dùng khoảng rộng nhất (cả năm) để tối đa khả năng có dữ liệu.
@@ -297,9 +286,21 @@ async function runDoanhThuTongHopHcrcReport(definition, filterValues) {
   // Kế hoạch DT/Bill hiện ở khối Ngày = kế hoạch CẢ THÁNG (đã xác nhận với
   // người dùng) -> CHỈ cần 2 khối: tháng (dùng chung cho cả "Ngày" lẫn
   // "Tháng") và năm (KH luỹ kế năm).
+  //
+  // Bản 10.94 (SỬA bản 10.92/10.93, theo yêu cầu người dùng — "chỗ KH
+  // doanh thu thì bạn cộng dồn theo tháng đã có target doanh thu tháng
+  // LĐTĐ và HCRC cho từng ST/CH rồi nên không cần thêm phần upload mới
+  // (bỏ đi) và cộng dồn đến tháng hiện tại") — BỎ HẲN domain Chỉ tiêu CẢ
+  // NĂM riêng (yearTargetDomain) của bản 10.92 — "KH doanh thu" (khối
+  // năm) giờ = CỘNG DỒN Chỉ tiêu THÁNG đã có (ĐÚNG domain `targetDomain`,
+  // KHÔNG domain mới) từ ĐẦU NĂM tới ĐÚNG THÁNG HIỆN TẠI (không phải cả
+  // 12 tháng, không phải chỉ 1 tháng) — `fetchTargetsByMaDiem`/
+  // `runSalesTargetsBlockRange` ĐÃ SẴN CÓ cơ chế cộng dồn nhiều kỳ trong
+  // 1 khoảng (xem lib/salesTargetsReader.js:aggregateTargetRowsByEntity),
+  // chỉ cần đổi khoảng truyền vào, không cần domain/bảng mới nào.
   const [monthTarget, yearTarget] = await Promise.all([
     fetchTargetsByMaDiem(dwhPool, firstOfMonth(today), firstOfMonth(today), targetDomain),
-    fetchTargetsByMaDiem(dwhPool, firstOfYear(today), firstOfYear(today), yearTargetDomain)
+    fetchTargetsByMaDiem(dwhPool, firstOfYear(today), firstOfMonth(today), targetDomain)
   ]);
   const staffCount = await fetchStaffCountByMaDiem();
 

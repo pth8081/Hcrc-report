@@ -14,6 +14,26 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.94 — SỬA bản 10.92: "KH doanh thu" khối năm = cộng dồn Chỉ tiêu tháng, bỏ chỗ nhập Chỉ tiêu cả năm riêng
+
+**Thay đổi**: Bỏ hẳn 2 trang/2 domain Chỉ tiêu CẢ NĂM của bản 10.92
+(`sales-targets-hcrc-year`/`-ldtd-year`). "KH doanh thu" (khối năm) giờ
+cộng dồn Chỉ tiêu THÁNG đã có (`sales-targets-hcrc`/`-ldtd`) từ đầu năm
+tới đúng tháng hiện tại.
+
+**Triển khai**:
+```bash
+git pull origin main
+# DBA chạy lại etl-db/schema.sql
+cd etl && pm2 restart etl
+cd ../etl-admin && npm run build
+cd ../rp-server && node scripts/seedDoanhThuTongHopHcrcReport.js
+pm2 restart rp-server
+```
+
+**Kiểm tra**: "KH doanh thu" = tổng Chỉ tiêu THÁNG từ tháng 1 tới tháng
+hiện tại.
+
 ## 10.93 — SỬA LỖI: "Số lượng nhân sự" luôn = 0 ở báo cáo "Doanh thu tổng hợp siêu thị"
 
 **Thay đổi**: `fetchStaffCountByMaDiem()` đổi từ đếm `app.UserStoreAccess`

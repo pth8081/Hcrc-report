@@ -42,6 +42,34 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.94 — SỬA bản 10.92: "KH doanh thu" khối năm = cộng dồn Chỉ tiêu tháng, bỏ chỗ nhập Chỉ tiêu cả năm riêng
+
+**Theo yêu cầu người dùng** — *"chỗ KH doanh thu thì bạn cộng dồn theo
+tháng đã có target doanh thu tháng LĐTĐ và HCRC cho từng ST/CH rồi nên
+không cần thêm phần upload mới (bỏ đi) và cộng dồn đến tháng hiện tại"*.
+
+**BỎ HẲN** 2 trang/2 domain Chỉ tiêu CẢ NĂM của bản 10.92
+(`sales-targets-hcrc-year`/`sales-targets-ldtd-year`, route etl-admin,
+menu, phân quyền — dọn sạch). "KH doanh thu" (khối năm) giờ = CỘNG DỒN
+Chỉ tiêu THÁNG đã có (đúng domain `sales-targets-hcrc`/`sales-targets-ldtd`
+sẵn có) từ đầu năm tới ĐÚNG THÁNG HIỆN TẠI — dùng nguyên cơ chế cộng dồn
+nhiều kỳ có sẵn của `runSalesTargetsBlockRange()`, chỉ đổi khoảng
+truyền vào (`firstOfYear`→`firstOfMonth` thay vì `firstOfYear`→`firstOfYear`),
+không cần domain/bảng/trang nhập nào mới.
+
+**Triển khai**:
+```bash
+git pull origin main
+# DBA chạy lại etl-db/schema.sql (tự dọn quyền thừa nếu server đã chạy 10.92)
+cd etl && pm2 restart etl
+cd ../etl-admin && npm run build
+cd ../rp-server && node scripts/seedDoanhThuTongHopHcrcReport.js
+pm2 restart rp-server
+```
+
+**Kiểm tra**: "KH doanh thu" (khối năm) = tổng Chỉ tiêu THÁNG từ tháng 1
+tới tháng hiện tại; "% hoàn thành" là số hợp lý.
+
 ## 10.93 — SỬA LỖI: "Số lượng nhân sự" luôn = 0 ở báo cáo "Doanh thu tổng hợp siêu thị"
 
 **Lỗi thật người dùng gặp** (ảnh chụp màn hình, mọi siêu thị đều ra 0).
