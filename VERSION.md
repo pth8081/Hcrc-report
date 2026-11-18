@@ -42,6 +42,37 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.92 — SỬA LỖI "KH luỹ kế năm" sai + thêm nhập Chỉ tiêu CẢ NĂM (HCRC/LĐTĐ)
+
+**Lỗi thật người dùng gặp** (ảnh "% hoàn thành" = 33828%) — khối "KH luỹ
+kế năm" tra NHẦM domain Chỉ tiêu THÁNG với kỳ "cả năm" (domain đó không
+có khái niệm năm), ra số sai/thiếu. Người dùng: *"Kế hoạch doanh thu này
+chưa có, tôi cần có chỗ để import theo năm... giống target LĐTĐ và HCRC
+doanh thu hàng tháng"*.
+
+**Thêm 2 domain Chỉ tiêu CẢ NĂM RIÊNG** (`sales-targets-hcrc-year`/
+`sales-targets-ldtd-year`) + **2 trang etl-admin MỚI** ("Chỉ tiêu cả năm
+HCRC"/"...Lãnh đạo Tập đoàn") — dùng lại NGUYÊN hạ tầng nhập chỉ tiêu
+tháng đã có (`createSalesTargetsRouter` + `SalesTargetsPage.jsx`), chỉ
+khác cột "Thang" nhập "YYYY-01" đại diện CẢ NĂM đó. `doanhThuTongHopHcrcRunner.js`/
+`doanhThuTongHopHcrcMonthlyExport.js` đổi sang tra ĐÚNG domain năm này
+(`definition.yearTargetDomain`) thay vì domain tháng.
+
+**Triển khai**:
+```bash
+git pull origin main
+# DBA chạy lại etl-db/schema.sql (cấp quyền 2 trang mới cho vai trò đã có)
+cd etl && pm2 restart etl   # nạp 2 route mới, hoặc lệnh khởi động lại thật đang dùng
+cd ../etl-admin && npm run build
+cd ../rp-server && node scripts/seedDoanhThuTongHopHcrcReport.js
+pm2 restart rp-server
+```
+Sau đó vào etl-admin → "Chỉ tiêu cả năm HCRC"/"...Lãnh đạo Tập đoàn" nhập
+Chỉ tiêu DT cả năm cho từng siêu thị.
+
+**Kiểm tra**: mở báo cáo, "KH doanh thu" (khối năm) ra đúng số vừa nhập,
+"% hoàn thành" là số hợp lý (không còn hàng chục nghìn %).
+
 ## 10.91 — SỬA LỖI: "Mã NCC"/"Nhà cung cấp" luôn rỗng ở báo cáo "Bán buôn chi tiết theo khách hàng"
 
 **Lỗi thật người dùng gặp trên server** (ảnh chụp màn hình) — cột "Mã

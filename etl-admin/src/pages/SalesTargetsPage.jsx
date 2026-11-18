@@ -31,7 +31,12 @@ import { useRowSelection } from '../lib/useRowSelection';
 
 const EMPTY_EDIT_FORM = { entityCode: '', periodMonth: '', trangThai: false, otherTargetsJson: '{}' };
 
-export default function SalesTargetsPage({ menuCode, apiBase, title }) {
+// description (TUỲ CHỌN, bản 10.92) — 1 ghi chú RIÊNG hiện ngay dưới tiêu
+// đề, dùng cho 2 trang "Chỉ tiêu cả năm HCRC"/"...Lãnh đạo Tập đoàn" (giải
+// thích quy ước cột "Thang" nhập "YYYY-01" đại diện cho CẢ NĂM đó, tránh
+// nhầm với 2 trang chỉ tiêu THÁNG) — trang khác không truyền thì không đổi
+// gì (chỉ thêm đoạn này nếu có).
+export default function SalesTargetsPage({ menuCode, apiBase, title, description }) {
   // Server đã chặn đúng (requireMenuEdit(menuCode)) nếu tài khoản chỉ được
   // cấp quyền XEM trang này — nhưng trước đây giao diện vẫn hiện đủ 2 form
   // nhập/sửa bất kể quyền, khiến người chỉ-xem bấm "Nhập chỉ tiêu"/"Lưu"
@@ -230,6 +235,7 @@ export default function SalesTargetsPage({ menuCode, apiBase, title }) {
   return (
     <div className="page">
       <h1>{title}</h1>
+      {description && <p className="hint">{description}</p>}
       <p>
         Tải lên file Excel (.xlsx) chỉ tiêu cho từng siêu thị — nhập lại đúng ngày/tháng sẽ
         GHI ĐÈ số liệu cũ, không cộng dồn. Chỉ tiêu nhập ở trang này ĐỘC LẬP hoàn toàn với

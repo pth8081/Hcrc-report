@@ -125,6 +125,26 @@ app.use('/admin/dashboard', adminDashboardRoutes);
 // EntityCode gõ sai/nhầm khi nhập chỉ tiêu (xem routes/admin/salesTargets.js).
 app.use('/admin/sales-targets-corp', createSalesTargetsRouter('sales-targets-corp', 'sales-targets-ldtd', 'doanhthu_chinhanh', 'ldtd-daily'));
 app.use('/admin/sales-targets-hcrc', createSalesTargetsRouter('sales-targets-hcrc', 'sales-targets-hcrc', 'doanhthu_chinhanh', 'hcrc-daily'));
+// Chỉ tiêu DOANH THU CẢ NĂM (bản 10.92, theo yêu cầu người dùng — "Kế
+// hoạch doanh thu [cả năm] chưa có, tôi cần có chỗ để import theo năm,
+// giống target LĐTĐ và HCRC doanh thu hàng tháng") — DÙNG LẠI NGUYÊN
+// shape 'generic' (2 cột cố định MaSieuThi+Thang, xem
+// lib/salesTargetsImport.js) THAY VÌ viết thêm 1 shape/kỳ hạn "năm" mới —
+// admin nhập cột "Thang" dưới dạng "YYYY-01" (tháng 01 của năm đó), SỐ Ở
+// DÒNG ĐÓ LÀ CHỈ TIÊU CỦA CẢ NĂM ĐÓ (không phải riêng tháng 1) — khớp
+// ĐÚNG cách rp-server/lib/doanhThuTongHopHcrcRunner.js tra Chỉ tiêu năm
+// (firstOfYear(ngày neo) = "YYYY-01-01", xem yearTargetDomain ở
+// rp-server/scripts/seedDoanhThuTongHopHcrcReport.js). 2 domain RIÊNG
+// biệt (KHÔNG dùng chung domain tháng 'sales-targets-hcrc'/'-ldtd' ở
+// trên) để không ghi đè lẫn chỉ tiêu tháng 1 thật với chỉ tiêu cả năm.
+app.use('/admin/sales-targets-hcrc-year', createSalesTargetsRouter(
+  'sales-targets-hcrc-year', 'sales-targets-hcrc-year', 'doanhthu_chinhanh', 'generic',
+  [{ key: 'ChiTieuDoanhThu', sample: 50000000000 }]
+));
+app.use('/admin/sales-targets-ldtd-year', createSalesTargetsRouter(
+  'sales-targets-ldtd-year', 'sales-targets-ldtd-year', 'doanhthu_chinhanh', 'generic',
+  [{ key: 'ChiTieuDoanhThu', sample: 55000000000 }]
+));
 // Chỉ tiêu "theo ngành hàng" (bản 9.41+, theo yêu cầu người dùng) — THEO
 // TOÀN CÔNG TY (1 con số/ngành hàng, không tách chi nhánh — khác hẳn
 // 'doanhthu_chinhanh' ở trên), shape 'generic' (để TRỐNG MaSieuThi + điền

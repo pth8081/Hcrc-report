@@ -38,18 +38,25 @@ const SOURCE_TYPE = 'doanhThuTongHopHcrc';
 // Việt Nam). DÙNG CHUNG cho cả 2 báo cáo.
 const FILTERS = [{ field: 'eventDate', type: 'date', label: 'Ngày báo cáo' }];
 
+// yearTargetDomain (bản 10.92, SỬA LỖI THẬT — "KH luỹ kế năm" trước đây
+// tra NHẦM domain THÁNG, ra "% hoàn thành" vô lý vd 33828% — xem chú
+// thích đầy đủ ở lib/doanhThuTongHopHcrcRunner.js) — domain Chỉ tiêu CẢ
+// NĂM RIÊNG, admin tự nhập ở etl-admin → "Chỉ tiêu cả năm HCRC"/"...Lãnh
+// đạo Tập đoàn" (xem etl/server.js).
 const REPORTS = [
   {
     reportId: 'bc-doanh-thu-tong-hop-hcrc',
     title: 'Báo cáo tổng hợp doanh thu siêu thị (HCRC)',
     domain: 'doanhthu_tonghop_hcrc',
-    targetDomain: 'sales-targets-hcrc'
+    targetDomain: 'sales-targets-hcrc',
+    yearTargetDomain: 'sales-targets-hcrc-year'
   },
   {
     reportId: 'bc-doanh-thu-tong-hop-ldtd',
     title: 'Báo cáo tổng hợp doanh thu siêu thị (LĐTĐ)',
     domain: 'doanhthu_tonghop_ldtd',
-    targetDomain: 'sales-targets-ldtd'
+    targetDomain: 'sales-targets-ldtd',
+    yearTargetDomain: 'sales-targets-ldtd-year'
   }
 ];
 
@@ -58,6 +65,7 @@ function buildDefinition(report) {
     title: report.title,
     domain: report.domain,
     targetDomain: report.targetDomain,
+    yearTargetDomain: report.yearTargetDomain,
     filters: FILTERS
   };
 }

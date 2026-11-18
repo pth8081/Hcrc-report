@@ -36,6 +36,33 @@ phân trang, có nhóm cột màu Ngày/Tháng/Năm/KH luỹ kế giống Excel/
 **Phase 2 — xuất Excel 1 sheet/ngày — đã làm ở BẢN 10.87**, xem mục ghi
 chú riêng bên dưới.
 
+⚠️ **BẢN 10.92 — SỬA LỖI "KH luỹ kế năm" sai + THÊM chỗ nhập Chỉ tiêu CẢ
+NĂM** (ảnh người dùng gửi: "% hoàn thành" ra số vô lý vd 33828%; người
+dùng: *"Kế hoạch doanh thu này chưa có, tôi cần có chỗ để import theo
+năm... giống target LĐTĐ và HCRC doanh thu hàng tháng"*).
+
+**Nguyên nhân lỗi**: khối "KH luỹ kế năm" trước đây (bản 10.82-10.90) tra
+NHẦM domain THÁNG (`sales-targets-hcrc`/`sales-targets-ldtd`) với kỳ
+`firstOfYear(ngày neo)` — domain đó CHỈ có dữ liệu THEO THÁNG (vd tháng
+1), không hề có khái niệm "cả năm", nên ra số sai/thiếu, % so sánh DT
+LUỸ KẾ CẢ NĂM với 1 THÁNG chỉ tiêu ra tỉ lệ vô lý.
+
+**Giải pháp**: 2 domain Chỉ tiêu CẢ NĂM MỚI, RIÊNG BIỆT hẳn khỏi domain
+tháng — `sales-targets-hcrc-year` (báo cáo HCRC) / `sales-targets-ldtd-year`
+(báo cáo LĐTĐ) — admin tự nhập ở etl-admin, **2 trang MỚI**:
+- "Chỉ tiêu cả năm HCRC" (`/sales-targets-hcrc-year`)
+- "Chỉ tiêu cả năm Lãnh đạo Tập đoàn" (`/sales-targets-ldtd-year`)
+
+Giống HỆT 2 trang nhập chỉ tiêu THÁNG đã có (`createSalesTargetsRouter`
+factory dùng CHUNG, shape `'generic'`, KHÔNG viết thêm shape/kỳ hạn mới)
+— chỉ khác: cột **"Thang" nhập dạng "YYYY-01"** (tháng 01 của năm đó, vd
+"2026-01" cho CẢ NĂM 2026) — số ở cột "ChiTieuDoanhThu" dòng đó là CHỈ
+TIÊU CỦA CẢ NĂM đó (không phải riêng tháng 1) — khớp đúng cách
+`doanhThuTongHopHcrcRunner.js` tra Chỉ tiêu năm (`firstOfYear(ngày neo) =
+"YYYY-01-01"`). Trang có ghi chú rõ quy ước này ngay trên giao diện.
+Cùng vai trò `target_importer_hcrc`/`target_importer_LDTD` đã có (nhóm
+nghiệp vụ phụ trách chỉ tiêu tháng cũng phụ trách luôn chỉ tiêu năm).
+
 ⚠️ **BẢN 10.90 — TÁCH 2 BÁO CÁO HCRC/LĐTĐ + sửa công thức "Tổng cộng"**
 (theo yêu cầu người dùng, kèm ảnh mẫu đối chiếu công thức). **2 báo cáo
 RIÊNG, CÙNG dữ liệu doanh thu/siêu thị, CHỈ khác nguồn Chỉ tiêu** (giống
@@ -157,12 +184,14 @@ bản 10.82 (file vẫn còn trong repo để tham khảo nếu sau này cần l
 
 | # | Việc | Ai làm |
 |---|---|---|
-| 1 | Chạy `etl-db/schema.sql` trên CSDL ETL (an toàn chạy lại nhiều lần) — thêm cột `MaQLKV` vào `etl.DiemStkMapping` | DBA/IT |
-| 2 | `git pull origin main` — lấy code mới nhất (`doanhThuTongHopHcrcRunner.js` bản 10.86) | IT/Dev |
-| 3 | Chạy `node rp-server/scripts/seedDoanhThuTongHopHcrcReport.js [menuCode]` (thư mục `rp-server/`) — **TẠO CẢ 2 báo cáo** (HCRC + LĐTĐ), mặc định đặt ở menu `reports-kinh-doanh` | Admin rp-user / IT-Dev |
-| 4 | Vào Hệ thống → Phân quyền, gán quyền xem RIÊNG cho `bc-doanh-thu-tong-hop-hcrc` VÀ `bc-doanh-thu-tong-hop-ldtd` (có thể cấp khác nhau — vd chỉ lãnh đạo tập đoàn xem được báo cáo LĐTĐ) | Admin rp-user |
-| 5 | (TUỲ CHỌN, khuyến nghị) Vào etl-admin → "Ánh xạ Điểm - STK_ID" → điền cột "Mã QLKV" cho các mã Điểm cần nhóm theo khu vực quản lý | Admin etl-admin |
-| 6 | Báo cáo "(LĐTĐ)" cần domain `sales-targets-ldtd` ĐÃ ĐƯỢC NHẬP (etl-admin → "Chỉ tiêu Lãnh đạo Tập đoàn") — nếu chưa nhập, cột Kế hoạch/% hoàn thành của báo cáo này hiện rỗng (không phải lỗi) | Admin etl-admin |
+| 1 | Chạy `etl-db/schema.sql` trên CSDL ETL (an toàn chạy lại nhiều lần) — thêm cột `MaQLKV` vào `etl.DiemStkMapping` + 2 vai trò `target_importer_hcrc`/`target_importer_LDTD` được cấp thêm quyền 2 trang Chỉ tiêu cả năm (bản 10.92) | DBA/IT |
+| 2 | `git pull origin main` — lấy code mới nhất | IT/Dev |
+| 3 | Khởi động lại `etl` (nạp 2 route MỚI `/admin/sales-targets-hcrc-year`/`-ldtd-year`, bản 10.92) + build lại `etl-admin` | IT/Dev |
+| 4 | Chạy `node rp-server/scripts/seedDoanhThuTongHopHcrcReport.js [menuCode]` (thư mục `rp-server/`) — **TẠO CẢ 2 báo cáo** (HCRC + LĐTĐ), mặc định đặt ở menu `reports-kinh-doanh` | Admin rp-user / IT-Dev |
+| 5 | Vào Hệ thống → Phân quyền, gán quyền xem RIÊNG cho `bc-doanh-thu-tong-hop-hcrc` VÀ `bc-doanh-thu-tong-hop-ldtd` (có thể cấp khác nhau — vd chỉ lãnh đạo tập đoàn xem được báo cáo LĐTĐ) | Admin rp-user |
+| 6 | (TUỲ CHỌN, khuyến nghị) Vào etl-admin → "Ánh xạ Điểm - STK_ID" → điền cột "Mã QLKV" cho các mã Điểm cần nhóm theo khu vực quản lý | Admin etl-admin |
+| 7 | Vào etl-admin → **"Chỉ tiêu cả năm HCRC"**/**"Chỉ tiêu cả năm Lãnh đạo Tập đoàn"** (MỚI, bản 10.92) → nhập Chỉ tiêu DT cả năm cho từng siêu thị (cột "Thang" nhập "YYYY-01" đại diện cả năm đó — xem ghi chú trên trang) | Admin etl-admin (đúng nhóm phụ trách Chỉ tiêu) |
+| 8 | Báo cáo "(LĐTĐ)" cần domain `sales-targets-ldtd` (chỉ tiêu THÁNG) ĐÃ ĐƯỢC NHẬP — nếu chưa nhập, cột Kế hoạch (tháng)/% hoàn thành luỹ kế tháng hiện rỗng (không phải lỗi) | Admin etl-admin |
 
 ## 4. Cách kiểm tra sau khi triển khai xong
 
@@ -181,3 +210,9 @@ RA Y HỆT NHAU ở cả 2 báo cáo (cùng nguồn dữ liệu siêu thị); CH
 "Kế hoạch DT"/"Kế hoạch Bill"/"KH doanh thu"/"% hoàn thành" được PHÉP
 khác nhau (2 nguồn Chỉ tiêu riêng biệt) — nếu 2 báo cáo ra SỐ DOANH THU
 khác nhau là có lỗi, báo lại ngay.
+
+**Riêng cho bản 10.92**: sau khi nhập Chỉ tiêu cả năm ở etl-admin, mở
+báo cáo — khối "KH luỹ kế năm", cột "KH doanh thu" phải ra ĐÚNG số vừa
+nhập cho mã Điểm/năm đó, "% hoàn thành" phải là SỐ HỢP LÝ (vài chục %,
+KHÔNG còn hàng chục nghìn % như lỗi cũ). Chưa nhập Chỉ tiêu cả năm cho 1
+mã Điểm thì 2 cột đó hiện rỗng — bình thường, không phải lỗi.

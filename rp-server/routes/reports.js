@@ -506,7 +506,11 @@ router.post('/:reportId/export-month', async (req, res, next) => {
     }
     const { eventDate } = req.body || {};
     const storeScope = Array.isArray(context.storeScope) ? new Set(context.storeScope) : null;
-    const buffer = await buildDoanhThuTongHopHcrcMonthlyWorkbook({ anchorDate: eventDate, storeScope, targetDomain: definition.targetDomain, titlePrefix: definition.title });
+    const buffer = await buildDoanhThuTongHopHcrcMonthlyWorkbook({
+      anchorDate: eventDate, storeScope,
+      targetDomain: definition.targetDomain, yearTargetDomain: definition.yearTargetDomain,
+      titlePrefix: definition.title
+    });
     const fileLabel = (eventDate || '').slice(0, 7) || 'thang-nay';
     await logAction(req, {
       module: 'Báo cáo', actionType: 'XUAT_BAO_CAO', targetObject: req.params.reportId,

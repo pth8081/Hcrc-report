@@ -739,6 +739,22 @@ BEGIN
 END
 GO
 
+-- Bản 10.92 — Chỉ tiêu DOANH THU CẢ NĂM, 2 trang MỚI (sales-targets-hcrc-year/
+-- sales-targets-ldtd-year) — cấp THÊM cho ĐÚNG 2 vai trò nhập chỉ tiêu
+-- THÁNG đã có ở trên (cùng nhóm nghiệp vụ phụ trách, hợp lý nhập luôn cả
+-- năm), KHÔNG tạo vai trò mới.
+IF NOT EXISTS (SELECT 1 FROM admin.RoleMenuAccess rma JOIN admin.Roles r ON rma.RoleId = r.Id WHERE r.Code = 'target_importer_LDTD' AND rma.MenuCode = 'sales-targets-ldtd-year')
+BEGIN
+    DECLARE @targetImporterLDTDRoleId2 INT = (SELECT Id FROM admin.Roles WHERE Code = 'target_importer_LDTD');
+    INSERT INTO admin.RoleMenuAccess (RoleId, MenuCode, CanEdit) VALUES (@targetImporterLDTDRoleId2, 'sales-targets-ldtd-year', 1);
+END
+IF NOT EXISTS (SELECT 1 FROM admin.RoleMenuAccess rma JOIN admin.Roles r ON rma.RoleId = r.Id WHERE r.Code = 'target_importer_hcrc' AND rma.MenuCode = 'sales-targets-hcrc-year')
+BEGIN
+    DECLARE @targetImporterHcrcRoleId2 INT = (SELECT Id FROM admin.Roles WHERE Code = 'target_importer_hcrc');
+    INSERT INTO admin.RoleMenuAccess (RoleId, MenuCode, CanEdit) VALUES (@targetImporterHcrcRoleId2, 'sales-targets-hcrc-year', 1);
+END
+GO
+
 -- Migrate dữ liệu CŨ: mỗi tài khoản admin.AdminUsers đã có -> gán đúng nhóm
 -- quyền tương ứng theo cột Role cũ (idempotent — chỉ thêm dòng CHƯA có).
 INSERT INTO admin.AdminUserRoles (AdminUserId, RoleId)

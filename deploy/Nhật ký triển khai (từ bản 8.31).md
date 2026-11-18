@@ -14,6 +14,27 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.92 — SỬA LỖI "KH luỹ kế năm" sai + thêm nhập Chỉ tiêu CẢ NĂM (HCRC/LĐTĐ)
+
+**Thay đổi**: "KH luỹ kế năm" trước đây tra nhầm domain Chỉ tiêu THÁNG
+(không có khái niệm năm) cho kỳ "cả năm". Thêm 2 domain/2 trang etl-admin
+MỚI để nhập Chỉ tiêu CẢ NĂM riêng (`sales-targets-hcrc-year`/
+`sales-targets-ldtd-year`, dùng lại hạ tầng nhập chỉ tiêu tháng có sẵn).
+Runner đổi sang tra đúng domain năm qua `definition.yearTargetDomain`.
+
+**Triển khai**:
+```bash
+git pull origin main
+# DBA chạy lại etl-db/schema.sql
+cd etl && pm2 restart etl
+cd ../etl-admin && npm run build
+cd ../rp-server && node scripts/seedDoanhThuTongHopHcrcReport.js
+pm2 restart rp-server
+```
+Nhập Chỉ tiêu cả năm ở etl-admin → "Chỉ tiêu cả năm HCRC"/"...LĐTĐ".
+
+**Kiểm tra**: "KH doanh thu"/"% hoàn thành" (khối năm) ra số hợp lý.
+
 ## 10.91 — SỬA LỖI: "Mã NCC"/"Nhà cung cấp" luôn rỗng ở báo cáo "Bán buôn chi tiết theo khách hàng"
 
 **Thay đổi**: VIEW `vw_BanBuonChiTiet` — SUPP_ID lấy từ dòng giao dịch

@@ -41,6 +41,10 @@ const NAV = [
   // riêng cho 5 mục chỉ tiêu này nữa.
   { path: '/sales-targets-corp', label: 'Chỉ tiêu Lãnh đạo Tập đoàn', icon: '🎯', menuCode: 'sales-targets-corp', editOnly: true, group: 'target' },
   { path: '/sales-targets-hcrc', label: 'Chỉ tiêu HCRC', icon: '🎯', menuCode: 'sales-targets-hcrc', editOnly: true, group: 'target' },
+  // Bản 10.92 — Chỉ tiêu DOANH THU CẢ NĂM (khác 2 mục tháng ở trên — dùng
+  // cho "KH luỹ kế năm" ở báo cáo "Doanh thu tổng hợp siêu thị").
+  { path: '/sales-targets-hcrc-year', label: 'Chỉ tiêu cả năm HCRC', icon: '🎯', menuCode: 'sales-targets-hcrc-year', editOnly: true, group: 'target' },
+  { path: '/sales-targets-ldtd-year', label: 'Chỉ tiêu cả năm Lãnh đạo Tập đoàn', icon: '🎯', menuCode: 'sales-targets-ldtd-year', editOnly: true, group: 'target' },
   // Bản 10.11 — đổi tên nhãn hiển thị thành "...(HCRC)" cho rõ đây là chỉ
   // tiêu phục vụ báo cáo "Doanh thu theo ngành hàng" bản HCRC (phân biệt với
   // mục "...(LDTD)" ngay bên dưới) — path/menuCode GIỮ NGUYÊN, không đổi gì

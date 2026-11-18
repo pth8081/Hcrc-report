@@ -31,6 +31,9 @@ h4 { font-size: 13px; margin: 12px 0 6px; color: var(--ink-soft); font-weight: 6
    Trang khác vẫn giữ 1040px. */
 .page--wide { max-width: none; }
 .page-loading { padding: 40px; text-align: center; color: var(--ink-soft); }
+/* .hint (bản 10.92) — ghi chú nổi bật ngay dưới tiêu đề trang, vd quy ước
+   cột "Thang" ở 2 trang "Chỉ tiêu cả năm" (SalesTargetsPage.jsx). */
+.hint { background: #FFF8E1; border: 1px solid #F0D98C; border-radius: 6px; padding: 10px 14px; font-size: 13.5px; color: #6B5300; }
 .page-header { margin-bottom: 22px; display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
 .page-header h1 { display: flex; align-items: center; gap: 10px; margin: 0 0 4px; }
 .page-header p { margin: 0; color: var(--ink-soft); font-size: 13.5px; max-width: 560px; }
