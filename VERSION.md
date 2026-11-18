@@ -42,6 +42,34 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.89 — SỬA LỖI: DT bán buôn/bán lẻ luôn ra 0 ở "Báo cáo tổng hợp doanh thu siêu thị hàng ngày" (cả Phase 1 lẫn Phase 2)
+
+**Lỗi thật người dùng gặp trên server** — sau khi đổi nguồn sang domain
+`doanhthu_nganhhang` (bản 10.86), cột DT bán buôn/bán lẻ/Tổng cộng/Lãi
+gộp vẫn ra 0 ở CẢ bản xem web lẫn file Excel xuất theo tháng (bản 10.87),
+dù dữ liệu CÓ THẬT trong `dwh.ReportFacts` (xác nhận bằng SQL thật
+18/11/2026). Nguyên nhân: cột `STK_ID` trong JSON `Dimensions` của VIEW
+nguồn `V_HCRC_DOANHTHU_NGANHHANG` KHÔNG `RTRIM` (lưu nguyên dạng CHAR có
+đệm khoảng trắng, vd `"12171       "`), trong khi danh sách mã kho ở
+"Ánh xạ Điểm - STK_ID" đã gọn — khớp dòng theo `STK_ID` luôn thất bại,
+`measures` rỗng, mọi phép tính ra 0 (đúng lỗi ĐÃ GẶP VÀ ĐÃ SỬA trước đó ở
+`lib/nganhHangBrgRunner.js`, lần này lặp lại ở file MỚI vì không soát lại
+code cũ). Sửa bằng cách `.trim()` STK_ID ngay khi đọc từ Dimensions, ở cả
+2 nơi (`doanhThuTongHopHcrcRunner.js` và
+`doanhThuTongHopHcrcMonthlyExport.js`).
+
+**Triển khai**:
+```bash
+git pull origin main
+cd rp-server && pm2 restart rp-server   # hoặc lệnh khởi động lại thật đang dùng
+```
+(Chỉ sửa code JS, không cần script seed/VIEW gì — khởi động lại rp-server
+để nạp code mới là đủ.)
+
+**Kiểm tra**: mở báo cáo trên web, cột DT bán buôn/bán lẻ/Tổng cộng/Lãi
+gộp phải ra số thật (không còn 0) ở cả 3 khối Ngày/Tháng/Năm. Xuất lại
+Excel theo tháng, đối chiếu số liệu khớp đúng số xem trên web.
+
 ## 10.88 — Thêm cột "Mã ngành hàng"/"Mã nhóm hàng"/"Mã NCC" cho báo cáo "Bán buôn chi tiết theo khách hàng"
 
 **Theo yêu cầu người dùng** — "Mã ngành hàng, Nhóm hàng và mã NCC... mấy

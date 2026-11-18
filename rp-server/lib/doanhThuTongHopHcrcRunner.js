@@ -109,7 +109,16 @@ async function fetchNganhHangRevenueByMaDiem(pool, diemMapping, from, to) {
 
   const byStkId = new Map();
   for (const row of aggregated) {
-    const stkId = row.dimensions && row.dimensions.STK_ID;
+    // Bản 10.89 — SỬA LỖI THẬT: cột STK_ID trong `Dimensions` của VIEW
+    // nguồn `V_HCRC_DOANHTHU_NGANHHANG` KHÔNG RTRIM (lưu nguyên dạng
+    // CHAR có đệm khoảng trắng, vd "12171       ") — khác hẳn STK_ID dùng
+    // làm entityCode của domain `doanhthu_chinhanh` (đã gọn sẵn qua ETL).
+    // KHÔNG trim ở đây khiến remapRowsToDiem() không khớp được BẤT KỲ mã
+    // kho nào với danh sách ở "Ánh xạ Điểm - STK_ID" (đã gọn), khiến toàn
+    // bộ DT bán buôn/bán lẻ/Lãi gộp ra 0 dù VIEW nguồn có đủ dữ liệu thật
+    // (đã xác nhận bằng SQL thật 18/11/2026 — Dimensions JSON thấy rõ
+    // "STK_ID":"12171       " có khoảng trắng thừa).
+    const stkId = row.dimensions && row.dimensions.STK_ID && row.dimensions.STK_ID.trim();
     if (!stkId) continue;
     let acc = byStkId.get(stkId);
     if (!acc) { acc = { entityCode: stkId, dimensions: {}, measures: {} }; byStkId.set(stkId, acc); }

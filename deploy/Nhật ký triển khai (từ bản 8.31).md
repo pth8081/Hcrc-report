@@ -14,6 +14,24 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.89 — SỬA LỖI: DT bán buôn/bán lẻ luôn ra 0 ở "Báo cáo tổng hợp doanh thu siêu thị hàng ngày"
+
+**Thay đổi**: `STK_ID` trong `Dimensions` của VIEW nguồn
+`V_HCRC_DOANHTHU_NGANHHANG` không `RTRIM` (đệm khoảng trắng) — khớp mã
+kho với "Ánh xạ Điểm - STK_ID" luôn thất bại, DT bán buôn/bán lẻ/Lãi gộp
+ra 0. Thêm `.trim()` ở `doanhThuTongHopHcrcRunner.js` và
+`doanhThuTongHopHcrcMonthlyExport.js` (cùng lỗi đã gặp/sửa trước đó ở
+`nganhHangBrgRunner.js`).
+
+**Triển khai**:
+```bash
+git pull origin main
+cd rp-server && pm2 restart rp-server   # hoặc lệnh khởi động lại thật đang dùng
+```
+
+**Kiểm tra**: mở báo cáo, DT bán buôn/bán lẻ/Tổng cộng/Lãi gộp phải ra
+số thật.
+
 ## 10.88 — Thêm cột "Mã ngành hàng"/"Mã nhóm hàng"/"Mã NCC" cho báo cáo "Bán buôn chi tiết theo khách hàng"
 
 **Thay đổi**: VIEW `vw_BanBuonChiTiet` bổ sung `MaNhomHang`

@@ -65,7 +65,11 @@ function rowsInRange(byDay, from, to) {
 function sumNganhHangByStk(rows) {
   const byStk = new Map();
   for (const row of rows) {
-    const stkId = row.dimensions && row.dimensions.STK_ID;
+    // Bản 10.89 — xem chú thích đầy đủ ở lib/doanhThuTongHopHcrcRunner.js
+    // (cùng lỗi, cùng domain `doanhthu_nganhhang`) — STK_ID trong
+    // Dimensions KHÔNG RTRIM, phải tự .trim() ở đây mới khớp được với
+    // danh sách mã kho ở "Ánh xạ Điểm - STK_ID".
+    const stkId = row.dimensions && row.dimensions.STK_ID && row.dimensions.STK_ID.trim();
     if (!stkId) continue;
     let acc = byStk.get(stkId);
     if (!acc) { acc = {}; byStk.set(stkId, acc); }
