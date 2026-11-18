@@ -42,6 +42,24 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.93 — SỬA LỖI: "Số lượng nhân sự" luôn = 0 ở báo cáo "Doanh thu tổng hợp siêu thị"
+
+**Lỗi thật người dùng gặp** (ảnh chụp màn hình, mọi siêu thị đều ra 0).
+Nguyên nhân: đếm theo `app.UserStoreAccess` — bảng CHỈ có dòng khi Admin
+CHỦ ĐỘNG giới hạn phạm vi xem của 1 người (mặc định mọi tài khoản "xem
+toàn bộ", không có dòng nào) — gần như luôn rỗng thực tế. Người dùng chỉ
+đúng hướng sửa: *"lấy trong phần phân quyền đã có người nào thuộc siêu
+thị nào rồi"* — đổi sang đếm theo `app.Users.Department` (đồng bộ TỰ
+ĐỘNG từ VPDT/HCRC Workspace) + `resolveMaDiemForDepartment()` — ĐÃ DÙNG
+SẴN cho gợi ý phạm vi ở trang "Người dùng", không cần thêm bảng/thông
+tin nào mới.
+
+**Triển khai**: `git pull origin main` rồi khởi động lại `rp-server`
+(chỉ sửa code JS, không cần script/VIEW gì).
+
+**Kiểm tra**: mở báo cáo, "Số lượng nhân sự" phải ra số thật (không còn
+0 ở mọi siêu thị), khớp số tài khoản có Department map đúng siêu thị đó.
+
 ## 10.92 — SỬA LỖI "KH luỹ kế năm" sai + thêm nhập Chỉ tiêu CẢ NĂM (HCRC/LĐTĐ)
 
 **Lỗi thật người dùng gặp** (ảnh "% hoàn thành" = 33828%) — khối "KH luỹ

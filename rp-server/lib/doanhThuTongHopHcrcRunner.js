@@ -53,6 +53,7 @@ const { runSalesTargetsBlockRange } = require('./salesTargetsReader');
 const { loadDiemStkMapping, remapRowsToDiem, buildBuIdLookup } = require('./diemStkMapping');
 const { describeColumns } = require('./reportEngine');
 const { assignSttIfPresent } = require('./reportCellFormat');
+const { resolveMaDiemForDepartment } = require('./departmentStoreMapping');
 
 // Bản 10.86 — 2 domain ĐÃ CÓ SẴN, KHÔNG dùng domain mới doanhthu_tonghop_hcrc.
 const AREA_DOMAIN = 'doanhthu_chinhanh'; // chỉ lấy dienTich/chain (dimensions, camelCase)
@@ -161,13 +162,28 @@ async function fetchTargetsByMaDiem(pool, fromPeriod, toPeriod, targetDomain = T
   return byMaDiem;
 }
 
+// Bản 10.93 — SỬA LỖI THẬT (người dùng chỉ ra, ảnh chụp cột "Số lượng
+// nhân sự" luôn = 0 ở MỌI siêu thị): TRƯỚC ĐÂY đếm theo `app.UserStoreAccess`
+// — bảng này CHỈ có dòng khi Admin CHỦ ĐỘNG giới hạn phạm vi xem dữ liệu
+// của 1 người (xem rp-db/schema.sql) — MẶC ĐỊNH mọi tài khoản "xem được
+// toàn bộ" (KHÔNG có dòng nào trong bảng này), nên bảng gần như luôn
+// RỖNG trong thực tế, không phản ánh đúng "nhân viên nào thuộc siêu thị
+// nào" như người dùng cần. Đổi sang dùng ĐÚNG nguồn người dùng gợi ý —
+// `app.Users.Department` (đồng bộ TỰ ĐỘNG từ VPDT/HCRC Workspace, LUÔN có
+// dữ liệu, không phụ thuộc Admin có giới hạn quyền hay chưa) + suy ra Mã
+// Điểm qua `resolveMaDiemForDepartment()` (lib/departmentStoreMapping.js
+// — ĐÃ DÙNG SẴN cho gợi ý phạm vi ở trang "Người dùng", rp-server/routes/users.js).
 async function fetchStaffCountByMaDiem() {
   const rpPool = await getPool('RP');
   const result = await rpPool.request().query(`
-    SELECT MaDiem, COUNT(DISTINCT UserId) AS SoLuong FROM app.UserStoreAccess GROUP BY MaDiem
+    SELECT Id, Department FROM app.Users WHERE IsActive = 1
   `);
   const byMaDiem = new Map();
-  for (const r of result.recordset) byMaDiem.set(r.MaDiem, r.SoLuong);
+  for (const r of result.recordset) {
+    const maDiem = await resolveMaDiemForDepartment(r.Department);
+    if (!maDiem) continue;
+    byMaDiem.set(maDiem, (byMaDiem.get(maDiem) || 0) + 1);
+  }
   return byMaDiem;
 }
 

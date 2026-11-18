@@ -27,9 +27,18 @@ từ ĐÚNG 1 ngày được chọn ("ngày neo"):
 
 Kèm thông tin tĩnh mỗi siêu thị: Mã QLKV, Mã điểm, Mã ST/CH (STK_ID),
 Tên siêu thị, Nhóm chuỗi (MART/MINIMART), Diện tích, Địa điểm, **Số lượng
-nhân sự** (đếm số tài khoản được gán quyền xem đúng siêu thị đó — theo
-yêu cầu người dùng "lấy từ phân quyền đã có... chuẩn nhất", KHÔNG phải dữ
-liệu DSMART16).
+nhân sự** (xem công thức ĐÃ SỬA ở bản 10.93 ngay dưới đây).
+
+⚠️ **BẢN 10.93 — SỬA LỖI "Số lượng nhân sự" luôn = 0** (ảnh người dùng
+gửi). Nguyên nhân: TRƯỚC ĐÂY đếm theo `app.UserStoreAccess` — bảng này
+CHỈ có dòng khi Admin CHỦ ĐỘNG giới hạn phạm vi xem dữ liệu của 1 người
+(mặc định MỌI tài khoản "xem được toàn bộ", không có dòng nào ở bảng
+này) — gần như luôn RỖNG trong thực tế. Đổi sang đếm theo
+`app.Users.Department` (đồng bộ TỰ ĐỘNG từ VPDT/HCRC Workspace, LUÔN có
+dữ liệu) + suy ra Mã Điểm qua `resolveMaDiemForDepartment()` — ĐÚNG nguồn
+người dùng chỉ ra ("lấy trong phần phân quyền đã có người nào thuộc siêu
+thị nào"), ĐÃ DÙNG SẴN cho gợi ý phạm vi ở trang "Người dùng"
+(`rp-server/routes/users.js`), không cần thêm thông tin/bảng gì mới.
 
 ⚠️ **Phạm vi bản 10.82 — CHỈ phần XEM TRÊN WEB** (bảng số liệu, không
 phân trang, có nhóm cột màu Ngày/Tháng/Năm/KH luỹ kế giống Excel/PDF).

@@ -14,6 +14,16 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.93 — SỬA LỖI: "Số lượng nhân sự" luôn = 0 ở báo cáo "Doanh thu tổng hợp siêu thị"
+
+**Thay đổi**: `fetchStaffCountByMaDiem()` đổi từ đếm `app.UserStoreAccess`
+(gần như luôn rỗng — chỉ có dòng khi Admin chủ động giới hạn quyền) sang
+đếm `app.Users.Department` (đồng bộ tự động) + `resolveMaDiemForDepartment()`.
+
+**Triển khai**: `git pull origin main` rồi khởi động lại `rp-server`.
+
+**Kiểm tra**: "Số lượng nhân sự" ra số thật.
+
 ## 10.92 — SỬA LỖI "KH luỹ kế năm" sai + thêm nhập Chỉ tiêu CẢ NĂM (HCRC/LĐTĐ)
 
 **Thay đổi**: "KH luỹ kế năm" trước đây tra nhầm domain Chỉ tiêu THÁNG
