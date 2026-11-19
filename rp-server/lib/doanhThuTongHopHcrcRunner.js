@@ -123,14 +123,43 @@ async function fetchRawRows(pool, domain, from, to) {
   const definition = { domain, filters: [{ field: 'eventDate', type: 'dateRange' }] };
   return fetchAllReportRows(pool, definition, { eventDate: { from, to } });
 }
+// Bản 11.6 — SỬA LỖI THẬT (người dùng chỉ ra "Số bill và số giao dịch
+// bạn đang lấy sai" — so với "Báo cáo doanh thu cuối ngày" LUÔN ĐÚNG,
+// đọc CÙNG domain `giaodich_chinhanh`/`doanhthu_nganhhang` qua
+// `lib/compositeReportRunner.js:aggregateDailyRowsByEntity()`): hàm đó
+// DEDUPE theo ĐÚNG (entityCode, eventDate) — GIỮ dòng `syncedAt` MỚI
+// NHẤT, BỎ dòng cũ hơn — TRƯỚC KHI cộng dồn, vì job "Live" (đồng bộ liên
+// tục, rescan vài ngày/40 ngày gần nhất) VÀ job "Lịch sử" (3h sáng, đọc
+// DSMART16_EOM) CÙNG ghi vào domain này, nên 1 (entityCode, ngày) có thể
+// có 2 DÒNG THẬT từ 2 `SourceSystem` khác nhau trong `dwh.ReportFacts`
+// (ràng buộc UNIQUE chỉ chặn trùng CÙNG SourceSystem, không chặn trùng
+// GIỮA 2 SourceSystem) ở những ngày cả 2 job cùng chạm tới (vùng rescan
+// chồng lấn). Bản 11.4 (gộp hàm fetch-once-gom-theo-ngày về đây) BỎ QUÊN
+// bước dedupe này — `sumNganhHangByStk()`/`sumTransactionsByBuId()` cộng
+// THẲNG mọi dòng `rowsInRange()` trả về, nên NHỮNG NGÀY bị trùng 2 dòng
+// sẽ bị CỘNG GẤP ĐÔI (Số Bill, Số giao dịch, DT bán buôn/bán lẻ/Lãi gộp
+// — mọi đo lường của domain `doanhthu_nganhhang`/`giaodich_chinhanh` đều
+// bị ảnh hưởng, không riêng Số Bill) — đúng lỗi "Xuất Excel theo tháng"
+// (doanhThuTongHopHcrcMonthlyExport.js, bản 10.87) đã có SẴN từ trước,
+// chỉ chưa ai phát hiện vì chưa so sánh chéo với "Doanh thu cuối ngày".
+// SỬA: dedupe NGAY KHI gom theo ngày (áp dụng CHUNG cho mọi lượt gọi
+// `rowsInRange()` sau đó, không cần sửa 2 nơi) — mirror ĐÚNG logic giữ
+// `syncedAt` mới nhất của `aggregateDailyRowsByEntity()`.
 function bucketByDay(rawRows) {
-  const byDay = new Map();
+  const byDay = new Map(); // ngày -> Map(entityCode -> dòng syncedAt mới nhất)
   for (const row of rawRows) {
+    if (!row.entityCode) continue;
     const d = toISODate(row.eventDate);
-    if (!byDay.has(d)) byDay.set(d, []);
-    byDay.get(d).push(row);
+    if (!byDay.has(d)) byDay.set(d, new Map());
+    const dayMap = byDay.get(d);
+    const existing = dayMap.get(row.entityCode);
+    if (!existing || (row.syncedAt && (!existing.syncedAt || row.syncedAt > existing.syncedAt))) {
+      dayMap.set(row.entityCode, row);
+    }
   }
-  return byDay;
+  const out = new Map();
+  for (const [d, dayMap] of byDay) out.set(d, [...dayMap.values()]);
+  return out;
 }
 function rowsInRange(byDay, from, to) {
   const out = [];

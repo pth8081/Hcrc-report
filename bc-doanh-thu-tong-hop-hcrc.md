@@ -5,6 +5,20 @@ dùng, dựa trên file mẫu thật đội vận hành đang tự tổng hợp 
 `Bao_cao_ban_Doanh_thu_hang_ngay_he_thong_HCRC_T11.2026.xlsx`, mỗi sheet 1
 ngày trong tháng, mỗi dòng 1 siêu thị).
 
+⚠️ **BẢN 11.6 — SỬA LỖI: Số Bill/Số giao dịch/DT bán buôn-lẻ/Lãi gộp bị
+CỘNG GẤP ĐÔI ở những ngày Live và Lịch sử trùng nhau** (theo yêu cầu
+người dùng — *"Số bill và số giao dịch bạn đang lấy sai... lấy ở chỗ
+doanh thu cuối ngày của lãnh đạo tập đoàn là luôn đúng"*). Domain
+`doanhthu_nganhhang`/`giaodich_chinhanh` được job "Live" VÀ job "Lịch
+sử" CÙNG ghi — ràng buộc UNIQUE của `dwh.ReportFacts` chỉ chặn trùng
+CÙNG 1 SourceSystem, không chặn trùng GIỮA 2 SourceSystem — nên 1 ngày
+có thể có 2 dòng thật. "Doanh thu cuối ngày" dedupe đúng (giữ `SyncedAt`
+mới nhất) từ trước; bản 11.4 (gộp hàm fetch-once về runner.js) BỎ QUÊN
+bước này, cộng thẳng mọi dòng → SAI (cao hơn thực tế) ở ngày bị trùng.
+Sửa `bucketByDay()` trong `lib/doanhThuTongHopHcrcRunner.js` thêm dedupe
+— xem "VERSION.md" mục bản 11.6. Lỗi này đã có SẴN từ bản 10.87 ("Xuất
+Excel theo tháng"), bản 11.4 vô tình lan ra cả web/Excel/PDF thường.
+
 ⚠️ **BẢN 11.5 — SỬA LỖI: KHÔNG THỂ khai `LoaiChuoi='KHO'` ở etl-admin**
 (phát hiện khi người dùng hỏi "khai Kho ở chỗ nào" sau khi xem demo bản
 11.4 không có nhóm Kho). Từ bản 10.99, trang "Ánh xạ Điểm - STK_ID" đã

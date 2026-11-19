@@ -52,6 +52,47 @@ nội dung/hành vi nào đã làm. Lịch sử Git (commit message) vẫn còn 
 "Bản 10.100"/"Bản 10.101" (không sửa lại lịch sử Git) — coi là ĐỒNG NHẤT
 với "11.0"/"11.1".
 
+## 11.6 — SỬA LỖI THẬT: "Báo cáo tổng hợp doanh thu siêu thị" cộng gấp đôi Số Bill/Số giao dịch/DT bán buôn-lẻ/Lãi gộp ở những ngày Live và Lịch sử trùng nhau
+
+**Theo yêu cầu người dùng** — *"Số bill và số giao dịch bạn đang lấy sai.
+Số bill và số giao dịch bạn có thể lấy ở chỗ doanh thu cuối ngày của
+lãnh đạo tập đoàn là luôn đúng"*.
+
+**Nguyên nhân**: domain `doanhthu_nganhhang`/`giaodich_chinhanh` được
+ghi bởi **2 job khác nhau** — job "Live" (đồng bộ liên tục, rescan vài
+ngày/40 ngày gần nhất từ DSMART16) và job "Lịch sử" (3h sáng, đọc
+DSMART16_EOM) — cùng ghi vào CHUNG 1 domain. Ràng buộc UNIQUE của
+`dwh.ReportFacts` chỉ chặn trùng CÙNG 1 `SourceSystem`, KHÔNG chặn trùng
+GIỮA 2 `SourceSystem` khác nhau — nên ở những ngày 2 job CÙNG chạm tới
+(vùng rescan chồng lấn), 1 (mã kho/BU_ID, ngày) có thể có **2 dòng thật**
+trong CSDL. "Báo cáo doanh thu cuối ngày" (qua
+`lib/compositeReportRunner.js:aggregateDailyRowsByEntity()`) đã xử lý
+đúng từ trước — DEDUPE theo (entityCode, ngày), GIỮ dòng `SyncedAt` MỚI
+NHẤT, bỏ dòng cũ — nên LUÔN RA SỐ ĐÚNG. Bản 11.4 (gộp hàm fetch-once-gom-
+theo-ngày của "Báo cáo tổng hợp doanh thu siêu thị" về
+`lib/doanhThuTongHopHcrcRunner.js`) **BỎ QUÊN bước dedupe này** —
+`bucketByDay()` cộng THẲNG mọi dòng thô, nên những ngày bị trùng 2 dòng
+bị CỘNG GẤP ĐÔI — ảnh hưởng MỌI đo lường của 2 domain này (Số Bill, Số
+giao dịch, DT bán buôn/bán lẻ, Lãi gộp), KHÔNG RIÊNG Số Bill. Lỗi này
+thực ra đã có SẴN từ bản 10.87 (nút "Xuất Excel theo tháng") — chỉ chưa
+ai phát hiện vì chưa so sánh chéo với "Doanh thu cuối ngày"; bản 11.4 vô
+tình lan ra cả báo cáo xem trên web/Xuất Excel/Xuất PDF thường.
+
+**Sửa**: `lib/doanhThuTongHopHcrcRunner.js` — `bucketByDay()` dedupe
+NGAY khi gom theo ngày (giữ `syncedAt` mới nhất cho mỗi entityCode/ngày,
+mirror ĐÚNG logic của `aggregateDailyRowsByEntity()`) — sửa 1 nơi, áp
+dụng CHUNG cho cả báo cáo chính lẫn "Xuất Excel theo tháng" (file đó
+import lại hàm này từ bản 11.4).
+
+**Triển khai**: `git pull origin main`, khởi động lại `rp-server` —
+KHÔNG cần đổi CSDL/chạy script.
+
+**Kiểm tra**: mở "Báo cáo tổng hợp doanh thu siêu thị (HCRC)"/"(LĐTĐ)"
+VÀ "Báo cáo doanh thu cuối ngày" (HCRC/LĐTĐ) CÙNG 1 ngày — cột "Số Bill"
+(Tổng hợp) phải khớp đúng "Thực đạt" giao dịch (Doanh thu cuối ngày) cho
+từng mã Điểm; DT bán buôn/bán lẻ 2 báo cáo cũng phải khớp (đã đúng từ
+bản 10.90, không đổi).
+
 ## 11.5 — SỬA LỖI THẬT: KHÔNG THỂ khai `LoaiChuoi='KHO'` ở etl-admin (dù hướng dẫn trên trang đã ghi từ bản 10.99)
 
 **Phát hiện khi người dùng hỏi** *"Mình khai báo kho ở chỗ nào nhỉ?"* sau

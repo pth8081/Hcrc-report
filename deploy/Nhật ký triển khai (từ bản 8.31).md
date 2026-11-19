@@ -14,6 +14,23 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 11.6 — SỬA LỖI: "Báo cáo tổng hợp doanh thu siêu thị" cộng gấp đôi Số Bill/Số giao dịch ở ngày Live+Lịch sử trùng nhau
+
+**Thay đổi**: `lib/doanhThuTongHopHcrcRunner.js` — `bucketByDay()` thêm
+bước dedupe theo (entityCode, ngày), giữ dòng `syncedAt` mới nhất (mirror
+`compositeReportRunner.js:aggregateDailyRowsByEntity()`) — trước đây cộng
+thẳng mọi dòng thô, bị cộng gấp đôi ở ngày job Live và Lịch sử cùng ghi
+dữ liệu. Sửa 1 nơi, áp dụng chung cho cả báo cáo chính (web/Excel/PDF)
+lẫn "Xuất Excel theo tháng" (import lại hàm này).
+
+**Triển khai**:
+```bash
+git pull origin main
+pm2 restart rp-server
+```
+
+**Kiểm tra**: xem "VERSION.md" mục bản 11.6.
+
 ## 11.5 — SỬA LỖI: không thể khai LoaiChuoi='KHO' ở etl-admin
 
 **Thay đổi**: `etl/lib/diemStkMappingImport.js` — `LOAI_CHUOI_HOP_LE` thêm
