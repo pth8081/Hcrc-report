@@ -162,6 +162,18 @@
 //                   "Tổng cộng" (luôn đứng cuối mỗi nhóm, xem bên dưới) —
 //                   CHỈ áp dụng khi CÓ groupBy, không dùng cho báo cáo
 //                   không nhóm (definition.groupBy để trống).
+//   excludeValues — TUỲ CHỌN, mảng giá trị field LOẠI HẲN khỏi báo cáo này
+//                   (bản 11.3, theo yêu cầu người dùng — "Báo cáo doanh
+//                   thu cuối ngày" chỉ biết 2 nhóm MART/MINIMART, mã Điểm
+//                   nào khai LoaiChuoi='KHO' ở "Ánh xạ Điểm - STK_ID" cho
+//                   báo cáo "Báo cáo tổng hợp doanh thu siêu thị" KHÔNG
+//                   được lẫn vào báo cáo NÀY — vd `['KHO']`). KHÁC "không
+//                   khớp nhóm nào đã khai" bên dưới (dòng đó VẪN hiện, chỉ
+//                   không gộp nhóm) — excludeValues LOẠI HẲN khỏi MỌI chỗ
+//                   (dòng dữ liệu LẪN dòng "Tổng cộng" toàn báo cáo), dùng
+//                   cho trường hợp CỐ Ý không muốn 1 loại hình nào đó xuất
+//                   hiện trong báo cáo này (không phải lỗi cấu hình cần lộ
+//                   ra như "không khớp nhóm nào").
 //
 // DefinitionJson.topN (TUỲ CHỌN, KHÔNG dùng cùng lúc với groupBy — có topN
 // thì bỏ qua hẳn groupBy nếu lỡ khai cả 2) — "Top N" 1 chỉ số, dùng cho
@@ -959,13 +971,23 @@ async function runCompositeReport(definition, filterValues = {}) {
     return { columns, rows: flatRows, warnings, columnGroups: definition.columnGroups || null, standaloneColumnColors: definition.standaloneColumnColors || null };
   }
 
-  const { field, groups = [], grandTotalLabel, labelColumn, sortBy } = definition.groupBy;
+  const { field, groups = [], grandTotalLabel, labelColumn, sortBy, excludeValues = [] } = definition.groupBy;
   const groupPath = field.split('.');
   const sortPath = sortBy ? sortBy.field.split('.') : null;
   const sortDir = sortBy && sortBy.direction === 'asc' ? 1 : -1; // mặc định DESC
   const blockKeys = definition.blocks.map(b => b.key);
   const rows = [];
   const matchedValues = new Set();
+
+  // excludeValues — LOẠI HẲN khỏi mergedRows TRƯỚC khi nhóm/tính tổng (ảnh
+  // hưởng CẢ dòng dữ liệu lẫn dòng "Tổng cộng" toàn báo cáo) — xem chú
+  // thích DefinitionJson.groupBy ở trên. Biến RIÊNG (mergedRows là const,
+  // dùng chung với nhánh PHẲNG/topN phía trên) — CHỈ nhánh groupBy này
+  // (dưới đây) đọc groupableRows, không ảnh hưởng nhánh khác.
+  const excludeSet = new Set(excludeValues);
+  const groupableRows = excludeSet.size
+    ? mergedRows.filter(r => !excludeSet.has(resolveCompositeField(r, groupPath)))
+    : mergedRows;
 
   // Sắp xếp ổn định (Array.prototype.sort của Node đã stable từ lâu) —
   // dòng cùng giá trị sortBy giữ nguyên thứ tự tương đối ban đầu.
@@ -980,7 +1002,7 @@ async function runCompositeReport(definition, filterValues = {}) {
 
   for (const g of groups) {
     matchedValues.add(g.value);
-    const groupRows = applySortBy(mergedRows.filter(r => resolveCompositeField(r, groupPath) === g.value));
+    const groupRows = applySortBy(groupableRows.filter(r => resolveCompositeField(r, groupPath) === g.value));
     if (!groupRows.length) continue;
     rows.push(...groupRows.map(r => projectCompositeRow(r, visibleColumns)));
     const subtotalRow = projectCompositeRow(sumMergedRows(groupRows, blockKeys), visibleColumns);
@@ -989,11 +1011,13 @@ async function runCompositeReport(definition, filterValues = {}) {
     rows.push(subtotalRow);
   }
   // Dòng không khớp nhóm nào đã khai (dữ liệu ngoài dự kiến) — vẫn xuất
-  // hiện ở cuối, KHÔNG âm thầm mất, để lộ ngay lỗi cấu hình "groups" thiếu.
-  const unmatched = applySortBy(mergedRows.filter(r => !matchedValues.has(resolveCompositeField(r, groupPath))));
+  // hiện ở cuối, KHÔNG âm thầm mất, để lộ ngay lỗi cấu hình "groups" thiếu
+  // (excludeValues ở trên đã lọc bỏ TRƯỚC — cố ý loại, không phải thiếu
+  // cấu hình — nên KHÔNG rơi vào đây).
+  const unmatched = applySortBy(groupableRows.filter(r => !matchedValues.has(resolveCompositeField(r, groupPath))));
   rows.push(...unmatched.map(r => projectCompositeRow(r, visibleColumns)));
 
-  const grandRow = projectCompositeRow(sumMergedRows(mergedRows, blockKeys), visibleColumns);
+  const grandRow = projectCompositeRow(sumMergedRows(groupableRows, blockKeys), visibleColumns);
   if (labelColumn) grandRow[labelColumn] = grandTotalLabel || 'Tổng cộng';
   grandRow.__isSubtotal = true;
   grandRow.__isGrandTotal = true;

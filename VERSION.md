@@ -52,6 +52,33 @@ nội dung/hành vi nào đã làm. Lịch sử Git (commit message) vẫn còn 
 "Bản 10.100"/"Bản 10.101" (không sửa lại lịch sử Git) — coi là ĐỒNG NHẤT
 với "11.0"/"11.1".
 
+## 11.3 — "Báo cáo doanh thu cuối ngày" loại hẳn mã Điểm `LoaiChuoi='KHO'`
+
+**Theo yêu cầu người dùng** — *"báo cáo doanh thu không hiện kho đâu
+nhá, hiện kho chỉ ở trong báo cáo tổng hợp này thôi"* — xác nhận lại (hỏi
+"nếu add 2 kho vào Ánh xạ Điểm - STK_ID mà Chỉ tiêu không có 2 kho này,
+báo cáo doanh thu cuối ngày có hiện ra không") lộ ra: KHÔNG, trước bản
+này báo cáo "Doanh thu cuối ngày" (`groupBy` chỉ biết MART/MINIMART)
+VẪN hiện mã Điểm không khớp nhóm nào — "KHO" sẽ lọt ra ở CUỐI báo cáo
+(không gộp nhóm riêng, nhưng vẫn cộng vào dòng "Tổng cộng").
+
+**Sửa**: `lib/compositeReportRunner.js` — `DefinitionJson.groupBy` thêm
+tuỳ chọn mới `excludeValues` (mảng giá trị field LOẠI HẲN khỏi báo cáo,
+cả dòng dữ liệu lẫn dòng "Tổng cộng" — khác "không khớp nhóm nào đã khai"
+vốn CỐ Ý vẫn hiện để lộ lỗi cấu hình). `scripts/seedLdtdHcrcReports.js`
+khai `excludeValues: ['KHO']` cho CẢ 4 báo cáo "Doanh thu cuối ngày"
+(HCRC/LĐTĐ × gốc/Thành viên, dùng chung `buildDefinition()`).
+
+**Triển khai**: `git pull origin main`, khởi động lại `rp-server`, rồi
+chạy lại `node rp-server/scripts/seedLdtdHcrcReports.js` (BẮT BUỘC — cập
+nhật `DefinitionJson` đã lưu trong CSDL, `git pull` không tự áp dụng).
+
+**Kiểm tra**: khai `LoaiChuoi='KHO'` cho 1 mã Điểm có doanh thu thật ở
+etl-admin → "Ánh xạ Điểm - STK_ID" — mở "Báo cáo doanh thu cuối ngày"
+(HCRC/LĐTĐ) → mã Điểm đó KHÔNG xuất hiện, dòng "Tổng cộng" KHÔNG cộng số
+của nó; mở "Báo cáo tổng hợp doanh thu siêu thị" → mã Điểm đó VẪN hiện
+đúng trong nhóm "CHUỖI KHO" (không đổi, xem bản 10.99/11.0).
+
 ## 11.2 — Gom VIEW+script đồng bộ "HCRC trung tâm"/"Thành viên" vào đúng thư mục deploy
 
 **Theo yêu cầu người dùng** — *"có cái script để chạy để tạo nguồn và

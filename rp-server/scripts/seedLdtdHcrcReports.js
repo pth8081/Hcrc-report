@@ -273,6 +273,13 @@ function buildDefinition(title, targetDomain, exportFileCode, domains, pdfSummar
         { value: 'MART', label: 'Tổng cộng MART' },
         { value: 'MINIMART', label: 'Tổng cộng MINIMART' }
       ],
+      // excludeValues (bản 11.3, theo yêu cầu người dùng — "báo cáo doanh
+      // thu không hiện kho đâu nhá, hiện kho chỉ ở trong báo cáo tổng hợp
+      // này thôi") — mã Điểm khai LoaiChuoi='KHO' ở "Ánh xạ Điểm - STK_ID"
+      // (dùng cho "Báo cáo tổng hợp doanh thu siêu thị") KHÔNG được lẫn
+      // vào 4 báo cáo "Báo cáo doanh thu cuối ngày" này — báo cáo này chỉ
+      // biết đúng 2 nhóm MART/MINIMART, chưa từng có khái niệm KHO.
+      excludeValues: ['KHO'],
       grandTotalLabel: 'Tổng cộng',
       labelColumn: 'tenCuaHang',
       // Sắp xếp CÁC SIÊU THỊ trong mỗi nhóm MART/MINIMART theo Diện tích

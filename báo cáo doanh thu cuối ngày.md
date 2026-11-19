@@ -27,6 +27,23 @@ chạy, không cần cấu hình gì thêm ở phía rp-user. Xem chi tiết ở
 > Bố cục nút bấm/ô nhập là chính xác 100%; tên/số bạn thấy khi làm thật sẽ
 > khác (đúng theo dữ liệu bạn có).
 
+⚠️ **BẢN 11.3 — Mã Điểm khai `LoaiChuoi='KHO'` KHÔNG hiện trong 4 báo cáo
+"Doanh thu cuối ngày"**. Từ bản 11.0, trang "Ánh xạ Điểm - STK_ID"
+(etl-admin) cho khai thêm giá trị `LoaiChuoi` thứ 3 là `KHO` (dùng cho
+"Báo cáo tổng hợp doanh thu siêu thị") — 4 báo cáo "Báo cáo doanh thu
+cuối ngày" ở file NÀY chỉ biết đúng 2 nhóm `MART`/`MINIMART` (xem `groupBy`
+ở Bước 4), CHỦ Ý **không** nhận biết `KHO`. Người dùng xác nhận: *"báo cáo
+doanh thu không hiện kho đâu nhá, hiện kho chỉ ở trong báo cáo tổng hợp
+này thôi"* — đã thêm `groupBy.excludeValues: ['KHO']` vào `buildDefinition()`
+(`rp-server/scripts/seedLdtdHcrcReports.js`) LOẠI HẲN mã Điểm nào có
+`LoaiChuoi='KHO'` khỏi CẢ dòng dữ liệu LẪN dòng "Tổng cộng" của 4 báo cáo
+này (xem `lib/compositeReportRunner.js:runCompositeReport()`) — có thể
+yên tâm khai `KHO` ở "Ánh xạ Điểm - STK_ID" cho "Báo cáo tổng hợp" mà
+KHÔNG ảnh hưởng gì tới 4 báo cáo ở file này. Chạy lại
+`node rp-server/scripts/seedLdtdHcrcReports.js` để áp dụng (đã triển khai
+trước bản này thì PHẢI chạy lại script để cập nhật `DefinitionJson`, chỉ
+`git pull` + restart không đủ).
+
 ---
 
 ## Tổng quan các bước

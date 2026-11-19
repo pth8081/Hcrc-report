@@ -14,6 +14,23 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 11.3 — "Báo cáo doanh thu cuối ngày" loại hẳn mã Điểm LoaiChuoi='KHO'
+
+**Thay đổi**: `lib/compositeReportRunner.js` — `groupBy` thêm
+`excludeValues` (mảng giá trị loại hẳn khỏi báo cáo).
+`scripts/seedLdtdHcrcReports.js` khai `excludeValues: ['KHO']` cho 4 báo
+cáo "Doanh thu cuối ngày".
+
+**Triển khai**:
+```bash
+git pull origin main
+pm2 restart rp-server
+cd rp-server && node scripts/seedLdtdHcrcReports.js
+```
+(BẮT BUỘC chạy lại script — cập nhật DefinitionJson đã lưu trong CSDL.)
+
+**Kiểm tra**: xem "VERSION.md" mục bản 11.3.
+
 ## 11.2 — Gom VIEW+script đồng bộ "HCRC trung tâm"/"Thành viên" vào đúng thư mục deploy
 
 **Thay đổi**: chỉ thêm tài liệu (2 runbook .md + 1 file .sql gom VIEW
