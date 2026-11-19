@@ -14,6 +14,14 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 11.2 — Gom VIEW+script đồng bộ "HCRC trung tâm"/"Thành viên" vào đúng thư mục deploy
+
+**Thay đổi**: chỉ thêm tài liệu (2 runbook .md + 1 file .sql gom VIEW
+Script A/B), KHÔNG sửa code/CSDL nào. Xem "VERSION.md" mục bản 11.2 để
+biết chính xác 3 file mới và dùng khi nào.
+
+**Triển khai**: `git pull origin main` là đủ, không cần restart/chạy gì.
+
 ## 11.1 — "Lịch gửi email báo cáo": chọn NHIỀU báo cáo, gộp chung 1 email
 
 **Thay đổi**: Bảng mới `app.ReportEmailScheduleReports` (1 báo cáo/dòng,

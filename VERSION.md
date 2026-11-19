@@ -52,6 +52,38 @@ nội dung/hành vi nào đã làm. Lịch sử Git (commit message) vẫn còn 
 "Bản 10.100"/"Bản 10.101" (không sửa lại lịch sử Git) — coi là ĐỒNG NHẤT
 với "11.0"/"11.1".
 
+## 11.2 — Gom VIEW+script đồng bộ "HCRC trung tâm"/"Thành viên" vào đúng thư mục deploy
+
+**Theo yêu cầu người dùng** — *"có cái script để chạy để tạo nguồn và
+đồng bộ của từng siêu thị chi nhánh và của HCRC trung tâm không... để khi
+deploy một cái mới thì tôi chỉ cần lấy thông tin trong đấy"*. Script/SQL
+CẦN THIẾT đã có sẵn rải rác (VIEW Script A/B nằm trong
+"báo cáo doanh thu cuối ngày.md", script tạo Nguồn dữ liệu/Job nằm trong
+`etl/scripts/`) — KHÔNG viết lại logic gì, chỉ gom lại đúng chỗ + viết
+runbook ngắn trỏ đúng lệnh cần chạy.
+
+**Thêm mới** (không sửa `báo cáo doanh thu cuối ngày.md` — vẫn là tài
+liệu gốc đầy đủ công thức/nghiệp vụ):
+- `deploy/VIEW DSMART16 (trung tâm)/Thiết lập VIEW Doanh thu-Giao dịch
+  chi nhánh (Script A+B, DSMART16 + DSMART16_EOM).sql` — chép nguyên văn
+  Script A (Live)/Script B (Lịch sử, kèm stored procedure + SQL Agent Job
+  tự rebuild hàng tháng) từ file .md gốc, đặt đúng cùng thư mục các VIEW
+  khác (trước đây là file .sql DUY NHẤT trong dự án còn nằm lẫn trong 1
+  file .md tường thuật, không giống quy ước các báo cáo khác).
+- `deploy/VIEW DSMART16 (trung tâm)/Hướng dẫn thiết lập HCRC trung tâm từ
+  đầu (VIEW + đồng bộ).md` — runbook: Bước 1 (chạy VIEW ở trên) → Bước 2
+  (`.env` + `node etl/scripts/seedLdtdHcrcSync.js` — tạo 2 Nguồn dữ liệu +
+  4 Job đồng bộ) → Bước 3 (kiểm tra).
+- `deploy/VIEW DSMART16 (từng siêu thị)/Hướng dẫn thêm 1 siêu thị Thành
+  viên mới.md` — runbook thêm 1 siêu thị "Thành viên" (CSDL riêng từng
+  server): Bước 1 (VIEW đã có sẵn, tự đủ) → Bước 2
+  (`etl/scripts/addThanhVienStore.js`) → Bước 3 (ghi lại vào mảng
+  `STORES` của `seedThanhVienLiveSync.js` để không mất khi dựng lại môi
+  trường) → Bước 4 (kiểm tra).
+
+**Triển khai**: chỉ thêm tài liệu, không có thay đổi code/CSDL nào —
+không cần `git pull`/restart gì ngoài lấy code mới nhất.
+
 ## 11.1 — "Lịch gửi email báo cáo": chọn NHIỀU báo cáo, gộp chung 1 email
 
 **Theo yêu cầu người dùng** — *"tôi muốn chọn được nhiều bc để gửi...
