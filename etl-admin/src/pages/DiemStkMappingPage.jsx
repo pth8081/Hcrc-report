@@ -227,7 +227,9 @@ export default function DiemStkMappingPage() {
         <code>LoaiChuoi</code> (tuỳ chọn) — khai <strong>MART</strong> hoặc <strong>MINIMART</strong> để
         báo cáo "Báo cáo nhanh doanh thu" nhóm đúng dòng Tổng cộng MART/MINIMART riêng — GHI ĐÈ giá trị
         tự động lấy từ <code>STOCK.TYPE</code> (DSMART16) khi đã khai. Để trống thì dùng nguyên giá trị
-        tự động như trước.
+        tự động như trước. Khai <strong>KHO</strong> (bản 10.98) cho mã Điểm nào là KHO HÀNG (không
+        phải điểm bán lẻ) — dùng cho báo cáo "Doanh thu Bán buôn theo loại hình (Mart/Mini Mart/Kho)";
+        mã Điểm nào để trống LoaiChuoi sẽ bị BỎ QUA hoàn toàn khỏi báo cáo đó (không suy đoán).
       </p>
       <p>
         <code>MaQLKV</code> (tuỳ chọn) — mã quản lý khu vực, admin tự khai, dùng cho báo cáo doanh

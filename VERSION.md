@@ -42,6 +42,27 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.98 — Báo cáo MỚI "Doanh thu Bán buôn theo loại hình (Mart/Mini Mart/Kho)"
+
+**Theo yêu cầu người dùng** — tách doanh thu Bán buôn HÀNG NGÀY theo loại
+hình Mart/Mini Mart/Kho + Tổng cộng, không có Kế hoạch (*"Không có target
+bán buôn, chỉ có doanh thu bán buôn hàng ngày"*).
+
+**Xây dựng**: `lib/banBuonTheoLoaiHinhRunner.js` (SourceType mới
+`banBuonTheoLoaiHinh`) — TÁI DÙNG domain `doanhthu_nganhhang` đã có sẵn
+(measure `DoanhThuBanBuon`), gộp theo STK_ID/ngày rồi xếp vào 1 trong 3
+nhóm theo `etl.DiemStkMapping.LoaiChuoi` — thêm giá trị thứ 3 **`KHO`**
+(trước đây chỉ có MART/MINIMART) cho mã Điểm là kho hàng. Mã Điểm chưa
+khai LoaiChuoi bị bỏ qua hoàn toàn (không suy đoán). Xem
+"bc-ban-buon-theo-loai-hinh.md".
+
+**Triển khai**: `git pull origin main` rồi khởi động lại `rp-server`, chạy
+`node rp-server/scripts/seedBanBuonTheoLoaiHinhReport.js`, gán quyền xem,
+và khai đủ `LoaiChuoi` ở etl-admin → "Ánh xạ Điểm - STK_ID".
+
+**Kiểm tra**: `Tổng cộng` = `Mart + Mini Mart + Kho` ở mọi dòng; đối chiếu
+`Mart`/`Mini Mart` với "Doanh thu theo ngành hàng" (cột DT bán buôn).
+
 ## 10.97 — "Ánh xạ Phòng ban → Siêu thị": cho phép gộp NHIỀU Mã Điểm (cách nhau bởi dấu phẩy)
 
 **Theo yêu cầu người dùng** — *"tôi vẫn là nó có hai siêu thị gộp vào thì

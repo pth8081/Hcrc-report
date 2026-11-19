@@ -16,6 +16,7 @@ const { runStockAlertReport } = require('./stockAlertRunner');
 const { runPurchaseOrderReport } = require('./purchaseOrderRunner');
 const { runNganhHangBrgReport } = require('./nganhHangBrgRunner');
 const { runDoanhThuTongHopHcrcReport } = require('./doanhThuTongHopHcrcRunner');
+const { runBanBuonTheoLoaiHinhReport } = require('./banBuonTheoLoaiHinhRunner');
 const { assignSttIfPresent } = require('./reportCellFormat');
 
 async function loadDefinition(reportId) {
@@ -111,6 +112,12 @@ async function runDefinition(definition, filterValues, pagination) {
   // số nhân sự (app.UserStoreAccess) — xem lib/doanhThuTongHopHcrcRunner.js.
   if (definition.sourceType === 'doanhThuTongHopHcrc') {
     return runDoanhThuTongHopHcrcReport(definition, filterValues);
+  }
+  // 'banBuonTheoLoaiHinh' (bản 10.98, theo yêu cầu người dùng — "Doanh thu
+  // Bán buôn hàng ngày, tách Mart/Mini Mart/Kho/Tổng") — MỖI DÒNG/ngày,
+  // filterValues.eventDate kiểu 'dateRange' — xem lib/banBuonTheoLoaiHinhRunner.js.
+  if (definition.sourceType === 'banBuonTheoLoaiHinh') {
+    return runBanBuonTheoLoaiHinhReport(definition, filterValues);
   }
   if (definition.sourceType && definition.sourceType !== 'directDb') {
     return runApiReport(definition, filterValues, pagination);

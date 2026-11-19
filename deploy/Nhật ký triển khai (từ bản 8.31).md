@@ -14,6 +14,24 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.98 — Báo cáo MỚI "Doanh thu Bán buôn theo loại hình (Mart/Mini Mart/Kho)"
+
+**Thay đổi**: `lib/banBuonTheoLoaiHinhRunner.js` mới — SourceType
+`banBuonTheoLoaiHinh`, tái dùng domain `doanhthu_nganhhang` đã có, xếp
+theo `LoaiChuoi` (MART/MINIMART/KHO — KHO là giá trị mới).
+
+**Triển khai**:
+```bash
+git pull origin main
+pm2 restart rp-server
+cd rp-server && node scripts/seedBanBuonTheoLoaiHinhReport.js
+```
+Sau đó: Hệ thống → Phân quyền (gán quyền xem `bc-ban-buon-theo-loai-hinh`);
+etl-admin → "Ánh xạ Điểm - STK_ID" (khai đủ `LoaiChuoi` cho mọi mã Điểm có
+doanh thu bán buôn — thiếu khai thì mã đó bị loại khỏi báo cáo).
+
+**Kiểm tra**: xem "bc-ban-buon-theo-loai-hinh.md" mục 4.
+
 ## 10.97 — "Ánh xạ Phòng ban → Siêu thị": cho phép gộp NHIỀU Mã Điểm (cách nhau bởi dấu phẩy)
 
 **Thay đổi**: `normalizeMaDiem()` tách Mã Điểm theo dấu phẩy, đệm 0 +
