@@ -52,6 +52,57 @@ nội dung/hành vi nào đã làm. Lịch sử Git (commit message) vẫn còn 
 "Bản 10.100"/"Bản 10.101" (không sửa lại lịch sử Git) — coi là ĐỒNG NHẤT
 với "11.0"/"11.1".
 
+## 11.4 — "Báo cáo tổng hợp doanh thu siêu thị": sửa chậm + thêm nhóm Mart/Mini Mart/Kho (web, Excel, PDF)
+
+**Theo yêu cầu người dùng** — báo cáo "Báo cáo tổng hợp doanh thu siêu thị
+(LĐTĐ)" chạy rất chậm (nhiều phút), "Xuất file theo tháng" báo lỗi "Failed
+to fetch" (timeout); người dùng gửi ảnh mẫu báo cáo khác có cột "Tổng
+cộng MART"/"Tổng cộng MINIMART"/"Tổng cộng" và nói *"Nó phải là cái cột
+tổng cộng như thế này"*, xác nhận áp dụng **"Cả 3 nơi luôn — web, Excel,
+PDF"**.
+
+**Nguyên nhân chậm**: `lib/doanhThuTongHopHcrcRunner.js` TRƯỚC ĐÂY fetch
+domain `doanhthu_nganhhang`/`giaodich_chinhanh` RIÊNG 3 LẦN (khối Ngày/
+Tháng/Năm, mỗi lần 1 lượt gọi DWH + phân trang riêng) — dù khối Năm
+(rộng nhất) ĐÃ CHỨA SẴN toàn bộ dữ liệu khối Ngày/Tháng (cùng neo "hôm
+nay") — dư 2/3 số lượt gọi DWH không cần thiết, càng chậm khi DWH đã
+tích luỹ nhiều tháng dữ liệu.
+
+**Sửa**:
+- Áp ĐÚNG mẫu đã chạy ổn định ở `lib/doanhThuTongHopHcrcMonthlyExport.js`
+  (bản 10.87, "Xuất Excel theo tháng") — fetch RAW ROWS mỗi domain CHỈ 1
+  LẦN (khoảng rộng nhất: đầu năm → hôm nay), gom theo ngày trong bộ nhớ
+  (`bucketByDay`), rồi CẮT LẠI (`rowsInRange`, không gọi DWH nữa) cho
+  từng khối Ngày/Tháng/Năm — công thức tính giữ NGUYÊN, chỉ đổi cách lấy
+  dữ liệu.
+- Gộp các hàm fetch-once/gom-ngày (`fetchRawRows`/`bucketByDay`/
+  `rowsInRange`/`sumNganhHangByStk`/`remapStkMeasuresToMaDiem`/
+  `sumTransactionsByBuId`/`remapBuToMaDiem`) VÀ các hàm nhóm "I. CHUỖI
+  MART"/"II. CHUỖI MINIMART"/"III. CHUỖI KHO" + dòng "TỔNG <nhóm>"
+  (`groupRowsByChain`/`buildSubtotalRow`/`buildGroupedRows`, TRƯỚC ĐÂY
+  CHỈ có ở `doanhThuTongHopHcrcMonthlyExport.js`) về `lib/doanhThuTongHopHcrcRunner.js`
+  làm nguồn sự thật duy nhất — `doanhThuTongHopHcrcMonthlyExport.js` nay
+  IMPORT LẠI từ đó, không chép logic riêng (tránh lệch số nếu sửa 1 nơi
+  quên sửa nơi kia).
+- `runDoanhThuTongHopHcrcReport()` (chạy CHUNG cho cả web — `POST
+  /:reportId/run` — lẫn Xuất Excel/PDF — `POST /:reportId/export`, xem
+  `routes/reports.js`+`lib/reportRunner.js`) giờ trả về DÒNG ĐÃ NHÓM
+  (section header + dòng siêu thị + dòng "TỔNG MART"/"TỔNG MINIMART"/
+  "TỔNG KHO" + dòng "Tổng cộng" cuối) — KHÔNG cần sửa gì ở
+  `DataTable.jsx`/`exportExcel.js`/`exportPdf.js` (đã sẵn xử lý cờ
+  `__isSectionHeader`/`__isSubtotal`/`__isGrandTotal` từ trước).
+
+**Triển khai**: `git pull origin main`, khởi động lại `rp-server` —
+KHÔNG cần chạy lại script seed nào (không đổi `DefinitionJson` lưu
+trong CSDL, chỉ đổi code runner).
+
+**Kiểm tra**: mở "Báo cáo tổng hợp doanh thu siêu thị (HCRC)"/"(LĐTĐ)"
+trên web — thấy nhóm "I. CHUỖI MART"/"II. CHUỖI MINIMART"/"III. CHUỖI
+KHO" (nếu có mã Điểm khai `LoaiChuoi='KHO'`) kèm dòng "TỔNG <nhóm>" +
+dòng "Tổng cộng" cuối bảng, tải nhanh hơn rõ rệt so với trước; bấm "Xuất
+Excel"/"Xuất PDF" của ĐÚNG báo cáo đó — file xuất ra có CÙNG cấu trúc
+nhóm; bấm "Xuất file theo tháng" — không còn báo lỗi "Failed to fetch".
+
 ## 11.3 — "Báo cáo doanh thu cuối ngày" loại hẳn mã Điểm `LoaiChuoi='KHO'`
 
 **Theo yêu cầu người dùng** — *"báo cáo doanh thu không hiện kho đâu

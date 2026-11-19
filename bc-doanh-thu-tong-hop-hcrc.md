@@ -5,6 +5,48 @@ dùng, dựa trên file mẫu thật đội vận hành đang tự tổng hợp 
 `Bao_cao_ban_Doanh_thu_hang_ngay_he_thong_HCRC_T11.2026.xlsx`, mỗi sheet 1
 ngày trong tháng, mỗi dòng 1 siêu thị).
 
+⚠️ **BẢN 11.4 — Sửa chậm + thêm nhóm Mart/Mini Mart/Kho cho CẢ web/Xuất
+Excel/Xuất PDF (không chỉ "Xuất Excel theo tháng")** (theo yêu cầu người
+dùng — báo cáo chạy rất chậm, "Xuất file theo tháng" báo "Failed to
+fetch", và xác nhận **"Cả 3 nơi luôn — web, Excel, PDF"** khi được hỏi áp
+dụng nhóm Mart/Mini Mart/Kho ở đâu).
+
+**Nguyên nhân chậm**: `lib/doanhThuTongHopHcrcRunner.js` (hàm chạy báo
+cáo CHUNG cho cả web + Xuất Excel/PDF, xem mục 2 bên dưới) TRƯỚC ĐÂY fetch
+domain `doanhthu_nganhhang`/`giaodich_chinhanh` RIÊNG 3 LẦN (khối Ngày/
+Tháng/Năm — mỗi lần 1 lượt gọi DWH + phân trang riêng), dù khối Năm (rộng
+nhất) ĐÃ CHỨA SẴN toàn bộ dữ liệu khối Ngày/Tháng (cùng neo "hôm nay") —
+dư 2/3 số lượt gọi không cần thiết, ngày càng chậm khi DWH tích luỹ nhiều
+tháng.
+
+**Sửa**: áp ĐÚNG mẫu fetch-1-lần-gom-theo-ngày đã chạy ổn ở "Xuất Excel
+theo tháng" (bản 10.87) vào `doanhThuTongHopHcrcRunner.js` — fetch raw
+rows mỗi domain CHỈ 1 lần (đầu năm → hôm nay), gom theo ngày trong bộ
+nhớ, cắt lại cho Ngày/Tháng/Năm (không gọi DWH thêm) — công thức tính
+GIỮ NGUYÊN, chỉ đổi cách lấy dữ liệu. Đồng thời ÁP DỤNG THÊM nhóm "I.
+CHUỖI MART"/"II. CHUỖI MINIMART"/"III. CHUỖI KHO" + dòng "TỔNG <nhóm>"/
+"Tổng cộng" (trước chỉ có ở "Xuất Excel theo tháng", bản 10.87/10.99) cho
+CẢ báo cáo xem trên web lẫn "Xuất Excel"/"Xuất PDF" thường — vì cả 3 nơi
+đều gọi CHUNG đúng 1 hàm `runDoanhThuTongHopHcrcReport()` (xem
+`routes/reports.js`), không cần sửa gì thêm ở `DataTable.jsx`/
+`exportExcel.js`/`exportPdf.js` (đã sẵn hiểu cờ `__isSectionHeader`/
+`__isSubtotal`/`__isGrandTotal` từ trước). Các hàm nhóm/fetch-1-lần
+(`groupRowsByChain`/`buildSubtotalRow`/`buildGroupedRows`/
+`fetchRawRows`/`bucketByDay`/...) gộp về `doanhThuTongHopHcrcRunner.js`
+làm nguồn chung — `doanhThuTongHopHcrcMonthlyExport.js` nay IMPORT LẠI từ
+đó thay vì định nghĩa riêng.
+
+**Triển khai**: `git pull origin main` rồi khởi động lại `rp-server` —
+KHÔNG cần chạy script seed nào (không đổi `DefinitionJson` lưu CSDL).
+
+**Kiểm tra**: mở báo cáo trên web — thấy nhóm MART/MINIMART/KHO (nếu có
+mã Điểm khai `LoaiChuoi='KHO'`) + dòng "TỔNG <nhóm>"/"Tổng cộng", tải
+nhanh hơn rõ rệt; "Xuất Excel"/"Xuất PDF" thường (KHÔNG phải "Xuất Excel
+theo tháng") của báo cáo này cũng ra ĐÚNG cấu trúc nhóm đó; "Xuất file
+theo tháng" không còn lỗi "Failed to fetch". Số liệu từng siêu thị PHẢI Y
+HỆT bản trước bản này (chỉ đổi cách lấy dữ liệu + thêm nhóm, không đổi
+công thức).
+
 ⚠️ **BẢN 11.0 — Thêm khối "TỔNG HỢP THEO LOẠI HÌNH" cuối mỗi sheet**
 (theo yêu cầu người dùng — *"làm phần tổng cộng theo hàng ngày mart, mini
 mart, kho, tổng là được"*, xác nhận thêm vào CUỐI mỗi sheet của "Xuất

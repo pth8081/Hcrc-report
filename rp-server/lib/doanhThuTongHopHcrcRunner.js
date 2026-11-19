@@ -16,7 +16,7 @@
 // đúng số) thay vì chờ tạo VIEW/job đồng bộ MỚI. `doanhthu_nganhhang` gộp
 // theo (STK_ID, DEPT_ID, ngày) — mỗi siêu thị có NHIỀU dòng (1 dòng/ngành
 // hàng) — CỘNG DỒN thêm 1 bước theo STK_ID (bỏ DEPT_ID) ở
-// `fetchNganhHangRevenueByMaDiem()` dưới đây để ra đúng 1 dòng/siêu thị.
+// `sumNganhHangByStk()` dưới đây để ra đúng 1 dòng/siêu thị.
 // LƯU Ý: cột "Địa điểm" (STOCK.PLACE) KHÔNG có trong bất kỳ domain đã có
 // nào — TẠM ĐỂ TRỐNG (null) ở bản này, chưa lấy ra được — xem
 // "bc-doanh-thu-tong-hop-hcrc.md" mục ghi chú bản 10.86.
@@ -98,57 +98,98 @@ async function fetchAreaByMaDiem(pool, diemMapping, from, to) {
   return byMaDiem;
 }
 
+// Bản 11.4 — SỬA LỖI HIỆU NĂNG THẬT (người dùng báo "chạy rất chậm", báo
+// cáo nhiều phút mới ra, "Xuất Excel theo tháng" timeout "Failed to
+// fetch"): TRƯỚC ĐÂY fetch domain `doanhthu_nganhhang`/`giaodich_chinhanh`
+// RIÊNG 3 LẦN (khối Ngày/Tháng/Năm — mỗi lần 1 lượt gọi DWH + vòng lặp
+// phân trang `fetchAllReportRows` RIÊNG), dù khối Năm (rộng nhất) ĐÃ CHỨA
+// SẴN toàn bộ dữ liệu của khối Ngày/Tháng (2 khối đó là TẬP CON của khối
+// Năm, cùng neo "hôm nay") — dư thừa 2/3 số lượt gọi DWH một cách không
+// cần thiết. SỬA theo ĐÚNG mẫu đã dùng (và đã chạy ổn định thật) ở
+// lib/doanhThuTongHopHcrcMonthlyExport.js (bản 10.87) — fetch RAW ROWS
+// domain đó CHỈ 1 LẦN (khoảng rộng nhất: đầu năm -> hôm nay), GOM NHÓM
+// THEO NGÀY trong bộ nhớ (bucketByDay), rồi CẮT LẠI (rowsInRange, không
+// gọi DWH nữa) cho từng khối Ngày/Tháng/Năm — cộng dồn đúng y hệt công
+// thức cũ, chỉ đổi CÁCH LẤY DỮ LIỆU. Các hàm dưới đây TRƯỚC ĐÂY định nghĩa
+// RIÊNG trong doanhThuTongHopHcrcMonthlyExport.js — gộp về ĐÂY (nguồn sự
+// thật duy nhất) để dùng CHUNG cho CẢ báo cáo xem trên web/Xuất Excel/Xuất
+// PDF (file này) LẪN "Xuất Excel theo tháng" (monthlyExport.js import lại
+// từ đây), tránh lệch logic nếu sửa 1 nơi quên sửa nơi kia.
+function toISODate(v) {
+  if (v instanceof Date) return v.toISOString().slice(0, 10);
+  return String(v).slice(0, 10);
+}
+async function fetchRawRows(pool, domain, from, to) {
+  const definition = { domain, filters: [{ field: 'eventDate', type: 'dateRange' }] };
+  return fetchAllReportRows(pool, definition, { eventDate: { from, to } });
+}
+function bucketByDay(rawRows) {
+  const byDay = new Map();
+  for (const row of rawRows) {
+    const d = toISODate(row.eventDate);
+    if (!byDay.has(d)) byDay.set(d, []);
+    byDay.get(d).push(row);
+  }
+  return byDay;
+}
+function rowsInRange(byDay, from, to) {
+  const out = [];
+  for (const [d, dayRows] of byDay) {
+    if (d >= from && d <= to) out.push(...dayRows);
+  }
+  return out;
+}
+
 // Doanh thu Bán buôn/Bán lẻ/Lãi gộp — domain `doanhthu_nganhhang` khoá
 // MaThucThe (1 dòng/siêu thị/NGÀNH HÀNG/ngày, KHÔNG phải 1 dòng/siêu thị)
-// — aggregateDailyRowsByEntity cộng dồn theo entityCode (= MaThucThe) nên
-// CHỈ gộp được nhiều NGÀY về 1 dòng/(STK_ID,DEPT_ID), còn phải cộng dồn
-// THÊM 1 bước theo STK_ID (bỏ DEPT_ID) ở đây mới ra đúng 1 dòng/siêu thị.
-async function fetchNganhHangRevenueByMaDiem(pool, diemMapping, from, to) {
-  const definition = { domain: NGANHHANG_DOMAIN, filters: [{ field: 'eventDate', type: 'dateRange' }] };
-  const rawRows = await fetchAllReportRows(pool, definition, { eventDate: { from, to } });
-  const aggregated = aggregateDailyRowsByEntity(rawRows, to); // 1 dòng / (STK_ID, DEPT_ID)
-
-  const byStkId = new Map();
-  for (const row of aggregated) {
+// — cộng dồn theo STK_ID (bỏ DEPT_ID) ở đây mới ra đúng 1 dòng/siêu thị.
+function sumNganhHangByStk(rows) {
+  const byStk = new Map();
+  for (const row of rows) {
     // Bản 10.89 — SỬA LỖI THẬT: cột STK_ID trong `Dimensions` của VIEW
     // nguồn `V_HCRC_DOANHTHU_NGANHHANG` KHÔNG RTRIM (lưu nguyên dạng
     // CHAR có đệm khoảng trắng, vd "12171       ") — khác hẳn STK_ID dùng
     // làm entityCode của domain `doanhthu_chinhanh` (đã gọn sẵn qua ETL).
     // KHÔNG trim ở đây khiến remapRowsToDiem() không khớp được BẤT KỲ mã
     // kho nào với danh sách ở "Ánh xạ Điểm - STK_ID" (đã gọn), khiến toàn
-    // bộ DT bán buôn/bán lẻ/Lãi gộp ra 0 dù VIEW nguồn có đủ dữ liệu thật
-    // (đã xác nhận bằng SQL thật 18/11/2026 — Dimensions JSON thấy rõ
-    // "STK_ID":"12171       " có khoảng trắng thừa).
+    // bộ DT bán buôn/bán lẻ/Lãi gộp ra 0 dù VIEW nguồn có đủ dữ liệu thật.
     const stkId = row.dimensions && row.dimensions.STK_ID && row.dimensions.STK_ID.trim();
     if (!stkId) continue;
-    let acc = byStkId.get(stkId);
-    if (!acc) { acc = { entityCode: stkId, dimensions: {}, measures: {} }; byStkId.set(stkId, acc); }
+    let acc = byStk.get(stkId);
+    if (!acc) { acc = {}; byStk.set(stkId, acc); }
     const m = row.measures || {};
-    for (const key of NGANHHANG_MEASURE_KEYS) {
-      acc.measures[key] = (acc.measures[key] || 0) + (m[key] || 0);
-    }
+    for (const key of NGANHHANG_MEASURE_KEYS) acc[key] = (acc[key] || 0) + (m[key] || 0);
   }
-
-  const diemRows = remapRowsToDiem([...byStkId.values()], diemMapping, false);
-  const byMaDiem = new Map();
-  for (const row of diemRows) byMaDiem.set(row.entityCode, row);
-  return byMaDiem;
+  return byStk;
+}
+function remapStkMeasuresToMaDiem(byStk, diemMapping) {
+  const rowsForRemap = [...byStk.entries()].map(([stkId, measures]) => ({ entityCode: stkId, dimensions: {}, measures }));
+  const diemRows = remapRowsToDiem(rowsForRemap, diemMapping, false);
+  const out = new Map();
+  for (const r of diemRows) out.set(r.entityCode, r.measures || {});
+  return out;
 }
 
 // giaodich_chinhanh khoá BU_ID (1 mã Điểm = ĐÚNG 1 BU_ID, khác STK_ID có
 // thể nhiều mã/mã Điểm) — dịch tay, KHÔNG qua remapRowsToDiem (hàm đó chỉ
 // hiểu đúng kiểu danh sách STK cũ/mới).
-async function fetchTransactionsByMaDiem(pool, buIdLookup, from, to) {
-  const definition = { domain: TRANSACTION_DOMAIN, filters: [{ field: 'eventDate', type: 'dateRange' }] };
-  const rawRows = await fetchAllReportRows(pool, definition, { eventDate: { from, to } });
-  const aggregated = aggregateDailyRowsByEntity(rawRows, to);
-  const byMaDiem = new Map();
-  for (const row of aggregated) {
-    const maDiem = buIdLookup.get(row.entityCode);
-    if (!maDiem) continue;
-    byMaDiem.set(maDiem, row.measures || {});
+function sumTransactionsByBuId(rows) {
+  const byBu = new Map();
+  for (const row of rows) {
+    const buId = row.entityCode;
+    if (!buId) continue;
+    byBu.set(buId, (byBu.get(buId) || 0) + ((row.measures && row.measures.SoGiaoDich) || 0));
   }
-  return byMaDiem;
+  return byBu;
+}
+function remapBuToMaDiem(byBu, buIdLookup) {
+  const out = new Map();
+  for (const [buId, soGiaoDich] of byBu) {
+    const maDiem = buIdLookup.get(buId);
+    if (!maDiem) continue;
+    out.set(maDiem, (out.get(maDiem) || 0) + soGiaoDich);
+  }
+  return out;
 }
 
 // targetDomain (bản 10.90, THAM SỐ thay vì hằng số cố định — theo yêu cầu
@@ -283,6 +324,96 @@ function buildColumnGroups(labels) {
   ];
 }
 
+// Nhóm "I. CHUỖI MART"/"II. CHUỖI MINIMART"/"III. CHUỖI KHO" (thứ tự CỐ
+// ĐỊNH — bản 10.87/10.99, trước đây CHỈ dùng cho "Xuất Excel theo tháng",
+// bản 11.4 ÁP DỤNG THÊM cho báo cáo xem trên web/Xuất Excel/Xuất PDF
+// thường — theo yêu cầu người dùng "cả 3 nơi luôn — web, Excel, PDF") —
+// siêu thị/kho có `chain` khác/rỗng dồn vào 1 nhóm cuối "CHƯA PHÂN NHÓM"
+// (hiếm, chỉ khi admin chưa khai LoaiChuoi VÀ domain nguồn cũng không có
+// — xem lib/diemStkMapping.js).
+const GROUP_ORDER = ['MART', 'MINIMART', 'KHO'];
+const SECTION_COLORS = { MART: '174A7C', MINIMART: '2E7D32', KHO: '8A5A00' };
+const OTHER_SECTION_COLOR = '6B5B95';
+const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII'];
+
+function groupRowsByChain(rows) {
+  const groups = new Map();
+  for (const row of rows) {
+    const key = row.chain && GROUP_ORDER.includes(row.chain) ? row.chain : '__other';
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(row);
+  }
+  const orderedKeys = [...GROUP_ORDER.filter(k => groups.has(k)), ...(groups.has('__other') ? ['__other'] : [])];
+  return orderedKeys.map(key => ({ key, rows: groups.get(key) }));
+}
+
+function sumField(rows, key) { return rows.reduce((s, r) => s + (r[key] || 0), 0); }
+
+// Dòng "TỔNG MART"/"TỔNG MINIMART"/"TỔNG <tên báo cáo>" — CỘNG DỒN đúng
+// các đo lường thô của nhóm rồi TÍNH LẠI các tỉ lệ/bình quân từ đúng tổng
+// đó (KHÔNG cộng trung bình cộng các tỉ lệ từng dòng — sai số học).
+function buildSubtotalRow(groupRows, label, isGrandTotal, elapsedDays, totalDaysInMonth) {
+  const keys = [
+    'soBillDay', 'dtBanBuonDay', 'dtBanLeDay', 'tongCongDay', 'laiGopDay',
+    'khDoanhThuThang', 'khBillThang',
+    'soBillMonth', 'dtBanBuonMonth', 'dtBanLeMonth', 'tongCongMonth', 'laiGopMonth',
+    'soBillYear', 'dtBanBuonYear', 'dtBanLeYear', 'tongCongYear',
+    'khDoanhThuNam', 'dienTich'
+  ];
+  const s = {};
+  for (const k of keys) s[k] = sumField(groupRows, k);
+  const projectedMonthRevenue = elapsedDays > 0 ? (s.tongCongMonth / elapsedDays) * totalDaysInMonth : null;
+
+  return {
+    tenSieuThi: label,
+    dienTich: s.dienTich,
+    soBillDay: s.soBillDay, dtBanBuonDay: s.dtBanBuonDay, dtBanLeDay: s.dtBanLeDay,
+    tongCongDay: s.tongCongDay, laiGopDay: s.laiGopDay,
+    tyLeLaiGopDay: pctOrNull(s.laiGopDay, s.tongCongDay),
+    dtBqBillDay: divOrNull(s.dtBanLeDay, s.soBillDay),
+    dtBqM2Day: divOrNull(s.dtBanLeDay, s.dienTich),
+    khDoanhThuThang: s.khDoanhThuThang, khBillThang: s.khBillThang,
+    khTbGioHangThang: divOrNull(s.khDoanhThuThang, s.khBillThang),
+    hoanThanhDTLuyKeThang: pctOrNull(s.tongCongMonth, s.khDoanhThuThang),
+    duKienHoanThanh: projectedMonthRevenue === null ? null : pctOrNull(projectedMonthRevenue, s.khDoanhThuThang),
+    soBillMonth: s.soBillMonth, dtBanBuonMonth: s.dtBanBuonMonth, dtBanLeMonth: s.dtBanLeMonth,
+    tongCongMonth: s.tongCongMonth, laiGopMonth: s.laiGopMonth,
+    tyLeLaiGopMonth: pctOrNull(s.laiGopMonth, s.tongCongMonth),
+    dtBqBillMonth: divOrNull(s.dtBanLeMonth, s.soBillMonth),
+    dtBqM2Month: divOrNull(s.dtBanLeMonth, s.dienTich),
+    soBillYear: s.soBillYear, dtBanBuonYear: s.dtBanBuonYear, dtBanLeYear: s.dtBanLeYear,
+    tongCongYear: s.tongCongYear,
+    dtBqBillYear: divOrNull(s.dtBanLeYear, s.soBillYear),
+    dtBqM2Year: divOrNull(s.dtBanLeYear, s.dienTich),
+    khDoanhThuNam: s.khDoanhThuNam,
+    tyLeHoanThanhNam: pctOrNull(s.tongCongYear, s.khDoanhThuNam),
+    __isSubtotal: true, __isGrandTotal: !!isGrandTotal
+  };
+}
+
+// CỐT LÕI (KHÔNG kèm khối "TỔNG HỢP THEO LOẠI HÌNH" cuối sheet — đó là
+// phần RIÊNG của "Xuất Excel theo tháng", xem
+// doanhThuTongHopHcrcMonthlyExport.js:buildGroupedSheetRows() bọc thêm ở
+// ngoài) — section header + dòng dữ liệu + dòng "TỔNG <nhóm>" cho từng
+// nhóm, rồi dòng tổng toàn báo cáo (`grandTotalLabel`) ở cuối.
+function buildGroupedRows(storeRows, elapsedDays, totalDaysInMonth, grandTotalLabel) {
+  const groups = groupRowsByChain(storeRows);
+  const out = [];
+  groups.forEach((g, idx) => {
+    const roman = ROMAN[idx] || String(idx + 1);
+    const isOther = g.key === '__other';
+    out.push({
+      __isSectionHeader: true,
+      __sectionLabel: `${roman}. ${isOther ? 'CHƯA PHÂN NHÓM' : `CHUỖI ${g.key}`}`,
+      __sectionColor: isOther ? OTHER_SECTION_COLOR : SECTION_COLORS[g.key]
+    });
+    out.push(...g.rows);
+    out.push(buildSubtotalRow(g.rows, `TỔNG ${isOther ? 'KHÁC' : g.key}`, false, elapsedDays, totalDaysInMonth));
+  });
+  out.push(buildSubtotalRow(storeRows, grandTotalLabel || 'Tổng cộng', true, elapsedDays, totalDaysInMonth));
+  return out;
+}
+
 async function runDoanhThuTongHopHcrcReport(definition, filterValues) {
   const today = (filterValues && filterValues.eventDate) || vietnamTodayISO();
 
@@ -302,17 +433,27 @@ async function runDoanhThuTongHopHcrcReport(definition, filterValues) {
 
   // Diện tích/Nhóm chuỗi là thông tin TĨNH (không đổi theo ngày) — chỉ cần
   // lấy 1 lần, dùng khoảng rộng nhất (cả năm) để tối đa khả năng có dữ liệu.
-  const areaInfo = await fetchAreaByMaDiem(dwhPool, diemMapping, yearFrom, yearTo);
-  const [dayRev, monthRev, yearRev] = await Promise.all([
-    fetchNganhHangRevenueByMaDiem(dwhPool, diemMapping, dayFrom, dayTo),
-    fetchNganhHangRevenueByMaDiem(dwhPool, diemMapping, monthFrom, monthTo),
-    fetchNganhHangRevenueByMaDiem(dwhPool, diemMapping, yearFrom, yearTo)
+  //
+  // Bản 11.4 — xem chú thích đầy đủ ở đầu file: fetch RAW ROWS domain
+  // `doanhthu_nganhhang`/`giaodich_chinhanh` CHỈ 1 LẦN (khoảng rộng nhất:
+  // đầu năm -> hôm nay) rồi GOM NHÓM THEO NGÀY, CẮT LẠI trong bộ nhớ cho
+  // từng khối Ngày/Tháng/Năm — KHÔNG còn gọi DWH riêng 3 lần/domain nữa.
+  const [areaInfo, nganhHangRawRows, transactionRawRows] = await Promise.all([
+    fetchAreaByMaDiem(dwhPool, diemMapping, yearFrom, yearTo),
+    fetchRawRows(dwhPool, NGANHHANG_DOMAIN, yearFrom, yearTo),
+    fetchRawRows(dwhPool, TRANSACTION_DOMAIN, yearFrom, yearTo)
   ]);
-  const [dayTx, monthTx, yearTx] = await Promise.all([
-    fetchTransactionsByMaDiem(dwhPool, buIdLookup, dayFrom, dayTo),
-    fetchTransactionsByMaDiem(dwhPool, buIdLookup, monthFrom, monthTo),
-    fetchTransactionsByMaDiem(dwhPool, buIdLookup, yearFrom, yearTo)
-  ]);
+  const nganhHangByDay = bucketByDay(nganhHangRawRows);
+  const transactionByDay = bucketByDay(transactionRawRows);
+
+  const dayRev = remapStkMeasuresToMaDiem(sumNganhHangByStk(rowsInRange(nganhHangByDay, dayFrom, dayTo)), diemMapping);
+  const monthRev = remapStkMeasuresToMaDiem(sumNganhHangByStk(rowsInRange(nganhHangByDay, monthFrom, monthTo)), diemMapping);
+  const yearRev = remapStkMeasuresToMaDiem(sumNganhHangByStk(rowsInRange(nganhHangByDay, yearFrom, yearTo)), diemMapping);
+
+  const dayTx = remapBuToMaDiem(sumTransactionsByBuId(rowsInRange(transactionByDay, dayFrom, dayTo)), buIdLookup);
+  const monthTx = remapBuToMaDiem(sumTransactionsByBuId(rowsInRange(transactionByDay, monthFrom, monthTo)), buIdLookup);
+  const yearTx = remapBuToMaDiem(sumTransactionsByBuId(rowsInRange(transactionByDay, yearFrom, yearTo)), buIdLookup);
+
   // Kế hoạch DT/Bill hiện ở khối Ngày = kế hoạch CẢ THÁNG (đã xác nhận với
   // người dùng) -> CHỈ cần 2 khối: tháng (dùng chung cho cả "Ngày" lẫn
   // "Tháng") và năm (KH luỹ kế năm).
@@ -343,16 +484,19 @@ async function runDoanhThuTongHopHcrcReport(definition, filterValues) {
   // chung code cho nhiều domain có entityCode khác kiểu).
   const storeScope = Array.isArray(filterValues && filterValues.__storeScope) ? new Set(filterValues.__storeScope) : null;
 
+  const elapsedDays = dayOfMonth(today);
+  const totalDaysInMonth = daysInMonth(today);
+
   const rows = [];
   for (const [maDiem, info] of diemMapping) {
     if (storeScope && !storeScope.has(maDiem)) continue;
-    const dR = dayRev.get(maDiem) || { dimensions: {}, measures: {} };
-    const mR = monthRev.get(maDiem) || { dimensions: {}, measures: {} };
-    const yR = yearRev.get(maDiem) || { dimensions: {}, measures: {} };
+    // Bản 11.4 — dayRev/monthRev/yearRev (từ remapStkMeasuresToMaDiem) và
+    // dayTx/monthTx/yearTx (từ remapBuToMaDiem) giờ trả về đúng SHAPE PHẲNG
+    // (measures thẳng/số Bill thẳng), KHÁC shape {dimensions,measures} cũ.
+    const dR = dayRev.get(maDiem) || {};
+    const mR = monthRev.get(maDiem) || {};
+    const yR = yearRev.get(maDiem) || {};
     const aR = areaInfo.get(maDiem) || { dimensions: {} };
-    const dT = dayTx.get(maDiem) || {};
-    const mT = monthTx.get(maDiem) || {};
-    const yT = yearTx.get(maDiem) || {};
     const mTarget = monthTarget.get(maDiem) || {};
     const yTarget = yearTarget.get(maDiem) || {};
 
@@ -374,29 +518,27 @@ async function runDoanhThuTongHopHcrcReport(definition, filterValues) {
     // thẳng measures.DoanhThu nữa (đảm bảo luôn khớp tuyệt đối theo đúng
     // công thức, dù DoanhThu nguồn có thể lệch nếu domain tính thêm
     // thành phần khác ngoài buôn/lẻ).
-    const dtBanLeDay = dR.measures.DoanhThuBanLe || 0;
-    const dtBanBuonDay = dR.measures.DoanhThuBanBuon || 0;
+    const dtBanLeDay = dR.DoanhThuBanLe || 0;
+    const dtBanBuonDay = dR.DoanhThuBanBuon || 0;
     const tongCongDay = dtBanBuonDay + dtBanLeDay;
-    const laiGopDay = dR.measures.LaiGop || 0;
-    const soBillDay = dT.SoGiaoDich || 0;
+    const laiGopDay = dR.LaiGop || 0;
+    const soBillDay = dayTx.get(maDiem) || 0;
 
-    const dtBanLeMonth = mR.measures.DoanhThuBanLe || 0;
-    const dtBanBuonMonth = mR.measures.DoanhThuBanBuon || 0;
+    const dtBanLeMonth = mR.DoanhThuBanLe || 0;
+    const dtBanBuonMonth = mR.DoanhThuBanBuon || 0;
     const tongCongMonth = dtBanBuonMonth + dtBanLeMonth;
-    const laiGopMonth = mR.measures.LaiGop || 0;
-    const soBillMonth = mT.SoGiaoDich || 0;
+    const laiGopMonth = mR.LaiGop || 0;
+    const soBillMonth = monthTx.get(maDiem) || 0;
 
-    const dtBanLeYear = yR.measures.DoanhThuBanLe || 0;
-    const dtBanBuonYear = yR.measures.DoanhThuBanBuon || 0;
+    const dtBanLeYear = yR.DoanhThuBanLe || 0;
+    const dtBanBuonYear = yR.DoanhThuBanBuon || 0;
     const tongCongYear = dtBanBuonYear + dtBanLeYear;
-    const soBillYear = yT.SoGiaoDich || 0;
+    const soBillYear = yearTx.get(maDiem) || 0;
 
     const khDoanhThuThang = typeof mTarget.ChiTieuDoanhThu === 'number' ? mTarget.ChiTieuDoanhThu : null;
     const khBillThang = typeof mTarget.ChiTieuGiaoDich === 'number' ? mTarget.ChiTieuGiaoDich : null;
     const khDoanhThuNam = typeof yTarget.ChiTieuDoanhThu === 'number' ? yTarget.ChiTieuDoanhThu : null;
 
-    const elapsedDays = dayOfMonth(today);
-    const totalDaysInMonth = daysInMonth(today);
     const projectedMonthRevenue = elapsedDays > 0 ? (tongCongMonth / elapsedDays) * totalDaysInMonth : null;
 
     rows.push({
@@ -434,24 +576,45 @@ async function runDoanhThuTongHopHcrcReport(definition, filterValues) {
 
   const labels = { day: today, month: today.slice(0, 7), year: today.slice(0, 4) };
   const columns = describeColumns(buildColumns(labels));
-  assignSttIfPresent(rows, columns);
+
+  // Bản 11.4 (theo yêu cầu người dùng — "Cả 3 nơi luôn — web, Excel, PDF")
+  // — ÁP DỤNG nhóm "I. CHUỖI MART"/"II. CHUỖI MINIMART"/"III. CHUỖI KHO" +
+  // dòng "TỔNG <nhóm>"/"Tổng cộng" cho CẢ báo cáo xem trên web lẫn Xuất
+  // Excel/Xuất PDF (routes/reports.js:/run và /export CÙNG gọi hàm này) —
+  // trước đây CHỈ "Xuất Excel theo tháng" (doanhThuTongHopHcrcMonthlyExport.js)
+  // có nhóm này. assignSttIfPresent() PHẢI chạy SAU buildGroupedRows (trên
+  // kết quả đã nhóm) — computeSttValues() đã sẵn xử lý đúng
+  // __isSubtotal/__isSectionHeader (bỏ trống TT, reset/không reset đúng
+  // quy tắc, xem lib/reportCellFormat.js).
+  const groupedRows = buildGroupedRows(rows, elapsedDays, totalDaysInMonth);
+  assignSttIfPresent(groupedRows, columns);
 
   return {
     columns,
-    rows,
+    rows: groupedRows,
     columnGroups: buildColumnGroups(labels),
     columnSuperGroups: null
   };
 }
 
-// Xuất lại các hằng số/hàm phụ trợ (bản 10.87) — dùng CHUNG ở
-// lib/doanhThuTongHopHcrcMonthlyExport.js (xuất Excel 1 sheet/ngày cho cả
-// tháng) để KHÔNG chép lại logic domain/công thức tính (dễ lệch số nếu
-// sửa 1 nơi quên sửa nơi kia).
+// Xuất lại các hằng số/hàm phụ trợ (bản 10.87, MỞ RỘNG bản 11.4) — dùng
+// CHUNG ở lib/doanhThuTongHopHcrcMonthlyExport.js (xuất Excel 1 sheet/ngày
+// cho cả tháng) để KHÔNG chép lại logic domain/công thức tính/nhóm (dễ
+// lệch số nếu sửa 1 nơi quên sửa nơi kia) — bản 11.4 gộp thêm các hàm
+// fetch-once-bucket-by-day (`fetchRawRows`/`bucketByDay`/`rowsInRange`/
+// `sumNganhHangByStk`/`remapStkMeasuresToMaDiem`/`sumTransactionsByBuId`/
+// `remapBuToMaDiem`) VÀ các hàm nhóm Mart/MiniMart/Kho
+// (`groupRowsByChain`/`sumField`/`buildSubtotalRow`) — TRƯỚC ĐÂY định
+// nghĩa RIÊNG ở doanhThuTongHopHcrcMonthlyExport.js, giờ gộp về ĐÂY làm
+// nguồn sự thật duy nhất.
 module.exports = {
   runDoanhThuTongHopHcrcReport,
   AREA_DOMAIN, NGANHHANG_DOMAIN, TRANSACTION_DOMAIN, TARGET_DOMAIN, NGANHHANG_MEASURE_KEYS,
   vietnamTodayISO, firstOfMonth, firstOfYear, daysInMonth, dayOfMonth, divOrNull, pctOrNull,
   buildColumns, buildColumnGroups,
-  fetchTargetsByMaDiem, fetchStaffCountByMaDiem
+  fetchTargetsByMaDiem, fetchStaffCountByMaDiem,
+  toISODate, fetchRawRows, bucketByDay, rowsInRange,
+  sumNganhHangByStk, remapStkMeasuresToMaDiem, sumTransactionsByBuId, remapBuToMaDiem,
+  GROUP_ORDER, SECTION_COLORS, OTHER_SECTION_COLOR, ROMAN,
+  groupRowsByChain, sumField, buildSubtotalRow, buildGroupedRows
 };

@@ -14,6 +14,28 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 11.4 — "Báo cáo tổng hợp doanh thu siêu thị": sửa chậm + thêm nhóm Mart/Mini Mart/Kho (web, Excel, PDF)
+
+**Thay đổi**: `lib/doanhThuTongHopHcrcRunner.js` — bỏ fetch DWH riêng 3
+lần (Ngày/Tháng/Năm) cho domain `doanhthu_nganhhang`/`giaodich_chinhanh`,
+đổi sang fetch 1 lần (đầu năm → hôm nay) + gom theo ngày trong bộ nhớ
+(giống mẫu đã chạy ổn ở "Xuất Excel theo tháng"). Thêm nhóm "I. CHUỖI
+MART"/"II. CHUỖI MINIMART"/"III. CHUỖI KHO" + dòng "TỔNG <nhóm>"/"Tổng
+cộng" — áp dụng CHUNG cho web (`/run`) VÀ Xuất Excel/PDF (`/export`),
+không chỉ "Xuất Excel theo tháng" như trước.
+`lib/doanhThuTongHopHcrcMonthlyExport.js` sửa lại để IMPORT các hàm dùng
+chung từ `doanhThuTongHopHcrcRunner.js` thay vì tự định nghĩa riêng.
+
+**Triển khai**:
+```bash
+git pull origin main
+pm2 restart rp-server
+```
+(KHÔNG cần chạy script seed nào — không đổi DefinitionJson lưu CSDL, chỉ
+đổi code runner.)
+
+**Kiểm tra**: xem "VERSION.md" mục bản 11.4.
+
 ## 11.3 — "Báo cáo doanh thu cuối ngày" loại hẳn mã Điểm LoaiChuoi='KHO'
 
 **Thay đổi**: `lib/compositeReportRunner.js` — `groupBy` thêm
