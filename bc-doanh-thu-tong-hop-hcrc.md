@@ -5,6 +5,16 @@ dùng, dựa trên file mẫu thật đội vận hành đang tự tổng hợp 
 `Bao_cao_ban_Doanh_thu_hang_ngay_he_thong_HCRC_T11.2026.xlsx`, mỗi sheet 1
 ngày trong tháng, mỗi dòng 1 siêu thị).
 
+⚠️ **BẢN 11.5 — SỬA LỖI: KHÔNG THỂ khai `LoaiChuoi='KHO'` ở etl-admin**
+(phát hiện khi người dùng hỏi "khai Kho ở chỗ nào" sau khi xem demo bản
+11.4 không có nhóm Kho). Từ bản 10.99, trang "Ánh xạ Điểm - STK_ID" đã
+ghi hướng dẫn khai `KHO` nhưng dropdown + validate phía server CHƯA TỪNG
+chấp nhận giá trị này — **không ai khai được `KHO` trên thực tế cho tới
+bản này**. Sửa `etl/lib/diemStkMappingImport.js` (`LOAI_CHUOI_HOP_LE`) +
+`etl-admin/src/pages/DiemStkMappingPage.jsx` (thêm `<option value="KHO">`)
+— xem "VERSION.md" mục bản 11.5. Từ bản này mới khai được thật, nhóm
+"III. CHUỖI KHO" ở mục dưới mới có cơ hội xuất hiện.
+
 ⚠️ **BẢN 11.4 — Sửa chậm + thêm nhóm Mart/Mini Mart/Kho cho CẢ web/Xuất
 Excel/Xuất PDF (không chỉ "Xuất Excel theo tháng")** (theo yêu cầu người
 dùng — báo cáo chạy rất chậm, "Xuất file theo tháng" báo "Failed to

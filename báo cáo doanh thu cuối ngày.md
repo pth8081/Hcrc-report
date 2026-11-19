@@ -27,6 +27,21 @@ chạy, không cần cấu hình gì thêm ở phía rp-user. Xem chi tiết ở
 > Bố cục nút bấm/ô nhập là chính xác 100%; tên/số bạn thấy khi làm thật sẽ
 > khác (đúng theo dữ liệu bạn có).
 
+⚠️ **BẢN 11.5 — SỬA LỖI: KHÔNG THỂ khai `LoaiChuoi='KHO'` được, dù mục
+ngay dưới đây (bản 11.3) nói "ĐÃ cho khai thêm từ bản 11.0"**. Phát hiện
+khi người dùng hỏi "khai Kho ở chỗ nào" sau khi thấy demo không có nhóm
+Kho — kiểm tra lại mới ra: dropdown "Loại chuỗi" ở trang "Ánh xạ Điểm -
+STK_ID" (etl-admin) chỉ có 2 lựa chọn `MART`/`MINIMART` (thiếu `KHO`), VÀ
+validate phía server (`normalizeLoaiChuoi()`) cũng chặn cứng giá trị
+"KHO" — tức là **từ bản 10.99/11.0 tới trước bản này, KHÔNG AI từng khai
+được `LoaiChuoi='KHO'` cho bất kỳ mã Điểm nào trên thực tế**, dù tầng báo
+cáo (nhóm "CHUỖI KHO", `excludeValues: ['KHO']` ở mục ngay dưới) đã sẵn
+sàng từ lâu. Sửa: `etl/lib/diemStkMappingImport.js` thêm `'KHO'` vào
+`LOAI_CHUOI_HOP_LE`, `etl-admin/src/pages/DiemStkMappingPage.jsx` thêm
+`<option value="KHO">` — xem "VERSION.md" mục bản 11.5. Từ bản này, mọi
+hướng dẫn "khai KHO ở Ánh xạ Điểm - STK_ID" trong file này/"bc-doanh-thu-
+tong-hop-hcrc.md" mới THỰC SỰ dùng được.
+
 ⚠️ **BẢN 11.3 — Mã Điểm khai `LoaiChuoi='KHO'` KHÔNG hiện trong 4 báo cáo
 "Doanh thu cuối ngày"**. Từ bản 11.0, trang "Ánh xạ Điểm - STK_ID"
 (etl-admin) cho khai thêm giá trị `LoaiChuoi` thứ 3 là `KHO` (dùng cho

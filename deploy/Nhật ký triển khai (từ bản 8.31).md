@@ -14,6 +14,22 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 11.5 — SỬA LỖI: không thể khai LoaiChuoi='KHO' ở etl-admin
+
+**Thay đổi**: `etl/lib/diemStkMappingImport.js` — `LOAI_CHUOI_HOP_LE` thêm
+`'KHO'` (trước chỉ `['MART', 'MINIMART']`, chặn cứng cả form sửa 1 dòng
+lẫn nhập Excel hàng loạt). `etl-admin/src/pages/DiemStkMappingPage.jsx` —
+dropdown "Loại chuỗi" thêm lựa chọn `KHO`.
+
+**Triển khai**:
+```bash
+git pull origin main
+pm2 restart etl
+cd etl-admin && npm run build
+```
+
+**Kiểm tra**: xem "VERSION.md" mục bản 11.5.
+
 ## 11.4 — "Báo cáo tổng hợp doanh thu siêu thị": sửa chậm + thêm nhóm Mart/Mini Mart/Kho (web, Excel, PDF)
 
 **Thay đổi**: `lib/doanhThuTongHopHcrcRunner.js` — bỏ fetch DWH riêng 3

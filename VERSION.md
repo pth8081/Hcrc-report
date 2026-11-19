@@ -52,6 +52,39 @@ nội dung/hành vi nào đã làm. Lịch sử Git (commit message) vẫn còn 
 "Bản 10.100"/"Bản 10.101" (không sửa lại lịch sử Git) — coi là ĐỒNG NHẤT
 với "11.0"/"11.1".
 
+## 11.5 — SỬA LỖI THẬT: KHÔNG THỂ khai `LoaiChuoi='KHO'` ở etl-admin (dù hướng dẫn trên trang đã ghi từ bản 10.99)
+
+**Phát hiện khi người dùng hỏi** *"Mình khai báo kho ở chỗ nào nhỉ?"* sau
+khi thấy demo bản 11.4 không có nhóm "CHUỖI KHO" — kiểm tra lại dữ liệu
+thật mới ra: KHÔNG phải do dữ liệu/chưa khai, mà do **không thể khai
+được** — trang "Ánh xạ Điểm - STK_ID" (etl-admin) đã ghi hướng dẫn *"Khai
+**KHO** (bản 10.99) cho mã Điểm nào là KHO HÀNG..."* ngay trên form từ bản
+10.99, nhưng CẢ 2 đường ghi giá trị này đều CHẶN CỨNG, chưa từng cho phép
+"KHO" lọt qua:
+- Dropdown "Loại chuỗi" (form "Sửa/thêm 1 dòng") chỉ có 2 lựa chọn `MART`/
+  `MINIMART` — không có `KHO`.
+- Validate phía server (`normalizeLoaiChuoi()`, dùng CHUNG cho cả form 1
+  dòng lẫn nhập Excel hàng loạt) có danh sách hợp lệ CỨNG `['MART',
+  'MINIMART']` — gõ "KHO" vào file Excel import cũng bị trả lỗi 400.
+
+Nói cách khác: từ bản 10.99 tới nay, **KHÔNG AI từng khai được `LoaiChuoi=
+'KHO'`** cho bất kỳ mã Điểm nào trên thực tế — tầng báo cáo (nhóm "CHUỖI
+KHO", loại Kho khỏi "Doanh thu cuối ngày") đã sẵn sàng từ lâu, chỉ riêng
+tầng NHẬP DỮ LIỆU quên thêm giá trị này.
+
+**Sửa**: `etl/lib/diemStkMappingImport.js` — `LOAI_CHUOI_HOP_LE` thêm
+`'KHO'`. `etl-admin/src/pages/DiemStkMappingPage.jsx` — dropdown "Loại
+chuỗi" thêm `<option value="KHO">`.
+
+**Triển khai**: `git pull origin main`, khởi động lại `etl` + build lại
+`etl-admin` — KHÔNG cần đổi CSDL/chạy script.
+
+**Kiểm tra**: vào etl-admin → "Ánh xạ Điểm - STK_ID" → "Sửa" 1 mã Điểm là
+kho hàng → chọn "Loại chuỗi" = `KHO` → Lưu → KHÔNG còn báo lỗi; mở "Báo
+cáo tổng hợp doanh thu siêu thị" → mã Điểm đó hiện đúng trong nhóm "III.
+CHUỖI KHO"; mở "Báo cáo doanh thu cuối ngày" → mã Điểm đó KHÔNG xuất hiện
+(loại theo bản 11.3).
+
 ## 11.4 — "Báo cáo tổng hợp doanh thu siêu thị": sửa chậm + thêm nhóm Mart/Mini Mart/Kho (web, Excel, PDF)
 
 **Theo yêu cầu người dùng** — báo cáo "Báo cáo tổng hợp doanh thu siêu thị

@@ -30,9 +30,19 @@ function parseStkList(raw) {
   return String(raw).split(',').map(s => s.trim()).filter(Boolean);
 }
 
-const LOAI_CHUOI_HOP_LE = ['MART', 'MINIMART'];
+// Bản 11.5 — SỬA LỖI THẬT (phát hiện khi người dùng hỏi "khai Kho ở chỗ
+// nào" — tìm ra admin KHÔNG THỂ khai được 'KHO' dù trang này đã ghi rõ
+// hướng dẫn "Khai KHO (bản 10.99)..." ngay phía trên form): danh sách hợp
+// lệ ở đây CHƯA TỪNG thêm 'KHO' khi bản 10.99 thêm nhóm "CHUỖI KHO" ở báo
+// cáo — khiến CẢ 2 đường ghi giá trị này (form "Sửa/thêm 1 dòng" PUT
+// /one, VÀ file Excel nhập hàng loạt) đều CHẶN CỨNG, trả lỗi 400 nếu gõ
+// "KHO". Tầng báo cáo (GROUP_ORDER ở lib/doanhThuTongHopHcrcRunner.js,
+// excludeValues ở scripts/seedLdtdHcrcReports.js) đã sẵn sàng nhận giá
+// trị này từ lâu — chỉ riêng tầng NHẬP DỮ LIỆU này quên thêm, nên trên
+// thực tế KHÔNG AI khai được 'KHO' cho tới bản này.
+const LOAI_CHUOI_HOP_LE = ['MART', 'MINIMART', 'KHO'];
 // null = hợp lệ (để trống -> dùng nguyên giá trị tự động từ STOCK.TYPE, xem
-// etl-db/schema.sql), chuỗi khác null = LỖI (giá trị không thuộc 2 lựa
+// etl-db/schema.sql), chuỗi khác null = LỖI (giá trị không thuộc các lựa
 // chọn hợp lệ, KHÔNG âm thầm bỏ qua để tránh gõ nhầm "Mart"/"minimart" mà
 // không phát hiện).
 function normalizeLoaiChuoi(raw) {
@@ -40,7 +50,7 @@ function normalizeLoaiChuoi(raw) {
   if (!trimmed) return { value: null, error: null };
   const upper = trimmed.toUpperCase();
   if (!LOAI_CHUOI_HOP_LE.includes(upper)) {
-    return { value: null, error: `LoaiChuoi "${trimmed}" không hợp lệ — chỉ nhận "MART" hoặc "MINIMART" (để trống nếu muốn dùng tự động)` };
+    return { value: null, error: `LoaiChuoi "${trimmed}" không hợp lệ — chỉ nhận "MART", "MINIMART" hoặc "KHO" (để trống nếu muốn dùng tự động)` };
   }
   return { value: upper, error: null };
 }

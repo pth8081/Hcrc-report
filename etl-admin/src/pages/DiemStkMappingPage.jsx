@@ -370,6 +370,7 @@ export default function DiemStkMappingPage() {
           <option value="">Loại chuỗi — để trống (tự động theo STOCK.TYPE)</option>
           <option value="MART">MART</option>
           <option value="MINIMART">MINIMART</option>
+          <option value="KHO">KHO</option>
         </select>
         <input
           placeholder="Mã QLKV (mã quản lý khu vực, tuỳ chọn)"
