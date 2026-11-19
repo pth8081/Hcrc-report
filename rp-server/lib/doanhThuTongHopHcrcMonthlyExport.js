@@ -173,7 +173,7 @@ function buildSubtotalRow(groupRows, label, isGrandTotal, elapsedDays, totalDays
   };
 }
 
-// Nhãn NGẮN cho khối "Tổng hợp theo loại hình" cuối sheet (bản 10.100,
+// Nhãn NGẮN cho khối "Tổng hợp theo loại hình" cuối sheet (bản 11.0,
 // theo yêu cầu người dùng — "làm phần tổng cộng theo hàng ngày mart, mini
 // mart, kho, tổng là được", thêm vào CUỐI mỗi sheet đang có, KHÔNG tạo báo
 // cáo riêng) — khác chữ "TỔNG MART"/"TỔNG MINIMART"/"TỔNG KHO" đã dùng cho

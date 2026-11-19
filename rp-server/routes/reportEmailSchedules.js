@@ -5,7 +5,7 @@
 // body POST/PUT nhận `cronExpressions` (mảng chuỗi cron, KHÔNG phải 1 chuỗi
 // như trước), mỗi phần tử thành 1 dòng app.ReportEmailScheduleTimes.
 //
-// 1 LỊCH NHIỀU BÁO CÁO (bản 10.101, theo yêu cầu người dùng — "chọn được
+// 1 LỊCH NHIỀU BÁO CÁO (bản 11.1, theo yêu cầu người dùng — "chọn được
 // nhiều bc để gửi... gộp chung 1 email duy nhất") — body POST/PUT nhận
 // `reports` (mảng {reportId, filterValues, bodyColumnKeys, highlightColumnKey,
 // highlightThreshold}, GIỮ RIÊNG cấu hình cho TỪNG báo cáo), mỗi phần tử
@@ -154,7 +154,7 @@ router.get('/', async (req, res, next) => {
         ...r,
         Reports: reports,
         // Báo cáo (cột bảng danh sách) — nối tên các báo cáo trong lịch,
-        // KHÔNG còn đúng 1 báo cáo/lịch như trước bản 10.101.
+        // KHÔNG còn đúng 1 báo cáo/lịch như trước bản 11.1.
         ReportTitle: reports.map(x => x.title).join(', '),
         Times: timesBySchedule.get(r.Id) || []
       };

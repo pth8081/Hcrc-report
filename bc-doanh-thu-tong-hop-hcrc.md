@@ -5,7 +5,7 @@ dùng, dựa trên file mẫu thật đội vận hành đang tự tổng hợp 
 `Bao_cao_ban_Doanh_thu_hang_ngay_he_thong_HCRC_T11.2026.xlsx`, mỗi sheet 1
 ngày trong tháng, mỗi dòng 1 siêu thị).
 
-⚠️ **BẢN 10.100 — Thêm khối "TỔNG HỢP THEO LOẠI HÌNH" cuối mỗi sheet**
+⚠️ **BẢN 11.0 — Thêm khối "TỔNG HỢP THEO LOẠI HÌNH" cuối mỗi sheet**
 (theo yêu cầu người dùng — *"làm phần tổng cộng theo hàng ngày mart, mini
 mart, kho, tổng là được"*, xác nhận thêm vào CUỐI mỗi sheet của "Xuất
 Excel theo tháng" đang có, KHÔNG tạo báo cáo riêng). Sau toàn bộ danh sách

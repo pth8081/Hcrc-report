@@ -928,7 +928,7 @@ BEGIN
 END
 GO
 
--- 1 LỊCH GỬI NHIỀU BÁO CÁO TRONG CÙNG 1 EMAIL (bản 10.101, theo yêu cầu
+-- 1 LỊCH GỬI NHIỀU BÁO CÁO TRONG CÙNG 1 EMAIL (bản 11.1, theo yêu cầu
 -- người dùng — "chọn được nhiều bc để gửi... gộp chung 1 email duy nhất"),
 -- mỗi báo cáo 1 dòng ở đây, GIỮ RIÊNG bộ lọc cố định/cột hiển thị/ngưỡng tô
 -- màu cho ĐÚNG báo cáo đó (2 báo cáo khác nhau có thể có filters/columns

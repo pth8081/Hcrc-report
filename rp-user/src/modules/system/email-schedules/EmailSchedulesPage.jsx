@@ -9,7 +9,7 @@
 // khác nhau (vd giờ này chỉ gửi thứ 2, giờ kia gửi cuối tuần) thì chuyển
 // sang "Nâng cao", nhập trực tiếp danh sách biểu thức cron.
 //
-// MỘT LỊCH NHIỀU BÁO CÁO (bản 10.101, theo yêu cầu người dùng — "chọn được
+// MỘT LỊCH NHIỀU BÁO CÁO (bản 11.1, theo yêu cầu người dùng — "chọn được
 // nhiều bc để gửi... kiểu dropdown + searchable + multi choice") — ô "Báo
 // cáo" là SearchableSelect multi (y hệt ô "Người nhận"), chọn NHIỀU báo cáo
 // GỘP CHUNG 1 email (DeliveryMode='attachment' -> nhiều file đính kèm,
@@ -330,7 +330,7 @@ function ReportConfigBlock({ form, setForm, report, deliveryMode }) {
 }
 
 // Nhóm field dùng chung cho form Tạo + modal Sửa — giống hệt nhau, chọn
-// NHIỀU báo cáo được cả lúc tạo lẫn lúc sửa (bản 10.101, không còn khoá
+// NHIỀU báo cáo được cả lúc tạo lẫn lúc sửa (bản 11.1, không còn khoá
 // chọn báo cáo khi Sửa như trước — mỗi báo cáo tự giữ cấu hình riêng trong
 // form.perReport nên thêm/bớt báo cáo lúc sửa không ảnh hưởng báo cáo khác).
 function ScheduleFormFields({ form, setForm, reports, userRecipientOptions }) {

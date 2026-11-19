@@ -42,7 +42,17 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
-## 10.101 — "Lịch gửi email báo cáo": chọn NHIỀU báo cáo, gộp chung 1 email
+**SỬA SỐ bản 10.100/10.101 → 11.0/11.1 (theo yêu cầu người dùng, phát hiện
+ĐÚNG lặp lại lỗi đánh số đã sửa ở mốc 9.100-9.103 phía trên)**: sau bản
+10.99 (`Y` chạm "99"), lẽ ra PHẢI tràn ngay (`X` tăng lên 11, `Y` về 0)
+nhưng 2 bản tiếp theo lại vô tình đếm tiếp "10.100"/"10.101" như số
+nguyên. Đã đổi lại thành "11.0"/"11.1" trong file này, nhật ký triển
+khai, và mọi chú thích code liên quan — CHỈ sửa CÁCH GHI SỐ, KHÔNG đổi
+nội dung/hành vi nào đã làm. Lịch sử Git (commit message) vẫn còn ghi
+"Bản 10.100"/"Bản 10.101" (không sửa lại lịch sử Git) — coi là ĐỒNG NHẤT
+với "11.0"/"11.1".
+
+## 11.1 — "Lịch gửi email báo cáo": chọn NHIỀU báo cáo, gộp chung 1 email
 
 **Theo yêu cầu người dùng** — *"tôi muốn chọn được nhiều bc để gửi...
 kiểu dropdown + searchable + multi choice"*, xác nhận gộp chung 1 EMAIL
@@ -78,7 +88,7 @@ build lại `rp-user`, khởi động lại `rp-server`.
 ĐÚNG 1 email, đủ file đính kèm (hoặc đủ bảng nối tiếp nếu chọn gửi dạng
 nội dung) của cả các báo cáo đã chọn.
 
-## 10.100 — Thêm khối "TỔNG HỢP THEO LOẠI HÌNH" (Mart/Mini Mart/Kho/Tổng) cuối mỗi sheet "Xuất Excel theo tháng"
+## 11.0 — Thêm khối "TỔNG HỢP THEO LOẠI HÌNH" (Mart/Mini Mart/Kho/Tổng) cuối mỗi sheet "Xuất Excel theo tháng"
 
 **Theo yêu cầu người dùng** — *"Bạn cứ làm phần tổng cộng theo hàng ngày
 mart, mini mart, kho, tổng là được"*, xác nhận thêm vào CUỐI mỗi sheet
@@ -92,7 +102,7 @@ dùng đúng object đã tính, tránh lệch số giữa 2 vị trí.
 
 **Triển khai**: `git pull origin main` rồi khởi động lại `rp-server`.
 
-**Kiểm tra**: xem "bc-doanh-thu-tong-hop-hcrc.md" mục bản 10.100.
+**Kiểm tra**: xem "bc-doanh-thu-tong-hop-hcrc.md" mục bản 11.0.
 
 ## 10.99 — SỬA bản 10.98: thêm nhóm "CHUỖI KHO" vào "Xuất Excel theo tháng" thay vì báo cáo riêng
 

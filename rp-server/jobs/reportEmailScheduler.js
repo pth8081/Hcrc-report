@@ -45,7 +45,7 @@ const runningSchedules = new Set(); // scheduleId
 
 // CHỈ còn các cột CẤP LỊCH (chung cho cả email) — ReportId/FilterValuesJson/
 // BodyColumnKeysJson/HighlightColumnKey/HighlightThreshold trên CHÍNH bảng
-// app.ReportEmailSchedules từ bản 10.101 là CỘT CŨ/KHÔNG CÒN LÀ NGUỒN THẬT
+// app.ReportEmailSchedules từ bản 11.1 là CỘT CŨ/KHÔNG CÒN LÀ NGUỒN THẬT
 // (xem rp-db/schema.sql) — danh sách báo cáo THẬT đọc riêng qua
 // loadScheduleReports() bên dưới.
 async function loadActiveOccurrences() {
@@ -81,7 +81,7 @@ async function loadSchedule(id) {
   return result.recordset[0] || null;
 }
 
-// Danh sách báo cáo THẬT của 1 lịch (bản 10.101) — mỗi báo cáo giữ RIÊNG bộ
+// Danh sách báo cáo THẬT của 1 lịch (bản 11.1) — mỗi báo cáo giữ RIÊNG bộ
 // lọc/cột hiển thị/ngưỡng tô màu, xếp theo SortOrder (đúng thứ tự admin đã
 // chọn lúc tạo/sửa lịch).
 async function loadScheduleReports(scheduleId) {
@@ -179,7 +179,7 @@ async function runOneReport(reportConfig, schedule) {
   return { title: displayTitle, rowCount: rows.length, attachment: { filename, content: buffer } };
 }
 
-// Phần LÕI: chạy TOÀN BỘ báo cáo của lịch (bản 10.101, có thể NHIỀU báo cáo
+// Phần LÕI: chạy TOÀN BỘ báo cáo của lịch (bản 11.1, có thể NHIỀU báo cáo
 // — xem app.ReportEmailScheduleReports) + gửi GỘP vào CÙNG 1 email, KHÔNG tự
 // ghi kết quả vào DB/log — việc đó do người gọi quyết định (chạy tự động
 // ghi cả giờ gửi lẫn lịch, "Gửi ngay" chỉ ghi lịch — xem 2 hàm gọi bên dưới).
@@ -197,7 +197,7 @@ async function runSchedule(schedule) {
 
   // Subject rỗng -> dùng mẫu mặc định như trước khi có tính năng này (tương
   // thích ngược với lịch cũ chưa từng điền Subject) — 1 báo cáo thì dùng
-  // ĐÚNG tên báo cáo đó (y hệt trước bản 10.101), nhiều báo cáo thì nối tên
+  // ĐÚNG tên báo cáo đó (y hệt trước bản 11.1), nhiều báo cáo thì nối tên
   // (ngắn gọn, ≤3 báo cáo) hoặc đếm số lượng (nhiều hơn, tránh Subject quá
   // dài). Subject tự điền được phép chèn "{ngay}" -> ngày gửi thật.
   // timeZone: 'Asia/Ho_Chi_Minh' BẮT BUỘC — không truyền, toLocaleDateString()

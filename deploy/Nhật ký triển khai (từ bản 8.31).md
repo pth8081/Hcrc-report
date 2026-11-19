@@ -14,7 +14,7 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
-## 10.101 — "Lịch gửi email báo cáo": chọn NHIỀU báo cáo, gộp chung 1 email
+## 11.1 — "Lịch gửi email báo cáo": chọn NHIỀU báo cáo, gộp chung 1 email
 
 **Thay đổi**: Bảng mới `app.ReportEmailScheduleReports` (1 báo cáo/dòng,
 giữ riêng bộ lọc/cột hiển thị/ngưỡng tô màu); `routes/reportEmailSchedules.js`
@@ -32,7 +32,7 @@ pm2 restart rp-server
 **Kiểm tra**: tạo 1 lịch chọn nhiều báo cáo, bấm "Gửi ngay" — nhận đúng 1
 email có đủ file/bảng của các báo cáo đã chọn.
 
-## 10.100 — Thêm khối "TỔNG HỢP THEO LOẠI HÌNH" (Mart/Mini Mart/Kho/Tổng) cuối mỗi sheet "Xuất Excel theo tháng"
+## 11.0 — Thêm khối "TỔNG HỢP THEO LOẠI HÌNH" (Mart/Mini Mart/Kho/Tổng) cuối mỗi sheet "Xuất Excel theo tháng"
 
 **Thay đổi**: `lib/doanhThuTongHopHcrcMonthlyExport.js` — cuối mỗi sheet
 (sau "TỔNG HCRC") thêm khối tóm tắt "TỔNG HỢP THEO LOẠI HÌNH", 4 dòng
@@ -40,7 +40,7 @@ Mart/Mini Mart/Kho/Tổng cộng — nhắc lại số liệu đã tính, không
 
 **Triển khai**: `git pull origin main` rồi khởi động lại `rp-server`.
 
-**Kiểm tra**: xem "bc-doanh-thu-tong-hop-hcrc.md" mục bản 10.100.
+**Kiểm tra**: xem "bc-doanh-thu-tong-hop-hcrc.md" mục bản 11.0.
 
 ## 10.99 — SỬA bản 10.98: thêm nhóm "CHUỖI KHO" vào "Xuất Excel theo tháng" thay vì báo cáo riêng
 
