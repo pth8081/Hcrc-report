@@ -9,10 +9,19 @@
 // khác nhau (vd giờ này chỉ gửi thứ 2, giờ kia gửi cuối tuần) thì chuyển
 // sang "Nâng cao", nhập trực tiếp danh sách biểu thức cron.
 //
-// Bộ lọc cố định của từng lịch đổi theo filters của báo cáo đã chọn: lọc
-// kiểu 'dateRange' chỉ cho chọn PRESET tương đối (hôm nay/7 ngày qua/...) —
-// không cho ngày cố định, vì báo cáo gửi lặp lại hàng ngày cần dữ liệu tính
-// lại mỗi lần chạy, không phải cùng 1 khoảng ngày mãi mãi (xem
+// MỘT LỊCH NHIỀU BÁO CÁO (bản 10.101, theo yêu cầu người dùng — "chọn được
+// nhiều bc để gửi... kiểu dropdown + searchable + multi choice") — ô "Báo
+// cáo" là SearchableSelect multi (y hệt ô "Người nhận"), chọn NHIỀU báo cáo
+// GỘP CHUNG 1 email (DeliveryMode='attachment' -> nhiều file đính kèm,
+// 'body' -> nhiều bảng nối tiếp trong cùng nội dung email). MỖI báo cáo
+// được chọn GIỮ RIÊNG bộ lọc cố định/cột hiển thị/ngưỡng tô màu (đổi theo
+// filters/columns của ĐÚNG báo cáo đó) — lưu trong `form.perReport`, khoá
+// theo reportId, xem renderReportConfigBlocks() bên dưới.
+//
+// Bộ lọc cố định của từng báo cáo trong lịch đổi theo filters của báo cáo
+// đó: lọc kiểu 'dateRange' chỉ cho chọn PRESET tương đối (hôm nay/7 ngày
+// qua/...) — không cho ngày cố định, vì báo cáo gửi lặp lại hàng ngày cần dữ
+// liệu tính lại mỗi lần chạy, không phải cùng 1 khoảng ngày mãi mãi (xem
 // rp-server/lib/reportEmailFilters.js).
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '../../../lib/api';
@@ -95,15 +104,37 @@ function cronToLabel(cronExpr) {
   return `${simple.weekdays.map(d => WEEKDAY_LABELS[d]).join(', ')} lúc ${simple.time}`;
 }
 
+// perReport rỗng ({}) với 1 reportId -> đọc ra giá trị mặc định ở
+// emptyPerReportConfig() bên dưới (không cần khởi tạo trước mỗi khi thêm 1
+// báo cáo vào reportIds).
+function emptyPerReportConfig() {
+  return { filterValues: {}, highlightColumnKey: '', highlightThreshold: '', bodyColumnKeys: [] };
+}
+
 function emptyScheduleForm() {
   return {
-    name: '', reportId: '', recipientUserEmails: [], recipientExtra: '', exportFormat: 'excel',
+    name: '', reportIds: [], perReport: {}, recipientUserEmails: [], recipientExtra: '', exportFormat: 'excel',
     cronMode: 'simple', frequency: 'daily', weekdays: [1],
     times: ['07:00'], rawCrons: [''],
-    filterValues: {},
-    subject: '', deliveryMode: 'attachment', highlightColumnKey: '', highlightThreshold: '',
-    bodyColumnKeys: [] // bản 8.96 — rỗng = lấy TOÀN BỘ cột (tương thích ngược)
+    subject: '', deliveryMode: 'attachment'
   };
+}
+
+// reports gửi lên server — chỉ gửi bodyColumnKeys/highlightColumnKey/
+// highlightThreshold khi deliveryMode='body' (giống đúng quy ước cũ: không
+// để lại dữ liệu mồ côi cho chế độ không dùng tới, dù form vẫn giữ nguyên
+// trong perReport để không mất khi đổi qua đổi lại deliveryMode).
+function buildReportsPayload(form) {
+  return form.reportIds.map(reportId => {
+    const config = form.perReport[reportId] || emptyPerReportConfig();
+    return {
+      reportId,
+      filterValues: config.filterValues,
+      highlightColumnKey: form.deliveryMode === 'body' ? config.highlightColumnKey : '',
+      highlightThreshold: form.deliveryMode === 'body' && config.highlightColumnKey ? config.highlightThreshold : '',
+      bodyColumnKeys: form.deliveryMode === 'body' ? config.bodyColumnKeys : []
+    };
+  });
 }
 
 // "Số lần gửi" của lịch = độ dài mảng cron sinh ra ở đây, không có field đếm
@@ -123,10 +154,14 @@ function scheduleToForm(row, userEmailSet = new Set()) {
   const sameShape = allSimple && parsed.every(p => p.frequency === parsed[0].frequency && JSON.stringify(p.weekdays) === JSON.stringify(parsed[0].weekdays));
 
   const base = {
-    name: row.Name, reportId: row.ReportId, ...splitRecipientsForForm(row.Recipients, userEmailSet), exportFormat: row.ExportFormat, filterValues: row.FilterValues || {},
-    subject: row.Subject || '', deliveryMode: row.DeliveryMode || 'attachment',
-    highlightColumnKey: row.HighlightColumnKey || '', highlightThreshold: row.HighlightThreshold ?? '',
-    bodyColumnKeys: row.BodyColumnKeys || []
+    name: row.Name,
+    reportIds: (row.Reports || []).map(r => r.reportId),
+    perReport: Object.fromEntries((row.Reports || []).map(r => [r.reportId, {
+      filterValues: r.filterValues || {}, highlightColumnKey: r.highlightColumnKey || '',
+      highlightThreshold: r.highlightThreshold ?? '', bodyColumnKeys: r.bodyColumnKeys || []
+    }])),
+    ...splitRecipientsForForm(row.Recipients, userEmailSet), exportFormat: row.ExportFormat,
+    subject: row.Subject || '', deliveryMode: row.DeliveryMode || 'attachment'
   };
   if (sameShape) {
     return { ...base, cronMode: 'simple', frequency: parsed[0].frequency, weekdays: parsed[0].weekdays.length ? parsed[0].weekdays : [1], times: parsed.map(p => p.time), rawCrons: [''] };
@@ -232,10 +267,75 @@ function FilterConfigFields({ filters, filterValues, onChange }) {
   );
 }
 
-// Nhóm field dùng chung cho form Tạo + modal Sửa (khác nhau ở chỗ Sửa khoá
-// chọn báo cáo — xem prop reportLocked).
-function ScheduleFormFields({ form, setForm, reports, reportLocked, userRecipientOptions }) {
-  const selectedReport = reports.find(r => r.reportId === form.reportId);
+// Cập nhật ĐÚNG 1 báo cáo trong form.perReport (immutable) — dùng chung cho
+// mọi ô cấu hình riêng từng báo cáo bên dưới (bộ lọc/cột hiển thị/tô màu).
+function updatePerReport(form, setForm, reportId, patch) {
+  const current = form.perReport[reportId] || emptyPerReportConfig();
+  setForm({ ...form, perReport: { ...form.perReport, [reportId]: { ...current, ...patch } } });
+}
+
+// Khối cấu hình RIÊNG cho 1 báo cáo đã chọn (bộ lọc cố định luôn hiện; cột
+// hiển thị/tô màu CHỈ hiện khi deliveryMode='body', vì 'attachment' xuất
+// NGUYÊN file như xem trên web, không có khái niệm "chọn cột"). report = 1
+// phần tử của `reports` (danh mục báo cáo), KHÔNG phải 1 phần tử reportIds.
+function ReportConfigBlock({ form, setForm, report, deliveryMode }) {
+  const config = form.perReport[report.reportId] || emptyPerReportConfig();
+  return (
+    <div className="filter-config">
+      <strong>{report.title}</strong>
+      {deliveryMode === 'body' && (
+        <>
+          <label>
+            Cột hiển thị trong bảng (không chọn = lấy toàn bộ cột)
+            <SearchableSelect
+              multi
+              options={(report.columns || []).map(c => ({ value: c.key, label: c.label }))}
+              value={config.bodyColumnKeys}
+              onChange={(bodyColumnKeys) => updatePerReport(form, setForm, report.reportId, { bodyColumnKeys })}
+              placeholder="Tất cả cột"
+            />
+          </label>
+          <p className="hint">
+            Màu nền/kiểu bảng trong email giống hệt file PDF/Excel xuất ra — nếu báo cáo có nhóm cột
+            màu (vd "Doanh thu"), bỏ hết cột của 1 nhóm thì nhóm đó tự ẩn khỏi bảng.
+          </p>
+          <label>
+            Tô màu cảnh báo — cột kiểm tra ngưỡng
+            <select value={config.highlightColumnKey} onChange={(e) => updatePerReport(form, setForm, report.reportId, { highlightColumnKey: e.target.value })}>
+              <option value="">— Không tô màu —</option>
+              {(report.columns || []).map(c => <option key={c.key} value={c.key}>{c.label}</option>)}
+            </select>
+          </label>
+          {config.highlightColumnKey && (
+            <label>
+              Ngưỡng cảnh báo (tô đỏ khi trị tuyệt đối vượt ngưỡng)
+              <input
+                type="number"
+                value={config.highlightThreshold}
+                onChange={(e) => updatePerReport(form, setForm, report.reportId, { highlightThreshold: e.target.value })}
+                placeholder="vd 100000"
+                required
+              />
+            </label>
+          )}
+        </>
+      )}
+      <FilterConfigFields
+        filters={report.filters || []}
+        filterValues={config.filterValues}
+        onChange={(filterValues) => updatePerReport(form, setForm, report.reportId, { filterValues })}
+      />
+    </div>
+  );
+}
+
+// Nhóm field dùng chung cho form Tạo + modal Sửa — giống hệt nhau, chọn
+// NHIỀU báo cáo được cả lúc tạo lẫn lúc sửa (bản 10.101, không còn khoá
+// chọn báo cáo khi Sửa như trước — mỗi báo cáo tự giữ cấu hình riêng trong
+// form.perReport nên thêm/bớt báo cáo lúc sửa không ảnh hưởng báo cáo khác).
+function ScheduleFormFields({ form, setForm, reports, userRecipientOptions }) {
+  const selectedReports = form.reportIds.map(id => reports.find(r => r.reportId === id)).filter(Boolean);
+  const selectedTitles = selectedReports.map(r => r.title);
   return (
     <>
       <label>
@@ -244,16 +344,18 @@ function ScheduleFormFields({ form, setForm, reports, reportLocked, userRecipien
       </label>
 
       <label>
-        Báo cáo
-        {reportLocked ? (
-          <input value={selectedReport?.title || form.reportId} disabled />
-        ) : (
-          <select value={form.reportId} onChange={(e) => setForm({ ...form, reportId: e.target.value, filterValues: {} })} required>
-            <option value="">— Chọn báo cáo —</option>
-            {reports.map(r => <option key={r.reportId} value={r.reportId}>{r.title}</option>)}
-          </select>
-        )}
+        Báo cáo (chọn nhiều báo cáo = gộp chung 1 email)
+        <SearchableSelect
+          multi
+          options={reports.map(r => ({ value: r.reportId, label: r.title }))}
+          value={form.reportIds}
+          onChange={(reportIds) => setForm({ ...form, reportIds })}
+          placeholder="Chọn báo cáo..."
+        />
       </label>
+      {selectedReports.map(report => (
+        <ReportConfigBlock key={report.reportId} form={form} setForm={setForm} report={report} deliveryMode={form.deliveryMode} />
+      ))}
 
       <div className="tabs">
         <button type="button" className={form.cronMode === 'simple' ? 'active' : ''} onClick={() => setForm({ ...form, cronMode: 'simple' })}>Đơn giản</button>
@@ -322,19 +424,19 @@ function ScheduleFormFields({ form, setForm, reports, reportLocked, userRecipien
         <input
           value={form.subject}
           onChange={(e) => setForm({ ...form, subject: e.target.value })}
-          placeholder={`Để trống = mặc định "[HCRC] ${selectedReport?.title || '<Tên báo cáo>'} — {ngay}"`}
+          placeholder={`Để trống = mặc định "[HCRC] ${selectedTitles.length ? (selectedTitles.length <= 3 ? selectedTitles.join(', ') : `${selectedTitles.length} báo cáo`) : '<Tên báo cáo>'} — {ngay}"`}
         />
       </label>
 
       <label>
-        Cách gửi
+        Cách gửi (áp dụng cho CẢ email — mọi báo cáo đã chọn gộp theo cùng 1 cách)
         <select value={form.deliveryMode} onChange={(e) => setForm({ ...form, deliveryMode: e.target.value })}>
-          <option value="attachment">File đính kèm (Excel/PDF)</option>
-          <option value="body">Bảng ngay trong nội dung email (không đính kèm)</option>
+          <option value="attachment">File đính kèm (Excel/PDF) — mỗi báo cáo 1 file, cùng 1 email</option>
+          <option value="body">Bảng ngay trong nội dung email — mỗi báo cáo 1 bảng, nối tiếp nhau</option>
         </select>
       </label>
 
-      {form.deliveryMode === 'attachment' ? (
+      {form.deliveryMode === 'attachment' && (
         <label>
           Định dạng xuất
           <select value={form.exportFormat} onChange={(e) => setForm({ ...form, exportFormat: e.target.value })}>
@@ -342,49 +444,7 @@ function ScheduleFormFields({ form, setForm, reports, reportLocked, userRecipien
             <option value="pdf">PDF</option>
           </select>
         </label>
-      ) : (
-        <div className="filter-config">
-          <strong>Cột hiển thị trong bảng (không chọn = lấy toàn bộ cột)</strong>
-          <SearchableSelect
-            multi
-            options={(selectedReport?.columns || []).map(c => ({ value: c.key, label: c.label }))}
-            value={form.bodyColumnKeys}
-            onChange={(bodyColumnKeys) => setForm({ ...form, bodyColumnKeys })}
-            placeholder="Tất cả cột"
-          />
-          <p className="hint">
-            Màu nền/kiểu bảng trong email giống hệt file PDF/Excel xuất ra — nếu báo cáo có nhóm cột
-            màu (vd "Doanh thu"), bỏ hết cột của 1 nhóm thì nhóm đó tự ẩn khỏi bảng.
-          </p>
-
-          <strong>Tô màu cảnh báo trong bảng (không bắt buộc)</strong>
-          <label>
-            Cột kiểm tra ngưỡng
-            <select value={form.highlightColumnKey} onChange={(e) => setForm({ ...form, highlightColumnKey: e.target.value })}>
-              <option value="">— Không tô màu —</option>
-              {(selectedReport?.columns || []).map(c => <option key={c.key} value={c.key}>{c.label}</option>)}
-            </select>
-          </label>
-          {form.highlightColumnKey && (
-            <label>
-              Ngưỡng cảnh báo (tô đỏ khi trị tuyệt đối vượt ngưỡng)
-              <input
-                type="number"
-                value={form.highlightThreshold}
-                onChange={(e) => setForm({ ...form, highlightThreshold: e.target.value })}
-                placeholder="vd 100000"
-                required
-              />
-            </label>
-          )}
-        </div>
       )}
-
-      <FilterConfigFields
-        filters={selectedReport?.filters || []}
-        filterValues={form.filterValues}
-        onChange={(filterValues) => setForm({ ...form, filterValues })}
-      />
     </>
   );
 }
@@ -438,12 +498,9 @@ export default function EmailSchedulesPage() {
     setCreating(true);
     try {
       await api.post('/system/report-email-schedules', {
-        name: form.name, reportId: form.reportId, cronExpressions: buildCronList(form),
-        recipients: buildRecipientsString(form), exportFormat: form.exportFormat, filterValues: form.filterValues,
-        subject: form.subject, deliveryMode: form.deliveryMode,
-        highlightColumnKey: form.deliveryMode === 'body' ? form.highlightColumnKey : '',
-        highlightThreshold: form.deliveryMode === 'body' && form.highlightColumnKey ? form.highlightThreshold : '',
-        bodyColumnKeys: form.deliveryMode === 'body' ? form.bodyColumnKeys : []
+        name: form.name, reports: buildReportsPayload(form), cronExpressions: buildCronList(form),
+        recipients: buildRecipientsString(form), exportFormat: form.exportFormat,
+        subject: form.subject, deliveryMode: form.deliveryMode
       });
       setForm(emptyScheduleForm());
       reload();
@@ -456,12 +513,9 @@ export default function EmailSchedulesPage() {
     try {
       const f = editing.form;
       await api.put(`/system/report-email-schedules/${editing.id}`, {
-        name: f.name, cronExpressions: buildCronList(f), recipients: buildRecipientsString(f),
-        exportFormat: f.exportFormat, filterValues: f.filterValues, isActive: f.isActive,
-        subject: f.subject, deliveryMode: f.deliveryMode,
-        highlightColumnKey: f.deliveryMode === 'body' ? f.highlightColumnKey : '',
-        highlightThreshold: f.deliveryMode === 'body' && f.highlightColumnKey ? f.highlightThreshold : '',
-        bodyColumnKeys: f.deliveryMode === 'body' ? f.bodyColumnKeys : []
+        name: f.name, reports: buildReportsPayload(f), cronExpressions: buildCronList(f), recipients: buildRecipientsString(f),
+        exportFormat: f.exportFormat, isActive: f.isActive,
+        subject: f.subject, deliveryMode: f.deliveryMode
       });
       setEditing(null);
       reload();
@@ -474,12 +528,9 @@ export default function EmailSchedulesPage() {
     try {
       const f = scheduleToForm(row, userEmailSet);
       await api.put(`/system/report-email-schedules/${row.Id}`, {
-        name: f.name, cronExpressions: buildCronList(f), recipients: buildRecipientsString(f),
-        exportFormat: f.exportFormat, filterValues: f.filterValues, isActive: !row.IsActive,
-        subject: f.subject, deliveryMode: f.deliveryMode,
-        highlightColumnKey: f.deliveryMode === 'body' ? f.highlightColumnKey : '',
-        highlightThreshold: f.deliveryMode === 'body' && f.highlightColumnKey ? f.highlightThreshold : '',
-        bodyColumnKeys: f.deliveryMode === 'body' ? f.bodyColumnKeys : []
+        name: f.name, reports: buildReportsPayload(f), cronExpressions: buildCronList(f), recipients: buildRecipientsString(f),
+        exportFormat: f.exportFormat, isActive: !row.IsActive,
+        subject: f.subject, deliveryMode: f.deliveryMode
       });
       reload();
     } catch (err) { setError(err.message); } finally { setTogglingId(null); }
@@ -523,16 +574,18 @@ export default function EmailSchedulesPage() {
     <div className="page">
       <h1>Lịch gửi email báo cáo</h1>
       <p>
-        Gửi tự động MỘT báo cáo cho danh sách người nhận theo lịch — dùng cấu hình SMTP chung ở trang
-        &quot;Thiết lập email&quot;. Một lịch có thể gửi NHIỀU lần/ngày (vd 07:00 và 17:00) — thêm bao
-        nhiêu giờ gửi tuỳ ý, mỗi giờ theo dõi thành công/lỗi RIÊNG. Bộ lọc theo khoảng ngày dùng PRESET
-        tương đối (hôm nay/7 ngày qua...), tính lại đúng lúc gửi — không cố định một ngày mãi mãi.
+        Gửi tự động MỘT HOẶC NHIỀU báo cáo cho danh sách người nhận theo lịch — chọn nhiều báo cáo thì
+        gộp chung vào CÙNG 1 email (nhiều file đính kèm, hoặc nhiều bảng nối tiếp nếu gửi dạng nội dung
+        email) — dùng cấu hình SMTP chung ở trang &quot;Thiết lập email&quot;. Một lịch có thể gửi NHIỀU
+        lần/ngày (vd 07:00 và 17:00) — thêm bao nhiêu giờ gửi tuỳ ý, mỗi giờ theo dõi thành công/lỗi
+        RIÊNG. Bộ lọc theo khoảng ngày dùng PRESET tương đối (hôm nay/7 ngày qua...), tính lại đúng lúc
+        gửi — không cố định một ngày mãi mãi.
       </p>
       {error && <p className="form-error">{error}</p>}
       {message && <p className="form-success">{message}</p>}
 
       <form className="stacked-form" onSubmit={createSchedule}>
-        <ScheduleFormFields form={form} setForm={setForm} reports={reports} reportLocked={false} userRecipientOptions={userRecipientOptions} />
+        <ScheduleFormFields form={form} setForm={setForm} reports={reports} userRecipientOptions={userRecipientOptions} />
         <button type="submit" disabled={creating}>{creating ? 'Đang tạo...' : 'Tạo lịch'}</button>
       </form>
 
@@ -587,7 +640,6 @@ export default function EmailSchedulesPage() {
               form={editing.form}
               setForm={(f) => setEditing({ ...editing, form: f })}
               reports={reports}
-              reportLocked
               userRecipientOptions={userRecipientOptions}
             />
             <label className="checkbox-row">

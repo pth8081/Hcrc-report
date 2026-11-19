@@ -1,9 +1,18 @@
 // routes/reportEmailSchedules.js — Trang "Lịch gửi email báo cáo": CRUD
 // app.ReportEmailSchedules + app.ReportEmailScheduleTimes (đặt lịch node-cron
-// gửi 1 báo cáo cho danh sách người nhận qua email, dùng cấu hình SMTP chung
-// ở "Thiết lập email"). MỘT lịch có THỂ có NHIỀU giờ gửi/ngày (vd 07:00 VÀ
-// 17:00) — body POST/PUT nhận `cronExpressions` (mảng chuỗi cron, KHÔNG phải
-// 1 chuỗi như trước), mỗi phần tử thành 1 dòng app.ReportEmailScheduleTimes.
+// gửi cho danh sách người nhận qua email, dùng cấu hình SMTP chung ở "Thiết
+// lập email"). MỘT lịch có THỂ có NHIỀU giờ gửi/ngày (vd 07:00 VÀ 17:00) —
+// body POST/PUT nhận `cronExpressions` (mảng chuỗi cron, KHÔNG phải 1 chuỗi
+// như trước), mỗi phần tử thành 1 dòng app.ReportEmailScheduleTimes.
+//
+// 1 LỊCH NHIỀU BÁO CÁO (bản 10.101, theo yêu cầu người dùng — "chọn được
+// nhiều bc để gửi... gộp chung 1 email duy nhất") — body POST/PUT nhận
+// `reports` (mảng {reportId, filterValues, bodyColumnKeys, highlightColumnKey,
+// highlightThreshold}, GIỮ RIÊNG cấu hình cho TỪNG báo cáo), mỗi phần tử
+// thành 1 dòng app.ReportEmailScheduleReports — xem
+// rp-db/schema.sql + jobs/reportEmailScheduler.js (gộp kết quả MỌI báo cáo
+// vào CÙNG 1 email khi tới giờ gửi).
+//
 // Bộ lọc cố định của lịch (filterValues) không lọc theo quyền một người dùng
 // cụ thể — đây là cấu hình HỆ THỐNG (ai vào được trang này qua
 // requireMenuAccess coi như được cấp toàn quyền chọn báo cáo/lịch, giống
@@ -46,6 +55,17 @@ function validateCronExpressions(list) {
 // HTML ngay trong nội dung email) — xem rp-db/schema.sql + jobs/reportEmailScheduler.js.
 function validateDeliveryMode(mode) {
   if (!['attachment', 'body'].includes(mode)) return 'Cách gửi không hợp lệ';
+  return null;
+}
+
+// reports: [{reportId, filterValues?, bodyColumnKeys?, highlightColumnKey?,
+// highlightThreshold?}] — ÍT NHẤT 1 báo cáo, reportId không trùng lặp trong
+// CHÍNH 1 lịch (gửi trùng 2 lần cùng báo cáo trong 1 email vô nghĩa).
+function validateReports(reports) {
+  if (!Array.isArray(reports) || !reports.length) return 'Cần chọn ít nhất 1 báo cáo';
+  const ids = reports.map(r => r && r.reportId).filter(Boolean);
+  if (ids.length !== reports.length) return 'Thiếu reportId ở 1 báo cáo đã chọn';
+  if (new Set(ids).size !== ids.length) return 'Có báo cáo bị chọn trùng lặp';
   return null;
 }
 
@@ -96,39 +116,99 @@ router.get('/', async (req, res, next) => {
   try {
     const pool = await getPool('RP');
     const schedulesResult = await pool.request().query(`
-      SELECT s.Id, s.Name, s.ReportId, c.Title AS ReportTitle, s.Recipients,
-             s.FilterValuesJson, s.ExportFormat, s.IsActive, s.LastRunAt, s.LastStatus, s.LastError,
-             s.Subject, s.DeliveryMode, s.HighlightColumnKey, s.HighlightThreshold, s.BodyColumnKeysJson
+      SELECT s.Id, s.Name, s.Recipients, s.ExportFormat, s.IsActive, s.LastRunAt, s.LastStatus, s.LastError,
+             s.Subject, s.DeliveryMode
       FROM app.ReportEmailSchedules s
-      JOIN app.ReportCatalog c ON c.ReportId = s.ReportId
       ORDER BY s.Name
     `);
     const timesResult = await pool.request().query(`
       SELECT Id, ScheduleId, CronExpression, LastRunAt, LastStatus, LastError
       FROM app.ReportEmailScheduleTimes ORDER BY CronExpression
     `);
+    const reportsResult = await pool.request().query(`
+      SELECT r.Id, r.ScheduleId, r.ReportId, c.Title AS ReportTitle, r.FilterValuesJson,
+             r.BodyColumnKeysJson, r.HighlightColumnKey, r.HighlightThreshold
+      FROM app.ReportEmailScheduleReports r
+      JOIN app.ReportCatalog c ON c.ReportId = r.ReportId
+      ORDER BY r.ScheduleId, r.SortOrder, r.Id
+    `);
     const timesBySchedule = new Map();
     for (const t of timesResult.recordset) {
       if (!timesBySchedule.has(t.ScheduleId)) timesBySchedule.set(t.ScheduleId, []);
       timesBySchedule.get(t.ScheduleId).push(t);
     }
-    res.json(schedulesResult.recordset.map(r => ({
-      ...r,
-      FilterValues: r.FilterValuesJson ? JSON.parse(r.FilterValuesJson) : {},
-      BodyColumnKeys: r.BodyColumnKeysJson ? JSON.parse(r.BodyColumnKeysJson) : [],
-      Times: timesBySchedule.get(r.Id) || []
-    })));
+    const reportsBySchedule = new Map();
+    for (const r of reportsResult.recordset) {
+      if (!reportsBySchedule.has(r.ScheduleId)) reportsBySchedule.set(r.ScheduleId, []);
+      reportsBySchedule.get(r.ScheduleId).push({
+        reportId: r.ReportId, title: r.ReportTitle,
+        filterValues: r.FilterValuesJson ? JSON.parse(r.FilterValuesJson) : {},
+        bodyColumnKeys: r.BodyColumnKeysJson ? JSON.parse(r.BodyColumnKeysJson) : [],
+        highlightColumnKey: r.HighlightColumnKey || '',
+        highlightThreshold: r.HighlightThreshold ?? ''
+      });
+    }
+    res.json(schedulesResult.recordset.map(r => {
+      const reports = reportsBySchedule.get(r.Id) || [];
+      return {
+        ...r,
+        Reports: reports,
+        // Báo cáo (cột bảng danh sách) — nối tên các báo cáo trong lịch,
+        // KHÔNG còn đúng 1 báo cáo/lịch như trước bản 10.101.
+        ReportTitle: reports.map(x => x.title).join(', '),
+        Times: timesBySchedule.get(r.Id) || []
+      };
+    }));
   } catch (err) { next(err); }
 });
+
+// Trả về danh sách reportId KHÔNG tồn tại/đã tắt (rỗng = mọi reportId đều
+// hợp lệ) — mssql không hỗ trợ truyền mảng trực tiếp vào IN, gắn từng @rN.
+async function findMissingReportIds(pool, reportIds) {
+  const checkRequest = pool.request();
+  reportIds.forEach((id, i) => checkRequest.input(`r${i}`, sql.VarChar(80), id));
+  const checkResult = await checkRequest.query(`
+    SELECT ReportId FROM app.ReportCatalog WHERE IsActive = 1 AND ReportId IN (${reportIds.map((_, i) => `@r${i}`).join(',')})
+  `);
+  const foundIds = new Set(checkResult.recordset.map(r => r.ReportId));
+  return reportIds.filter(id => !foundIds.has(id));
+}
+
+// Ghi đè TOÀN BỘ danh sách app.ReportEmailScheduleReports của 1 lịch (xoá
+// hết rồi chèn lại theo đúng mảng `reports` — khác kiểu DIFF của
+// cronExpressions vì bảng này không có lịch sử LastRunAt/LastStatus RIÊNG
+// theo báo cáo cần giữ, xoá-tạo-lại không mất gì).
+async function replaceScheduleReports(pool, scheduleId, reports) {
+  await pool.request().input('scheduleId', sql.Int, scheduleId)
+    .query('DELETE FROM app.ReportEmailScheduleReports WHERE ScheduleId = @scheduleId');
+  let sortOrder = 0;
+  for (const r of reports) {
+    await pool.request()
+      .input('scheduleId', sql.Int, scheduleId)
+      .input('reportId', sql.VarChar(80), r.reportId)
+      .input('filterValuesJson', sql.NVarChar(sql.MAX), JSON.stringify(r.filterValues || {}))
+      .input('bodyColumnKeysJson', sql.NVarChar(sql.MAX), Array.isArray(r.bodyColumnKeys) && r.bodyColumnKeys.length ? JSON.stringify(r.bodyColumnKeys) : null)
+      .input('highlightColumnKey', sql.NVarChar(100), r.highlightColumnKey || null)
+      .input('highlightThreshold', sql.Decimal(18, 2), r.highlightThreshold === '' || r.highlightThreshold == null ? null : r.highlightThreshold)
+      .input('sortOrder', sql.Int, sortOrder)
+      .query(`
+        INSERT INTO app.ReportEmailScheduleReports
+          (ScheduleId, ReportId, FilterValuesJson, BodyColumnKeysJson, HighlightColumnKey, HighlightThreshold, SortOrder)
+        VALUES (@scheduleId, @reportId, @filterValuesJson, @bodyColumnKeysJson, @highlightColumnKey, @highlightThreshold, @sortOrder)
+      `);
+    sortOrder += 1;
+  }
+}
 
 router.post('/', async (req, res, next) => {
   try {
     const {
-      name, reportId, cronExpressions, recipients, filterValues = {}, exportFormat = 'excel',
-      subject = null, deliveryMode = 'attachment', highlightColumnKey = null, highlightThreshold = null,
-      bodyColumnKeys = []
+      name, reports, cronExpressions, recipients, exportFormat = 'excel',
+      subject = null, deliveryMode = 'attachment'
     } = req.body || {};
-    if (!name || !reportId) return res.status(400).json({ error: 'Thiếu name/reportId' });
+    if (!name) return res.status(400).json({ error: 'Thiếu name' });
+    const reportsError = validateReports(reports);
+    if (reportsError) return res.status(400).json({ error: reportsError });
     const cronError = validateCronExpressions(cronExpressions);
     if (cronError) return res.status(400).json({ error: cronError });
     const recipientsError = validateRecipients(recipients);
@@ -138,22 +218,26 @@ router.post('/', async (req, res, next) => {
     if (deliveryModeError) return res.status(400).json({ error: deliveryModeError });
 
     const pool = await getPool('RP');
-    const reportCheck = await pool.request().input('reportId', sql.VarChar(80), reportId)
-      .query('SELECT 1 FROM app.ReportCatalog WHERE ReportId = @reportId AND IsActive = 1');
-    if (!reportCheck.recordset.length) return res.status(400).json({ error: 'Báo cáo không tồn tại hoặc đã tắt' });
+    const reportIds = reports.map(r => r.reportId);
+    const missing = await findMissingReportIds(pool, reportIds);
+    if (missing.length) return res.status(400).json({ error: `Báo cáo không tồn tại hoặc đã tắt: ${missing.join(', ')}` });
 
+    // 5 cột cũ (ReportId/FilterValuesJson/...) chỉ còn lưu ĐÚNG báo cáo ĐẦU
+    // TIÊN (tương thích ngược, xem rp-db/schema.sql) — nguồn thật từ nay là
+    // app.ReportEmailScheduleReports.
+    const first = reports[0];
     const result = await pool.request()
       .input('name', sql.NVarChar(200), name)
-      .input('reportId', sql.VarChar(80), reportId)
-      .input('cronExpression', sql.VarChar(50), cronExpressions[0]) // cột cũ, chỉ hiển thị/tương thích ngược — xem rp-db/schema.sql
+      .input('reportId', sql.VarChar(80), first.reportId)
+      .input('cronExpression', sql.VarChar(50), cronExpressions[0])
       .input('recipients', sql.NVarChar(1000), parseRecipients(recipients).join(','))
-      .input('filterValuesJson', sql.NVarChar(sql.MAX), JSON.stringify(filterValues))
+      .input('filterValuesJson', sql.NVarChar(sql.MAX), JSON.stringify(first.filterValues || {}))
       .input('exportFormat', sql.VarChar(10), exportFormat)
       .input('subject', sql.NVarChar(500), subject || null)
       .input('deliveryMode', sql.VarChar(20), deliveryMode)
-      .input('highlightColumnKey', sql.NVarChar(100), highlightColumnKey || null)
-      .input('highlightThreshold', sql.Decimal(18, 2), highlightThreshold === '' ? null : highlightThreshold)
-      .input('bodyColumnKeysJson', sql.NVarChar(sql.MAX), Array.isArray(bodyColumnKeys) && bodyColumnKeys.length ? JSON.stringify(bodyColumnKeys) : null)
+      .input('highlightColumnKey', sql.NVarChar(100), first.highlightColumnKey || null)
+      .input('highlightThreshold', sql.Decimal(18, 2), first.highlightThreshold === '' || first.highlightThreshold == null ? null : first.highlightThreshold)
+      .input('bodyColumnKeysJson', sql.NVarChar(sql.MAX), Array.isArray(first.bodyColumnKeys) && first.bodyColumnKeys.length ? JSON.stringify(first.bodyColumnKeys) : null)
       .input('createdBy', sql.Int, req.user.sub)
       .query(`
         INSERT INTO app.ReportEmailSchedules
@@ -163,6 +247,8 @@ router.post('/', async (req, res, next) => {
       `);
     const id = result.recordset[0].Id;
 
+    await replaceScheduleReports(pool, id, reports);
+
     for (const cronExpression of cronExpressions) {
       await pool.request()
         .input('scheduleId', sql.Int, id)
@@ -171,7 +257,7 @@ router.post('/', async (req, res, next) => {
     }
 
     await scheduler.rescheduleJob(id);
-    await logAction(req, { module: 'Lịch gửi email báo cáo', actionType: 'TAO_LICH', targetObject: String(id), description: `Tạo lịch "${name}" (${cronExpressions.length} giờ gửi)` });
+    await logAction(req, { module: 'Lịch gửi email báo cáo', actionType: 'TAO_LICH', targetObject: String(id), description: `Tạo lịch "${name}" (${cronExpressions.length} giờ gửi, ${reports.length} báo cáo)` });
     res.status(201).json({ id });
   } catch (err) { next(err); }
 });
@@ -179,11 +265,12 @@ router.post('/', async (req, res, next) => {
 router.put('/:id', async (req, res, next) => {
   try {
     const {
-      name, cronExpressions, recipients, filterValues = {}, exportFormat = 'excel', isActive,
-      subject = null, deliveryMode = 'attachment', highlightColumnKey = null, highlightThreshold = null,
-      bodyColumnKeys = []
+      name, reports, cronExpressions, recipients, exportFormat = 'excel', isActive,
+      subject = null, deliveryMode = 'attachment'
     } = req.body || {};
     if (!name) return res.status(400).json({ error: 'Thiếu name' });
+    const reportsError = validateReports(reports);
+    if (reportsError) return res.status(400).json({ error: reportsError });
     const cronError = validateCronExpressions(cronExpressions);
     if (cronError) return res.status(400).json({ error: cronError });
     const recipientsError = validateRecipients(recipients);
@@ -195,28 +282,38 @@ router.put('/:id', async (req, res, next) => {
     const id = Number(req.params.id);
     const pool = await getPool('RP');
 
+    const reportIds = reports.map(r => r.reportId);
+    const missing = await findMissingReportIds(pool, reportIds);
+    if (missing.length) return res.status(400).json({ error: `Báo cáo không tồn tại hoặc đã tắt: ${missing.join(', ')}` });
+
+    // 5 cột cũ chỉ còn lưu ĐÚNG báo cáo ĐẦU TIÊN (tương thích ngược) — xem
+    // chú thích ở POST / phía trên.
+    const first = reports[0];
     await pool.request()
       .input('id', sql.Int, id)
       .input('name', sql.NVarChar(200), name)
+      .input('reportId', sql.VarChar(80), first.reportId)
       .input('cronExpression', sql.VarChar(50), cronExpressions[0]) // cột cũ, chỉ hiển thị/tương thích ngược
       .input('recipients', sql.NVarChar(1000), parseRecipients(recipients).join(','))
-      .input('filterValuesJson', sql.NVarChar(sql.MAX), JSON.stringify(filterValues))
+      .input('filterValuesJson', sql.NVarChar(sql.MAX), JSON.stringify(first.filterValues || {}))
       .input('exportFormat', sql.VarChar(10), exportFormat)
       .input('subject', sql.NVarChar(500), subject || null)
       .input('deliveryMode', sql.VarChar(20), deliveryMode)
-      .input('highlightColumnKey', sql.NVarChar(100), highlightColumnKey || null)
-      .input('highlightThreshold', sql.Decimal(18, 2), highlightThreshold === '' ? null : highlightThreshold)
-      .input('bodyColumnKeysJson', sql.NVarChar(sql.MAX), Array.isArray(bodyColumnKeys) && bodyColumnKeys.length ? JSON.stringify(bodyColumnKeys) : null)
+      .input('highlightColumnKey', sql.NVarChar(100), first.highlightColumnKey || null)
+      .input('highlightThreshold', sql.Decimal(18, 2), first.highlightThreshold === '' || first.highlightThreshold == null ? null : first.highlightThreshold)
+      .input('bodyColumnKeysJson', sql.NVarChar(sql.MAX), Array.isArray(first.bodyColumnKeys) && first.bodyColumnKeys.length ? JSON.stringify(first.bodyColumnKeys) : null)
       .input('isActive', sql.Bit, isActive ? 1 : 0)
       .query(`
         UPDATE app.ReportEmailSchedules
-        SET Name = @name, CronExpression = @cronExpression, Recipients = @recipients,
+        SET Name = @name, ReportId = @reportId, CronExpression = @cronExpression, Recipients = @recipients,
             FilterValuesJson = @filterValuesJson, ExportFormat = @exportFormat,
             Subject = @subject, DeliveryMode = @deliveryMode,
             HighlightColumnKey = @highlightColumnKey, HighlightThreshold = @highlightThreshold,
             BodyColumnKeysJson = @bodyColumnKeysJson, IsActive = @isActive
         WHERE Id = @id
       `);
+
+    await replaceScheduleReports(pool, id, reports);
 
     // Cập nhật danh sách giờ gửi kiểu DIFF — giữ nguyên (và giữ nguyên lịch sử
     // LastRunAt/LastStatus) những giờ KHÔNG đổi, chỉ xoá giờ bị bỏ + thêm giờ
@@ -242,7 +339,7 @@ router.put('/:id', async (req, res, next) => {
     }
 
     await scheduler.rescheduleJob(id);
-    await logAction(req, { module: 'Lịch gửi email báo cáo', actionType: 'SUA_LICH', targetObject: req.params.id, description: `Cập nhật lịch "${name}" (${cronExpressions.length} giờ gửi)` });
+    await logAction(req, { module: 'Lịch gửi email báo cáo', actionType: 'SUA_LICH', targetObject: req.params.id, description: `Cập nhật lịch "${name}" (${cronExpressions.length} giờ gửi, ${reports.length} báo cáo)` });
     res.json({ ok: true });
   } catch (err) { next(err); }
 });

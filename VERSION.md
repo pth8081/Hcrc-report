@@ -42,6 +42,42 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.101 — "Lịch gửi email báo cáo": chọn NHIỀU báo cáo, gộp chung 1 email
+
+**Theo yêu cầu người dùng** — *"tôi muốn chọn được nhiều bc để gửi...
+kiểu dropdown + searchable + multi choice"*, xác nhận gộp chung 1 EMAIL
+DUY NHẤT (nhiều file đính kèm, hoặc nhiều bảng nối tiếp nếu gửi dạng nội
+dung email), không phải tạo nhiều lịch riêng.
+
+**Sửa**:
+- `rp-db/schema.sql` — bảng mới `app.ReportEmailScheduleReports`
+  (ScheduleId, ReportId, FilterValuesJson, BodyColumnKeysJson,
+  HighlightColumnKey, HighlightThreshold, SortOrder) — mỗi báo cáo trong
+  lịch GIỮ RIÊNG bộ lọc/cột hiển thị/ngưỡng tô màu (2 báo cáo khác nhau
+  filters/columns khác hẳn nhau). Di dời dữ liệu cũ tự động, idempotent. 5
+  cột cũ trên `ReportEmailSchedules` (ReportId/FilterValuesJson/...) từ
+  nay chỉ còn lưu báo cáo ĐẦU TIÊN (tương thích ngược, không xoá).
+- `routes/reportEmailSchedules.js` — POST/PUT nhận `reports` (mảng cấu
+  hình, thay cho `reportId`/`filterValues`/... đơn lẻ trước đây); GET trả
+  thêm `Reports` (mảng) mỗi lịch.
+- `jobs/reportEmailScheduler.js` — chạy LẦN LƯỢT từng báo cáo trong lịch,
+  gộp kết quả vào ĐÚNG 1 lần gọi `sendMail()`: `DeliveryMode='attachment'`
+  → mảng nhiều file đính kèm; `'body'` → nối nhiều bảng HTML trong cùng
+  nội dung. Subject mặc định (khi để trống) tự nối tên báo cáo (≤3) hoặc
+  đếm số lượng (nhiều hơn).
+- `EmailSchedulesPage.jsx` — ô "Báo cáo" đổi thành `SearchableSelect
+  multi` (y hệt ô "Người nhận"); mỗi báo cáo đã chọn hiện 1 khối cấu hình
+  riêng (bộ lọc cố định, + cột hiển thị/ngưỡng tô màu khi gửi dạng nội
+  dung email). Bỏ khoá chọn báo cáo lúc Sửa (không còn lý do cần khoá —
+  mỗi báo cáo tự giữ cấu hình riêng).
+
+**Triển khai**: `git pull origin main`, DBA chạy lại `rp-db/schema.sql`,
+build lại `rp-user`, khởi động lại `rp-server`.
+
+**Kiểm tra**: tạo 1 lịch chọn 2-3 báo cáo khác nhau, bấm "Gửi ngay" — nhận
+ĐÚNG 1 email, đủ file đính kèm (hoặc đủ bảng nối tiếp nếu chọn gửi dạng
+nội dung) của cả các báo cáo đã chọn.
+
 ## 10.100 — Thêm khối "TỔNG HỢP THEO LOẠI HÌNH" (Mart/Mini Mart/Kho/Tổng) cuối mỗi sheet "Xuất Excel theo tháng"
 
 **Theo yêu cầu người dùng** — *"Bạn cứ làm phần tổng cộng theo hàng ngày

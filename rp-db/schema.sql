@@ -928,6 +928,51 @@ BEGIN
 END
 GO
 
+-- 1 LỊCH GỬI NHIỀU BÁO CÁO TRONG CÙNG 1 EMAIL (bản 10.101, theo yêu cầu
+-- người dùng — "chọn được nhiều bc để gửi... gộp chung 1 email duy nhất"),
+-- mỗi báo cáo 1 dòng ở đây, GIỮ RIÊNG bộ lọc cố định/cột hiển thị/ngưỡng tô
+-- màu cho ĐÚNG báo cáo đó (2 báo cáo khác nhau có thể có filters/columns
+-- khác hẳn nhau, không gộp chung được) — DeliveryMode='attachment' thì mỗi
+-- báo cáo xuất 1 file đính kèm riêng (CÙNG 1 email, nhiều file đính kèm);
+-- DeliveryMode='body' thì mỗi báo cáo 1 bảng HTML riêng, nối tiếp nhau
+-- trong CÙNG 1 nội dung email (xem jobs/reportEmailScheduler.js).
+-- ExportFormat/Subject/DeliveryMode/Recipients vẫn ở CẤP LỊCH (app.ReportEmailSchedules)
+-- — đó là cấu hình CHUNG của cả email, không phải riêng từng báo cáo.
+--
+-- 5 cột ReportId/FilterValuesJson/BodyColumnKeysJson/HighlightColumnKey/
+-- HighlightThreshold TRÊN app.ReportEmailSchedules TỪ NAY LÀ CỘT CŨ/KHÔNG
+-- CÒN LÀ NGUỒN THẬT (cùng lý do CronExpression đã ghi chú ở trên) — CHỈ còn
+-- lưu ĐÚNG báo cáo ĐẦU TIÊN của lịch (hiển thị/tương thích ngược), KHÔNG
+-- xoá (tránh ALTER phá vỡ dữ liệu cũ/ràng buộc FK) — xem
+-- rp-server/routes/reportEmailSchedules.js.
+IF OBJECT_ID('app.ReportEmailScheduleReports', 'U') IS NULL
+BEGIN
+    CREATE TABLE app.ReportEmailScheduleReports (
+        Id                 INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        ScheduleId         INT            NOT NULL REFERENCES app.ReportEmailSchedules(Id) ON DELETE CASCADE,
+        ReportId           VARCHAR(80)    NOT NULL REFERENCES app.ReportCatalog(ReportId),
+        FilterValuesJson   NVARCHAR(MAX)  NULL,
+        BodyColumnKeysJson NVARCHAR(MAX)  NULL,
+        HighlightColumnKey NVARCHAR(100)  NULL,
+        HighlightThreshold DECIMAL(18, 2) NULL,
+        SortOrder          INT            NOT NULL DEFAULT 0,
+        CreatedAt          DATETIME2(3)   NOT NULL DEFAULT SYSUTCDATETIME()
+    );
+    CREATE INDEX IX_ReportEmailScheduleReports_ScheduleId ON app.ReportEmailScheduleReports(ScheduleId);
+END
+GO
+
+-- Di dời dữ liệu CŨ (1 lịch = 1 báo cáo, lưu ở các cột cũ của
+-- app.ReportEmailSchedules) sang bảng con mới — idempotent, chỉ chèn cho
+-- lịch CHƯA có dòng nào trong app.ReportEmailScheduleReports (an toàn chạy
+-- lại nhiều lần, không đụng lịch được tạo mới sau khi đã có bảng con).
+INSERT INTO app.ReportEmailScheduleReports
+    (ScheduleId, ReportId, FilterValuesJson, BodyColumnKeysJson, HighlightColumnKey, HighlightThreshold, SortOrder)
+SELECT s.Id, s.ReportId, s.FilterValuesJson, s.BodyColumnKeysJson, s.HighlightColumnKey, s.HighlightThreshold, 0
+FROM app.ReportEmailSchedules s
+WHERE NOT EXISTS (SELECT 1 FROM app.ReportEmailScheduleReports r WHERE r.ScheduleId = s.Id);
+GO
+
 IF OBJECT_ID('app.AuditLog', 'U') IS NULL
 BEGIN
     CREATE TABLE app.AuditLog (

@@ -43,12 +43,16 @@ const REFRESH_INTERVAL_MS = 60 * 1000;
 const scheduledTasks = new Map(); // timeId -> { task, cronExpression, scheduleId }
 const runningSchedules = new Set(); // scheduleId
 
+// CHỈ còn các cột CẤP LỊCH (chung cho cả email) — ReportId/FilterValuesJson/
+// BodyColumnKeysJson/HighlightColumnKey/HighlightThreshold trên CHÍNH bảng
+// app.ReportEmailSchedules từ bản 10.101 là CỘT CŨ/KHÔNG CÒN LÀ NGUỒN THẬT
+// (xem rp-db/schema.sql) — danh sách báo cáo THẬT đọc riêng qua
+// loadScheduleReports() bên dưới.
 async function loadActiveOccurrences() {
   const pool = await getPool('RP');
   const result = await pool.request().query(`
-    SELECT t.Id AS TimeId, t.CronExpression, s.Id AS ScheduleId, s.Name, s.ReportId, s.Recipients,
-           s.FilterValuesJson, s.ExportFormat, s.Subject, s.DeliveryMode, s.HighlightColumnKey, s.HighlightThreshold,
-           s.BodyColumnKeysJson, s.CreatedBy
+    SELECT t.Id AS TimeId, t.CronExpression, s.Id AS ScheduleId, s.Name, s.Recipients,
+           s.ExportFormat, s.Subject, s.DeliveryMode, s.CreatedBy
     FROM app.ReportEmailScheduleTimes t
     JOIN app.ReportEmailSchedules s ON s.Id = t.ScheduleId
     WHERE s.IsActive = 1
@@ -59,9 +63,8 @@ async function loadActiveOccurrences() {
 async function loadOccurrencesForSchedule(scheduleId) {
   const pool = await getPool('RP');
   const result = await pool.request().input('scheduleId', sql.Int, scheduleId).query(`
-    SELECT t.Id AS TimeId, t.CronExpression, s.Id AS ScheduleId, s.Name, s.ReportId, s.Recipients,
-           s.FilterValuesJson, s.ExportFormat, s.Subject, s.DeliveryMode, s.HighlightColumnKey, s.HighlightThreshold,
-           s.BodyColumnKeysJson, s.CreatedBy
+    SELECT t.Id AS TimeId, t.CronExpression, s.Id AS ScheduleId, s.Name, s.Recipients,
+           s.ExportFormat, s.Subject, s.DeliveryMode, s.CreatedBy
     FROM app.ReportEmailScheduleTimes t
     JOIN app.ReportEmailSchedules s ON s.Id = t.ScheduleId
     WHERE s.Id = @scheduleId
@@ -71,8 +74,23 @@ async function loadOccurrencesForSchedule(scheduleId) {
 
 async function loadSchedule(id) {
   const pool = await getPool('RP');
-  const result = await pool.request().input('id', sql.Int, id).query('SELECT * FROM app.ReportEmailSchedules WHERE Id = @id');
+  const result = await pool.request().input('id', sql.Int, id).query(`
+    SELECT Id AS ScheduleId, Name, Recipients, ExportFormat, Subject, DeliveryMode, CreatedBy
+    FROM app.ReportEmailSchedules WHERE Id = @id
+  `);
   return result.recordset[0] || null;
+}
+
+// Danh sách báo cáo THẬT của 1 lịch (bản 10.101) — mỗi báo cáo giữ RIÊNG bộ
+// lọc/cột hiển thị/ngưỡng tô màu, xếp theo SortOrder (đúng thứ tự admin đã
+// chọn lúc tạo/sửa lịch).
+async function loadScheduleReports(scheduleId) {
+  const pool = await getPool('RP');
+  const result = await pool.request().input('scheduleId', sql.Int, scheduleId).query(`
+    SELECT ReportId, FilterValuesJson, BodyColumnKeysJson, HighlightColumnKey, HighlightThreshold
+    FROM app.ReportEmailScheduleReports WHERE ScheduleId = @scheduleId ORDER BY SortOrder, Id
+  `);
+  return result.recordset;
 }
 
 async function updateScheduleRunResult(scheduleId, status, errorMessage) {
@@ -106,13 +124,12 @@ async function updateTimeRunResult(timeId, status, errorMessage) {
 // có req thật của người bấm — route đó tự gọi logAction riêng, KHÔNG qua đây).
 const SYSTEM_REQ = { user: { username: 'scheduler' }, ip: null };
 
-// Phần LÕI: chạy báo cáo + xuất + gửi mail, KHÔNG tự ghi kết quả vào DB/log —
-// việc đó do người gọi quyết định (chạy tự động ghi cả giờ gửi lẫn lịch,
-// "Gửi ngay" chỉ ghi lịch — xem 2 hàm gọi bên dưới).
-async function runSchedule(schedule) {
-  const definition = await loadDefinition(schedule.ReportId);
+// Chạy ĐÚNG 1 báo cáo trong danh sách của lịch — trả về đủ dữ liệu để
+// runSchedule() gộp vào 1 email chung (KHÔNG tự gửi mail ở đây).
+async function runOneReport(reportConfig, schedule) {
+  const definition = await loadDefinition(reportConfig.ReportId);
   if (!definition || !definition.isActive) {
-    throw new Error(`Báo cáo "${schedule.ReportId}" không còn tồn tại hoặc đã tắt`);
+    throw new Error(`Báo cáo "${reportConfig.ReportId}" không còn tồn tại hoặc đã tắt`);
   }
 
   // __storeScope (bản 8.51, sửa lỗi rà soát bản 8.31-8.51) — ép theo phạm vi
@@ -124,7 +141,7 @@ async function runSchedule(schedule) {
   // hạn và nhận email TOÀN BỘ dữ liệu, không lọc gì. CreatedBy=NULL (lịch
   // tạo trước khi có cột này, hoặc tài khoản tạo đã bị xoá/khoá) -> không
   // ép gì, giữ hành vi cũ (không tự ý chặn đứng lịch đang chạy tốt).
-  const filterValues = resolveFilterValues(schedule.FilterValuesJson, definition.filters);
+  const filterValues = resolveFilterValues(reportConfig.FilterValuesJson, definition.filters);
   const ownerContext = schedule.CreatedBy ? await getUserContext(schedule.CreatedBy) : null;
   filterValues.__storeScope = ownerContext ? ownerContext.storeScope : null;
   const { columns, rows, columnGroups, columnSuperGroups, standaloneColumnColors } = await runDefinition(definition, filterValues, { page: 1, pageSize: 5000 });
@@ -146,47 +163,70 @@ async function runSchedule(schedule) {
   // columnSuperGroups ở đây LUÔN khớp definition.columnGroups/undefined như
   // cũ với các SourceType khác, xem lib/reportRunner.js/compositeReportRunner.js).
   const exportDefinition = { ...definition, columns, columnGroups, columnSuperGroups, standaloneColumnColors, title: displayTitle };
-  const recipients = schedule.Recipients.split(',').map(s => s.trim()).filter(Boolean);
-
-  // Subject rỗng -> dùng mẫu mặc định như trước khi có tính năng này (tương
-  // thích ngược với lịch cũ chưa từng điền Subject). Subject tự điền được
-  // phép chèn "{ngay}" -> ngày gửi thật (vd "Báo Cáo Nhanh Doanh Thu, Ngày:
-  // {ngay}" -> "...Ngày: 30/08/2026") — khớp mẫu tiêu đề thật đang dùng.
-  // timeZone: 'Asia/Ho_Chi_Minh' BẮT BUỘC — không truyền, toLocaleDateString()
-  // chạy theo múi giờ hệ điều hành máy chủ (production thường đặt UTC), có
-  // thể hiện SAI NGÀY GỬI thật trong khoảng 00:00-06:59 giờ Việt Nam (xem
-  // lib/compositeReportRunner.js:vietnamTodayISO() — cùng lớp lỗi, bản 8.26).
-  const today = new Date().toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
-  const subjectTemplate = schedule.Subject || `[HCRC] ${displayTitle} — {ngay}`;
-  const subject = subjectTemplate.replace(/\{ngay\}/g, today);
 
   if (schedule.DeliveryMode === 'body') {
     const html = renderEmailBodyHtml(exportDefinition, rows, {
-      highlightColumnKey: schedule.HighlightColumnKey,
-      highlightThreshold: schedule.HighlightThreshold,
-      bodyColumnKeys: schedule.BodyColumnKeysJson ? JSON.parse(schedule.BodyColumnKeysJson) : null
+      highlightColumnKey: reportConfig.HighlightColumnKey,
+      highlightThreshold: reportConfig.HighlightThreshold,
+      bodyColumnKeys: reportConfig.BodyColumnKeysJson ? JSON.parse(reportConfig.BodyColumnKeysJson) : null
     });
-    await sendMail({
-      to: recipients.join(','),
-      subject,
-      text: `Báo cáo "${displayTitle}" gửi tự động theo lịch "${schedule.Name}" (${rows.length} dòng). Xem chi tiết trong nội dung email (yêu cầu client hỗ trợ HTML).`,
-      html
-    });
-    return { title: displayTitle, recipients, rowCount: rows.length };
+    return { title: displayTitle, rowCount: rows.length, html };
   }
 
   const format = schedule.ExportFormat === 'pdf' ? 'pdf' : 'excel';
   const buffer = format === 'pdf' ? await exportPdf(exportDefinition, rows) : await exportExcel(exportDefinition, rows);
   const filename = `${fileTitle}.${format === 'pdf' ? 'pdf' : 'xlsx'}`;
+  return { title: displayTitle, rowCount: rows.length, attachment: { filename, content: buffer } };
+}
 
-  await sendMail({
-    to: recipients.join(','),
-    subject,
-    text: `Báo cáo "${displayTitle}" gửi tự động theo lịch "${schedule.Name}" (${rows.length} dòng).`,
-    attachments: [{ filename, content: buffer }]
-  });
+// Phần LÕI: chạy TOÀN BỘ báo cáo của lịch (bản 10.101, có thể NHIỀU báo cáo
+// — xem app.ReportEmailScheduleReports) + gửi GỘP vào CÙNG 1 email, KHÔNG tự
+// ghi kết quả vào DB/log — việc đó do người gọi quyết định (chạy tự động
+// ghi cả giờ gửi lẫn lịch, "Gửi ngay" chỉ ghi lịch — xem 2 hàm gọi bên dưới).
+async function runSchedule(schedule) {
+  const reportConfigs = await loadScheduleReports(schedule.ScheduleId);
+  if (!reportConfigs.length) throw new Error(`Lịch "${schedule.Name}" chưa chọn báo cáo nào`);
 
-  return { title: displayTitle, recipients, rowCount: rows.length };
+  const results = [];
+  for (const reportConfig of reportConfigs) {
+    results.push(await runOneReport(reportConfig, schedule));
+  }
+
+  const recipients = schedule.Recipients.split(',').map(s => s.trim()).filter(Boolean);
+  const titles = results.map(r => r.title);
+
+  // Subject rỗng -> dùng mẫu mặc định như trước khi có tính năng này (tương
+  // thích ngược với lịch cũ chưa từng điền Subject) — 1 báo cáo thì dùng
+  // ĐÚNG tên báo cáo đó (y hệt trước bản 10.101), nhiều báo cáo thì nối tên
+  // (ngắn gọn, ≤3 báo cáo) hoặc đếm số lượng (nhiều hơn, tránh Subject quá
+  // dài). Subject tự điền được phép chèn "{ngay}" -> ngày gửi thật.
+  // timeZone: 'Asia/Ho_Chi_Minh' BẮT BUỘC — không truyền, toLocaleDateString()
+  // chạy theo múi giờ hệ điều hành máy chủ (production thường đặt UTC), có
+  // thể hiện SAI NGÀY GỬI thật trong khoảng 00:00-06:59 giờ Việt Nam (xem
+  // lib/compositeReportRunner.js:vietnamTodayISO() — cùng lớp lỗi, bản 8.26).
+  const today = new Date().toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
+  const defaultReportLabel = titles.length <= 3 ? titles.join(', ') : `${titles.length} báo cáo`;
+  const subjectTemplate = schedule.Subject || `[HCRC] ${defaultReportLabel} — {ngay}`;
+  const subject = subjectTemplate.replace(/\{ngay\}/g, today);
+  const summaryText = results.map(r => `"${r.title}" (${r.rowCount} dòng)`).join(', ');
+
+  if (schedule.DeliveryMode === 'body') {
+    await sendMail({
+      to: recipients.join(','),
+      subject,
+      text: `${summaryText} — gửi tự động theo lịch "${schedule.Name}". Xem chi tiết trong nội dung email (yêu cầu client hỗ trợ HTML).`,
+      html: results.map(r => r.html).join('<div style="height:24px;"></div>')
+    });
+  } else {
+    await sendMail({
+      to: recipients.join(','),
+      subject,
+      text: `${summaryText} — gửi tự động theo lịch "${schedule.Name}".`,
+      attachments: results.map(r => r.attachment)
+    });
+  }
+
+  return { title: titles.join(', '), recipients, rowCount: results.reduce((sum, r) => sum + r.rowCount, 0) };
 }
 
 function alreadyRunningError(name) {
