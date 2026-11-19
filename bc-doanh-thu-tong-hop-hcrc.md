@@ -5,6 +5,39 @@ dùng, dựa trên file mẫu thật đội vận hành đang tự tổng hợp 
 `Bao_cao_ban_Doanh_thu_hang_ngay_he_thong_HCRC_T11.2026.xlsx`, mỗi sheet 1
 ngày trong tháng, mỗi dòng 1 siêu thị).
 
+⚠️ **BẢN 10.99 (SỬA bản 10.98) — Thêm nhóm "III. CHUỖI KHO" vào "Xuất Excel
+theo tháng"**. Bản 10.98 từng dựng NHẦM 1 báo cáo RIÊNG "Doanh thu Bán
+buôn theo loại hình" để đáp ứng yêu cầu "tách doanh thu mart, mini mart,
+kho, tổng" — người dùng chỉ ra đây là HIỂU SAI: yêu cầu thật là thêm nhóm
+**"CHUỖI KHO"** vào ĐÚNG tính năng "Xuất Excel theo tháng" đã có (bản
+10.87), khớp đúng file mẫu thật `Bao_cao_ban_Doanh_thu_hang_ngay_he_thong_HCRC_T11.2026.xlsx`
+người dùng gửi lại (ảnh/file xác nhận: Nhóm "I. CHUỖI MART" → dòng "TỔNG
+MART", 2 dòng "KHO INTIMEX"/"KHO ĐTT" → dòng "TỔNG KHO", Nhóm "VI. CHUỖI
+MINIMART" → dòng "TỔNG MINIMART", cuối cùng "TỔNG HCRC").
+
+**Nguyên nhân 3 dòng Kho = 0 ở bản 10.87**: KHÔNG phải vì DSMART16 không
+có dữ liệu Kho — chỉ vì file mẫu LÚC ĐÓ chưa khai `LoaiChuoi='KHO'` cho
+đúng mã Điểm của 2 kho này ở "Ánh xạ Điểm - STK_ID", nên rơi vào nhóm
+"CHƯA PHÂN NHÓM" (ẩn, không tách riêng). Đã xác nhận lại với người dùng
+(bản 10.99): **2 kho này CÓ Mã Điểm/STK_ID thật trong DSMART16**.
+
+**Sửa**: `lib/doanhThuTongHopHcrcMonthlyExport.js` — `GROUP_ORDER` thêm
+`'KHO'` (trước chỉ `['MART', 'MINIMART']`) + màu riêng cho section. Cơ chế
+nhóm/dòng tổng (`groupRowsByChain`/`buildSubtotalRow`/`buildGroupedSheetRows`)
+ĐÃ CÓ SẴN từ bản 10.87, generic theo `GROUP_ORDER` — KHÔNG cần viết lại
+logic nhóm, chỉ cần thêm đúng 1 giá trị vào danh sách.
+
+**Triển khai**: `git pull origin main` rồi khởi động lại `rp-server`
+(KHÔNG cần script/VIEW mới). Admin cần: khai `LoaiChuoi='KHO'` (chữ hoa,
+không dấu) ở etl-admin → "Ánh xạ Điểm - STK_ID" cho ĐÚNG mã Điểm của từng
+kho — mã Điểm nào chưa khai LoaiChuoi (dù MART/MINIMART/KHO) vẫn rơi vào
+nhóm "CHƯA PHÂN NHÓM" như cũ, không tự suy đoán.
+
+**Kiểm tra**: bấm "Xuất Excel theo tháng (1 sheet/ngày)" — mỗi sheet có
+đủ 3 nhóm "I. CHUỖI MART"/"... CHUỖI MINIMART"/"... CHUỖI KHO" (số La Mã
+tự tăng theo thứ tự `GROUP_ORDER`), mỗi nhóm có dòng "TỔNG <nhóm>", và
+"TỔNG HCRC" ở cuối = tổng cả 3 nhóm.
+
 ## 1. Báo cáo này làm gì
 
 Mỗi dòng = 1 siêu thị (mã Điểm), hiển thị **3 KHỐI SỐ LIỆU CÙNG LÚC** tính

@@ -42,7 +42,35 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
-## 10.98 — Báo cáo MỚI "Doanh thu Bán buôn theo loại hình (Mart/Mini Mart/Kho)"
+## 10.99 — SỬA bản 10.98: thêm nhóm "CHUỖI KHO" vào "Xuất Excel theo tháng" thay vì báo cáo riêng
+
+**Theo yêu cầu người dùng** — *"Có vẻ bạn làm sai, nó theo mẫu mà bạn,
+tổng nó cộng kiểu giống doanh thu hàng ngày mà"*, kèm gửi lại file mẫu
+thật `Bao_cao_ban_Doanh_thu_hang_ngay_he_thong_HCRC_T11.2026.xlsx`. Bản
+10.98 dựng NHẦM 1 báo cáo riêng cho yêu cầu "tách doanh thu mart, mini
+mart, kho, tổng" — **BỎ HẲN** báo cáo đó (xoá
+`lib/banBuonTheoLoaiHinhRunner.js`, `scripts/seedBanBuonTheoLoaiHinhReport.js`,
+`bc-ban-buon-theo-loai-hinh.md`, gỡ SourceType khỏi `reportRunner.js`).
+
+**Hiểu đúng**: yêu cầu thật nằm ở tính năng "Xuất Excel theo tháng" ĐÃ CÓ
+SẴN (bản 10.87) của "Báo cáo tổng hợp doanh thu siêu thị (HCRC)" — tính
+năng đó ĐÃ nhóm MART/MINIMART + dòng Tổng, chỉ thiếu nhóm **KHO** (bản
+10.87 từng thấy 2 dòng Kho trong file mẫu LUÔN = 0 nên bỏ qua — thực ra
+chỉ vì file mẫu lúc đó chưa khai `LoaiChuoi='KHO'`, đã xác nhận lại 2 kho
+này CÓ Mã Điểm/STK_ID thật).
+
+**Sửa**: `lib/doanhThuTongHopHcrcMonthlyExport.js` — `GROUP_ORDER` thêm
+`'KHO'` — cơ chế nhóm/dòng tổng đã generic từ bản 10.87, không cần viết
+lại gì. Xem "bc-doanh-thu-tong-hop-hcrc.md" mục bản 10.99.
+
+**Triển khai**: `git pull origin main` rồi khởi động lại `rp-server`.
+Admin khai `LoaiChuoi='KHO'` cho đúng mã Điểm ở etl-admin → "Ánh xạ Điểm -
+STK_ID".
+
+**Kiểm tra**: "Xuất Excel theo tháng" có đủ 3 nhóm MART/MINIMART/KHO +
+dòng Tổng từng nhóm + "TỔNG HCRC".
+
+## 10.98 — Báo cáo MỚI "Doanh thu Bán buôn theo loại hình (Mart/Mini Mart/Kho)" — ĐÃ BỊ BỎ, xem bản 10.99 (hiểu sai yêu cầu)
 
 **Theo yêu cầu người dùng** — tách doanh thu Bán buôn HÀNG NGÀY theo loại
 hình Mart/Mini Mart/Kho + Tổng cộng, không có Kế hoạch (*"Không có target

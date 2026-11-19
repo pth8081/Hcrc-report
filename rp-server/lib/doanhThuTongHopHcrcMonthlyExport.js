@@ -18,9 +18,14 @@
 // năm -> ngày neo), rồi GOM NHÓM THEO NGÀY trong bộ nhớ (bucketByDay), mỗi
 // ngày trong vòng lặp CHỈ lọc lại mảng đã có sẵn.
 //
-// 3 dòng "KHO INTIMEX"/"KHO ĐTT"/"TỔNG KHO" ở file mẫu gốc LUÔN =0 (không
-// bảng/domain nào biết các dòng kho này, người dùng tự gõ tay) — KHÔNG đưa
-// vào bản tự động này, xem "bc-doanh-thu-tong-hop-hcrc.md" mục bản 10.87.
+// 3 dòng "KHO INTIMEX"/"KHO ĐTT"/"TỔNG KHO" ở file mẫu gốc LUÔN =0 ở bản
+// 10.87 (file mẫu người dùng gửi lúc đó CHƯA khai LoaiChuoi='KHO' cho 2 mã
+// Điểm này, nên rơi vào nhóm "CHƯA PHÂN NHÓM", KHÔNG hiện section "KHO"
+// riêng) — ĐÃ XÁC NHẬN LẠI với người dùng (bản 10.99): 2 kho NÀY CÓ Mã
+// Điểm/STK_ID thật trong DSMART16 (chỉ chưa khai LoaiChuoi) — sửa
+// GROUP_ORDER thêm 'KHO' (xem dưới), tự động có section "CHUỖI KHO" +
+// "TỔNG KHO" NGAY KHI admin khai LoaiChuoi='KHO' cho đúng mã Điểm ở
+// etl-admin → "Ánh xạ Điểm - STK_ID" — KHÔNG cần đổi gì thêm ở file này.
 const { getPool } = require('../db');
 const { fetchAllReportRows, aggregateDailyRowsByEntity } = require('./compositeReportRunner');
 const { loadDiemStkMapping, remapRowsToDiem, buildBuIdLookup } = require('./diemStkMapping');
@@ -104,12 +109,12 @@ function remapBuToMaDiem(byBu, buIdLookup) {
   return out;
 }
 
-// Nhóm "I. CHUỖI MART"/"II. CHUỖI MINIMART" (thứ tự CỐ ĐỊNH, khớp file
-// mẫu) — siêu thị có `chain` khác/rỗng dồn vào 1 nhóm cuối "CHƯA PHÂN
-// NHÓM" (hiếm, chỉ khi admin chưa khai LoaiChuoi VÀ domain nguồn cũng
-// không có — xem lib/diemStkMapping.js).
-const GROUP_ORDER = ['MART', 'MINIMART'];
-const SECTION_COLORS = { MART: '174A7C', MINIMART: '2E7D32' };
+// Nhóm "I. CHUỖI MART"/"II. CHUỖI MINIMART"/"III. CHUỖI KHO" (thứ tự CỐ
+// ĐỊNH, khớp file mẫu — KHO thêm bản 10.99) — siêu thị/kho có `chain`
+// khác/rỗng dồn vào 1 nhóm cuối "CHƯA PHÂN NHÓM" (hiếm, chỉ khi admin chưa
+// khai LoaiChuoi VÀ domain nguồn cũng không có — xem lib/diemStkMapping.js).
+const GROUP_ORDER = ['MART', 'MINIMART', 'KHO'];
+const SECTION_COLORS = { MART: '174A7C', MINIMART: '2E7D32', KHO: '8A5A00' };
 const OTHER_SECTION_COLOR = '6B5B95';
 const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII'];
 

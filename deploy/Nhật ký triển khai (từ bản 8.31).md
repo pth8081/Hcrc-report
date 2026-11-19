@@ -14,7 +14,20 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
-## 10.98 — Báo cáo MỚI "Doanh thu Bán buôn theo loại hình (Mart/Mini Mart/Kho)"
+## 10.99 — SỬA bản 10.98: thêm nhóm "CHUỖI KHO" vào "Xuất Excel theo tháng" thay vì báo cáo riêng
+
+**Thay đổi**: Bỏ hẳn báo cáo riêng của bản 10.98 (hiểu sai yêu cầu).
+`lib/doanhThuTongHopHcrcMonthlyExport.js` — `GROUP_ORDER` thêm `'KHO'` —
+"Xuất Excel theo tháng" của "Báo cáo tổng hợp doanh thu siêu thị (HCRC)"
+giờ có đủ 3 nhóm MART/MINIMART/KHO + dòng Tổng từng nhóm + TỔNG HCRC.
+
+**Triển khai**: `git pull origin main` rồi khởi động lại `rp-server`
+(KHÔNG cần script/VIEW mới). Admin khai `LoaiChuoi='KHO'` cho đúng mã
+Điểm ở etl-admin → "Ánh xạ Điểm - STK_ID".
+
+**Kiểm tra**: xem "bc-doanh-thu-tong-hop-hcrc.md" mục bản 10.99.
+
+## 10.98 — Báo cáo MỚI "Doanh thu Bán buôn theo loại hình (Mart/Mini Mart/Kho)" — ĐÃ BỊ BỎ, xem bản 10.99
 
 **Thay đổi**: `lib/banBuonTheoLoaiHinhRunner.js` mới — SourceType
 `banBuonTheoLoaiHinh`, tái dùng domain `doanhthu_nganhhang` đã có, xếp
