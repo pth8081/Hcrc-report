@@ -5,6 +5,16 @@ dùng, dựa trên file mẫu thật đội vận hành đang tự tổng hợp 
 `Bao_cao_ban_Doanh_thu_hang_ngay_he_thong_HCRC_T11.2026.xlsx`, mỗi sheet 1
 ngày trong tháng, mỗi dòng 1 siêu thị).
 
+⚠️ **BẢN 11.7 — SỬA LỖI HIỆU NĂNG (lần 2): báo cáo VẪN CHẬM sau bản
+11.4** (theo yêu cầu người dùng, báo cáo vẫn treo lâu ở "Đang lọc...").
+Bản 11.4 chỉ sửa việc GỌI LẶP LẠI domain 3 lần — nhưng mỗi lượt gọi vẫn
+đi qua cách PHÂN TRANG OFFSET/FETCH (mỗi trang là 1 truy vấn riêng, SQL
+Server quét lại TỪ ĐẦU rồi skip offset ở MỖI LƯỢT) — mới là nguyên nhân
+CHÍNH gây chậm cho domain lớn (`doanhthu_nganhhang`, cả năm có thể hàng
+trăm nghìn dòng). Sửa `fetchRawRows()` đọc 1 truy vấn DUY NHẤT, không
+OFFSET/FETCH — xem "VERSION.md" mục bản 11.7 (cùng loại sự cố đã gặp ở
+domain tồn kho lớn, bản 9.83/9.87).
+
 ⚠️ **BẢN 11.6 — SỬA LỖI: Số Bill/Số giao dịch/DT bán buôn-lẻ/Lãi gộp bị
 CỘNG GẤP ĐÔI ở những ngày Live và Lịch sử trùng nhau** (theo yêu cầu
 người dùng — *"Số bill và số giao dịch bạn đang lấy sai... lấy ở chỗ

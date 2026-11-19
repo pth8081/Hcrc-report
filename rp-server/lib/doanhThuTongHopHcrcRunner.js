@@ -119,9 +119,47 @@ function toISODate(v) {
   if (v instanceof Date) return v.toISOString().slice(0, 10);
   return String(v).slice(0, 10);
 }
+// Bản 11.7 — SỬA LỖI HIỆU NĂNG THẬT (người dùng báo VẪN CHẬM sau bản
+// 11.4 dù đã bỏ gọi lặp lại 3 lần): `fetchAllReportRows()`
+// (lib/compositeReportRunner.js) phân trang bằng OFFSET/FETCH — MỖI
+// TRANG LÀ 1 TRUY VẤN HOÀN TOÀN RIÊNG, không giữ "con trỏ" giữa các lượt
+// gọi, nên SQL Server phải QUÉT LẠI TỪ ĐẦU rồi SKIP đúng offset đó ở MỖI
+// LƯỢT. Domain `doanhthu_nganhhang` gộp theo (STK_ID, DEPT_ID, ngày) —
+// khoảng CẢ NĂM (~40 siêu thị × hơn chục ngành hàng × ~320 ngày) có thể
+// ra hàng trăm nghìn dòng, cần hàng chục lượt gọi 5000 dòng/lượt — lượt
+// CUỐI phải quét qua gần hết số dòng đó trước khi tới đúng offset, tổng
+// khối lượng quét lặp lại gấp NHIỀU LẦN số dòng thật — đây mới là nguyên
+// nhân CHÍNH gây chậm (bản 11.4 chỉ bỏ được 2/3 SỐ LẦN gọi domain kiểu
+// này — Ngày/Tháng — khối NĂM vẫn quét kiểu OFFSET/FETCH y hệt, dù giờ
+// chỉ còn gọi 1 lần thay vì 3).
+//
+// SỬA: đọc THẲNG 1 TRUY VẤN DUY NHẤT, KHÔNG OFFSET/FETCH, KHÔNG ORDER BY
+// (không cần sắp xếp gì — `bucketByDay()` tự gom lại theo ngày ngay sau)
+// — SQL Server chỉ cần quét ĐÚNG 1 LƯỢT thay vì lặp lại hàng chục lần —
+// mirror đúng cách `lib/reportFactsHelpers.js` đã né OFFSET/FETCH ở bản
+// 9.83/9.87 cho domain tồn kho lớn (xem chú thích ở `dwh/schema.sql` —
+// CÙNG LOẠI sự cố thật đã gặp trước đây, khác domain). Dòng trả về giữ
+// ĐÚNG shape {entityCode, eventDate, dimensions, measures, syncedAt} như
+// `fetchAllReportRows()` cũ (qua `reportEngine.js:parseRow()`) — không
+// đổi gì ở `bucketByDay()`/`sumNganhHangByStk()`/`sumTransactionsByBuId()`
+// phía sau.
 async function fetchRawRows(pool, domain, from, to) {
-  const definition = { domain, filters: [{ field: 'eventDate', type: 'dateRange' }] };
-  return fetchAllReportRows(pool, definition, { eventDate: { from, to } });
+  const result = await pool.request()
+    .input('domain', sql.VarChar(50), domain)
+    .input('from', sql.Date, from)
+    .input('to', sql.Date, to)
+    .query(`
+      SELECT EntityCode, EventDate, Dimensions, Measures, SyncedAt
+      FROM dwh.ReportFacts
+      WHERE Domain = @domain AND EventDate BETWEEN @from AND @to
+    `);
+  return result.recordset.map(r => ({
+    entityCode: r.EntityCode,
+    eventDate: r.EventDate,
+    dimensions: JSON.parse(r.Dimensions || '{}'),
+    measures: r.Measures ? JSON.parse(r.Measures) : {},
+    syncedAt: r.SyncedAt
+  }));
 }
 // Bản 11.6 — SỬA LỖI THẬT (người dùng chỉ ra "Số bill và số giao dịch
 // bạn đang lấy sai" — so với "Báo cáo doanh thu cuối ngày" LUÔN ĐÚNG,

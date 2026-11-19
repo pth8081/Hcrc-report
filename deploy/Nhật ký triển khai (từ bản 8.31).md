@@ -14,6 +14,21 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 11.7 — SỬA LỖI HIỆU NĂNG (lần 2): bỏ phân trang OFFSET/FETCH khi đọc domain Doanh thu ngành hàng/Giao dịch
+
+**Thay đổi**: `lib/doanhThuTongHopHcrcRunner.js` — `fetchRawRows()` đọc 1
+truy vấn SQL duy nhất (không OFFSET/FETCH) thay vì gọi
+`fetchAllReportRows()` (phân trang 5000 dòng/lượt, mỗi lượt quét lại từ
+đầu) — nguyên nhân chính khiến báo cáo vẫn chậm sau bản 11.4.
+
+**Triển khai**:
+```bash
+git pull origin main
+pm2 restart rp-server
+```
+
+**Kiểm tra**: xem "VERSION.md" mục bản 11.7.
+
 ## 11.6 — SỬA LỖI: "Báo cáo tổng hợp doanh thu siêu thị" cộng gấp đôi Số Bill/Số giao dịch ở ngày Live+Lịch sử trùng nhau
 
 **Thay đổi**: `lib/doanhThuTongHopHcrcRunner.js` — `bucketByDay()` thêm

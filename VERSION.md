@@ -52,6 +52,43 @@ nội dung/hành vi nào đã làm. Lịch sử Git (commit message) vẫn còn 
 "Bản 10.100"/"Bản 10.101" (không sửa lại lịch sử Git) — coi là ĐỒNG NHẤT
 với "11.0"/"11.1".
 
+## 11.7 — SỬA LỖI HIỆU NĂNG THẬT (lần 2): "Báo cáo tổng hợp doanh thu siêu thị" VẪN CHẬM sau bản 11.4 — do cách phân trang OFFSET/FETCH
+
+**Theo yêu cầu người dùng** — sau khi triển khai bản 11.4-11.6, báo cáo
+"(LĐTĐ)" vẫn bị treo lâu ở "Đang lọc...".
+
+**Nguyên nhân thật (đào sâu hơn bản 11.4)**: bản 11.4 chỉ sửa đúng việc
+GỌI LẶP LẠI domain 3 lần (Ngày/Tháng/Năm) — nhưng MỖI lượt gọi đó (kể cả
+khi đã giảm còn 1 lần/domain cho khối Năm) vẫn đi qua
+`fetchAllReportRows()` (`lib/compositeReportRunner.js`), hàm này phân
+trang bằng **OFFSET/FETCH** — MỖI TRANG LÀ 1 TRUY VẤN SQL HOÀN TOÀN
+RIÊNG, không giữ "con trỏ" giữa các lượt gọi, nên SQL Server phải **QUÉT
+LẠI TỪ ĐẦU rồi SKIP đúng offset đó ở MỖI LƯỢT**. Domain
+`doanhthu_nganhhang` gộp theo (STK_ID, DEPT_ID, ngày) — khoảng CẢ NĂM có
+thể ra hàng trăm nghìn dòng, cần hàng chục lượt gọi 5000 dòng/lượt — lượt
+CUỐI phải quét qua gần hết số dòng trước đó mới tới đúng offset, tổng
+khối lượng quét lặp lại gấp NHIỀU LẦN số dòng thật — đây mới là nguyên
+nhân CHÍNH gây chậm, không phải việc gọi 3 lần (bản 11.4 chỉ giảm được
+SỐ LẦN gọi domain kiểu phân trang này, chưa sửa CHÍNH cách phân trang).
+Đây là CÙNG LOẠI sự cố thật đã gặp trước đó ở domain tồn kho lớn (bản
+9.83/9.87, xem `dwh/schema.sql`), chỉ khác domain.
+
+**Sửa**: `lib/doanhThuTongHopHcrcRunner.js` — `fetchRawRows()` đọc
+THẲNG 1 TRUY VẤN DUY NHẤT (không OFFSET/FETCH, không ORDER BY — không
+cần sắp xếp gì vì `bucketByDay()` tự gom lại theo ngày ngay sau) thay vì
+gọi qua `fetchAllReportRows()` — mirror đúng cách `lib/reportFactsHelpers.js`
+đã né OFFSET/FETCH cho domain tồn kho lớn trước đó. Áp dụng CHUNG cho cả
+báo cáo chính (web/Excel/PDF) lẫn "Xuất Excel theo tháng" (import lại
+hàm này từ bản 11.4).
+
+**Triển khai**: `git pull origin main`, khởi động lại `rp-server` —
+KHÔNG cần đổi CSDL/chạy script.
+
+**Kiểm tra**: mở "Báo cáo tổng hợp doanh thu siêu thị" — thời gian tải
+phải giảm RÕ RỆT so với trước (nên chỉ còn vài giây thay vì "Đang lọc..."
+kéo dài); số liệu PHẢI giữ NGUYÊN y hệt bản 11.6 (chỉ đổi cách lấy dữ
+liệu, không đổi công thức/kết quả).
+
 ## 11.6 — SỬA LỖI THẬT: "Báo cáo tổng hợp doanh thu siêu thị" cộng gấp đôi Số Bill/Số giao dịch/DT bán buôn-lẻ/Lãi gộp ở những ngày Live và Lịch sử trùng nhau
 
 **Theo yêu cầu người dùng** — *"Số bill và số giao dịch bạn đang lấy sai.
