@@ -205,7 +205,14 @@ async function fetchStaffCountByMaDiem() {
   for (const r of result.recordset) {
     const maDiem = await resolveMaDiemForDepartment(r.Department);
     if (!maDiem) continue;
-    byMaDiem.set(maDiem, (byMaDiem.get(maDiem) || 0) + 1);
+    // 1 Department có thể gộp NHIỀU Mã Điểm, cách nhau bởi dấu phẩy (bản
+    // 10.97, theo yêu cầu người dùng — vd 1 bộ phận phụ trách CHUNG 2 siêu
+    // thị liền kề, KHÔNG tách riêng theo từng điểm) — CỘNG ĐỦ số người đó
+    // vào MỖI mã trong danh sách (không chia đều), vì cùng 1 người vẫn tính
+    // là nhân sự phục vụ CẢ 2 điểm, không phải 1 nửa người mỗi điểm.
+    for (const code of maDiem.split(',').map(s => s.trim()).filter(Boolean)) {
+      byMaDiem.set(code, (byMaDiem.get(code) || 0) + 1);
+    }
   }
   return byMaDiem;
 }

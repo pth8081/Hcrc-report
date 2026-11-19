@@ -209,7 +209,7 @@ export default function DepartmentStoreMappingPage() {
               required
             />
             <input
-              placeholder="Mã Điểm — đúng mã đã khai ở Ánh xạ Điểm - STK_ID"
+              placeholder="Mã Điểm — đúng mã đã khai ở Ánh xạ Điểm - STK_ID (gộp nhiều mã thì cách nhau bởi dấu phẩy, vd 305,306)"
               value={editForm.maDiem}
               onChange={(e) => setEditForm({ ...editForm, maDiem: e.target.value })}
               required

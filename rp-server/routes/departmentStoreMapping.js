@@ -28,10 +28,32 @@ router.use(requireAuth, requireMenuAccess('system-department-mapping'));
 // lỗi gì (CSDL nhận mọi chuỗi, không kiểm tra tồn tại) — tự đệm về 3 chữ số
 // NẾU mã gõ CHỈ gồm 1-2 chữ số, rồi kiểm tra tồn tại thật ngay dưới đây,
 // thay vì lặng lẽ lưu 1 mã không bao giờ khớp.
+//
+// CHO PHÉP gộp NHIỀU Mã Điểm cách nhau bởi dấu phẩy (bản 10.97, theo yêu
+// cầu người dùng — 1 Department phụ trách CHUNG nhiều siêu thị, vd "Cửa
+// hàng số 96-98 Tô Ngọc Vân" gộp cả 2 mã "305"/"306", không tách riêng
+// được theo tên) — chuẩn hoá (đệm 0 nếu cần) và kiểm tra tồn tại TỪNG mã
+// trong danh sách, không chỉ mã đầu. lib/doanhThuTongHopHcrcRunner.js:
+// fetchStaffCountByMaDiem() tự tách lại theo dấu phẩy, cộng ĐỦ số người
+// vào MỖI mã (không chia đều).
 function normalizeMaDiem(raw) {
-  const trimmed = String(raw || '').trim();
-  if (/^\d{1,2}$/.test(trimmed)) return trimmed.padStart(3, '0');
-  return trimmed;
+  return String(raw || '')
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean)
+    .map(s => (/^\d{1,2}$/.test(s) ? s.padStart(3, '0') : s))
+    .join(',');
+}
+
+// null = hợp lệ, string = lý do không hợp lệ (dùng thẳng làm message lỗi).
+function invalidMaDiemReason(normalizedMaDiem, diemMapping) {
+  const codes = normalizedMaDiem.split(',').map(s => s.trim()).filter(Boolean);
+  if (!codes.length) return 'Thiếu Mã Điểm';
+  const notFound = codes.filter(c => !diemMapping.has(c));
+  if (notFound.length) {
+    return `Mã Điểm "${notFound.join('", "')}" không tồn tại trong "Ánh xạ Điểm - STK_ID" — kiểm tra lại đúng mã (vd "001", "006"...), hoặc khai thêm ở etl-admin trước khi dùng ở đây`;
+  }
+  return null;
 }
 
 const upload = multer({
@@ -76,9 +98,8 @@ router.put('/one', requireSystemRoleActor, async (req, res, next) => {
     const trimmedDepartmentRaw = String(departmentRaw).trim();
     const trimmedMaDiem = normalizeMaDiem(maDiem);
     const diemMapping = await loadDiemStkMapping();
-    if (!diemMapping.has(trimmedMaDiem)) {
-      return res.status(400).json({ error: `Mã Điểm "${trimmedMaDiem}" không tồn tại trong "Ánh xạ Điểm - STK_ID" — kiểm tra lại đúng mã (vd "001", "006"...), hoặc khai thêm ở etl-admin trước khi dùng ở đây` });
-    }
+    const invalidReason = invalidMaDiemReason(trimmedMaDiem, diemMapping);
+    if (invalidReason) return res.status(400).json({ error: invalidReason });
     const pool = await getPool('RP');
 
     if (id) {
@@ -160,8 +181,9 @@ router.post('/import', requireSystemRoleActor, upload.single('file'), async (req
     const allRowErrors = [...rowErrors];
     for (const row of rows) {
       const normalizedMaDiem = normalizeMaDiem(row.maDiem);
-      if (!diemMapping.has(normalizedMaDiem)) {
-        allRowErrors.push(`"${row.departmentRaw}": Mã Điểm "${row.maDiem}" không tồn tại trong "Ánh xạ Điểm - STK_ID" — bỏ qua dòng này`);
+      const invalidReason = invalidMaDiemReason(normalizedMaDiem, diemMapping);
+      if (invalidReason) {
+        allRowErrors.push(`"${row.departmentRaw}": ${invalidReason} — bỏ qua dòng này`);
         continue;
       }
       validRows.push({ departmentRaw: row.departmentRaw, maDiem: normalizedMaDiem });

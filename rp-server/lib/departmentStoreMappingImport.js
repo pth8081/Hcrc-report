@@ -8,7 +8,10 @@
 // Định dạng file (.xlsx): dòng 1 header — STT (bỏ qua), DepartmentRaw (BẮT
 // BUỘC, đúng nguyên văn giá trị "Department" đồng bộ từ vpdt — xem cột
 // "Phòng ban" ở trang Người dùng), MaDiem (BẮT BUỘC, đúng mã Điểm đã khai ở
-// "Ánh xạ Điểm - STK_ID").
+// "Ánh xạ Điểm - STK_ID" — gộp nhiều mã thì cách nhau bởi dấu phẩy, vd
+// "305,306", xem routes/departmentStoreMapping.js:normalizeMaDiem(), bản
+// 10.97). Mã Điểm nên gõ ĐỦ 3 chữ số đệm 0 đầu (vd "006") — nếu Excel tự
+// rụng số 0 (ô hiểu nhầm là số) thì server tự đệm lại khi nhập (bản 10.96).
 const ExcelJS = require('exceljs');
 const { sql } = require('../db');
 

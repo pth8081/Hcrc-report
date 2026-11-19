@@ -42,6 +42,31 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.97 — "Ánh xạ Phòng ban → Siêu thị": cho phép gộp NHIỀU Mã Điểm (cách nhau bởi dấu phẩy)
+
+**Theo yêu cầu người dùng** — *"tôi vẫn là nó có hai siêu thị gộp vào thì
+tôi có thể cách bằng dấu phẩy được không?"* — trường hợp 1 Department
+(vd "Cửa hàng số 96-98 Tô Ngọc Vân") phụ trách CHUNG nhiều siêu thị liền
+kề, không tách riêng được theo tên, nên không thể ép về đúng 1 Mã Điểm
+như kiến trúc map 1-1 cũ (bản 8.49).
+
+**Sửa**:
+- `routes/departmentStoreMapping.js` — `normalizeMaDiem()` giờ tách theo
+  dấu phẩy, đệm 0 đầu VÀ kiểm tra tồn tại THẬT cho TỪNG mã trong danh
+  sách (không chỉ mã đầu) — cả `PUT /one` lẫn `POST /import`.
+- `lib/doanhThuTongHopHcrcRunner.js:fetchStaffCountByMaDiem()` — 1 người
+  thuộc Department gộp nhiều mã thì CỘNG ĐỦ số người đó vào MỖI mã trong
+  danh sách (không chia đều) — 1 nhân sự coi là phục vụ ĐỦ cả các điểm đã
+  gộp, không phải 1 phần nhỏ mỗi điểm.
+- Giao diện (DepartmentStoreMappingPage.jsx) — cập nhật gợi ý ô nhập Mã
+  Điểm, nêu rõ cách gộp bằng dấu phẩy (vd "305,306").
+
+**Triển khai**: `git pull origin main` rồi khởi động lại `rp-server`.
+
+**Kiểm tra**: sửa 1 dòng ánh xạ với Mã Điểm "305,306" → lưu được; "Số
+lượng nhân sự" ở báo cáo tổng hợp doanh thu CỘNG ĐỦ số người của dòng đó
+vào CẢ 2 mã 305 và 306.
+
 ## 10.96 — "Ánh xạ Phòng ban → Siêu thị": kiểm tra Mã Điểm tồn tại thật + tự đệm số 0 đầu
 
 **Theo phát hiện thật khi tra cứu cùng người dùng** — bản 10.95 (đếm nhân

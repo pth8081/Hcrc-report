@@ -14,6 +14,17 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.97 — "Ánh xạ Phòng ban → Siêu thị": cho phép gộp NHIỀU Mã Điểm (cách nhau bởi dấu phẩy)
+
+**Thay đổi**: `normalizeMaDiem()` tách Mã Điểm theo dấu phẩy, đệm 0 +
+kiểm tra tồn tại TỪNG mã; `fetchStaffCountByMaDiem()` cộng đủ số người
+vào MỖI mã khi 1 Department gộp nhiều Mã Điểm (vd "305,306").
+
+**Triển khai**: `git pull origin main` rồi khởi động lại `rp-server`.
+
+**Kiểm tra**: nhập Mã Điểm dạng "305,306" cho 1 dòng ánh xạ → lưu được,
+"Số lượng nhân sự" cộng đủ vào cả 2 mã.
+
 ## 10.96 — "Ánh xạ Phòng ban → Siêu thị": kiểm tra Mã Điểm tồn tại thật + tự đệm số 0 đầu
 
 **Thay đổi**: `routes/departmentStoreMapping.js` — `PUT /one` và
