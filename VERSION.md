@@ -42,6 +42,22 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.100 — Thêm khối "TỔNG HỢP THEO LOẠI HÌNH" (Mart/Mini Mart/Kho/Tổng) cuối mỗi sheet "Xuất Excel theo tháng"
+
+**Theo yêu cầu người dùng** — *"Bạn cứ làm phần tổng cộng theo hàng ngày
+mart, mini mart, kho, tổng là được"*, xác nhận thêm vào CUỐI mỗi sheet
+đang có (cả 2 trong 1 file), KHÔNG tạo báo cáo riêng.
+
+**Sửa**: `lib/doanhThuTongHopHcrcMonthlyExport.js:buildGroupedSheetRows()`
+— giữ lại các dòng tổng đã tính cho từng nhóm (MART/MINIMART/KHO/TỔNG
+HCRC — bản 10.87/10.99), thêm khối "TỔNG HỢP THEO LOẠI HÌNH" ở CUỐI mỗi
+sheet (4 dòng Mart/Mini Mart/Kho/Tổng cộng), KHÔNG tính lại số liệu — tái
+dùng đúng object đã tính, tránh lệch số giữa 2 vị trí.
+
+**Triển khai**: `git pull origin main` rồi khởi động lại `rp-server`.
+
+**Kiểm tra**: xem "bc-doanh-thu-tong-hop-hcrc.md" mục bản 10.100.
+
 ## 10.99 — SỬA bản 10.98: thêm nhóm "CHUỖI KHO" vào "Xuất Excel theo tháng" thay vì báo cáo riêng
 
 **Theo yêu cầu người dùng** — *"Có vẻ bạn làm sai, nó theo mẫu mà bạn,

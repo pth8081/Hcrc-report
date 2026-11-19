@@ -5,6 +5,30 @@ dùng, dựa trên file mẫu thật đội vận hành đang tự tổng hợp 
 `Bao_cao_ban_Doanh_thu_hang_ngay_he_thong_HCRC_T11.2026.xlsx`, mỗi sheet 1
 ngày trong tháng, mỗi dòng 1 siêu thị).
 
+⚠️ **BẢN 10.100 — Thêm khối "TỔNG HỢP THEO LOẠI HÌNH" cuối mỗi sheet**
+(theo yêu cầu người dùng — *"làm phần tổng cộng theo hàng ngày mart, mini
+mart, kho, tổng là được"*, xác nhận thêm vào CUỐI mỗi sheet của "Xuất
+Excel theo tháng" đang có, KHÔNG tạo báo cáo riêng). Sau toàn bộ danh sách
+từng siêu thị + nhóm MART/MINIMART/KHO + dòng "TỔNG HCRC" (bản 10.87/
+10.99), mỗi sheet có thêm 1 khối tóm tắt ở cuối — tiêu đề "TỔNG HỢP THEO
+LOẠI HÌNH", 4 dòng **Mart / Mini Mart / Kho / Tổng cộng** — nhắc lại ĐÚNG
+số liệu các dòng "TỔNG MART"/"TỔNG MINIMART"/"TỔNG KHO"/"TỔNG HCRC" đã
+tính ở trên (KHÔNG tính lại — dùng chung object đã tính, tránh lệch số
+giữa 2 chỗ), chỉ đổi nhãn ngắn gọn hơn, gộp liền nhau để xem nhanh không
+phải cuộn tìm rải rác theo từng nhóm.
+
+**Sửa**: `lib/doanhThuTongHopHcrcMonthlyExport.js` —
+`buildGroupedSheetRows()` giữ lại các dòng tổng đã tính (`recapRows`),
+thêm khối mới ở cuối mảng rows mỗi sheet.
+
+**Triển khai**: `git pull origin main` rồi khởi động lại `rp-server`
+(không cần script/VIEW mới).
+
+**Kiểm tra**: bấm "Xuất Excel theo tháng" — cuối mỗi sheet (sau "TỔNG
+HCRC") có thêm khối "TỔNG HỢP THEO LOẠI HÌNH" với 4 dòng Mart/Mini Mart/
+Kho/Tổng cộng, số liệu khớp đúng các dòng "TỔNG MART"/"TỔNG MINIMART"/
+"TỔNG KHO"/"TỔNG HCRC" ở phần trên cùng sheet đó.
+
 ⚠️ **BẢN 10.99 (SỬA bản 10.98) — Thêm nhóm "III. CHUỖI KHO" vào "Xuất Excel
 theo tháng"**. Bản 10.98 từng dựng NHẦM 1 báo cáo RIÊNG "Doanh thu Bán
 buôn theo loại hình" để đáp ứng yêu cầu "tách doanh thu mart, mini mart,

@@ -173,9 +173,20 @@ function buildSubtotalRow(groupRows, label, isGrandTotal, elapsedDays, totalDays
   };
 }
 
+// Nhãn NGẮN cho khối "Tổng hợp theo loại hình" cuối sheet (bản 10.100,
+// theo yêu cầu người dùng — "làm phần tổng cộng theo hàng ngày mart, mini
+// mart, kho, tổng là được", thêm vào CUỐI mỗi sheet đang có, KHÔNG tạo báo
+// cáo riêng) — khác chữ "TỔNG MART"/"TỔNG MINIMART"/"TỔNG KHO" đã dùng cho
+// dòng tổng NGAY SAU từng nhóm (để phân biệt 2 vị trí, dù CÙNG 1 số liệu).
+const RECAP_LABELS = { MART: 'Mart', MINIMART: 'Mini Mart', KHO: 'Kho', __other: 'Khác' };
+const RECAP_SECTION_COLOR = '5C5C5C';
+
 function buildGroupedSheetRows(storeRows, elapsedDays, totalDaysInMonth) {
   const groups = groupRowsByChain(storeRows);
   const out = [];
+  // recapRows — GIỮ LẠI đúng các dòng tổng đã tính cho từng nhóm (không
+  // tính lại) để dựng khối tóm tắt cuối sheet bên dưới.
+  const recapRows = [];
   groups.forEach((g, idx) => {
     const roman = ROMAN[idx] || String(idx + 1);
     const isOther = g.key === '__other';
@@ -185,9 +196,26 @@ function buildGroupedSheetRows(storeRows, elapsedDays, totalDaysInMonth) {
       __sectionColor: isOther ? OTHER_SECTION_COLOR : SECTION_COLORS[g.key]
     });
     out.push(...g.rows);
-    out.push(buildSubtotalRow(g.rows, `TỔNG ${isOther ? 'KHÁC' : g.key}`, false, elapsedDays, totalDaysInMonth));
+    const subtotal = buildSubtotalRow(g.rows, `TỔNG ${isOther ? 'KHÁC' : g.key}`, false, elapsedDays, totalDaysInMonth);
+    out.push(subtotal);
+    recapRows.push({ ...subtotal, tenSieuThi: RECAP_LABELS[g.key] || g.key });
   });
-  out.push(buildSubtotalRow(storeRows, 'TỔNG HCRC', true, elapsedDays, totalDaysInMonth));
+  const grandTotal = buildSubtotalRow(storeRows, 'TỔNG HCRC', true, elapsedDays, totalDaysInMonth);
+  out.push(grandTotal);
+
+  // Khối "TỔNG HỢP THEO LOẠI HÌNH" — nhắc lại ĐÚNG các dòng tổng ở trên,
+  // gộp liền nhau ở CUỐI sheet (sau toàn bộ danh sách từng siêu thị) để dễ
+  // xem nhanh Mart/Mini Mart/Kho/Tổng cộng mà không phải cuộn tìm rải rác
+  // theo từng nhóm — KHÔNG tính lại gì (tenSieuThi đổi nhãn, mọi số liệu
+  // khác giữ NGUYÊN object đã tính ở trên, tránh lệch số giữa 2 chỗ).
+  out.push({
+    __isSectionHeader: true,
+    __sectionLabel: 'TỔNG HỢP THEO LOẠI HÌNH',
+    __sectionColor: RECAP_SECTION_COLOR
+  });
+  out.push(...recapRows);
+  out.push({ ...grandTotal, tenSieuThi: 'Tổng cộng' });
+
   return out;
 }
 
