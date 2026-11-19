@@ -13,11 +13,26 @@ const {
   buildDepartmentStoreMappingTemplate, buildDepartmentStoreMappingExport
 } = require('../lib/departmentStoreMappingImport');
 const { invalidateDepartmentStoreMappingCache } = require('../lib/departmentStoreMapping');
+const { loadDiemStkMapping } = require('../lib/diemStkMapping');
 const { logAction } = require('../lib/auditLog');
 const { hasZipSignature } = require('../lib/fileSignature');
 
 const router = express.Router();
 router.use(requireAuth, requireMenuAccess('system-department-mapping'));
+
+// Chuẩn hoá Mã Điểm nhập tay — mọi mã Điểm THẬT trong hệ thống đều là chuỗi
+// 3 chữ số đệm số 0 đầu (vd "006", "004", "010" — xem etl.DiemStkMapping),
+// nhưng gõ tay/Excel hay làm rụng số 0 đầu khi ô được hiểu là số (vd "6"
+// thay vì "006") — lỗi THẬT đã gặp (bản 10.96): admin khai đúng ý nhưng
+// thiếu đệm 0 khiến dòng ánh xạ KHÔNG BAO GIỜ khớp được, âm thầm không báo
+// lỗi gì (CSDL nhận mọi chuỗi, không kiểm tra tồn tại) — tự đệm về 3 chữ số
+// NẾU mã gõ CHỈ gồm 1-2 chữ số, rồi kiểm tra tồn tại thật ngay dưới đây,
+// thay vì lặng lẽ lưu 1 mã không bao giờ khớp.
+function normalizeMaDiem(raw) {
+  const trimmed = String(raw || '').trim();
+  if (/^\d{1,2}$/.test(trimmed)) return trimmed.padStart(3, '0');
+  return trimmed;
+}
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -59,7 +74,11 @@ router.put('/one', requireSystemRoleActor, async (req, res, next) => {
     if (!departmentRaw || !String(departmentRaw).trim()) return res.status(400).json({ error: 'Thiếu departmentRaw' });
     if (!maDiem || !String(maDiem).trim()) return res.status(400).json({ error: 'Thiếu maDiem' });
     const trimmedDepartmentRaw = String(departmentRaw).trim();
-    const trimmedMaDiem = String(maDiem).trim();
+    const trimmedMaDiem = normalizeMaDiem(maDiem);
+    const diemMapping = await loadDiemStkMapping();
+    if (!diemMapping.has(trimmedMaDiem)) {
+      return res.status(400).json({ error: `Mã Điểm "${trimmedMaDiem}" không tồn tại trong "Ánh xạ Điểm - STK_ID" — kiểm tra lại đúng mã (vd "001", "006"...), hoặc khai thêm ở etl-admin trước khi dùng ở đây` });
+    }
     const pool = await getPool('RP');
 
     if (id) {
@@ -132,11 +151,28 @@ router.post('/import', requireSystemRoleActor, upload.single('file'), async (req
     const { rows, rowErrors } = parsed;
     if (!rows.length) return res.status(400).json({ error: 'Không có dòng hợp lệ nào trong file', rowErrors });
 
+    // Lọc bỏ dòng có Mã Điểm KHÔNG tồn tại thật (sau khi đã tự đệm số 0 đầu
+    // nếu cần — xem normalizeMaDiem()) — lỗi THẬT đã gặp (bản 10.96): trước
+    // đây nhập thẳng mọi dòng, mã Điểm gõ sai/thiếu đệm 0 vẫn lưu được,
+    // không ai biết cho tới khi phát hiện số liệu sai ở báo cáo.
+    const diemMapping = await loadDiemStkMapping();
+    const validRows = [];
+    const allRowErrors = [...rowErrors];
+    for (const row of rows) {
+      const normalizedMaDiem = normalizeMaDiem(row.maDiem);
+      if (!diemMapping.has(normalizedMaDiem)) {
+        allRowErrors.push(`"${row.departmentRaw}": Mã Điểm "${row.maDiem}" không tồn tại trong "Ánh xạ Điểm - STK_ID" — bỏ qua dòng này`);
+        continue;
+      }
+      validRows.push({ departmentRaw: row.departmentRaw, maDiem: normalizedMaDiem });
+    }
+    if (!validRows.length) return res.status(400).json({ error: 'Không có dòng hợp lệ nào trong file (mọi Mã Điểm đều không tồn tại)', rowErrors: allRowErrors });
+
     const pool = await getPool('RP');
-    const result = await upsertDepartmentStoreMapping(pool, rows, req.user.username);
+    const result = await upsertDepartmentStoreMapping(pool, validRows, req.user.username);
     invalidateDepartmentStoreMappingCache();
     await logAction(req, { module: 'Ánh xạ Phòng ban - Siêu thị', actionType: 'NHAP_ANH_XA_PHONG_BAN', description: `Nhập file ánh xạ: thêm mới ${result.inserted}, cập nhật ${result.updated} dòng` });
-    res.json({ ...result, rowErrors });
+    res.json({ ...result, rowErrors: allRowErrors });
   } catch (err) { next(err); }
 });
 

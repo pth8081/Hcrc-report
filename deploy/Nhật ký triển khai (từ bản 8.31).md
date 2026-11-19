@@ -14,6 +14,26 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 10.96 — "Ánh xạ Phòng ban → Siêu thị": kiểm tra Mã Điểm tồn tại thật + tự đệm số 0 đầu
+
+**Thay đổi**: `routes/departmentStoreMapping.js` — `PUT /one` và
+`POST /import` giờ chuẩn hoá Mã Điểm gõ vào (tự đệm "6" → "006" nếu chỉ
+gồm 1-2 chữ số) rồi kiểm tra tồn tại thật trong `etl.DiemStkMapping`
+trước khi lưu — trước đây lưu được bất kỳ chuỗi nào, dẫn tới dòng ánh xạ
+sai âm thầm vô tác dụng (phát hiện qua file admin tự xuất ra có nhiều mã
+thiếu đệm 0: "6"/"4"/"10" thay vì "006"/"004"/"010").
+
+**Triển khai**: `git pull origin main` rồi khởi động lại `rp-server`.
+
+**Sau khi deploy, admin CẦN**: vào lại "Ánh xạ Phòng ban → Siêu thị",
+kiểm tra/sửa lại các dòng Mã Điểm từng lưu sai trước đây (không tự sửa
+được — dữ liệu cũ đã lưu rồi) — trang sẽ báo lỗi ngay nếu còn gõ mã
+không tồn tại.
+
+**Kiểm tra**: thử sửa 1 dòng với Mã Điểm sai → báo lỗi, không lưu được;
+nhập lại Excel với Mã Điểm đúng (đã đệm đủ 0) → nhập thành công, "Số
+lượng nhân sự" ở báo cáo tổng hợp doanh thu ra số thật.
+
 ## 10.95 — SỬA LẦN 2 lỗi "Số lượng nhân sự" = 0 — bỏ phụ thuộc `IsActive`
 
 **Thay đổi**: `fetchStaffCountByMaDiem()` bỏ điều kiện `WHERE IsActive = 1`

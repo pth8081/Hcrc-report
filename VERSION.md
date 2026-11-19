@@ -42,6 +42,41 @@ Lịch sử Git (nội dung commit message cũ) vẫn còn ghi "Bản 9.100"/"9.
 (không sửa lại lịch sử Git) — coi 2 cách gọi này là ĐỒNG NHẤT 1 bản,
 không phải 2 bản khác nhau.
 
+## 10.96 — "Ánh xạ Phòng ban → Siêu thị": kiểm tra Mã Điểm tồn tại thật + tự đệm số 0 đầu
+
+**Theo phát hiện thật khi tra cứu cùng người dùng** — bản 10.95 (đếm nhân
+sự theo `app.Users.Department` + "Ánh xạ Phòng ban → Siêu thị") vẫn ra 0
+dù admin ĐÃ khai đủ file ánh xạ, vì trang "Ánh xạ Phòng ban → Siêu thị"
+(cả sửa 1 dòng `PUT /one` lẫn nhập Excel hàng loạt) TRƯỚC ĐÂY không kiểm
+tra `MaDiem` gõ vào có THẬT SỰ tồn tại trong "Ánh xạ Điểm - STK_ID" hay
+không — lưu được BẤT KỲ chuỗi nào. Soát lại file admin xuất ra từ chính
+hệ thống (`POST /export`) lộ ra nhiều dòng sai mà không ai biết: Excel
+thường tự rụng số 0 đầu khi đọc ô dạng số (`"6"` thay vì `"006"`, `"4"`
+thay vì `"004"`, `"10"` thay vì `"010"`) — các mã này KHÔNG BAO GIỜ khớp
+được với Mã Điểm thật (toàn bộ Mã Điểm trong hệ thống đều là chuỗi 3 chữ
+số đệm 0 đầu), nên dòng ánh xạ coi như vô tác dụng dù đã khai.
+
+**Sửa** (`rp-server/routes/departmentStoreMapping.js`):
+1. `normalizeMaDiem()` — mã gõ chỉ gồm 1-2 chữ số tự đệm về đủ 3 chữ số
+   (`"6"` → `"006"`) TRƯỚC khi kiểm tra, sửa đúng lỗi rụng số 0 phổ biến
+   nhất mà không cần admin tự nhận ra.
+2. Sau khi chuẩn hoá, kiểm tra tồn tại thật trong `etl.DiemStkMapping`
+   (qua `loadDiemStkMapping()`) — `PUT /one` (sửa 1 dòng) từ chối thẳng
+   kèm lỗi rõ ràng nếu Mã Điểm không tồn tại; `POST /import` (nhập Excel)
+   bỏ qua đúng dòng sai, liệt kê vào `rowErrors` (đã hiện sẵn trên giao
+   diện), các dòng còn lại vẫn nhập bình thường — không còn âm thầm lưu
+   mã sai.
+
+**Triển khai**: `git pull origin main` rồi khởi động lại `rp-server`.
+Dữ liệu CŨ đã lỡ lưu sai (mã thiếu đệm 0) KHÔNG tự sửa — admin cần vào
+lại "Ánh xạ Phòng ban → Siêu thị", sửa/nhập lại đúng các dòng từng bị sai
+(trang sẽ báo lỗi rõ ràng nếu còn gõ sai mã).
+
+**Kiểm tra**: sửa 1 dòng với Mã Điểm không có thật (vd gõ nhầm) → trang
+báo lỗi ngay, không lưu được; nhập Excel có dòng Mã Điểm thiếu đệm 0 → tự
+sửa đúng, nhập thành công; nhập Excel có dòng Mã Điểm sai hẳn → bị liệt
+kê trong "dòng bị bỏ qua", các dòng đúng khác vẫn nhập được.
+
 ## 10.95 — SỬA LẦN 2 lỗi "Số lượng nhân sự" = 0 — bỏ phụ thuộc `IsActive`
 
 **Theo xác nhận trực tiếp của người dùng** — *"ai tôi cho xem báo cáo
