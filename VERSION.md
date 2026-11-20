@@ -52,6 +52,71 @@ nội dung/hành vi nào đã làm. Lịch sử Git (commit message) vẫn còn 
 "Bản 10.100"/"Bản 10.101" (không sửa lại lịch sử Git) — coi là ĐỒNG NHẤT
 với "11.0"/"11.1".
 
+## 11.8 — SỬA 2 LỖI SỐ LIỆU THẬT: "Kế hoạch DT (tháng)"/"KH doanh thu" sai do hiểu nhầm granularity Chỉ tiêu + Lãi gộp lệch domain đồng bộ
+
+**Theo yêu cầu người dùng** — gửi 3 ảnh chụp báo cáo tổng hợp LĐTĐ, chỉ
+ra: (1) Lãi gộp theo ngày không chính xác; (2) "Kế hoạch DT (tháng)"
+phải lấy cộng dồn tháng đến thời điểm lấy báo cáo (hệ thống đang lấy
+theo từng ngày là sai); (3) Số Bill/Lãi gộp khối Tháng cũng phải cộng
+dồn đến thời điểm lấy báo cáo; (4) Số Bill khối Năm có vẻ lệch nhiều;
+"KH kinh doanh" (khối Năm) cũng phải cộng dồn tháng đến thời điểm lấy
+báo cáo.
+
+**LỖI 1 — "Kế hoạch DT (tháng)"/"KH doanh thu" (năm) sai hẳn, không
+phải chỉ lệch nhỏ**: domain `sales-targets-ldtd`/`sales-targets-hcrc`
+lưu Chỉ tiêu **THEO TỪNG NGÀY** (1 dòng/ngày/siêu thị — xác nhận bằng
+chính chú thích gốc ở `etl/lib/salesTargetsImport.js`: *"'Chỉ tiêu THEO
+NGÀY' nghĩa là PeriodMonth lưu ĐÚNG 1 NGÀY CỤ THỂ thay vì luôn là ngày 1
+đầu tháng"*) — ĐÚNG như "Báo cáo doanh thu cuối ngày" đã tra từ trước
+(`targetGranularity: 'day'`). Bản 10.94 hiểu NHẦM domain này là 1
+dòng/tháng, gọi `fetchTargetsByMaDiem(firstOfMonth, firstOfMonth)` —
+khoảng này chỉ khớp ĐÚNG 1 NGÀY (ngày 1 đầu tháng), bỏ sót mọi ngày còn
+lại trong tháng — "Kế hoạch DT (tháng)" vì vậy chỉ ra giá trị của ĐÚNG 1
+NGÀY thay vì cả tháng, khiến "% Hoàn thành DT luỹ kế"/"Dự kiến hoàn
+thành" vọt lên hàng nghìn %. Khối Năm bị ảnh hưởng NHẸ HƠN (khoảng
+`firstOfYear..firstOfMonth` vẫn khớp đủ các tháng đã qua, chỉ thiếu
+đúng các ngày sau ngày 1 của THÁNG HIỆN TẠI).
+
+**Sửa**: `lib/doanhThuTongHopHcrcRunner.js`/`lib/doanhThuTongHopHcrcMonthlyExport.js`
+— đổi khoảng truyền vào `fetchTargetsByMaDiem()` từ `[đầu kỳ, đầu kỳ]`
+thành `[đầu kỳ, HÔM NAY/ngày neo]` cho CẢ khối Tháng lẫn Năm.
+
+**LỖI 2 — Lãi gộp lệch giữa "Báo cáo tổng hợp" và "Doanh thu cuối
+ngày"**: 2 báo cáo lấy Lãi gộp từ **2 DOMAIN KHÁC NHAU** — "Doanh thu
+cuối ngày" đọc `doanhthu_chinhanh` (measure `laiGop`, đồng bộ RIÊNG mỗi
+2 phút), "Báo cáo tổng hợp" (từ bản 10.86) đọc `doanhthu_nganhhang`
+(measure `LaiGop`, đồng bộ bởi job KHÁC, tần suất khác). Đã có SẴN ghi
+chú thật xác nhận 2 pipeline này LỆCH NHAU (bản 10.34,
+`etl/scripts/seedLdtdHcrcSync.js`): *"Lãi gộp gốc/Thành viên ĐÃ lệch
+nhau NGAY LÚC 22:30 CÙNG NGÀY... vì SURPLUS biến động LIÊN TỤC trong
+ngày"* — SURPLUS (gốc tính Lãi gộp) trong DSMART16 có thể đổi giá trị
+nhiều lần trong ngày (giá vốn tính lại), nên 2 lần "chụp" dữ liệu ở 2
+thời điểm khác nhau ra 2 số Lãi gộp khác nhau dù cùng công thức gốc —
+rõ nhất ở khối Ngày (ít dữ liệu, chênh lệch thời điểm ảnh hưởng tỉ lệ %
+lớn).
+
+**Sửa**: Lãi gộp (khối Ngày/Tháng) đổi HẲN sang đọc từ `doanhthu_chinhanh`
+(ĐÚNG domain "Doanh thu cuối ngày" dùng) — khớp tuyệt đối giữa 2 báo
+cáo. KHÔNG đổi DT bán buôn/bán lẻ (domain `doanhthu_nganhhang` là nguồn
+DUY NHẤT có tách buôn/lẻ, người dùng không báo 2 cột này sai).
+
+**CHƯA XÁC ĐỊNH ĐƯỢC — Số Bill khối Năm "lệch nhiều"**: đã rà soát kỹ
+code (cùng domain `giaodich_chinhanh` cho cả 2 báo cáo, không có lỗi
+domain-mismatch như Lãi gộp; bản 11.6/11.7 đã sửa lỗi cộng gấp đôi/hiệu
+năng) nhưng CHƯA tìm thêm được nguyên nhân cụ thể nào khác qua đọc code
+— cần ĐÚNG 1 mã Điểm + số liệu cụ thể để đối chiếu SQL thật, không đoán
+thêm (xem `bc-doanh-thu-tong-hop-hcrc.md`).
+
+**Triển khai**: `git pull origin main`, khởi động lại `rp-server` —
+KHÔNG cần đổi CSDL/chạy script.
+
+**Kiểm tra**: mở "Báo cáo tổng hợp doanh thu siêu thị" CÙNG "Báo cáo
+doanh thu cuối ngày" CÙNG 1 ngày — cột Lãi gộp (Ngày) PHẢI khớp đúng 2
+báo cáo cho từng mã Điểm; "% Hoàn thành DT luỹ kế (tháng)" phải ra số
+HỢP LÝ (dưới/quanh 100%, không còn hàng nghìn %); "Kế hoạch DT (tháng)"
+phải lớn hơn đáng kể so với trước (gần bằng tổng Chỉ tiêu NGÀY cộng dồn
+cả tháng, không phải chỉ 1 ngày).
+
 ## 11.7 — SỬA LỖI HIỆU NĂNG THẬT (lần 2): "Báo cáo tổng hợp doanh thu siêu thị" VẪN CHẬM sau bản 11.4 — do cách phân trang OFFSET/FETCH
 
 **Theo yêu cầu người dùng** — sau khi triển khai bản 11.4-11.6, báo cáo

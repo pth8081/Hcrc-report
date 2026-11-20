@@ -98,6 +98,48 @@ async function fetchAreaByMaDiem(pool, diemMapping, from, to) {
   return byMaDiem;
 }
 
+// Bản 11.8 — SỬA LỖI THẬT (người dùng chỉ ra "Cột Lãi gộp theo từng ngày
+// đang chưa chính xác"): Lãi gộp TRƯỚC ĐÂY lấy từ domain
+// `doanhthu_nganhhang` (measure `LaiGop`, PascalCase, gộp theo STK_ID,
+// DEPT_ID — đồng bộ qua job RIÊNG, xem etl/scripts/seedNganhHangSync.js)
+// — NHƯNG "Báo cáo doanh thu cuối ngày" (LUÔN ĐÚNG, người dùng xác nhận)
+// lấy Lãi gộp từ domain KHÁC: `doanhthu_chinhanh` (measure `laiGop`,
+// camelCase — xem `scripts/seedLdtdHcrcReports.js`:
+// `current.measures.laiGop`). 2 domain này đồng bộ bằng 2 JOB RIÊNG,
+// KHÁC THỜI ĐIỂM — đã có SẴN ghi chú thật ở
+// `etl/scripts/seedLdtdHcrcSync.js` (bản 10.34, lý do rút cron
+// `doanhthu_chinhanh` xuống 2 phút): *"Lãi gộp gốc/Thành viên ĐÃ lệch
+// nhau NGAY LÚC 22:30 CÙNG NGÀY... vì SURPLUS biến động LIÊN TỤC trong
+// ngày"* — tức SURPLUS (gốc tính Lãi gộp) trong DSMART16 có thể đổi giá
+// trị NHIỀU LẦN trong ngày (giá vốn tính lại), nên 2 pipeline "chụp" dữ
+// liệu ở 2 thời điểm khác nhau SẼ ra 2 con số Lãi gộp khác nhau, dù CÙNG
+// công thức gốc — CÀNG RÕ ở khối Ngày (1 ngày, ít dữ liệu, chênh lệch
+// thời điểm chụp ảnh hưởng tỉ lệ % lớn) hơn khối Tháng/Năm (nhiều ngày,
+// chênh lệch trung bình hoá bớt).
+//
+// SỬA: đổi HẲN sang đọc Lãi gộp từ `doanhthu_chinhanh` (ĐÚNG domain "Doanh
+// thu cuối ngày" dùng) — khớp tuyệt đối giữa 2 báo cáo, không còn lệch do
+// khác pipeline đồng bộ. KHÔNG đổi DT bán buôn/bán lẻ (domain
+// `doanhthu_nganhhang` là nguồn DUY NHẤT có tách buôn/lẻ — `doanhthu_chinhanh`
+// chỉ có `doanhThu` gộp chung, không tách được) — người dùng cũng KHÔNG
+// báo DT bán buôn/bán lẻ sai, chỉ Lãi gộp.
+function sumLaiGopByStk(rows) {
+  const byStk = new Map();
+  for (const row of rows) {
+    const stkId = row.entityCode; // domain doanhthu_chinhanh khoá STK_ID TRỰC TIẾP (keyColumn='STK_ID'), KHÔNG qua dimensions như doanhthu_nganhhang.
+    if (!stkId) continue;
+    byStk.set(stkId, (byStk.get(stkId) || 0) + ((row.measures && row.measures.laiGop) || 0));
+  }
+  return byStk;
+}
+function remapLaiGopToMaDiem(byStk, diemMapping) {
+  const rowsForRemap = [...byStk.entries()].map(([stkId, laiGop]) => ({ entityCode: stkId, dimensions: {}, measures: { laiGop } }));
+  const diemRows = remapRowsToDiem(rowsForRemap, diemMapping, false);
+  const out = new Map();
+  for (const r of diemRows) out.set(r.entityCode, (r.measures && r.measures.laiGop) || 0);
+  return out;
+}
+
 // Bản 11.4 — SỬA LỖI HIỆU NĂNG THẬT (người dùng báo "chạy rất chậm", báo
 // cáo nhiều phút mới ra, "Xuất Excel theo tháng" timeout "Failed to
 // fetch"): TRƯỚC ĐÂY fetch domain `doanhthu_nganhhang`/`giaodich_chinhanh`
@@ -505,13 +547,20 @@ async function runDoanhThuTongHopHcrcReport(definition, filterValues) {
   // `doanhthu_nganhhang`/`giaodich_chinhanh` CHỈ 1 LẦN (khoảng rộng nhất:
   // đầu năm -> hôm nay) rồi GOM NHÓM THEO NGÀY, CẮT LẠI trong bộ nhớ cho
   // từng khối Ngày/Tháng/Năm — KHÔNG còn gọi DWH riêng 3 lần/domain nữa.
-  const [areaInfo, nganhHangRawRows, transactionRawRows] = await Promise.all([
+  const [areaInfo, nganhHangRawRows, transactionRawRows, chinhanhRawRows] = await Promise.all([
     fetchAreaByMaDiem(dwhPool, diemMapping, yearFrom, yearTo),
     fetchRawRows(dwhPool, NGANHHANG_DOMAIN, yearFrom, yearTo),
-    fetchRawRows(dwhPool, TRANSACTION_DOMAIN, yearFrom, yearTo)
+    fetchRawRows(dwhPool, TRANSACTION_DOMAIN, yearFrom, yearTo),
+    fetchRawRows(dwhPool, AREA_DOMAIN, yearFrom, yearTo)
   ]);
   const nganhHangByDay = bucketByDay(nganhHangRawRows);
   const transactionByDay = bucketByDay(transactionRawRows);
+  // Bản 11.8 — xem chú thích đầy đủ ở fetchAreaByMaDiem()/sumLaiGopByStk()
+  // phía trên: Lãi gộp đổi sang domain `doanhthu_chinhanh` (ĐÚNG domain
+  // "Doanh thu cuối ngày" dùng), gom theo ngày RIÊNG khỏi fetchAreaByMaDiem()
+  // (hàm đó gộp SẴN cả khoảng thành 1 dòng/mã Điểm, dùng cho dienTich/chain
+  // TĨNH — không tách được theo Ngày/Tháng).
+  const chinhanhByDay = bucketByDay(chinhanhRawRows);
 
   const dayRev = remapStkMeasuresToMaDiem(sumNganhHangByStk(rowsInRange(nganhHangByDay, dayFrom, dayTo)), diemMapping);
   const monthRev = remapStkMeasuresToMaDiem(sumNganhHangByStk(rowsInRange(nganhHangByDay, monthFrom, monthTo)), diemMapping);
@@ -521,24 +570,47 @@ async function runDoanhThuTongHopHcrcReport(definition, filterValues) {
   const monthTx = remapBuToMaDiem(sumTransactionsByBuId(rowsInRange(transactionByDay, monthFrom, monthTo)), buIdLookup);
   const yearTx = remapBuToMaDiem(sumTransactionsByBuId(rowsInRange(transactionByDay, yearFrom, yearTo)), buIdLookup);
 
+  const dayLaiGop = remapLaiGopToMaDiem(sumLaiGopByStk(rowsInRange(chinhanhByDay, dayFrom, dayTo)), diemMapping);
+  const monthLaiGop = remapLaiGopToMaDiem(sumLaiGopByStk(rowsInRange(chinhanhByDay, monthFrom, monthTo)), diemMapping);
+
   // Kế hoạch DT/Bill hiện ở khối Ngày = kế hoạch CẢ THÁNG (đã xác nhận với
   // người dùng) -> CHỈ cần 2 khối: tháng (dùng chung cho cả "Ngày" lẫn
   // "Tháng") và năm (KH luỹ kế năm).
   //
-  // Bản 10.94 (SỬA bản 10.92/10.93, theo yêu cầu người dùng — "chỗ KH
-  // doanh thu thì bạn cộng dồn theo tháng đã có target doanh thu tháng
-  // LĐTĐ và HCRC cho từng ST/CH rồi nên không cần thêm phần upload mới
-  // (bỏ đi) và cộng dồn đến tháng hiện tại") — BỎ HẲN domain Chỉ tiêu CẢ
-  // NĂM riêng (yearTargetDomain) của bản 10.92 — "KH doanh thu" (khối
-  // năm) giờ = CỘNG DỒN Chỉ tiêu THÁNG đã có (ĐÚNG domain `targetDomain`,
-  // KHÔNG domain mới) từ ĐẦU NĂM tới ĐÚNG THÁNG HIỆN TẠI (không phải cả
-  // 12 tháng, không phải chỉ 1 tháng) — `fetchTargetsByMaDiem`/
-  // `runSalesTargetsBlockRange` ĐÃ SẴN CÓ cơ chế cộng dồn nhiều kỳ trong
-  // 1 khoảng (xem lib/salesTargetsReader.js:aggregateTargetRowsByEntity),
-  // chỉ cần đổi khoảng truyền vào, không cần domain/bảng mới nào.
+  // Bản 11.8 — SỬA LỖI THẬT (người dùng chỉ ra "Kế hoạch DT (tháng)" ra số
+  // QUÁ NHỎ, khiến "% Hoàn thành luỹ kế"/"Dự kiến hoàn thành" vọt lên
+  // 1000%+ — "hệ thống đang lấy theo từng ngày là sai", "KH kinh doanh
+  // cũng lấy cộng dồn tháng đến thời điểm lấy báo cáo"): domain
+  // `sales-targets-ldtd`/`sales-targets-hcrc` lưu Chỉ tiêu THEO TỪNG NGÀY
+  // (1 dòng/ngày/siêu thị, cột `PeriodMonth` lưu ĐÚNG 1 ngày cụ thể —
+  // xem chú thích đầy đủ ở `etl/lib/salesTargetsImport.js`, mục định
+  // dạng "ldtd-daily"/"hcrc-daily": *"'Chỉ tiêu THEO NGÀY' nghĩa là
+  // PeriodMonth lưu ĐÚNG 1 NGÀY CỤ THỂ thay vì luôn là ngày 1 đầu
+  // tháng"*) — ĐÚNG NHƯ "Báo cáo doanh thu cuối ngày" đã làm từ trước
+  // (`scripts/seedLdtdHcrcReports.js`, khối `target` khai
+  // `targetGranularity: 'day'`, xem `lib/compositeReportRunner.js`).
+  //
+  // Bản 10.94 (TRƯỚC ĐÂY, SAI) hiểu NHẦM domain này lưu 1 DÒNG/THÁNG (y
+  // hệt domain Chỉ tiêu "generic" cũ) — gọi
+  // `fetchTargetsByMaDiem(firstOfMonth(today), firstOfMonth(today))` chỉ
+  // khớp ĐÚNG 1 NGÀY DUY NHẤT (ngày 1 đầu tháng) trong WHERE PeriodMonth
+  // BETWEEN, bỏ sót toàn bộ các ngày 2..hôm nay — "Kế hoạch DT (tháng)"
+  // vì vậy chỉ ra ĐÚNG giá trị của 1 ngày (01 đầu tháng), không phải cả
+  // tháng, khiến mọi tỉ lệ hoàn thành tính từ số đó bị TĂNG VỌT sai lệch.
+  // Khối năm cũng bị ảnh hưởng tương tự nhưng NHẸ HƠN (khoảng
+  // `firstOfYear..firstOfMonth` vẫn khớp đủ các tháng ĐÃ QUA, chỉ thiếu
+  // đúng phần NGÀY 2..hôm nay của THÁNG HIỆN TẠI).
+  //
+  // SỬA: đổi khoảng truyền vào thành ĐÚNG [đầu kỳ, HÔM NAY] — khớp đúng
+  // "cộng dồn đến thời điểm lấy báo cáo" người dùng yêu cầu, và ĐÚNG cách
+  // "Doanh thu cuối ngày" đã tra domain daily-granularity này từ đầu.
+  // `fetchTargetsByMaDiem`/`runSalesTargetsBlockRange` ĐÃ SẴN CÓ cơ chế
+  // cộng dồn nhiều kỳ trong 1 khoảng (xem
+  // lib/salesTargetsReader.js:aggregateTargetRowsByEntity), chỉ cần đổi
+  // khoảng truyền vào, không cần domain/bảng mới nào.
   const [monthTarget, yearTarget] = await Promise.all([
-    fetchTargetsByMaDiem(dwhPool, firstOfMonth(today), firstOfMonth(today), targetDomain),
-    fetchTargetsByMaDiem(dwhPool, firstOfYear(today), firstOfMonth(today), targetDomain)
+    fetchTargetsByMaDiem(dwhPool, firstOfMonth(today), today, targetDomain),
+    fetchTargetsByMaDiem(dwhPool, firstOfYear(today), today, targetDomain)
   ]);
   const staffCount = await fetchStaffCountByMaDiem();
 
@@ -588,13 +660,16 @@ async function runDoanhThuTongHopHcrcReport(definition, filterValues) {
     const dtBanLeDay = dR.DoanhThuBanLe || 0;
     const dtBanBuonDay = dR.DoanhThuBanBuon || 0;
     const tongCongDay = dtBanBuonDay + dtBanLeDay;
-    const laiGopDay = dR.LaiGop || 0;
+    // Bản 11.8 — Lãi gộp đổi sang domain `doanhthu_chinhanh` (dayLaiGop/
+    // monthLaiGop), KHÔNG CÒN lấy dR.LaiGop/mR.LaiGop (domain
+    // `doanhthu_nganhhang`) — xem chú thích đầy đủ ở sumLaiGopByStk().
+    const laiGopDay = dayLaiGop.get(maDiem) || 0;
     const soBillDay = dayTx.get(maDiem) || 0;
 
     const dtBanLeMonth = mR.DoanhThuBanLe || 0;
     const dtBanBuonMonth = mR.DoanhThuBanBuon || 0;
     const tongCongMonth = dtBanBuonMonth + dtBanLeMonth;
-    const laiGopMonth = mR.LaiGop || 0;
+    const laiGopMonth = monthLaiGop.get(maDiem) || 0;
     const soBillMonth = monthTx.get(maDiem) || 0;
 
     const dtBanLeYear = yR.DoanhThuBanLe || 0;
@@ -682,6 +757,7 @@ module.exports = {
   fetchTargetsByMaDiem, fetchStaffCountByMaDiem,
   toISODate, fetchRawRows, bucketByDay, rowsInRange,
   sumNganhHangByStk, remapStkMeasuresToMaDiem, sumTransactionsByBuId, remapBuToMaDiem,
+  sumLaiGopByStk, remapLaiGopToMaDiem,
   GROUP_ORDER, SECTION_COLORS, OTHER_SECTION_COLOR, ROMAN,
   groupRowsByChain, sumField, buildSubtotalRow, buildGroupedRows
 };

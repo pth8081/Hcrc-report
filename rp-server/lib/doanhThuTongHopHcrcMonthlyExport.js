@@ -47,6 +47,7 @@ const {
   fetchTargetsByMaDiem, fetchStaffCountByMaDiem,
   fetchRawRows, bucketByDay, rowsInRange,
   sumNganhHangByStk, remapStkMeasuresToMaDiem, sumTransactionsByBuId, remapBuToMaDiem,
+  sumLaiGopByStk, remapLaiGopToMaDiem,
   ROMAN, SECTION_COLORS, OTHER_SECTION_COLOR,
   groupRowsByChain, buildSubtotalRow
 } = require('./doanhThuTongHopHcrcRunner');
@@ -123,12 +124,19 @@ async function buildDoanhThuTongHopHcrcMonthlyWorkbook({ anchorDate, storeScope,
   const diemMapping = await loadDiemStkMapping();
   const buIdLookup = buildBuIdLookup(diemMapping);
 
+  // Bản 11.8 — SỬA LỖI THẬT (xem chú thích đầy đủ ở
+  // doanhThuTongHopHcrcRunner.js): domain Chỉ tiêu lưu THEO TỪNG NGÀY
+  // (1 dòng/ngày/siêu thị), KHÔNG phải 1 dòng/tháng — khoảng
+  // `monthStart..monthStart`/`yearStart..monthStart` TRƯỚC ĐÂY chỉ khớp
+  // ĐÚNG 1 NGÀY (ngày 1 đầu tháng/tháng), bỏ sót toàn bộ các ngày còn lại
+  // — đổi thành `..anchor` (cộng dồn tới ĐÚNG ngày neo, khớp "cộng dồn
+  // đến thời điểm lấy báo cáo" người dùng yêu cầu).
   const [areaRaw, nganhHangRaw, giaodichRaw, monthTarget, yearTarget, staffCount] = await Promise.all([
     fetchRawRows(dwhPool, AREA_DOMAIN, yearStart, anchor),
     fetchRawRows(dwhPool, NGANHHANG_DOMAIN, yearStart, anchor),
     fetchRawRows(dwhPool, TRANSACTION_DOMAIN, yearStart, anchor),
-    fetchTargetsByMaDiem(dwhPool, monthStart, monthStart, targetDomain),
-    fetchTargetsByMaDiem(dwhPool, yearStart, monthStart, targetDomain),
+    fetchTargetsByMaDiem(dwhPool, monthStart, anchor, targetDomain),
+    fetchTargetsByMaDiem(dwhPool, yearStart, anchor, targetDomain),
     fetchStaffCountByMaDiem()
   ]);
 
@@ -140,6 +148,12 @@ async function buildDoanhThuTongHopHcrcMonthlyWorkbook({ anchorDate, storeScope,
 
   const nganhHangByDay = bucketByDay(nganhHangRaw);
   const giaodichByDay = bucketByDay(giaodichRaw);
+  // Bản 11.8 — Lãi gộp đổi sang domain `doanhthu_chinhanh` (ĐÚNG domain
+  // "Doanh thu cuối ngày" dùng, xem chú thích đầy đủ ở
+  // doanhThuTongHopHcrcRunner.js:sumLaiGopByStk()) — tái dùng NGUYÊN
+  // `areaRaw` đã fetch sẵn ở trên (CÙNG domain AREA_DOMAIN), không cần
+  // fetch thêm lần nào.
+  const chinhanhByDay = bucketByDay(areaRaw);
 
   const sheets = [];
   for (let d = 1; d <= lastDay; d++) {
@@ -153,6 +167,8 @@ async function buildDoanhThuTongHopHcrcMonthlyWorkbook({ anchorDate, storeScope,
     const dayTxByMaDiem = remapBuToMaDiem(sumTransactionsByBuId(rowsInRange(giaodichByDay, dayDate, dayDate)), buIdLookup);
     const monthTxByMaDiem = remapBuToMaDiem(sumTransactionsByBuId(rowsInRange(giaodichByDay, monthStart, dayDate)), buIdLookup);
     const yearTxByMaDiem = remapBuToMaDiem(sumTransactionsByBuId(rowsInRange(giaodichByDay, yearStart, dayDate)), buIdLookup);
+    const dayLaiGopByMaDiem = remapLaiGopToMaDiem(sumLaiGopByStk(rowsInRange(chinhanhByDay, dayDate, dayDate)), diemMapping);
+    const monthLaiGopByMaDiem = remapLaiGopToMaDiem(sumLaiGopByStk(rowsInRange(chinhanhByDay, monthStart, dayDate)), diemMapping);
 
     const storeRows = [];
     for (const [maDiem, info] of diemMapping) {
@@ -170,13 +186,14 @@ async function buildDoanhThuTongHopHcrcMonthlyWorkbook({ anchorDate, storeScope,
       const dtBanLeDay = dR.DoanhThuBanLe || 0;
       const dtBanBuonDay = dR.DoanhThuBanBuon || 0;
       const tongCongDay = dtBanBuonDay + dtBanLeDay;
-      const laiGopDay = dR.LaiGop || 0;
+      // Bản 11.8 — xem chú thích đầy đủ ở doanhThuTongHopHcrcRunner.js.
+      const laiGopDay = dayLaiGopByMaDiem.get(maDiem) || 0;
       const soBillDay = dayTxByMaDiem.get(maDiem) || 0;
 
       const dtBanLeMonth = mR.DoanhThuBanLe || 0;
       const dtBanBuonMonth = mR.DoanhThuBanBuon || 0;
       const tongCongMonth = dtBanBuonMonth + dtBanLeMonth;
-      const laiGopMonth = mR.LaiGop || 0;
+      const laiGopMonth = monthLaiGopByMaDiem.get(maDiem) || 0;
       const soBillMonth = monthTxByMaDiem.get(maDiem) || 0;
 
       const dtBanLeYear = yR.DoanhThuBanLe || 0;

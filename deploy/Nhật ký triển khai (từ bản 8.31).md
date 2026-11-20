@@ -14,6 +14,24 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 11.8 — SỬA 2 LỖI SỐ LIỆU: Kế hoạch DT (tháng)/KH doanh thu sai granularity Chỉ tiêu + Lãi gộp lệch domain
+
+**Thay đổi**: `lib/doanhThuTongHopHcrcRunner.js`/`lib/doanhThuTongHopHcrcMonthlyExport.js`:
+1. `fetchTargetsByMaDiem()` đổi khoảng `[đầu kỳ, đầu kỳ]` → `[đầu kỳ,
+   hôm nay/ngày neo]` (domain Chỉ tiêu lưu THEO NGÀY, không phải theo
+   tháng — trước đây chỉ khớp đúng 1 ngày).
+2. Lãi gộp (Ngày/Tháng) đổi từ domain `doanhthu_nganhhang` sang
+   `doanhthu_chinhanh` (đúng domain "Doanh thu cuối ngày" dùng — 2
+   domain đồng bộ lệch thời điểm nên ra số khác nhau).
+
+**Triển khai**:
+```bash
+git pull origin main
+pm2 restart rp-server
+```
+
+**Kiểm tra**: xem "VERSION.md" mục bản 11.8.
+
 ## 11.7 — SỬA LỖI HIỆU NĂNG (lần 2): bỏ phân trang OFFSET/FETCH khi đọc domain Doanh thu ngành hàng/Giao dịch
 
 **Thay đổi**: `lib/doanhThuTongHopHcrcRunner.js` — `fetchRawRows()` đọc 1

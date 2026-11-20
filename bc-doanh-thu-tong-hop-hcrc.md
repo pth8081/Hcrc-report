@@ -5,6 +5,31 @@ dùng, dựa trên file mẫu thật đội vận hành đang tự tổng hợp 
 `Bao_cao_ban_Doanh_thu_hang_ngay_he_thong_HCRC_T11.2026.xlsx`, mỗi sheet 1
 ngày trong tháng, mỗi dòng 1 siêu thị).
 
+⚠️ **BẢN 11.8 — SỬA 2 LỖI SỐ LIỆU THẬT: Kế hoạch DT (tháng)/KH doanh thu
+sai + Lãi gộp lệch domain** (theo yêu cầu người dùng, gửi 3 ảnh chụp
+báo cáo tổng hợp LĐTĐ).
+
+1. **Kế hoạch DT (tháng)/KH doanh thu (năm) SAI HẲN** (ra "% Hoàn thành"
+   hàng nghìn %): domain `sales-targets-ldtd`/`sales-targets-hcrc` lưu
+   Chỉ tiêu THEO TỪNG NGÀY (1 dòng/ngày/siêu thị — xem
+   `etl/lib/salesTargetsImport.js`), KHÔNG phải 1 dòng/tháng như bản
+   10.94 hiểu nhầm. `fetchTargetsByMaDiem(firstOfMonth, firstOfMonth)`
+   chỉ khớp ĐÚNG 1 NGÀY (ngày 1 đầu tháng), bỏ sót mọi ngày còn lại.
+   Sửa: đổi khoảng thành `[đầu kỳ, hôm nay/ngày neo]`.
+2. **Lãi gộp lệch giữa 2 báo cáo**: "Doanh thu cuối ngày" đọc Lãi gộp
+   từ domain `doanhthu_chinhanh`; "Báo cáo tổng hợp" (từ bản 10.86) đọc
+   từ `doanhthu_nganhhang` — 2 domain đồng bộ bởi 2 job RIÊNG, lệch
+   thời điểm (đã có ghi chú thật xác nhận ở bản 10.34, SURPLUS biến
+   động liên tục trong ngày). Sửa: đổi Lãi gộp sang đọc từ
+   `doanhthu_chinhanh` — khớp tuyệt đối với "Doanh thu cuối ngày".
+3. **Số Bill khối Năm "lệch nhiều" — CHƯA XÁC ĐỊNH ĐƯỢC THÊM nguyên
+   nhân nào ngoài bản 11.6/11.7 đã sửa** (cùng domain cho cả 2 báo cáo,
+   không có lỗi domain-mismatch như Lãi gộp). Cần đúng 1 mã Điểm + số
+   liệu cụ thể để đối chiếu SQL thật — báo lại nếu vẫn thấy lệch sau khi
+   deploy bản này.
+
+Xem "VERSION.md" mục bản 11.8.
+
 ⚠️ **BẢN 11.7 — SỬA LỖI HIỆU NĂNG (lần 2): báo cáo VẪN CHẬM sau bản
 11.4** (theo yêu cầu người dùng, báo cáo vẫn treo lâu ở "Đang lọc...").
 Bản 11.4 chỉ sửa việc GỌI LẶP LẠI domain 3 lần — nhưng mỗi lượt gọi vẫn
