@@ -417,7 +417,7 @@ export default function ConsumersPage() {
             <p className="hint">Đối tác tự ký từng request: HMAC-SHA256(secret, <code>METHOD\npath\ntimestamp\nbody</code>), gửi kèm header <code>X-Key-Id</code>/<code>X-Timestamp</code>/<code>X-Signature</code> (hex).</p>
           )}
           {form.authMethod === 'apiKey' && (
-            <p className="hint">Đối tác gửi kèm header <code>X-API-Key: &lt;key&gt;</code>, HOẶC <code>Authorization: Bearer &lt;key&gt;</code> (hệ thống chỉ chấp nhận kiểu 2 này KHÔNG phải access token OAuth2 — dành cho đối tác đã code sẵn gửi API key tĩnh qua header Bearer, vd hệ thống "Giá bán buôn").</p>
+            <p className="hint">Đối tác gửi kèm header <code>X-API-Key: &lt;key&gt;</code> — KHÔNG dùng <code>Authorization: Bearer</code> (header đó chỉ dành cho access token OAuth2, xem mục AuthMethod "OAuth2 Client Credentials" ở trên).</p>
           )}
           <div className="scope-picker">
             {SCOPE_OPTIONS.map(scope => (
