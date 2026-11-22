@@ -24,11 +24,26 @@ const { checkConsumerRateLimit } = require('./consumerRateLimit');
 async function authenticate(req) {
   const authHeader = req.header('Authorization');
   if (authHeader && authHeader.startsWith('Bearer ')) {
+    const bearerValue = authHeader.slice('Bearer '.length);
     let consumer;
     try {
-      consumer = verifyToken(authHeader.slice('Bearer '.length));
-    } catch {
-      return { error: 'Access token không hợp lệ hoặc đã hết hạn' };
+      consumer = verifyToken(bearerValue);
+    } catch (err) {
+      // 'jwt malformed' = chuỗi gửi KHÔNG PHẢI cấu trúc JWT (3 đoạn base64url)
+      // — tức không phải access token OAuth2 (AuthMethod='oauth2') mà là 1
+      // API KEY TĨNH (AuthMethod='apiKey') đối tác gửi qua header
+      // Authorization: Bearer thay vì X-API-Key (vd hệ thống "Giá bán buôn"
+      // — xem Yeu-Cau-API-Gia-Ban-Buon-DSmart.docx, đối tác đã code sẵn kiểu
+      // này, không đổi được) — thử tra như apiKey tĩnh trước khi báo lỗi.
+      // Lỗi JWT KHÁC (hết hạn/sai chữ ký/sai issuer-audience) vẫn báo lỗi
+      // OAuth2 như cũ, KHÔNG rơi xuống thử apiKey (token có cấu trúc JWT thật
+      // nhưng sai/hết hạn không nên được "thử lại" như 1 bí mật khác loại).
+      if (err.message !== 'jwt malformed') {
+        return { error: 'Access token không hợp lệ hoặc đã hết hạn' };
+      }
+      consumer = await findByKey(bearerValue);
+      if (!consumer) return { error: 'API key không hợp lệ' };
+      return consumer;
     }
     // Chữ ký JWT hợp lệ không có nghĩa đối tác vẫn còn hoạt động — token TỰ
     // CHỨA scopes/allowedIps nên KHÔNG tự phát hiện được lúc admin tắt/xoá
