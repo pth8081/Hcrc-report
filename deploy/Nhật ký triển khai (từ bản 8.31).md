@@ -14,6 +14,44 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 11.9 — Thêm Mã Siêu Thị cho "Nguồn dữ liệu" + API "Giá Bán Buôn" cho đối tác HCC
+
+**Thay đổi**:
+1. `api-db/schema.sql` — cột mới `api.DataSources.StoreCode` (NVARCHAR(50) NULL).
+2. `api-server/routes/admin/dataSources.js`, `lib/dataSourcesImport.js` —
+   đọc/ghi StoreCode (CRUD, nhân bản, nhập/xuất hàng loạt) + 2 route mới
+   `POST /data-sources/template`, `POST /data-sources/export`.
+3. `api-admin/src/pages/DataSourcesPage.jsx` — trường "Mã Siêu Thị" + 2
+   nút "Tải file mẫu"/"Xuất danh sách hiện tại"; `api-admin/src/lib/api.js`
+   thêm `downloadFile()`.
+4. `api-admin/src/pages/ConsumersPage.jsx` — scope mới `wholesalePrice` +
+   ghi chú AuthMethod "API key tĩnh" chỉ nhận `X-API-Key`, không nhận
+   `Authorization: Bearer`.
+5. API mới: `api-server/lib/wholesalePriceEngine.js` +
+   `routes/v1/wholesalePrice.js` — `POST /api/v1/wholesale-price/apply`,
+   `POST /api/v1/wholesale-price/delete`, `POST /api/v1/ping` (mount
+   trong `server.js`). Ghi/xoá CSPRICE theo SQL đối tác cung cấp, LUÔN
+   ghi/xoá cả HO + fan-out theo `storeScope.storeCodes`.
+
+**Triển khai (theo đúng thứ tự)**:
+```bash
+cd api-db && sqlcmd -S <server> -d HCRC_API -i schema.sql
+pm2 restart api-server
+cd api-admin && npm run build   # rồi deploy dist/
+```
+
+**Cấu hình cần làm thêm trước khi dùng thật (không phải code)**:
+1. Vào api-admin → "Nguồn dữ liệu" → tạo 1 dòng cho DSmart16 Trung Tâm
+   với Mã Siêu Thị = `HO` (bắt buộc — API báo lỗi rõ nếu thiếu khi gọi
+   `/wholesale-price/apply` hoặc `/delete`).
+2. Tạo đủ dòng Nguồn dữ liệu cho từng siêu thị (dùng "Nhập hàng loạt" +
+   "Tải file mẫu", điền đúng cột StoreCode).
+3. Khi đối tác HCC sẵn sàng: vào "Đối tác API" → tạo/sửa đối tác, chọn
+   AuthMethod "API key tĩnh", tick scope `wholesalePrice` → gửi API Key
+   (hiện 1 lần) cho đối tác qua kênh an toàn.
+
+**Kiểm tra**: xem "VERSION.md" mục bản 11.9.
+
 ## 11.8 — SỬA 2 LỖI SỐ LIỆU: Kế hoạch DT (tháng)/KH doanh thu sai granularity Chỉ tiêu + Lãi gộp lệch domain
 
 **Thay đổi**: `lib/doanhThuTongHopHcrcRunner.js`/`lib/doanhThuTongHopHcrcMonthlyExport.js`:

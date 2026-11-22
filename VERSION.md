@@ -52,6 +52,57 @@ nội dung/hành vi nào đã làm. Lịch sử Git (commit message) vẫn còn 
 "Bản 10.100"/"Bản 10.101" (không sửa lại lịch sử Git) — coi là ĐỒNG NHẤT
 với "11.0"/"11.1".
 
+## 11.9 — Thêm Mã Siêu Thị cho "Nguồn dữ liệu" + API "Giá Bán Buôn" cho đối tác HCC
+
+**Theo yêu cầu người dùng** — chuẩn bị hạ tầng cho đối tác "Hệ thống Văn
+phòng số HCRC (HCC)" chuyển từ kết nối SQL Server trực tiếp sang gọi API
+để ghi/xoá giá bán buôn (CSPRICE), theo tài liệu đối tác cung cấp
+(`Yeu-Cau-API-Gia-Ban-Buon-DSmart*.docx`).
+
+**1. `api.DataSources` (api-server/api-admin) — cột mới `StoreCode`**:
+gắn 1 dòng Nguồn dữ liệu với đúng 1 Mã Siêu Thị (để trống cho nguồn
+không gắn 1 siêu thị cụ thể, vd HO/voucher) — hiển thị/sửa được ở form
+thêm mới, modal sửa, cột bảng, và được "Nhân bản" copy nguyên vẹn. Thêm
+2 nút "Tải file mẫu"/"Xuất danh sách hiện tại" (không kèm Password) cho
+"Nhập hàng loạt" — mirror đúng pattern `downloadFile()` đã có ở rp-user.
+
+**2. Scope mới `wholesalePrice`** (trang "Đối tác API") — gán cho đối
+tác được phép gọi API Giá bán buôn. Thêm ghi chú: AuthMethod "API key
+tĩnh" PHẢI gửi key qua header `X-API-Key`, KHÔNG dùng `Authorization:
+Bearer` (theo yêu cầu người dùng, dù đối tác ban đầu định code theo kiểu
+Bearer).
+
+**3. API mới — `lib/wholesalePriceEngine.js` + `routes/v1/wholesalePrice.js`**:
+- `POST /api/v1/wholesale-price/apply` — upsert giá theo khoá
+  `(CUST_ID, SKU_ID)` của CSPRICE (UPDATE trước, 0 dòng khớp thì INSERT),
+  tra đơn vị/hệ số quy đổi/mã thuế từ `SKU_DEF` — SQL lấy NGUYÊN VĂN từ
+  tài liệu đối tác cung cấp, chỉ thêm `OUTPUT ... INTO @bảng_biến_tạm`
+  (né lỗi SQL Server cấm OUTPUT thẳng khi bảng đích có trigger bật — lỗi
+  thật đã gặp ở `lib/voucherRedeemService.js` bản 10.15).
+- `POST /api/v1/wholesale-price/delete` — xoá theo `(CUST_ID, SKU_ID)`,
+  không có dòng vẫn trả thành công (`alreadyGone`).
+- `POST /api/v1/ping` — chỉ xác thực key/scope.
+- LUÔN ghi/xoá cả HO (`StoreCode="HO"`) lẫn fan-out đúng các siêu thị
+  trong `storeScope.storeCodes` (chạy song song, 1 nơi lỗi không chặn
+  nơi khác, gộp lỗi rõ ràng theo từng mã siêu thị).
+
+**CHƯA test với CSDL DSmart thật** (chỉ test logic với DB giả lập trong
+bộ nhớ) — cần tạo đủ dòng "Nguồn dữ liệu" (StoreCode="HO" + từng siêu
+thị) và cấp API Key/scope `wholesalePrice` cho đối tác trước khi dùng
+thật. Đã gửi tài liệu API chính thức cho người dùng để chuyển đối tác.
+
+**Triển khai**:
+```bash
+cd api-db && sqlcmd -S <server> -d HCRC_API -i schema.sql   # thêm cột api.DataSources.StoreCode
+pm2 restart api-server                                       # nạp route /wholesale-price/*, /ping mới
+cd api-admin && npm run build                                 # rồi deploy dist/
+```
+
+**Kiểm tra**: vào api-admin → "Nguồn dữ liệu" → thấy cột "Mã Siêu Thị" +
+2 nút "Tải file mẫu"/"Xuất danh sách hiện tại"; vào "Đối tác API" → thấy
+scope `wholesalePrice` trong danh sách chọn. Gọi thử `POST /api/v1/ping`
+kèm `X-API-Key` của 1 đối tác có scope `wholesalePrice` → `{"ok":true}`.
+
 ## 11.8 — SỬA 2 LỖI SỐ LIỆU THẬT: "Kế hoạch DT (tháng)"/"KH doanh thu" sai do hiểu nhầm granularity Chỉ tiêu + Lãi gộp lệch domain đồng bộ
 
 **Theo yêu cầu người dùng** — gửi 3 ảnh chụp báo cáo tổng hợp LĐTĐ, chỉ
