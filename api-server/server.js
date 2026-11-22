@@ -20,6 +20,7 @@ const realtimeRoutes = require('./routes/v1/realtime');
 const realtimeWriteRoutes = require('./routes/v1/realtimeWrite');
 const vouchersRoutes = require('./routes/v1/vouchers');
 const oauthRoutes = require('./routes/v1/oauth');
+const { applyRouter: wholesalePriceApplyRoutes, pingRouter: wholesalePricePingRoutes } = require('./routes/v1/wholesalePrice');
 const adminAuthRoutes = require('./routes/admin/auth');
 const adminTwoFactorRoutes = require('./routes/admin/twoFactor');
 const adminWebauthnRoutes = require('./routes/admin/webauthn');
@@ -134,6 +135,8 @@ app.use('/api/v1/reports', reportsRoutes);
 app.use('/api/v1/realtime', realtimeRoutes); // /api/v1/realtime/{endpoint}/list, /{endpoint}/{key}
 app.use('/api/v1/realtime-write', realtimeWriteRoutes); // POST /api/v1/realtime-write/{endpoint}/{key}
 app.use('/api/v1/vouchers', vouchersRoutes); // POST /api/v1/vouchers/check, /redeem — xem api-voucher-check-redeem.md
+app.use('/api/v1/wholesale-price', wholesalePriceApplyRoutes); // POST /api/v1/wholesale-price/apply, /delete
+app.use('/api/v1/ping', wholesalePricePingRoutes); // POST /api/v1/ping — path RIÊNG (không phải .../wholesale-price/ping), đúng path đối tác "Giá bán buôn" đã code sẵn
 
 // ===== /admin/* — api-admin/ =====
 app.use('/admin', adminIpAllowlist);
