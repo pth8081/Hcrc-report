@@ -249,6 +249,21 @@ BEGIN
 END
 GO
 
+-- StoreCode (TUỲ CHỌN) — Mã Điểm/Mã Siêu Thị CHUẨN (đúng mã dùng xuyên
+-- suốt hệ thống báo cáo/vận hành HCRC, vd "001"/"217" — xem
+-- etl.DiemStkMapping bên rp-report) — gắn cho 1 dòng Nguồn dữ liệu khi dòng
+-- đó LÀ kết nối tới ĐÚNG 1 siêu thị cụ thể (vd phục vụ API ghi ngược dữ
+-- liệu xuống từng siêu thị, như API "Giá bán buôn"). Để trống cho các
+-- nguồn KHÔNG gắn với 1 siêu thị cụ thể (vd nguồn dùng chung/HO, hoặc
+-- nguồn phục vụ mục đích khác không theo siêu thị như voucher) — ý nghĩa
+-- "để trống" GIỐNG hệt cách Name/TenSieuThi để trống ở các bảng tương tự
+-- trong repo, không bắt buộc mọi dòng phải có.
+IF COL_LENGTH('api.DataSources', 'StoreCode') IS NULL
+BEGIN
+    ALTER TABLE api.DataSources ADD StoreCode NVARCHAR(50) NULL;
+END
+GO
+
 -- ĐÃ THAY BẰNG api.RealtimeEndpointDefs bên dưới (chỉ gán nguồn là chưa đủ —
 -- mỗi endpoint giờ còn cần biết bảng/cột/khoá cụ thể). An toàn xoá: bảng này
 -- chỉ lưu ánh xạ Endpoint->DataSourceId, không có dữ liệu nghiệp vụ.

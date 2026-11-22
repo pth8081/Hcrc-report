@@ -28,7 +28,7 @@ const { requireMenuAccess, requireMenuEdit } = require('../../lib/adminPermissio
 const { encrypt, decrypt } = require('../../lib/crypto');
 const { invalidate, testConnection, testConnectionsBatch } = require('../../lib/dataSourcePool');
 const schemaBrowser = require('../../lib/schemaBrowser');
-const { parseDataSourcesFile, upsertDataSources } = require('../../lib/dataSourcesImport');
+const { parseDataSourcesFile, upsertDataSources, buildDataSourcesTemplate, buildDataSourcesExport } = require('../../lib/dataSourcesImport');
 const { logAction } = require('../../lib/auditLog');
 const { hasZipSignature } = require('../../lib/fileSignature');
 
@@ -61,7 +61,7 @@ router.get('/', async (req, res, next) => {
   try {
     const pool = await getPool('ADMIN');
     const result = await pool.request().query(`
-      SELECT Id, Name, Server, Port, DatabaseName, Username, Encrypt, TrustServerCert, IsActive, CreatedAt
+      SELECT Id, Name, Server, Port, DatabaseName, Username, StoreCode, Encrypt, TrustServerCert, IsActive, CreatedAt
       FROM api.DataSources ORDER BY Name
     `);
     res.json(result.recordset);
@@ -70,7 +70,7 @@ router.get('/', async (req, res, next) => {
 
 router.post('/', requireMenuEdit('data-sources'), async (req, res, next) => {
   try {
-    const { name, server, port, databaseName, username, password, encrypt: enc, trustServerCert } = req.body || {};
+    const { name, server, port, databaseName, username, password, encrypt: enc, trustServerCert, storeCode } = req.body || {};
     if (!name || !server || !databaseName || !username || !password) {
       return res.status(400).json({ error: 'Thiếu name/server/databaseName/username/password' });
     }
@@ -84,10 +84,11 @@ router.post('/', requireMenuEdit('data-sources'), async (req, res, next) => {
       .input('passwordEncrypted', sql.NVarChar(500), encrypt(password))
       .input('encryptConn', sql.Bit, enc === false ? 0 : 1)
       .input('trustServerCert', sql.Bit, trustServerCert ? 1 : 0)
+      .input('storeCode', sql.NVarChar(50), storeCode || null)
       .query(`
-        INSERT INTO api.DataSources (Name, Server, Port, DatabaseName, Username, PasswordEncrypted, Encrypt, TrustServerCert)
+        INSERT INTO api.DataSources (Name, Server, Port, DatabaseName, Username, PasswordEncrypted, Encrypt, TrustServerCert, StoreCode)
         OUTPUT INSERTED.Id
-        VALUES (@name, @server, @port, @databaseName, @username, @passwordEncrypted, @encryptConn, @trustServerCert)
+        VALUES (@name, @server, @port, @databaseName, @username, @passwordEncrypted, @encryptConn, @trustServerCert, @storeCode)
       `);
     const id = result.recordset[0].Id;
     const connectionTest = await tryTestConnection({
@@ -100,7 +101,7 @@ router.post('/', requireMenuEdit('data-sources'), async (req, res, next) => {
 
 router.put('/:id', requireMenuEdit('data-sources'), async (req, res, next) => {
   try {
-    const { name, server, port, databaseName, username, password, encrypt: enc, trustServerCert, isActive } = req.body || {};
+    const { name, server, port, databaseName, username, password, encrypt: enc, trustServerCert, isActive, storeCode } = req.body || {};
     if (!name || !server || !databaseName || !username) {
       return res.status(400).json({ error: 'Thiếu name/server/databaseName/username' });
     }
@@ -127,11 +128,13 @@ router.put('/:id', requireMenuEdit('data-sources'), async (req, res, next) => {
       .input('encryptConn', sql.Bit, enc === false ? 0 : 1)
       .input('trustServerCert', sql.Bit, trustServerCert ? 1 : 0)
       .input('isActive', sql.Bit, isActive ? 1 : 0)
+      .input('storeCode', sql.NVarChar(50), storeCode || null)
       .query(`
         UPDATE api.DataSources
         SET Name = @name, Server = @server, Port = @port, DatabaseName = @databaseName,
             Username = @username, PasswordEncrypted = @passwordEncrypted,
-            Encrypt = @encryptConn, TrustServerCert = @trustServerCert, IsActive = @isActive
+            Encrypt = @encryptConn, TrustServerCert = @trustServerCert, IsActive = @isActive,
+            StoreCode = @storeCode
         WHERE Id = @id
       `);
     await invalidate(parseInt(req.params.id, 10));
@@ -166,7 +169,7 @@ router.post('/:id/duplicate', requireMenuEdit('data-sources'), async (req, res, 
     if (!name) return res.status(400).json({ error: 'Thiếu name (tên bản sao mới)' });
     const pool = await getPool('ADMIN');
     const existing = await pool.request().input('id', sql.Int, req.params.id).query(`
-      SELECT Server, Port, DatabaseName, Username, PasswordEncrypted, Encrypt, TrustServerCert, IsActive
+      SELECT Server, Port, DatabaseName, Username, PasswordEncrypted, Encrypt, TrustServerCert, IsActive, StoreCode
       FROM api.DataSources WHERE Id = @id
     `);
     if (!existing.recordset.length) return res.status(404).json({ error: 'Không tìm thấy nguồn dữ liệu' });
@@ -181,10 +184,11 @@ router.post('/:id/duplicate', requireMenuEdit('data-sources'), async (req, res, 
       .input('encryptConn', sql.Bit, src.Encrypt)
       .input('trustServerCert', sql.Bit, src.TrustServerCert)
       .input('isActive', sql.Bit, src.IsActive)
+      .input('storeCode', sql.NVarChar(50), src.StoreCode)
       .query(`
-        INSERT INTO api.DataSources (Name, Server, Port, DatabaseName, Username, PasswordEncrypted, Encrypt, TrustServerCert, IsActive)
+        INSERT INTO api.DataSources (Name, Server, Port, DatabaseName, Username, PasswordEncrypted, Encrypt, TrustServerCert, IsActive, StoreCode)
         OUTPUT INSERTED.Id
-        VALUES (@name, @server, @port, @databaseName, @username, @passwordEncrypted, @encryptConn, @trustServerCert, @isActive)
+        VALUES (@name, @server, @port, @databaseName, @username, @passwordEncrypted, @encryptConn, @trustServerCert, @isActive, @storeCode)
       `);
     const id = result.recordset[0].Id;
     await logAction(req, { module: 'Nguồn dữ liệu', actionType: 'NHAN_BAN_NGUON', targetObject: String(id), description: `Nhân bản nguồn "${name}" từ #${req.params.id}` });
@@ -200,6 +204,39 @@ router.post('/test', requireMenuEdit('data-sources'), async (req, res) => {
   } catch (err) {
     res.status(400).json({ ok: false, error: err.message });
   }
+});
+
+// Tải file mẫu (.xlsx) cho "Nhập hàng loạt" — đúng cột REQUIRED/tuỳ chọn mà
+// parseDataSourcesFile() đọc, kèm 1 dòng ví dụ (xem buildDataSourcesTemplate).
+// POST (không phải GET) — mirror quy ước rp-server/routes/departmentStoreMapping.js
+// (api-admin/src/lib/api.js:downloadFile() gửi POST).
+router.post('/template', requireMenuEdit('data-sources'), async (req, res, next) => {
+  try {
+    const buffer = await buildDataSourcesTemplate();
+    res.attachment('mau-nguon-du-lieu.xlsx');
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.send(buffer);
+  } catch (err) { next(err); }
+});
+
+// Xuất danh sách nguồn dữ liệu hiện có ra .xlsx — KHÔNG kèm Password (xem
+// chú thích buildDataSourcesExport) — dùng để rà soát cấu hình hiện tại,
+// không dùng trực tiếp để nhập lại (phải tự điền Password trước).
+router.post('/export', requireMenuEdit('data-sources'), async (req, res, next) => {
+  try {
+    const pool = await getPool('ADMIN');
+    const result = await pool.request().query(`
+      SELECT Name, Server, Port, DatabaseName, Username, Encrypt, TrustServerCert, StoreCode
+      FROM api.DataSources ORDER BY Name
+    `);
+    const buffer = await buildDataSourcesExport(result.recordset.map(r => ({
+      name: r.Name, server: r.Server, port: r.Port, databaseName: r.DatabaseName, username: r.Username,
+      encrypt: r.Encrypt, trustServerCert: r.TrustServerCert, storeCode: r.StoreCode
+    })));
+    res.attachment('nguon-du-lieu.xlsx');
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.send(buffer);
+  } catch (err) { next(err); }
 });
 
 // Tạo/cập nhật hàng loạt qua file Excel — xem chú thích đầu file.

@@ -4,13 +4,13 @@
 // (RealtimeEndpointsPage.jsx), nơi 1 endpoint chọn nguồn NGAY khi tạo, cùng
 // lúc chọn bảng/cột. Chỉ vai trò admin sửa được.
 import { useEffect, useState } from 'react';
-import { api } from '../lib/api';
+import { api, downloadFile } from '../lib/api';
 import { useAuth } from '../lib/AuthContext';
 import DataTable from '../components/DataTable';
 import { useRowSelection } from '../lib/useRowSelection';
 import Modal from '../components/Modal';
 
-const EMPTY_FORM = { name: '', server: '', port: 1433, databaseName: '', username: '', password: '', encrypt: true, trustServerCert: false };
+const EMPTY_FORM = { name: '', server: '', port: 1433, databaseName: '', username: '', password: '', encrypt: true, trustServerCert: false, storeCode: '' };
 
 export default function DataSourcesPage() {
   const { canEdit } = useAuth();
@@ -23,6 +23,8 @@ export default function DataSourcesPage() {
   const [importResult, setImportResult] = useState(null);
   const [importError, setImportError] = useState('');
   const [importing, setImporting] = useState(false);
+  const [downloadingTemplate, setDownloadingTemplate] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [testing, setTesting] = useState(false);
   const [creating, setCreating] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
@@ -38,6 +40,20 @@ export default function DataSourcesPage() {
     api.get('/data-sources').then(setSources).catch(err => setError(err.message));
   }
   useEffect(reload, []);
+
+  async function downloadTemplate() {
+    setDownloadingTemplate(true);
+    try {
+      await downloadFile('/data-sources/template', 'mau-nguon-du-lieu.xlsx');
+    } catch (err) { setImportError(err.message); } finally { setDownloadingTemplate(false); }
+  }
+
+  async function exportSources() {
+    setExporting(true);
+    try {
+      await downloadFile('/data-sources/export', 'nguon-du-lieu.xlsx');
+    } catch (err) { setImportError(err.message); } finally { setExporting(false); }
+  }
 
   async function submitImport(e) {
     e.preventDefault();
@@ -104,7 +120,7 @@ export default function DataSourcesPage() {
         name: editing.Name, server: editing.Server, port: editing.Port,
         databaseName: editing.DatabaseName, username: editing.Username,
         encrypt: editing.Encrypt, trustServerCert: editing.TrustServerCert,
-        isActive: editing.IsActive
+        isActive: editing.IsActive, storeCode: editing.StoreCode
       };
       if (editing.password) body.password = editing.password;
       const result = await api.put(`/data-sources/${editing.Id}`, body);
@@ -167,6 +183,7 @@ export default function DataSourcesPage() {
             <input placeholder="Database" value={form.databaseName} onChange={(e) => setForm({ ...form, databaseName: e.target.value })} required />
             <input placeholder="Username" value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} required />
             <input placeholder="Password" type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required />
+            <input placeholder="Mã Siêu Thị (tuỳ chọn — để trống nếu không gắn với 1 siêu thị cụ thể)" value={form.storeCode} onChange={(e) => setForm({ ...form, storeCode: e.target.value })} />
             <label className="checkbox-row"><input type="checkbox" checked={form.encrypt} onChange={(e) => setForm({ ...form, encrypt: e.target.checked })} /> Encrypt</label>
             <label className="checkbox-row"><input type="checkbox" checked={form.trustServerCert} onChange={(e) => setForm({ ...form, trustServerCert: e.target.checked })} /> Trust server certificate</label>
             <div className="inline-actions">
@@ -182,7 +199,7 @@ export default function DataSourcesPage() {
             báo kết nối cho nhiều chi nhánh cùng cấu trúc. Dòng 1 là header, cột bắt buộc:{' '}
             <code>Name</code>, <code>Server</code>, <code>DatabaseName</code>, <code>Username</code>,{' '}
             <code>Password</code>. Cột tuỳ chọn: <code>Port</code>, <code>Encrypt</code>,{' '}
-            <code>TrustServerCert</code> (để trống dùng mặc định).
+            <code>TrustServerCert</code>, <code>StoreCode</code> (Mã Siêu Thị — để trống dùng mặc định/không gắn siêu thị).
           </p>
           <p>
             Khoá để CẬP NHẬT thay vì tạo trùng là <code>Name</code> — chạy lại file với 1 dòng
@@ -194,6 +211,18 @@ export default function DataSourcesPage() {
             chỉ được mã hoá SAU khi tải lên. Xoá file khỏi máy sau khi nhập xong.
           </p>
           {importError && <p className="form-error">{importError}</p>}
+          <div className="inline-actions">
+            <button type="button" onClick={downloadTemplate} disabled={downloadingTemplate}>
+              {downloadingTemplate ? 'Đang tải...' : 'Tải file mẫu'}
+            </button>
+            <button type="button" onClick={exportSources} disabled={exporting}>
+              {exporting ? 'Đang xuất...' : 'Xuất danh sách hiện tại'}
+            </button>
+          </div>
+          <p className="hint">
+            File xuất ra KHÔNG kèm cột Password (không lộ mật khẩu hàng loạt) — chỉ để rà soát
+            cấu hình hiện tại; muốn dùng lại để nhập, tự điền thêm cột Password trước khi tải lên.
+          </p>
           <form className="stacked-form" onSubmit={submitImport}>
             <input type="file" accept=".xlsx" onChange={(e) => setImportFile(e.target.files?.[0] ?? null)} required />
             <button type="submit" disabled={importing}>{importing ? 'Đang nhập...' : 'Nhập hàng loạt'}</button>
@@ -227,6 +256,7 @@ export default function DataSourcesPage() {
           { key: 'Name', label: 'Tên' },
           { key: 'Server', label: 'Server' },
           { key: 'DatabaseName', label: 'Database' },
+          { key: 'StoreCode', label: 'Mã Siêu Thị', render: (s) => s.StoreCode || '—' },
           { key: 'IsActive', label: 'Trạng thái', render: (s) => (s.IsActive ? 'Hoạt động' : 'Tắt') },
           isAdmin && {
             key: 'actions', label: '', render: (s) => (
@@ -268,6 +298,11 @@ export default function DataSourcesPage() {
                 value={editing.password}
                 onChange={(e) => setEditing({ ...editing, password: e.target.value })}
               />
+              <input
+                placeholder="Mã Siêu Thị (tuỳ chọn — để trống nếu không gắn với 1 siêu thị cụ thể)"
+                value={editing.StoreCode || ''}
+                onChange={(e) => setEditing({ ...editing, StoreCode: e.target.value })}
+              />
               <label className="checkbox-row"><input type="checkbox" checked={editing.Encrypt} onChange={(e) => setEditing({ ...editing, Encrypt: e.target.checked })} /> Encrypt</label>
               <label className="checkbox-row"><input type="checkbox" checked={editing.TrustServerCert} onChange={(e) => setEditing({ ...editing, TrustServerCert: e.target.checked })} /> Trust server certificate</label>
               <label className="checkbox-row"><input type="checkbox" checked={editing.IsActive} onChange={(e) => setEditing({ ...editing, IsActive: e.target.checked })} /> Hoạt động</label>
@@ -286,7 +321,9 @@ export default function DataSourcesPage() {
             <h3>Nhân bản "{duplicating.source.Name}"</h3>
             <p className="hint">
               Tạo 1 nguồn dữ liệu MỚI giống hệt nguồn này — giữ nguyên Server, Database, Username,
-              Mật khẩu, Encrypt... Chỉ cần đặt tên khác.
+              Mật khẩu, Encrypt, Mã Siêu Thị... Chỉ cần đặt tên khác. Nếu bản sao này dùng cho 1
+              siêu thị KHÁC, nhớ vào "Sửa" đổi lại Mã Siêu Thị (và Server/Database/mật khẩu) sau
+              khi tạo — nhân bản không tự đổi các trường này.
             </p>
             <form className="stacked-form" onSubmit={saveDuplicate}>
               <input

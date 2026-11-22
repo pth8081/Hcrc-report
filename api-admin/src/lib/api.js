@@ -42,3 +42,26 @@ export const api = {
   put: (path, body) => request(path, { method: 'PUT', body }),
   del: (path) => request(path, { method: 'DELETE' })
 };
+
+// Xuất file (Excel) — trả về Blob thay vì JSON, cần header khác đôi chút nên
+// tách riêng thay vì dùng chung request() (mirror rp-user/src/lib/api.js).
+export async function downloadFile(path, filenameFallback) {
+  const res = await fetch(`/admin${path}`, { method: 'POST', credentials: 'include' });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || `Lỗi ${res.status}`);
+  }
+  const blob = await res.blob();
+  const disposition = res.headers.get('content-disposition') || '';
+  const match = disposition.match(/filename="(.+)"/);
+  const filename = match ? match[1] : filenameFallback;
+
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}

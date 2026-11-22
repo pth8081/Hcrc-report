@@ -14,7 +14,8 @@
 // Định dạng file (.xlsx): dòng 1 là header, các cột BẮT BUỘC: Name, Server,
 // DatabaseName, Username, Password. Cột TUỲ CHỌN: Port (mặc định 1433),
 // Encrypt, TrustServerCert (chấp nhận TRUE/FALSE/1/0/có/không, để trống =
-// mặc định).
+// mặc định), StoreCode (Mã Siêu Thị — để trống cho nguồn không gắn với 1
+// siêu thị cụ thể, xem chú thích cột StoreCode ở api-db/schema.sql).
 //
 // Khoá để TẠO MỚI hay CẬP NHẬT là "Name" — xem chú thích tương ứng ở
 // etl/lib/dataSourcesImport.js (cùng quy ước).
@@ -62,8 +63,8 @@ async function parseDataSourcesFile(buffer) {
     if (!headers.includes(required)) throw new Error(`File thiếu cột bắt buộc "${required}"`);
   }
   const col = {};
-  for (const name of ['Name', 'Server', 'Port', 'DatabaseName', 'Username', 'Password', 'Encrypt', 'TrustServerCert']) {
-    col[name] = headers.indexOf(name); // -1 nếu không có (chỉ Port/Encrypt/TrustServerCert được phép thiếu)
+  for (const name of ['Name', 'Server', 'Port', 'DatabaseName', 'Username', 'Password', 'Encrypt', 'TrustServerCert', 'StoreCode']) {
+    col[name] = headers.indexOf(name); // -1 nếu không có (chỉ Port/Encrypt/TrustServerCert/StoreCode được phép thiếu)
   }
 
   const rows = [];
@@ -98,7 +99,8 @@ async function parseDataSourcesFile(buffer) {
     rows.push({
       name, server, port, databaseName, username, password,
       encrypt: parseBool(cell(col.Encrypt), true),
-      trustServerCert: parseBool(cell(col.TrustServerCert), false)
+      trustServerCert: parseBool(cell(col.TrustServerCert), false),
+      storeCode: str(cell(col.StoreCode)) || null
     });
   });
 
@@ -117,12 +119,16 @@ function sqlNStr(value) {
   return `N'${String(value).replace(/'/g, "''")}'`;
 }
 
+function sqlNStrOrNull(value) {
+  return value == null ? 'NULL' : sqlNStr(value);
+}
+
 function buildDataSourcesInsertBatches(rows) {
   const batches = [];
   for (let i = 0; i < rows.length; i += DATA_SOURCES_INSERT_BATCH_SIZE) {
     const chunk = rows.slice(i, i + DATA_SOURCES_INSERT_BATCH_SIZE);
-    const values = chunk.map(r => `(${sqlNStr(r.name)}, ${sqlNStr(r.server)}, ${Number(r.port)}, ${sqlNStr(r.databaseName)}, ${sqlNStr(r.username)}, ${sqlNStr(encrypt(r.password))}, ${r.encrypt ? 1 : 0}, ${r.trustServerCert ? 1 : 0})`).join(',\n');
-    batches.push(`INSERT INTO #StagingDataSources (Name, Server, Port, DatabaseName, Username, PasswordEncrypted, Encrypt, TrustServerCert) VALUES\n${values};`);
+    const values = chunk.map(r => `(${sqlNStr(r.name)}, ${sqlNStr(r.server)}, ${Number(r.port)}, ${sqlNStr(r.databaseName)}, ${sqlNStr(r.username)}, ${sqlNStr(encrypt(r.password))}, ${r.encrypt ? 1 : 0}, ${r.trustServerCert ? 1 : 0}, ${sqlNStrOrNull(r.storeCode)})`).join(',\n');
+    batches.push(`INSERT INTO #StagingDataSources (Name, Server, Port, DatabaseName, Username, PasswordEncrypted, Encrypt, TrustServerCert, StoreCode) VALUES\n${values};`);
   }
   return batches;
 }
@@ -137,7 +143,8 @@ CREATE TABLE #StagingDataSources (
   Username          NVARCHAR(100) NOT NULL,
   PasswordEncrypted NVARCHAR(500) NOT NULL,
   Encrypt           BIT           NOT NULL,
-  TrustServerCert   BIT           NOT NULL
+  TrustServerCert   BIT           NOT NULL,
+  StoreCode         NVARCHAR(50)  NULL
 );`;
 
 const MERGE_DATA_SOURCES_SQL = `
@@ -148,10 +155,11 @@ WHEN MATCHED THEN
   UPDATE SET
     Server = src.Server, Port = src.Port, DatabaseName = src.DatabaseName,
     Username = src.Username, PasswordEncrypted = src.PasswordEncrypted,
-    Encrypt = src.Encrypt, TrustServerCert = src.TrustServerCert, IsActive = 1
+    Encrypt = src.Encrypt, TrustServerCert = src.TrustServerCert, IsActive = 1,
+    StoreCode = src.StoreCode
 WHEN NOT MATCHED THEN
-  INSERT (Name, Server, Port, DatabaseName, Username, PasswordEncrypted, Encrypt, TrustServerCert, IsActive)
-  VALUES (src.Name, src.Server, src.Port, src.DatabaseName, src.Username, src.PasswordEncrypted, src.Encrypt, src.TrustServerCert, 1)
+  INSERT (Name, Server, Port, DatabaseName, Username, PasswordEncrypted, Encrypt, TrustServerCert, IsActive, StoreCode)
+  VALUES (src.Name, src.Server, src.Port, src.DatabaseName, src.Username, src.PasswordEncrypted, src.Encrypt, src.TrustServerCert, 1, src.StoreCode)
 OUTPUT $action AS Action, inserted.Id AS Id;`;
 
 async function upsertDataSources(pool, rows) {
@@ -191,4 +199,33 @@ async function upsertDataSourcesChunk(pool, rows) {
   }
 }
 
-module.exports = { parseDataSourcesFile, upsertDataSources, REQUIRED_HEADERS };
+async function buildWorkbook(sheetName, headers, dataRows) {
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet(sheetName);
+  const headerRow = sheet.addRow(headers);
+  headerRow.font = { bold: true };
+  for (const row of dataRows) sheet.addRow(row);
+  sheet.columns.forEach((c) => { c.width = 30; });
+  return workbook.xlsx.writeBuffer();
+}
+
+const DATA_SOURCES_EXCEL_HEADERS = ['Name', 'Server', 'Port', 'DatabaseName', 'Username', 'Password', 'Encrypt', 'TrustServerCert', 'StoreCode'];
+
+// Mã "VIDU" — XOÁ dòng ví dụ này trước khi nhập.
+async function buildDataSourcesTemplate() {
+  return buildWorkbook('Nguon du lieu', DATA_SOURCES_EXCEL_HEADERS, [
+    ['DSMART16 - Sieu thi 001 (vi du - XOA truoc khi nhap)', '10.0.0.1', 1433, 'DSmart16', 'etl_writer', 'MatKhauThat123', 'TRUE', 'FALSE', '001']
+  ]);
+}
+
+// KHÔNG xuất Password/PasswordEncrypted — lộ mật khẩu cleartext của TẤT CẢ
+// nguồn dữ liệu cùng lúc ra 1 file .xlsx tải về nguy hiểm hơn nhiều so với
+// file nhập (chỉ do admin tự soạn, 1 lượt). File export này dùng để xem/rà
+// soát cấu hình hiện có — muốn dùng lại để nhập lại (import), admin tự điền
+// thêm cột Password trước khi tải lên.
+function buildDataSourcesExport(rows) {
+  const dataRows = rows.map(r => [r.name, r.server, r.port, r.databaseName, r.username, '', r.encrypt ? 'TRUE' : 'FALSE', r.trustServerCert ? 'TRUE' : 'FALSE', r.storeCode || '']);
+  return buildWorkbook('Nguon du lieu', DATA_SOURCES_EXCEL_HEADERS, dataRows);
+}
+
+module.exports = { parseDataSourcesFile, upsertDataSources, buildDataSourcesTemplate, buildDataSourcesExport, REQUIRED_HEADERS };
