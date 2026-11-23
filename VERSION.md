@@ -52,6 +52,43 @@ nội dung/hành vi nào đã làm. Lịch sử Git (commit message) vẫn còn 
 "Bản 10.100"/"Bản 10.101" (không sửa lại lịch sử Git) — coi là ĐỒNG NHẤT
 với "11.0"/"11.1".
 
+## 11.11 — Báo cáo "Thay đổi giá từ thời điểm": thêm bộ lọc "Chỉ hiện giá áp dụng trong tương lai"
+
+**Theo yêu cầu người dùng** (ảnh chụp màn hình thật) — 2 câu hỏi:
+1. "Ngày hôm trước" đã đúng lấy giá CÀI ĐẶT (lên lịch/sửa) từ hôm qua
+   chưa? — Kiểm tra lại VIEW nguồn (`vw_ThayDoiGiaTuThoiDiem`): cột lọc
+   `EventDate = CAST(MODI_DATE AS DATE)` — ĐÃ ĐÚNG, không cần sửa gì.
+2. Thêm filter CHỈ hiện các đợt có "Ngày áp dụng" SAU ngày hiện tại
+   (loại bỏ đợt đã/đang áp dụng).
+
+**Thay đổi**:
+- `rp-server/lib/reportEngine.js` — filter type mới `onlyFutureDate`: so
+  sánh cột (qua `filterDef.column`) với `CAST(GETDATE() AS DATE)` của
+  SERVER — chỉ áp dụng khi giá trị `true`, bỏ qua = hiện như cũ.
+- `rp-server/scripts/seedThayDoiGiaReports.js` — thêm filter
+  `chiApDungTuongLai` (`type: 'onlyFutureDate'`, `column: 'NgayApDung'`)
+  CHỈ cho báo cáo "Thay đổi giá từ thời điểm" (`thaydoigia_tuthoidiem`) —
+  "Thay đổi giá bán tức thời" không có khái niệm Ngày áp dụng tương lai
+  nên không thêm.
+- `rp-user/src/components/FilterForm.jsx` — vẽ checkbox cho filter mới.
+- `rp-user/src/modules/system/email-schedules/EmailSchedulesPage.jsx` —
+  cho chọn CÙNG checkbox này khi cấu hình "Bộ lọc cố định khi gửi tự
+  động" ở "Lịch gửi email báo cáo" (theo yêu cầu người dùng, để lịch tự
+  động cũng lọc được y hệt web).
+
+**Triển khai**:
+```bash
+git pull origin main
+pm2 restart rp-server
+cd rp-user && npm run build   # rồi deploy dist/
+node scripts/seedThayDoiGiaReports.js   # (thư mục rp-server/) — nạp lại filter mới vào DefinitionJson
+```
+
+**Kiểm tra**: mở báo cáo "Thay đổi giá từ thời điểm" → tick "Chỉ hiện giá
+áp dụng trong tương lai" → mọi dòng còn lại phải có "Ngày áp dụng" SAU
+hôm nay. Vào "Lịch gửi email báo cáo" → Sửa/Tạo lịch có báo cáo này →
+thấy checkbox tương tự trong "Bộ lọc cố định khi gửi tự động".
+
 ## 11.10 — SỬA LỖI THẬT: trang "Nguồn dữ liệu" hiện trống nếu CSDL chưa kịp chạy schema.sql bản 11.9
 
 **Theo báo cáo người dùng** (ảnh chụp thật trên điện thoại) — sau khi

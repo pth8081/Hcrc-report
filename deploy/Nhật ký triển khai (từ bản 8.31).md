@@ -14,6 +14,23 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 11.11 — Báo cáo "Thay đổi giá từ thời điểm": thêm bộ lọc "Chỉ hiện giá áp dụng trong tương lai"
+
+**Thay đổi**: `reportEngine.js` (filter type `onlyFutureDate`),
+`seedThayDoiGiaReports.js` (filter mới cho domain `thaydoigia_tuthoidiem`),
+`FilterForm.jsx` + `EmailSchedulesPage.jsx` (checkbox tương ứng ở web và
+cấu hình lịch gửi email).
+
+**Triển khai (theo đúng thứ tự)**:
+```bash
+git pull origin main
+pm2 restart rp-server
+cd rp-user && npm run build   # rồi deploy dist/
+node scripts/seedThayDoiGiaReports.js   # thư mục rp-server/
+```
+
+**Kiểm tra**: xem "VERSION.md" mục bản 11.11.
+
 ## 11.10 — SỬA LỖI: "Nguồn dữ liệu" hiện trống nếu CSDL chưa chạy kịp schema.sql bản 11.9
 
 **Thay đổi**: `api-server/routes/admin/dataSources.js` — `GET /` tự lùi
