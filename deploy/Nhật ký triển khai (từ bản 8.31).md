@@ -14,6 +14,22 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 11.12 — Hiện link API "Giá bán buôn" ngay ở trang "Đối tác API"
+
+**Thay đổi**: `api-admin/src/pages/ConsumersPage.jsx` — tick scope
+`wholesalePrice` tự hiện 3 link API đầy đủ (ghép `PUBLIC_API_BASE_URL`
+đã có sẵn trong .env) + nút "Sao chép".
+
+**Triển khai**:
+```bash
+git pull origin main
+cd api-admin && npm run build   # rồi deploy dist/
+```
+Nếu `.env` `api-server` chưa có `PUBLIC_API_BASE_URL`, thêm rồi
+`pm2 restart api-server` để link hiện đủ domain.
+
+**Kiểm tra**: xem "VERSION.md" mục bản 11.12.
+
 ## 11.11 — Báo cáo "Thay đổi giá từ thời điểm": thêm bộ lọc "Chỉ hiện giá áp dụng trong tương lai"
 
 **Thay đổi**: `reportEngine.js` (filter type `onlyFutureDate`),

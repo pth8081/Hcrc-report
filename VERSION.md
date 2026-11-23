@@ -52,6 +52,32 @@ nội dung/hành vi nào đã làm. Lịch sử Git (commit message) vẫn còn 
 "Bản 10.100"/"Bản 10.101" (không sửa lại lịch sử Git) — coi là ĐỒNG NHẤT
 với "11.0"/"11.1".
 
+## 11.12 — Hiện link API "Giá bán buôn" ngay ở trang "Đối tác API"
+
+**Theo yêu cầu người dùng** — "cấu hình đối tác [API Giá bán buôn] không
+lấy được link API gửi đối tác, các API nên có hiện link".
+
+**Thay đổi**: `api-admin/src/pages/ConsumersPage.jsx` — thêm
+`wholesalePriceUrls()`/`WholesalePriceLinks()` (mirror đúng `reportRunUrl()`
+đã có từ bản 10.59/10.59+ cho link báo cáo) — khi tick scope
+`wholesalePrice` (form "Tạo đối tác mới" hoặc modal "Sửa"), tự hiện 3 link
+đầy đủ (`/wholesale-price/apply`, `/wholesale-price/delete`, `/ping`) kèm
+nút "Sao chép", ghép domain thật qua `PUBLIC_API_BASE_URL` (biến .env ĐÃ
+CÓ SẴN, dùng chung với link báo cáo/voucher — không cần khai thêm biến
+mới). Thiếu biến này thì chỉ hiện đường dẫn cụt kèm ghi chú nhắc khai.
+
+**Triển khai**:
+```bash
+git pull origin main
+cd api-admin && npm run build   # rồi deploy dist/
+```
+
+**Kiểm tra**: vào "Đối tác API" → tạo/sửa 1 đối tác, tick scope
+`wholesalePrice` → phải hiện ngay 3 link + nút "Sao chép". Nếu `.env`
+`api-server` CHƯA có `PUBLIC_API_BASE_URL`, thêm dòng
+`PUBLIC_API_BASE_URL=https://<domain thật>` rồi `pm2 restart api-server`
+để link hiện đủ domain thay vì chỉ đường dẫn cụt.
+
 ## 11.11 — Báo cáo "Thay đổi giá từ thời điểm": thêm bộ lọc "Chỉ hiện giá áp dụng trong tương lai"
 
 **Theo yêu cầu người dùng** (ảnh chụp màn hình thật) — 2 câu hỏi:
