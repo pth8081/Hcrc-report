@@ -60,6 +60,28 @@ function errorSummary(results) {
   return results.filter(r => !r.ok).map(r => `${r.storeCode}: ${r.error}`).join(' | ');
 }
 
+// Bản 11.16 (theo báo cáo người dùng — 1 nơi lỗi (vd HO thiếu quyền CSDL)
+// khiến TOÀN BỘ request trả ok:false, nhưng các siêu thị khác ĐÃ ghi/xoá
+// thành công thật (mỗi target chạy transaction riêng ở runOnAllTargets,
+// 1 nơi lỗi không chặn nơi khác — xem wholesalePriceEngine.js) — phía gọi
+// API không có cách nào biết đã thành công ở đâu để coi là "đã áp giá".
+// THÊM field `results` (CHI TIẾT TỪNG storeCode, bao gồm CẢ HO) vào MỌI
+// response (thành công lẫn lỗi) — CHỈ THÊM, KHÔNG đổi/xoá field `ok`/
+// `error`/`overwritten`/`alreadyGone` đã có (giữ nguyên tương thích với
+// tài liệu đã gửi đối tác — hệ thống đối tác chỉ đọc field cũ vẫn chạy y
+// hệt, hệ thống nào đọc thêm `results` sẽ biết CHÍNH XÁC nơi nào đã áp/xoá
+// được để tự đánh dấu "đã áp giá" dù response tổng là ok:false).
+function toPublicResult(r) {
+  const out = { storeCode: r.storeCode, ok: r.ok };
+  if (r.ok) {
+    if ('overwritten' in r) out.overwritten = r.overwritten;
+    if ('alreadyGone' in r) out.alreadyGone = r.alreadyGone;
+  } else {
+    out.error = r.error;
+  }
+  return out;
+}
+
 applyRouter.post('/apply', async (req, res, next) => {
   try {
     let input;
@@ -82,11 +104,15 @@ applyRouter.post('/apply', async (req, res, next) => {
       const hasSystemFailure = results.some(r => !r.ok && r.kind !== 'data');
       return res.status(hasSystemFailure ? 502 : 400).json({
         ok: false,
-        error: `Ghi giá thất bại tại 1 hoặc nhiều nơi: ${errorSummary(results)}`
+        error: `Ghi giá thất bại tại 1 hoặc nhiều nơi: ${errorSummary(results)}`,
+        results: results.map(toPublicResult)
       });
     }
     const hoResult = results.find(r => r.storeCode === HO_STORE_CODE);
-    res.json({ ok: true, custId: input.custId, skuId: input.skuId, overwritten: !!hoResult.overwritten });
+    res.json({
+      ok: true, custId: input.custId, skuId: input.skuId, overwritten: !!hoResult.overwritten,
+      results: results.map(toPublicResult)
+    });
   } catch (err) {
     if (err instanceof StoreConfigError) return res.status(502).json({ ok: false, error: err.message });
     if (err instanceof IntegrityError) return res.status(500).json({ ok: false, error: err.message });
@@ -116,11 +142,12 @@ applyRouter.post('/delete', async (req, res, next) => {
       const hasSystemFailure = results.some(r => !r.ok && r.kind !== 'data');
       return res.status(hasSystemFailure ? 502 : 400).json({
         ok: false,
-        error: `Xoá giá thất bại tại 1 hoặc nhiều nơi: ${errorSummary(results)}`
+        error: `Xoá giá thất bại tại 1 hoặc nhiều nơi: ${errorSummary(results)}`,
+        results: results.map(toPublicResult)
       });
     }
     const hoResult = results.find(r => r.storeCode === HO_STORE_CODE);
-    res.json({ ok: true, alreadyGone: !!hoResult.alreadyGone });
+    res.json({ ok: true, alreadyGone: !!hoResult.alreadyGone, results: results.map(toPublicResult) });
   } catch (err) {
     if (err instanceof StoreConfigError) return res.status(502).json({ ok: false, error: err.message });
     if (err instanceof IntegrityError) return res.status(500).json({ ok: false, error: err.message });

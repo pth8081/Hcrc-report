@@ -3,7 +3,10 @@ Tài Liệu API: Giá Bán Buôn DSmart
 *Phiên bản chính thức --- Đội phát triển DSmart/Report gửi đội phát
 triển Hệ thống Văn phòng số HCRC (HCC)*
 
-*22/11/2026*
+*22/11/2026 --- cập nhật 23/11/2026 (bản 11.16): thêm field `results` ở
+MỌI response apply/delete (xem mục 5.2/5.3/6.2/6.3) --- CHỈ THÊM, các
+field cũ (`ok`/`error`/`overwritten`/`alreadyGone`) GIỮ NGUYÊN, hệ thống
+đang đọc theo bản 22/11 không cần sửa gì vẫn chạy đúng.*
 
 1\. Tổng Quan
 
@@ -111,10 +114,18 @@ Ví dụ:
 5.2. Response thành công (HTTP 200)
 
 { \"ok\": true, \"custId\": \"C001\", \"skuId\": \"SKU001\",
-\"overwritten\": false }
+\"overwritten\": false, \"results\": \[ { \"storeCode\": \"HO\", \"ok\":
+true, \"overwritten\": false }, { \"storeCode\": \"001\", \"ok\": true,
+\"overwritten\": false } \] }
 
 overwritten=false: đây là giá MỚI (chưa từng có dòng giá cho cặp
 custId+skuId này). overwritten=true: đã GHI ĐÈ giá cũ.
+
+**results (mới, bản 23/11/2026)**: mảng chi tiết TỪNG nơi đã ghi (LUÔN
+có HO + đúng các storeCode trong storeScope đã gửi) --- mỗi phần tử {
+\"storeCode\", \"ok\", \"overwritten\" } khi ok=true. Field này LUÔN có
+mặt kể cả khi response thành công (allOk) --- dùng để biết CHÍNH XÁC nơi
+nào vừa ghi đè/ghi mới.
 
 5.3. Response lỗi
 
@@ -129,6 +140,22 @@ kê rõ từng nơi lỗi, ví dụ:
 
 { \"ok\": false, \"error\": \"Ghi giá thất bại tại 1 hoặc nhiều nơi:
 003: \<lý do\>\" }
+
+**QUAN TRỌNG --- ghi KHÔNG phải tất cả-hoặc-không-gì**: mỗi nơi (HO/từng
+siêu thị) được ghi ĐỘC LẬP --- 1 nơi lỗi KHÔNG chặn/không rollback các
+nơi khác đã ghi thành công. response lỗi (ok=false) vẫn kèm field
+**results** (mới, bản 23/11/2026) liệt kê ĐẦY ĐỦ từng nơi, ví dụ:
+
+{ \"ok\": false, \"error\": \"Ghi giá thất bại tại 1 hoặc nhiều nơi: HO:
+\<lý do\>\", \"results\": \[ { \"storeCode\": \"HO\", \"ok\": false,
+\"error\": \"\<lý do\>\" }, { \"storeCode\": \"001\", \"ok\": true,
+\"overwritten\": false } \] }
+
+Hệ thống HCC NÊN đọc `results` để biết CHÍNH XÁC nơi nào đã ghi thành
+công (coi là \"đã áp giá\", không cần gọi lại) và nơi nào còn lỗi (chỉ
+cần gọi lại apply cho đúng storeCode đó, qua storeScope.mode=\"SPECIFIC\"
+--- xem mục 4) --- KHÔNG nên coi ok=false là \"chưa áp giá ở bất kỳ
+đâu\".
 
 6\. POST {baseUrl}/wholesale-price/delete
 
@@ -148,14 +175,18 @@ kê rõ từng nơi lỗi, ví dụ:
 
 6.2. Response thành công (HTTP 200)
 
-{ \"ok\": true, \"alreadyGone\": false }
+{ \"ok\": true, \"alreadyGone\": false, \"results\": \[ { \"storeCode\":
+\"HO\", \"ok\": true, \"alreadyGone\": false } \] }
 
 alreadyGone=true: dòng giá này KHÔNG tồn tại sẵn (đã bị xoá từ trước)
 --- vẫn coi là THÀNH CÔNG, không báo lỗi.
 
+**results**: giống mục 5.2, mỗi phần tử { \"storeCode\", \"ok\",
+\"alreadyGone\" } khi ok=true.
+
 6.3. Response lỗi
 
-Cùng khuôn mục 5.3.
+Cùng khuôn mục 5.3 (bao gồm cả field **results**).
 
 7\. POST {baseUrl}/ping
 
