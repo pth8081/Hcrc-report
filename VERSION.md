@@ -52,6 +52,34 @@ nội dung/hành vi nào đã làm. Lịch sử Git (commit message) vẫn còn 
 "Bản 10.100"/"Bản 10.101" (không sửa lại lịch sử Git) — coi là ĐỒNG NHẤT
 với "11.0"/"11.1".
 
+## 11.18 — Sửa tiếp lọc chậm + hiện tên dài ở "Doanh thu SKU theo ngành hàng"/"Tồn kho" (field PascalCase chưa khớp tối ưu bản 11.15)
+
+**Theo báo cáo người dùng** — 2 báo cáo "Doanh thu theo ngành hàng
+(LDTD/HCRC) - theo mã hàng" và "Tồn kho" (menu Báo cáo Mua hàng) vẫn lọc
+chậm + dropdown Mã hàng/Nhà cung cấp vẫn hiện tên dài, dù bản 11.15 đã
+thêm cột persisted/index `MaNCC`/`MaHang`.
+
+**Nguyên nhân thật**: 2 báo cáo này khai `filterDef.field` dạng PascalCase
+đúng tên cột (`'MaNCC'`/`'MaHang'`), khác lowerCamel (`'maNCC'`/`'maHang'`)
+mà `seedPurchaseOrderReports.js` dùng — `PERSISTED_DIMENSION_COLUMNS` tra
+theo field, phân biệt hoa/thường, nên KHÔNG khớp, câu lọc vẫn rơi về
+`JSON_VALUE(...)` chậm như trước dù cột/index đã có sẵn.
+
+**Thay đổi**:
+- `rp-server/lib/reportEngine.js` + `api-server/lib/reportEngine.js` —
+  thêm alias PascalCase (`MaNCC`/`MaHang`) vào `PERSISTED_DIMENSION_COLUMNS`,
+  trỏ cùng cột persisted — KHÔNG đổi `field` ở bất kỳ report nào (tránh vỡ
+  cấu hình Lịch gửi email đã lưu theo field cũ).
+- `rp-server/scripts/seedDoanhThuSkuNganhHangReports.js` — bỏ `labelField`
+  ở filter Mã hàng, chỉ hiện mã.
+- `rp-server/scripts/seedTonKhoChiTietReport.js` — bỏ `labelField` ở
+  filter Nhà cung cấp, chỉ hiện mã.
+
+**Không cần migration DB mới** — dùng lại nguyên cột/index đã tạo ở bản
+11.15/11.16, lần này chỉ sửa code.
+
+**Kiểm tra**: xem "VERSION.md" mục bản 11.18.
+
 ## 11.17 — Trang "Biểu mẫu": thêm bộ lọc "Lọc theo loại báo cáo"
 
 **Theo yêu cầu người dùng** — danh sách báo cáo ở Hệ thống → Biểu mẫu

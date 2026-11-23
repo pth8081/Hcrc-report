@@ -14,6 +14,24 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 11.18 — Sửa tiếp lọc chậm + hiện tên dài ở "Doanh thu SKU theo ngành hàng"/"Tồn kho"
+
+**Thay đổi**: `rp-server/lib/reportEngine.js` + `api-server/lib/reportEngine.js`
+(alias PascalCase trong `PERSISTED_DIMENSION_COLUMNS`),
+`seedDoanhThuSkuNganhHangReports.js`/`seedTonKhoChiTietReport.js` (bỏ
+`labelField` ở filter Mã hàng/Nhà cung cấp).
+
+**Triển khai (theo đúng thứ tự)**:
+```bash
+git pull origin main
+pm2 restart rp-server
+node scripts/seedDoanhThuSkuNganhHangReports.js   # thư mục rp-server/
+node scripts/seedTonKhoChiTietReport.js           # thư mục rp-server/
+```
+Không cần đổi CSDL — dùng lại nguyên cột/index đã tạo ở bản 11.15/11.16.
+
+**Kiểm tra**: xem "VERSION.md" mục bản 11.18.
+
 ## 11.17 — Trang "Biểu mẫu": thêm bộ lọc "Lọc theo loại báo cáo"
 
 **Thay đổi**: `rp-user/src/modules/system/report-catalog/ReportCatalogPanel.jsx`
