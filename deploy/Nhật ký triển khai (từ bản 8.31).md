@@ -14,6 +14,22 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 11.10 — SỬA LỖI: "Nguồn dữ liệu" hiện trống nếu CSDL chưa chạy kịp schema.sql bản 11.9
+
+**Thay đổi**: `api-server/routes/admin/dataSources.js` — `GET /` tự lùi
+về SELECT không có `StoreCode` khi gặp lỗi SQL 207 (cột chưa tồn tại),
+để danh sách cũ vẫn hiện trong lúc chờ chạy `schema.sql`.
+
+**Triển khai**:
+```bash
+git pull origin main
+pm2 restart api-server
+cd api-db && sqlcmd -S <server> -d HCRC_API -i schema.sql   # nếu CHƯA chạy ở bản 11.9
+pm2 restart api-server
+```
+
+**Kiểm tra**: xem "VERSION.md" mục bản 11.10.
+
 ## 11.9 — Thêm Mã Siêu Thị cho "Nguồn dữ liệu" + API "Giá Bán Buôn" cho đối tác HCC
 
 **Thay đổi**:

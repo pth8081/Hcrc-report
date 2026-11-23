@@ -52,6 +52,37 @@ nội dung/hành vi nào đã làm. Lịch sử Git (commit message) vẫn còn 
 "Bản 10.100"/"Bản 10.101" (không sửa lại lịch sử Git) — coi là ĐỒNG NHẤT
 với "11.0"/"11.1".
 
+## 11.10 — SỬA LỖI THẬT: trang "Nguồn dữ liệu" hiện trống nếu CSDL chưa kịp chạy schema.sql bản 11.9
+
+**Theo báo cáo người dùng** (ảnh chụp thật trên điện thoại) — sau khi
+deploy bản 11.9, trang "Nguồn dữ liệu" hiện "Không có dữ liệu." dù danh
+sách nguồn cũ vẫn còn nguyên trong CSDL. Nguyên nhân: deploy code mới
+TRƯỚC KHI chạy `api-db/schema.sql` trên CSDL `HCRC_API` thật (lệch thứ
+tự 2 bước triển khai bản 11.9) — `GET /data-sources` SELECT cột
+`StoreCode` CHƯA tồn tại, lỗi SQL Server 207 "Invalid column name",
+route trả lỗi, bảng admin hiện trống. **Dữ liệu KHÔNG hề mất** —
+`ALTER TABLE ... ADD StoreCode NULL` không xoá dòng nào — chỉ là màn
+hình không tải được danh sách.
+
+**Sửa**: `routes/admin/dataSources.js` — `GET /` bắt riêng lỗi 207, tự
+lùi về SELECT không có `StoreCode` (trả `StoreCode: null` cho mọi dòng)
+để danh sách cũ vẫn hiện đủ trong lúc chờ chạy `schema.sql` — KHÔNG thay
+thế việc vẫn phải chạy `schema.sql` để cột `StoreCode` hoạt động thật.
+
+**Triển khai**:
+```bash
+git pull origin main
+pm2 restart api-server
+# Sau đó CHẠY BÙ bước đã bỏ sót ở bản 11.9 để StoreCode hoạt động đầy đủ:
+cd api-db && sqlcmd -S <server> -d HCRC_API -i schema.sql
+pm2 restart api-server
+```
+
+**Kiểm tra**: mở lại trang "Nguồn dữ liệu" — danh sách cũ hiện đầy đủ
+ngay cả TRƯỚC khi chạy `schema.sql` (cột "Mã Siêu Thị" tạm hiện `—` cho
+mọi dòng); sau khi chạy `schema.sql` + restart, sửa 1 dòng và điền Mã
+Siêu Thị để xác nhận lưu được bình thường.
+
 ## 11.9 — Thêm Mã Siêu Thị cho "Nguồn dữ liệu" + API "Giá Bán Buôn" cho đối tác HCC
 
 **Theo yêu cầu người dùng** — chuẩn bị hạ tầng cho đối tác "Hệ thống Văn

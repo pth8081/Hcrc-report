@@ -60,10 +60,27 @@ const upload = multer({
 router.get('/', async (req, res, next) => {
   try {
     const pool = await getPool('ADMIN');
-    const result = await pool.request().query(`
-      SELECT Id, Name, Server, Port, DatabaseName, Username, StoreCode, Encrypt, TrustServerCert, IsActive, CreatedAt
-      FROM api.DataSources ORDER BY Name
-    `);
+    let result;
+    try {
+      result = await pool.request().query(`
+        SELECT Id, Name, Server, Port, DatabaseName, Username, StoreCode, Encrypt, TrustServerCert, IsActive, CreatedAt
+        FROM api.DataSources ORDER BY Name
+      `);
+    } catch (err) {
+      // Lỗi 207 "Invalid column name" — CSDL CHƯA chạy lại api-db/schema.sql
+      // (cột StoreCode mới thêm bản 11.9) dù code mới đã deploy, LỆCH THỨ
+      // TỰ triển khai thật đã gặp (trang "Nguồn dữ liệu" hiện trống/lỗi dù
+      // dữ liệu cũ vẫn còn nguyên trong CSDL, ALTER TABLE ADD COLUMN NULL
+      // không xoá dòng nào). Tự lùi về SELECT không có StoreCode để trang
+      // vẫn hiển thị đủ danh sách cũ trong lúc chờ DBA chạy lại schema.sql,
+      // thay vì trả lỗi trắng cả trang.
+      if (err.number !== 207) throw err;
+      result = await pool.request().query(`
+        SELECT Id, Name, Server, Port, DatabaseName, Username, Encrypt, TrustServerCert, IsActive, CreatedAt
+        FROM api.DataSources ORDER BY Name
+      `);
+      result.recordset = result.recordset.map(r => ({ ...r, StoreCode: null }));
+    }
     res.json(result.recordset);
   } catch (err) { next(err); }
 });
