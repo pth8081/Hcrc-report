@@ -40,9 +40,11 @@ function buildDefinition() {
         field: 'MaChiNhanh', type: 'multiSelect', label: 'Siêu thị',
         optionsSource: { domain: DOMAIN, valueField: 'MaChiNhanh', labelField: 'TenChiNhanh' }
       },
+      // CHỈ hiện MÃ (bản 11.18, theo báo cáo người dùng — mirror đúng NCC_FILTER
+      // đã sửa ở seedPurchaseOrderReports.js bản 11.15) — bỏ labelField.
       {
         field: 'MaNCC', type: 'multiSelect', label: 'Nhà cung cấp (đơn gần nhất)',
-        optionsSource: { domain: DOMAIN, valueField: 'MaNCC', labelField: 'TenNCC' }
+        optionsSource: { domain: DOMAIN, valueField: 'MaNCC' }
       },
       {
         field: 'KenhMua', type: 'select', label: 'Kênh mua (đơn gần nhất)',

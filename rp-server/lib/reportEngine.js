@@ -35,7 +35,21 @@ const PERSISTED_DIMENSION_COLUMNS = {
   // tải rất chậm (domain nhiều năm lịch sử) — xem ALTER TABLE tương ứng ở
   // dwh/schema.sql mục "Tối ưu lọc theo Dimensions".
   maNCC: 'MaNCC',
-  maHang: 'MaHang'
+  maHang: 'MaHang',
+  // SỬA bản 11.18 (lỗi thật phát hiện qua báo cáo người dùng — "Báo cáo
+  // doanh thu theo ngành hàng (LDTD) - theo mã hàng"/"Tồn kho chi tiết"
+  // VẪN lọc chậm dù CÙNG domain ReportFacts đã có cột persisted/index
+  // MaNCC/MaHang — nguyên nhân: 2 báo cáo đó khai filterDef.field dạng
+  // PASCALCASE ĐÚNG TÊN CỘT ('MaNCC'/'MaHang' — xem
+  // seedTonKhoChiTietReport.js/seedDoanhThuSkuNganhHangReports.js), KHÁC
+  // field dạng lowerCamel ('maNCC'/'maHang') seedPurchaseOrderReports.js
+  // dùng — resolveColumn() bên dưới tra Map CHÍNH XÁC theo field (phân
+  // biệt hoa/thường), nên 2 field PascalCase này KHÔNG khớp key cũ, rơi về
+  // JSON_VALUE(...) như chưa tối ưu gì). THÊM alias PascalCase trỏ ĐÚNG
+  // cùng 1 cột persisted — KHÔNG đổi filterDef.field ở bất kỳ report nào
+  // (tránh vỡ dữ liệu đã lưu, vd Lịch gửi email đã cấu hình theo field cũ).
+  MaNCC: 'MaNCC',
+  MaHang: 'MaHang'
 };
 
 // "measures.<tên>" (bản 9.43, theo yêu cầu người dùng — báo cáo Tồn kho cần

@@ -44,9 +44,13 @@ const DOMAIN = 'doanhthu_sku_nganhhang';
 // bản 10.31/10.35 — multiSelect, searchable + dán danh sách để tự chọn, vì
 // SearchableSelect.jsx dùng CHUNG toàn hệ thống) — đọc DISTINCT MaHang/TenHang
 // thật từ dữ liệu đã đồng bộ.
+// CHỈ hiện MÃ (bản 11.18, theo báo cáo người dùng — dropdown hiện tên
+// mặt hàng quá dài, phải lọc/tìm theo MÃ hàng — mirror đúng
+// MA_HANG_FILTER đã sửa ở seedPurchaseOrderReports.js bản 11.15) — bỏ
+// labelField, dropdown hiện đúng value (MaHang) làm label luôn.
 const MA_HANG_FILTER = {
   field: 'MaHang', type: 'multiSelect', label: 'Mã hàng',
-  optionsSource: { domain: DOMAIN, valueField: 'MaHang', labelField: 'TenHang' }
+  optionsSource: { domain: DOMAIN, valueField: 'MaHang' }
 };
 
 const NGANH_HANG_FILTER = {

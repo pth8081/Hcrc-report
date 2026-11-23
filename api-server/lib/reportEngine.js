@@ -33,7 +33,10 @@ const PERSISTED_DIMENSION_COLUMNS = {
   // nằm trên dwh.ReportFacts dùng chung, khai đủ cả 2 nơi dù api-server
   // hiện chưa có domain nào dùng field này).
   maNCC: 'MaNCC',
-  maHang: 'MaHang'
+  maHang: 'MaHang',
+  // Bản 11.18 — mirror alias PascalCase (xem rp-server/lib/reportEngine.js).
+  MaNCC: 'MaNCC',
+  MaHang: 'MaHang'
 };
 
 function resolveColumn(field) {
