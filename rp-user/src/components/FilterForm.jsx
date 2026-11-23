@@ -126,6 +126,15 @@ export default function FilterForm({ reportId, filters, values, onChange, onSubm
               loading={!!loadingFields[f.field]}
               placeholder="Chọn..."
             />
+          ) : f.type === 'onlyFutureDate' ? (
+            // Bản 11.11 (báo cáo "Thay đổi giá từ thời điểm") — checkbox
+            // đơn, tick = chỉ hiện giá áp dụng SAU hôm nay (xem
+            // rp-server/lib/reportEngine.js).
+            <input
+              type="checkbox"
+              checked={!!values[f.field]}
+              onChange={(e) => setValue(f.field, e.target.checked)}
+            />
           ) : f.type === 'numberMin' || f.type === 'numberMax' ? (
             // Bản 9.43 (báo cáo Tồn kho) — ô nhập số TỰ DO cho "điều kiện
             // lớn hơn"/"điều kiện nhỏ hơn" (xem rp-server/lib/reportEngine.js

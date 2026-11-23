@@ -79,11 +79,26 @@ function buildDefinition(report) {
       // xem rp-user/src/components/FilterForm.jsx. KHÔNG ảnh hưởng cách
       // lưu lịch gửi email (dùng CHUNG đúng field 'eventDate' kiểu
       // 'dateRange' này, cơ chế preset riêng đã có sẵn từ trước — xem
-      // lib/reportEmailFilters.js, không cần sửa gì thêm).
+      // lib/reportEmailFilters.js, không cần sửa gì thêm). Lọc theo cột
+      // EventDate = MODI_DATE (ngày đợt giá được LÊN LỊCH/ghi nhận — xem
+      // VIEW vw_ThayDoiGiaTuThoiDiem), KHÔNG phải Ngày áp dụng — "Ngày hôm
+      // trước" nghĩa là "các đợt được NHẬP/SỬA hôm qua", đúng như tên cột
+      // nguồn CapNhatLuc/MODI_DATE, đã xác nhận với người dùng (bản 11.11).
       { field: 'eventDate', type: 'dateRange', label: 'Khoảng ngày báo cáo', quickPresets: true },
       nganhHangFilter(report.domain),
       maHangFilter(report.domain),
-      vungGiaFilter(report.domain)
+      vungGiaFilter(report.domain),
+      // Bản 11.11 (theo yêu cầu người dùng) — CHỈ "Thay đổi giá từ thời
+      // điểm" có khái niệm "Ngày áp dụng" ở TƯƠNG LAI (đợt lên lịch trước,
+      // xem bc-thay-doi-gia.md) — "tức thời" đã áp dụng ngay lúc xảy ra,
+      // không có ý nghĩa lọc này nên KHÔNG thêm filter cho report đó.
+      ...(report.domain === 'thaydoigia_tuthoidiem' ? [
+        {
+          field: 'chiApDungTuongLai', type: 'onlyFutureDate', column: 'NgayApDung',
+          label: 'Chỉ hiện giá áp dụng trong tương lai',
+          hint: 'Tick để ẩn các đợt có Ngày áp dụng từ hôm nay trở về trước (đã/đang áp dụng) — chỉ còn Ngày áp dụng SAU hôm nay.'
+        }
+      ] : [])
     ],
     columns: report.columns
   };

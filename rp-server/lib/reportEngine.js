@@ -182,6 +182,19 @@ async function runReport(pool, definition, filterValues = {}, { page = 1, pageSi
         request.input(p, sql.Decimal(18, 4), num);
         conditions.push(`TRY_CAST(${column} AS DECIMAL(18,4)) ${filterDef.type === 'numberMin' ? '>' : '<'} @${p}`);
       }
+    } else if (filterDef.type === 'onlyFutureDate') {
+      // Bản 11.11 (theo yêu cầu người dùng — báo cáo "Thay đổi giá từ thời
+      // điểm": checkbox "Chỉ hiện giá áp dụng trong tương lai", lọc trên
+      // cột Ngày áp dụng — KHÁC HẲN filter 'eventDate'/"Khoảng ngày báo
+      // cáo" đã có (đó lọc theo ngày ĐỢT GIÁ ĐƯỢC LÊN LỊCH/sửa, cột
+      // EventDate=MODI_DATE; đây lọc theo ngày giá SẼ ÁP DỤNG, cột khác
+      // qua filterDef.column, vd "NgayApDung"). So với NGÀY HIỆN TẠI của
+      // SERVER (GETDATE(), không phải ngày máy khách gửi lên) — value !==
+      // true/'true' (bỏ tick) = KHÔNG lọc gì thêm, hiện như cũ (không đổi
+      // hành vi mặc định của báo cáo nào khác).
+      if (value === true || value === 'true') {
+        conditions.push(`${column} > CAST(GETDATE() AS DATE)`);
+      }
     } else {
       request.input(p, sql.NVarChar(200), String(value));
       conditions.push(`${column} = @${p}`);
