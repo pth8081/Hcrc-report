@@ -14,6 +14,20 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 11.13 — SỬA LỖI: hiện "Base URL" thay vì 3 link đầy đủ ở "Giá bán buôn"
+
+**Thay đổi**: `api-admin/src/pages/ConsumersPage.jsx` —
+`WholesalePriceLinks()` hiện "Base URL" (`PUBLIC_API_BASE_URL` +
+`/api/v1`) làm giá trị chính, 3 link đầy đủ thu gọn vào `<details>`.
+
+**Triển khai**:
+```bash
+git pull origin main
+cd api-admin && npm run build   # rồi deploy dist/
+```
+
+**Kiểm tra**: xem "VERSION.md" mục bản 11.13.
+
 ## 11.12 — Hiện link API "Giá bán buôn" ngay ở trang "Đối tác API"
 
 **Thay đổi**: `api-admin/src/pages/ConsumersPage.jsx` — tick scope

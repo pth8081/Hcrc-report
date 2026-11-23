@@ -52,6 +52,35 @@ nội dung/hành vi nào đã làm. Lịch sử Git (commit message) vẫn còn 
 "Bản 10.100"/"Bản 10.101" (không sửa lại lịch sử Git) — coi là ĐỒNG NHẤT
 với "11.0"/"11.1".
 
+## 11.13 — SỬA LỖI: hiện "Base URL" thay vì 3 link đầy đủ ở "Giá bán buôn"
+
+**Theo báo cáo người dùng** (ảnh chụp màn hình cấu hình thật phía đối
+tác HCC — "HCRC Workspace" → "Cài Đặt Giá Bán Buôn" → "Cấu Hình API Đối
+Tác") — màn hình đó chỉ có ĐÚNG 1 ô **"Base URL API đối tác"**, không có
+3 ô cho 3 endpoint. Bản 11.12 hiện 3 link ĐẦY ĐỦ (`.../wholesale-price/apply`,
+`.../wholesale-price/delete`, `.../ping`) khiến người dùng hiểu lầm phải
+gửi/điền cả 3 — thực ra phần mềm đối tác (code họ đã gửi,
+`dsmartPriceExternalApiClient.js`) tự ghép Base URL + đúng 1 trong 3 path
+cố định tuỳ hành động (Thêm/Sửa giá → apply; Xoá → delete), người dùng
+chỉ cần đưa đối tác ĐÚNG 1 giá trị Base URL.
+
+**Sửa**: `api-admin/src/pages/ConsumersPage.jsx` —
+`WholesalePriceLinks()` giờ hiện **"Base URL"** (=
+`PUBLIC_API_BASE_URL` + `/api/v1`) làm giá trị CHÍNH cần gửi đối tác,
+kèm ghi chú rõ "điền đúng vào ô Base URL API đối tác"; 3 link đầy đủ thu
+gọn vào `<details>` (thu gọn mặc định), chỉ để tham khảo/tự test
+(vd `curl`), không còn là thứ chính phải gửi.
+
+**Triển khai**:
+```bash
+git pull origin main
+cd api-admin && npm run build   # rồi deploy dist/
+```
+
+**Kiểm tra**: vào "Đối tác API" → đối tác có scope `wholesalePrice` →
+phải thấy dòng "Base URL" nổi bật ở trên cùng, 3 link cũ nằm trong mục
+thu gọn "3 link đầy đủ (chỉ để tham khảo...)".
+
 ## 11.12 — Hiện link API "Giá bán buôn" ngay ở trang "Đối tác API"
 
 **Theo yêu cầu người dùng** — "cấu hình đối tác [API Giá bán buôn] không
