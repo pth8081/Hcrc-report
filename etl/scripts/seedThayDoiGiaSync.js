@@ -108,14 +108,26 @@ const JOBS = [
     name: 'Thay đổi giá bán tức thời - Live (DSMART16)', sourceTable: 'vw_ThayDoiGiaTucThoi',
     keyColumn: 'MaThucThe', dateColumn: 'EventDate', updatedAtColumn: 'ThoiDiemThayDoi',
     // MaNhomHang/DonVi thêm bản 10.84 (theo yêu cầu người dùng).
-    dimensionColumns: ['MaVungGia', 'MaHangHienThi', 'TenHang', 'MaNganhHang', 'TenNganhHang', 'MaNhomHang', 'DonVi'],
+    // SỬA LỖI THẬT bản 11.21 (theo báo cáo người dùng — cột "Thời điểm
+    // thay đổi" trên báo cáo LUÔN trống/hiện sai, chưa từng hoạt động từ
+    // bản 10.79) — `ThoiDiemThayDoi` TRƯỚC ĐÂY chỉ khai làm updatedAtColumn
+    // (mốc đồng bộ tăng dần, xem tableSyncEngine.js dòng 175: CHỈ cột nằm
+    // trong dimensionColumns mới được ghi vào Dimensions JSON) — 1 cột HOÀN
+    // TOÀN CÓ THỂ vừa làm updatedAtColumn VỪA nằm trong dimensionColumns
+    // (2 mục đích đọc riêng biệt, không xung đột) — thêm vào đây để báo
+    // cáo đọc được giá trị thật. Dữ liệu đã đồng bộ TRƯỚC bản này cần
+    // resync lại mới có — xem scripts/resyncThayDoiGiaWatermark.js.
+    dimensionColumns: ['MaVungGia', 'MaHangHienThi', 'TenHang', 'MaNganhHang', 'TenNganhHang', 'MaNhomHang', 'DonVi', 'ThoiDiemThayDoi'],
     measureColumns: ['GiaCu', 'GiaMoi'],
     targetDomain: 'thaydoigia_tucthoi', cronExpression: '*/15 * * * *'
   },
   {
     name: 'Thay đổi giá từ thời điểm - Live (DSMART16)', sourceTable: 'vw_ThayDoiGiaTuThoiDiem',
     keyColumn: 'MaThucThe', dateColumn: 'EventDate', updatedAtColumn: 'CapNhatLuc',
-    dimensionColumns: ['MaVungGia', 'MaHangHienThi', 'TenHang', 'MaNganhHang', 'TenNganhHang', 'NgayApDung', 'MaDotThayDoi', 'MoTaDot'],
+    // SỬA LỖI THẬT bản 11.21 — cùng lý do với `ThoiDiemThayDoi` ở job trên
+    // (xem chú thích đầy đủ ở đó): `CapNhatLuc` ("Lên lịch lúc") trước đây
+    // CHỈ làm updatedAtColumn, chưa từng được ghi vào Dimensions JSON.
+    dimensionColumns: ['MaVungGia', 'MaHangHienThi', 'TenHang', 'MaNganhHang', 'TenNganhHang', 'NgayApDung', 'MaDotThayDoi', 'MoTaDot', 'CapNhatLuc'],
     measureColumns: ['GiaCu', 'GiaMoi'],
     targetDomain: 'thaydoigia_tuthoidiem', cronExpression: '*/15 * * * *'
   }
