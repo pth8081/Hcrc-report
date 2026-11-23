@@ -36,7 +36,9 @@ const PERSISTED_DIMENSION_COLUMNS = {
   maHang: 'MaHang',
   // Bản 11.18 — mirror alias PascalCase (xem rp-server/lib/reportEngine.js).
   MaNCC: 'MaNCC',
-  MaHang: 'MaHang'
+  MaHang: 'MaHang',
+  // Bản 11.19 — mirror (xem rp-server/lib/reportEngine.js).
+  MaNganhHang: 'MaNganhHang'
 };
 
 function resolveColumn(field) {

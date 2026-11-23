@@ -159,8 +159,24 @@ const KENH_MUA_FILTER = {
 // bc-don-dat-hang.md mục "Ngành hàng") + job đồng bộ lại (tick Dimension
 // mới + resync) mới có dữ liệu — chưa làm xong 2 bước đó thì dropdown này
 // hiện trống (không lỗi, chỉ chưa có dữ liệu).
+// SỬA LỖI THẬT bản 11.19 (phát hiện qua log lỗi timeout 90000ms thật của
+// người dùng, cả /run lẫn /filter-options/nganhHang) — `field: 'nganhHang'`
+// trước đây KHÔNG khớp tên cột THẬT lưu trong Dimensions (ETL ghi key
+// 'MaNganhHang', xem etl/scripts/seedDonDatHangSync.js
+// dimensionColumns) — nghĩa là lọc "Ngành hàng" ở CẢ 6 báo cáo này
+// (resolveColumn(filterDef.column || filterDef.field) ở reportEngine.js
+// dùng ĐÚNG field khi KHÔNG khai column) từ trước tới giờ luôn đọc
+// JSON_VALUE(Dimensions, '$.nganhHang') — KHÔNG TỒN TẠI, luôn NULL, filter
+// KHÔNG BAO GIỜ khớp đúng dòng nào (vẫn phải quét JSON_VALUE từng dòng để
+// biết là NULL — tốn y hệt 1 field lọc hợp lệ, nên vẫn chậm/timeout như
+// thường mà KHÔNG lọc đúng). Thêm `column: 'MaNganhHang'` — field (khoá
+// filterValues, giữ NGUYÊN để không vỡ cấu hình Lịch gửi email đã lưu theo
+// field cũ) tách khỏi cột SQL thật dùng để lọc (cơ chế filterDef.column đã
+// có sẵn, dùng cho tonKhoMin/tonKhoMax trước đây) — giờ resolveColumn()
+// nhận ĐÚNG 'MaNganhHang', lại vừa khớp alias persisted mới thêm
+// (PERSISTED_DIMENSION_COLUMNS ở reportEngine.js) nên NHANH + ĐÚNG cùng lúc.
 const NGANH_HANG_FILTER = {
-  field: 'nganhHang', type: 'multiSelect', label: 'Ngành hàng',
+  field: 'nganhHang', column: 'MaNganhHang', type: 'multiSelect', label: 'Ngành hàng',
   optionsSource: { domain: DOMAIN, valueField: 'MaNganhHang', labelField: 'TenNganhHang' }
 };
 

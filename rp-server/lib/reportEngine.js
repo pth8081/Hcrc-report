@@ -49,7 +49,12 @@ const PERSISTED_DIMENSION_COLUMNS = {
   // cùng 1 cột persisted — KHÔNG đổi filterDef.field ở bất kỳ report nào
   // (tránh vỡ dữ liệu đã lưu, vd Lịch gửi email đã cấu hình theo field cũ).
   MaNCC: 'MaNCC',
-  MaHang: 'MaHang'
+  MaHang: 'MaHang',
+  // Bản 11.19, theo log lỗi timeout 90000ms thật của người dùng (cả /run
+  // lẫn /filter-options/nganhHang ở báo cáo Đơn đặt hàng) — xem
+  // seedPurchaseOrderReports.js (NGANH_HANG_FILTER thêm `column:
+  // 'MaNganhHang'` cùng bản này) + ALTER TABLE tương ứng ở dwh/schema.sql.
+  MaNganhHang: 'MaNganhHang'
 };
 
 // "measures.<tên>" (bản 9.43, theo yêu cầu người dùng — báo cáo Tồn kho cần

@@ -269,3 +269,24 @@ BEGIN
       WITH (SORT_IN_TEMPDB = ON);
 END
 GO
+
+-- MaNganhHang (bản 11.19 — sự cố thật, log lỗi timeout 90000ms của người
+-- dùng cả /run lẫn /filter-options/nganhHang ở báo cáo "Đơn đặt hàng" —
+-- NGANH_HANG_FILTER trước đây field 'nganhHang' KHÔNG khớp tên cột THẬT
+-- 'MaNganhHang' lưu trong Dimensions, đã sửa thêm `column: 'MaNganhHang'`
+-- ở seedPurchaseOrderReports.js; thêm cột persisted-như-không-PERSISTED +
+-- index này để câu lọc NHANH LUÔN, đúng mẫu đã sửa ở MaNCC/MaHang bản
+-- 11.16 — KHÔNG dùng PERSISTED để tránh lặp lại sự cố tràn log transaction
+-- production đã gặp).
+IF COL_LENGTH('dwh.ReportFacts', 'MaNganhHang') IS NULL
+BEGIN
+    ALTER TABLE dwh.ReportFacts
+      ADD MaNganhHang AS CAST(JSON_VALUE(Dimensions, '$.MaNganhHang') AS NVARCHAR(50));
+END
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_ReportFacts_MaNganhHang' AND object_id = OBJECT_ID('dwh.ReportFacts'))
+BEGIN
+    CREATE INDEX IX_ReportFacts_MaNganhHang ON dwh.ReportFacts (MaNganhHang) INCLUDE (Domain, EventDate)
+      WITH (SORT_IN_TEMPDB = ON);
+END
+GO
