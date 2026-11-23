@@ -100,18 +100,36 @@ function wholesalePriceUrls(publicApiBaseUrl) {
 
 function WholesalePriceLinks({ scopes, publicApiBaseUrl }) {
   if (!(scopes || []).includes('wholesalePrice')) return null;
+  const baseUrl = publicApiBaseUrl ? `${publicApiBaseUrl}/api/v1` : '/api/v1';
   return (
     <div className="filter-config">
-      <strong>Link API "Giá bán buôn" — gửi đúng các link này cho đối tác</strong>
+      <strong>Link API "Giá bán buôn"</strong>
       {!publicApiBaseUrl && (
         <p className="hint">
           Chưa khai <code>PUBLIC_API_BASE_URL</code> trong <code>.env</code> của api-server — link dưới
           đây thiếu domain, chỉ thấy đường dẫn.
         </p>
       )}
-      {wholesalePriceUrls(publicApiBaseUrl).map(({ label, url }) => (
-        <p key={label}>{label}: <CopyableSecret value={url} label={label} /></p>
-      ))}
+      {/* Base URL (bản 11.13, SỬA theo yêu cầu người dùng — đối tác chỉ có
+          ĐÚNG 1 ô "Base URL API đối tác" trong phần mềm của họ, tự ghép
+          thêm "/wholesale-price/apply"/"/wholesale-price/delete"/"/ping" ở
+          code phía họ — gửi 3 link ĐẦY ĐỦ như bản trước dễ gây hiểu lầm là
+          phải điền 3 ô/3 chỗ khác nhau). Đây mới là giá trị CHÍNH cần gửi
+          đối tác — điền NGUYÊN VĂN vào đúng ô "Base URL API đối tác". */}
+      <p>
+        <strong>Base URL</strong> (điền đúng vào ô &quot;Base URL API đối tác&quot; bên phần mềm đối tác):{' '}
+        <CopyableSecret value={baseUrl} label="Base URL" />
+      </p>
+      <p className="hint">
+        Phần mềm đối tác tự ghép thêm <code>/wholesale-price/apply</code>, <code>/wholesale-price/delete</code>,{' '}
+        <code>/ping</code> vào SAU Base URL này — KHÔNG cần gửi riêng từng link, không có ô nào khác để điền.
+      </p>
+      <details>
+        <summary>3 link đầy đủ (chỉ để tham khảo/tự kiểm tra, vd gọi thử bằng curl)</summary>
+        {wholesalePriceUrls(publicApiBaseUrl).map(({ label, url }) => (
+          <p key={label}>{label}: <CopyableSecret value={url} label={label} /></p>
+        ))}
+      </details>
     </div>
   );
 }
