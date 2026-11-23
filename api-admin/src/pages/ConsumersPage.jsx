@@ -82,6 +82,40 @@ function reportRunUrl(reportId, publicApiBaseUrl) {
   return publicApiBaseUrl ? `${publicApiBaseUrl}${path}` : path;
 }
 
+// wholesalePriceUrls (theo yêu cầu người dùng — "gửi link API cho đối tác
+// nhưng không lấy được link ở đâu, các API nên có hiện link") — mirror ĐÚNG
+// công thức reportRunUrl() ở trên, nhưng 3 đường dẫn CỐ ĐỊNH (không theo
+// từng report) — xem routes/v1/wholesalePrice.js. CHỈ hiện khi đối tác có
+// scope "wholesalePrice" (gán đúng 3 endpoint này mới dùng được).
+function wholesalePriceUrls(publicApiBaseUrl) {
+  const paths = {
+    'Thiết lập/cập nhật giá (apply)': '/api/v1/wholesale-price/apply',
+    'Xoá giá (delete)': '/api/v1/wholesale-price/delete',
+    'Kiểm tra kết nối (ping)': '/api/v1/ping'
+  };
+  return Object.entries(paths).map(([label, path]) => ({
+    label, url: publicApiBaseUrl ? `${publicApiBaseUrl}${path}` : path
+  }));
+}
+
+function WholesalePriceLinks({ scopes, publicApiBaseUrl }) {
+  if (!(scopes || []).includes('wholesalePrice')) return null;
+  return (
+    <div className="filter-config">
+      <strong>Link API "Giá bán buôn" — gửi đúng các link này cho đối tác</strong>
+      {!publicApiBaseUrl && (
+        <p className="hint">
+          Chưa khai <code>PUBLIC_API_BASE_URL</code> trong <code>.env</code> của api-server — link dưới
+          đây thiếu domain, chỉ thấy đường dẫn.
+        </p>
+      )}
+      {wholesalePriceUrls(publicApiBaseUrl).map(({ label, url }) => (
+        <p key={label}>{label}: <CopyableSecret value={url} label={label} /></p>
+      ))}
+    </div>
+  );
+}
+
 // Hiện đúng bí mật vừa được cấp — hình dạng response khác nhau theo authMethod.
 // CHỈ hiện đúng 1 lần lúc này — hệ thống lưu bí mật dưới dạng BĂM (SHA-256/
 // bcrypt/mã hoá 1 chiều tương đương), không có cách nào đọc lại bí mật CŨ sau
@@ -427,6 +461,7 @@ export default function ConsumersPage() {
               </label>
             ))}
           </div>
+          <WholesalePriceLinks scopes={form.scopes} publicApiBaseUrl={me?.publicApiBaseUrl} />
           <input type="number" placeholder="Giới hạn/phút" value={form.rateLimitPerMinute} onChange={(e) => setForm({ ...form, rateLimitPerMinute: Number(e.target.value) })} />
           <input
             placeholder="IP cho phép, phân tách dấu phẩy (để trống = không giới hạn), vd 203.0.113.10,198.51.100.0/24"
@@ -490,6 +525,7 @@ export default function ConsumersPage() {
                 </label>
               ))}
             </div>
+            <WholesalePriceLinks scopes={editing.Scopes} publicApiBaseUrl={me?.publicApiBaseUrl} />
             <input type="number" value={editing.RateLimitPerMinute ?? 120} onChange={(e) => setEditing({ ...editing, RateLimitPerMinute: Number(e.target.value) })} />
             <input
               placeholder="IP cho phép, phân tách dấu phẩy (để trống = không giới hạn)"
