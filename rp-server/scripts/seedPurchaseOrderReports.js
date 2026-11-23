@@ -102,14 +102,15 @@ const NGAY_GIAO_COL = { key: 'NgayGiao', label: 'Ngày giao', formula: 'NgayGiao
 // khớp field Dimensions `MaNCC` (SQL Server JSON_VALUE so khớp tên cột
 // không phân biệt hoa/thường theo collation mặc định — cùng quy ước đã
 // dùng cho `trangThai`/`TrangThai` ở TRANG_THAI_FILTER).
-// showCodeInLabel (bản 11.15, theo yêu cầu người dùng — "lọc theo mã nhà
-// cung cấp, không phải tên... tên dài quá") — dropdown hiện "<Mã> — <Tên>"
-// thay vì chỉ tên, xem routes/reports.js. KHÔNG đổi value gửi lên khi lọc
-// (vẫn là MaNCC như cũ) — chỉ đổi chữ hiển thị để thấy mã ngay trong danh
-// sách, không cần nhớ/gõ đúng tên dài.
+// CHỈ hiện MÃ (bản 11.15, theo yêu cầu người dùng — "lọc theo mã nhà cung
+// cấp, không phải tên... tên dài quá"). Thử nghiệm ban đầu ghép "<Mã> —
+// <Tên>" (xem routes/reports.js optionsSource.showCodeInLabel), nhưng
+// người dùng xác nhận chỉ cần MÃ, không cần tên kèm theo — nên bỏ hẳn
+// labelField/showCodeInLabel, dropdown hiện đúng value (MaNCC) làm label
+// luôn (xem routes/reports.js: labelField || valueField).
 const NCC_FILTER = {
   field: 'maNCC', type: 'multiSelect', label: 'Nhà cung cấp',
-  optionsSource: { domain: DOMAIN, valueField: 'MaNCC', labelField: 'TenNCC', showCodeInLabel: true }
+  optionsSource: { domain: DOMAIN, valueField: 'MaNCC' }
 };
 
 // Bộ lọc "Siêu thị" (bản 9.13, ban đầu CHỈ gắn cho báo cáo "So sánh giá
@@ -172,9 +173,11 @@ const NGANH_HANG_FILTER = {
 // (vd "tổng giá trị đặt/nhập CHỈ của 1 mã hàng, theo NCC") — xem sqlFilters
 // ở lib/purchaseOrderRunner.js (maHang không nằm trong danh sách field xử
 // lý riêng ở JS, nên tự đi qua nhánh SQL chung, giống maNCC/nganhHang).
+// CHỈ hiện MÃ (bản 11.15, lý do giống NCC_FILTER ở trên — người dùng xác
+// nhận chỉ cần MÃ, không cần tên hàng kèm theo).
 const MA_HANG_FILTER = {
   field: 'maHang', type: 'multiSelect', label: 'Mã hàng',
-  optionsSource: { domain: DOMAIN, valueField: 'MaHang', labelField: 'TenHang', showCodeInLabel: true }
+  optionsSource: { domain: DOMAIN, valueField: 'MaHang' }
 };
 
 // Trạng thái hiện trong bộ lọc — CHỈ còn C/P/F/M (bản 8.92, theo yêu cầu
