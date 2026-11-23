@@ -52,6 +52,59 @@ nội dung/hành vi nào đã làm. Lịch sử Git (commit message) vẫn còn 
 "Bản 10.100"/"Bản 10.101" (không sửa lại lịch sử Git) — coi là ĐỒNG NHẤT
 với "11.0"/"11.1".
 
+## 11.20 — "Kế hoạch tháng" luôn lấy đủ cả tháng (báo cáo tổng hợp HCRC/LĐTĐ + 4 báo cáo Doanh thu cuối ngày)
+
+**Theo yêu cầu người dùng** — xác nhận lại nguyên tắc: "Kế hoạch" (chỉ
+tiêu, đã upload sẵn cho MỌI ngày trong tháng qua file target) phải LUÔN
+là tổng CẢ THÁNG, KHÁC "Thực hiện" (doanh thu/Bill/giao dịch...) chỉ cộng
+dồn tới đúng ngày đang xem báo cáo (vì chưa có dữ liệu ngày tương lai).
+Bản 11.8 trước đây vô tình làm "Kế hoạch" cũng chỉ cộng dồn tới ngày báo
+cáo (giống "Thực hiện") — SAI với ý người dùng muốn, giờ tách rõ lại.
+
+**Thay đổi**:
+- `rp-server/lib/doanhThuTongHopHcrcRunner.js` — thêm `lastOfMonth()`,
+  khối "Kế hoạch tháng" đổi khoảng truyền vào `fetchTargetsByMaDiem` từ
+  `[đầu tháng, hôm nay]` thành `[đầu tháng, cuối tháng]`. Khối "Kế hoạch
+  năm" giữ nguyên (không yêu cầu đổi).
+- `rp-server/lib/doanhThuTongHopHcrcMonthlyExport.js` — mirror đúng thay
+  đổi trên; sửa thêm lỗi phụ phát hiện cùng lúc: trước đây "Kế hoạch
+  tháng" tính 1 lần theo ngày neo (anchor) dùng chung cho MỌI sheet
+  (1 sheet/ngày) trong file Excel xuất theo tháng — mỗi sheet của từng
+  ngày lại hiện SAI số (theo đúng ngày neo, không đúng ngày của sheet đó)
+  — đổi sang cả tháng thì MỌI sheet tự động hiện ĐÚNG, không còn lệch.
+- `rp-server/lib/compositeReportRunner.js` — thêm `lastOfMonth()`, khối
+  `isTarget` với `targetGranularity: 'day'` (dùng chung bởi 4 báo cáo
+  `bc-doanh-thu-hcrc`/`bc-doanh-thu-ldtd`/2 bản "(Thành viên)") đổi từ
+  dùng ĐÚNG khoảng ngày lọc "Khoảng ngày báo cáo" người dùng chọn sang
+  LUÔN lấy đủ `[đầu tháng, cuối tháng]` chứa ngày cuối khoảng lọc đó.
+  "Thực hiện" (khối không `isTarget`) giữ nguyên, không đổi.
+
+**Kiểm tra**: xem "VERSION.md" mục bản 11.20.
+
+## 11.19 — SỬA LỖI THẬT: filter "Ngành hàng" sai tên cột (timeout 90s) ở 6 báo cáo Đơn đặt/nhập hàng
+
+**Theo log lỗi timeout 90000ms thật của người dùng** (`POST .../run` và
+`GET .../filter-options/nganhHang` ở `bc-don-dat-hang`).
+
+**Nguyên nhân thật**: `NGANH_HANG_FILTER` khai `field: 'nganhHang'` —
+KHÔNG khớp tên cột THẬT lưu trong `Dimensions` (ETL ghi key
+`'MaNganhHang'`, xem `etl/scripts/seedDonDatHangSync.js`
+`dimensionColumns`) — lọc "Ngành hàng" ở CẢ 6 báo cáo đơn đặt/nhập hàng
+từ trước tới giờ luôn đọc `JSON_VALUE(Dimensions, '$.nganhHang')` KHÔNG
+TỒN TẠI (luôn NULL, không bao giờ khớp đúng dòng nào) mà vẫn tốn chi phí
+quét y hệt field hợp lệ — **vừa SAI vừa CHẬM**.
+
+**Thay đổi**:
+- `rp-server/scripts/seedPurchaseOrderReports.js` — `NGANH_HANG_FILTER`
+  thêm `column: 'MaNganhHang'` (field giữ nguyên, không vỡ cấu hình Lịch
+  gửi email đã lưu theo field cũ).
+- `rp-server/lib/reportEngine.js` + `api-server/lib/reportEngine.js` —
+  thêm `MaNganhHang` vào `PERSISTED_DIMENSION_COLUMNS`.
+- `dwh/schema.sql` — thêm cột tính (không `PERSISTED`, theo đúng mẫu an
+  toàn bản 11.16) + index `MaNganhHang` trên `dwh.ReportFacts`.
+
+**Kiểm tra**: xem "VERSION.md" mục bản 11.19.
+
 ## 11.18 — Sửa tiếp lọc chậm + hiện tên dài ở "Doanh thu SKU theo ngành hàng"/"Tồn kho" (field PascalCase chưa khớp tối ưu bản 11.15)
 
 **Theo báo cáo người dùng** — 2 báo cáo "Doanh thu theo ngành hàng

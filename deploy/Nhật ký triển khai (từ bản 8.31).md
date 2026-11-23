@@ -14,6 +14,47 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 11.20 — "Kế hoạch tháng" luôn lấy đủ cả tháng (báo cáo tổng hợp HCRC/LĐTĐ + 4 báo cáo Doanh thu cuối ngày)
+
+**Thay đổi**: `rp-server/lib/doanhThuTongHopHcrcRunner.js`,
+`doanhThuTongHopHcrcMonthlyExport.js`, `compositeReportRunner.js` (xem
+VERSION.md bản 11.20) — CHỈ sửa code, không đổi CSDL.
+
+**Triển khai**:
+```bash
+git pull origin main
+pm2 restart rp-server
+```
+
+**Kiểm tra**: xem "VERSION.md" mục bản 11.20 — mở báo cáo tổng hợp
+HCRC/LĐTĐ hoặc 1 trong 4 báo cáo Doanh thu cuối ngày, lọc 1 ngày bất kỳ
+giữa tháng → "Kế hoạch (tháng)" phải ra đúng SỐ CẢ THÁNG (không đổi theo
+ngày lọc), "Thực hiện" vẫn đúng tới ngày lọc.
+
+## 11.19 — SỬA LỖI THẬT: filter "Ngành hàng" sai tên cột (timeout 90s) ở 6 báo cáo Đơn đặt/nhập hàng
+
+**⚠️ CÓ BƯỚC DBA (ALTER TABLE trên `dwh.ReportFacts` dùng chung) — xem
+đúng mẫu/lưu ý khung giờ thấp điểm ở bản 11.15/11.16.**
+
+**Thay đổi**: `seedPurchaseOrderReports.js` (NGANH_HANG_FILTER thêm
+`column`), `reportEngine.js` (2 bản — thêm `MaNganhHang` vào
+`PERSISTED_DIMENSION_COLUMNS`), `dwh/schema.sql` (cột + index
+`MaNganhHang`).
+
+**Các bước (ĐÚNG THỨ TỰ)**:
+1. DBA chạy lại NGUYÊN VĂN `dwh/schema.sql` trên CSDL DWH (an toàn chạy
+   lại nhiều lần, chỉ thêm MỚI đúng cột/index `MaNganhHang` — phần
+   `MaNCC`/`MaHang` đã tạo từ bản 11.15/11.16 sẽ tự bỏ qua). Khung giờ
+   thấp điểm (xem lưu ý bản 11.16).
+2. `git pull origin main`.
+3. `pm2 restart rp-server`.
+4. `node scripts/seedPurchaseOrderReports.js` (thư mục `rp-server/`) —
+   đẩy lại định nghĩa filter mới (`column: 'MaNganhHang'`).
+
+**Kiểm tra**: xem "VERSION.md" mục bản 11.19 — mở 1 trong 6 báo cáo đơn
+đặt/nhập hàng, lọc theo "Ngành hàng" → PHẢI ra đúng kết quả (trước đây
+luôn trả rỗng dù chọn ngành hàng nào), và không còn timeout.
+
 ## 11.18 — Sửa tiếp lọc chậm + hiện tên dài ở "Doanh thu SKU theo ngành hàng"/"Tồn kho"
 
 **Thay đổi**: `rp-server/lib/reportEngine.js` + `api-server/lib/reportEngine.js`
