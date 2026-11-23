@@ -52,6 +52,20 @@ nội dung/hành vi nào đã làm. Lịch sử Git (commit message) vẫn còn 
 "Bản 10.100"/"Bản 10.101" (không sửa lại lịch sử Git) — coi là ĐỒNG NHẤT
 với "11.0"/"11.1".
 
+## 11.17 — Trang "Biểu mẫu": thêm bộ lọc "Lọc theo loại báo cáo"
+
+**Theo yêu cầu người dùng** — danh sách báo cáo ở Hệ thống → Biểu mẫu
+ngày càng dài, cần lọc nhanh theo loại ("Báo cáo kinh doanh"/"Báo cáo vận
+hành"/"Báo cáo Mua hàng").
+
+**Thay đổi**: `rp-user/src/modules/system/report-catalog/ReportCatalogPanel.jsx`
+— dropdown lọc client-side theo `MenuItemId`, dùng lại đúng danh sách
+`menuItems` đã tải sẵn (không gọi thêm API). KHÔNG có tuỳ chọn "Báo cáo tự
+do" — đó là tính năng tra cứu riêng (`adhocReports.js`), không nằm trong
+`app.ReportCatalog` nên không áp dụng được.
+
+**Kiểm tra**: xem "VERSION.md" mục bản 11.17.
+
 ## 11.16 — API Giá bán buôn: trả thêm chi tiết từng siêu thị; sửa migration MaNCC/MaHang tràn log production
 
 **Theo báo cáo/sự cố thật người dùng gặp khi vận hành** — (1) đối tác HCC

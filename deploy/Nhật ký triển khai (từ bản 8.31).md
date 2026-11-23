@@ -14,6 +14,20 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 11.17 — Trang "Biểu mẫu": thêm bộ lọc "Lọc theo loại báo cáo"
+
+**Thay đổi**: `rp-user/src/modules/system/report-catalog/ReportCatalogPanel.jsx`
+(dropdown lọc client-side, không đổi API/CSDL).
+
+**Triển khai**:
+```bash
+git pull origin main
+cd rp-user && npm run build   # rồi deploy dist/
+```
+Không cần đổi CSDL/khởi động lại service nào khác.
+
+**Kiểm tra**: xem "VERSION.md" mục bản 11.17.
+
 ## 11.16 — API Giá bán buôn: trả thêm chi tiết từng siêu thị; sửa migration MaNCC/MaHang tràn log production
 
 **Thay đổi**: `api-server/routes/v1/wholesalePrice.js` (field `results`
