@@ -230,26 +230,42 @@ GO
 -- cũng được domain tonkho_chitiet_sku/doanhthu_sku_nganhhang dùng lại
 -- (cùng ý nghĩa Mã NCC/Mã hàng) nên được lợi LUÔN, không cần thêm cột
 -- riêng cho từng domain.
+--
+-- SỬA bản 11.16 (sự cố thật trên CSDL production — ALTER TABLE ... ADD ...
+-- PERSISTED buộc SQL Server tính + GHI VẬT LÝ giá trị mới cho TOÀN BỘ dòng
+-- hiện có trong dwh.ReportFacts, trong ĐÚNG 1 transaction — bảng lớn nên
+-- log transaction tràn giữa chừng, lỗi "The transaction log for database
+-- ... is full due to 'ACTIVE_TRANSACTION'", SQL Server tự huỷ/rollback,
+-- CẢ 2 CỘT ĐỀU CHƯA ĐƯỢC TẠO dù lệnh chạy "xong"/không báo đỏ ở khung chọn
+-- lệnh — phải đọc kỹ tab Messages mới thấy lỗi thật): BỎ `PERSISTED` — vẫn
+-- là cột TÍNH TỪ Dimensions (đọc/lọc/đánh index y hệt, KHÔNG đổi API/code
+-- JS nào), nhưng ALTER TABLE lúc này CHỈ đổi metadata (gần như tức thì,
+-- KHÔNG rewrite dữ liệu từng dòng) — phần "nặng" dồn hẳn sang CREATE INDEX
+-- (vốn ít tốn log hơn 1 ALTER TABLE ADD PERSISTED, nhất là với
+-- SORT_IN_TEMPDB = ON để đẩy bớt I/O/log sắp xếp sang tempdb thay vì log
+-- CSDL chính).
 IF COL_LENGTH('dwh.ReportFacts', 'MaNCC') IS NULL
 BEGIN
     ALTER TABLE dwh.ReportFacts
-      ADD MaNCC AS CAST(JSON_VALUE(Dimensions, '$.MaNCC') AS NVARCHAR(50)) PERSISTED;
+      ADD MaNCC AS CAST(JSON_VALUE(Dimensions, '$.MaNCC') AS NVARCHAR(50));
 END
 GO
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_ReportFacts_MaNCC' AND object_id = OBJECT_ID('dwh.ReportFacts'))
 BEGIN
-    CREATE INDEX IX_ReportFacts_MaNCC ON dwh.ReportFacts (MaNCC) INCLUDE (Domain, EventDate);
+    CREATE INDEX IX_ReportFacts_MaNCC ON dwh.ReportFacts (MaNCC) INCLUDE (Domain, EventDate)
+      WITH (SORT_IN_TEMPDB = ON);
 END
 GO
 
 IF COL_LENGTH('dwh.ReportFacts', 'MaHang') IS NULL
 BEGIN
     ALTER TABLE dwh.ReportFacts
-      ADD MaHang AS CAST(JSON_VALUE(Dimensions, '$.MaHang') AS NVARCHAR(50)) PERSISTED;
+      ADD MaHang AS CAST(JSON_VALUE(Dimensions, '$.MaHang') AS NVARCHAR(50));
 END
 GO
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_ReportFacts_MaHang' AND object_id = OBJECT_ID('dwh.ReportFacts'))
 BEGIN
-    CREATE INDEX IX_ReportFacts_MaHang ON dwh.ReportFacts (MaHang) INCLUDE (Domain, EventDate);
+    CREATE INDEX IX_ReportFacts_MaHang ON dwh.ReportFacts (MaHang) INCLUDE (Domain, EventDate)
+      WITH (SORT_IN_TEMPDB = ON);
 END
 GO
