@@ -50,6 +50,14 @@ export default function ReportCatalogPanel() {
   const [deletingReportId, setDeletingReportId] = useState(null);
   const selection = useRowSelection(row => row.ReportId);
   const [bulkDeleting, setBulkDeleting] = useState(false);
+  // Lọc danh sách bên dưới theo "Trang báo cáo" (bản 11.17, theo yêu cầu
+  // người dùng — danh sách báo cáo ngày càng dài, cần lọc nhanh theo loại
+  // "Báo cáo kinh doanh"/"Báo cáo vận hành"/"Báo cáo Mua hàng") — '' = tất
+  // cả. CHỈ lọc phía client (reports đã tải hết 1 lần), dùng LẠI đúng
+  // `menuItems` đã có sẵn (REPORT_MENU_CODES) — KHÔNG có "Báo cáo tự do"
+  // trong danh sách vì đó là tính năng RIÊNG (adhocReports.js), không phải
+  // báo cáo nằm trong app.ReportCatalog.
+  const [filterMenuItemId, setFilterMenuItemId] = useState('');
 
   function reload() {
     api.get('/system/report-catalog').then(setReports).catch(err => setError(err.message));
@@ -332,6 +340,14 @@ export default function ReportCatalogPanel() {
         </p>
       </div>
 
+      <label className="filter-field">
+        <span>Lọc theo loại báo cáo</span>
+        <select value={filterMenuItemId} onChange={(e) => setFilterMenuItemId(e.target.value)}>
+          <option value="">— Tất cả —</option>
+          {menuItems.map(m => <option key={m.Id} value={m.Id}>{m.Label}</option>)}
+        </select>
+      </label>
+
       <DataTable
         columns={[
           { key: 'Title', label: 'Tiêu đề' },
@@ -360,7 +376,7 @@ export default function ReportCatalogPanel() {
             )
           }
         ]}
-        rows={reports}
+        rows={filterMenuItemId ? reports.filter(r => String(r.MenuItemId) === filterMenuItemId) : reports}
         selection={selection}
       />
 
