@@ -52,6 +52,28 @@ nội dung/hành vi nào đã làm. Lịch sử Git (commit message) vẫn còn 
 "Bản 10.100"/"Bản 10.101" (không sửa lại lịch sử Git) — coi là ĐỒNG NHẤT
 với "11.0"/"11.1".
 
+## 11.21 — SỬA LỖI THẬT: cột "Thời điểm thay đổi"/"Lên lịch lúc" luôn trống (từ bản 10.79)
+
+**Theo báo cáo người dùng** (ảnh chụp bảng kết quả thật — cột "Thời điểm
+thay đổi" trống trơn dù đã có đúng 1 dòng dữ liệu đổi giá).
+
+**Nguyên nhân thật**: 2 báo cáo "Thay đổi giá bán tức thời"/"Thay đổi giá
+từ thời điểm" khai `ThoiDiemThayDoi`/`CapNhatLuc` CHỈ làm `updatedAtColumn`
+(mốc đồng bộ tăng dần, dùng nội bộ) — `etl/lib/tableSyncEngine.js` CHỈ ghi
+vào `Dimensions` JSON đúng các cột có mặt trong `dimensionColumns`, nên 2
+cột "thời gian" hiển thị trên báo cáo đọc giá trị KHÔNG TỒN TẠI từ khi tạo
+báo cáo (bản 10.79) tới giờ.
+
+**Thay đổi**:
+- `etl/scripts/seedThayDoiGiaSync.js` — thêm `ThoiDiemThayDoi`/`CapNhatLuc`
+  vào `dimensionColumns` của đúng job tương ứng (1 cột vẫn làm
+  `updatedAtColumn` bình thường song song, không xung đột).
+- `etl/scripts/resyncThayDoiGiaWatermark.js` (MỚI) — reset mốc đồng bộ để
+  backfill lại dữ liệu CŨ đã đồng bộ trước bản này (mirror đúng mẫu
+  `resyncDonDatHangWatermark.js`).
+
+**Kiểm tra**: xem "VERSION.md" mục bản 11.21.
+
 ## 11.20 — "Kế hoạch tháng" luôn lấy đủ cả tháng (báo cáo tổng hợp HCRC/LĐTĐ + 4 báo cáo Doanh thu cuối ngày)
 
 **Theo yêu cầu người dùng** — xác nhận lại nguyên tắc: "Kế hoạch" (chỉ

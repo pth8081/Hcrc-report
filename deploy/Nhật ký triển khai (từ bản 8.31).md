@@ -14,6 +14,27 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 11.21 — SỬA LỖI THẬT: cột "Thời điểm thay đổi"/"Lên lịch lúc" luôn trống
+
+**Thay đổi**: `etl/scripts/seedThayDoiGiaSync.js` (thêm
+`ThoiDiemThayDoi`/`CapNhatLuc` vào `dimensionColumns`),
+`etl/scripts/resyncThayDoiGiaWatermark.js` (mới — backfill dữ liệu cũ).
+
+**Các bước (ĐÚNG THỨ TỰ)**:
+1. `git pull origin main`.
+2. `pm2 restart hcrc-etl` (hoặc đúng tên tiến trình PM2 của service ETL).
+3. `node scripts/seedThayDoiGiaSync.js` (thư mục `etl/`) — cập nhật lại
+   cấu hình 2 job đồng bộ.
+4. `node scripts/resyncThayDoiGiaWatermark.js` (thư mục `etl/`, xem
+   trước) rồi `node scripts/resyncThayDoiGiaWatermark.js --confirm` (thư
+   mục `etl/`) — quét lại để backfill cột còn thiếu cho dữ liệu CŨ đã
+   đồng bộ trước bản này. 2 domain chỉ có job "Live", quét lại thường
+   NHANH (không phải chờ hàng giờ như domain có job "Lịch sử" riêng).
+
+**Kiểm tra**: xem "VERSION.md" mục bản 11.21 — mở báo cáo "Thay đổi giá
+bán tức thời"/"Thay đổi giá từ thời điểm", cột "Thời điểm thay đổi"/"Lên
+lịch lúc" PHẢI có giá trị (không còn trống), kể cả dòng dữ liệu CŨ.
+
 ## 11.20 — "Kế hoạch tháng" luôn lấy đủ cả tháng (báo cáo tổng hợp HCRC/LĐTĐ + 4 báo cáo Doanh thu cuối ngày)
 
 **Thay đổi**: `rp-server/lib/doanhThuTongHopHcrcRunner.js`,
