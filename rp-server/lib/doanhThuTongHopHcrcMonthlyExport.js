@@ -42,7 +42,7 @@ const { exportMultiSheetExcel } = require('./exportExcel');
 // nơi kia.
 const {
   AREA_DOMAIN, NGANHHANG_DOMAIN, TRANSACTION_DOMAIN,
-  vietnamTodayISO, firstOfMonth, firstOfYear, daysInMonth, dayOfMonth,
+  vietnamTodayISO, firstOfMonth, firstOfYear, daysInMonth, dayOfMonth, lastOfMonth,
   divOrNull, pctOrNull, buildColumns, buildColumnGroups,
   fetchTargetsByMaDiem, fetchStaffCountByMaDiem,
   fetchRawRows, bucketByDay, rowsInRange,
@@ -131,11 +131,22 @@ async function buildDoanhThuTongHopHcrcMonthlyWorkbook({ anchorDate, storeScope,
   // ĐÚNG 1 NGÀY (ngày 1 đầu tháng/tháng), bỏ sót toàn bộ các ngày còn lại
   // — đổi thành `..anchor` (cộng dồn tới ĐÚNG ngày neo, khớp "cộng dồn
   // đến thời điểm lấy báo cáo" người dùng yêu cầu).
+  //
+  // SỬA TIẾP bản 11.20 (theo yêu cầu người dùng, mirror ĐÚNG
+  // doanhThuTongHopHcrcRunner.js — xem chú thích đầy đủ ở đó): "Kế hoạch
+  // tháng" đổi sang cộng ĐỦ CẢ THÁNG (`lastOfMonth(anchor)`, KHÔNG dừng ở
+  // `anchor`) — khác "Thực hiện" (areaRaw/nganhHangRaw/giaodichRaw) vẫn
+  // giữ nguyên `..anchor` vì CHỈ có dữ liệu thật tới ngày neo. monthTarget
+  // tính 1 LẦN DÙNG CHUNG cho MỌI sheet trong file (mỗi sheet = 1 ngày) —
+  // trước đây mỗi sheet vô tình hiện "Kế hoạch tháng" tính tới ĐÚNG ngày
+  // neo (vd hôm nay) dù đang xem sheet của NGÀY KHÁC trong tháng; đổi
+  // sang cả tháng thì MỌI sheet hiện cùng 1 số ĐÚNG — không còn lệch theo
+  // sheet nữa. Khối NĂM (yearTarget) GIỮ NGUYÊN, không đổi.
   const [areaRaw, nganhHangRaw, giaodichRaw, monthTarget, yearTarget, staffCount] = await Promise.all([
     fetchRawRows(dwhPool, AREA_DOMAIN, yearStart, anchor),
     fetchRawRows(dwhPool, NGANHHANG_DOMAIN, yearStart, anchor),
     fetchRawRows(dwhPool, TRANSACTION_DOMAIN, yearStart, anchor),
-    fetchTargetsByMaDiem(dwhPool, monthStart, anchor, targetDomain),
+    fetchTargetsByMaDiem(dwhPool, monthStart, lastOfMonth(anchor), targetDomain),
     fetchTargetsByMaDiem(dwhPool, yearStart, anchor, targetDomain),
     fetchStaffCountByMaDiem()
   ]);

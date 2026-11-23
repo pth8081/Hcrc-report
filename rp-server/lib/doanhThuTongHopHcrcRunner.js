@@ -75,6 +75,13 @@ function daysInMonth(dateStr) {
   return new Date(Date.UTC(y, m, 0)).getUTCDate();
 }
 function dayOfMonth(dateStr) { return Number(dateStr.slice(8, 10)); }
+// Bản 11.20 (theo yêu cầu người dùng — "Kế hoạch tháng" phải cộng ĐỦ CẢ
+// THÁNG đúng file target đã upload theo tháng, KHÁC "Thực hiện" chỉ cộng
+// dồn tới hôm nay) — dùng cho fetchTargetsByMaDiem(toPeriod), xem chú
+// thích bản 11.20 ở chỗ gọi.
+function lastOfMonth(dateStr) {
+  return `${dateStr.slice(0, 7)}-${String(daysInMonth(dateStr)).padStart(2, '0')}`;
+}
 
 function divOrNull(numerator, denominator) {
   if (!denominator) return null;
@@ -608,8 +615,21 @@ async function runDoanhThuTongHopHcrcReport(definition, filterValues) {
   // cộng dồn nhiều kỳ trong 1 khoảng (xem
   // lib/salesTargetsReader.js:aggregateTargetRowsByEntity), chỉ cần đổi
   // khoảng truyền vào, không cần domain/bảng mới nào.
+  //
+  // SỬA TIẾP bản 11.20 (theo yêu cầu người dùng, làm rõ lại ý nghĩa "Kế
+  // hoạch tháng" — KHÁC HẲN "Thực hiện"): "Thực hiện" (doanh thu/số Bill/
+  // số giao dịch...) chỉ có dữ liệu THẬT tới hôm nay nên BẮT BUỘC cộng dồn
+  // đến hôm nay — còn "Kế hoạch" là file target đã upload SẴN cho MỌI
+  // ngày trong tháng (kể cả các ngày CÒN LẠI sau hôm nay), nên "Kế hoạch
+  // tháng" phải cộng ĐỦ CẢ THÁNG (1 → ngày cuối tháng), không dừng ở hôm
+  // nay — nếu không, "Kế hoạch" bị thiếu đúng phần những ngày CHƯA TỚI,
+  // khiến "Hoàn thành luỹ kế"/"Dự kiến hoàn thành" so sánh lệch chuẩn (so
+  // với 1 "kế hoạch-tới-giờ" đang nhỏ dần so với kế hoạch CẢ THÁNG thật).
+  // CHỈ đổi khối THÁNG — khối NĂM (yearTarget) GIỮ NGUYÊN cộng dồn tới hôm
+  // nay (người dùng không yêu cầu đổi, và "cả năm" tới hôm nay vẫn còn
+  // nhiều tháng chưa qua/chưa có file target tương lai xa để cộng đủ).
   const [monthTarget, yearTarget] = await Promise.all([
-    fetchTargetsByMaDiem(dwhPool, firstOfMonth(today), today, targetDomain),
+    fetchTargetsByMaDiem(dwhPool, firstOfMonth(today), lastOfMonth(today), targetDomain),
     fetchTargetsByMaDiem(dwhPool, firstOfYear(today), today, targetDomain)
   ]);
   const staffCount = await fetchStaffCountByMaDiem();
@@ -752,7 +772,7 @@ async function runDoanhThuTongHopHcrcReport(definition, filterValues) {
 module.exports = {
   runDoanhThuTongHopHcrcReport,
   AREA_DOMAIN, NGANHHANG_DOMAIN, TRANSACTION_DOMAIN, TARGET_DOMAIN, NGANHHANG_MEASURE_KEYS,
-  vietnamTodayISO, firstOfMonth, firstOfYear, daysInMonth, dayOfMonth, divOrNull, pctOrNull,
+  vietnamTodayISO, firstOfMonth, firstOfYear, daysInMonth, dayOfMonth, lastOfMonth, divOrNull, pctOrNull,
   buildColumns, buildColumnGroups,
   fetchTargetsByMaDiem, fetchStaffCountByMaDiem,
   toISODate, fetchRawRows, bucketByDay, rowsInRange,
