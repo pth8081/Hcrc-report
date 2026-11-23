@@ -221,6 +221,31 @@ function FilterConfigFields({ filters, filterValues, onChange }) {
             </label>
           );
         }
+        // Bản 11.11 (theo yêu cầu người dùng — báo cáo "Thay đổi giá từ thời
+        // điểm" cần chọn được "Chỉ hiện giá áp dụng trong tương lai" khi gửi
+        // tự động) — checkbox TRUE/FALSE, giống hệt UI ở FilterForm.jsx, lưu
+        // {kind:'fixed', value:true} khi tick, XOÁ khỏi filterValues khi bỏ
+        // tick (= không lọc gì thêm, giống hành vi mặc định) — KHÔNG lưu
+        // value:false (gọn hơn, và resolveFilterValues() chỉ cần 1 nhánh xử
+        // lý "có field = true" là đủ, không cần phân biệt false/thiếu field).
+        if (f.type === 'onlyFutureDate') {
+          return (
+            <label key={f.field} className="checkbox-row">
+              <input
+                type="checkbox"
+                checked={entry.kind === 'fixed' && !!entry.value}
+                onChange={(e) => {
+                  const checked = e.target.checked;
+                  const next = { ...filterValues };
+                  if (checked) next[f.field] = { kind: 'fixed', value: true };
+                  else delete next[f.field];
+                  onChange(next);
+                }}
+              />
+              {f.label || f.field}
+            </label>
+          );
+        }
         // Bản 9.47 (theo yêu cầu người dùng — báo cáo "Top bán chạy đang tồn
         // kho = 0" cũng phải chọn được Top 50/Top 100/Tất cả khi gửi email) —
         // filter type 'select' CÓ khai options (vd topLimit) vẽ dropdown THẬT
