@@ -52,6 +52,41 @@ nội dung/hành vi nào đã làm. Lịch sử Git (commit message) vẫn còn 
 "Bản 10.100"/"Bản 10.101" (không sửa lại lịch sử Git) — coi là ĐỒNG NHẤT
 với "11.0"/"11.1".
 
+## 11.14 — Gom tài liệu API vào `deploy/api/` + mục lục ghi rõ dùng cho phần nào
+
+**Theo yêu cầu người dùng** — "Các tài liệu api liên quan nhớ lưu vào thư
+mục deploy/api nhé", sau đó chốt thêm phạm vi: dời luôn 6 tài liệu API
+đã có sẵn ở gốc repo vào `deploy/api/`, và "ghi rõ tài liệu api dùng cho
+phần nào".
+
+**Thay đổi**:
+- Dời 6 file `.md` ở gốc repo vào `deploy/api/`: `api-gia-ban-cho-doi-tac.md`,
+  `api-ton-kho-cho-doi-tac.md`, `api-voucher-check-redeem.md`,
+  `api-voucher-check-redeem-gui-doi-tac.md`, `api-voucher-redeemed-gui-doi-tac.md`,
+  `api-thong-bao-duong-dan-da-may-chu.md` (dùng `git mv`, giữ lịch sử).
+- Chuyển tài liệu "API Giá Bán Buôn" (bản 11.9-11.13, trước đó chỉ gửi
+  đối tác, chưa commit vào repo) vào `deploy/api/` (cả `.docx` lẫn `.md`).
+- Thêm `deploy/api/Mục lục tài liệu API.md` — bảng File/Dùng cho/Gửi cho
+  ai, liệt kê đủ cả 7 tài liệu.
+- Sửa lại MỌI tham chiếu tên file ở code/tài liệu ĐANG SỐNG (comment
+  trong `api-server`/`rp-server`/`etl`, `api-db/*.sql`, `api-admin/*.jsx`,
+  `bc-thay-doi-gia.md`, `bc-ton-kho-chi-tiet.md`, `hướng_dẫn_báo_cáo.md`)
+  sang đúng đường dẫn `deploy/api/...` — KHÔNG sửa tham chiếu trong
+  `VERSION.md`/các file nhật ký triển khai lịch sử (bản ghi đóng băng tại
+  thời điểm đã triển khai).
+- Thêm quy ước mới vào `CLAUDE.md`: mọi tài liệu API (đối tác ngoài hoặc
+  triển khai nội bộ liên quan API) từ nay lưu ở `deploy/api/`, kèm cập
+  nhật mục lục — áp dụng cho MỌI tài liệu API làm thêm sau này.
+
+**Triển khai**: `git pull origin main` — KHÔNG cần đổi CSDL/khởi động lại
+service nào (chỉ di chuyển/sửa tài liệu + comment, không đổi code chạy
+thật). `cd api-admin && npm run build` rồi deploy `dist/` (2 dòng comment
+đổi trong `.jsx`, không đổi hành vi/giao diện).
+
+**Kiểm tra**: `deploy/api/` có đủ 7 tài liệu + `Mục lục tài liệu API.md`;
+gốc repo không còn file `api-*.md` nào (trừ comment/tài liệu khác TRỎ
+SANG đúng `deploy/api/...`).
+
 ## 11.13 — SỬA LỖI: hiện "Base URL" thay vì 3 link đầy đủ ở "Giá bán buôn"
 
 **Theo báo cáo người dùng** (ảnh chụp màn hình cấu hình thật phía đối

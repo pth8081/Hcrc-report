@@ -14,6 +14,22 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 11.14 — Gom tài liệu API vào `deploy/api/` + mục lục ghi rõ dùng cho phần nào
+
+**Thay đổi**: dời 6 tài liệu API cũ ở gốc repo + tài liệu "API Giá Bán
+Buôn" vào `deploy/api/`, thêm `deploy/api/Mục lục tài liệu API.md`, sửa
+lại tham chiếu ở code/tài liệu đang sống, thêm quy ước mới vào
+`CLAUDE.md`.
+
+**Triển khai**:
+```bash
+git pull origin main
+cd api-admin && npm run build   # rồi deploy dist/ (chỉ đổi comment, không đổi hành vi)
+```
+Không cần đổi CSDL/khởi động lại service nào khác.
+
+**Kiểm tra**: xem "VERSION.md" mục bản 11.14.
+
 ## 11.13 — SỬA LỖI: hiện "Base URL" thay vì 3 link đầy đủ ở "Giá bán buôn"
 
 **Thay đổi**: `api-admin/src/pages/ConsumersPage.jsx` —
