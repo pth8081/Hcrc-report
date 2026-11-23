@@ -52,6 +52,35 @@ nội dung/hành vi nào đã làm. Lịch sử Git (commit message) vẫn còn 
 "Bản 10.100"/"Bản 10.101" (không sửa lại lịch sử Git) — coi là ĐỒNG NHẤT
 với "11.0"/"11.1".
 
+## 11.16 — API Giá bán buôn: trả thêm chi tiết từng siêu thị; sửa migration MaNCC/MaHang tràn log production
+
+**Theo báo cáo/sự cố thật người dùng gặp khi vận hành** — (1) đối tác HCC
+gọi `/wholesale-price/apply`, HO lỗi (thiếu quyền CSDL/chưa cấu hình
+Nguồn dữ liệu) nhưng các siêu thị khác ĐÃ ghi giá thành công thật (mỗi
+target ghi độc lập, không rollback lẫn nhau) — response `ok:false` trước
+đây chỉ có 1 dòng lỗi chung, không có cách nào biết đã ghi được ở đâu để
+coi là "đã áp giá"; (2) chạy `dwh/schema.sql` bản 11.15 (thêm cột
+`MaNCC`/`MaHang` PERSISTED) trên CSDL production thật → lỗi "The
+transaction log for database 'HCRC_DWH' is full due to
+'ACTIVE_TRANSACTION'", SQL Server tự rollback, cột CHƯA được tạo.
+
+**Thay đổi**:
+- `api-server/routes/v1/wholesalePrice.js` — mọi response `/apply`/
+  `/delete` (cả thành công lẫn lỗi) LUÔN kèm thêm field `results` (mảng
+  chi tiết từng storeCode: `ok`, `error`/`overwritten`/`alreadyGone`) —
+  CHỈ THÊM, không đổi/xoá field cũ (`ok`/`error`/`overwritten`/
+  `alreadyGone`), tương thích ngược hoàn toàn với hệ thống đối tác đang
+  đọc theo tài liệu cũ.
+- `deploy/api/Tài liệu API Giá Bán Buôn DSmart.md` + `.docx` — cập nhật
+  tài liệu chính thức gửi đối tác HCC, mô tả field `results` mới.
+- `dwh/schema.sql` — bỏ `PERSISTED` ở 2 cột `MaNCC`/`MaHang` (ALTER TABLE
+  giờ chỉ đổi metadata, gần như tức thì, không rewrite dữ liệu từng dòng
+  trong 1 transaction khổng lồ); thêm `WITH (SORT_IN_TEMPDB = ON)` ở 2
+  `CREATE INDEX` tương ứng (giảm tải log CSDL chính).
+
+**Kiểm tra**: xem "VERSION.md" mục bản 11.16 + hướng dẫn kiểm tra ở nhật
+ký triển khai tương ứng.
+
 ## 11.15 — Báo cáo Mua hàng: fix lọc NCC/Mã hàng chậm + chỉ hiện mã; "Thay đổi giá từ thời điểm": sửa mốc "tương lai"
 
 **Theo yêu cầu người dùng** — (1) lọc theo NCC/Mã hàng ở báo cáo "Đơn đặt

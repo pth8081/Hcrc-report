@@ -14,6 +14,34 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 11.16 — API Giá bán buôn: trả thêm chi tiết từng siêu thị; sửa migration MaNCC/MaHang tràn log production
+
+**Thay đổi**: `api-server/routes/v1/wholesalePrice.js` (field `results`
+mới trong mọi response apply/delete), tài liệu API đối tác HCC (.md +
+.docx), `dwh/schema.sql` (bỏ `PERSISTED` + `SORT_IN_TEMPDB` cho
+`MaNCC`/`MaHang` — xem bản 11.15).
+
+**Các bước**:
+1. `git pull origin main`.
+2. `pm2 restart api-server` (field `results` mới trong response API).
+3. Nếu CHƯA chạy thành công đoạn `dwh/schema.sql` phần `MaNCC`/`MaHang`
+   (bản 11.15) — chạy lại NGUYÊN VĂN `dwh/schema.sql` trên CSDL DWH (bản
+   này đã bỏ `PERSISTED`, không còn tràn log như lần thử bản 11.15). Nếu
+   ĐÃ chạy thành công rồi (tự kiểm tra qua `COL_LENGTH`/`sys.indexes`) thì
+   bỏ qua, không cần chạy lại.
+4. Báo đối tác HCC (team vận hành hws.hcrc.vn) về tài liệu API cập nhật —
+   field `results` mới giúp biết chính xác siêu thị nào đã áp giá thành
+   công dù response tổng báo lỗi.
+
+**Kiểm tra**:
+- Gọi thử `/wholesale-price/apply` với 1 storeCode cố tình lỗi (vd chưa
+  cấu hình Nguồn dữ liệu) + 1 storeCode hợp lệ → response `ok:false` vẫn
+  phải có field `results` liệt kê đủ cả 2 storeCode, đúng trạng thái từng
+  nơi.
+- Chạy `dwh/schema.sql` trên CSDL DWH thật → không còn lỗi "transaction
+  log ... is full", `COL_LENGTH('dwh.ReportFacts','MaNCC')`/`'MaHang'`
+  khác NULL.
+
 ## 11.15 — Báo cáo Mua hàng: fix lọc NCC/Mã hàng chậm + chỉ hiện mã; "Thay đổi giá từ thời điểm": sửa mốc "tương lai"
 
 **Thay đổi**: `dwh/schema.sql` (2 cột PERSISTED + index `MaNCC`/`MaHang`
