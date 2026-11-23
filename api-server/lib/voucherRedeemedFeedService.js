@@ -1,7 +1,7 @@
 // lib/voucherRedeemedFeedService.js — "Danh sách voucher đã thu hồi (feed
 // cho đối tác)" (bản 10.7, theo yêu cầu người dùng): thay vì đối tác tự
 // quét/so sánh danh sách đầy đủ mỗi lần (như GET /realtime/voucher-redeemed/
-// list đã có, xem api-voucher-redeemed-gui-doi-tac.md mục 2 — không có mốc
+// list đã có, xem deploy/api/api-voucher-redeemed-gui-doi-tac.md mục 2 — không có mốc
 // thời gian, đối tác phải tự đối soát CARD_ID), đối tác chạy 1 JOB ĐỊNH KỲ
 // gọi GET /vouchers/[:configKey/]redeemed/since?sinceId=<Id lần trước> —
 // CHỈ nhận những voucher MỚI thu hồi kể từ lần gọi trước, dùng con trỏ

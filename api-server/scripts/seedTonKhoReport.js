@@ -1,7 +1,7 @@
 // scripts/seedTonKhoReport.js — Tạo/CẬP NHẬT idempotent báo cáo "ton-kho"
 // (api.ReportCatalog) — bản 10.46, theo yêu cầu người dùng: cung cấp tồn
 // kho LIVE toàn hệ thống (mọi siêu thị) cho đối tác ngoài qua
-// `GET /api/v1/reports/ton-kho/run` — xem "api-ton-kho-cho-doi-tac.md".
+// `GET /api/v1/reports/ton-kho/run` — xem "deploy/api/api-ton-kho-cho-doi-tac.md".
 //
 // SỬA bản 10.50 — thêm trường maVach (SKU_DEF.BARCODE, đã JOIN sẵn trong
 // VIEW nguồn, xác nhận bằng dữ liệu thật là mã EAN-13) — chạy lại script
@@ -13,7 +13,7 @@
 // Nhận" (HCRC Workspace) dùng dữ liệu API này để đối chiếu mã vạch quét,
 // trước đây chỉ có `maVach` (1 mã mặc định) nên quét đúng mã vạch PHỤ của
 // mã hàng (1 mã hàng có thể có 2-3 mã vạch đăng ký trong `dbo.BARCODE`, xem
-// "api-gia-ban-cho-doi-tac.md") bị báo sai "không khớp". Đọc domain
+// "deploy/api/api-gia-ban-cho-doi-tac.md") bị báo sai "không khớp". Đọc domain
 // `mavach_mahang` ĐÃ CÓ SẴN (job "Mã vạch theo SKU - Live (DSMART16)", xem
 // etl/scripts/seedMaVachSync.js) qua `definition.attachAltBarcodes` —
 // KHÔNG cần VIEW/job đồng bộ mới.

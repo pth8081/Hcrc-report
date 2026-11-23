@@ -134,7 +134,7 @@ app.use('/api/v1/oauth', oauthRoutes);
 app.use('/api/v1/reports', reportsRoutes);
 app.use('/api/v1/realtime', realtimeRoutes); // /api/v1/realtime/{endpoint}/list, /{endpoint}/{key}
 app.use('/api/v1/realtime-write', realtimeWriteRoutes); // POST /api/v1/realtime-write/{endpoint}/{key}
-app.use('/api/v1/vouchers', vouchersRoutes); // POST /api/v1/vouchers/check, /redeem — xem api-voucher-check-redeem.md
+app.use('/api/v1/vouchers', vouchersRoutes); // POST /api/v1/vouchers/check, /redeem — xem deploy/api/api-voucher-check-redeem.md
 app.use('/api/v1/wholesale-price', wholesalePriceApplyRoutes); // POST /api/v1/wholesale-price/apply, /delete
 app.use('/api/v1/ping', wholesalePricePingRoutes); // POST /api/v1/ping — path RIÊNG (không phải .../wholesale-price/ping), đúng path đối tác "Giá bán buôn" đã code sẵn
 

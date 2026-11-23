@@ -55,7 +55,7 @@ Chỉ áp dụng cho "Thay đổi giá bán tức thời" — "Thay đổi giá 
 2 domain HOÀN TOÀN TÁCH BIỆT: `thaydoigia_tucthoi` và `thaydoigia_tuthoidiem`
 — không dùng chung VIEW/job đồng bộ với nhau hay với bất kỳ domain giá nào
 khác (`giaban_zone_sku`/`vung_gia_stk`/`mavach_mahang` ở api-server — xem
-"api-gia-ban-cho-doi-tac.md" — đó là domain giá HIỆN TẠI/snapshot, khác
+"deploy/api/api-gia-ban-cho-doi-tac.md" — đó là domain giá HIỆN TẠI/snapshot, khác
 hẳn mục đích LỊCH SỬ THAY ĐỔI của 2 domain này).
 
 ## 3. Các bước triển khai (theo đúng thứ tự)

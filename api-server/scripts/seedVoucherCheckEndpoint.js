@@ -1,7 +1,7 @@
 // scripts/seedVoucherCheckEndpoint.js — Tạo/cập nhật "Endpoint realtime" tra
 // cứu voucher (PMCRDINF theo CARD_ID, CHỈ ĐỌC) trong api.RealtimeEndpointDefs
 // — THAY THẾ việc vào api-admin tự tay tạo Endpoint realtime (xem mục
-// "Kiểm tra voucher nội bộ" ở api-voucher-check-redeem.md +
+// "Kiểm tra voucher nội bộ" ở deploy/api/api-voucher-check-redeem.md +
 // hướng_dẫn_báo_cáo.md mục 3 Bước 2) bằng CHẠY SCRIPT 1 LẦN sau khi deploy.
 // Endpoint này KHÁC 2 route cố định POST /api/v1/vouchers/check|redeem
 // (lib/voucherRedeemService.js) — đây là đường "tra thủ công" dùng lại đúng

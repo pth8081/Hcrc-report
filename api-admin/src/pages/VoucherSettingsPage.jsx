@@ -3,7 +3,7 @@
 // chi nhánh "Fuji") — mỗi dòng chọn 1 "Nguồn dữ liệu" (đã khai ở trang
 // "Nguồn dữ liệu") trỏ DSMART16 Live cho API check/redeem voucher của app
 // "HCRC Voucher Redemption" (POST /api/v1/vouchers/:configKey/check,/redeem
-// — xem api-voucher-check-redeem.md). Bảng/cột (PMCRDINF/BARCODE/STATUS...)
+// — xem deploy/api/api-voucher-check-redeem.md). Bảng/cột (PMCRDINF/BARCODE/STATUS...)
 // CỐ ĐỊNH trong code (api-server/lib/voucherRedeemService.js), không cấu
 // hình ở đây. Dòng "default" KHÔNG xoá được — API KHÔNG kèm :configKey
 // (/vouchers/check, /vouchers/redeem — hành vi CŨ, đối tác hiện tại không

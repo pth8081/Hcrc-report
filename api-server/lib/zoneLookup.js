@@ -3,7 +3,7 @@
 // theo siêu thị - Live (DSMART16)", xem etl/scripts/seedVungGiaSync.js) —
 // bản 10.71+, theo yêu cầu người dùng: API "Giá bán" KHÔNG được chạm
 // DSMART16 trực tiếp mỗi lần đối tác gọi (xem
-// "api-gia-ban-cho-doi-tac.md"), nên tra qua bản sao đã đồng bộ ở ĐÂY
+// "deploy/api/api-gia-ban-cho-doi-tac.md"), nên tra qua bản sao đã đồng bộ ở ĐÂY
 // (dwh.ReportFacts, pool DWH đã có sẵn), KHÔNG mở thêm kết nối nào tới
 // DSMART16.
 //

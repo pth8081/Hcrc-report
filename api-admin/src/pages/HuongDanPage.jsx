@@ -125,7 +125,7 @@ const SECTIONS = [
               riêng biệt, tách từ bản Audit-Fix4 để không vô tình mở nhầm quyền). Đối tác cần gọi mã KHÁC{' '}
               <code>default</code> (vd <code>fuji</code>) còn cần tick thêm đúng mã đó ở nút
               "Cấu hình Voucher được gọi" trên chính dòng đối tác đó. Chi tiết đầy đủ: xem{' '}
-              <code>api-voucher-check-redeem-gui-doi-tac.md</code> trong repo.
+              <code>deploy/api/api-voucher-check-redeem-gui-doi-tac.md</code> trong repo.
             </p>
           </>
         )

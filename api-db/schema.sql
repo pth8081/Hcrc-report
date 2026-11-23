@@ -684,7 +684,7 @@ GO
 
 -- ===== Voucher check/redeem (app quét mã HCRC Voucher Redemption gọi API
 -- Server thay vì "Core API" riêng của app đó — xem
--- api-voucher-check-redeem.md) =====
+-- deploy/api/api-voucher-check-redeem.md) =====
 --
 -- Ghi lại MỖI lượt redeem thành công qua POST /api/v1/vouchers/redeem —
 -- KHÔNG ghi gì thêm vào PMCRDRCV (bảng redeem gốc DSMART16, xem

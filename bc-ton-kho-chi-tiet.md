@@ -78,7 +78,7 @@ Domain `tonkho_chitiet_sku` lưu **đúng 1 dòng/mã hàng+chi nhánh**, mỗi 
 tại thời điểm", không giữ lịch sử theo ngày. Job đồng bộ từng bị khai SAI
 `KeepHistory = 1` (giữ lịch sử) lúc tạo — đã sửa ở bản 10.61, xem
 `etl/scripts/seedTonKhoChiTietSync.js` + `cleanupTonKhoChiTietHistory.js`
-(dọn 1 lần phần lịch sử cũ đã tích luỹ). Domain `api-ton-kho-cho-doi-tac.md`
+(dọn 1 lần phần lịch sử cũ đã tích luỹ). Domain `deploy/api/api-ton-kho-cho-doi-tac.md`
 dùng CHUNG domain này — xem file đó cho phần API đối tác.
 
 ## 7. Lưu ý khi sửa `columns` trong DefinitionJson

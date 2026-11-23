@@ -1,5 +1,5 @@
 // routes/v1/vouchers.js — API check/redeem cho app "HCRC Voucher Redemption"
-// (xem api-voucher-check-redeem.md) — api-server đóng vai trò "Core API" mà
+// (xem deploy/api/api-voucher-check-redeem.md) — api-server đóng vai trò "Core API" mà
 // app đó gọi tới. Khác hẳn routes/v1/realtime.js/realtimeWrite.js (endpoint
 // ĐỘNG, admin tự tạo qua api-admin/): 2 route ở đây CỐ ĐỊNH trong code vì
 // hợp đồng JSON đã cố định sẵn theo tài liệu app voucher, không cần tổng

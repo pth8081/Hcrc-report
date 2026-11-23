@@ -1,5 +1,5 @@
 // lib/voucherRedeemService.js — API check/redeem cho app "HCRC Voucher
-// Redemption" (xem api-voucher-check-redeem.md) — api-server đóng vai trò
+// Redemption" (xem deploy/api/api-voucher-check-redeem.md) — api-server đóng vai trò
 // "Core API" mà tài liệu app đó gọi tới, đọc/ghi TRỰC TIẾP bảng thật của
 // DSMART16 (Live) — KHÔNG qua Data Warehouse.
 //

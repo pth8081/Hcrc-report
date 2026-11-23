@@ -5,7 +5,7 @@
 // THẬT: trước đây API "Giá bán" tra `maVach` trực tiếp trên domain
 // `giaban_zone_sku` (vốn chỉ mang ĐÚNG 1 mã vạch MẶC ĐỊNH mỗi SKU từ
 // `SKU_DEF.BARCODE`), bỏ sót mọi mã vạch PHỤ đăng ký trong `dbo.BARCODE`
-// (1 SKU có thể có 2-3 mã vạch thật, xem "api-gia-ban-cho-doi-tac.md").
+// (1 SKU có thể có 2-3 mã vạch thật, xem "deploy/api/api-gia-ban-cho-doi-tac.md").
 //
 // bản 10.76 — thêm `loadAltBarcodesBySku()` (chiều NGƯỢC: mã hàng -> TOÀN
 // BỘ mã vạch), dùng cho API "Tồn kho" (lib/barcodeLookup.js trước đó chỉ có

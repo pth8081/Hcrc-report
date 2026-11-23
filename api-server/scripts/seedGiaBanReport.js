@@ -2,7 +2,7 @@
 // (api.ReportCatalog) — bản 10.71+, theo yêu cầu người dùng: API tra giá
 // thường + giá khuyến mại theo mã hàng, dùng cho nhiều app đối tác (vd BRG
 // Scan and Checkout) — `GET /api/v1/reports/gia-ban/run?maHang=...&maDiem=...`
-// — xem "api-gia-ban-cho-doi-tac.md".
+// — xem "deploy/api/api-gia-ban-cho-doi-tac.md".
 //
 // Đọc domain `giaban_zone_sku` ĐÃ CÓ SẴN (job "Giá bán theo SKU - Live
 // (DSMART16)", xem etl/scripts/seedGiaBanSync.js) + domain `vung_gia_stk`

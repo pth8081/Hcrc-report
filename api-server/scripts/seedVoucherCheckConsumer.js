@@ -1,7 +1,7 @@
 // scripts/seedVoucherCheckConsumer.js — Tạo/cập nhật 1 "Đối tác" (Consumer)
 // RIÊNG cho rp-server gọi vào Endpoint realtime "voucher-check" (tra cứu
 // voucher nội bộ — xem scripts/seedVoucherCheckEndpoint.js +
-// api-voucher-check-redeem.md mục "Kiểm tra voucher nội bộ") — THAY THẾ
+// deploy/api/api-voucher-check-redeem.md mục "Kiểm tra voucher nội bộ") — THAY THẾ
 // việc vào api-admin tự tay tạo "Đối tác" + tick endpoint, theo đúng yêu
 // cầu người dùng (bản 9.03): chạy script, không cấu hình qua web.
 //

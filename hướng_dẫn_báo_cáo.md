@@ -1384,7 +1384,7 @@ check`/`redeem`), nhớ đặt **Cột khoá = `CARD_ID`** (không phải `BARCO
 cần đối tác tự xử lý nữa. **"Endpoint ghi" (mục 13.2) CHƯA có cấu hình
 này** — vẫn phải tự bỏ ký tự `C` đầu TRƯỚC khi gọi nếu dùng cơ chế tổng
 quát đó thay route cố định `/vouchers/redeem` (cố ý KHÔNG đụng vào phần
-ghi/redeem khi thêm tính năng này — xem api-voucher-check-redeem.md).
+ghi/redeem khi thêm tính năng này — xem deploy/api/api-voucher-check-redeem.md).
 
 Quyết định đã chốt với người dùng: voucher **dùng 1 lần là thu luôn** (không
 theo số dư trừ dần), và **ghi thẳng vào bảng đang có** (`PMCRDINF`) — KHÔNG
@@ -1411,7 +1411,7 @@ này (kiểm tra voucher tương tự).
   ĐÃ DÙNG (để họ tự lấy về cập nhật hệ thống của họ), không lộ voucher
   chưa dùng. Endpoint mẫu đã seed sẵn kiểu này: `voucher-redeemed` (xem
   `api-server/scripts/seedVoucherRedeemedEndpoint.js` +
-  api-voucher-check-redeem.md mục "Voucher đã dùng cho đối tác ngoài").
+  deploy/api/api-voucher-check-redeem.md mục "Voucher đã dùng cho đối tác ngoài").
 
 ### 13.2. Báo đã dùng — tính năng MỚI "Endpoint ghi" (`api.RealtimeWriteEndpointDefs`)
 
@@ -1800,9 +1800,9 @@ cập nhật nếu chỉ sửa báo cáo đã có (file hướng dẫn riêng t�
 | `bc-canh-bao-ton` | Cảnh báo hàng tồn | `bc-canh-bao-ton.md` |
 | `bc-ton-kho-nguong` | Tồn kho theo ngưỡng | `bc-ton-kho-nguong.md` |
 | `bc-ton-kho-chi-tiet` | Tồn kho chi tiết theo SKU | `bc-ton-kho-chi-tiet.md` |
-| `bc-tra-cuu-voucher` | Tra cứu voucher | `api-voucher-check-redeem.md` |
-| `ton-kho` | Tồn kho toàn hệ thống (API cho đối tác ngoài, api-server) | `api-ton-kho-cho-doi-tac.md` |
-| `gia-ban` | Giá bán theo mã hàng (API tra 1 mã khi quét, cho đối tác ngoài, api-server) | `api-gia-ban-cho-doi-tac.md` |
+| `bc-tra-cuu-voucher` | Tra cứu voucher | `deploy/api/api-voucher-check-redeem.md` |
+| `ton-kho` | Tồn kho toàn hệ thống (API cho đối tác ngoài, api-server) | `deploy/api/api-ton-kho-cho-doi-tac.md` |
+| `gia-ban` | Giá bán theo mã hàng (API tra 1 mã khi quét, cho đối tác ngoài, api-server) | `deploy/api/api-gia-ban-cho-doi-tac.md` |
 | `bc-thay-doi-gia-tuc-thoi` | Thay đổi giá bán tức thời | `bc-thay-doi-gia.md` |
 | `bc-thay-doi-gia-tu-thoi-diem` | Thay đổi giá từ thời điểm | `bc-thay-doi-gia.md` |
 | `bc-check-lech-thue-rvorder` | Check lệch thuế RV_ORDER | `bc-check-lech-thue-rvorder.md` |

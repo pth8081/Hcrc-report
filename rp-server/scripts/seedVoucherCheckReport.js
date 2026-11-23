@@ -2,7 +2,7 @@
 // (sourceType apiRealtime, tra theo Barcode) trong app.ReportCatalog, gọi
 // lại Endpoint realtime "voucher-check" đã tạo bởi
 // api-server/scripts/seedVoucherCheckEndpoint.js — xem mục "Kiểm tra voucher
-// nội bộ (nhân viên tra thủ công)" ở api-voucher-check-redeem.md +
+// nội bộ (nhân viên tra thủ công)" ở deploy/api/api-voucher-check-redeem.md +
 // hướng_dẫn_báo_cáo.md mục 3. THAY THẾ việc vào rp-user tự tay tạo báo cáo
 // (Hệ thống → Biểu mẫu) bằng CHẠY SCRIPT 1 LẦN sau khi deploy.
 //

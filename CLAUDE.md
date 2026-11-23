@@ -388,3 +388,36 @@ VIEW không tự cập nhật lại dữ liệu CŨ đã nằm trong `dwh.Report
 **Lý do**: tránh lặp lại đúng lỗi thật đã gặp (tưởng là lỗi code đọc sai
 nguồn, nhưng thực ra là VIEW nguồn bỏ sót 1 cột tên dù bảng danh mục đã
 JOIN sẵn) ở bất kỳ domain/báo cáo MỚI nào làm thêm sau này.
+
+## Mọi tài liệu API (cho đối tác ngoài hoặc triển khai nội bộ liên quan API) PHẢI lưu ở `deploy/api/`
+
+**Theo yêu cầu người dùng (bản 11.14, áp dụng cho TOÀN BỘ tài liệu API đã
+có VÀ MỌI tài liệu API làm thêm SAU NÀY)**.
+
+Mọi tài liệu `.md`/`.docx` mô tả 1 API cho đối tác ngoài (hợp đồng
+request/response, mã lỗi, xác thực...) hoặc tài liệu triển khai nội bộ
+liên quan trực tiếp tới 1 API cụ thể (các bước DBA/IT cần làm để API đó
+chạy được) PHẢI lưu trong thư mục `deploy/api/` — KHÔNG tạo mới ở gốc
+repo. Đồng thời thêm 1 dòng vào bảng trong
+`deploy/api/Mục lục tài liệu API.md` (File / Dùng cho / Gửi cho ai), ghi
+rõ tài liệu đó dùng cho phần nào và gửi cho đối tác nào — tránh gửi
+nhầm tài liệu (vd gửi bản có chi tiết nội bộ cho đối tác ngoài, hoặc gửi
+tài liệu của API khác không liên quan).
+
+Mọi chỗ trong code/tài liệu khác TRỎ SANG 1 tài liệu API (comment trong
+`api-server`/`rp-server`/`etl`, các file `bc-*.md`, `hướng_dẫn_báo_cáo.md`...)
+PHẢI ghi ĐÚNG đường dẫn đầy đủ `deploy/api/<tên file>.md`, không ghi tên
+file trần (dễ nhầm là ở gốc repo).
+
+**KHÔNG áp dụng hồi tố** cho các tham chiếu đã có SẴN trong `VERSION.md`
+và các file nhật ký/hướng dẫn triển khai LỊCH SỬ trong `deploy/` (vd
+`Nhật ký triển khai (từ bản 8.31).md`, `Cập nhật bản X.Y — ....md`,
+`Hướng dẫn triển khai gộp — bản X đến Y.md`) — đây là bản ghi ĐÓNG BĂNG
+tại đúng thời điểm đã triển khai (lúc đó tài liệu thật sự nằm ở gốc
+repo), KHÔNG sửa lại lịch sử. Chỉ áp dụng cho code/tài liệu ĐANG SỐNG
+(vẫn được đọc/dùng để hiểu hệ thống HIỆN TẠI).
+
+**Lý do**: tài liệu API dùng để gửi đối tác ngoài cần tách biệt rõ khỏi
+hàng trăm file `.md` khác ở gốc repo (vd file hướng dẫn từng báo cáo nội
+bộ) — gom 1 chỗ + có mục lục ghi rõ mục đích từng file giúp dễ tìm đúng
+tài liệu cần gửi, tránh lẫn lộn/gửi nhầm đối tác.

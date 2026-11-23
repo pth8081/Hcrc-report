@@ -2,7 +2,7 @@
 // "Vùng giá theo siêu thị" (bản 10.71+, theo yêu cầu người dùng — API
 // "Giá bán" cần biết mỗi siêu thị (STK_ID) thuộc vùng giá nào (ZONE_CODE,
 // xem dbo.RTPRICE/dbo.STOCK) để tra đúng giá, KHÔNG được chạm DSMART16
-// trực tiếp mỗi lần đối tác gọi API — xem "api-gia-ban-cho-doi-tac.md").
+// trực tiếp mỗi lần đối tác gọi API — xem "deploy/api/api-gia-ban-cho-doi-tac.md").
 //
 // SỬA bản 10.73 — SỬA LỖI THẬT: bản 10.71 đồng bộ TRỰC TIẾP từ bảng
 // `STOCK`, dùng `MODI_DATE` làm UpdatedAtColumn — xác nhận bằng dữ liệu

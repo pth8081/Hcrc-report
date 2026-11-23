@@ -1,6 +1,6 @@
 // scripts/seedVoucherAppConsumer.js — Tạo/cập nhật "Đối tác" cho ỨNG DỤNG
 // VOUCHER NGOÀI (thiết bị quét mã, gọi POST /api/v1/vouchers/check|redeem)
-// — xem api-voucher-check-redeem.md mục 5 "Cấp quyền gọi cho đối tác (app
+// — xem deploy/api/api-voucher-check-redeem.md mục 5 "Cấp quyền gọi cho đối tác (app
 // voucher)". KHÁC HẲN scripts/seedVoucherCheckConsumer.js (đối tác RIÊNG
 // cho rp-server tự gọi NỘI BỘ, scope "realtime", key chỉ in trần 1 dòng để
 // script khác nối chuỗi) — đối tác NÀY cấp API key để CON NGƯỜI copy GỬI
@@ -109,8 +109,8 @@ async function main() {
     console.log(`    -H "Content-Type: application/json" \\`);
     console.log(`    -d '{"voucherCode": "ABC123456789", "scanMethod": "TEST"}'`);
     console.log('');
-    console.log('Xem đầy đủ hợp đồng API (check/redeem, mã lỗi) ở api-voucher-check-redeem.md mục 2-3,');
-    console.log('hoặc gửi file api-voucher-check-redeem-gui-doi-tac.md cho đối tác (bản KHÔNG có chi tiết nội bộ).');
+    console.log('Xem đầy đủ hợp đồng API (check/redeem, mã lỗi) ở deploy/api/api-voucher-check-redeem.md mục 2-3,');
+    console.log('hoặc gửi file deploy/api/api-voucher-check-redeem-gui-doi-tac.md cho đối tác (bản KHÔNG có chi tiết nội bộ).');
   }
 
   process.exit(0);

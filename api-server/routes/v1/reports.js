@@ -39,7 +39,7 @@ router.use(requireApiKey('reports'));
 
 // singleLookup (bản 10.71+, theo yêu cầu người dùng — API "Giá bán" tra
 // ĐÚNG 1 mã hàng tại ĐÚNG 1 siêu thị mỗi lần quét, KHÔNG phân trang/tải
-// trọn gói như "ton-kho" — xem "api-gia-ban-cho-doi-tac.md") — HOÀN TOÀN
+// trọn gói như "ton-kho" — xem "deploy/api/api-gia-ban-cho-doi-tac.md") — HOÀN TOÀN
 // TÁCH RIÊNG khỏi nhánh phân trang bên dưới (không dùng chung
 // definition.filters/forcedConditions/translateStkToStore, để không đụng
 // hành vi của các báo cáo khác đang chạy ổn định). `definition.singleLookup`

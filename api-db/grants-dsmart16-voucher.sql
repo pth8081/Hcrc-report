@@ -1,7 +1,7 @@
 /* api-db/grants-dsmart16-voucher.sql — MẪU quyền hạn chế tối thiểu (least
    privilege) cho tài khoản SQL Server kết nối tới DSMART16 (Live) dùng
    riêng cho API check/redeem voucher (api-server/lib/voucherRedeemService.js
-   — xem api-voucher-check-redeem.md).
+   — xem deploy/api/api-voucher-check-redeem.md).
 
    KHÁC api-db/schema.sql/grants.sql: file NÀY chạy trên CSDL DSMART16
    (hệ POS, KHÔNG do repo này quản lý schema), KHÔNG PHẢI trên HCRC_API —
@@ -18,7 +18,7 @@
 
    Điền đúng tài khoản này vào api-server/.env (VOUCHER_DSMART16_USER/
    VOUCHER_DSMART16_PASSWORD) rồi chạy `npm run seed:voucher-datasource`
-   (xem api-voucher-check-redeem.md Bước 4). NẾU cần đổi tên bảng schema
+   (xem deploy/api/api-voucher-check-redeem.md Bước 4). NẾU cần đổi tên bảng schema
    thật (vd không phải "dbo" — DBA xác nhận), sửa lại GRANT bên dưới cho
    đúng, KHÔNG cần sửa gì ở code (bảng/schema chỉ ảnh hưởng câu GRANT ở
    đây, code voucherRedeemService.js dùng nguyên `PMCRDINF` không schema,
