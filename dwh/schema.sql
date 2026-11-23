@@ -221,3 +221,35 @@ GO
    bản reportEngine.js (rp-server VÀ api-server — bản sao cố ý trùng lặp,
    xem chú thích đầu file đó) để câu lọc TỰ ĐỘNG chuyển sang dùng cột mới
    này thay vì JSON_VALUE(...) — không cần sửa gì khác. */
+
+-- MaNCC/MaHang (bản 11.15, theo báo cáo người dùng — lọc/mở dropdown
+-- "Nhà cung cấp"/"Mã hàng" ở báo cáo "Đơn đặt hàng"/"Đơn nhập hàng" (domain
+-- don_dat_hang, nhiều năm lịch sử + nhánh ON_ORDER/FN_ORDER — xem
+-- bc-don-dat-hang.md) tải rất chậm — ÁP DỤNG ĐÚNG mẫu "Tối ưu lọc theo
+-- Dimensions" ở trên, lần đầu dùng tới cơ chế này. Cùng 2 field name này
+-- cũng được domain tonkho_chitiet_sku/doanhthu_sku_nganhhang dùng lại
+-- (cùng ý nghĩa Mã NCC/Mã hàng) nên được lợi LUÔN, không cần thêm cột
+-- riêng cho từng domain.
+IF COL_LENGTH('dwh.ReportFacts', 'MaNCC') IS NULL
+BEGIN
+    ALTER TABLE dwh.ReportFacts
+      ADD MaNCC AS CAST(JSON_VALUE(Dimensions, '$.MaNCC') AS NVARCHAR(50)) PERSISTED;
+END
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_ReportFacts_MaNCC' AND object_id = OBJECT_ID('dwh.ReportFacts'))
+BEGIN
+    CREATE INDEX IX_ReportFacts_MaNCC ON dwh.ReportFacts (MaNCC) INCLUDE (Domain, EventDate);
+END
+GO
+
+IF COL_LENGTH('dwh.ReportFacts', 'MaHang') IS NULL
+BEGIN
+    ALTER TABLE dwh.ReportFacts
+      ADD MaHang AS CAST(JSON_VALUE(Dimensions, '$.MaHang') AS NVARCHAR(50)) PERSISTED;
+END
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_ReportFacts_MaHang' AND object_id = OBJECT_ID('dwh.ReportFacts'))
+BEGIN
+    CREATE INDEX IX_ReportFacts_MaHang ON dwh.ReportFacts (MaHang) INCLUDE (Domain, EventDate);
+END
+GO

@@ -30,7 +30,12 @@ const FIELD_NAME_RE = /^[a-zA-Z0-9_]+$/;
 // lọc chậm vì field cụ thể nào. Bản sao CÙNG NỘI DUNG cũng có ở
 // api-server/lib/reportEngine.js — sửa cả 2 nơi khi thêm cột mới.
 const PERSISTED_DIMENSION_COLUMNS = {
-  // deptCode: 'DeptCode', // ví dụ — xem hướng dẫn đầy đủ trong dwh/schema.sql
+  // Bản 11.15, theo báo cáo người dùng — dropdown/lọc "Nhà cung cấp"/"Mã
+  // hàng" ở báo cáo "Đơn đặt hàng"/"Đơn nhập hàng" (domain don_dat_hang)
+  // tải rất chậm (domain nhiều năm lịch sử) — xem ALTER TABLE tương ứng ở
+  // dwh/schema.sql mục "Tối ưu lọc theo Dimensions".
+  maNCC: 'MaNCC',
+  maHang: 'MaHang'
 };
 
 // "measures.<tên>" (bản 9.43, theo yêu cầu người dùng — báo cáo Tồn kho cần
@@ -192,8 +197,13 @@ async function runReport(pool, definition, filterValues = {}, { page = 1, pageSi
       // SERVER (GETDATE(), không phải ngày máy khách gửi lên) — value !==
       // true/'true' (bỏ tick) = KHÔNG lọc gì thêm, hiện như cũ (không đổi
       // hành vi mặc định của báo cáo nào khác).
+      //
+      // SỬA bản 11.15 (theo yêu cầu người dùng — làm rõ lại ý nghĩa "tương
+      // lai"): ĐỔI `>` thành `>=` — "ngày tương lai" TÍNH TỪ hôm nay (bao
+      // gồm cả hôm nay), KHÔNG phải chỉ từ ngày mai trở đi như bản 11.11
+      // ban đầu.
       if (value === true || value === 'true') {
-        conditions.push(`${column} > CAST(GETDATE() AS DATE)`);
+        conditions.push(`${column} >= CAST(GETDATE() AS DATE)`);
       }
     } else {
       request.input(p, sql.NVarChar(200), String(value));
@@ -220,4 +230,4 @@ async function runReport(pool, definition, filterValues = {}, { page = 1, pageSi
 // quy tắc validate tên field JSON (chữ/số/gạch dưới) — cùng service, không
 // có lý do "mỗi server tự chứa đủ code khi triển khai riêng" như 2 bản sao
 // rp-server/api-server nói ở đầu file, nên tái dùng thẳng thay vì chép lại.
-module.exports = { runReport, projectColumns, describeColumns, FIELD_NAME_RE };
+module.exports = { runReport, projectColumns, describeColumns, FIELD_NAME_RE, PERSISTED_DIMENSION_COLUMNS };

@@ -25,6 +25,7 @@ const express = require('express');
 const { sql, getPool } = require('../db');
 const { requireAuth } = require('../lib/auth');
 const { loadDefinition, runDefinition, resolveFactsPool } = require('../lib/reportRunner');
+const { PERSISTED_DIMENSION_COLUMNS } = require('../lib/reportEngine');
 const { resolveTitleWithDate, resolveExportFileBaseName } = require('../lib/reportTitleDate');
 const { exportExcel } = require('../lib/exportExcel');
 const { exportPdf } = require('../lib/exportPdf');
@@ -262,17 +263,36 @@ router.get('/:reportId/filter-options/:field', async (req, res, next) => {
     // "Nhà cung cấp" mở ra phải đợi 1 lúc mới ra danh sách) — truy vấn bên
     // dưới quét JSON_VALUE() + ROW_NUMBER() trên TOÀN BỘ dòng của domain
     // (giờ domain `don_dat_hang` có thêm nhiều năm dữ liệu lịch sử — bản
-    // 9.21/9.22 — nên chậm hẳn so với trước). Danh sách NCC/chi nhánh gần
-    // như KHÔNG đổi phút-qua-phút (chỉ đổi khi có NCC mới phát sinh giao
-    // dịch) nên cache 10 phút là an toàn — khác hẳn cache 30s của /run (kết
-    // quả báo cáo cần mới hơn). reportResultCache dùng CHUNG cho mọi người
-    // gọi (không phân biệt user) — đúng nguyên tắc đã ghi ở
+    // 9.21/9.22 — nên chậm hẳn so với trước). Bản 11.15 đã thêm cột
+    // PERSISTED+INDEX cho `MaNCC`/`MaHang` (xem columnExpr() ở trên) — bớt
+    // chậm đi NHIỀU cho 2 field này, nhưng field KHÁC (vd TenNCC/TenHang,
+    // hoặc domain khác chưa persisted) vẫn đi JSON_VALUE() như cũ, nên vẫn
+    // GIỮ cache dài này làm lớp phòng thủ thứ 2, không bỏ. Danh sách NCC/chi
+    // nhánh gần như KHÔNG đổi phút-qua-phút (chỉ đổi khi có NCC mới phát
+    // sinh giao dịch) nên cache 10 phút là an toàn — khác hẳn cache 30s của
+    // /run (kết quả báo cáo cần mới hơn). reportResultCache dùng CHUNG cho
+    // mọi người gọi (không phân biệt user) — đúng nguyên tắc đã ghi ở
     // lib/reportResultCache.js (kết quả chỉ phụ thuộc reportId+field, không
     // phụ thuộc danh tính người gọi). FILTER_OPTIONS_CACHE_TTL_MS/
     // filterOptionsCacheKey đã khai sớm hơn ở đầu route (bản 9.54, dùng
     // chung với nhánh coreZeroStockBranches).
     const cached = reportResultCache.get(filterOptionsCacheKey);
     if (cached) return res.json(cached);
+
+    // Dùng cột PERSISTED + INDEX thật (xem dwh/schema.sql mục "Tối ưu lọc
+    // theo Dimensions" + PERSISTED_DIMENSION_COLUMNS ở lib/reportEngine.js)
+    // thay vì JSON_VALUE(...) khi valueField/labelField trùng tên 1 cột đã
+    // persisted — SỬA bản 11.15 (theo báo cáo người dùng, dropdown "Nhà
+    // cung cấp"/"Mã hàng" tải chậm) — PERSISTED_DIMENSION_COLUMNS khai theo
+    // tên FIELD của filter (camelCase, vd 'maNCC'), còn ở ĐÂY cần so khớp
+    // theo TÊN CỘT thật (PascalCase, vd 'MaNCC' — đúng giá trị
+    // valueField/labelField trong optionsSource) nên so bằng Object.values(),
+    // không phải Object.keys(). Field KHÔNG có cột persisted vẫn rơi về
+    // JSON_VALUE(...) như cũ, không đổi hành vi.
+    const persistedColumnNames = new Set(Object.values(PERSISTED_DIMENSION_COLUMNS));
+    const columnExpr = (f) => (persistedColumnNames.has(f) ? `[${f}]` : `JSON_VALUE(Dimensions, '$.${f}')`);
+    const valueExpr = columnExpr(valueField);
+    const labelExpr = columnExpr(labelField || valueField);
 
     const pool = await resolveFactsPool(definition);
     // Nhãn lấy từ dòng SyncedAt MỚI NHẤT của mỗi giá trị (bản 9.14, SỬA LỖI
@@ -290,14 +310,14 @@ router.get('/:reportId/filter-options/:field', async (req, res, next) => {
       .query(`
         ;WITH ranked AS (
           SELECT
-            JSON_VALUE(Dimensions, '$.${valueField}') AS value,
-            JSON_VALUE(Dimensions, '$.${labelField || valueField}') AS label,
+            ${valueExpr} AS value,
+            ${labelExpr} AS label,
             ROW_NUMBER() OVER (
-              PARTITION BY JSON_VALUE(Dimensions, '$.${valueField}')
+              PARTITION BY ${valueExpr}
               ORDER BY SyncedAt DESC
             ) AS rn
           FROM dwh.ReportFacts
-          WHERE Domain = @domain AND JSON_VALUE(Dimensions, '$.${valueField}') IS NOT NULL
+          WHERE Domain = @domain AND ${valueExpr} IS NOT NULL
         )
         SELECT value, label FROM ranked WHERE rn = 1 ORDER BY label
       `);
@@ -357,6 +377,22 @@ router.get('/:reportId/filter-options/:field', async (req, res, next) => {
           return { value, label: stkLookup.get(value)?.tenSieuThi || `${value} (chưa khai tên)` };
         })
         .sort((a, b) => a.label.localeCompare(b.label, 'vi'));
+    }
+
+    // optionsSource.showCodeInLabel (bản 11.15, theo yêu cầu người dùng —
+    // dropdown "Nhà cung cấp"/"Mã hàng" ở báo cáo Mua hàng chỉ hiện TÊN,
+    // không thấy MÃ đâu để biết đang chọn đúng NCC/mã hàng nào, tên dài dễ
+    // trùng khó phân biệt) — ghép "<Mã> — <Tên>" làm label hiển thị, CHỈ
+    // khi labelField KHÁC valueField (field có labelField riêng mới có ý
+    // nghĩa ghép thêm mã — field tự nó đã LÀ mã như "trạng thái" thì khai
+    // cờ này cũng vô hại, value===label nên if dưới tự bỏ qua). KHÔNG đổi
+    // `value` gửi lên khi lọc — chỉ đổi CHỮ hiển thị trong dropdown.
+    if (filterDef.optionsSource.showCodeInLabel) {
+      options = options.map((r) => (
+        r.value != null && r.label != null && String(r.value) !== String(r.label)
+          ? { value: r.value, label: `${r.value} — ${r.label}` }
+          : r
+      ));
     }
 
     cacheFilterOptionsUnlessSuspicious(filterOptionsCacheKey, options, FILTER_OPTIONS_CACHE_TTL_MS);

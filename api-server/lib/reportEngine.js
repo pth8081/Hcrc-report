@@ -29,7 +29,11 @@ const FIELD_NAME_RE = /^[a-zA-Z0-9_]+$/;
 // lọc chậm vì field cụ thể nào. Bản sao CÙNG NỘI DUNG cũng có ở
 // rp-server/lib/reportEngine.js — sửa cả 2 nơi khi thêm cột mới.
 const PERSISTED_DIMENSION_COLUMNS = {
-  // deptCode: 'DeptCode', // ví dụ — xem hướng dẫn đầy đủ trong dwh/schema.sql
+  // Bản 11.15 — mirror đúng rp-server/lib/reportEngine.js (cột persisted
+  // nằm trên dwh.ReportFacts dùng chung, khai đủ cả 2 nơi dù api-server
+  // hiện chưa có domain nào dùng field này).
+  maNCC: 'MaNCC',
+  maHang: 'MaHang'
 };
 
 function resolveColumn(field) {

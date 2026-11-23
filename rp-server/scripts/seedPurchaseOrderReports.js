@@ -102,9 +102,14 @@ const NGAY_GIAO_COL = { key: 'NgayGiao', label: 'Ngày giao', formula: 'NgayGiao
 // khớp field Dimensions `MaNCC` (SQL Server JSON_VALUE so khớp tên cột
 // không phân biệt hoa/thường theo collation mặc định — cùng quy ước đã
 // dùng cho `trangThai`/`TrangThai` ở TRANG_THAI_FILTER).
+// showCodeInLabel (bản 11.15, theo yêu cầu người dùng — "lọc theo mã nhà
+// cung cấp, không phải tên... tên dài quá") — dropdown hiện "<Mã> — <Tên>"
+// thay vì chỉ tên, xem routes/reports.js. KHÔNG đổi value gửi lên khi lọc
+// (vẫn là MaNCC như cũ) — chỉ đổi chữ hiển thị để thấy mã ngay trong danh
+// sách, không cần nhớ/gõ đúng tên dài.
 const NCC_FILTER = {
   field: 'maNCC', type: 'multiSelect', label: 'Nhà cung cấp',
-  optionsSource: { domain: DOMAIN, valueField: 'MaNCC', labelField: 'TenNCC' }
+  optionsSource: { domain: DOMAIN, valueField: 'MaNCC', labelField: 'TenNCC', showCodeInLabel: true }
 };
 
 // Bộ lọc "Siêu thị" (bản 9.13, ban đầu CHỈ gắn cho báo cáo "So sánh giá
@@ -169,7 +174,7 @@ const NGANH_HANG_FILTER = {
 // lý riêng ở JS, nên tự đi qua nhánh SQL chung, giống maNCC/nganhHang).
 const MA_HANG_FILTER = {
   field: 'maHang', type: 'multiSelect', label: 'Mã hàng',
-  optionsSource: { domain: DOMAIN, valueField: 'MaHang', labelField: 'TenHang' }
+  optionsSource: { domain: DOMAIN, valueField: 'MaHang', labelField: 'TenHang', showCodeInLabel: true }
 };
 
 // Trạng thái hiện trong bộ lọc — CHỈ còn C/P/F/M (bản 8.92, theo yêu cầu

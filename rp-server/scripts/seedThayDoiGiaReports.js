@@ -96,7 +96,10 @@ function buildDefinition(report) {
         {
           field: 'chiApDungTuongLai', type: 'onlyFutureDate', column: 'NgayApDung',
           label: 'Chỉ hiện giá áp dụng trong tương lai',
-          hint: 'Tick để ẩn các đợt có Ngày áp dụng từ hôm nay trở về trước (đã/đang áp dụng) — chỉ còn Ngày áp dụng SAU hôm nay.'
+          // SỬA bản 11.15 (theo yêu cầu người dùng, làm rõ lại) — "tương lai"
+          // TÍNH TỪ hôm nay (gồm cả hôm nay), không phải chỉ từ ngày mai —
+          // xem reportEngine.js (đổi `>` thành `>=`).
+          hint: 'Tick để ẩn các đợt có Ngày áp dụng TRƯỚC hôm nay (đã áp dụng) — chỉ còn Ngày áp dụng từ hôm nay trở đi (gồm cả hôm nay).'
         }
       ] : [])
     ],
