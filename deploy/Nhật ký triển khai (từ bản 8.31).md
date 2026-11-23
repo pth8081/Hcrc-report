@@ -14,6 +14,41 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 11.15 — Báo cáo Mua hàng: fix lọc NCC/Mã hàng chậm + chỉ hiện mã; "Thay đổi giá từ thời điểm": sửa mốc "tương lai"
+
+**Thay đổi**: `dwh/schema.sql` (2 cột PERSISTED + index `MaNCC`/`MaHang`
+trên `dwh.ReportFacts`), `reportEngine.js` (rp-server + api-server — khai
+`PERSISTED_DIMENSION_COLUMNS`), `rp-server/routes/reports.js` (dropdown
+dùng cột persisted khi có), `seedPurchaseOrderReports.js` (dropdown
+NCC/Mã hàng chỉ hiện mã), `seedThayDoiGiaReports.js` (filter
+`onlyFutureDate` đổi `>` → `>=`).
+
+**⚠️ CÓ BƯỚC DBA — `ALTER TABLE` trên bảng dùng CHUNG `dwh.ReportFacts`,
+chạy vào khung giờ ít người dùng:**
+
+**Các bước (ĐÚNG THỨ TỰ)**:
+1. DBA chạy lại NGUYÊN VĂN `dwh/schema.sql` trên CSDL DWH (an toàn chạy
+   lại nhiều lần — tự kiểm tra `COL_LENGTH`/`sys.indexes` trước khi tạo).
+   Đây là bước NẶNG NHẤT — tính lại 2 cột mới cho TOÀN BỘ dòng hiện có
+   trong `dwh.ReportFacts` (không chỉ domain `don_dat_hang`), nên làm lúc
+   ít người dùng báo cáo nhất, tốt nhất DBA theo dõi trực tiếp.
+2. `git pull origin main`.
+3. `pm2 restart rp-server` (và `api-server` nếu có chạy — chỉ đổi khai
+   báo map, không bắt buộc nhưng nên restart cho đồng bộ).
+4. `node scripts/seedPurchaseOrderReports.js` (thư mục `rp-server/`) —
+   đẩy lại định nghĩa filter mới (dropdown NCC/Mã hàng chỉ hiện mã).
+5. `node scripts/seedThayDoiGiaReports.js` (thư mục `rp-server/`) — đẩy
+   lại hint mới của checkbox "Chỉ hiện giá áp dụng trong tương lai".
+   **Thiếu bước 4/5 thì các thay đổi hiển thị sẽ KHÔNG hiện trên báo cáo
+   đã deploy** (giống đúng sự cố đã gặp ở bản 11.11).
+
+**Kiểm tra**:
+- Mở báo cáo "Đơn đặt hàng"/"Đơn nhập hàng" → dropdown "Nhà cung cấp"/
+  "Mã hàng" tải nhanh hơn rõ rệt, chỉ hiện mã (không còn tên).
+- Mở báo cáo "Thay đổi giá từ thời điểm" → tick "Chỉ hiện giá áp dụng
+  trong tương lai" → các đợt có Ngày áp dụng = hôm nay PHẢI còn hiện (bản
+  11.11 cũ sẽ ẩn mất các đợt này).
+
 ## 11.14 — Gom tài liệu API vào `deploy/api/` + mục lục ghi rõ dùng cho phần nào
 
 **Thay đổi**: dời 6 tài liệu API cũ ở gốc repo + tài liệu "API Giá Bán

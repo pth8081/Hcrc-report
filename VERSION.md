@@ -52,6 +52,46 @@ nội dung/hành vi nào đã làm. Lịch sử Git (commit message) vẫn còn 
 "Bản 10.100"/"Bản 10.101" (không sửa lại lịch sử Git) — coi là ĐỒNG NHẤT
 với "11.0"/"11.1".
 
+## 11.15 — Báo cáo Mua hàng: fix lọc NCC/Mã hàng chậm + chỉ hiện mã; "Thay đổi giá từ thời điểm": sửa mốc "tương lai"
+
+**Theo yêu cầu người dùng** — (1) lọc theo NCC/Mã hàng ở báo cáo "Đơn đặt
+hàng"/"Đơn nhập hàng" (và 4 báo cáo khác cùng domain `don_dat_hang`) tải
+rất chậm; (2) dropdown "Nhà cung cấp"/"Mã hàng" CHỈ hiện mã, không hiện
+tên (tên dài, không cần); (3) cho phép dán nhiều mã cùng lúc (đã có sẵn từ
+bản 10.35, không cần làm thêm — chỉ bị "che" bởi mục (1)); (4) rà soát mọi
+filter ở menu "Báo cáo Mua hàng", bỏ filter nào khai nhưng code không
+dùng — rà soát trực tiếp từng dòng code 3 runner riêng (đơn hàng, ngành
+hàng BRG, composite) 2 lần, **không có filter nào thừa**, không bỏ gì; (5)
+checkbox "Chỉ hiện giá áp dụng trong tương lai" ở báo cáo "Thay đổi giá từ
+thời điểm" — đổi lại ý nghĩa "tương lai": tính TỪ HÔM NAY (gồm cả hôm
+nay), không phải chỉ từ ngày mai.
+
+**Thay đổi**:
+- `dwh/schema.sql` — thêm 2 cột tính sẵn `MaNCC`/`MaHang` (PERSISTED,
+  tách từ `Dimensions`) + index trên `dwh.ReportFacts`, theo đúng mẫu
+  "Tối ưu lọc theo Dimensions" đã có sẵn (lần đầu áp dụng thật).
+- `rp-server/lib/reportEngine.js` + `api-server/lib/reportEngine.js` —
+  khai `PERSISTED_DIMENSION_COLUMNS = { maNCC: 'MaNCC', maHang: 'MaHang' }`
+  (trước đó để trống) để truy vấn chạy báo cáo tự ưu tiên cột persisted
+  thay vì `JSON_VALUE(Dimensions,...)`.
+- `rp-server/routes/reports.js` — route tải dropdown
+  (`GET /:reportId/filter-options/:field`) cũng dùng cột persisted khi có
+  (trước đó luôn dùng `JSON_VALUE`, không liên quan tới
+  `PERSISTED_DIMENSION_COLUMNS` dù map đã có từ trước).
+- `rp-server/scripts/seedPurchaseOrderReports.js` — `NCC_FILTER`/
+  `MA_HANG_FILTER` bỏ `labelField` (tên), dropdown chỉ hiện mã.
+- `rp-server/scripts/seedThayDoiGiaReports.js` — filter `onlyFutureDate`
+  đổi điều kiện SQL từ `>` thành `>=` (xem `reportEngine.js`), cập nhật
+  hint hiển thị cho đúng ý nghĩa mới.
+
+**⚠️ Lưu ý vận hành**: `dwh.ReportFacts` là bảng dùng CHUNG cho mọi domain
+báo cáo (không chỉ `don_dat_hang`) — lệnh `ALTER TABLE ... ADD ...
+PERSISTED` tính lại giá trị cột mới cho TOÀN BỘ dòng hiện có trong bảng,
+nên chạy vào khung giờ ít người dùng, tốt nhất có DBA theo dõi.
+
+**Kiểm tra**: xem "VERSION.md" mục bản 11.15 + hướng dẫn kiểm tra ở nhật
+ký triển khai tương ứng.
+
 ## 11.14 — Gom tài liệu API vào `deploy/api/` + mục lục ghi rõ dùng cho phần nào
 
 **Theo yêu cầu người dùng** — "Các tài liệu api liên quan nhớ lưu vào thư
