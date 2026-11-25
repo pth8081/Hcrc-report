@@ -14,6 +14,20 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 11.29 — SỬA LỖI THẬT: "Kế hoạch" 4 báo cáo Doanh thu cuối ngày quay về ĐÚNG khoảng ngày đang xem
+
+**Không có bước DBA, không cần chạy lại seed script.**
+
+**Các bước**:
+1. `git pull origin main`.
+2. `pm2 restart rp-server`.
+
+**Kiểm tra**: xem "VERSION.md" mục bản 11.29 — mở 1 trong 4 báo cáo
+"Doanh thu cuối ngày" (HCRC/HCRC Thành viên/LĐTĐ/LĐTĐ Thành viên), lọc
+"Trong ngày" (1 ngày) và lọc 1 dải nhiều ngày, xác nhận "Chỉ tiêu"
+Doanh thu/Giao dịch ra đúng số của đúng khoảng ngày đang xem (không
+phải cả tháng), "% hoàn thành" hợp lý.
+
 ## 11.28 — File mẫu SKU/Trọng số siêu thị (BRG Weekly Post) đổi tên cột tiếng Việt, thêm sheet Hướng dẫn
 
 **Không có bước DBA, không cần chạy lại seed script.**

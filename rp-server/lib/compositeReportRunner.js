@@ -342,16 +342,6 @@ function firstOfMonth(dateStr) {
   return `${dateStr.slice(0, 7)}-01`;
 }
 
-// Bản 11.20 (theo yêu cầu người dùng — "Kế hoạch" ở báo cáo "Doanh thu
-// cuối ngày" HCRC/LDTD/Thành viên phải LUÔN là CẢ THÁNG chứa ngày báo
-// cáo, không phụ thuộc khoảng ngày lọc hẹp hơn — xem runBlock() bên
-// dưới) — dùng cho khối isTarget targetGranularity='day'.
-function lastOfMonth(dateStr) {
-  const [y, m] = dateStr.split('-').map(Number);
-  const days = new Date(Date.UTC(y, m, 0)).getUTCDate();
-  return `${dateStr.slice(0, 7)}-${String(days).padStart(2, '0')}`;
-}
-
 function addDaysISO(dateStr, days) {
   const d = new Date(`${dateStr}T00:00:00Z`);
   d.setUTCDate(d.getUTCDate() + days);
@@ -536,19 +526,25 @@ async function runBlock(block, requestedRange, filterValues) {
   const { from, to } = requestedRange;
   if (block.isTarget) {
     const dwhPool = await getPool('DWH');
-    // SỬA bản 11.20 (theo yêu cầu người dùng — áp dụng cho CẢ 4 báo cáo
-    // "Doanh thu cuối ngày" HCRC/LDTD/Thành viên, cùng cơ chế targetGranularity
-    // 'day' này — xem lastOfMonth() ở trên): "Kế hoạch" PHẢI LUÔN là ĐỦ
-    // CẢ THÁNG chứa ngày báo cáo (`to` — ngày cuối khoảng đang xem), vì
-    // file target đã upload SẴN cho mọi ngày trong tháng — KHÔNG phụ
-    // thuộc khoảng ngày hẹp hơn người dùng chọn để lọc "Thực hiện" (khối
-    // KHÔNG isTarget vẫn dùng ĐÚNG from/to người chọn như cũ, không đổi).
-    // TRƯỚC ĐÂY dùng ĐÚNG [from, to] của khoảng lọc — chọn "Trong ngày"/
-    // 1 vài ngày thì "Kế hoạch" chỉ ra ĐÚNG đúng (các) ngày đó, không phải
-    // cả tháng, dẫn tới "% hoàn thành"/so sánh sai chuẩn so với kế hoạch
-    // THẬT của cả tháng.
-    const fromPeriod = block.targetGranularity === 'day' ? firstOfMonth(to) : firstOfMonth(from);
-    const toPeriod = block.targetGranularity === 'day' ? lastOfMonth(to) : firstOfMonth(to);
+    // SỬA bản 11.29 (theo yêu cầu người dùng — "chỉ tiêu theo tháng là
+    // sai... chỉ tiêu cộng dồn đối với 4 báo cáo doanh thu cuối ngày",
+    // phát hiện qua ảnh chụp thật: khối "Ngày" so 1 NGÀY thực hiện với
+    // CẢ THÁNG chỉ tiêu ra "2% chỉ tiêu" vô nghĩa — SAU ĐÓ làm rõ thêm
+    // trong CÙNG lượt: "Hai chỉ tiêu giao dịch và doanh thu phải theo
+    // ngày, còn nếu lấy báo cáo dải ngày thì cộng dồn") — ĐẢO NGƯỢC LẠI
+    // bản 11.20: "Kế hoạch" của khối targetGranularity='day' (dùng bởi
+    // CẢ 4 báo cáo "Doanh thu cuối ngày" HCRC/LDTD/Thành viên) giờ LẤY
+    // ĐÚNG [from, to] — CÙNG Y HỆT khoảng ngày người dùng đang lọc để
+    // xem "Thực hiện" (KHÔNG còn ép về [đầu tháng, to] hay [đầu tháng,
+    // cuối tháng] nữa): xem 1 ngày -> Kế hoạch đúng 1 ngày đó; xem 1 dải
+    // ngày -> Kế hoạch CỘNG DỒN đúng dải ngày đó (runSalesTargetsBlockRange
+    // đã sẵn cơ chế cộng dồn nhiều kỳ trong 1 khoảng, xem bản 11.8) — 2 vế
+    // "Kế hoạch"/"Thực hiện" luôn so sánh đúng CÙNG MỘT khoảng ngày, dù
+    // người dùng chọn khoảng nào. Đây là lần ĐẢO NGƯỢC THỨ 2 cho khối
+    // này (11.8 -> 11.20 -> 11.29) — không tự ý đổi thêm nếu không có
+    // yêu cầu mới, bám đúng mô tả mới nhất này.
+    const fromPeriod = block.targetGranularity === 'day' ? from : firstOfMonth(from);
+    const toPeriod = block.targetGranularity === 'day' ? to : firstOfMonth(to);
     return runSalesTargetsBlockRange(dwhPool, block.targetDomain, fromPeriod, toPeriod);
   }
   if (block.sourceType === 'directDb') {

@@ -52,6 +52,46 @@ nội dung/hành vi nào đã làm. Lịch sử Git (commit message) vẫn còn 
 "Bản 10.100"/"Bản 10.101" (không sửa lại lịch sử Git) — coi là ĐỒNG NHẤT
 với "11.0"/"11.1".
 
+## 11.29 — SỬA LỖI THẬT: "Kế hoạch" (Doanh thu/Giao dịch) 4 báo cáo Doanh thu cuối ngày quay về ĐÚNG khoảng ngày đang xem (đảo ngược bản 11.20)
+
+**Theo yêu cầu người dùng** (phát hiện qua ảnh chụp thật — khối "Ngày"
+so 1 NGÀY thực hiện với CẢ THÁNG chỉ tiêu ra "2% chỉ tiêu" vô nghĩa):
+"báo cáo doanh thu ngày bạn đang lấy chỉ tiêu theo tháng là sai...
+chỉ tiêu cộng dồn đối với 4 báo cáo doanh thu cuối ngày" (HCRC, HCRC
+(Thành viên), LĐTĐ, LĐTĐ (Thành viên)) — làm rõ thêm: **"Hai chỉ tiêu
+giao dịch và doanh thu phải theo ngày, còn nếu lấy báo cáo dải ngày thì
+cộng dồn"**.
+
+**ĐẢO NGƯỢC LẠI bản 11.20** — `rp-server/lib/compositeReportRunner.js`:
+khối `isTarget` với `targetGranularity: 'day'` (dùng chung bởi cả 4 báo
+cáo trên) giờ lấy "Kế hoạch" **ĐÚNG [from, to] — CÙNG Y HỆT khoảng ngày
+người dùng đang lọc để xem "Thực hiện"** (KHÔNG còn ép về [đầu tháng,
+cuối tháng] như bản 11.20, CŨNG KHÔNG CÒN ép về [đầu tháng, hôm nay]):
+xem đúng 1 ngày → Kế hoạch đúng 1 ngày đó; xem 1 dải ngày → Kế hoạch
+CỘNG DỒN đúng dải ngày đó (`runSalesTargetsBlockRange` đã sẵn cơ chế
+cộng dồn nhiều kỳ trong 1 khoảng) — 2 vế "Kế hoạch"/"Thực hiện" luôn so
+sánh đúng CÙNG MỘT khoảng ngày. Xoá hàm `lastOfMonth()` không còn dùng
+tới trong file này. (Lần đảo ngược THỨ 2 cho khối này: 11.8 → 11.20 →
+11.29 — bám đúng mô tả mới nhất, không tự ý đổi thêm nếu không có yêu
+cầu mới.)
+
+**LƯU Ý — KHÔNG đụng tới báo cáo khác**: "Báo cáo tổng hợp doanh thu
+siêu thị (HCRC)/(LĐTĐ)" (`lib/doanhThuTongHopHcrcRunner.js`, SourceType
+`doanhThuTongHopHcrc`) là 2 báo cáo KHÁC, dùng khối "Kế hoạch tháng"
+RIÊNG — người dùng KHÔNG nhắc tới báo cáo này trong yêu cầu lần này, GIỮ
+NGUYÊN hành vi "luôn lấy đủ cả tháng" của bản 11.20 cho đúng 2 báo cáo
+đó, không tự ý đổi theo.
+
+**Không có bước DBA, không cần chạy lại seed script** — chỉ deploy code
+mới + `pm2 restart rp-server`.
+
+**Kiểm tra**: mở lại 1 trong 4 báo cáo "Doanh thu cuối ngày" — lọc
+"Trong ngày" (1 ngày) thì "Chỉ tiêu" Doanh thu/Giao dịch phải ra ĐÚNG
+chỉ tiêu của riêng ngày đó (không phải cả tháng); lọc 1 dải nhiều ngày
+thì "Chỉ tiêu" phải ra TỔNG CỘNG DỒN chỉ tiêu của đúng các ngày trong
+dải đó — cả 2 trường hợp "% hoàn thành" đều phải ra tỷ lệ hợp lý (không
+còn quá nhỏ bất thường như trước).
+
 ## 11.28 — File mẫu SKU/Trọng số siêu thị (BRG Weekly Post) đổi tên cột tiếng Việt, thêm sheet Hướng dẫn
 
 **Theo yêu cầu người dùng** — "Tôi muốn file mẫu với các trường thông
