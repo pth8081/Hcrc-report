@@ -21,6 +21,7 @@ const { runKhachHangTuanReport } = require('./khachHangTuanRunner');
 const { runBrgPostByItemsReport } = require('./brgPostByItemsRunner');
 const { runBrgPostByStoreReport } = require('./brgPostByStoreRunner');
 const { runBrgPostRankingsReport } = require('./brgPostRankingsRunner');
+const { runBrgPostRecapReport } = require('./brgPostRecapRunner');
 const { assignSttIfPresent } = require('./reportCellFormat');
 
 async function loadDefinition(reportId) {
@@ -148,6 +149,11 @@ async function runDefinition(definition, filterValues, pagination) {
   // "Top SL"/"Top DS"/"Top KH"/"Vượt KH" — xem lib/brgPostRankingsRunner.js.
   if (definition.sourceType === 'brgPostRankings') {
     return runBrgPostRankingsReport(definition, filterValues);
+  }
+  // 'brgPostRecap' (bản 11.24, "BRG Weekly Post") — Tổng quan Toàn chuỗi/
+  // Mart/Mini Mart + theo Ngành hàng — xem lib/brgPostRecapRunner.js.
+  if (definition.sourceType === 'brgPostRecap') {
+    return runBrgPostRecapReport(definition, filterValues);
   }
   if (definition.sourceType && definition.sourceType !== 'directDb') {
     return runApiReport(definition, filterValues, pagination);
