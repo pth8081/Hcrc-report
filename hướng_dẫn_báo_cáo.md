@@ -1809,3 +1809,4 @@ cập nhật nếu chỉ sửa báo cáo đã có (file hướng dẫn riêng t�
 | `bc-ban-buon-chi-tiet` | Bán buôn chi tiết theo khách hàng | `bc-ban-buon-chi-tiet.md` |
 | `bc-doanh-thu-tong-hop-hcrc` | Báo cáo tổng hợp doanh thu siêu thị hàng ngày | `bc-doanh-thu-tong-hop-hcrc.md` |
 | `bc-kinh-doanh-theo-tuan` | Báo cáo kinh doanh theo tuần | `bc-kinh-doanh-theo-tuan.md` |
+| `bc-khach-hang-theo-tuan` | Báo cáo khách hàng theo tuần | `bc-khach-hang-theo-tuan.md` (dùng chung domain/VIEW với báo cáo trên) |

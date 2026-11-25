@@ -17,6 +17,7 @@ const { runPurchaseOrderReport } = require('./purchaseOrderRunner');
 const { runNganhHangBrgReport } = require('./nganhHangBrgRunner');
 const { runDoanhThuTongHopHcrcReport } = require('./doanhThuTongHopHcrcRunner');
 const { runKinhDoanhTuanReport } = require('./kinhDoanhTuanRunner');
+const { runKhachHangTuanReport } = require('./khachHangTuanRunner');
 const { assignSttIfPresent } = require('./reportCellFormat');
 
 async function loadDefinition(reportId) {
@@ -119,6 +120,13 @@ async function runDefinition(definition, filterValues, pagination) {
   // Total/Qua thẻ — xem lib/kinhDoanhTuanRunner.js.
   if (definition.sourceType === 'kinhDoanhTuan') {
     return runKinhDoanhTuanReport(definition, filterValues);
+  }
+  // 'khachHangTuan' (bản 11.24, theo yêu cầu đội MKT) — "Báo cáo khách
+  // hàng theo tuần": MỖI DÒNG/mã Điểm, so sánh Tuần này/Tuần trước/LFL
+  // (trung bình tuần cùng kỳ năm trước) cho Bill/AOV/Doanh số x
+  // Total/Qua thẻ — xem lib/khachHangTuanRunner.js.
+  if (definition.sourceType === 'khachHangTuan') {
+    return runKhachHangTuanReport(definition, filterValues);
   }
   if (definition.sourceType && definition.sourceType !== 'directDb') {
     return runApiReport(definition, filterValues, pagination);
