@@ -1808,3 +1808,4 @@ cập nhật nếu chỉ sửa báo cáo đã có (file hướng dẫn riêng t�
 | `bc-check-lech-thue-rvorder` | Check lệch thuế RV_ORDER | `bc-check-lech-thue-rvorder.md` |
 | `bc-ban-buon-chi-tiet` | Bán buôn chi tiết theo khách hàng | `bc-ban-buon-chi-tiet.md` |
 | `bc-doanh-thu-tong-hop-hcrc` | Báo cáo tổng hợp doanh thu siêu thị hàng ngày | `bc-doanh-thu-tong-hop-hcrc.md` |
+| `bc-kinh-doanh-theo-tuan` | Báo cáo kinh doanh theo tuần | `bc-kinh-doanh-theo-tuan.md` |
