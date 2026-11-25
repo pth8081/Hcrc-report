@@ -46,6 +46,10 @@ THÊM vào baseUrl, giữ nguyên đúng path (bao gồm cả /ping, KHÔNG nằ
 
   {baseUrl}/wholesale-price/delete   POST         Xoá 1 mức giá đã thiết lập
 
+  {baseUrl}/wholesale-price/        GET          Kiểm tra 1 custId có hợp
+  dealer/{custId}                                lệ hay không (mới, xem
+                                                  mục 7)
+
   {baseUrl}/ping                     POST         Kiểm tra kết nối/cấu hình
                                                   (không đụng dữ liệu giá)
   ---------------------------------- ------------ ----------------------------
@@ -188,7 +192,28 @@ alreadyGone=true: dòng giá này KHÔNG tồn tại sẵn (đã bị xoá từ 
 
 Cùng khuôn mục 5.3 (bao gồm cả field **results**).
 
-7\. POST {baseUrl}/ping
+7\. GET {baseUrl}/wholesale-price/dealer/{custId}
+
+**Mới, bản 25/11/2026** --- tra cứu 1 custId có tồn tại/hợp lệ hay không
+TRƯỚC khi gọi apply/delete, tránh gửi nhầm mã khách rồi mới phát hiện lỗi.
+Không cần body --- custId truyền thẳng trên đường dẫn, vd:
+GET {baseUrl}/wholesale-price/dealer/C001
+
+7.1. Response --- custId tồn tại (HTTP 200):
+
+{ \"ok\": true, \"custId\": \"C001\", \"exists\": true, \"name\": \"Công ty
+TNHH ABC\", \"custGroup\": \"...\", \"custLevel\": \"...\", \"taxId\":
+\"0123456789\" }
+
+7.2. Response --- custId KHÔNG tồn tại (HTTP 200 --- đây là 1 kết quả tra
+cứu BÌNH THƯỜNG, không phải lỗi):
+
+{ \"ok\": true, \"custId\": \"C001\", \"exists\": false }
+
+7.3. Response lỗi hệ thống (hiếm --- chưa cấu hình xong phía DSmart/Report,
+không liên quan custId gửi lên) --- HTTP 502, cùng khuôn mục 5.3.
+
+8\. POST {baseUrl}/ping
 
 Không cần body. Response thành công:
 
@@ -196,14 +221,14 @@ Không cần body. Response thành công:
 
 Chỉ xác thực key/scope --- không đụng dữ liệu giá.
 
-8\. Idempotency
+9\. Idempotency
 
 Cả apply (upsert) và delete đều AN TOÀN khi gọi lặp lại đúng 1 yêu cầu
 với cùng dữ liệu --- gọi 2 lần cho kết quả cuối giống nhau, không tạo
 trùng/lỗi. Hệ thống HCC có thể tự thử lại khi nghi ngờ lần gọi trước
 timeout/thất bại.
 
-9\. Trả Lời Câu Hỏi Đối Tác Đã Nêu
+10\. Trả Lời Câu Hỏi Đối Tác Đã Nêu
 
 -   Phạm vi áp dụng giá xuống từng siêu thị: XÁC NHẬN --- đội API tự
     đồng bộ xuống đúng phạm vi storeScope qua hạ tầng của mình (HO luôn

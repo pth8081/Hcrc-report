@@ -4,15 +4,16 @@
 // (xem Yeu-Cau-API-Gia-Ban-Buon-DSmart*.docx, đối tác cung cấp — endpoint/
 // field/storeScope/mã lỗi theo ĐÚNG tài liệu đó).
 //
-// 3 endpoint, mount RIÊNG trong server.js (không gộp 1 router — /ping nằm
+// 4 endpoint, mount RIÊNG trong server.js (không gộp 1 router — /ping nằm
 // NGAY DƯỚI {baseUrl}, không phải {baseUrl}/wholesale-price/ping, đúng
 // path đối tác đã code sẵn):
-//   POST /api/v1/wholesale-price/apply   (applyRouter)
-//   POST /api/v1/wholesale-price/delete  (applyRouter)
-//   POST /api/v1/ping                    (pingRouter)
+//   POST /api/v1/wholesale-price/apply       (applyRouter)
+//   POST /api/v1/wholesale-price/delete      (applyRouter)
+//   GET  /api/v1/wholesale-price/dealer/:custId (applyRouter, bản 11.22)
+//   POST /api/v1/ping                        (pingRouter)
 //
 // scope riêng 'wholesalePrice' (api.ApiConsumers.Scopes) — đối tác có scope
-// khác (vd 'realtime') KHÔNG mặc nhiên gọi được 3 endpoint này.
+// khác (vd 'realtime') KHÔNG mặc nhiên gọi được các endpoint này.
 //
 // Logic ghi/xoá CSPRICE thật nằm ở lib/wholesalePriceEngine.js — route này
 // CHỈ xác thực, validate input, fan-out NHIỀU target (HO + từng siêu thị
@@ -20,10 +21,12 @@
 // ({"ok":true,...} / {"ok":false,"error":"..."}).
 const express = require('express');
 const { requireApiKey } = require('../../lib/apiAuth');
+const { getPoolForDataSource } = require('../../lib/dataSourcePool');
 const {
   ValidationError, StoreConfigError, IntegrityError,
   validateApplyInput, validateDeleteInput,
   loadStoreDataSources, applyPriceOnPool, deletePriceOnPool, runOnAllTargets,
+  lookupDealer,
   HO_STORE_CODE
 } = require('../../lib/wholesalePriceEngine');
 
@@ -151,6 +154,35 @@ applyRouter.post('/delete', async (req, res, next) => {
   } catch (err) {
     if (err instanceof StoreConfigError) return res.status(502).json({ ok: false, error: err.message });
     if (err instanceof IntegrityError) return res.status(500).json({ ok: false, error: err.message });
+    next(err);
+  }
+});
+
+// GET /wholesale-price/dealer/:custId (bản 11.22, theo yêu cầu người dùng
+// — đối tác cần tự kiểm tra 1 custId có hợp lệ hay không TRƯỚC khi gọi
+// apply, tránh gửi nhầm mã khách rồi mới biết lỗi). Tra thẳng dbo.DEALER
+// qua ĐÚNG pool HO đã cấu hình sẵn (DEALER là bảng CHUNG, không theo từng
+// siêu thị — KHÔNG cần storeScope/fan-out như apply/delete). custId KHÔNG
+// tồn tại trả `exists: false`, HTTP 200 — đây là 1 kết quả tra cứu hợp lệ,
+// KHÔNG phải lỗi hệ thống (lỗi hệ thống thật, vd chưa cấu hình Nguồn dữ
+// liệu cho HO, vẫn trả 502 như apply/delete).
+applyRouter.get('/dealer/:custId', async (req, res, next) => {
+  try {
+    const custId = String(req.params.custId || '').trim();
+    if (!custId) return res.status(400).json({ ok: false, error: 'Thiếu custId' });
+
+    const { targets } = await loadStoreDataSources([]);
+    const hoTarget = targets.find(t => t.storeCode === HO_STORE_CODE);
+    const pool = await getPoolForDataSource(hoTarget.dataSourceId);
+    const dealer = await lookupDealer(pool, custId);
+
+    if (!dealer) return res.json({ ok: true, custId, exists: false });
+    res.json({
+      ok: true, custId, exists: true,
+      name: dealer.name, custGroup: dealer.custGroup, custLevel: dealer.custLevel, taxId: dealer.taxId
+    });
+  } catch (err) {
+    if (err instanceof StoreConfigError) return res.status(502).json({ ok: false, error: err.message });
     next(err);
   }
 });

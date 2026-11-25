@@ -231,9 +231,33 @@ async function runOnAllTargets(targets, fn) {
   return { results, allOk: results.every(r => r.ok) };
 }
 
+// Bản 11.22 (theo yêu cầu người dùng — đối tác cần tự kiểm tra 1 custId có
+// hợp lệ hay không TRƯỚC khi gọi apply, tránh gửi nhầm mã) — tra thẳng
+// dbo.DEALER (bảng khách hàng DOANH NGHIỆP/bán buôn — ĐÃ xác nhận bằng dữ
+// liệu thật ở "Thiết lập VIEW Bán buôn chi tiết theo khách hàng (DSMART16
+// trung tâm).sql", cột CUST_ID khớp đúng custId API này dùng) TRÊN ĐÚNG
+// pool HO (DEALER là bảng CHUNG, không theo từng siêu thị — dùng lại
+// NGUYÊN kết nối HO đã cấu hình sẵn cho apply/delete, KHÔNG cần thêm Nguồn
+// dữ liệu mới). Trả về null nếu không tìm thấy — KHÔNG coi là lỗi (custId
+// sai chỉ là 1 kết quả tra cứu bình thường, không phải lỗi hệ thống).
+async function lookupDealer(pool, custId) {
+  const result = await pool.request().input('custId', sql.NVarChar(50), custId)
+    .query('SELECT CUST_ID, CUST_NAME_U, GRP_ID, CS_LEVEL, TAX_ID FROM dbo.DEALER WHERE CUST_ID = @custId');
+  const row = result.recordset[0];
+  if (!row) return null;
+  return {
+    custId: row.CUST_ID,
+    name: row.CUST_NAME_U,
+    custGroup: row.GRP_ID,
+    custLevel: row.CS_LEVEL,
+    taxId: row.TAX_ID
+  };
+}
+
 module.exports = {
   ValidationError, SkuNotFoundError, StoreConfigError, IntegrityError,
   validateApplyInput, validateDeleteInput,
   loadStoreDataSources, applyPriceOnPool, deletePriceOnPool, runOnAllTargets,
+  lookupDealer,
   HO_STORE_CODE
 };
