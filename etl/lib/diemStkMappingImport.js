@@ -62,6 +62,18 @@ function normalizeMaQLKV(raw) {
   return { value: trimmed || null, error: null };
 }
 
+// Mien/VungQL (bản 11.24, phục vụ "Báo cáo kinh doanh theo tuần") — admin
+// tự khai TUỲ Ý, KHÔNG ràng buộc danh sách hợp lệ nào (cùng tinh thần
+// MaQLKV) — chỉ cần trim, để trống -> null.
+function normalizeMien(raw) {
+  const trimmed = String(raw ?? '').trim();
+  return { value: trimmed || null, error: null };
+}
+function normalizeVungQL(raw) {
+  const trimmed = String(raw ?? '').trim();
+  return { value: trimmed || null, error: null };
+}
+
 // { rows: [{maDiem, maStkCu:[], maStkMoi:[], tenSieuThi}], rowErrors: string[] }
 async function parseDiemStkMappingFile(buffer) {
   guardZipBombSize(buffer, MAX_UNCOMPRESSED_BYTES);
@@ -88,7 +100,7 @@ async function parseDiemStkMappingFile(buffer) {
   // (chưa có cột này) vẫn nhập bình thường, headers.indexOf trả -1 ->
   // cell() trả null -> buId null -> mã Điểm đó KHÔNG có dữ liệu Giao dịch
   // cho tới khi admin bổ sung giá trị thật.
-  for (const name of ['MaDiem', 'MaStkCu', 'MaStkMoi', 'TenSieuThi', 'BuId', 'LoaiChuoi', 'MaQLKV']) {
+  for (const name of ['MaDiem', 'MaStkCu', 'MaStkMoi', 'TenSieuThi', 'BuId', 'LoaiChuoi', 'MaQLKV', 'Mien', 'VungQL']) {
     col[name] = headers.indexOf(name);
   }
 
@@ -107,7 +119,9 @@ async function parseDiemStkMappingFile(buffer) {
     const buId = str(cell(col.BuId));
     const loaiChuoiRaw = str(cell(col.LoaiChuoi));
     const maQLKVRaw = str(cell(col.MaQLKV));
-    if (!maDiem && !maStkCuRaw && !maStkMoiRaw && !tenSieuThi && !buId && !loaiChuoiRaw && !maQLKVRaw) return; // dòng trống bỏ qua
+    const mienRaw = str(cell(col.Mien));
+    const vungQLRaw = str(cell(col.VungQL));
+    if (!maDiem && !maStkCuRaw && !maStkMoiRaw && !tenSieuThi && !buId && !loaiChuoiRaw && !maQLKVRaw && !mienRaw && !vungQLRaw) return; // dòng trống bỏ qua
 
     if (!maDiem) { rowErrors.push(`Dòng ${rowNumber}: thiếu MaDiem`); return; }
     if (seenInFile.has(maDiem)) { rowErrors.push(`Dòng ${rowNumber}: MaDiem "${maDiem}" đã xuất hiện ở dòng khác trong CHÍNH file này`); return; }
@@ -116,6 +130,8 @@ async function parseDiemStkMappingFile(buffer) {
     const { value: loaiChuoi, error: loaiChuoiError } = normalizeLoaiChuoi(loaiChuoiRaw);
     if (loaiChuoiError) { rowErrors.push(`Dòng ${rowNumber}: ${loaiChuoiError}`); return; }
     const { value: maQLKV } = normalizeMaQLKV(maQLKVRaw);
+    const { value: mien } = normalizeMien(mienRaw);
+    const { value: vungQL } = normalizeVungQL(vungQLRaw);
 
     rows.push({
       maDiem,
@@ -124,7 +140,9 @@ async function parseDiemStkMappingFile(buffer) {
       tenSieuThi: tenSieuThi || null,
       buId: buId || null,
       loaiChuoi,
-      maQLKV
+      maQLKV,
+      mien,
+      vungQL
     });
   });
 
@@ -181,8 +199,8 @@ function buildDiemStkInsertBatches(rows, importedBy) {
   const batches = [];
   for (let i = 0; i < rows.length; i += DIEM_STK_INSERT_BATCH_SIZE) {
     const chunk = rows.slice(i, i + DIEM_STK_INSERT_BATCH_SIZE);
-    const values = chunk.map(r => `(${sqlNStr(r.maDiem)}, ${sqlNStrOrNull(r.maStkCu.join(','))}, ${sqlNStrOrNull(r.maStkMoi.join(','))}, ${sqlNStrOrNull(r.tenSieuThi)}, ${sqlNStrOrNull(r.buId)}, ${sqlNStrOrNull(r.loaiChuoi)}, ${sqlNStrOrNull(r.maQLKV)}, ${importedBy ? sqlNStr(importedBy) : 'NULL'})`).join(',\n');
-    batches.push(`INSERT INTO #StagingDiemStkMapping (MaDiem, MaStkCu, MaStkMoi, TenSieuThi, BuId, LoaiChuoi, MaQLKV, ImportedBy) VALUES\n${values};`);
+    const values = chunk.map(r => `(${sqlNStr(r.maDiem)}, ${sqlNStrOrNull(r.maStkCu.join(','))}, ${sqlNStrOrNull(r.maStkMoi.join(','))}, ${sqlNStrOrNull(r.tenSieuThi)}, ${sqlNStrOrNull(r.buId)}, ${sqlNStrOrNull(r.loaiChuoi)}, ${sqlNStrOrNull(r.maQLKV)}, ${sqlNStrOrNull(r.mien)}, ${sqlNStrOrNull(r.vungQL)}, ${importedBy ? sqlNStr(importedBy) : 'NULL'})`).join(',\n');
+    batches.push(`INSERT INTO #StagingDiemStkMapping (MaDiem, MaStkCu, MaStkMoi, TenSieuThi, BuId, LoaiChuoi, MaQLKV, Mien, VungQL, ImportedBy) VALUES\n${values};`);
   }
   return batches;
 }
@@ -197,6 +215,8 @@ CREATE TABLE #StagingDiemStkMapping (
   BuId       NVARCHAR(20)  NULL,
   LoaiChuoi  NVARCHAR(20)  NULL,
   MaQLKV     NVARCHAR(50)  NULL,
+  Mien       NVARCHAR(50)  NULL,
+  VungQL     NVARCHAR(100) NULL,
   ImportedBy NVARCHAR(50)  NULL
 );`;
 
@@ -212,11 +232,13 @@ WHEN MATCHED THEN
     BuId = src.BuId,
     LoaiChuoi = src.LoaiChuoi,
     MaQLKV = src.MaQLKV,
+    Mien = src.Mien,
+    VungQL = src.VungQL,
     ImportedAt = SYSUTCDATETIME(),
     ImportedBy = src.ImportedBy
 WHEN NOT MATCHED THEN
-  INSERT (MaDiem, MaStkCu, MaStkMoi, TenSieuThi, BuId, LoaiChuoi, MaQLKV, ImportedAt, ImportedBy)
-  VALUES (src.MaDiem, src.MaStkCu, src.MaStkMoi, src.TenSieuThi, src.BuId, src.LoaiChuoi, src.MaQLKV, SYSUTCDATETIME(), src.ImportedBy)
+  INSERT (MaDiem, MaStkCu, MaStkMoi, TenSieuThi, BuId, LoaiChuoi, MaQLKV, Mien, VungQL, ImportedAt, ImportedBy)
+  VALUES (src.MaDiem, src.MaStkCu, src.MaStkMoi, src.TenSieuThi, src.BuId, src.LoaiChuoi, src.MaQLKV, src.Mien, src.VungQL, SYSUTCDATETIME(), src.ImportedBy)
 OUTPUT $action AS Action;`;
 
 async function upsertDiemStkMapping(pool, rows, importedBy) {
@@ -271,20 +293,21 @@ async function buildWorkbook(sheetName, headers, dataRows, noteLine) {
 async function buildDiemStkMappingTemplate() {
   return buildWorkbook(
     'Anh xa Diem-STK',
-    ['STT', 'MaDiem', 'MaStkCu', 'MaStkMoi', 'TenSieuThi', 'BuId', 'LoaiChuoi', 'MaQLKV'],
+    ['STT', 'MaDiem', 'MaStkCu', 'MaStkMoi', 'TenSieuThi', 'BuId', 'LoaiChuoi', 'MaQLKV', 'Mien', 'VungQL'],
     [
-      [1, 'VIDU', '10001,10002', '13061', 'Tên siêu thị ví dụ - XOÁ dòng này trước khi nhập', '', 'MART', ''],
-      [2, 'VIDU2', '', '13051,13052', 'Nhiều mã cách nhau bằng dấu phẩy, KHÔNG dấu cách', 'BAT BUOC dien de co du lieu Giao dich - nho DBA xac nhan qua SQL, KHONG tu doan', 'MINIMART (hoac de trong de dung tu dong theo STOCK.TYPE)', 'Ma quan ly khu vuc (tuy chon)']
+      [1, 'VIDU', '10001,10002', '13061', 'Tên siêu thị ví dụ - XOÁ dòng này trước khi nhập', '', 'MART', '', 'Mien Bac', 'Ten nguoi quan ly vung (tuy chon)'],
+      [2, 'VIDU2', '', '13051,13052', 'Nhiều mã cách nhau bằng dấu phẩy, KHÔNG dấu cách', 'BAT BUOC dien de co du lieu Giao dich - nho DBA xac nhan qua SQL, KHONG tu doan', 'MINIMART (hoac de trong de dung tu dong theo STOCK.TYPE)', 'Ma quan ly khu vuc (tuy chon)', 'Mien Nam (tuy chon)', '']
     ]
   );
 }
 
 function buildDiemStkMappingExport(rows) {
-  const dataRows = rows.map((r, i) => [i + 1, r.maDiem, r.maStkCu.join(','), r.maStkMoi.join(','), r.tenSieuThi || '', r.buId || '', r.loaiChuoi || '', r.maQLKV || '']);
-  return buildWorkbook('Anh xa Diem-STK', ['STT', 'MaDiem', 'MaStkCu', 'MaStkMoi', 'TenSieuThi', 'BuId', 'LoaiChuoi', 'MaQLKV'], dataRows);
+  const dataRows = rows.map((r, i) => [i + 1, r.maDiem, r.maStkCu.join(','), r.maStkMoi.join(','), r.tenSieuThi || '', r.buId || '', r.loaiChuoi || '', r.maQLKV || '', r.mien || '', r.vungQL || '']);
+  return buildWorkbook('Anh xa Diem-STK', ['STT', 'MaDiem', 'MaStkCu', 'MaStkMoi', 'TenSieuThi', 'BuId', 'LoaiChuoi', 'MaQLKV', 'Mien', 'VungQL'], dataRows);
 }
 
 module.exports = {
   parseDiemStkMappingFile, findDuplicateStkIds, upsertDiemStkMapping, parseStkList,
-  buildDiemStkMappingTemplate, buildDiemStkMappingExport, normalizeLoaiChuoi, normalizeMaQLKV
+  buildDiemStkMappingTemplate, buildDiemStkMappingExport, normalizeLoaiChuoi, normalizeMaQLKV,
+  normalizeMien, normalizeVungQL
 };

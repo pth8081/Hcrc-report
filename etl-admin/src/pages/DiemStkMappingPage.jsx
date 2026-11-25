@@ -23,7 +23,7 @@ import { api } from '../lib/api';
 import DataTable from '../components/DataTable';
 import { useRowSelection } from '../lib/useRowSelection';
 
-const EMPTY_EDIT_FORM = { maDiem: '', maStkCu: '', maStkMoi: '', tenSieuThi: '', buId: '', loaiChuoi: '', maQLKV: '' };
+const EMPTY_EDIT_FORM = { maDiem: '', maStkCu: '', maStkMoi: '', tenSieuThi: '', buId: '', loaiChuoi: '', maQLKV: '', mien: '', vungQL: '' };
 
 export default function DiemStkMappingPage() {
   const [file, setFile] = useState(null);
@@ -63,7 +63,9 @@ export default function DiemStkMappingPage() {
       tenSieuThi: row.tenSieuThi || '',
       buId: row.buId || '',
       loaiChuoi: row.loaiChuoi || '',
-      maQLKV: row.maQLKV || ''
+      maQLKV: row.maQLKV || '',
+      mien: row.mien || '',
+      vungQL: row.vungQL || ''
     });
     setEditError('');
     setEditConflicts([]);
@@ -92,7 +94,9 @@ export default function DiemStkMappingPage() {
         tenSieuThi: editForm.tenSieuThi.trim() || null,
         buId: editForm.buId.trim() || null,
         loaiChuoi: editForm.loaiChuoi || null,
-        maQLKV: editForm.maQLKV.trim() || null
+        maQLKV: editForm.maQLKV.trim() || null,
+        mien: editForm.mien.trim() || null,
+        vungQL: editForm.vungQL.trim() || null
       });
       setEditResult('✅ Đã lưu.');
       setEditForm(EMPTY_EDIT_FORM);
@@ -237,6 +241,11 @@ export default function DiemStkMappingPage() {
         thu cuối ngày tổng hợp theo khu vực. Để trống nếu mã Điểm chưa gán khu vực.
       </p>
       <p>
+        <code>Mien</code>/<code>VungQL</code> (tuỳ chọn, bản 11.24) — "Miền" (vd Miền Bắc/Miền
+        Nam) và tên người quản lý vùng (vd "Chị Thạch"), admin tự khai, dùng cho "Báo cáo kinh
+        doanh theo tuần"/"Báo cáo khách hàng theo tuần" (đội MKT). Để trống nếu chưa gán.
+      </p>
+      <p>
         <strong>Ràng buộc quan trọng</strong>: 1 mã STK_ID chỉ được thuộc ĐÚNG 1 mã Điểm — hệ
         thống tự kiểm tra, phát hiện trùng (kể cả trùng với dữ liệu đã lưu của mã Điểm khác) sẽ
         <strong> HUỶ TOÀN BỘ lượt nhập</strong>, không lưu dòng nào, để tránh cộng trùng doanh thu.
@@ -294,6 +303,8 @@ export default function DiemStkMappingPage() {
           { key: 'buId', label: 'BU_ID', render: (r) => r.buId || '(chưa khai — Giao dịch trống)' },
           { key: 'loaiChuoi', label: 'Loại chuỗi', render: (r) => r.loaiChuoi || '(tự động theo STOCK.TYPE)' },
           { key: 'maQLKV', label: 'Mã QLKV', render: (r) => r.maQLKV || '—' },
+          { key: 'mien', label: 'Miền', render: (r) => r.mien || '—' },
+          { key: 'vungQL', label: 'Vùng QL', render: (r) => r.vungQL || '—' },
           { key: 'isActive', label: 'Trạng thái', render: (r) => (r.isActive ? 'Đang hoạt động' : 'Đang khoá') },
           { key: 'importedBy', label: 'Người nhập' },
           { key: 'importedAt', label: 'Lúc nhập', render: (r) => new Date(r.importedAt).toLocaleString('vi-VN') },
@@ -376,6 +387,16 @@ export default function DiemStkMappingPage() {
           placeholder="Mã QLKV (mã quản lý khu vực, tuỳ chọn)"
           value={editForm.maQLKV}
           onChange={(e) => setEditForm({ ...editForm, maQLKV: e.target.value })}
+        />
+        <input
+          placeholder="Miền (vd Miền Bắc/Miền Nam, tuỳ chọn)"
+          value={editForm.mien}
+          onChange={(e) => setEditForm({ ...editForm, mien: e.target.value })}
+        />
+        <input
+          placeholder="Vùng QL (tên người quản lý vùng, tuỳ chọn)"
+          value={editForm.vungQL}
+          onChange={(e) => setEditForm({ ...editForm, vungQL: e.target.value })}
         />
         <div className="inline-actions">
           <button type="submit" disabled={savingEdit}>{savingEdit ? 'Đang lưu...' : 'Lưu'}</button>

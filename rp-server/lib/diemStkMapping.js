@@ -51,7 +51,7 @@ async function loadDiemStkMapping() {
     // IsActive = 0 (đã "Khoá" ở etl-admin) -> BỎ QUA HẲN, coi như không có
     // dòng ánh xạ này — hiệu ứng với báo cáo Y HỆT xoá dòng, theo yêu cầu
     // người dùng (xem etl-db/schema.sql cột IsActive).
-    const result = await pool.request().query('SELECT MaDiem, MaStkCu, MaStkMoi, TenSieuThi, BuId, LoaiChuoi, MaQLKV FROM etl.DiemStkMapping WHERE IsActive = 1');
+    const result = await pool.request().query('SELECT MaDiem, MaStkCu, MaStkMoi, TenSieuThi, BuId, LoaiChuoi, MaQLKV, Mien, VungQL FROM etl.DiemStkMapping WHERE IsActive = 1');
     const mapping = new Map();
     for (const r of result.recordset) {
       mapping.set(r.MaDiem, {
@@ -60,7 +60,14 @@ async function loadDiemStkMapping() {
         tenSieuThi: r.TenSieuThi || null,
         buId: r.BuId || null,
         loaiChuoi: r.LoaiChuoi || null,
-        maQLKV: r.MaQLKV || null
+        maQLKV: r.MaQLKV || null,
+        // Mien/VungQL (bản 11.24) — admin tự khai, dùng TRỰC TIẾP qua
+        // diemMapping.get(maDiem).mien/.vungQL (giống maQLKV/tenSieuThi ở
+        // lib/doanhThuTongHopHcrcRunner.js), KHÔNG qua remapRowsToDiem()
+        // (hàm đó CHỈ gộp dimensions của các dòng ĐO LƯỜNG theo STK_ID —
+        // Mien/VungQL là thuộc tính TĨNH của mã Điểm, không gắn theo STK).
+        mien: r.Mien || null,
+        vungQL: r.VungQL || null
       });
     }
     cache = { expiresAt: Date.now() + CACHE_TTL_MS, mapping };

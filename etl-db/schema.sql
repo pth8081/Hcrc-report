@@ -289,6 +289,24 @@ BEGIN
 END
 GO
 
+-- Mien/VungQL (bản 11.24, theo đúng cột "Miền"/"Vùng QL" trong file mẫu
+-- MKT thật "BÁO CÁO KINH DOANH THEO TUẦN") — Admin TỰ KHAI (giống
+-- TenSieuThi/LoaiChuoi/MaQLKV phía trên), KHÔNG đọc từ DSMART16 (CSDL
+-- nguồn KHÔNG có khái niệm "Miền"/"người quản lý vùng" — cách tổ chức nội
+-- bộ riêng của HCRC/MKT). Mien = "Miền Bắc"/"Miền Nam"... VungQL = tên
+-- người quản lý vùng (vd "Chị Thạch", "Anh Kiên"). Để trống = chưa khai,
+-- báo cáo hiện ô trống (KHÔNG suy đoán).
+IF COL_LENGTH('etl.DiemStkMapping', 'Mien') IS NULL
+BEGIN
+    ALTER TABLE etl.DiemStkMapping ADD Mien NVARCHAR(50) NULL;
+END
+GO
+IF COL_LENGTH('etl.DiemStkMapping', 'VungQL') IS NULL
+BEGIN
+    ALTER TABLE etl.DiemStkMapping ADD VungQL NVARCHAR(100) NULL;
+END
+GO
+
 -- IsActive (theo yêu cầu người dùng) — nút "Khoá"/"Kích hoạt" 1 dòng ánh xạ
 -- mà KHÔNG xoá hẳn (khác nút "Xoá" sẵn có) — dùng khi admin TẠM MUỐN ẨN 1
 -- mã Điểm khỏi báo cáo (vd cấu hình trước nhưng chưa dùng ngay) nhưng vẫn
