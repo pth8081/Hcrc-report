@@ -27,7 +27,9 @@ const { requireAuth } = require('../lib/auth');
 const { loadDefinition, runDefinition, resolveFactsPool } = require('../lib/reportRunner');
 const { PERSISTED_DIMENSION_COLUMNS } = require('../lib/reportEngine');
 const { resolveTitleWithDate, resolveExportFileBaseName } = require('../lib/reportTitleDate');
-const { exportExcel } = require('../lib/exportExcel');
+const { exportExcel, exportExcelWithChartSheet, exportMultiSheetExcel } = require('../lib/exportExcel');
+const { buildChartImages } = require('../lib/khachHangTuanRunner');
+const { SHEET_OPTIONS } = require('../lib/brgWeeklyPostRunner');
 const { exportPdf } = require('../lib/exportPdf');
 const { buildDoanhThuTongHopHcrcMonthlyWorkbook } = require('../lib/doanhThuTongHopHcrcMonthlyExport');
 const { filterColumns, filterGroups, computeSummaryCards } = require('../lib/reportCellFormat');
@@ -514,7 +516,14 @@ router.post('/:reportId/export', async (req, res, next) => {
     const exportDefinition = { ...definition, columns, columnGroups, columnSuperGroups, standaloneColumnColors, title: displayTitle };
 
     if (format === 'excel') {
-      const buffer = await exportExcel(exportDefinition, projected);
+      // sourceType 'khachHangTuan' (bản 11.26, theo yêu cầu người dùng —
+      // file mẫu gốc có 1 sheet "Biểu đồ" RIÊNG) — thêm sheet ảnh biểu đồ
+      // NGAY SAU sheet dữ liệu, xem lib/khachHangTuanRunner.js:buildChartImages()
+      // + lib/exportExcel.js:exportExcelWithChartSheet(). Báo cáo khác
+      // KHÔNG đổi hành vi (vẫn exportExcel() như cũ).
+      const buffer = definition.sourceType === 'khachHangTuan'
+        ? await exportExcelWithChartSheet(exportDefinition, projected, buildChartImages(projected))
+        : await exportExcel(exportDefinition, projected);
       await logAction(req, { module: 'Báo cáo', actionType: 'XUAT_BAO_CAO', targetObject: req.params.reportId, description: `Xuất Excel báo cáo "${displayTitle}" (${projected.length} dòng)` });
       // res.attachment() (Express, dùng gói content-disposition bên trong) tự
       // mã hoá đúng chuẩn RFC 5987 (filename* + fallback ASCII) khi tên báo
@@ -566,6 +575,49 @@ router.post('/:reportId/export-month', async (req, res, next) => {
       description: `Xuất Excel theo tháng (1 sheet/ngày) báo cáo "${definition.title}" tới ngày ${eventDate || '(hôm nay)'}`
     });
     res.attachment(`${definition.title}-${fileLabel}.xlsx`);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    return res.send(buffer);
+  } catch (err) { next(err); }
+});
+
+// Bản 11.26 (theo yêu cầu người dùng — "Sao bạn không gộp vào một file
+// Excel và nhiều sheet? ... chức năng xuất file báo cáo gộp nhiều báo cáo
+// thành nhiều sheet") — CHỈ báo cáo "BRG Weekly Post" (SourceType=
+// 'brgWeeklyPost', xem lib/brgWeeklyPostRunner.js) dùng route này: chạy
+// ĐỦ CẢ 5 "sheet" nội bộ (campaignId giữ nguyên, chỉ đổi `sheet`) rồi gộp
+// thành 1 file .xlsx nhiều sheet (lib/exportExcel.js:exportMultiSheetExcel,
+// ĐANG dùng cho "Xuất Excel" ở Dashboard — tái dùng nguyên, không viết lại)
+// — mirror đúng cấu trúc nhiều sheet trong CÙNG 1 file của file mẫu Excel
+// gốc "BRG_Weekly_Post_T6K1_BC1.xlsx". KHÁC HẲN /export ở trên (chỉ xuất
+// ĐÚNG 1 sheet đang xem theo bộ lọc `sheet` hiện tại).
+router.post('/:reportId/export-sheets', async (req, res, next) => {
+  try {
+    const context = await requireReportAccess(req, res, req.params.reportId);
+    if (!context) return;
+    const definition = await loadDefinition(req.params.reportId);
+    if (!definition || !definition.isActive || definition.sourceType !== 'brgWeeklyPost') {
+      return res.status(400).json({ error: 'Báo cáo này không hỗ trợ xuất gộp nhiều sheet' });
+    }
+    const baseFilters = { ...(req.body?.filters || {}), __storeScope: context.storeScope };
+
+    const sheets = [];
+    for (const opt of SHEET_OPTIONS) {
+      const filters = { ...baseFilters, sheet: opt.value };
+      const { columns, rows, columnGroups, columnSuperGroups, standaloneColumnColors } =
+        await runDefinition(definition, filters, { page: 1, pageSize: 5000 });
+      sheets.push({
+        definition: { ...definition, columns, columnGroups, columnSuperGroups, standaloneColumnColors, title: opt.label },
+        rows,
+        sheetName: opt.label
+      });
+    }
+    const buffer = await exportMultiSheetExcel(sheets);
+    const campaignLabel = baseFilters.campaignId ? `-chien-dich-${baseFilters.campaignId}` : '';
+    await logAction(req, {
+      module: 'Báo cáo', actionType: 'XUAT_BAO_CAO', targetObject: req.params.reportId,
+      description: `Xuất Excel gộp ${sheets.length} sheet báo cáo "${definition.title}"`
+    });
+    res.attachment(`BRG-Weekly-Post${campaignLabel}.xlsx`);
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     return res.send(buffer);
   } catch (err) { next(err); }

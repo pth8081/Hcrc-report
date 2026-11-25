@@ -213,10 +213,10 @@ function groupRowsByChain(rows) {
   return orderedKeys.map(key => ({ key, rows: groups.get(key) }));
 }
 
-function buildSubtotalRow(groupRows, label, isGrandTotal) {
+function buildSubtotalRow(groupRows, label, isGrandTotal, chainKey) {
   const raw = sumRaw(groupRows);
   const derived = computeDerived(raw);
-  return { tenCH: label, ...derived, __isSubtotal: true, __isGrandTotal: !!isGrandTotal };
+  return { tenCH: label, ...derived, __isSubtotal: true, __isGrandTotal: !!isGrandTotal, __chainKey: chainKey || null };
 }
 
 function buildGroupedRows(storeRows, grandTotalLabel) {
@@ -230,10 +230,70 @@ function buildGroupedRows(storeRows, grandTotalLabel) {
       __sectionLabel: `${roman}. ${isOther ? 'CHƯA PHÂN NHÓM' : `CHUỖI ${g.key}`}`
     });
     out.push(...g.rows);
-    out.push(buildSubtotalRow(g.rows, `TỔNG ${isOther ? 'KHÁC' : LOAI_LABEL[g.key] || g.key}`, false));
+    out.push(buildSubtotalRow(g.rows, `TỔNG ${isOther ? 'KHÁC' : LOAI_LABEL[g.key] || g.key}`, false, g.key));
   });
   out.push(buildSubtotalRow(storeRows, grandTotalLabel || 'Tổng cộng', true));
   return out;
+}
+
+// buildChartImages (bản 11.26, theo yêu cầu người dùng — file mẫu gốc
+// "Form báo cáo hàng tuần thứ 6.xlsx" có 1 sheet "Biểu đồ" RIÊNG, 3 biểu đồ
+// cột: Tổng số Bill (Mart/Mini Mart), AOV Mart, AOV Mini Mart — đối chiếu
+// Model (LFL)/Tuần trước/Tuần này) — CHỈ dùng ĐÚNG số đã có sẵn ở 2 dòng
+// "TỔNG Mart"/"TỔNG Mini Mart" (tìm qua __chainKey gắn ở buildSubtotalRow,
+// KHÔNG so khớp chuỗi nhãn hiển thị — an toàn nếu sau này đổi nhãn). Biểu
+// đồ thứ 4 của file mẫu ("Thực trạng sử dụng thẻ") KHÔNG làm — dữ liệu đến
+// từ 1 file Excel khác nhóm MKT tự tổng hợp tay, không có trong hệ thống
+// (xác nhận với người dùng, xem hội thoại) — trả về tối đa 3 phần tử, bỏ
+// qua phần nào thiếu dòng subtotal tương ứng (vd lọc chỉ còn 1 chuỗi).
+function buildChartImages(rows) {
+  const { renderGroupedBarChart, SERIES_COLORS } = require('./chartImage');
+  const martRow = rows.find(r => r.__isSubtotal && !r.__isGrandTotal && r.__chainKey === 'MART');
+  const miniRow = rows.find(r => r.__isSubtotal && !r.__isGrandTotal && r.__chainKey === 'MINIMART');
+
+  const seriesDef = [
+    { key: 'lfl', label: 'Trung bình cùng kỳ năm trước (LFL)', color: SERIES_COLORS.lfl },
+    { key: 'w1', label: 'Tuần trước', color: SERIES_COLORS.w1 },
+    { key: 'w', label: 'Tuần này', color: SERIES_COLORS.w }
+  ];
+
+  const images = [];
+  if (martRow || miniRow) {
+    const categories = [];
+    if (martRow) categories.push({ label: 'Mart', values: { lfl: martRow.billTotalLfl, w1: martRow.billTotalW1, w: martRow.billTotalW } });
+    if (miniRow) categories.push({ label: 'Mini Mart', values: { lfl: miniRow.billTotalLfl, w1: miniRow.billTotalW1, w: miniRow.billTotalW } });
+    images.push({
+      name: 'Tổng số Bill',
+      buffer: renderGroupedBarChart({ title: 'Biểu đồ tổng số Bill', categories, series: seriesDef })
+    });
+  }
+  if (martRow) {
+    images.push({
+      name: 'AOV Mart',
+      buffer: renderGroupedBarChart({
+        title: 'Biểu đồ AOV — Chuỗi Mart',
+        categories: [
+          { label: 'AOV tổng', values: { lfl: martRow.aovTotalLfl, w1: martRow.aovTotalW1, w: martRow.aovTotalW } },
+          { label: 'AOV qua thẻ', values: { lfl: martRow.aovTheLfl, w1: martRow.aovTheW1, w: martRow.aovTheW } }
+        ],
+        series: seriesDef
+      })
+    });
+  }
+  if (miniRow) {
+    images.push({
+      name: 'AOV Mini Mart',
+      buffer: renderGroupedBarChart({
+        title: 'Biểu đồ AOV — Chuỗi Mini Mart',
+        categories: [
+          { label: 'AOV tổng', values: { lfl: miniRow.aovTotalLfl, w1: miniRow.aovTotalW1, w: miniRow.aovTotalW } },
+          { label: 'AOV qua thẻ', values: { lfl: miniRow.aovTheLfl, w1: miniRow.aovTheW1, w: miniRow.aovTheW } }
+        ],
+        series: seriesDef
+      })
+    });
+  }
+  return images;
 }
 
 async function runKhachHangTuanReport(definition, filterValues) {
@@ -314,5 +374,5 @@ module.exports = {
   runKhachHangTuanReport, DOMAIN, MEASURE_KEYS,
   firstOfMonth, lastOfMonth, yearAgo, addDays, daysBetween, ratePct,
   sumByStk, remapToMaDiem, buildRaw, computeDerived, buildColumns, buildColumnGroups,
-  groupRowsByChain, buildSubtotalRow, buildGroupedRows
+  groupRowsByChain, buildSubtotalRow, buildGroupedRows, buildChartImages
 };

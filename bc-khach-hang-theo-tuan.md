@@ -43,6 +43,37 @@ Ghi chú "(không bao gồm 07 Siêu thị chuyển đổi sang FujiMart)" trong
 mẫu — KHÔNG cần xử lý riêng: siêu thị đã chuyển đổi/ngừng dùng DSMART16
 tự nhiên không còn dữ liệu mới, tự "biến mất" khỏi số liệu.
 
+## 1b. Sheet "Biểu đồ" khi "Xuất Excel" (bản 11.26)
+
+**Theo yêu cầu người dùng** (phát hiện qua đối chiếu lại file mẫu gốc —
+"Form báo cáo hàng tuần thứ 6.xlsx" có 1 sheet "Biểu đồ" RIÊNG, tách
+khỏi sheet "Báo cáo", với 4 biểu đồ cột minh hoạ). File `.xlsx` tải về
+từ nút "Xuất Excel" của báo cáo này giờ có THÊM 1 sheet "Biểu đồ" ngay
+sau sheet dữ liệu, chứa **3 ẢNH TĨNH** (không phải biểu đồ Excel "sống"
+— không sửa lại được trong Excel như biểu đồ gốc, do thư viện xuất Excel
+dùng (`exceljs`) không hỗ trợ tạo chart Excel thật):
+
+1. **"Biểu đồ tổng số Bill"** — 2 nhóm cột Mart/Mini Mart, mỗi nhóm 3
+   cột Trung bình cùng kỳ năm trước (LFL)/Tuần trước/Tuần này — lấy
+   ĐÚNG số ở dòng "TỔNG Mart"/"TỔNG Mini Mart" của sheet dữ liệu.
+2. **"Biểu đồ AOV — Chuỗi Mart"** — 2 nhóm cột AOV tổng/AOV qua thẻ,
+   cùng 3 cột LFL/Tuần trước/Tuần này, từ dòng "TỔNG Mart".
+3. **"Biểu đồ AOV — Chuỗi Mini Mart"** — tương tự, từ dòng "TỔNG Mini
+   Mart".
+
+**KHÔNG làm biểu đồ thứ 4 của file mẫu** ("Thực trạng sử dụng thẻ" — Số
+lần TB thẻ active/tháng, Số lần KH sử dụng thẻ, Tỷ lệ) — xác nhận với
+người dùng: dữ liệu này đến từ 1 file Excel KHÁC ("Data tổng hợp.xlsx",
+liên kết ngoài trong file mẫu gốc), nhóm MKT tự tổng hợp tay, KHÔNG có
+trong DSMART16/hệ thống báo cáo này. Nếu sau này xác nhận được nguồn dữ
+liệu thật (vd đồng bộ được từ app Elite/CRM), có thể bổ sung thêm 1 ảnh
+nữa ở `lib/khachHangTuanRunner.js:buildChartImages()`.
+
+Kỹ thuật: vẽ TRỰC TIẾP bằng `@napi-rs/canvas` (Canvas 2D, build sẵn theo
+nền tảng, KHÔNG cần công cụ build hệ thống như gói `canvas` cũ) — xem
+`lib/chartImage.js`. Font tiếng Việt TÁI DÙNG font đã có sẵn cho xuất PDF
+(`@openfonts/inter_vietnamese`), KHÔNG phụ thuộc font cài trên server.
+
 ## 2. Nguồn dữ liệu
 
 Y HỆT "Báo cáo kinh doanh theo tuần" — xem `bc-kinh-doanh-theo-tuan.md`
@@ -53,9 +84,14 @@ mục 2. KHÔNG cần VIEW/job đồng bộ riêng.
 1. Đã làm xong bước 1-2 ở `bc-kinh-doanh-theo-tuan.md` (VIEW + job đồng
    bộ domain `doanhthu_the_chinhanh`) — báo cáo này KHÔNG cần thêm gì ở
    tầng dữ liệu.
-2. **Tạo báo cáo** — `node rp-server/scripts/seedKhachHangTuanReport.js`
+2. **(bản 11.26) `cd rp-server && npm install`** — thêm gói mới
+   `@napi-rs/canvas` (vẽ sheet "Biểu đồ" khi "Xuất Excel", xem mục 1b) —
+   BẮT BUỘC chạy lại `npm install` trước khi `pm2 restart rp-server`,
+   nếu không báo cáo khác vẫn chạy bình thường nhưng "Xuất Excel" của
+   ĐÚNG báo cáo này sẽ lỗi (thiếu module).
+3. **Tạo báo cáo** — `node rp-server/scripts/seedKhachHangTuanReport.js`
    (đưa vào menu `reports-adhoc` = "Báo cáo MKT").
-3. **Gán quyền xem** — Hệ thống → Phân quyền, gán quyền cho
+4. **Gán quyền xem** — Hệ thống → Phân quyền, gán quyền cho
    `bc-khach-hang-theo-tuan` (mặc định KHÔNG ai xem được).
 
 ## 4. Cách kiểm tra sau khi triển khai
@@ -67,3 +103,9 @@ nếu domain đã có dữ liệu Lịch sử (DSMART16_EOM) trùng đúng thán
 năm trước — nếu LFL luôn trống, kiểm tra lại job "...- Lịch sử
 (DSMART16_EOM)" đã tạo/chạy xong chưa (xem `bc-kinh-doanh-theo-tuan.md`
 mục 3, bước 1 — cần `--with-history`).
+
+Bấm "Xuất Excel", mở file tải về — phải thấy ĐỦ 2 sheet ("Báo cáo" +
+"Biểu đồ"), sheet "Biểu đồ" có 3 ảnh biểu đồ cột hiện ĐÚNG số khớp dòng
+"TỔNG Mart"/"TỔNG Mini Mart" ở sheet "Báo cáo", chữ tiếng Việt hiển thị
+đúng (không ô vuông/dấu hỏi — nếu lỗi font, kiểm tra lại bước 2 ở mục 3
+đã `npm install` đủ gói `@napi-rs/canvas` chưa).

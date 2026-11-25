@@ -52,6 +52,46 @@ nội dung/hành vi nào đã làm. Lịch sử Git (commit message) vẫn còn 
 "Bản 10.100"/"Bản 10.101" (không sửa lại lịch sử Git) — coi là ĐỒNG NHẤT
 với "11.0"/"11.1".
 
+## 11.26 — BRG Weekly Post gộp còn 1 báo cáo + xuất Excel nhiều sheet + Báo cáo 2 thêm sheet "Biểu đồ"
+
+**Theo yêu cầu người dùng** — "Sao lại có những bc này bạn? Có 3 báo cáo
+thôi" + "Weekly post vào 1 file chia nhiều sheet mà bạn": GỘP 5 báo cáo
+riêng "BRG Weekly Post - ..." (bản 11.24, `bc-brg-post-by-items`/
+`-by-store`/`-rankings`/`-recap`/`-detail`) thành **ĐÚNG 1 báo cáo DUY
+NHẤT** — `bc-brg-weekly-post` (SourceType `brgWeeklyPost`) — thêm bộ lọc
+**"Chọn sheet"** chuyển qua lại giữa 5 phần, mirror đúng tinh thần nhiều
+sheet trong 1 file Excel mẫu gốc. Logic tính GIỮ NGUYÊN 100% (vẫn 5 file
+`lib/brgPost*Runner.js` cũ, chỉ thêm lớp điều phối `lib/brgWeeklyPostRunner.js`).
+5 ReportId cũ ĐÃ BỊ XOÁ khỏi `app.ReportCatalog` khi chạy
+`scripts/seedBrgWeeklyPostReport.js` (cascade xoá luôn quyền đã gán —
+PHẢI gán lại quyền cho báo cáo mới). Xem `bc-brg-weekly-post.md`.
+
+**Thêm nút "Xuất Excel đủ 5 sheet"** (theo yêu cầu người dùng — "chức
+năng xuất file báo cáo gộp nhiều báo cáo thành nhiều sheet") — CHỈ cho
+báo cáo "BRG Weekly Post": chạy lại cả 5 sheet (cùng chiến dịch đang
+chọn) rồi gộp vào 1 file `.xlsx` có 5 tab (tái dùng
+`lib/exportExcel.js:exportMultiSheetExcel()` đã có sẵn cho Dashboard,
+không viết lại) — xem `routes/reports.js:POST /:reportId/export-sheets`.
+
+**"Báo cáo khách hàng theo tuần" thêm sheet "Biểu đồ" khi "Xuất Excel"**
+(theo yêu cầu người dùng, đối chiếu lại file mẫu gốc có sheet "Biểu đồ"
+riêng) — 3 ảnh biểu đồ cột tĩnh (Tổng số Bill, AOV Mart, AOV Mini Mart)
+vẽ bằng gói MỚI `@napi-rs/canvas` (build sẵn theo nền tảng, không cần
+công cụ build hệ thống), dùng CHUNG font tiếng Việt đã có sẵn cho xuất
+PDF (`@openfonts/inter_vietnamese`) — xem `lib/chartImage.js`. KHÔNG làm
+biểu đồ thứ 4 của file mẫu ("Thực trạng sử dụng thẻ") — dữ liệu đến từ 1
+file Excel khác nhóm MKT tự tổng hợp tay, xác nhận KHÔNG có trong hệ
+thống. Xem `bc-khach-hang-theo-tuan.md` mục 1b.
+
+**Không có bước DBA** — chỉ cần deploy code mới, `cd rp-server && npm
+install` (gói `@napi-rs/canvas` mới), chạy lại schema CHECK constraint +
+1 lệnh seed mới (xem nhật ký triển khai).
+
+**Kiểm tra**: xem "VERSION.md" mục bản 11.26 — mở menu "Báo cáo MKT" chỉ
+còn đúng 1 dòng "BRG Weekly Post" (không còn 5 dòng cũ), thử bấm "Xuất
+Excel đủ 5 sheet" ra đủ 5 tab; mở lại "Báo cáo khách hàng theo tuần",
+bấm "Xuất Excel" phải thấy thêm sheet "Biểu đồ" với 3 ảnh đúng số liệu.
+
 ## 11.25 — Báo cáo 1+2 (MKT) thêm bộ lọc "Từ ngày - Đến ngày" cộng dồn + bổ sung mẫu .env thiếu
 
 **Theo yêu cầu người dùng** — "Báo cáo kinh doanh theo tuần"/"Báo cáo

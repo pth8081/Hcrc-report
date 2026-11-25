@@ -456,6 +456,35 @@ async function exportExcel(definition, rows) {
   return workbook.xlsx.writeBuffer();
 }
 
+// addChartImagesSheet (bản 11.26, theo yêu cầu người dùng — "Báo cáo khách
+// hàng theo tuần" file mẫu gốc có 1 sheet "Biểu đồ" RIÊNG, xem
+// lib/khachHangTuanRunner.js:buildChartImages()) — chèn MỖI ẢNH (buffer
+// PNG đã vẽ sẵn, xem lib/chartImage.js) vào 1 vị trí xếp dọc trong CÙNG 1
+// sheet mới, KHÔNG phải biểu đồ Excel "sống" (ảnh TĨNH, người dùng đã xác
+// nhận chấp nhận đánh đổi này — xem hội thoại) — ExcelJS không hỗ trợ tạo
+// biểu đồ Excel thật (chart XML) nên không có cách nào "sống" được mà
+// không viết thêm thư viện sinh chart-XML riêng.
+function addChartImagesSheet(workbook, images, sheetName) {
+  if (!images || !images.length) return;
+  const sheet = workbook.addWorksheet(shortenSheetName(sheetName || 'Biểu đồ'));
+  // Cột B rộng vừa đủ để ảnh (860px ~ tương đương vài chục cột mặc định)
+  // không bị cắt khi mở — neo ảnh bằng toạ độ pixel qua {tl, ext}, KHÔNG
+  // qua range ô (ext giữ ĐÚNG tỉ lệ/khổ ảnh đã vẽ, không bị bảng tính kéo
+  // giãn méo theo độ rộng cột).
+  let rowCursor = 1;
+  images.forEach((img) => {
+    const imageId = workbook.addImage({ buffer: img.buffer, extension: 'png' });
+    sheet.addImage(imageId, {
+      tl: { col: 0.3, row: rowCursor - 1 + 0.3 },
+      ext: { width: 860, height: 420 }
+    });
+    // Mỗi ảnh cao 420px ~ 20 dòng mặc định (lib/exportExcel.js:DEFAULT_ROW_HEIGHT_PX
+    // không khai cứng — dùng ước lượng 21px/dòng như Excel mặc định) + 2 dòng
+    // đệm giữa các biểu đồ.
+    rowCursor += Math.ceil(420 / 21) + 2;
+  });
+}
+
 const SHEET_NAME_MAX = 31; // giới hạn cứng của Excel
 
 // Excel giới hạn tên sheet 31 ký tự — cắt NGẮN GIỮA (giữ đầu + "…" + ĐUÔI)
@@ -493,4 +522,14 @@ async function exportMultiSheetExcel(sheets) {
   return workbook.xlsx.writeBuffer();
 }
 
-module.exports = { exportExcel, exportMultiSheetExcel };
+// exportExcelWithChartSheet (bản 11.26) — như exportExcel() nhưng thêm 1
+// sheet "Biểu đồ" (ảnh tĩnh) ngay SAU sheet dữ liệu, mirror đúng cấu trúc
+// 2 sheet "Báo cáo"/"Biểu đồ" của file mẫu gốc — xem addChartImagesSheet().
+async function exportExcelWithChartSheet(definition, rows, chartImages) {
+  const workbook = new ExcelJS.Workbook();
+  addReportSheet(workbook, definition, rows);
+  addChartImagesSheet(workbook, chartImages, 'Biểu đồ');
+  return workbook.xlsx.writeBuffer();
+}
+
+module.exports = { exportExcel, exportMultiSheetExcel, exportExcelWithChartSheet };

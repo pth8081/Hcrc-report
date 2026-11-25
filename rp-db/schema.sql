@@ -542,8 +542,15 @@ IF EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = 'CK_ReportCatalog_So
 BEGIN
     ALTER TABLE app.ReportCatalog DROP CONSTRAINT CK_ReportCatalog_SourceType;
 END
+-- 'brgWeeklyPost' (bản 11.26, theo yêu cầu người dùng — gộp 5 SourceType
+-- 'brgPostByItems'/'brgPostByStore'/'brgPostRankings'/'brgPostRecap'/
+-- 'brgPostDetail' thành 1 báo cáo DUY NHẤT, chọn "sheet" qua bộ lọc nội bộ
+-- thay vì 5 báo cáo riêng trong menu) — GIỮ NGUYÊN 5 giá trị SourceType cũ
+-- trong constraint này (không xoá) dù scripts/seedBrgWeeklyPostReport.js đã
+-- xoá 5 dòng app.ReportCatalog dùng chúng — tránh rủi ro validate lại toàn
+-- bảng khi ALTER CONSTRAINT nếu còn sót dữ liệu cũ ở môi trường nào đó.
 ALTER TABLE app.ReportCatalog ADD CONSTRAINT CK_ReportCatalog_SourceType
-    CHECK (SourceType IN ('directDb', 'apiReport', 'apiRealtime', 'externalApi', 'composite', 'topZeroStock', 'coreZeroStock', 'stockThreshold', 'stockAlert', 'purchaseOrder', 'nganhHangBrg', 'doanhThuTongHopHcrc', 'kinhDoanhTuan', 'khachHangTuan', 'brgPostByItems', 'brgPostByStore', 'brgPostRankings', 'brgPostRecap', 'brgPostDetail'));
+    CHECK (SourceType IN ('directDb', 'apiReport', 'apiRealtime', 'externalApi', 'composite', 'topZeroStock', 'coreZeroStock', 'stockThreshold', 'stockAlert', 'purchaseOrder', 'nganhHangBrg', 'doanhThuTongHopHcrc', 'kinhDoanhTuan', 'khachHangTuan', 'brgPostByItems', 'brgPostByStore', 'brgPostRankings', 'brgPostRecap', 'brgPostDetail', 'brgWeeklyPost'));
 GO
 
 IF OBJECT_ID('app.RoleReportAccess', 'U') IS NULL

@@ -20,6 +20,12 @@ import { filterColumns, filterGroups } from '../../lib/reportGroupColors';
 // LĐTĐ, cùng SourceType 'doanhThuTongHopHcrc', chỉ khác nguồn Chỉ tiêu.
 const MONTHLY_EXPORT_REPORT_IDS = ['bc-doanh-thu-tong-hop-hcrc', 'bc-doanh-thu-tong-hop-ldtd'];
 
+// Bản 11.26 (theo yêu cầu người dùng — "chức năng xuất file báo cáo gộp
+// nhiều báo cáo thành nhiều sheet") — nút RIÊNG chỉ cho báo cáo "BRG Weekly
+// Post" (xem routes/reports.js:POST /:reportId/export-sheets), gộp đủ 5
+// "sheet" nội bộ thành 1 file .xlsx, KHÁC "Xuất Excel" (1 sheet đang xem).
+const MULTI_SHEET_EXPORT_REPORT_IDS = ['bc-brg-weekly-post'];
+
 export default function ReportsPage() {
   const { me } = useAuth();
   const groups = useMemo(
@@ -47,6 +53,10 @@ export default function ReportsPage() {
   // trạng thái TÁCH RIÊNG khỏi exportingFormat (nút khác, không khoá nhầm
   // nhau theo đúng quy ước khoá nút của dự án).
   const [exportingMonth, setExportingMonth] = useState(false);
+  // exportingSheets (bản 11.26) — nút "Xuất Excel đủ 5 sheet" (BRG Weekly
+  // Post), TÁCH RIÊNG khỏi exportingFormat/exportingMonth theo đúng quy
+  // ước khoá nút của dự án (xem chú thích exportingMonth ở trên).
+  const [exportingSheets, setExportingSheets] = useState(false);
   // visibleColumnKeys (bản 8.97, theo yêu cầu người dùng: "cho phép mình
   // chọn các trường ẩn đi khi xem báo cáo trên web hoặc xuất excel/pdf") —
   // CHỈ áp dụng cho báo cáo có columnGroups (hiện 4 báo cáo "Doanh thu cuối
@@ -197,6 +207,24 @@ export default function ReportsPage() {
     }
   }
 
+  // exportSheets (bản 11.26) — gộp đủ 5 "sheet" nội bộ của BRG Weekly Post
+  // thành 1 file .xlsx (campaignId đang chọn giữ nguyên, server tự chạy
+  // lại với từng `sheet`, xem routes/reports.js:POST /:reportId/export-sheets).
+  async function exportSheets() {
+    setExportingSheets(true);
+    try {
+      await downloadFile(
+        `/reports/${selectedId}/export-sheets`,
+        { filters: filterValues },
+        `${definition?.title || 'bao-cao'}-du-5-sheet.xlsx`
+      );
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setExportingSheets(false);
+    }
+  }
+
   // displayResult (bản 8.97) — result đã lọc theo visibleColumnKeys để vẽ
   // bảng trên web (xem chú thích state ở trên) — KHÔNG đụng result.rows
   // (DataTable chỉ vẽ theo đúng mảng columns truyền vào, field thừa trên
@@ -261,6 +289,14 @@ export default function ReportsPage() {
                 {MONTHLY_EXPORT_REPORT_IDS.includes(selectedId) && (
                   <button type="button" onClick={exportMonth} disabled={exportingMonth}>
                     {exportingMonth ? 'Đang xuất...' : 'Xuất Excel theo tháng (1 sheet/ngày)'}
+                  </button>
+                )}
+                {/* Bản 11.26 — nút RIÊNG chỉ cho "BRG Weekly Post" (gộp 5
+                    sheet nội bộ thành 1 file), KHÁC hẳn "Xuất Excel" (1
+                    sheet đang xem theo bộ lọc "Chọn sheet" hiện tại). */}
+                {MULTI_SHEET_EXPORT_REPORT_IDS.includes(selectedId) && (
+                  <button type="button" onClick={exportSheets} disabled={exportingSheets}>
+                    {exportingSheets ? 'Đang xuất...' : 'Xuất Excel đủ 5 sheet'}
                   </button>
                 )}
                 {/* Chỉ hiện nút chuyển đổi khi báo cáo THẬT SỰ có biểu đồ để

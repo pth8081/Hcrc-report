@@ -14,6 +14,31 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 11.26 — BRG Weekly Post gộp còn 1 báo cáo + xuất Excel nhiều sheet + Báo cáo 2 thêm sheet "Biểu đồ"
+
+**Không có bước DBA.**
+
+**Các bước**:
+1. `git pull origin main`.
+2. `cd rp-db && sqlcmd -S <server> -d HCRC_RP -i schema.sql` (cập nhật
+   `CK_ReportCatalog_SourceType` — thêm `brgWeeklyPost`, GIỮ NGUYÊN các
+   giá trị `brgPost*` cũ).
+3. `cd rp-server && npm install` (gói MỚI `@napi-rs/canvas`, dùng cho
+   sheet "Biểu đồ" của "Báo cáo khách hàng theo tuần" — BẮT BUỘC, thiếu
+   bước này "Xuất Excel" của báo cáo đó sẽ lỗi).
+4. `node scripts/seedBrgWeeklyPostReport.js` (tạo báo cáo gộp
+   `bc-brg-weekly-post` + TỰ ĐỘNG xoá 5 báo cáo cũ `bc-brg-post-by-items`/
+   `-by-store`/`-rankings`/`-recap`/`-detail` nếu còn — cascade xoá luôn
+   quyền đã gán cho chúng).
+5. `pm2 restart rp-server`.
+6. Gán lại quyền xem cho `bc-brg-weekly-post` (Hệ thống → Phân quyền) —
+   quyền của 5 báo cáo cũ đã mất ở bước 4.
+
+**Kiểm tra**: xem "VERSION.md" mục bản 11.26 — menu "Báo cáo MKT" chỉ
+còn đúng 1 dòng "BRG Weekly Post", thử "Xuất Excel đủ 5 sheet" ra đủ 5
+tab; "Báo cáo khách hàng theo tuần" bấm "Xuất Excel" có thêm sheet
+"Biểu đồ" với 3 ảnh đúng số liệu, chữ tiếng Việt hiển thị đúng.
+
 ## 11.25 — Báo cáo 1+2 (MKT) thêm bộ lọc "Từ ngày - Đến ngày" cộng dồn + bổ sung mẫu .env thiếu
 
 **Không có bước DBA.**

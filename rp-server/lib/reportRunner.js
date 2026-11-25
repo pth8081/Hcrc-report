@@ -23,6 +23,7 @@ const { runBrgPostByStoreReport } = require('./brgPostByStoreRunner');
 const { runBrgPostRankingsReport } = require('./brgPostRankingsRunner');
 const { runBrgPostRecapReport } = require('./brgPostRecapRunner');
 const { runBrgPostDetailReport } = require('./brgPostDetailRunner');
+const { runBrgWeeklyPostReport } = require('./brgWeeklyPostRunner');
 const { assignSttIfPresent } = require('./reportCellFormat');
 
 async function loadDefinition(reportId) {
@@ -161,6 +162,16 @@ async function runDefinition(definition, filterValues, pagination) {
   // lib/brgPostDetailRunner.js.
   if (definition.sourceType === 'brgPostDetail') {
     return runBrgPostDetailReport(definition, filterValues);
+  }
+  // 'brgWeeklyPost' (bản 11.26, theo yêu cầu người dùng — gộp 5 SourceType
+  // 'brgPost*' ở trên thành 1 báo cáo DUY NHẤT, chọn "sheet" qua bộ lọc nội
+  // bộ `sheet` thay vì 5 báo cáo riêng trong menu) — ĐIỀU PHỐI sang ĐÚNG 1
+  // trong 5 hàm run...Report() ở trên tuỳ `filterValues.sheet`, KHÔNG viết
+  // lại logic — xem lib/brgWeeklyPostRunner.js. GIỮ NGUYÊN 5 nhánh
+  // 'brgPost*' ở trên (không xoá) dù scripts/seedBrgWeeklyPostReport.js đã
+  // xoá 5 dòng ReportCatalog dùng chúng — phòng rủi ro, không ảnh hưởng gì.
+  if (definition.sourceType === 'brgWeeklyPost') {
+    return runBrgWeeklyPostReport(definition, filterValues);
   }
   if (definition.sourceType && definition.sourceType !== 'directDb') {
     return runApiReport(definition, filterValues, pagination);

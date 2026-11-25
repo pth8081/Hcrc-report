@@ -1810,8 +1810,4 @@ cập nhật nếu chỉ sửa báo cáo đã có (file hướng dẫn riêng t�
 | `bc-doanh-thu-tong-hop-hcrc` | Báo cáo tổng hợp doanh thu siêu thị hàng ngày | `bc-doanh-thu-tong-hop-hcrc.md` |
 | `bc-kinh-doanh-theo-tuan` | Báo cáo kinh doanh theo tuần | `bc-kinh-doanh-theo-tuan.md` |
 | `bc-khach-hang-theo-tuan` | Báo cáo khách hàng theo tuần | `bc-khach-hang-theo-tuan.md` (dùng chung domain/VIEW với báo cáo trên) |
-| `bc-brg-post-by-items` | BRG Weekly Post - Theo mã hàng | `bc-brg-weekly-post.md` |
-| `bc-brg-post-by-store` | BRG Weekly Post - Theo siêu thị | `bc-brg-weekly-post.md` |
-| `bc-brg-post-rankings` | BRG Weekly Post - Xếp hạng sản phẩm | `bc-brg-weekly-post.md` |
-| `bc-brg-post-recap` | BRG Weekly Post - Tổng hợp (Recap) | `bc-brg-weekly-post.md` |
-| `bc-brg-post-detail` | BRG Weekly Post - Chi tiết Siêu thị x Sản phẩm | `bc-brg-weekly-post.md` |
+| `bc-brg-weekly-post` | BRG Weekly Post (1 báo cáo, bộ lọc "Chọn sheet" chuyển giữa 5 phần — bản 11.26, THAY THẾ 5 ReportId `bc-brg-post-*` bản 11.24) | `bc-brg-weekly-post.md` |
