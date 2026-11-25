@@ -1089,7 +1089,11 @@ IF NOT EXISTS (SELECT 1 FROM app.MenuItems WHERE Code = 'reports-van-hanh')
 IF NOT EXISTS (SELECT 1 FROM app.MenuItems WHERE Code = 'reports-mua-hang')
     INSERT INTO app.MenuItems (Code, ParentId, Label, Path, SortOrder) VALUES ('reports-mua-hang', NULL, N'Báo cáo Mua hàng', '/reports', 5);
 IF NOT EXISTS (SELECT 1 FROM app.MenuItems WHERE Code = 'reports-adhoc')
-    INSERT INTO app.MenuItems (Code, ParentId, Label, Path, SortOrder) VALUES ('reports-adhoc', NULL, N'Báo cáo tự do', '/reports/adhoc', 6);
+    INSERT INTO app.MenuItems (Code, ParentId, Label, Path, SortOrder) VALUES ('reports-adhoc', NULL, N'Báo cáo MKT', '/reports/adhoc', 6);
+-- Đổi tên "Báo cáo tự do" -> "Báo cáo MKT" (bản 11.22, theo yêu cầu người
+-- dùng) — UPDATE riêng cho các bản cài đặt ĐÃ CÓ sẵn dòng này từ trước
+-- (INSERT ở trên chỉ chạy lần đầu, không tự đổi lại Label đã có).
+UPDATE app.MenuItems SET Label = N'Báo cáo MKT' WHERE Code = 'reports-adhoc' AND Label = N'Báo cáo tự do';
 IF NOT EXISTS (SELECT 1 FROM app.MenuItems WHERE Code = 'system')
     INSERT INTO app.MenuItems (Code, ParentId, Label, Path, SortOrder) VALUES ('system', NULL, N'Hệ thống', '/system', 7);
 -- Mục ROOT riêng (KHÔNG nằm trong "Hệ thống") — bản 8.70, theo yêu cầu

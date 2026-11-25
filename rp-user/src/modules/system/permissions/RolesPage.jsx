@@ -240,7 +240,7 @@ export default function RolesPage() {
               </label>
             ))}
 
-            <h4>Domain được tự khám phá (Báo cáo tự do)</h4>
+            <h4>Domain được tự khám phá (Báo cáo MKT)</h4>
             {!domainCatalog.length && <p className="form-hint">Chưa có Domain nào có dữ liệu trong Data Warehouse.</p>}
             {domainCatalog.map(d => (
               <label key={d} className="checkbox-row">

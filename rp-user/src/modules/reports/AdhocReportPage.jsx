@@ -183,7 +183,7 @@ export default function AdhocReportPage() {
 
   return (
     <div className="page page--wide">
-      <h1>Báo cáo tự do</h1>
+      <h1>Báo cáo MKT</h1>
       <p className="login-card-hint">Tự chọn dữ liệu, tự dựng bảng/biểu đồ — không cần admin tạo sẵn báo cáo.</p>
       {error && <p className="form-error">{error}</p>}
 

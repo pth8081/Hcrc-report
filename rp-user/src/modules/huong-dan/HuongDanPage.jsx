@@ -110,12 +110,12 @@ const SECTIONS = [
       {
         id: 'bao-cao-tu-do',
         icon: '🔍',
-        label: 'Báo cáo tự do (self-service)',
+        label: 'Báo cáo MKT (self-service)',
         content: (
           <>
-            <h2>Báo cáo tự do (self-service)</h2>
+            <h2>Báo cáo MKT (self-service)</h2>
             <p>
-              Vào <strong>"Báo cáo tự do"</strong> — người dùng cuối (không cần admin tạo sẵn) tự chọn 1
+              Vào <strong>"Báo cáo MKT"</strong> — người dùng cuối (không cần admin tạo sẵn) tự chọn 1
               domain được cấp quyền, tự chọn cột/bộ lọc/sắp xếp, LƯU LẠI để dùng lại sau — giống trải nghiệm
               Power BI ở mức đơn giản. Chỉ thấy được domain nào đã được cấp quyền ở "Phân quyền".
             </p>
@@ -254,7 +254,7 @@ const SECTIONS = [
             <ul>
               <li><strong>Menu</strong> — trang nào thấy được (vd "Hướng dẫn" đang xem chính là 1 menu).</li>
               <li><strong>Báo cáo</strong> — báo cáo cụ thể nào xem được (trong "Biểu mẫu").</li>
-              <li><strong>Domain</strong> — chỉ áp dụng cho "Báo cáo tự do": nhóm dữ liệu nào được tự truy vấn.</li>
+              <li><strong>Domain</strong> — chỉ áp dụng cho "Báo cáo MKT": nhóm dữ liệu nào được tự truy vấn.</li>
             </ul>
           </>
         )
