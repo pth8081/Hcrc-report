@@ -52,6 +52,35 @@ nội dung/hành vi nào đã làm. Lịch sử Git (commit message) vẫn còn 
 "Bản 10.100"/"Bản 10.101" (không sửa lại lịch sử Git) — coi là ĐỒNG NHẤT
 với "11.0"/"11.1".
 
+## 11.23 — SỬA LỖI: endpoint kiểm tra hợp lệ API Giá bán buôn sai khuôn đối tác yêu cầu
+
+**Theo tài liệu "Yêu Cầu API Giá Bán Buôn DSmart 2.docx" đối tác HCC gửi
+chính thức** — endpoint `GET /wholesale-price/dealer/:custId` vừa làm ở
+bản 11.22 KHÔNG khớp đúng khuôn đối tác thực sự cần.
+
+**Đúng theo tài liệu đối tác**: `POST /wholesale-price/validate` — kiểm
+tra HÀNG LOẠT cả `custId` lẫn `skuId` cùng lúc trong 1 lượt gọi (dùng lúc
+đối tác xem trước file tải lên, trước khi gọi apply), trả về
+`custResults`/`skuResults` dạng map `{ "<mã>": { valid, reason? } }`.
+
+**Thay đổi**:
+- `api-server/lib/wholesalePriceEngine.js` — bỏ `lookupDealer()`, thêm
+  `validateCustIds()`/`validateSkuIds()` (kiểm tra hàng loạt qua `IN
+  (...)`, tối đa 500 mã/mảng/lượt gọi) + `validateValidateInput()`.
+  `custId` hợp lệ = tồn tại `dbo.DEALER` **VÀ `BLOCK_CODE = 0`** (bản
+  11.22 trước đó THIẾU điều kiện `BLOCK_CODE` này). `skuId` hợp lệ = tồn
+  tại `dbo.SKU_DEF` (hoàn toàn MỚI, bản 11.22 chưa kiểm tra skuId).
+- `api-server/routes/v1/wholesalePrice.js` — thay `GET /dealer/:custId`
+  bằng `POST /validate`.
+- Giữ nguyên `X-API-Key` (tài liệu đối tác ghi `Authorization: Bearer`
+  nhưng đã chốt trước đó dùng API key tĩnh cho mọi API — KHÔNG đổi).
+- Cập nhật tài liệu API chính thức (`.md` + `.docx`) gửi đối tác HCC.
+
+**⚠️ Cần DBA cấp thêm quyền** — tài khoản SQL dùng cho kết nối HO cần
+`GRANT SELECT ON dbo.DEALER` (trước đó mới chỉ có `SKU_DEF`/`CSPRICE`).
+
+**Kiểm tra**: xem "VERSION.md" mục bản 11.23.
+
 ## 11.22 — Đổi tên "Báo cáo tự do" → "Báo cáo MKT" + API Giá bán buôn thêm endpoint kiểm tra khách hàng (custId)
 
 **Theo yêu cầu người dùng** — (1) đổi tên tab "Báo cáo tự do" thành "Báo

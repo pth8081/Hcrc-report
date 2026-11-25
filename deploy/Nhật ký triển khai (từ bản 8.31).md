@@ -14,6 +14,30 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 11.23 — SỬA LỖI: endpoint kiểm tra hợp lệ API Giá bán buôn sai khuôn đối tác yêu cầu
+
+**⚠️ CÓ BƯỚC DBA** — cấp thêm quyền `GRANT SELECT ON dbo.DEALER` cho tài
+khoản SQL dùng cho kết nối HO (đổi đúng tên tài khoản thật đang dùng):
+```sql
+USE DSMART16;
+GRANT SELECT ON dbo.DEALER TO <tên_tài_khoản_HO>;
+```
+
+**Thay đổi**: `api-server/lib/wholesalePriceEngine.js` (thay `lookupDealer()`
+bằng `validateCustIds()`/`validateSkuIds()`), `routes/v1/wholesalePrice.js`
+(thay `GET /dealer/:custId` bằng `POST /validate`), tài liệu API đối tác
+HCC (.md + .docx).
+
+**Các bước**:
+1. DBA chạy câu `GRANT` ở trên.
+2. `git pull origin main`.
+3. `pm2 restart api-server`.
+
+**Kiểm tra**: xem "VERSION.md" mục bản 11.23 — gọi thử
+`POST /api/v1/wholesale-price/validate` với `{"custIds":["<1 mã thật>"],
+"skuIds":["<1 mã hàng thật>"]}` (kèm header `X-API-Key`), phải ra đúng
+`custResults`/`skuResults`.
+
 ## 11.22 — Đổi tên "Báo cáo tự do" → "Báo cáo MKT" + API Giá bán buôn thêm endpoint kiểm tra khách hàng
 
 **Thay đổi**: `rp-db/schema.sql` (đổi Label menu), `rp-user` (đồng bộ tiêu
