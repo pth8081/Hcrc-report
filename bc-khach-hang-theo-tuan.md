@@ -26,10 +26,12 @@ domain `doanhthu_the_chinhanh`) — file này CHỈ nêu điểm KHÁC.
   → AOV tổng → AOV qua thẻ Elite → Doanh số tổng → Doanh số qua thẻ (mỗi
   nhóm 5 cột: W, W-1, LFL, Tỷ lệ W/W-1, Tỷ lệ W/LFL).
 - **Cột định danh dòng**: TT, Mã CH (= mã kho MaStkMoi), Mã điểm, Hình
-  thức (Mart/Mini Mart/Kho), Tên CH — **Mã CH đứng TRƯỚC Mã điểm** (khác
+  thức (Mart/Mini Mart), Tên CH — **Mã CH đứng TRƯỚC Mã điểm** (khác
   thứ tự MĐ-trước-MK của "Báo cáo kinh doanh theo tuần").
 - Vẫn nhóm theo Hình thức (I. CHUỖI MART/II. CHUỖI MINIMART) + dòng
-  "TỔNG <nhóm>"/"Tổng cộng" — giống báo cáo kia.
+  "TỔNG <nhóm>"/"Tổng cộng" — giống báo cáo kia. **KHÔNG hiện mã Điểm
+  `LoaiChuoi = 'KHO'`** (bản 11.27 — GIỐNG HỆT "Báo cáo kinh doanh theo
+  tuần", xem `bc-kinh-doanh-theo-tuan.md` mục 1).
 - **KHÔNG dùng** cột Miền/Vùng QL (file mẫu báo cáo này không có 2 cột
   đó — chỉ "Báo cáo kinh doanh theo tuần" dùng).
 - **Bộ lọc "Từ ngày - Đến ngày" (`customRange`, bản 11.25, tuỳ chọn)** —

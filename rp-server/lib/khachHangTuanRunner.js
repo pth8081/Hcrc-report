@@ -342,6 +342,10 @@ async function runKhachHangTuanReport(definition, filterValues) {
   const storeRows = [];
   for (const [maDiem, info] of diemMapping) {
     if (storeScope && !storeScope.has(maDiem)) continue;
+    // Bỏ hẳn "Kho" (bản 11.27, theo yêu cầu người dùng — "bỏ kho hàng đi
+    // giúp nhé, ko đưa kho hàng vào đây đâu") — mirror ĐÚNG
+    // lib/kinhDoanhTuanRunner.js, xem chú thích đầy đủ ở đó.
+    if ((info.loaiChuoi || '').toUpperCase() === 'KHO') continue;
     const w = wByMaDiem.get(maDiem) || {};
     const w1 = w1ByMaDiem.get(maDiem) || {};
     const lflMonthSum = lflByMaDiem.get(maDiem) || {};

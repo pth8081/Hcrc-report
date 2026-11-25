@@ -43,11 +43,17 @@ dùng ở domain `giaodich_chinhanh` (Doanh thu cuối ngày, dùng
 với nhau.
 
 Mỗi dòng còn hiện: Mã Điểm (MĐ), Mã kho (MK), Tên siêu thị, **Loại**
-(Mart/Mini Mart/Kho), **Miền**, **Vùng QL** (người quản lý vùng) — 2 cột
+(Mart/Mini Mart), **Miền**, **Vùng QL** (người quản lý vùng) — 2 cột
 cuối MỚI, admin tự khai (xem mục 2). Dòng được nhóm theo **Loại**
 (I. CHUỖI MART / II. CHUỖI MINIMART), mỗi nhóm có dòng "TỔNG <nhóm>",
 cuối bảng có dòng "Tổng cộng" — các tỉ lệ/AOV ở dòng tổng được **tính lại
 từ tổng các số thô** của nhóm, không phải trung bình cộng các dòng.
+
+**KHÔNG hiện mã Điểm có `LoaiChuoi = 'KHO'`** (bản 11.27, theo yêu cầu
+người dùng — "bỏ kho hàng đi giúp nhé, ko đưa kho hàng vào đây đâu") —
+báo cáo này CHỈ dành cho điểm BÁN (Mart/Mini Mart), lọc bỏ HẲN khỏi danh
+sách trước khi tính (không chỉ ẩn hiển thị) — khác với 1 vài báo cáo
+khác trong hệ thống vẫn giữ "Kho" như 1 nhóm riêng.
 
 **Quy ước "Tỷ lệ" khi không có dữ liệu kỳ trước** (đã CHỌN khác 1 vài ô
 trong file Excel mẫu — IFERROR(...,0) phía công thức gốc): kỳ trước = 0

@@ -14,6 +14,18 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 11.27 — Báo cáo 1+2 (MKT) bỏ hẳn nhóm "Kho" khỏi danh sách
+
+**Không có bước DBA, không cần chạy lại seed script.**
+
+**Các bước**:
+1. `git pull origin main`.
+2. `pm2 restart rp-server`.
+
+**Kiểm tra**: xem "VERSION.md" mục bản 11.27 — mở lại "Báo cáo kinh
+doanh theo tuần"/"Báo cáo khách hàng theo tuần", xác nhận không còn
+dòng/nhóm "Kho" nào.
+
 ## 11.26 — BRG Weekly Post gộp còn 1 báo cáo + xuất Excel nhiều sheet + Báo cáo 2 thêm sheet "Biểu đồ"
 
 **Không có bước DBA.**

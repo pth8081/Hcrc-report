@@ -52,6 +52,23 @@ nội dung/hành vi nào đã làm. Lịch sử Git (commit message) vẫn còn 
 "Bản 10.100"/"Bản 10.101" (không sửa lại lịch sử Git) — coi là ĐỒNG NHẤT
 với "11.0"/"11.1".
 
+## 11.27 — Báo cáo 1+2 (MKT) bỏ hẳn nhóm "Kho" khỏi danh sách
+
+**Theo yêu cầu người dùng** — "Bỏ kho hàng đi giúp nhé, ko đưa kho hàng
+vào đây đâu": "Báo cáo kinh doanh theo tuần"/"Báo cáo khách hàng theo
+tuần" giờ LỌC BỎ HẲN mọi mã Điểm có `LoaiChuoi = 'KHO'` (etl.DiemStkMapping)
+NGAY TỪ KHI tính số liệu — không chỉ ẩn ở tầng hiển thị — 2 báo cáo này
+chỉ còn đúng 2 nhóm "I. CHUỖI MART"/"II. CHUỖI MINIMART", không còn dòng
+"TỔNG Kho". Không ảnh hưởng báo cáo khác (vẫn giữ "Kho" như cũ nếu có
+dùng).
+
+**Không có bước DBA, không cần chạy lại seed script** (chỉ sửa logic
+runner, không đổi `DefinitionJson`) — chỉ cần deploy code mới + `pm2
+restart rp-server`.
+
+**Kiểm tra**: mở lại 2 báo cáo, xác nhận KHÔNG còn thấy nhóm/dòng "Kho"
+nào, "Tổng cộng" chỉ còn bằng tổng Mart + Mini Mart.
+
 ## 11.26 — BRG Weekly Post gộp còn 1 báo cáo + xuất Excel nhiều sheet + Báo cáo 2 thêm sheet "Biểu đồ"
 
 **Theo yêu cầu người dùng** — "Sao lại có những bc này bạn? Có 3 báo cáo

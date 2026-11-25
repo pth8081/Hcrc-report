@@ -297,6 +297,11 @@ async function runKinhDoanhTuanReport(definition, filterValues) {
   const storeRows = [];
   for (const [maDiem, info] of diemMapping) {
     if (storeScope && !storeScope.has(maDiem)) continue;
+    // Bỏ hẳn "Kho" (bản 11.27, theo yêu cầu người dùng — "bỏ kho hàng đi
+    // giúp nhé, ko đưa kho hàng vào đây đâu") — 2 báo cáo "theo tuần" CHỈ
+    // dành cho điểm BÁN (Mart/Mini Mart), không gồm kho tổng/kho trung
+    // chuyển dù etl.DiemStkMapping có khai LoaiChuoi='KHO' cho mã đó.
+    if ((info.loaiChuoi || '').toUpperCase() === 'KHO') continue;
     const w = wByMaDiem.get(maDiem) || {};
     const w1 = w1ByMaDiem.get(maDiem) || {};
     const mtd = mtdByMaDiem.get(maDiem) || {};
