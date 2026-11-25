@@ -7,10 +7,15 @@
 // 4 endpoint, mount RIÊNG trong server.js (không gộp 1 router — /ping nằm
 // NGAY DƯỚI {baseUrl}, không phải {baseUrl}/wholesale-price/ping, đúng
 // path đối tác đã code sẵn):
-//   POST /api/v1/wholesale-price/apply       (applyRouter)
-//   POST /api/v1/wholesale-price/delete      (applyRouter)
-//   GET  /api/v1/wholesale-price/dealer/:custId (applyRouter, bản 11.22)
-//   POST /api/v1/ping                        (pingRouter)
+//   POST /api/v1/wholesale-price/apply      (applyRouter)
+//   POST /api/v1/wholesale-price/delete     (applyRouter)
+//   POST /api/v1/wholesale-price/validate   (applyRouter, bản 11.23 —
+//                                            ĐÚNG theo tài liệu "Yêu Cầu
+//                                            API Giá Bán Buôn DSmart
+//                                            2.docx" đối tác gửi, THAY
+//                                            endpoint "dealer/:custId"
+//                                            bản 11.22 sai khuôn)
+//   POST /api/v1/ping                       (pingRouter)
 //
 // scope riêng 'wholesalePrice' (api.ApiConsumers.Scopes) — đối tác có scope
 // khác (vd 'realtime') KHÔNG mặc nhiên gọi được các endpoint này.
@@ -24,9 +29,9 @@ const { requireApiKey } = require('../../lib/apiAuth');
 const { getPoolForDataSource } = require('../../lib/dataSourcePool');
 const {
   ValidationError, StoreConfigError, IntegrityError,
-  validateApplyInput, validateDeleteInput,
+  validateApplyInput, validateDeleteInput, validateValidateInput,
   loadStoreDataSources, applyPriceOnPool, deletePriceOnPool, runOnAllTargets,
-  lookupDealer,
+  validateCustIds, validateSkuIds,
   HO_STORE_CODE
 } = require('../../lib/wholesalePriceEngine');
 
@@ -158,29 +163,36 @@ applyRouter.post('/delete', async (req, res, next) => {
   }
 });
 
-// GET /wholesale-price/dealer/:custId (bản 11.22, theo yêu cầu người dùng
-// — đối tác cần tự kiểm tra 1 custId có hợp lệ hay không TRƯỚC khi gọi
-// apply, tránh gửi nhầm mã khách rồi mới biết lỗi). Tra thẳng dbo.DEALER
-// qua ĐÚNG pool HO đã cấu hình sẵn (DEALER là bảng CHUNG, không theo từng
-// siêu thị — KHÔNG cần storeScope/fan-out như apply/delete). custId KHÔNG
-// tồn tại trả `exists: false`, HTTP 200 — đây là 1 kết quả tra cứu hợp lệ,
-// KHÔNG phải lỗi hệ thống (lỗi hệ thống thật, vd chưa cấu hình Nguồn dữ
-// liệu cho HO, vẫn trả 502 như apply/delete).
-applyRouter.get('/dealer/:custId', async (req, res, next) => {
+// POST /wholesale-price/validate (bản 11.23 — ĐÚNG theo tài liệu "Yêu Cầu
+// API Giá Bán Buôn DSmart 2.docx" đối tác gửi, mục "wholesale-price/
+// validate": đối tác gọi lúc người dùng xem trước file tải lên, TRƯỚC cả
+// Thêm Giá Mới, để chặn cứng custId/skuId sai NGAY từ bước xem trước —
+// đối tác KHÔNG còn tự mở kết nối SQL trực tiếp xuống DSMART16 để tự tra
+// nữa). Kiểm tra HÀNG LOẠT, KHÔNG cần storeScope/fan-out (DEALER/SKU_DEF
+// là bảng CHUNG trên HO, không theo từng siêu thị). custId/skuId không
+// hợp lệ KHÔNG coi là lỗi hệ thống — vẫn HTTP 200, thể hiện qua
+// `valid: false` + `reason` trong custResults/skuResults (lỗi hệ thống
+// thật, vd chưa cấu hình Nguồn dữ liệu cho HO, vẫn trả 502 như apply/delete).
+applyRouter.post('/validate', async (req, res, next) => {
   try {
-    const custId = String(req.params.custId || '').trim();
-    if (!custId) return res.status(400).json({ ok: false, error: 'Thiếu custId' });
+    let input;
+    try {
+      input = validateValidateInput(req.body);
+    } catch (err) {
+      if (handleValidationError(err, res)) return;
+      throw err;
+    }
 
     const { targets } = await loadStoreDataSources([]);
     const hoTarget = targets.find(t => t.storeCode === HO_STORE_CODE);
     const pool = await getPoolForDataSource(hoTarget.dataSourceId);
-    const dealer = await lookupDealer(pool, custId);
 
-    if (!dealer) return res.json({ ok: true, custId, exists: false });
-    res.json({
-      ok: true, custId, exists: true,
-      name: dealer.name, custGroup: dealer.custGroup, custLevel: dealer.custLevel, taxId: dealer.taxId
-    });
+    const [custResults, skuResults] = await Promise.all([
+      validateCustIds(pool, input.custIds),
+      validateSkuIds(pool, input.skuIds)
+    ]);
+
+    res.json({ ok: true, custResults, skuResults });
   } catch (err) {
     if (err instanceof StoreConfigError) return res.status(502).json({ ok: false, error: err.message });
     next(err);

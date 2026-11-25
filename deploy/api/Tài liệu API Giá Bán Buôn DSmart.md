@@ -46,8 +46,9 @@ THÊM vào baseUrl, giữ nguyên đúng path (bao gồm cả /ping, KHÔNG nằ
 
   {baseUrl}/wholesale-price/delete   POST         Xoá 1 mức giá đã thiết lập
 
-  {baseUrl}/wholesale-price/        GET          Kiểm tra 1 custId có hợp
-  dealer/{custId}                                lệ hay không (mới, xem
+  {baseUrl}/wholesale-price/        POST         Kiểm tra hàng loạt
+  validate                                       custId/skuId có hợp lệ
+                                                  hay không (mới, xem
                                                   mục 7)
 
   {baseUrl}/ping                     POST         Kiểm tra kết nối/cấu hình
@@ -192,26 +193,47 @@ alreadyGone=true: dòng giá này KHÔNG tồn tại sẵn (đã bị xoá từ 
 
 Cùng khuôn mục 5.3 (bao gồm cả field **results**).
 
-7\. GET {baseUrl}/wholesale-price/dealer/{custId}
+7\. POST {baseUrl}/wholesale-price/validate
 
-**Mới, bản 25/11/2026** --- tra cứu 1 custId có tồn tại/hợp lệ hay không
-TRƯỚC khi gọi apply/delete, tránh gửi nhầm mã khách rồi mới phát hiện lỗi.
-Không cần body --- custId truyền thẳng trên đường dẫn, vd:
-GET {baseUrl}/wholesale-price/dealer/C001
+**Mới, bản 25/11/2026** --- kiểm tra HÀNG LOẠT custId/skuId có hợp lệ hay
+không, dùng lúc xem trước file tải lên TRƯỚC khi gọi apply, để chặn cứng
+mã sai ngay từ bước xem trước thay vì đợi tới lúc ghi. KHÔNG cần
+storeScope (DEALER/SKU_DEF là danh mục CHUNG, không theo từng siêu thị).
 
-7.1. Response --- custId tồn tại (HTTP 200):
+7.1. Request --- custIds và/hoặc skuIds (ít nhất 1 trong 2 phải có mã, có
+thể chỉ gửi 1 trong 2 nếu chỉ cần kiểm tra riêng loại đó), tối đa 500
+mã/mảng mỗi lượt gọi:
 
-{ \"ok\": true, \"custId\": \"C001\", \"exists\": true, \"name\": \"Công ty
-TNHH ABC\", \"custGroup\": \"...\", \"custLevel\": \"...\", \"taxId\":
-\"0123456789\" }
+{ \"custIds\": \[\"C001\", \"C002\"\], \"skuIds\": \[\"SKU001\"\] }
 
-7.2. Response --- custId KHÔNG tồn tại (HTTP 200 --- đây là 1 kết quả tra
-cứu BÌNH THƯỜNG, không phải lỗi):
+7.2. Response thành công (HTTP 200) --- LUÔN trả đủ custResults/skuResults
+cho MỌI mã đã gửi (mảng rỗng/không gửi thì field đó là `{}`), mỗi mã có
+`valid` (bắt buộc) + `reason` (CHỈ có khi `valid: false`, mô tả rõ lý do):
 
-{ \"ok\": true, \"custId\": \"C001\", \"exists\": false }
+{ \"ok\": true,
+  \"custResults\": {
+    \"C001\": { \"valid\": true },
+    \"C002\": { \"valid\": false, \"reason\": \"custId \\\"C002\\\" đã bị
+      khoá (BLOCK_CODE khác 0)\" }
+  },
+  \"skuResults\": {
+    \"SKU001\": { \"valid\": true }
+  }
+}
+
+**custId hợp lệ** = tồn tại trong `dbo.DEALER` VÀ `BLOCK_CODE = 0` (khách
+bị khoá vẫn báo `valid: false`, kèm lý do riêng khác với \"không tồn
+tại\"). **skuId hợp lệ** = tồn tại trong `dbo.SKU_DEF`.
+
+custId/skuId không hợp lệ KHÔNG coi là lỗi hệ thống --- response vẫn
+`ok: true`, HTTP 200, thể hiện qua `valid: false` trong
+custResults/skuResults. Đây CHÍNH LÀ cách hệ thống HCC biết mã nào sai để
+chặn ở bước xem trước.
 
 7.3. Response lỗi hệ thống (hiếm --- chưa cấu hình xong phía DSmart/Report,
-không liên quan custId gửi lên) --- HTTP 502, cùng khuôn mục 5.3.
+không liên quan custId/skuId gửi lên, hoặc thiếu/sai cả 2 field
+custIds/skuIds) --- HTTP 400 (lỗi dữ liệu đầu vào)/502 (lỗi hệ thống),
+cùng khuôn mục 5.3.
 
 8\. POST {baseUrl}/ping
 

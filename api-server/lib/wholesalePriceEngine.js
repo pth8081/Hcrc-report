@@ -77,6 +77,28 @@ function validateDeleteInput(body) {
   return { custId, skuId, storeScope };
 }
 
+// Bản 11.23 (theo tài liệu "Yêu Cầu API Giá Bán Buôn DSmart 2.docx" đối
+// tác gửi — mục "wholesale-price/validate", thay cho endpoint
+// "dealer/:custId" bản 11.22 KHÔNG đúng khuôn đối tác cần) — custIds/
+// skuIds mỗi cái là mảng chuỗi, CHO PHÉP RỖNG/thiếu 1 trong 2 (đối tác có
+// thể chỉ cần kiểm tra riêng custId hoặc riêng skuId 1 lượt), nhưng PHẢI
+// có ÍT NHẤT 1 mã ở 1 trong 2 mảng — gọi mà cả 2 rỗng không có ý nghĩa gì.
+// Giới hạn 500 mã/mảng — đủ cho 1 lượt "xem trước file tải lên" thông
+// thường, tránh IN(...) quá dài nếu lỡ gửi nhầm cả danh sách khổng lồ.
+const MAX_VALIDATE_IDS = 500;
+function assertIdArray(value, field) {
+  if (value === undefined || value === null) return [];
+  if (!Array.isArray(value)) throw new ValidationError(`${field} phải là mảng chuỗi`);
+  if (value.length > MAX_VALIDATE_IDS) throw new ValidationError(`${field} vượt quá ${MAX_VALIDATE_IDS} mã mỗi lượt gọi`);
+  return value.map((v, i) => assertNonEmptyString(String(v), `${field}[${i}]`, 50));
+}
+function validateValidateInput(body) {
+  const custIds = assertIdArray(body?.custIds, 'custIds');
+  const skuIds = assertIdArray(body?.skuIds, 'skuIds');
+  if (!custIds.length && !skuIds.length) throw new ValidationError('Thiếu custIds/skuIds — phải có ít nhất 1 mã ở 1 trong 2 mảng');
+  return { custIds, skuIds };
+}
+
 // Trả { targets, missingStoreCodes } — targets LUÔN có HO ở vị trí đầu
 // (StoreCode="HO", xem HO_STORE_CODE) + đúng các storeCodes tìm thấy cấu
 // hình ở api.DataSources; missingStoreCodes là các storeCode KHÔNG tìm
@@ -231,33 +253,64 @@ async function runOnAllTargets(targets, fn) {
   return { results, allOk: results.every(r => r.ok) };
 }
 
-// Bản 11.22 (theo yêu cầu người dùng — đối tác cần tự kiểm tra 1 custId có
-// hợp lệ hay không TRƯỚC khi gọi apply, tránh gửi nhầm mã) — tra thẳng
-// dbo.DEALER (bảng khách hàng DOANH NGHIỆP/bán buôn — ĐÃ xác nhận bằng dữ
-// liệu thật ở "Thiết lập VIEW Bán buôn chi tiết theo khách hàng (DSMART16
-// trung tâm).sql", cột CUST_ID khớp đúng custId API này dùng) TRÊN ĐÚNG
-// pool HO (DEALER là bảng CHUNG, không theo từng siêu thị — dùng lại
-// NGUYÊN kết nối HO đã cấu hình sẵn cho apply/delete, KHÔNG cần thêm Nguồn
-// dữ liệu mới). Trả về null nếu không tìm thấy — KHÔNG coi là lỗi (custId
-// sai chỉ là 1 kết quả tra cứu bình thường, không phải lỗi hệ thống).
-async function lookupDealer(pool, custId) {
-  const result = await pool.request().input('custId', sql.NVarChar(50), custId)
-    .query('SELECT CUST_ID, CUST_NAME_U, GRP_ID, CS_LEVEL, TAX_ID FROM dbo.DEALER WHERE CUST_ID = @custId');
-  const row = result.recordset[0];
-  if (!row) return null;
-  return {
-    custId: row.CUST_ID,
-    name: row.CUST_NAME_U,
-    custGroup: row.GRP_ID,
-    custLevel: row.CS_LEVEL,
-    taxId: row.TAX_ID
-  };
+// Bản 11.23 (ĐÚNG theo tài liệu "Yêu Cầu API Giá Bán Buôn DSmart
+// 2.docx" đối tác gửi, mục "wholesale-price/validate" — THAY cho
+// lookupDealer() bản 11.22, sai khuôn đối tác cần) — kiểm tra HÀNG LOẠT
+// custId/skuId cùng lúc, dùng lúc đối tác "xem trước file tải lên" TRƯỚC
+// khi gọi apply, không còn tự mở kết nối SQL trực tiếp xuống DSMART16.
+//
+// custId hợp lệ = tồn tại trong dbo.DEALER VÀ BLOCK_CODE = 0 (ĐÚNG 2 điều
+// kiện đối tác nêu rõ — chỉ tồn tại thôi CHƯA ĐỦ, khách bị khoá
+// (BLOCK_CODE <> 0) vẫn phải báo KHÔNG hợp lệ).
+// skuId hợp lệ = tồn tại trong dbo.SKU_DEF (bảng ĐÃ dùng sẵn ở
+// lookupSkuUnitInfo() — cùng 1 nguồn, không cần bảng mới).
+//
+// Cả 2 TRÊN ĐÚNG pool HO (DEALER/SKU_DEF là bảng CHUNG, không theo từng
+// siêu thị — dùng lại NGUYÊN kết nối HO đã cấu hình sẵn cho apply/delete).
+async function validateCustIds(pool, custIds) {
+  const results = {};
+  if (!custIds.length) return results;
+  const request = pool.request();
+  const placeholders = custIds.map((id, i) => {
+    request.input(`c${i}`, sql.NVarChar(50), id);
+    return `@c${i}`;
+  });
+  const rows = await request.query(`SELECT CUST_ID, BLOCK_CODE FROM dbo.DEALER WHERE CUST_ID IN (${placeholders.join(',')})`);
+  const byId = new Map(rows.recordset.map(r => [r.CUST_ID, r.BLOCK_CODE]));
+  for (const id of custIds) {
+    if (!byId.has(id)) {
+      results[id] = { valid: false, reason: `custId "${id}" không tồn tại trong danh mục khách hàng (DEALER)` };
+    } else if (Number(byId.get(id)) !== 0) {
+      results[id] = { valid: false, reason: `custId "${id}" đã bị khoá (BLOCK_CODE khác 0)` };
+    } else {
+      results[id] = { valid: true };
+    }
+  }
+  return results;
+}
+
+async function validateSkuIds(pool, skuIds) {
+  const results = {};
+  if (!skuIds.length) return results;
+  const request = pool.request();
+  const placeholders = skuIds.map((id, i) => {
+    request.input(`s${i}`, sql.NVarChar(50), id);
+    return `@s${i}`;
+  });
+  const rows = await request.query(`SELECT SKU_ID FROM dbo.SKU_DEF WHERE SKU_ID IN (${placeholders.join(',')})`);
+  const found = new Set(rows.recordset.map(r => r.SKU_ID));
+  for (const id of skuIds) {
+    results[id] = found.has(id)
+      ? { valid: true }
+      : { valid: false, reason: `skuId "${id}" không tồn tại trong danh mục hàng hoá (SKU_DEF)` };
+  }
+  return results;
 }
 
 module.exports = {
   ValidationError, SkuNotFoundError, StoreConfigError, IntegrityError,
-  validateApplyInput, validateDeleteInput,
+  validateApplyInput, validateDeleteInput, validateValidateInput,
   loadStoreDataSources, applyPriceOnPool, deletePriceOnPool, runOnAllTargets,
-  lookupDealer,
+  validateCustIds, validateSkuIds,
   HO_STORE_CODE
 };
