@@ -14,6 +14,27 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 11.25 — Báo cáo 1+2 (MKT) thêm bộ lọc "Từ ngày - Đến ngày" cộng dồn + bổ sung mẫu .env thiếu
+
+**Không có bước DBA.**
+
+**Các bước**:
+1. `git pull origin main`.
+2. `cd rp-server && node scripts/seedKinhDoanhTuanReport.js && node scripts/seedKhachHangTuanReport.js`
+   (cập nhật lại `DefinitionJson` — thêm bộ lọc `customRange`, không đổi
+   VIEW/job đồng bộ/phân quyền đã có).
+3. `pm2 restart rp-server`.
+4. (Nếu CHƯA làm ở bản 11.24 — lỗi thật gặp trên server: "Lỗi kết nối
+   [DWH_PROMO_IMPORTER]: ... self-signed certificate") thêm vào
+   `etl/.env`: `DWH_PROMO_IMPORTER_TRUST_CERT=true` (CSDL nguồn dùng
+   chứng chỉ tự ký, 5 dòng `DWH_PROMO_IMPORTER_SERVER/_DATABASE/_USER/
+   _PASSWORD` phải đã thêm từ bản 11.24) rồi `pm2 restart etl` — xem mẫu
+   đầy đủ mới bổ sung trong `etl/.env.example`.
+
+**Kiểm tra**: xem "VERSION.md" mục bản 11.25 — mở lại 2 báo cáo, thấy
+thêm ô lọc "Hoặc chọn khoảng ngày cộng dồn", điền thử 1 khoảng 7 ngày để
+đối chiếu ra đúng số giống "Ngày trong tuần muốn xem" tương ứng.
+
 ## 11.24 — 3 báo cáo MKT mới: Kinh doanh theo tuần, Khách hàng theo tuần, BRG Weekly Post
 
 **⚠️ CÓ BƯỚC DBA**:

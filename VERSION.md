@@ -52,6 +52,36 @@ nội dung/hành vi nào đã làm. Lịch sử Git (commit message) vẫn còn 
 "Bản 10.100"/"Bản 10.101" (không sửa lại lịch sử Git) — coi là ĐỒNG NHẤT
 với "11.0"/"11.1".
 
+## 11.25 — Báo cáo 1+2 (MKT) thêm bộ lọc "Từ ngày - Đến ngày" cộng dồn + bổ sung mẫu .env thiếu
+
+**Theo yêu cầu người dùng** — "Báo cáo kinh doanh theo tuần"/"Báo cáo
+khách hàng theo tuần" (`bc-kinh-doanh-theo-tuan`/`bc-khach-hang-theo-tuan`,
+thêm ở bản 11.24) giờ có thêm bộ lọc tuỳ chọn "Hoặc chọn khoảng ngày cộng
+dồn" (`customRange`, 2 ô Từ ngày/Đến ngày), bên cạnh ô "Ngày trong tuần
+muốn xem" cũ. Điền đủ 2 ô → "W" đổi thành tổng cộng dồn ĐÚNG khoảng đã
+chọn (không còn giới hạn 7 ngày), "W-1" tự lấy khoảng liền trước **cùng
+số ngày** để vẫn so sánh được tỷ lệ. MTD/MTD-1 (báo cáo 1)/LFL (báo cáo
+2) KHÔNG đổi theo khoảng này — vẫn tính theo tháng chứa ngày "Đến ngày".
+Không điền gì → hành vi giữ nguyên như bản 11.24. Xem
+`bc-kinh-doanh-theo-tuan.md`/`bc-khach-hang-theo-tuan.md` mục 1.
+
+**SỬA THIẾU SÓT bản 11.24**: `etl/.env.example` quên mẫu 8 dòng
+`DWH_PROMO_IMPORTER_*` (pool CSDL cho trang "Chiến dịch khuyến mãi") —
+đã phát hiện qua lỗi thật trên server người dùng (`Lỗi kết nối
+[DWH_PROMO_IMPORTER]: ... self-signed certificate` — do thiếu dòng
+`DWH_PROMO_IMPORTER_TRUST_CERT=true` trong `.env` thật, CSDL nguồn dùng
+chứng chỉ tự ký) — đã bổ sung mẫu đầy đủ để lần dựng server sau không bị
+thiếu dòng này nữa.
+
+**Không có bước DBA** — chỉ cần deploy code mới + chạy lại 2 lệnh seed
+báo cáo (cập nhật lại `DefinitionJson`, không đổi VIEW/job đồng bộ/phân
+quyền đã có).
+
+**Kiểm tra**: mở lại "Báo cáo kinh doanh theo tuần"/"Báo cáo khách hàng
+theo tuần", thấy thêm ô "Hoặc chọn khoảng ngày cộng dồn" — điền 1 khoảng
+bất kỳ (vd 7 ngày) để đối chiếu ra đúng số giống hệt kết quả khi dùng
+"Ngày trong tuần muốn xem" tương ứng.
+
 ## 11.24 — 3 báo cáo MKT mới: Kinh doanh theo tuần, Khách hàng theo tuần, BRG Weekly Post
 
 **Theo yêu cầu đội MKT** (3 file Excel mẫu gửi) — toàn bộ 3 báo cáo đưa
