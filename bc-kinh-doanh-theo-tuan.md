@@ -53,7 +53,30 @@ từ tổng các số thô** của nhóm, không phải trung bình cộng các 
 trong file Excel mẫu — IFERROR(...,0) phía công thức gốc): kỳ trước = 0
 hoặc không có dữ liệu → tỷ lệ để **TRỐNG (null)**, không hiện 0% giả —
 đúng quy ước `divOrNull`/`pctOrNull` dùng thống nhất trong toàn hệ thống.
-Báo lại nếu MKT muốn đổi lại thành 0%.
+Báo lại nếu MKT muốn đổi lại thành 0%. **Lưu ý thường gặp**: "Tỷ lệ
+MTD/MTD-1" trống hàng loạt ngay sau khi mới triển khai KHÔNG phải lỗi —
+MTD-1 cần dữ liệu domain `doanhthu_the_chinhanh` của ~1 năm trước, nếu
+job đồng bộ "Lịch sử (DSMART16_EOM)" (xem mục 3, bước 2) chưa chạy/chưa
+chạy xong thì MTD-1 = 0 → tỷ lệ để trống theo đúng quy ước trên.
+
+**"Từ ngày - Đến ngày" (bộ lọc `customRange`, bản 11.25, tuỳ chọn)** —
+ngoài cách chọn 1 "Ngày trong tuần muốn xem" (W = cửa sổ trượt 7 ngày cố
+định như trên), người dùng có thể điền thêm bộ lọc "Hoặc chọn khoảng
+ngày cộng dồn" (2 ô Từ ngày/Đến ngày). Khi điền ĐỦ cả 2 ô (và Từ ngày <=
+Đến ngày):
+- **"W"** đổi nghĩa thành **tổng cộng dồn của ĐÚNG khoảng Từ ngày-Đến
+  ngày** đã chọn (không còn giới hạn 7 ngày).
+- **"W-1"** = khoảng liền trước đó, **CÙNG SỐ NGÀY** với khoảng đã chọn
+  (vd chọn 1/11-20/11/2026 — 20 ngày — thì W-1 tự động lấy 12/10-31/10,
+  cũng 20 ngày) — để tỷ lệ W/W-1 vẫn so sánh được giữa 2 khoảng cùng độ
+  dài.
+- **"MTD"/"MTD-1" KHÔNG đổi theo khoảng này** — vẫn luỹ kế đúng THÁNG
+  chứa ngày neo (neo = "Đến ngày" khi dùng khoảng tuỳ chỉnh, thay cho
+  "Ngày trong tuần muốn xem").
+- Để trống (hoặc chỉ điền 1 trong 2 ô) → báo cáo chạy đúng như trước giờ
+  (cửa sổ 7 ngày quanh "Ngày trong tuần muốn xem").
+
+Xem `lib/kinhDoanhTuanRunner.js:runKinhDoanhTuanReport()` cho chi tiết.
 
 ## 2. Nguồn dữ liệu
 

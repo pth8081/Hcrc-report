@@ -55,6 +55,8 @@ function pad(n) { return String(n).padStart(2, '0'); }
 function parseISO(s) { return new Date(`${s}T00:00:00Z`); }
 function toISO(d) { return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`; }
 function addDays(s, n) { const d = parseISO(s); d.setUTCDate(d.getUTCDate() + n); return toISO(d); }
+// Mirror ĐÚNG lib/kinhDoanhTuanRunner.js:daysBetween() — bản 11.25.
+function daysBetween(fromISO, toISO) { return Math.round((parseISO(toISO) - parseISO(fromISO)) / 86400000) + 1; }
 function firstOfMonth(s) { return `${s.slice(0, 7)}-01`; }
 function lastOfMonth(s) { return `${s.slice(0, 7)}-${pad(daysInMonth(s))}`; }
 // Lùi ĐÚNG 1 năm dương lịch — mirror lib/anomalyAlertRunner.js:resolveComparisonRange()
@@ -235,10 +237,28 @@ function buildGroupedRows(storeRows, grandTotalLabel) {
 }
 
 async function runKhachHangTuanReport(definition, filterValues) {
-  const anchor = (filterValues && filterValues.eventDate) || vietnamTodayISO();
+  // "Từ ngày - Đến ngày" (bản 11.25, theo yêu cầu người dùng) — mirror ĐÚNG
+  // lib/kinhDoanhTuanRunner.js:runKinhDoanhTuanReport() — xem chú thích đầy
+  // đủ ở đó. Điền đủ cả 2 ô -> "W" = tổng cộng dồn ĐÚNG khoảng đã chọn,
+  // "W-1" = khoảng liền trước, CÙNG SỐ NGÀY. "LFL" KHÔNG đổi theo khoảng
+  // tuỳ chỉnh — vẫn tính theo THÁNG chứa ngày neo (neo = Đến ngày khi dùng
+  // khoảng tuỳ chỉnh).
+  const customRange = (filterValues && filterValues.customRange) || {};
+  const fromFilter = customRange.from, toFilter = customRange.to;
+  const useCustomRange = !!(fromFilter && toFilter && fromFilter <= toFilter);
 
-  const wTo = anchor, wFrom = addDays(wTo, -6);
-  const w1To = addDays(wFrom, -1), w1From = addDays(w1To, -6);
+  const anchor = (useCustomRange ? toFilter : (filterValues && filterValues.eventDate)) || vietnamTodayISO();
+
+  let wFrom, wTo, w1From, w1To;
+  if (useCustomRange) {
+    wFrom = fromFilter; wTo = toFilter;
+    const rangeLen = daysBetween(wFrom, wTo);
+    w1To = addDays(wFrom, -1);
+    w1From = addDays(w1To, -(rangeLen - 1));
+  } else {
+    wTo = anchor; wFrom = addDays(wTo, -6);
+    w1To = addDays(wFrom, -1); w1From = addDays(w1To, -6);
+  }
   const lflAnchor = yearAgo(wTo);
   const lflFrom = firstOfMonth(lflAnchor), lflTo = lastOfMonth(lflAnchor);
   const lflDivisor = daysInMonth(lflFrom) / 7;
@@ -292,7 +312,7 @@ async function runKhachHangTuanReport(definition, filterValues) {
 
 module.exports = {
   runKhachHangTuanReport, DOMAIN, MEASURE_KEYS,
-  firstOfMonth, lastOfMonth, yearAgo, addDays, ratePct,
+  firstOfMonth, lastOfMonth, yearAgo, addDays, daysBetween, ratePct,
   sumByStk, remapToMaDiem, buildRaw, computeDerived, buildColumns, buildColumnGroups,
   groupRowsByChain, buildSubtotalRow, buildGroupedRows
 };

@@ -32,6 +32,12 @@ domain `doanhthu_the_chinhanh`) — file này CHỈ nêu điểm KHÁC.
   "TỔNG <nhóm>"/"Tổng cộng" — giống báo cáo kia.
 - **KHÔNG dùng** cột Miền/Vùng QL (file mẫu báo cáo này không có 2 cột
   đó — chỉ "Báo cáo kinh doanh theo tuần" dùng).
+- **Bộ lọc "Từ ngày - Đến ngày" (`customRange`, bản 11.25, tuỳ chọn)** —
+  GIỐNG HỆT cơ chế của "Báo cáo kinh doanh theo tuần" (xem
+  `bc-kinh-doanh-theo-tuan.md` mục 1, đoạn "Từ ngày - Đến ngày") — điền đủ
+  2 ô thì "W" đổi thành tổng cộng dồn khoảng đã chọn, "W-1" = khoảng liền
+  trước cùng số ngày. Riêng **"LFL" KHÔNG đổi theo khoảng này** — vẫn tính
+  theo THÁNG chứa ngày neo (neo = "Đến ngày" khi dùng khoảng tuỳ chỉnh).
 
 Ghi chú "(không bao gồm 07 Siêu thị chuyển đổi sang FujiMart)" trong file
 mẫu — KHÔNG cần xử lý riêng: siêu thị đã chuyển đổi/ngừng dùng DSMART16

@@ -24,7 +24,13 @@ const DOMAIN = 'doanhthu_the_chinhanh';
 // type: 'date' (1 ngày DUY NHẤT — ngày bất kỳ trong tuần muốn xem, runner
 // tự suy ra cửa sổ 7 ngày kết thúc đúng ngày đó) — không chọn -> mặc định
 // hôm nay (giờ Việt Nam), xem lib/khachHangTuanRunner.js.
-const FILTERS = [{ field: 'eventDate', type: 'date', label: 'Ngày trong tuần muốn xem' }];
+//
+// customRange (bản 11.25, theo yêu cầu người dùng) — mirror ĐÚNG
+// "Báo cáo kinh doanh theo tuần", xem seedKinhDoanhTuanReport.js.
+const FILTERS = [
+  { field: 'eventDate', type: 'date', label: 'Ngày trong tuần muốn xem' },
+  { field: 'customRange', type: 'dateRange', label: 'Hoặc chọn khoảng ngày cộng dồn (tuỳ chọn)' }
+];
 
 function buildDefinition() {
   return { title: TITLE, domain: DOMAIN, filters: FILTERS };

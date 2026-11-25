@@ -26,9 +26,19 @@ const REPORT_ID = 'bc-kinh-doanh-theo-tuan';
 const TITLE = 'Báo cáo kinh doanh theo tuần';
 const DOMAIN = 'doanhthu_the_chinhanh';
 // type: 'date' (1 ngày DUY NHẤT — ngày bất kỳ trong tuần muốn xem, runner
-// tự suy ra Thứ Hai -> Chủ Nhật chứa ngày đó) — không chọn -> mặc định
+// tự suy ra cửa sổ 7 ngày kết thúc đúng ngày đó) — không chọn -> mặc định
 // hôm nay (giờ Việt Nam), xem lib/kinhDoanhTuanRunner.js.
-const FILTERS = [{ field: 'eventDate', type: 'date', label: 'Ngày trong tuần muốn xem' }];
+//
+// customRange (bản 11.25, theo yêu cầu người dùng) — TUỲ CHỌN, type
+// 'dateRange' (component {from,to} dùng chung sẵn — xem FilterForm.jsx).
+// Điền ĐỦ CẢ 2 ô thì "W" đổi thành tổng cộng dồn ĐÚNG khoảng Từ ngày-Đến
+// ngày đã chọn (thay vì cửa sổ 7 ngày cố định), "W-1" = khoảng liền trước
+// CÙNG SỐ NGÀY — xem lib/kinhDoanhTuanRunner.js:runKinhDoanhTuanReport().
+// Để trống (hoặc thiếu 1 trong 2 ô) -> dùng "eventDate" như cũ.
+const FILTERS = [
+  { field: 'eventDate', type: 'date', label: 'Ngày trong tuần muốn xem' },
+  { field: 'customRange', type: 'dateRange', label: 'Hoặc chọn khoảng ngày cộng dồn (tuỳ chọn)' }
+];
 
 function buildDefinition() {
   return { title: TITLE, domain: DOMAIN, filters: FILTERS };

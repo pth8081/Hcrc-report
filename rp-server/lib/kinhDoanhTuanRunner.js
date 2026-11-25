@@ -57,6 +57,10 @@ function pad(n) { return String(n).padStart(2, '0'); }
 function parseISO(s) { return new Date(`${s}T00:00:00Z`); }
 function toISO(d) { return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`; }
 function addDays(s, n) { const d = parseISO(s); d.setUTCDate(d.getUTCDate() + n); return toISO(d); }
+// Số ngày TÍNH CẢ 2 đầu mút (vd 1/11 -> 20/11 = 20 ngày) — dùng để suy ra
+// "W-1" có CÙNG ĐỘ DÀI khi người dùng chọn khoảng "Từ ngày - Đến ngày" tuỳ
+// ý (bản 11.25, theo yêu cầu người dùng — xem runKinhDoanhTuanReport()).
+function daysBetween(fromISO, toISO) { return Math.round((parseISO(toISO) - parseISO(fromISO)) / 86400000) + 1; }
 function firstOfMonth(s) { return `${s.slice(0, 7)}-01`; }
 // Lùi ĐÚNG 1 năm dương lịch — mirror lib/anomalyAlertRunner.js:resolveComparisonRange()
 // mode 'samePeriodLastYear' (setFullYear, KHÔNG phải trừ 365 ngày).
@@ -237,11 +241,32 @@ function buildGroupedRows(storeRows, grandTotalLabel) {
 }
 
 async function runKinhDoanhTuanReport(definition, filterValues) {
-  const anchor = (filterValues && filterValues.eventDate) || vietnamTodayISO();
+  // "Từ ngày - Đến ngày" (bản 11.25, theo yêu cầu người dùng) — khi NGƯỜI
+  // DÙNG điền ĐỦ CẢ 2 ô này (và Từ ngày <= Đến ngày), "W" KHÔNG còn là cửa
+  // sổ trượt 7 ngày cố định nữa mà là TỔNG CỘNG DỒN của ĐÚNG khoảng đã
+  // chọn; "W-1" = khoảng liền trước đó, CÙNG SỐ NGÀY (để vẫn so sánh %
+  // được) — xem daysBetween() ở trên. KHÔNG điền (hoặc điền thiếu 1 ô) ->
+  // hành vi CŨ giữ nguyên (cửa sổ 7 ngày quanh "Ngày trong tuần muốn
+  // xem"). "MTD"/"MTD-1" KHÔNG đổi theo khoảng tuỳ chỉnh này — vẫn luỹ kế
+  // đúng THÁNG chứa ngày neo (neo = Đến ngày khi dùng khoảng tuỳ chỉnh,
+  // ngược lại là eventDate) như trước giờ.
+  const customRange = (filterValues && filterValues.customRange) || {};
+  const fromFilter = customRange.from, toFilter = customRange.to;
+  const useCustomRange = !!(fromFilter && toFilter && fromFilter <= toFilter);
 
-  const wTo = anchor, wFrom = addDays(wTo, -6);
-  const w1To = addDays(wFrom, -1), w1From = addDays(w1To, -6);
-  const mtdFrom = firstOfMonth(wTo), mtdTo = wTo;
+  const anchor = (useCustomRange ? toFilter : (filterValues && filterValues.eventDate)) || vietnamTodayISO();
+
+  let wFrom, wTo, w1From, w1To;
+  if (useCustomRange) {
+    wFrom = fromFilter; wTo = toFilter;
+    const rangeLen = daysBetween(wFrom, wTo);
+    w1To = addDays(wFrom, -1);
+    w1From = addDays(w1To, -(rangeLen - 1));
+  } else {
+    wTo = anchor; wFrom = addDays(wTo, -6);
+    w1To = addDays(wFrom, -1); w1From = addDays(w1To, -6);
+  }
+  const mtdFrom = firstOfMonth(anchor), mtdTo = anchor;
   const mtd1To = yearAgo(wTo), mtd1From = firstOfMonth(mtd1To);
 
   const dwhPool = await getPool('DWH');
@@ -305,7 +330,7 @@ async function runKinhDoanhTuanReport(definition, filterValues) {
 
 module.exports = {
   runKinhDoanhTuanReport, DOMAIN, MEASURE_KEYS,
-  firstOfMonth, yearAgo, addDays, ratePct,
+  firstOfMonth, yearAgo, addDays, daysBetween, ratePct,
   sumByStk, remapToMaDiem, buildRaw, computeDerived, buildColumns, buildColumnGroups,
   groupRowsByChain, buildSubtotalRow, buildGroupedRows
 };
