@@ -365,8 +365,76 @@ async function loadCampaignData(campaignId, periodFromOverride, periodToOverride
   };
 }
 
+// Chi tiết TỪNG (siêu thị, SKU) — cross-join đầy đủ (bản 11.24, GỘP 2
+// sheet "Từng ST.CH"/"Từng sản phẩm" của file mẫu — cả 2 sheet đó CÙNG 1
+// bảng chi tiết (STORE x SKU), chỉ khác Excel dùng slicer/pivot để LỌC
+// xem theo 1 chiều hay chiều khác — ở đây trả THẲNG toàn bộ, người xem tự
+// lọc/sắp xếp trên bảng web theo tên ST.CH hay tên hàng, không cần 2 báo
+// cáo riêng).
+function buildDetailRows(data) {
+  const { skuMaster, sales, stock, storeWeights, diemMapping, stkToMaDiem } = data;
+  // 1 dòng/(maDiem, maHang), khởi tạo SẴN đủ mọi tổ hợp = 0 — rồi CỘNG
+  // DỒN VÀO đúng dòng khi gặp dữ liệu, thay vì tính lại allocateSkuTargetToStores()
+  // (vòng lặp bên trong, tốn O(siêu thị) mỗi lần) cho MỖI dòng — vòng lặp
+  // NGOÀI theo SKU (mirror buildStoreRows()), tính 1 lần/SKU rồi rải vào
+  // đúng dòng của từng siêu thị.
+  const byKey = new Map(); // `${maDiem}|${maHang}` -> row
+  function getRow(maDiem, info, sku) {
+    const key = `${maDiem}|${sku.maHang}`;
+    let row = byKey.get(key);
+    if (!row) {
+      row = {
+        maDiem, tenSieuThi: info.tenSieuThi || null, maHang: sku.maHang, skuCode: sku.skuCode, skuName: sku.skuName,
+        soLuongThucTe: 0, soLuongKeHoach: 0, doanhThuThucTe: 0, doanhThuKeHoach: 0, tonKho: 0, giaTriTon: 0
+      };
+      byKey.set(key, row);
+    }
+    return row;
+  }
+
+  for (const sku of skuMaster) {
+    for (const [maDiem, info] of diemMapping) getRow(maDiem, info, sku); // đảm bảo CÓ dòng dù = 0
+
+    const storeSalesMap = sales.byMaHangStore.get(sku.maHang);
+    if (storeSalesMap) {
+      for (const [stkId, v] of storeSalesMap) {
+        const maDiem = stkToMaDiem.get(stkId);
+        if (!maDiem) continue;
+        const info = diemMapping.get(maDiem);
+        const row = getRow(maDiem, info, sku);
+        row.soLuongThucTe += v.qty; row.doanhThuThucTe += v.revenue;
+      }
+    }
+
+    const valuationPrice = (sku.giaKmMart ?? sku.giaBanLe) || 0;
+    const taxRate = sku.taxRate || 0;
+    const storeStockMap = sku.skuCode ? stock.byCodeStore.get(sku.skuCode) : null;
+    if (storeStockMap) {
+      for (const [maChiNhanh, qty] of storeStockMap) {
+        const maDiem = stkToMaDiem.get(maChiNhanh);
+        if (!maDiem) continue;
+        const info = diemMapping.get(maDiem);
+        const row = getRow(maDiem, info, sku);
+        row.tonKho += qty;
+        row.giaTriTon += qty * valuationPrice / (1 + taxRate);
+      }
+    }
+
+    const allocation = allocateSkuTargetToStores(sku, storeWeights, diemMapping);
+    for (const [maDiem, t] of allocation) {
+      const info = diemMapping.get(maDiem);
+      const row = getRow(maDiem, info, sku);
+      row.soLuongKeHoach += t.soLuongKeHoach;
+      row.doanhThuKeHoach += t.doanhThuKeHoach;
+    }
+  }
+
+  for (const row of byKey.values()) row.doanhThuThieuHut = row.doanhThuThucTe - row.doanhThuKeHoach;
+  return [...byKey.values()];
+}
+
 module.exports = {
   SALES_DOMAIN, STOCK_DOMAIN,
   loadCampaign, listCampaigns, loadSkuMaster, loadStoreWeights, allocateSkuTargetToStores,
-  fetchActualSales, fetchCurrentStock, divOrNull, loadCampaignData, buildStoreRows
+  fetchActualSales, fetchCurrentStock, divOrNull, loadCampaignData, buildStoreRows, buildDetailRows
 };

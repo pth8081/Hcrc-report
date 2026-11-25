@@ -543,7 +543,7 @@ BEGIN
     ALTER TABLE app.ReportCatalog DROP CONSTRAINT CK_ReportCatalog_SourceType;
 END
 ALTER TABLE app.ReportCatalog ADD CONSTRAINT CK_ReportCatalog_SourceType
-    CHECK (SourceType IN ('directDb', 'apiReport', 'apiRealtime', 'externalApi', 'composite', 'topZeroStock', 'coreZeroStock', 'stockThreshold', 'stockAlert', 'purchaseOrder', 'nganhHangBrg', 'doanhThuTongHopHcrc', 'kinhDoanhTuan', 'khachHangTuan', 'brgPostByItems', 'brgPostByStore', 'brgPostRankings', 'brgPostRecap'));
+    CHECK (SourceType IN ('directDb', 'apiReport', 'apiRealtime', 'externalApi', 'composite', 'topZeroStock', 'coreZeroStock', 'stockThreshold', 'stockAlert', 'purchaseOrder', 'nganhHangBrg', 'doanhThuTongHopHcrc', 'kinhDoanhTuan', 'khachHangTuan', 'brgPostByItems', 'brgPostByStore', 'brgPostRankings', 'brgPostRecap', 'brgPostDetail'));
 GO
 
 IF OBJECT_ID('app.RoleReportAccess', 'U') IS NULL

@@ -22,6 +22,7 @@ const { runBrgPostByItemsReport } = require('./brgPostByItemsRunner');
 const { runBrgPostByStoreReport } = require('./brgPostByStoreRunner');
 const { runBrgPostRankingsReport } = require('./brgPostRankingsRunner');
 const { runBrgPostRecapReport } = require('./brgPostRecapRunner');
+const { runBrgPostDetailReport } = require('./brgPostDetailRunner');
 const { assignSttIfPresent } = require('./reportCellFormat');
 
 async function loadDefinition(reportId) {
@@ -154,6 +155,12 @@ async function runDefinition(definition, filterValues, pagination) {
   // Mart/Mini Mart + theo Ngành hàng — xem lib/brgPostRecapRunner.js.
   if (definition.sourceType === 'brgPostRecap') {
     return runBrgPostRecapReport(definition, filterValues);
+  }
+  // 'brgPostDetail' (bản 11.24, "BRG Weekly Post") — GỘP 2 sheet "Từng
+  // ST.CH"/"Từng sản phẩm" (cùng 1 bảng chi tiết siêu thị x SKU) — xem
+  // lib/brgPostDetailRunner.js.
+  if (definition.sourceType === 'brgPostDetail') {
+    return runBrgPostDetailReport(definition, filterValues);
   }
   if (definition.sourceType && definition.sourceType !== 'directDb') {
     return runApiReport(definition, filterValues, pagination);
