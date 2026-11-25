@@ -24,6 +24,7 @@ const MENU_CATALOG = [
   { code: 'sync-jobs', label: 'Đồng bộ dữ liệu' },
   { code: 'schema-monitor', label: 'Giám sát cấu trúc CSDL' },
   { code: 'diem-stk-mapping', label: 'Ánh xạ Điểm - STK_ID' },
+  { code: 'promo-campaigns', label: 'Chiến dịch khuyến mãi (BRG Weekly Post)' },
   { code: 'nso-stores', label: 'Siêu thị NSO' },
   { code: 'core-item-list', label: 'Danh sách hàng Core' },
   { code: 'stock-alert-thresholds', label: 'Cảnh báo hàng tồn' },

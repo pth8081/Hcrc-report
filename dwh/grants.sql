@@ -91,3 +91,23 @@ GRANT SELECT, INSERT, UPDATE ON dwh.SalesTargets TO dwh_target_importer;
 -- rủi ro đó (tài khoản này vẫn KHÔNG THỂ ghi bất kỳ gì ngoài SalesTargets).
 GRANT SELECT ON dwh.ReportFacts TO dwh_target_importer;
 GO
+
+-- ===== dwh_promo_importer — CHỈ quản lý "dữ liệu gốc" chiến dịch khuyến
+-- mãi (Báo cáo 3 MKT "BRG Weekly Post", bản 11.24), CHỈ đúng 3 bảng =====
+-- Cùng tinh thần dwh_target_importer ở trên — route etl-admin (quản lý
+-- chiến dịch, upload SKU/trọng số siêu thị) dùng tài khoản RIÊNG này,
+-- KHÔNG đụng được dwh.ReportFacts/dwh.SalesTargets.
+IF NOT EXISTS (SELECT 1 FROM sys.server_principals WHERE name = 'dwh_promo_importer')
+BEGIN
+    CREATE LOGIN dwh_promo_importer WITH PASSWORD = 'DOI-MAT-KHAU-NAY-THANH-GIA-TRI-NGAU-NHIEN-THAT';
+END
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = 'dwh_promo_importer')
+BEGIN
+    CREATE USER dwh_promo_importer FOR LOGIN dwh_promo_importer;
+END
+GO
+GRANT SELECT, INSERT, UPDATE, DELETE ON dwh.PromoCampaigns TO dwh_promo_importer;
+GRANT SELECT, INSERT, UPDATE, DELETE ON dwh.PromoCampaignSkus TO dwh_promo_importer;
+GRANT SELECT, INSERT, UPDATE, DELETE ON dwh.PromoCampaignStoreWeights TO dwh_promo_importer;
+GO

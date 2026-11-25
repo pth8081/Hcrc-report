@@ -26,6 +26,7 @@ const adminAuditLogRoutes = require('./routes/admin/auditLog');
 const adminDashboardRoutes = require('./routes/admin/dashboard');
 const { createSalesTargetsRouter } = require('./routes/admin/salesTargets');
 const adminDiemStkMappingRoutes = require('./routes/admin/diemStkMapping');
+const adminPromoCampaignsRoutes = require('./routes/admin/promoCampaigns');
 const adminNsoStoresRoutes = require('./routes/admin/nsoStores');
 const adminCoreItemListRoutes = require('./routes/admin/coreItemList');
 const adminStockAlertThresholdsRoutes = require('./routes/admin/stockAlertThresholds');
@@ -209,6 +210,7 @@ app.use('/admin/sales-targets-nganhhang-dt-ldtd', createSalesTargetsRouter(
   true
 ));
 app.use('/admin/diem-stk-mapping', adminDiemStkMappingRoutes);
+app.use('/admin/promo-campaigns', adminPromoCampaignsRoutes);
 app.use('/admin/nso-stores', adminNsoStoresRoutes);
 app.use('/admin/core-item-list', adminCoreItemListRoutes);
 app.use('/admin/stock-alert-thresholds', adminStockAlertThresholdsRoutes);

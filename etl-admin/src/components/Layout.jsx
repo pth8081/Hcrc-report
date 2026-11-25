@@ -49,6 +49,7 @@ const NAV = [
   { path: '/sales-targets-nganhhang-nh', label: 'Chỉ tiêu Nhập hàng theo ngành hàng', icon: '🎯', menuCode: 'sales-targets-nganhhang-nh', editOnly: true, group: 'target' },
   { path: '/sales-targets-nganhhang-dt-ldtd', label: 'Chỉ tiêu Doanh thu theo ngành hàng (LDTD)', icon: '🎯', menuCode: 'sales-targets-nganhhang-dt-ldtd', editOnly: true, group: 'target' },
   { path: '/diem-stk-mapping', label: 'Ánh xạ Điểm - STK_ID', icon: '🧩', menuCode: 'diem-stk-mapping', editOnly: true, group: 'config' },
+  { path: '/promo-campaigns', label: 'Chiến dịch khuyến mãi (BRG Weekly Post)', icon: '🎁', menuCode: 'promo-campaigns', editOnly: true, group: 'config' },
   { path: '/nso-stores', label: 'Siêu thị NSO', icon: '🏬', menuCode: 'nso-stores', editOnly: true, group: 'config' },
   { path: '/core-item-list', label: 'Danh sách hàng Core', icon: '📦', menuCode: 'core-item-list', editOnly: true, group: 'config' },
   { path: '/stock-alert-thresholds', label: 'Cảnh báo hàng tồn', icon: '⚠️', menuCode: 'stock-alert-thresholds', editOnly: true, group: 'config' },

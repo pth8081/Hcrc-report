@@ -290,3 +290,105 @@ BEGIN
       WITH (SORT_IN_TEMPDB = ON);
 END
 GO
+
+-- ============================================================================
+-- Báo cáo 3 MKT — "BRG Weekly Post" (bản 11.24, theo yêu cầu đội MKT, dựa
+-- trên file mẫu thật "BRG_Weekly_Post_T6K1_BC1.xlsx") — xem
+-- "bc-brg-weekly-post.md" cho đầy đủ nghiệp vụ/công thức. 3 bảng MỚI lưu
+-- "dữ liệu gốc" (master data) của TỪNG chiến dịch khuyến mãi — ADMIN TỰ
+-- UPLOAD lại mỗi khi có chiến dịch mới (mirror tinh thần dwh.SalesTargets
+-- ở trên — chỉ tiêu/giá riêng của 1 khoảng thời gian, không có ở DSMART16)
+-- — số liệu THỰC TẾ (bán hàng/tồn kho) đọc từ domain ĐÃ CÓ SẴN
+-- (`doanhthu_sku_nganhhang`/`tonkho_chitiet_sku`), KHÔNG lưu lại ở đây.
+IF OBJECT_ID('dwh.PromoCampaigns', 'U') IS NULL
+BEGIN
+    CREATE TABLE dwh.PromoCampaigns (
+        Id                  INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        Name                NVARCHAR(200) NOT NULL,
+        StartDate           DATE          NOT NULL,
+        EndDate             DATE          NOT NULL,
+        -- "Thời gian cập nhật số liệu" trong file mẫu (vd "16/6/2026 -
+        -- 17/6/2026") — mốc NGÀY CUỐI admin tự khai mỗi lần xem báo cáo
+        -- muốn tính "thực tế" tới đâu (KHÁC EndDate — chiến dịch có thể
+        -- CHƯA kết thúc nhưng vẫn muốn xem báo cáo tạm tính giữa kỳ) —
+        -- lưu Ở ĐÂY làm giá trị NGẦM ĐỊNH, báo cáo cho phép ghi đè qua bộ
+        -- lọc ngày nếu cần xem tại 1 mốc khác.
+        DataUpdatedThrough  DATE          NULL,
+        IsActive            BIT           NOT NULL DEFAULT 1,
+        CreatedAt           DATETIME2(3)  NOT NULL DEFAULT SYSUTCDATETIME(),
+        CreatedBy           NVARCHAR(50)  NULL
+    );
+END
+GO
+
+-- 1 dòng/mã hàng/chiến dịch — ĐÚNG khuôn cột sheet "By items" file mẫu,
+-- CHỈ phần "dữ liệu gốc" (giá/scope/chỉ tiêu KHAI SẴN cho CẢ CHUỖI) —
+-- KHÔNG lưu "Số lượng thực tế"/"Doanh thu thực tế"/"Tồn kho" (luôn tính
+-- lại từ domain thực tế, không bao giờ để lệch dữ liệu tĩnh/động).
+-- SoLuongKeHoachTotal/DoanhThuKeHoachTotal là CHỈ TIÊU CẢ CHUỖI — chia về
+-- từng siêu thị theo trọng số ở dwh.PromoCampaignStoreWeights (xem bảng
+-- dưới), KHÔNG nhập riêng theo từng siêu thị (admin chỉ có 1 số/mã hàng).
+IF OBJECT_ID('dwh.PromoCampaignSkus', 'U') IS NULL
+BEGIN
+    CREATE TABLE dwh.PromoCampaignSkus (
+        Id                    BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        CampaignId            INT           NOT NULL,
+        -- MaHang = SKU_ID đầy đủ (vd "2002216367", khớp đúng dimension
+        -- MaHang của domain doanhthu_sku_nganhhang) — SkuCode = mã hiển
+        -- thị ngắn (vd "216367", chỉ để hiện trên báo cáo, KHÔNG dùng để
+        -- join dữ liệu thực tế).
+        MaHang                NVARCHAR(50)  NOT NULL,
+        SkuCode                NVARCHAR(50)  NULL,
+        SkuName               NVARCHAR(300) NULL,
+        DeptName              NVARCHAR(100) NULL,
+        GiaBanLe              DECIMAL(18,2) NULL,
+        GiaKmMart             DECIMAL(18,2) NULL,
+        GiaKmMini             DECIMAL(18,2) NULL,
+        -- "Key"/"Note" file mẫu — mô tả hình thức KM dạng CHỮ (vd "Mua 1
+        -- tặng 1") khi KHÔNG áp dụng được % giảm giá đơn giản — giữ
+        -- NGUYÊN VĂN, KHÔNG phân tích/tính toán gì từ chuỗi này.
+        PromoNote             NVARCHAR(300) NULL,
+        -- PercentKm = "Total KM" (vd 0.04 = giảm 4%) — CHỈ mang tính hiển
+        -- thị/tham khảo, KHÔNG dùng để tính lại Doanh thu/Giá (giá KM
+        -- thật đã có sẵn ở GiaKmMart/GiaKmMini).
+        PercentKm             DECIMAL(9,6)  NULL,
+        TaxRate               DECIMAL(9,6)  NULL,
+        -- ApplyScope: 'All' (áp dụng CẢ Mart và Mini Mart) / 'Mart' /
+        -- 'MiniMart' — ĐÚNG cột "Áp dụng" file mẫu.
+        ApplyScope            VARCHAR(20)   NOT NULL DEFAULT 'All',
+        SoLuongKeHoachTotal   DECIMAL(18,3) NULL,
+        DoanhThuKeHoachTotal  DECIMAL(18,2) NULL,
+        ImportedAt            DATETIME2(3)  NOT NULL DEFAULT SYSUTCDATETIME(),
+        ImportedBy            NVARCHAR(50)  NULL,
+        CONSTRAINT UX_PromoCampaignSkus_Campaign_MaHang UNIQUE (CampaignId, MaHang),
+        CONSTRAINT FK_PromoCampaignSkus_Campaign FOREIGN KEY (CampaignId)
+            REFERENCES dwh.PromoCampaigns (Id)
+    );
+    CREATE INDEX IX_PromoCampaignSkus_Campaign ON dwh.PromoCampaignSkus (CampaignId);
+END
+GO
+
+-- 1 dòng/mã Điểm/chiến dịch — trọng số CHIA chỉ tiêu cả chuỗi (ở bảng
+-- trên) VỀ từng siêu thị: tỉ lệ siêu thị X = StoreWeight(X) / TỔNG
+-- StoreWeight mọi siêu thị CÓ trong chiến dịch này. Admin UPLOAD KÈM số
+-- này mỗi chiến dịch (KHÔNG suy ra từ dwh.SalesTargets hay domain nào có
+-- sẵn — số "Doanh số chỉ tiêu theo kế hoạch công ty" trong file mẫu có
+-- vẻ do bộ phận Vận Hành tự tính/gửi riêng cho từng chiến dịch, không
+-- khớp theo công thức cố định nào suy luận được — xem "bc-brg-weekly-post.md"
+-- mục ghi chú giả định CẦN NGƯỜI DÙNG XÁC NHẬN LẠI).
+IF OBJECT_ID('dwh.PromoCampaignStoreWeights', 'U') IS NULL
+BEGIN
+    CREATE TABLE dwh.PromoCampaignStoreWeights (
+        Id          BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        CampaignId  INT           NOT NULL,
+        MaDiem      NVARCHAR(50)  NOT NULL,
+        StoreWeight DECIMAL(18,4) NOT NULL,
+        ImportedAt  DATETIME2(3)  NOT NULL DEFAULT SYSUTCDATETIME(),
+        ImportedBy  NVARCHAR(50)  NULL,
+        CONSTRAINT UX_PromoCampaignStoreWeights_Campaign_MaDiem UNIQUE (CampaignId, MaDiem),
+        CONSTRAINT FK_PromoCampaignStoreWeights_Campaign FOREIGN KEY (CampaignId)
+            REFERENCES dwh.PromoCampaigns (Id)
+    );
+    CREATE INDEX IX_PromoCampaignStoreWeights_Campaign ON dwh.PromoCampaignStoreWeights (CampaignId);
+END
+GO
