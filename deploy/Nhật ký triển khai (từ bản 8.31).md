@@ -14,6 +14,45 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 11.24 — 3 báo cáo MKT mới: Kinh doanh theo tuần, Khách hàng theo tuần, BRG Weekly Post
+
+**⚠️ CÓ BƯỚC DBA**:
+```sql
+-- 1. Script A trong "deploy/VIEW DSMART16 (trung tâm)/Thiết lập VIEW
+--    Doanh thu theo Thẻ chi nhánh (Script A+B, DSMART16 + DSMART16_EOM).sql"
+--    chạy trên CSDL DSMART16 (Live).
+-- 2. (tuỳ chọn, cho MTD-1/LFL) Script B cùng file, chạy trên DSMART16_EOM.
+
+-- 3. dwh/grants.sql trên CSDL HCRC_DWH — tạo tài khoản dwh_promo_importer,
+--    ĐỔI mật khẩu thật trong câu CREATE LOGIN trước khi chạy.
+```
+
+**Các bước (sau khi DBA xong phần trên)**:
+1. `git pull origin main`.
+2. `cd rp-db && sqlcmd -S <server> -d HCRC_RP -i schema.sql` (tạo 3 bảng
+   `dwh.PromoCampaigns*` + cập nhật `CK_ReportCatalog_SourceType`).
+3. `cd etl-db && sqlcmd -S <server> -d HCRC_ETL -i schema.sql` (thêm cột
+   `Mien`/`VungQL` vào `etl.DiemStkMapping`).
+4. Thêm vào `etl/.env`: `DWH_PROMO_IMPORTER_SERVER`, `DWH_PROMO_IMPORTER_DATABASE`
+   (=HCRC_DWH), `DWH_PROMO_IMPORTER_USER`, `DWH_PROMO_IMPORTER_PASSWORD`
+   (khớp tài khoản DBA vừa tạo ở bước DBA #3).
+5. `cd etl && node scripts/seedDoanhThuTheSync.js` (thêm `--with-history`
+   nếu đã chạy Script B).
+6. `cd rp-server && node scripts/seedKinhDoanhTuanReport.js && node scripts/seedKhachHangTuanReport.js`
+7. `cd rp-server && node scripts/seedBrgPostByItemsReport.js && node scripts/seedBrgPostByStoreReport.js && node scripts/seedBrgPostRankingsReport.js && node scripts/seedBrgPostRecapReport.js && node scripts/seedBrgPostDetailReport.js`
+8. `pm2 restart etl api-server rp-server` (hoặc tên process thật đang
+   dùng) + `cd etl-admin && npm run build` (deploy `dist/`).
+9. Gán quyền xem 7 báo cáo mới (Hệ thống → Phân quyền) + quyền trang
+   "Chiến dịch khuyến mãi (BRG Weekly Post)" cho admin phụ trách (Vai
+   trò → `promo-campaigns`).
+10. Vào etl-admin → "Chiến dịch khuyến mãi (BRG Weekly Post)" → tạo 1
+    chiến dịch + upload file SKU + file trọng số siêu thị (dùng "Tải
+    file mẫu" ở mỗi phần).
+
+**Kiểm tra**: xem "VERSION.md" mục bản 11.24 — mở 7 báo cáo mới (menu
+"Báo cáo MKT"), đối chiếu số theo mục 4 ở `bc-kinh-doanh-theo-tuan.md`/
+`bc-khach-hang-theo-tuan.md`/`bc-brg-weekly-post.md`.
+
 ## 11.23 — SỬA LỖI: endpoint kiểm tra hợp lệ API Giá bán buôn sai khuôn đối tác yêu cầu
 
 **⚠️ CÓ BƯỚC DBA** — cấp thêm quyền `GRANT SELECT ON dbo.DEALER` cho tài

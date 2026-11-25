@@ -52,6 +52,40 @@ nội dung/hành vi nào đã làm. Lịch sử Git (commit message) vẫn còn 
 "Bản 10.100"/"Bản 10.101" (không sửa lại lịch sử Git) — coi là ĐỒNG NHẤT
 với "11.0"/"11.1".
 
+## 11.24 — 3 báo cáo MKT mới: Kinh doanh theo tuần, Khách hàng theo tuần, BRG Weekly Post
+
+**Theo yêu cầu đội MKT** (3 file Excel mẫu gửi) — toàn bộ 3 báo cáo đưa
+vào menu "Báo cáo MKT".
+
+**Báo cáo 1 — `bc-kinh-doanh-theo-tuan`** + **Báo cáo 2 —
+`bc-khach-hang-theo-tuan`**: dùng chung VIEW/domain MỚI
+`doanhthu_the_chinhanh` (BÁN LẺ, loại hẳn bán buôn — đúng ghi chú file
+mẫu). Báo cáo 1: so sánh W (7 ngày kết thúc tại ngày chọn, KHÔNG phải
+tuần dương lịch)/W-1/Tỷ lệ + MTD/MTD-1 (cùng kỳ năm trước)/Tỷ lệ. Báo
+cáo 2: W/W-1/LFL (trung bình tuần cùng kỳ năm trước)/2 loại Tỷ lệ. Cả 2
+cho Doanh số/Số Bill/AOV × Total/Qua thẻ Elite, nhóm Mart/Mini Mart. 2
+cột MỚI "Miền"/"Vùng QL" trong "Ánh xạ Điểm - STK_ID" (admin tự khai).
+Xem đầy đủ công thức ở `bc-kinh-doanh-theo-tuan.md`/`bc-khach-hang-theo-tuan.md`.
+
+**Báo cáo 3 — BRG Weekly Post** (5 báo cáo, gộp từ 10 sheet file mẫu):
+`bc-brg-post-by-items`, `bc-brg-post-by-store`, `bc-brg-post-rankings`
+(gộp Top SL/Top DS/Top KH/Vượt KH), `bc-brg-post-recap`,
+`bc-brg-post-detail` (gộp Từng ST.CH/Từng sản phẩm). Admin upload "dữ
+liệu gốc" từng chiến dịch khuyến mãi (SKU/giá/chỉ tiêu + trọng số phân
+bổ theo siêu thị) qua etl-admin → "Chiến dịch khuyến mãi (BRG Weekly
+Post)" (3 bảng mới `dwh.PromoCampaigns*`, tài khoản riêng
+`dwh_promo_importer`) — số liệu thực tế (bán hàng/tồn kho) tái dùng
+NGUYÊN domain `doanhthu_sku_nganhhang`/`tonkho_chitiet_sku` đã có, KHÔNG
+cần ETL mới. ⚠️ "Trọng số phân bổ chỉ tiêu theo siêu thị" là số admin tự
+khai mỗi chiến dịch (chưa suy ra được công thức tính tự động từ dữ liệu
+có sẵn khớp đúng file mẫu). Xem đầy đủ ở `bc-brg-weekly-post.md`.
+
+**⚠️ CÓ BƯỚC DBA** — chạy VIEW mới (Script A `V_HCRC_DOANHTHU_THE_CHINHANH`)
++ `dwh/grants.sql` (tài khoản `dwh_promo_importer` mới, ĐỔI mật khẩu thật).
+
+**Kiểm tra**: xem "VERSION.md" mục bản 11.24 + mục 4 ở cả 3 file `.md`
+riêng của từng báo cáo.
+
 ## 11.23 — SỬA LỖI: endpoint kiểm tra hợp lệ API Giá bán buôn sai khuôn đối tác yêu cầu
 
 **Theo tài liệu "Yêu Cầu API Giá Bán Buôn DSmart 2.docx" đối tác HCC gửi
