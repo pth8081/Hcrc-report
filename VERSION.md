@@ -52,6 +52,28 @@ nội dung/hành vi nào đã làm. Lịch sử Git (commit message) vẫn còn 
 "Bản 10.100"/"Bản 10.101" (không sửa lại lịch sử Git) — coi là ĐỒNG NHẤT
 với "11.0"/"11.1".
 
+## 11.22 — Đổi tên "Báo cáo tự do" → "Báo cáo MKT" + API Giá bán buôn thêm endpoint kiểm tra khách hàng (custId)
+
+**Theo yêu cầu người dùng** — (1) đổi tên tab "Báo cáo tự do" thành "Báo
+cáo MKT"; (2) API Giá bán buôn cho đối tác HCC cần tự kiểm tra 1 `custId`
+có hợp lệ (tồn tại trong danh mục khách hàng doanh nghiệp) hay không
+TRƯỚC khi gọi apply/delete, tránh gửi nhầm mã khách.
+
+**Thay đổi**:
+- `rp-db/schema.sql` — đổi `Label` menu `reports-adhoc` thành "Báo cáo
+  MKT" (kèm `UPDATE` cho bản cài đã có sẵn).
+- `rp-user` — đồng bộ tiêu đề trang Báo cáo MKT + nhãn liên quan ở trang
+  Hướng dẫn/Phân quyền. KHÔNG đổi tên code/route nội bộ (`reports-adhoc`,
+  `AdhocReportPage.jsx`...).
+- `api-server/lib/wholesalePriceEngine.js` + `routes/v1/wholesalePrice.js`
+  — thêm `GET /wholesale-price/dealer/:custId`, tra `dbo.DEALER` (bảng
+  khách hàng doanh nghiệp/bán buôn — đã xác nhận bằng dữ liệu thật ở VIEW
+  "Bán buôn chi tiết theo khách hàng") qua ĐÚNG kết nối HO đã cấu hình sẵn
+  cho apply/delete — không cần cấu hình thêm gì.
+- Cập nhật tài liệu API chính thức (`.md` + `.docx`) gửi đối tác HCC.
+
+**Kiểm tra**: xem "VERSION.md" mục bản 11.22.
+
 ## 11.21 — SỬA LỖI THẬT: cột "Thời điểm thay đổi"/"Lên lịch lúc" luôn trống (từ bản 10.79)
 
 **Theo báo cáo người dùng** (ảnh chụp bảng kết quả thật — cột "Thời điểm

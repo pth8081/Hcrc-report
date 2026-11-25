@@ -14,6 +14,26 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 11.22 — Đổi tên "Báo cáo tự do" → "Báo cáo MKT" + API Giá bán buôn thêm endpoint kiểm tra khách hàng
+
+**Thay đổi**: `rp-db/schema.sql` (đổi Label menu), `rp-user` (đồng bộ tiêu
+đề/nhãn), `api-server/lib/wholesalePriceEngine.js` + `routes/v1/wholesalePrice.js`
+(endpoint mới `GET /dealer/:custId`), tài liệu API đối tác HCC (.md + .docx).
+
+**Triển khai**:
+```bash
+git pull origin main
+cd rp-db && sqlcmd -S <server> -d HCRC_RP -i schema.sql   # đổi Label menu cho bản cài đã có
+pm2 restart api-server
+cd rp-user && npm run build   # rồi deploy dist/
+```
+Không cần đổi gì ở `api-db`/CSDL API (endpoint mới chỉ đọc DSMART16 qua
+kết nối HO đã có sẵn).
+
+**Kiểm tra**: xem "VERSION.md" mục bản 11.22 — tab "Báo cáo MKT" hiện
+đúng tên; gọi thử `GET /api/v1/wholesale-price/dealer/<1 custId thật>`
+(kèm header `X-API-Key`) phải ra đúng thông tin khách hàng.
+
 ## 11.21 — SỬA LỖI THẬT: cột "Thời điểm thay đổi"/"Lên lịch lúc" luôn trống
 
 **Thay đổi**: `etl/scripts/seedThayDoiGiaSync.js` (thêm
