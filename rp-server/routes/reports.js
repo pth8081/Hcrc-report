@@ -33,6 +33,7 @@ const { buildDoanhThuTongHopHcrcMonthlyWorkbook } = require('../lib/doanhThuTong
 const { filterColumns, filterGroups, computeSummaryCards } = require('../lib/reportCellFormat');
 const { getUserContext } = require('../lib/permissions');
 const { loadDiemStkMapping, buildStkIdLookup } = require('../lib/diemStkMapping');
+const { listCampaigns: listPromoCampaigns } = require('../lib/brgWeeklyPostCore');
 const reportResultCache = require('../lib/reportResultCache');
 const { logAction } = require('../lib/auditLog');
 
@@ -246,6 +247,18 @@ router.get('/:reportId/filter-options/:field', async (req, res, next) => {
         .map(([maDiem, info]) => ({ value: maDiem, label: info.tenSieuThi || `${maDiem} (chưa khai tên)` }))
         .sort((a, b) => a.label.localeCompare(b.label, 'vi'));
       return res.json(list);
+    }
+
+    // optionsSource.promoCampaigns (bản 11.24, "BRG Weekly Post") — bộ lọc
+    // "Chiến dịch khuyến mãi" đọc thẳng dwh.PromoCampaigns (KHÔNG phải
+    // domain/Dimensions như nhánh chung bên dưới) — xem lib/brgWeeklyPostCore.js.
+    if (filterDef.optionsSource.promoCampaigns) {
+      const dwhPool = await getPool('DWH');
+      const list = await listPromoCampaigns(dwhPool);
+      return res.json(list.map(c => ({
+        value: String(c.id),
+        label: `${c.name} (${(c.startDate || '').toString().slice(0, 10)} - ${(c.endDate || '').toString().slice(0, 10)})`
+      })));
     }
 
     const { domain, valueField, labelField } = filterDef.optionsSource;

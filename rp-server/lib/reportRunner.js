@@ -18,6 +18,7 @@ const { runNganhHangBrgReport } = require('./nganhHangBrgRunner');
 const { runDoanhThuTongHopHcrcReport } = require('./doanhThuTongHopHcrcRunner');
 const { runKinhDoanhTuanReport } = require('./kinhDoanhTuanRunner');
 const { runKhachHangTuanReport } = require('./khachHangTuanRunner');
+const { runBrgPostByItemsReport } = require('./brgPostByItemsRunner');
 const { assignSttIfPresent } = require('./reportCellFormat');
 
 async function loadDefinition(reportId) {
@@ -127,6 +128,13 @@ async function runDefinition(definition, filterValues, pagination) {
   // Total/Qua thẻ — xem lib/khachHangTuanRunner.js.
   if (definition.sourceType === 'khachHangTuan') {
     return runKhachHangTuanReport(definition, filterValues);
+  }
+  // 'brgPostByItems' (bản 11.24, "BRG Weekly Post" — Báo cáo 3 MKT, sheet
+  // "By items") — MỖI DÒNG/SKU của 1 chiến dịch khuyến mãi (chọn qua bộ
+  // lọc campaignId), chỉ tiêu cả chuỗi + thực tế — xem
+  // lib/brgPostByItemsRunner.js + lib/brgWeeklyPostCore.js.
+  if (definition.sourceType === 'brgPostByItems') {
+    return runBrgPostByItemsReport(definition, filterValues);
   }
   if (definition.sourceType && definition.sourceType !== 'directDb') {
     return runApiReport(definition, filterValues, pagination);

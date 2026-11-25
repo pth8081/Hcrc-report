@@ -531,12 +531,18 @@ END
 -- lại TOÀN BỘ danh sách SourceType thật đang dùng (grep "sourceType ===" ở
 -- rp-server/lib/reportRunner.js — nơi DUY NHẤT phân nhánh theo SourceType
 -- — đáng tin hơn soát từng script seed riêng lẻ) để bổ sung đủ 1 lần.
+--
+-- Bản 11.24 — THÊM 3 SourceType MỚI cùng lúc (3 báo cáo MKT "theo tuần"/
+-- "BRG Weekly Post"): 'kinhDoanhTuan' (scripts/seedKinhDoanhTuanReport.js),
+-- 'khachHangTuan' (scripts/seedKhachHangTuanReport.js), 'brgPostByItems'
+-- (scripts/seedBrgPostByItemsReport.js) — RÚT KINH NGHIỆM đúng 3 lần lặp
+-- lại trước, soát lại NGAY LÚC THÊM, không chờ gặp lỗi thật trên server.
 IF EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = 'CK_ReportCatalog_SourceType')
 BEGIN
     ALTER TABLE app.ReportCatalog DROP CONSTRAINT CK_ReportCatalog_SourceType;
 END
 ALTER TABLE app.ReportCatalog ADD CONSTRAINT CK_ReportCatalog_SourceType
-    CHECK (SourceType IN ('directDb', 'apiReport', 'apiRealtime', 'externalApi', 'composite', 'topZeroStock', 'coreZeroStock', 'stockThreshold', 'stockAlert', 'purchaseOrder', 'nganhHangBrg', 'doanhThuTongHopHcrc'));
+    CHECK (SourceType IN ('directDb', 'apiReport', 'apiRealtime', 'externalApi', 'composite', 'topZeroStock', 'coreZeroStock', 'stockThreshold', 'stockAlert', 'purchaseOrder', 'nganhHangBrg', 'doanhThuTongHopHcrc', 'kinhDoanhTuan', 'khachHangTuan', 'brgPostByItems'));
 GO
 
 IF OBJECT_ID('app.RoleReportAccess', 'U') IS NULL
