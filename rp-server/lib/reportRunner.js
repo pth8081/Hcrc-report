@@ -19,6 +19,8 @@ const { runDoanhThuTongHopHcrcReport } = require('./doanhThuTongHopHcrcRunner');
 const { runKinhDoanhTuanReport } = require('./kinhDoanhTuanRunner');
 const { runKhachHangTuanReport } = require('./khachHangTuanRunner');
 const { runBrgPostByItemsReport } = require('./brgPostByItemsRunner');
+const { runBrgPostByStoreReport } = require('./brgPostByStoreRunner');
+const { runBrgPostRankingsReport } = require('./brgPostRankingsRunner');
 const { assignSttIfPresent } = require('./reportCellFormat');
 
 async function loadDefinition(reportId) {
@@ -135,6 +137,17 @@ async function runDefinition(definition, filterValues, pagination) {
   // lib/brgPostByItemsRunner.js + lib/brgWeeklyPostCore.js.
   if (definition.sourceType === 'brgPostByItems') {
     return runBrgPostByItemsReport(definition, filterValues);
+  }
+  // 'brgPostByStore' (bản 11.24, "BRG Weekly Post", sheet "By Store") —
+  // MỖI DÒNG/mã Điểm, tổng thực tế + chỉ tiêu ĐÃ PHÂN BỔ theo trọng số —
+  // xem lib/brgPostByStoreRunner.js.
+  if (definition.sourceType === 'brgPostByStore') {
+    return runBrgPostByStoreReport(definition, filterValues);
+  }
+  // 'brgPostRankings' (bản 11.24, "BRG Weekly Post") — gộp 4 sheet nhỏ
+  // "Top SL"/"Top DS"/"Top KH"/"Vượt KH" — xem lib/brgPostRankingsRunner.js.
+  if (definition.sourceType === 'brgPostRankings') {
+    return runBrgPostRankingsReport(definition, filterValues);
   }
   if (definition.sourceType && definition.sourceType !== 'directDb') {
     return runApiReport(definition, filterValues, pagination);

@@ -83,20 +83,105 @@ async function loadStoreWeights(pool, campaignId) {
   return { byMaDiem, total };
 }
 
-// Tỉ lệ siêu thị X = StoreWeight(X) / tổng — áp dụng tỉ lệ đó lên
-// SoLuongKeHoachTotal/DoanhThuKeHoachTotal của 1 SKU -> ra chỉ tiêu RIÊNG
-// của siêu thị X cho SKU đó. Trả Map<MaDiem, {soLuongKeHoach, doanhThuKeHoach}>.
-function allocateSkuTargetToStores(sku, storeWeights) {
+// Tỉ lệ siêu thị X = StoreWeight(X) / TỔNG trọng số các siêu thị CÓ ÁP
+// DỤNG SKU này (sku.applyScope — 'Mart'/'MiniMart' loại hẳn siêu thị khác
+// loại khỏi "tổng" trước khi chia, KHÔNG phải chia đều cho MỌI siêu thị
+// rồi để siêu thị không áp dụng ra số dương vô lý) — áp tỉ lệ đó lên
+// SoLuongKeHoachTotal/DoanhThuKeHoachTotal của SKU -> chỉ tiêu RIÊNG của
+// từng siêu thị. Trả Map<MaDiem, {soLuongKeHoach, doanhThuKeHoach}>.
+function allocateSkuTargetToStores(sku, storeWeights, diemMapping) {
   const out = new Map();
-  if (!storeWeights.total) return out;
-  for (const [maDiem, weight] of storeWeights.byMaDiem) {
-    const ratio = weight / storeWeights.total;
+  const eligible = [...storeWeights.byMaDiem.entries()].filter(([maDiem]) => {
+    if (sku.applyScope === 'All' || !sku.applyScope) return true;
+    const info = diemMapping.get(maDiem);
+    const loaiChuoi = info && info.loaiChuoi;
+    if (sku.applyScope === 'Mart') return loaiChuoi === 'MART';
+    if (sku.applyScope === 'MiniMart') return loaiChuoi === 'MINIMART';
+    return true;
+  });
+  const eligibleTotal = eligible.reduce((s, [, w]) => s + w, 0);
+  if (!eligibleTotal) return out;
+  for (const [maDiem, weight] of eligible) {
+    const ratio = weight / eligibleTotal;
     out.set(maDiem, {
       soLuongKeHoach: sku.soLuongKeHoachTotal * ratio,
       doanhThuKeHoach: sku.doanhThuKeHoachTotal * ratio
     });
   }
   return out;
+}
+
+// Dữ liệu theo TỪNG SIÊU THỊ (mã Điểm) — gộp CẢ 3 nguồn (thực tế bán
+// hàng/tồn kho/chỉ tiêu đã phân bổ) qua TỪNG SKU rồi cộng dồn — dùng cho
+// "By Store"/"Từng ST.CH"/mọi view theo siêu thị khác. KHÔNG gồm "Tổng
+// doanh số bán lẻ thực tế"/"Số lượng Bill bán lẻ" CỦA CẢ SIÊU THỊ (mọi
+// mặt hàng, không riêng SKU khuyến mãi) — file mẫu CÓ 2 cột đó nhưng cần
+// đọc THÊM domain `doanhthu_chinhanh`/`giaodich_chinhanh` (tổng doanh thu/
+// giao dịch CẢ siêu thị, không riêng SKU KM) — CHƯA làm ở bản này, xem
+// "bc-brg-weekly-post.md" mục ghi chú phạm vi.
+function buildStoreRows(data) {
+  const { skuMaster, sales, stock, storeWeights, diemMapping, stkToMaDiem } = data;
+  const perStore = new Map();
+  function getAcc(maDiem) {
+    let acc = perStore.get(maDiem);
+    if (!acc) {
+      acc = { actualQty: 0, actualRevenue: 0, targetQty: 0, targetRevenue: 0, stockQty: 0, stockValue: 0 };
+      perStore.set(maDiem, acc);
+    }
+    return acc;
+  }
+
+  for (const sku of skuMaster) {
+    const storeSalesMap = sales.byMaHangStore.get(sku.maHang);
+    if (storeSalesMap) {
+      for (const [stkId, v] of storeSalesMap) {
+        const maDiem = stkToMaDiem.get(stkId);
+        if (!maDiem) continue;
+        const acc = getAcc(maDiem);
+        acc.actualQty += v.qty; acc.actualRevenue += v.revenue;
+      }
+    }
+
+    const valuationPrice = (sku.giaKmMart ?? sku.giaBanLe) || 0;
+    const taxRate = sku.taxRate || 0;
+    const storeStockMap = sku.skuCode ? stock.byCodeStore.get(sku.skuCode) : null;
+    if (storeStockMap) {
+      for (const [maChiNhanh, qty] of storeStockMap) {
+        const maDiem = stkToMaDiem.get(maChiNhanh);
+        if (!maDiem) continue;
+        const acc = getAcc(maDiem);
+        acc.stockQty += qty;
+        acc.stockValue += qty * valuationPrice / (1 + taxRate);
+      }
+    }
+
+    const allocation = allocateSkuTargetToStores(sku, storeWeights, diemMapping);
+    for (const [maDiem, t] of allocation) {
+      const acc = getAcc(maDiem);
+      acc.targetQty += t.soLuongKeHoach;
+      acc.targetRevenue += t.doanhThuKeHoach;
+    }
+  }
+
+  const rows = [];
+  for (const [maDiem, info] of diemMapping) {
+    const acc = perStore.get(maDiem) || { actualQty: 0, actualRevenue: 0, targetQty: 0, targetRevenue: 0, stockQty: 0, stockValue: 0 };
+    rows.push({
+      maDiem,
+      stkId: (info.maStkMoi || []).join(', ') || null,
+      tenSieuThi: info.tenSieuThi || null,
+      loaiChuoi: info.loaiChuoi || null,
+      soLuongThucTe: acc.actualQty,
+      soLuongKeHoach: acc.targetQty,
+      doanhThuThucTe: acc.actualRevenue,
+      doanhThuKeHoach: acc.targetRevenue,
+      tyLeThucHien: divOrNull(acc.actualRevenue, acc.targetRevenue),
+      tonKho: acc.stockQty,
+      giaTriTon: acc.stockValue,
+      storeWeight: storeWeights.byMaDiem.get(maDiem) || 0
+    });
+  }
+  return rows;
 }
 
 // Bán hàng THỰC TẾ trong [from, to] — trả về CẢ tổng theo MaHang (chain-wide)
@@ -213,6 +298,23 @@ async function loadCampaignData(campaignId, periodFromOverride, periodToOverride
   const periodTo = periodToOverride
     || (campaign.dataUpdatedThrough ? campaign.dataUpdatedThrough.toISOString().slice(0, 10) : todayISO);
 
+  // "Dự kiến" (dò ngược khớp đúng số liệu mẫu thật — file mẫu ghi rõ
+  // "Thời gian CTKM: 16/6-30/6/2026" = 15 ngày, "Thời gian cập nhật số
+  // liệu: 16/6-17/6/2026" = 2 ngày ĐÃ QUA, tỉ lệ 2/15=0.133333 — khớp
+  // ĐÚNG ô hiện trong file) — hệ số NGOẠI SUY = tổng số ngày kỳ CTKM / số
+  // ngày ĐÃ QUA tính tới periodTo, dùng CHUNG cho mọi SKU/siêu thị: Dự
+  // kiến = Thực tế × (totalCampaignDays / elapsedDays).
+  const msPerDay = 86400000;
+  const startISO = campaign.startDate.toISOString().slice(0, 10);
+  const endISO = campaign.endDate.toISOString().slice(0, 10);
+  const startUTC = new Date(`${startISO}T00:00:00Z`);
+  const endUTC = new Date(`${endISO}T00:00:00Z`);
+  const periodToUTC = new Date(`${periodTo}T00:00:00Z`);
+  const totalCampaignDays = Math.round((endUTC - startUTC) / msPerDay) + 1;
+  const elapsedDaysRaw = Math.round((periodToUTC - startUTC) / msPerDay) + 1;
+  const elapsedDays = Math.max(1, Math.min(elapsedDaysRaw, totalCampaignDays));
+  const projectionFactor = totalCampaignDays / elapsedDays;
+
   const maHangList = skuMaster.map(s => s.maHang);
   const skuCodeList = skuMaster.filter(s => s.skuCode).map(s => s.skuCode);
 
@@ -247,7 +349,10 @@ async function loadCampaignData(campaignId, periodFromOverride, periodToOverride
       ...sku,
       soLuongThucTe: actual.qty,
       doanhThuThucTe: actual.revenue,
+      soLuongDuKien: actual.qty * projectionFactor,
+      doanhThuDuKien: actual.revenue * projectionFactor,
       tyLeThucHien: divOrNull(actual.revenue, sku.doanhThuKeHoachTotal),
+      tyLeDuKien: divOrNull(actual.revenue * projectionFactor, sku.doanhThuKeHoachTotal),
       tonKho: stockQty,
       giaTriTon
     };
@@ -255,12 +360,13 @@ async function loadCampaignData(campaignId, periodFromOverride, periodToOverride
 
   return {
     campaign, skuMaster, skuRows, storeWeights, diemMapping, stkToMaDiem,
-    sales, stock, periodFrom, periodTo
+    sales, stock, periodFrom, periodTo,
+    totalCampaignDays, elapsedDays, projectionFactor
   };
 }
 
 module.exports = {
   SALES_DOMAIN, STOCK_DOMAIN,
   loadCampaign, listCampaigns, loadSkuMaster, loadStoreWeights, allocateSkuTargetToStores,
-  fetchActualSales, fetchCurrentStock, divOrNull, loadCampaignData
+  fetchActualSales, fetchCurrentStock, divOrNull, loadCampaignData, buildStoreRows
 };

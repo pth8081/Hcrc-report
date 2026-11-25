@@ -24,10 +24,13 @@ function buildColumns() {
     { key: 'taxRate', label: 'Thuế', format: 'percent' },
     { key: 'applyScope', label: 'Áp dụng' },
     { key: 'soLuongThucTe', label: 'Số lượng thực tế' },
+    { key: 'soLuongDuKien', label: 'Số lượng dự kiến' },
     { key: 'soLuongKeHoachTotal', label: 'Số lượng kế hoạch' },
     { key: 'doanhThuThucTe', label: 'Doanh thu thực tế' },
+    { key: 'doanhThuDuKien', label: 'Doanh thu dự kiến' },
     { key: 'doanhThuKeHoachTotal', label: 'Doanh thu kế hoạch' },
-    { key: 'tyLeThucHien', label: '% Thực hiện doanh số', format: 'percent' },
+    { key: 'tyLeThucHien', label: '% Thực hiện doanh số thực tế/kế hoạch', format: 'percent' },
+    { key: 'tyLeDuKien', label: '% Thực hiện doanh số dự kiến/kế hoạch', format: 'percent' },
     { key: 'tonKho', label: 'Tồn kho' },
     { key: 'giaTriTon', label: 'Giá trị tồn' }
   ];
@@ -37,13 +40,16 @@ function sumField(rows, key) { return rows.reduce((s, r) => s + (r[key] || 0), 0
 
 function buildGrandTotalRow(skuRows) {
   const doanhThuThucTe = sumField(skuRows, 'doanhThuThucTe');
+  const doanhThuDuKien = sumField(skuRows, 'doanhThuDuKien');
   const doanhThuKeHoachTotal = sumField(skuRows, 'doanhThuKeHoachTotal');
   return {
     skuName: 'Tổng cộng',
     soLuongThucTe: sumField(skuRows, 'soLuongThucTe'),
+    soLuongDuKien: sumField(skuRows, 'soLuongDuKien'),
     soLuongKeHoachTotal: sumField(skuRows, 'soLuongKeHoachTotal'),
-    doanhThuThucTe, doanhThuKeHoachTotal,
+    doanhThuThucTe, doanhThuDuKien, doanhThuKeHoachTotal,
     tyLeThucHien: doanhThuKeHoachTotal ? (doanhThuThucTe / doanhThuKeHoachTotal) * 100 : null,
+    tyLeDuKien: doanhThuKeHoachTotal ? (doanhThuDuKien / doanhThuKeHoachTotal) * 100 : null,
     tonKho: sumField(skuRows, 'tonKho'),
     giaTriTon: sumField(skuRows, 'giaTriTon'),
     __isSubtotal: true, __isGrandTotal: true
@@ -65,7 +71,8 @@ async function runBrgPostByItemsReport(definition, filterValues) {
     percentKm: r.percentKm !== null && r.percentKm !== undefined ? r.percentKm * 100 : null,
     taxRate: r.taxRate !== null && r.taxRate !== undefined ? r.taxRate * 100 : null,
     applyScope: APPLY_SCOPE_LABEL[r.applyScope] || r.applyScope,
-    tyLeThucHien: r.tyLeThucHien !== null ? r.tyLeThucHien * 100 : null
+    tyLeThucHien: r.tyLeThucHien !== null ? r.tyLeThucHien * 100 : null,
+    tyLeDuKien: r.tyLeDuKien !== null ? r.tyLeDuKien * 100 : null
   }));
 
   const columns = describeColumns(buildColumns());
