@@ -52,6 +52,33 @@ nội dung/hành vi nào đã làm. Lịch sử Git (commit message) vẫn còn 
 "Bản 10.100"/"Bản 10.101" (không sửa lại lịch sử Git) — coi là ĐỒNG NHẤT
 với "11.0"/"11.1".
 
+## 11.28 — File mẫu SKU/Trọng số siêu thị (BRG Weekly Post) đổi tên cột tiếng Việt, thêm sheet Hướng dẫn
+
+**Theo yêu cầu người dùng** — "Tôi muốn file mẫu với các trường thông
+tin giống như trong file excel [báo cáo MKT gốc]... để người dùng có
+thể xử lý được ngay": tên cột trong file mẫu "SKU" (bấm "Tải file mẫu"
+ở etl-admin → "Chiến dịch khuyến mãi") đổi sang tiếng Việt, GIỐNG HỆT
+13 cột ĐẦU VÀO tương ứng của sheet "By items" trong file báo cáo MKT
+gốc (Mã 10 số, Mã sản phẩm, Tên sản phẩm, Ngành hàng, Giá bán lẻ, Giá
+khuyến mại MART/Mini, Note, Total KM, Thuế, Áp dụng, Số lượng/Doanh thu
+kế hoạch cả chuỗi) — file "Trọng số siêu thị" đổi thành `Mã điểm`/
+`Trọng số`. Field nội bộ (DB/code) GIỮ NGUYÊN không đổi, chỉ đổi NHÃN
+cột hiển thị trên Excel.
+
+Cả 2 file mẫu có thêm **sheet "Hướng dẫn"** (sheet thứ 2, không ảnh
+hưởng việc đọc lại file) — nêu rõ CHỈ 13/2 cột đó là input, TUYỆT ĐỐI
+không dán thêm các cột ĐẦU RA (Số lượng/Doanh thu thực tế/dự kiến, %
+Thực hiện, Tồn kho, Giá trị tồn) từ sheet "By items"/"By Store" gốc vào
+— tránh hiểu nhầm vì tên cột giờ giống hệt file báo cáo MKT quen thuộc.
+
+**Không có bước DBA, không cần chạy lại seed script** — chỉ deploy code
+mới + `pm2 restart etl`.
+
+**Kiểm tra**: etl-admin → "Chiến dịch khuyến mãi" → bấm "Tải file mẫu"
+ở cả 2 phần, mở file thấy tên cột tiếng Việt + sheet "Hướng dẫn" thứ 2;
+xoá dòng ví dụ, thử upload lại CHÍNH file mẫu vừa tải (chưa sửa gì) —
+phải nhập được bình thường, không báo lỗi thiếu cột.
+
 ## 11.27 — Báo cáo 1+2 (MKT) bỏ hẳn nhóm "Kho" khỏi danh sách
 
 **Theo yêu cầu người dùng** — "Bỏ kho hàng đi giúp nhé, ko đưa kho hàng

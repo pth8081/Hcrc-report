@@ -88,13 +88,26 @@ báo cáo MKT gửi — file đó là ĐẦU RA):
 - `dwh.PromoCampaigns` — 1 chiến dịch (tên, ngày bắt đầu/kết thúc, ngày
   "cập nhật số liệu tới").
 - `dwh.PromoCampaignSkus` — 1 dòng/SKU: giá/scope/**chỉ tiêu CẢ CHUỖI**
-  (SoLuongKeHoachTotal/DoanhThuKeHoachTotal) — admin upload file Excel
-  (`MaHang, SkuCode, SkuName, DeptName, GiaBanLe, GiaKmMart, GiaKmMini,
-  PromoNote, PercentKm, TaxRate, ApplyScope, SoLuongKeHoachTotal,
-  DoanhThuKeHoachTotal`).
+  (`SoLuongKeHoachTotal`/`DoanhThuKeHoachTotal`) — admin upload file Excel
+  (bấm "Tải file mẫu" ở trang "Chiến dịch khuyến mãi" để lấy đúng khuôn).
+  **SỬA bản 11.28** (theo yêu cầu người dùng — "file mẫu với các trường
+  thông tin giống như trong file excel [báo cáo MKT gốc]... để người
+  dùng có thể xử lý được ngay") — tên cột trong file mẫu đổi sang tiếng
+  Việt, CỐ Ý đặt GIỐNG HỆT 13 cột ĐẦU VÀO tương ứng của sheet "By items"
+  (file báo cáo MKT gốc), cho quen mắt người nhập liệu: `Mã 10 số, Mã
+  sản phẩm, Tên sản phẩm, Ngành hàng, Giá bán lẻ, Giá khuyến mại MART,
+  Giá khuyến mại Mini, Note, Total KM, Thuế, Áp dụng, Số lượng kế hoạch
+  (cả chuỗi), Doanh thu kế hoạch (cả chuỗi)` — field nội bộ (DB/code)
+  GIỮ NGUYÊN không đổi (`MaHang`/`SkuCode`/.../`DoanhThuKeHoachTotal`,
+  xem `etl/lib/promoCampaignImport.js:SKU_FIELDS`), chỉ đổi NHÃN hiển thị
+  trên file Excel. File mẫu có thêm sheet "Hướng dẫn" (sheet 2) nêu rõ
+  KHÔNG dán 12 cột ĐẦU RA (Số lượng/Doanh thu thực tế/dự kiến, % Thực
+  hiện, Tồn kho, Giá trị tồn) của sheet "By items" gốc vào đây — các cột
+  đó báo cáo TỰ TÍNH, không phải thứ admin cung cấp.
 - `dwh.PromoCampaignStoreWeights` — 1 dòng/mã Điểm: **trọng số** dùng
   để CHIA chỉ tiêu cả chuỗi của mỗi SKU về từng siêu thị — admin upload
-  file Excel RIÊNG (`MaDiem, StoreWeight`).
+  file Excel RIÊNG, 2 cột `Mã điểm, Trọng số` (bản 11.28, đổi nhãn tiếng
+  Việt — field nội bộ vẫn `MaDiem`/`StoreWeight`).
 
   ⚠️ **GIẢ ĐỊNH CHƯA XÁC NHẬN BẰNG NGUỒN DỮ LIỆU** (chỉ xác nhận bằng
   cách đối chiếu TỔNG khớp đúng số liệu mẫu) — "trọng số" này KHÔNG suy

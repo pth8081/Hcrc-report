@@ -14,6 +14,18 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 11.28 — File mẫu SKU/Trọng số siêu thị (BRG Weekly Post) đổi tên cột tiếng Việt, thêm sheet Hướng dẫn
+
+**Không có bước DBA, không cần chạy lại seed script.**
+
+**Các bước**:
+1. `git pull origin main`.
+2. `pm2 restart etl`.
+
+**Kiểm tra**: xem "VERSION.md" mục bản 11.28 — tải lại 2 file mẫu, xác
+nhận tên cột tiếng Việt + sheet "Hướng dẫn", upload thử lại chính file
+mẫu (xoá dòng ví dụ) không bị lỗi.
+
 ## 11.27 — Báo cáo 1+2 (MKT) bỏ hẳn nhóm "Kho" khỏi danh sách
 
 **Không có bước DBA, không cần chạy lại seed script.**
