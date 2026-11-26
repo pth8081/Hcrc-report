@@ -52,6 +52,31 @@ nội dung/hành vi nào đã làm. Lịch sử Git (commit message) vẫn còn 
 "Bản 10.100"/"Bản 10.101" (không sửa lại lịch sử Git) — coi là ĐỒNG NHẤT
 với "11.0"/"11.1".
 
+## 11.36 — Sửa lỗi "Failed to fetch" DÍNH màn hình trang Báo cáo
+
+**Theo báo cáo người dùng** (ảnh chụp "BRG Weekly Post" + "Top bán chạy
+đang tồn kho = 0" — 2 báo cáo KHÔNG liên quan nhau, ở 2 nhóm menu khác
+nhau, cùng hiện "Failed to fetch" ở ĐẦU trang dù bộ lọc bên dưới vẫn hiện
+đủ bình thường) — điều tra xác nhận đây là **lỗi CHUNG của trang Báo cáo
+(`ReportsPage.jsx`)**, không phải lỗi riêng của 1 báo cáo nào.
+
+**Nguyên nhân thật**: biến trạng thái `error` (hiện banner đỏ đầu trang)
+được set khi 1 lượt gọi API lỗi (vd mạng di động chập chờn lúc mới mở
+app/đổi mạng wifi-4G) nhưng **KHÔNG BAO GIỜ được xoá** ở các lượt gọi
+THÀNH CÔNG sau đó (đổi tab, chọn báo cáo khác) — banner lỗi "dính" mãi
+trên màn hình dù mọi thao tác sau đó đều chạy đúng, khiến người dùng
+hiểu NHẦM báo cáo hiện đang xem bị lỗi. Confirmed qua 2 ảnh: dropdown +
+bộ lọc load đủ bình thường (chứng tỏ API phía dưới ĐÃ chạy thành công),
+chỉ còn banner lỗi là CŨ.
+
+**Đã sửa**: `setError('')` ngay khi bắt đầu đổi tab (`activeCode`) hoặc
+chọn báo cáo khác (`selectedId`) — mỗi hành động mới luôn xoá sạch lỗi
+CŨ trước khi gọi API mới; nếu hành động MỚI đó lỗi thật thì vẫn hiện lại
+bình thường, không che giấu lỗi thật.
+
+**Không có bước DBA/CSDL** — chỉ sửa `rp-user/src/modules/reports/ReportsPage.jsx`,
+deploy lại `npm run build` (rp-user) là đủ.
+
 ## 11.35 — Sửa logic 3 báo cáo MKT + hiện khoảng ngày/tiêu đề chiến dịch toàn hệ thống
 
 **Theo yêu cầu người dùng** (kèm ảnh mẫu "BÁO CÁO THẺ BRG ELITE") — rà soát

@@ -14,6 +14,20 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 11.36 — Sửa lỗi "Failed to fetch" dính màn hình trang Báo cáo
+
+**Không có bước DBA/CSDL mới (chỉ sửa code frontend).**
+
+**Các bước**:
+1. `git pull origin main`.
+2. `cd rp-user && npm run build` (deploy `dist/` mới — xem
+   `ReportsPage.jsx`).
+
+**Kiểm tra**: mở trang Báo cáo, đổi qua lại vài tab/báo cáo khác nhau —
+banner lỗi đỏ (nếu có từ 1 lượt lỗi trước đó) PHẢI biến mất ngay khi đổi
+tab/chọn báo cáo mới, KHÔNG còn dính lại trên màn hình dù thao tác sau
+đó đã thành công.
+
 ## 11.35 — Sửa logic 3 báo cáo MKT + hiện khoảng ngày/tiêu đề chiến dịch toàn hệ thống
 
 **Không có bước DBA/CSDL mới (chỉ sửa code).**

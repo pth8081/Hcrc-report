@@ -100,6 +100,14 @@ export default function ReportsPage() {
   useEffect(() => {
     if (!activeCode) return;
     let cancelled = false;
+    // setError('') (bản 11.36, theo báo cáo người dùng — "Failed to fetch"
+    // hiện ở ĐẦU trang dù báo cáo bên dưới vẫn chọn/chạy được bình thường)
+    // — TRƯỚC ĐÂY lỗi của 1 lượt gọi API bị lỗi (vd mạng di động chập chờn
+    // lúc mới mở app) KHÔNG BAO GIỜ được xoá, dù các lượt gọi SAU đó (đổi
+    // tab, chọn báo cáo khác) đã thành công — banner lỗi "dính" mãi trên
+    // màn hình, khiến người dùng tưởng NHẦM báo cáo đang xem bị lỗi dù
+    // thực ra chỉ là lỗi CŨ của 1 hành động trước đó đã qua.
+    setError('');
     api.get(`/reports?menuCode=${encodeURIComponent(activeCode)}`)
       .then(data => { if (!cancelled) setReports(data); })
       .catch(err => { if (!cancelled) setError(err.message); });
@@ -131,6 +139,7 @@ export default function ReportsPage() {
     if (!selectedId) return;
     const drillFilters = pendingDrillFiltersRef.current;
     pendingDrillFiltersRef.current = null;
+    setError(''); // xem chú thích setError('') ở effect [activeCode] phía trên — cùng lỗi, áp dụng y hệt cho lượt chọn báo cáo.
     setFilterValues(drillFilters || {});
     setResult(null);
     setShowTable(false);
