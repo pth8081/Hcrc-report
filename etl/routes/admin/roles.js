@@ -37,6 +37,7 @@ const MENU_CATALOG = [
   { code: 'sales-targets-nganhhang-dt', label: 'Chỉ tiêu Doanh thu theo ngành hàng' },
   { code: 'sales-targets-nganhhang-nh', label: 'Chỉ tiêu Nhập hàng theo ngành hàng' },
   { code: 'sales-targets-nganhhang-dt-ldtd', label: 'Chỉ tiêu Doanh thu theo ngành hàng (LDTD)' },
+  { code: 'sales-targets-doanhthu-mtd', label: 'Chỉ tiêu Doanh thu MTD theo kế hoạch' },
   { code: 'log', label: 'Nhật ký đồng bộ' },
   { code: 'audit-log', label: 'Nhật ký thao tác' },
   { code: 'users', label: 'Phân quyền' },

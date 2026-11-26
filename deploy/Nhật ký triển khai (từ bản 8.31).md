@@ -14,6 +14,28 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 11.33 — Báo cáo mới "Theo dõi doanh thu MTD theo kế hoạch" (2/4 báo cáo Vận hành mới)
+
+**Không có bước DBA — CÓ bước nhập Chỉ tiêu qua etl-admin trước khi có đủ
+số liệu.**
+
+**Các bước**:
+1. `git pull origin main`.
+2. `cd etl && pm2 restart hcrc-etl` (hoặc tên process thật trên server —
+   nạp route `/admin/sales-targets-doanhthu-mtd` mới).
+3. `cd rp-server && node scripts/seedDoanhThuMtdKeHoachReports.js`.
+4. `pm2 restart rp-server` (SourceType mới `doanhThuMtdKeHoach`).
+5. `cd etl-admin && npm run build` (deploy `dist/` mới — route/menu mới).
+6. Vào Hệ thống → Phân quyền (rp-user), gán quyền xem 3 ReportId
+   `bc-doanhthu-mtd-all`/`-lfl`/`-nso`.
+7. Vào Vai trò (etl-admin), gán quyền trang "Chỉ tiêu Doanh thu MTD theo
+   kế hoạch" cho người nhập chỉ tiêu.
+8. Người lập kế hoạch vào etl-admin → "Chỉ tiêu Doanh thu MTD theo kế
+   hoạch", tải file mẫu, nhập Chỉ tiêu tháng cho từng siêu thị.
+
+**Kiểm tra**: xem "VERSION.md" mục bản 11.33 + mục 4 ở
+`bc-doanhthu-mtd-ke-hoach.md`.
+
 ## 11.32 — Báo cáo mới "DIO theo ngành hàng" (1/4 báo cáo Vận hành mới)
 
 **CÓ bước DBA (VIEW mới).**

@@ -209,6 +209,19 @@ app.use('/admin/sales-targets-nganhhang-dt-ldtd', createSalesTargetsRouter(
   NGANH_HANG_DOANH_THU_TARGET_COLUMNS,
   true
 ));
+// Chỉ tiêu "Doanh thu MTD theo kế hoạch" (bản 11.33, báo cáo vận hành 2/4
+// theo yêu cầu người dùng — xem rp-server/bc-doanhthu-mtd-ke-hoach.md) —
+// Target THEO TỪNG SIÊU THỊ (giữ cột MaSieuThi, genericNoStoreCode=false,
+// KHÁC các domain "theo ngành hàng" ở trên). actualDataDomain để
+// undefined (KHÔNG truyền 'doanhthu_chinhanh') — entityCode của domain
+// này là mã Điểm (MaDiem), KHÁC granularity STK_ID thô của
+// 'doanhthu_chinhanh', đối chiếu "mã không khớp" sẽ báo sai cho MỌI dòng
+// (cùng lý do 'sales-targets-nganhhang-*' để undefined ở trên).
+app.use('/admin/sales-targets-doanhthu-mtd', createSalesTargetsRouter(
+  'sales-targets-doanhthu-mtd', 'sales-targets-doanhthu-mtd', undefined, 'generic',
+  [{ key: 'ChiTieuDoanhThu', sample: 2000000000 }],
+  false
+));
 app.use('/admin/diem-stk-mapping', adminDiemStkMappingRoutes);
 app.use('/admin/promo-campaigns', adminPromoCampaignsRoutes);
 app.use('/admin/nso-stores', adminNsoStoresRoutes);

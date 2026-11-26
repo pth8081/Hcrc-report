@@ -52,6 +52,37 @@ nội dung/hành vi nào đã làm. Lịch sử Git (commit message) vẫn còn 
 "Bản 10.100"/"Bản 10.101" (không sửa lại lịch sử Git) — coi là ĐỒNG NHẤT
 với "11.0"/"11.1".
 
+## 11.33 — Báo cáo mới "Theo dõi doanh thu MTD theo kế hoạch" (2/4 báo cáo Vận hành mới)
+
+**Theo yêu cầu người dùng** — tiếp tục triển khai tuần tự theo phương án
+đã gửi, báo cáo ưu tiên 2.
+
+**3 ReportId** (`bc-doanhthu-mtd-all`/`-lfl`/`-nso`, SourceType mới
+`doanhThuMtdKeHoach`, menu "Báo cáo vận hành") — mỗi dòng = 1 siêu thị,
+Chỉ tiêu (tháng) / Thực đạt (MTD) / % hoàn thành / % so cùng kỳ năm
+trước, tách 3 góc nhìn Toàn chuỗi/LFL (ổn định)/NSO (mới mở).
+
+- "Thực đạt" — tái dùng domain ĐÃ CÓ `doanhthu_chinhanh` (dùng chung 4
+  báo cáo "Doanh thu cuối ngày" LDTD/HCRC), KHÔNG cần VIEW/job mới.
+- "Chỉ tiêu" — domain MỚI `sales-targets-doanhthu-mtd` + trang etl-admin
+  mới "Chỉ tiêu Doanh thu MTD theo kế hoạch" (tái dùng NGUYÊN component
+  `SalesTargetsPage.jsx` đã có, chỉ thêm 1 route).
+- LFL/NSO — tái dùng NGUYÊN VẸN `etl.NsoStores`/"Siêu thị NSO" đã có cho 2
+  báo cáo "Doanh thu theo ngành hàng", KHÔNG tạo bảng/trang mới.
+- Xem `rp-server/lib/doanhThuMtdKeHoachRunner.js`,
+  `bc-doanhthu-mtd-ke-hoach.md`.
+
+**⚠️ PHẠM VI "KHUNG" (bổ sung sau nếu cần)** — chưa làm: so với tháng
+trước (M-1), ước thực hiện cuối tháng theo trend, dòng "Tổng cộng". Domain
+Chỉ tiêu MỚI, TÁCH RIÊNG khỏi Chỉ tiêu LDTD/HCRC đã có — chưa xác nhận có
+phải CÙNG 1 số kế hoạch hay không (xem mục 2b `bc-doanhthu-mtd-ke-hoach.md`).
+
+**CÓ bước** nhập Chỉ tiêu qua etl-admin trước khi báo cáo có đủ số liệu —
+xem mục 3 ở `bc-doanhthu-mtd-ke-hoach.md`. Không có bước DBA (không cần
+VIEW mới).
+
+**Kiểm tra**: xem mục 4 ở `bc-doanhthu-mtd-ke-hoach.md`.
+
 ## 11.32 — Báo cáo mới "DIO theo ngành hàng" (1/4 báo cáo Vận hành mới)
 
 **Theo yêu cầu người dùng** — sau khi gửi phương án phân tích 4 file Excel

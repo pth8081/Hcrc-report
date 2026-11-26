@@ -30,7 +30,7 @@ import AccountPage from './pages/AccountPage';
 // MENU_CATALOG) — trước đây thiếu roles/log/audit-log, khiến 1 tài khoản
 // CHỈ được cấp 1 trong các trang này bị điều hướng về '/dashboard' (trang
 // không thấy được) ngay sau đăng nhập thay vì vào đúng trang mình có quyền.
-const LANDING_ORDER = ['dashboard', 'sales-targets-corp', 'sales-targets-hcrc', 'sales-targets-nganhhang-dt', 'sales-targets-nganhhang-nh', 'sales-targets-nganhhang-dt-ldtd', 'data-sources', 'sync-jobs', 'diem-stk-mapping', 'promo-campaigns', 'nso-stores', 'core-item-list', 'stock-alert-thresholds', 'log', 'audit-log', 'users', 'roles', 'huong-dan'];
+const LANDING_ORDER = ['dashboard', 'sales-targets-corp', 'sales-targets-hcrc', 'sales-targets-nganhhang-dt', 'sales-targets-nganhhang-nh', 'sales-targets-nganhhang-dt-ldtd', 'sales-targets-doanhthu-mtd', 'data-sources', 'sync-jobs', 'diem-stk-mapping', 'promo-campaigns', 'nso-stores', 'core-item-list', 'stock-alert-thresholds', 'log', 'audit-log', 'users', 'roles', 'huong-dan'];
 
 function IndexRedirect() {
   const { can } = useAuth();
@@ -80,6 +80,12 @@ export default function App() {
               RIÊNG của đội Lãnh đạo Tập đoàn (xem etl/server.js). */}
           <Route path="/sales-targets-nganhhang-dt-ldtd" element={
             <SalesTargetsPage menuCode="sales-targets-nganhhang-dt-ldtd" apiBase="/sales-targets-nganhhang-dt-ldtd" title="Chỉ tiêu Doanh thu theo ngành hàng (LDTD)" />
+          } />
+          {/* Bản 11.33 — Chỉ tiêu "Doanh thu MTD theo kế hoạch" (báo cáo vận
+              hành 2/4), THEO TỪNG SIÊU THỊ (giữ cột MaSieuThi) — xem
+              rp-server/bc-doanhthu-mtd-ke-hoach.md. */}
+          <Route path="/sales-targets-doanhthu-mtd" element={
+            <SalesTargetsPage menuCode="sales-targets-doanhthu-mtd" apiBase="/sales-targets-doanhthu-mtd" title="Chỉ tiêu Doanh thu MTD theo kế hoạch" />
           } />
           <Route path="/diem-stk-mapping" element={<DiemStkMappingPage />} />
           <Route path="/promo-campaigns" element={<PromoCampaignsPage />} />

@@ -25,6 +25,7 @@ const { runBrgPostRecapReport } = require('./brgPostRecapRunner');
 const { runBrgPostDetailReport } = require('./brgPostDetailRunner');
 const { runBrgWeeklyPostReport } = require('./brgWeeklyPostRunner');
 const { runDioNganhHangReport } = require('./dioNganhHangRunner');
+const { runDoanhThuMtdKeHoachReport } = require('./doanhThuMtdKeHoachRunner');
 const { assignSttIfPresent } = require('./reportCellFormat');
 
 async function loadDefinition(reportId) {
@@ -186,6 +187,14 @@ async function runDefinition(definition, filterValues, pagination) {
   // applyDisplayCap bên trong runner), cùng mẫu brgPostDetail.
   if (definition.sourceType === 'dioNganhHang') {
     return runDioNganhHangReport(definition, filterValues, pagination);
+  }
+  // 'doanhThuMtdKeHoach' (bản 11.33, báo cáo 2/4 "Báo cáo vận hành" mới,
+  // theo yêu cầu người dùng) — "Theo dõi doanh thu MTD theo kế hoạch"
+  // (3 ReportId riêng ALL/LFL/NSO, khác nhau qua definition.loaiSieuThi) —
+  // xem lib/doanhThuMtdKeHoachRunner.js. Số dòng nhỏ (bằng số siêu thị),
+  // KHÔNG cần pagination/applyDisplayCap.
+  if (definition.sourceType === 'doanhThuMtdKeHoach') {
+    return runDoanhThuMtdKeHoachReport(definition, filterValues);
   }
   if (definition.sourceType && definition.sourceType !== 'directDb') {
     return runApiReport(definition, filterValues, pagination);
