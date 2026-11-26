@@ -14,6 +14,32 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 11.37 — Ghi nhận: đã bật RCSI trên CSDL Data Warehouse
+
+**KHÔNG có bước deploy code** — đây là thao tác CSDL DBA đã làm TRỰC TIẾP
+trên server thật, không qua git/script nào. Mục này chỉ để GHI LẠI đã
+làm, không có gì cần chạy thêm.
+
+**Đã làm (DBA, trên server `BRSERVERDTT`, 26/11/2026)**:
+```sql
+ALTER DATABASE HCRC_DWH SET READ_COMMITTED_SNAPSHOT ON WITH ROLLBACK IMMEDIATE;
+```
+(chạy khi không có kết nối nào khác đang mở tới `HCRC_DWH`).
+
+**Đã xác nhận bằng**:
+```sql
+SELECT name, is_read_committed_snapshot_on FROM sys.databases WHERE name = 'HCRC_DWH';
+-- kết quả: HCRC_DWH | 1
+```
+
+**Nếu dựng server DWH MỚI/KHÁC sau này** — PHẢI tự làm lại đúng 2 bước
+trên (không có trong `dwh/schema.sql` tự động, xem chú thích đầu file đó
+mục "KHUYẾN NGHỊ VẬN HÀNH: bật READ_COMMITTED_SNAPSHOT (RCSI)").
+
+**Theo dõi tiếp**: vài ngày tới nếu còn gặp "Failed to fetch"/"Lỗi 504" ở
+báo cáo bất kỳ, báo lại kèm giờ xảy ra + đối chiếu "Lịch sử đồng bộ"
+(etl-admin) xem có job nào đang chạy đúng lúc đó không.
+
 ## 11.36 — Sửa lỗi "Failed to fetch" dính màn hình trang Báo cáo
 
 **Không có bước DBA/CSDL mới (chỉ sửa code frontend).**

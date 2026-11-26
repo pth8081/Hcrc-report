@@ -13,11 +13,22 @@
    toàn (xem tài liệu kiến trúc "Quản Trị ETL HCRC"). */
 
 /* ===== KHUYẾN NGHỊ VẬN HÀNH: bật READ_COMMITTED_SNAPSHOT (RCSI) =====
-   CHƯA tự động bật trong script này — ALTER DATABASE ... SET
-   READ_COMMITTED_SNAPSHOT ON cần WITH ROLLBACK IMMEDIATE để áp dụng ngay
-   (buộc huỷ MỌI giao dịch khác đang mở trên CSDL này), không an toàn chạy
-   tự động trong 1 script "chạy lại nhiều lần được" như file này — DBA tự
-   chạy 1 lần vào cửa sổ bảo trì, KHÔNG có kết nối nào khác đang hoạt động:
+   ⚠️ ĐÃ BẬT TRÊN SERVER THẬT (26/11/2026, DBA xác nhận qua SSMS) — CSDL
+   `HCRC_DWH` trên server `BRSERVERDTT` đã chạy lệnh dưới đây, kiểm tra lại
+   bằng `SELECT is_read_committed_snapshot_on FROM sys.databases WHERE
+   name = 'HCRC_DWH'` trả về `1`. GHI LẠI Ở ĐÂY để DBA SAU NÀY không tưởng
+   nhầm đây vẫn là việc CHƯA làm rồi chạy lại ALTER DATABASE không cần
+   thiết (vô hại nếu chạy lại — SET ON khi đã ON là no-op — nhưng
+   `WITH ROLLBACK IMMEDIATE` vẫn huỷ mọi giao dịch đang mở lúc đó, không
+   nên làm giữa giờ hành chính nếu không thật sự cần). Dựng server THẬT
+   KHÁC/MỚI (CSDL DWH khác) — vẫn cần tự chạy lại ĐÚNG 1 lần theo hướng
+   dẫn bên dưới, lệnh này KHÔNG nằm trong file `.sql` nào chạy tự động.
+
+   ALTER DATABASE ... SET READ_COMMITTED_SNAPSHOT ON cần WITH ROLLBACK
+   IMMEDIATE để áp dụng ngay (buộc huỷ MỌI giao dịch khác đang mở trên CSDL
+   này), không an toàn chạy tự động trong 1 script "chạy lại nhiều lần
+   được" như file này — DBA tự chạy 1 lần vào cửa sổ bảo trì, KHÔNG có kết
+   nối nào khác đang hoạt động:
 
      ALTER DATABASE CURRENT SET READ_COMMITTED_SNAPSHOT ON WITH ROLLBACK IMMEDIATE;
 
@@ -28,12 +39,15 @@
    ĐỘNG LEO THANG lên khoá cấp TRANG/BẢNG, có thể khoá cả bảng
    dwh.ReportFacts trong suốt transaction ETL — mọi SELECT của rp-server/
    api-server (bất kỳ Domain nào khác, không chỉ domain đang đồng bộ) bị
-   CHẶN/timeout đúng lúc chạy ETL đêm. RCSI cho SELECT đọc bản snapshot
-   (không cần khoá, không bị writer chặn) mà KHÔNG đổi bất kỳ hành vi ghi
-   nào — writer vẫn khoá như cũ, chỉ reader không còn chờ writer nữa. Đánh
-   đổi: tempdb dùng nhiều hơn (lưu version store) — bảng dwh.ReportFacts
-   hiện tại không lớn tới mức đáng lo, giám sát dung lượng tempdb nếu dữ
-   liệu tăng nhiều về sau. */
+   CHẶN/timeout đúng lúc chạy ETL (mặc định mỗi job 15 phút/lần, SUỐT NGÀY,
+   không chỉ ban đêm — xác nhận qua sự cố thật người dùng gặp "Failed to
+   fetch"/"Lỗi 504" ở NHIỀU báo cáo không liên quan nhau cùng lúc, lúc
+   19h-20h, khớp đúng cơ chế này trước khi bật RCSI). RCSI cho SELECT đọc
+   bản snapshot (không cần khoá, không bị writer chặn) mà KHÔNG đổi bất kỳ
+   hành vi ghi nào — writer vẫn khoá như cũ, chỉ reader không còn chờ
+   writer nữa. Đánh đổi: tempdb dùng nhiều hơn (lưu version store) — bảng
+   dwh.ReportFacts hiện tại không lớn tới mức đáng lo, giám sát dung lượng
+   tempdb nếu dữ liệu tăng nhiều về sau. */
 
 IF NOT EXISTS (SELECT 1 FROM sys.schemas WHERE name = 'dwh')
 BEGIN

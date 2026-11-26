@@ -52,6 +52,38 @@ nội dung/hành vi nào đã làm. Lịch sử Git (commit message) vẫn còn 
 "Bản 10.100"/"Bản 10.101" (không sửa lại lịch sử Git) — coi là ĐỒNG NHẤT
 với "11.0"/"11.1".
 
+## 11.37 — Ghi nhận: đã bật RCSI trên CSDL Data Warehouse (xử lý "Failed to fetch"/"Lỗi 504" hàng loạt)
+
+**Theo báo cáo người dùng** — nhiều báo cáo KHÔNG liên quan nhau (BRG
+Weekly Post, Top bán chạy đang tồn kho = 0, Báo cáo kinh doanh...) cùng
+hiện "Failed to fetch"/"Lỗi 504" ở NHIỀU thời điểm khác nhau trong ngày,
+kể cả ngay lúc tải danh sách báo cáo (truy vấn rất nhẹ) — điều tra xác
+định đây KHÔNG phải lỗi logic của báo cáo nào, mà là **tranh chấp khoá
+CSDL ở tầng Data Warehouse**: mọi domain báo cáo dùng CHUNG 1 bảng vật lý
+`dwh.ReportFacts`, job đồng bộ ETL (chạy mặc định 15 phút/lần, suốt
+ngày) ghi bằng transaction DELETE+MERGE hàng nghìn dòng — khi SQL Server
+tự leo thang khoá dòng lên khoá BẢNG, MỌI SELECT từ rp-server/api-server
+(bất kỳ domain nào, không riêng domain đang đồng bộ) bị chặn/timeout
+đúng lúc đó. Rủi ro này ĐÃ ĐƯỢC GHI SẴN trong `dwh/schema.sql` từ trước
+(khuyến nghị bật RCSI) nhưng chưa ai thực thi trên server thật.
+
+**Đã xử lý**: DBA xác nhận đã chạy `ALTER DATABASE ... SET
+READ_COMMITTED_SNAPSHOT ON WITH ROLLBACK IMMEDIATE` trên CSDL `HCRC_DWH`
+(server `BRSERVERDTT`), kiểm tra lại qua `sys.databases` trả về
+`is_read_committed_snapshot_on = 1` (ảnh SSMS 26/11/2026). Cho phép mọi
+SELECT đọc bản snapshot, không còn bị chặn bởi job ETL đang ghi — KHÔNG
+đổi hành vi ghi dữ liệu.
+
+**Không có thay đổi code** — chỉ cập nhật lại chú thích trong
+`dwh/schema.sql` ghi nhận đã triển khai (tránh DBA sau này tưởng nhầm
+vẫn chưa làm). Việc bật RCSI là thao tác CSDL trực tiếp, không nằm trong
+bất kỳ script `.sql` nào chạy tự động — dựng server DWH mới/khác vẫn cần
+tự làm lại theo đúng hướng dẫn trong file.
+
+**Theo dõi tiếp**: cần vài ngày quan sát (đặc biệt đúng lúc job đồng bộ
+đang chạy, xem etl-admin → "Lịch sử đồng bộ") để xác nhận hẳn hiện tượng
+không còn lặp lại.
+
 ## 11.36 — Sửa lỗi "Failed to fetch" DÍNH màn hình trang Báo cáo
 
 **Theo báo cáo người dùng** (ảnh chụp "BRG Weekly Post" + "Top bán chạy
