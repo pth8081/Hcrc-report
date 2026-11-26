@@ -32,6 +32,28 @@ function sqlNumOrNull(value) {
   return String(n);
 }
 
+// resolveCellValue (bản 11.38, SỬA LỖI THẬT — "Mã hiển thị" hiện
+// "[object Object]" trên etl-admin, báo cáo người dùng; đồng thời làm BÁO
+// CÁO "Tồn kho khuyến mãi" của Weekly Post LUÔN RA 0, vì "SkuCode" lưu
+// SAI thành chuỗi "[object Object]" không khớp được mã hàng thật nào khi
+// JOIN sang tồn kho) — ExcelJS trả `cell.value` là 1 OBJECT (không phải
+// chuỗi/số thường) cho CÔNG THỨC (`{formula, result}`, vd cột "Mã sản
+// phẩm" dùng =RIGHT(A2,6) — ĐÚNG file người dùng đã upload) và cho Ô RICH
+// TEXT nhiều định dạng trong 1 ô (`{richText: [{text,...}, ...]}`) — gọi
+// thẳng `String(cellValue)` trên các object này ra "[object Object]" (JS
+// mặc định), KHÔNG BAO GIỜ ra đúng giá trị hiển thị. Giải nén đúng giá trị
+// THẬT trước khi dùng — áp dụng NGAY tại hàm `cell()` (1 chỗ DUY NHẤT mỗi
+// hàm parse) để MỌI cột dùng `str()`/số thô phía sau đều tự động được bảo
+// vệ, không cần sửa riêng từng cột.
+function resolveCellValue(v) {
+  if (v && typeof v === 'object') {
+    if (Object.prototype.hasOwnProperty.call(v, 'result')) return v.result; // công thức: {formula, result}
+    if (Array.isArray(v.richText)) return v.richText.map(t => t.text).join(''); // rich text nhiều định dạng
+    if (Object.prototype.hasOwnProperty.call(v, 'text')) return v.text; // hyperlink: {text, hyperlink}
+  }
+  return v;
+}
+
 function normalizeApplyScope(raw) {
   const trimmed = String(raw ?? '').trim();
   if (!trimmed) return { value: 'All', error: null };
@@ -64,7 +86,7 @@ async function readSheet(buffer) {
 function readHeaders(sheet, fields) {
   const headers = [];
   sheet.getRow(1).eachCell({ includeEmpty: false }, (cell, colNumber) => {
-    headers[colNumber] = String(cell.value ?? '').trim();
+    headers[colNumber] = String(resolveCellValue(cell.value) ?? '').trim();
   });
   const col = {};
   for (const f of fields) col[f.key] = headers.indexOf(f.label);
@@ -106,7 +128,7 @@ async function parsePromoCampaignSkuFile(buffer) {
   const seenInFile = new Set();
   sheet.eachRow((row, rowNumber) => {
     if (rowNumber === 1) return;
-    const cell = (colIndex) => (colIndex === -1 ? null : row.getCell(colIndex).value);
+    const cell = (colIndex) => (colIndex === -1 ? null : resolveCellValue(row.getCell(colIndex).value));
     const str = (v) => (v != null ? String(v).trim() : '');
 
     const maHang = str(cell(col.MaHang));
@@ -165,7 +187,7 @@ async function parsePromoCampaignStoreWeightFile(buffer) {
   const seenInFile = new Set();
   sheet.eachRow((row, rowNumber) => {
     if (rowNumber === 1) return;
-    const cell = (colIndex) => (colIndex === -1 ? null : row.getCell(colIndex).value);
+    const cell = (colIndex) => (colIndex === -1 ? null : resolveCellValue(row.getCell(colIndex).value));
     const str = (v) => (v != null ? String(v).trim() : '');
 
     const maDiem = str(cell(col.MaDiem));

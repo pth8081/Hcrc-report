@@ -120,6 +120,17 @@ báo cáo MKT gửi — file đó là ĐẦU RA):
   KHÔNG dán 12 cột ĐẦU RA (Số lượng/Doanh thu thực tế/dự kiến, % Thực
   hiện, Tồn kho, Giá trị tồn) của sheet "By items" gốc vào đây — các cột
   đó báo cáo TỰ TÍNH, không phải thứ admin cung cấp.
+
+  ⚠️ **LƯU Ý NHẬP LIỆU — cột "Mã sản phẩm" KHÔNG dùng công thức Excel**
+  (bản 11.38, SỬA LỖI THẬT — người dùng từng upload file dùng
+  `=RIGHT(A2,6)` để tự tính từ "Mã 10 số", khiến cột "Mã hiển thị" trên
+  etl-admin hiện literal `"[object Object]"` VÀ khiến Tồn kho KM/Giá trị
+  tồn KM ở báo cáo Recap luôn ra 0, vì không còn khớp được mã hàng thật
+  nào — xem `resolveCellValue()` ở `etl/lib/promoCampaignImport.js`, ĐÃ
+  SỬA để tự giải nén đúng giá trị công thức, nhưng AN TOÀN NHẤT vẫn là
+  **gõ/dán GIÁ TRỊ THẬT (Paste Special → Values), không để lại công
+  thức** trong file upload — tránh phụ thuộc hành vi đọc file của
+  ExcelJS cho MỌI cột khác chưa gặp vấn đề tương tự.
 - `dwh.PromoCampaignStoreWeights` — 1 dòng/mã Điểm: **trọng số** dùng
   để CHIA chỉ tiêu cả chuỗi của mỗi SKU về từng siêu thị — admin upload
   file Excel RIÊNG, 2 cột `Mã điểm, Trọng số` (bản 11.28, đổi nhãn tiếng

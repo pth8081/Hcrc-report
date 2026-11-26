@@ -52,6 +52,61 @@ nội dung/hành vi nào đã làm. Lịch sử Git (commit message) vẫn còn 
 "Bản 10.100"/"Bản 10.101" (không sửa lại lịch sử Git) — coi là ĐỒNG NHẤT
 với "11.0"/"11.1".
 
+## 11.38 — Sửa lỗi THẬT "Mã hiển thị" ra "[object Object]" — nguyên nhân Tồn kho KM "BRG Weekly Post" luôn = 0
+
+**Theo báo cáo người dùng** — "Báo cáo này sao có mấy cột bằng không?"
+(Tồn kho KM/Giá trị tồn KM luôn = 0 ở báo cáo Recap) + ảnh chụp trang
+etl-admin "Chiến dịch khuyến mãi" hiện cột "Mã hiển thị" ra literal
+`[object Object]` ở MỌI dòng. Đã mở trực tiếp 2 file Excel người dùng
+từng upload để điều tra (`K2T11_MKT_mau-sku-chien-dich-km.xlsx` +
+`...trong-so-sieu-thi-km.xlsx`) và XÁC NHẬN CHẮC CHẮN nguyên nhân.
+
+**Nguyên nhân thật**: cột "Mã sản phẩm" (SkuCode) trong file SKU người
+dùng upload dùng CÔNG THỨC `=RIGHT(A2,6)` (lấy 6 số cuối từ "Mã 10 số")
+thay vì gõ số liệu trực tiếp — ExcelJS đọc 1 Ô công thức trả về {formula,
+result} (MỘT OBJECT, không phải chuỗi/số thường), trong khi
+`etl/lib/promoCampaignImport.js` gọi thẳng `String(giá trị ô)` — JS mặc
+định `String({...})` ra đúng `"[object Object]"`. Giá trị SAI này bị ghi
+THẲNG vào CSDL (`dwh.PromoCampaignSkus.SkuCode`) cho CẢ 166 dòng trong
+file — không chỉ hiện sai trên etl-admin, mà còn khiến BÁO CÁO JOIN tồn
+kho theo đúng `SkuCode` này (`lib/brgWeeklyPostCore.js:fetchCurrentStock()`)
+KHÔNG BAO GIỜ khớp được mã hàng thật nào — ra 0 tồn/0 giá trị tồn ở MỌI
+dòng, đúng y hệt hiện tượng người dùng gặp.
+
+**Đã sửa** — `etl/lib/promoCampaignImport.js`, hàm mới
+`resolveCellValue()` giải nén đúng giá trị THẬT của Ô Excel trước khi
+dùng (công thức → lấy `.result`; rich text nhiều định dạng → nối
+`.richText[].text`; hyperlink → lấy `.text`) — áp dụng ở ĐÚNG 1 chỗ
+(hàm `cell()`) cho CẢ 2 hàm đọc file (SKU/Trọng số siêu thị) + đọc dòng
+tiêu đề, nên MỌI cột đều được bảo vệ, không chỉ riêng "Mã sản phẩm". Đã
+test lại TRỰC TIẾP bằng đúng 2 file người dùng upload — "Mã sản phẩm" ra
+đúng `"327683"` thay vì object.
+
+**Sửa thêm (phòng ngừa, bản 11.38)** — `fetchActualSales()` (cùng file
+`brgWeeklyPostCore.js`) TRƯỚC ĐÂY gửi NGUYÊN danh sách mã hàng của CẢ
+chiến dịch thành 1 câu `.input()`/mã, không giới hạn — chiến dịch lớn
+(hàng nghìn SKU) có thể CHẠM/VƯỢT giới hạn cứng ~2100 tham số/câu lệnh
+của SQL Server, hoặc khiến SQL Server biên dịch kế hoạch truy vấn rất
+chậm dù chưa chạm giới hạn. Đã chia nhỏ thành nhiều lượt gọi (≤400 mã/
+lượt, chạy tuần tự) — không đổi kết quả, chỉ an toàn hơn với chiến dịch
+lớn.
+
+**CẦN LÀM SAU KHI DEPLOY** (dữ liệu "[object Object]" đã lỡ ghi vào CSDL
+cho chiến dịch "Black Friday" — sửa code KHÔNG tự sửa lại dữ liệu CŨ):
+nhập lại (upload lại) ĐÚNG file SKU đã dùng cho chiến dịch này — import
+tự UPSERT theo khoá (CampaignId, MaHang) nên sẽ ghi đè đúng `SkuCode` sai
+thành giá trị đúng, không cần xoá thủ công trước.
+
+**⚠️ CHƯA CHẮC CHẮN đã hết hẳn lỗi "Weekly Post không xuất được file"**
+— lỗi "Mã hiển thị" là nguyên nhân CHẮC CHẮN của cột Tồn kho KM = 0, còn
+việc xuất Excel bị treo/không ra file CẦN THỬ LẠI sau khi deploy + nhập
+lại file SKU mới biết đã hết hẳn chưa — nếu vẫn treo, cần điều tra thêm
+hiệu năng truy vấn tồn kho (`JSON_VALUE` không có index riêng trên
+`dwh.ReportFacts`, xem chú thích trong code) trên domain tồn kho thật.
+Cũng chưa rõ cột "Doanh số Post"/SL thực tế = 0 có cùng nguyên nhân hay
+do dữ liệu bán hàng 2 ngày đầu chiến dịch (25-26/11) chưa kịp đồng bộ —
+cần kiểm tra thêm sau khi nhập lại file.
+
 ## 11.37 — Ghi nhận: đã bật RCSI trên CSDL Data Warehouse (xử lý "Failed to fetch"/"Lỗi 504" hàng loạt)
 
 **Theo báo cáo người dùng** — nhiều báo cáo KHÔNG liên quan nhau (BRG

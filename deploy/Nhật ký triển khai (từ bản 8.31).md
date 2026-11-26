@@ -14,6 +14,29 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 11.38 — Sửa lỗi "Mã hiển thị" ra "[object Object]" (Tồn kho KM Weekly Post luôn = 0)
+
+**Không có bước DBA/CSDL mới (chỉ sửa code etl).**
+
+**Các bước**:
+1. `git pull origin main`.
+2. `cd etl && pm2 restart hcrc-etl` (sửa `lib/promoCampaignImport.js`).
+3. **BẮT BUỘC** — vào etl-admin → "Chiến dịch khuyến mãi (BRG Weekly
+   Post)" → chọn lại chiến dịch "Black Friday" (hoặc bất kỳ chiến dịch
+   nào đã thấy cột "Mã hiển thị" ra "[object Object]") → "SKU (chỉ tiêu
+   cả chuỗi)" → upload lại ĐÚNG file Excel SKU đã dùng trước đó (không
+   cần sửa gì trong file, import tự ghi đè đúng giá trị theo mã hàng).
+4. Kiểm tra lại cột "Mã hiển thị" trên bảng SKU — phải ra đúng mã 6 số
+   (vd "327683"), không còn "[object Object]".
+5. Chạy lại báo cáo "BRG Weekly Post" (sheet Recap) cho đúng chiến dịch
+   vừa nhập lại — cột "SL/Giá trị sản phẩm KM còn tồn" phải ra số thật
+   (không còn chắc chắn = 0 hết do lỗi này).
+6. Thử lại "Xuất Excel"/"Xuất Excel đủ 5 sheet" cho báo cáo này — báo
+   lại NGAY nếu vẫn treo/không ra file (xem mục "CHƯA CHẮC CHẮN" ở
+   VERSION.md 11.38 — có thể còn nguyên nhân khác chưa xử lý).
+
+**Kiểm tra**: xem "VERSION.md" mục bản 11.38.
+
 ## 11.37 — Ghi nhận: đã bật RCSI trên CSDL Data Warehouse
 
 **KHÔNG có bước deploy code** — đây là thao tác CSDL DBA đã làm TRỰC TIẾP

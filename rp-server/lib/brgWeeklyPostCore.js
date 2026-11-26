@@ -184,6 +184,29 @@ function buildStoreRows(data) {
   return rows;
 }
 
+// SKU_BATCH_SIZE (bản 11.38, SỬA LỖI THẬT — "Weekly Post không xuất được
+// file", báo cáo người dùng) — TRƯỚC ĐÂY fetchActualSales()/fetchCurrentStock()
+// gửi NGUYÊN danh sách mã hàng của CẢ chiến dịch thành 1 câu .input() MỖI mã
+// (vd 1 chiến dịch "Black Friday" khai hàng trăm/hàng nghìn SKU qua nhiều
+// ngành hàng — xem file campaign vừa test, SKU_ID tới hàng nghìn dòng) —
+// KHÔNG có giới hạn nào. SQL Server chặn CỨNG tối đa ~2100 tham số/câu lệnh
+// (`@domain`/`@from`/`@to` + N `@skuN`) — vượt ngưỡng này câu lệnh BỊ TỪ
+// CHỐI NGAY (lỗi rõ ràng), nhưng NGAY CẢ KHI CHƯA chạm ngưỡng, hàng nghìn
+// tham số trong 1 câu `IN (...)` khiến SQL Server BIÊN DỊCH kế hoạch truy
+// vấn RẤT CHẬM (khác hẳn chi phí THỰC THI, không liên quan index) — đúng
+// kiểu "treo lâu không ra file" người dùng mô tả (không phải lỗi hiện ra
+// ngay, mà là CHỜ RẤT LÂU không phản hồi). Chia nhỏ danh sách mã hàng thành
+// nhiều lượt gọi (≤ SKU_BATCH_SIZE mã/lượt, chạy TUẦN TỰ — tránh dồn nhiều
+// kết nối cùng lúc vào pool DWH), gộp kết quả lại — mỗi câu lệnh giờ CHỈ
+// còn tối đa vài trăm tham số, biên dịch nhanh như các domain khác.
+const SKU_BATCH_SIZE = 400;
+
+function chunk(arr, size) {
+  const out = [];
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+  return out;
+}
+
 // Bán hàng THỰC TẾ trong [from, to] — trả về CẢ tổng theo MaHang (chain-wide)
 // VÀ chi tiết theo (MaHang, STK_ID) (cho "By Store"/drill-down).
 async function fetchActualSales(dwhPool, maHangList, from, to) {
@@ -191,34 +214,36 @@ async function fetchActualSales(dwhPool, maHangList, from, to) {
   const byMaHangStore = new Map(); // maHang -> Map(stkId -> {qty, revenue})
   if (!maHangList.length) return { byMaHangTotal, byMaHangStore };
 
-  const request = dwhPool.request();
-  request.input('domain', sql.VarChar(50), SALES_DOMAIN);
-  request.input('from', sql.Date, from);
-  request.input('to', sql.Date, to);
-  const placeholders = maHangList.map((code, i) => { request.input(`sku${i}`, sql.NVarChar(50), code); return `@sku${i}`; });
-  const result = await request.query(`
-    SELECT MaHang, EntityCode, Dimensions, Measures
-    FROM dwh.ReportFacts
-    WHERE Domain = @domain AND EventDate BETWEEN @from AND @to
-      AND MaHang IN (${placeholders.join(',')})
-  `);
-  for (const row of result.recordset) {
-    const dims = JSON.parse(row.Dimensions || '{}');
-    const measures = row.Measures ? JSON.parse(row.Measures) : {};
-    const maHang = row.MaHang;
-    const stkId = dims.STK_ID && dims.STK_ID.trim();
-    const qty = measures.SoLuongBan || 0;
-    const revenue = measures.DoanhThu || 0;
-    if (!byMaHangTotal.has(maHang)) byMaHangTotal.set(maHang, { qty: 0, revenue: 0 });
-    const totalAcc = byMaHangTotal.get(maHang);
-    totalAcc.qty += qty; totalAcc.revenue += revenue;
+  for (const batch of chunk(maHangList, SKU_BATCH_SIZE)) {
+    const request = dwhPool.request();
+    request.input('domain', sql.VarChar(50), SALES_DOMAIN);
+    request.input('from', sql.Date, from);
+    request.input('to', sql.Date, to);
+    const placeholders = batch.map((code, i) => { request.input(`sku${i}`, sql.NVarChar(50), code); return `@sku${i}`; });
+    const result = await request.query(`
+      SELECT MaHang, EntityCode, Dimensions, Measures
+      FROM dwh.ReportFacts
+      WHERE Domain = @domain AND EventDate BETWEEN @from AND @to
+        AND MaHang IN (${placeholders.join(',')})
+    `);
+    for (const row of result.recordset) {
+      const dims = JSON.parse(row.Dimensions || '{}');
+      const measures = row.Measures ? JSON.parse(row.Measures) : {};
+      const maHang = row.MaHang;
+      const stkId = dims.STK_ID && dims.STK_ID.trim();
+      const qty = measures.SoLuongBan || 0;
+      const revenue = measures.DoanhThu || 0;
+      if (!byMaHangTotal.has(maHang)) byMaHangTotal.set(maHang, { qty: 0, revenue: 0 });
+      const totalAcc = byMaHangTotal.get(maHang);
+      totalAcc.qty += qty; totalAcc.revenue += revenue;
 
-    if (!stkId) continue;
-    if (!byMaHangStore.has(maHang)) byMaHangStore.set(maHang, new Map());
-    const storeMap = byMaHangStore.get(maHang);
-    if (!storeMap.has(stkId)) storeMap.set(stkId, { qty: 0, revenue: 0 });
-    const storeAcc = storeMap.get(stkId);
-    storeAcc.qty += qty; storeAcc.revenue += revenue;
+      if (!stkId) continue;
+      if (!byMaHangStore.has(maHang)) byMaHangStore.set(maHang, new Map());
+      const storeMap = byMaHangStore.get(maHang);
+      if (!storeMap.has(stkId)) storeMap.set(stkId, { qty: 0, revenue: 0 });
+      const storeAcc = storeMap.get(stkId);
+      storeAcc.qty += qty; storeAcc.revenue += revenue;
+    }
   }
   return { byMaHangTotal, byMaHangStore };
 }
