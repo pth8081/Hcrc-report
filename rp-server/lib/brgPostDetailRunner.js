@@ -14,6 +14,7 @@
 // xem tự đối chiếu trực tiếp 2 cột "Số lượng tồn"/"Số lượng kế hoạch".
 const { loadCampaignData, buildDetailRows } = require('./brgWeeklyPostCore');
 const { describeColumns } = require('./reportEngine');
+const { applyDisplayCap } = require('./reportCellFormat');
 
 function buildColumns() {
   return [
@@ -30,16 +31,22 @@ function buildColumns() {
   ];
 }
 
-async function runBrgPostDetailReport(definition, filterValues) {
+// pagination (bản 11.30, theo yêu cầu người dùng — audit hiệu năng báo cáo:
+// báo cáo này PHẲNG, không nhóm/subtotal, tự nhận "có thể vài nghìn dòng,
+// KHÔNG phân trang" ở bc-brg-weekly-post.md — AN TOÀN để cắt đơn giản, xem
+// applyDisplayCap() ở lib/reportCellFormat.js) — CHỈ cắt khi gọi từ /run
+// (`capForDisplay=true`), /export/export-sheets vẫn nhận ĐỦ dòng như cũ.
+async function runBrgPostDetailReport(definition, filterValues, pagination) {
   const campaignId = Number((filterValues && filterValues.campaignId) || 0);
   if (!campaignId) throw new Error('Thiếu bộ lọc "Chiến dịch khuyến mãi" — chọn 1 chiến dịch trước khi chạy báo cáo.');
 
   const data = await loadCampaignData(campaignId);
-  const rows = buildDetailRows(data).sort((a, b) =>
+  const allRows = buildDetailRows(data).sort((a, b) =>
     (a.tenSieuThi || '').localeCompare(b.tenSieuThi || '', 'vi') || (a.skuName || '').localeCompare(b.skuName || '', 'vi'));
+  const { rows, warnings } = applyDisplayCap(allRows, pagination);
 
   const columns = describeColumns(buildColumns());
-  return { columns, rows, columnGroups: null, columnSuperGroups: null };
+  return { columns, rows, columnGroups: null, columnSuperGroups: null, warnings };
 }
 
 module.exports = { runBrgPostDetailReport, buildColumns };

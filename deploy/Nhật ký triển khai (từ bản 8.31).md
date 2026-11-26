@@ -14,6 +14,19 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 11.30 — Xử lý đợt 1 audit hiệu năng báo cáo
+
+**Không có bước DBA, không cần chạy lại seed script.**
+
+**Các bước**:
+1. `git pull origin main`.
+2. `cd rp-user && npm run build` (deploy `dist/` — có thay đổi frontend).
+3. `pm2 restart rp-server`.
+
+**Kiểm tra**: xem "VERSION.md" mục bản 11.30 — thử "Tồn kho theo
+ngưỡng"/"Top bán chạy đang tồn kho = 0" (chọn "Tất cả") ra nhiều dòng,
+web chỉ hiện tối đa 200 dòng kèm cảnh báo, "Xuất Excel" vẫn đủ.
+
 ## 11.29 — SỬA LỖI THẬT: "Kế hoạch" 4 báo cáo Doanh thu cuối ngày quay về ĐÚNG khoảng ngày đang xem
 
 **Không có bước DBA, không cần chạy lại seed script.**

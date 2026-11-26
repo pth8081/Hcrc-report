@@ -251,6 +251,33 @@ function computeSummaryCards(definition, rows) {
   return { grand, groups };
 }
 
+// applyDisplayCap (bản 11.30, theo yêu cầu người dùng — audit hiệu năng báo
+// cáo: "những cái báo cáo mà dài ấy, thì hiển thị tối đa trên trang chỉ 100
+// đến 200 dòng... còn khi xuất ra Excel thì sẽ xuất trọn gọn") — DÙNG CHUNG
+// cho MỌI runner PHẲNG (không có dòng `__isSectionHeader`/`__isSubtotal`,
+// xem ghi chú "AN TOÀN để cắt đơn giản" ở audit-hieu-nang-bao-cao.md) muốn
+// áp dụng đúng mẫu đã chứng minh đúng ở lib/purchaseOrderRunner.js (tính đủ
+// & đúng TRƯỚC, chỉ cắt mảng CUỐI CÙNG, CHỈ khi `pagination.capForDisplay`
+// = true — cờ này CHỈ `/run` gắn, xem routes/reports.js — /export/
+// jobs/reportEmailScheduler.js/lib/anomalyAlertRunner.js/routes/dashboards.js
+// đều KHÔNG gắn nên luôn nhận đủ dữ liệu, không đổi hành vi).
+//
+// KHÔNG dùng hàm này cho báo cáo CÓ NHÓM/dòng Tổng (`__isSectionHeader`/
+// `__isSubtotal`/`__isGrandTotal`) — cắt kiểu `slice()` đơn giản sẽ cắt đứt
+// giữa nhóm, mất dòng Tổng cộng (xem mục A.3 "phuong-an-xu-ly-hieu-nang-bao-cao.md")
+// — báo cáo có nhóm cần thiết kế riêng, chưa làm ở bản này.
+function applyDisplayCap(rows, pagination, { entityLabel = 'dòng' } = {}) {
+  const warnings = [];
+  if (!pagination || !pagination.capForDisplay || !pagination.pageSize || rows.length <= pagination.pageSize) {
+    return { rows, warnings };
+  }
+  const page = Math.max(1, pagination.page || 1);
+  const start = (page - 1) * pagination.pageSize;
+  const capped = rows.slice(start, start + pagination.pageSize);
+  warnings.push(`Chỉ hiện ${capped.length} ${entityLabel} đầu trên tổng ${rows.length} ${entityLabel} — bộ lọc quá rộng để hiện hết trên web. Bấm "Xuất Excel"/"Xuất PDF" để xem đầy đủ.`);
+  return { rows: capped, warnings };
+}
+
 // Bảng màu khối thẻ tổng — DÙNG CHUNG cho PDF/Excel/email (web mirror lại
 // đúng các mã HEX này trong rp-user/src/lib/reportGroupColors.js, giống
 // cách GROUP_COLORS_CORPORATE đã mirror — xem chú thích ở đó). Tông navy/
@@ -269,5 +296,5 @@ module.exports = {
   GROUP_COLORS_CORPORATE, SUBTOTAL_COLOR_CORPORATE, GRAND_TOTAL_COLOR_CORPORATE, ZEBRA_COLOR_CORPORATE,
   resolveGroupColor, resolveRowFillColor, resolveStandaloneColumnColor, computeZebraFlags,
   computeSttValues, assignSttIfPresent, formatCellText, filterColumns, filterGroups,
-  computeSummaryCards, SUMMARY_CARD_COLORS
+  computeSummaryCards, SUMMARY_CARD_COLORS, applyDisplayCap
 };

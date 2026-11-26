@@ -52,6 +52,53 @@ nội dung/hành vi nào đã làm. Lịch sử Git (commit message) vẫn còn 
 "Bản 10.100"/"Bản 10.101" (không sửa lại lịch sử Git) — coi là ĐỒNG NHẤT
 với "11.0"/"11.1".
 
+## 11.30 — Xử lý đợt 1 audit hiệu năng báo cáo: sửa xuất Excel cắt âm thầm + giới hạn hiển thị 3 báo cáo rủi ro cao + hạ tầng cache/mặc định ngày
+
+**Theo yêu cầu người dùng** (sau audit hiệu năng báo cáo — xem
+`audit-hieu-nang-bao-cao.md`/`phuong-an-xu-ly-hieu-nang-bao-cao.md` đã
+gửi riêng): xử lý tuần tự theo đúng bảng ưu tiên đã thống nhất.
+
+**Mục C — SỬA LỖI THẬT (sai số liệu, không chỉ hiệu năng)**:
+`routes/reports.js`/`lib/reportRunner.js` — nút "Xuất Excel"/"Xuất PDF"
+TRƯỚC ĐÂY dùng cứng `pageSize: 5000`, báo cáo `directDb` nào khớp HƠN
+5000 dòng bộ lọc bị **CẮT ÂM THẦM, không cảnh báo**. Thêm
+`runDefinitionForExport()` (mirror đúng mẫu `fetchAllReportRows()` đã có
+ở `lib/compositeReportRunner.js`, bản 8.99, cùng lớp lỗi) — lặp trang
+tới khi hết dữ liệu, kèm trần an toàn tuyệt đối 200,000 dòng. 14
+SourceType khác (đã luôn trả đủ dòng) không bị lặp lại/nhân đôi dữ liệu.
+
+**Mục A1 — Giới hạn hiển thị web cho 3 báo cáo rủi ro cao** (phẳng,
+không nhóm/subtotal, có thể phình to không giới hạn): `bc-brg-post-detail`
+(sheet "Chi tiết" của BRG Weekly Post), "Top bán chạy đang tồn kho = 0"
+(tuỳ chọn "Tất cả"), "Tồn kho theo ngưỡng". Thêm hàm dùng chung
+`applyDisplayCap()` (`lib/reportCellFormat.js`, mirror đúng mẫu đã có ở
+`lib/purchaseOrderRunner.js`) — tính đủ & đúng TRƯỚC, chỉ cắt mảng CUỐI
+CÙNG khi xem trên web (`capForDisplay=true`, CHỈ `/run` gắn cờ này),
+kèm cảnh báo UI có sẵn khung hiển thị. `/export`/`/export-sheets` KHÔNG
+đổi, vẫn xuất đủ. 9 báo cáo CÓ nhóm/subtotal (Kinh doanh/Khách hàng
+theo tuần, Doanh thu cuối ngày...) CHƯA làm ở bản này — quy mô tự nhiên
+đã nhỏ (vài chục-trăm dòng, giới hạn bởi số siêu thị thật), để sau nếu
+thực tế phát sinh vấn đề (xem mục A.3 trong tài liệu phương án).
+
+**Hạ tầng (CHƯA áp dụng cho báo cáo cụ thể nào, chờ xác nhận phạm vi)**:
+- `rp-user/.../ReportsPage.jsx` — filter kiểu `dateRange` giờ hỗ trợ
+  `defaultPreset` (vd `'thisMonth'`) để tự điền sẵn khoảng ngày mặc định
+  khi mở báo cáo lần đầu (mục B4) — field này CHƯA được khai cho báo cáo
+  nào, không đổi hành vi báo cáo nào hiện có.
+- `routes/reports.js` — `reportResultCache.set()` giờ đọc
+  `definition.resultCacheTtlMs` (TUỲ CHỌN) để cache `/run` lâu hơn mặc
+  định 30 giây cho báo cáo lọc trên domain lớn không persisted (mục B2)
+  — field này CHƯA được khai cho báo cáo nào.
+
+**Không có bước DBA, không cần chạy lại seed script** — chỉ deploy code
+mới + `pm2 restart rp-server` + build lại `rp-user`.
+
+**Kiểm tra**: mở báo cáo "Tồn kho theo ngưỡng"/"Top bán chạy đang tồn
+kho = 0" (chọn "Tất cả")/BRG Weekly Post sheet "Chi tiết" với bộ lọc ra
+nhiều dòng — web chỉ hiện tối đa pageSize dòng (200 mặc định) kèm cảnh
+báo, "Xuất Excel" vẫn ra đủ. Báo cáo `directDb` bất kỳ: xuất Excel với
+bộ lọc ra hơn 5000 dòng (nếu có) phải ra ĐỦ, không dừng ở 5000.
+
 ## 11.29 — SỬA LỖI THẬT: "Kế hoạch" (Doanh thu/Giao dịch) 4 báo cáo Doanh thu cuối ngày quay về ĐÚNG khoảng ngày đang xem (đảo ngược bản 11.20)
 
 **Theo yêu cầu người dùng** (phát hiện qua ảnh chụp thật — khối "Ngày"

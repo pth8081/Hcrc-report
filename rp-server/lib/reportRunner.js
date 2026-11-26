@@ -95,13 +95,13 @@ async function runDefinition(definition, filterValues, pagination) {
     return runCompositeReport(definition, filterValues);
   }
   if (definition.sourceType === 'topZeroStock') {
-    return runTopZeroStockReport(definition, filterValues);
+    return runTopZeroStockReport(definition, filterValues, pagination);
   }
   if (definition.sourceType === 'coreZeroStock') {
     return runCoreZeroStockReport(definition, filterValues);
   }
   if (definition.sourceType === 'stockThreshold') {
-    return runStockThresholdReport(definition, filterValues);
+    return runStockThresholdReport(definition, filterValues, pagination);
   }
   if (definition.sourceType === 'stockAlert') {
     return runStockAlertReport(definition, filterValues);
@@ -160,8 +160,12 @@ async function runDefinition(definition, filterValues, pagination) {
   // 'brgPostDetail' (bản 11.24, "BRG Weekly Post") — GỘP 2 sheet "Từng
   // ST.CH"/"Từng sản phẩm" (cùng 1 bảng chi tiết siêu thị x SKU) — xem
   // lib/brgPostDetailRunner.js.
+  // pagination (bản 11.30) — CHỈ báo cáo này (PHẲNG, không nhóm/subtotal,
+  // xem chú thích ở lib/brgPostDetailRunner.js) trong cả nhóm BRG được
+  // truyền `pagination` — 4 báo cáo BRG còn lại CÓ nhóm/subtotal, CHƯA làm
+  // (xem audit-hieu-nang-bao-cao.md mục A.3).
   if (definition.sourceType === 'brgPostDetail') {
-    return runBrgPostDetailReport(definition, filterValues);
+    return runBrgPostDetailReport(definition, filterValues, pagination);
   }
   // 'brgWeeklyPost' (bản 11.26, theo yêu cầu người dùng — gộp 5 SourceType
   // 'brgPost*' ở trên thành 1 báo cáo DUY NHẤT, chọn "sheet" qua bộ lọc nội
@@ -171,7 +175,7 @@ async function runDefinition(definition, filterValues, pagination) {
   // 'brgPost*' ở trên (không xoá) dù scripts/seedBrgWeeklyPostReport.js đã
   // xoá 5 dòng ReportCatalog dùng chúng — phòng rủi ro, không ảnh hưởng gì.
   if (definition.sourceType === 'brgWeeklyPost') {
-    return runBrgWeeklyPostReport(definition, filterValues);
+    return runBrgWeeklyPostReport(definition, filterValues, pagination);
   }
   if (definition.sourceType && definition.sourceType !== 'directDb') {
     return runApiReport(definition, filterValues, pagination);
@@ -197,4 +201,49 @@ async function runDefinition(definition, filterValues, pagination) {
   };
 }
 
-module.exports = { loadDefinition, runDefinition, resolveFactsPool };
+// runDefinitionForExport (bản 11.30, SỬA LỖI THẬT phát hiện qua audit hiệu
+// năng báo cáo — theo yêu cầu người dùng) — CHỈ SourceType 'directDb' (nhánh
+// mặc định ở cuối runDefinition() phía trên, dùng runReport() với SQL
+// OFFSET/FETCH THẬT, xem lib/reportEngine.js) tôn trọng `pagination` — gọi
+// runDefinition(..., { page:1, pageSize: 5000 }) như /export đã làm TRƯỚC
+// ĐÂY nghĩa là báo cáo 'directDb' nào khớp HƠN 5000 dòng bộ lọc sẽ bị CẮT
+// ÂM THẦM khi xuất Excel/PDF, không có cảnh báo gì — SAI với yêu cầu "xuất
+// Excel phải trọn gói". 14 SourceType khác (composite/kinhDoanhTuan/
+// brgPost*/...) KHÔNG đọc `pagination` (luôn trả ĐỦ dòng ngay ở 1 lượt gọi,
+// xem bảng đối chiếu trong audit-hieu-nang-bao-cao.md) nên KHÔNG được lặp
+// trang ở đây — lặp thêm sẽ gọi lại ĐÚNG same full dataset và NHÂN ĐÔI dữ
+// liệu một cách sai lệch. Mirror ĐÚNG mẫu `fetchAllReportRows()` đã có sẵn
+// trong lib/compositeReportRunner.js (bản 8.99, cùng lớp lỗi: "runReport()
+// cắt cứng ở pageSize, ORDER BY EventDate DESC khiến phần dữ liệu xa hơn bị
+// bỏ qua âm thầm") — lặp theo batch tới khi hết dữ liệu, kèm 1 trần an toàn
+// tuyệt đối (EXPORT_SAFETY_CAP) để không treo server/tràn bộ nhớ nếu bộ lọc
+// vô tình khớp số dòng cực lớn.
+const EXPORT_BATCH_SIZE = 5000;
+const EXPORT_SAFETY_CAP = 200000;
+
+function isDirectDbSourceType(definition) {
+  return !definition.sourceType || definition.sourceType === 'directDb';
+}
+
+async function runDefinitionForExport(definition, filterValues) {
+  if (!isDirectDbSourceType(definition)) {
+    // 14 SourceType khác — 1 lượt gọi ĐÃ trả đủ mọi dòng (không đọc
+    // `pagination`), giữ NGUYÊN hành vi cũ, không lặp thêm.
+    return runDefinition(definition, filterValues, { page: 1, pageSize: EXPORT_BATCH_SIZE });
+  }
+  let page = 1;
+  let result;
+  let allRows = [];
+  for (;;) {
+    result = await runDefinition(definition, filterValues, { page, pageSize: EXPORT_BATCH_SIZE });
+    allRows = allRows.concat(result.rows);
+    if (result.rows.length < EXPORT_BATCH_SIZE || allRows.length >= EXPORT_SAFETY_CAP) break;
+    page += 1;
+  }
+  if (allRows.length >= EXPORT_SAFETY_CAP) {
+    console.warn(`⚠️  [export "${definition.title}"] đạt trần an toàn ${EXPORT_SAFETY_CAP} dòng — có thể vẫn còn dữ liệu chưa xuất, thu hẹp bộ lọc nếu cần đủ.`);
+  }
+  return { ...result, rows: allRows };
+}
+
+module.exports = { loadDefinition, runDefinition, runDefinitionForExport, resolveFactsPool };

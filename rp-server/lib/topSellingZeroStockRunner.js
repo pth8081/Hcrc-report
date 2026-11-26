@@ -63,7 +63,7 @@
 const { sql, getPool } = require('../db');
 const { getPoolForDataSource } = require('./dataSourcePool');
 const { todayUTC, loadLatestMeasureBefore, loadLatestMeasure, loadSumOnDate } = require('./reportFactsHelpers');
-const { assignSttIfPresent } = require('./reportCellFormat');
+const { assignSttIfPresent, applyDisplayCap } = require('./reportCellFormat');
 const { loadDonDatHangPendingReceivedByEntity } = require('./donDatHangTonKhoHelper');
 
 const RANK_WINDOWS = ['1', '7', '30', 'daily'];
@@ -143,7 +143,12 @@ async function resolvePool(definition) {
 // trống luôn ngầm hiểu Top 50, tránh bảng quá dài làm nặng trình duyệt).
 const TOP_LIMITS = ['50', '100'];
 
-async function runTopZeroStockReport(definition, filterValues = {}) {
+// pagination (bản 11.30, theo yêu cầu người dùng — audit hiệu năng báo
+// cáo: lựa chọn "Tất cả" (topN=Infinity, xem chú thích dưới) KHÔNG giới
+// hạn trên — báo cáo PHẲNG (không nhóm/subtotal), AN TOÀN để cắt hiển thị
+// đơn giản, xem applyDisplayCap() ở lib/reportCellFormat.js) — CHỈ cắt khi
+// gọi từ /run (`capForDisplay=true`), /export vẫn nhận ĐỦ dòng như cũ.
+async function runTopZeroStockReport(definition, filterValues = {}, pagination) {
   if (!definition.salesDomain || !definition.stockDomain) {
     throw new Error('Báo cáo thiếu cấu hình salesDomain/stockDomain (topZeroStock)');
   }
@@ -279,8 +284,9 @@ async function runTopZeroStockReport(definition, filterValues = {}) {
   }
 
   const columns = describeColumns(definition);
-  assignSttIfPresent(rows, columns);
-  return { columns, rows };
+  const { rows: cappedRows, warnings } = applyDisplayCap(rows, pagination);
+  assignSttIfPresent(cappedRows, columns);
+  return { columns, rows: cappedRows, warnings };
 }
 
 module.exports = { runTopZeroStockReport, resolveDateRange, RANK_WINDOWS };

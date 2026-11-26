@@ -14,6 +14,7 @@ import ReportBody from '../../components/ReportBody';
 import ReportSummaryCards from '../../components/ReportSummaryCards';
 import SearchableSelect from '../../components/SearchableSelect';
 import { filterColumns, filterGroups } from '../../lib/reportGroupColors';
+import { resolveQuickDatePreset } from '../../lib/dateRange';
 
 // Bản 10.87/10.90 — 2 báo cáo CÓ nút "Xuất Excel theo tháng (1 sheet/ngày)"
 // riêng (xem routes/reports.js:POST /:reportId/export-month) — HCRC +
@@ -144,6 +145,29 @@ export default function ReportsPage() {
       runReport();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [definition]);
+
+  // defaultPreset (bản 11.30, theo yêu cầu người dùng — audit hiệu năng báo
+  // cáo, mục B4 "giới hạn mặc định khoảng ngày khi mở báo cáo lần đầu") —
+  // filter kiểu 'dateRange' khai `defaultPreset` (vd 'thisMonth', xem
+  // lib/dateRange.js:resolveQuickDatePreset()) được TỰ ĐỘNG điền sẵn ngay
+  // khi mở báo cáo, thay vì để trống/không giới hạn ngày như trước — CHỈ áp
+  // dụng khi field ĐÓ CHƯA có giá trị (không ghi đè bộ lọc đến từ drill-through
+  // hay giá trị người dùng đã tự chọn trước đó cho CÙNG lượt mở báo cáo này).
+  // Báo cáo KHÔNG khai `defaultPreset` thì KHÔNG đổi gì (vẫn để trống như cũ).
+  useEffect(() => {
+    if (!definition) return;
+    setFilterValues(prev => {
+      let changed = false;
+      const next = { ...prev };
+      (definition.filters || []).forEach(f => {
+        if (f.type === 'dateRange' && f.defaultPreset && !next[f.field]) {
+          const preset = resolveQuickDatePreset(f.defaultPreset);
+          if (preset) { next[f.field] = preset; changed = true; }
+        }
+      });
+      return changed ? next : prev;
+    });
   }, [definition]);
 
   // Bấm 1 điểm trên biểu đồ có khai visualization.drillThrough — điều hướng

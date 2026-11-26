@@ -31,7 +31,7 @@ const {
   todayUTC, daysAgoUTC, loadLatestMeasureBefore, loadLatestMeasureWithDate, loadSumOnDate, loadLatestDimensionsForDomain
 } = require('./reportFactsHelpers');
 const { resolveStoreScopeStkIds } = require('./diemStkMapping');
-const { assignSttIfPresent } = require('./reportCellFormat');
+const { assignSttIfPresent, applyDisplayCap } = require('./reportCellFormat');
 
 async function resolvePool(definition) {
   if (definition.dataSourceId) return getPoolForDataSource(definition.dataSourceId);
@@ -64,7 +64,11 @@ function resolveThreshold(filterValues) {
   return { mode, value };
 }
 
-async function runStockThresholdReport(definition, filterValues = {}) {
+// pagination (bản 11.30, theo yêu cầu người dùng — audit hiệu năng báo
+// cáo: ngưỡng rộng có thể quét ra gần hết danh mục × chi nhánh, không
+// giới hạn trên — báo cáo PHẲNG, AN TOÀN để cắt hiển thị đơn giản, xem
+// applyDisplayCap() ở lib/reportCellFormat.js) — CHỈ cắt khi gọi từ /run.
+async function runStockThresholdReport(definition, filterValues = {}, pagination) {
   if (!definition.stockDomain || !definition.salesDomain) {
     throw new Error('Báo cáo thiếu cấu hình stockDomain/salesDomain (stockThreshold)');
   }
@@ -120,8 +124,9 @@ async function runStockThresholdReport(definition, filterValues = {}) {
   }
 
   const columns = describeColumns();
-  assignSttIfPresent(rows, columns);
-  return { columns, rows };
+  const { rows: cappedRows, warnings } = applyDisplayCap(rows, pagination);
+  assignSttIfPresent(cappedRows, columns);
+  return { columns, rows: cappedRows, warnings };
 }
 
 module.exports = { runStockThresholdReport };

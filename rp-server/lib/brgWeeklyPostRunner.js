@@ -33,10 +33,14 @@ const SHEET_OPTIONS = [
 const SHEET_RUNNERS = Object.fromEntries(SHEET_OPTIONS.map(s => [s.value, s.runFn]));
 const DEFAULT_SHEET = SHEET_OPTIONS[0].value;
 
-async function runBrgWeeklyPostReport(definition, filterValues) {
+// pagination (bản 11.30) — truyền NGUYÊN VẸN xuống hàm sheet đang chọn;
+// CHỈ sheet "detail" (brgPostDetailRunner.js) thực sự đọc tham số này (báo
+// cáo PHẲNG, an toàn để cắt hiển thị) — 4 sheet còn lại nhận thêm tham số
+// thứ 3 này nhưng bỏ qua (CÓ nhóm/subtotal, chưa làm — xem audit).
+async function runBrgWeeklyPostReport(definition, filterValues, pagination) {
   const sheet = (filterValues && filterValues.sheet) || DEFAULT_SHEET;
   const runFn = SHEET_RUNNERS[sheet] || SHEET_RUNNERS[DEFAULT_SHEET];
-  return runFn(definition, filterValues);
+  return runFn(definition, filterValues, pagination);
 }
 
 module.exports = { runBrgWeeklyPostReport, SHEET_RUNNERS, SHEET_OPTIONS, DEFAULT_SHEET };

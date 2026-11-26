@@ -24,7 +24,7 @@
 const express = require('express');
 const { sql, getPool } = require('../db');
 const { requireAuth } = require('../lib/auth');
-const { loadDefinition, runDefinition, resolveFactsPool } = require('../lib/reportRunner');
+const { loadDefinition, runDefinition, runDefinitionForExport, resolveFactsPool } = require('../lib/reportRunner');
 const { PERSISTED_DIMENSION_COLUMNS } = require('../lib/reportEngine');
 const { resolveTitleWithDate, resolveExportFileBaseName } = require('../lib/reportTitleDate');
 const { exportExcel, exportExcelWithChartSheet, exportMultiSheetExcel } = require('../lib/exportExcel');
@@ -441,16 +441,27 @@ router.post('/:reportId/run', async (req, res, next) => {
     const cacheKey = [req.params.reportId, filters, page, pageSize];
     let result = reportResultCache.get(cacheKey);
     if (!result) {
-      // capForDisplay (bản 9.23) — CHỈ gắn cờ này ở ĐÚNG đây (xem trên web,
-      // pageSize nhỏ do CHÍNH ReportsPage.jsx/người dùng quyết định) —
-      // KHÔNG gắn cho /export, jobs/reportEmailScheduler.js,
+      // capForDisplay (bản 9.23, mở rộng bản 11.30) — CHỈ gắn cờ này ở ĐÚNG
+      // đây (xem trên web, pageSize nhỏ do CHÍNH ReportsPage.jsx/người dùng
+      // quyết định) — KHÔNG gắn cho /export, jobs/reportEmailScheduler.js,
       // lib/anomalyAlertRunner.js, routes/dashboards.js (đều cần ĐỦ dữ
-      // liệu, không được cắt bớt). Hiện chỉ lib/purchaseOrderRunner.js đọc
-      // cờ này (6 báo cáo nhóm "Mua hàng" — xem chú thích ở đó); các loại
-      // báo cáo khác (runReport/runApiReport/...) bỏ qua field lạ này,
-      // không ảnh hưởng gì.
+      // liệu, không được cắt bớt). Đọc cờ này: lib/purchaseOrderRunner.js
+      // (6 báo cáo nhóm "Mua hàng"), lib/brgPostDetailRunner.js,
+      // lib/topSellingZeroStockRunner.js, lib/stockThresholdRunner.js (bản
+      // 11.30, xem audit-hieu-nang-bao-cao.md) — các loại báo cáo khác
+      // (runReport/runApiReport/...) bỏ qua field lạ này, không ảnh hưởng.
       result = await runDefinition(definition, filters, { page, pageSize, capForDisplay: true });
-      reportResultCache.set(cacheKey, result);
+      // resultCacheTtlMs (bản 11.30, TUỲ CHỌN, theo yêu cầu người dùng —
+      // audit hiệu năng báo cáo, mục B2 "tăng TTL cache cho báo cáo lọc
+      // trên domain lớn không persisted") — báo cáo khai
+      // `definition.resultCacheTtlMs` (DefinitionJson) được cache LÂU HƠN
+      // mặc định 30 giây (lib/reportResultCache.js) — CHỈ áp dụng cho ĐÚNG
+      // báo cáo khai field này, KHÔNG đổi hành vi báo cáo khác (undefined
+      // -> rơi về TTL mặc định như cũ). Đánh đổi: số liệu có thể "cũ" hơn
+      // vài phút so với CSDL thật — CHỈ nên khai cho báo cáo lọc trên domain
+      // lớn không có cột persisted+index (xem mục 4 audit), không áp dụng
+      // tràn lan.
+      reportResultCache.set(cacheKey, result, definition.resultCacheTtlMs);
     }
     // summaryCards (bản 10.21) — tính LẠI mỗi lần trả response (rẻ, chỉ đọc
     // mảng rows đã có sẵn, không truy vấn gì thêm) thay vì lưu trong cache ở
@@ -475,10 +486,14 @@ router.post('/:reportId/export', async (req, res, next) => {
     // __storeScope (bản 8.51) — xem chú thích ở POST /:reportId/run phía trên.
     const { format = 'excel' } = req.body || {};
     const filters = { ...(req.body?.filters || {}), __storeScope: context.storeScope };
+    // runDefinitionForExport (bản 11.30, SỬA LỖI THẬT — xem chú thích đầy
+    // đủ ở lib/reportRunner.js) — THAY cho gọi runDefinition() trực tiếp
+    // với pageSize:5000 cứng ở đây TRƯỚC ĐÂY: báo cáo 'directDb' khớp hơn
+    // 5000 dòng bộ lọc từng bị CẮT ÂM THẦM khi xuất Excel/PDF.
     const {
       columns: rawColumns, rows: projected,
       columnGroups: runtimeColumnGroups, columnSuperGroups, standaloneColumnColors: runtimeStandaloneColumnColors
-    } = await runDefinition(definition, filters, { page: 1, pageSize: 5000 });
+    } = await runDefinitionForExport(definition, filters);
     // visibleColumnKeys (bản 8.97, TUỲ CHỌN — theo yêu cầu người dùng: "cho
     // phép mình chọn các trường ẩn đi khi xem báo cáo trên web hoặc xuất
     // excel/pdf") — người dùng chọn Ở TRANG XEM báo cáo (rp-user/.../
