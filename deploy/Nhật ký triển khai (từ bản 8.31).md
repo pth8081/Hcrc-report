@@ -14,26 +14,33 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
-## 11.38 — Sửa lỗi "Mã hiển thị" ra "[object Object]" (Tồn kho KM Weekly Post luôn = 0)
+## 11.38 — Sửa lỗi "Mã hiển thị" ra "[object Object]" + sửa hiệu năng Tồn kho KM "BRG Weekly Post" bị treo lúc xuất file
 
-**Không có bước DBA/CSDL mới (chỉ sửa code etl).**
+**⚠️ CÓ 1 VIỆC DBA CẦN LÀM — THỨ TỰ QUAN TRỌNG** (chạy DBA TRƯỚC khi
+restart `rp-server`, không thì báo cáo lỗi ngay "Invalid column name
+'MaHangHienThi'" thay vì chỉ chậm như cũ):
 
-**Các bước**:
 1. `git pull origin main`.
-2. `cd etl && pm2 restart hcrc-etl` (sửa `lib/promoCampaignImport.js`).
-3. **BẮT BUỘC** — vào etl-admin → "Chiến dịch khuyến mãi (BRG Weekly
+2. **DBA** chạy lại `dwh/schema.sql` trên CSDL Data Warehouse (`HCRC_DWH`)
+   — thêm cột `MaHangHienThi` + index `IX_ReportFacts_MaHangHienThi` mới
+   (an toàn chạy lại nhiều lần, không đụng dữ liệu hiện có). Bảng
+   `dwh.ReportFacts` có thể lớn — CREATE INDEX có thể mất vài phút tuỳ
+   quy mô dữ liệu thật, chạy ngoài giờ cao điểm nếu lo ảnh hưởng tải CSDL.
+3. `cd etl && pm2 restart hcrc-etl` (sửa `lib/promoCampaignImport.js`).
+4. `cd rp-server && pm2 restart hcrc-rp-server` (sửa
+   `lib/brgWeeklyPostCore.js` — CHỈ restart SAU KHI bước 2 đã xong).
+5. **BẮT BUỘC** — vào etl-admin → "Chiến dịch khuyến mãi (BRG Weekly
    Post)" → chọn lại chiến dịch "Black Friday" (hoặc bất kỳ chiến dịch
    nào đã thấy cột "Mã hiển thị" ra "[object Object]") → "SKU (chỉ tiêu
    cả chuỗi)" → upload lại ĐÚNG file Excel SKU đã dùng trước đó (không
    cần sửa gì trong file, import tự ghi đè đúng giá trị theo mã hàng).
-4. Kiểm tra lại cột "Mã hiển thị" trên bảng SKU — phải ra đúng mã 6 số
+6. Kiểm tra lại cột "Mã hiển thị" trên bảng SKU — phải ra đúng mã 6 số
    (vd "327683"), không còn "[object Object]".
-5. Chạy lại báo cáo "BRG Weekly Post" (sheet Recap) cho đúng chiến dịch
-   vừa nhập lại — cột "SL/Giá trị sản phẩm KM còn tồn" phải ra số thật
-   (không còn chắc chắn = 0 hết do lỗi này).
-6. Thử lại "Xuất Excel"/"Xuất Excel đủ 5 sheet" cho báo cáo này — báo
-   lại NGAY nếu vẫn treo/không ra file (xem mục "CHƯA CHẮC CHẮN" ở
-   VERSION.md 11.38 — có thể còn nguyên nhân khác chưa xử lý).
+7. Chạy lại báo cáo "BRG Weekly Post" (sheet Recap) cho đúng chiến dịch
+   vừa nhập lại — cột "SL/Giá trị sản phẩm KM còn tồn" phải ra số thật.
+8. Thử lại "Xuất Excel"/"Xuất Excel đủ 5 sheet" cho báo cáo này — phải
+   KHÔNG còn treo. Báo lại NGAY nếu vẫn treo (xem mục "⚠️ Vẫn CẦN THỬ
+   LẠI" ở VERSION.md 11.38).
 
 **Kiểm tra**: xem "VERSION.md" mục bản 11.38.
 

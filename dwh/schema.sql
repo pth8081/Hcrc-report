@@ -305,6 +305,44 @@ BEGIN
 END
 GO
 
+-- MaHangHienThi (bản 11.38, SỬA LỖI HIỆU NĂNG THẬT — báo cáo người dùng
+-- "BRG Weekly Post xuất file bị treo") — lib/brgWeeklyPostCore.js:fetchCurrentStock()
+-- lọc tồn kho domain 'tonkho_chitiet_sku' bằng `JSON_VALUE(Dimensions,
+-- '$.MaHangHienThi') IN (...)` KHÔNG qua index nào (hàm JSON_VALUE() không
+-- SARGable nếu gọi trực tiếp trong WHERE) — domain này là "1 dòng/(chi
+-- nhánh, mã hàng)" cho TOÀN BỘ danh mục hàng của CẢ CHUỖI (xem
+-- "bc-ton-kho-chi-tiet.md" mục 3), dù đã giới hạn ĐÚNG 1 ngày (EventDate =
+-- ngày đồng bộ gần nhất) vẫn có thể hàng trăm nghìn dòng (số siêu thị ×
+-- số mã hàng CẢ danh mục, không riêng SKU khuyến mãi) — SQL Server phải
+-- QUÉT HẾT + tính JSON_VALUE() từng dòng mới biết có khớp hay không, khác
+-- hẳn các báo cáo "đọc CSDL trực tiếp" KHÁC trong hệ thống (luôn lọc qua
+-- cột persisted-như-không-PERSISTED + index riêng như MaHang/MaNCC/
+-- MaNganhHang ở trên) — đây là lý do DUY NHẤT đúng domain/hàm này chậm,
+-- không phải lỗi chung của mọi báo cáo đọc thẳng Data Warehouse. Thêm cột
+-- + index theo ĐÚNG mẫu đã dùng cho 3 cột trên, rồi SỬA lại câu truy vấn ở
+-- fetchCurrentStock() lọc THẲNG theo cột này thay vì gọi JSON_VALUE() —
+-- chuyển từ QUÉT TOÀN BẢNG sang TÌM THEO INDEX (index seek), nhanh như mọi
+-- báo cáo khác. KHÔNG dùng PERSISTED (cùng lý do đã ghi ở MaNganhHang —
+-- tránh lặp lại sự cố tràn log transaction production đã gặp ở bản 11.16).
+IF COL_LENGTH('dwh.ReportFacts', 'MaHangHienThi') IS NULL
+BEGIN
+    ALTER TABLE dwh.ReportFacts
+      ADD MaHangHienThi AS CAST(JSON_VALUE(Dimensions, '$.MaHangHienThi') AS NVARCHAR(50));
+END
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_ReportFacts_MaHangHienThi' AND object_id = OBJECT_ID('dwh.ReportFacts'))
+BEGIN
+    -- Khoá index = ĐÚNG mẫu 3 cột trên (MaHang/MaNCC/MaNganhHang) — seek
+    -- RIÊNG từng mã hàng (rất chọn lọc: 1 mã hàng chỉ có vài chục dòng/
+    -- ngày, mỗi siêu thị 1 dòng), Domain/EventDate lọc tiếp qua INCLUDE
+    -- (không cần lookup thêm) — khác hẳn khoá (Domain, Mã, Ngày) sẽ seek
+    -- theo Domain TRƯỚC (kém chọn lọc hơn nhiều, cả domain cộng dồn nhiều
+    -- ngày).
+    CREATE INDEX IX_ReportFacts_MaHangHienThi ON dwh.ReportFacts (MaHangHienThi) INCLUDE (Domain, EventDate)
+      WITH (SORT_IN_TEMPDB = ON);
+END
+GO
+
 -- ============================================================================
 -- Báo cáo 3 MKT — "BRG Weekly Post" (bản 11.24, theo yêu cầu đội MKT, dựa
 -- trên file mẫu thật "BRG_Weekly_Post_T6K1_BC1.xlsx") — xem

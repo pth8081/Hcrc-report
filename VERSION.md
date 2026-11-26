@@ -97,15 +97,41 @@ nhập lại (upload lại) ĐÚNG file SKU đã dùng cho chiến dịch này �
 tự UPSERT theo khoá (CampaignId, MaHang) nên sẽ ghi đè đúng `SkuCode` sai
 thành giá trị đúng, không cần xoá thủ công trước.
 
-**⚠️ CHƯA CHẮC CHẮN đã hết hẳn lỗi "Weekly Post không xuất được file"**
-— lỗi "Mã hiển thị" là nguyên nhân CHẮC CHẮN của cột Tồn kho KM = 0, còn
-việc xuất Excel bị treo/không ra file CẦN THỬ LẠI sau khi deploy + nhập
-lại file SKU mới biết đã hết hẳn chưa — nếu vẫn treo, cần điều tra thêm
-hiệu năng truy vấn tồn kho (`JSON_VALUE` không có index riêng trên
-`dwh.ReportFacts`, xem chú thích trong code) trên domain tồn kho thật.
-Cũng chưa rõ cột "Doanh số Post"/SL thực tế = 0 có cùng nguyên nhân hay
-do dữ liệu bán hàng 2 ngày đầu chiến dịch (25-26/11) chưa kịp đồng bộ —
-cần kiểm tra thêm sau khi nhập lại file.
+**Sửa THÊM — lý do THẬT "xuất file bị treo" (theo phản biện đúng của
+người dùng — "báo cáo khác đọc thẳng CSDL vẫn nhanh bình thường, sao
+riêng cái này chậm?")**: điều tra tiếp xác nhận `fetchCurrentStock()`
+(tồn kho) lọc bằng `JSON_VALUE(Dimensions, '$.MaHangHienThi') IN (...)`
+**NGAY TRONG WHERE** — hàm gọi trực tiếp kiểu này KHÔNG SARGable (SQL
+Server không seek qua index được), buộc QUÉT TOÀN BỘ + tính JSON_VALUE()
+TỪNG DÒNG của domain `tonkho_chitiet_sku` đúng 1 ngày — domain này là "1
+dòng/(chi nhánh, mã hàng)" cho **TOÀN BỘ danh mục CẢ CHUỖI** (không riêng
+SKU khuyến mãi, xem "bc-ton-kho-chi-tiet.md"), có thể hàng trăm nghìn
+dòng dù chỉ 1 ngày. Đây CHÍNH LÀ lý do riêng báo cáo này chậm trong khi
+báo cáo khác "đọc thẳng CSDL" vẫn nhanh — các báo cáo khác luôn lọc qua
+cột persisted-như-không-PERSISTED + index riêng (MaHang/MaNCC/
+MaNganhHang, xem `dwh/schema.sql`), KHÔNG gọi hàm JSON ngay trong WHERE
+như domain này.
+
+**Đã sửa**: thêm cột `MaHangHienThi` + index `IX_ReportFacts_MaHangHienThi`
+vào `dwh.ReportFacts` (CÙNG MẪU 3 cột trên, xem `dwh/schema.sql`), sửa
+`fetchCurrentStock()` lọc THẲNG theo cột này (index seek) thay vì gọi
+`JSON_VALUE()` — chuyển từ quét toàn bảng sang tìm theo index, nhanh như
+mọi báo cáo khác trong hệ thống.
+
+**CẦN DBA chạy lại `dwh/schema.sql`** trên CSDL Data Warehouse (`HCRC_DWH`)
+để tạo cột/index mới này — KHÔNG có cột/index này thì code mới vẫn CHẠY
+ĐÚNG (câu SQL đổi tên cột, SQL Server báo lỗi "Invalid column name" nếu
+chưa chạy migration) — PHẢI chạy `dwh/schema.sql` TRƯỚC khi restart
+`rp-server` mang code mới này lên, không thì report sẽ lỗi ngay thay vì
+chỉ chậm.
+
+**⚠️ Vẫn CẦN THỬ LẠI sau khi deploy** để xác nhận hết hẳn — mức độ cải
+thiện phụ thuộc domain `tonkho_chitiet_sku` thật có lớn như ước tính hay
+không (chưa có quyền truy vấn trực tiếp CSDL production để đo chính xác
+số dòng/thời gian truy vấn trước/sau). Cũng chưa rõ cột "Doanh số Post"/
+SL thực tế = 0 có cùng nguyên nhân hay do dữ liệu bán hàng 2 ngày đầu
+chiến dịch (25-26/11) chưa kịp đồng bộ — cần kiểm tra thêm sau khi nhập
+lại file SKU + deploy xong.
 
 ## 11.37 — Ghi nhận: đã bật RCSI trên CSDL Data Warehouse (xử lý "Failed to fetch"/"Lỗi 504" hàng loạt)
 

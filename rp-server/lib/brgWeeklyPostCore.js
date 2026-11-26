@@ -261,12 +261,20 @@ async function fetchCurrentStock(dwhPool, skuCodeList) {
   const snapshotDate = dateResult.recordset[0].LatestDate;
   if (!snapshotDate) return { byCodeTotal, byCodeStore, snapshotDate: null };
 
-  // KHÔNG có cột MaHangHienThi riêng (persisted/indexed) trên dwh.ReportFacts
-  // như MaHang/MaNCC/MaNganhHang (chỉ domain đó mới cần lọc nhanh theo mã
-  // hàng ở TẦNG FILTER của reportEngine.js — domain `tonkho_chitiet_sku`
-  // CHƯA từng cần, xem dwh/schema.sql) — lọc TRỰC TIẾP qua JSON_VALUE, an
-  // toàn vì đã giới hạn EventDate = 1 NGÀY DUY NHẤT trước (số dòng nhỏ,
-  // không cần index riêng).
+  // SỬA LỖI HIỆU NĂNG THẬT (bản 11.38, theo báo cáo người dùng — "Weekly
+  // Post xuất file bị treo", trong khi báo cáo khác đọc thẳng CSDL vẫn
+  // nhanh bình thường) — TRƯỚC ĐÂY lọc TRỰC TIẾP qua JSON_VALUE(Dimensions,
+  // '$.MaHangHienThi') ngay trong WHERE — hàm này KHÔNG SARGable (SQL
+  // Server không seek được qua index cho biểu thức hàm gọi trực tiếp),
+  // buộc QUÉT HẾT + tính JSON_VALUE() từng dòng của domain `tonkho_chitiet_sku`
+  // ĐÚNG 1 ngày — domain này là "1 dòng/(chi nhánh, mã hàng)" cho TOÀN BỘ
+  // danh mục CẢ CHUỖI (không riêng SKU khuyến mãi, xem
+  // "bc-ton-kho-chi-tiet.md"), có thể hàng trăm nghìn dòng dù chỉ 1 ngày —
+  // khác hẳn mọi báo cáo "đọc CSDL trực tiếp" KHÁC (luôn lọc qua cột
+  // persisted-như-không-PERSISTED + index riêng, xem MaHang/MaNCC/
+  // MaNganhHang ở dwh/schema.sql) nên KHÔNG chậm như domain này. Đã thêm
+  // cột `MaHangHienThi` + index CÙNG MẪU ở dwh/schema.sql — lọc THẲNG theo
+  // cột này (index seek, không gọi hàm trong WHERE nữa).
   const request = dwhPool.request();
   request.input('domain', sql.VarChar(50), STOCK_DOMAIN);
   request.input('snapshotDate', sql.Date, snapshotDate);
@@ -275,7 +283,7 @@ async function fetchCurrentStock(dwhPool, skuCodeList) {
     SELECT Dimensions, Measures
     FROM dwh.ReportFacts
     WHERE Domain = @domain AND EventDate = @snapshotDate
-      AND JSON_VALUE(Dimensions, '$.MaHangHienThi') IN (${placeholders.join(',')})
+      AND MaHangHienThi IN (${placeholders.join(',')})
   `);
   for (const row of result.recordset) {
     const dims = JSON.parse(row.Dimensions || '{}');
