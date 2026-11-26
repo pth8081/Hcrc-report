@@ -80,18 +80,33 @@ theo tuần, Doanh thu cuối ngày...) CHƯA làm ở bản này — quy mô t�
 đã nhỏ (vài chục-trăm dòng, giới hạn bởi số siêu thị thật), để sau nếu
 thực tế phát sinh vấn đề (xem mục A.3 trong tài liệu phương án).
 
-**Hạ tầng (CHƯA áp dụng cho báo cáo cụ thể nào, chờ xác nhận phạm vi)**:
+**Mục B2 — Tăng TTL cache `/run` cho 2 báo cáo domain LỚN THẬT SỰ**
+(theo yêu cầu người dùng: "những báo cáo nào ngắn không ảnh hưởng thì
+giữ nguyên" — CHỈ đổi 2 báo cáo có bằng chứng cụ thể là domain lớn bất
+thường trong lịch sử dự án, KHÔNG áp dụng tràn lan): "Doanh thu theo Mã
+hàng-Ngành hàng" (`seedDoanhThuSkuNganhHangReports.js` — tự nhận "có thể
+nhiều hơn HÀNG TRĂM/HÀNG NGHÌN LẦN" số dòng domain gộp thường) và "Bán
+buôn chi tiết theo khách hàng" (`seedBanBuonChiTietReport.js` — domain 1
+dòng/GIAO DỊCH, không gộp). Cả 2 khai `resultCacheTtlMs: 5 phút` (thay
+mặc định 30 giây) qua field MỚI đã thêm ở mục B2 bên dưới. Các báo cáo
+khác KHÔNG đổi gì.
+
+**Hạ tầng dùng chung (field `resultCacheTtlMs` CHƯA áp dụng thêm cho
+báo cáo nào khác ngoài 2 báo cáo trên; field `defaultPreset` của
+`dateRange` — mục B4 — CHƯA áp dụng cho báo cáo nào, để sau nếu cần)**:
 - `rp-user/.../ReportsPage.jsx` — filter kiểu `dateRange` giờ hỗ trợ
   `defaultPreset` (vd `'thisMonth'`) để tự điền sẵn khoảng ngày mặc định
-  khi mở báo cáo lần đầu (mục B4) — field này CHƯA được khai cho báo cáo
-  nào, không đổi hành vi báo cáo nào hiện có.
+  khi mở báo cáo lần đầu (mục B4) — không đổi hành vi báo cáo nào hiện
+  có cho tới khi 1 báo cáo cụ thể khai field này.
 - `routes/reports.js` — `reportResultCache.set()` giờ đọc
   `definition.resultCacheTtlMs` (TUỲ CHỌN) để cache `/run` lâu hơn mặc
-  định 30 giây cho báo cáo lọc trên domain lớn không persisted (mục B2)
-  — field này CHƯA được khai cho báo cáo nào.
+  định 30 giây (mục B2).
 
-**Không có bước DBA, không cần chạy lại seed script** — chỉ deploy code
-mới + `pm2 restart rp-server` + build lại `rp-user`.
+**Không có bước DBA, không cần chạy lại seed script cho mục A/C — mục
+B2 CẦN chạy lại 2 lệnh seed** (`node scripts/seedDoanhThuSkuNganhHangReports.js`
++ `node scripts/seedBanBuonChiTietReport.js`, cập nhật lại
+`DefinitionJson` — không đổi VIEW/job đồng bộ/phân quyền đã có) sau khi
+deploy code mới + `pm2 restart rp-server` + build lại `rp-user`.
 
 **Kiểm tra**: mở báo cáo "Tồn kho theo ngưỡng"/"Top bán chạy đang tồn
 kho = 0" (chọn "Tất cả")/BRG Weekly Post sheet "Chi tiết" với bộ lọc ra

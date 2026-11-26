@@ -84,6 +84,14 @@ const COLUMNS = [
   { key: 'giaTriHongHuy', label: 'Giá trị hàng hỏng hủy', formula: 'measures.GiaTriHongHuy' }
 ];
 
+// resultCacheTtlMs (bản 11.30, theo yêu cầu người dùng — audit hiệu năng
+// báo cáo, mục B2) — domain này 1 dòng/(siêu thị, MÃ HÀNG, ngày), tự nhận
+// "có thể nhiều hơn HÀNG TRĂM/HÀNG NGHÌN LẦN" số dòng domain gộp theo ngành
+// hàng thường (xem đầu VIEW nguồn) — cache kết quả `/run` 5 phút thay vì 30
+// giây mặc định, giảm số lần quét lại domain lớn khi nhiều người xem/bấm
+// lọc lại gần nhau. Đánh đổi: số liệu có thể "cũ" hơn tối đa 5 phút.
+const RESULT_CACHE_TTL_MS = 5 * 60 * 1000;
+
 function buildDefinition(title) {
   return {
     title,
@@ -94,7 +102,8 @@ function buildDefinition(title) {
       NGANH_HANG_FILTER,
       SIEU_THI_FILTER
     ],
-    columns: COLUMNS
+    columns: COLUMNS,
+    resultCacheTtlMs: RESULT_CACHE_TTL_MS
   };
 }
 

@@ -16,12 +16,13 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ## 11.30 — Xử lý đợt 1 audit hiệu năng báo cáo
 
-**Không có bước DBA, không cần chạy lại seed script.**
+**Không có bước DBA.**
 
 **Các bước**:
 1. `git pull origin main`.
 2. `cd rp-user && npm run build` (deploy `dist/` — có thay đổi frontend).
-3. `pm2 restart rp-server`.
+3. `cd rp-server && node scripts/seedDoanhThuSkuNganhHangReports.js && node scripts/seedBanBuonChiTietReport.js` (cập nhật `DefinitionJson` — thêm `resultCacheTtlMs`, không đổi VIEW/job đồng bộ/phân quyền đã có).
+4. `pm2 restart rp-server`.
 
 **Kiểm tra**: xem "VERSION.md" mục bản 11.30 — thử "Tồn kho theo
 ngưỡng"/"Top bán chạy đang tồn kho = 0" (chọn "Tất cả") ra nhiều dòng,

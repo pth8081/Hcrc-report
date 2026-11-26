@@ -38,6 +38,13 @@ const NGANH_HANG_FILTER = {
   optionsSource: { domain: DOMAIN, valueField: 'MaNganhHang', labelField: 'TenNganhHang' }
 };
 
+// resultCacheTtlMs (bản 11.30, theo yêu cầu người dùng — audit hiệu năng
+// báo cáo, mục B2) — domain CHI TIẾT TỪNG GIAO DỊCH bán buôn (1 dòng/giao
+// dịch, không gộp), lớn hơn hẳn domain tổng hợp thường — cache kết quả
+// `/run` 5 phút thay vì 30 giây mặc định. Đánh đổi: số liệu có thể "cũ"
+// hơn tối đa 5 phút.
+const RESULT_CACHE_TTL_MS = 5 * 60 * 1000;
+
 const DEFINITION = {
   title: TITLE,
   domain: DOMAIN,
@@ -48,6 +55,7 @@ const DEFINITION = {
     NGANH_HANG_FILTER,
     MA_HANG_FILTER
   ],
+  resultCacheTtlMs: RESULT_CACHE_TTL_MS,
   columns: [
     { key: 'stt', label: 'TT' },
     { key: 'eventDate', label: 'Ngày', formula: 'eventDate' },
