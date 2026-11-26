@@ -6,7 +6,7 @@
 // gộp vào 1 báo cáo (4 khối, phân biệt bằng dòng tiêu đề nhóm, mirror
 // cách nhóm Mart/MiniMart ở các báo cáo khác) để đỡ tạo 4 báo cáo riêng
 // cho đúng 4 bảng xếp hạng nhỏ, cùng nguồn dữ liệu, cùng bộ lọc.
-const { loadCampaignData } = require('./brgWeeklyPostCore');
+const { loadCampaignData, buildCampaignHeader } = require('./brgWeeklyPostCore');
 const { describeColumns } = require('./reportEngine');
 
 const APPLY_SCOPE_LABEL = { All: 'All', Mart: 'Mart', MiniMart: 'Mini Mart' };
@@ -86,7 +86,9 @@ async function runBrgPostRankingsReport(definition, filterValues) {
     });
   }
 
-  return { columns, rows: allRows, columnGroups: null, columnSuperGroups: null };
+  // displayTitle/periodLabel (bản 11.35) — xem buildCampaignHeader() ở
+  // brgWeeklyPostCore.js.
+  return { columns, rows: allRows, columnGroups: null, columnSuperGroups: null, ...buildCampaignHeader(data.campaign) };
 }
 
 module.exports = { runBrgPostRankingsReport, buildColumns };

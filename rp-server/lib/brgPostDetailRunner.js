@@ -12,7 +12,7 @@
 // giản là "tồn < 50% kế hoạch" (có dòng tồn thấp hơn mức này nhưng vẫn
 // để trống, không đánh dấu) — chưa suy ra được quy tắc thật, để người
 // xem tự đối chiếu trực tiếp 2 cột "Số lượng tồn"/"Số lượng kế hoạch".
-const { loadCampaignData, buildDetailRows } = require('./brgWeeklyPostCore');
+const { loadCampaignData, buildDetailRows, buildCampaignHeader } = require('./brgWeeklyPostCore');
 const { describeColumns } = require('./reportEngine');
 const { applyDisplayCap } = require('./reportCellFormat');
 
@@ -46,7 +46,9 @@ async function runBrgPostDetailReport(definition, filterValues, pagination) {
   const { rows, warnings } = applyDisplayCap(allRows, pagination);
 
   const columns = describeColumns(buildColumns());
-  return { columns, rows, columnGroups: null, columnSuperGroups: null, warnings };
+  // displayTitle/periodLabel (bản 11.35) — xem buildCampaignHeader() ở
+  // brgWeeklyPostCore.js.
+  return { columns, rows, columnGroups: null, columnSuperGroups: null, warnings, ...buildCampaignHeader(data.campaign) };
 }
 
 module.exports = { runBrgPostDetailReport, buildColumns };

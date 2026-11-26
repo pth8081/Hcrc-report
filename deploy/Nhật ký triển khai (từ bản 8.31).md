@@ -14,6 +14,44 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 11.35 — Sửa logic 3 báo cáo MKT + hiện khoảng ngày/tiêu đề chiến dịch toàn hệ thống
+
+**Không có bước DBA/CSDL mới (chỉ sửa code).**
+
+**Các bước**:
+1. `git pull origin main`.
+2. `cd rp-server && pm2 restart rp-server` (sửa `brgPostRecapRunner.js`,
+   `chartImage.js`, `khachHangTuanRunner.js`, `kinhDoanhTuanRunner.js`,
+   `phuHangCoreRunner.js`, `doanhThuMtdKeHoachRunner.js`,
+   `brgWeeklyPostCore.js` + 4 runner `brgPost*Runner.js`,
+   `exportExcel.js`, `exportPdf.js`, `routes/reports.js`, 7 script seed —
+   KHÔNG cần CHẠY LẠI script seed, chỉ sửa chuỗi `exportTitle` tĩnh trong
+   `DefinitionJson`; restart đọc lại code mới là đủ, không cần chạy
+   `node scripts/seed*.js` lại — **TRỪ KHI muốn `DefinitionJson` trong
+   CSDL cũng cập nhật ngay** (không bắt buộc, cơ chế đọc `exportTitle` từ
+   code hiện tại qua `definition.exportTitle || definition.title` nên dù
+   CSDL chưa chạy lại script vẫn không lỗi, chỉ là CHƯA có title mới cho
+   tới khi chạy — khuyến nghị chạy lại cho khớp ngay: `node
+   scripts/seedDoanhThuSkuNganhHangReports.js`, `seedBanBuonChiTietReport.js`,
+   `seedCheckLechThueRVOrderReport.js`, `seedDoanhThuTongHopHcrcReport.js`,
+   `seedPurchaseOrderReports.js`, `seedThayDoiGiaReports.js`,
+   `seedTop5ChiNhanhReports.js`).
+3. `cd rp-user && npm run build` (deploy `dist/` mới — hiện
+   `periodLabel`/`displayTitle` trên web, xem `ReportsPage.jsx`).
+4. Thử lại xuất Excel "BRG Weekly Post" (bug người dùng báo "không xuất
+   đủ 5 sheet, lỗi đỏ") — nếu VẪN lỗi, chụp lại log MỚI (không dùng log
+   cũ) gửi lại để tiếp tục xử lý (xem mục "CHƯA LÀM" ở VERSION.md 11.35).
+
+**Kiểm tra**: xem "VERSION.md" mục bản 11.35. Mở bất kỳ báo cáo "Báo cáo
+MKT" (Khách hàng/Kinh doanh theo tuần) hoặc "Phủ hàng Core"/"Doanh thu
+MTD theo kế hoạch" trên web, chạy báo cáo → phải thấy 1 dòng khoảng ngày
+(vd "Tuần này (W): ... · Tuần trước (W-1): ...") ngay dưới tiêu đề; xuất
+Excel/PDF báo cáo đó → dòng tiêu đề trong file PHẢI có đúng khoảng ngày
+này. BRG Weekly Post: xuất "Xuất Excel đủ 5 sheet" → tiêu đề mỗi sheet
+phải có tên chiến dịch + khoảng ngày chiến dịch (không còn chỉ ghi tên
+sheet trần). Sheet Recap, dòng "Toàn chuỗi": số liệu phải = Mart + Mini
+Mart cộng lại (trước đây lệch do gồm cả nhóm "Kho").
+
 ## 11.34 — Báo cáo mới "Phủ hàng Core" (4/4 báo cáo Vận hành mới — xong cả 4) + 2 việc DBA khẩn
 
 **⚠️ 2 VIỆC DBA CẦN LÀM NGAY (không liên quan code mới, phát hiện qua log

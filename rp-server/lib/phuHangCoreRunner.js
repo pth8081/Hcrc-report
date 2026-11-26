@@ -73,6 +73,16 @@ function parseISO(s) { return new Date(`${s}T00:00:00Z`); }
 function toISO(d) { return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`; }
 function addDays(s, n) { const d = parseISO(s); d.setUTCDate(d.getUTCDate() + n); return toISO(d); }
 function vietnamTodayISO() { return toISO(new Date(Date.now() + 7 * 3600 * 1000)); }
+// formatDateVN/buildPeriodLabel (bản 11.35, theo yêu cầu người dùng — "W
+// là tuần từ ngày nào đến ngày nào cần có trong báo cáo") — mirror đúng
+// lib/kinhDoanhTuanRunner.js.
+function formatDateVN(iso) {
+  const [y, m, d] = iso.split('-');
+  return `${d}/${m}/${y}`;
+}
+function buildPeriodLabel({ wFrom, wTo, w1From, w1To }) {
+  return `Tuần này (W): ${formatDateVN(wFrom)} – ${formatDateVN(wTo)} · Tuần trước (W-1): ${formatDateVN(w1From)} – ${formatDateVN(w1To)}`;
+}
 
 function resolveAnchor(filterValues) {
   return (typeof filterValues.eventDate === 'string' && filterValues.eventDate) || vietnamTodayISO();
@@ -100,7 +110,7 @@ async function computeCoreData(filterValues) {
     const warning = loadErr
       ? `KHÔNG đọc được danh sách hàng Core (lỗi kết nối CSDL riêng cho báo cáo này — "${loadErr.message}").`
       : 'Chưa có danh sách hàng Core cho MART — vào "Danh sách hàng Core" (etl-admin) để upload.';
-    return { candidates: [], warnings: [warning] };
+    return { candidates: [], warnings: [warning], wFrom, wTo, w1From, w1To };
   }
 
   // Quét TOÀN BỘ domain tồn kho (bounded 35 ngày — xem lý do đầy đủ ở
@@ -120,7 +130,8 @@ async function computeCoreData(filterValues) {
   if (!candidates.length) {
     return {
       candidates: [], coreByKho,
-      warnings: [`Danh mục Core (MART) có ${[...coreByKho.values()].reduce((s, m) => s + m.size, 0)} mã hàng, nhưng KHÔNG mã nào khớp dữ liệu tồn kho đã đồng bộ (domain "${STOCK_DOMAIN}") — kiểm tra lại mã kho/mã hàng trong "Danh sách hàng Core" có khớp CHÍNH XÁC với dữ liệu DSMART đã đồng bộ không.`]
+      warnings: [`Danh mục Core (MART) có ${[...coreByKho.values()].reduce((s, m) => s + m.size, 0)} mã hàng, nhưng KHÔNG mã nào khớp dữ liệu tồn kho đã đồng bộ (domain "${STOCK_DOMAIN}") — kiểm tra lại mã kho/mã hàng trong "Danh sách hàng Core" có khớp CHÍNH XÁC với dữ liệu DSMART đã đồng bộ không.`],
+      wFrom, wTo, w1From, w1To
     };
   }
   const entityCodes = candidates.map(c => c.entityCode);
@@ -200,19 +211,21 @@ function describeRecapColumns() {
 }
 
 async function runPhuHangCoreChiTietReport(definition, filterValues = {}) {
-  const { candidates, warnings } = await computeCoreData(filterValues);
+  const data = await computeCoreData(filterValues);
+  const { candidates, warnings } = data;
   const rows = candidates
     .slice()
     .sort((a, b) => (a.tenKho || '').localeCompare(b.tenKho || '', 'vi') || (a.maHang || '').localeCompare(b.maHang || '', 'vi'));
   const columns = describeChiTietColumns();
   assignSttIfPresent(rows, columns);
-  return { columns, rows, warnings, columnGroups: null, standaloneColumnColors: null };
+  return { columns, rows, warnings, columnGroups: null, standaloneColumnColors: null, periodLabel: buildPeriodLabel(data) };
 }
 
 async function runPhuHangCoreRecapReport(definition, filterValues = {}) {
-  const { candidates, coreByKho, warnings, w1From, w1To } = await computeCoreData(filterValues);
+  const data = await computeCoreData(filterValues);
+  const { candidates, coreByKho, warnings, w1From, w1To } = data;
   if (!candidates.length) {
-    return { columns: describeRecapColumns(), rows: [], warnings, columnGroups: null, standaloneColumnColors: null };
+    return { columns: describeRecapColumns(), rows: [], warnings, columnGroups: null, standaloneColumnColors: null, periodLabel: buildPeriodLabel(data) };
   }
   const pool = await getPool('DWH');
 
@@ -268,7 +281,7 @@ async function runPhuHangCoreRecapReport(definition, filterValues = {}) {
   rows.sort((a, b) => (a.tenKho || '').localeCompare(b.tenKho || '', 'vi'));
   const columns = describeRecapColumns();
   assignSttIfPresent(rows, columns);
-  return { columns, rows, warnings, columnGroups: null, standaloneColumnColors: null };
+  return { columns, rows, warnings, columnGroups: null, standaloneColumnColors: null, periodLabel: buildPeriodLabel(data) };
 }
 
 module.exports = { runPhuHangCoreChiTietReport, runPhuHangCoreRecapReport, describeChiTietColumns, describeRecapColumns };

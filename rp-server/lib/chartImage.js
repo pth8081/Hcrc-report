@@ -33,11 +33,14 @@ function ensureFonts() {
   fontsRegistered = true;
 }
 
-// Bảng màu NHẤT QUÁN cho 3 kỳ (Model/LFL, Tuần trước, Tuần này) dùng CHUNG
-// cho cả 3 biểu đồ — TÁI DÙNG mã màu đã dùng cho nhóm cột trong báo cáo
-// (lib/reportCellFormat.js:GROUP_COLORS, KHÔNG phải bảng corporate nhạt —
-// ảnh đứng riêng cần màu rõ hơn để dễ đọc, không ảnh hưởng bảng dữ liệu).
-const SERIES_COLORS = { lfl: '#D9D9D9', w1: '#FACD9C', w: '#9BCC1E' };
+// SỬA bản 11.35 (theo yêu cầu người dùng, đối chiếu ảnh mẫu thật "BÁO CÁO
+// THẺ BRG ELITE") — bảng màu CŨ (lfl=xám, w1=cam nhạt, w=xanh lá) KHÔNG
+// khớp quy ước thật đang dùng ở báo cáo giấy/PDF của MKT: LFL=XANH LÁ,
+// Tuần này (W)=CAM, Tuần trước (W-1)=XANH DƯƠNG — đổi lại đúng 3 màu này,
+// và lib/khachHangTuanRunner.js:buildChartImages() đổi THỨ TỰ series tương
+// ứng (lfl, w, w1 — KHÔNG còn lfl, w1, w) để cột vẽ ra đúng thứ tự trái→
+// phải như ảnh mẫu.
+const SERIES_COLORS = { lfl: '#6FA83D', w: '#F2A93C', w1: '#4A90D2' };
 
 function formatNumber(n) {
   if (n === null || n === undefined || Number.isNaN(n)) return '0';

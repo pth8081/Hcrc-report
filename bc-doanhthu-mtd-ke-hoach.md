@@ -22,6 +22,10 @@ cùng 1 bộ cột, cùng menu "Báo cáo vận hành"):
 Mỗi dòng = 1 siêu thị (mã Điểm), cột: Chỉ tiêu (tháng) / Thực đạt (MTD) /
 % hoàn thành / % so cùng kỳ năm trước.
 
+**Khoảng ngày MTD (bản 11.35, theo yêu cầu người dùng)** — cả khi xem
+trên web VÀ xuất Excel/PDF, báo cáo hiện thêm 1 dòng `periodLabel` ngay
+dưới tiêu đề, ghi rõ "MTD: <đầu tháng> – <ngày đang xem>".
+
 **⚠️ PHẠM VI "KHUNG" (bản đầu, bổ sung sau nếu cần, xem phương án gốc mục
 "2+4")** — CHƯA làm: so với tháng trước (M-1), ước thực hiện cuối tháng
 theo trend, dòng "Tổng cộng" (Grand Total), gộp với file lịch sử "Theo dõi

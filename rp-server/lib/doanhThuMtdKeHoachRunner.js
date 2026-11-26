@@ -62,6 +62,16 @@ function shiftYearISO(dateStr, years) {
   return new Date(Date.UTC(y + years, m - 1, d)).toISOString().slice(0, 10);
 }
 
+// formatDateVN (bản 11.35, theo yêu cầu người dùng — rà soát hiển thị
+// khoảng ngày đang xem) — cơ chế token "{ngayBaoCao}" (lib/reportTitleDate.js)
+// KHÔNG áp dụng đúng được ở đây vì mặc định khi KHÔNG chọn bộ lọc là MTD
+// (đầu tháng → hôm nay, xem resolveMtdRange()), KHÁC mặc định "hôm nay" 1
+// ngày của resolveRequestedRange() dùng cho token đó.
+function formatDateVN(iso) {
+  const [y, m, d] = iso.split('-');
+  return `${d}/${m}/${y}`;
+}
+
 function resolveMtdRange(filterValues) {
   if (filterValues.eventDate && (filterValues.eventDate.from || filterValues.eventDate.to)) {
     return resolveRequestedRange(filterValues);
@@ -146,7 +156,8 @@ async function runDoanhThuMtdKeHoachReport(definition, filterValues = {}) {
   const columns = describeColumns();
   assignSttIfPresent(rows, columns);
 
-  return { columns, rows, columnGroups: null, standaloneColumnColors: null };
+  const periodLabel = `MTD: ${formatDateVN(range.from)} – ${formatDateVN(range.to)}`;
+  return { columns, rows, columnGroups: null, standaloneColumnColors: null, periodLabel };
 }
 
 module.exports = { runDoanhThuMtdKeHoachReport, describeColumns };

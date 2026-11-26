@@ -117,6 +117,18 @@ async function parsePromoCampaignSkuFile(buffer) {
     const { value: applyScope, error: applyScopeError } = normalizeApplyScope(str(cell(col.ApplyScope)));
     if (applyScopeError) { rowErrors.push(`Dòng ${rowNumber}: ${applyScopeError}`); return; }
 
+    // CẢNH BÁO (bản 11.35, theo yêu cầu người dùng — audit "BRG Weekly
+    // Post" phát hiện rủi ro: công thức Giá trị tồn dùng `taxRate` dưới
+    // dạng PHÂN SỐ, vd 0.1 = 10%, xem lib/brgWeeklyPostCore.js) — nhập số
+    // NGUYÊN (vd "10" thay vì "0.1"/"10%") làm Giá trị tồn sai lệch ~9 lần,
+    // KHÔNG có cách nào phân biệt chắc chắn 100% đây là lỗi hay thuế thật
+    // sự ≥100% (không có trong thực tế bán lẻ VN), nên CHỈ CẢNH BÁO (không
+    // chặn dòng — vẫn nhập, admin tự xem lại nếu thấy cảnh báo này).
+    const taxRate = cell(col.TaxRate);
+    if (typeof taxRate === 'number' && taxRate >= 1) {
+      rowErrors.push(`Dòng ${rowNumber}: Thuế = ${taxRate} — có vẻ nhập SỐ NGUYÊN (vd "10") thay vì PHÂN SỐ ("0.1" = 10%), kiểm tra lại định dạng ô này (dòng VẪN ĐƯỢC NHẬP, chỉ là cảnh báo).`);
+    }
+
     rows.push({
       maHang,
       skuCode: str(cell(col.SkuCode)) || null,
@@ -127,7 +139,7 @@ async function parsePromoCampaignSkuFile(buffer) {
       giaKmMini: cell(col.GiaKmMini),
       promoNote: str(cell(col.PromoNote)) || null,
       percentKm: cell(col.PercentKm),
-      taxRate: cell(col.TaxRate),
+      taxRate,
       applyScope,
       soLuongKeHoachTotal: cell(col.SoLuongKeHoachTotal),
       doanhThuKeHoachTotal: cell(col.DoanhThuKeHoachTotal)

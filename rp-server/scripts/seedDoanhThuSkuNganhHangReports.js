@@ -95,6 +95,11 @@ const RESULT_CACHE_TTL_MS = 5 * 60 * 1000;
 function buildDefinition(title) {
   return {
     title,
+    // exportTitle (bản 11.35, theo yêu cầu người dùng — rà soát báo cáo
+    // chưa hiện khoảng ngày đang xem khi xuất Excel/PDF) — token
+    // "{ngayBaoCao}" tự thay bằng ĐÚNG khoảng ngày đã chọn ở bộ lọc
+    // "eventDate" (dateRange), xem lib/reportTitleDate.js.
+    exportTitle: `${title} ({ngayBaoCao})`,
     domain: DOMAIN,
     filters: [
       { field: 'eventDate', type: 'dateRange', label: 'Khoảng ngày báo cáo' },

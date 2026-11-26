@@ -17,7 +17,7 @@
 // "Xu hướng dự kiến" dùng ĐÚNG projectionFactor/elapsedDays/totalCampaignDays
 // đã tính ở lib/brgWeeklyPostCore.js:loadCampaignData() — đã dò ngược
 // khớp đúng số liệu mẫu thật ở cả 2 khối.
-const { loadCampaignData, buildStoreRows, divOrNull } = require('./brgWeeklyPostCore');
+const { loadCampaignData, buildStoreRows, divOrNull, buildCampaignHeader } = require('./brgWeeklyPostCore');
 const { describeColumns } = require('./reportEngine');
 
 const LOAI_LABEL = { MART: 'Mart', MINIMART: 'Mini Mart' };
@@ -100,8 +100,18 @@ async function runBrgPostRecapReport(definition, filterValues) {
   const martRows = storeRows.filter(r => r.loaiChuoi === 'MART');
   const miniRows = storeRows.filter(r => r.loaiChuoi === 'MINIMART');
 
+  // SỬA LỖI THẬT (bản 11.35, phát hiện qua audit theo yêu cầu người dùng —
+  // "số liệu đang bị lệch") — TRƯỚC ĐÂY dòng "Toàn chuỗi" dùng NGUYÊN
+  // `storeRows` (MỌI mã Điểm, kể cả LoaiChuoi='KHO'/chưa khai), trong khi
+  // "Mart"/"Mini Mart" CHỈ lọc đúng 2 nhóm — mã Điểm nào thuộc nhóm khác mà
+  // CÓ phát sinh bán hàng sẽ khiến "Toàn chuỗi" > "Mart"+"Mini Mart" cộng
+  // lại, sai đúng quy tắc kiểm tra đã ghi ở bc-brg-weekly-post.md ("Toàn
+  // chuỗi = TỔNG Mart + Mini Mart"). Cùng lớp lỗi đã sửa cho 2 báo cáo
+  // "theo tuần" ở bản 11.27 (bỏ hẳn nhóm "Kho") nhưng bị bỏ sót ở đây —
+  // đổi "Toàn chuỗi" sang CHỈ gộp martRows+miniRows (loại hẳn Kho/chưa
+  // phân loại khỏi recap này, nhất quán với 2 báo cáo kia).
   const overview = [
-    buildOverviewRow('Toàn chuỗi', storeRows, data),
+    buildOverviewRow('Toàn chuỗi', [...martRows, ...miniRows], data),
     buildOverviewRow('Mart', martRows, data),
     buildOverviewRow('Mini Mart', miniRows, data)
   ];
@@ -124,7 +134,9 @@ async function runBrgPostRecapReport(definition, filterValues) {
   ];
 
   const columns = describeColumns(buildColumns());
-  return { columns, rows: allRows, columnGroups: null, columnSuperGroups: null };
+  // displayTitle/periodLabel (bản 11.35) — xem buildCampaignHeader() ở
+  // brgWeeklyPostCore.js.
+  return { columns, rows: allRows, columnGroups: null, columnSuperGroups: null, ...buildCampaignHeader(data.campaign) };
 }
 
 module.exports = { runBrgPostRecapReport, buildColumns };

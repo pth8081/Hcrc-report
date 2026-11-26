@@ -52,6 +52,81 @@ nội dung/hành vi nào đã làm. Lịch sử Git (commit message) vẫn còn 
 "Bản 10.100"/"Bản 10.101" (không sửa lại lịch sử Git) — coi là ĐỒNG NHẤT
 với "11.0"/"11.1".
 
+## 11.35 — Sửa logic 3 báo cáo MKT + hiện khoảng ngày/tiêu đề chiến dịch toàn hệ thống
+
+**Theo yêu cầu người dùng** (kèm ảnh mẫu "BÁO CÁO THẺ BRG ELITE") — rà soát
+và sửa logic 3 báo cáo nhóm "Báo cáo MKT" (BRG Weekly Post, Khách hàng
+theo tuần, Kinh doanh theo tuần), đồng thời rà soát TOÀN HỆ THỐNG: báo
+cáo nào xuất Excel/PDF hoặc xem trên web mà chưa hiện rõ khoảng ngày đang
+xem thì bổ sung ngay. Đã gửi ảnh demo phân tích trước, người dùng xác
+nhận "làm theo đúng phạm vi này" mới triển khai.
+
+**Sửa lỗi THẬT đã xác nhận (BRG Weekly Post — Recap)**: dòng "Toàn chuỗi"
+ở sheet Recap dùng `storeRows` CHƯA LỌC (gồm cả siêu thị LoaiChuoi='KHO'/
+chưa phân loại), trong khi dòng "Mart"/"Mini Mart" lọc đúng — vi phạm quy
+tắc "Toàn chuỗi = TỔNG Mart + Mini Mart" đã ghi ở `bc-brg-weekly-post.md`
+(cùng loại lỗi đã sửa ở 2 báo cáo MKT khác tại bản 11.27, bị bỏ sót ở báo
+cáo này). Đã sửa `lib/brgPostRecapRunner.js` dùng `[...martRows,
+...miniRows]`.
+
+**Sửa màu biểu đồ SAI hẳn quy ước (Khách hàng theo tuần)** — màu 3 series
+(LFL/Tuần này/Tuần trước) ở `lib/chartImage.js:SERIES_COLORS` không khớp
+ảnh mẫu người dùng gửi (LFL=xanh lá, Tuần này=cam, Tuần trước=xanh dương)
+— đã sửa đúng màu, VÀ sửa thêm lỗi thứ tự vẽ cột ở
+`khachHangTuanRunner.js:buildChartImages()` (mảng `seriesDef` vẽ sai thứ
+tự `[lfl,w1,w]`, đổi lại `[lfl,w,w1]`).
+
+**Cơ chế MỚI hiện khoảng ngày/tiêu đề — `periodLabel`/`displayTitle`**
+(bổ sung cho cơ chế `{ngayBaoCao}` cũ, KHÔNG áp dụng được cho báo cáo có
+khái niệm "ngày neo = cả 1 tuần" hay báo cáo theo chiến dịch): các hàm
+`run...Report()` của 7 báo cáo dưới đây giờ trả thêm field tuỳ chọn
+`periodLabel` (khoảng ngày THẬT đang xem, vd "Tuần này (W): 13/11 – 19/11
+· Tuần trước (W-1): 06/11 – 12/11") và/hoặc `displayTitle` (tiêu đề ghi
+đè, vd "BRG Weekly Post — Black Friday") — `routes/reports.js` (`/export`,
+`/export-sheets`) VÀ `rp-user/.../ReportsPage.jsx` (xem trên web) đọc 2
+field này để hiện đúng, không cần sửa riêng từng nơi xuất file:
+- Khách hàng theo tuần / Kinh doanh theo tuần (`periodLabel` = W/W-1).
+- Phủ hàng Core (Chi tiết + Recap ST, `periodLabel` = W/W-1).
+- Theo dõi doanh thu MTD theo kế hoạch (`periodLabel` = khoảng MTD).
+- BRG Weekly Post (5 sheet nội bộ, qua `brgWeeklyPostCore.js:buildCampaignHeader()`)
+  — `displayTitle` = tên chiến dịch, `periodLabel` = khoảng ngày chiến dịch.
+
+**Sửa lỗi NỀN TẢNG phát hiện khi làm mục trên (xuất Excel)** —
+`exportExcel.js:addReportSheet()` nhánh báo cáo PHẲNG (không có
+`columnGroups`) từ trước tới nay **KHÔNG BAO GIỜ vẽ dòng tiêu đề** (khác
+nhánh có nhóm cột, và khác `exportPdf.js` luôn vẽ tiêu đề) — nghĩa là cơ
+chế `{ngayBaoCao}` đã có từ lâu **vô hình trong Excel** ở phần lớn báo
+cáo phẳng của toàn hệ thống dù chạy đúng logic. Đã thêm dòng tiêu đề cho
+nhánh này (giống nhánh có nhóm cột). Phát hiện kèm theo: tên sheet lấy
+thẳng từ tiêu đề (chứa "/") làm ExcelJS lỗi "Worksheet name... cannot
+include..." — đã thêm `sanitizeSheetName()` thay mọi ký tự Excel cấm
+(`* ? : \ / [ ]`) bằng "-".
+
+**Bổ sung `exportTitle` ({ngayBaoCao}) cho các báo cáo có bộ lọc ngày
+nhưng CHƯA hiện khoảng ngày khi xuất** (rà soát toàn hệ thống theo yêu
+cầu mục 5) — 7 script seed (~16 ReportId): doanh thu theo SKU/ngành
+hàng, bán buôn chi tiết, check lệch thuế RV order, doanh thu tổng hợp
+HCRC, 6 báo cáo đơn đặt/nhập hàng, 2 báo cáo thay đổi giá, Top 5 chi
+nhánh.
+
+**Sửa PDF co chữ tiêu đề nếu quá dài** (`exportPdf.js:drawTitle()`) — hệ
+quả của việc nối thêm `periodLabel` vào tiêu đề có thể dài hơn khổ trang;
+tự giảm cỡ chữ (bước 0.5, sàn 7pt) cho tới khi vừa bề rộng trang, không
+co thì KHÔNG đổi gì (giữ nguyên cỡ chữ cũ như trước bản này).
+
+**Cảnh báo thêm (chưa xác nhận là lỗi thật)** — `promoCampaignImport.js`
+nhập cột "Thuế" dạng số thô, không kiểm tra; nếu nhập "10" thay vì "0.1"
+(10%) công thức "Giá trị tồn" sẽ sai ~9 lần. Thêm cảnh báo (dòng vẫn được
+nhập) khi `taxRate >= 1`, không chặn.
+
+**Không có bước DBA/CSDL mới** (chỉ sửa code + 1 cảnh báo nhập liệu).
+
+**⚠️ CHƯA LÀM** (ngoài phạm vi xác nhận) — lỗi gốc "Weekly Post không
+xuất đủ 5 sheet, hiện lỗi đỏ" người dùng báo trước đó: chưa có log/ảnh
+lỗi MỚI (ảnh gửi trước đó là log CŨ) để xác định nguyên nhân thật — CÓ
+THỂ (chưa xác nhận) đã được sửa gián tiếp qua lỗi "Toàn chuỗi" ở trên,
+cần người dùng thử lại xuất Excel và báo lại nếu còn lỗi.
+
 ## 11.34 — Báo cáo mới "Phủ hàng Core" (4/4 báo cáo Vận hành mới — xong cả 4)
 
 **Theo yêu cầu người dùng** — hoàn tất triển khai tuần tự 4 báo cáo vận

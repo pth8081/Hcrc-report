@@ -56,6 +56,15 @@ const MEASURE_KEYS = ['SoBillTotal', 'SoBillThe', 'DoanhSoTotal', 'DoanhSoThe'];
 function pad(n) { return String(n).padStart(2, '0'); }
 function parseISO(s) { return new Date(`${s}T00:00:00Z`); }
 function toISO(d) { return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`; }
+// formatDateVN/toISO (bản 11.35, theo yêu cầu người dùng — "W là tuần từ
+// ngày nào đến ngày nào cần có trong báo cáo") — chuỗi ISO (yyyy-mm-dd)
+// hiện có sẵn ở wFrom/wTo/w1From/w1To CHỈ dùng để TÍNH, chưa có cách hiển
+// thị dd/mm/yyyy cho người xem — thêm hàm format riêng, dùng để dựng
+// `periodLabel` trả kèm kết quả báo cáo (xem cuối runKinhDoanhTuanReport()).
+function formatDateVN(iso) {
+  const [y, m, d] = iso.split('-');
+  return `${d}/${m}/${y}`;
+}
 function addDays(s, n) { const d = parseISO(s); d.setUTCDate(d.getUTCDate() + n); return toISO(d); }
 // Số ngày TÍNH CẢ 2 đầu mút (vd 1/11 -> 20/11 = 20 ngày) — dùng để suy ra
 // "W-1" có CÙNG ĐỘ DÀI khi người dùng chọn khoảng "Từ ngày - Đến ngày" tuỳ
@@ -269,6 +278,12 @@ async function runKinhDoanhTuanReport(definition, filterValues) {
   const mtdFrom = firstOfMonth(anchor), mtdTo = anchor;
   const mtd1To = yearAgo(wTo), mtd1From = firstOfMonth(mtd1To);
 
+  // periodLabel (bản 11.35) — hiển thị ĐÚNG khoảng ngày thật của W/W-1 (7
+  // ngày hoặc khoảng tuỳ chỉnh, KHÔNG phải ngày neo đơn lẻ) — xem
+  // rp-server/lib/reportTitleDate.js không áp dụng được cho báo cáo này
+  // (field lọc "eventDate" chỉ là 1 NGÀY NEO, không phải khoảng thật).
+  const periodLabel = `Tuần này (W): ${formatDateVN(wFrom)} – ${formatDateVN(wTo)} · Tuần trước (W-1): ${formatDateVN(w1From)} – ${formatDateVN(w1To)}`;
+
   const dwhPool = await getPool('DWH');
   const diemMapping = await loadDiemStkMapping();
 
@@ -329,7 +344,8 @@ async function runKinhDoanhTuanReport(definition, filterValues) {
     columns,
     rows: groupedRows,
     columnGroups: buildColumnGroups(),
-    columnSuperGroups: null
+    columnSuperGroups: null,
+    periodLabel
   };
 }
 

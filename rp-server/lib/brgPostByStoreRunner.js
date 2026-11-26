@@ -8,7 +8,7 @@
 // lẻ"/"Doanh số chỉ tiêu theo kế hoạch công ty tháng..." của file mẫu
 // (cần đọc thêm domain `doanhthu_chinhanh`/`giaodich_chinhanh` — tổng CẢ
 // siêu thị, không riêng SKU khuyến mãi) — xem "bc-brg-weekly-post.md".
-const { loadCampaignData, buildStoreRows, divOrNull } = require('./brgWeeklyPostCore');
+const { loadCampaignData, buildStoreRows, divOrNull, buildCampaignHeader } = require('./brgWeeklyPostCore');
 const { describeColumns } = require('./reportEngine');
 const { assignSttIfPresent } = require('./reportCellFormat');
 
@@ -93,7 +93,9 @@ async function runBrgPostByStoreReport(definition, filterValues) {
   const groupedRows = buildGroupedRows(storeRows);
   assignSttIfPresent(groupedRows, columns);
 
-  return { columns, rows: groupedRows, columnGroups: null, columnSuperGroups: null };
+  // displayTitle/periodLabel (bản 11.35) — xem buildCampaignHeader() ở
+  // brgWeeklyPostCore.js.
+  return { columns, rows: groupedRows, columnGroups: null, columnSuperGroups: null, ...buildCampaignHeader(data.campaign) };
 }
 
 module.exports = { runBrgPostByStoreReport, buildColumns, buildGroupedRows };

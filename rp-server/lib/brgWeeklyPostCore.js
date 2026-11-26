@@ -433,8 +433,35 @@ function buildDetailRows(data) {
   return [...byKey.values()];
 }
 
+// buildCampaignHeader (bản 11.35, theo yêu cầu người dùng — "Báo cáo
+// Weekly post cũng cần thể hiện thời gian ngày nào đến ngày nào trong báo
+// cáo và tiêu đề tên theo chiến dịch") — dùng CHUNG cho cả 5 sheet
+// "BRG Weekly Post" (lib/brgPost*Runner.js), mỗi runner tự gọi SAU KHI đã
+// có `data` (từ loadCampaignData()) rồi gắn `displayTitle`/`periodLabel`
+// vào kết quả trả về — routes/reports.js:/export (và rp-user ReportsPage.jsx)
+// đọc 2 field MỚI này để hiện tên chiến dịch + khoảng ngày thay cho tiêu
+// đề/khoảng ngày tĩnh cũ (báo cáo này KHÔNG có bộ lọc kiểu ngày nào để
+// dùng được cơ chế token "{ngayBaoCao}" sẵn có — xem lib/reportTitleDate.js).
+// Dùng NGUYÊN kỳ chiến dịch (StartDate–EndDate) — KHÔNG dùng periodTo (số
+// ngày ĐÃ CÓ dữ liệu, đổi mỗi ngày) — vì đây là "tên/khoảng ngày CỦA CHIẾN
+// DỊCH", ổn định suốt vòng đời báo cáo, khớp đúng cách hiển thị ở dropdown
+// "Chiến dịch khuyến mãi" (rp-user) đã có sẵn.
+function formatDateVN(d) {
+  const dt = (d instanceof Date) ? d : new Date(d);
+  return [dt.getUTCDate(), dt.getUTCMonth() + 1, dt.getUTCFullYear()]
+    .map((n, i) => (i === 2 ? String(n) : String(n).padStart(2, '0')))
+    .join('/');
+}
+function buildCampaignHeader(campaign) {
+  return {
+    displayTitle: `BRG Weekly Post — ${campaign.name}`,
+    periodLabel: `${formatDateVN(campaign.startDate)} – ${formatDateVN(campaign.endDate)}`
+  };
+}
+
 module.exports = {
   SALES_DOMAIN, STOCK_DOMAIN,
   loadCampaign, listCampaigns, loadSkuMaster, loadStoreWeights, allocateSkuTargetToStores,
-  fetchActualSales, fetchCurrentStock, divOrNull, loadCampaignData, buildStoreRows, buildDetailRows
+  fetchActualSales, fetchCurrentStock, divOrNull, loadCampaignData, buildStoreRows, buildDetailRows,
+  buildCampaignHeader
 };

@@ -203,7 +203,7 @@ export default function ReportsPage() {
       await downloadFile(
         `/reports/${selectedId}/export`,
         { filters: filterValues, format, visibleColumnKeys },
-        `${definition?.title || 'bao-cao'}.${format === 'excel' ? 'xlsx' : 'pdf'}`
+        `${displayResult?.displayTitle || definition?.title || 'bao-cao'}.${format === 'excel' ? 'xlsx' : 'pdf'}`
       );
     } catch (err) {
       setError(err.message);
@@ -240,7 +240,7 @@ export default function ReportsPage() {
       await downloadFile(
         `/reports/${selectedId}/export-sheets`,
         { filters: filterValues },
-        `${definition?.title || 'bao-cao'}-du-5-sheet.xlsx`
+        `${displayResult?.displayTitle || definition?.title || 'bao-cao'}-du-5-sheet.xlsx`
       );
     } catch (err) {
       setError(err.message);
@@ -299,6 +299,16 @@ export default function ReportsPage() {
 
       {definition && (
         <>
+          {/* Tiêu đề + khoảng ngày đang xem (bản 11.35, theo yêu cầu người
+              dùng — "MKT report cần tiêu đề rõ"/"Weekly post cần thể hiện
+              thời gian ngày nào đến ngày nào..."). displayTitle (vd "BRG
+              Weekly Post — <tên chiến dịch>") CHỈ có ở vài báo cáo (BRG
+              Weekly Post) — báo cáo khác dùng luôn definition.title như cũ.
+              periodLabel (khoảng ngày THẬT đang xem — W/W-1, MTD, kỳ chiến
+              dịch...) CHỈ có SAU KHI chạy báo cáo (result), xem các hàm
+              run...Report() tương ứng ở rp-server/lib/. */}
+          <h2 className="report-title">{displayResult?.displayTitle || definition.title}</h2>
+          {displayResult?.periodLabel && <p className="hint report-period-label">{displayResult.periodLabel}</p>}
           <FilterForm reportId={selectedId} filters={definition.filters} values={filterValues} onChange={setFilterValues} onSubmit={runReport} loading={loading} />
           {result && (
             <>

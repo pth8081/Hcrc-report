@@ -76,6 +76,20 @@ nền tảng, KHÔNG cần công cụ build hệ thống như gói `canvas` cũ)
 `lib/chartImage.js`. Font tiếng Việt TÁI DÙNG font đã có sẵn cho xuất PDF
 (`@openfonts/inter_vietnamese`), KHÔNG phụ thuộc font cài trên server.
 
+**Màu + thứ tự cột (bản 11.35, sửa lỗi THẬT — đối chiếu ảnh mẫu người
+dùng gửi)** — `lib/chartImage.js:SERIES_COLORS` trước đây dùng màu KHÔNG
+khớp quy ước ảnh mẫu, đã sửa đúng: **LFL = xanh lá, Tuần này (W) = cam,
+Tuần trước (W-1) = xanh dương**. Đồng thời sửa thứ tự vẽ cột ở
+`buildChartImages()` (mảng `seriesDef`, trước đây vẽ `[lfl, w1, w]` —
+SAI thứ tự "Tuần trước" vẽ trước "Tuần này") thành đúng `[lfl, w, w1]`.
+
+**Khoảng ngày W/W-1 (bản 11.35, theo yêu cầu người dùng)** — cả khi xem
+trên web VÀ xuất Excel/PDF, báo cáo hiện thêm 1 dòng `periodLabel` ngay
+dưới tiêu đề, ghi rõ "Tuần này (W): <từ ngày> – <đến ngày> · Tuần trước
+(W-1): <từ ngày> – <đến ngày>" — khớp đúng cách tính W/W-1 đã có (mục 1),
+kể cả khi chọn "khoảng ngày cộng dồn" (`customRange`) thay vì 1 ngày
+neo.
+
 ## 2. Nguồn dữ liệu
 
 Y HỆT "Báo cáo kinh doanh theo tuần" — xem `bc-kinh-doanh-theo-tuan.md`

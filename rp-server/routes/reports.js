@@ -492,7 +492,19 @@ router.post('/:reportId/export', async (req, res, next) => {
     // 5000 dòng bộ lọc từng bị CẮT ÂM THẦM khi xuất Excel/PDF.
     const {
       columns: rawColumns, rows: projected,
-      columnGroups: runtimeColumnGroups, columnSuperGroups, standaloneColumnColors: runtimeStandaloneColumnColors
+      columnGroups: runtimeColumnGroups, columnSuperGroups, standaloneColumnColors: runtimeStandaloneColumnColors,
+      // periodLabel/displayTitle (bản 11.35, theo yêu cầu người dùng — "rà
+      // soát báo cáo nào xuất Excel chưa có thông tin từ ngày nào đến ngày
+      // nào thì bổ sung") — TUỲ CHỌN, chỉ 1 số runner "theo tuần"/"BRG
+      // Weekly Post" trả thêm (báo cáo khác undefined, không đổi hành vi
+      // cũ) — xem lib/kinhDoanhTuanRunner.js/khachHangTuanRunner.js/
+      // phuHangCoreRunner.js/doanhThuMtdKeHoachRunner.js/brgWeeklyPostCore.js:buildCampaignHeader().
+      // `runnerDisplayTitle` (tên riêng, tránh đè biến `displayTitle` cục bộ
+      // bên dưới) GHI ĐÈ HẲN tiêu đề tĩnh (vd "BRG Weekly Post — Black
+      // Friday") khi có — token "{ngayBaoCao}" không áp dụng được cho các
+      // báo cáo này (field lọc không phải khoảng ngày thật, xem chú thích
+      // đầu các file trên).
+      periodLabel, displayTitle: runnerDisplayTitle
     } = await runDefinitionForExport(definition, filters);
     // visibleColumnKeys (bản 8.97, TUỲ CHỌN — theo yêu cầu người dùng: "cho
     // phép mình chọn các trường ẩn đi khi xem báo cáo trên web hoặc xuất
@@ -525,8 +537,17 @@ router.post('/:reportId/export', async (req, res, next) => {
     // definition.exportFileCode (tên file, mã cố định) — báo cáo không
     // khai exportTitle thì rơi về dùng definition.title như trước (không
     // đổi hành vi cũ cho các báo cáo khác), xem scripts/seedLdtdHcrcReports.js.
-    const displayTitle = resolveTitleWithDate(definition.exportTitle || definition.title, filters, '/');
-    const fallbackFileTitle = resolveTitleWithDate(definition.exportTitle || definition.title, filters, '-');
+    // titleSource ƯU TIÊN runnerDisplayTitle (bản 11.35, vd "BRG Weekly
+    // Post — Black Friday") nếu runner có trả — resolveTitleWithDate() vẫn
+    // gọi bình thường trên chuỗi này (KHÔNG chứa token "{ngayBaoCao}" nên
+    // trả nguyên văn, không đổi gì — an toàn gọi chung 1 chỗ cho cả 2
+    // trường hợp). periodLabel (nếu có) nối thêm vào SAU, hiện khoảng ngày
+    // thật đang xem (W/W-1 hoặc kỳ chiến dịch) mà cơ chế token không tính
+    // được cho nhóm báo cáo này.
+    const titleSource = runnerDisplayTitle || definition.exportTitle || definition.title;
+    const resolvedTitle = resolveTitleWithDate(titleSource, filters, '/');
+    const displayTitle = periodLabel ? `${resolvedTitle} — ${periodLabel}` : resolvedTitle;
+    const fallbackFileTitle = resolveTitleWithDate(titleSource, filters, '-');
     const fileTitle = resolveExportFileBaseName(definition.exportFileCode, filters, fallbackFileTitle);
     const exportDefinition = { ...definition, columns, columnGroups, columnSuperGroups, standaloneColumnColors, title: displayTitle };
 
@@ -618,10 +639,21 @@ router.post('/:reportId/export-sheets', async (req, res, next) => {
     const sheets = [];
     for (const opt of SHEET_OPTIONS) {
       const filters = { ...baseFilters, sheet: opt.value };
-      const { columns, rows, columnGroups, columnSuperGroups, standaloneColumnColors } =
+      const { columns, rows, columnGroups, columnSuperGroups, standaloneColumnColors, displayTitle, periodLabel } =
         await runDefinition(definition, filters, { page: 1, pageSize: 5000 });
+      // displayTitle/periodLabel (bản 11.35, theo yêu cầu người dùng —
+      // "Weekly post cũng cần thể hiện thời gian... và tiêu đề tên theo
+      // chiến dịch") — mỗi hàm sheet trả về qua
+      // brgWeeklyPostCore.js:buildCampaignHeader(campaign). Tiêu đề MỖI
+      // sheet = tên chiến dịch + tên sheet; periodLabel (khoảng ngày chiến
+      // dịch) nối thêm sau cùng. opt.label VẪN dùng riêng làm TÊN SHEET
+      // (tab ở cuối Excel, cần ngắn) — KHÔNG lẫn với tiêu đề hiện trong
+      // dòng đầu mỗi sheet.
+      const sheetTitle = displayTitle
+        ? `${displayTitle} — ${opt.label}${periodLabel ? ` (${periodLabel})` : ''}`
+        : opt.label;
       sheets.push({
-        definition: { ...definition, columns, columnGroups, columnSuperGroups, standaloneColumnColors, title: opt.label },
+        definition: { ...definition, columns, columnGroups, columnSuperGroups, standaloneColumnColors, title: sheetTitle },
         rows,
         sheetName: opt.label
       });

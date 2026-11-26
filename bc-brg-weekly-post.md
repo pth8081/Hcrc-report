@@ -55,6 +55,19 @@ chạy lại CẢ 5 sheet (cùng chiến dịch đang chọn) rồi gộp vào 1
 `.xlsx` có 5 tab, mirror đúng cấu trúc nhiều-sheet-trong-1-file của file
 Excel mẫu gốc — xem `routes/reports.js:POST /:reportId/export-sheets`.
 
+**Tiêu đề theo tên chiến dịch + khoảng ngày (bản 11.35, theo yêu cầu
+người dùng)** — cả khi xem trên web VÀ xuất Excel/PDF (mỗi sheet), tiêu
+đề hiện đúng dạng `BRG Weekly Post — <tên chiến dịch>` kèm 1 dòng khoảng
+ngày chiến dịch (`<ngày bắt đầu> – <ngày kết thúc>`, lấy NGUYÊN kỳ chiến
+dịch, KHÁC "Cập nhật số liệu tới ngày" — số đó chỉ là mốc dữ liệu đã
+đồng bộ tới đâu, không phải kỳ chiến dịch) — xem
+`lib/brgWeeklyPostCore.js:buildCampaignHeader()`.
+
+**Sửa lỗi "Toàn chuỗi" (bản 11.35)** — sheet "Tổng hợp (Recap)", dòng
+"Toàn chuỗi" trước đây TÍNH SAI (gồm cả siêu thị `LoaiChuoi='KHO'`/chưa
+phân loại ngoài Mart/Mini Mart) — đã sửa đúng quy tắc "Toàn chuỗi = TỔNG
+Mart + Mini Mart" (xem `lib/brgPostRecapRunner.js`).
+
 ### Công thức cốt lõi (dùng chung mọi báo cáo trên)
 
 - **Dự kiến** = Thực tế × (tổng số ngày kỳ CTKM ÷ số ngày ĐÃ QUA tính
@@ -62,7 +75,10 @@ Excel mẫu gốc — xem `routes/reports.js:POST /:reportId/export-sheets`.
   thật (ví dụ hệ số 15 ngày ÷ 2 ngày = 7.5).
 - **Giá trị tồn** = Tồn kho × Giá khuyến mại MART ÷ (1 + Thuế) — dò
   ngược khớp ĐÚNG số liệu mẫu thật (vd Bia 333: 207985 × 12000 ÷ 1.1 =
-  2,268,927,272.73, khớp tuyệt đối).
+  2,268,927,272.73, khớp tuyệt đối). Cột "Thuế" PHẢI nhập dạng PHÂN SỐ
+  (0.1 = 10%, KHÔNG nhập "10") lúc upload file chiến dịch — từ bản
+  11.35, nhập ≥ 1 sẽ hiện cảnh báo (dòng vẫn được nhập, không chặn) vì
+  rất có thể nhầm số nguyên, gây sai lệch ~9 lần công thức này.
 - **Chỉ tiêu theo siêu thị** = Chỉ tiêu CẢ CHUỖI của 1 SKU × (Trọng số
   siêu thị đó ÷ tổng trọng số CÁC SIÊU THỊ CÓ ÁP DỤNG SKU đó — SKU chỉ
   áp dụng Mart thì KHÔNG chia cho Mini Mart) — xem mục 2.

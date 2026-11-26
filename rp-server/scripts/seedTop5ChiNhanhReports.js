@@ -65,8 +65,12 @@ const DOMAIN_THANH_VIEN = { revenue: 'doanhthu_chinhanh_thanhvien', transaction:
 const ACTIVE_DOMAIN = DOMAIN_THANH_VIEN;
 
 function buildDefinition(chain, metric, direction) {
+  const title = `Top 5 ${chain.label} — ${metric.label} ${direction.label}`;
   return {
-    title: `Top 5 ${chain.label} — ${metric.label} ${direction.label}`,
+    title,
+    // exportTitle (bản 11.35, theo yêu cầu người dùng — bổ sung hiển thị
+    // khoảng ngày đang xem khi xuất Excel/PDF) — xem lib/reportTitleDate.js.
+    exportTitle: `${title} ({ngayBaoCao})`,
     domain: ACTIVE_DOMAIN.revenue,
     filters: [
       { field: 'eventDate', type: 'dateRange', label: 'Khoảng ngày báo cáo' }

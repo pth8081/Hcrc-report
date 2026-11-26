@@ -170,7 +170,7 @@ function estimateDisplayLength(raw, col) {
 // exportMultiSheetExcel() bên dưới. exportExcel() (xuất 1 báo cáo, hành vi
 // CŨ không đổi) giờ chỉ là lớp mỏng tạo workbook rồi gọi hàm này.
 function addReportSheet(workbook, definition, rows, sheetName) {
-  const sheet = workbook.addWorksheet((sheetName || definition.title).slice(0, 31)); // Excel giới hạn tên sheet 31 ký tự
+  const sheet = workbook.addWorksheet(shortenSheetName(sheetName || definition.title));
   const columns = definition.columns;
   const groups = definition.columnGroups || [];
   const colCount = columns.length;
@@ -349,12 +349,36 @@ function addReportSheet(workbook, definition, rows, sheetName) {
     // cùng tông "Doanh thu" ở 4 báo cáo cuối ngày) cho MỌI báo cáo phẳng —
     // áp dụng ĐỒNG LOẠT, không cần cờ bật/tắt riêng từng báo cáo (khác
     // nhánh columnGroups ở trên, nơi 4 báo cáo LDTD/HCRC đã đi qua).
+    //
+    // SỬA LỖI THẬT (bản 11.35, phát hiện qua rà soát "báo cáo nào xuất
+    // Excel chưa hiện khoảng ngày đang xem" theo yêu cầu người dùng) —
+    // `definition.title` đã được routes/reports.js:/export TÍNH SẴN đúng
+    // khoảng ngày (qua token "{ngayBaoCao}", xem lib/reportTitleDate.js)
+    // TRƯỚC KHI gọi tới đây, nhưng nhánh PHẲNG này TRƯỚC GIỜ hoàn toàn
+    // KHÔNG VẼ dòng tiêu đề nào — tiêu đề bị tính xong rồi BỎ QUA, không
+    // bao giờ hiện trong file Excel xuất ra, dù xuất PDF (lib/exportPdf.js
+    // vẽ definition.title ở MỌI báo cáo, không phân biệt groups) vẫn LUÔN
+    // hiện đúng. Đây là nguyên nhân gốc khiến token "{ngayBaoCao}" tưởng đã
+    // hoạt động (đã khai ở nhiều báo cáo) nhưng vô hình trên Excel ở phần
+    // LỚN báo cáo trong hệ thống (mọi báo cáo PHẲNG — không riêng báo cáo
+    // nào). Thêm dòng tiêu đề Ở ĐÂY, mirror ĐÚNG cách nhánh columnGroups ở
+    // trên đã làm — áp dụng ĐỒNG LOẠT cho MỌI báo cáo phẳng, không cần cờ
+    // bật/tắt riêng (giống tinh thần thêm màu header ở bản 9.42).
+    const titleRow = 1;
+    sheet.mergeCells(titleRow, 1, titleRow, colCount);
+    const titleCell = sheet.getCell(titleRow, 1);
+    titleCell.value = definition.title;
+    titleCell.font = fontName({ bold: true, size: 14 });
+    titleCell.alignment = { horizontal: 'center' };
+    sheet.getRow(titleRow).height = 22;
+
+    const headerRow = titleRow + 1;
     const flatHeaderFill = fillArgb(resolveGroupColor('green', GROUP_COLORS_CORPORATE));
-    sheet.getRow(1).values = columns.map(c => c.label);
-    sheet.getRow(1).font = fontName({ bold: true });
-    sheet.getRow(1).eachCell({ includeEmpty: true }, (cell) => { cell.fill = flatHeaderFill; });
-    dataStartRow = 2;
-    sheet.views = [{ state: 'frozen', ySplit: 1 }];
+    sheet.getRow(headerRow).values = columns.map(c => c.label);
+    sheet.getRow(headerRow).font = fontName({ bold: true });
+    sheet.getRow(headerRow).eachCell({ includeEmpty: true }, (cell) => { cell.fill = flatHeaderFill; });
+    dataStartRow = headerRow + 1;
+    sheet.views = [{ state: 'frozen', ySplit: headerRow }];
   }
 
   const sttValues = computeSttValues(rows);
@@ -493,7 +517,23 @@ const SHEET_NAME_MAX = 31; // giới hạn cứng của Excel
 // với "...(Trong tháng)") — cắt thẳng cuối sẽ xoá mất đúng phần khác nhau
 // đó, khiến nhiều sheet trông "trùng tên" rồi bị đánh số (2)/(3) vô nghĩa
 // thay vì giữ được tên phân biệt rõ ràng.
-function shortenSheetName(name) {
+// SỬA LỖI THẬT (bản 11.35, phát hiện khi thêm dòng tiêu đề cho báo cáo
+// phẳng ở trên — kiểm thử tay 1 tiêu đề có "/" (ngày tháng, vd từ token
+// "{ngayBaoCao}") làm ExcelJS NÉM LỖI ngay khi tạo sheet: "Worksheet name
+// ... cannot include any of the following characters: * ? : \ / [ ]" —
+// `definition.title` dùng làm TÊN SHEET (khi không truyền `sheetName`
+// riêng) chưa từng được lọc bỏ 7 ký tự cấm này, dù ĐÃ cắt độ dài. Lỗi này
+// tồn tại từ trước (không phải do thay đổi ở bản này), chỉ CHƯA AI GẶP vì
+// chưa báo cáo PHẲNG nào từng dùng token ngày tháng trong title — nay mở
+// rộng cơ chế hiển thị ngày cho nhiều báo cáo hơn nên SỬA LUÔN ở đây,
+// tránh lặp lại đúng lỗi 500 này.
+const SHEET_NAME_FORBIDDEN_RE = /[*?:\\/[\]]/g;
+function sanitizeSheetName(name) {
+  return String(name).replace(SHEET_NAME_FORBIDDEN_RE, '-');
+}
+
+function shortenSheetName(rawName) {
+  const name = sanitizeSheetName(rawName);
   if (name.length <= SHEET_NAME_MAX) return name;
   const headLen = 18, tailLen = SHEET_NAME_MAX - headLen - 1;
   return `${name.slice(0, headLen)}…${name.slice(-tailLen)}`;

@@ -54,6 +54,13 @@ const MEASURE_KEYS = ['SoBillTotal', 'SoBillThe', 'DoanhSoTotal', 'DoanhSoThe'];
 function pad(n) { return String(n).padStart(2, '0'); }
 function parseISO(s) { return new Date(`${s}T00:00:00Z`); }
 function toISO(d) { return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`; }
+// formatDateVN (bản 11.35, theo yêu cầu người dùng — "W là tuần từ ngày
+// nào đến ngày nào cần có trong báo cáo") — mirror đúng
+// lib/kinhDoanhTuanRunner.js, dùng để dựng `periodLabel` trả kèm kết quả.
+function formatDateVN(iso) {
+  const [y, m, d] = iso.split('-');
+  return `${d}/${m}/${y}`;
+}
 function addDays(s, n) { const d = parseISO(s); d.setUTCDate(d.getUTCDate() + n); return toISO(d); }
 // Mirror ĐÚNG lib/kinhDoanhTuanRunner.js:daysBetween() — bản 11.25.
 function daysBetween(fromISO, toISO) { return Math.round((parseISO(toISO) - parseISO(fromISO)) / 86400000) + 1; }
@@ -251,10 +258,13 @@ function buildChartImages(rows) {
   const martRow = rows.find(r => r.__isSubtotal && !r.__isGrandTotal && r.__chainKey === 'MART');
   const miniRow = rows.find(r => r.__isSubtotal && !r.__isGrandTotal && r.__chainKey === 'MINIMART');
 
+  // Thứ tự SỬA bản 11.35 (theo ảnh mẫu "BÁO CÁO THẺ BRG ELITE") — LFL, Tuần
+  // này (W), Tuần trước (W-1), KHÔNG còn LFL, W-1, W như trước — khớp đúng
+  // thứ tự cột trái→phải của ảnh mẫu, cùng bảng màu mới ở chartImage.js.
   const seriesDef = [
     { key: 'lfl', label: 'Trung bình cùng kỳ năm trước (LFL)', color: SERIES_COLORS.lfl },
-    { key: 'w1', label: 'Tuần trước', color: SERIES_COLORS.w1 },
-    { key: 'w', label: 'Tuần này', color: SERIES_COLORS.w }
+    { key: 'w', label: 'Tuần này', color: SERIES_COLORS.w },
+    { key: 'w1', label: 'Tuần trước', color: SERIES_COLORS.w1 }
   ];
 
   const images = [];
@@ -323,6 +333,10 @@ async function runKhachHangTuanReport(definition, filterValues) {
   const lflFrom = firstOfMonth(lflAnchor), lflTo = lastOfMonth(lflAnchor);
   const lflDivisor = daysInMonth(lflFrom) / 7;
 
+  // periodLabel (bản 11.35) — xem chú thích đầy đủ ở
+  // lib/kinhDoanhTuanRunner.js (mirror y hệt).
+  const periodLabel = `Tuần này (W): ${formatDateVN(wFrom)} – ${formatDateVN(wTo)} · Tuần trước (W-1): ${formatDateVN(w1From)} – ${formatDateVN(w1To)}`;
+
   const dwhPool = await getPool('DWH');
   const diemMapping = await loadDiemStkMapping();
 
@@ -370,7 +384,8 @@ async function runKhachHangTuanReport(definition, filterValues) {
     columns,
     rows: groupedRows,
     columnGroups: buildColumnGroups(),
-    columnSuperGroups: null
+    columnSuperGroups: null,
+    periodLabel
   };
 }
 

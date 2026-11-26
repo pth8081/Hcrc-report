@@ -84,6 +84,12 @@ ngày cộng dồn" (2 ô Từ ngày/Đến ngày). Khi điền ĐỦ cả 2 ô 
 
 Xem `lib/kinhDoanhTuanRunner.js:runKinhDoanhTuanReport()` cho chi tiết.
 
+**Khoảng ngày W/W-1 (bản 11.35, theo yêu cầu người dùng)** — cả khi xem
+trên web VÀ xuất Excel/PDF, báo cáo hiện thêm 1 dòng `periodLabel` ngay
+dưới tiêu đề, ghi rõ "Tuần này (W): <từ ngày> – <đến ngày> · Tuần trước
+(W-1): <từ ngày> – <đến ngày>" — khớp đúng cách tính W/W-1 ở trên, kể cả
+khi dùng "khoảng ngày tuỳ chỉnh" thay cho "Ngày trong tuần muốn xem".
+
 ## 2. Nguồn dữ liệu
 
 **VIEW mới** `dbo.V_HCRC_DOANHTHU_THE_CHINHANH` trên DSMART16 (Live) +

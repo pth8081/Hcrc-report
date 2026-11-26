@@ -472,8 +472,18 @@ async function exportPdf(definition, rows) {
   }
 
   function drawTitle() {
-    const size = TITLE_SIZE;
-    const textWidth = boldFont.widthOfTextAtSize(definition.title, size);
+    // Co cỡ chữ nếu quá dài (bản 11.35) — từ bản này, nhiều báo cáo nối
+    // thêm periodLabel vào SAU title gốc (vd "... — Tuần này (W): ... ·
+    // Tuần trước (W-1): ...", xem routes/reports.js), có thể dài hơn hẳn
+    // title cũ — không co thì chữ tràn ra ngoài lề trang PDF.
+    const usableWidth = PAGE_SIZE[0] - MARGIN * 2;
+    let size = TITLE_SIZE;
+    let textWidth = boldFont.widthOfTextAtSize(definition.title, size);
+    const MIN_TITLE_SIZE = 7;
+    while (textWidth > usableWidth && size > MIN_TITLE_SIZE) {
+      size -= 0.5;
+      textWidth = boldFont.widthOfTextAtSize(definition.title, size);
+    }
     page.drawText(definition.title, { x: (PAGE_SIZE[0] - textWidth) / 2, y, size, font: boldFont });
     y -= (compact ? size * 1.4 : ROW_HEIGHT * 1.6);
   }

@@ -23,6 +23,9 @@ const DOMAIN = 'check_lech_thue_rvorder';
 
 const DEFINITION = {
   title: TITLE,
+  // exportTitle (bản 11.35, theo yêu cầu người dùng — bổ sung hiển thị
+  // khoảng ngày đang xem khi xuất Excel/PDF) — xem lib/reportTitleDate.js.
+  exportTitle: `${TITLE} ({ngayBaoCao})`,
   domain: DOMAIN,
   filters: [
     // quickPresets (bản 10.83, theo yêu cầu người dùng) — xem chú thích

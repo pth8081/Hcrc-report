@@ -72,6 +72,9 @@ const REPORTS = [
 function buildDefinition(report) {
   return {
     title: report.title,
+    // exportTitle (bản 11.35, theo yêu cầu người dùng — bổ sung hiển thị
+    // khoảng ngày đang xem khi xuất Excel/PDF) — xem lib/reportTitleDate.js.
+    exportTitle: `${report.title} ({ngayBaoCao})`,
     domain: report.domain,
     filters: [
       // quickPresets (bản 10.83, theo yêu cầu người dùng) — hiện sẵn 3 nút

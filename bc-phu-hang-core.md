@@ -59,6 +59,10 @@ lịch Thứ Hai → Chủ Nhật.
 phủ" cho MART) — chưa làm UI khai báo được, sửa `STOCK_THRESHOLD_MART` ở
 `lib/phuHangCoreRunner.js` nếu cần đổi.
 
+**Khoảng ngày W/W-1 (bản 11.35, theo yêu cầu người dùng)** — cả khi xem
+trên web VÀ xuất Excel/PDF (2 sheet), báo cáo hiện thêm 1 dòng
+`periodLabel` ngay dưới tiêu đề, ghi rõ khoảng ngày W/W-1 ở trên.
+
 ## 3. Các bước triển khai (theo đúng thứ tự)
 
 | # | Việc | Ai làm |

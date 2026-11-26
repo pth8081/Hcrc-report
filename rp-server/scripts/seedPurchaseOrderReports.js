@@ -300,6 +300,10 @@ const REPORTS = [
 function buildDefinition(report) {
   return {
     title: report.title,
+    // exportTitle (bản 11.35, theo yêu cầu người dùng — bổ sung hiển thị
+    // khoảng ngày đang xem khi xuất Excel/PDF, áp dụng chung cả 6 báo cáo
+    // nhóm này) — xem lib/reportTitleDate.js.
+    exportTitle: `${report.title} ({ngayBaoCao})`,
     domain: DOMAIN,
     ...(report.transCode ? { transCode: report.transCode } : {}),
     ...(report.aggregateByOrder ? { aggregateByOrder: true } : {}),

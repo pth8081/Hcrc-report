@@ -3,7 +3,7 @@
 // MỖI DÒNG = 1 SKU trong 1 chiến dịch khuyến mãi, CHỈ TIÊU (cả chuỗi) +
 // THỰC TẾ (bán hàng + tồn kho) — xem lib/brgWeeklyPostCore.js cho đầy đủ
 // cách ghép dữ liệu + "bc-brg-weekly-post.md" cho nghiệp vụ/công thức.
-const { loadCampaignData } = require('./brgWeeklyPostCore');
+const { loadCampaignData, buildCampaignHeader } = require('./brgWeeklyPostCore');
 const { describeColumns } = require('./reportEngine');
 const { assignSttIfPresent } = require('./reportCellFormat');
 
@@ -80,7 +80,9 @@ async function runBrgPostByItemsReport(definition, filterValues) {
   const allRows = [...rows, grandTotal];
   assignSttIfPresent(allRows, columns);
 
-  return { columns, rows: allRows, columnGroups: null, columnSuperGroups: null };
+  // displayTitle/periodLabel (bản 11.35) — tên chiến dịch + khoảng ngày,
+  // xem buildCampaignHeader() ở brgWeeklyPostCore.js.
+  return { columns, rows: allRows, columnGroups: null, columnSuperGroups: null, ...buildCampaignHeader(data.campaign) };
 }
 
 module.exports = { runBrgPostByItemsReport, buildColumns, buildGrandTotalRow };
