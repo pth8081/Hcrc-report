@@ -549,8 +549,12 @@ END
 -- trong constraint này (không xoá) dù scripts/seedBrgWeeklyPostReport.js đã
 -- xoá 5 dòng app.ReportCatalog dùng chúng — tránh rủi ro validate lại toàn
 -- bảng khi ALTER CONSTRAINT nếu còn sót dữ liệu cũ ở môi trường nào đó.
+--
+-- Bản 11.32 — 'dioNganhHang' (báo cáo "DIO theo ngành hàng", báo cáo đầu
+-- tiên trong 4 báo cáo "Báo cáo vận hành" mới — scripts/seedDioNganhHangReport.js)
+-- — SOÁT NGAY LÚC THÊM theo đúng rút kinh nghiệm các bản trước.
 ALTER TABLE app.ReportCatalog ADD CONSTRAINT CK_ReportCatalog_SourceType
-    CHECK (SourceType IN ('directDb', 'apiReport', 'apiRealtime', 'externalApi', 'composite', 'topZeroStock', 'coreZeroStock', 'stockThreshold', 'stockAlert', 'purchaseOrder', 'nganhHangBrg', 'doanhThuTongHopHcrc', 'kinhDoanhTuan', 'khachHangTuan', 'brgPostByItems', 'brgPostByStore', 'brgPostRankings', 'brgPostRecap', 'brgPostDetail', 'brgWeeklyPost'));
+    CHECK (SourceType IN ('directDb', 'apiReport', 'apiRealtime', 'externalApi', 'composite', 'topZeroStock', 'coreZeroStock', 'stockThreshold', 'stockAlert', 'purchaseOrder', 'nganhHangBrg', 'doanhThuTongHopHcrc', 'kinhDoanhTuan', 'khachHangTuan', 'brgPostByItems', 'brgPostByStore', 'brgPostRankings', 'brgPostRecap', 'brgPostDetail', 'brgWeeklyPost', 'dioNganhHang'));
 GO
 
 IF OBJECT_ID('app.RoleReportAccess', 'U') IS NULL

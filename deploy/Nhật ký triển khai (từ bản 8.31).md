@@ -14,6 +14,29 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 11.32 — Báo cáo mới "DIO theo ngành hàng" (1/4 báo cáo Vận hành mới)
+
+**CÓ bước DBA (VIEW mới).**
+
+**Các bước**:
+1. `git pull origin main`.
+2. DBA chạy `deploy/VIEW DSMART16 (trung tâm)/Thiết lập VIEW Tồn kho Giá
+   trị theo Ngành hàng (DSMART16).sql` trên CSDL `DSMART16` trung tâm.
+3. `cd etl && node scripts/seedTonKhoGtriNganhHangSync.js` (tạo job đồng
+   bộ mới — cần đã có Nguồn dữ liệu "DSMART16 - Live", chạy
+   `seedLdtdHcrcSync.js` trước nếu server này chưa từng chạy).
+4. `cd rp-server && node scripts/seedDioNganhHangReport.js`.
+5. `pm2 restart rp-server` (SourceType mới `dioNganhHang`).
+6. Vào Hệ thống → Phân quyền, gán quyền xem "DIO theo ngành hàng" cho
+   đúng vai trò.
+7. Vào etl-admin → Đồng bộ → "Chạy thử" job "Tồn kho Giá trị theo Ngành
+   hàng - Live (DSMART16)" — xác nhận không lỗi.
+
+**Kiểm tra**: xem "VERSION.md" mục bản 11.32 + mục 4 ở `bc-dio-nganhhang.md`
+— mở báo cáo "DIO theo ngành hàng", đối chiếu vài dòng với file Excel mẫu
+người dùng gửi, báo lại nếu DIO lệch nhiều (công thức hiện tại là GIẢ
+ĐỊNH, chưa chốt).
+
 ## 11.31 — Thêm nút "Xoá" cho mọi bộ lọc "khoảng ngày" (dateRange)
 
 **Không có bước DBA, không cần chạy lại seed script.**

@@ -1811,3 +1811,4 @@ cập nhật nếu chỉ sửa báo cáo đã có (file hướng dẫn riêng t�
 | `bc-kinh-doanh-theo-tuan` | Báo cáo kinh doanh theo tuần | `bc-kinh-doanh-theo-tuan.md` |
 | `bc-khach-hang-theo-tuan` | Báo cáo khách hàng theo tuần | `bc-khach-hang-theo-tuan.md` (dùng chung domain/VIEW với báo cáo trên) |
 | `bc-brg-weekly-post` | BRG Weekly Post (1 báo cáo, bộ lọc "Chọn sheet" chuyển giữa 5 phần — bản 11.26, THAY THẾ 5 ReportId `bc-brg-post-*` bản 11.24) | `bc-brg-weekly-post.md` |
+| `bc-dio-nganhhang` | DIO theo ngành hàng (nhóm "Báo cáo vận hành", bản 11.32) | `bc-dio-nganhhang.md` |

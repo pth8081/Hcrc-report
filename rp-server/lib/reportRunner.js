@@ -24,6 +24,7 @@ const { runBrgPostRankingsReport } = require('./brgPostRankingsRunner');
 const { runBrgPostRecapReport } = require('./brgPostRecapRunner');
 const { runBrgPostDetailReport } = require('./brgPostDetailRunner');
 const { runBrgWeeklyPostReport } = require('./brgWeeklyPostRunner');
+const { runDioNganhHangReport } = require('./dioNganhHangRunner');
 const { assignSttIfPresent } = require('./reportCellFormat');
 
 async function loadDefinition(reportId) {
@@ -176,6 +177,15 @@ async function runDefinition(definition, filterValues, pagination) {
   // xoá 5 dòng ReportCatalog dùng chúng — phòng rủi ro, không ảnh hưởng gì.
   if (definition.sourceType === 'brgWeeklyPost') {
     return runBrgWeeklyPostReport(definition, filterValues, pagination);
+  }
+  // 'dioNganhHang' (bản 11.32, báo cáo ĐẦU TIÊN trong 4 báo cáo "Báo cáo
+  // vận hành" mới, theo yêu cầu người dùng) — "DIO theo ngành hàng" (Days
+  // Inventory Outstanding) — MỖI DÒNG/mã Điểm × ngành hàng, Giá trị tồn ÷
+  // Giá vốn bán ra trung bình 3 tháng — xem lib/dioNganhHangRunner.js. Báo
+  // cáo PHẲNG (không nhóm/subtotal) nên truyền `pagination` (áp dụng
+  // applyDisplayCap bên trong runner), cùng mẫu brgPostDetail.
+  if (definition.sourceType === 'dioNganhHang') {
+    return runDioNganhHangReport(definition, filterValues, pagination);
   }
   if (definition.sourceType && definition.sourceType !== 'directDb') {
     return runApiReport(definition, filterValues, pagination);

@@ -52,6 +52,38 @@ nội dung/hành vi nào đã làm. Lịch sử Git (commit message) vẫn còn 
 "Bản 10.100"/"Bản 10.101" (không sửa lại lịch sử Git) — coi là ĐỒNG NHẤT
 với "11.0"/"11.1".
 
+## 11.32 — Báo cáo mới "DIO theo ngành hàng" (1/4 báo cáo Vận hành mới)
+
+**Theo yêu cầu người dùng** — sau khi gửi phương án phân tích 4 file Excel
+vận hành thật (`phuong-an-4-bao-cao-van-hanh.md`), người dùng chốt: "Bạn
+triển khai theo thứ tự nhé, dựng lên khung các báo cáo và sẽ làm chi tiết
+thêm với nghiệp vụ nếu cần thiết". Báo cáo ĐẦU TIÊN theo đúng thứ tự ưu
+tiên đã đề xuất (ưu tiên 1 — không cần khai báo tay, mọi nguồn đã có sẵn).
+
+**"DIO theo ngành hàng"** (`bc-dio-nganhhang`, SourceType mới
+`dioNganhHang`, menu "Báo cáo vận hành") — mỗi dòng = 1 siêu thị × 1 ngành
+hàng, tính số ngày tồn kho hiện tại đủ dùng theo tốc độ bán ra gần đây:
+`DIO = Giá trị tồn ÷ (Giá vốn bán ra TB 3 tháng ÷ 30)`.
+
+- "Giá trị tồn" — VIEW MỚI `dbo.V_HCRC_TONKHO_NGANHHANG` (DSMART16 trung
+  tâm) + domain MỚI `tonkho_gtri_nganhhang` (snapshot, KeepHistory=0) —
+  tái dùng NGUYÊN VẸN công thức `SoLuongTon`/`AVERIMPPR` đã chốt ở 2 tài
+  liệu khác, không công thức mới.
+- "Giá vốn bán ra 3 tháng" — domain ĐÃ CÓ `doanhthu_nganhhang` (Doanh thu
+  − Lãi gộp = Giá vốn), KHÔNG cần VIEW/job mới.
+- Xem `rp-server/lib/dioNganhHangRunner.js`, `bc-dio-nganhhang.md`.
+
+**⚠️ CÔNG THỨC DIO LÀ GIẢ ĐỊNH, CHƯA CHỐT với người dùng** (không trích
+được công thức ô thật từ file Excel mẫu, chỉ đối chiếu vài dòng khớp xấp
+xỉ) — xem chú thích đầu `dioNganhHangRunner.js`, có thể cần chỉnh lại khi
+người dùng đối chiếu số thật.
+
+**Không có bước DBA** cho `doanhthu_nganhhang` (đã chạy sẵn) — **CÓ bước
+DBA mới** cho `tonkho_gtri_nganhhang` (tạo VIEW mới) — xem Bước 1 ở
+`bc-dio-nganhhang.md`.
+
+**Kiểm tra**: xem mục 4 ở `bc-dio-nganhhang.md`.
+
 ## 11.31 — Thêm nút "Xoá" cho mọi bộ lọc "khoảng ngày" (dateRange)
 
 **Theo yêu cầu người dùng** (phát hiện ở "Báo cáo khách hàng theo
