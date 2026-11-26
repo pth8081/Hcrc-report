@@ -26,6 +26,7 @@ const { runBrgPostDetailReport } = require('./brgPostDetailRunner');
 const { runBrgWeeklyPostReport } = require('./brgWeeklyPostRunner');
 const { runDioNganhHangReport } = require('./dioNganhHangRunner');
 const { runDoanhThuMtdKeHoachReport } = require('./doanhThuMtdKeHoachRunner');
+const { runPhuHangCoreChiTietReport, runPhuHangCoreRecapReport } = require('./phuHangCoreRunner');
 const { assignSttIfPresent } = require('./reportCellFormat');
 
 async function loadDefinition(reportId) {
@@ -195,6 +196,16 @@ async function runDefinition(definition, filterValues, pagination) {
   // KHÔNG cần pagination/applyDisplayCap.
   if (definition.sourceType === 'doanhThuMtdKeHoach') {
     return runDoanhThuMtdKeHoachReport(definition, filterValues);
+  }
+  // 'phuHangCoreChiTiet'/'phuHangCoreRecap' (bản 11.34, báo cáo 4/4 "Báo
+  // cáo vận hành" mới, theo yêu cầu người dùng — CHỈ 2 sheet "Chi
+  // tiết"/"Recap ST" như file mẫu gốc) — xem lib/phuHangCoreRunner.js. Số
+  // dòng nhỏ (Core MART), KHÔNG cần pagination/applyDisplayCap.
+  if (definition.sourceType === 'phuHangCoreChiTiet') {
+    return runPhuHangCoreChiTietReport(definition, filterValues);
+  }
+  if (definition.sourceType === 'phuHangCoreRecap') {
+    return runPhuHangCoreRecapReport(definition, filterValues);
   }
   if (definition.sourceType && definition.sourceType !== 'directDb') {
     return runApiReport(definition, filterValues, pagination);

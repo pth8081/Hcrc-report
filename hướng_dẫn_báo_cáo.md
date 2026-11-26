@@ -1815,3 +1815,5 @@ cập nhật nếu chỉ sửa báo cáo đã có (file hướng dẫn riêng t�
 | `bc-doanhthu-mtd-all` | Theo dõi doanh thu MTD theo kế hoạch (Toàn chuỗi) (nhóm "Báo cáo vận hành", bản 11.33) | `bc-doanhthu-mtd-ke-hoach.md` |
 | `bc-doanhthu-mtd-lfl` | Theo dõi doanh thu MTD theo kế hoạch (LFL) | `bc-doanhthu-mtd-ke-hoach.md` (dùng chung runner/domain với báo cáo trên) |
 | `bc-doanhthu-mtd-nso` | Theo dõi doanh thu MTD theo kế hoạch (NSO) | `bc-doanhthu-mtd-ke-hoach.md` (dùng chung runner/domain với báo cáo trên) |
+| `bc-phu-hang-core-chi-tiet` | Phủ hàng Core - Chi tiết (nhóm "Báo cáo vận hành", bản 11.34) | `bc-phu-hang-core.md` |
+| `bc-phu-hang-core-recap` | Phủ hàng Core - Recap ST | `bc-phu-hang-core.md` (dùng chung runner/domain với báo cáo trên) |

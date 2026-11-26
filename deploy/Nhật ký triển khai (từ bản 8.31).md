@@ -14,6 +14,34 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 11.34 — Báo cáo mới "Phủ hàng Core" (4/4 báo cáo Vận hành mới — xong cả 4) + 2 việc DBA khẩn
+
+**⚠️ 2 VIỆC DBA CẦN LÀM NGAY (không liên quan code mới, phát hiện qua log
+lỗi người dùng gửi)**:
+1. Lỗi "SELECT permission was denied on the object 'CoreItemList'" —
+   chạy trên CSDL `HCRC_ETL`:
+   ```sql
+   GRANT SELECT ON etl.CoreItemList TO etl_diem_stk_reader;
+   ```
+   (hoặc chạy lại toàn bộ `etl-db/grants.sql`, an toàn chạy lại nhiều lần).
+2. Lỗi "Invalid column name 'MaNganhHang'" (4 báo cáo lọc theo ngành
+   hàng) — chạy lại `dwh/schema.sql` trên CSDL DWH (bổ sung cột
+   persisted `MaNganhHang` + index còn thiếu từ bản 11.19).
+
+**Không có bước DBA cho báo cáo mới (không VIEW mới).**
+
+**Các bước (báo cáo "Phủ hàng Core")**:
+1. `git pull origin main`.
+2. Xác nhận đã upload "Danh sách hàng Core" (etl-admin) cho LoaiDiem=MART.
+3. `cd rp-server && node scripts/seedPhuHangCoreReports.js`.
+4. `pm2 restart rp-server` (2 SourceType mới `phuHangCoreChiTiet`/
+   `phuHangCoreRecap`).
+5. Vào Hệ thống → Phân quyền, gán quyền xem 2 ReportId
+   `bc-phu-hang-core-chi-tiet`/`bc-phu-hang-core-recap`.
+
+**Kiểm tra**: xem "VERSION.md" mục bản 11.34 + mục 4 ở
+`bc-phu-hang-core.md`.
+
 ## 11.33 — Báo cáo mới "Theo dõi doanh thu MTD theo kế hoạch" (2/4 báo cáo Vận hành mới)
 
 **Không có bước DBA — CÓ bước nhập Chỉ tiêu qua etl-admin trước khi có đủ

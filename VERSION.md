@@ -52,6 +52,58 @@ nội dung/hành vi nào đã làm. Lịch sử Git (commit message) vẫn còn 
 "Bản 10.100"/"Bản 10.101" (không sửa lại lịch sử Git) — coi là ĐỒNG NHẤT
 với "11.0"/"11.1".
 
+## 11.34 — Báo cáo mới "Phủ hàng Core" (4/4 báo cáo Vận hành mới — xong cả 4)
+
+**Theo yêu cầu người dùng** — hoàn tất triển khai tuần tự 4 báo cáo vận
+hành theo phương án đã gửi. Báo cáo ưu tiên 4 ("Phủ hàng Core", phức tạp
+nhất trong phương án gốc vì có cả quy trình xét duyệt ngoại lệ) — người
+dùng xác nhận thu hẹp phạm vi: **CHỈ làm đúng 2 sheet "Chi tiết"/"Recap
+ST"** như ảnh file mẫu gốc, bỏ quy trình xét duyệt ngoại lệ tuần. Báo cáo
+3 ("Kế hoạch nhập hàng tháng") người dùng yêu cầu **để lại làm sau** (có
+vướng domain "Đơn nhập hàng" chưa chốt với DBA).
+
+**2 ReportId mới** (`bc-phu-hang-core-chi-tiet`/`-recap`, SourceType mới
+`phuHangCoreChiTiet`/`phuHangCoreRecap`, menu "Báo cáo vận hành") — "Chi
+tiết": 1 dòng/mã hàng Core × siêu thị MART (SL bán/Doanh số W-W-1, tồn
+ước tính, cờ "Có hàng"); "Recap ST": 1 dòng/siêu thị (% phủ, Doanh số
+Core/toàn ST kỳ W-1, tỷ trọng, tăng trưởng).
+
+- Phát hiện tốt khi điều tra lỗi "SELECT permission denied" trên
+  `etl.CoreItemList` (xem bên dưới): bảng này **ĐÃ hỗ trợ sẵn danh mục
+  Core theo TỪNG SIÊU THỊ** (không chỉ theo loại hình MART/MINIMART
+  chung như phương án gốc từng đoán) — KHÔNG cần sửa schema.
+- Tái dùng HOÀN TOÀN domain đã có: `doanhthu_sku_nganhhang` (SL
+  bán/Doanh số theo mã hàng), `tonkho_sku`/`banhang_sku` (tồn ước tính),
+  `doanhthu_nganhhang` (Doanh số toàn ST, loại Ultra Fresh) — KHÔNG VIEW/
+  ETL mới.
+- Hàm mới `reportFactsHelpers.js:loadSumOverRange()` — generalize
+  `loadSumOnDate()` cho 1 khoảng ngày (W/W-1) + nhiều measure cùng lúc.
+- Xem `rp-server/lib/phuHangCoreRunner.js`, `bc-phu-hang-core.md`.
+
+**⚠️ GIẢ ĐỊNH CHƯA CHỐT** — ngưỡng "có hàng" hardcode = 5 (Mart), tồn dùng
+công thức ƯỚC TÍNH hiện có (khác "đo tồn 14h thứ 6" của file mẫu), % phủ
+KHÔNG trừ ngoại lệ tuần (quy trình xét duyệt ST↔MH chưa làm).
+
+**Sửa thêm trong bản này — GRANT SELECT CoreItemList** (phát hiện qua báo
+cáo người dùng, log lỗi "SELECT permission was denied on the object
+'CoreItemList'") — đây là thiếu quyền CSDL trên server, KHÔNG phải lỗi
+code (lệnh GRANT đã có sẵn ở `etl-db/grants.sql` từ bản 9.51, chỉ cần DBA
+chạy lại trên CSDL `HCRC_ETL` thật).
+
+**Sửa thêm trong bản này — thiếu migration `MaNganhHang`** (phát hiện qua
+log lỗi người dùng gửi, "Invalid column name 'MaNganhHang'" ở 4 báo cáo
+lọc theo ngành hàng) — cột persisted `dwh.ReportFacts.MaNganhHang` (đã có
+sẵn trong `dwh/schema.sql` từ bản 11.19) chưa từng chạy trên CSDL DWH
+thật — KHÔNG phải lỗi code, DBA cần chạy lại `dwh/schema.sql`.
+
+**Không có bước DBA cho báo cáo mới** (không VIEW mới) — **CÓ 2 việc DBA
+cần làm NGAY, không liên quan tính năng mới**: (1) `GRANT SELECT ON
+etl.CoreItemList TO etl_diem_stk_reader;` (hoặc chạy lại
+`etl-db/grants.sql`), (2) chạy lại `dwh/schema.sql` (bổ sung cột
+`MaNganhHang` còn thiếu).
+
+**Kiểm tra**: xem mục 4 ở `bc-phu-hang-core.md`.
+
 ## 11.33 — Báo cáo mới "Theo dõi doanh thu MTD theo kế hoạch" (2/4 báo cáo Vận hành mới)
 
 **Theo yêu cầu người dùng** — tiếp tục triển khai tuần tự theo phương án

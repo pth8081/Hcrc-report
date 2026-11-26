@@ -173,6 +173,39 @@ async function loadSumOnDate(pool, domain, entityCodes, measureKey, onDate) {
   });
 }
 
+// CỘNG DỒN 1 KHOẢNG NGÀY (KHÔNG phải đúng 1 ngày như loadSumOnDate() ở
+// trên), NHIỀU measure cùng lúc trong 1 câu SQL (bản 11.34, theo yêu cầu
+// người dùng — "Báo cáo phủ hàng Core" cần SL bán + Doanh số cộng dồn cả
+// tuần "W"/"W-1" theo (kho, mã hàng), xem lib/phuHangCoreRunner.js) — chưa
+// có báo cáo nào khác cần "tổng NHIỀU measure theo khoảng ngày" trước bản
+// này nên viết hàm mới thay vì gọi loadSumOnDate() nhiều lần (tốn round-trip
+// CSDL hơn, mỗi lần 1 measure).
+async function loadSumOverRange(pool, domain, entityCodes, measureKeys, fromDate, toDate) {
+  measureKeys.forEach(assertSafeFieldKey);
+  if (!entityCodes.length) return new Map();
+  const selectCols = measureKeys
+    .map(k => `SUM(CAST(JSON_VALUE(Measures, '$.${k}') AS DECIMAL(18,4))) AS [${k}]`)
+    .join(', ');
+  return mapOverEntityCodeChunks(entityCodes, async (chunk) => {
+    const request = pool.request();
+    request.input('domain', sql.VarChar(50), domain);
+    request.input('fromDate', sql.Date, fromDate);
+    request.input('toDate', sql.Date, toDate);
+    const codeParams = buildEntityCodeParams(request, chunk);
+    const result = await request.query(`
+      SELECT EntityCode, ${selectCols}
+      FROM dwh.ReportFacts
+      WHERE Domain = @domain AND EntityCode IN (${codeParams.join(', ')}) AND EventDate BETWEEN @fromDate AND @toDate
+      GROUP BY EntityCode
+    `);
+    return result.recordset.map(r => {
+      const values = {};
+      for (const k of measureKeys) values[k] = r[k];
+      return [r.EntityCode, values];
+    });
+  });
+}
+
 // QUÉT TOÀN BỘ domain (KHÔNG lọc theo entityCodes — dùng khi CHƯA biết
 // trước danh sách entity nào cần, vd tra "chain" (Mart/Minimart) của MỌI
 // kho, hoặc liệt kê MỌI (kho, mã hàng) đang có dữ liệu để đối chiếu với 1
@@ -239,6 +272,6 @@ async function loadLatestDimensionsForDomain(pool, domain, dimensionKeys, sinceD
 
 module.exports = {
   todayUTC, daysAgoUTC, assertSafeFieldKey, buildEntityCodeParams,
-  loadLatestMeasureBefore, loadLatestMeasure, loadLatestMeasureWithDate, loadSumOnDate,
+  loadLatestMeasureBefore, loadLatestMeasure, loadLatestMeasureWithDate, loadSumOnDate, loadSumOverRange,
   loadLatestDimensionsForDomain
 };

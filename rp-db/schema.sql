@@ -556,8 +556,11 @@ END
 --
 -- Bản 11.33 — 'doanhThuMtdKeHoach' (báo cáo "Theo dõi doanh thu MTD theo
 -- kế hoạch", báo cáo 2/4 — scripts/seedDoanhThuMtdKeHoachReports.js).
+--
+-- Bản 11.34 — 'phuHangCoreChiTiet'/'phuHangCoreRecap' (báo cáo "Phủ hàng
+-- Core", báo cáo 4/4 — scripts/seedPhuHangCoreReports.js).
 ALTER TABLE app.ReportCatalog ADD CONSTRAINT CK_ReportCatalog_SourceType
-    CHECK (SourceType IN ('directDb', 'apiReport', 'apiRealtime', 'externalApi', 'composite', 'topZeroStock', 'coreZeroStock', 'stockThreshold', 'stockAlert', 'purchaseOrder', 'nganhHangBrg', 'doanhThuTongHopHcrc', 'kinhDoanhTuan', 'khachHangTuan', 'brgPostByItems', 'brgPostByStore', 'brgPostRankings', 'brgPostRecap', 'brgPostDetail', 'brgWeeklyPost', 'dioNganhHang', 'doanhThuMtdKeHoach'));
+    CHECK (SourceType IN ('directDb', 'apiReport', 'apiRealtime', 'externalApi', 'composite', 'topZeroStock', 'coreZeroStock', 'stockThreshold', 'stockAlert', 'purchaseOrder', 'nganhHangBrg', 'doanhThuTongHopHcrc', 'kinhDoanhTuan', 'khachHangTuan', 'brgPostByItems', 'brgPostByStore', 'brgPostRankings', 'brgPostRecap', 'brgPostDetail', 'brgWeeklyPost', 'dioNganhHang', 'doanhThuMtdKeHoach', 'phuHangCoreChiTiet', 'phuHangCoreRecap'));
 GO
 
 IF OBJECT_ID('app.RoleReportAccess', 'U') IS NULL
