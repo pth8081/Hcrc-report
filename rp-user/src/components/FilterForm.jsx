@@ -88,6 +88,24 @@ export default function FilterForm({ reportId, filters, values, onChange, onSubm
                   value={values[f.field]?.to || ''}
                   onChange={(e) => setValue(f.field, { ...values[f.field], to: e.target.value })}
                 />
+                {/* Nút "Xoá" (bản 11.31, theo yêu cầu người dùng — "Tôi cần
+                    làm ở tất cả các chỗ có 2 ngày chọn như bc này luôn
+                    nhé") — ÁP DỤNG CHUNG cho MỌI filter kiểu 'dateRange'
+                    (component dùng chung này), không riêng báo cáo nào.
+                    Trước đây chỉ đổi được sang ngày khác (chạm ô mở lại
+                    lịch), KHÔNG có cách bỏ trống về lại rỗng — chỉ hiện
+                    nút khi ĐANG có ít nhất 1 ô đã điền, bấm xoá SẠCH cả 2
+                    ô về rỗng cùng lúc. */}
+                {(values[f.field]?.from || values[f.field]?.to) && (
+                  <button
+                    type="button"
+                    className="date-range-clear"
+                    title="Xoá ngày đã chọn"
+                    onClick={() => setValue(f.field, { from: '', to: '' })}
+                  >
+                    ✕
+                  </button>
+                )}
               </span>
             </>
           ) : f.type === 'multiSelect' ? (

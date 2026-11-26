@@ -52,6 +52,26 @@ nội dung/hành vi nào đã làm. Lịch sử Git (commit message) vẫn còn 
 "Bản 10.100"/"Bản 10.101" (không sửa lại lịch sử Git) — coi là ĐỒNG NHẤT
 với "11.0"/"11.1".
 
+## 11.31 — Thêm nút "Xoá" cho mọi bộ lọc "khoảng ngày" (dateRange)
+
+**Theo yêu cầu người dùng** (phát hiện ở "Báo cáo khách hàng theo
+tuần"/"Báo cáo kinh doanh theo tuần" — ô "Hoặc chọn khoảng ngày cộng
+dồn" chỉ đổi được sang ngày khác (chạm ô mở lại lịch), KHÔNG có cách bỏ
+trống về lại rỗng): "Tôi cần làm ở tất cả các chỗ có 2 ngày chọn như bc
+này luôn nhé" — thêm nút **"✕"** nhỏ cạnh cặp ô Từ ngày/Đến ngày, CHỈ
+hiện khi đang có ít nhất 1 ô đã điền, bấm xoá SẠCH cả 2 ô về rỗng cùng
+lúc. Sửa ở ĐÚNG 1 nơi dùng chung — `rp-user/src/components/FilterForm.jsx`
+(filter kiểu `'dateRange'`) — áp dụng tự động cho **MỌI báo cáo** đang
+dùng kiểu bộ lọc này (2 báo cáo "theo tuần" + ~8 báo cáo khác có bộ lọc
+"Khoảng ngày báo cáo"), không cần sửa riêng từng báo cáo.
+
+**Không có bước DBA, không cần chạy lại seed script** — chỉ cần build
+lại `rp-user` + deploy `dist/` mới.
+
+**Kiểm tra**: mở bất kỳ báo cáo nào có bộ lọc "khoảng ngày" (vd "Báo
+cáo khách hàng theo tuần"), điền 1 hoặc cả 2 ô ngày — phải thấy nút "✕"
+hiện ra cạnh đó; bấm vào — cả 2 ô về trống, nút "✕" tự ẩn đi.
+
 ## 11.30 — Xử lý đợt 1 audit hiệu năng báo cáo: sửa xuất Excel cắt âm thầm + giới hạn hiển thị 3 báo cáo rủi ro cao + hạ tầng cache/mặc định ngày
 
 **Theo yêu cầu người dùng** (sau audit hiệu năng báo cáo — xem

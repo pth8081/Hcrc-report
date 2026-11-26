@@ -14,6 +14,17 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 11.31 — Thêm nút "Xoá" cho mọi bộ lọc "khoảng ngày" (dateRange)
+
+**Không có bước DBA, không cần chạy lại seed script.**
+
+**Các bước**:
+1. `git pull origin main`.
+2. `cd rp-user && npm run build` (deploy `dist/` mới).
+
+**Kiểm tra**: xem "VERSION.md" mục bản 11.31 — mở báo cáo bất kỳ có bộ
+lọc "khoảng ngày", điền ngày, xác nhận nút "✕" hiện ra và xoá được.
+
 ## 11.30 — Xử lý đợt 1 audit hiệu năng báo cáo
 
 **Không có bước DBA.**

@@ -87,6 +87,16 @@ button:disabled, button:disabled:hover {
 .dashboard-group-access-row { display: flex; align-items: center; gap: 16px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px; margin-bottom: 6px; }
 .dashboard-group-access-label { font-size: 13.5px; font-weight: 600; flex: 1; }
 .date-range { display: flex; align-items: center; gap: 6px; }
+/* .date-range-clear (bản 11.31, theo yêu cầu người dùng) — nút "Xoá" nhỏ,
+   gọn, KHÁC hẳn nút chính (không dùng --accent cam to) để không lấn át 2 ô
+   ngày — chỉ hiện khi filter 'dateRange' (components/FilterForm.jsx) đang
+   có ít nhất 1 ô đã điền. */
+.date-range-clear {
+  padding: 4px 9px; min-width: auto; font-size: 13px; line-height: 1;
+  background: transparent; color: var(--ink-soft); border: 1px solid var(--line);
+  box-shadow: none; font-weight: 400;
+}
+.date-range-clear:hover { opacity: 1; background: var(--line); }
 
 /* SearchableSelect (components/SearchableSelect.jsx) — dropdown searchable +
    multi-select dùng chung cho mọi ô chọn/lọc, xem FilterForm.jsx. */
