@@ -238,27 +238,59 @@ function chunk(arr, size) {
 
 // Bán hàng THỰC TẾ trong [from, to] — trả về CẢ tổng theo MaHang (chain-wide)
 // VÀ chi tiết theo (MaHang, STK_ID) (cho "By Store"/drill-down).
-async function fetchActualSales(dwhPool, maHangList, from, to) {
-  const byMaHangTotal = new Map(); // maHang -> {qty, revenue}
-  const byMaHangStore = new Map(); // maHang -> Map(stkId -> {qty, revenue})
-  if (!maHangList.length) return { byMaHangTotal, byMaHangStore };
+//
+// SỬA LỖI THẬT (bản 11.49, báo cáo người dùng — đối chiếu trực tiếp
+// `dbo.SKU_DEF` trên DSMART16 phát hiện: cột "Mã 10 số" người dùng nhập
+// trong file chiến dịch — vd `1001254472` cho "Bưởi da xanh Mekostar" —
+// THỰC RA LÀ `SKU_CODE`, KHÔNG PHẢI `SKU_ID` thật như tên cột/tài liệu
+// trước giờ vẫn giả định — `SKU_ID` THẬT của chính sản phẩm đó là số 12
+// CHỮ SỐ hoàn toàn khác (`292544720000`). Domain `doanhthu_sku_nganhhang`
+// lọc theo cột `MaHang` = SKU_ID THẬT (12 số) — campaign gửi lên SKU_CODE
+// (10 số, đúng mã trong file) nên KHÔNG BAO GIỜ khớp được dù doanh thu
+// THẬT có tồn tại trong hệ thống. May mắn domain này CŨNG CÓ sẵn cột
+// `MaHangHienThi` = SKU_CODE (ĐÚNG field campaign đang gửi lên, xem
+// VIEW `V_HCRC_DOANHTHU_SKU_NGANHHANG`: `d.SKU_CODE AS MaHangHienThi`) —
+// xử lý AN TOÀN theo CẢ 2 chiều, giống hệt cách đã sửa
+// fetchCurrentStock() ở bản 11.48: lọc `IN (...)` với CẢ 2 ứng viên mỗi
+// SKU (`maHang`/"Mã 10 số" VÀ `skuCode`/"Mã sản phẩm" 6 số) trên CẢ 2 cột
+// (`MaHang` VÀ `MaHangHienThi`, đều ĐÃ có index riêng — vẫn SARGable),
+// rồi DỊCH NGƯỢC giá trị THẬT khớp được (dù là SKU_ID hay SKU_CODE) về
+// ĐÚNG `sku.maHang` (khoá canonical mọi nơi gọi đang dùng để tra cứu) qua
+// `candidateToMaHang`.
+//
+// Tham số đổi từ `maHangList` (mảng string) sang `skuMaster` (mảng đầy
+// đủ {maHang, skuCode,...}) để tự dựng đủ 2 ứng viên — ĐÃ SỬA nơi gọi ở
+// loadCampaignData() bên dưới.
+async function fetchActualSales(dwhPool, skuMaster, from, to) {
+  const byMaHangTotal = new Map(); // maHang (canonical, = sku.maHang) -> {qty, revenue}
+  const byMaHangStore = new Map(); // maHang (canonical) -> Map(stkId -> {qty, revenue})
+  if (!skuMaster.length) return { byMaHangTotal, byMaHangStore };
 
-  for (const batch of chunk(maHangList, SKU_BATCH_SIZE)) {
+  const candidateToMaHang = new Map();
+  for (const sku of skuMaster) {
+    candidateToMaHang.set(sku.maHang, sku.maHang);
+    if (sku.skuCode) candidateToMaHang.set(sku.skuCode, sku.maHang);
+  }
+  const candidates = [...candidateToMaHang.keys()];
+
+  for (const batch of chunk(candidates, SKU_BATCH_SIZE)) {
     const request = dwhPool.request();
     request.input('domain', sql.VarChar(50), SALES_DOMAIN);
     request.input('from', sql.Date, from);
     request.input('to', sql.Date, to);
     const placeholders = batch.map((code, i) => { request.input(`sku${i}`, sql.NVarChar(50), code); return `@sku${i}`; });
+    const inClause = placeholders.join(',');
     const result = await request.query(`
-      SELECT MaHang, EntityCode, Dimensions, Measures
+      SELECT MaHang, MaHangHienThi, EntityCode, Dimensions, Measures
       FROM dwh.ReportFacts
       WHERE Domain = @domain AND EventDate BETWEEN @from AND @to
-        AND MaHang IN (${placeholders.join(',')})
+        AND (MaHang IN (${inClause}) OR MaHangHienThi IN (${inClause}))
     `);
     for (const row of result.recordset) {
+      const maHang = candidateToMaHang.get(row.MaHang) || candidateToMaHang.get(row.MaHangHienThi);
+      if (!maHang) continue; // an toàn — không nên xảy ra vì WHERE đã lọc đúng ứng viên
       const dims = JSON.parse(row.Dimensions || '{}');
       const measures = row.Measures ? JSON.parse(row.Measures) : {};
-      const maHang = row.MaHang;
       const stkId = dims.STK_ID && dims.STK_ID.trim();
       const qty = measures.SoLuongBan || 0;
       const revenue = measures.DoanhThu || 0;
@@ -464,10 +496,8 @@ async function loadCampaignData(campaignId, periodFromOverride, periodToOverride
   const elapsedDays = Math.max(1, Math.min(elapsedDaysRaw, totalCampaignDays));
   const projectionFactor = totalCampaignDays / elapsedDays;
 
-  const maHangList = skuMaster.map(s => s.maHang);
-
   const [sales, stock, storeWideTotals] = await Promise.all([
-    fetchActualSales(dwhPool, maHangList, periodFrom, periodTo),
+    fetchActualSales(dwhPool, skuMaster, periodFrom, periodTo),
     fetchCurrentStock(dwhPool, skuMaster),
     // storeWideTotals (bản 11.42) — Doanh thu/Bill bán lẻ CẢ SIÊU THỊ
     // trong ĐÚNG khoảng [periodFrom, periodTo] (khớp đúng khoảng ngày
