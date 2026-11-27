@@ -14,6 +14,25 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 11.42 — Bổ sung 3 cột doanh thu/giao dịch cả siêu thị + cột "Tình trạng tồn kho" cho "BRG Weekly Post"
+
+**Không có bước DBA/CSDL mới (2 domain dùng thêm đã có sẵn, chỉ sửa code rp-server).**
+
+**Các bước**:
+1. `git pull origin main`.
+2. `cd rp-server && pm2 restart hcrc-rp-server` (sửa `lib/brgWeeklyPostCore.js`,
+   `lib/brgPostByStoreRunner.js`, `lib/brgPostDetailRunner.js`).
+
+**Kiểm tra**: mở báo cáo "BRG Weekly Post" → sheet "Theo siêu thị" → phải
+thấy thêm 3 cột "Số lượng Bill bán lẻ"/"Tổng doanh thu bán lẻ thực tế"/
+"Tỷ trọng DS KM/Tổng DS bán lẻ" có số liệu thật (không phải 0 hết, trừ
+khi đúng siêu thị đó thật sự chưa có giao dịch bán lẻ nào trong kỳ) —
+dòng "Tổng Mart"/"Tổng Mini Mart"/"Tổng cộng" cột "% Thực hiện doanh số"
+phải hiện ĐÚNG tỷ lệ (vd "15%", không còn "0.15%" như trước). Sheet "Chi
+tiết" → phải thấy thêm cột "Tình trạng tồn kho" (chỉ có giá trị
+"Chưa đảm bảo" ở SKU ngành hàng Ultra Fresh/Fresh khi tồn thấp, các
+ngành hàng khác để trống).
+
 ## 11.41 — Sửa xoá hàng loạt SKU/trọng số siêu thị dừng hẳn giữa chừng nếu 1 dòng lỗi
 
 **Không có bước DBA/CSDL mới (chỉ sửa code etl-admin).**

@@ -52,6 +52,46 @@ nội dung/hành vi nào đã làm. Lịch sử Git (commit message) vẫn còn 
 "Bản 10.100"/"Bản 10.101" (không sửa lại lịch sử Git) — coi là ĐỒNG NHẤT
 với "11.0"/"11.1".
 
+## 11.42 — Bổ sung 3 cột doanh thu/giao dịch cả siêu thị + cột "Tình trạng tồn kho" cho "BRG Weekly Post"
+
+**Theo yêu cầu người dùng** — gửi lại file mẫu gốc "BRG_Weekly_Post_T6K1_BC1.xlsx"
+(ĐỦ công thức, không chỉ số liệu) để đối chiếu lại toàn bộ báo cáo. Đã
+phân tích kỹ cả 10 sheet, đối chiếu từng công thức với code hiện tại —
+xác nhận MỌI công thức đang chạy đúng (kể cả bản sửa "Toàn chuỗi" ở
+11.35), không phát hiện lỗi tính toán nào. Phát hiện 2 việc có thể làm
+thêm:
+
+1. **Thêm "Tình trạng tồn kho"** (sheet "Chi tiết") — công thức THẬT dò
+   được từ sheet "Data chi tiết" của file mẫu (3 nhánh theo ngành hàng).
+   CHỈ triển khai 2/3 nhánh (Ultra Fresh, Fresh) — hợp lý về đơn vị.
+   Nhánh thứ 3 (Bánh kẹo/Đồ uống/Hóa mỹ phẩm/Thực phẩm) **sai thứ nguyên
+   ngay trong chính file mẫu gốc** (cộng DS thiếu hụt — đơn vị tiền —
+   thẳng với Tồn kho — đơn vị số lượng), gần như luôn ra "chưa đảm bảo"
+   bất kể tồn thật — KHÔNG replicate 1 công thức đã sai từ nguồn.
+2. **Thêm 3 cột** "Số lượng Bill bán lẻ"/"Tổng doanh thu bán lẻ thực
+   tế"/"Tỷ trọng DS KM/Tổng DS bán lẻ" (sheet "Theo siêu thị") — tái
+   dùng NGUYÊN 2 domain đã có sẵn (`doanhthu_chinhanh`/`giaodich_chinhanh`,
+   dùng chung với "Báo cáo tổng hợp doanh thu HCRC") — hàm mới
+   `fetchStoreWideTotals()` ở `lib/brgWeeklyPostCore.js`.
+
+**Xác nhận thêm (không phải lỗi hệ thống)** — đối chiếu công thức gốc
+cột "Doanh số chỉ tiêu theo kế hoạch công ty" (nhìn giống vai trò "Trọng
+số") phát hiện: 1 trong 2 cột tháng dùng để tính trung bình LUÔN ĐỂ
+TRỐNG mọi dòng trong CHÍNH file mẫu gốc, khiến công thức tự chia đôi SAI
+số liệu thật — xác nhận đây là số liệu phòng Vận Hành tự nhập tay, NGOÀI
+hệ thống, không có domain nào đồng bộ được — việc để admin tự nhập
+"Trọng số phân bổ chỉ tiêu" (đã có từ trước) là lựa chọn đúng.
+
+**Sửa lỗi THẬT phát hiện khi làm mục trên** — 3 dòng "Tổng Mart"/"Tổng
+Mini Mart"/"Tổng cộng" ở sheet "Theo siêu thị" hiện SAI 100 LẦN ở cột
+"% Thực hiện doanh số" (vd "0.15%" thay vì "15%") từ trước tới giờ —
+`buildSubtotalRow()` tính riêng, quên nhân 100 như dòng dữ liệu thường
+đã làm (đối chiếu `brgPostRecapRunner.js:buildOverviewRow()` mới phát
+hiện ra sự khác biệt). Đã sửa.
+
+**Không có bước DBA/CSDL mới** (2 domain dùng thêm đã có sẵn từ trước,
+chỉ sửa code).
+
 ## 11.41 — Sửa xoá hàng loạt SKU/trọng số siêu thị dừng hẳn giữa chừng nếu 1 dòng lỗi
 
 **Theo báo cáo người dùng** — bấm "Xoá 163 mục đã chọn" ở trang "Chiến

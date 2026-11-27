@@ -7,11 +7,13 @@
 // xếp trực tiếp trên bảng (cột "Tên siêu thị"/"Tên sản phẩm"), không cần
 // 2 báo cáo riêng hay cơ chế "click để xem" nào đặc biệt.
 //
-// ⚠️ KHÔNG có cột "Tình trạng Tồn kho chưa đảm bảo 50% so với kế hoạch"
-// của file mẫu — đối chiếu nhiều dòng mẫu cho thấy công thức KHÔNG đơn
-// giản là "tồn < 50% kế hoạch" (có dòng tồn thấp hơn mức này nhưng vẫn
-// để trống, không đánh dấu) — chưa suy ra được quy tắc thật, để người
-// xem tự đối chiếu trực tiếp 2 cột "Số lượng tồn"/"Số lượng kế hoạch".
+// SỬA bản 11.42 (theo yêu cầu người dùng — đối chiếu lại file mẫu gốc,
+// người dùng gửi lại ĐÚNG file có công thức thật ở sheet "Data chi tiết")
+// — ĐÃ THÊM cột "Tình trạng tồn kho" — KHÔNG phải "tồn < 50% kế hoạch"
+// như đoán ban đầu, mà theo ĐÚNG công thức thật dò được (CHỈ 2/3 nhánh —
+// xem computeTinhTrangTon() ở lib/brgWeeklyPostCore.js để biết vì sao
+// nhánh thứ 3 KHÔNG replicate — công thức gốc SAI thứ nguyên ngay từ
+// chính file mẫu).
 const { loadCampaignData, buildDetailRows, buildCampaignHeader } = require('./brgWeeklyPostCore');
 const { describeColumns } = require('./reportEngine');
 const { applyDisplayCap } = require('./reportCellFormat');
@@ -27,7 +29,8 @@ function buildColumns() {
     { key: 'doanhThuKeHoach', label: 'DS kế hoạch' },
     { key: 'doanhThuThieuHut', label: 'DS thiếu hụt' },
     { key: 'tonKho', label: 'SL tồn' },
-    { key: 'giaTriTon', label: 'Giá trị tồn' }
+    { key: 'giaTriTon', label: 'Giá trị tồn' },
+    { key: 'tinhTrangTon', label: 'Tình trạng tồn kho' }
   ];
 }
 

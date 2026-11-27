@@ -29,10 +29,20 @@
 // lib/diemStkMapping.js (CÙNG 1 cơ chế dùng khắp hệ thống), KHÔNG tự suy
 // tên/nhóm trực tiếp từ VIEW nguồn (đúng quy ước bắt buộc CLAUDE.md).
 const { sql, getPool } = require('../db');
-const { loadDiemStkMapping, remapRowsToDiem } = require('./diemStkMapping');
+const { loadDiemStkMapping, remapRowsToDiem, buildBuIdLookup } = require('./diemStkMapping');
+const { fetchAllReportRows, aggregateDailyRowsByEntity } = require('./compositeReportRunner');
 
 const SALES_DOMAIN = 'doanhthu_sku_nganhhang';
 const STOCK_DOMAIN = 'tonkho_chitiet_sku';
+// STORE_REVENUE_DOMAIN/TRANSACTION_DOMAIN (bản 11.42, theo yêu cầu người
+// dùng — đối chiếu file mẫu gốc phát hiện "Theo siêu thị" còn thiếu 3 cột
+// "Số lượng Bill bán lẻ"/"Tổng doanh thu bán lẻ thực tế"/"Tỷ trọng DS KM/
+// Tổng DS bán lẻ" so với sheet "By Store" gốc — đây là số liệu CẢ SIÊU
+// THỊ (mọi mặt hàng, không riêng SKU khuyến mãi), ĐÃ CÓ SẴN domain dùng
+// chung với báo cáo "Doanh thu tổng hợp HCRC" (xem
+// lib/doanhThuTongHopHcrcRunner.js) — tái dùng NGUYÊN, không viết lại.
+const STORE_REVENUE_DOMAIN = 'doanhthu_chinhanh'; // khoá STK_ID trực tiếp (entityCode), measure 'DoanhThu'.
+const TRANSACTION_DOMAIN = 'giaodich_chinhanh'; // khoá BU_ID trực tiếp (entityCode, KHÁC STK_ID — 1 mã Điểm = ĐÚNG 1 BU_ID), measure 'SoGiaoDich'.
 
 async function loadCampaign(pool, campaignId) {
   const result = await pool.request().input('id', sql.Int, campaignId).query(`
@@ -129,7 +139,7 @@ function allocateSkuTargetToStores(sku, storeWeights, diemMapping) {
 // giao dịch CẢ siêu thị, không riêng SKU KM) — CHƯA làm ở bản này, xem
 // "bc-brg-weekly-post.md" mục ghi chú phạm vi.
 function buildStoreRows(data) {
-  const { skuMaster, sales, stock, storeWeights, diemMapping, stkToMaDiem } = data;
+  const { skuMaster, sales, stock, storeWeights, diemMapping, stkToMaDiem, storeWideTotals } = data;
   const perStore = new Map();
   function getAcc(maDiem) {
     let acc = perStore.get(maDiem);
@@ -175,6 +185,13 @@ function buildStoreRows(data) {
   const rows = [];
   for (const [maDiem, info] of diemMapping) {
     const acc = perStore.get(maDiem) || { actualQty: 0, actualRevenue: 0, targetQty: 0, targetRevenue: 0, stockQty: 0, stockValue: 0 };
+    // wide (bản 11.42) — Doanh thu/Bill bán lẻ CẢ SIÊU THỊ, KHÁC
+    // `acc.actualRevenue` (chỉ riêng SKU khuyến mãi) — xem
+    // fetchStoreWideTotals(). `storeWideTotals` CÓ THỂ undefined (caller
+    // cũ/khác chưa truyền, vd nếu sau này có nơi khác gọi buildStoreRows()
+    // mà không qua loadCampaignData()) — rơi về {} an toàn, không vỡ.
+    const wide = (storeWideTotals && storeWideTotals.get(maDiem)) || {};
+    const tongDoanhThuBanLe = wide.tongDoanhThuBanLe || 0;
     rows.push({
       maDiem,
       stkId: (info.maStkMoi || []).join(', ') || null,
@@ -187,7 +204,10 @@ function buildStoreRows(data) {
       tyLeThucHien: divOrNull(acc.actualRevenue, acc.targetRevenue),
       tonKho: acc.stockQty,
       giaTriTon: acc.stockValue,
-      storeWeight: storeWeights.byMaDiem.get(maDiem) || 0
+      storeWeight: storeWeights.byMaDiem.get(maDiem) || 0,
+      soLuongBillBanLe: wide.soLuongBillBanLe || 0,
+      tongDoanhThuBanLe,
+      tyTrongDoanhSoKmTrenTongBanLe: divOrNull(acc.actualRevenue, tongDoanhThuBanLe)
     });
   }
   return rows;
@@ -315,6 +335,45 @@ function divOrNull(numerator, denominator) {
   return numerator / denominator;
 }
 
+// fetchStoreWideTotals (bản 11.42, theo yêu cầu người dùng — đối chiếu
+// file mẫu gốc "By Store" phát hiện báo cáo "Theo siêu thị" còn thiếu 3
+// cột "Số lượng Bill bán lẻ"/"Tổng doanh thu bán lẻ thực tế"/"Tỷ trọng DS
+// KM/Tổng DS bán lẻ") — ĐÚNG số liệu CẢ SIÊU THỊ (mọi mặt hàng, KHÔNG
+// riêng SKU khuyến mãi), tái dùng NGUYÊN 2 domain đã có sẵn (dùng chung
+// với "Báo cáo tổng hợp doanh thu HCRC", xem lib/doanhThuTongHopHcrcRunner.js)
+// — KHÔNG viết lại logic đọc domain, chỉ ghép lại cho đúng khuôn báo cáo
+// này (1 dòng/mã Điểm, gộp CẢ khoảng [from,to] thay vì từng ngày).
+async function fetchStoreWideTotals(dwhPool, diemMapping, from, to) {
+  const [revenueRaw, transactionRaw] = await Promise.all([
+    fetchAllReportRows(dwhPool, { domain: STORE_REVENUE_DOMAIN, filters: [{ field: 'eventDate', type: 'dateRange' }] }, { eventDate: { from, to } }),
+    fetchAllReportRows(dwhPool, { domain: TRANSACTION_DOMAIN, filters: [{ field: 'eventDate', type: 'dateRange' }] }, { eventDate: { from, to } })
+  ]);
+  // doanhthu_chinhanh khoá STK_ID TRỰC TIẾP (entityCode) — dịch qua
+  // remapRowsToDiem() NHƯ MỌI domain khoá STK khác trong file này (trả
+  // ĐỦ 1 dòng/mã Điểm, kể cả mã Điểm chưa có dòng doanh thu — measures={}).
+  const revenueByDiem = remapRowsToDiem(aggregateDailyRowsByEntity(revenueRaw), diemMapping, false);
+  // giaodich_chinhanh khoá BU_ID (1 mã Điểm = ĐÚNG 1 BU_ID, KHÁC STK_ID có
+  // thể nhiều mã/mã Điểm) — dịch TAY qua buildBuIdLookup(), KHÔNG qua
+  // remapRowsToDiem() (hàm đó chỉ hiểu đúng kiểu danh sách STK — xem chú
+  // thích cùng mẫu ở lib/doanhThuTongHopHcrcRunner.js:sumTransactionsByBuId()).
+  const buIdLookup = buildBuIdLookup(diemMapping);
+  const transactionByDiem = new Map();
+  for (const row of aggregateDailyRowsByEntity(transactionRaw)) {
+    const maDiem = buIdLookup.get(row.entityCode);
+    if (!maDiem) continue;
+    const soGiaoDich = (row.measures && row.measures.SoGiaoDich) || 0;
+    transactionByDiem.set(maDiem, (transactionByDiem.get(maDiem) || 0) + soGiaoDich);
+  }
+  const out = new Map();
+  for (const r of revenueByDiem) {
+    out.set(r.entityCode, {
+      tongDoanhThuBanLe: r.measures.DoanhThu || 0,
+      soLuongBillBanLe: transactionByDiem.get(r.entityCode) || 0
+    });
+  }
+  return out;
+}
+
 // Ghép TOÀN BỘ dữ liệu của 1 chiến dịch — dùng CHUNG cho mọi "view" phía
 // sau. `periodFrom/periodTo` mặc định = [StartDate, DataUpdatedThrough ||
 // hôm nay] (nếu cần khác, caller tự cắt lại trên `skuRows`/`byMaHangStore`
@@ -360,14 +419,20 @@ async function loadCampaignData(campaignId, periodFromOverride, periodToOverride
   const maHangList = skuMaster.map(s => s.maHang);
   const skuCodeList = skuMaster.filter(s => s.skuCode).map(s => s.skuCode);
 
-  const [sales, stock] = await Promise.all([
+  const [sales, stock, storeWideTotals] = await Promise.all([
     fetchActualSales(dwhPool, maHangList, periodFrom, periodTo),
-    fetchCurrentStock(dwhPool, skuCodeList)
+    fetchCurrentStock(dwhPool, skuCodeList),
+    // storeWideTotals (bản 11.42) — Doanh thu/Bill bán lẻ CẢ SIÊU THỊ
+    // trong ĐÚNG khoảng [periodFrom, periodTo] (khớp đúng khoảng ngày
+    // dùng cho SALES ở trên) — xem fetchStoreWideTotals().
+    fetchStoreWideTotals(dwhPool, diemMapping, periodFrom, periodTo)
   ]);
 
-  // buildBuIdLookup không cần ở đây (báo cáo này không dùng domain
-  // giaodich_chinhanh) — chỉ cần dịch STK_ID -> mã Điểm cho sales.byMaHangStore
-  // và MaChiNhanh (= STK_ID) -> mã Điểm cho stock.byCodeStore.
+  // buildBuIdLookup CHO sales/stock KHÔNG CẦN ở đây (2 domain đó không
+  // khoá theo BU_ID) — chỉ cần dịch STK_ID -> mã Điểm cho sales.byMaHangStore
+  // và MaChiNhanh (= STK_ID) -> mã Điểm cho stock.byCodeStore. buildBuIdLookup
+  // THẬT SỰ dùng bên trong fetchStoreWideTotals() ở trên (domain
+  // giaodich_chinhanh khoá BU_ID).
   const stkToMaDiem = new Map();
   for (const [maDiem, info] of diemMapping) {
     for (const stk of info.maStkMoi) stkToMaDiem.set(stk, maDiem);
@@ -402,7 +467,7 @@ async function loadCampaignData(campaignId, periodFromOverride, periodToOverride
 
   return {
     campaign, skuMaster, skuRows, storeWeights, diemMapping, stkToMaDiem,
-    sales, stock, periodFrom, periodTo,
+    sales, stock, storeWideTotals, periodFrom, periodTo,
     totalCampaignDays, elapsedDays, projectionFactor
   };
 }
@@ -413,6 +478,46 @@ async function loadCampaignData(campaignId, periodFromOverride, periodToOverride
 // xem theo 1 chiều hay chiều khác — ở đây trả THẲNG toàn bộ, người xem tự
 // lọc/sắp xếp trên bảng web theo tên ST.CH hay tên hàng, không cần 2 báo
 // cáo riêng).
+// computeTinhTrangTon (bản 11.42, theo yêu cầu người dùng — dò lại công
+// thức cột "Tình trạng Tồn kho chưa đảm bảo 50% so với kế hoạch" của file
+// mẫu gốc, trước đây "bc-brg-weekly-post.md" ghi "không suy ra được công
+// thức nhất quán"). Đối chiếu TRỰC TIẾP công thức thật trong sheet "Data
+// chi tiết" của file mẫu gốc (người dùng gửi lại), công thức ĐỦ 3 nhánh
+// theo ngành hàng:
+//   =IF(AND(OR(NH="ultra fresh",NH="NKTT UF"),(Tồn-KH/số ngày)<0),
+//        "chưa đảm bảo",
+//     IF(AND(NH="Fresh",(Tồn-KH*3/số ngày)<0),"chưa đảm bảo",
+//       IF(AND((thiếu hụt/2+Tồn)<0,
+//              OR(NH="Bánh kẹo",NH="Đồ uống",NH="Hóa mỹ phẩm",NH="Thực phẩm")),
+//          "chưa đảm bảo",0)))
+// CHỈ triển khai 2 NHÁNH ĐẦU — hợp lý về đơn vị (so "Tồn kho" là SỐ LƯỢNG
+// với "Kế hoạch/số ngày CTKM" cũng SỐ LƯỢNG):
+//   - "Ultra Fresh"/"NKTT UF" (giao hàng 1 ngày/lần, theo chú thích CHÍNH
+//     file mẫu): Tồn < Kế hoạch ÷ số ngày CTKM → "Chưa đảm bảo".
+//   - "Fresh" (giao hàng 3 ngày/lần — SỬA ĐÚNG LẠI công thức thật,
+//     "Tồn − Kế hoạch×3/số ngày" KHÔNG PHẢI "Tồn/3" như bản nháp đầu —
+//     nghĩa là so Tồn với nhu cầu 3 NGÀY tới, không phải chia Tồn cho 3):
+//     Tồn < Kế hoạch × 3 ÷ số ngày CTKM → "Chưa đảm bảo".
+// CỐ Ý KHÔNG làm nhánh thứ 3 (Bánh kẹo/Đồ uống/Hóa mỹ phẩm/Thực phẩm) —
+// công thức gốc "(DS thiếu hụt/2 + Tồn) < 0" CỘNG THẲNG "DS thiếu hụt"
+// (ĐƠN VỊ TIỀN — thường ÂM hàng triệu/tỷ đồng khi SKU CHƯA ĐẠT đủ kế
+// hoạch, chuyện BÌNH THƯỜNG giữa kỳ CTKM) VỚI "Tồn" (ĐƠN VỊ SỐ LƯỢNG —
+// chỉ vài/vài chục) — SAI THỨ NGUYÊN NGAY TỪ CHÍNH FILE MẪU GỐC, khiến
+// nhánh này GẦN NHƯ LUÔN ra "chưa đảm bảo" cho MỌI SKU chưa đạt đủ kế
+// hoạch bất kể tồn kho thật còn bao nhiêu — KHÔNG replicate 1 công thức
+// đã sai thứ nguyên ngay từ nguồn. 4 ngành hàng này để trống (không đánh
+// giá) — người xem tự đối chiếu "SL tồn"/"SL kế hoạch" nếu cần.
+function computeTinhTrangTon(row, totalCampaignDays) {
+  const dept = (row.deptName || '').trim().toLowerCase();
+  if (dept === 'ultra fresh' || dept === 'nktt uf') {
+    return (row.tonKho - row.soLuongKeHoach / totalCampaignDays) < 0 ? 'Chưa đảm bảo' : '';
+  }
+  if (dept === 'fresh') {
+    return (row.tonKho - (row.soLuongKeHoach * 3) / totalCampaignDays) < 0 ? 'Chưa đảm bảo' : '';
+  }
+  return '';
+}
+
 function buildDetailRows(data) {
   const { skuMaster, sales, stock, storeWeights, diemMapping, stkToMaDiem } = data;
   // 1 dòng/(maDiem, maHang), khởi tạo SẴN đủ mọi tổ hợp = 0 — rồi CỘNG
@@ -427,6 +532,7 @@ function buildDetailRows(data) {
     if (!row) {
       row = {
         maDiem, tenSieuThi: info.tenSieuThi || null, maHang: sku.maHang, skuCode: sku.skuCode, skuName: sku.skuName,
+        deptName: sku.deptName || null,
         soLuongThucTe: 0, soLuongKeHoach: 0, doanhThuThucTe: 0, doanhThuKeHoach: 0, tonKho: 0, giaTriTon: 0
       };
       byKey.set(key, row);
@@ -471,7 +577,11 @@ function buildDetailRows(data) {
     }
   }
 
-  for (const row of byKey.values()) row.doanhThuThieuHut = row.doanhThuThucTe - row.doanhThuKeHoach;
+  const totalCampaignDays = data.totalCampaignDays || 1;
+  for (const row of byKey.values()) {
+    row.doanhThuThieuHut = row.doanhThuThucTe - row.doanhThuKeHoach;
+    row.tinhTrangTon = computeTinhTrangTon(row, totalCampaignDays);
+  }
   return [...byKey.values()];
 }
 

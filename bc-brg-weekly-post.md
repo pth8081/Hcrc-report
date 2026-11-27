@@ -38,7 +38,10 @@ mất lựa chọn chiến dịch đang xem):
    suy hết kỳ) + Tồn kho/Giá trị tồn.
 3. **"Theo siêu thị"** (sheet "By Store") — 1 dòng/siêu thị: tổng thực
    tế của CÁC SKU trong chiến dịch TẠI siêu thị đó + chỉ tiêu ĐÃ PHÂN BỔ
-   (xem mục 2), nhóm Mart/Mini Mart + dòng Tổng.
+   (xem mục 2), nhóm Mart/Mini Mart + dòng Tổng. **Từ bản 11.42**: thêm
+   "Số lượng Bill bán lẻ"/"Tổng doanh thu bán lẻ thực tế"/"Tỷ trọng DS
+   KM/Tổng DS bán lẻ" — số liệu CẢ SIÊU THỊ (mọi mặt hàng, không riêng
+   SKU khuyến mãi), xem mục ghi chú bên dưới.
 4. **"Xếp hạng sản phẩm"** (GỘP 4 sheet nhỏ "Top SL"/"Top DS"/"Top KH"/
    "Vượt KH" — cùng 1 bộ cột, khác nhau ở sắp xếp/lọc) — Top 20 SL thực
    tế cao nhất, Top 20 DT thực tế cao nhất, Top 20 DT kế hoạch cao
@@ -47,7 +50,9 @@ mất lựa chọn chiến dịch đang xem):
 5. **"Chi tiết (Siêu thị x Sản phẩm)"** (GỘP 2 sheet "Từng ST.CH"/"Từng
    sản phẩm" — file mẫu dùng slicer Excel để lọc xem theo 1 chiều, ở
    đây trả thẳng toàn bộ, lọc/sắp xếp trực tiếp trên bảng web) — 1
-   dòng/(siêu thị, SKU), có thể vài nghìn dòng, KHÔNG phân trang.
+   dòng/(siêu thị, SKU), có thể vài nghìn dòng, KHÔNG phân trang. **Từ
+   bản 11.42**: thêm cột "Tình trạng tồn kho" — xem mục ghi chú bên
+   dưới.
 
 **Nút "Xuất Excel đủ 5 sheet" (bản 11.26)** — ngoài nút "Xuất Excel"
 thường (chỉ xuất ĐÚNG 1 sheet đang xem), trang báo cáo có thêm nút RIÊNG
@@ -91,9 +96,47 @@ Mart + Mini Mart" (xem `lib/brgPostRecapRunner.js`).
   xác nhận qua đối chiếu số liệu đây là điều chỉnh TAY, MỘT LẦN, CHỈ
   riêng SKU "Bia 333" của ĐÚNG chiến dịch mẫu đó, không có quy tắc chung
   để tự động hoá.
-- **KHÔNG replicate** cột "Tình trạng Tồn kho chưa đảm bảo 50% so với
-  kế hoạch" — đối chiếu nhiều dòng mẫu không suy ra được công thức nhất
-  quán (có dòng tồn thấp hơn 50% kế hoạch nhưng vẫn không bị đánh dấu).
+- **"Tình trạng tồn kho"** (sheet "Chi tiết", bản 11.42) — công thức THẬT
+  dò được từ sheet "Data chi tiết" của file mẫu gốc (người dùng gửi lại
+  đúng file có công thức, trước đây chỉ có số liệu không có công thức):
+  ```
+  =IF(AND(OR(NH="ultra fresh",NH="NKTT UF"),(Tồn-KH/số ngày)<0),"chưa đảm bảo",
+    IF(AND(NH="Fresh",(Tồn-KH*3/số ngày)<0),"chưa đảm bảo",
+      IF(AND((thiếu hụt/2+Tồn)<0,OR(NH="Bánh kẹo",NH="Đồ uống",NH="Hóa mỹ phẩm",NH="Thực phẩm")),"chưa đảm bảo",0)))
+  ```
+  **CHỈ triển khai 2 nhánh đầu** (`computeTinhTrangTon()` ở
+  `lib/brgWeeklyPostCore.js`) — Ultra Fresh/NKTT UF: Tồn < Kế hoạch ÷ số
+  ngày CTKM (giao hàng 1 ngày/lần); Fresh: Tồn < Kế hoạch × 3 ÷ số ngày
+  CTKM (giao hàng 3 ngày/lần) — 2 nhánh này hợp lý về đơn vị (so SỐ
+  LƯỢNG với SỐ LƯỢNG). **CỐ Ý KHÔNG làm nhánh thứ 3** (Bánh kẹo/Đồ uống/
+  Hóa mỹ phẩm/Thực phẩm) — công thức gốc `(DS thiếu hụt/2 + Tồn) < 0`
+  cộng thẳng "DS thiếu hụt" (ĐƠN VỊ TIỀN, thường âm hàng triệu/tỷ đồng
+  khi SKU chưa đạt đủ kế hoạch — chuyện bình thường giữa kỳ CTKM) với
+  "Tồn" (ĐƠN VỊ SỐ LƯỢNG, chỉ vài/vài chục) — **sai thứ nguyên ngay từ
+  chính file mẫu gốc**, khiến nhánh này gần như luôn ra "chưa đảm bảo"
+  cho mọi SKU chưa đạt đủ kế hoạch bất kể tồn kho thật còn bao nhiêu —
+  không có giá trị tham khảo thật, không replicate 1 công thức đã sai.
+  4 ngành hàng này để trống ở cột "Tình trạng tồn kho".
+- **3 cột doanh thu/giao dịch CẢ SIÊU THỊ** (sheet "Theo siêu thị", bản
+  11.42) — "Số lượng Bill bán lẻ"/"Tổng doanh thu bán lẻ thực tế"/"Tỷ
+  trọng DS KM/Tổng DS bán lẻ" — tái dùng NGUYÊN 2 domain đã có sẵn
+  (`doanhthu_chinhanh`/`giaodich_chinhanh`, dùng chung với "Báo cáo tổng
+  hợp doanh thu HCRC") — xem `lib/brgWeeklyPostCore.js:fetchStoreWideTotals()`.
+  **VẪN KHÔNG LÀM** "Doanh số chỉ tiêu theo kế hoạch công ty tháng..."
+  (2 cột + 2 cột phụ thuộc) — số liệu phòng Vận Hành (VH) TỰ NHẬP TAY
+  hàng tháng, KHÔNG nằm trong bất kỳ domain nào hệ thống đồng bộ được —
+  xác nhận qua chính file mẫu gốc: 1 trong 2 cột tháng LUÔN ĐỂ TRỐNG mọi
+  dòng, khiến công thức trung bình tự chia đôi SAI số liệu thật (vd
+  3.971.666.223 ÷ 2 = 1.985.833.112, dù cột kia = 0) — xác nhận đây là
+  lỗi/giới hạn của chính quy trình Excel gốc (VH chưa nộp đủ 2 tháng),
+  không phải thiếu sót ở hệ thống này. Đây CHÍNH LÀ lý do "Trọng số phân
+  bổ chỉ tiêu" của báo cáo này để admin TỰ NHẬP (xem mục 2) thay vì tự
+  tính — không có nguồn hệ thống nào đáng tin cậy hơn.
+- **SỬA LỖI THẬT (bản 11.42)** — 3 dòng "Tổng Mart"/"Tổng Mini Mart"/
+  "Tổng cộng" ở sheet "Theo siêu thị" trước đây hiện SAI 100 LẦN ở cột
+  "% Thực hiện doanh số" (vd "0.15%" thay vì "15%") — do
+  `buildSubtotalRow()` tính riêng, không đi qua bước nhân 100 áp dụng cho
+  dòng dữ liệu thường. Đã sửa nhân 100 ngay trong hàm đó.
 
 ## 2. Nguồn dữ liệu
 
