@@ -135,10 +135,25 @@ router.get('/dashboard-groups-catalog', async (req, res, next) => {
 // khiến 1 vai trò được giao đúng CHỦ ĐÍCH "chỉ quản lý Phân quyền, không cần
 // là Admin hệ thống" (xem lib/auth.js:264-274) không tải được danh sách báo
 // cáo để tick — mirror đúng cách domains-catalog bên dưới đã làm.
+// THÊM MenuCode/MenuLabel/MenuSortOrder (bản 11.53, theo yêu cầu người
+// dùng — "trong phần quyền bc này chia ra các bc đúng như trong các mục bc
+// hiện có") — JOIN app.MenuItems (CÙNG bảng/cấu trúc đang dùng để vẽ tab
+// "Báo cáo kinh doanh"/"Báo cáo vận hành"/"Báo cáo Mua hàng"/"Báo cáo
+// MKT" ở rp-user:ReportsPage.jsx + routes/reports.js) để FE nhóm checkbox
+// "Báo cáo được chạy" theo ĐÚNG mục báo cáo thật (KHÔNG hardcode tên nhóm
+// ở FE — group theo MenuLabel thật, tự động đúng cả khi thêm mục menu mới
+// sau này, kể cả nhóm "Hệ thống"/Quản trị nếu sau này có báo cáo gán vào
+// đó). Sắp xếp theo SortOrder của menu rồi mới tới Title — ĐÚNG thứ tự tab
+// thật đang hiển thị cho người dùng cuối.
 router.get('/report-catalog', async (req, res, next) => {
   try {
     const pool = await getPool('RP');
-    const result = await pool.request().query('SELECT ReportId, Title FROM app.ReportCatalog ORDER BY Title');
+    const result = await pool.request().query(`
+      SELECT c.ReportId, c.Title, m.Code AS MenuCode, m.Label AS MenuLabel, m.SortOrder AS MenuSortOrder
+      FROM app.ReportCatalog c
+      JOIN app.MenuItems m ON c.MenuItemId = m.Id
+      ORDER BY m.SortOrder, c.Title
+    `);
     res.json(result.recordset);
   } catch (err) { next(err); }
 });

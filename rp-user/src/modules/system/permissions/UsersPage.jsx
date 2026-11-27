@@ -158,6 +158,18 @@ export default function UsersPage() {
     return `${dashboardId}::${groupKey}`;
   }
 
+  // groupReportCatalog (bản 11.53) — ĐÚNG mẫu RolesPage.jsx (xem chú thích
+  // đầy đủ ở đó) — nhóm "Báo cáo được chạy thêm" theo MenuLabel thật.
+  function groupReportCatalog(catalog) {
+    const groups = new Map();
+    for (const r of catalog) {
+      const label = r.MenuLabel || 'Khác';
+      if (!groups.has(label)) groups.set(label, []);
+      groups.get(label).push(r);
+    }
+    return [...groups.entries()];
+  }
+
   function toggleDashboardGroupAccess(dashboardId, groupKey, field) {
     const mapKey = dashboardGroupKey(dashboardId, groupKey);
     setDashboardGroupAccess(prev => {
@@ -443,17 +455,22 @@ export default function UsersPage() {
             )}
 
             <h4>Báo cáo được chạy thêm</h4>
-            {reportCatalog.map(r => (
-              <label key={r.ReportId} className="checkbox-row">
-                <input
-                  type="checkbox"
-                  checked={selectedReportIds.includes(r.ReportId)}
-                  onChange={(e) => setSelectedReportIds(e.target.checked
-                    ? [...selectedReportIds, r.ReportId]
-                    : selectedReportIds.filter(id => id !== r.ReportId))}
-                />
-                {r.Title}
-              </label>
+            {groupReportCatalog(reportCatalog).map(([menuLabel, reports]) => (
+              <div key={menuLabel}>
+                <div className="report-catalog-group-label">{menuLabel}</div>
+                {reports.map(r => (
+                  <label key={r.ReportId} className="checkbox-row">
+                    <input
+                      type="checkbox"
+                      checked={selectedReportIds.includes(r.ReportId)}
+                      onChange={(e) => setSelectedReportIds(e.target.checked
+                        ? [...selectedReportIds, r.ReportId]
+                        : selectedReportIds.filter(id => id !== r.ReportId))}
+                    />
+                    {r.Title}
+                  </label>
+                ))}
+              </div>
             ))}
 
             <div className="modal-actions">

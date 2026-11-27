@@ -48,6 +48,24 @@ export default function RolesPage() {
     return `${dashboardId}::${groupKey}`;
   }
 
+  // groupReportCatalog (bản 11.53, theo yêu cầu người dùng — "chia ra các
+  // bc đúng như trong các mục bc hiện có") — nhóm theo MenuLabel THẬT (JOIN
+  // sẵn ở server, xem routes/roles.js:/report-catalog), ĐÚNG mục báo cáo
+  // đang hiển thị thật cho người dùng cuối (Báo cáo kinh doanh/vận hành/
+  // Mua hàng/MKT...) — KHÔNG hardcode tên nhóm ở đây, tự đúng khi thêm mục
+  // menu mới/báo cáo gán vào "Hệ thống" (Quản trị) sau này. `reportCatalog`
+  // server đã ORDER BY MenuSortOrder, Title — giữ NGUYÊN thứ tự đó khi gom
+  // nhóm (Map giữ thứ tự chèn), không sort lại ở FE.
+  function groupReportCatalog(catalog) {
+    const groups = new Map();
+    for (const r of catalog) {
+      const label = r.MenuLabel || 'Khác';
+      if (!groups.has(label)) groups.set(label, []);
+      groups.get(label).push(r);
+    }
+    return [...groups.entries()];
+  }
+
   function toggleDashboardGroupAccess(dashboardId, groupKey, field) {
     const mapKey = dashboardGroupKey(dashboardId, groupKey);
     setDashboardGroupAccess(prev => {
@@ -227,17 +245,22 @@ export default function RolesPage() {
             )}
 
             <h4>Báo cáo được chạy</h4>
-            {reportCatalog.map(r => (
-              <label key={r.ReportId} className="checkbox-row">
-                <input
-                  type="checkbox"
-                  checked={selectedReportIds.includes(r.ReportId)}
-                  onChange={(e) => setSelectedReportIds(e.target.checked
-                    ? [...selectedReportIds, r.ReportId]
-                    : selectedReportIds.filter(id => id !== r.ReportId))}
-                />
-                {r.Title}
-              </label>
+            {groupReportCatalog(reportCatalog).map(([menuLabel, reports]) => (
+              <div key={menuLabel}>
+                <div className="report-catalog-group-label">{menuLabel}</div>
+                {reports.map(r => (
+                  <label key={r.ReportId} className="checkbox-row">
+                    <input
+                      type="checkbox"
+                      checked={selectedReportIds.includes(r.ReportId)}
+                      onChange={(e) => setSelectedReportIds(e.target.checked
+                        ? [...selectedReportIds, r.ReportId]
+                        : selectedReportIds.filter(id => id !== r.ReportId))}
+                    />
+                    {r.Title}
+                  </label>
+                ))}
+              </div>
             ))}
 
             <h4>Domain được tự khám phá (Báo cáo MKT)</h4>

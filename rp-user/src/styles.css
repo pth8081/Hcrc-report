@@ -86,6 +86,13 @@ button:disabled, button:disabled:hover {
    Dashboard (nhãn nhóm + 2 checkbox Xem dashboard/Xem chi tiết). */
 .dashboard-group-access-row { display: flex; align-items: center; gap: 16px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px; margin-bottom: 6px; }
 .dashboard-group-access-label { font-size: 13.5px; font-weight: 600; flex: 1; }
+
+/* .report-catalog-group-label (bản 11.53) — tiêu đề phụ nhóm "Báo cáo được
+   chạy"/"Báo cáo được chạy thêm" theo ĐÚNG mục báo cáo thật (Báo cáo kinh
+   doanh/vận hành/Mua hàng/MKT...), xem RolesPage.jsx/UsersPage.jsx. Nhỏ
+   hơn h4 (tiêu đề nhóm LỚN "Báo cáo được chạy") 1 bậc, có viền trên ngăn
+   cách rõ giữa các nhóm liên tiếp. */
+.report-catalog-group-label { font-size: 12.5px; font-weight: 600; color: var(--ink-soft); margin: 10px 0 4px; padding-top: 8px; border-top: 1px dashed var(--line); }
 .date-range { display: flex; align-items: center; gap: 6px; }
 /* .date-range-clear (bản 11.31, theo yêu cầu người dùng) — nút "Xoá" nhỏ,
    gọn, KHÁC hẳn nút chính (không dùng --accent cam to) để không lấn át 2 ô
