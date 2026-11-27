@@ -14,6 +14,22 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 11.53 — "Gán quyền" chia nhóm "Báo cáo được chạy" theo đúng mục báo cáo thật
+
+**Không có bước DBA/CSDL mới** — thuần sửa code `rp-server`/`rp-user`.
+
+**Các bước**:
+1. `git pull origin main`.
+2. `cd rp-server && pm2 restart hcrc-rp-server` (sửa `routes/roles.js`).
+3. `cd rp-user && npm run build` (sửa `RolesPage.jsx`/`UsersPage.jsx`/
+   `styles.css`) rồi deploy lại theo đúng quy trình đang dùng.
+
+**Kiểm tra**: Hệ thống → Phân quyền → tab Vai trò → "Gán quyền" (hoặc tab
+Người dùng → "Gán quyền") — mục "Báo cáo được chạy" phải hiện tách theo
+từng mục ("Báo cáo kinh doanh"/"Báo cáo vận hành"/"Báo cáo Mua hàng"/
+"Báo cáo MKT"...), có dòng kẻ phân cách rõ giữa các mục, KHÔNG còn 1 danh
+sách phẳng như trước. Xem "VERSION.md" mục bản 11.53.
+
 ## 11.52 — Gộp 3 báo cáo "Theo dõi doanh thu MTD theo kế hoạch" thành 1
 
 **Không có bước DBA/CSDL mới** — thuần sửa code `rp-server` + chạy lại 1

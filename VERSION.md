@@ -52,6 +52,26 @@ nội dung/hành vi nào đã làm. Lịch sử Git (commit message) vẫn còn 
 "Bản 10.100"/"Bản 10.101" (không sửa lại lịch sử Git) — coi là ĐỒNG NHẤT
 với "11.0"/"11.1".
 
+## 11.53 — "Gán quyền" (Vai trò/Người dùng) chia nhóm "Báo cáo được chạy" theo đúng mục báo cáo thật
+
+**Theo yêu cầu người dùng** — "Trong phần quyền bc này chia ra các bc đúng
+như trong các mục bc hiện có và quản trị nhé". Trước đây mục "Báo cáo được
+chạy" ở modal "Gán quyền" (tab Vai trò) và "Báo cáo được chạy thêm" (tab
+Người dùng) liệt kê PHẲNG toàn bộ `app.ReportCatalog` theo Title, không
+phân biệt báo cáo thuộc mục nào — khó tìm khi danh mục ngày càng nhiều.
+
+**Đã sửa**: `GET /system/roles/report-catalog` (routes/roles.js) JOIN
+thêm `app.MenuItems` (CÙNG bảng/cấu trúc đang dùng vẽ tab "Báo cáo kinh
+doanh"/"Báo cáo vận hành"/"Báo cáo Mua hàng"/"Báo cáo MKT" ở
+rp-user:ReportsPage.jsx), trả thêm `MenuLabel`/`MenuSortOrder`. FE
+(`RolesPage.jsx`/`UsersPage.jsx`) nhóm checkbox theo `MenuLabel` THẬT
+(không hardcode tên nhóm ở FE) — tự đúng cả khi thêm mục menu mới/báo cáo
+gán vào nhóm "Hệ thống" (Quản trị) sau này, không cần sửa code lại. Mỗi
+nhóm có dòng kẻ phân cách (`report-catalog-group-label`, `styles.css`).
+
+Verify: gửi ảnh demo (Playwright + mock API) cho người dùng xác nhận
+đúng ý trước khi merge — người dùng xác nhận "Bạn merge nhé".
+
 ## 11.52 — Gộp 3 báo cáo "Theo dõi doanh thu MTD theo kế hoạch" (Toàn chuỗi/LFL/NSO) thành 1
 
 **Theo yêu cầu người dùng** — "Tôi muốn gộp 3 báo cáo MTD gộp lại thành 1
