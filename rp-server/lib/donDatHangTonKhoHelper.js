@@ -60,6 +60,15 @@ function dayOnly(d) {
 // nữa (đã rút kinh nghiệm lỗi bản 9.17 ở purchaseOrderRunner.js: lọc trước
 // khi gộp theo đơn làm rụng mất dòng cần ghép cặp) — PerOrder JOIN lại toàn
 // bộ dòng (133 VÀ 333) của ĐÚNG những đơn đó, bất kể dòng 333 rơi ngày nào.
+// SỬA LỖI HIỆU NĂNG THẬT (bản 11.51, xem dwh/schema.sql cột LoaiGiaoDich/
+// SoDon/MaDiem) — TRƯỚC ĐÂY lọc/JOIN/GROUP BY hoàn toàn qua JSON_VALUE()
+// tính trực tiếp trong câu lệnh, KHÔNG qua index nào (RecentOrders quét
+// HẾT domain đúng cửa sổ ngày để tính JSON_VALUE() từng dòng; PerOrder còn
+// JOIN lại `dwh.ReportFacts` theo JSON_VALUE()=JSON_VALUE(), bắt buộc quét
+// TOÀN BỘ domain — domain `don_dat_hang` giữ lịch sử nhiều năm, có thể rất
+// lớn) — giờ lọc/JOIN/GROUP BY thẳng theo cột persisted-như-không-PERSISTED
+// (SoDon/MaDiem/LoaiGiaoDich/MaHangHienThi), SQL Server seek được qua index
+// thay vì quét hết. CHỈ đổi CÁCH TRUY VẤN — công thức/kết quả giữ NGUYÊN.
 async function queryChoNhapNcc(pool, pendingFrom, today) {
   const req = pool.request();
   req.input('domain', sql.VarChar(50), DON_DAT_HANG_DOMAIN);
@@ -67,26 +76,24 @@ async function queryChoNhapNcc(pool, pendingFrom, today) {
   req.input('today', sql.Date, today);
   const result = await req.query(`
     WITH RecentOrders AS (
-      SELECT DISTINCT
-        JSON_VALUE(Dimensions, '$.SoDon') AS SoDon,
-        JSON_VALUE(Dimensions, '$.MaDiem') AS BuId
+      SELECT DISTINCT SoDon, MaDiem AS BuId
       FROM dwh.ReportFacts
       WHERE Domain = @domain
-        AND JSON_VALUE(Dimensions, '$.LoaiGiaoDich') = '133'
+        AND LoaiGiaoDich = '133'
         AND EventDate >= @pendingFrom AND EventDate <= @today
     ),
     PerOrder AS (
-      SELECT ro.BuId, ro.SoDon, JSON_VALUE(f.Dimensions, '$.MaHangHienThi') AS SkuCode,
-        SUM(CASE WHEN JSON_VALUE(f.Dimensions, '$.LoaiGiaoDich') IN ('133','130','330')
+      SELECT ro.BuId, ro.SoDon, f.MaHangHienThi AS SkuCode,
+        SUM(CASE WHEN f.LoaiGiaoDich IN ('133','130','330')
                  THEN CAST(JSON_VALUE(f.Measures, '$.SoLuong') AS DECIMAL(18,4)) ELSE 0 END) AS SoLuongTheoDon,
-        SUM(CASE WHEN JSON_VALUE(f.Dimensions, '$.LoaiGiaoDich') = '333'
+        SUM(CASE WHEN f.LoaiGiaoDich = '333'
                  THEN CAST(JSON_VALUE(f.Measures, '$.SoLuong') AS DECIMAL(18,4)) ELSE 0 END) AS SoLuongThucNhan
       FROM dwh.ReportFacts f
       INNER JOIN RecentOrders ro
-        ON JSON_VALUE(f.Dimensions, '$.SoDon') = ro.SoDon
-        AND JSON_VALUE(f.Dimensions, '$.MaDiem') = ro.BuId
+        ON f.SoDon = ro.SoDon
+        AND f.MaDiem = ro.BuId
       WHERE f.Domain = @domain
-      GROUP BY ro.BuId, ro.SoDon, JSON_VALUE(f.Dimensions, '$.MaHangHienThi')
+      GROUP BY ro.BuId, ro.SoDon, f.MaHangHienThi
     )
     SELECT BuId, SkuCode,
       SUM(CASE WHEN SoLuongTheoDon - SoLuongThucNhan > 0 THEN SoLuongTheoDon - SoLuongThucNhan ELSE 0 END) AS ChoNhap
@@ -104,13 +111,13 @@ async function queryDaNhapHomNayNcc(pool, today) {
   req.input('domain', sql.VarChar(50), DON_DAT_HANG_DOMAIN);
   req.input('today', sql.Date, today);
   const result = await req.query(`
-    SELECT JSON_VALUE(Dimensions, '$.MaDiem') AS BuId, JSON_VALUE(Dimensions, '$.MaHangHienThi') AS SkuCode,
+    SELECT MaDiem AS BuId, MaHangHienThi AS SkuCode,
       SUM(CAST(JSON_VALUE(Measures, '$.SoLuong') AS DECIMAL(18,4))) AS DaNhap
     FROM dwh.ReportFacts
     WHERE Domain = @domain AND EventDate = @today
-      AND JSON_VALUE(Dimensions, '$.LoaiGiaoDich') = '333'
-      AND JSON_VALUE(Dimensions, '$.MaHangHienThi') IS NOT NULL
-    GROUP BY JSON_VALUE(Dimensions, '$.MaDiem'), JSON_VALUE(Dimensions, '$.MaHangHienThi')
+      AND LoaiGiaoDich = '333'
+      AND MaHangHienThi IS NOT NULL
+    GROUP BY MaDiem, MaHangHienThi
   `);
   return result.recordset;
 }
@@ -129,28 +136,33 @@ async function queryDaNhapHomNayNcc(pool, today) {
 // ‼️ LƯU Ý HIỆU NĂNG ‼️ domain `don_dat_hang` có "Giữ lịch sử theo ngày"
 // (KeepHistory=1), có thể tích luỹ RẤT NHIỀU dòng qua nhiều năm — quét
 // KHÔNG giới hạn ngày (đúng yêu cầu nghiệp vụ, không bounded được) có thể
-// CHẬM trên domain lớn. CHƯA áp dụng giới hạn trước vì chưa có số liệu
-// thật để biết có cần không — nếu gặp timeout khi dùng thật, cần bổ sung
-// index/giới hạn hợp lý sau.
+// CHẬM trên domain lớn. ĐÃ XẢY RA (bản 11.51, báo cáo người dùng "Core
+// stock = 0" tải rất chậm) — lọc/PARTITION BY ĐÃ ĐƯỢC chuyển sang cột
+// persisted-như-không-PERSISTED LoaiGiaoDich/MaDiem/MaHangHienThi/MaNCC
+// (xem dwh/schema.sql), SQL Server seek thẳng theo `LoaiGiaoDich='333'`
+// (tập con NHỎ HƠN NHIỀU so với TOÀN domain gồm cả dòng đặt 130/133/330)
+// thay vì quét hết + tính JSON_VALUE() từng dòng — vẫn KHÔNG giới hạn ngày
+// (đúng yêu cầu nghiệp vụ), chỉ đổi CÁCH LỌC/PARTITION cho nhanh hơn, không
+// đổi kết quả.
 async function loadLatestNccReceivedByEntity(pool) {
   const req = pool.request();
   req.input('domain', sql.VarChar(50), DON_DAT_HANG_DOMAIN);
   const result = await req.query(`
     WITH Nhap333 AS (
       SELECT
-        JSON_VALUE(Dimensions, '$.MaDiem') AS BuId,
-        JSON_VALUE(Dimensions, '$.MaHangHienThi') AS SkuCode,
-        JSON_VALUE(Dimensions, '$.MaNCC') AS MaNCC,
+        MaDiem AS BuId,
+        MaHangHienThi AS SkuCode,
+        MaNCC,
         JSON_VALUE(Dimensions, '$.TenNCC') AS TenNCC,
         EventDate,
         ROW_NUMBER() OVER (
-          PARTITION BY JSON_VALUE(Dimensions, '$.MaDiem'), JSON_VALUE(Dimensions, '$.MaHangHienThi')
+          PARTITION BY MaDiem, MaHangHienThi
           ORDER BY EventDate DESC
         ) AS rn
       FROM dwh.ReportFacts
       WHERE Domain = @domain
-        AND JSON_VALUE(Dimensions, '$.LoaiGiaoDich') = '333'
-        AND JSON_VALUE(Dimensions, '$.MaHangHienThi') IS NOT NULL
+        AND LoaiGiaoDich = '333'
+        AND MaHangHienThi IS NOT NULL
     )
     SELECT BuId, SkuCode, MaNCC, TenNCC FROM Nhap333 WHERE rn = 1
   `);

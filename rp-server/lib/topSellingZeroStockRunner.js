@@ -177,14 +177,19 @@ async function runTopZeroStockReport(definition, filterValues = {}, pagination) 
       salesRequest.input(p, sql.NVarChar(100), v);
       return `@${p}`;
     });
-    salesWhere += ` AND JSON_VALUE(Dimensions, '$.MaChiNhanh') IN (${names.join(', ')})`;
+    // MaChiNhanh (bản 11.51, SỬA LỖI HIỆU NĂNG THẬT — xem dwh/schema.sql) —
+    // TRƯỚC ĐÂY lọc qua JSON_VALUE(Dimensions,'$.MaChiNhanh') trực tiếp
+    // trong WHERE, KHÔNG SARGable, buộc quét hết domain/khoảng ngày rồi mới
+    // loại bỏ chi nhánh không khớp — ĐÚNG lớp lỗi đã sửa ở MaHangHienThi
+    // bản 11.38. Lọc thẳng theo cột persisted-như-không-PERSISTED mới thêm.
+    salesWhere += ` AND MaChiNhanh IN (${names.join(', ')})`;
   }
   const salesResult = await salesRequest.query(`
     SELECT
       EntityCode,
-      MAX(JSON_VALUE(Dimensions, '$.MaChiNhanh')) AS BranchCode,
+      MAX(MaChiNhanh) AS BranchCode,
       MAX(JSON_VALUE(Dimensions, '$.TenChiNhanh')) AS BranchName,
-      MAX(JSON_VALUE(Dimensions, '$.MaHangHienThi')) AS SkuCode,
+      MAX(MaHangHienThi) AS SkuCode,
       MAX(JSON_VALUE(Dimensions, '$.TenHang')) AS ItemName,
       SUM(CAST(JSON_VALUE(Measures, '$.SoLuongBan') AS DECIMAL(18,4))) AS QtySold
     FROM dwh.ReportFacts

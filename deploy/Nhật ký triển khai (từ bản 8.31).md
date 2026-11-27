@@ -14,6 +14,29 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 11.51 — Sửa lỗi HIỆU NĂNG THẬT ở "Core stock = 0"/"Top bán chạy đang tồn kho = 0" (Báo cáo vận hành)
+
+**⚠️ CÓ 1 VIỆC DBA CẦN LÀM — THỨ TỰ QUAN TRỌNG** (chạy DBA TRƯỚC khi
+restart `rp-server`, không thì báo cáo lỗi ngay "Invalid column name
+'MaChiNhanh'"/"'LoaiGiaoDich'"/... thay vì chỉ chậm như cũ):
+
+1. `git pull origin main`.
+2. **DBA** chạy lại `dwh/schema.sql` trên CSDL Data Warehouse (`HCRC_DWH`)
+   — thêm 4 cột `MaChiNhanh`/`LoaiGiaoDich`/`SoDon`/`MaDiem` + 4 index mới
+   (an toàn chạy lại nhiều lần, không đụng dữ liệu hiện có). Bảng
+   `dwh.ReportFacts` có thể lớn (đặc biệt domain `don_dat_hang` giữ lịch
+   sử nhiều năm) — CREATE INDEX có thể mất vài phút tuỳ quy mô dữ liệu
+   thật, chạy ngoài giờ cao điểm nếu lo ảnh hưởng tải CSDL.
+3. `cd rp-server && pm2 restart hcrc-rp-server` (sửa
+   `lib/topSellingZeroStockRunner.js`/`lib/donDatHangTonKhoHelper.js` —
+   CHỈ restart SAU KHI bước 2 đã xong).
+
+**Kiểm tra**: mở lại "Core stock = 0 (Mart)"/"(Minimart)" và "Top bán
+chạy đang tồn kho = 0" (lọc thử theo 1 chi nhánh cụ thể) — tải nhanh lại,
+số liệu "Chờ nhập (NCC)"/"Đã nhập hôm nay (NCC)"/Mã NCC/Số lượng bán giữ
+NGUYÊN đúng như trước (không đổi kết quả, chỉ nhanh hơn). Xem "VERSION.md"
+mục bản 11.51.
+
 ## 11.50 — Sửa lỗi HIỆU NĂNG do bản 11.49 gây ra — "BRG Weekly Post" tải lại rất lâu/timeout (SỬA LẠI 100% ở code, không đổi VIEW/domain)
 
 **Không có bước DBA/CSDL mới — thuần sửa code `rp-server`, không đổi

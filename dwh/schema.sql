@@ -343,6 +343,87 @@ BEGIN
 END
 GO
 
+-- MaChiNhanh (bản 11.51, SỬA LỖI HIỆU NĂNG THẬT — theo báo cáo người dùng
+-- "các báo cáo vận hành khác cũng tải rất chậm, có thể cùng lỗi với MKT")
+-- — lib/topSellingZeroStockRunner.js ("Top bán chạy đang tồn kho = 0") lọc
+-- theo chi nhánh người dùng chọn bằng `JSON_VALUE(Dimensions,
+-- '$.MaChiNhanh') IN (...)` NGAY TRONG WHERE của câu truy vấn TÍNH TỔNG Qty
+-- bán mỗi thực thể (quét domain `salesDomain` cả khoảng ngày xếp hạng) —
+-- ĐÚNG lớp lỗi đã sửa ở MaHangHienThi (bản 11.38): JSON_VALUE() không
+-- SARGable, không qua được index nào, buộc QUÉT HẾT domain trong khoảng
+-- ngày rồi mới loại bỏ chi nhánh không khớp — thay vì SEEK thẳng theo chi
+-- nhánh đã chọn. Thêm cột + index ĐÚNG mẫu 4 cột trên, sửa lại câu lọc ở
+-- topSellingZeroStockRunner.js dùng cột này thay vì JSON_VALUE().
+IF COL_LENGTH('dwh.ReportFacts', 'MaChiNhanh') IS NULL
+BEGIN
+    ALTER TABLE dwh.ReportFacts
+      ADD MaChiNhanh AS CAST(JSON_VALUE(Dimensions, '$.MaChiNhanh') AS NVARCHAR(50));
+END
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_ReportFacts_MaChiNhanh' AND object_id = OBJECT_ID('dwh.ReportFacts'))
+BEGIN
+    CREATE INDEX IX_ReportFacts_MaChiNhanh ON dwh.ReportFacts (MaChiNhanh) INCLUDE (Domain, EventDate)
+      WITH (SORT_IN_TEMPDB = ON);
+END
+GO
+
+-- LoaiGiaoDich/SoDon/MaDiem (bản 11.51, SỬA LỖI HIỆU NĂNG THẬT — CÙNG đợt
+-- điều tra "báo cáo vận hành chậm" ở trên) — lib/donDatHangTonKhoHelper.js
+-- (dùng CHUNG cho "Core stock = 0 (Mart/Minimart)" VÀ "Top bán chạy đang
+-- tồn kho = 0" khi bật `useDonDatHangForNcc`, xem bc-ton-kho-0.md/
+-- bc-core-ton-kho-0.md) đọc domain `don_dat_hang` — domain này BẬT "Giữ
+-- lịch sử theo ngày" (KeepHistory=1), tích luỹ RẤT NHIỀU dòng qua nhiều
+-- năm — CẢ 3 câu truy vấn ở file đó lọc/JOIN/GROUP BY hoàn toàn bằng
+-- `JSON_VALUE(Dimensions, '$.LoaiGiaoDich'/'$.SoDon'/'$.MaDiem')` KHÔNG qua
+-- index nào — ĐẶC BIỆT `loadLatestNccReceivedByEntity()` (dùng cho "Core
+-- stock = 0") quét KHÔNG GIỚI HẠN NGÀY (đúng yêu cầu nghiệp vụ — mặt hàng
+-- Core có thể lâu chưa nhập lại), và `queryChoNhapNcc()`'s CTE `PerOrder`
+-- JOIN lại `dwh.ReportFacts` theo `JSON_VALUE(...)='$.SoDon'`/`'$.MaDiem'`
+-- CŨNG không giới hạn ngày phía nhận hàng (333) — đã ghi chú trước ở
+-- donDatHangTonKhoHelper.js bản 10.3/9.95 là "CHƯA áp dụng giới hạn, cần bổ
+-- sung index sau nếu gặp chậm thật" — ĐÃ xảy ra, bổ sung ở đây. Thêm 3 cột
+-- + index ĐÚNG mẫu trên, sửa lại 3 hàm ở donDatHangTonKhoHelper.js lọc/JOIN
+-- THẲNG theo các cột này thay vì JSON_VALUE() — JOIN giữa 2 tập dữ liệu
+-- của CÙNG domain giờ là JOIN giữa 2 CỘT THẬT (SoDon/MaDiem), SQL Server
+-- seek được qua index thay vì phải tính JSON_VALUE() cho TOÀN BỘ dòng của
+-- domain để so khớp.
+IF COL_LENGTH('dwh.ReportFacts', 'LoaiGiaoDich') IS NULL
+BEGIN
+    ALTER TABLE dwh.ReportFacts
+      ADD LoaiGiaoDich AS CAST(JSON_VALUE(Dimensions, '$.LoaiGiaoDich') AS NVARCHAR(20));
+END
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_ReportFacts_LoaiGiaoDich' AND object_id = OBJECT_ID('dwh.ReportFacts'))
+BEGIN
+    CREATE INDEX IX_ReportFacts_LoaiGiaoDich ON dwh.ReportFacts (LoaiGiaoDich) INCLUDE (Domain, EventDate)
+      WITH (SORT_IN_TEMPDB = ON);
+END
+GO
+IF COL_LENGTH('dwh.ReportFacts', 'SoDon') IS NULL
+BEGIN
+    ALTER TABLE dwh.ReportFacts
+      ADD SoDon AS CAST(JSON_VALUE(Dimensions, '$.SoDon') AS NVARCHAR(50));
+END
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_ReportFacts_SoDon' AND object_id = OBJECT_ID('dwh.ReportFacts'))
+BEGIN
+    CREATE INDEX IX_ReportFacts_SoDon ON dwh.ReportFacts (SoDon) INCLUDE (Domain, EventDate)
+      WITH (SORT_IN_TEMPDB = ON);
+END
+GO
+IF COL_LENGTH('dwh.ReportFacts', 'MaDiem') IS NULL
+BEGIN
+    ALTER TABLE dwh.ReportFacts
+      ADD MaDiem AS CAST(JSON_VALUE(Dimensions, '$.MaDiem') AS NVARCHAR(50));
+END
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_ReportFacts_MaDiem' AND object_id = OBJECT_ID('dwh.ReportFacts'))
+BEGIN
+    CREATE INDEX IX_ReportFacts_MaDiem ON dwh.ReportFacts (MaDiem) INCLUDE (Domain, EventDate)
+      WITH (SORT_IN_TEMPDB = ON);
+END
+GO
+
 -- ============================================================================
 -- Báo cáo 3 MKT — "BRG Weekly Post" (bản 11.24, theo yêu cầu đội MKT, dựa
 -- trên file mẫu thật "BRG_Weekly_Post_T6K1_BC1.xlsx") — xem

@@ -52,6 +52,53 @@ nội dung/hành vi nào đã làm. Lịch sử Git (commit message) vẫn còn 
 "Bản 10.100"/"Bản 10.101" (không sửa lại lịch sử Git) — coi là ĐỒNG NHẤT
 với "11.0"/"11.1".
 
+## 11.51 — Sửa lỗi HIỆU NĂNG THẬT ở nhóm báo cáo "Core stock = 0"/"Top bán chạy đang tồn kho = 0" (Báo cáo vận hành)
+
+**Theo báo cáo người dùng** — ngay sau bản 11.50 (đã sửa "BRG Weekly Post"
+MKT), người dùng báo CÁC báo cáo "vận hành" khác cũng tải rất chậm, nghi
+ngờ CÙNG LỚP lỗi. Rà soát toàn bộ `rp-server/lib/*.js` tìm `JSON_VALUE()`
+dùng trực tiếp trong WHERE/JOIN/GROUP BY (đúng lớp lỗi đã sửa ở bản 11.38/
+11.50) — phát hiện 2 điểm THẬT:
+
+1. **`lib/topSellingZeroStockRunner.js`** ("Top bán chạy đang tồn kho =
+   0") — lọc chi nhánh người dùng chọn bằng
+   `JSON_VALUE(Dimensions,'$.MaChiNhanh') IN (...)` ngay trong WHERE của
+   câu truy vấn tính tổng Qty bán — không SARGable, quét hết domain/
+   khoảng ngày thay vì seek thẳng theo chi nhánh.
+
+2. **`lib/donDatHangTonKhoHelper.js`** (dùng CHUNG cho "Core stock = 0
+   (Mart/Minimart)" VÀ "Top bán chạy đang tồn kho = 0" khi bật
+   `useDonDatHangForNcc`) — CẢ 3 câu truy vấn lọc/JOIN/GROUP BY/PARTITION
+   BY hoàn toàn bằng `JSON_VALUE(Dimensions, '$.LoaiGiaoDich'/'$.SoDon'/
+   '$.MaDiem')`, không qua index nào. Domain `don_dat_hang` BẬT "Giữ lịch
+   sử theo ngày" (tích luỹ nhiều năm) — `loadLatestNccReceivedByEntity()`
+   (dùng cho "Core stock = 0") quét KHÔNG GIỚI HẠN NGÀY (đúng yêu cầu
+   nghiệp vụ — mặt hàng Core có thể lâu chưa nhập lại), và CTE `PerOrder`
+   trong `queryChoNhapNcc()` JOIN lại TOÀN domain theo JSON_VALUE()=
+   JSON_VALUE() — đây CHÍNH LÀ điều chú thích bản 9.95/10.3 đã cảnh báo
+   trước "CHƯA áp dụng giới hạn, cần bổ sung index sau nếu gặp chậm thật"
+   — nay đã xảy ra.
+
+**Đã sửa**: thêm 4 cột persisted-như-không-PERSISTED mới + index riêng
+trên `dwh.ReportFacts` (ĐÚNG mẫu `MaHang`/`MaNCC`/`MaNganhHang`/
+`MaHangHienThi` đã có) — `MaChiNhanh`, `LoaiGiaoDich`, `SoDon`, `MaDiem`
+(xem `dwh/schema.sql`) — sửa lại toàn bộ câu truy vấn ở 2 file trên lọc/
+JOIN/GROUP BY/PARTITION BY THẲNG theo các cột này thay vì gọi
+`JSON_VALUE()` — JOIN giữa 2 tập dữ liệu CÙNG domain (`queryChoNhapNcc`)
+giờ là JOIN giữa 2 CỘT THẬT (`SoDon`/`MaDiem`), SQL Server seek được qua
+index thay vì phải tính `JSON_VALUE()` cho TOÀN BỘ dòng domain để so
+khớp. CHỈ đổi CÁCH TRUY VẤN — công thức/kết quả giữ NGUYÊN 100%.
+
+**⚠️ CÓ VIỆC DBA CẦN LÀM** — chạy lại `dwh/schema.sql` trên `HCRC_DWH`
+TRƯỚC khi restart `rp-server` (thêm 4 cột + 4 index mới, an toàn chạy lại
+nhiều lần, không đụng dữ liệu hiện có — bảng `dwh.ReportFacts` có thể
+lớn, CREATE INDEX có thể mất vài phút, nên chạy ngoài giờ cao điểm).
+
+Verify: `node --check` cả 2 file; đối chiếu lại số liệu "Chờ nhập (NCC)"/
+"Đã nhập hôm nay (NCC)"/Mã NCC tự động trên "Core stock = 0" và số liệu
+"Top bán chạy đang tồn kho = 0" khi lọc theo 1 chi nhánh cụ thể — PHẢI ra
+ĐÚNG số như trước (không đổi kết quả, chỉ nhanh hơn).
+
 ## 11.50 — Sửa lỗi HIỆU NĂNG do bản 11.49 gây ra — "BRG Weekly Post" tải lại rất lâu/timeout proxy
 
 **Theo báo cáo người dùng** — ngay sau khi lên bản 11.49, báo cáo "BRG
