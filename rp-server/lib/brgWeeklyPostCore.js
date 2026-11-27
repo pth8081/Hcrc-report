@@ -280,9 +280,41 @@ async function fetchActualSales(dwhPool, maHangList, from, to) {
 // Tồn kho HIỆN TẠI (snapshot ngày đồng bộ GẦN NHẤT toàn domain) — join
 // theo SkuCode (mã hiển thị 6 số, domain KHÔNG có SKU_ID đầy đủ). Trả
 // CẢ tổng theo skuCode (chain-wide) VÀ chi tiết theo (skuCode, MaChiNhanh).
-async function fetchCurrentStock(dwhPool, skuCodeList) {
-  const byCodeTotal = new Map(); // skuCode -> qty
-  const byCodeStore = new Map(); // skuCode -> Map(maChiNhanh -> qty)
+//
+// SỬA LỖI THẬT (bản 11.48, báo cáo người dùng — đối chiếu trực tiếp
+// dwh.ReportFacts phát hiện: với mã `1001254472`, cột `MaHangHienThi`
+// của domain `tonkho_chitiet_sku` lưu NGUYÊN 10 số ĐẦY ĐỦ (= MaHang),
+// KHÔNG phải mã hiển thị 6 số `254472` như quy ước "VIEW
+// vw_TonKhoChiTietTheoSKU: MaHangHienThi = SKU_CODE" ở đa số SKU khác —
+// khớp đúng kiểu dữ liệu NGUỒN (DSMART16) không nhất quán: 1 vài SKU (có
+// thể do nhập tay/SKU mới tạo) có cột SKU_CODE TRÙNG LUÔN với SKU_ID đầy
+// đủ, thay vì đúng mã rút gọn 6 số — khiến lọc CHỈ theo 6 số (`sku.skuCode`)
+// bỏ sót HẲN các SKU rơi vào trường hợp này, luôn ra Tồn kho = 0 dù tồn
+// kho thật > 0 (xem ảnh SSMS người dùng gửi — `SoLuongTon: 21.248` có
+// thật khi lọc đúng theo mã 10 số). KHÔNG CÓ CÁCH nào biết trước SKU nào
+// rơi vào trường hợp này (phụ thuộc dữ liệu nhập tay ở DSMART16, không
+// suy luận được) — xử lý AN TOÀN theo cả 2 chiều:
+//   1. Lọc IN (...) với CẢ 2 ứng viên mỗi SKU (`skuCode` 6 số VÀ `maHang`
+//      10 số đầy đủ, hợp nhất + loại trùng) — VẪN SARGable (vẫn so sánh
+//      TRỰC TIẾP cột `MaHangHienThi`, không bọc hàm nào, không mất index
+//      seek đã sửa ở bản 11.38), chỉ nhiều giá trị hơn trong IN.
+//   2. CHUẨN HOÁ khoá Map về ĐÚNG 6 số cuối (`.slice(-6)`) của GIÁ TRỊ
+//      THẬT đọc được — KHÔNG dùng nguyên giá trị thô làm khoá nữa — nên
+//      dù dòng khớp qua ứng viên 6 số hay ứng viên 10 số, khoá lưu vào
+//      Map LUÔN là đúng 6 số, khớp đúng `sku.skuCode` (luôn 6 số, định
+//      nghĩa `=RIGHT(MaHang,6)`) ở nơi gọi `stock.byCodeTotal.get(sku.skuCode)`.
+// Tham số đổi từ `skuCodeList` (mảng string) sang `skuMaster` (mảng đầy
+// đủ {skuCode, maHang,...}) để tự dựng đủ 2 ứng viên mỗi SKU — ĐÃ SỬA
+// nơi gọi ở loadCampaignData() bên dưới.
+async function fetchCurrentStock(dwhPool, skuMaster) {
+  const byCodeTotal = new Map(); // skuCode (6 số, đã chuẩn hoá) -> qty
+  const byCodeStore = new Map(); // skuCode (6 số, đã chuẩn hoá) -> Map(maChiNhanh -> qty)
+  const candidateSet = new Set();
+  for (const sku of skuMaster) {
+    if (sku.skuCode) candidateSet.add(sku.skuCode);
+    if (sku.maHang) candidateSet.add(sku.maHang);
+  }
+  const skuCodeList = [...candidateSet];
   if (!skuCodeList.length) return { byCodeTotal, byCodeStore, snapshotDate: null };
 
   const dateResult = await dwhPool.request().input('domain', sql.VarChar(50), STOCK_DOMAIN)
@@ -317,7 +349,12 @@ async function fetchCurrentStock(dwhPool, skuCodeList) {
   for (const row of result.recordset) {
     const dims = JSON.parse(row.Dimensions || '{}');
     const measures = row.Measures ? JSON.parse(row.Measures) : {};
-    const skuCode = dims.MaHangHienThi && dims.MaHangHienThi.trim();
+    // .slice(-6) — CHUẨN HOÁ về đúng 6 số cuối (xem chú thích bản 11.48 ở
+    // trên) — áp dụng NGAY CẢ KHI giá trị thật đã đúng 6 số (slice(-6) của
+    // chuỗi 6 ký tự trả về CHÍNH NÓ, không đổi hành vi cho SKU bình
+    // thường).
+    const rawCode = dims.MaHangHienThi && dims.MaHangHienThi.trim();
+    const skuCode = rawCode ? rawCode.slice(-6) : null;
     const maChiNhanh = dims.MaChiNhanh && dims.MaChiNhanh.trim();
     const qty = measures.SoLuongTon || 0;
     if (!skuCode) continue;
@@ -428,11 +465,10 @@ async function loadCampaignData(campaignId, periodFromOverride, periodToOverride
   const projectionFactor = totalCampaignDays / elapsedDays;
 
   const maHangList = skuMaster.map(s => s.maHang);
-  const skuCodeList = skuMaster.filter(s => s.skuCode).map(s => s.skuCode);
 
   const [sales, stock, storeWideTotals] = await Promise.all([
     fetchActualSales(dwhPool, maHangList, periodFrom, periodTo),
-    fetchCurrentStock(dwhPool, skuCodeList),
+    fetchCurrentStock(dwhPool, skuMaster),
     // storeWideTotals (bản 11.42) — Doanh thu/Bill bán lẻ CẢ SIÊU THỊ
     // trong ĐÚNG khoảng [periodFrom, periodTo] (khớp đúng khoảng ngày
     // dùng cho SALES ở trên) — xem fetchStoreWideTotals().
