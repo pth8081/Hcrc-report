@@ -14,6 +14,39 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 11.43 — Ghi nhận: cách cấp quyền "Giám sát Log CSDL" cho server chi nhánh DSMART16
+
+**Không có bước DBA/CSDL mới trên CSDL LÕI (DWH/ETL/RP/API), KHÔNG cần
+pull/restart/build gì — chỉ bổ sung tài liệu. Việc CẦN LÀM là thao tác
+tay của DBA trên TỪNG server chi nhánh DSMART16 còn báo lỗi ở trang
+"Giám sát Log CSDL" (etl-admin), không phải bước deploy code.**
+
+**Các bước (DBA làm trên TỪNG server chi nhánh còn báo "🔴 Lỗi kiểm
+tra" — xem cột "Lỗi" của đúng dòng đó, cuộn bảng sang phải trên điện
+thoại nếu cần)**:
+1. Mở etl-admin → "Nguồn dữ liệu" → đúng dòng chi nhánh đang lỗi, ghi
+   lại field "Tên CSDL" + "Username".
+2. Kết nối SSMS vào ĐÚNG server chi nhánh đó (so khớp IP/tên server với
+   field "Server" trong etl-admin — nhiều chi nhánh có IP gần giống
+   nhau, dễ nhầm server), chạy:
+   ```sql
+   USE <Tên CSDL>;
+   GRANT VIEW DATABASE STATE TO <Username>;
+   GO
+   USE master;
+   GRANT VIEW SERVER STATE TO <Username>;
+   GO
+   ```
+   (xem `VERSION.md` mục 11.43 — lý do cần CẢ 2 quyền, không chỉ
+   `VIEW DATABASE STATE` như hướng dẫn gốc bản 10.5).
+3. Lặp lại bước 2 cho từng chi nhánh còn báo lỗi (không có cách cấp 1
+   lần cho tất cả — mỗi chi nhánh là 1 SQL Server vật lý riêng).
+
+**Kiểm tra**: etl-admin → "Giám sát Log CSDL" → bấm "Kiểm tra lại ngay"
+→ đúng dòng chi nhánh vừa cấp quyền phải chuyển "🟢 Bình thường" (hoặc
+"⚠️ Vượt ngưỡng" nếu log thật sự đang lớn — không còn "🔴 Lỗi kiểm
+tra").
+
 ## 11.42 — Bổ sung 3 cột doanh thu/giao dịch cả siêu thị + cột "Tình trạng tồn kho" cho "BRG Weekly Post"
 
 **Không có bước DBA/CSDL mới (2 domain dùng thêm đã có sẵn, chỉ sửa code rp-server).**

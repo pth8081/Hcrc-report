@@ -52,6 +52,43 @@ nội dung/hành vi nào đã làm. Lịch sử Git (commit message) vẫn còn 
 "Bản 10.100"/"Bản 10.101" (không sửa lại lịch sử Git) — coi là ĐỒNG NHẤT
 với "11.0"/"11.1".
 
+## 11.43 — Ghi nhận: cách cấp quyền "Giám sát Log CSDL" cho server chi nhánh DSMART16 (Compatibility Level cũ cần thêm VIEW SERVER STATE)
+
+**Theo báo cáo người dùng** — sau khi cấp `VIEW DATABASE STATE` cho các
+server chi nhánh DSMART16 (bản 10.5), trang "Giám sát Log CSDL" vẫn báo
+"🔴 Lỗi kiểm tra" với thông báo `"The user does not have permission to
+perform this action."` dù đã cấp đúng quyền, đúng CSDL, đúng username.
+
+**Nguyên nhân xác định được**: CSDL chi nhánh đó vẫn giữ **Compatibility
+Level CŨ** (< 130) — khiến `sys.dm_db_log_space_usage()` không chạy
+được, code TỰ ĐỘNG chuyển sang `DBCC SQLPERF(LOGSPACE)` (nhánh dự phòng
+đã có từ bản 10.16, xem `isLogSpaceDmfUnsupportedError()` ở
+`etl/lib/logSpaceMonitor.js`) — nhưng lệnh dự phòng này cần quyền KHÁC,
+RỘNG HƠN: `VIEW SERVER STATE` (cấp TOÀN SERVER, không theo từng CSDL),
+chứ không phải `VIEW DATABASE STATE` — nên dù đã cấp đúng quyền ban đầu
+vẫn lỗi.
+
+**Cách khắc phục đã xác nhận hoạt động** — cấp ĐỦ CẢ 2 quyền sau trên
+ĐÚNG server chi nhánh đang lỗi (mỗi chi nhánh là 1 SQL Server VẬT LÝ
+RIÊNG — cấp ở server này KHÔNG áp dụng sang server khác, phải lặp lại
+cho TỪNG chi nhánh còn báo lỗi):
+```sql
+USE DSMART16;
+GRANT VIEW DATABASE STATE TO etl_reader;
+GO
+USE master;                              -- BẮT BUỘC đổi sang master trước
+GRANT VIEW SERVER STATE TO etl_reader;    -- quyền CẤP SERVER — cấp khi đang
+GO                                        -- ở CSDL khác sẽ báo lỗi "Msg 4621
+                                           -- ...can only be granted when the
+                                           -- current database is master"
+```
+
+**Không có thay đổi code** — chỉ ghi nhận lại nguyên nhân + cách khắc
+phục đã xác nhận đúng với 1 chi nhánh thật (ảnh SSMS 27/11/2026), cập
+nhật vào phần "Hỏi & đáp" của `deploy/Cập nhật bản 10.1 đến 10.7 —
+....md` (mục Bản 10.5) để lần sau không phải dò lại từ đầu, và để DBA
+tự áp dụng cho các chi nhánh còn lại.
+
 ## 11.42 — Bổ sung 3 cột doanh thu/giao dịch cả siêu thị + cột "Tình trạng tồn kho" cho "BRG Weekly Post"
 
 **Theo yêu cầu người dùng** — gửi lại file mẫu gốc "BRG_Weekly_Post_T6K1_BC1.xlsx"

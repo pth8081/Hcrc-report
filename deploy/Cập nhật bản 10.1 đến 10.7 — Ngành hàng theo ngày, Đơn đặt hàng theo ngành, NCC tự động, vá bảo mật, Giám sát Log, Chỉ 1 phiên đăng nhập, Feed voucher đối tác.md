@@ -275,8 +275,40 @@ Nếu mục nào vẫn trống/sai sau khi làm đủ các bước trên — xem
 - Bản 10.4: `VERSION.md` mục 10.4 (gồm danh sách đầy đủ lỗ hổng đã vá +
   2 lỗ hổng CHƯA vá, cần breaking change).
 - Bản 10.5: `VERSION.md` mục 10.5; nguồn nào báo "🔴 Lỗi kiểm tra" trên
-  trang "Giám sát Log CSDL" — xem cột "Lỗi" của đúng dòng đó (thường là
-  thiếu quyền `VIEW DATABASE STATE` hoặc sai thông tin kết nối).
+  trang "Giám sát Log CSDL" — xem cột "Lỗi" của đúng dòng đó (cuộn bảng
+  SANG PHẢI trên điện thoại để thấy cột này — thường là thiếu quyền
+  `VIEW DATABASE STATE` hoặc sai thông tin kết nối).
+
+  **Sự cố thật đã gặp (11/2026) — các server chi nhánh DSMART16** (mỗi
+  chi nhánh là 1 SQL Server VẬT LÝ RIÊNG, phải cấp quyền RIÊNG TỪNG
+  SERVER, cấp ở server này KHÔNG áp dụng sang server khác): báo lỗi
+  `"The user does not have permission to perform this action."` dù đã
+  cấp `VIEW DATABASE STATE` — nguyên nhân: CSDL chi nhánh đó vẫn giữ
+  **Compatibility Level CŨ** (< 130, thường do khôi phục/di chuyển từ hệ
+  thống cũ không nâng lại), khiến `sys.dm_db_log_space_usage()` không
+  chạy được, code TỰ ĐỘNG chuyển sang `DBCC SQLPERF(LOGSPACE)` (lệnh
+  LEGACY, xem `isLogSpaceDmfUnsupportedError()` ở `etl/lib/logSpaceMonitor.js`)
+  — nhưng lệnh này cần quyền KHÁC, RỘNG HƠN: `VIEW SERVER STATE` (cấp
+  TOÀN SERVER, không phải theo từng CSDL). Cấp ĐỦ CẢ 2 lệnh sau mới hết
+  lỗi (chạy trên ĐÚNG server chi nhánh đang lỗi, đổi `DSMART16`/
+  `etl_reader` cho khớp tên CSDL/username thật của chi nhánh đó — xem
+  etl-admin → "Nguồn dữ liệu"):
+  ```sql
+  USE DSMART16;
+  GRANT VIEW DATABASE STATE TO etl_reader;
+  GO
+  USE master;                              -- BẮT BUỘC đổi sang master trước
+  GRANT VIEW SERVER STATE TO etl_reader;    -- (quyền CẤP SERVER, không cấp
+  GO                                        --  được khi đang ở CSDL khác —
+                                             --  SQL Server báo lỗi "Msg 4621...
+                                             --  can only be granted when the
+                                             --  current database is master"
+                                             --  nếu quên đổi database trước)
+  ```
+  Làm xong bấm "Kiểm tra lại ngay" trên trang "Giám sát Log CSDL" để xác
+  nhận hết lỗi ngay (không cần chờ chu kỳ 15 phút). Vì mỗi chi nhánh là
+  1 server riêng, phải LẶP LẠI đúng 2 lệnh này cho TỪNG chi nhánh còn báo
+  lỗi (không có cách cấp 1 lần cho tất cả).
 - Bản 10.6: `VERSION.md` mục 10.6; file riêng
   `deploy/Cập nhật bản 10.6 — Chỉ 1 phiên đăng nhập.md` (gồm phần "Lưu ý
   vận hành" — không có ngoại lệ cho tài khoản dùng chung nhiều người,
