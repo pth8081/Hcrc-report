@@ -51,6 +51,44 @@ const { assignSttIfPresent } = require('./reportCellFormat');
 const DOMAIN = 'doanhthu_the_chinhanh';
 const MEASURE_KEYS = ['SoBillTotal', 'SoBillThe', 'DoanhSoTotal', 'DoanhSoThe'];
 
+// HOADON_DOMAIN (bản 11.47, theo yêu cầu đội MKT — file "Báo cáo khách
+// hàng theo tuần MKT BO SUNG.xlsx") — 2 nhóm 14 khoảng GIÁ TRỊ hoá đơn
+// (bill), mỗi khoảng tách 2 cột "Số lượng" (đếm hoá đơn)/"Giá trị" (CỘNG
+// DỒN giá trị các hoá đơn đó — vd 100 bill cùng dưới 50.000đ thì Số
+// lượng=100, Giá trị=tổng 100 bill đó, theo đúng ví dụ người dùng xác
+// nhận), 1 nhóm TẤT CẢ giao dịch + 1 nhóm CHỈ giao dịch qua thẻ BRG
+// Elite/app BRGMart (CÙNG định nghĩa CARD_ID đã chốt ở domain
+// `doanhthu_the_chinhanh`). CHỈ có 1 cột "W" (tuần này) — KHÔNG có W-1/
+// LFL như 6 nhóm chỉ số còn lại (đúng file mẫu BỔ SUNG, domain riêng
+// `hoadon_khoanggia_chinhanh` — xem VIEW `V_HCRC_HOADON_KHOANGGIA_CHINHANH`,
+// "deploy/VIEW DSMART16 (trung tâm)/Thiết lập VIEW Hoá đơn theo khoảng
+// giá trị (Script A, DSMART16).sql", và etl/scripts/seedHoaDonKhoangGiaSync.js).
+//
+// ⚠️ GIẢ ĐỊNH CẦN XÁC NHẬN (xem đầy đủ ở đầu file VIEW .sql): "Giá trị hoá
+// đơn" = TRÁC AMOUNT+SURPLUS+VAT_AMT của CÙNG 1 TRANS_NUM, CHỈ tính hoá
+// đơn BÁN (221, KHÔNG trừ/gộp hoá đơn trả hàng 222), 14 khoảng KHÔNG
+// chồng lấn (cộng dồn đúng bằng tổng số/giá trị hoá đơn), cột cuối "HĐ
+// <2.000.0000đ" trong file mẫu gốc SỬA LẠI thành "2.000.000đ" (thừa 1 số
+// 0, lỗi đánh máy).
+const HOADON_DOMAIN = 'hoadon_khoanggia_chinhanh';
+const HOADON_BUCKETS = [
+  { id: 'B50K', label: 'HĐ <50.000đ' },
+  { id: 'B100K', label: 'HĐ <100.000đ' },
+  { id: 'B150K', label: 'HĐ <150.000đ' },
+  { id: 'B200K', label: 'HĐ <200.000đ' },
+  { id: 'B250K', label: 'HĐ <250.000đ' },
+  { id: 'B300K', label: 'HĐ <300.000đ' },
+  { id: 'B350K', label: 'HĐ <350.000đ' },
+  { id: 'B400K', label: 'HĐ <400.000đ' },
+  { id: 'B500K', label: 'HĐ <500.000đ' },
+  { id: 'B1Tr', label: 'HĐ <1.000.000đ' },
+  { id: 'B1Tr5', label: 'HĐ <1.500.000đ' },
+  { id: 'B2Tr', label: 'HĐ <2.000.000đ' },
+  { id: 'B3Tr', label: 'HĐ <3.000.000đ' },
+  { id: 'BTren3Tr', label: 'HĐ >3.000.000đ' }
+];
+const HOADON_MEASURE_KEYS = HOADON_BUCKETS.flatMap((b) => [`${b.id}TotalSL`, `${b.id}TotalGT`, `${b.id}TheSL`, `${b.id}TheGT`]);
+
 function pad(n) { return String(n).padStart(2, '0'); }
 function parseISO(s) { return new Date(`${s}T00:00:00Z`); }
 function toISO(d) { return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`; }
@@ -85,6 +123,23 @@ function sumByStk(rows) {
     if (!acc) { acc = {}; byStk.set(stkId, acc); }
     const m = row.measures || {};
     for (const k of MEASURE_KEYS) acc[k] = (acc[k] || 0) + (m[k] || 0);
+  }
+  return byStk;
+}
+
+// sumMeasuresByStk (bản 11.47) — mirror ĐÚNG sumByStk() ở trên, TỔNG QUÁT
+// cho bất kỳ danh sách khoá measure nào (dùng cho HOADON_MEASURE_KEYS, 56
+// khoá — KHÔNG sửa sumByStk() đã có, tránh đụng domain `doanhthu_the_chinhanh`
+// đang chạy ổn định).
+function sumMeasuresByStk(rows, keys) {
+  const byStk = new Map();
+  for (const row of rows) {
+    const stkId = row.entityCode;
+    if (!stkId) continue;
+    let acc = byStk.get(stkId);
+    if (!acc) { acc = {}; byStk.set(stkId, acc); }
+    const m = row.measures || {};
+    for (const k of keys) acc[k] = (acc[k] || 0) + (m[k] || 0);
   }
   return byStk;
 }
@@ -199,14 +254,43 @@ function buildColumns() {
       { key: `${g.prefix}RateLfl`, label: 'Tỷ lệ W/LFL', format: 'percent' }
     );
   }
+  // Hoá đơn theo khoảng giá trị (bản 11.47) — 2 nhóm x 14 khoảng x 2 cột
+  // (Số lượng/Giá trị) — KHÔNG dùng columnSuperGroups (nhãn khoảng lặp lại
+  // Y HỆT giữa 2 nhóm "Tất cả"/"Qua thẻ" — cơ chế super-group tra theo
+  // NHÃN NHÓM CON qua `.find()`, nhãn trùng giữa 2 nhóm sẽ khớp NHẦM sang
+  // nhóm đầu tiên tìm thấy, xem lib/exportExcel.js) — gộp thẳng tên
+  // khoảng + SL/GT vào NHÃN CỘT (cấp dưới cùng, không cần duy nhất), 2
+  // columnGroups DUY NHẤT (cấp trên) ĐÃ đủ phân biệt 2 banner mầu khác
+  // nhau đúng ảnh mẫu (xanh lá/vàng).
+  for (const b of HOADON_BUCKETS) {
+    cols.push(
+      { key: `${b.id}TotalSL`, label: `${b.label} — SL` },
+      { key: `${b.id}TotalGT`, label: `${b.label} — GT` }
+    );
+  }
+  for (const b of HOADON_BUCKETS) {
+    cols.push(
+      { key: `${b.id}TheSL`, label: `${b.label} — SL` },
+      { key: `${b.id}TheGT`, label: `${b.label} — GT` }
+    );
+  }
   return cols;
 }
 
 function buildColumnGroups() {
-  return METRIC_GROUPS.map(g => ({
+  const groups = METRIC_GROUPS.map(g => ({
     label: g.label, color: g.color,
     keys: [`${g.prefix}W`, `${g.prefix}W1`, `${g.prefix}Lfl`, `${g.prefix}RateW`, `${g.prefix}RateLfl`]
   }));
+  groups.push({
+    label: 'Giá trị hoá đơn tổng (tất cả các giao dịch)', color: 'green',
+    keys: HOADON_BUCKETS.flatMap(b => [`${b.id}TotalSL`, `${b.id}TotalGT`])
+  });
+  groups.push({
+    label: 'Giá trị hoá đơn tổng sử dụng thẻ BRG Elite/ app BRGMart', color: 'yellow',
+    keys: HOADON_BUCKETS.flatMap(b => [`${b.id}TheSL`, `${b.id}TheGT`])
+  });
+  return groups;
 }
 
 function groupRowsByChain(rows) {
@@ -223,7 +307,13 @@ function groupRowsByChain(rows) {
 function buildSubtotalRow(groupRows, label, isGrandTotal, chainKey) {
   const raw = sumRaw(groupRows);
   const derived = computeDerived(raw);
-  return { tenCH: label, ...derived, __isSubtotal: true, __isGrandTotal: !!isGrandTotal, __chainKey: chainKey || null };
+  // Hoá đơn theo khoảng giá trị (bản 11.47) — cộng dồn TUYẾN TÍNH đơn
+  // giản (Số lượng/Giá trị của 1 khoảng ở dòng "Tổng" = cộng đúng Số
+  // lượng/Giá trị của khoảng đó ở MỌI dòng trong nhóm) — không có khái
+  // niệm tỷ lệ/trung bình nào ở 2 nhóm cột này.
+  const hoaDonSums = {};
+  for (const k of HOADON_MEASURE_KEYS) hoaDonSums[k] = groupRows.reduce((sum, r) => sum + (r[k] || 0), 0);
+  return { tenCH: label, ...derived, ...hoaDonSums, __isSubtotal: true, __isGrandTotal: !!isGrandTotal, __chainKey: chainKey || null };
 }
 
 function buildGroupedRows(storeRows, grandTotalLabel) {
@@ -340,16 +430,22 @@ async function runKhachHangTuanReport(definition, filterValues) {
   const dwhPool = await getPool('DWH');
   const diemMapping = await loadDiemStkMapping();
 
-  const [currentRawRows, priorYearRawRows] = await Promise.all([
+  // hoaDonRawRows (bản 11.47) — CHỈ cần đúng khoảng "W" (không có W-1/LFL
+  // cho 2 nhóm cột này) — fetch RIÊNG domain `hoadon_khoanggia_chinhanh`,
+  // song song với domain chính.
+  const [currentRawRows, priorYearRawRows, hoaDonRawRows] = await Promise.all([
     fetchRawRows(dwhPool, DOMAIN, w1From, wTo),
-    fetchRawRows(dwhPool, DOMAIN, lflFrom, lflTo)
+    fetchRawRows(dwhPool, DOMAIN, lflFrom, lflTo),
+    fetchRawRows(dwhPool, HOADON_DOMAIN, wFrom, wTo)
   ]);
   const currentByDay = bucketByDay(currentRawRows);
   const priorByDay = bucketByDay(priorYearRawRows);
+  const hoaDonByDay = bucketByDay(hoaDonRawRows);
 
   const wByMaDiem = remapToMaDiem(sumByStk(rowsInRange(currentByDay, wFrom, wTo)), diemMapping, false);
   const w1ByMaDiem = remapToMaDiem(sumByStk(rowsInRange(currentByDay, w1From, w1To)), diemMapping, false);
   const lflByMaDiem = remapToMaDiem(sumByStk(rowsInRange(priorByDay, lflFrom, lflTo)), diemMapping, true);
+  const hoaDonByMaDiem = remapToMaDiem(sumMeasuresByStk(rowsInRange(hoaDonByDay, wFrom, wTo), HOADON_MEASURE_KEYS), diemMapping, false);
 
   const storeScope = Array.isArray(filterValues && filterValues.__storeScope) ? new Set(filterValues.__storeScope) : null;
 
@@ -365,6 +461,9 @@ async function runKhachHangTuanReport(definition, filterValues) {
     const lflMonthSum = lflByMaDiem.get(maDiem) || {};
     const raw = buildRaw(w, w1, lflMonthSum, lflDivisor);
     const derived = computeDerived(raw);
+    const hoaDon = hoaDonByMaDiem.get(maDiem) || {};
+    const hoaDonFields = {};
+    for (const k of HOADON_MEASURE_KEYS) hoaDonFields[k] = hoaDon[k] || 0;
 
     storeRows.push({
       maCH: (info.maStkMoi || []).join(', ') || null,
@@ -372,7 +471,8 @@ async function runKhachHangTuanReport(definition, filterValues) {
       hinhThuc: LOAI_LABEL[info.loaiChuoi] || info.loaiChuoi || null,
       tenCH: info.tenSieuThi || null,
       __loaiChuoi: info.loaiChuoi || null,
-      ...derived
+      ...derived,
+      ...hoaDonFields
     });
   }
 
@@ -391,7 +491,8 @@ async function runKhachHangTuanReport(definition, filterValues) {
 
 module.exports = {
   runKhachHangTuanReport, DOMAIN, MEASURE_KEYS,
+  HOADON_DOMAIN, HOADON_BUCKETS, HOADON_MEASURE_KEYS,
   firstOfMonth, lastOfMonth, yearAgo, addDays, daysBetween, ratePct,
-  sumByStk, remapToMaDiem, buildRaw, computeDerived, buildColumns, buildColumnGroups,
+  sumByStk, sumMeasuresByStk, remapToMaDiem, buildRaw, computeDerived, buildColumns, buildColumnGroups,
   groupRowsByChain, buildSubtotalRow, buildGroupedRows, buildChartImages
 };
