@@ -135,4 +135,88 @@ function renderGroupedBarChart({ title, categories, series, width = 860, height 
   return canvas.toBuffer('image/png');
 }
 
-module.exports = { renderGroupedBarChart, SERIES_COLORS, formatNumber };
+// PIE_COLORS (bản 11.47) — bảng màu CỐ ĐỊNH, đủ phân biệt cho tối đa 14
+// lát (14 khoảng giá trị hoá đơn) — lặp lại nếu nhiều lát hơn (không xảy
+// ra ở đây, chỉ phòng hờ).
+const PIE_COLORS = [
+  '#4A90D2', '#F2A93C', '#6FA83D', '#D24A6E', '#9B59B6', '#1ABC9C', '#E67E22',
+  '#34495E', '#F1C40F', '#2ECC71', '#E74C3C', '#3498DB', '#95A5A6', '#C0392B'
+];
+
+// renderPieChart (bản 11.47, theo yêu cầu người dùng — sheet "Biểu đồ HĐ"
+// của "Báo cáo khách hàng theo tuần", 6 biểu đồ TRÒN so sánh Số lượng/Giá
+// trị hoá đơn theo khoảng giá trị + theo Thẻ/Tổng, xem
+// lib/khachHangTuanRunner.js:buildHoaDonChartImages()).
+//   title: chuỗi tiêu đề.
+//   slices: [{ label, value, color? }] — mỗi phần tử 1 lát; lát value<=0
+//     bị BỎ QUA (không vẽ lát rỗng/chú thích rối mắt) — nếu TẤT CẢ lát
+//     đều 0 (chưa có dữ liệu), vẽ 1 vòng tròn xám + chữ "Chưa có dữ liệu"
+//     thay vì chia 0 ra lỗi `NaN`.
+function renderPieChart({ title, slices, width = 860, height = 480 }) {
+  ensureFonts();
+  const canvas = createCanvas(width, height);
+  const ctx = canvas.getContext('2d');
+
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, width, height);
+
+  ctx.fillStyle = '#1a1a1a';
+  ctx.font = `20px ${FONT_BOLD}`;
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillText(title, 24, 30);
+
+  const usable = (slices || []).filter(s => Number(s.value) > 0);
+  const total = usable.reduce((sum, s) => sum + Number(s.value), 0);
+
+  const cx = width * 0.34, cy = height / 2 + 10, r = Math.min(cx - 24, height / 2 - 40);
+
+  if (!usable.length || total <= 0) {
+    ctx.strokeStyle = '#cccccc';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.fillStyle = '#999999';
+    ctx.font = `14px ${FONT_REGULAR}`;
+    ctx.textAlign = 'center';
+    ctx.fillText('Chưa có dữ liệu', cx, cy);
+    ctx.textAlign = 'left';
+    return canvas.toBuffer('image/png');
+  }
+
+  let angleStart = -Math.PI / 2;
+  const legendItems = [];
+  usable.forEach((s, i) => {
+    const value = Number(s.value);
+    const fraction = value / total;
+    const angleEnd = angleStart + fraction * Math.PI * 2;
+    const color = s.color || PIE_COLORS[i % PIE_COLORS.length];
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.arc(cx, cy, r, angleStart, angleEnd);
+    ctx.closePath();
+    ctx.fill();
+    legendItems.push({ label: s.label, value, fraction, color });
+    angleStart = angleEnd;
+  });
+
+  // Legend — cột dọc bên phải vòng tròn, mỗi lát 1 dòng (ô màu + nhãn +
+  // giá trị + %).
+  const legendX = width * 0.58;
+  let legendY = 56;
+  ctx.textAlign = 'left';
+  legendItems.forEach((item) => {
+    ctx.fillStyle = item.color;
+    ctx.fillRect(legendX, legendY, 14, 14);
+    ctx.fillStyle = '#333333';
+    ctx.font = `13px ${FONT_REGULAR}`;
+    const pct = (item.fraction * 100).toFixed(1);
+    ctx.fillText(`${item.label}: ${formatNumber(item.value)} (${pct}%)`, legendX + 20, legendY + 12);
+    legendY += 22;
+  });
+
+  return canvas.toBuffer('image/png');
+}
+
+module.exports = { renderGroupedBarChart, renderPieChart, SERIES_COLORS, formatNumber };

@@ -28,7 +28,7 @@ const { loadDefinition, runDefinition, runDefinitionForExport, resolveFactsPool 
 const { PERSISTED_DIMENSION_COLUMNS } = require('../lib/reportEngine');
 const { resolveTitleWithDate, resolveExportFileBaseName } = require('../lib/reportTitleDate');
 const { exportExcel, exportExcelWithChartSheet, exportMultiSheetExcel } = require('../lib/exportExcel');
-const { buildChartImages } = require('../lib/khachHangTuanRunner');
+const { buildChartImages, buildHoaDonChartImages } = require('../lib/khachHangTuanRunner');
 const { SHEET_OPTIONS } = require('../lib/brgWeeklyPostRunner');
 const { exportPdf } = require('../lib/exportPdf');
 const { buildDoanhThuTongHopHcrcMonthlyWorkbook } = require('../lib/doanhThuTongHopHcrcMonthlyExport');
@@ -562,8 +562,13 @@ router.post('/:reportId/export', async (req, res, next) => {
       // NGAY SAU sheet dữ liệu, xem lib/khachHangTuanRunner.js:buildChartImages()
       // + lib/exportExcel.js:exportExcelWithChartSheet(). Báo cáo khác
       // KHÔNG đổi hành vi (vẫn exportExcel() như cũ).
+      // "Biểu đồ HĐ" (bản 11.47, theo yêu cầu người dùng) — sheet biểu đồ
+      // TRÒN thứ 2, RIÊNG cho 2 nhóm cột "Hoá đơn theo khoảng giá trị" —
+      // xem lib/khachHangTuanRunner.js:buildHoaDonChartImages().
       const buffer = definition.sourceType === 'khachHangTuan'
-        ? await exportExcelWithChartSheet(exportDefinition, projected, buildChartImages(projected))
+        ? await exportExcelWithChartSheet(exportDefinition, projected, buildChartImages(projected), [
+            { name: 'Biểu đồ HĐ', images: buildHoaDonChartImages(projected) }
+          ])
         : await exportExcel(exportDefinition, projected);
       await logAction(req, { module: 'Báo cáo', actionType: 'XUAT_BAO_CAO', targetObject: req.params.reportId, description: `Xuất Excel báo cáo "${displayTitle}" (${projected.length} dòng)` });
       // res.attachment() (Express, dùng gói content-disposition bên trong) tự

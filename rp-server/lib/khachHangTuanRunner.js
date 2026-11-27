@@ -396,6 +396,73 @@ function buildChartImages(rows) {
   return images;
 }
 
+// buildHoaDonChartImages (bản 11.47, theo yêu cầu người dùng — thêm sheet
+// "Biểu đồ HĐ" RIÊNG, 6 biểu đồ TRÒN cho 2 nhóm cột "Hoá đơn theo khoảng
+// giá trị" mới — xem HOADON_BUCKETS/HOADON_MEASURE_KEYS ở đầu file) — CHỈ
+// dùng số liệu dòng "Tổng cộng" (__isGrandTotal — CẢ CHUỖI, không tách
+// Mart/Mini Mart như buildChartImages() ở trên, vì 2 nhóm cột này không
+// có khái niệm so sánh theo chuỗi trong yêu cầu gốc):
+//   1. Giá trị hoá đơn theo khoảng — Tất cả giao dịch (14 lát, TotalGT).
+//   2. Số lượng hoá đơn theo khoảng — Tất cả giao dịch (14 lát, TotalSL).
+//   3. Số lượng hoá đơn theo khoảng — Qua thẻ Elite/app (14 lát, TheSL).
+//   4. Giá trị hoá đơn theo khoảng — Qua thẻ Elite/app (14 lát, TheGT).
+//   5. Tổng giá trị hoá đơn — Qua thẻ vs Không qua thẻ (2 lát: SUM(TheGT)
+//      và SUM(TotalGT) − SUM(TheGT), CỘNG LẠI = SUM(TotalGT)).
+//   6. Tổng số lượng hoá đơn — Qua thẻ vs Không qua thẻ (tương tự, SL).
+// Trả về rỗng nếu KHÔNG tìm thấy dòng Tổng cộng (vd lọc theo storeScope
+// làm rỗng hẳn danh sách siêu thị) — addChartImagesSheet() bỏ qua hẳn
+// sheet nếu mảng ảnh rỗng, KHÔNG lỗi.
+function buildHoaDonChartImages(rows) {
+  const { renderPieChart } = require('./chartImage');
+  const grandRow = rows.find(r => r.__isGrandTotal);
+  if (!grandRow) return [];
+
+  const bucketSlices = (suffix) => HOADON_BUCKETS.map(b => ({ label: b.label, value: grandRow[`${b.id}${suffix}`] || 0 }));
+  const sumSuffix = (suffix) => HOADON_BUCKETS.reduce((s, b) => s + (grandRow[`${b.id}${suffix}`] || 0), 0);
+
+  const totalGT = sumSuffix('TotalGT'), theGT = sumSuffix('TheGT');
+  const totalSL = sumSuffix('TotalSL'), theSL = sumSuffix('TheSL');
+
+  return [
+    {
+      name: 'Giá trị HĐ theo khoảng — Tất cả',
+      buffer: renderPieChart({ title: 'Giá trị hoá đơn theo khoảng giá trị — Tất cả giao dịch', slices: bucketSlices('TotalGT') })
+    },
+    {
+      name: 'Số lượng HĐ theo khoảng — Tất cả',
+      buffer: renderPieChart({ title: 'Số lượng hoá đơn theo khoảng giá trị — Tất cả giao dịch', slices: bucketSlices('TotalSL') })
+    },
+    {
+      name: 'Số lượng HĐ theo khoảng — Qua thẻ',
+      buffer: renderPieChart({ title: 'Số lượng hoá đơn theo khoảng giá trị — Qua thẻ BRG Elite/app BRGMart', slices: bucketSlices('TheSL') })
+    },
+    {
+      name: 'Giá trị HĐ theo khoảng — Qua thẻ',
+      buffer: renderPieChart({ title: 'Giá trị hoá đơn theo khoảng giá trị — Qua thẻ BRG Elite/app BRGMart', slices: bucketSlices('TheGT') })
+    },
+    {
+      name: 'Tổng giá trị HĐ — Thẻ và Tổng',
+      buffer: renderPieChart({
+        title: 'Tổng giá trị hoá đơn — Qua thẻ so với Không qua thẻ',
+        slices: [
+          { label: 'Qua thẻ BRG Elite/app BRGMart', value: theGT },
+          { label: 'Không qua thẻ', value: Math.max(0, totalGT - theGT) }
+        ]
+      })
+    },
+    {
+      name: 'Tổng số lượng HĐ — Thẻ và Tổng',
+      buffer: renderPieChart({
+        title: 'Tổng số lượng hoá đơn — Qua thẻ so với Không qua thẻ',
+        slices: [
+          { label: 'Qua thẻ BRG Elite/app BRGMart', value: theSL },
+          { label: 'Không qua thẻ', value: Math.max(0, totalSL - theSL) }
+        ]
+      })
+    }
+  ];
+}
+
 async function runKhachHangTuanReport(definition, filterValues) {
   // "Từ ngày - Đến ngày" (bản 11.25, theo yêu cầu người dùng) — mirror ĐÚNG
   // lib/kinhDoanhTuanRunner.js:runKinhDoanhTuanReport() — xem chú thích đầy
@@ -494,5 +561,5 @@ module.exports = {
   HOADON_DOMAIN, HOADON_BUCKETS, HOADON_MEASURE_KEYS,
   firstOfMonth, lastOfMonth, yearAgo, addDays, daysBetween, ratePct,
   sumByStk, sumMeasuresByStk, remapToMaDiem, buildRaw, computeDerived, buildColumns, buildColumnGroups,
-  groupRowsByChain, buildSubtotalRow, buildGroupedRows, buildChartImages
+  groupRowsByChain, buildSubtotalRow, buildGroupedRows, buildChartImages, buildHoaDonChartImages
 };

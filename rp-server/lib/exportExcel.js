@@ -565,10 +565,19 @@ async function exportMultiSheetExcel(sheets) {
 // exportExcelWithChartSheet (bản 11.26) — như exportExcel() nhưng thêm 1
 // sheet "Biểu đồ" (ảnh tĩnh) ngay SAU sheet dữ liệu, mirror đúng cấu trúc
 // 2 sheet "Báo cáo"/"Biểu đồ" của file mẫu gốc — xem addChartImagesSheet().
-async function exportExcelWithChartSheet(definition, rows, chartImages) {
+// `extraChartSheets` (TUỲ CHỌN, bản 11.47, theo yêu cầu người dùng —
+// "Báo cáo khách hàng theo tuần" cần thêm 1 sheet "Biểu đồ HĐ" RIÊNG,
+// KHÁC sheet "Biểu đồ" gốc) — mảng [{ name, images }], mỗi phần tử thêm 1
+// sheet ảnh NỮA, theo ĐÚNG THỨ TỰ, ngay sau sheet "Biểu đồ". Để trống/bỏ
+// qua -> hành vi CŨ, chỉ 1 sheet "Biểu đồ" như trước (mọi lời gọi hiện có
+// không cần sửa).
+async function exportExcelWithChartSheet(definition, rows, chartImages, extraChartSheets = []) {
   const workbook = new ExcelJS.Workbook();
   addReportSheet(workbook, definition, rows);
   addChartImagesSheet(workbook, chartImages, 'Biểu đồ');
+  for (const sheet of extraChartSheets) {
+    addChartImagesSheet(workbook, sheet.images, sheet.name);
+  }
   return workbook.xlsx.writeBuffer();
 }
 
