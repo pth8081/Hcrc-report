@@ -14,6 +14,26 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 11.46 — Sửa lỗi "doanhThu"/"DoanhThu" khiến Trọng số siêu thị + 1 cột BRG Weekly Post ra 0
+
+**Không có bước DBA/CSDL mới (chỉ sửa code — đọc sai tên khoá JSON đã
+có sẵn trong dữ liệu, không đổi cấu trúc dữ liệu).**
+
+**Các bước**:
+1. `git pull origin main`.
+2. `cd etl && pm2 restart hcrc-etl` (sửa `lib/promoCampaignImport.js`).
+3. `cd rp-server && pm2 restart hcrc-rp-server` (sửa `lib/brgWeeklyPostCore.js`).
+
+**Kiểm tra**:
+- etl-admin → 1 chiến dịch → "Trọng số siêu thị" → bấm "Tính lại trọng
+  số" → Trọng số phải ra số liệu thật khác 0 cho từng siêu thị (không
+  còn đồng loạt bằng 0).
+- Báo cáo "BRG Weekly Post" → sheet "Theo siêu thị" → cột "Tổng doanh
+  thu bán lẻ thực tế"/"Tỷ trọng DS KM/Tổng DS bán lẻ" phải ra số liệu
+  thật (khác 0, trừ siêu thị thật sự không có giao dịch bán lẻ nào
+  trong kỳ) — lỗi này đã có từ bản 11.42, lần đầu kiểm tra đúng sau khi
+  deploy bản này.
+
 ## 11.45 — "Tính tự động" trọng số siêu thị chạy ngay khi nhập file
 
 **Không có bước DBA/CSDL mới (chỉ đổi frontend etl-admin — thứ tự/nơi

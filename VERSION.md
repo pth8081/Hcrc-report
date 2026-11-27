@@ -52,6 +52,45 @@ nội dung/hành vi nào đã làm. Lịch sử Git (commit message) vẫn còn 
 "Bản 10.100"/"Bản 10.101" (không sửa lại lịch sử Git) — coi là ĐỒNG NHẤT
 với "11.0"/"11.1".
 
+## 11.46 — Sửa lỗi THẬT "doanhThu"/"DoanhThu" — "Tính tự động" trọng số siêu thị + cột "Tổng doanh thu bán lẻ thực tế" (BRG Weekly Post) ra 0 dù mã kho khớp đúng
+
+**Theo báo cáo người dùng** — vừa cấp xong quyền `SELECT` trên
+`dwh.ReportFacts` (bản 11.44) và chạy "Tính lại trọng số" thành công
+(không còn lỗi quyền), nhưng Trọng số VẪN ra 0 cho cả 35 siêu thị. Nhờ
+chạy 3 câu SQL đối chiếu trực tiếp (xem `dwh.ReportFacts.Measures` thật
++ `etl.DiemStkMapping.MaStkMoi`) phát hiện: **mã kho (STK_ID) khớp ĐÚNG
+100%** với mã Điểm — không phải lỗi khớp mã như nghi ngờ ban đầu.
+
+**Nguyên nhân THẬT**: domain `doanhthu_chinhanh` lưu measure với khoá
+JSON **`"doanhThu"` (chữ "d" THƯỜNG)** — xem `measureColumns:
+['doanhThu', 'laiGop']` ở `etl/scripts/seedLdtdHcrcSync.js` — nhưng cả
+2 nơi đọc lại đều gõ nhầm thành **`"DoanhThu"` (chữ "D" HOA)**, đúng quy
+ước của domain KHÁC (`doanhthu_sku_nganhhang`, measure `DoanhThu` chữ
+hoa — xem `seedDoanhThuSkuNganhHangSync.js`, **ĐÚNG, KHÔNG đổi**). 2
+domain dùng 2 quy ước viết hoa/thường KHÁC NHAU cho cùng khái niệm
+"doanh thu" — đọc nhầm khoá JS (`measures.DoanhThu` khi khoá thật là
+`measures.doanhThu`) luôn ra `undefined` → về 0, DÙ mọi bước khớp mã
+(STK_ID → mã Điểm) đều đúng từ đầu.
+
+**Đã sửa đúng 2 chỗ** (cả 2 đọc domain `doanhthu_chinhanh`):
+- `rp-server/lib/brgWeeklyPostCore.js:fetchStoreWideTotals()` — lỗi NÀY
+  ĐÃ CÓ TỪ BẢN 11.42 (thêm cột "Tổng doanh thu bán lẻ thực tế"/"Tỷ
+  trọng DS KM/Tổng DS bán lẻ" ở báo cáo "Theo siêu thị") — nghĩa là 2
+  cột đó đã SAI ra 0 kể từ bản 11.42 tới giờ, không phải lỗi mới.
+- `etl/lib/promoCampaignImport.js:computeStoreRevenueByMaDiem()` (bản
+  11.44, "Tính tự động" trọng số).
+
+**KHÔNG liên quan tới** việc BRG Weekly Post vẫn chưa ra số liệu "SL/DS
+thực đạt" (domain `doanhthu_sku_nganhhang`)/"SL tồn" (domain
+`tonkho_chitiet_sku`) đang điều tra riêng — 2 domain đó dùng ĐÚNG
+`DoanhThu`/`SoLuongTon` chữ hoa, không dính lỗi này, vẫn đang chờ kết
+quả 2 câu SQL đối chiếu đã gửi người dùng trước đó.
+
+Verify: test độc lập `computeStoreRevenueByMaDiem()` với ĐÚNG hình dạng
+`Measures` thật lấy từ ảnh SSMS người dùng gửi (`{"doanhThu":
+5903840.96,"laiGop":...}`) — PASS; `node --check` 2 file sửa; build
+`etl-admin` thành công.
+
 ## 11.45 — "Tính tự động" trọng số siêu thị CHẠY NGAY khi nhập file, không cần bấm thêm nút
 
 **Theo yêu cầu người dùng** (hỏi lại ngay sau bản 11.44) — "Cái phần nút

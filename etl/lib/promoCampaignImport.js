@@ -432,7 +432,15 @@ async function computeStoreRevenueByMaDiem(dwhPool, stkToMaDiem, fromISO, toISO)
     const maDiem = stkToMaDiem.get(row.EntityCode);
     if (!maDiem) continue;
     const measures = row.Measures ? JSON.parse(row.Measures) : {};
-    const doanhThu = measures.DoanhThu || 0;
+    // SỬA LỖI THẬT (bản 11.46, báo cáo người dùng — "Tính tự động" ra 0
+    // hết dù mã kho đã khớp đúng 100% qua etl.DiemStkMapping) — domain
+    // `doanhthu_chinhanh` lưu measure "doanhThu" chữ "d" THƯỜNG (xem
+    // measureColumns ở etl/scripts/seedLdtdHcrcSync.js), KHÔNG PHẢI
+    // "DoanhThu" chữ "D" HOA — đọc nhầm khoá JSON khiến luôn ra `undefined`
+    // -> về 0. Xem chú thích đầy đủ (lý do 2 domain khác quy ước viết hoa/
+    // thường) ở lib/brgWeeklyPostCore.js:fetchStoreWideTotals() bên
+    // rp-server, cùng lỗi, cùng đợt sửa.
+    const doanhThu = measures.doanhThu || 0;
     revenueByMaDiem.set(maDiem, (revenueByMaDiem.get(maDiem) || 0) + doanhThu);
   }
   return revenueByMaDiem;

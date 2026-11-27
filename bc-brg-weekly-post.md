@@ -122,6 +122,16 @@ Mart + Mini Mart" (xem `lib/brgPostRecapRunner.js`).
   trọng DS KM/Tổng DS bán lẻ" — tái dùng NGUYÊN 2 domain đã có sẵn
   (`doanhthu_chinhanh`/`giaodich_chinhanh`, dùng chung với "Báo cáo tổng
   hợp doanh thu HCRC") — xem `lib/brgWeeklyPostCore.js:fetchStoreWideTotals()`.
+
+  ⚠️ **SỬA LỖI THẬT (bản 11.46)** — 2 cột "Tổng doanh thu bán lẻ thực
+  tế"/"Tỷ trọng DS KM/Tổng DS bán lẻ" ĐÃ RA 0 TOÀN BỘ từ bản 11.42 tới
+  trước bản 11.46 — nguyên nhân: domain `doanhthu_chinhanh` lưu measure
+  khoá `"doanhThu"` (chữ "d" THƯỜNG, xem `measureColumns` ở
+  `etl/scripts/seedLdtdHcrcSync.js`), nhưng code đọc nhầm thành
+  `"DoanhThu"` (chữ "D" HOA — ĐÚNG cho domain KHÁC,
+  `doanhthu_sku_nganhhang`, không phải domain này) — 2 domain dùng 2
+  quy ước viết hoa/thường khác nhau cho cùng khái niệm "doanh thu". Đã
+  sửa đúng khoá `measures.doanhThu`.
   **VẪN KHÔNG LÀM** "Doanh số chỉ tiêu theo kế hoạch công ty tháng..."
   (2 cột + 2 cột phụ thuộc) — số liệu phòng Vận Hành (VH) TỰ NHẬP TAY
   hàng tháng, KHÔNG nằm trong bất kỳ domain nào hệ thống đồng bộ được —

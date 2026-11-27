@@ -367,7 +367,18 @@ async function fetchStoreWideTotals(dwhPool, diemMapping, from, to) {
   const out = new Map();
   for (const r of revenueByDiem) {
     out.set(r.entityCode, {
-      tongDoanhThuBanLe: r.measures.DoanhThu || 0,
+      // SỬA LỖI THẬT (bản 11.46, phát hiện qua đối chiếu trực tiếp
+      // Measures thật trong dwh.ReportFacts, báo cáo người dùng — "Tính
+      // tự động" trọng số siêu thị RA 0 HẾT dù đã khớp đúng mã kho) — domain
+      // `doanhthu_chinhanh` lưu measure "doanhThu" chữ "d" THƯỜNG (xem
+      // measureColumns ở seedLdtdHcrcSync.js), KHÔNG PHẢI "DoanhThu" chữ
+      // "D" HOA như domain `doanhthu_sku_nganhhang` (SALES_DOMAIN, measure
+      // "DoanhThu" ĐÚNG — KHÔNG đổi, xem fetchActualSales() ở trên) — 2
+      // domain khác nhau dùng 2 quy ước viết hoa/thường KHÁC NHAU cho cùng
+      // 1 khái niệm, đọc nhầm khoá JSON này khiến KHÔNG BAO GIỜ ra đúng số
+      // (luôn `undefined` -> về 0) dù mọi bước khớp mã (STK_ID/BU_ID/mã
+      // Điểm) đều đúng từ đầu.
+      tongDoanhThuBanLe: r.measures.doanhThu || 0,
       soLuongBillBanLe: transactionByDiem.get(r.entityCode) || 0
     });
   }
