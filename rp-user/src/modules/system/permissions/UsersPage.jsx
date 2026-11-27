@@ -28,7 +28,7 @@ export default function UsersPage() {
   // chỉ thiếu giao diện sửa riêng Tên/Email/... Không đổi Username (khoá
   // đăng nhập, không cho sửa ở đây).
   const [editingInfoFor, setEditingInfoFor] = useState(null);
-  const [infoForm, setInfoForm] = useState({ fullName: '', email: '', phone: '', department: '', position: '', workLocation: '' });
+  const [infoForm, setInfoForm] = useState({ fullName: '', email: '', phone: '', department: '', position: '', workLocation: '', allowMultipleSessions: false });
   const [savingInfo, setSavingInfo] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [resettingPasswordFor, setResettingPasswordFor] = useState(null);
@@ -83,7 +83,7 @@ export default function UsersPage() {
     try {
       await api.put(`/system/users/${user.Id}`, {
         fullName: user.FullName, email: user.Email, phone: user.Phone, department: user.Department, position: user.Position,
-        workLocation: user.WorkLocation, isActive: !user.IsActive
+        workLocation: user.WorkLocation, isActive: !user.IsActive, allowMultipleSessions: !!user.AllowMultipleSessions
       });
       reload();
     } catch (err) { setError(err.message); } finally { setTogglingActiveId(null); }
@@ -125,7 +125,8 @@ export default function UsersPage() {
     setEditingInfoFor(user);
     setInfoForm({
       fullName: user.FullName || '', email: user.Email || '', phone: user.Phone || '',
-      department: user.Department || '', position: user.Position || '', workLocation: user.WorkLocation || ''
+      department: user.Department || '', position: user.Position || '', workLocation: user.WorkLocation || '',
+      allowMultipleSessions: !!user.AllowMultipleSessions
     });
   }
 
@@ -345,6 +346,7 @@ export default function UsersPage() {
           },
           { key: 'IsActive', label: 'Trạng thái', render: (u) => (u.IsActive ? 'Hoạt động' : 'Chưa cho phép kết nối / đã khoá') },
           { key: 'TwoFactorEnabled', label: '2FA', render: (u) => (!u.roles.some(r => r.isSystemRole) ? '—' : (u.TwoFactorEnabled ? 'Đã bật' : 'Chưa bật')) },
+          { key: 'AllowMultipleSessions', label: 'Nhiều thiết bị', render: (u) => (u.AllowMultipleSessions ? 'Cho phép' : '—') },
           {
             key: 'actions', label: '', render: (u) => (
               <>
@@ -381,6 +383,14 @@ export default function UsersPage() {
               <input value={infoForm.position} onChange={(e) => setInfoForm({ ...infoForm, position: e.target.value })} />
               <label>Nơi làm việc</label>
               <input value={infoForm.workLocation} onChange={(e) => setInfoForm({ ...infoForm, workLocation: e.target.value })} />
+              <label className="checkbox-row">
+                <input
+                  type="checkbox"
+                  checked={infoForm.allowMultipleSessions}
+                  onChange={(e) => setInfoForm({ ...infoForm, allowMultipleSessions: e.target.checked })}
+                />
+                Cho phép đăng nhập nhiều thiết bị cùng lúc (bỏ qua giới hạn "chỉ 1 phiên")
+              </label>
               <div className="modal-actions">
                 <button type="submit" disabled={savingInfo}>{savingInfo ? 'Đang lưu...' : 'Lưu'}</button>
                 <button type="button" onClick={() => setEditingInfoFor(null)}>Huỷ</button>

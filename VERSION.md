@@ -52,6 +52,51 @@ nội dung/hành vi nào đã làm. Lịch sử Git (commit message) vẫn còn 
 "Bản 10.100"/"Bản 10.101" (không sửa lại lịch sử Git) — coi là ĐỒNG NHẤT
 với "11.0"/"11.1".
 
+## 11.54 — Cho phép CẤU HÌNH theo từng tài khoản được đăng nhập nhiều thiết bị cùng lúc
+
+**Theo yêu cầu người dùng** — "phân quyền cho phép cấu hình account nào
+được sử dụng nhiều session cùng một lúc... đăng nhập nhiều thiết bị một
+lúc". Hệ thống trước đây CHỈ có đúng 1 chính sách CHUNG cho MỌI tài khoản
+— "chỉ 1 phiên đăng nhập" (bản 10.6: phiên mới nhất giữ lại, phiên cũ tự
+động bị vô hiệu; bản 10.68: hỏi xác nhận trước khi ghi đè nếu phiên trước
+còn trong vòng 8 giờ).
+
+**Đã thêm**: cột `app.Users.AllowMultipleSessions` (mặc định TẮT — giữ
+NGUYÊN hành vi "chỉ 1 phiên" cho MỌI tài khoản như trước, không đổi gì nếu
+không ai bật) — admin tick ở modal "Sửa thông tin" (trang Người dùng,
+`rp-user/src/modules/system/permissions/UsersPage.jsx`), cũng thêm cột
+hiển thị "Nhiều thiết bị" trong bảng danh sách để dễ rà soát tài khoản nào
+đang được bật.
+
+Khi BẬT cho 1 tài khoản (`lib/sessionRevocation.js`):
+- `isSessionRevoked()` BỎ QUA so khớp `CurrentSessionId` — nhiều "sid"
+  (nhiều thiết bị) cùng hợp lệ song song. VẪN áp dụng
+  `SessionsInvalidatedAt` bình thường — đổi mật khẩu/gỡ 2FA/đổi vai
+  trò/khoá tài khoản vẫn thu hồi NGAY TẤT CẢ phiên của tài khoản đó,
+  KHÔNG có ngoại lệ (an toàn vẫn được giữ nguyên, chỉ bỏ giới hạn "1
+  thiết bị").
+- `wasRecentlyLoggedIn()` luôn trả `false` — không còn hỏi xác nhận "có
+  thể đang đăng nhập nơi khác" mỗi lần đăng nhập thêm thiết bị (đúng ý
+  nghĩa "cho phép").
+- Cache phiên (TTL 30s) được xoá NGAY khi admin đổi cờ này
+  (`invalidateSessionState()`, mới) — có hiệu lực ngay, không chờ hết TTL.
+
+**Sửa kèm 1 lỗi tiềm ẩn phát hiện khi làm**: nút "Khoá"/"Cho phép kết nối"
+(`toggleActive()`) gọi CHUNG route `PUT /system/users/:id` nhưng KHÔNG gửi
+`allowMultipleSessions` trong payload — nếu không sửa, bấm khoá/mở khoá 1
+tài khoản sẽ ÂM THẦM tắt lại cờ này về 0 mỗi lần. Đã sửa gửi kèm giá trị
+hiện tại của tài khoản đó, giữ nguyên không đổi.
+
+**Có việc DBA cần làm** — chạy lại `rp-db/schema.sql` trên CSDL Report
+Server (thêm cột `AllowMultipleSessions`, an toàn chạy lại nhiều lần).
+
+Verify: `node --check` các file sửa; `npm run build` ở `rp-user` (PASS);
+bật cờ cho 1 tài khoản test, đăng nhập đồng thời ở 2 trình duyệt khác
+nhau — PHẢI cả 2 đều dùng được, không bị văng; tắt cờ lại — đăng nhập 1
+nơi phải khiến nơi kia bị văng ở lượt gọi API kế tiếp (ĐÚNG hành vi cũ);
+đổi mật khẩu tài khoản đang bật cờ — PHẢI văng NGAY cả 2 phiên (không có
+ngoại lệ an toàn nào bị bỏ qua).
+
 ## 11.53 — "Gán quyền" (Vai trò/Người dùng) chia nhóm "Báo cáo được chạy" theo đúng mục báo cáo thật
 
 **Theo yêu cầu người dùng** — "Trong phần quyền bc này chia ra các bc đúng

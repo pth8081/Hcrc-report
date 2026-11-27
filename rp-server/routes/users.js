@@ -6,7 +6,7 @@ const bcrypt = require('bcryptjs');
 const { sql, getPool } = require('../db');
 const { requireAuth, requireMenuAccess, requireSystemRoleActor } = require('../lib/auth');
 const { invalidateUser, getUserContext } = require('../lib/permissions');
-const { revokeSessions } = require('../lib/sessionRevocation');
+const { revokeSessions, invalidateSessionState } = require('../lib/sessionRevocation');
 const { logAction } = require('../lib/auditLog');
 const { fetchDirectory } = require('../lib/hcrcWorkspaceClient');
 const { loadDiemStkMapping } = require('../lib/diemStkMapping');
@@ -29,7 +29,7 @@ router.get('/', async (req, res, next) => {
     const pool = await getPool('RP');
     const users = await pool.request().query(`
       SELECT Id, Username, FullName, Email, Phone, Department, Position, WorkLocation, AuthSource, LastSyncedAt,
-             IsActive, TwoFactorEnabled, CreatedAt, LastLoginAt, CachedPasswordHashAt
+             IsActive, TwoFactorEnabled, CreatedAt, LastLoginAt, CachedPasswordHashAt, AllowMultipleSessions
       FROM app.Users ORDER BY Username
     `);
     const roles = await pool.request().query(`
@@ -159,7 +159,7 @@ router.post('/', async (req, res, next) => {
 // isActive thủ công — chỉ Admin hệ thống thật mới được làm việc này.
 router.put('/:id', requireSystemRoleActor, async (req, res, next) => {
   try {
-    const { fullName, email, phone, department, position, workLocation, isActive } = req.body || {};
+    const { fullName, email, phone, department, position, workLocation, isActive, allowMultipleSessions } = req.body || {};
     const pool = await getPool('RP');
     await pool.request()
       .input('id', sql.Int, req.params.id)
@@ -170,11 +170,15 @@ router.put('/:id', requireSystemRoleActor, async (req, res, next) => {
       .input('position', sql.NVarChar(200), position || null)
       .input('workLocation', sql.NVarChar(50), workLocation || null)
       .input('isActive', sql.Bit, isActive ? 1 : 0)
-      .query('UPDATE app.Users SET FullName = @fullName, Email = @email, Phone = @phone, Department = @department, Position = @position, WorkLocation = @workLocation, IsActive = @isActive WHERE Id = @id');
+      .input('allowMultipleSessions', sql.Bit, allowMultipleSessions ? 1 : 0)
+      .query('UPDATE app.Users SET FullName = @fullName, Email = @email, Phone = @phone, Department = @department, Position = @position, WorkLocation = @workLocation, IsActive = @isActive, AllowMultipleSessions = @allowMultipleSessions WHERE Id = @id');
     invalidateUser(parseInt(req.params.id, 10));
     // Khoá tài khoản (isActive=false) — thu hồi NGAY phiên đăng nhập đang có
     // (nếu có), không đợi token tự hết hạn (xem lib/sessionRevocation.js).
     if (!isActive) await revokeSessions(parseInt(req.params.id, 10));
+    // AllowMultipleSessions (bản 11.54) — xoá cache phiên để có hiệu lực
+    // NGAY (xem lib/sessionRevocation.js:invalidateSessionState()).
+    invalidateSessionState(parseInt(req.params.id, 10));
     await logAction(req, { module: 'Phân quyền', actionType: 'SUA_USER', targetObject: req.params.id, description: `Cập nhật người dùng #${req.params.id}` });
     res.json({ ok: true });
   } catch (err) { next(err); }

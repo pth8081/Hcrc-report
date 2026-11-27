@@ -170,6 +170,30 @@ BEGIN
 END
 GO
 
+-- "Cho phép nhiều phiên cùng lúc" (bản 11.54, theo yêu cầu người dùng —
+-- "phân quyền cho phép cấu hình account nào được sử dụng nhiều session
+-- cùng một lúc... đăng nhập nhiều thiết bị một lúc") — NGOẠI LỆ theo TỪNG
+-- TÀI KHOẢN khỏi 2 cơ chế "chỉ 1 phiên đăng nhập" ở trên
+-- (CurrentSessionId/LastLoginAt, bản 10.6/10.68) — admin tick cho tài
+-- khoản nào THẬT SỰ cần dùng nhiều thiết bị/trình duyệt cùng lúc (vd tài
+-- khoản dùng chung nhiều người, hoặc 1 người dùng cả máy tính lẫn điện
+-- thoại thường xuyên) — mặc định TẮT (0, giữ NGUYÊN hành vi "chỉ 1 phiên"
+-- cho MỌI tài khoản như trước giờ). Khi BẬT:
+--   - lib/sessionRevocation.js:isSessionRevoked() BỎ QUA so khớp
+--     CurrentSessionId (nhiều "sid" cùng tồn tại hợp lệ song song) — VẪN
+--     áp dụng SessionsInvalidatedAt bình thường (đổi mật khẩu/gỡ 2FA/đổi
+--     vai trò/khoá tài khoản vẫn thu hồi NGAY TẤT CẢ phiên của tài khoản
+--     đó, không có ngoại lệ).
+--   - lib/sessionRevocation.js:wasRecentlyLoggedIn() LUÔN trả `false` —
+--     KHÔNG còn hỏi xác nhận "có thể đang đăng nhập nơi khác" khi đăng
+--     nhập thêm thiết bị (đúng ý nghĩa "cho phép", hỏi xác nhận mỗi lần sẽ
+--     gây khó chịu cho đúng nhóm tài khoản NÀY).
+IF COL_LENGTH('app.Users', 'AllowMultipleSessions') IS NULL
+BEGIN
+    ALTER TABLE app.Users ADD AllowMultipleSessions BIT NOT NULL DEFAULT 0;
+END
+GO
+
 -- Cấu hình DUY NHẤT (Id=1) cho tích hợp "HCRC Workspace" — cùng khuôn
 -- app.EmailSettings (1 dòng, mã hoá khoá bí mật bằng lib/crypto.js). BaseUrl +
 -- 2 đường dẫn dưới đây họp thành 2 lời gọi ĐÚNG theo tài liệu API họ công bố

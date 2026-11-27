@@ -14,6 +14,30 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 11.54 — Cho phép cấu hình theo tài khoản được đăng nhập nhiều thiết bị cùng lúc
+
+**⚠️ CÓ 1 VIỆC DBA CẦN LÀM — THỨ TỰ QUAN TRỌNG** (chạy DBA TRƯỚC khi
+restart `rp-server`, không thì báo lỗi ngay "Invalid column name
+'AllowMultipleSessions'" thay vì chạy bình thường như cũ):
+
+1. `git pull origin main`.
+2. **DBA** chạy lại `rp-db/schema.sql` trên CSDL Report Server (`HCRC_RP`)
+   — thêm cột `app.Users.AllowMultipleSessions` (mặc định 0, an toàn chạy
+   lại nhiều lần, không đụng dữ liệu hiện có).
+3. `cd rp-server && pm2 restart hcrc-rp-server` (sửa
+   `lib/sessionRevocation.js`/`routes/users.js` — CHỈ restart SAU KHI
+   bước 2 đã xong).
+4. `cd rp-user && npm run build` rồi deploy lại theo đúng quy trình đang
+   dùng (sửa `UsersPage.jsx`).
+
+**Kiểm tra**: Hệ thống → Người dùng → "Sửa" 1 tài khoản test → tick "Cho
+phép đăng nhập nhiều thiết bị cùng lúc" → Lưu. Đăng nhập tài khoản đó ở 2
+trình duyệt khác nhau (hoặc 1 trình duyệt + 1 ẩn danh) — CẢ 2 phải dùng
+được cùng lúc, không bị văng/không hiện hỏi xác nhận "đăng nhập nơi
+khác". Bỏ tick lại — đăng nhập ở 1 nơi mới phải khiến phiên kia bị văng ở
+lượt gọi API kế tiếp (đúng hành vi mặc định cũ). Xem "VERSION.md" mục bản
+11.54.
+
 ## 11.53 — "Gán quyền" chia nhóm "Báo cáo được chạy" theo đúng mục báo cáo thật
 
 **Không có bước DBA/CSDL mới** — thuần sửa code `rp-server`/`rp-user`.

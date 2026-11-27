@@ -22,7 +22,7 @@
 const { sql, getPool } = require('../db');
 
 const CACHE_TTL_MS = 30 * 1000;
-const cache = new Map(); // userId -> { expiresAt, invalidatedAtMs, currentSessionId, lastLoginAtMs }
+const cache = new Map(); // userId -> { expiresAt, invalidatedAtMs, currentSessionId, lastLoginAtMs, allowMultipleSessions }
 
 // LAST_LOGIN_WINDOW_MS (bản 10.68) — xem chú thích đầy đủ ở
 // rp-db/schema.sql:LastLoginAt.
@@ -31,12 +31,13 @@ const LAST_LOGIN_WINDOW_MS = 8 * 60 * 60 * 1000;
 async function loadSessionState(userId) {
   const pool = await getPool('RP');
   const result = await pool.request().input('id', sql.Int, userId)
-    .query('SELECT SessionsInvalidatedAt, CurrentSessionId, LastLoginAt FROM app.Users WHERE Id = @id');
+    .query('SELECT SessionsInvalidatedAt, CurrentSessionId, LastLoginAt, AllowMultipleSessions FROM app.Users WHERE Id = @id');
   const row = result.recordset[0];
   return {
     invalidatedAtMs: row?.SessionsInvalidatedAt ? new Date(row.SessionsInvalidatedAt).getTime() : null,
     currentSessionId: row?.CurrentSessionId || null,
-    lastLoginAtMs: row?.LastLoginAt ? new Date(row.LastLoginAt).getTime() : null
+    lastLoginAtMs: row?.LastLoginAt ? new Date(row.LastLoginAt).getTime() : null,
+    allowMultipleSessions: !!row?.AllowMultipleSessions
   };
 }
 
@@ -67,6 +68,12 @@ async function isSessionRevoked(userId, issuedAtSeconds, sessionId) {
     cache.set(userId, entry);
   }
   if (entry.invalidatedAtMs !== null && entry.invalidatedAtMs > issuedAtSeconds * 1000) return true;
+  // AllowMultipleSessions (bản 11.54) — tài khoản được admin cho phép dùng
+  // nhiều thiết bị cùng lúc BỎ QUA so khớp CurrentSessionId (mọi "sid" hợp
+  // lệ cùng tồn tại song song) — VẪN áp dụng invalidatedAtMs ở trên bình
+  // thường (đổi mật khẩu/gỡ 2FA/đổi vai trò/khoá tài khoản vẫn thu hồi
+  // NGAY, không có ngoại lệ).
+  if (entry.allowMultipleSessions) return false;
   // currentSessionId NULL = tài khoản chưa từng đăng nhập qua code có cờ
   // "sid" (chưa migrate) — KHÔNG ép đăng xuất những phiên đang có.
   if (entry.currentSessionId && entry.currentSessionId !== sessionId) return true;
@@ -80,11 +87,17 @@ async function isSessionRevoked(userId, issuedAtSeconds, sessionId) {
 async function revokeSessions(userId) {
   const pool = await getPool('RP');
   const result = await pool.request().input('id', sql.Int, userId)
-    .query('UPDATE app.Users SET SessionsInvalidatedAt = SYSUTCDATETIME() OUTPUT INSERTED.SessionsInvalidatedAt, INSERTED.CurrentSessionId WHERE Id = @id');
+    .query('UPDATE app.Users SET SessionsInvalidatedAt = SYSUTCDATETIME() OUTPUT INSERTED.SessionsInvalidatedAt, INSERTED.CurrentSessionId, INSERTED.AllowMultipleSessions WHERE Id = @id');
   const row = result.recordset[0];
   const invalidatedAtMs = row?.SessionsInvalidatedAt ? new Date(row.SessionsInvalidatedAt).getTime() : Date.now();
   const prev = cache.get(userId);
-  cache.set(userId, { expiresAt: Date.now() + CACHE_TTL_MS, invalidatedAtMs, currentSessionId: row?.CurrentSessionId ?? prev?.currentSessionId ?? null });
+  cache.set(userId, {
+    expiresAt: Date.now() + CACHE_TTL_MS,
+    invalidatedAtMs,
+    currentSessionId: row?.CurrentSessionId ?? prev?.currentSessionId ?? null,
+    lastLoginAtMs: prev?.lastLoginAtMs ?? null,
+    allowMultipleSessions: row ? !!row.AllowMultipleSessions : (prev?.allowMultipleSessions ?? false)
+  });
 }
 
 // Gọi TỪ issueToken() (lib/auth.js) mỗi lần phát hành phiên ĐẦY ĐỦ mới —
@@ -97,12 +110,16 @@ async function setCurrentSession(userId, sessionId) {
   const result = await pool.request().input('id', sql.Int, userId).input('sid', sql.NVarChar(36), sessionId)
     .query(`
       UPDATE app.Users SET CurrentSessionId = @sid, LastLoginAt = SYSUTCDATETIME()
-      OUTPUT INSERTED.SessionsInvalidatedAt, INSERTED.LastLoginAt WHERE Id = @id
+      OUTPUT INSERTED.SessionsInvalidatedAt, INSERTED.LastLoginAt, INSERTED.AllowMultipleSessions WHERE Id = @id
     `);
   const row = result.recordset[0];
   const invalidatedAtMs = row?.SessionsInvalidatedAt ? new Date(row.SessionsInvalidatedAt).getTime() : null;
   const lastLoginAtMs = row?.LastLoginAt ? new Date(row.LastLoginAt).getTime() : null;
-  cache.set(userId, { expiresAt: Date.now() + CACHE_TTL_MS, invalidatedAtMs, currentSessionId: sessionId, lastLoginAtMs });
+  // allowMultipleSessions (bản 11.54) — LUÔN lấy tươi từ CSDL ở đây (không
+  // dựa vào cache cũ) vì setCurrentSession() chạy NGAY SAU issueToken()
+  // thật sự phát hành phiên — phải đúng NGAY LẬP TỨC cho CHÍNH phiên vừa
+  // tạo, không chờ hết TTL cache 30 giây mới đọc đúng cờ.
+  cache.set(userId, { expiresAt: Date.now() + CACHE_TTL_MS, invalidatedAtMs, currentSessionId: sessionId, lastLoginAtMs, allowMultipleSessions: !!row?.AllowMultipleSessions });
 }
 
 // wasRecentlyLoggedIn (bản 10.68) — gọi TRƯỚC khi issueToken() thật sự cấp
@@ -124,7 +141,24 @@ async function wasRecentlyLoggedIn(userId) {
     entry = { expiresAt: Date.now() + CACHE_TTL_MS, ...state };
     cache.set(userId, entry);
   }
+  // AllowMultipleSessions (bản 11.54) — tài khoản được phép nhiều thiết bị
+  // cùng lúc KHÔNG BAO GIỜ bị coi là "vừa đăng nhập gần đây" theo nghĩa
+  // xung đột — đăng nhập thêm thiết bị không cần hỏi xác nhận gì (đúng ý
+  // nghĩa "cho phép", hỏi xác nhận mỗi lần sẽ gây khó chịu cho đúng nhóm
+  // tài khoản NÀY).
+  if (entry.allowMultipleSessions) return false;
   return !!(entry.lastLoginAtMs && Date.now() - entry.lastLoginAtMs < LAST_LOGIN_WINDOW_MS);
 }
 
-module.exports = { isSessionRevoked, revokeSessions, setCurrentSession, wasRecentlyLoggedIn };
+// invalidateSessionState (bản 11.54) — xoá cache 30s của 1 user, buộc lượt
+// kiểm tra/kết nạp TIẾP THEO đọc lại CSDL ngay — gọi SAU khi admin đổi
+// AllowMultipleSessions (routes/users.js) để có hiệu lực NGAY, không chờ
+// hết TTL cache như revokeSessions()/setCurrentSession() đã làm cho các cờ
+// khác (CHỈ xoá cache, KHÔNG đổi SessionsInvalidatedAt — đổi
+// AllowMultipleSessions không có lý do gì phải ép đăng xuất phiên đang có,
+// khác hẳn khoá tài khoản/đổi mật khẩu/2FA/vai trò).
+function invalidateSessionState(userId) {
+  cache.delete(userId);
+}
+
+module.exports = { isSessionRevoked, revokeSessions, setCurrentSession, wasRecentlyLoggedIn, invalidateSessionState };
