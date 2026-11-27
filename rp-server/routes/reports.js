@@ -453,7 +453,9 @@ router.post('/:reportId/run', async (req, res, next) => {
       // liệu, không được cắt bớt). Đọc cờ này: lib/purchaseOrderRunner.js
       // (6 báo cáo nhóm "Mua hàng"), lib/brgPostDetailRunner.js,
       // lib/topSellingZeroStockRunner.js, lib/stockThresholdRunner.js (bản
-      // 11.30, xem audit-hieu-nang-bao-cao.md) — các loại báo cáo khác
+      // 11.30, xem audit-hieu-nang-bao-cao.md), lib/dioNganhHangRunner.js,
+      // lib/doanhThuMtdKeHoachRunner.js, lib/phuHangCoreRunner.js (bản
+      // 11.55, 4 báo cáo "Báo cáo vận hành") — các loại báo cáo khác
       // (runReport/runApiReport/...) bỏ qua field lạ này, không ảnh hưởng.
       result = await runDefinition(definition, filters, { page, pageSize, capForDisplay: true });
       // resultCacheTtlMs (bản 11.30, TUỲ CHỌN, theo yêu cầu người dùng —

@@ -63,7 +63,7 @@ const { fetchAllReportRows, aggregateDailyRowsByEntity, resolveRequestedRange } 
 const { runSalesTargetsBlockRange } = require('./salesTargetsReader');
 const { loadDiemStkMapping, remapRowsToDiem, buildBuIdLookup } = require('./diemStkMapping');
 const { loadNsoMaDiemSet } = require('./nsoStores');
-const { assignSttIfPresent } = require('./reportCellFormat');
+const { assignSttIfPresent, applyDisplayCap } = require('./reportCellFormat');
 
 const ACTUAL_DOMAIN = 'doanhthu_chinhanh';
 const NGANHHANG_DOMAIN = 'doanhthu_nganhhang';
@@ -244,7 +244,7 @@ function buildGroupRow(label, rows) {
   };
 }
 
-async function runDoanhThuMtdKeHoachReport(definition, filterValues = {}) {
+async function runDoanhThuMtdKeHoachReport(definition, filterValues = {}, pagination = {}) {
   const pool = await getPool('DWH');
   const range = resolveMtdRange(filterValues);
   const fromPeriod = firstOfMonth(range.from);
@@ -368,10 +368,19 @@ async function runDoanhThuMtdKeHoachReport(definition, filterValues = {}) {
   const columns = describeColumns();
   assignSttIfPresent(allRows, columns);
 
+  // applyDisplayCap() (bản 11.55, theo yêu cầu người dùng — "mấy báo cáo
+  // này vẫn phải theo quy tắc chỉ hiện 200 dòng trên web và xuất file
+  // Excel mới đủ") — TRƯỚC ĐÂY bỏ qua vì "số dòng nhỏ (bằng số siêu
+  // thị)" lúc mới viết (bản 11.33) — áp dụng LẠI cho ĐÚNG mọi báo cáo,
+  // không phụ thuộc giả định số dòng nhỏ còn đúng mãi (chuỗi có thể mở
+  // rộng thêm nhiều siêu thị). 3 dòng tổng hợp LUÔN ở ĐẦU mảng nên vẫn
+  // hiện đủ kể cả khi bị cắt trang.
+  const { rows: cappedRows, warnings } = applyDisplayCap(allRows, pagination, { entityLabel: 'dòng' });
+
   const periodLabel = `MTD: ${formatDateVN(range.from)} – ${formatDateVN(range.to)}`
     + ` · So tháng trước: ${formatDateVN(lastMonthRange.from)} – ${formatDateVN(lastMonthRange.to)}`
     + ` · So cùng kỳ năm trước: ${formatDateVN(lastYearRange.from)} – ${formatDateVN(lastYearRange.to)}`;
-  return { columns, rows: allRows, columnGroups: null, standaloneColumnColors: null, periodLabel };
+  return { columns, rows: cappedRows, warnings, columnGroups: null, standaloneColumnColors: null, periodLabel };
 }
 
 module.exports = { runDoanhThuMtdKeHoachReport, describeColumns };

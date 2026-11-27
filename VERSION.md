@@ -110,6 +110,14 @@ loại chi phí "Core stock=0" cũng phải chịu). Nếu vẫn CHẬM ĐẾN M
 (không chỉ vài giây), báo lại — cần đầu tư thêm cấu trúc index mới
 (phạm vi lớn hơn, không làm trong đợt sửa khẩn này).
 
+**Nhân tiện (theo yêu cầu người dùng cùng lúc)** — "Theo dõi doanh thu MTD
+theo kế hoạch"/"Phủ hàng Core" (cả 2 sheet) TRƯỚC ĐÂY bỏ qua
+`applyDisplayCap()` (lý do lúc viết: "số dòng nhỏ") — thêm lại tham số
+`pagination` + áp dụng `applyDisplayCap()` đúng mẫu `dioNganhHangRunner.js`/
+`brgWeeklyPostCore.js`, ĐÚNG quy tắc chung "chỉ hiện tối đa 200 dòng trên
+web, xuất Excel/PDF mới đủ" — không phụ thuộc giả định "số dòng nhỏ" còn
+đúng mãi khi chuỗi/danh mục Core mở rộng thêm.
+
 **Không có thay đổi VIEW/DSMART16 nào** — thuần sửa code `rp-server`,
 không cần DBA làm gì thêm.
 

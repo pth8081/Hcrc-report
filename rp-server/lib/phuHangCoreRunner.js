@@ -59,7 +59,7 @@ const {
 const { fetchAllReportRows, aggregateDailyRowsByEntity } = require('./compositeReportRunner');
 const { loadCoreItemListByKho, getLastLoadError } = require('./coreItemList');
 const { loadDiemStkMapping, buildStkIdLookup } = require('./diemStkMapping');
-const { assignSttIfPresent } = require('./reportCellFormat');
+const { assignSttIfPresent, applyDisplayCap } = require('./reportCellFormat');
 
 const STOCK_DOMAIN = 'tonkho_sku';
 const TODAY_SALES_DOMAIN = 'banhang_sku';
@@ -221,7 +221,7 @@ function describeRecapColumns() {
   ];
 }
 
-async function runPhuHangCoreChiTietReport(definition, filterValues = {}) {
+async function runPhuHangCoreChiTietReport(definition, filterValues = {}, pagination = {}) {
   const data = await computeCoreData(filterValues);
   const { candidates, warnings } = data;
   const rows = candidates
@@ -229,10 +229,16 @@ async function runPhuHangCoreChiTietReport(definition, filterValues = {}) {
     .sort((a, b) => (a.tenKho || '').localeCompare(b.tenKho || '', 'vi') || (a.maHang || '').localeCompare(b.maHang || '', 'vi'));
   const columns = describeChiTietColumns();
   assignSttIfPresent(rows, columns);
-  return { columns, rows, warnings, columnGroups: null, standaloneColumnColors: null, periodLabel: buildPeriodLabel(data) };
+  // applyDisplayCap() (bản 11.55, theo yêu cầu người dùng — "mấy báo cáo
+  // này vẫn phải theo quy tắc chỉ hiện 200 dòng trên web") — TRƯỚC ĐÂY bỏ
+  // qua vì "số dòng nhỏ (Core MART)" lúc mới viết — áp dụng LẠI, không
+  // phụ thuộc giả định đó còn đúng mãi (danh mục Core/số siêu thị có thể
+  // mở rộng).
+  const { rows: cappedRows, warnings: capWarnings } = applyDisplayCap(rows, pagination, { entityLabel: 'dòng' });
+  return { columns, rows: cappedRows, warnings: [...warnings, ...capWarnings], columnGroups: null, standaloneColumnColors: null, periodLabel: buildPeriodLabel(data) };
 }
 
-async function runPhuHangCoreRecapReport(definition, filterValues = {}) {
+async function runPhuHangCoreRecapReport(definition, filterValues = {}, pagination = {}) {
   // SỬA HIỆU NĂNG (bản 11.55) — TRƯỚC ĐÂY gọi computeCoreData() (chuỗi
   // dài, quét 35 ngày domain tonkho_sku + 2 lượt loadSumOverRange 7 ngày)
   // XONG MỚI bắt đầu quét storeRevenueRaw (domain doanhthu_nganhhang, 7
@@ -316,7 +322,9 @@ async function runPhuHangCoreRecapReport(definition, filterValues = {}) {
   rows.sort((a, b) => (a.tenKho || '').localeCompare(b.tenKho || '', 'vi'));
   const columns = describeRecapColumns();
   assignSttIfPresent(rows, columns);
-  return { columns, rows, warnings, columnGroups: null, standaloneColumnColors: null, periodLabel: buildPeriodLabel(data) };
+  // applyDisplayCap() (bản 11.55) — ĐÚNG lý do đã ghi ở runPhuHangCoreChiTietReport().
+  const { rows: cappedRows, warnings: capWarnings } = applyDisplayCap(rows, pagination, { entityLabel: 'dòng' });
+  return { columns, rows: cappedRows, warnings: [...warnings, ...capWarnings], columnGroups: null, standaloneColumnColors: null, periodLabel: buildPeriodLabel(data) };
 }
 
 module.exports = { runPhuHangCoreChiTietReport, runPhuHangCoreRecapReport, describeChiTietColumns, describeRecapColumns };

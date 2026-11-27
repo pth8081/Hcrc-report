@@ -189,23 +189,24 @@ async function runDefinition(definition, filterValues, pagination) {
   if (definition.sourceType === 'dioNganhHang') {
     return runDioNganhHangReport(definition, filterValues, pagination);
   }
-  // 'doanhThuMtdKeHoach' (bản 11.33, báo cáo 2/4 "Báo cáo vận hành" mới,
-  // theo yêu cầu người dùng) — "Theo dõi doanh thu MTD theo kế hoạch"
-  // (3 ReportId riêng ALL/LFL/NSO, khác nhau qua definition.loaiSieuThi) —
-  // xem lib/doanhThuMtdKeHoachRunner.js. Số dòng nhỏ (bằng số siêu thị),
-  // KHÔNG cần pagination/applyDisplayCap.
+  // 'doanhThuMtdKeHoach' (bản 11.33, báo cáo "Theo dõi doanh thu MTD theo
+  // kế hoạch" — gộp 3 góc nhìn Toàn chuỗi/LFL/NSO thành 1 bảng ở bản
+  // 11.52) — xem lib/doanhThuMtdKeHoachRunner.js. Truyền `pagination`
+  // (bản 11.55, theo yêu cầu người dùng — mọi báo cáo đều phải tuân quy
+  // tắc hiện tối đa trên web, Excel xuất đủ — KHÔNG còn giả định "số dòng
+  // nhỏ" như lúc mới viết, đúng mẫu dioNganhHang/brgWeeklyPost).
   if (definition.sourceType === 'doanhThuMtdKeHoach') {
-    return runDoanhThuMtdKeHoachReport(definition, filterValues);
+    return runDoanhThuMtdKeHoachReport(definition, filterValues, pagination);
   }
   // 'phuHangCoreChiTiet'/'phuHangCoreRecap' (bản 11.34, báo cáo 4/4 "Báo
   // cáo vận hành" mới, theo yêu cầu người dùng — CHỈ 2 sheet "Chi
-  // tiết"/"Recap ST" như file mẫu gốc) — xem lib/phuHangCoreRunner.js. Số
-  // dòng nhỏ (Core MART), KHÔNG cần pagination/applyDisplayCap.
+  // tiết"/"Recap ST" như file mẫu gốc) — xem lib/phuHangCoreRunner.js.
+  // Truyền `pagination` (bản 11.55, cùng lý do ở trên).
   if (definition.sourceType === 'phuHangCoreChiTiet') {
-    return runPhuHangCoreChiTietReport(definition, filterValues);
+    return runPhuHangCoreChiTietReport(definition, filterValues, pagination);
   }
   if (definition.sourceType === 'phuHangCoreRecap') {
-    return runPhuHangCoreRecapReport(definition, filterValues);
+    return runPhuHangCoreRecapReport(definition, filterValues, pagination);
   }
   if (definition.sourceType && definition.sourceType !== 'directDb') {
     return runApiReport(definition, filterValues, pagination);
