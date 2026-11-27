@@ -82,7 +82,7 @@ async function runBrgPostByItemsReport(definition, filterValues) {
 
   // displayTitle/periodLabel (bản 11.35) — tên chiến dịch + khoảng ngày,
   // xem buildCampaignHeader() ở brgWeeklyPostCore.js.
-  return { columns, rows: allRows, columnGroups: null, columnSuperGroups: null, ...buildCampaignHeader(data.campaign) };
+  return { columns, rows: allRows, columnGroups: null, columnSuperGroups: null, ...buildCampaignHeader(data) };
 }
 
 module.exports = { runBrgPostByItemsReport, buildColumns, buildGrandTotalRow };

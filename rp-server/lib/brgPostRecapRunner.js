@@ -136,7 +136,7 @@ async function runBrgPostRecapReport(definition, filterValues) {
   const columns = describeColumns(buildColumns());
   // displayTitle/periodLabel (bản 11.35) — xem buildCampaignHeader() ở
   // brgWeeklyPostCore.js.
-  return { columns, rows: allRows, columnGroups: null, columnSuperGroups: null, ...buildCampaignHeader(data.campaign) };
+  return { columns, rows: allRows, columnGroups: null, columnSuperGroups: null, ...buildCampaignHeader(data) };
 }
 
 module.exports = { runBrgPostRecapReport, buildColumns };

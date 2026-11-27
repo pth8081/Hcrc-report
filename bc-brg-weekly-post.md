@@ -68,6 +68,27 @@ dịch, KHÁC "Cập nhật số liệu tới ngày" — số đó chỉ là m�
 đồng bộ tới đâu, không phải kỳ chiến dịch) — xem
 `lib/brgWeeklyPostCore.js:buildCampaignHeader()`.
 
+**SỬA bản 11.47 (theo yêu cầu người dùng, đối chiếu file mẫu gốc có 3
+dòng "Thời gian CTKM"/"Thời gian cập nhật số liệu"/"Tồn kho" hiện NGAY
+trên báo cáo)** — dòng khoảng ngày ở trên (`periodLabel`) giờ hiện ĐỦ CẢ
+3 mốc, cách nhau bằng `·`:
+- **Thời gian CTKM**: `<StartDate>` – `<EndDate>` (NGUYÊN kỳ chiến dịch,
+  như cũ).
+- **Thời gian cập nhật số liệu**: `<periodFrom>` – `<periodTo>` (khoảng
+  NGÀY THỰC TẾ đang dùng để tính "thực đạt"/"dự kiến" — CÓ THỂ ngắn hơn
+  hẳn CTKM nếu chiến dịch mới chạy vài ngày, hoặc nếu "Cập nhật số liệu
+  tới ngày" đặt sớm hơn hôm nay) — giúp PHÁT HIỆN NGAY nếu mốc này bị
+  cấu hình sai/cũ, thay vì phải đoán qua số liệu 0 bất thường.
+- **Tồn kho**: `cập nhật tới <snapshotDate>` (đúng mốc `MAX(EventDate)`
+  của domain `tonkho_chitiet_sku` đang dùng ở `fetchCurrentStock()` —
+  "chưa có dữ liệu" nếu domain rỗng hẳn).
+
+`buildCampaignHeader()` ĐỔI THAM SỐ — nhận THẲNG `data` (kết quả đầy đủ
+`loadCampaignData()`), KHÔNG CÒN CHỈ `data.campaign` như bản 11.35 — ĐÃ
+SỬA cả 5 nơi gọi (`brgPostRecapRunner.js`, `brgPostByItemsRunner.js`,
+`brgPostByStoreRunner.js`, `brgPostDetailRunner.js`,
+`brgPostRankingsRunner.js`).
+
 **Sửa lỗi "Toàn chuỗi" (bản 11.35)** — sheet "Tổng hợp (Recap)", dòng
 "Toàn chuỗi" trước đây TÍNH SAI (gồm cả siêu thị `LoaiChuoi='KHO'`/chưa
 phân loại ngoài Mart/Mini Mart) — đã sửa đúng quy tắc "Toàn chuỗi = TỔNG

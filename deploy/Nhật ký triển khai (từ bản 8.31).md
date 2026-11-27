@@ -14,6 +14,22 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 11.47 — BRG Weekly Post hiện thêm "Thời gian cập nhật số liệu"/"Tồn kho" trên tiêu đề
+
+**Không có bước DBA/CSDL mới (chỉ sửa code rp-server, không đổi
+domain/VIEW).**
+
+**Các bước**:
+1. `git pull origin main`.
+2. `cd rp-server && pm2 restart hcrc-rp-server` (sửa
+   `lib/brgWeeklyPostCore.js` + 5 file `lib/brgPost*Runner.js`).
+
+**Kiểm tra**: mở bất kỳ báo cáo "BRG Weekly Post" nào (Recap/Theo mã
+hàng/Theo siêu thị/Chi tiết/Xếp hạng) — dòng khoảng ngày ngay dưới tiêu
+đề phải hiện ĐỦ 3 mốc "Thời gian CTKM: ... · Thời gian cập nhật số
+liệu: ... · Tồn kho: cập nhật tới ..." (trước đây CHỈ có "Thời gian
+CTKM").
+
 ## 11.46 — Sửa lỗi "doanhThu"/"DoanhThu" khiến Trọng số siêu thị + 1 cột BRG Weekly Post ra 0
 
 **Không có bước DBA/CSDL mới (chỉ sửa code — đọc sai tên khoá JSON đã

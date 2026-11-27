@@ -52,6 +52,32 @@ nội dung/hành vi nào đã làm. Lịch sử Git (commit message) vẫn còn 
 "Bản 10.100"/"Bản 10.101" (không sửa lại lịch sử Git) — coi là ĐỒNG NHẤT
 với "11.0"/"11.1".
 
+## 11.47 — BRG Weekly Post hiện thêm "Thời gian cập nhật số liệu"/"Tồn kho" ngay trên tiêu đề báo cáo
+
+**Theo yêu cầu người dùng** — đối chiếu lại file mẫu gốc, phát hiện tiêu
+đề báo cáo CHỈ hiện "Thời gian CTKM" (khoảng ngày CẢ chiến dịch), chưa
+hiện "Thời gian cập nhật số liệu" (khoảng ngày THỰC TẾ dùng để tính "thực
+đạt") và "Tồn kho" (mốc snapshot tồn kho đang dùng) như file mẫu MKT.
+
+**Đã sửa**: `lib/brgWeeklyPostCore.js:buildCampaignHeader()` — nhận
+THẲNG `data` (kết quả `loadCampaignData()`, không còn chỉ `data.campaign`)
+để đọc thêm `periodFrom`/`periodTo`/`stock.snapshotDate` — `periodLabel`
+giờ hiện đủ 3 mốc, cách nhau `·`: "Thời gian CTKM: ... · Thời gian cập
+nhật số liệu: ... · Tồn kho: cập nhật tới ...". Sửa cả 5 nơi gọi hàm
+(`brgPostRecapRunner.js`/`brgPostByItemsRunner.js`/
+`brgPostByStoreRunner.js`/`brgPostDetailRunner.js`/
+`brgPostRankingsRunner.js`).
+
+**Lợi ích phụ**: giúp PHÁT HIỆN NGAY nếu "Cập nhật số liệu tới ngày"
+hoặc mốc snapshot tồn kho bị cấu hình sai/cũ — thay vì phải đoán qua số
+liệu 0 bất thường như sự cố đang điều tra (BRG Weekly Post "SL/DS thực
+đạt"/"SL tồn" luôn 0 cho chiến dịch Black Friday).
+
+Verify: test độc lập `buildCampaignHeader()` với dữ liệu giả lập (khớp
+đúng mẫu dòng "Thời gian CTKM: 16/06/2026 – 30/06/2026 · Thời gian cập
+nhật số liệu: 16/06/2026 – 17/06/2026" người dùng gửi) PASS; `node
+--check` toàn bộ 6 file sửa.
+
 ## 11.46 — Sửa lỗi THẬT "doanhThu"/"DoanhThu" — "Tính tự động" trọng số siêu thị + cột "Tổng doanh thu bán lẻ thực tế" (BRG Weekly Post) ra 0 dù mã kho khớp đúng
 
 **Theo báo cáo người dùng** — vừa cấp xong quyền `SELECT` trên

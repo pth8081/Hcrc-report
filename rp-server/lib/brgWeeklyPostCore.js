@@ -615,10 +615,28 @@ function formatDateVN(d) {
     .map((n, i) => (i === 2 ? String(n) : String(n).padStart(2, '0')))
     .join('/');
 }
-function buildCampaignHeader(campaign) {
+// buildCampaignHeader (SỬA bản 11.48, theo yêu cầu người dùng — đối chiếu
+// ảnh mẫu gốc "Thời gian CTKM"/"Thời gian cập nhật số liệu"/"Tồn kho" hiện
+// NGAY trên báo cáo — TRƯỚC ĐÂY `periodLabel` CHỈ hiện đúng khoảng
+// StartDate–EndDate của CẢ chiến dịch, KHÔNG hiện khoảng NGÀY THỰC TẾ đã
+// dùng để tính "thực đạt"/"dự kiến" (`periodFrom`/`periodTo`, có thể NGẮN
+// HƠN hẳn CTKM nếu campaign mới chạy vài ngày hoặc "Cập nhật số liệu tới
+// ngày" đặt sớm hơn hôm nay), cũng KHÔNG hiện mốc snapshot Tồn kho đang
+// dùng — gây khó phát hiện khi 1 trong 2 mốc đó bị cấu hình sai/cũ (đúng
+// nguyên nhân nghi vấn của sự cố "SL/DS thực đạt luôn 0" đang điều tra).
+// Nhận THẲNG `data` (kết quả đầy đủ loadCampaignData(), KHÔNG CHỈ
+// `data.campaign` như trước) để đọc thêm `periodFrom`/`periodTo`/
+// `stock.snapshotDate` — ĐÃ SỬA cả 5 nơi gọi hàm này (brgPost*Runner.js).
+function buildCampaignHeader(data) {
+  const campaign = data.campaign;
+  const snapshotLabel = data.stock && data.stock.snapshotDate
+    ? formatDateVN(data.stock.snapshotDate)
+    : 'chưa có dữ liệu';
   return {
     displayTitle: `BRG Weekly Post — ${campaign.name}`,
-    periodLabel: `${formatDateVN(campaign.startDate)} – ${formatDateVN(campaign.endDate)}`
+    periodLabel: `Thời gian CTKM: ${formatDateVN(campaign.startDate)} – ${formatDateVN(campaign.endDate)}`
+      + ` · Thời gian cập nhật số liệu: ${formatDateVN(data.periodFrom)} – ${formatDateVN(data.periodTo)}`
+      + ` · Tồn kho: cập nhật tới ${snapshotLabel}`
   };
 }
 

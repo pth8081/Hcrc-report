@@ -126,7 +126,7 @@ async function runBrgPostByStoreReport(definition, filterValues) {
 
   // displayTitle/periodLabel (bản 11.35) — xem buildCampaignHeader() ở
   // brgWeeklyPostCore.js.
-  return { columns, rows: groupedRows, columnGroups: null, columnSuperGroups: null, ...buildCampaignHeader(data.campaign) };
+  return { columns, rows: groupedRows, columnGroups: null, columnSuperGroups: null, ...buildCampaignHeader(data) };
 }
 
 module.exports = { runBrgPostByStoreReport, buildColumns, buildGroupedRows };
