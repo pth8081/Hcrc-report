@@ -273,37 +273,54 @@ async function fetchActualSales(dwhPool, skuMaster, from, to) {
   }
   const candidates = [...candidateToMaHang.keys()];
 
-  for (const batch of chunk(candidates, SKU_BATCH_SIZE)) {
-    const request = dwhPool.request();
-    request.input('domain', sql.VarChar(50), SALES_DOMAIN);
-    request.input('from', sql.Date, from);
-    request.input('to', sql.Date, to);
-    const placeholders = batch.map((code, i) => { request.input(`sku${i}`, sql.NVarChar(50), code); return `@sku${i}`; });
-    const inClause = placeholders.join(',');
-    const result = await request.query(`
-      SELECT MaHang, MaHangHienThi, EntityCode, Dimensions, Measures
-      FROM dwh.ReportFacts
-      WHERE Domain = @domain AND EventDate BETWEEN @from AND @to
-        AND (MaHang IN (${inClause}) OR MaHangHienThi IN (${inClause}))
-    `);
-    for (const row of result.recordset) {
-      const maHang = candidateToMaHang.get(row.MaHang) || candidateToMaHang.get(row.MaHangHienThi);
-      if (!maHang) continue; // an toàn — không nên xảy ra vì WHERE đã lọc đúng ứng viên
-      const dims = JSON.parse(row.Dimensions || '{}');
-      const measures = row.Measures ? JSON.parse(row.Measures) : {};
-      const stkId = dims.STK_ID && dims.STK_ID.trim();
-      const qty = measures.SoLuongBan || 0;
-      const revenue = measures.DoanhThu || 0;
-      if (!byMaHangTotal.has(maHang)) byMaHangTotal.set(maHang, { qty: 0, revenue: 0 });
-      const totalAcc = byMaHangTotal.get(maHang);
-      totalAcc.qty += qty; totalAcc.revenue += revenue;
+  // bản 11.50 — SỬA LỖI HIỆU NĂNG do bản 11.49 gây ra (báo cáo người dùng
+  // "BRG Weekly Post" tải lại rất lâu/timeout proxy). Nguyên nhân: bản
+  // 11.49 lọc `WHERE (MaHang IN (...) OR MaHangHienThi IN (...))` — OR
+  // trên 2 CỘT có INDEX RIÊNG (IX_ReportFacts_MaHang/IX_ReportFacts_MaHangHienThi,
+  // xem dwh/schema.sql) khiến optimizer KHÔNG seek sạch được 1 trong 2
+  // index như trước (đúng lớp lỗi đã sửa ở bản 11.38 — non-SARGable/ép
+  // scan, dù cơ chế gây ra khác nhau). Sửa: TÁCH thành 2 query riêng, mỗi
+  // query seek ĐÚNG 1 index theo đúng mẫu đơn-cột cũ, gộp kết quả bằng
+  // `Id` (khoá chính dwh.ReportFacts) để khử trùng (hiếm khi 1 dòng vừa
+  // khớp MaHang vừa khớp MaHangHienThi ở 2 ứng viên khác nhau).
+  const seenIds = new Set();
+  function applyRow(row) {
+    if (seenIds.has(row.Id)) return;
+    seenIds.add(row.Id);
+    const maHang = candidateToMaHang.get(row.MaHang) || candidateToMaHang.get(row.MaHangHienThi);
+    if (!maHang) return; // an toàn — không nên xảy ra vì WHERE đã lọc đúng ứng viên
+    const dims = JSON.parse(row.Dimensions || '{}');
+    const measures = row.Measures ? JSON.parse(row.Measures) : {};
+    const stkId = dims.STK_ID && dims.STK_ID.trim();
+    const qty = measures.SoLuongBan || 0;
+    const revenue = measures.DoanhThu || 0;
+    if (!byMaHangTotal.has(maHang)) byMaHangTotal.set(maHang, { qty: 0, revenue: 0 });
+    const totalAcc = byMaHangTotal.get(maHang);
+    totalAcc.qty += qty; totalAcc.revenue += revenue;
 
-      if (!stkId) continue;
-      if (!byMaHangStore.has(maHang)) byMaHangStore.set(maHang, new Map());
-      const storeMap = byMaHangStore.get(maHang);
-      if (!storeMap.has(stkId)) storeMap.set(stkId, { qty: 0, revenue: 0 });
-      const storeAcc = storeMap.get(stkId);
-      storeAcc.qty += qty; storeAcc.revenue += revenue;
+    if (!stkId) return;
+    if (!byMaHangStore.has(maHang)) byMaHangStore.set(maHang, new Map());
+    const storeMap = byMaHangStore.get(maHang);
+    if (!storeMap.has(stkId)) storeMap.set(stkId, { qty: 0, revenue: 0 });
+    const storeAcc = storeMap.get(stkId);
+    storeAcc.qty += qty; storeAcc.revenue += revenue;
+  }
+
+  for (const batch of chunk(candidates, SKU_BATCH_SIZE)) {
+    for (const column of ['MaHang', 'MaHangHienThi']) {
+      const request = dwhPool.request();
+      request.input('domain', sql.VarChar(50), SALES_DOMAIN);
+      request.input('from', sql.Date, from);
+      request.input('to', sql.Date, to);
+      const placeholders = batch.map((code, i) => { request.input(`sku${i}`, sql.NVarChar(50), code); return `@sku${i}`; });
+      const inClause = placeholders.join(',');
+      const result = await request.query(`
+        SELECT Id, MaHang, MaHangHienThi, EntityCode, Dimensions, Measures
+        FROM dwh.ReportFacts
+        WHERE Domain = @domain AND EventDate BETWEEN @from AND @to
+          AND ${column} IN (${inClause})
+      `);
+      for (const row of result.recordset) applyRow(row);
     }
   }
   return { byMaHangTotal, byMaHangStore };
@@ -368,33 +385,41 @@ async function fetchCurrentStock(dwhPool, skuMaster) {
   // MaNganhHang ở dwh/schema.sql) nên KHÔNG chậm như domain này. Đã thêm
   // cột `MaHangHienThi` + index CÙNG MẪU ở dwh/schema.sql — lọc THẲNG theo
   // cột này (index seek, không gọi hàm trong WHERE nữa).
-  const request = dwhPool.request();
-  request.input('domain', sql.VarChar(50), STOCK_DOMAIN);
-  request.input('snapshotDate', sql.Date, snapshotDate);
-  const placeholders = skuCodeList.map((code, i) => { request.input(`sku${i}`, sql.NVarChar(50), code); return `@sku${i}`; });
-  const result = await request.query(`
-    SELECT Dimensions, Measures
-    FROM dwh.ReportFacts
-    WHERE Domain = @domain AND EventDate = @snapshotDate
-      AND MaHangHienThi IN (${placeholders.join(',')})
-  `);
-  for (const row of result.recordset) {
-    const dims = JSON.parse(row.Dimensions || '{}');
-    const measures = row.Measures ? JSON.parse(row.Measures) : {};
-    // .slice(-6) — CHUẨN HOÁ về đúng 6 số cuối (xem chú thích bản 11.48 ở
-    // trên) — áp dụng NGAY CẢ KHI giá trị thật đã đúng 6 số (slice(-6) của
-    // chuỗi 6 ký tự trả về CHÍNH NÓ, không đổi hành vi cho SKU bình
-    // thường).
-    const rawCode = dims.MaHangHienThi && dims.MaHangHienThi.trim();
-    const skuCode = rawCode ? rawCode.slice(-6) : null;
-    const maChiNhanh = dims.MaChiNhanh && dims.MaChiNhanh.trim();
-    const qty = measures.SoLuongTon || 0;
-    if (!skuCode) continue;
-    byCodeTotal.set(skuCode, (byCodeTotal.get(skuCode) || 0) + qty);
-    if (!maChiNhanh) continue;
-    if (!byCodeStore.has(skuCode)) byCodeStore.set(skuCode, new Map());
-    const storeMap = byCodeStore.get(skuCode);
-    storeMap.set(maChiNhanh, (storeMap.get(maChiNhanh) || 0) + qty);
+  // chunk() theo SKU_BATCH_SIZE (bản 11.50) — skuCodeList giờ dài gấp ~2
+  // lần trước (cả skuCode VÀ maHang/sku, xem bản 11.48) do query CHỈ 1
+  // cột (MaHangHienThi, vẫn seek sạch đúng 1 index, KHÔNG phải nguyên
+  // nhân chính gây chậm vừa báo cáo) — thêm chunk ở đây để tránh vượt
+  // giới hạn số lượng tham số (2100) của SQL Server với chiến dịch nhiều
+  // SKU hơn trong tương lai, không phải vì đã bị lỗi đó thật.
+  for (const batch of chunk(skuCodeList, SKU_BATCH_SIZE)) {
+    const request = dwhPool.request();
+    request.input('domain', sql.VarChar(50), STOCK_DOMAIN);
+    request.input('snapshotDate', sql.Date, snapshotDate);
+    const placeholders = batch.map((code, i) => { request.input(`sku${i}`, sql.NVarChar(50), code); return `@sku${i}`; });
+    const result = await request.query(`
+      SELECT Dimensions, Measures
+      FROM dwh.ReportFacts
+      WHERE Domain = @domain AND EventDate = @snapshotDate
+        AND MaHangHienThi IN (${placeholders.join(',')})
+    `);
+    for (const row of result.recordset) {
+      const dims = JSON.parse(row.Dimensions || '{}');
+      const measures = row.Measures ? JSON.parse(row.Measures) : {};
+      // .slice(-6) — CHUẨN HOÁ về đúng 6 số cuối (xem chú thích bản 11.48 ở
+      // trên) — áp dụng NGAY CẢ KHI giá trị thật đã đúng 6 số (slice(-6) của
+      // chuỗi 6 ký tự trả về CHÍNH NÓ, không đổi hành vi cho SKU bình
+      // thường).
+      const rawCode = dims.MaHangHienThi && dims.MaHangHienThi.trim();
+      const skuCode = rawCode ? rawCode.slice(-6) : null;
+      const maChiNhanh = dims.MaChiNhanh && dims.MaChiNhanh.trim();
+      const qty = measures.SoLuongTon || 0;
+      if (!skuCode) continue;
+      byCodeTotal.set(skuCode, (byCodeTotal.get(skuCode) || 0) + qty);
+      if (!maChiNhanh) continue;
+      if (!byCodeStore.has(skuCode)) byCodeStore.set(skuCode, new Map());
+      const storeMap = byCodeStore.get(skuCode);
+      storeMap.set(maChiNhanh, (storeMap.get(maChiNhanh) || 0) + qty);
+    }
   }
   return { byCodeTotal, byCodeStore, snapshotDate };
 }

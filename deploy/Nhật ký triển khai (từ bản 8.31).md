@@ -14,6 +14,22 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 11.50 — Sửa lỗi HIỆU NĂNG do bản 11.49 gây ra — "BRG Weekly Post" tải lại rất lâu/timeout (SỬA LẠI 100% ở code, không đổi VIEW/domain)
+
+**Không có bước DBA/CSDL mới — thuần sửa code `rp-server`, không đổi
+VIEW/domain/job đồng bộ nào.**
+
+**Các bước**:
+1. `git pull origin main`.
+2. `cd rp-server && pm2 restart hcrc-rp-server` (sửa
+   `lib/brgWeeklyPostCore.js`).
+
+**Kiểm tra**: mở lại báo cáo "BRG Weekly Post" (sheet Tổng hợp/Recap)
+cho chiến dịch Black Friday — tải nhanh lại như trước (không còn
+"Đang lọc..." kéo dài/lỗi "Phản hồi không phải JSON... kiểm tra cấu
+hình proxy /api"), SỐ LIỆU giữ nguyên đúng như bản 11.49 (SL/DS thực
+đạt vẫn khác 0, không bị đổi lại số).
+
 ## 11.49 — Sửa lỗi GỐC RỄ "SL/DS thực đạt luôn 0" — "Mã 10 số" thực ra là SKU_CODE (BRG Weekly Post)
 
 **Không có bước DBA/CSDL mới (chỉ sửa code rp-server — domain/VIEW nguồn

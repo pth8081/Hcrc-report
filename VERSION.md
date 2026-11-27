@@ -52,6 +52,51 @@ nội dung/hành vi nào đã làm. Lịch sử Git (commit message) vẫn còn 
 "Bản 10.100"/"Bản 10.101" (không sửa lại lịch sử Git) — coi là ĐỒNG NHẤT
 với "11.0"/"11.1".
 
+## 11.50 — Sửa lỗi HIỆU NĂNG do bản 11.49 gây ra — "BRG Weekly Post" tải lại rất lâu/timeout proxy
+
+**Theo báo cáo người dùng** — ngay sau khi lên bản 11.49, báo cáo "BRG
+Weekly Post" (sheet Tổng hợp/Recap, chiến dịch Black Friday) tải rất
+lâu, có lúc backend trả lỗi proxy/gateway timeout thật
+("Phản hồi không phải JSON (Content-Type: text/html)") thay vì JSON —
+đúng triệu chứng chậm đã GẶP VÀ SỬA trước đây ở bản 11.38.
+
+**Xác nhận: bản 11.49 ghi SAI ở mục "vẫn SARGable, không mất hiệu năng
+đã sửa ở bản 11.38"** — `fetchActualSales()` lọc
+`WHERE (MaHang IN (...) OR MaHangHienThi IN (...))`: tuy MỖI cột riêng
+lẻ VẪN seek được qua đúng index của nó
+(`IX_ReportFacts_MaHang`/`IX_ReportFacts_MaHangHienThi`, xem
+`dwh/grants.sql`/`dwh/schema.sql`), nhưng OR GIỮA 2 CỘT có 2 INDEX
+KHÁC NHAU — mỗi cột tới 400 giá trị `IN (...)` (SKU_BATCH_SIZE) — khiến
+SQL Server optimizer không ước lượng được kế hoạch seek+seek rẻ, thường
+chọn quét/kế hoạch đắt khác. Cùng LỚP lỗi "ép quét thay vì seek" như
+bản 11.38 (khi đó do `JSON_VALUE()` không SARGable), nhưng CƠ CHẾ khác
+(lần này do OR xuyên 2 index, không phải do hàm trong WHERE).
+
+**Đã sửa**: `lib/brgWeeklyPostCore.js:fetchActualSales()` — TÁCH query
+OR 2-cột thành **2 query riêng, mỗi query lọc ĐÚNG 1 cột**
+(`MaHang IN (...)` và `MaHangHienThi IN (...)`, mỗi query seek sạch 1
+index như bản 11.38 đã làm), gộp kết quả 2 query bằng JS, khử trùng
+theo `Id` (khoá chính `dwh.ReportFacts`, thêm vào SELECT) — tránh đếm
+đôi 1 dòng vừa khớp cả 2 ứng viên khác nhau. Giữ NGUYÊN đúng logic đối
+chiếu 2 ứng viên (`maHang`/`skuCode`) + dịch ngược về `sku.maHang`
+canonical đã sửa đúng ở bản 11.49 — CHỈ đổi CÁCH TRUY VẤN, không đổi
+kết quả.
+
+**Nhân tiện**: `fetchCurrentStock()` (bản 11.48) thêm `chunk()`/
+`SKU_BATCH_SIZE` batching (trước đó gửi 1 query duy nhất, danh sách
+ứng viên giờ dài gấp ~2 lần do dùng cả `skuCode` và `maHang`) — phòng
+ngừa vượt giới hạn 2100 tham số của SQL Server khi chiến dịch có nhiều
+SKU hơn trong tương lai; hàm này CHỈ lọc 1 cột (`MaHangHienThi`) nên
+KHÔNG gặp lỗi OR-2-index như `fetchActualSales()`, không phải nguyên
+nhân của sự cố chậm vừa báo cáo lần này.
+
+**Không cần làm gì thêm trên server** — thuần code, không đổi VIEW/
+domain/job đồng bộ nào.
+
+Verify: `node --check`; test lại `fetchActualSales()` với dữ liệu mock
+giống bản 11.49 — PASS, ra đúng Số lượng/Doanh thu như trước (không đổi
+kết quả, chỉ đổi cách truy vấn).
+
 ## 11.49 — Sửa lỗi GỐC RỄ "SL/DS thực đạt luôn 0" — "Mã 10 số" thực ra là SKU_CODE, không phải SKU_ID (BRG Weekly Post)
 
 **Theo báo cáo người dùng** — tiếp tục điều tra từ bản 11.48, người
