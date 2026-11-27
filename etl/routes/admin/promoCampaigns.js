@@ -34,6 +34,21 @@ function sanitizeFileNamePart(name) {
   return String(name).replace(/[\\/:*?"<>|]/g, '-');
 }
 
+// loadCampaignActiveStatus (bản 11.40, theo yêu cầu người dùng — "đóng
+// chiến dịch thì có xem báo cáo được không?") — TRƯỚC ĐÂY campaign không
+// có cách nào ĐÓNG thật sự (form sửa không có ô "Trạng thái", cột hiển thị
+// luôn là "Đang hoạt động") — thêm nút Đóng/Mở lại THẬT (route
+// PUT /:id/status bên dưới), kèm CHẶN sửa/nhập thêm dữ liệu khi đã đóng
+// (idempotent, tránh sửa nhầm chiến dịch tưởng đã kết thúc) — xem các route
+// dùng hàm này. Trả về `null` nếu không tìm thấy chiến dịch, ngược lại
+// true/false theo đúng IsActive hiện tại.
+async function loadCampaignActiveStatus(pool, campaignId) {
+  const result = await pool.request().input('id', sql.Int, campaignId).query('SELECT IsActive FROM dwh.PromoCampaigns WHERE Id = @id');
+  if (!result.recordset.length) return null;
+  return !!result.recordset[0].IsActive;
+}
+const CAMPAIGN_CLOSED_MESSAGE = 'Chiến dịch đã đóng — bấm "Mở lại" ở danh sách chiến dịch trước khi sửa/nhập thêm dữ liệu.';
+
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 },
@@ -93,27 +108,59 @@ router.post('/', async (req, res, next) => {
 
 router.put('/:id', async (req, res, next) => {
   try {
-    const { name, startDate, endDate, dataUpdatedThrough, isActive } = req.body || {};
+    const { name, startDate, endDate, dataUpdatedThrough } = req.body || {};
     if (!name || !String(name).trim()) return res.status(400).json({ error: 'Thiếu tên chiến dịch' });
     if (!startDate || !endDate) return res.status(400).json({ error: 'Thiếu ngày bắt đầu/kết thúc' });
 
     const pool = await getPool(POOL);
+    // CHẶN sửa thông tin (tên/ngày) khi chiến dịch ĐÃ ĐÓNG (bản 11.40) —
+    // "Trạng thái" (IsActive) đổi RIÊNG qua PUT /:id/status, KHÔNG còn nhận
+    // ở route này nữa (tách hẳn 2 việc: sửa nội dung vs đóng/mở).
+    const isActive = await loadCampaignActiveStatus(pool, req.params.id);
+    if (isActive === null) return res.status(404).json({ error: 'Không tìm thấy chiến dịch' });
+    if (!isActive) return res.status(400).json({ error: CAMPAIGN_CLOSED_MESSAGE });
+
     const result = await pool.request()
       .input('id', sql.Int, req.params.id)
       .input('name', sql.NVarChar(200), String(name).trim())
       .input('startDate', sql.Date, startDate)
       .input('endDate', sql.Date, endDate)
       .input('dataUpdatedThrough', sql.Date, dataUpdatedThrough || null)
-      .input('isActive', sql.Bit, isActive === false ? 0 : 1)
       .query(`
         UPDATE dwh.PromoCampaigns SET
           Name = @name, StartDate = @startDate, EndDate = @endDate,
-          DataUpdatedThrough = @dataUpdatedThrough, IsActive = @isActive
+          DataUpdatedThrough = @dataUpdatedThrough
         OUTPUT INSERTED.Id
         WHERE Id = @id
       `);
     if (!result.recordset.length) return res.status(404).json({ error: 'Không tìm thấy chiến dịch' });
     await logAction(req, { module: 'Chiến dịch khuyến mãi', actionType: 'SUA_CHIEN_DICH_KM', targetObject: name, description: `Sửa chiến dịch "${name}" (Id ${req.params.id})` });
+    res.json({ ok: true });
+  } catch (err) { next(err); }
+});
+
+// Đóng/Mở lại chiến dịch (bản 11.40, theo yêu cầu người dùng — tách RIÊNG
+// khỏi PUT /:id ở trên: đóng/mở là 1 THAO TÁC, không phải "sửa nội dung",
+// và PHẢI làm được ngay cả khi chiến dịch đang đóng (để MỞ LẠI). Đóng
+// chiến dịch KHÔNG xoá/ẩn dữ liệu báo cáo — xem lib/brgWeeklyPostCore.js:
+// listCampaigns() vẫn liệt kê ĐỦ cả chiến dịch đã đóng trong bộ lọc báo
+// cáo "BRG Weekly Post", CHỈ chặn sửa/nhập thêm dữ liệu ở các route khác.
+router.put('/:id/status', async (req, res, next) => {
+  try {
+    const { isActive } = req.body || {};
+    if (typeof isActive !== 'boolean') return res.status(400).json({ error: 'Thiếu isActive (true/false)' });
+
+    const pool = await getPool(POOL);
+    const result = await pool.request()
+      .input('id', sql.Int, req.params.id)
+      .input('isActive', sql.Bit, isActive ? 1 : 0)
+      .query('UPDATE dwh.PromoCampaigns SET IsActive = @isActive OUTPUT INSERTED.Name WHERE Id = @id');
+    if (!result.recordset.length) return res.status(404).json({ error: 'Không tìm thấy chiến dịch' });
+    const name = result.recordset[0].Name;
+    await logAction(req, {
+      module: 'Chiến dịch khuyến mãi', actionType: isActive ? 'MO_LAI_CHIEN_DICH_KM' : 'DONG_CHIEN_DICH_KM',
+      targetObject: name, description: `${isActive ? 'Mở lại' : 'Đóng'} chiến dịch "${name}" (Id ${req.params.id})`
+    });
     res.json({ ok: true });
   } catch (err) { next(err); }
 });
@@ -206,8 +253,9 @@ router.post('/:id/skus/import', upload.single('file'), async (req, res, next) =>
     if (!rows.length) return res.status(400).json({ error: 'Không có dòng hợp lệ nào trong file', rowErrors });
 
     const pool = await getPool(POOL);
-    const campaignExists = await pool.request().input('id', sql.Int, req.params.id).query('SELECT Id FROM dwh.PromoCampaigns WHERE Id = @id');
-    if (!campaignExists.recordset.length) return res.status(404).json({ error: 'Không tìm thấy chiến dịch' });
+    const isActive = await loadCampaignActiveStatus(pool, req.params.id);
+    if (isActive === null) return res.status(404).json({ error: 'Không tìm thấy chiến dịch' });
+    if (!isActive) return res.status(400).json({ error: CAMPAIGN_CLOSED_MESSAGE });
 
     const result = await upsertPromoCampaignSkus(pool, Number(req.params.id), rows, req.admin.username);
     await logAction(req, { module: 'Chiến dịch khuyến mãi', actionType: 'NHAP_SKU_CHIEN_DICH_KM', targetObject: `Campaign ${req.params.id}`, description: `Nhập file SKU chiến dịch: thêm mới ${result.inserted}, cập nhật ${result.updated} dòng` });
@@ -218,6 +266,10 @@ router.post('/:id/skus/import', upload.single('file'), async (req, res, next) =>
 router.delete('/:id/skus/:skuRowId', async (req, res, next) => {
   try {
     const pool = await getPool(POOL);
+    const isActive = await loadCampaignActiveStatus(pool, req.params.id);
+    if (isActive === null) return res.status(404).json({ error: 'Không tìm thấy chiến dịch' });
+    if (!isActive) return res.status(400).json({ error: CAMPAIGN_CLOSED_MESSAGE });
+
     const result = await pool.request()
       .input('id', sql.Int, req.params.skuRowId)
       .input('campaignId', sql.Int, req.params.id)
@@ -280,8 +332,9 @@ router.post('/:id/store-weights/import', upload.single('file'), async (req, res,
     if (!rows.length) return res.status(400).json({ error: 'Không có dòng hợp lệ nào trong file', rowErrors });
 
     const pool = await getPool(POOL);
-    const campaignExists = await pool.request().input('id', sql.Int, req.params.id).query('SELECT Id FROM dwh.PromoCampaigns WHERE Id = @id');
-    if (!campaignExists.recordset.length) return res.status(404).json({ error: 'Không tìm thấy chiến dịch' });
+    const isActive = await loadCampaignActiveStatus(pool, req.params.id);
+    if (isActive === null) return res.status(404).json({ error: 'Không tìm thấy chiến dịch' });
+    if (!isActive) return res.status(400).json({ error: CAMPAIGN_CLOSED_MESSAGE });
 
     const result = await upsertPromoCampaignStoreWeights(pool, Number(req.params.id), rows, req.admin.username);
     await logAction(req, { module: 'Chiến dịch khuyến mãi', actionType: 'NHAP_TRONGSO_CHIEN_DICH_KM', targetObject: `Campaign ${req.params.id}`, description: `Nhập file trọng số siêu thị: thêm mới ${result.inserted}, cập nhật ${result.updated} dòng` });
@@ -292,6 +345,10 @@ router.post('/:id/store-weights/import', upload.single('file'), async (req, res,
 router.delete('/:id/store-weights/:weightRowId', async (req, res, next) => {
   try {
     const pool = await getPool(POOL);
+    const isActive = await loadCampaignActiveStatus(pool, req.params.id);
+    if (isActive === null) return res.status(404).json({ error: 'Không tìm thấy chiến dịch' });
+    if (!isActive) return res.status(400).json({ error: CAMPAIGN_CLOSED_MESSAGE });
+
     const result = await pool.request()
       .input('id', sql.Int, req.params.weightRowId)
       .input('campaignId', sql.Int, req.params.id)

@@ -256,10 +256,15 @@ router.get('/:reportId/filter-options/:field', async (req, res, next) => {
     // domain/Dimensions như nhánh chung bên dưới) — xem lib/brgWeeklyPostCore.js.
     if (filterDef.optionsSource.promoCampaigns) {
       const dwhPool = await getPool('DWH');
+      // SỬA bản 11.40 (theo yêu cầu người dùng — "đóng chiến dịch thì có
+      // xem báo cáo được không?") — listCampaigns() giờ trả ĐỦ CẢ chiến
+      // dịch đã đóng (xem lib/brgWeeklyPostCore.js), đánh dấu "(Đã đóng)"
+      // ngay trong nhãn để phân biệt với chiến dịch đang chạy, không cần
+      // mở etl-admin mới biết.
       const list = await listPromoCampaigns(dwhPool);
       return res.json(list.map(c => ({
         value: String(c.id),
-        label: `${c.name} (${(c.startDate || '').toString().slice(0, 10)} - ${(c.endDate || '').toString().slice(0, 10)})`
+        label: `${c.name} (${(c.startDate || '').toString().slice(0, 10)} - ${(c.endDate || '').toString().slice(0, 10)})${c.isActive ? '' : ' — Đã đóng'}`
       })));
     }
 

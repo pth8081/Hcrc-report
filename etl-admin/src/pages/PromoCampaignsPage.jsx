@@ -19,6 +19,7 @@ export default function PromoCampaignsPage() {
   const [editingCampaignId, setEditingCampaignId] = useState(null);
   const [savingCampaign, setSavingCampaign] = useState(false);
   const [deletingCampaignId, setDeletingCampaignId] = useState(null);
+  const [togglingStatusId, setTogglingStatusId] = useState(null);
   const [selectedCampaignId, setSelectedCampaignId] = useState(null);
 
   function reloadCampaigns() {
@@ -68,6 +69,25 @@ export default function PromoCampaignsPage() {
     }
   }
 
+  // toggleCampaignStatus (bản 11.40, theo yêu cầu người dùng — "đóng chiến
+  // dịch thì có xem báo cáo được không?") — Đóng/Mở lại THẬT (route RIÊNG
+  // PUT /:id/status, tách khỏi "Sửa" ở trên — xem chú thích backend). Đóng
+  // KHÔNG ẩn báo cáo (vẫn chọn/xem/xuất được ở rp-user), CHỈ chặn sửa/nhập
+  // thêm SKU/trọng số cho tới khi mở lại.
+  async function toggleCampaignStatus(c) {
+    const action = c.isActive ? 'Đóng' : 'Mở lại';
+    if (!window.confirm(`${action} chiến dịch "${c.name}"?`)) return;
+    setTogglingStatusId(c.id);
+    try {
+      await api.put(`/promo-campaigns/${c.id}/status`, { isActive: !c.isActive });
+      reloadCampaigns();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setTogglingStatusId(null);
+    }
+  }
+
   async function removeCampaign(c) {
     if (!window.confirm(`Xoá chiến dịch "${c.name}"? Sẽ xoá kèm TOÀN BỘ SKU/trọng số siêu thị đã upload.`)) return;
     setDeletingCampaignId(c.id);
@@ -111,7 +131,13 @@ export default function PromoCampaignsPage() {
             key: 'actions', label: '', render: (r) => (
               <>
                 <button type="button" onClick={() => setSelectedCampaignId(r.id)}>Quản lý SKU/Trọng số</button>{' '}
-                <button type="button" onClick={() => startEditCampaign(r)}>Sửa</button>{' '}
+                {/* "Sửa" chặn ở backend khi đã đóng (xem PUT /:id) — vô
+                    hiệu hoá luôn ở đây để không bấm vào chỉ để nhận lỗi,
+                    phải "Mở lại" trước. */}
+                <button type="button" onClick={() => startEditCampaign(r)} disabled={!r.isActive} title={r.isActive ? '' : 'Mở lại chiến dịch trước khi sửa'}>Sửa</button>{' '}
+                <button type="button" onClick={() => toggleCampaignStatus(r)} disabled={togglingStatusId === r.id}>
+                  {togglingStatusId === r.id ? 'Đang xử lý...' : (r.isActive ? 'Đóng' : 'Mở lại')}
+                </button>{' '}
                 <button type="button" onClick={() => removeCampaign(r)} disabled={deletingCampaignId === r.id}>
                   {deletingCampaignId === r.id ? 'Đang xoá...' : 'Xoá'}
                 </button>
@@ -157,13 +183,21 @@ function CampaignDetail({ campaign, onClose }) {
   return (
     <div style={{ marginTop: 24, borderTop: '2px solid #ccc', paddingTop: 16 }}>
       <h2>Chi tiết chiến dịch: {campaign.name} <button type="button" onClick={onClose}>Đóng</button></h2>
-      <SkuPanel campaignId={campaign.id} />
-      <StoreWeightPanel campaignId={campaign.id} />
+      {/* isActive (bản 11.40) — chiến dịch ĐÃ ĐÓNG (khác nút "Đóng" ngay
+          trên, chỉ để thu gọn khung chi tiết này) chặn nhập/xoá SKU/trọng
+          số, xem SkuPanel/StoreWeightPanel. */}
+      {!campaign.isActive && (
+        <p className="form-hint">
+          ⚠️ Chiến dịch này ĐÃ ĐÓNG — chỉ xem/xuất file, không nhập/xoá thêm được. Bấm "Mở lại" ở danh sách chiến dịch nếu cần sửa.
+        </p>
+      )}
+      <SkuPanel campaignId={campaign.id} isActive={campaign.isActive} />
+      <StoreWeightPanel campaignId={campaign.id} isActive={campaign.isActive} />
     </div>
   );
 }
 
-function SkuPanel({ campaignId }) {
+function SkuPanel({ campaignId, isActive }) {
   const [rows, setRows] = useState([]);
   const [error, setError] = useState('');
   const [file, setFile] = useState(null);
@@ -262,10 +296,14 @@ function SkuPanel({ campaignId }) {
           {exporting ? 'Đang xuất...' : 'Xuất file'}
         </button>
       </div>
-      <form className="stacked-form" onSubmit={submitImport}>
-        <input type="file" accept=".xlsx" onChange={(e) => setFile(e.target.files?.[0] ?? null)} required />
-        <button type="submit" disabled={importing}>{importing ? 'Đang nhập...' : 'Nhập file SKU'}</button>
-      </form>
+      {/* isActive (bản 11.40) — chiến dịch đã đóng, chặn ẩn luôn form nhập
+          (backend cũng chặn — đây chỉ là UX, tránh bấm vào nhận lỗi). */}
+      {isActive && (
+        <form className="stacked-form" onSubmit={submitImport}>
+          <input type="file" accept=".xlsx" onChange={(e) => setFile(e.target.files?.[0] ?? null)} required />
+          <button type="submit" disabled={importing}>{importing ? 'Đang nhập...' : 'Nhập file SKU'}</button>
+        </form>
+      )}
       {importResult && (
         <div className="import-result">
           <p>✅ Đã thêm mới {importResult.inserted}, cập nhật {importResult.updated} dòng.</p>
@@ -291,16 +329,18 @@ function SkuPanel({ campaignId }) {
           { key: 'doanhThuKeHoachTotal', label: 'DT kế hoạch (cả chuỗi)' },
           {
             key: 'actions', label: '', render: (r) => (
-              <button type="button" onClick={() => removeRow(r)} disabled={deletingId === r.id}>
-                {deletingId === r.id ? 'Đang xoá...' : 'Xoá'}
-              </button>
+              isActive ? (
+                <button type="button" onClick={() => removeRow(r)} disabled={deletingId === r.id}>
+                  {deletingId === r.id ? 'Đang xoá...' : 'Xoá'}
+                </button>
+              ) : null
             )
           }
         ]}
         rows={rows}
-        selection={selection}
+        selection={isActive ? selection : null}
       />
-      {selection.selectedIds.size > 0 && (
+      {isActive && selection.selectedIds.size > 0 && (
         <div className="inline-actions">
           <button type="button" onClick={deleteSelected} disabled={bulkDeleting}>
             {bulkDeleting ? 'Đang xoá...' : `Xoá ${selection.selectedIds.size} mục đã chọn`}
@@ -311,7 +351,7 @@ function SkuPanel({ campaignId }) {
   );
 }
 
-function StoreWeightPanel({ campaignId }) {
+function StoreWeightPanel({ campaignId, isActive }) {
   const [rows, setRows] = useState([]);
   const [error, setError] = useState('');
   const [file, setFile] = useState(null);
@@ -412,10 +452,12 @@ function StoreWeightPanel({ campaignId }) {
           {exporting ? 'Đang xuất...' : 'Xuất file'}
         </button>
       </div>
-      <form className="stacked-form" onSubmit={submitImport}>
-        <input type="file" accept=".xlsx" onChange={(e) => setFile(e.target.files?.[0] ?? null)} required />
-        <button type="submit" disabled={importing}>{importing ? 'Đang nhập...' : 'Nhập file trọng số'}</button>
-      </form>
+      {isActive && (
+        <form className="stacked-form" onSubmit={submitImport}>
+          <input type="file" accept=".xlsx" onChange={(e) => setFile(e.target.files?.[0] ?? null)} required />
+          <button type="submit" disabled={importing}>{importing ? 'Đang nhập...' : 'Nhập file trọng số'}</button>
+        </form>
+      )}
       {importResult && (
         <div className="import-result">
           <p>✅ Đã thêm mới {importResult.inserted}, cập nhật {importResult.updated} dòng.</p>
@@ -438,16 +480,18 @@ function StoreWeightPanel({ campaignId }) {
           },
           {
             key: 'actions', label: '', render: (r) => (
-              <button type="button" onClick={() => removeRow(r)} disabled={deletingId === r.id}>
-                {deletingId === r.id ? 'Đang xoá...' : 'Xoá'}
-              </button>
+              isActive ? (
+                <button type="button" onClick={() => removeRow(r)} disabled={deletingId === r.id}>
+                  {deletingId === r.id ? 'Đang xoá...' : 'Xoá'}
+                </button>
+              ) : null
             )
           }
         ]}
         rows={rows}
-        selection={selection}
+        selection={isActive ? selection : null}
       />
-      {selection.selectedIds.size > 0 && (
+      {isActive && selection.selectedIds.size > 0 && (
         <div className="inline-actions">
           <button type="button" onClick={deleteSelected} disabled={bulkDeleting}>
             {bulkDeleting ? 'Đang xoá...' : `Xoá ${selection.selectedIds.size} mục đã chọn`}

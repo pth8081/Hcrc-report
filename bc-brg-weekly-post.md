@@ -103,6 +103,15 @@ báo cáo MKT gửi — file đó là ĐẦU RA):
 
 - `dwh.PromoCampaigns` — 1 chiến dịch (tên, ngày bắt đầu/kết thúc, ngày
   "cập nhật số liệu tới").
+
+  **Đóng/Mở lại chiến dịch (bản 11.40, theo câu hỏi người dùng — "đóng
+  chiến dịch thì có xem báo cáo được không?")** — nút "Đóng"/"Mở lại" ở
+  danh sách chiến dịch (etl-admin, route `PUT /:id/status`), đổi
+  `IsActive`. **Đóng KHÔNG ẩn báo cáo** — chiến dịch đã đóng VẪN hiện
+  trong dropdown "Chiến dịch khuyến mãi" của báo cáo (thêm nhãn "— Đã
+  đóng"), vẫn chọn/xem/xuất bình thường — CHỈ chặn sửa tên/ngày
+  (`PUT /:id`) và nhập/xoá thêm SKU/trọng số siêu thị cho tới khi mở lại
+  (tránh sửa nhầm số liệu của chiến dịch đã chốt).
 - `dwh.PromoCampaignSkus` — 1 dòng/SKU: giá/scope/**chỉ tiêu CẢ CHUỖI**
   (`SoLuongKeHoachTotal`/`DoanhThuKeHoachTotal`) — admin upload file Excel
   (bấm "Tải file mẫu" ở trang "Chiến dịch khuyến mãi" để lấy đúng khuôn).

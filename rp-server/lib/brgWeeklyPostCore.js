@@ -47,11 +47,20 @@ async function loadCampaign(pool, campaignId) {
   };
 }
 
+// SỬA bản 11.40 (theo yêu cầu người dùng — "đóng chiến dịch thì có xem
+// báo cáo được không?") — TRƯỚC ĐÂY lọc `WHERE IsActive = 1`, nên chiến
+// dịch ĐÃ ĐÓNG biến mất HẲN khỏi danh sách chọn ở bộ lọc báo cáo "BRG
+// Weekly Post" — không ai xem/xuất lại được số liệu chiến dịch cũ nữa dù
+// dữ liệu SKU/trọng số vẫn còn nguyên trong CSDL. Giờ liệt kê ĐỦ CẢ chiến
+// dịch đã đóng (vẫn xem/xuất báo cáo được, CHỈ chặn sửa/nhập thêm dữ liệu
+// ở etl-admin, xem etl/routes/admin/promoCampaigns.js) — trả thêm
+// `isActive` để nơi gọi (routes/reports.js) tự đánh dấu "(Đã đóng)" trong
+// nhãn hiển thị, phân biệt với chiến dịch đang chạy.
 async function listCampaigns(pool) {
   const result = await pool.request().query(`
-    SELECT Id, Name, StartDate, EndDate FROM dwh.PromoCampaigns WHERE IsActive = 1 ORDER BY StartDate DESC
+    SELECT Id, Name, StartDate, EndDate, IsActive FROM dwh.PromoCampaigns ORDER BY StartDate DESC
   `);
-  return result.recordset.map(r => ({ id: r.Id, name: r.Name, startDate: r.StartDate, endDate: r.EndDate }));
+  return result.recordset.map(r => ({ id: r.Id, name: r.Name, startDate: r.StartDate, endDate: r.EndDate, isActive: !!r.IsActive }));
 }
 
 async function loadSkuMaster(pool, campaignId) {

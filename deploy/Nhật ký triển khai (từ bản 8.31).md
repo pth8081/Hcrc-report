@@ -14,6 +14,27 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 11.40 — Thêm nút "Đóng"/"Mở lại" chiến dịch — đóng vẫn xem/xuất báo cáo được
+
+**Không có bước DBA/CSDL mới (chỉ sửa code etl/etl-admin/rp-server).**
+
+**Các bước**:
+1. `git pull origin main`.
+2. `cd etl && pm2 restart hcrc-etl` (route mới `PUT /:id/status`, chặn
+   sửa/nhập khi đã đóng).
+3. `cd rp-server && pm2 restart hcrc-rp-server` (sửa
+   `lib/brgWeeklyPostCore.js`/`routes/reports.js` — chiến dịch đóng vẫn
+   hiện trong bộ lọc báo cáo, thêm nhãn "— Đã đóng").
+4. `cd etl-admin && npm run build` (deploy `dist/` mới — nút "Đóng"/"Mở
+   lại" + ẩn nút nhập/xoá khi chiến dịch đã đóng).
+
+**Kiểm tra**: vào "Chiến dịch khuyến mãi" → bấm "Đóng" 1 chiến dịch →
+cột "Trạng thái" đổi "Đã khoá", các nút nhập/xoá SKU/trọng số của chiến
+dịch đó biến mất (chỉ còn "Tải file mẫu"/"Xuất file"). Mở báo cáo "BRG
+Weekly Post" → dropdown "Chiến dịch khuyến mãi" vẫn phải thấy chiến dịch
+vừa đóng (có thêm "— Đã đóng" trong tên) → chọn được, xem/xuất báo cáo
+bình thường. Bấm "Mở lại" → nút nhập/xoá/sửa hiện lại như cũ.
+
 ## 11.39 — Thêm nút "Xuất file" ở trang "Chiến dịch khuyến mãi"
 
 **Không có bước DBA/CSDL mới (chỉ sửa code etl/etl-admin).**

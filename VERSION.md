@@ -52,6 +52,35 @@ nội dung/hành vi nào đã làm. Lịch sử Git (commit message) vẫn còn 
 "Bản 10.100"/"Bản 10.101" (không sửa lại lịch sử Git) — coi là ĐỒNG NHẤT
 với "11.0"/"11.1".
 
+## 11.40 — Thêm nút "Đóng"/"Mở lại" chiến dịch — đóng vẫn xem/xuất báo cáo được
+
+**Theo câu hỏi người dùng** — "khi đóng chiến dịch thì không xem báo cáo
+được à?" Kiểm tra code xác nhận: trang "Chiến dịch khuyến mãi" TRƯỚC ĐÂY
+**chưa có nút nào** để thực sự đóng/mở chiến dịch (chỉ có cột "Trạng
+thái" hiển thị, backend có hỗ trợ 1 nửa qua `PUT /:id` nhưng form Sửa
+không có ô nào gửi `isActive`) — và NẾU đóng được, theo code cũ,
+`lib/brgWeeklyPostCore.js:listCampaigns()` lọc `WHERE IsActive = 1` nên
+chiến dịch đóng sẽ **biến mất hẳn** khỏi bộ lọc "Chiến dịch khuyến mãi"
+của báo cáo "BRG Weekly Post" — không chọn/xem/xuất được nữa dù dữ liệu
+SKU/trọng số vẫn còn nguyên trong CSDL.
+
+**Đã làm theo lựa chọn người dùng xác nhận** ("đóng vẫn xem được báo
+cáo"):
+- Thêm nút **"Đóng"/"Mở lại"** THẬT ở danh sách chiến dịch (etl-admin) —
+  route mới `PUT /:id/status` (tách RIÊNG khỏi `PUT /:id` sửa nội dung).
+- **Đóng chiến dịch KHÔNG còn ẩn khỏi báo cáo** — sửa
+  `listCampaigns()` liệt kê ĐỦ cả chiến dịch đã đóng, nhãn dropdown ở
+  báo cáo tự thêm "— Đã đóng" để phân biệt (xem `routes/reports.js`).
+- **Đóng chiến dịch CHẶN sửa/nhập thêm dữ liệu** (đúng ý nghĩa "đóng" —
+  tránh sửa nhầm số liệu đã chốt): chặn ở cả backend (`PUT /:id`, nhập/
+  xoá SKU, nhập/xoá trọng số siêu thị — trả lỗi rõ ràng "Chiến dịch đã
+  đóng — bấm Mở lại trước") VÀ ẩn luôn các nút/form liên quan ở
+  etl-admin khi đang xem 1 chiến dịch đã đóng (UX, tránh bấm vào nhận
+  lỗi).
+
+**Không có bước DBA/CSDL mới** (chỉ sửa code etl/etl-admin/rp-server,
+không đổi schema).
+
 ## 11.39 — Thêm nút "Xuất file" ở trang "Chiến dịch khuyến mãi"
 
 **Theo yêu cầu người dùng** — trang etl-admin "Chiến dịch khuyến mãi (BRG
