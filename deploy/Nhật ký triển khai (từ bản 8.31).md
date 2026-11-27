@@ -14,6 +14,29 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 11.52 — Gộp 3 báo cáo "Theo dõi doanh thu MTD theo kế hoạch" thành 1
+
+**Không có bước DBA/CSDL mới** — thuần sửa code `rp-server` + chạy lại 1
+script seed (đổi ReportCatalog, không đổi domain/VIEW nào).
+
+**Các bước**:
+1. `git pull origin main`.
+2. `cd rp-server && pm2 restart hcrc-rp-server` (sửa
+   `lib/doanhThuMtdKeHoachRunner.js`).
+3. `cd rp-server && node scripts/seedDoanhThuMtdKeHoachReports.js` — gộp
+   về 1 ReportId `bc-doanhthu-mtd-all`, ẩn (`IsActive=0`) 2 ReportId cũ
+   `bc-doanhthu-mtd-lfl`/`bc-doanhthu-mtd-nso`.
+4. (TUỲ CHỌN) Vào etl-admin → "Chỉ tiêu Doanh thu MTD theo kế hoạch", tải
+   lại file Excel THÊM các cột mới (xem `bc-doanhthu-mtd-ke-hoach.md` mục
+   2d: `ChiTieuBanLe`/`ChiTieuB2B`/`CTTV`/`Horeca`/`KhachBuon`/
+   `UocThucHienBanLe`/`UocThucHienBanBuon`) nếu muốn có đủ các cột này —
+   bỏ qua bước này vẫn chạy được, các cột đó hiện "—".
+
+**Kiểm tra**: mở lại menu "Báo cáo vận hành" — chỉ còn 1 báo cáo "Theo dõi
+doanh thu MTD theo kế hoạch" (2 báo cáo LFL/NSO cũ đã ẩn) — mở ra phải
+thấy 3 dòng tổng hợp "Tổng toàn chuỗi"/"NSO"/"LFL" ở đầu bảng, cột Bán
+lẻ/B2B (Thực đạt)/Bill tự có số ngay. Xem "VERSION.md" mục bản 11.52.
+
 ## 11.51 — Sửa lỗi HIỆU NĂNG THẬT ở "Core stock = 0"/"Top bán chạy đang tồn kho = 0" (Báo cáo vận hành)
 
 **⚠️ CÓ 1 VIỆC DBA CẦN LÀM — THỨ TỰ QUAN TRỌNG** (chạy DBA TRƯỚC khi

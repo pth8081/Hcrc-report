@@ -1812,8 +1812,6 @@ cập nhật nếu chỉ sửa báo cáo đã có (file hướng dẫn riêng t�
 | `bc-khach-hang-theo-tuan` | Báo cáo khách hàng theo tuần | `bc-khach-hang-theo-tuan.md` (dùng chung domain/VIEW với báo cáo trên) |
 | `bc-brg-weekly-post` | BRG Weekly Post (1 báo cáo, bộ lọc "Chọn sheet" chuyển giữa 5 phần — bản 11.26, THAY THẾ 5 ReportId `bc-brg-post-*` bản 11.24) | `bc-brg-weekly-post.md` |
 | `bc-dio-nganhhang` | DIO theo ngành hàng (nhóm "Báo cáo vận hành", bản 11.32) | `bc-dio-nganhhang.md` |
-| `bc-doanhthu-mtd-all` | Theo dõi doanh thu MTD theo kế hoạch (Toàn chuỗi) (nhóm "Báo cáo vận hành", bản 11.33) | `bc-doanhthu-mtd-ke-hoach.md` |
-| `bc-doanhthu-mtd-lfl` | Theo dõi doanh thu MTD theo kế hoạch (LFL) | `bc-doanhthu-mtd-ke-hoach.md` (dùng chung runner/domain với báo cáo trên) |
-| `bc-doanhthu-mtd-nso` | Theo dõi doanh thu MTD theo kế hoạch (NSO) | `bc-doanhthu-mtd-ke-hoach.md` (dùng chung runner/domain với báo cáo trên) |
+| `bc-doanhthu-mtd-all` | Theo dõi doanh thu MTD theo kế hoạch (nhóm "Báo cáo vận hành", bản 11.33 — GỘP 3 ReportId Toàn chuỗi/LFL/NSO thành 1 ở bản 11.52, hiện cả 3 góc nhìn trong 1 bảng) | `bc-doanhthu-mtd-ke-hoach.md` |
 | `bc-phu-hang-core-chi-tiet` | Phủ hàng Core - Chi tiết (nhóm "Báo cáo vận hành", bản 11.34) | `bc-phu-hang-core.md` |
 | `bc-phu-hang-core-recap` | Phủ hàng Core - Recap ST | `bc-phu-hang-core.md` (dùng chung runner/domain với báo cáo trên) |

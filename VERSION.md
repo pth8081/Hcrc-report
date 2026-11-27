@@ -52,6 +52,63 @@ nội dung/hành vi nào đã làm. Lịch sử Git (commit message) vẫn còn 
 "Bản 10.100"/"Bản 10.101" (không sửa lại lịch sử Git) — coi là ĐỒNG NHẤT
 với "11.0"/"11.1".
 
+## 11.52 — Gộp 3 báo cáo "Theo dõi doanh thu MTD theo kế hoạch" (Toàn chuỗi/LFL/NSO) thành 1
+
+**Theo yêu cầu người dùng** — "Tôi muốn gộp 3 báo cáo MTD gộp lại thành 1
+báo cáo như file báo cáo của đơn vị gửi" (file mẫu "0_Thực đạt MTD Cập
+nhật 17.11.2026.xlsx"). Đọc trực tiếp công thức Excel trong file mẫu (thay
+vì đoán) để xác định đúng 2 điểm còn vướng:
+
+1. **CTTV/Horeca/Khách buôn** — đối chiếu số thật trong file (vd B2B =
+   591.996.721 = CTTV 534.216.538 + Horeca 57.780.183 + Khách buôn 0,
+   khớp tuyệt đối ở nhiều dòng) — xác nhận đây là breakdown TAY của B2B,
+   KHÔNG có nguồn tự động nào trên DSMART16.
+2. **Công thức GAP** — "GAP vs UTH" = Thực đạt − "Ước thực hiện cuối
+   tháng" (CŨNG số nhập tay, do QLKV ước); "GAP 80%" = Thực đạt − Chỉ
+   tiêu×80% (CÔNG THỨC DUY NHẤT tự tính 100% được từ dữ liệu sẵn có).
+
+Người dùng xác nhận: làm toàn bộ 1 lần, nhập số liệu tay qua **up file
+Excel mỗi kỳ** (giống file mẫu).
+
+**Đã làm**:
+- **Phát hiện tận dụng được hạ tầng có sẵn** — domain `sales-targets-doanhthu-mtd`
+  (nhập Chỉ tiêu MTD, đã có từ bản 11.33) dùng định dạng "generic" của
+  `etl/lib/salesTargetsImport.js` — định dạng này CHẤP NHẬN CỘT TUỲ Ý
+  ngoài 2 cột bắt buộc "MaSieuThi"/"Thang", mỗi cột tự thành 1 field trong
+  `TargetsJson` — **KHÔNG cần viết cơ chế nhập liệu/bảng mới nào** cho
+  CTTV/Horeca/Khách buôn/Ước thực hiện cuối tháng/Chỉ tiêu Bán lẻ-B2B —
+  chỉ cần thêm đúng tên cột vào file Excel đã có (xem
+  `bc-doanhthu-mtd-ke-hoach.md` mục 2d cho bảng tên cột đầy đủ).
+- **Phát hiện tự động hoá thêm được 2 phần KHÔNG cần nhập tay** — domain
+  `doanhthu_nganhhang` (đã có, phục vụ "Doanh thu tổng hợp theo siêu thị
+  HCRC") có sẵn 2 measure `DoanhThuBanLe`/`DoanhThuBanBuon` → tách Bán
+  lẻ/B2B tự động (cộng dồn STK_ID, bỏ DEPT_ID); domain `giaodich_chinhanh`
+  (đã có) → cột "Bill" tự động.
+- `lib/doanhThuMtdKeHoachRunner.js` viết lại hoàn toàn: gộp 3 góc nhìn
+  (Tổng toàn chuỗi/NSO/LFL) thành 3 DÒNG TỔNG HỢP Ở ĐẦU 1 bảng duy nhất
+  (không còn phải đổi báo cáo), thêm so (M-1) (lùi 1 tháng, tự động —
+  domain `doanhthu_chinhanh`), GAP 80%, "Ước thực hiện cuối tháng"/"GAP vs
+  Ước thực hiện", CTTV/Horeca/Khách buôn, Bán lẻ/B2B (Chỉ tiêu VÀ Thực
+  đạt), Bill.
+- `scripts/seedDoanhThuMtdKeHoachReports.js` — GIỮ NGUYÊN ReportId
+  `bc-doanhthu-mtd-all` (không vỡ quyền xem/lịch gửi email đã gán), đổi
+  tên hiển thị bỏ "(Toàn chuỗi)", chuyển `IsActive=0` cho 2 ReportId cũ
+  `bc-doanhthu-mtd-lfl`/`bc-doanhthu-mtd-nso` (ẨN khỏi menu, KHÔNG xoá).
+- **CHƯA LÀM** (cân nhắc rõ lý do, xem `bc-doanhthu-mtd-ke-hoach.md` mục 1):
+  "Ước thực hiện theo trend" (khác "Ước thực hiện cuối tháng" — cần thêm
+  "Buôn trong lẻ" + số ngày thực hiện, giá trị thông tin thêm không nhiều
+  so với GAP 80%/Ước thực hiện cuối tháng đã có), "Buôn trong lẻ", "Sữa 3A
+  đợt 1" (theo dõi riêng 1 đợt khuyến mãi cụ thể, không phải khái niệm
+  chung của báo cáo MTD).
+
+**Không có thay đổi VIEW/DSMART16 nào** — 100% dùng domain đã có sẵn.
+
+Verify: `node --check` cho cả 2 file sửa; đối chiếu "Tổng toàn chuỗi" =
+"NSO" + "LFL" ở mọi cột số; đối chiếu cột Bán lẻ/B2B/Bill tự có số ngay
+không cần nhập gì; nhập thử CTTV/Horeca/Khách buôn/Ước thực hiện cho 1
+siêu thị, xác nhận đúng cột đó + GAP vs Ước thực hiện cập nhật, các siêu
+thị khác vẫn "—".
+
 ## 11.51 — Sửa lỗi HIỆU NĂNG THẬT ở nhóm báo cáo "Core stock = 0"/"Top bán chạy đang tồn kho = 0" (Báo cáo vận hành)
 
 **Theo báo cáo người dùng** — ngay sau bản 11.50 (đã sửa "BRG Weekly Post"
