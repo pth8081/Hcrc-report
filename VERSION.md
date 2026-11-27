@@ -52,6 +52,44 @@ nội dung/hành vi nào đã làm. Lịch sử Git (commit message) vẫn còn 
 "Bản 10.100"/"Bản 10.101" (không sửa lại lịch sử Git) — coi là ĐỒNG NHẤT
 với "11.0"/"11.1".
 
+## 11.48 — Sửa lỗi THẬT khớp mã Tồn kho khi MaHangHienThi lưu nguyên 10 số (BRG Weekly Post)
+
+**Theo báo cáo người dùng** — tiếp tục điều tra "BRG Weekly Post luôn ra
+0", người dùng chạy trực tiếp SQL đối chiếu `dwh.ReportFacts` phát hiện:
+với mã `1001254472`, cột `MaHangHienThi` của domain `tonkho_chitiet_sku`
+lưu **NGUYÊN 10 số đầy đủ** (`"1001254472"`, trùng `MaHang`), KHÔNG phải
+mã hiển thị 6 số (`"254472"`) như quy ước đa số SKU khác — xác nhận có
+tồn kho thật (`SoLuongTon: 21248`) khi lọc đúng theo 10 số, NHƯNG báo
+cáo trước giờ CHỈ lọc theo 6 số nên bỏ sót hẳn.
+
+**Nguyên nhân gốc (ở nguồn DSMART16, KHÔNG phải lỗi VIEW/ETL)**: cột
+`SKU_CODE` (nguồn của `MaHangHienThi`) của 1 số SKU bị nhập tay TRÙNG
+LUÔN với `SKU_ID` đầy đủ, thay vì đúng mã rút gọn 6 số — KHÔNG có cách
+nào biết trước SKU nào rơi vào trường hợp này.
+
+**Đã sửa**: `lib/brgWeeklyPostCore.js:fetchCurrentStock()` — lọc
+`IN (...)` với CẢ 2 ứng viên mỗi SKU (`skuCode` 6 số VÀ `maHang` 10 số
+đầy đủ, hợp nhất + loại trùng — vẫn SARGable, không mất index seek đã
+sửa ở bản 11.38), rồi CHUẨN HOÁ khoá Map kết quả về đúng 6 số CUỐI
+(`.slice(-6)`) của giá trị THẬT đọc được thay vì dùng nguyên giá trị
+thô — khớp đúng `sku.skuCode` (luôn 6 số) ở mọi nơi gọi, dù dòng khớp
+qua ứng viên 6 số hay 10 số. Tham số hàm đổi từ `skuCodeList` (mảng
+string) sang `skuMaster` (mảng đầy đủ) để tự dựng đủ 2 ứng viên.
+
+**CHƯA GIẢI QUYẾT HẲN** — vẫn còn 1 vấn đề RIÊNG, lớn hơn, đang điều
+tra tiếp: domain `doanhthu_sku_nganhhang` (doanh thu, KHÁC domain tồn
+kho vừa sửa ở bản này) khi đối chiếu trực tiếp cho thấy `MaHang` THẬT
+trong dữ liệu đã đồng bộ là SỐ 12 CHỮ SỐ (vd `"293278550000"`), trong
+khi campaign dùng mã 10 chữ số (`"1001254472"`) — và mã này XÁC NHẬN
+KHÔNG TỒN TẠI trong `dbo.SKU_DEF`/`dbo.STRANS` của chính DSMART16 (2
+câu `SELECT` đều ra 0 dòng) — nghi vấn SKU_ID trong file chiến dịch
+KHÔNG khớp định dạng/nguồn thật, CẦN người dùng xác nhận lại nguồn gốc
+cột "Mã 10 số" trước khi sửa tiếp (không phải lỗi code báo cáo).
+
+Verify: test độc lập `fetchCurrentStock()` với Dimensions mock giống
+HỆT ảnh SSMS thật (`MaHangHienThi: "1001254472"`) — PASS, ra đúng số
+liệu tồn kho mong đợi; `node --check`.
+
 ## 11.47 — BRG Weekly Post hiện thêm "Thời gian cập nhật số liệu"/"Tồn kho" ngay trên tiêu đề báo cáo
 
 **Theo yêu cầu người dùng** — đối chiếu lại file mẫu gốc, phát hiện tiêu

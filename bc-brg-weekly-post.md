@@ -265,6 +265,15 @@ mới**:
   đủ) — lấy snapshot ngày đồng bộ **gần nhất** (1 mốc giờ chung, mirror
   "Tồn kho: 17h00 - ngày X" trong file mẫu).
 
+  ⚠️ **SỬA LỖI THẬT (bản 11.48)** — đối chiếu trực tiếp `dwh.ReportFacts`
+  phát hiện: với 1 số SKU, cột `MaHangHienThi` lưu NGUYÊN 10 số đầy đủ
+  (trùng `MaHang`) thay vì đúng 6 số, do nguồn DSMART16 (`SKU_CODE`) bị
+  nhập tay trùng `SKU_ID` ở những SKU đó — KHÔNG có cách nào biết trước
+  SKU nào rơi vào trường hợp này. `fetchCurrentStock()` giờ lọc
+  `IN (...)` với CẢ 2 ứng viên (6 số + 10 số đầy đủ, vẫn SARGable), rồi
+  chuẩn hoá khoá kết quả về đúng 6 số cuối (`.slice(-6)`) — khớp đúng dù
+  SKU rơi vào trường hợp bình thường hay bất thường này.
+
 **Mã Điểm/Siêu thị**: dịch STK_ID thô sang mã Điểm chuẩn qua
 `etl.DiemStkMapping` (`lib/diemStkMapping.js`), đúng quy ước bắt buộc
 CLAUDE.md — admin PHẢI khai `LoaiChuoi` (MART/MINIMART) đúng cho mọi mã

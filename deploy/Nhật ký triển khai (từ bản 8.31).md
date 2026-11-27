@@ -14,6 +14,22 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 11.48 — Sửa lỗi khớp mã Tồn kho khi MaHangHienThi lưu nguyên 10 số (BRG Weekly Post)
+
+**Không có bước DBA/CSDL mới (chỉ sửa code rp-server).**
+
+**Các bước**:
+1. `git pull origin main`.
+2. `cd rp-server && pm2 restart hcrc-rp-server` (sửa
+   `lib/brgWeeklyPostCore.js`).
+
+**Kiểm tra**: mở báo cáo "BRG Weekly Post" cho chiến dịch đang có SKU bị
+lỗi này (vd mã `1001254472`) — cột "Tồn kho"/"Giá trị tồn" (sheet "Theo
+mã hàng"/"Chi tiết") phải ra số liệu thật khác 0 nếu SKU đó thật sự còn
+tồn kho (đối chiếu lại đúng số `SoLuongTon` đã xem qua SQL trực tiếp).
+Lưu ý: đây CHỈ sửa cột TỒN KHO — cột "SL/DS thực đạt" (doanh thu) vẫn
+đang điều tra riêng, CHƯA sửa ở bản này (xem VERSION.md mục 11.48).
+
 ## 11.47 — BRG Weekly Post hiện thêm "Thời gian cập nhật số liệu"/"Tồn kho" trên tiêu đề
 
 **Không có bước DBA/CSDL mới (chỉ sửa code rp-server, không đổi
