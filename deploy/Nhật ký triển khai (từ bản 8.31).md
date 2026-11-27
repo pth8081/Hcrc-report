@@ -14,6 +14,22 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 11.45 — "Tính tự động" trọng số siêu thị chạy ngay khi nhập file
+
+**Không có bước DBA/CSDL mới (chỉ đổi frontend etl-admin — thứ tự/nơi
+gọi API đã có từ bản 11.44, không đổi route backend).**
+
+**Các bước**:
+1. `git pull origin main`.
+2. `cd etl-admin && npm run build`.
+
+**Kiểm tra**: mở 1 chiến dịch → "Trọng số siêu thị" → nhập file "Mã
+điểm" (cột "Trọng số" điền tạm số nào cũng được) → bấm "Nhập file trọng
+số" — KHÔNG bấm thêm nút nào khác — phải thấy NGAY cả 2 thông báo
+"✅ Đã thêm mới..." VÀ "✅ Đã tính lại trọng số cho N siêu thị theo
+doanh thu từ...đến..." hiện liên tiếp, cột "Trọng số" đổi sang số liệu
+khác nhau giữa các siêu thị (không còn đồng loạt bằng số tạm vừa nhập).
+
 ## 11.44 — "Trọng số siêu thị" (BRG Weekly Post) tự tính theo doanh thu thật
 
 **Có 1 bước DBA/CSDL mới (cấp quyền, KHÔNG đổi bảng/dữ liệu) — PHẢI làm

@@ -395,6 +395,7 @@ function StoreWeightPanel({ campaignId, isActive }) {
     e.preventDefault();
     setError('');
     setImportResult(null);
+    setAutoResult(null);
     if (!file) return setError('Chọn file .xlsx trước');
     const formData = new FormData();
     formData.append('file', file);
@@ -403,7 +404,16 @@ function StoreWeightPanel({ campaignId, isActive }) {
       const result = await api.post(`/promo-campaigns/${campaignId}/store-weights/import`, formData, true);
       setImportResult(result);
       setFile(null);
-      reload();
+      // Tự động tính trọng số NGAY sau khi nhập file (bản 11.45, theo yêu
+      // cầu người dùng — "up file lên là nhập vào nó tự tính ra, khi mà
+      // import vào tự tính ra thôi") — KHÔNG hỏi xác nhận (khác nút "Tính
+      // tự động" thủ công bên dưới): Trọng số vừa nhập chỉ là số TẠM (file
+      // chỉ cần đúng cột "Mã điểm"), chưa báo cáo nào dựa vào để tính gì,
+      // ghi đè ngay không mất dữ liệu thật. Dùng ĐÚNG `autoDays` đang chọn
+      // trên form (mặc định 90) — đổi số ngày trước khi up file nếu muốn
+      // khác đi. Nút "Tính tự động" vẫn giữ nguyên để TÍNH LẠI sau này
+      // (vd đổi số ngày) mà không cần up lại file.
+      await runAutoCalculate(autoDays);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -475,24 +485,34 @@ function StoreWeightPanel({ campaignId, isActive }) {
     setBulkDeleting(false);
   }
 
-  // autoCalculate (bản 11.44, theo yêu cầu người dùng — "nhập tay Trọng số
-  // mất thời gian, hệ thống có sẵn doanh thu rồi, tự tính giúp được
-  // không?") — tính lại Trọng số CỦA MỌI siêu thị ĐANG CÓ trong bảng (phải
-  // nhập "Mã điểm" qua "Nhập file trọng số" TRƯỚC, Trọng số lúc đó điền
-  // tạm số nào cũng được) theo doanh thu thật `autoDays` ngày gần nhất —
-  // GHI ĐÈ toàn bộ Trọng số hiện có, nên luôn xác nhận trước.
-  async function autoCalculate() {
-    if (!rows.length) return setError('Chưa có siêu thị nào trong danh sách — nhập file "Mã điểm" trước (cột "Trọng số" điền tạm số bất kỳ, sẽ được tính lại ở đây).');
-    if (!window.confirm(`Tính lại Trọng số theo doanh thu thật ${autoDays} ngày gần nhất cho TẤT CẢ ${rows.length} siêu thị đang có trong danh sách? Trọng số hiện tại sẽ bị GHI ĐÈ.`)) return;
+  // runAutoCalculate (bản 11.44/11.45) — gọi THẲNG API tính tự động, dùng
+  // chung cho CẢ 2 nơi gọi: (1) ngay sau khi nhập file trọng số thành công
+  // (submitImport() ở trên, KHÔNG hỏi xác nhận — xem chú thích ở đó), và
+  // (2) nút "Tính tự động" bấm tay bên dưới (CÓ hỏi xác nhận, vì đây là
+  // GHI ĐÈ 1 Trọng số đã có sẵn từ trước, có thể là số liệu thật đã tính
+  // lần trước, không phải số TẠM nữa).
+  async function runAutoCalculate(days) {
     setError('');
     setAutoResult(null);
-    setAutoCalculating(true);
     try {
-      const result = await api.post(`/promo-campaigns/${campaignId}/store-weights/auto-calculate`, { days: Number(autoDays) });
+      const result = await api.post(`/promo-campaigns/${campaignId}/store-weights/auto-calculate`, { days: Number(days) });
       setAutoResult(result);
       reload();
     } catch (err) {
       setError(err.message);
+    }
+  }
+
+  // autoCalculate (bản 11.44, theo yêu cầu người dùng — "nhập tay Trọng số
+  // mất thời gian, hệ thống có sẵn doanh thu rồi, tự tính giúp được
+  // không?") — nút bấm TAY để TÍNH LẠI (vd đổi số ngày khác với lần tự
+  // động lúc nhập file) — luôn xác nhận trước vì GHI ĐÈ Trọng số hiện có.
+  async function autoCalculate() {
+    if (!rows.length) return setError('Chưa có siêu thị nào trong danh sách — nhập file "Mã điểm" trước (cột "Trọng số" điền tạm số bất kỳ, sẽ được tính tự động ngay khi nhập xong).');
+    if (!window.confirm(`Tính lại Trọng số theo doanh thu thật ${autoDays} ngày gần nhất cho TẤT CẢ ${rows.length} siêu thị đang có trong danh sách? Trọng số hiện tại sẽ bị GHI ĐÈ.`)) return;
+    setAutoCalculating(true);
+    try {
+      await runAutoCalculate(autoDays);
     } finally {
       setAutoCalculating(false);
     }
@@ -513,10 +533,23 @@ function StoreWeightPanel({ campaignId, isActive }) {
         </button>
       </div>
       {isActive && (
-        <form className="stacked-form" onSubmit={submitImport}>
-          <input type="file" accept=".xlsx" onChange={(e) => setFile(e.target.files?.[0] ?? null)} required />
-          <button type="submit" disabled={importing}>{importing ? 'Đang nhập...' : 'Nhập file trọng số'}</button>
-        </form>
+        <>
+          <p className="form-hint">
+            Số ngày gần nhất dùng để TỰ ĐỘNG tính trọng số theo doanh thu thật{' '}
+            <input
+              type="number" min="1" max="366" value={autoDays}
+              onChange={(e) => setAutoDays(e.target.value)}
+              style={{ width: 70 }}
+            />{' '}
+            ngày (chọn trước khi nhập file — cột "Trọng số" trong file chỉ
+            cần có "Mã điểm", điền số gì cũng được, sẽ tự tính lại ngay sau
+            khi nhập xong, không cần bấm thêm gì).
+          </p>
+          <form className="stacked-form" onSubmit={submitImport}>
+            <input type="file" accept=".xlsx" onChange={(e) => setFile(e.target.files?.[0] ?? null)} required />
+            <button type="submit" disabled={importing}>{importing ? 'Đang nhập...' : 'Nhập file trọng số'}</button>
+          </form>
+        </>
       )}
       {importResult && (
         <div className="import-result">
@@ -529,26 +562,18 @@ function StoreWeightPanel({ campaignId, isActive }) {
           )}
         </div>
       )}
-      {isActive && (
-        <div className="inline-actions" style={{ marginTop: 8 }}>
-          <label>
-            Tự động tính trọng số theo doanh thu{' '}
-            <input
-              type="number" min="1" max="366" value={autoDays}
-              onChange={(e) => setAutoDays(e.target.value)}
-              style={{ width: 70 }}
-            />{' '}
-            ngày gần nhất
-          </label>
-          <button type="button" onClick={autoCalculate} disabled={autoCalculating}>
-            {autoCalculating ? 'Đang tính...' : 'Tính tự động'}
-          </button>
-        </div>
-      )}
       {autoResult && (
         <p className="form-hint">
           ✅ Đã tính lại trọng số cho {autoResult.updated} siêu thị theo doanh thu từ {autoResult.from} đến {autoResult.to}.
         </p>
+      )}
+      {isActive && (
+        <div className="inline-actions" style={{ marginTop: 8 }}>
+          <button type="button" onClick={autoCalculate} disabled={autoCalculating}>
+            {autoCalculating ? 'Đang tính...' : `Tính lại trọng số (${autoDays} ngày gần nhất)`}
+          </button>
+          <span className="form-hint">dùng khi muốn tính lại sau này (vd đổi số ngày), không cần up lại file</span>
+        </div>
       )}
       <p>Tổng trọng số hiện có: {totalWeight.toLocaleString('vi-VN')} ({rows.length} siêu thị)</p>
       <DataTable

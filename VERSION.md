@@ -52,6 +52,33 @@ nội dung/hành vi nào đã làm. Lịch sử Git (commit message) vẫn còn 
 "Bản 10.100"/"Bản 10.101" (không sửa lại lịch sử Git) — coi là ĐỒNG NHẤT
 với "11.0"/"11.1".
 
+## 11.45 — "Tính tự động" trọng số siêu thị CHẠY NGAY khi nhập file, không cần bấm thêm nút
+
+**Theo yêu cầu người dùng** (hỏi lại ngay sau bản 11.44) — "Cái phần nút
+tính tự động kia phải tự ấn à, hay là nhập vào nó phải tự ra chứ? ... Hay
+là cứ up file lên là nhập vào nó tự nó tính ra, khi mà import vào tự
+tính ra thôi?" — xác nhận qua `AskUserQuestion`: chọn **tự động tính
+luôn ngay sau khi up file** (thay vì bắt bấm thêm nút "Tính tự động"),
+vẫn giữ nút đó để **tính lại sau này** (vd đổi số ngày) mà không cần up
+lại file.
+
+**Đã sửa**: `StoreWeightPanel` (`etl-admin/src/pages/PromoCampaignsPage.jsx`)
+— ô "Số ngày gần nhất" chuyển lên TRÊN form nhập file (chọn số ngày
+TRƯỚC khi up); `submitImport()` sau khi nhập file thành công GỌI LUÔN
+`runAutoCalculate()` (tách từ `autoCalculate()` bản 11.44), KHÔNG hỏi
+xác nhận (Trọng số vừa nhập chỉ là số TẠM, ghi đè ngay không mất gì).
+Nút bấm tay đổi tên thành "Tính lại trọng số (N ngày gần nhất)", VẪN
+hỏi xác nhận (lần này GHI ĐÈ 1 Trọng số có thể đã là số liệu thật từ
+lần tính trước).
+
+**Không đổi backend** (route `POST /:id/store-weights/auto-calculate`
+bản 11.44 giữ nguyên, chỉ đổi NƠI/KHI GỌI ở frontend). Verify: dựng lại
+đúng giao diện thật bằng `vite` dev server + Playwright (mock API, không
+đụng CSDL thật) — xác nhận chỉ bấm "Nhập file trọng số" (KHÔNG bấm thêm
+nút nào khác) là Trọng số đã tự đổi từ số tạm sang số liệu tính tự động,
+kèm thông báo "Đã tính lại trọng số..." hiện ra ngay; build `etl-admin`
+thành công.
+
 ## 11.44 — "Trọng số siêu thị" (BRG Weekly Post) tự tính theo doanh thu thật, không bắt gõ tay
 
 **Theo yêu cầu người dùng** — sau khi được tư vấn cách chọn Trọng số
