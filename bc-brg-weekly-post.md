@@ -259,7 +259,22 @@ báo cáo MKT gửi — file đó là ĐẦU RA):
 **Số liệu THỰC TẾ — tái dùng NGUYÊN domain đã có sẵn, KHÔNG tạo ETL
 mới**:
 - Bán hàng: `doanhthu_sku_nganhhang` (xem `bc-doanh-thu-sku-nganhhang.md`)
-  — join theo `MaHang` (SKU_ID đầy đủ).
+  — join theo `MaHang`.
+
+  ⚠️ **SỬA LỖI GỐC RỄ (bản 11.49)** — "Mã 10 số" trong file chiến dịch
+  (`dwh.PromoCampaignSkus.MaHang`) TRƯỚC GIỜ bị hiểu NHẦM là `SKU_ID`
+  đầy đủ — đối chiếu trực tiếp `dbo.SKU_DEF` xác nhận đây THỰC RA LÀ
+  `SKU_CODE` (1 cột KHÁC, chỉ TRÙNG HỢP có 10 chữ số ở phần lớn SKU);
+  `SKU_ID` thật là số 12 chữ số hoàn toàn khác. Domain
+  `doanhthu_sku_nganhhang` lọc `MaHang` = SKU_ID thật (12 số) — campaign
+  gửi SKU_CODE (10 số) không khớp được, khiến "SL/DS thực đạt" LUÔN RA
+  0 dù doanh thu thật có tồn tại — đây là nguyên nhân CHÍNH của sự cố
+  "BRG Weekly Post không ra số liệu" đã điều tra qua nhiều lượt.
+  `fetchActualSales()` giờ lọc CẢ 2 cột đã có sẵn index (`MaHang` VÀ
+  `MaHangHienThi` = SKU_CODE), dịch ngược về đúng khoá canonical — xem
+  chú thích đầy đủ ở `lib/brgWeeklyPostCore.js:fetchActualSales()`.
+  KHÔNG cần đổi gì ở file nhập liệu/quy trình admin — vẫn nhập "Mã 10
+  số" bình thường như cũ.
 - Tồn kho: `tonkho_chitiet_sku` (xem `bc-ton-kho-chi-tiet.md`) — join
   theo `MaHangHienThi` (mã hiển thị 6 số, domain này KHÔNG có SKU_ID đầy
   đủ) — lấy snapshot ngày đồng bộ **gần nhất** (1 mốc giờ chung, mirror

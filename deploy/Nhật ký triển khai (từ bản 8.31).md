@@ -14,6 +14,25 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 11.49 — Sửa lỗi GỐC RỄ "SL/DS thực đạt luôn 0" — "Mã 10 số" thực ra là SKU_CODE (BRG Weekly Post)
+
+**Không có bước DBA/CSDL mới (chỉ sửa code rp-server — domain/VIEW nguồn
+giữ nguyên, chỉ sửa CÁCH đối chiếu).**
+
+**Các bước**:
+1. `git pull origin main`.
+2. `cd rp-server && pm2 restart hcrc-rp-server` (sửa
+   `lib/brgWeeklyPostCore.js`).
+
+**Kiểm tra**: mở lại báo cáo "BRG Weekly Post" cho chiến dịch Black
+Friday (campaign đã điều tra nhiều lượt trước đó) — cột "SL/DS thực
+đạt" (sheet "Theo mã hàng"/"Chi tiết"/"Theo siêu thị") phải ra số liệu
+THẬT khác 0 (đối chiếu lại đúng số doanh thu đã xem qua SQL trực tiếp
+khi điều tra, domain `doanhthu_sku_nganhhang`). Nếu vẫn ra 0 cho TOÀN
+BỘ SKU, kiểm tra lại đúng "Mã 10 số"/"Mã sản phẩm" trong file chiến
+dịch có đúng là SKU_CODE lấy từ `dbo.SKU_DEF` không (không phải mã tự
+đặt/gõ nhầm).
+
 ## 11.48 — Sửa lỗi khớp mã Tồn kho khi MaHangHienThi lưu nguyên 10 số (BRG Weekly Post)
 
 **Không có bước DBA/CSDL mới (chỉ sửa code rp-server).**

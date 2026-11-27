@@ -354,7 +354,7 @@ async function buildPromoCampaignSkuTemplate() {
       'XOÁ 2 dòng ví dụ (Bia 333/Combo nước giặt) trước khi nhập — chỉ giữ lại để minh hoạ đúng khuôn cột.',
       'Tên cột ở sheet "Ma hang" cố ý đặt GIỐNG HỆT sheet "By items" trong file báo cáo MKT gửi hàng tuần, cho quen mắt — NHƯNG CHỈ gồm 13 cột ĐẦU VÀO (giá/scope/chỉ tiêu CẢ CHUỖI), KHÔNG dán nguyên cả sheet "By items" vào đây.',
       'TUYỆT ĐỐI KHÔNG tự thêm/dán các cột: "Số lượng thực tế", "Số lượng dự kiến", "Doanh thu thực tế", "doanh thu dự kiến", "% Thực hiện doanh số...", "Tồn kho", "Giá trị tồn" — đây là CỘT ĐẦU RA, báo cáo TỰ TÍNH từ dữ liệu bán hàng/tồn kho đã đồng bộ sẵn trong hệ thống, không phải thứ admin cung cấp.',
-      '"Mã 10 số" = mã hàng đầy đủ (SKU_ID trên DSMART16, 10 số) — BẮT BUỘC, là khoá chính của mỗi dòng.',
+      '"Mã 10 số" = mã hàng (SKU_CODE trên DSMART16, dbo.SKU_DEF.SKU_CODE — KHÔNG PHẢI SKU_ID đầy đủ dù tên cột ghi "10 số", xem VERSION.md bản 11.49) — BẮT BUỘC, là khoá chính của mỗi dòng.',
       '"Áp dụng" chỉ nhận ĐÚNG 1 trong 3 giá trị: "All" (áp dụng cả Mart và Mini Mart), "Mart" (chỉ Mart), "MiniMart" (chỉ Mini Mart, viết liền không dấu cách) — viết khác đi sẽ bị báo lỗi khi nhập.',
       '"Total KM"/"Thuế" là tỷ lệ PHẦN THẬP PHÂN (vd 4% ghi là 0.04, 10% ghi là 0.1), KHÔNG ghi "4"/"10".',
       '"Số lượng kế hoạch (cả chuỗi)"/"Doanh thu kế hoạch (cả chuỗi)" = CHỈ TIÊU CỦA CẢ CHUỖI cho đúng SKU đó trong CTKM này — báo cáo "Theo siêu thị" tự chia về từng siêu thị theo "Trọng số siêu thị" (file mẫu riêng), KHÔNG điền chỉ tiêu riêng từng siêu thị ở đây.'

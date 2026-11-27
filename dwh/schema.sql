@@ -385,10 +385,18 @@ BEGIN
     CREATE TABLE dwh.PromoCampaignSkus (
         Id                    BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
         CampaignId            INT           NOT NULL,
-        -- MaHang = SKU_ID đầy đủ (vd "2002216367", khớp đúng dimension
-        -- MaHang của domain doanhthu_sku_nganhhang) — SkuCode = mã hiển
-        -- thị ngắn (vd "216367", chỉ để hiện trên báo cáo, KHÔNG dùng để
-        -- join dữ liệu thực tế).
+        -- MaHang = "Mã 10 số" admin nhập (vd "2002216367") — SỬA LẠI bản
+        -- 11.49, SAU KHI PHÁT HIỆN LỖI THẬT: đây THỰC RA LÀ SKU_CODE trên
+        -- DSMART16 (dbo.SKU_DEF.SKU_CODE), KHÔNG PHẢI SKU_ID đầy đủ như
+        -- ghi SAI ở đây trước đó — SKU_ID thật là số 12 chữ số HOÀN TOÀN
+        -- KHÁC (vd "292544720000" cho cùng 1 SKU có SKU_CODE
+        -- "1001254472" — xác nhận bằng SQL thật, xem VERSION.md bản
+        -- 11.49). Domain `doanhthu_sku_nganhhang` khớp cột này qua
+        -- DIMENSION `MaHangHienThi` (= SKU_CODE, KHÔNG PHẢI `MaHang` =
+        -- SKU_ID thật như trước giờ tưởng) — xem
+        -- lib/brgWeeklyPostCore.js:fetchActualSales(). SkuCode (cột NGAY
+        -- DƯỚI) = 6 số cuối của giá trị NÀY (`=RIGHT(MaHang,6)` ở file
+        -- Excel nhập liệu), dùng khớp domain `tonkho_chitiet_sku`.
         MaHang                NVARCHAR(50)  NOT NULL,
         SkuCode                NVARCHAR(50)  NULL,
         SkuName               NVARCHAR(300) NULL,

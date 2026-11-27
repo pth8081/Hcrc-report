@@ -52,6 +52,46 @@ nội dung/hành vi nào đã làm. Lịch sử Git (commit message) vẫn còn 
 "Bản 10.100"/"Bản 10.101" (không sửa lại lịch sử Git) — coi là ĐỒNG NHẤT
 với "11.0"/"11.1".
 
+## 11.49 — Sửa lỗi GỐC RỄ "SL/DS thực đạt luôn 0" — "Mã 10 số" thực ra là SKU_CODE, không phải SKU_ID (BRG Weekly Post)
+
+**Theo báo cáo người dùng** — tiếp tục điều tra từ bản 11.48, người
+dùng tra trực tiếp `dbo.SKU_DEF` trên DSMART16 theo TÊN sản phẩm ("Bưởi
+da xanh Mekostar") và phát hiện: `SKU_ID` THẬT = `292544720000` (12 chữ
+số), còn `SKU_CODE` = `1001254472` (10 chữ số) — **TRÙNG KHỚP TUYỆT
+ĐỐI** với giá trị cột "Mã 10 số" người dùng nhập trong file chiến dịch.
+
+**Kết luận: toàn bộ giả định trước giờ (tên cột, comment code, tài liệu
+`bc-brg-weekly-post.md`) rằng "Mã 10 số" = SKU_ID đầy đủ là SAI** — đây
+thực ra luôn là `SKU_CODE`, một cột KHÁC trong `dbo.SKU_DEF`, chỉ TRÙNG
+HỢP có 10 chữ số ở phần lớn SKU (dễ gây nhầm là SKU_ID). Domain
+`doanhthu_sku_nganhhang` lọc bán hàng theo cột `MaHang` = SKU_ID thật
+(12 số) — campaign gửi lên SKU_CODE (10 số) nên KHÔNG BAO GIỜ khớp
+được, dù doanh thu thật có tồn tại trong hệ thống (xác nhận qua
+`dbo.STRANS` — sự cố "SL/DS thực đạt luôn 0" suốt từ khi chiến dịch bắt
+đầu 01/11/2026 tới giờ).
+
+**Đã sửa**: `lib/brgWeeklyPostCore.js:fetchActualSales()` — may mắn
+domain `doanhthu_sku_nganhhang` CŨNG CÓ SẴN cột `MaHangHienThi` =
+`SKU_CODE` (đúng field campaign đang gửi, xem VIEW
+`V_HCRC_DOANHTHU_SKU_NGANHHANG`) — lọc `IN (...)` với CẢ 2 ứng viên mỗi
+SKU (`maHang`/"Mã 10 số" VÀ `skuCode`/"Mã sản phẩm" 6 số) trên CẢ 2 cột
+đã có sẵn index (`MaHang` VÀ `MaHangHienThi`, vẫn SARGable, không mất
+hiệu năng đã sửa ở bản 11.38), rồi DỊCH NGƯỢC giá trị khớp được (dù là
+SKU_ID hay SKU_CODE) về đúng `sku.maHang` canonical qua
+`candidateToMaHang` — cùng mẫu đã dùng cho `fetchCurrentStock()` ở bản
+11.48. Tham số hàm đổi từ `maHangList` sang `skuMaster` (mảng đầy đủ).
+
+**KHÔNG đổi tên trường/cột nào ở tầng nhập liệu** (vẫn gọi "Mã 10 số"
+trong file mẫu, admin KHÔNG cần làm gì khác, SKU_CODE 10 số vẫn nhập y
+như cũ) — chỉ sửa ĐÚNG cách code đối chiếu ở tầng đọc dữ liệu thực tế.
+Cần cập nhật lại chú thích "Mã 10 số (SKU_ID trên DSMART16)" trong file
+mẫu/`bc-brg-weekly-post.md` (xem mục cập nhật tài liệu riêng).
+
+Verify: test độc lập `fetchActualSales()` với dữ liệu mock ĐÚNG hình
+dạng thật (MaHang=SKU_ID 12 số, MaHangHienThi=SKU_CODE 10 số trùng
+"Mã 10 số" campaign) — PASS, ra đúng Số lượng/Doanh thu mong đợi;
+`node --check`.
+
 ## 11.48 — Sửa lỗi THẬT khớp mã Tồn kho khi MaHangHienThi lưu nguyên 10 số (BRG Weekly Post)
 
 **Theo báo cáo người dùng** — tiếp tục điều tra "BRG Weekly Post luôn ra
