@@ -14,6 +14,30 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 11.44 — "Trọng số siêu thị" (BRG Weekly Post) tự tính theo doanh thu thật
+
+**Có 1 bước DBA/CSDL mới (cấp quyền, KHÔNG đổi bảng/dữ liệu) — PHẢI làm
+TRƯỚC khi dùng nút "Tính tự động", nếu không sẽ lỗi quyền.**
+
+**Các bước**:
+1. DBA chạy lại NGUYÊN VĂN `dwh/grants.sql` trên `HCRC_DWH` (AN TOÀN
+   chạy lại nhiều lần — chỉ THÊM đúng 1 dòng
+   `GRANT SELECT ON dwh.ReportFacts TO dwh_promo_importer;`, không đụng
+   quyền/dữ liệu khác).
+2. `git pull origin main`.
+3. `cd etl && pm2 restart hcrc-etl` (sửa `lib/promoCampaignImport.js`,
+   `routes/admin/promoCampaigns.js`).
+4. `cd etl-admin && npm run build` (thêm UI nút "Tính tự động" ở panel
+   "Trọng số siêu thị").
+
+**Kiểm tra**: etl-admin → "Chiến dịch khuyến mãi" → mở 1 chiến dịch →
+"Trọng số siêu thị" → nhập file "Mã điểm" (nếu chưa có) → nhập số ngày
+(vd 90) → bấm "Tính tự động" → phải thấy thông báo "Đã tính lại trọng
+số cho N siêu thị..." VÀ cột "Trọng số" đổi thành số liệu khác nhau
+giữa các siêu thị (không còn đồng loạt 1 giá trị như trước) — nếu báo
+lỗi quyền (`permission denied`/`SELECT permission was denied`), xác
+nhận lại bước 1 đã chạy đúng trên CSDL `HCRC_DWH` (không phải `DSMART16`).
+
 ## 11.43 — Ghi nhận: cách cấp quyền "Giám sát Log CSDL" cho server chi nhánh DSMART16
 
 **Không có bước DBA/CSDL mới trên CSDL LÕI (DWH/ETL/RP/API), KHÔNG cần

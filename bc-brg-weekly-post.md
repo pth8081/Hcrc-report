@@ -188,17 +188,42 @@ báo cáo MKT gửi — file đó là ĐẦU RA):
   file Excel RIÊNG, 2 cột `Mã điểm, Trọng số` (bản 11.28, đổi nhãn tiếng
   Việt — field nội bộ vẫn `MaDiem`/`StoreWeight`).
 
-  ⚠️ **GIẢ ĐỊNH CHƯA XÁC NHẬN BẰNG NGUỒN DỮ LIỆU** (chỉ xác nhận bằng
-  cách đối chiếu TỔNG khớp đúng số liệu mẫu) — "trọng số" này KHÔNG suy
-  ra từ `dwh.SalesTargets`/domain nào có sẵn trong hệ thống. File mẫu
-  thật có cột "Doanh số chỉ tiêu theo kế hoạch công ty" ở mỗi siêu thị
-  nhìn giống với vai trò "trọng số", nhưng công thức TÍNH RA cột đó
-  (trung bình 2 cột "tháng 2/2026 - VH gửi"/"tháng 6/2026 - VH gửi")
-  không suy luận được đầy đủ — xử lý AN TOÀN: coi "trọng số" là 1 số
-  **admin/MKT tự khai riêng mỗi chiến dịch**, không tự tính. Nếu sau
-  này xác nhận được nguồn tính đúng, có thể đổi `allocateSkuTargetToStores()`
-  (lib/brgWeeklyPostCore.js) sang đọc tự động từ domain đó, không đụng
-  gì ở các báo cáo tiêu thụ.
+  "Trọng số" KHÔNG suy ra từ `dwh.SalesTargets`/domain chỉ tiêu nào có
+  sẵn trong hệ thống (file mẫu thật có cột "Doanh số chỉ tiêu theo kế
+  hoạch công ty" nhìn giống vai trò "trọng số", nhưng công thức TÍNH RA
+  cột đó — trung bình 2 cột "tháng 2/2026 - VH gửi"/"tháng 6/2026 - VH
+  gửi" — không suy luận được đầy đủ, 1 trong 2 cột LUÔN để trống ở chính
+  file mẫu gốc, xác nhận đây là số liệu NGOÀI hệ thống, VH tự nhập tay
+  hàng tháng, không phải thiếu sót code).
+
+  ⚠️ **"Tính tự động" (bản 11.44, theo yêu cầu người dùng)** — admin
+  KHÔNG bắt buộc gõ tay giá trị Trọng số nữa. Nhập file "Mã điểm" như cũ
+  (cột "Trọng số" điền tạm số nào cũng được, vd 1), sau đó bấm nút
+  **"Tính tự động"** (etl-admin → "Chiến dịch khuyến mãi" → mở chiến
+  dịch → "Trọng số siêu thị") — nhập số ngày gần nhất (mặc định 90, 1-3
+  tháng là hợp lý, KHÔNG cần khớp đúng số ngày chiến dịch, xem phần
+  "Lưu ý vận hành" bên dưới) — hệ thống TỰ TÍNH lại Trọng số = TỔNG
+  doanh thu CẢ SIÊU THỊ (domain `doanhthu_chinhanh`, domain NHỎ — KHÔNG
+  phải domain SKU lớn) trong đúng khoảng ngày đó, GHI ĐÈ mọi Trọng số
+  hiện có cho TẤT CẢ mã Điểm ĐANG CÓ trong bảng. Backend:
+  `computeStoreRevenueByMaDiem()` ở `etl/lib/promoCampaignImport.js`,
+  route `POST /:id/store-weights/auto-calculate` ở
+  `etl/routes/admin/promoCampaigns.js` — đọc `dwh.ReportFacts` qua pool
+  `DWH_PROMO_IMPORTER` (SELECT-ONLY, xem `dwh/grants.sql` — cần DBA chạy
+  lại script này 1 lần để cấp quyền, mirror đúng cách đã làm cho
+  `dwh_target_importer`). Mã Điểm nào không có dòng doanh thu trong
+  khoảng ngày đã chọn (siêu thị mới mở/chưa có dữ liệu) → Trọng số = 0
+  (không nhận phân bổ chỉ tiêu cho tới lần "Tính tự động" kế tiếp).
+
+  **Lưu ý vận hành** (đã tư vấn người dùng): nên chọn khoảng 60-90 ngày
+  gần nhất — đủ dài để phản ánh ĐÚNG quy mô ổn định của từng siêu thị,
+  KHÔNG cần khớp đúng số ngày của chiến dịch (Trọng số chỉ là tỉ lệ
+  PHÂN BỔ tĩnh, không phụ thuộc ngày bắt đầu/kết thúc CTKM). Nếu sau
+  này cần thay đổi tiêu chí (vd theo doanh thu CHỈ đúng ngành hàng đang
+  khuyến mãi thay vì CẢ siêu thị), sửa `computeStoreRevenueByMaDiem()`,
+  không đụng tới `allocateSkuTargetToStores()` (lib/brgWeeklyPostCore.js,
+  bên rp-server — chỉ ĐỌC lại Trọng số đã lưu, không quan tâm Trọng số
+  đó tính thủ công hay tự động).
 
 **Số liệu THỰC TẾ — tái dùng NGUYÊN domain đã có sẵn, KHÔNG tạo ETL
 mới**:

@@ -110,4 +110,13 @@ GO
 GRANT SELECT, INSERT, UPDATE, DELETE ON dwh.PromoCampaigns TO dwh_promo_importer;
 GRANT SELECT, INSERT, UPDATE, DELETE ON dwh.PromoCampaignSkus TO dwh_promo_importer;
 GRANT SELECT, INSERT, UPDATE, DELETE ON dwh.PromoCampaignStoreWeights TO dwh_promo_importer;
+-- SELECT-ONLY dwh.ReportFacts (bản 11.44, theo yêu cầu người dùng — "Trọng
+-- số siêu thị" tự tính từ doanh thu thật thay vì bắt gõ tay) — MIRROR ĐÚNG
+-- lý do/cách làm đã áp dụng cho dwh_target_importer ở trên: route
+-- "/:id/store-weights/auto-calculate" (etl/routes/admin/promoCampaigns.js)
+-- CHỈ ĐỌC domain `doanhthu_chinhanh` (domain NHỎ, KHÔNG phải domain SKU
+-- lớn) để tính tổng doanh thu từng siêu thị — login này VẪN KHÔNG có
+-- quyền GHI vào ReportFacts (phòng thủ chiều sâu, lỗi ở route hẹp quyền
+-- này không thể chạm được dữ liệu đồng bộ thật).
+GRANT SELECT ON dwh.ReportFacts TO dwh_promo_importer;
 GO

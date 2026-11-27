@@ -373,7 +373,7 @@ async function buildPromoCampaignStoreWeightTemplate() {
     [
       'XOÁ 2 dòng ví dụ trước khi nhập.',
       '"Mã điểm" = mã Điểm chuẩn (khai ở etl-admin → "Ánh xạ Điểm - STK_ID"), KHÔNG phải mã kho STK_ID thô.',
-      '"Trọng số" là 1 con số BẤT KỲ ADMIN/MKT TỰ KHAI cho từng siêu thị (CHƯA có công thức tự tính từ hệ thống — xem "bc-brg-weekly-post.md" mục "GIẢ ĐỊNH CHƯA XÁC NHẬN") — dùng để CHIA chỉ tiêu cả chuỗi của mỗi SKU về siêu thị đó theo tỉ lệ Trọng số(siêu thị này) / TỔNG Trọng số mọi siêu thị ÁP DỤNG ĐƯỢC SKU đó trong chiến dịch.',
+      '"Trọng số" là 1 con số BẤT KỲ cho từng siêu thị — dùng để CHIA chỉ tiêu cả chuỗi của mỗi SKU về siêu thị đó theo tỉ lệ Trọng số(siêu thị này) / TỔNG Trọng số mọi siêu thị ÁP DỤNG ĐƯỢC SKU đó trong chiến dịch. Điền tạm số nào cũng được (vd 1) rồi dùng nút "Tính tự động" trên etl-admin để hệ thống TỰ TÍNH lại theo doanh thu thật gần đây của từng siêu thị — KHÔNG bắt buộc gõ tay (xem "bc-brg-weekly-post.md" mục "Trọng số siêu thị").',
       'KHÔNG cần điền đủ MỌI siêu thị đang hoạt động — siêu thị không có dòng ở đây coi như Trọng số = 0 (không nhận phân bổ chỉ tiêu).'
     ]
   );
@@ -406,10 +406,43 @@ async function buildPromoCampaignStoreWeightExport(rows) {
   );
 }
 
+// computeStoreRevenueByMaDiem (bản 11.44, theo yêu cầu người dùng — "nhập
+// tay Trọng số mất thời gian, hệ thống có sẵn doanh thu rồi, tự tính giúp
+// được không?") — TỔNG doanh thu domain `doanhthu_chinhanh` (domain NHỎ,
+// 1 dòng/siêu thị/ngày — KHÁC HẲN domain SKU lớn `doanhthu_sku_nganhhang`,
+// không có rủi ro hiệu năng như đã gặp ở fetchCurrentStock(), xem
+// lib/brgWeeklyPostCore.js:fetchStoreWideTotals() bên rp-server — cùng
+// domain, cùng tinh thần) trong [from, to], gộp theo mã Điểm qua
+// `stkToMaDiem` (Map<STK_ID, MaDiem> — caller tự dựng từ
+// etl.DiemStkMapping.MaStkMoi, domain CHỈ có kho HIỆN TẠI, không cần tách
+// kỳ cũ/mới). STK_ID không khớp mã Điểm nào (chưa khai ở "Ánh xạ Điểm -
+// STK_ID") bị bỏ qua, không tính nhầm.
+//
+// Đọc qua pool "DWH_PROMO_IMPORTER" (SELECT-ONLY dwh.ReportFacts, xem
+// dwh/grants.sql) — KHÔNG mượn pool "DWH"/etl_writer quyền rộng hơn, giữ
+// đúng tinh thần phòng thủ chiều sâu của cả file này.
+async function computeStoreRevenueByMaDiem(dwhPool, stkToMaDiem, fromISO, toISO) {
+  const result = await dwhPool.request()
+    .input('domain', sql.VarChar(50), 'doanhthu_chinhanh')
+    .input('from', sql.Date, fromISO)
+    .input('to', sql.Date, toISO)
+    .query('SELECT EntityCode, Measures FROM dwh.ReportFacts WHERE Domain = @domain AND EventDate BETWEEN @from AND @to');
+  const revenueByMaDiem = new Map();
+  for (const row of result.recordset) {
+    const maDiem = stkToMaDiem.get(row.EntityCode);
+    if (!maDiem) continue;
+    const measures = row.Measures ? JSON.parse(row.Measures) : {};
+    const doanhThu = measures.DoanhThu || 0;
+    revenueByMaDiem.set(maDiem, (revenueByMaDiem.get(maDiem) || 0) + doanhThu);
+  }
+  return revenueByMaDiem;
+}
+
 module.exports = {
   parsePromoCampaignSkuFile, parsePromoCampaignStoreWeightFile,
   upsertPromoCampaignSkus, upsertPromoCampaignStoreWeights,
   buildPromoCampaignSkuTemplate, buildPromoCampaignStoreWeightTemplate,
   buildPromoCampaignSkuExport, buildPromoCampaignStoreWeightExport,
+  computeStoreRevenueByMaDiem,
   normalizeApplyScope, APPLY_SCOPE_HOP_LE
 };

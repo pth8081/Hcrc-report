@@ -382,6 +382,9 @@ function StoreWeightPanel({ campaignId, isActive }) {
   const [deletingId, setDeletingId] = useState(null);
   const selection = useRowSelection(row => row.id);
   const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [autoDays, setAutoDays] = useState(90);
+  const [autoCalculating, setAutoCalculating] = useState(false);
+  const [autoResult, setAutoResult] = useState(null);
 
   function reload() {
     api.get(`/promo-campaigns/${campaignId}/store-weights`).then(setRows).catch(err => setError(err.message));
@@ -472,6 +475,29 @@ function StoreWeightPanel({ campaignId, isActive }) {
     setBulkDeleting(false);
   }
 
+  // autoCalculate (bản 11.44, theo yêu cầu người dùng — "nhập tay Trọng số
+  // mất thời gian, hệ thống có sẵn doanh thu rồi, tự tính giúp được
+  // không?") — tính lại Trọng số CỦA MỌI siêu thị ĐANG CÓ trong bảng (phải
+  // nhập "Mã điểm" qua "Nhập file trọng số" TRƯỚC, Trọng số lúc đó điền
+  // tạm số nào cũng được) theo doanh thu thật `autoDays` ngày gần nhất —
+  // GHI ĐÈ toàn bộ Trọng số hiện có, nên luôn xác nhận trước.
+  async function autoCalculate() {
+    if (!rows.length) return setError('Chưa có siêu thị nào trong danh sách — nhập file "Mã điểm" trước (cột "Trọng số" điền tạm số bất kỳ, sẽ được tính lại ở đây).');
+    if (!window.confirm(`Tính lại Trọng số theo doanh thu thật ${autoDays} ngày gần nhất cho TẤT CẢ ${rows.length} siêu thị đang có trong danh sách? Trọng số hiện tại sẽ bị GHI ĐÈ.`)) return;
+    setError('');
+    setAutoResult(null);
+    setAutoCalculating(true);
+    try {
+      const result = await api.post(`/promo-campaigns/${campaignId}/store-weights/auto-calculate`, { days: Number(autoDays) });
+      setAutoResult(result);
+      reload();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setAutoCalculating(false);
+    }
+  }
+
   const totalWeight = rows.reduce((s, r) => s + (r.storeWeight || 0), 0);
 
   return (
@@ -502,6 +528,27 @@ function StoreWeightPanel({ campaignId, isActive }) {
             </>
           )}
         </div>
+      )}
+      {isActive && (
+        <div className="inline-actions" style={{ marginTop: 8 }}>
+          <label>
+            Tự động tính trọng số theo doanh thu{' '}
+            <input
+              type="number" min="1" max="366" value={autoDays}
+              onChange={(e) => setAutoDays(e.target.value)}
+              style={{ width: 70 }}
+            />{' '}
+            ngày gần nhất
+          </label>
+          <button type="button" onClick={autoCalculate} disabled={autoCalculating}>
+            {autoCalculating ? 'Đang tính...' : 'Tính tự động'}
+          </button>
+        </div>
+      )}
+      {autoResult && (
+        <p className="form-hint">
+          ✅ Đã tính lại trọng số cho {autoResult.updated} siêu thị theo doanh thu từ {autoResult.from} đến {autoResult.to}.
+        </p>
       )}
       <p>Tổng trọng số hiện có: {totalWeight.toLocaleString('vi-VN')} ({rows.length} siêu thị)</p>
       <DataTable

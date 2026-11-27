@@ -19,7 +19,8 @@ const {
   parsePromoCampaignSkuFile, parsePromoCampaignStoreWeightFile,
   upsertPromoCampaignSkus, upsertPromoCampaignStoreWeights,
   buildPromoCampaignSkuTemplate, buildPromoCampaignStoreWeightTemplate,
-  buildPromoCampaignSkuExport, buildPromoCampaignStoreWeightExport
+  buildPromoCampaignSkuExport, buildPromoCampaignStoreWeightExport,
+  computeStoreRevenueByMaDiem
 } = require('../../lib/promoCampaignImport');
 const { logAction } = require('../../lib/auditLog');
 const { hasZipSignature } = require('../../lib/fileSignature');
@@ -355,6 +356,76 @@ router.delete('/:id/store-weights/:weightRowId', async (req, res, next) => {
       .query('DELETE FROM dwh.PromoCampaignStoreWeights OUTPUT DELETED.MaDiem WHERE Id = @id AND CampaignId = @campaignId');
     if (!result.recordset.length) return res.status(404).json({ error: 'Không tìm thấy dòng trọng số' });
     res.json({ ok: true });
+  } catch (err) { next(err); }
+});
+
+// "Tính tự động" trọng số theo doanh thu (bản 11.44, theo yêu cầu người
+// dùng — "nhập tay Trọng số mất thời gian, hệ thống có sẵn doanh thu rồi,
+// tự tính giúp được không?") — tính lại StoreWeight của MỌI mã Điểm ĐANG
+// CÓ trong danh sách trọng số của chiến dịch (phải nhập "Mã điểm" qua
+// "Nhập file trọng số" TRƯỚC — cột "Trọng số" lúc đó điền tạm số nào cũng
+// được, sẽ bị GHI ĐÈ ở đây), lấy TỔNG doanh thu CẢ SIÊU THỊ trong `days`
+// ngày gần nhất tính tới HÔM NAY làm trọng số — đúng khuyến nghị đã tư vấn
+// người dùng (dùng doanh thu TUYỆT ĐỐI gần đây, KHÔNG phải tỉ lệ đạt kế
+// hoạch; khoảng ngày KHÔNG cần khớp đúng số ngày chiến dịch).
+//
+// etl.DiemStkMapping nằm ở CSDL HCRC_ETL (CSDL riêng của chính app này) —
+// đọc qua pool 'ADMIN' như mọi route etl khác, KHÔNG qua pool POOL (CSDL
+// HCRC_DWH). dwh.ReportFacts đọc qua ĐÚNG pool POOL (SELECT-ONLY, xem
+// dwh/grants.sql) — KHÔNG mượn pool 'DWH'/etl_writer quyền rộng hơn, giữ
+// đúng tinh thần phòng thủ chiều sâu của cả file này.
+router.post('/:id/store-weights/auto-calculate', async (req, res, next) => {
+  try {
+    const campaignId = Number(req.params.id);
+    const days = Number(req.body && req.body.days);
+    if (!Number.isFinite(days) || days < 1 || days > 366) {
+      return res.status(400).json({ error: 'Thiếu/sai "days" (số ngày gần nhất, số nguyên 1-366)' });
+    }
+
+    const pool = await getPool(POOL);
+    const isActive = await loadCampaignActiveStatus(pool, campaignId);
+    if (isActive === null) return res.status(404).json({ error: 'Không tìm thấy chiến dịch' });
+    if (!isActive) return res.status(400).json({ error: CAMPAIGN_CLOSED_MESSAGE });
+
+    const existing = await pool.request().input('campaignId', sql.Int, campaignId)
+      .query('SELECT MaDiem FROM dwh.PromoCampaignStoreWeights WHERE CampaignId = @campaignId');
+    if (!existing.recordset.length) {
+      return res.status(400).json({
+        error: 'Chưa có siêu thị nào trong danh sách trọng số — nhập file "Mã điểm" trước (cột "Trọng số" điền tạm số bất kỳ, sẽ được tính lại ở đây), rồi bấm "Tính tự động".'
+      });
+    }
+
+    const adminPool = await getPool('ADMIN');
+    const diemRows = await adminPool.request().query('SELECT MaDiem, MaStkMoi FROM etl.DiemStkMapping WHERE IsActive = 1');
+    const stkToMaDiem = new Map();
+    for (const r of diemRows.recordset) {
+      for (const stk of String(r.MaStkMoi || '').split(',').map((s) => s.trim()).filter(Boolean)) {
+        stkToMaDiem.set(stk, r.MaDiem);
+      }
+    }
+
+    const toDate = new Date();
+    const toISO = toDate.toISOString().slice(0, 10);
+    const fromDate = new Date(toDate.getTime() - (days - 1) * 86400000);
+    const fromISO = fromDate.toISOString().slice(0, 10);
+
+    const revenueByMaDiem = await computeStoreRevenueByMaDiem(pool, stkToMaDiem, fromISO, toISO);
+
+    for (const row of existing.recordset) {
+      const weight = revenueByMaDiem.get(row.MaDiem) || 0;
+      await pool.request()
+        .input('campaignId', sql.Int, campaignId)
+        .input('maDiem', sql.NVarChar(50), row.MaDiem)
+        .input('weight', sql.Decimal(18, 2), weight)
+        .query('UPDATE dwh.PromoCampaignStoreWeights SET StoreWeight = @weight, ImportedAt = SYSUTCDATETIME() WHERE CampaignId = @campaignId AND MaDiem = @maDiem');
+    }
+
+    await logAction(req, {
+      module: 'Chiến dịch khuyến mãi', actionType: 'TU_DONG_TINH_TRONGSO_CHIEN_DICH_KM',
+      targetObject: `Campaign ${campaignId}`,
+      description: `Tính tự động trọng số theo doanh thu ${days} ngày gần nhất (${fromISO} - ${toISO}) cho ${existing.recordset.length} siêu thị`
+    });
+    res.json({ updated: existing.recordset.length, from: fromISO, to: toISO });
   } catch (err) { next(err); }
 });
 

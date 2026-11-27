@@ -52,6 +52,38 @@ nội dung/hành vi nào đã làm. Lịch sử Git (commit message) vẫn còn 
 "Bản 10.100"/"Bản 10.101" (không sửa lại lịch sử Git) — coi là ĐỒNG NHẤT
 với "11.0"/"11.1".
 
+## 11.44 — "Trọng số siêu thị" (BRG Weekly Post) tự tính theo doanh thu thật, không bắt gõ tay
+
+**Theo yêu cầu người dùng** — sau khi được tư vấn cách chọn Trọng số
+(dùng doanh thu tuyệt đối gần đây, không phải tỉ lệ đạt kế hoạch): "Khi
+tôi nhập vào tôi có phần chọn là doanh thu của các siêu thị trong vòng
+bao nhiêu ngày, thì hệ thống tự nhập vào cho tôi và tự tính trọng số
+của tôi được không? Vì cái này thì nếu mà bắt người dùng nhập vào thì
+sẽ mất thời gian, mà hệ thống nó có sẵn rồi."
+
+**Đã làm**: thêm nút **"Tính tự động"** ở panel "Trọng số siêu thị"
+(etl-admin → "Chiến dịch khuyến mãi") — admin vẫn nhập file "Mã điểm"
+như cũ (cột "Trọng số" điền tạm số nào cũng được), nhập số ngày gần
+nhất (mặc định 90), bấm "Tính tự động" → hệ thống lấy TỔNG doanh thu
+CẢ SIÊU THỊ (domain `doanhthu_chinhanh`, domain NHỎ, đã dùng sẵn ở
+`fetchStoreWideTotals()` bản 11.42) trong đúng khoảng ngày đó cho MỌI
+mã Điểm đang có trong bảng, GHI ĐÈ Trọng số hiện có.
+
+**Route mới**: `POST /:id/store-weights/auto-calculate` (`etl/routes/
+admin/promoCampaigns.js`) + helper `computeStoreRevenueByMaDiem()`
+(`etl/lib/promoCampaignImport.js`) — đọc `etl.DiemStkMapping` qua pool
+`ADMIN` (CSDL riêng của chính app `etl`) để dịch STK_ID → mã Điểm, đọc
+`dwh.ReportFacts` qua pool `DWH_PROMO_IMPORTER` — **CẦN THÊM QUYỀN**
+`GRANT SELECT ON dwh.ReportFacts TO dwh_promo_importer` (`dwh/grants.sql`,
+mirror đúng cách đã cấp cho `dwh_target_importer` ở bản 9.7x) — vẫn giữ
+đúng tinh thần phòng thủ chiều sâu của cả file route này (KHÔNG mượn
+pool `DWH`/`etl_writer` quyền ghi rộng hơn).
+
+**Không tạo domain/VIEW mới** — tái dùng nguyên `doanhthu_chinhanh` đã
+đồng bộ sẵn. Verify: test độc lập `computeStoreRevenueByMaDiem()` với
+pool giả lập (gộp đúng theo mã Điểm, bỏ qua STK_ID không khớp mã Điểm
+nào) PASS; `node --check` các file sửa; build `etl-admin` thành công.
+
 ## 11.43 — Ghi nhận: cách cấp quyền "Giám sát Log CSDL" cho server chi nhánh DSMART16 (Compatibility Level cũ cần thêm VIEW SERVER STATE)
 
 **Theo báo cáo người dùng** — sau khi cấp `VIEW DATABASE STATE` cho các
