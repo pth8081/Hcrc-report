@@ -54,7 +54,7 @@
 //     không xử lý riêng.
 const { getPool } = require('../db');
 const {
-  todayUTC, daysAgoUTC, loadLatestMeasureBefore, loadSumOnDate, loadSumOverRange, loadLatestDimensionsForDomain
+  todayUTC, daysAgoUTC, loadLatestMeasureBefore, loadSumOnDate, loadSumOverRange, loadLatestDimensionsForDomainByCode
 } = require('./reportFactsHelpers');
 const { fetchAllReportRows, aggregateDailyRowsByEntity } = require('./compositeReportRunner');
 const { loadCoreItemListByKho, getLastLoadError } = require('./coreItemList');
@@ -113,12 +113,23 @@ async function computeCoreData(filterValues) {
     return { candidates: [], warnings: [warning], wFrom, wTo, w1From, w1To };
   }
 
-  // Quét TOÀN BỘ domain tồn kho (bounded 35 ngày — xem lý do đầy đủ ở
-  // loadLatestDimensionsForDomain()), rồi lọc theo đúng (kho, mã hàng) có
-  // trong danh mục Core — mirror ĐÚNG cách lib/coreZeroStockRunner.js quét
-  // candidates (không thể tra ngược entityCode từ MaHangHienThi vì entity
-  // thật dùng SKU_ID nội bộ, Core chỉ biết mã hàng HIỂN THỊ).
-  const stockDims = await loadLatestDimensionsForDomain(pool, STOCK_DOMAIN, ['MaChiNhanh', 'TenChiNhanh', 'MaHangHienThi', 'TenHang'], daysAgoUTC(35));
+  // SỬA LỖI HIỆU NĂNG THẬT (bản 11.55, theo báo cáo người dùng — "Phủ hàng
+  // Core" tải chậm) — TRƯỚC ĐÂY quét TOÀN BỘ domain tồn kho
+  // (loadLatestDimensionsForDomain(), bounded 35 ngày nhưng domain này giữ
+  // lịch sử 5-11 TRIỆU dòng — xem daysAgoUTC()) RỒI MỚI lọc theo danh mục
+  // Core SAU KHI đã lấy hết về JS — KHÁC "Core stock=0"/"Top bán chạy"
+  // (mirror sai theo — 2 báo cáo đó THẬT SỰ không biết trước thực thể nào
+  // sẽ hết hàng nên buộc phải quét hết). Ở ĐÂY danh mục Core
+  // (etl.CoreItemList) ĐÃ BIẾT TRƯỚC CHÍNH XÁC những mã hàng cần theo dõi
+  // — lọc THẲNG theo cột `MaHangHienThi` (đã persisted+index sẵn, dùng
+  // CHUNG cho mọi domain, xem dwh/schema.sql bản 11.38) ngay trong SQL
+  // (loadLatestDimensionsForDomainByCode(), seek qua index rồi mới
+  // PARTITION BY EntityCode trên tập ĐÃ LỌC nhỏ hơn nhiều) thay vì quét
+  // nguyên domain. Lấy dư 1 chút (gộp mã hàng của MỌI kho, không tách theo
+  // từng kho — IN-list chỉ lọc được 1 cột) — lọc khớp ĐÚNG kho ở vòng
+  // for bên dưới như cũ, không đổi kết quả.
+  const allCoreCodes = [...new Set([...coreByKho.values()].flatMap(m => [...m.keys()]))];
+  const stockDims = await loadLatestDimensionsForDomainByCode(pool, STOCK_DOMAIN, ['MaChiNhanh', 'TenChiNhanh', 'MaHangHienThi', 'TenHang'], 'MaHangHienThi', allCoreCodes, daysAgoUTC(35));
   const candidates = [];
   for (const [entityCode, info] of stockDims) {
     const d = info.dimensions;
@@ -222,12 +233,29 @@ async function runPhuHangCoreChiTietReport(definition, filterValues = {}) {
 }
 
 async function runPhuHangCoreRecapReport(definition, filterValues = {}) {
-  const data = await computeCoreData(filterValues);
+  // SỬA HIỆU NĂNG (bản 11.55) — TRƯỚC ĐÂY gọi computeCoreData() (chuỗi
+  // dài, quét 35 ngày domain tonkho_sku + 2 lượt loadSumOverRange 7 ngày)
+  // XONG MỚI bắt đầu quét storeRevenueRaw (domain doanhthu_nganhhang, 7
+  // ngày) — 2 việc này ĐỘC LẬP HOÀN TOÀN (storeRevenueRaw chỉ cần
+  // w1From/w1To, tính được NGAY từ filterValues, không cần đợi
+  // computeCoreData() xong) — chạy SONG SONG thay vì nối tiếp, giảm tổng
+  // thời gian chờ đúng bằng thời gian của lượt NGẮN HƠN trong 2 lượt.
+  const anchorForRevenue = resolveAnchor(filterValues);
+  const w1FromEarly = addDays(anchorForRevenue, -13);
+  const w1ToEarly = addDays(anchorForRevenue, -7);
+  const pool = await getPool('DWH');
+  const [data, storeRevenueRaw] = await Promise.all([
+    computeCoreData(filterValues),
+    fetchAllReportRows(
+      pool,
+      { domain: STORE_REVENUE_DOMAIN, filters: [{ field: 'eventDate', type: 'dateRange' }] },
+      { eventDate: { from: w1FromEarly, to: w1ToEarly } }
+    )
+  ]);
   const { candidates, coreByKho, warnings, w1From, w1To } = data;
   if (!candidates.length) {
     return { columns: describeRecapColumns(), rows: [], warnings, columnGroups: null, standaloneColumnColors: null, periodLabel: buildPeriodLabel(data) };
   }
-  const pool = await getPool('DWH');
 
   const byKho = new Map();
   for (const r of candidates) {
@@ -240,18 +268,25 @@ async function runPhuHangCoreRecapReport(definition, filterValues = {}) {
   // qua fetchAllReportRows() + aggregateDailyRowsByEntity() (mirror đúng
   // cách lib/nganhHangBrgRunner.js dùng domain này), rồi CỘNG DỒN theo
   // STK_ID (bỏ DEPT_ID) ở tầng JS — entityCode của domain này là
-  // "<STK_ID>_<DEPT_ID>", KHÔNG gộp sẵn theo STK_ID.
-  const storeRevenueRaw = await fetchAllReportRows(
-    pool,
-    { domain: STORE_REVENUE_DOMAIN, filters: [{ field: 'eventDate', type: 'dateRange' }] },
-    { eventDate: { from: w1From, to: w1To } }
-  );
+  // "<STK_ID>_<DEPT_ID>", KHÔNG gộp sẵn theo STK_ID. (Đã quét SONG SONG ở
+  // trên — w1From/w1To ở đây PHẢI khớp ĐÚNG w1FromEarly/w1ToEarly, cùng 1
+  // anchor/công thức addDays(), không tính lại khác đi.)
+  // SỬA LỖI THẬT (bản 11.55, CÙNG lớp lỗi đã sửa ở lib/dioNganhHangRunner.js
+  // — xem chú thích đầy đủ ở đó) — TRƯỚC ĐÂY tách STK_ID bằng
+  // `entityCode.lastIndexOf('_')` (parse NGƯỢC từ EntityCode =
+  // "<STK_ID>_<DEPT_ID>") — VIEW nguồn `V_HCRC_DOANHTHU_NGANHHANG` build
+  // EntityCode bằng STK_ID CHƯA RTRIM (cột CHAR cố định độ dài) → `stkId`
+  // lấy ra CÒN NGUYÊN khoảng trắng đệm, KHÔNG BAO GIỜ khớp `maKho` sạch
+  // (từ domain `tonkho_sku` KHÁC, đã trim sẵn) → "Doanh số toàn ST (W-1)"/
+  // "Tỷ trọng Core/toàn ST" ÂM THẦM ra 0% MỌI siêu thị dù có doanh thu
+  // thật. Đọc THẲNG `row.dimensions.STK_ID`/`DEPT_ID` (tự `.trim()`) thay
+  // vì parse lại từ entityCode.
   const storeRevenueByStk = new Map();
   for (const row of aggregateDailyRowsByEntity(storeRevenueRaw)) {
-    const idx = row.entityCode.lastIndexOf('_');
-    if (idx === -1) continue;
-    const stkId = row.entityCode.slice(0, idx);
-    const deptId = row.entityCode.slice(idx + 1);
+    const stkIdRaw = row.dimensions && row.dimensions.STK_ID;
+    const stkId = typeof stkIdRaw === 'string' ? stkIdRaw.trim() : stkIdRaw;
+    if (!stkId) continue;
+    const deptId = row.dimensions && row.dimensions.DEPT_ID;
     if (deptId === ULTRA_FRESH_DEPT_ID) continue; // loại Ultra Fresh khỏi mẫu số, đúng "Nguyên tắc tính tỷ lệ phủ".
     const doanhThu = Number(row.measures.DoanhThu) || 0;
     storeRevenueByStk.set(stkId, (storeRevenueByStk.get(stkId) || 0) + doanhThu);

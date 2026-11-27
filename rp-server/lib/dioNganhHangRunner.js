@@ -60,14 +60,28 @@ function daysAgoISO(n) {
   return d.toISOString().slice(0, 10);
 }
 
-// entityCode = "<STK_ID>_<DEPT_ID>" — DEPT_ID theo danh mục ngành hàng cố
-// định (xem "báo cáo doanh thu-nhập hàng theo ngành hàng.md" mục 1), tách
-// từ PHẢI SANG TRÁI để an toàn dù STK_ID có chứa "_" (chưa gặp thực tế,
-// không giả định ngược lại).
-function splitEntityCode(entityCode) {
-  const idx = entityCode.lastIndexOf('_');
-  if (idx === -1) return null;
-  return { stkId: entityCode.slice(0, idx), deptId: entityCode.slice(idx + 1) };
+// SỬA LỖI THẬT (bản 11.55, theo báo cáo người dùng — "DIO theo ngành
+// hàng" luôn ra "Không có dữ liệu") — TRƯỚC ĐÂY tách STK_ID/DEPT_ID bằng
+// splitEntityCode() (parse NGƯỢC từ entityCode = "<STK_ID>_<DEPT_ID>")
+// thay vì đọc thẳng 2 cột Dimensions riêng (STK_ID/DEPT_ID) ĐÃ CÓ SẴN
+// trong domain (xem dimensionColumns ở
+// etl/scripts/seedTonKhoGtriNganhHangSync.js/seedNganhHangSync.js) — VIEW
+// nguồn `V_HCRC_TONKHO_NGANHHANG`/`V_HCRC_DOANHTHU_NGANHHANG` build
+// entityCode bằng `STK_ID + '_' + DEPT_ID` KHÔNG RTRIM STK_ID (STK_ID là
+// cột CHAR cố định độ dài, tự đệm khoảng trắng cuối — ĐÚNG lớp lỗi đã gặp
+// bản 10.89/9.58 ở domain khác) — splitEntityCode() lấy ra `stkId` CÒN
+// NGUYÊN khoảng trắng đệm, KHÔNG BAO GIỜ khớp được khoá sạch của
+// `stkLookup` (từ "Ánh xạ Điểm - STK_ID") → MỌI dòng bị `if (!info)
+// continue` loại bỏ → báo cáo luôn rỗng. Đọc THẲNG `row.dimensions.STK_ID`
+// (tự `.trim()`) đúng mẫu ĐÃ SỬA ở lib/doanhThuTongHopHcrcRunner.js (bản
+// 10.89) thay vì parse lại từ entityCode.
+function readStkId(dimensions) {
+  const raw = dimensions && dimensions.STK_ID;
+  return typeof raw === 'string' ? raw.trim() : raw;
+}
+function readDeptId(dimensions) {
+  const raw = dimensions && dimensions.DEPT_ID;
+  return typeof raw === 'string' ? raw.trim() : raw;
 }
 
 // Domain snapshot (KeepHistory=0) — luôn ĐÚNG 1 dòng/entityCode, không cần
@@ -121,8 +135,11 @@ async function runDioNganhHangReport(definition, filterValues = {}, pagination =
     { domain: 'doanhthu_nganhhang', filters: [{ field: 'eventDate', type: 'dateRange' }] },
     { eventDate: { from, to } }
   );
+  // Giữ NGUYÊN cả `dimensions` (không chỉ `measures` như trước) — bản
+  // 11.55 cần đọc row.dimensions.STK_ID/DEPT_ID trực tiếp (xem chú thích
+  // readStkId()/readDeptId() ở trên), không parse lại từ entityCode nữa.
   const salesByEntity = new Map(
-    aggregateDailyRowsByEntity(salesRowsRaw).map(r => [r.entityCode, r.measures])
+    aggregateDailyRowsByEntity(salesRowsRaw).map(r => [r.entityCode, r])
   );
 
   // Gộp theo (maDiem, DEPT_ID) — 1 mã Điểm có thể gồm nhiều mã kho STK_ID.
@@ -140,21 +157,21 @@ async function runDioNganhHangReport(definition, filterValues = {}, pagination =
   }
 
   for (const row of tonKhoRows) {
-    const parts = splitEntityCode(row.entityCode);
-    if (!parts) continue;
-    const info = stkLookup.get(parts.stkId);
+    const stkId = readStkId(row.dimensions);
+    if (!stkId) continue;
+    const info = stkLookup.get(stkId);
     if (!info) continue; // kho chưa khai "Ánh xạ Điểm - STK_ID" — bỏ qua, không đoán tên.
-    const entry = upsert(info.maDiem, info.tenSieuThi, parts.deptId, row.dimensions.TenNganhHang);
+    const entry = upsert(info.maDiem, info.tenSieuThi, readDeptId(row.dimensions), row.dimensions.TenNganhHang);
     entry.giaTriTon += Number(row.measures.GiaTriTon) || 0;
   }
-  for (const [entityCode, measures] of salesByEntity) {
-    const parts = splitEntityCode(entityCode);
-    if (!parts) continue;
-    const info = stkLookup.get(parts.stkId);
+  for (const row of salesByEntity.values()) {
+    const stkId = readStkId(row.dimensions);
+    if (!stkId) continue;
+    const info = stkLookup.get(stkId);
     if (!info) continue;
-    const doanhThu = Number(measures.DoanhThu) || 0;
-    const laiGop = Number(measures.LaiGop) || 0;
-    const entry = upsert(info.maDiem, info.tenSieuThi, parts.deptId, null);
+    const doanhThu = Number(row.measures.DoanhThu) || 0;
+    const laiGop = Number(row.measures.LaiGop) || 0;
+    const entry = upsert(info.maDiem, info.tenSieuThi, readDeptId(row.dimensions), null);
     entry.giaVon90Ngay += (doanhThu - laiGop);
   }
 

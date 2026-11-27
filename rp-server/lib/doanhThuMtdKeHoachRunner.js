@@ -281,8 +281,14 @@ async function runDoanhThuMtdKeHoachReport(definition, filterValues = {}) {
   const billByMaDiem = remapBuToMaDiem(sumTransactionsByBuId(aggregateDailyRowsByEntity(giaoDichRaw)), buIdLookup);
   const targetMap = new Map(targetRows.map(r => [r.entityCode, r]));
 
+  // actualByDiem (bản 11.52): fetchActualTotalMap() trả về Map (để
+  // lastYearMap/lastMonthMap tra cứu .get(maDiem) được) — SỬA LỖI THẬT:
+  // duyệt .values() để lấy ĐÚNG object dòng, KHÔNG duyệt thẳng Map (sẽ cho
+  // ra cặp [entityCode, row] thay vì row, gây "Cannot convert undefined or
+  // null to object" ở actualRow.measures ngay dòng dưới — lỗi "Lỗi máy
+  // chủ" người dùng báo cáo thật trên báo cáo này).
   const rows = [];
-  for (const actualRow of actualByDiem) {
+  for (const actualRow of actualByDiem.values()) {
     const maDiem = actualRow.entityCode;
 
     const target = targetMap.get(maDiem);

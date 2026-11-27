@@ -270,8 +270,61 @@ async function loadLatestDimensionsForDomain(pool, domain, dimensionKeys, sinceD
   return out;
 }
 
+// loadLatestDimensionsForDomainByCode (bản 11.55, SỬA LỖI HIỆU NĂNG THẬT —
+// theo báo cáo người dùng "Phủ hàng Core" tải chậm) — ĐÚNG mẫu
+// loadLatestDimensionsForDomain() ở trên (cùng ROW_NUMBER()/trim/chunk),
+// nhưng lọc THẲNG theo 1 cột persisted-như-không-PERSISTED ĐÃ CÓ INDEX
+// RIÊNG (`codeColumn`, vd `MaHangHienThi` — xem dwh/schema.sql) thay vì
+// quét TOÀN BỘ domain (lib/phuHangCoreRunner.js:computeCoreData() TRƯỚC
+// ĐÂY quét nguyên domain `tonkho_sku` 35 ngày — domain này giữ lịch sử
+// 5-11 TRIỆU dòng, xem chú thích daysAgoUTC() — RỒI MỚI lọc theo danh mục
+// Core SAU KHI đã lấy về JS, dù danh mục Core (etl.CoreItemList) ĐÃ BIẾT
+// TRƯỚC chính xác những mã hàng cần — KHÔNG như "Core stock=0"/"Top bán
+// chạy" thật sự cần quét nguyên domain vì KHÔNG biết trước thực thể nào
+// sẽ hết hàng). Dùng ĐÚNG mẫu này khi nơi gọi đã có sẵn danh sách GIÁ TRỊ
+// của 1 cột đã index (KHÔNG PHẢI EntityCode) để lọc trước khi
+// ROW_NUMBER() — seek qua index đó rồi mới PARTITION BY EntityCode trên
+// tập ĐÃ LỌC (nhỏ hơn nhiều), thay vì PARTITION BY trên TOÀN domain.
+async function loadLatestDimensionsForDomainByCode(pool, domain, dimensionKeys, codeColumn, codes, sinceDate = null) {
+  dimensionKeys.forEach(assertSafeFieldKey);
+  assertSafeFieldKey(codeColumn);
+  if (!codes.length) return new Map();
+  const selectCols = dimensionKeys.map(k => `JSON_VALUE(Dimensions, '$.${k}') AS [${k}]`).join(', ');
+  const out = new Map();
+  for (const chunk of chunkArray(codes, ENTITY_CODE_CHUNK_SIZE)) {
+    const request = pool.request();
+    request.input('domain', sql.VarChar(50), domain);
+    let dateFilter = '';
+    if (sinceDate) {
+      request.input('sinceDate', sql.Date, sinceDate);
+      dateFilter = 'AND EventDate >= @sinceDate';
+    }
+    const codeParams = buildEntityCodeParams(request, chunk, 'code');
+    const result = await request.query(`
+      SELECT EntityCode, EventDate, ${selectCols} FROM (
+        SELECT EntityCode, EventDate, Dimensions,
+          ROW_NUMBER() OVER (PARTITION BY EntityCode ORDER BY EventDate DESC) AS rn
+        FROM dwh.ReportFacts
+        WHERE Domain = @domain AND ${codeColumn} IN (${codeParams.join(', ')}) ${dateFilter}
+      ) latest WHERE rn = 1
+    `);
+    // TRIM — ĐÚNG mẫu loadLatestDimensionsForDomain() bản 9.58 (xem chú
+    // thích ở đó) — áp dụng CHUNG, không phân biệt lọc theo cột nào.
+    for (const row of result.recordset) {
+      const dimensions = {};
+      for (const k of dimensionKeys) {
+        const v = row[k];
+        dimensions[k] = typeof v === 'string' ? v.trim() : v;
+      }
+      const entityCode = typeof row.EntityCode === 'string' ? row.EntityCode.trim() : row.EntityCode;
+      out.set(entityCode, { eventDate: row.EventDate, dimensions });
+    }
+  }
+  return out;
+}
+
 module.exports = {
   todayUTC, daysAgoUTC, assertSafeFieldKey, buildEntityCodeParams,
   loadLatestMeasureBefore, loadLatestMeasure, loadLatestMeasureWithDate, loadSumOnDate, loadSumOverRange,
-  loadLatestDimensionsForDomain
+  loadLatestDimensionsForDomain, loadLatestDimensionsForDomainByCode
 };

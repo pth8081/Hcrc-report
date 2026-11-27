@@ -52,6 +52,71 @@ nội dung/hành vi nào đã làm. Lịch sử Git (commit message) vẫn còn 
 "Bản 10.100"/"Bản 10.101" (không sửa lại lịch sử Git) — coi là ĐỒNG NHẤT
 với "11.0"/"11.1".
 
+## 11.55 — Sửa khẩn: "MTD" lỗi máy chủ, "DIO" rỗng, "Phủ hàng Core" sai số + chậm
+
+**Theo báo cáo khẩn người dùng** — ngay sau bản 11.52-11.54, hàng loạt báo
+cáo "Báo cáo vận hành" gặp lỗi: "Theo dõi doanh thu MTD theo kế hoạch"
+báo "Lỗi máy chủ" rỗng trơn, "DIO theo ngành hàng" luôn "Không có dữ
+liệu", "Phủ hàng Core" (cả 2 sheet) tải rất chậm. Điều tra bằng cách viết
+test độc lập giả lập toàn bộ phụ thuộc (mock `../db`/
+`compositeReportRunner`/`diemStkMapping`/..., KHÔNG cần CSDL thật) để bắt
+đúng lỗi runtime — phát hiện 4 lỗi THẬT:
+
+1. **"Lỗi máy chủ" ở MTD — LỖI DO CHÍNH TÔI GÂY RA ở bản 11.52**:
+   `fetchActualTotalMap()` trả về 1 `Map` (để `lastYearMap`/`lastMonthMap`
+   tra `.get(maDiem)` được), nhưng vòng lặp chính lại duyệt THẲNG
+   `for (const actualRow of actualByDiem)` — duyệt 1 `Map` kiểu này cho ra
+   cặp `[entityCode, row]` CHỨ KHÔNG PHẢI `row`, nên `actualRow.measures`
+   luôn `undefined` → crash `TypeError: Cannot convert undefined or null
+   to object` ngay dòng đầu. Sửa: duyệt `actualByDiem.values()`.
+
+2. **"DIO theo ngành hàng" luôn "Không có dữ liệu"** — tách STK_ID bằng
+   `splitEntityCode()` (parse NGƯỢC từ EntityCode = "`<STK_ID>_<DEPT_ID>`")
+   thay vì đọc thẳng cột Dimensions `STK_ID` riêng (đã có sẵn) — VIEW
+   nguồn `V_HCRC_TONKHO_NGANHHANG`/`V_HCRC_DOANHTHU_NGANHHANG` build
+   EntityCode bằng `STK_ID + '_' + DEPT_ID` KHÔNG RTRIM STK_ID (cột CHAR
+   cố định độ dài, tự đệm khoảng trắng — ĐÚNG lớp lỗi đã gặp bản 10.89/
+   9.58 ở domain khác) → `stkId` tách ra CÒN NGUYÊN khoảng trắng đệm,
+   KHÔNG BAO GIỜ khớp khoá sạch của "Ánh xạ Điểm - STK_ID" → MỌI dòng bị
+   loại → báo cáo luôn rỗng. Sửa: đọc thẳng `row.dimensions.STK_ID`/
+   `DEPT_ID` (tự `.trim()`), đúng mẫu đã sửa ở
+   `doanhThuTongHopHcrcRunner.js` bản 10.89.
+
+3. **"Phủ hàng Core - Recap ST" — "Doanh số toàn ST"/"Tỷ trọng" ÂM THẦM
+   luôn 0%** (lỗi có sẵn từ trước, không phải do 3 bản gần đây) — CÙNG lớp
+   lỗi #2 ở `storeRevenueByStk` (parse STK_ID từ EntityCode của domain
+   `doanhthu_nganhhang`, cũng không RTRIM) — sửa đọc thẳng
+   `row.dimensions.STK_ID`/`DEPT_ID`.
+
+4. **"Phủ hàng Core" (cả 2 sheet) chậm** — `computeCoreData()` quét TOÀN
+   BỘ domain `tonkho_sku` (giữ lịch sử 5-11 TRIỆU dòng, xem
+   `daysAgoUTC()`) bounded 35 ngày RỒI MỚI lọc theo danh mục Core SAU KHI
+   đã lấy hết về JS — trong khi danh mục Core (`etl.CoreItemList`) ĐÃ BIẾT
+   TRƯỚC CHÍNH XÁC những mã hàng cần theo dõi (KHÁC "Core stock=0"/"Top
+   bán chạy" — 2 báo cáo đó THẬT SỰ không biết trước thực thể nào sẽ hết
+   hàng nên bắt buộc phải quét hết, không sửa được theo cách này). Thêm
+   hàm MỚI `lib/reportFactsHelpers.js:loadLatestDimensionsForDomainByCode()`
+   — lọc THẲNG theo cột `MaHangHienThi` (đã persisted+index sẵn từ bản
+   11.38) ngay trong SQL thay vì quét nguyên domain. Nhân tiện: sheet
+   "Recap ST" còn gọi `computeCoreData()` XONG MỚI quét thêm domain
+   `doanhthu_nganhhang` ("Doanh số toàn ST") — 2 việc ĐỘC LẬP hoàn toàn,
+   chuyển sang chạy SONG SONG.
+
+**Top bán chạy đang tồn kho = 0 vẫn còn chậm — CHƯA sửa được thêm, lý do
+kiến trúc**: báo cáo này KHÔNG có danh sách thực thể biết trước như Core
+— phải quét toàn domain mỗi lần để PHÁT HIỆN mặt hàng nào vừa bán vừa có
+thể hết, đây là chi phí buộc phải chấp nhận với kiến trúc hiện tại (CÙNG
+loại chi phí "Core stock=0" cũng phải chịu). Nếu vẫn CHẬM ĐẾN MỨC timeout
+(không chỉ vài giây), báo lại — cần đầu tư thêm cấu trúc index mới
+(phạm vi lớn hơn, không làm trong đợt sửa khẩn này).
+
+**Không có thay đổi VIEW/DSMART16 nào** — thuần sửa code `rp-server`,
+không cần DBA làm gì thêm.
+
+Verify: viết test độc lập (mock toàn bộ phụ thuộc, không cần CSDL) cho cả
+3 runner sửa — PASS, không còn crash, dữ liệu mẫu ra đúng số; `node
+--check` toàn bộ file sửa.
+
 ## 11.54 — Cho phép CẤU HÌNH theo từng tài khoản được đăng nhập nhiều thiết bị cùng lúc
 
 **Theo yêu cầu người dùng** — "phân quyền cho phép cấu hình account nào

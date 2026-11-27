@@ -14,6 +14,30 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 11.55 — Sửa khẩn: "MTD" lỗi máy chủ, "DIO" rỗng, "Phủ hàng Core" sai số + chậm
+
+**Không có bước DBA/CSDL mới** — thuần sửa code `rp-server`.
+
+**Các bước**:
+1. `git pull origin main`.
+2. `cd rp-server && pm2 restart hcrc-rp-server` (sửa
+   `lib/doanhThuMtdKeHoachRunner.js`/`lib/dioNganhHangRunner.js`/
+   `lib/phuHangCoreRunner.js`/`lib/reportFactsHelpers.js`).
+
+**Kiểm tra**:
+1. "Theo dõi doanh thu MTD theo kế hoạch" — mở lại, KHÔNG còn "Lỗi máy
+   chủ", ra đủ 3 dòng tổng hợp + chi tiết từng siêu thị.
+2. "DIO theo ngành hàng" — mở lại, PHẢI ra số liệu (không còn "Không có
+   dữ liệu").
+3. "Phủ hàng Core - Chi tiết"/"Recap ST" — tải nhanh hơn RÕ RỆT; ở sheet
+   "Recap ST", cột "Doanh số toàn ST (W-1)"/"Tỷ trọng Core/toàn ST" PHẢI
+   ra số liệu thật (không còn 0%/trống ở mọi dòng).
+4. "Top bán chạy đang tồn kho = 0" — CHƯA sửa thêm được (lý do kiến
+   trúc, xem VERSION.md bản 11.55) — nếu vẫn chậm tới mức timeout, báo
+   lại riêng.
+
+Xem "VERSION.md" mục bản 11.55.
+
 ## 11.54 — Cho phép cấu hình theo tài khoản được đăng nhập nhiều thiết bị cùng lúc
 
 **⚠️ CÓ 1 VIỆC DBA CẦN LÀM — THỨ TỰ QUAN TRỌNG** (chạy DBA TRƯỚC khi
