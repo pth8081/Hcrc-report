@@ -52,6 +52,25 @@ nội dung/hành vi nào đã làm. Lịch sử Git (commit message) vẫn còn 
 "Bản 10.100"/"Bản 10.101" (không sửa lại lịch sử Git) — coi là ĐỒNG NHẤT
 với "11.0"/"11.1".
 
+## 11.39 — Thêm nút "Xuất file" ở trang "Chiến dịch khuyến mãi"
+
+**Theo yêu cầu người dùng** — trang etl-admin "Chiến dịch khuyến mãi (BRG
+Weekly Post)" trước đây chỉ có "Tải file mẫu" (2 dòng ví dụ cố định) và
+"Nhập file SKU"/"Nhập file trọng số", KHÔNG có cách nào xuất lại ĐÚNG
+danh sách SKU/trọng số siêu thị ĐANG LƯU của 1 chiến dịch (để xem lại/lưu
+trữ/đối chiếu).
+
+Thêm nút **"Xuất file"** ở cả 2 khối "SKU (chỉ tiêu cả chuỗi)" và "Trọng
+số siêu thị" — xuất file `.xlsx` CÙNG ĐÚNG KHUÔN CỘT với file mẫu/file
+nhập (`etl/lib/promoCampaignImport.js:buildPromoCampaignSkuExport()`/
+`buildPromoCampaignStoreWeightExport()`, route mới `GET
+/:id/skus/export`/`/:id/store-weights/export`) — nên có thể NHẬP LẠI
+THẲNG file vừa xuất nếu cần sửa vài dòng rồi tải lên lại (upsert theo
+đúng khoá MaHang/MaDiem). Ẩn nút khi chưa có dòng nào (`rows.length ===
+0`) — không có gì để xuất.
+
+**Không có bước DBA/CSDL mới (chỉ sửa code etl/etl-admin).**
+
 ## 11.38 — Sửa lỗi THẬT "Mã hiển thị" ra "[object Object]" — nguyên nhân Tồn kho KM "BRG Weekly Post" luôn = 0
 
 **Theo báo cáo người dùng** — "Báo cáo này sao có mấy cột bằng không?"

@@ -170,6 +170,7 @@ function SkuPanel({ campaignId }) {
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState(null);
   const [downloadingTemplate, setDownloadingTemplate] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
   const selection = useRowSelection(row => row.id);
   const [bulkDeleting, setBulkDeleting] = useState(false);
@@ -210,6 +211,19 @@ function SkuPanel({ campaignId }) {
     }
   }
 
+  // exportSkus (bản 11.39, theo yêu cầu người dùng) — xuất ĐÚNG danh sách
+  // SKU đang lưu (KHÁC "Tải file mẫu" — 2 dòng ví dụ cố định).
+  async function exportSkus() {
+    setExporting(true);
+    try {
+      await api.downloadFile(`/promo-campaigns/${campaignId}/skus/export`, 'sku-chien-dich-km.xlsx');
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setExporting(false);
+    }
+  }
+
   async function removeRow(row) {
     if (!window.confirm(`Xoá SKU "${row.maHang}"?`)) return;
     setDeletingId(row.id);
@@ -243,6 +257,9 @@ function SkuPanel({ campaignId }) {
       <div className="inline-actions">
         <button type="button" onClick={downloadTemplate} disabled={downloadingTemplate}>
           {downloadingTemplate ? 'Đang tải...' : 'Tải file mẫu'}
+        </button>
+        <button type="button" onClick={exportSkus} disabled={exporting || !rows.length}>
+          {exporting ? 'Đang xuất...' : 'Xuất file'}
         </button>
       </div>
       <form className="stacked-form" onSubmit={submitImport}>
@@ -301,6 +318,7 @@ function StoreWeightPanel({ campaignId }) {
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState(null);
   const [downloadingTemplate, setDownloadingTemplate] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
   const selection = useRowSelection(row => row.id);
   const [bulkDeleting, setBulkDeleting] = useState(false);
@@ -341,6 +359,19 @@ function StoreWeightPanel({ campaignId }) {
     }
   }
 
+  // exportStoreWeights (bản 11.39, theo yêu cầu người dùng) — xuất ĐÚNG
+  // danh sách trọng số đang lưu (KHÁC "Tải file mẫu" — 2 dòng ví dụ cố định).
+  async function exportStoreWeights() {
+    setExporting(true);
+    try {
+      await api.downloadFile(`/promo-campaigns/${campaignId}/store-weights/export`, 'trong-so-sieu-thi-km.xlsx');
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setExporting(false);
+    }
+  }
+
   async function removeRow(row) {
     if (!window.confirm(`Xoá trọng số mã Điểm "${row.maDiem}"?`)) return;
     setDeletingId(row.id);
@@ -376,6 +407,9 @@ function StoreWeightPanel({ campaignId }) {
       <div className="inline-actions">
         <button type="button" onClick={downloadTemplate} disabled={downloadingTemplate}>
           {downloadingTemplate ? 'Đang tải...' : 'Tải file mẫu'}
+        </button>
+        <button type="button" onClick={exportStoreWeights} disabled={exporting || !rows.length}>
+          {exporting ? 'Đang xuất...' : 'Xuất file'}
         </button>
       </div>
       <form className="stacked-form" onSubmit={submitImport}>

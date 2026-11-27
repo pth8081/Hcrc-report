@@ -379,9 +379,37 @@ async function buildPromoCampaignStoreWeightTemplate() {
   );
 }
 
+// ---- Xuất file ("Xuất file") — bản 11.39, theo yêu cầu người dùng: xuất
+// lại ĐÚNG danh sách SKU/trọng số siêu thị ĐANG LƯU trong CSDL cho 1 chiến
+// dịch, dùng để xem lại/lưu trữ/gửi người khác đối chiếu — KHÁC "Tải file
+// mẫu" (2 dòng ví dụ CỐ ĐỊNH, dùng để BIẾT KHUÔN CỘT trước khi nhập lần
+// đầu). CÙNG KHUÔN CỘT với file mẫu/file nhập (SKU_FIELDS/STORE_WEIGHT_FIELDS)
+// — file xuất ra có thể NHẬP LẠI THẲNG qua "Nhập file SKU"/"Nhập file
+// trọng số" nếu cần sửa rồi tải lên lại (upsert theo đúng khoá
+// MaHang/MaDiem, không tạo trùng dòng).
+async function buildPromoCampaignSkuExport(rows) {
+  return buildWorkbook(
+    'Ma hang',
+    SKU_FIELDS.map(f => f.label),
+    rows.map(r => [
+      r.maHang, r.skuCode, r.skuName, r.deptName, r.giaBanLe, r.giaKmMart, r.giaKmMini,
+      r.promoNote, r.percentKm, r.taxRate, r.applyScope, r.soLuongKeHoachTotal, r.doanhThuKeHoachTotal
+    ])
+  );
+}
+
+async function buildPromoCampaignStoreWeightExport(rows) {
+  return buildWorkbook(
+    'Trong so sieu thi',
+    STORE_WEIGHT_FIELDS.map(f => f.label),
+    rows.map(r => [r.maDiem, r.storeWeight])
+  );
+}
+
 module.exports = {
   parsePromoCampaignSkuFile, parsePromoCampaignStoreWeightFile,
   upsertPromoCampaignSkus, upsertPromoCampaignStoreWeights,
   buildPromoCampaignSkuTemplate, buildPromoCampaignStoreWeightTemplate,
+  buildPromoCampaignSkuExport, buildPromoCampaignStoreWeightExport,
   normalizeApplyScope, APPLY_SCOPE_HOP_LE
 };

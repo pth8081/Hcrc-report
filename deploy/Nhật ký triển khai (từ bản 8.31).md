@@ -14,6 +14,21 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 11.39 — Thêm nút "Xuất file" ở trang "Chiến dịch khuyến mãi"
+
+**Không có bước DBA/CSDL mới (chỉ sửa code etl/etl-admin).**
+
+**Các bước**:
+1. `git pull origin main`.
+2. `cd etl && pm2 restart hcrc-etl` (2 route mới `GET
+   /:id/skus/export`/`/:id/store-weights/export`).
+3. `cd etl-admin && npm run build` (deploy `dist/` mới — nút "Xuất file"
+   ở cả 2 khối SKU/Trọng số siêu thị).
+
+**Kiểm tra**: vào "Chiến dịch khuyến mãi" → chọn 1 chiến dịch đã có SKU/
+trọng số → bấm "Xuất file" ở từng khối → phải tải về đúng file `.xlsx`
+khớp số liệu đang hiện trên bảng.
+
 ## 11.38 — Sửa lỗi "Mã hiển thị" ra "[object Object]" + sửa hiệu năng Tồn kho KM "BRG Weekly Post" bị treo lúc xuất file
 
 **⚠️ CÓ 1 VIỆC DBA CẦN LÀM — THỨ TỰ QUAN TRỌNG** (chạy DBA TRƯỚC khi

@@ -18,13 +18,21 @@ const { requireMenuEdit } = require('../../lib/adminPermissions');
 const {
   parsePromoCampaignSkuFile, parsePromoCampaignStoreWeightFile,
   upsertPromoCampaignSkus, upsertPromoCampaignStoreWeights,
-  buildPromoCampaignSkuTemplate, buildPromoCampaignStoreWeightTemplate
+  buildPromoCampaignSkuTemplate, buildPromoCampaignStoreWeightTemplate,
+  buildPromoCampaignSkuExport, buildPromoCampaignStoreWeightExport
 } = require('../../lib/promoCampaignImport');
 const { logAction } = require('../../lib/auditLog');
 const { hasZipSignature } = require('../../lib/fileSignature');
 const { sendXlsx } = require('../../lib/xlsxResponse');
 
 const POOL = 'DWH_PROMO_IMPORTER';
+
+// sanitizeFileNamePart (bản 11.39) — tên chiến dịch do admin tự gõ tự do,
+// có thể lỡ chứa ký tự Windows/Excel CẤM trong tên file (vd "/" nếu ghi
+// kiểu "T6/K2") — thay bằng "-" trước khi ghép vào tên file tải về.
+function sanitizeFileNamePart(name) {
+  return String(name).replace(/[\\/:*?"<>|]/g, '-');
+}
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -150,6 +158,31 @@ router.get('/:id/skus', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// "Xuất file" (bản 11.39, theo yêu cầu người dùng) — xuất ĐÚNG danh sách
+// SKU ĐANG LƯU của chiến dịch này, CÙNG KHUÔN CỘT file mẫu/file nhập (có
+// thể nhập lại thẳng nếu cần sửa) — KHÁC "/skus/template" (2 dòng ví dụ cố
+// định, không phải dữ liệu thật).
+router.get('/:id/skus/export', async (req, res, next) => {
+  try {
+    const pool = await getPool(POOL);
+    const campaign = await pool.request().input('id', sql.Int, req.params.id).query('SELECT Name FROM dwh.PromoCampaigns WHERE Id = @id');
+    if (!campaign.recordset.length) return res.status(404).json({ error: 'Không tìm thấy chiến dịch' });
+    const result = await pool.request().input('campaignId', sql.Int, req.params.id).query(`
+      SELECT MaHang, SkuCode, SkuName, DeptName, GiaBanLe, GiaKmMart, GiaKmMini, PromoNote,
+        PercentKm, TaxRate, ApplyScope, SoLuongKeHoachTotal, DoanhThuKeHoachTotal
+      FROM dwh.PromoCampaignSkus WHERE CampaignId = @campaignId ORDER BY MaHang
+    `);
+    const rows = result.recordset.map(r => ({
+      maHang: r.MaHang, skuCode: r.SkuCode, skuName: r.SkuName, deptName: r.DeptName,
+      giaBanLe: r.GiaBanLe, giaKmMart: r.GiaKmMart, giaKmMini: r.GiaKmMini, promoNote: r.PromoNote,
+      percentKm: r.PercentKm, taxRate: r.TaxRate, applyScope: r.ApplyScope,
+      soLuongKeHoachTotal: r.SoLuongKeHoachTotal, doanhThuKeHoachTotal: r.DoanhThuKeHoachTotal
+    }));
+    const buffer = await buildPromoCampaignSkuExport(rows);
+    sendXlsx(res, buffer, `sku-${sanitizeFileNamePart(campaign.recordset[0].Name)}.xlsx`);
+  } catch (err) { next(err); }
+});
+
 router.get('/skus/template', async (req, res, next) => {
   try {
     const buffer = await buildPromoCampaignSkuTemplate();
@@ -205,6 +238,22 @@ router.get('/:id/store-weights', async (req, res, next) => {
     res.json(result.recordset.map(r => ({
       id: r.Id, maDiem: r.MaDiem, storeWeight: r.StoreWeight, importedAt: r.ImportedAt, importedBy: r.ImportedBy
     })));
+  } catch (err) { next(err); }
+});
+
+// "Xuất file" trọng số siêu thị (bản 11.39) — cùng tinh thần
+// "/:id/skus/export" ở trên.
+router.get('/:id/store-weights/export', async (req, res, next) => {
+  try {
+    const pool = await getPool(POOL);
+    const campaign = await pool.request().input('id', sql.Int, req.params.id).query('SELECT Name FROM dwh.PromoCampaigns WHERE Id = @id');
+    if (!campaign.recordset.length) return res.status(404).json({ error: 'Không tìm thấy chiến dịch' });
+    const result = await pool.request().input('campaignId', sql.Int, req.params.id).query(`
+      SELECT MaDiem, StoreWeight FROM dwh.PromoCampaignStoreWeights WHERE CampaignId = @campaignId ORDER BY MaDiem
+    `);
+    const rows = result.recordset.map(r => ({ maDiem: r.MaDiem, storeWeight: r.StoreWeight }));
+    const buffer = await buildPromoCampaignStoreWeightExport(rows);
+    sendXlsx(res, buffer, `trong-so-sieu-thi-${sanitizeFileNamePart(campaign.recordset[0].Name)}.xlsx`);
   } catch (err) { next(err); }
 });
 
