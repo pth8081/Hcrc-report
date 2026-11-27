@@ -14,6 +14,20 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 11.41 — Sửa xoá hàng loạt SKU/trọng số siêu thị dừng hẳn giữa chừng nếu 1 dòng lỗi
+
+**Không có bước DBA/CSDL mới (chỉ sửa code etl-admin).**
+
+**Các bước**:
+1. `git pull origin main`.
+2. `cd etl-admin && npm run build` (deploy `dist/` mới).
+
+**Kiểm tra**: ở trang "Chiến dịch khuyến mãi", chọn nhiều dòng SKU/trọng
+số rồi bấm "Xoá N mục đã chọn" — nếu CSDL đang chậm/có vài dòng lỗi,
+phải thấy thông báo rõ "Đã xoá X/Y dòng — còn Z dòng lỗi" (không còn im
+lặng/dừng hẳn không rõ lý do), và bảng vẫn được làm mới đúng những dòng
+đã xoá thành công.
+
 ## 11.40 — Thêm nút "Đóng"/"Mở lại" chiến dịch — đóng vẫn xem/xuất báo cáo được
 
 **Không có bước DBA/CSDL mới (chỉ sửa code etl/etl-admin/rp-server).**

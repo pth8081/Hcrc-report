@@ -52,6 +52,43 @@ nội dung/hành vi nào đã làm. Lịch sử Git (commit message) vẫn còn 
 "Bản 10.100"/"Bản 10.101" (không sửa lại lịch sử Git) — coi là ĐỒNG NHẤT
 với "11.0"/"11.1".
 
+## 11.41 — Sửa xoá hàng loạt SKU/trọng số siêu thị dừng hẳn giữa chừng nếu 1 dòng lỗi
+
+**Theo báo cáo người dùng** — bấm "Xoá 163 mục đã chọn" ở trang "Chiến
+dịch khuyến mãi" nhưng không xoá được. Xác nhận chiến dịch vẫn "Đang
+hoạt động" (loại trừ nút Đóng/Mở lại bản 11.40 vừa thêm). Đối chiếu log
+PM2 cùng thời điểm thấy nhiều lỗi `ETIMEOUT` ở các job đồng bộ khác đọc
+từ DSMART16 Live — **`DSMART16` (nguồn Live) và `HCRC_DWH` (nơi lưu
+chiến dịch) nằm CHUNG 1 SQL Server** (`BRSERVERDTT`), server bận lúc đó
+nhiều khả năng ảnh hưởng luôn cả truy vấn xoá SKU.
+
+**Lỗi THẬT phát hiện thêm khi điều tra** — `deleteSelected()` (SkuPanel/
+StoreWeightPanel) gọi LẶP LẠI API xoá 1 dòng cho từng mục đã chọn (đúng
+quy ước dự án), nhưng TRƯỚC ĐÂY nằm trong 1 khối `try` DUY NHẤT — 1 dòng
+lỗi giữa chừng (vd CSDL chậm/timeout đúng lúc) NÉM lỗi làm DỪNG HẲN vòng
+lặp, VÀ không gọi `reload()`/`selection.clear()` — các dòng đã xoá THÀNH
+CÔNG trước đó không được dọn khỏi danh sách/bảng, người dùng thấy như
+"không xoá được dòng nào" dù thực ra có thể đã xoá được một phần.
+
+**Đã sửa**: xoá TIẾP TỤC dù có dòng lỗi (không dừng giữa chừng), LUÔN
+`reload()`/xoá chọn sau khi chạy xong, báo rõ "Đã xoá X/Y dòng — còn Z
+dòng lỗi" kèm 1 ví dụ lỗi cụ thể — biết chính xác còn sót gì cần thử lại
+thay vì mơ hồ "không xoá được".
+
+**Không có bước DBA/CSDL mới (chỉ sửa code etl-admin).**
+
+**Lưu ý vận hành thêm** (không phải lỗi code) — 2 lỗi khác trong log PM2
+người dùng gửi kèm, KHÔNG liên quan tính năng này:
+- `[Giá bán theo SKU - Live (DSMART16)] Lỗi đồng bộ: Chặn đồng bộ...` —
+  đây là CƠ CHẾ AN TOÀN hoạt động ĐÚNG (chặn xoá 1779 dòng lịch sử vì
+  job đang tắt "Giữ lịch sử") — không phải bug, sửa bằng cách bật "Giữ
+  lịch sử theo ngày" cho job này ở etl-admin → "Đồng bộ" nếu domain cần
+  giữ lịch sử nhiều ngày.
+- Nhiều lỗi `ETIMEOUT` (timeout 30s) ở các job đọc DSMART16 Live khác —
+  khả năng cao do tải cao nhất thời trên SQL Server dùng chung lúc đó
+  (giờ cao điểm giao dịch), không phải lỗi code — cần theo dõi thêm nếu
+  lặp lại thường xuyên.
+
 ## 11.40 — Thêm nút "Đóng"/"Mở lại" chiến dịch — đóng vẫn xem/xuất báo cáo được
 
 **Theo câu hỏi người dùng** — "khi đóng chiến dịch thì không xem báo cáo

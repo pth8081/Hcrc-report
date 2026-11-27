@@ -271,17 +271,37 @@ function SkuPanel({ campaignId, isActive }) {
     }
   }
 
+  // deleteSelected (SỬA bản 11.41, theo báo cáo người dùng — "ấn xoá hàng
+  // loạt không xoá được") — TRƯỚC ĐÂY 1 dòng lỗi giữa chừng (vd CSDL chậm/
+  // timeout — DSMART16 Live và HCRC_DWH dùng CHUNG 1 SQL Server, server
+  // bận lúc nào cũng có thể ảnh hưởng cả 2) làm DỪNG HẲN vòng lặp — các
+  // dòng xoá thành công TRƯỚC đó không được dọn khỏi danh sách đã chọn
+  // (không gọi `reload()`/`selection.clear()`), người dùng thấy như KHÔNG
+  // xoá được dòng nào dù thực ra đã xoá được 1 phần. Giờ XOÁ TIẾP dù có
+  // dòng lỗi, báo rõ xoá được bao nhiêu/lỗi bao nhiêu để biết còn sót gì
+  // cần thử lại — không bỏ cuộc giữa chừng.
   async function deleteSelected() {
-    if (selection.selectedIds.size === 0) return;
-    if (!confirm(`Xoá ${selection.selectedIds.size} SKU đã chọn?`)) return;
+    const ids = [...selection.selectedIds];
+    if (!ids.length) return;
+    if (!confirm(`Xoá ${ids.length} SKU đã chọn?`)) return;
     setBulkDeleting(true);
-    try {
-      for (const id of selection.selectedIds) {
+    setError('');
+    let succeeded = 0;
+    let lastErrorMessage = '';
+    for (const id of ids) {
+      try {
         await api.del(`/promo-campaigns/${campaignId}/skus/${id}`);
+        succeeded++;
+      } catch (err) {
+        lastErrorMessage = err.message;
       }
-      selection.clear();
-      reload();
-    } catch (err) { setError(err.message); } finally { setBulkDeleting(false); }
+    }
+    selection.clear();
+    reload();
+    if (succeeded < ids.length) {
+      setError(`Đã xoá ${succeeded}/${ids.length} dòng — còn ${ids.length - succeeded} dòng lỗi (vd: "${lastErrorMessage}"). Chọn lại các dòng còn sót (xem bảng đã làm mới) rồi thử lại.`);
+    }
+    setBulkDeleting(false);
   }
 
   return (
@@ -425,17 +445,31 @@ function StoreWeightPanel({ campaignId, isActive }) {
     }
   }
 
+  // deleteSelected — xem chú thích đầy đủ ở SkuPanel cùng file (bản
+  // 11.41, cùng lỗi: dừng hẳn giữa chừng nếu 1 dòng lỗi) — áp dụng y hệt
+  // ở đây.
   async function deleteSelected() {
-    if (selection.selectedIds.size === 0) return;
-    if (!confirm(`Xoá ${selection.selectedIds.size} dòng đã chọn?`)) return;
+    const ids = [...selection.selectedIds];
+    if (!ids.length) return;
+    if (!confirm(`Xoá ${ids.length} dòng đã chọn?`)) return;
     setBulkDeleting(true);
-    try {
-      for (const id of selection.selectedIds) {
+    setError('');
+    let succeeded = 0;
+    let lastErrorMessage = '';
+    for (const id of ids) {
+      try {
         await api.del(`/promo-campaigns/${campaignId}/store-weights/${id}`);
+        succeeded++;
+      } catch (err) {
+        lastErrorMessage = err.message;
       }
-      selection.clear();
-      reload();
-    } catch (err) { setError(err.message); } finally { setBulkDeleting(false); }
+    }
+    selection.clear();
+    reload();
+    if (succeeded < ids.length) {
+      setError(`Đã xoá ${succeeded}/${ids.length} dòng — còn ${ids.length - succeeded} dòng lỗi (vd: "${lastErrorMessage}"). Chọn lại các dòng còn sót (xem bảng đã làm mới) rồi thử lại.`);
+    }
+    setBulkDeleting(false);
   }
 
   const totalWeight = rows.reduce((s, r) => s + (r.storeWeight || 0), 0);
