@@ -27,6 +27,7 @@ const { runBrgWeeklyPostReport } = require('./brgWeeklyPostRunner');
 const { runDioNganhHangReport } = require('./dioNganhHangRunner');
 const { runDoanhThuMtdKeHoachReport } = require('./doanhThuMtdKeHoachRunner');
 const { runPhuHangCoreChiTietReport, runPhuHangCoreRecapReport } = require('./phuHangCoreRunner');
+const { runPmhReport } = require('./pmhRunner');
 const { assignSttIfPresent } = require('./reportCellFormat');
 
 async function loadDefinition(reportId) {
@@ -208,6 +209,14 @@ async function runDefinition(definition, filterValues, pagination) {
   if (definition.sourceType === 'phuHangCoreRecap') {
     return runPhuHangCoreRecapReport(definition, filterValues, pagination);
   }
+  // 'pmh' (bản 11.57, theo yêu cầu người dùng — báo cáo "PMH" (Phòng Mua
+  // Hàng) gộp nhiều sheet, ĐÚNG mẫu 'brgWeeklyPost' — ĐIỀU PHỐI sang ĐÚNG 1
+  // sheet tuỳ `filterValues.sheet` (mặc định "Full Barcode") — xem
+  // lib/pmhRunner.js. Mỗi sheet PMH tự chạy qua pipeline 'directDb' bên
+  // trong pmhRunner.js (không viết lại ở đây, tránh vòng lặp require).
+  if (definition.sourceType === 'pmh') {
+    return runPmhReport(definition, filterValues, pagination);
+  }
   if (definition.sourceType && definition.sourceType !== 'directDb') {
     return runApiReport(definition, filterValues, pagination);
   }
@@ -252,8 +261,13 @@ async function runDefinition(definition, filterValues, pagination) {
 const EXPORT_BATCH_SIZE = 5000;
 const EXPORT_SAFETY_CAP = 200000;
 
+// 'pmh' (bản 11.57) — THÊM vào đây dù không phải 'directDb' thật: mỗi
+// sheet PMH (lib/pmhRunner.js) TỰ gọi reportEngine.js:runReport() với
+// OFFSET/FETCH THẬT (y hệt directDb), nên CŨNG bị cắt cứng ở 1 trang nếu
+// không lặp — sheet "Full Barcode" riêng có thể hơn 5.000 dòng (toàn bộ
+// barcode, không giới hạn phạm vi như BRG), xuất 1 lượt sẽ cắt âm thầm.
 function isDirectDbSourceType(definition) {
-  return !definition.sourceType || definition.sourceType === 'directDb';
+  return !definition.sourceType || definition.sourceType === 'directDb' || definition.sourceType === 'pmh';
 }
 
 async function runDefinitionForExport(definition, filterValues) {

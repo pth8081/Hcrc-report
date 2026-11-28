@@ -14,6 +14,41 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 11.57 — Báo cáo mới "PMH" (Phòng Mua Hàng) — 1 báo cáo nhiều sheet, v1 3/7 sheet
+
+**Có bước DBA mới** — 1 VIEW mới trên `DSMART16` + 2 script seed mới.
+Xem "bc-pmh.md" cho tài liệu đầy đủ (nghiệp vụ/nguồn/kiểm tra).
+
+**Các bước** (theo đúng thứ tự):
+1. `git pull origin main`.
+2. DBA chạy file `deploy/VIEW DSMART16 (trung tâm)/Thiết lập VIEW PMH
+   Full Barcode (DSMART16 trung tâm).sql` trên CSDL `DSMART16` — kiểm tra
+   ngay bằng 2 câu `SELECT` cuối file (tốc độ truy vấn + đối chiếu 1 mã
+   hàng nhiều barcode — file có ghi chú "LƯU Ý HIỆU NĂNG", báo lại ngay
+   nếu quá chậm).
+3. `cd etl && node scripts/seedPmhFullBarcodeSync.js` — tạo job đồng bộ
+   domain `pmh_full_barcode`.
+4. Chờ job đồng bộ chạy xong ít nhất 1 lượt (etl-admin → Đồng bộ → "Lần
+   chạy gần nhất").
+5. Xác nhận 2 báo cáo `bc-thay-doi-gia-tuc-thoi`/`bc-thay-doi-gia-tu-thoi-diem`
+   đang hoạt động (đã triển khai từ bản 10.79-10.84 — nếu server này
+   chưa có, làm theo "bc-thay-doi-gia.md" trước bước 6).
+6. `cd rp-server && node scripts/seedPmhReport.js` — tạo báo cáo `bc-pmh`
+   (mặc định menu `reports-adhoc`, truyền tham số khác nếu cần).
+7. `pm2 restart hcrc-rp-server` (nạp `lib/pmhRunner.js`/sửa
+   `lib/reportRunner.js`/`routes/reports.js`).
+8. `cd rp-user && npm run build` rồi deploy lại (sửa
+   `src/modules/reports/ReportsPage.jsx` — thêm nút "Xuất Excel đủ 3
+   sheet" cho báo cáo PMH).
+9. Vào Hệ thống → Phân quyền (rp-user), gán quyền xem `bc-pmh` cho đúng
+   vai trò cần dùng — mặc định KHÔNG ai xem được, kể cả admin.
+
+**Kiểm tra**: xem "bc-pmh.md" mục 4.
+
+Xem "VERSION.md" mục bản 11.57.
+
+---
+
 ## 11.55 — Sửa khẩn: "MTD" lỗi máy chủ, "DIO" rỗng, "Phủ hàng Core" sai số + chậm
 
 **Không có bước DBA/CSDL mới** — thuần sửa code `rp-server`.

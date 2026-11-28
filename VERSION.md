@@ -52,6 +52,58 @@ nội dung/hành vi nào đã làm. Lịch sử Git (commit message) vẫn còn 
 "Bản 10.100"/"Bản 10.101" (không sửa lại lịch sử Git) — coi là ĐỒNG NHẤT
 với "11.0"/"11.1".
 
+## 11.57 — Báo cáo mới "PMH" (Phòng Mua Hàng) — 1 báo cáo nhiều sheet, v1 3/7 sheet
+
+**Theo yêu cầu người dùng**, dựa trên file mẫu thật "Mẫu Báo Cáo
+PMH.xlsx" — "Một báo cáo và in ra nhiều sheet... khi chọn cái báo cáo nó
+trên web ấy, thì sẽ được chọn từng sheet một để xem báo cáo trên web.
+Còn xuất ra cả báo cáo với tất cả các sheet. Giống như báo cáo weekly
+post của MKT" — kiến trúc ĐÚNG mẫu `bc-brg-weekly-post` (1 ReportId
+`bc-pmh`, SourceType `pmh`, bộ lọc nội bộ "Chọn sheet").
+
+**v1 CHỈ 3/7 sheet của file mẫu** (4 sheet còn lại + 2 cột "Thuế Nhập"/
+"Trạng Thái" ở sheet "Full Barcode" CHƯA có nguồn DSMART16 xác nhận, chờ
+DBA — xem "bc-pmh.md" mục 1 cho danh sách đầy đủ):
+1. "Full Barcode" — domain MỚI `pmh_full_barcode`, VIEW MỚI
+   `dbo.vw_PMH_FullBarcode` (xem "deploy/VIEW DSMART16 (trung tâm)/Thiết
+   lập VIEW PMH Full Barcode (DSMART16 trung tâm).sql" — 3 giả định CHƯA
+   CHỐT ghi rõ trong file: giá bán lẻ đại diện theo vùng giá nhỏ nhất, giá
+   vốn trung bình mọi chi nhánh, NCC của giao dịch mua gần nhất toàn
+   chuỗi).
+2.-3. "Thay đổi giá bán tức thời"/"từ thời điểm" — TÁI DÙNG NGUYÊN 2 báo
+   cáo đã có sẵn `bc-thay-doi-gia-tuc-thoi`/`bc-thay-doi-gia-tu-thoi-diem`
+   (đọc thẳng `DefinitionJson` của chúng mỗi lần chạy, không chép lại cấu
+   hình — xem `lib/pmhRunner.js:loadReuseDefinition()`).
+
+**Thêm mới**: `lib/pmhRunner.js` (dispatcher theo `filterValues.sheet`,
+mirror `lib/brgWeeklyPostRunner.js` nhưng mỗi sheet tự chạy qua đúng
+pipeline `directDb` nội bộ — KHÔNG gọi lại `reportRunner.js:runDefinition()`
+để tránh vòng lặp require); `etl/scripts/seedPmhFullBarcodeSync.js`;
+`rp-server/scripts/seedPmhReport.js`; `bc-pmh.md`.
+
+**Sửa file chung** (SourceType `pmh` dùng chung hạ tầng với
+`brgWeeklyPost`, tổng quát hoá thay vì viết riêng):
+- `lib/reportRunner.js` — thêm nhánh dispatch `sourceType === 'pmh'`;
+  **SỬA `isDirectDbSourceType()`** để coi `'pmh'` LÀ kiểu `directDb` (mỗi
+  sheet PMH tự gọi `runReport()` với `OFFSET/FETCH` THẬT giống directDb) —
+  nếu không sửa, `runDefinitionForExport()` (dùng cho nút "Xuất Excel"
+  đơn-sheet) sẽ CẮT ÂM THẦM sheet "Full Barcode" ở 5.000 dòng (danh mục
+  TOÀN BỘ barcode, có thể hơn 5.000 dòng — khác BRG Weekly Post luôn giới
+  hạn trong 1 campaign nên không gặp vấn đề này).
+- `routes/reports.js` — route `/:reportId/export-sheets` (trước đây CHỈ
+  `brgWeeklyPost` dùng được) tổng quát hoá qua `MULTI_SHEET_SOURCE_TYPES`
+  (mỗi sourceType khai `sheetOptions`/`fileLabel`/`fetchSheet` riêng) — PMH
+  dùng `fetchAllSheetRows()` (lặp trang tới khi hết dữ liệu, CÙNG lý do
+  trên, KHÁC BRG vẫn giữ nguyên 1 lượt gọi `pageSize=5000` như cũ, không
+  đổi hành vi báo cáo đó).
+- `rp-user/src/modules/reports/ReportsPage.jsx` — thêm `'bc-pmh'` vào
+  `MULTI_SHEET_EXPORT_REPORT_IDS`; nhãn nút "Xuất Excel đủ N sheet" đổi
+  sang lấy SỐ ĐỘNG từ bộ lọc "sheet" (trước đây hardcode "5", sai cho PMH
+  chỉ có 3 sheet).
+
+**Đã chạy review độc lập** (`/code-review`, theo quy trình bắt buộc từ bản
+11.56) trên diff bản này trước khi merge — xem kết quả cuối mục này.
+
 ## 11.56 — Bắt buộc review độc lập trước khi báo "sẵn sàng merge" (quy trình, không đổi code)
 
 **Theo yêu cầu người dùng** — sau khi phát hiện bug bản 11.52 (lỗi logic
