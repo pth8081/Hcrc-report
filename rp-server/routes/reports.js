@@ -33,7 +33,7 @@ const { SHEET_OPTIONS: BRG_SHEET_OPTIONS } = require('../lib/brgWeeklyPostRunner
 const { SHEET_OPTIONS: PMH_SHEET_OPTIONS } = require('../lib/pmhRunner');
 const { exportPdf } = require('../lib/exportPdf');
 const { buildDoanhThuTongHopHcrcMonthlyWorkbook } = require('../lib/doanhThuTongHopHcrcMonthlyExport');
-const { filterColumns, filterGroups, computeSummaryCards } = require('../lib/reportCellFormat');
+const { filterColumns, filterGroups, computeSummaryCards, assignSttIfPresent } = require('../lib/reportCellFormat');
 const { getUserContext } = require('../lib/permissions');
 const { loadDiemStkMapping, buildStkIdLookup } = require('../lib/diemStkMapping');
 const { listCampaigns: listPromoCampaigns } = require('../lib/brgWeeklyPostCore');
@@ -664,6 +664,13 @@ async function fetchAllSheetRows(definition, filters) {
     if (result.rows.length < PMH_EXPORT_BATCH_SIZE || allRows.length >= PMH_EXPORT_SAFETY_CAP) break;
     page += 1;
   }
+  // SỬA bản 11.57 (LỖI THẬT phát hiện qua review độc lập, CÙNG lớp lỗi đã
+  // sửa ở lib/reportRunner.js:runDefinitionForExport()) — mỗi `result` của
+  // 1 trang ĐÃ tự đánh số cột 'stt' riêng 1..N — nối nhiều trang (sheet
+  // "Full Barcode" có thể hơn 5.000 dòng) mà không đánh số lại sẽ ra cột TT
+  // kiểu "1..5000, 1..2..3..." thay vì liên tục — đánh số LẠI 1 lần trên
+  // TOÀN BỘ allRows sau khi đã nối đủ.
+  assignSttIfPresent(allRows, result.columns);
   return { ...result, rows: allRows };
 }
 

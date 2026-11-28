@@ -288,6 +288,14 @@ async function runDefinitionForExport(definition, filterValues) {
   if (allRows.length >= EXPORT_SAFETY_CAP) {
     console.warn(`⚠️  [export "${definition.title}"] đạt trần an toàn ${EXPORT_SAFETY_CAP} dòng — có thể vẫn còn dữ liệu chưa xuất, thu hẹp bộ lọc nếu cần đủ.`);
   }
+  // SỬA bản 11.57 (LỖI THẬT phát hiện qua review độc lập) — mỗi `result`
+  // của 1 trang ĐÃ tự đánh số cột 'stt' 1..N riêng (xem runDefinition()
+  // nhánh directDb, gọi assignSttIfPresent() trên ĐÚNG trang đó) — nối
+  // nhiều trang lại mà KHÔNG đánh số lại sẽ ra cột TT kiểu "1..5000,
+  // 1..2..3..." (lặp lại từ đầu mỗi trang) thay vì liên tục — đánh số LẠI
+  // 1 LẦN trên TOÀN BỘ allRows sau khi đã nối đủ (assignSttIfPresent ghi
+  // đè .stt hiện có, an toàn gọi lại nhiều lần).
+  assignSttIfPresent(allRows, result.columns);
   return { ...result, rows: allRows };
 }
 

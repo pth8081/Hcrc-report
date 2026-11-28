@@ -101,8 +101,30 @@ pipeline `directDb` nội bộ — KHÔNG gọi lại `reportRunner.js:runDefini
   sang lấy SỐ ĐỘNG từ bộ lọc "sheet" (trước đây hardcode "5", sai cho PMH
   chỉ có 3 sheet).
 
-**Đã chạy review độc lập** (`/code-review`, theo quy trình bắt buộc từ bản
-11.56) trên diff bản này trước khi merge — xem kết quả cuối mục này.
+**Đã chạy review độc lập** (agent MỚI, không mang theo bối cảnh phiên vừa
+viết code — theo quy trình bắt buộc từ bản 11.56) trên diff bản này trước
+khi merge — phát hiện 1 lỗi THẬT, ĐÃ SỬA NGAY trong bản này (không chỉ
+báo cáo rồi dừng):
+
+**Lỗi cột "TT" (STT) sai khi xuất sheet "Full Barcode" hơn 5.000 dòng** —
+`lib/reportRunner.js:runDefinitionForExport()` (xuất 1 sheet) và
+`routes/reports.js:fetchAllSheetRows()` (xuất gộp nhiều sheet, MỚI thêm ở
+bản này) đều LẶP TRANG rồi NỐI `rows` của nhiều lượt gọi lại — nhưng MỖI
+lượt gọi đã tự đánh số cột `stt` RIÊNG 1..N (xem `reportRunner.js`:nhánh
+directDb gọi `assignSttIfPresent()` ngay trong `runDefinition()`) — nối
+lại mà không đánh số lại sẽ ra cột TT kiểu "1..5000, 1, 2, 3..." (lặp từ
+đầu ở trang 2) thay vì liên tục 1..7000 — CHẮC CHẮN xảy ra ở lần xuất
+Excel đầu tiên của "Full Barcode" (danh mục toàn bộ barcode, ~91.260
+dòng, vượt xa 1 trang 5.000). Sửa: gọi lại `assignSttIfPresent(allRows,
+result.columns)` ĐÚNG 1 LẦN sau khi đã nối đủ mọi trang, đánh số lại liên
+tục trên toàn bộ dữ liệu (hàm này ghi đè `.stt`, an toàn gọi lại nhiều
+lần) — áp dụng ở CẢ 2 nơi lặp trang, không chỉ riêng PMH (lỗi này tiềm ẩn
+từ bản 11.30 cho MỌI báo cáo `directDb` nào xuất vượt 5.000 dòng, chỉ mới
+"lộ" rõ qua PMH vì "Full Barcode" là báo cáo `directDb`-kiểu đầu tiên
+chắc chắn vượt ngưỡng này khi xuất).
+
+Đã chạy lại review (agent thứ 2, độc lập) xác nhận bản sửa đúng, không
+còn lỗi — mới báo "sẵn sàng merge".
 
 ## 11.56 — Bắt buộc review độc lập trước khi báo "sẵn sàng merge" (quy trình, không đổi code)
 
