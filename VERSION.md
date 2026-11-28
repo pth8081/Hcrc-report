@@ -52,6 +52,25 @@ nội dung/hành vi nào đã làm. Lịch sử Git (commit message) vẫn còn 
 "Bản 10.100"/"Bản 10.101" (không sửa lại lịch sử Git) — coi là ĐỒNG NHẤT
 với "11.0"/"11.1".
 
+## 11.56 — Bắt buộc review độc lập trước khi báo "sẵn sàng merge" (quy trình, không đổi code)
+
+**Theo yêu cầu người dùng** — sau khi phát hiện bug bản 11.52 (lỗi logic
+đơn giản lọt ra production, do Claude tự viết tự kiểm không ai review
+lại), người dùng chỉ ra việc đang làm có đặc điểm giống "vibe code": người
+dùng không đọc code, chỉ kiểm tra qua hành vi chạy thật — yêu cầu THÊM 1
+lớp review độc lập TRƯỚC khi báo "sẵn sàng merge" cho MỌI lần triển khai
+từ nay về sau, SỬA NGAY nếu review phát hiện lỗi thật (không chỉ báo cáo
+rồi dừng).
+
+**Đã thêm quy ước này vào `CLAUDE.md`** (mục "Mọi lần triển khai code
+PHẢI qua 1 agent ĐỘC LẬP review trước khi báo 'sẵn sàng merge'") — áp
+dụng cho CHÍNH bản này là lần đầu tiên: chạy `/code-review` (agent độc
+lập) trên diff bản 11.55 vừa merge trước đó để kiểm tra lại — xem kết quả
+ở phần dưới (nếu có lỗi phát hiện thêm, đã sửa kèm trong bản này).
+
+**Bản này KHÔNG đổi hành vi code nào khác** ngoài việc ghi nhận quy trình
+mới + áp dụng review lần đầu.
+
 ## 11.55 — Sửa khẩn: "MTD" lỗi máy chủ, "DIO" rỗng, "Phủ hàng Core" sai số + chậm
 
 **Theo báo cáo khẩn người dùng** — ngay sau bản 11.52-11.54, hàng loạt báo

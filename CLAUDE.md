@@ -421,3 +421,28 @@ repo), KHÔNG sửa lại lịch sử. Chỉ áp dụng cho code/tài liệu ĐA
 hàng trăm file `.md` khác ở gốc repo (vd file hướng dẫn từng báo cáo nội
 bộ) — gom 1 chỗ + có mục lục ghi rõ mục đích từng file giúp dễ tìm đúng
 tài liệu cần gửi, tránh lẫn lộn/gửi nhầm đối tác.
+
+## Mọi lần triển khai code PHẢI qua 1 agent ĐỘC LẬP review trước khi báo "sẵn sàng merge"
+
+**Theo yêu cầu người dùng (28/11/2026, sau khi phát hiện 1 bug rò rỉ ra
+production ở bản 11.52 — lỗi logic đơn giản lẽ ra phải bắt được trước khi
+merge, nhưng Claude tự viết tự kiểm, không ai review lại) — áp dụng cho
+TOÀN BỘ lần triển khai code từ nay về sau, không chỉ các bản đã gây lỗi.**
+
+Trước khi báo người dùng "xong, sẵn sàng merge" cho BẤT KỲ thay đổi code
+nào (sửa bug, tính năng mới, refactor...), PHẢI:
+1. Chạy review bằng 1 agent ĐỘC LẬP (không phải chính phiên Claude vừa
+   viết code đó tự đọc lại — dùng skill `/code-review`, agent review
+   không mang theo bối cảnh/thiên kiến của phiên vừa viết) trên đúng diff
+   vừa tạo ra.
+2. Nếu review phát hiện lỗi THẬT (không phải nit/style) — SỬA NGAY, KHÔNG
+   chỉ báo cáo rồi dừng chờ người dùng quyết định có sửa hay không.
+3. Chạy lại review sau khi sửa, lặp lại cho tới khi KHÔNG còn lỗi thật
+   nào — CHỈ SAU ĐÓ mới báo người dùng là sẵn sàng merge.
+
+**Lý do**: người dùng xác nhận việc đang làm có đặc điểm giống "vibe
+code" ở điểm người dùng không đọc lại code, chỉ kiểm tra qua hành vi chạy
+thật trên production — rủi ro thật đã xảy ra (bug bản 11.52 lọt ra tới
+khi người dùng tự phát hiện). Thêm 1 lớp review độc lập trước khi merge
+giúp bắt lỗi SỚM HƠN, ngay trong phiên làm việc, thay vì đợi người dùng
+phát hiện ở production.
