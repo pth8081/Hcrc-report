@@ -290,8 +290,15 @@ async function loadLatestDimensionsForDomainByCode(pool, domain, dimensionKeys, 
   assertSafeFieldKey(codeColumn);
   if (!codes.length) return new Map();
   const selectCols = dimensionKeys.map(k => `JSON_VALUE(Dimensions, '$.${k}') AS [${k}]`).join(', ');
-  const out = new Map();
-  for (const chunk of chunkArray(codes, ENTITY_CODE_CHUNK_SIZE)) {
+  // mapOverEntityCodeChunks() (bản 11.56, SỬA LỖI THẬT phát hiện qua review
+  // độc lập — bản 11.55 ban đầu chạy TUẦN TỰ từng lô bằng `for...await`,
+  // KHÔNG giống mọi hàm chunk khác trong file này (loadLatestMeasure*/
+  // loadSumOnDate/loadSumOverRange đều chạy SONG SONG qua
+  // mapOverEntityCodeChunks) — nếu danh mục Core vượt
+  // ENTITY_CODE_CHUNK_SIZE (1900 mã), hàm VỪA THÊM để SỬA HIỆU NĂNG "Phủ
+  // hàng Core" lại tự làm chậm đi theo đúng cách nó định sửa. Đổi sang
+  // dùng CHUNG helper này cho nhất quán + chạy song song.
+  return mapOverEntityCodeChunks(codes, async (chunk) => {
     const request = pool.request();
     request.input('domain', sql.VarChar(50), domain);
     let dateFilter = '';
@@ -310,17 +317,16 @@ async function loadLatestDimensionsForDomainByCode(pool, domain, dimensionKeys, 
     `);
     // TRIM — ĐÚNG mẫu loadLatestDimensionsForDomain() bản 9.58 (xem chú
     // thích ở đó) — áp dụng CHUNG, không phân biệt lọc theo cột nào.
-    for (const row of result.recordset) {
+    return result.recordset.map(row => {
       const dimensions = {};
       for (const k of dimensionKeys) {
         const v = row[k];
         dimensions[k] = typeof v === 'string' ? v.trim() : v;
       }
       const entityCode = typeof row.EntityCode === 'string' ? row.EntityCode.trim() : row.EntityCode;
-      out.set(entityCode, { eventDate: row.EventDate, dimensions });
-    }
-  }
-  return out;
+      return [entityCode, { eventDate: row.EventDate, dimensions }];
+    });
+  });
 }
 
 module.exports = {

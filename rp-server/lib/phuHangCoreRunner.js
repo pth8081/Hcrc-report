@@ -246,6 +246,15 @@ async function runPhuHangCoreRecapReport(definition, filterValues = {}, paginati
   // w1From/w1To, tính được NGAY từ filterValues, không cần đợi
   // computeCoreData() xong) — chạy SONG SONG thay vì nối tiếp, giảm tổng
   // thời gian chờ đúng bằng thời gian của lượt NGẮN HƠN trong 2 lượt.
+  // ĐÁNH ĐỔI CHẤP NHẬN ĐƯỢC (phát hiện qua review độc lập bản 11.56):
+  // storeRevenueRaw giờ LUÔN chạy, kể cả khi `computeCoreData()` trả
+  // `candidates` RỖNG (danh mục Core MART chưa cấu hình — nhánh `if
+  // (!candidates.length) return` NGAY DƯỚI) — TRƯỚC ĐÂY (chạy nối tiếp)
+  // sẽ return sớm, KHÔNG tốn lượt quét thừa này. Chấp nhận vì: (1) CHỈ xảy
+  // ra ở trạng thái admin CHƯA cấu hình xong (không phải vận hành bình
+  // thường), (2) domain `doanhthu_nganhhang` nhỏ + chỉ 7 ngày, chi phí
+  // không đáng kể, (3) đổi lại lợi ích SONG SONG áp dụng được cho MỌI lượt
+  // chạy BÌNH THƯỜNG (trường hợp phổ biến) — không đáng đánh đổi lại.
   const anchorForRevenue = resolveAnchor(filterValues);
   const w1FromEarly = addDays(anchorForRevenue, -13);
   const w1ToEarly = addDays(anchorForRevenue, -7);
