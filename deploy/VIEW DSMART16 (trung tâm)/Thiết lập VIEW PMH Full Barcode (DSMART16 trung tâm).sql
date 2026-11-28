@@ -1,8 +1,11 @@
 /* deploy/VIEW DSMART16 (trung tâm)/Thiết lập VIEW PMH Full Barcode (DSMART16 trung tâm).sql
    ============================================================================
-   BẢN 11.57 — Nguồn dữ liệu cho sheet "Full Barcode" của báo cáo gộp nhiều
-   sheet "PMH" (Phòng Mua Hàng, theo yêu cầu người dùng, dựa trên file mẫu
-   thật "Mẫu Báo Cáo PMH.xlsx") — xem "bc-pmh.md".
+   BẢN 11.57, SỬA bản 11.58 — Nguồn dữ liệu cho báo cáo "Full Barcode"
+   (bc-pmh-full-barcode, Phòng Mua Hàng, theo yêu cầu người dùng, dựa trên
+   file mẫu thật "Mẫu Báo Cáo PMH.xlsx") — xem "bc-pmh-full-barcode.md".
+   (Bản 11.57 ban đầu gọi đây là "sheet" của 1 báo cáo "PMH" gộp nhiều
+   sheet — bản 11.58 đổi thành báo cáo RIÊNG theo yêu cầu người dùng, VIEW
+   này KHÔNG đổi gì, chỉ đổi tài liệu/báo cáo dùng nó.)
 
    MỤC ĐÍCH: liệt kê TOÀN BỘ barcode đã đăng ký cho mỗi mã hàng (1 mã hàng
    có thể có NHIỀU barcode) + thông tin cơ bản/giá đi kèm.

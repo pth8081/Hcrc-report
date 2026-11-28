@@ -14,6 +14,45 @@ bản 8.31 theo yêu cầu người dùng, bổ sung đủ 3 mục 8.31/8.32/8.3
 
 ---
 
+## 11.58 — "PMH": ĐỔI LẠI từ 1 báo cáo nhiều sheet thành 3 báo cáo riêng
+
+**Có bước DBA** CHỈ nếu server CHƯA triển khai bản 11.57 (VIEW/job đồng
+bộ GIỮ NGUYÊN, không đổi) — nếu ĐÃ triển khai bản 11.57 rồi, BỎ QUA bước
+1-3 dưới đây (đã làm), chỉ cần làm lại bước 4 trở đi.
+
+**Các bước** (theo đúng thứ tự):
+1. `git pull origin main`.
+2. (CHỈ nếu chưa làm ở bản 11.57) DBA chạy file `deploy/VIEW DSMART16
+   (trung tâm)/Thiết lập VIEW PMH Full Barcode (DSMART16 trung tâm).sql`
+   trên CSDL `DSMART16`.
+3. (CHỈ nếu chưa làm) `cd etl && node scripts/seedPmhFullBarcodeSync.js`.
+4. Nếu server ĐÃ chạy `node rp-server/scripts/seedPmhReport.js` ở bản
+   11.57 (tạo báo cáo gộp `bc-pmh`) — XOÁ dòng đó khỏi `app.ReportCatalog`:
+   ```sql
+   DELETE FROM app.ReportCatalog WHERE ReportId = 'bc-pmh';
+   ```
+   (cascade tự xoá quyền xem đã gán cho `bc-pmh` — gán lại quyền mới ở
+   bước 6 cho báo cáo thay thế).
+5. `cd rp-server && node scripts/seedPmhFullBarcodeReport.js` — tạo báo
+   cáo RIÊNG `bc-pmh-full-barcode` ("Full Barcode"), đặt ở menu `reports-mua-hang`
+   ("Báo cáo Mua hàng").
+6. `pm2 restart hcrc-rp-server` (bỏ `lib/pmhRunner.js`, sửa
+   `lib/reportRunner.js`/`routes/reports.js`).
+7. `cd rp-user && npm run build` rồi deploy lại (sửa
+   `src/modules/reports/ReportsPage.jsx` — bỏ nút "Xuất Excel đủ N sheet"
+   cho PMH, báo cáo "PMH" không còn tồn tại).
+8. Vào Hệ thống → Phân quyền (rp-user), gán quyền xem `bc-pmh-full-barcode`
+   cho đúng vai trò cần dùng (quyền cũ gán cho `bc-pmh` đã MẤT theo cascade
+   xoá ở bước 4, nếu có).
+9. 2 báo cáo `bc-thay-doi-gia-tuc-thoi`/`bc-thay-doi-gia-tu-thoi-diem`
+   KHÔNG cần làm gì — không bị ảnh hưởng bởi thay đổi này.
+
+**Kiểm tra**: xem "bc-pmh-full-barcode.md" mục 4.
+
+Xem "VERSION.md" mục bản 11.58.
+
+---
+
 ## 11.57 — Báo cáo mới "PMH" (Phòng Mua Hàng) — 1 báo cáo nhiều sheet, v1 3/7 sheet
 
 **Có bước DBA mới** — 1 VIEW mới trên `DSMART16` + 2 script seed mới.

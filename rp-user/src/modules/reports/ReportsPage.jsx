@@ -25,9 +25,11 @@ const MONTHLY_EXPORT_REPORT_IDS = ['bc-doanh-thu-tong-hop-hcrc', 'bc-doanh-thu-t
 // nhiều báo cáo thành nhiều sheet") — nút RIÊNG chỉ cho báo cáo "BRG Weekly
 // Post" (xem routes/reports.js:POST /:reportId/export-sheets), gộp đủ 5
 // "sheet" nội bộ thành 1 file .xlsx, KHÁC "Xuất Excel" (1 sheet đang xem).
-// Bản 11.57, theo yêu cầu người dùng — THÊM 'bc-pmh' (báo cáo "PMH" gộp 3
-// sheet nội bộ, cùng kiến trúc 'bc-brg-weekly-post') vào danh sách này.
-const MULTI_SHEET_EXPORT_REPORT_IDS = ['bc-brg-weekly-post', 'bc-pmh'];
+// LƯU Ý bản 11.57-11.58 — báo cáo "PMH" từng dùng thử kiến trúc này (1
+// báo cáo gộp nhiều sheet) rồi được người dùng yêu cầu ĐỔI LẠI thành
+// NHIỀU báo cáo riêng (xem VERSION.md bản 11.58) — danh sách này quay về
+// CHỈ 'bc-brg-weekly-post' như bản 11.26 ban đầu.
+const MULTI_SHEET_EXPORT_REPORT_IDS = ['bc-brg-weekly-post'];
 
 export default function ReportsPage() {
   const { me } = useAuth();
@@ -242,20 +244,19 @@ export default function ReportsPage() {
     }
   }
 
-  // exportSheets (bản 11.26, SỬA bản 11.57 — không còn CHỈ BRG Weekly Post,
-  // xem MULTI_SHEET_EXPORT_REPORT_IDS) — gộp đủ các "sheet" nội bộ của báo
-  // cáo thành 1 file .xlsx (bộ lọc khác đang chọn giữ nguyên, server tự
-  // chạy lại với từng `sheet`, xem routes/reports.js:POST
-  // /:reportId/export-sheets). Tên file THẬT lấy từ Content-Disposition
-  // server trả về (vd "BRG-Weekly-Post.xlsx"/"PMH.xlsx") — fallback dưới
-  // CHỈ dùng khi thiếu header đó (không xảy ra trong vận hành thường).
+  // exportSheets (bản 11.26) — gộp đủ 5 "sheet" nội bộ của BRG Weekly Post
+  // thành 1 file .xlsx (campaignId đang chọn giữ nguyên, server tự chạy
+  // lại với từng `sheet`, xem routes/reports.js:POST /:reportId/export-sheets).
+  // Tên file THẬT lấy từ Content-Disposition server trả về
+  // ("BRG-Weekly-Post.xlsx") — fallback dưới CHỈ dùng khi thiếu header đó
+  // (không xảy ra trong vận hành thường).
   async function exportSheets() {
     setExportingSheets(true);
     try {
       await downloadFile(
         `/reports/${selectedId}/export-sheets`,
         { filters: filterValues },
-        `${displayResult?.displayTitle || definition?.title || 'bao-cao'}-du-cac-sheet.xlsx`
+        `${displayResult?.displayTitle || definition?.title || 'bao-cao'}-du-5-sheet.xlsx`
       );
     } catch (err) {
       setError(err.message);
@@ -340,18 +341,12 @@ export default function ReportsPage() {
                     {exportingMonth ? 'Đang xuất...' : 'Xuất Excel theo tháng (1 sheet/ngày)'}
                   </button>
                 )}
-                {/* Bản 11.26 — nút RIÊNG cho báo cáo gộp nhiều sheet nội bộ
-                    thành 1 file (vd "BRG Weekly Post", "PMH"), KHÁC hẳn
-                    "Xuất Excel" (1 sheet đang xem theo bộ lọc "Chọn sheet"
-                    hiện tại). SỬA bản 11.57 — số sheet lấy ĐỘNG từ đúng số
-                    `options` của bộ lọc "sheet" (KHÔNG hardcode "5" nữa —
-                    'bc-pmh' chỉ có 3 sheet, hardcode sai số sẽ gây hiểu
-                    nhầm). */}
+                {/* Bản 11.26 — nút RIÊNG chỉ cho "BRG Weekly Post" (gộp 5
+                    sheet nội bộ thành 1 file), KHÁC hẳn "Xuất Excel" (1
+                    sheet đang xem theo bộ lọc "Chọn sheet" hiện tại). */}
                 {MULTI_SHEET_EXPORT_REPORT_IDS.includes(selectedId) && (
                   <button type="button" onClick={exportSheets} disabled={exportingSheets}>
-                    {exportingSheets
-                      ? 'Đang xuất...'
-                      : `Xuất Excel đủ ${(definition.filters || []).find(f => f.field === 'sheet')?.options?.length || ''} sheet`}
+                    {exportingSheets ? 'Đang xuất...' : 'Xuất Excel đủ 5 sheet'}
                   </button>
                 )}
                 {/* Chỉ hiện nút chuyển đổi khi báo cáo THẬT SỰ có biểu đồ để

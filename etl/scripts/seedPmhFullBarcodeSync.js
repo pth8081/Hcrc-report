@@ -1,9 +1,11 @@
 // scripts/seedPmhFullBarcodeSync.js — Tạo/CẬP NHẬT idempotent job đồng bộ
-// "PMH - Full Barcode" (bản 11.57, theo yêu cầu người dùng — báo cáo gộp
-// nhiều sheet "PMH" (Phòng Mua Hàng), sheet đầu tiên "Full Barcode") — đọc
-// VIEW `vw_PMH_FullBarcode` (xem "deploy/VIEW DSMART16 (trung tâm)/Thiết
-// lập VIEW PMH Full Barcode (DSMART16 trung tâm).sql"), ghi vào domain MỚI
-// `pmh_full_barcode`.
+// "PMH - Full Barcode" (bản 11.57, theo yêu cầu người dùng, dựa trên file
+// mẫu "Mẫu Báo Cáo PMH.xlsx" — Phòng Mua Hàng, sheet "Full Barcode"; SỬA
+// bản 11.58 — "Full Barcode" là báo cáo RIÊNG `bc-pmh-full-barcode`, xem
+// rp-server/scripts/seedPmhFullBarcodeReport.js, KHÔNG còn gộp nhiều sheet
+// trong 1 báo cáo "PMH" như bản 11.57) — đọc VIEW `vw_PMH_FullBarcode`
+// (xem "deploy/VIEW DSMART16 (trung tâm)/Thiết lập VIEW PMH Full Barcode
+// (DSMART16 trung tâm).sql"), ghi vào domain MỚI `pmh_full_barcode`.
 //
 // Bảng nguồn `dbo.BARCODE` KHÔNG có cột ngày giờ nào (giống domain
 // `mavach_mahang` đã có, xem seedMaVachSync.js) — quét lại TOÀN BỘ mỗi
@@ -132,7 +134,7 @@ async function main() {
 
   console.log('');
   console.log('✅ Xong — job đồng bộ (pmh_full_barcode) đã sẵn sàng.');
-  console.log('   Tiếp theo: node rp-server/scripts/seedPmhReport.js để đăng ký báo cáo "PMH".');
+  console.log('   Tiếp theo: node rp-server/scripts/seedPmhFullBarcodeReport.js để đăng ký báo cáo "Full Barcode".');
   process.exit(0);
 }
 

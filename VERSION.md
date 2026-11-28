@@ -52,6 +52,56 @@ nội dung/hành vi nào đã làm. Lịch sử Git (commit message) vẫn còn 
 "Bản 10.100"/"Bản 10.101" (không sửa lại lịch sử Git) — coi là ĐỒNG NHẤT
 với "11.0"/"11.1".
 
+## 11.58 — "PMH": ĐỔI LẠI từ 1 báo cáo nhiều sheet thành 3 báo cáo riêng
+
+**Theo yêu cầu người dùng** — ngay sau bản 11.57 (gộp sheet "Full
+Barcode" + 2 báo cáo "Thay đổi giá" đã có thành 1 báo cáo DUY NHẤT
+`bc-pmh`, đúng mẫu "BRG Weekly Post"), người dùng xem lại và yêu cầu ĐỔI
+KIẾN TRÚC: "Tôi nghĩ mỗi một sheet đấy là thành một báo cáo riêng nhé.
+Tên báo cáo thì giống tên mà trong ghi trong sheet ấy."
+
+**Đã bỏ hẳn** kiến trúc gộp sheet của bản 11.57 cho PMH:
+- Xoá `rp-server/lib/pmhRunner.js`, `rp-server/scripts/seedPmhReport.js`,
+  `bc-pmh.md`.
+- `lib/reportRunner.js` — bỏ nhánh dispatch `sourceType === 'pmh'`; bỏ
+  `'pmh'` khỏi `isDirectDbSourceType()` (không còn cần, xem dưới).
+- `routes/reports.js` — route `/:reportId/export-sheets` quay lại CHỈ
+  phục vụ `brgWeeklyPost` như bản 11.26 ban đầu (bỏ `MULTI_SHEET_SOURCE_TYPES`/
+  `fetchAllSheetRows` thêm ở bản 11.57).
+- `rp-user/.../ReportsPage.jsx` — `MULTI_SHEET_EXPORT_REPORT_IDS` quay lại
+  CHỈ `['bc-brg-weekly-post']`.
+
+**Thay bằng**: báo cáo ĐỘC LẬP mới `bc-pmh-full-barcode`, Title **"Full
+Barcode"** (đúng tên sheet trong file mẫu, không diễn giải lại) — SourceType
+`'directDb'` THUẦN (không cần runner riêng, đúng mẫu `bc-thay-doi-gia-*`)
+— xem `rp-server/scripts/seedPmhFullBarcodeReport.js` (thay thế
+`seedPmhReport.js`) + "bc-pmh-full-barcode.md" (thay thế "bc-pmh.md").
+Đặt ở menu **"Báo cáo Mua hàng"** (`reports-mua-hang`, đã có sẵn trong
+`rp-db/schema.sql` — bản 11.57 lỡ dùng `reports-adhoc` sai menu, sửa
+luôn).
+
+**Domain/VIEW/job đồng bộ `pmh_full_barcode` GIỮ NGUYÊN không đổi** — chỉ
+đổi báo cáo/tài liệu dùng nó, không đổi nguồn dữ liệu.
+
+**2 báo cáo "Thay đổi giá bán tức thời"/"từ thời điểm" KHÔNG đổi gì** —
+chúng đã là báo cáo ĐỘC LẬP sẵn có từ trước (bản 10.79), ĐÚNG yêu cầu
+"mỗi sheet 1 báo cáo riêng" ngay từ đầu, chỉ thôi KHÔNG còn bị bundle vào
+`bc-pmh` (đã xoá).
+
+**Vẫn giữ nguyên bản sửa lỗi THẬT ở bản 11.57** (cột "TT" sai khi xuất
+vượt 1 trang 5.000 dòng, phát hiện qua review độc lập) — fix đó áp dụng
+cho MỌI báo cáo `directDb` xuất vượt 5.000 dòng (không riêng PMH), vẫn
+còn giá trị và CẦN THIẾT cho "Full Barcode" (domain ~91.260 dòng, vượt xa
+5.000) dù kiến trúc gộp sheet đã bỏ.
+
+**Đã chạy review độc lập** (agent mới, không mang bối cảnh phiên viết
+code — theo quy trình bắt buộc từ bản 11.56) trên diff bản này — không
+phát hiện lỗi thật (xác nhận: không còn tham chiếu "chết" nào tới
+`pmhRunner`/`sourceType 'pmh'`/`bc-pmh` cũ trong code; cột formula ở
+`seedPmhFullBarcodeReport.js` khớp đúng tên cột đã khai ở
+`seedPmhFullBarcodeSync.js`; menu `reports-mua-hang` xác nhận có thật
+trong `rp-db/schema.sql`).
+
 ## 11.57 — Báo cáo mới "PMH" (Phòng Mua Hàng) — 1 báo cáo nhiều sheet, v1 3/7 sheet
 
 **Theo yêu cầu người dùng**, dựa trên file mẫu thật "Mẫu Báo Cáo

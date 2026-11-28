@@ -29,11 +29,10 @@ const { PERSISTED_DIMENSION_COLUMNS } = require('../lib/reportEngine');
 const { resolveTitleWithDate, resolveExportFileBaseName } = require('../lib/reportTitleDate');
 const { exportExcel, exportExcelWithChartSheet, exportMultiSheetExcel } = require('../lib/exportExcel');
 const { buildChartImages, buildHoaDonChartImages } = require('../lib/khachHangTuanRunner');
-const { SHEET_OPTIONS: BRG_SHEET_OPTIONS } = require('../lib/brgWeeklyPostRunner');
-const { SHEET_OPTIONS: PMH_SHEET_OPTIONS } = require('../lib/pmhRunner');
+const { SHEET_OPTIONS } = require('../lib/brgWeeklyPostRunner');
 const { exportPdf } = require('../lib/exportPdf');
 const { buildDoanhThuTongHopHcrcMonthlyWorkbook } = require('../lib/doanhThuTongHopHcrcMonthlyExport');
-const { filterColumns, filterGroups, computeSummaryCards, assignSttIfPresent } = require('../lib/reportCellFormat');
+const { filterColumns, filterGroups, computeSummaryCards } = require('../lib/reportCellFormat');
 const { getUserContext } = require('../lib/permissions');
 const { loadDiemStkMapping, buildStkIdLookup } = require('../lib/diemStkMapping');
 const { listCampaigns: listPromoCampaigns } = require('../lib/brgWeeklyPostCore');
@@ -631,76 +630,42 @@ router.post('/:reportId/export-month', async (req, res, next) => {
 
 // Bản 11.26 (theo yêu cầu người dùng — "Sao bạn không gộp vào một file
 // Excel và nhiều sheet? ... chức năng xuất file báo cáo gộp nhiều báo cáo
-// thành nhiều sheet") — chạy ĐỦ CÁC "sheet" nội bộ của 1 báo cáo rồi gộp
+// thành nhiều sheet") — CHỈ báo cáo "BRG Weekly Post" (SourceType=
+// 'brgWeeklyPost', xem lib/brgWeeklyPostRunner.js) dùng route này: chạy
+// ĐỦ CẢ 5 "sheet" nội bộ (campaignId giữ nguyên, chỉ đổi `sheet`) rồi gộp
 // thành 1 file .xlsx nhiều sheet (lib/exportExcel.js:exportMultiSheetExcel,
 // ĐANG dùng cho "Xuất Excel" ở Dashboard — tái dùng nguyên, không viết lại)
-// — KHÁC HẲN /export ở trên (chỉ xuất ĐÚNG 1 sheet đang xem theo bộ lọc
-// `sheet` hiện tại).
+// — mirror đúng cấu trúc nhiều sheet trong CÙNG 1 file của file mẫu Excel
+// gốc "BRG_Weekly_Post_T6K1_BC1.xlsx". KHÁC HẲN /export ở trên (chỉ xuất
+// ĐÚNG 1 sheet đang xem theo bộ lọc `sheet` hiện tại).
 //
-// SỬA bản 11.57 (theo yêu cầu người dùng — báo cáo gộp nhiều sheet "PMH")
-// — MỞ RỘNG route này cho CẢ sourceType 'pmh' (trước đó CHỈ 'brgWeeklyPost'
-// dùng được) — mỗi sourceType có SHEET_OPTIONS + tên file xuất riêng, tra
-// qua MULTI_SHEET_SOURCE_TYPES bên dưới.
-//
-// PMH_EXPORT_BATCH_SIZE/fetchAllSheetRows (bản 11.57) — CHỈ cho 'pmh': sheet
-// "Full Barcode" (domain pmh_full_barcode) có thể hơn 5.000 dòng (danh mục
-// TOÀN BỘ barcode, không giới hạn theo campaign như BRG) — gọi runDefinition
-// 1 lần/sheet với pageSize=5000 NHƯ BRG (dữ liệu BRG luôn bị giới hạn trong 1
-// campaign, thực tế không bao giờ vượt 5000) SẼ CẮT ÂM THẦM phần còn lại của
-// "Full Barcode", sai quy tắc "xuất Excel phải đủ data" (xem CLAUDE.md) — nên
-// PMH lặp trang (mirror đúng lib/reportRunner.js:runDefinitionForExport())
-// tới khi hết dữ liệu, có trần an toàn tránh treo server nếu bộ lọc khớp quá
-// nhiều dòng.
-const PMH_EXPORT_BATCH_SIZE = 5000;
-const PMH_EXPORT_SAFETY_CAP = 200000;
-
-async function fetchAllSheetRows(definition, filters) {
-  let page = 1;
-  let allRows = [];
-  let result;
-  for (;;) {
-    result = await runDefinition(definition, filters, { page, pageSize: PMH_EXPORT_BATCH_SIZE });
-    allRows = allRows.concat(result.rows);
-    if (result.rows.length < PMH_EXPORT_BATCH_SIZE || allRows.length >= PMH_EXPORT_SAFETY_CAP) break;
-    page += 1;
-  }
-  // SỬA bản 11.57 (LỖI THẬT phát hiện qua review độc lập, CÙNG lớp lỗi đã
-  // sửa ở lib/reportRunner.js:runDefinitionForExport()) — mỗi `result` của
-  // 1 trang ĐÃ tự đánh số cột 'stt' riêng 1..N — nối nhiều trang (sheet
-  // "Full Barcode" có thể hơn 5.000 dòng) mà không đánh số lại sẽ ra cột TT
-  // kiểu "1..5000, 1..2..3..." thay vì liên tục — đánh số LẠI 1 lần trên
-  // TOÀN BỘ allRows sau khi đã nối đủ.
-  assignSttIfPresent(allRows, result.columns);
-  return { ...result, rows: allRows };
-}
-
-const MULTI_SHEET_SOURCE_TYPES = {
-  brgWeeklyPost: { sheetOptions: BRG_SHEET_OPTIONS, fileLabel: 'BRG-Weekly-Post', fetchSheet: (definition, filters) => runDefinition(definition, filters, { page: 1, pageSize: PMH_EXPORT_BATCH_SIZE }) },
-  pmh: { sheetOptions: PMH_SHEET_OPTIONS, fileLabel: 'PMH', fetchSheet: fetchAllSheetRows }
-};
-
+// SỬA bản 11.58 (theo yêu cầu người dùng — "mỗi một sheet đấy là thành
+// một báo cáo riêng") — báo cáo "PMH" KHÔNG còn dùng route này nữa (đã bỏ
+// hẳn SourceType 'pmh'/lib/pmhRunner.js — xem VERSION.md bản 11.58); route
+// này quay lại CHỈ phục vụ 'brgWeeklyPost' như bản 11.26 ban đầu.
 router.post('/:reportId/export-sheets', async (req, res, next) => {
   try {
     const context = await requireReportAccess(req, res, req.params.reportId);
     if (!context) return;
     const definition = await loadDefinition(req.params.reportId);
-    const multiSheetConfig = definition && definition.isActive ? MULTI_SHEET_SOURCE_TYPES[definition.sourceType] : null;
-    if (!multiSheetConfig) {
+    if (!definition || !definition.isActive || definition.sourceType !== 'brgWeeklyPost') {
       return res.status(400).json({ error: 'Báo cáo này không hỗ trợ xuất gộp nhiều sheet' });
     }
-    const { sheetOptions, fileLabel, fetchSheet } = multiSheetConfig;
     const baseFilters = { ...(req.body?.filters || {}), __storeScope: context.storeScope };
 
     const sheets = [];
-    for (const opt of sheetOptions) {
+    for (const opt of SHEET_OPTIONS) {
       const filters = { ...baseFilters, sheet: opt.value };
       const { columns, rows, columnGroups, columnSuperGroups, standaloneColumnColors, displayTitle, periodLabel } =
-        await fetchSheet(definition, filters);
+        await runDefinition(definition, filters, { page: 1, pageSize: 5000 });
       // displayTitle/periodLabel (bản 11.35, theo yêu cầu người dùng —
       // "Weekly post cũng cần thể hiện thời gian... và tiêu đề tên theo
-      // chiến dịch") — mỗi hàm sheet BRG trả về qua
-      // brgWeeklyPostCore.js:buildCampaignHeader(campaign) — PMH KHÔNG có
-      // khái niệm này (undefined), tiêu đề sheet PMH = đúng opt.label.
+      // chiến dịch") — mỗi hàm sheet trả về qua
+      // brgWeeklyPostCore.js:buildCampaignHeader(campaign). Tiêu đề MỖI
+      // sheet = tên chiến dịch + tên sheet; periodLabel (khoảng ngày chiến
+      // dịch) nối thêm sau cùng. opt.label VẪN dùng riêng làm TÊN SHEET
+      // (tab ở cuối Excel, cần ngắn) — KHÔNG lẫn với tiêu đề hiện trong
+      // dòng đầu mỗi sheet.
       const sheetTitle = displayTitle
         ? `${displayTitle} — ${opt.label}${periodLabel ? ` (${periodLabel})` : ''}`
         : opt.label;
@@ -716,7 +681,7 @@ router.post('/:reportId/export-sheets', async (req, res, next) => {
       module: 'Báo cáo', actionType: 'XUAT_BAO_CAO', targetObject: req.params.reportId,
       description: `Xuất Excel gộp ${sheets.length} sheet báo cáo "${definition.title}"`
     });
-    res.attachment(`${fileLabel}${campaignLabel}.xlsx`);
+    res.attachment(`BRG-Weekly-Post${campaignLabel}.xlsx`);
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     return res.send(buffer);
   } catch (err) { next(err); }

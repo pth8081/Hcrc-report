@@ -1815,4 +1815,4 @@ cập nhật nếu chỉ sửa báo cáo đã có (file hướng dẫn riêng t�
 | `bc-doanhthu-mtd-all` | Theo dõi doanh thu MTD theo kế hoạch (nhóm "Báo cáo vận hành", bản 11.33 — GỘP 3 ReportId Toàn chuỗi/LFL/NSO thành 1 ở bản 11.52, hiện cả 3 góc nhìn trong 1 bảng) | `bc-doanhthu-mtd-ke-hoach.md` |
 | `bc-phu-hang-core-chi-tiet` | Phủ hàng Core - Chi tiết (nhóm "Báo cáo vận hành", bản 11.34) | `bc-phu-hang-core.md` |
 | `bc-phu-hang-core-recap` | Phủ hàng Core - Recap ST | `bc-phu-hang-core.md` (dùng chung runner/domain với báo cáo trên) |
-| `bc-pmh` | PMH (1 báo cáo, bộ lọc "Chọn sheet" chuyển giữa 3 phần — bản 11.57, v1 chỉ 3/7 sheet của file mẫu gốc, 4 sheet còn lại đang chờ DBA xác nhận nguồn) | `bc-pmh.md` |
+| `bc-pmh-full-barcode` | Full Barcode (Phòng Mua Hàng, bản 11.57, SỬA bản 11.58 — tách thành báo cáo riêng, không còn gộp sheet "PMH"; 2 cột Thuế Nhập/Trạng Thái đang chờ DBA, 6 sheet khác của file mẫu gốc chưa làm) | `bc-pmh-full-barcode.md` |
